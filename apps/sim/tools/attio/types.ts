@@ -1,7 +1,7 @@
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /** Raw Attio note tag shape (workspace-member or record variant) */
-export interface AttioNoteTag {
+interface AttioNoteTag {
   type?: string
   workspace_member_id?: string
   object?: string

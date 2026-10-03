@@ -1,7 +1,7 @@
 import type { ToolResponse } from '@/tools/types'
 
 /** Credentials every Dynatrace Environment API v2 call needs. */
-export interface DynatraceBaseParams {
+interface DynatraceBaseParams {
   environmentUrl: string
   apiToken: string
 }
@@ -110,7 +110,7 @@ export interface DynatraceEvent {
 }
 
 /** One series of a metric query result. */
-export interface DynatraceMetricSeries {
+interface DynatraceMetricSeries {
   dimensions: string[]
   dimensionMap: Record<string, string>
   timestamps: number[]

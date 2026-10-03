@@ -19,12 +19,6 @@ export interface CbInsightsOrgListParams extends CbInsightsAuthParams {
   orgIds: number[] | string
 }
 
-/** Every paged list endpoint carries the same opaque continuation token. */
-export interface CbInsightsPagedParams {
-  limit?: number | string
-  nextPageToken?: string
-}
-
 /** A response page shared by the endpoints that report a total. */
 export interface CbInsightsPageInfo {
   nextPageToken: string | null

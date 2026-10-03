@@ -1045,7 +1045,7 @@ export interface JsmReopenFormResponse extends ToolResponse {
  */
 
 /** Base params shared by every JSM Assets tool */
-export interface JsmAssetsBaseParams {
+interface JsmAssetsBaseParams {
   accessToken: string
   domain: string
   /** Jira Cloud ID (resolved server-side from the domain when omitted) */
@@ -1055,7 +1055,7 @@ export interface JsmAssetsBaseParams {
 }
 
 /** A single attribute value entry on an Assets object */
-export interface AssetObjectAttributeValue {
+interface AssetObjectAttributeValue {
   value: string | null
   displayValue: string | null
   searchValue?: string | null
@@ -1064,7 +1064,7 @@ export interface AssetObjectAttributeValue {
 }
 
 /** A resolved attribute on an Assets object (read shape) */
-export interface AssetObjectAttribute {
+interface AssetObjectAttribute {
   id: string
   objectTypeAttributeId: string
   objectAttributeValues: AssetObjectAttributeValue[]
@@ -1085,13 +1085,13 @@ export interface AssetObject {
 }
 
 /** Attribute payload for creating/updating an Assets object */
-export interface AssetObjectAttributeInput {
+interface AssetObjectAttributeInput {
   objectTypeAttributeId: string
   objectAttributeValues: Array<{ value: unknown }>
 }
 
 /** Raw attribute value as returned by the Assets API (before normalization) */
-export interface RawAssetObjectAttributeValue {
+interface RawAssetObjectAttributeValue {
   value?: string | null
   displayValue?: string | null
   searchValue?: string | null
@@ -1100,7 +1100,7 @@ export interface RawAssetObjectAttributeValue {
 }
 
 /** Raw attribute as returned by the Assets API (before normalization) */
-export interface RawAssetObjectAttribute {
+interface RawAssetObjectAttribute {
   id?: string
   objectTypeAttributeId?: string
   objectAttributeValues?: RawAssetObjectAttributeValue[]

@@ -1,10 +1,10 @@
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
-export interface ProspeoBaseParams {
+interface ProspeoBaseParams {
   apiKey: string
 }
 
-export interface ProspeoPersonData {
+interface ProspeoPersonData {
   first_name?: string
   last_name?: string
   full_name?: string
@@ -16,14 +16,14 @@ export interface ProspeoPersonData {
   person_id?: string
 }
 
-export interface ProspeoCompanyData {
+interface ProspeoCompanyData {
   company_name?: string
   company_website?: string
   company_linkedin_url?: string
   company_id?: string
 }
 
-export interface ProspeoPaginationOutput {
+interface ProspeoPaginationOutput {
   current_page: number
   per_page: number
   total_page: number

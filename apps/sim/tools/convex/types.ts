@@ -6,7 +6,7 @@ import type { ToolResponse } from '@/tools/types'
  * @see https://docs.convex.dev/http-api/
  */
 
-export interface ConvexBaseParams {
+interface ConvexBaseParams {
   deploymentUrl: string
   deployKey: string
 }

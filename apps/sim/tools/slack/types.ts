@@ -1476,7 +1476,7 @@ export interface SlackGetThreadRepliesResponse extends ToolResponse {
   }
 }
 
-export interface SlackScheduledMessage {
+interface SlackScheduledMessage {
   id: string
   channel_id: string
   post_at: number

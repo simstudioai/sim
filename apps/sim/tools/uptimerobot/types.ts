@@ -38,19 +38,19 @@ export async function uptimeRobotError(response: Response): Promise<string> {
 
 // region Shared object shapes
 
-export interface UptimeRobotTag {
+interface UptimeRobotTag {
   id: number
   name: string
   color: string | null
 }
 
-export interface UptimeRobotAssignedAlertContact {
+interface UptimeRobotAssignedAlertContact {
   alertContactId: number
   threshold: number
   recurrence: number
 }
 
-export interface UptimeRobotLastIncident {
+interface UptimeRobotLastIncident {
   id: string
   status: string | null
   cause: number | null
@@ -147,7 +147,7 @@ export interface UptimeRobotIncidentSummary {
   includeInReports: boolean | null
 }
 
-export interface UptimeRobotIncidentRootCause {
+interface UptimeRobotIncidentRootCause {
   url: string | null
   httpResponseCode: number | null
   responseDownloadUrl: string | null

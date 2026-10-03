@@ -34,7 +34,7 @@ export interface OtterSharedChannel {
   permission: string | null
 }
 
-export interface OtterProcessStatus {
+interface OtterProcessStatus {
   abstractSummary: string | null
   actionItem: string | null
   outline: string | null
@@ -54,7 +54,7 @@ export interface OtterConversation {
   confJoinUrl: string | null
 }
 
-export interface OtterActionItemStatus {
+interface OtterActionItemStatus {
   completed: boolean | null
   createdAt: string | null
   lastModifiedAt: string | null

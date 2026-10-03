@@ -87,36 +87,12 @@ export interface GoogleCalendarRespondParams extends BaseGoogleCalendarParams {
   sendUpdates?: 'all' | 'externalOnly' | 'none'
 }
 
-interface GoogleCalendarMoveParams extends BaseGoogleCalendarParams {
-  eventId: string
-  destinationCalendarId: string
-  sendUpdates?: 'all' | 'externalOnly' | 'none'
-}
-
-interface GoogleCalendarInstancesParams extends BaseGoogleCalendarParams {
-  eventId: string
-  timeMin?: string
-  timeMax?: string
-  maxResults?: number
-  pageToken?: string
-  showDeleted?: boolean
-}
-
 export interface GoogleCalendarFreeBusyParams {
   accessToken: string
   calendarIds: string
   timeMin: string
   timeMax: string
   timeZone?: string
-}
-
-interface GoogleCalendarListCalendarsParams {
-  accessToken: string
-  minAccessRole?: 'freeBusyReader' | 'reader' | 'writer' | 'owner'
-  maxResults?: number
-  pageToken?: string
-  showDeleted?: boolean
-  showHidden?: boolean
 }
 
 export interface GoogleCalendarCreateCalendarParams {
@@ -152,24 +128,6 @@ export interface GoogleCalendarUnshareCalendarParams {
   calendarId?: string
   ruleId: string
 }
-
-export type GoogleCalendarToolParams =
-  | GoogleCalendarCreateParams
-  | GoogleCalendarListParams
-  | GoogleCalendarGetParams
-  | GoogleCalendarUpdateParams
-  | GoogleCalendarDeleteParams
-  | GoogleCalendarQuickAddParams
-  | GoogleCalendarInviteParams
-  | GoogleCalendarRespondParams
-  | GoogleCalendarMoveParams
-  | GoogleCalendarInstancesParams
-  | GoogleCalendarFreeBusyParams
-  | GoogleCalendarListCalendarsParams
-  | GoogleCalendarCreateCalendarParams
-  | GoogleCalendarShareCalendarParams
-  | GoogleCalendarListAclParams
-  | GoogleCalendarUnshareCalendarParams
 
 interface EventMetadata {
   id: string

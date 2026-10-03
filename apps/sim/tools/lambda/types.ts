@@ -204,7 +204,7 @@ import type { ToolResponse } from '@/tools/types'
  * Credential params every Lambda tool declares. The tool's `operation.input` renames
  * these onto the `region`/`accessKeyId`/`secretAccessKey` fields the contract expects.
  */
-export interface LambdaConnectionParams {
+interface LambdaConnectionParams {
   awsRegion: string
   awsAccessKeyId: string
   awsSecretAccessKey: string

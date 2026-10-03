@@ -201,7 +201,7 @@ export interface RedditComment {
   replies: RedditComment[]
 }
 
-export interface RedditMessage {
+interface RedditMessage {
   id: string
   name: string
   author: string

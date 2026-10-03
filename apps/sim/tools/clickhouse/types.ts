@@ -49,7 +49,7 @@ export const CLICKHOUSE_TABLE_OUTPUT_PROPERTIES = {
   },
 } as const satisfies Record<string, OutputProperty>
 
-export interface ClickHouseConnectionConfig {
+interface ClickHouseConnectionConfig {
   host: string
   port: number
   database: string

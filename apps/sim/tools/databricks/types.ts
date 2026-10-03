@@ -185,7 +185,7 @@ export interface DatabricksGetRunOutputResponse extends ToolResponse {
 }
 
 /** Shared cluster shape returned by list_clusters and get_cluster */
-export interface DatabricksCluster {
+interface DatabricksCluster {
   clusterId: string
   clusterName: string
   state: string

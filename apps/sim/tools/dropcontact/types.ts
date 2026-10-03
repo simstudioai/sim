@@ -1,6 +1,6 @@
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
-export interface DropcontactBaseParams {
+interface DropcontactBaseParams {
   apiKey: string
 }
 

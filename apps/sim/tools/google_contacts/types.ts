@@ -58,14 +58,6 @@ export interface GoogleContactsSearchParams extends BaseGoogleContactsParams {
   pageSize?: number
 }
 
-export type GoogleContactsToolParams =
-  | GoogleContactsCreateParams
-  | GoogleContactsGetParams
-  | GoogleContactsListParams
-  | GoogleContactsUpdateParams
-  | GoogleContactsDeleteParams
-  | GoogleContactsSearchParams
-
 interface ContactMetadata {
   resourceName: string
   etag: string

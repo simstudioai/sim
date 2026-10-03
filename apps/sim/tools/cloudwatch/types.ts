@@ -164,7 +164,7 @@ export interface CloudWatchPutMetricDataResponse extends ToolResponse {
   }
 }
 
-export type CloudWatchMuteDurationUnit = 'minutes' | 'hours' | 'days'
+type CloudWatchMuteDurationUnit = 'minutes' | 'hours' | 'days'
 
 export interface CloudWatchMuteAlarmParams extends CloudWatchConnectionConfig {
   muteRuleName: string
@@ -196,14 +196,14 @@ export interface CloudWatchUnmuteAlarmResponse extends ToolResponse {
   }
 }
 
-export type CloudWatchAlarmHistoryItemType =
+type CloudWatchAlarmHistoryItemType =
   | 'ConfigurationUpdate'
   | 'StateUpdate'
   | 'Action'
   | 'AlarmContributorStateUpdate'
   | 'AlarmContributorAction'
 
-export type CloudWatchAlarmHistoryScanBy = 'TimestampDescending' | 'TimestampAscending'
+type CloudWatchAlarmHistoryScanBy = 'TimestampDescending' | 'TimestampAscending'
 
 export interface CloudWatchDescribeAlarmHistoryParams extends CloudWatchConnectionConfig {
   alarmName?: string

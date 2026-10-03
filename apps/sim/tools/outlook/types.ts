@@ -597,7 +597,7 @@ export const OUTLOOK_EVENT_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /** Cleaned dateTimeTimeZone value returned by our tools. */
-export interface CleanedOutlookEventDateTime {
+interface CleanedOutlookEventDateTime {
   dateTime?: string
   timeZone?: string
 }
@@ -637,7 +637,7 @@ export interface GraphDateTimeTimeZone {
 }
 
 /** Raw Microsoft Graph emailAddress value. */
-export interface GraphEmailAddress {
+interface GraphEmailAddress {
   name?: string
   address?: string
 }

@@ -1,8 +1,8 @@
 import type { ToolResponse } from '@/tools/types'
 
-export type InstantlyScalar = string | number | boolean | null
+type InstantlyScalar = string | number | boolean | null
 
-export interface InstantlyBaseParams {
+interface InstantlyBaseParams {
   apiKey: string
 }
 

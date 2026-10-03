@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface IdentityCenterConnectionConfig {
+interface IdentityCenterConnectionConfig {
   region: string
   accessKeyId: string
   secretAccessKey: string

@@ -6,7 +6,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
  * `options.encrypt` / `options.trustServerCertificate` booleans.
  * @see https://github.com/tediousjs/node-mssql#tedious
  */
-export interface MSSQLConnectionConfig {
+interface MSSQLConnectionConfig {
   host: string
   port: number
   database: string

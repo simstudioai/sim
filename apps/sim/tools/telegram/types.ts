@@ -198,7 +198,7 @@ export interface TelegramChatFullInfo {
   linked_chat_id?: number
 }
 
-export interface TelegramUser {
+interface TelegramUser {
   id: number
   is_bot: boolean
   first_name?: string

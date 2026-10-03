@@ -573,7 +573,7 @@ export interface ClerkDeleteOrganizationResponse extends ToolResponse {
  * `public_user_data` mirrors the OpenAPI spec (richer than the @clerk/backend SDK's
  * resource class, which omits `username`/`banned`/the deprecated `profile_image_url`).
  */
-export interface ClerkOrganizationMembershipPublicUserData {
+interface ClerkOrganizationMembershipPublicUserData {
   user_id: string
   first_name: string | null
   last_name: string | null
@@ -668,7 +668,7 @@ export interface ClerkRemoveOrganizationMemberResponse extends ToolResponse {
 /**
  * Clerk Organization Invitation object.
  */
-export interface ClerkOrganizationInvitationPublicUserData {
+interface ClerkOrganizationInvitationPublicUserData {
   user_id: string
   first_name: string | null
   last_name: string | null

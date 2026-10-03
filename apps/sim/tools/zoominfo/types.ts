@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface ZoomInfoBaseParams {
+interface ZoomInfoBaseParams {
   clientId: string
   clientSecret: string
 }

@@ -1,24 +1,6 @@
 import type { UserFile } from '@/executor/types'
 import type { ToolFileData, ToolResponse } from '@/tools/types'
 
-export interface GraphDriveItem {
-  id: string
-  webUrl?: string
-  webDavUrl?: string
-  eTag?: string
-  name?: string
-  size?: number
-}
-
-export interface GraphChatMessage {
-  id?: string
-  chatId?: string
-  channelIdentity?: { teamId?: string; channelId?: string }
-  body?: { content?: string }
-  createdDateTime?: string
-  webUrl?: string
-}
-
 export interface MicrosoftTeamsAttachment {
   id: string
   contentType: string

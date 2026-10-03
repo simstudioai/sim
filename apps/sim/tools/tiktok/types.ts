@@ -4,7 +4,7 @@ import type { OutputProperty, ToolFileData, ToolResponse } from '@/tools/types'
 /**
  * Base params that include OAuth access token
  */
-export interface TikTokBaseParams {
+interface TikTokBaseParams {
   accessToken: string
 }
 
