@@ -59,7 +59,7 @@ import { chipActiveSurfaceClass, chipHoverSurfaceClass } from '../chip/chip-chro
 import { InsideModalContext } from '../modal/modal'
 import { TOOLTIP_MAX_WIDTH_PX, TOOLTIP_SURFACE_CLASS } from '../tooltip/tooltip-styles'
 
-type PopoverSize = 'sm' | 'md'
+type PopoverSize = 'sm' | 'md' | 'compact'
 type PopoverColorScheme = 'default' | 'inverted'
 
 /**
@@ -81,6 +81,11 @@ const STYLES = {
       item: 'h-[30px] text-sm',
       icon: 'size-[14px]',
       section: 'px-1.5 py-1 text-xs',
+    },
+    compact: {
+      item: 'h-7 gap-1.5 px-1.5 py-0 text-xs',
+      icon: 'size-3',
+      section: 'px-1.5 py-0.5 text-xs',
     },
   } satisfies Record<PopoverSize, { item: string; icon: string; section: string }>,
 
@@ -189,6 +194,7 @@ export interface PopoverProps extends PopoverPrimitive.PopoverProps {
    * Size variant of the popover
    * - sm: 11px text, compact spacing (for logs, notifications, context menus)
    * - md: 13px text, default spacing
+   * - compact: 11px text, 28px rows for location and views menus
    * @default 'md'
    */
   size?: PopoverSize
@@ -401,7 +407,12 @@ interface PopoverContentProps
    * Applies a semantic platform surface treatment.
    * @default 'default'
    */
-  appearance?: 'default' | 'tooltip'
+  appearance?: 'default' | 'tooltip' | 'menu'
+  /**
+   * Removes the content's inset padding for embedded calendars and panels.
+   * @default 'default'
+   */
+  padding?: 'default' | 'none'
   /**
    * Flip to avoid viewport collisions
    * @default true
@@ -443,6 +454,7 @@ const PopoverContent = React.forwardRef<
       collisionPadding = 8,
       border = false,
       appearance = 'default',
+      padding = 'default',
       avoidCollisions = true,
       showArrow = false,
       arrowClassName,
@@ -614,6 +626,8 @@ const PopoverContent = React.forwardRef<
           STYLES.colorScheme[colorScheme].content,
           STYLES.content,
           appearance === 'tooltip' && TOOLTIP_SURFACE_CLASS,
+          appearance === 'menu' && 'bg-[var(--bg)] text-[var(--text-body)] shadow-xs',
+          padding === 'none' && 'p-0',
           hasUserWidthConstraint &&
             '[&_.flex-1:not([data-popover-scroll])]:truncate [&_[data-popover-section]]:truncate',
           border && 'border border-[var(--border-1)]',
@@ -842,6 +856,7 @@ const PopoverSection = React.forwardRef<HTMLDivElement, PopoverSectionProps>(
           'mt-1.5 min-w-0 first:mt-0 first:pt-0',
           STYLES.colorScheme[colorScheme].section,
           STYLES.size[size].section,
+          size === 'compact' && colorScheme === 'default' && 'text-[var(--text-muted)]',
           className
         )}
         data-popover-section=''

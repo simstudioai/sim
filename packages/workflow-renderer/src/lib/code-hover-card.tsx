@@ -171,7 +171,8 @@ export function CodeHoverCard({ preview, className, children }: CodeHoverCardPro
         onFocus={clearCloseTimer}
         onBlur={() => scheduleClose(CONTENT_EXIT_GRACE_MS)}
         onKeyDown={handleContentKeyDown}
-        className='nodrag nowheel overflow-hidden overscroll-contain p-0'
+        padding='none'
+        className='nodrag nowheel overflow-hidden overscroll-contain'
       >
         <Code.Viewer
           code={preview.code}

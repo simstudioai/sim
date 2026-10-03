@@ -57,7 +57,8 @@ export function MessageSources({ sources, onViewAll }: MessageSourcesProps) {
         align='start'
         side='top'
         sideOffset={4}
-        className={cn('w-[420px] p-0', inter.className)}
+        padding='none'
+        className={cn('w-[420px]', inter.className)}
       >
         <div
           ref={setScrollElement}
