@@ -30,6 +30,7 @@ vi.mock('@/lib/internal/windchill/client', () => ({
   windchillMutationRequest: mockWindchillMutationRequest,
 }))
 
+import type { DeleteSubscriptionContext, SubscriptionContext } from '@/lib/webhooks/providers/types'
 import { windchillHandler } from '@/lib/webhooks/providers/windchill'
 import { WindchillBlock } from '@/blocks/blocks/windchill'
 import { getTrigger } from '@/triggers'
@@ -69,6 +70,20 @@ function deleteContext(providerConfig: Record<string, unknown>, strict = false) 
   }
 }
 
+async function createSubscription(ctx: SubscriptionContext) {
+  if (!windchillHandler.createSubscription) {
+    throw new Error('Windchill provider must support subscription creation')
+  }
+  return windchillHandler.createSubscription(ctx)
+}
+
+async function deleteSubscription(ctx: DeleteSubscriptionContext) {
+  if (!windchillHandler.deleteSubscription) {
+    throw new Error('Windchill provider must support subscription cleanup')
+  }
+  return windchillHandler.deleteSubscription(ctx)
+}
+
 describe('Windchill webhook provider', () => {
   beforeEach(() => {
     setEnv({ NEXT_PUBLIC_APP_URL: 'https://app.test' })
@@ -89,7 +104,7 @@ describe('Windchill webhook provider', () => {
   })
 
   it('creates an object subscription for the mapped attributes event', async () => {
-    const result = await windchillHandler.createSubscription!(subscriptionContext(BASE_CONFIG))
+    const result = await createSubscription(subscriptionContext(BASE_CONFIG))
 
     expect(mockCreateWindchillSession).toHaveBeenCalledWith({
       baseUrl: BASE_CONFIG.triggerBaseUrl,
@@ -120,7 +135,7 @@ describe('Windchill webhook provider', () => {
   })
 
   it('creates a folder subscription for a custom installed event', async () => {
-    await windchillHandler.createSubscription!(
+    await createSubscription(
       subscriptionContext({
         ...BASE_CONFIG,
         triggerId: 'windchill_custom_document_event',
@@ -146,7 +161,7 @@ describe('Windchill webhook provider', () => {
   })
 
   it('creates a container subscription for the mapped identity event', async () => {
-    await windchillHandler.createSubscription!(
+    await createSubscription(
       subscriptionContext({
         ...BASE_CONFIG,
         triggerId: 'windchill_document_identity_changed',
@@ -168,7 +183,7 @@ describe('Windchill webhook provider', () => {
   })
 
   it('includes the documented lifecycle state object', async () => {
-    await windchillHandler.createSubscription!(
+    await createSubscription(
       subscriptionContext({
         ...BASE_CONFIG,
         triggerId: 'windchill_document_lifecycle_state_changed',
@@ -188,7 +203,7 @@ describe('Windchill webhook provider', () => {
 
   it('rejects unsafe custom event identifiers before making a Windchill request', async () => {
     await expect(
-      windchillHandler.createSubscription!(
+      createSubscription(
         subscriptionContext({
           ...BASE_CONFIG,
           triggerId: 'windchill_custom_document_event',
@@ -201,28 +216,24 @@ describe('Windchill webhook provider', () => {
 
   it('requires trigger credentials and scope identifiers', async () => {
     await expect(
-      windchillHandler.createSubscription!(
-        subscriptionContext({ ...BASE_CONFIG, triggerPassword: '' })
-      )
+      createSubscription(subscriptionContext({ ...BASE_CONFIG, triggerPassword: '' }))
     ).rejects.toThrow('Windchill password is required')
 
     await expect(
-      windchillHandler.createSubscription!(
-        subscriptionContext({ ...BASE_CONFIG, triggerDocumentOid: '' })
-      )
+      createSubscription(subscriptionContext({ ...BASE_CONFIG, triggerDocumentOid: '' }))
     ).rejects.toThrow('Windchill document OID is required')
   })
 
   it('fails deployment when Windchill returns no subscription ID', async () => {
     mockWindchillMutationRequest.mockResolvedValue({ Name: 'Created without an ID' })
 
-    await expect(
-      windchillHandler.createSubscription!(subscriptionContext(BASE_CONFIG))
-    ).rejects.toThrow('no subscription ID was returned')
+    await expect(createSubscription(subscriptionContext(BASE_CONFIG))).rejects.toThrow(
+      'no subscription ID was returned'
+    )
   })
 
   it('deletes the external subscription by its Windchill OID', async () => {
-    await windchillHandler.deleteSubscription!(
+    await deleteSubscription(
       deleteContext({
         ...BASE_CONFIG,
         externalId: 'OR:wt.notify.NotificationSubscription:5012541',
@@ -241,7 +252,7 @@ describe('Windchill webhook provider', () => {
     mockWindchillMutationRequest.mockRejectedValue(new MockWindchillProviderError('Not found', 404))
 
     await expect(
-      windchillHandler.deleteSubscription!(
+      deleteSubscription(
         deleteContext({
           ...BASE_CONFIG,
           externalId: 'OR:wt.notify.NotificationSubscription:5012541',
@@ -258,12 +269,8 @@ describe('Windchill webhook provider', () => {
       externalId: 'OR:wt.notify.NotificationSubscription:5012541',
     }
 
-    await expect(
-      windchillHandler.deleteSubscription!(deleteContext(config))
-    ).resolves.toBeUndefined()
-    await expect(windchillHandler.deleteSubscription!(deleteContext(config, true))).rejects.toBe(
-      error
-    )
+    await expect(deleteSubscription(deleteContext(config))).resolves.toBeUndefined()
+    await expect(deleteSubscription(deleteContext(config, true))).rejects.toBe(error)
   })
 })
 
