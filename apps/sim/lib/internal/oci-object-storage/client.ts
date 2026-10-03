@@ -9,7 +9,7 @@ import { OciObjectStorageOperationError } from '@/lib/internal/oci-object-storag
 export const OCI_LIST_BUCKETS_MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 export const OCI_LIST_BUCKETS_MAX_RESULTS = 10_000
 
-export const OCI_OBJECT_STORAGE_COMMERCIAL_REGIONS = [
+const OCI_OBJECT_STORAGE_COMMERCIAL_REGIONS = [
   'af-casablanca-1',
   'af-johannesburg-1',
   'ap-batam-1',

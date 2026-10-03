@@ -3,12 +3,11 @@
  */
 import { ListBucketsCommand, S3Client } from '@aws-sdk/client-s3'
 import { credential } from '@sim/db/schema'
-import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ decryptSecret: vi.fn() }))
-
-vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mocks.decryptSecret }))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import {
   getOciObjectStorageServiceAccountSecret,
@@ -34,10 +33,8 @@ const storedBlob = JSON.stringify({
 
 describe('OCI Object Storage service-account credential', () => {
   beforeEach(() => {
-    vi.restoreAllMocks()
-    vi.clearAllMocks()
     resetDbChainMock()
-    mocks.decryptSecret.mockResolvedValue({ decrypted: storedBlob })
+    encryptionMockFns.mockDecryptSecret.mockReset().mockResolvedValue({ decrypted: storedBlob })
   })
 
   it('validates the connection with ListBuckets and derives the owner identity', async () => {
@@ -102,7 +99,7 @@ describe('OCI Object Storage service-account credential', () => {
       region: 'us-ashburn-1',
       ownerId: 'ocid1.user.oc1..owner',
     })
-    expect(mocks.decryptSecret).toHaveBeenCalledWith('ciphertext')
+    expect(encryptionMockFns.mockDecryptSecret).toHaveBeenCalledWith('ciphertext')
   })
 
   it('rejects a wrong provider before decrypting and rejects a wrong blob discriminator', async () => {
@@ -116,7 +113,7 @@ describe('OCI Object Storage service-account credential', () => {
     await expect(getOciObjectStorageServiceAccountSecret('credential-1')).rejects.toThrow(
       'OCI Object Storage credential not found'
     )
-    expect(mocks.decryptSecret).not.toHaveBeenCalled()
+    expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
 
     resetDbChainMock()
     queueTableRows(credential, [
@@ -127,7 +124,7 @@ describe('OCI Object Storage service-account credential', () => {
         encryptedServiceAccountKey: 'ciphertext',
       },
     ])
-    mocks.decryptSecret.mockResolvedValue({
+    encryptionMockFns.mockDecryptSecret.mockResolvedValue({
       decrypted: storedBlob.replace(
         OCI_OBJECT_STORAGE_SERVICE_ACCOUNT_SECRET_TYPE,
         'atlassian_service_account'

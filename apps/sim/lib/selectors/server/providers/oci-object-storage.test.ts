@@ -71,7 +71,6 @@ async function prepare(input: ExecuteServerSelectorArgs) {
 
 describe('OCI Object Storage selectors', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getSecret.mockResolvedValue({
       accessKeyId: 'access-key-canary',
       secretAccessKey: 'secret-key-canary',

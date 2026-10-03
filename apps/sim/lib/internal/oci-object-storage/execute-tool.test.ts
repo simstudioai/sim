@@ -1,7 +1,8 @@
 /**
  * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 const mocks = vi.hoisted(() => ({
@@ -11,13 +12,7 @@ const mocks = vi.hoisted(() => ({
   downloadObject: vi.fn(),
   headObject: vi.fn(),
   deleteObject: vi.fn(),
-  logger: {
-    warn: vi.fn(),
-    error: vi.fn(),
-  },
 }))
-
-vi.mock('@sim/logger', () => ({ createLogger: () => mocks.logger }))
 
 vi.mock('@/lib/internal/oci-object-storage/operations', () => ({
   executeOciObjectStorageListBuckets: mocks.listBuckets,
@@ -37,6 +32,8 @@ import { ociObjectStorageListBucketsTool } from '@/tools/oci_object_storage/list
 import { ociObjectStorageListObjectsTool } from '@/tools/oci_object_storage/list_objects'
 import { ociObjectStorageUploadObjectTool } from '@/tools/oci_object_storage/upload_object'
 
+const logger = getMockLogger('OciObjectStorageToolExecution')
+
 function request(toolId: string, input: Record<string, unknown>) {
   return {
     toolId,
@@ -47,8 +44,6 @@ function request(toolId: string, input: Record<string, unknown>) {
 }
 
 describe('OCI Object Storage tool execution boundary', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   it.each([
     [ociObjectStorageListBucketsTool, mocks.listBuckets],
     [ociObjectStorageListObjectsTool, mocks.listObjects],
@@ -58,6 +53,8 @@ describe('OCI Object Storage tool execution boundary', () => {
     [ociObjectStorageDeleteObjectTool, mocks.deleteObject],
   ] as const)('projects native workflow inputs for $0.id', async (tool, execute) => {
     execute.mockResolvedValue({ success: true, output: {} })
+    const mapParams = OciObjectStorageBlock.tools.config?.params
+    if (!mapParams) throw new Error('Expected OCI Object Storage block parameter mapping')
     for (const blank of [null, '', undefined]) {
       const raw = {
         operation: tool.id,
@@ -79,7 +76,7 @@ describe('OCI Object Storage tool execution boundary', () => {
         startAfter: blank,
         continuationToken: blank,
       }
-      const params = { ...raw, ...OciObjectStorageBlock.tools.config!.params!(raw) }
+      const params = { ...raw, ...mapParams(raw) }
       const response = await executeOciObjectStorageTool(
         request(tool.id, tool.operation.input(params))
       )
@@ -129,11 +126,11 @@ describe('OCI Object Storage tool execution boundary', () => {
       expect(body.error).toContain(text)
       expect(JSON.stringify(body)).not.toContain('secret-key-canary')
       if (status >= 500) {
-        expect(mocks.logger.error).toHaveBeenCalledOnce()
-        expect(mocks.logger.warn).not.toHaveBeenCalled()
+        expect(logger.error).toHaveBeenCalledOnce()
+        expect(logger.warn).not.toHaveBeenCalled()
       } else {
-        expect(mocks.logger.warn).toHaveBeenCalledOnce()
-        expect(mocks.logger.error).not.toHaveBeenCalled()
+        expect(logger.warn).toHaveBeenCalledOnce()
+        expect(logger.error).not.toHaveBeenCalled()
       }
     }
   )
@@ -156,8 +153,8 @@ describe('OCI Object Storage tool execution boundary', () => {
         success: false,
         error: 'Oracle Object Storage request failed',
       })
-      expect(mocks.logger.error).toHaveBeenCalledOnce()
-      expect(mocks.logger.warn).not.toHaveBeenCalled()
+      expect(logger.error).toHaveBeenCalledOnce()
+      expect(logger.warn).not.toHaveBeenCalled()
     }
   )
 

@@ -2,8 +2,8 @@ import { z } from 'zod'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 
-export const OCI_BUCKET_NAME_MAX_LENGTH = 256
-export const OCI_OBJECT_NAME_MAX_BYTES = 1_024
+const OCI_BUCKET_NAME_MAX_LENGTH = 256
+const OCI_OBJECT_NAME_MAX_BYTES = 1_024
 export const OCI_CONTINUATION_TOKEN_MAX_LENGTH = 1_024
 
 const OCI_BUCKET_NAME_PATTERN = /^[A-Za-z0-9._-]+$/

@@ -10,15 +10,21 @@ import {
   ListObjectsV2Command,
   PutObjectCommand,
 } from '@aws-sdk/client-s3'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 const mocks = vi.hoisted(() => ({
   send: vi.fn(),
   getSecret: vi.fn(),
-  assertToolFileAccess: vi.fn(),
-  processSingleFile: vi.fn(),
-  downloadServableFile: vi.fn(),
   attempts: vi.fn(),
 }))
 
@@ -38,15 +44,9 @@ vi.mock('@/lib/internal/oci-object-storage/client', () => ({
   sendOciListBuckets: (client: { send: typeof mocks.send }, signal?: AbortSignal) =>
     client.send(new ListBucketsCommand({}), { abortSignal: signal }),
 }))
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mocks.assertToolFileAccess,
-}))
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  processSingleFileToUserFile: mocks.processSingleFile,
-}))
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: mocks.downloadServableFile,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
 import {
   executeOciObjectStorageDeleteObject,
@@ -57,20 +57,25 @@ import {
   executeOciObjectStorageUploadObject,
 } from '@/lib/internal/oci-object-storage/operations'
 
+const assertToolFileAccess = filesAuthorizationMockFns.mockAssertToolFileAccess
+const processSingleFile = fileUtilsMockFns.mockProcessSingleFileToUserFile
+const downloadServableFile = fileUtilsServerMockFns.mockDownloadServableFileFromStorage
+
 const credential = { credentialId: 'credential-1' }
 const object = { ...credential, bucketName: 'bucket-name', objectKey: 'folder/report.txt' }
 const context = { userId: 'user-1', requestId: 'request-1' }
 
 describe('OCI Object Storage operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    assertToolFileAccess.mockReset()
+    processSingleFile.mockReset()
+    downloadServableFile.mockReset()
     mocks.getSecret.mockResolvedValue({
       accessKeyId: 'access',
       secretAccessKey: 'secret',
       namespace: 'namespace1',
       region: 'us-ashburn-1',
     })
-    mocks.assertToolFileAccess.mockResolvedValue(null)
   })
 
   it('maps empty and populated bucket listings with owner identity', async () => {
@@ -172,8 +177,8 @@ describe('OCI Object Storage operations', () => {
 
   it('authorizes a referenced file before reading and uploads exact-limit bytes', async () => {
     const file = { name: 'report.txt', key: 'workspace/file-1', size: 5, type: 'text/plain' }
-    mocks.processSingleFile.mockReturnValue(file)
-    mocks.downloadServableFile.mockResolvedValue({
+    processSingleFile.mockReturnValue(file)
+    downloadServableFile.mockResolvedValue({
       buffer: Buffer.from('12345'),
       contentType: 'text/plain',
     })
@@ -184,16 +189,16 @@ describe('OCI Object Storage operations', () => {
       context
     )
 
-    expect(mocks.assertToolFileAccess).toHaveBeenCalledWith(
+    expect(assertToolFileAccess).toHaveBeenCalledWith(
       'workspace/file-1',
       'user-1',
       'request-1',
       expect.anything()
     )
-    expect(mocks.assertToolFileAccess.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.downloadServableFile.mock.invocationCallOrder[0]
+    expect(assertToolFileAccess.mock.invocationCallOrder[0]).toBeLessThan(
+      downloadServableFile.mock.invocationCallOrder[0]
     )
-    expect(mocks.downloadServableFile).toHaveBeenCalledWith(file, 'request-1', expect.anything(), {
+    expect(downloadServableFile).toHaveBeenCalledWith(file, 'request-1', expect.anything(), {
       maxBytes: 5,
       signal: undefined,
     })
@@ -219,9 +224,9 @@ describe('OCI Object Storage operations', () => {
         { requestId: 'request-1' }
       )
     ).rejects.toMatchObject({ status: 401, message: 'Authentication required' })
-    expect(mocks.processSingleFile).not.toHaveBeenCalled()
-    expect(mocks.assertToolFileAccess).not.toHaveBeenCalled()
-    expect(mocks.downloadServableFile).not.toHaveBeenCalled()
+    expect(processSingleFile).not.toHaveBeenCalled()
+    expect(assertToolFileAccess).not.toHaveBeenCalled()
+    expect(downloadServableFile).not.toHaveBeenCalled()
     expect(mocks.send).not.toHaveBeenCalled()
   })
 
@@ -232,15 +237,15 @@ describe('OCI Object Storage operations', () => {
       size: 6,
       type: 'application/octet-stream',
     }
-    mocks.processSingleFile.mockReturnValue(file)
-    mocks.downloadServableFile.mockRejectedValue(
+    processSingleFile.mockReturnValue(file)
+    downloadServableFile.mockRejectedValue(
       new PayloadSizeLimitError({ label: 'OCI file upload', maxBytes: 5, observedBytes: 6 })
     )
 
     await expect(
       executeOciObjectStorageUploadObject({ ...object, file: file as never }, context)
     ).rejects.toBeInstanceOf(PayloadSizeLimitError)
-    expect(mocks.assertToolFileAccess).toHaveBeenCalledOnce()
+    expect(assertToolFileAccess).toHaveBeenCalledOnce()
     expect(mocks.send).not.toHaveBeenCalled()
   })
 

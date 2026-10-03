@@ -3,7 +3,6 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput, parseOptionalNumberInput } from '@/blocks/utils'
-import type { OciObjectStorageResponse } from '@/tools/oci_object_storage/types'
 
 const OBJECT_OPERATIONS = [
   'oci_object_storage_upload_object',
@@ -22,7 +21,7 @@ const BUCKET_OPERATIONS = ['oci_object_storage_list_objects', ...OBJECT_OPERATIO
 
 const UPLOAD_SOURCE_FIELD = ['uploadFile', 'fileReference', 'content'] as const
 
-export const OciObjectStorageBlock: BlockConfig<OciObjectStorageResponse> = {
+export const OciObjectStorageBlock: BlockConfig = {
   type: 'oci_object_storage',
   name: 'OCI Object Storage',
   description: 'List, upload, download, inspect, and delete objects in Oracle Cloud',

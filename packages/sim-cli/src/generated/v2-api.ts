@@ -6300,6 +6300,8 @@ export type GetSelectorBody = {
     | 'notion.pages'
     | 'netsuite.recordTypes'
     | 'netsuite.asyncTasks'
+    | 'oci_object_storage.buckets'
+    | 'oci_object_storage.objects'
     | 'pipedrive.pipelines'
     | 'sharepoint.lists'
     | 'trello.boards'
@@ -9103,6 +9105,8 @@ export type ListSelectorBody = {
     | 'notion.pages'
     | 'netsuite.recordTypes'
     | 'netsuite.asyncTasks'
+    | 'oci_object_storage.buckets'
+    | 'oci_object_storage.objects'
     | 'pipedrive.pipelines'
     | 'sharepoint.lists'
     | 'trello.boards'
@@ -17124,6 +17128,8 @@ export const V2_OPERATIONS = {
           'notion.pages',
           'netsuite.recordTypes',
           'netsuite.asyncTasks',
+          'oci_object_storage.buckets',
+          'oci_object_storage.objects',
           'pipedrive.pipelines',
           'sharepoint.lists',
           'trello.boards',
@@ -19214,6 +19220,8 @@ export const V2_OPERATIONS = {
           'notion.pages',
           'netsuite.recordTypes',
           'netsuite.asyncTasks',
+          'oci_object_storage.buckets',
+          'oci_object_storage.objects',
           'pipedrive.pipelines',
           'sharepoint.lists',
           'trello.boards',

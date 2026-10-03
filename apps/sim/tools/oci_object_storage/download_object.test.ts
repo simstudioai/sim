@@ -1,26 +1,26 @@
 /**
  * @vitest-environment node
  */
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  uploadsExecutionMock,
+  uploadsExecutionMockFns,
+} from '@sim/testing/mocks/uploads-execution.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext, UserFile } from '@/executor/types'
 
-const { mockDownloadFileFromUrl, mockUploadExecutionFile } = vi.hoisted(() => ({
-  mockDownloadFileFromUrl: vi.fn(),
-  mockUploadExecutionFile: vi.fn(),
-}))
-
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadFileFromUrl: mockDownloadFileFromUrl,
-}))
-
-vi.mock('@/lib/uploads/contexts/execution', () => ({
-  uploadExecutionFile: mockUploadExecutionFile,
-  uploadFileFromRawData: vi.fn(),
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
 
 import { FileToolProcessor } from '@/executor/utils/file-tool-processor'
 import { ociObjectStorageDownloadObjectTool } from '@/tools/oci_object_storage/download_object'
 import { createOciObjectStorageOperationInput } from '@/tools/oci_object_storage/shared'
+
+const mockDownloadFileFromUrl = fileUtilsServerMockFns.mockDownloadFileFromUrl
+const mockUploadExecutionFile = uploadsExecutionMockFns.mockUploadExecutionFile
 
 const executionContext = {
   executionId: 'execution-1',
@@ -31,7 +31,8 @@ const executionContext = {
 
 describe('OCI Object Storage download file output', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    mockDownloadFileFromUrl.mockReset()
+    mockUploadExecutionFile.mockReset()
     mockUploadExecutionFile.mockResolvedValue({
       id: 'file-1',
       key: 'workspace/workspace-1/file-1',

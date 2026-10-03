@@ -63,7 +63,7 @@ export class OciObjectStorageCredentialError extends Error {
   }
 }
 
-export function normalizeOciObjectStorageCredentialFields(
+function normalizeOciObjectStorageCredentialFields(
   fields: OciObjectStorageCredentialFields
 ): OciObjectStorageCredentialFields {
   const accessKeyId = fields.accessKeyId.trim()
