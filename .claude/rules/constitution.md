@@ -8,6 +8,7 @@ paths:
   - "apps/sim/app/layout.tsx"
   - "apps/sim/app/manifest.ts"
   - "apps/sim/app/llms*.txt/**"
+  - "apps/sim/app/changelog.xml/**"
   - "apps/docs/**"
 ---
 

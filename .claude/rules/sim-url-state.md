@@ -5,6 +5,7 @@ paths:
   - "apps/sim/ee/**/*.tsx"
   - "apps/sim/**/search-params.ts"
   - "apps/sim/**/use-*.ts"
+  - "apps/sim/**/navigation.ts"
   - "apps/sim/lib/url-state/**"
 ---
 

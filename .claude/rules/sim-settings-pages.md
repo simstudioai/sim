@@ -225,7 +225,8 @@ and — on activatable rows only — the hover band. Never hand-roll any of it, 
   re-derive the label/divider chrome; `sim-styling.md` owns those tokens.
 - **`SettingsField`** (`…/components/settings-field`) — a read-only label/value
   pair in a detail body: muted caption over the value. Pass the value as text and it
-  renders the value paragraph itself; pass a node only when the value is a control.
+  renders the value paragraph itself; pass a node when the value needs its own
+  presentation (a control, an icon beside the value, status styling).
 - **`SettingsEmptyState`** (`…/components/settings-empty-state`) — the canonical
   muted status message, for empty lists, "no results", loading gates, **and
   failed loads** (`tone='error'`). `variant='fill'` (default) centers in the
