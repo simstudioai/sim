@@ -22,6 +22,7 @@ const { mockFetch } = vi.hoisted(() => ({
 
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
+import { getLogByExecutionIdContract } from '@/lib/api/contracts/logs'
 import {
   type LogFilters,
   logKeys,
@@ -32,7 +33,6 @@ import {
   useNewLogCount,
   useRetryExecution,
 } from '@/hooks/queries/logs'
-import { getLogByExecutionIdContract } from '@/lib/api/contracts/logs'
 
 const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
