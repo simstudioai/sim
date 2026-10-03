@@ -68,6 +68,9 @@ vi.mock('@/app/(auth)/components', () => ({
       {children}
     </button>
   ),
+  AuthTextLink: (props: ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button type='button' {...props} />
+  ),
 }))
 vi.mock('@/app/(auth)/components/auth-button-classes', () => ({ AUTH_TEXT_LINK: '' }))
 vi.mock('@/components/auth/public-auth-header', () => ({
