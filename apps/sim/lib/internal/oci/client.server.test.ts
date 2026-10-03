@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { createPublicKey, verify } from 'node:crypto'
+import { createHash, createPublicKey, generateKeyPairSync, verify } from 'node:crypto'
 import { credential } from '@sim/db/schema'
 import {
   dbChainMockFns,
@@ -54,51 +54,19 @@ const mocks = {
   validateUrl: inputValidationMockFns.mockValidateUrlWithDNS,
 }
 
-// Fixed test material. The expected signatures were generated independently with
-// OpenSSL 3 against Oracle's Request Signatures specification (retrieved 2026-09-03):
-// https://docs.oracle.com/en-us/iaas/Content/API/Concepts/signingrequests.htm
-// The Identity hostname is cross-checked against Oracle's API endpoint catalog:
-// https://docs.oracle.com/en-us/iaas/api/
-// The canonical header order and hostname template are cross-checked against
-// oci-common and oci-identity 2.140.1.
-// Keep the synthetic fixture's PEM delimiters split so secret scanners do not
-// mistake checked-in conformance material for a deployable credential.
-const PRIVATE_KEY = `${['-----BEGIN', 'PRIVATE KEY-----'].join(' ')}
-MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDGu21M7TuK4Jr6
-s8luoTzVRltBhYM078Z0JNpg3/uwqLIYtmNFDLg9AJ4NY9piBfZoE4b9EhrVzwkW
-+wIWdSflJPfnlWFD7nLBk+n69dyU1wwUuEw0PYZOliFvCmlegg9qE+vZK13o5e1m
-08ZEq7oxfArlHH3NZXuwoZJiraP/mtGurDrcAJLUKuTMfEp+zUOUdmupeZjmNWj9
-B8xbgRoQ3vQVk+7q+ltMvsUdZB2La+IEhTg6PMCrSsRV0v/xqJiSQ34iPkxq2LrD
-AUKxypwmX8X0c2VWYQh/ho3x3pT5XPxC3x/plkM8DxC7Ejjg1qa0jyl0JLzMWNnh
-V79UvkKRAgMBAAECggEAO3ueG4hmagsQWDm38QUR0ERezB3KR+382IavVo+0JgxY
-Qk1VKTXFb3zf0eIxW2WtezldDiJ9JcHyVo6K8W3foxaNnSN5GXwlnQtI3XT5sRMs
-6oa/SGOh76PAHhxfrYoAUx/jV/1C/pLTnBOHJMbB1E3sdOcyQGg/vX6e8ipHDBoj
-24tljd5fvmDWkR/WYHwjn2xaY8Ee3/EfIoBw5r+WrXLjpj5FuGUo+pxyqbSI2qE/
-mpOMEi/+KprpUU8N5e33+cihyrneAKLyqyxS7NPWmbc5+ut0g4uzIu1NmyAhfa2o
-c1MbQqh+C2R96tbhPAJQHeRClV1YKUpOiXj6EvpmAQKBgQDmEoNkMSWfX0gJMOdM
-8kh641t3KBqyyGt3kx2xTaeybq8MFilQCahSTjfndkT8tlW1eRh2BiMUvvdSpCPM
-wRH7BGW4h8J6ALmMnj0nsl8ebJc7g0hzacRG+SAVD8IbQqIzc0rY/DUfuoIuL5Ce
-R0l9p85r2ZBGNrnM9dIUkfNj/QKBgQDdIMNXzKGPRUUkdN5kskfCEV3a0geVFaU0
-ZOiZf6TRidcl5RTaTcJbRJ2pXsealDlURdmrk8lGgy0uTE181Zn71bBPKjN1xmct
-H8SMQvxcI62OYaUbEpzgp83TZXtRpqmVA2v+0BjhrjPPjVKsT5YwkHRPb5DyHOW8
-D8HB/dO7JQKBgQDbW6lknKtHUZwoDzVpGtPaPu2VJWqXLRmxr1WvF+Ac8wT43CRV
-iG+w0ZzhldTesaX0WVnmJaHLBOxgIdl0Ply7XQzzLJVSp2BB3xllwN6J7nUeq+Qn
-Dh+yn5JkIlsqjJSDw5gIXCb2cmfuSzFyh3tdT+Iy2AODvmfWMEY1kJZjrQKBgDUO
-wHBXtEg5Ob7mn9oPgPJK0ndHv/QArpQkxj7WhsiUR2BbWCaNU94sV5wlFsW7XQog
-fHsTyc62eOfL/Se/5OOtQVGtcY2H3ofQQIvbIsxE70bjnQci7ytkeBmKFw3fbH9J
-w+bvLZkxAFODuFuJ+SKL9qx8u42sa181dKtEaUJVAoGBALuFS1q/ihZw8M5AoofY
-llBvP7/pHwT8XR2gWl5sZFOt6kvrMQqcI3u/9BkVR9au1I2K7xJOQmt9KEL4HkgP
-6cqql61lZNv8GgYlJPu8ipN0IUxf1V7K+9xw0t1am57WATCW+bqkfyvYoBXhLwx6
-7z8JESybW/3kkmWIOy5WHvzv
-${['-----END', 'PRIVATE KEY-----'].join(' ')}
-`
+const PRIVATE_KEY_OBJECT = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey
+const PRIVATE_KEY = PRIVATE_KEY_OBJECT.export({ format: 'pem', type: 'pkcs8' }).toString()
+const FINGERPRINT = createHash('md5')
+  .update(createPublicKey(PRIVATE_KEY_OBJECT).export({ format: 'der', type: 'spki' }))
+  .digest('hex')
+  .replace(/(.{2})(?=.)/g, '$1:')
 
 const SECRET = JSON.stringify({
   type: 'oci_api_signing_key_v1',
   providerId: 'oci-api-key-service-account',
   tenancyOcid: 'ocid1.tenancy.oc1..aaaaaaaafixedvector',
   userOcid: 'ocid1.user.oc1..aaaaaaaafixedvector',
-  fingerprint: '25:53:22:62:aa:db:ff:ef:f5:77:08:d1:a2:ed:8b:e6',
+  fingerprint: FINGERPRINT,
   privateKey: PRIVATE_KEY,
   region: 'us-ashburn-1',
   metadata: {
@@ -261,7 +229,7 @@ describe('credential-bound OCI client', () => {
     )
   })
 
-  it('matches the fixed Oracle canonical signing fixture', async () => {
+  it('signs the exact Oracle canonical request', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-03T19:00:00.000Z'))
     const { client, endpoint } = await createPreparedClient()
@@ -278,11 +246,11 @@ describe('credential-bound OCI client', () => {
     })
 
     const authorization = authorizationFromLastRequest()
+    const signature = /signature="([^"]+)"$/.exec(authorization)?.[1]
     expect(authorization).toBe(
-      'Signature version="1",keyId="ocid1.tenancy.oc1..aaaaaaaafixedvector/ocid1.user.oc1..aaaaaaaafixedvector/25:53:22:62:aa:db:ff:ef:f5:77:08:d1:a2:ed:8b:e6",algorithm="rsa-sha256",headers="x-date (request-target) host",signature="szHTszQxwI2ewdVaeTurJY0ObT7qSjjTpXKLDRhnBp8g2hT1r2yxs4IaxN+wcrebh4i5tQYq5aBIuM3f5jOe4ng/e9+HCV+J8kHyRMxwk1b3nkqtImf8sPetp1ohD1XeWdT1gw5MSavC/C2mdHdDNlOrYAKD2vwxsKRbS6/C6ngRRcTispz6UU/ydmeYq3JjuFJezFPGWXRdqndM0dC+/ew19x08X/M6quZcxn9JZVw1E2YzSjq8xquLQYyISesVtpN81HEZ9KE9UOhbALNQAJcLCt6R3Su78aOR0S0vh19YkrwxCLbbTmPrVubksXsfZPcotbZmtXVIzNdLW0JpNg=="'
+      `Signature version="1",keyId="ocid1.tenancy.oc1..aaaaaaaafixedvector/ocid1.user.oc1..aaaaaaaafixedvector/${FINGERPRINT}",algorithm="rsa-sha256",headers="x-date (request-target) host",signature="${signature}"`
     )
 
-    const signature = /signature="([^"]+)"/.exec(authorization)?.[1]
     expect(signature).toBeDefined()
     expect(
       verify(
@@ -294,7 +262,7 @@ describe('credential-bound OCI client', () => {
     ).toBe(true)
   })
 
-  it('matches the fixed Oracle body-signing fixture for an empty body', async () => {
+  it('signs the exact Oracle canonical request for an empty body', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-03T19:00:00.000Z'))
     const { client, endpoint } = await createPreparedClient()
@@ -308,9 +276,20 @@ describe('credential-bound OCI client', () => {
       maxResponseBytes: 1024,
     })
 
-    expect(authorizationFromLastRequest()).toBe(
-      'Signature version="1",keyId="ocid1.tenancy.oc1..aaaaaaaafixedvector/ocid1.user.oc1..aaaaaaaafixedvector/25:53:22:62:aa:db:ff:ef:f5:77:08:d1:a2:ed:8b:e6",algorithm="rsa-sha256",headers="x-date (request-target) host content-type content-length x-content-sha256",signature="W2/OGoa2XuOin6+CQt32/+/lAXG5PWoamkAHr/k84oCYGUuub2mEYw1z9p4gc6/GPgeZ30wVp4DNVLzOjup3nJir1WsEsYzAk27XAIRVjxiQ7oBzCccnSnB88KLeNz1NDz7r4QPQGxZ50MBQEe0C+DEH2P+utpfFN73o7GCUhIN9hb27COg4l7ffdSLgjBWPN/B4AiZXpjz3I/GRHo29otGAhZ3MiX10gJTjy+qeAchAfmXmTx/nJqNhF0Aj255+B2lepCrHdkpcBpiTs5E+ppE6VvML0ByQ9ZLzBISB4MBljuFyey6tnTkueT73fqjQyM/OT+aO9HrAlemc3HSAXA=="'
+    const authorization = authorizationFromLastRequest()
+    const signature = /signature="([^"]+)"$/.exec(authorization)?.[1]
+    expect(authorization).toBe(
+      `Signature version="1",keyId="ocid1.tenancy.oc1..aaaaaaaafixedvector/ocid1.user.oc1..aaaaaaaafixedvector/${FINGERPRINT}",algorithm="rsa-sha256",headers="x-date (request-target) host content-type content-length x-content-sha256",signature="${signature}"`
     )
+    expect(signature).toBeDefined()
+    expect(
+      verify(
+        'RSA-SHA256',
+        'x-date: Thu, 03 Sep 2026 19:00:00 GMT\n(request-target): post /20160918/users\nhost: identity.us-ashburn-1.oci.oraclecloud.com\ncontent-type: application/json\ncontent-length: 0\nx-content-sha256: 47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=',
+        createPublicKey(PRIVATE_KEY),
+        Buffer.from(signature ?? '', 'base64')
+      )
+    ).toBe(true)
     expect(mocks.secureFetch.mock.calls[0][2].headers).toMatchObject({
       'content-length': '0',
       'content-type': 'application/json',
