@@ -1,6 +1,7 @@
 import { ahrefsAnalytics } from '@c15t/scripts/ahrefs-analytics'
 import { gtag } from '@c15t/scripts/google-tag'
 import { xPixel } from '@c15t/scripts/x-pixel'
+import { FREEBUFF_TAG_SRC, installFreebuffStub } from '@/lib/analytics/freebuff'
 
 export const GOOGLE_ANALYTICS_ID = 'G-DR7YBE70VS' as const
 
@@ -60,6 +61,19 @@ export const GLOBAL_CONSENT_SCRIPTS = [
     },
   },
   ahrefsAnalytics({ key: AHREFS_ANALYTICS_KEY }),
+  /**
+   * Global rather than landing-only: the ad lands on a marketing page but the
+   * conversion fires from `/signup`. The tag recovers `?bfcid=` from the
+   * original navigation entry, so a client-side route change before consent
+   * resolves does not lose the click id.
+   */
+  {
+    id: 'freebuff-tag',
+    src: FREEBUFF_TAG_SRC,
+    category: 'marketing',
+    async: true,
+    onBeforeLoad: installFreebuffStub,
+  },
 ] as const
 
 /** Marketing-page integrations that should not load on a direct workspace visit. */

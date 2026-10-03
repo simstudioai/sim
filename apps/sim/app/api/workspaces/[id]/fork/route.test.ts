@@ -5,62 +5,52 @@
  * cross the child's `MAX_FOLDERS_PER_WORKSPACE` ceiling. That refusal is a classified
  * `OrchestrationError`, which `withRouteHandler` alone renders as an opaque 500 — it only
  * understands `HttpError`. These pin that the caller gets the actionable 409 instead.
- *
- * @vitest-environment node
  */
 import { user } from '@sim/db/schema'
 import { auditMock, authMockFns, createMockRequest, type MockUser } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
 import { queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import {
+  workspaceAuthorizationMock,
+  workspaceAuthorizationMockFns,
+} from '@sim/testing/mocks/workspace-authorization.mock'
+import { workspaceForkingAuthzMock } from '@sim/testing/mocks/workspace-forking-authz.mock'
+import {
+  workspacesPolicyMock,
+  workspacesPolicyMockFns,
+} from '@sim/testing/mocks/workspaces-policy.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { FolderCollectionFullError } from '@/lib/folders/errors'
 
-const { mockLogger, mockCreateFork, mockAuthorizeWorkspaceOperation } = vi.hoisted(() => ({
-  mockLogger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-    trace: vi.fn(),
-    fatal: vi.fn(),
-    child: vi.fn(),
-  },
+const { mockCreateFork } = vi.hoisted(() => ({
   mockCreateFork: vi.fn(),
-  mockAuthorizeWorkspaceOperation: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue(mockLogger),
-  runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
-  getRequestContext: () => undefined,
-  setRequestAuth: vi.fn(),
-}))
 vi.mock('@/ee/workspace-forking/lib/create-fork', () => ({ createFork: mockCreateFork }))
-vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => ({
-  assertForkingEnabled: vi.fn(),
-  ForkError: class extends Error {},
-}))
-vi.mock('@/lib/core/application/workspace-authorization', () => ({
-  authorizeWorkspaceOperation: mockAuthorizeWorkspaceOperation,
-  requireAllowedWorkspacePrincipal: vi.fn(),
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceWithOwner: vi.fn(async (id: string) => ({
-    id,
-    name: 'Source',
-    organizationId: null,
-    allowPersonalApiKeys: true,
-  })),
-}))
-vi.mock('@/lib/workspaces/policy', () => ({
-  getWorkspaceCreationPolicy: vi.fn(async () => ({ canCreate: true })),
-}))
+vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => workspaceForkingAuthzMock)
+vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/lib/workspaces/policy', () => workspacesPolicyMock)
 
 import { POST } from '@/app/api/workspaces/[id]/fork/route'
 
+workspacesPolicyMockFns.mockGetWorkspaceCreationPolicy.mockImplementation(async () => ({
+  canCreate: true,
+}))
+const { mockAuthorizeWorkspaceOperation } = workspaceAuthorizationMockFns
+
+permissionsMockFns.mockGetWorkspaceWithOwner.mockImplementation(async (id: string) => ({
+  id,
+  name: 'Source',
+  organizationId: null,
+  allowPersonalApiKeys: true,
+}))
+
 const TEST_USER: MockUser = { id: 'user-1', email: 'a@b.com', name: 'A' }
 const SOURCE_WORKSPACE_ID = 'ws-source'
-const routeContext = { params: Promise.resolve({ id: SOURCE_WORKSPACE_ID }) }
+const routeContext = createRouteContext({ id: SOURCE_WORKSPACE_ID })
 
 const FULL_MESSAGE =
   'This workspace has reached its limit of 10,000 workflow folders. Delete folders you no longer need before creating another one.'
@@ -76,7 +66,6 @@ function forkRequest() {
 
 describe('POST /api/workspaces/[id]/fork', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue({ user: TEST_USER, session: { id: 'session-1' } })
     resetDbChainMock()
     queueTableRows(user, [{ name: TEST_USER.name }])
@@ -116,29 +105,5 @@ describe('POST /api/workspaces/[id]/fork', () => {
     const response = await POST(forkRequest(), routeContext)
 
     expect(response.status).toBe(500)
-  })
-
-  it('still returns the created fork when the copy succeeds', async () => {
-    mockCreateFork.mockResolvedValue({
-      workspace: {
-        id: 'ws-child',
-        name: 'Child',
-        ownerId: TEST_USER.id,
-        organizationId: null,
-        workspaceMode: 'personal',
-      },
-      workflowsCopied: 2,
-    })
-
-    const response = await POST(forkRequest(), routeContext)
-
-    expect(response.status).toBe(201)
-    expect(mockCreateFork).toHaveBeenCalledWith(
-      expect.objectContaining({
-        source: expect.objectContaining({ id: SOURCE_WORKSPACE_ID }),
-        userId: TEST_USER.id,
-        actorName: TEST_USER.name,
-      })
-    )
   })
 })

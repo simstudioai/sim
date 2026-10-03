@@ -177,7 +177,8 @@ async function executeBoundAgentCliRequest(
   } else throw new Error('Service invocation must use the service bridge')
   if (resources.length)
     result = { ...result, resources: [...resources, ...(result.resources ?? [])] }
-  if (result.resources?.length)
+  // Only organization chats address a workspace; a workspace chat's resources leave it implicit.
+  if (context.chatOrganizationId && result.resources?.length)
     result = {
       ...result,
       resources: result.resources.map((effect) => {

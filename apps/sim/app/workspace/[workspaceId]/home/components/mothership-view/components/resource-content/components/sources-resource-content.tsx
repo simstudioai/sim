@@ -48,7 +48,7 @@ export function SourcesResourceContent({ resource, chatId }: SourcesResourceCont
         ) : (
           <p className='px-2 py-2 text-[var(--text-muted)] text-small'>
             {history.isPending
-              ? 'Loading sources…'
+              ? 'Loading sources'
               : history.isError
                 ? 'Unable to load sources. Try reopening this conversation.'
                 : 'No cited sources are available for this response.'}

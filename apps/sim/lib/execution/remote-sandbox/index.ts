@@ -20,7 +20,7 @@ import {
   prepareSandboxSessionAccess,
   reportUnsettledSandboxProcess,
   retainSandboxExecution,
-  sandboxSessionInputsSafe,
+  sandboxSessionInputProvenance,
 } from '@/lib/execution/remote-sandbox/execution-observer'
 import { withSandboxFilePublication } from '@/lib/execution/remote-sandbox/file-publication'
 import {
@@ -55,7 +55,10 @@ import {
   SESSION_SANDBOX_IDLE_MS,
 } from '@/lib/execution/remote-sandbox/session'
 import { sessionCommandPath } from '@/lib/execution/remote-sandbox/session-cli'
-import { recordSessionFileInput } from '@/lib/execution/remote-sandbox/session-file-provenance'
+import {
+  readSessionSecretProvenance,
+  recordSessionFileInput,
+} from '@/lib/execution/remote-sandbox/session-file-provenance'
 import { withSandboxSessionLock } from '@/lib/execution/remote-sandbox/session-lock'
 import type {
   CreateSandboxOptions,
@@ -842,6 +845,18 @@ async function provisionWithinBudget(
   throwIfAborted(signal)
 }
 
+/** Confidentiality checks also run on provider failures, before their diagnostics can escape. */
+async function acceptSessionOutputHistory(
+  session: SandboxSessionRequest | undefined,
+  machine: { providerId: SandboxProviderId; sandboxId: string }
+): Promise<void> {
+  if (!session) return
+  const provenance = await readSessionSecretProvenance(session.key, machine)
+  if (session.acceptOutputProvenance) await session.acceptOutputProvenance(provenance)
+  else if (provenance.status !== 'exact' || provenance.entries.length > 0)
+    throw new Error('Workbench output withheld because its secret provenance is unavailable')
+}
+
 async function executeInSandboxWithinBudget(
   // The budget wrapper always injects the signal; the required-signal type states that
   // invariant instead of a cast hiding it.
@@ -887,11 +902,13 @@ async function executeInSandboxWithinBudget(
     // the finally below. Dependencies land before the inputs so user code and its
     // mounts always see a complete environment.
     //
-    if (req.session)
+    if (lease.session && req.session)
       await recordSessionFileInput(
         req.session.key,
         { providerId: created.providerId, sandboxId },
-        sandboxSessionInputsSafe() && !Object.keys(selected?.envs ?? {}).length
+        req.session.unprovenancedInputs || Object.keys(selected?.envs ?? {}).length
+          ? { status: 'unknown' }
+          : (req.session.inputProvenance?.() ?? sandboxSessionInputProvenance())
       )
     await provisionWithinBudget(sandbox, selected, signal)
     await writeSandboxInputs(sandbox, req.sandboxFiles, {
@@ -1023,8 +1040,15 @@ async function executeInSandboxWithinBudget(
     if (cost && billableOutputError) {
       attachTrustedSandboxOutputCost(billableOutputError, cost)
     }
-    await privateInputFiles?.cleanup()
-    await lease.release()
+    try {
+      await privateInputFiles?.cleanup()
+      await lease.release()
+    } finally {
+      await acceptSessionOutputHistory(lease.session ? req.session : undefined, {
+        providerId: created.providerId,
+        sandboxId,
+      })
+    }
   }
 }
 
@@ -1074,11 +1098,13 @@ async function executeShellInSandboxWithinBudget(
     // Inside the try so a failed install or mount still releases the sandbox via
     // the finally below. The install shares the caller's budget rather than adding
     // to it — see the note in `executeInSandbox`.
-    if (req.session)
+    if (lease.session && req.session)
       await recordSessionFileInput(
         req.session.key,
         { providerId: created.providerId, sandboxId },
-        sandboxSessionInputsSafe() && !Object.keys(selected?.envs ?? {}).length
+        req.session.unprovenancedInputs || Object.keys(selected?.envs ?? {}).length
+          ? { status: 'unknown' }
+          : (req.session.inputProvenance?.() ?? sandboxSessionInputProvenance())
       )
     await provisionWithinBudget(sandbox, selected, signal)
     await writeSandboxInputs(sandbox, req.sandboxFiles, {
@@ -1188,8 +1214,15 @@ async function executeShellInSandboxWithinBudget(
     if (cost && billableOutputError) {
       attachTrustedSandboxOutputCost(billableOutputError, cost)
     }
-    await privateInputFiles?.cleanup()
-    await lease.release()
+    try {
+      await privateInputFiles?.cleanup()
+      await lease.release()
+    } finally {
+      await acceptSessionOutputHistory(lease.session ? req.session : undefined, {
+        providerId: created.providerId,
+        sandboxId,
+      })
+    }
   }
 }
 

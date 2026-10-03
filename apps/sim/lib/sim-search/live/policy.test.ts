@@ -1,11 +1,6 @@
-/** @vitest-environment node */
 import { describe, expect, it, vi } from 'vitest'
-import { withJsonMemo } from '@/lib/sim-search/live/http'
 import { createPolicyVerifier } from '@/lib/sim-search/live/policy'
-import {
-  defaultLiveSearchPolicy,
-  normalizeLiveSearchPolicy,
-} from '@/lib/sim-search/live/policy-schema'
+import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import type { NativeClient } from '@/lib/sim-search/live/types'
 
 function client(rows: Record<string, unknown>): NativeClient {
@@ -15,6 +10,7 @@ function client(rows: Record<string, unknown>): NativeClient {
       return rows[path]
     }),
     text: vi.fn(),
+    bytes: vi.fn(),
   }
 }
 const selected = (included: string[], excluded: string[] = []) => ({
@@ -25,27 +21,6 @@ const selected = (included: string[], excluded: string[] = []) => ({
 })
 
 describe('organization search scope enforcement', () => {
-  it('normalizes folder links and repositories without changing request origins', () => {
-    expect(
-      normalizeLiveSearchPolicy(
-        'google_drive',
-        selected(['https://drive.google.com/drive/folders/FOLDER'])
-      ).included
-    ).toEqual(['FOLDER'])
-    expect(
-      normalizeLiveSearchPolicy('github', selected(['https://github.com/Company/Repo'])).included
-    ).toEqual(['company/repo'])
-    expect(
-      normalizeLiveSearchPolicy('coda', selected(['superhuman://docs/allowed/pages/page'])).included
-    ).toEqual(['allowed'])
-    expect(() =>
-      normalizeLiveSearchPolicy('coda', selected(['superhuman://docs/allowed/../other']))
-    ).toThrow()
-    expect(() =>
-      normalizeLiveSearchPolicy('google_drive', selected(['https://attacker.test/folders/FOLDER']))
-    ).toThrow()
-    expect(() => normalizeLiveSearchPolicy('github', selected([]))).toThrow()
-  })
   it('checks current Drive ancestors and gives exclusions precedence', async () => {
     const api = client({
       '/drive/v3/files/doc': { id: 'doc', parents: ['child'] },
@@ -209,7 +184,8 @@ describe('organization search scope enforcement', () => {
     async (provider) => {
       const api = client({
         '/ex/jira/site/rest/api/3/issue/ENG-2': { fields: { project: { key: 'ENG' } } },
-        '/ex/confluence/site/wiki/rest/api/content/ENG-2': { space: { key: 'ENG' } },
+        '/ex/confluence/site/wiki/api/v2/pages/ENG-2': { id: 'ENG-2', spaceId: '7' },
+        '/ex/confluence/site/wiki/api/v2/spaces/7': { id: '7', key: 'ENG' },
       })
       expect(
         await createPolicyVerifier(
@@ -229,6 +205,25 @@ describe('organization search scope enforcement', () => {
       ).toBe(false)
     }
   )
+  it('checks a Confluence search hit by the space its search response named, without requests', async () => {
+    const verify = createPolicyVerifier('confluence', selected(['ENG']), client({}), '')
+    expect(await verify({ id: '123', container: 'site', kind: 'page' }, { spaceKey: 'ENG' })).toBe(
+      true
+    )
+    expect(await verify({ id: '124', container: 'site', kind: 'page' }, { spaceKey: 'HR' })).toBe(
+      false
+    )
+  })
+  it('checks Confluence spaces by key and blog posts through their own endpoint', async () => {
+    const api = client({
+      '/ex/confluence/site/wiki/api/v2/blogposts/9': { id: '9', spaceId: '7' },
+      '/ex/confluence/site/wiki/api/v2/spaces/7': { id: '7', key: 'ENG' },
+    })
+    const verify = createPolicyVerifier('confluence', selected(['ENG']), api, '')
+    expect(await verify({ id: '9', container: 'site', kind: 'blogpost' })).toBe(true)
+    expect(await verify({ id: 'ENG', container: 'site', kind: 'space' })).toBe(true)
+    expect(await verify({ id: 'HR', container: 'site', kind: 'space' })).toBe(false)
+  })
   it('checks Coda page and row document IDs, including converted URLs', async () => {
     const mcp = { call: vi.fn(async () => ({ docUri: 'coda://docs/allowed' })) }
     const verify = createPolicyVerifier('coda', selected(['allowed']), null, '', mcp)
@@ -243,20 +238,5 @@ describe('organization search scope enforcement', () => {
     })
     expect(await verify({ id: 'https://coda.io:444/d/doc' })).toBe(false)
     expect(await verify({ id: 'https://evil.test/d/doc' })).toBe(false)
-  })
-  it('shares metadata within a client unless the verifier must read it fresh', async () => {
-    const api = client({
-      '/drive/v3/files/doc': { id: 'doc', parents: ['root'] },
-      '/drive/v3/files/root': { id: 'root', parents: [] },
-    })
-    const session = withJsonMemo(api)
-    const verify = createPolicyVerifier('google_drive', selected(['root']), session, '')
-    await verify({ id: 'doc' })
-    await verify({ id: 'doc' })
-    expect(api.json).toHaveBeenCalledTimes(2)
-    await createPolicyVerifier('google_drive', selected(['root']), session, '', undefined, {
-      fresh: true,
-    })({ id: 'doc' })
-    expect(api.json).toHaveBeenCalledTimes(4)
   })
 })

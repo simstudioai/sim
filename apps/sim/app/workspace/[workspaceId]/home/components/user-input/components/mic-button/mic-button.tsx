@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, type RefObject, useEffect, useRef } from 'react'
+import { memo, useEffect, useRef } from 'react'
 import { Button, cn, Tooltip, usePrefersReducedMotion } from '@sim/emcn'
 import { Mic } from '@sim/emcn/icons'
 
@@ -12,16 +12,16 @@ const WAVEFORM_EASING = 0.24
 
 interface MicButtonProps {
   isListening: boolean
-  audioLevelsRef: RefObject<Float32Array>
+  audioLevels: Float32Array
   onToggle: () => void
 }
 
 interface VoiceWaveformProps {
-  audioLevelsRef: RefObject<Float32Array>
+  audioLevels: Float32Array
   isListening: boolean
 }
 
-function VoiceWaveform({ audioLevelsRef, isListening }: VoiceWaveformProps) {
+function VoiceWaveform({ audioLevels, isListening }: VoiceWaveformProps) {
   const prefersReducedMotion = usePrefersReducedMotion()
   const barRefs = useRef<Array<SVGLineElement | null>>([])
 
@@ -32,10 +32,8 @@ function VoiceWaveform({ audioLevelsRef, isListening }: VoiceWaveformProps) {
     let animationFrameId = 0
 
     const draw = () => {
-      const levels = audioLevelsRef.current
-
       for (let index = 0; index < WAVEFORM_BAR_COUNT; index++) {
-        const level = levels?.[index] ?? 0
+        const level = audioLevels[index] ?? 0
         const targetHeight =
           WAVEFORM_MIN_HEIGHT +
           Math.sqrt(Math.max(0, level)) * (WAVEFORM_MAX_HEIGHT - WAVEFORM_MIN_HEIGHT)
@@ -53,7 +51,7 @@ function VoiceWaveform({ audioLevelsRef, isListening }: VoiceWaveformProps) {
 
     animationFrameId = window.requestAnimationFrame(draw)
     return () => window.cancelAnimationFrame(animationFrameId)
-  }, [audioLevelsRef, isListening, prefersReducedMotion])
+  }, [audioLevels, isListening, prefersReducedMotion])
 
   return (
     <svg aria-hidden viewBox='0 0 18 18' className='size-[18px] overflow-hidden'>
@@ -81,7 +79,7 @@ function VoiceWaveform({ audioLevelsRef, isListening }: VoiceWaveformProps) {
 
 export const MicButton = memo(function MicButton({
   isListening,
-  audioLevelsRef,
+  audioLevels,
   onToggle,
 }: MicButtonProps) {
   return (
@@ -105,7 +103,7 @@ export const MicButton = memo(function MicButton({
               isListening ? 'scale-100 opacity-100 blur-none' : 'scale-[0.25] opacity-0 blur-[4px]'
             )}
           >
-            <VoiceWaveform audioLevelsRef={audioLevelsRef} isListening={isListening} />
+            <VoiceWaveform audioLevels={audioLevels} isListening={isListening} />
           </span>
           <Mic
             strokeWidth='1.25'

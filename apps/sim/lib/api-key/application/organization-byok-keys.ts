@@ -26,6 +26,7 @@ import { authorizeOrganizationOperation } from '@/lib/core/application/organizat
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 import type { BYOKProviderId } from '@/tools/types'
@@ -335,8 +336,10 @@ export const saveOrganizationByokKey = defineAuthorizedOrganizationByokUseCase({
       await tx.execute(
         sql`SELECT set_config('lock_timeout', ${`${ORGANIZATION_BYOK_LOCK_TIMEOUT_MS}ms`}, true)`
       )
-      await tx.execute(
-        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`byok:organization:${context.organizationId}:${input.providerId}`}, 0))`
+      await acquireAdvisoryXactLock(
+        tx,
+        'organization_byok',
+        `byok:organization:${context.organizationId}:${input.providerId}`
       )
 
       const [{ keyCount }] = await tx

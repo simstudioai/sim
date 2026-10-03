@@ -60,7 +60,7 @@ export const GET = withRouteHandler(
     }
 
     const knowledgeAccess = authResult.authType === AuthType.SESSION ? 'user' : undefined
-    const hasAccess = await verifyFileAccess(record.key, userId, undefined, undefined, undefined, {
+    const hasAccess = await verifyFileAccess(record.key, userId, undefined, undefined, {
       knowledgeAccess,
     })
     if (!hasAccess) {
@@ -147,7 +147,7 @@ export const GET = withRouteHandler(
           const imgRecord = await getFileMetadataById(storedFileId(imageId))
           if (!imgRecord) return null
           if (
-            !(await verifyFileAccess(imgRecord.key, userId, undefined, undefined, undefined, {
+            !(await verifyFileAccess(imgRecord.key, userId, undefined, undefined, {
               knowledgeAccess,
             }))
           ) {

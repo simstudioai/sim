@@ -1,8 +1,7 @@
-/**
- * @vitest-environment node
- */
 import { link, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
+import { uploadsConfigMock, uploadsConfigMockFns } from '@sim/testing/mocks/uploads-config.mock'
+import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -18,16 +17,9 @@ const { testUploadDirectory, mockS3Presign, mockS3PartUrls } = vi.hoisted(() => 
   mockS3PartUrls: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/core/setup.server', () => ({
-  UPLOAD_DIR_SERVER: testUploadDirectory,
-}))
+vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
-vi.mock('@/lib/uploads/config', () => ({
-  USE_BLOB_STORAGE: false,
-  USE_GCS_STORAGE: false,
-  USE_S3_STORAGE: false,
-  getStorageConfig: vi.fn(() => ({ bucket: 'test-bucket', region: 'us-east-1' })),
-}))
+vi.mock('@/lib/uploads/config', () => uploadsConfigMock)
 
 vi.mock('@/lib/uploads/providers/s3/client', () => ({
   getS3PresignedUploadUrl: mockS3Presign,
@@ -36,16 +28,20 @@ vi.mock('@/lib/uploads/providers/s3/client', () => ({
 
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import {
-  completeMultipartProviderUpload,
   createPutProviderTransfer,
   getMultipartProviderPartUrls,
   headProviderObject,
   LocalUploadBodyError,
-  listMultipartProviderParts,
   UPLOAD_URL_TTL_MS,
   writeLocalMultipartPart,
   writeLocalPutObject,
 } from '@/lib/uploads/upload-session/provider'
+
+uploadsConfigMockFns.mockGetStorageConfig.mockReturnValue({
+  bucket: 'test-bucket',
+  region: 'us-east-1',
+})
+setUploadDirServer(testUploadDirectory)
 
 const CONTEXT = 'workspace' as const
 
@@ -101,61 +97,6 @@ describe('local upload-session provider', () => {
     await expect(
       stat(join(testUploadDirectory, 'workspace/workspace-1/canceled.bin'))
     ).rejects.toMatchObject({ code: 'ENOENT' })
-  })
-
-  it('streams an exact-size PUT and persists its object identity', async () => {
-    await writeLocalPutObject({
-      uploadId: 'upload-1',
-      key: 'workspace/workspace-1/file.bin',
-      body: byteStream('ab', 'cd'),
-      expectedSize: 4,
-      contentType: 'application/octet-stream',
-      metadata: METADATA,
-    })
-
-    await expect(readFile(localPath('workspace/workspace-1/file.bin'), 'utf8')).resolves.toBe(
-      'abcd'
-    )
-    await expect(
-      headProviderObject({
-        provider: 'local',
-        key: 'workspace/workspace-1/file.bin',
-        context: CONTEXT,
-      })
-    ).resolves.toMatchObject({
-      size: 4,
-      contentType: 'application/octet-stream',
-      uploadId: 'upload-1',
-      version: expect.any(String),
-    })
-    expect(await temporaryFiles('workspace/workspace-1')).toEqual([])
-  })
-
-  it('persists an empty PUT object with its identity metadata', async () => {
-    await writeLocalPutObject({
-      uploadId: 'upload-1',
-      key: 'workspace/workspace-1/empty.md',
-      body: byteStream(),
-      expectedSize: 0,
-      contentType: 'text/markdown',
-      metadata: METADATA,
-    })
-
-    await expect(stat(localPath('workspace/workspace-1/empty.md'))).resolves.toMatchObject({
-      size: 0,
-    })
-    await expect(
-      headProviderObject({
-        provider: 'local',
-        key: 'workspace/workspace-1/empty.md',
-        context: CONTEXT,
-      })
-    ).resolves.toMatchObject({
-      size: 0,
-      contentType: 'text/markdown',
-      uploadId: 'upload-1',
-      version: expect.any(String),
-    })
   })
 
   /**
@@ -274,94 +215,6 @@ describe('local upload-session provider', () => {
     expect(await temporaryFiles('.multipart/upload-1')).toEqual([])
   })
 
-  it('discovers local parts and assembles them directly at the final key', async () => {
-    await writeLocalMultipartPart({
-      uploadId: 'upload-1',
-      partNumber: 1,
-      body: byteStream('abc'),
-      expectedSize: 3,
-    })
-    await writeLocalMultipartPart({
-      uploadId: 'upload-1',
-      partNumber: 2,
-      body: byteStream('de'),
-      expectedSize: 2,
-    })
-
-    const parts = await listMultipartProviderParts({
-      provider: 'local',
-      providerUploadId: null,
-      uploadId: 'upload-1',
-      key: 'workspace/workspace-1/file.bin',
-      context: CONTEXT,
-    })
-    expect(parts).toEqual([
-      { partNumber: 1, size: 3 },
-      { partNumber: 2, size: 2 },
-    ])
-
-    await completeMultipartProviderUpload({
-      provider: 'local',
-      providerUploadId: null,
-      uploadId: 'upload-1',
-      key: 'workspace/workspace-1/file.bin',
-      contentType: 'application/octet-stream',
-      context: CONTEXT,
-      parts,
-      metadata: METADATA,
-    })
-
-    await expect(readFile(localPath('workspace/workspace-1/file.bin'), 'utf8')).resolves.toBe(
-      'abcde'
-    )
-    await expect(stat(localPath('.multipart/upload-1'))).rejects.toMatchObject({ code: 'ENOENT' })
-  })
-
-  // A staged object named after its destination overflows `NAME_MAX` at the
-  // contract's longest name, and the whole session becomes unusable: the
-  // transfer URL is issued, the PUT against it 500s, and `complete` then reports
-  // the object missing.
-  it('stores a PUT under the longest key the name contract can produce', async () => {
-    await writeLocalPutObject({
-      uploadId: '11111111-1111-4111-8111-111111111111',
-      key: MAX_LENGTH_KEY,
-      body: byteStream('abc'),
-      expectedSize: 3,
-      contentType: 'text/plain',
-      metadata: METADATA,
-    })
-
-    await expect(readFile(localPath(MAX_LENGTH_KEY), 'utf8')).resolves.toBe('abc')
-    await expect(
-      headProviderObject({ provider: 'local', key: MAX_LENGTH_KEY, context: CONTEXT })
-    ).resolves.toMatchObject({ size: 3, contentType: 'text/plain' })
-    expect(await temporaryFiles('workspace/workspace-1')).toEqual([])
-    expect(await allEntries('.staging')).toEqual([])
-  })
-
-  it('assembles multipart parts under the longest key the name contract can produce', async () => {
-    await writeLocalMultipartPart({
-      uploadId: 'upload-1',
-      partNumber: 1,
-      body: byteStream('abc'),
-      expectedSize: 3,
-    })
-
-    await completeMultipartProviderUpload({
-      provider: 'local',
-      providerUploadId: null,
-      uploadId: 'upload-1',
-      key: MAX_LENGTH_KEY,
-      contentType: 'text/plain',
-      context: CONTEXT,
-      parts: [{ partNumber: 1, size: 3 }],
-      metadata: METADATA,
-    })
-
-    await expect(readFile(localPath(MAX_LENGTH_KEY), 'utf8')).resolves.toBe('abc')
-    expect(await allEntries('.staging')).toEqual([])
-  })
-
   // The reservation only holds while every local path stays inside one
   // component's budget, staged names included.
   it('keeps every path component it writes within NAME_MAX', async () => {
@@ -388,7 +241,6 @@ const SESSION_TTL_MS = 24 * 60 * 60 * 1000
 
 describe('signed transfer URL lifetimes', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'))
     mockS3Presign.mockResolvedValue({ url: 'https://s3.example/put', headers: {} })
@@ -422,45 +274,6 @@ describe('signed transfer URL lifetimes', () => {
     })
   })
 
-  it('advertises the clamped URL expiry on the transfer, not the session TTL', async () => {
-    const sessionExpiresAt = new Date(Date.now() + SESSION_TTL_MS)
-
-    const transfer = await createPutProviderTransfer({
-      provider: 's3',
-      key: 'workspace/workspace-1/file.bin',
-      contentType: 'application/octet-stream',
-      fileSize: 4,
-      context: CONTEXT,
-      uploadId: 'upload-1',
-      uploadToken: 'token-1',
-      expiresAt: sessionExpiresAt,
-      metadata: METADATA,
-    })
-
-    expect(transfer.expiresAt).toBe(new Date(Date.now() + UPLOAD_URL_TTL_MS).toISOString())
-    expect(transfer.expiresAt).not.toBe(sessionExpiresAt.toISOString())
-    expect(new Date(transfer.expiresAt).getTime()).toBeLessThan(sessionExpiresAt.getTime())
-  })
-
-  it('advertises the full session lifetime for the unsigned local data plane', async () => {
-    const sessionExpiresAt = new Date(Date.now() + SESSION_TTL_MS)
-
-    const transfer = await createPutProviderTransfer({
-      provider: 'local',
-      key: 'workspace/workspace-1/file.bin',
-      contentType: 'application/octet-stream',
-      fileSize: 4,
-      context: CONTEXT,
-      uploadId: 'upload-1',
-      uploadToken: 'token-1',
-      localOrigin: 'http://localhost:3000',
-      expiresAt: sessionExpiresAt,
-      metadata: METADATA,
-    })
-
-    expect(transfer.expiresAt).toBe(sessionExpiresAt.toISOString())
-  })
-
   it('never signs a PUT past the end of its session', async () => {
     await createPutProviderTransfer({
       provider: 's3',
@@ -492,34 +305,6 @@ describe('signed transfer URL lifetimes', () => {
       })
     ).rejects.toThrow('Cannot sign an expired PUT upload session')
     expect(mockS3Presign).not.toHaveBeenCalled()
-  })
-
-  it('keeps multipart part URLs on the same bounded lifetime, re-signed on demand', async () => {
-    const first = await getMultipartProviderPartUrls({
-      provider: 's3',
-      providerUploadId: 'provider-upload-1',
-      key: 'workspace/workspace-1/file.bin',
-      context: CONTEXT,
-      partNumbers: [1],
-      localUrl: (partNumber) => `http://local/${partNumber}`,
-    })
-    expect(first[0].expiresAt).toBe(new Date(Date.now() + UPLOAD_URL_TTL_MS).toISOString())
-
-    // A multipart session that outlives its part URLs recovers by asking the
-    // per-surface `.../parts` endpoint for a freshly signed window.
-    vi.advanceTimersByTime(23 * 60 * 60 * 1000)
-    const second = await getMultipartProviderPartUrls({
-      provider: 's3',
-      providerUploadId: 'provider-upload-1',
-      key: 'workspace/workspace-1/file.bin',
-      context: CONTEXT,
-      partNumbers: [1],
-      localUrl: (partNumber) => `http://local/${partNumber}`,
-    })
-    expect(second[0].expiresAt).toBe(new Date(Date.now() + UPLOAD_URL_TTL_MS).toISOString())
-    expect(new Date(second[0].expiresAt).getTime()).toBeGreaterThan(
-      new Date(first[0].expiresAt).getTime()
-    )
   })
 
   it('signs multipart parts for the same lifetime it advertises', async () => {

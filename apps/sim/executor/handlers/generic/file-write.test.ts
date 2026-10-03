@@ -1,7 +1,6 @@
-/**
- * @vitest-environment node
- */
 import { createExecutorContext, createSerializedBlock } from '@sim/testing'
+import { toolsUtilsMock } from '@sim/testing/mocks/blocks.mock'
+import { toolsMock } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fileManageWriteBodySchema } from '@/lib/api/contracts/tools/file'
 import { FileV5Block } from '@/blocks/blocks/file'
@@ -12,8 +11,8 @@ import { fileWriteTool } from '@/tools/file/write'
 import { getTool } from '@/tools/utils'
 
 vi.mock('@/blocks/index', () => ({ getBlock: vi.fn() }))
-vi.mock('@/tools', () => ({ executeTool: vi.fn() }))
-vi.mock('@/tools/utils', () => ({ getTool: vi.fn() }))
+vi.mock('@/tools', () => toolsMock)
+vi.mock('@/tools/utils', () => toolsUtilsMock)
 
 const generatedFile = {
   id: 'generated-file',
@@ -36,7 +35,6 @@ async function executeWrite(inputs: Record<string, unknown>) {
 
 describe('File Write executor inputs', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.mocked(getBlock).mockReturnValue(FileV5Block)
     vi.mocked(getTool).mockReturnValue(fileWriteTool)
     vi.mocked(executeTool).mockResolvedValue({ success: true, output: {} })

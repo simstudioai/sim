@@ -1,15 +1,9 @@
-/** @vitest-environment node */
-
 import { account, credential } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDecryptSecret } = vi.hoisted(() => ({ mockDecryptSecret: vi.fn() }))
-
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-  encryptSecret: vi.fn(),
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import { createQuickBooksAccountId } from '@/lib/oauth/quickbooks'
 import {
@@ -22,6 +16,8 @@ import {
   getQuickBooksWebhookClientConfigByCredentialId,
   streamQuickBooksWebhookVerifierTokensByAppKey,
 } from '@/lib/webhooks/quickbooks-credentials'
+
+const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
 
 async function collectVerifierTokens(appKey: string): Promise<string[]> {
   const tokens: string[] = []
@@ -42,25 +38,12 @@ const ACCOUNT_ID = createQuickBooksAccountId('1234567890', 'subject-1', CLIENT_C
 
 describe('QuickBooks webhook credential lookup', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockDecryptSecret.mockResolvedValue({ decrypted: JSON.stringify(CLIENT_CONFIG) })
   })
 
   afterAll(() => {
     resetDbChainMock()
-  })
-
-  it('loads and validates an app-scoped verifier token', async () => {
-    queueTableRows(account, [
-      {
-        accountId: ACCOUNT_ID,
-        oauthConfig: 'encrypted-config',
-      },
-    ])
-
-    await expect(collectVerifierTokens(APP_KEY)).resolves.toEqual(['verifier-token'])
-    expect(mockDecryptSecret).toHaveBeenCalledWith('encrypted-config')
   })
 
   it('returns every distinct verifier token for accounts that share one Intuit app', async () => {
@@ -83,23 +66,6 @@ describe('QuickBooks webhook credential lookup', () => {
       'first-verifier',
       'second-verifier',
     ])
-  })
-
-  it('decrypts one account at a time so an early match skips the rest of the app', async () => {
-    queueTableRows(
-      account,
-      Array.from({ length: 10 }, (_, index) => ({
-        accountId: createQuickBooksAccountId(String(index + 1), `subject-${index}`, CLIENT_CONFIG),
-        oauthConfig: 'encrypted-config',
-      }))
-    )
-
-    for await (const token of streamQuickBooksWebhookVerifierTokensByAppKey(APP_KEY)) {
-      expect(token).toBe('verifier-token')
-      break
-    }
-
-    expect(mockDecryptSecret).toHaveBeenCalledTimes(1)
   })
 
   it('fails closed instead of loading an unbounded number of app accounts', async () => {

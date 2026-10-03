@@ -45,10 +45,12 @@ export const GET = defineInternalJsonRoute({
    * draft graph. Redacting here would blank OAuth accounts and resource selectors in that viewer
    * without closing any disclosure boundary, so this surface opts into the raw graph.
    */
-  mapInput: ({ params }) => ({
+  mapInput: ({ params, query }) => ({
     workflowId: params.id,
     version: params.version,
+    expectedDeploymentVersionId: query.expectedDeploymentVersionId,
     includeCredentialValues: true,
+    representation: 'comparison' as const,
   }),
   present: ({ version }) => ({ deployedState: version.state }),
 })

@@ -340,4 +340,23 @@ Restore a specific revision of a file to the given path
 |   ↳ `rev` | string | Revision identifier of the restored file |
 |   ↳ `server_modified` | string | Server modification time |
 
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Dropbox account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/dropbox` |
+| Environment variables | `DROPBOX_CLIENT_ID`, `DROPBOX_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `account_info.read` | View Dropbox account information |
+| `files.metadata.read` | View file and folder names, sizes, and dates |
+| `files.metadata.write` | Modify file and folder metadata |
+| `files.content.read` | Download and read Dropbox files |
+| `files.content.write` | Upload, copy, move, and delete files in Dropbox |
+| `sharing.read` | View shared files and folders |
+| `sharing.write` | Share files and folders with others |
+
 

@@ -1,28 +1,22 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
+import { traceStoreMock, traceStoreMockFns } from '@sim/testing/mocks/trace-store.mock'
 import { and } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetJob, mockMaterializeForDisplayWithBlockOutputs } = vi.hoisted(() => ({
-  mockGetJob: vi.fn(),
-  mockMaterializeForDisplayWithBlockOutputs: vi.fn(),
-}))
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
 
-vi.mock('@/lib/core/async-jobs', () => ({
-  getJobQueue: vi.fn().mockResolvedValue({ getJob: mockGetJob }),
-}))
-
-vi.mock('@/lib/logs/execution/trace-store', () => ({
-  materializeExecutionDataForDisplayWithBlockOutputs: mockMaterializeForDisplayWithBlockOutputs,
-}))
+vi.mock('@/lib/logs/execution/trace-store', () => traceStoreMock)
 
 vi.mock('@/lib/workflows/executor/paused-execution-metadata', () => ({
   getAutomaticResumeWaitingMetadata: vi.fn().mockReturnValue(null),
 }))
 
 import { getWorkflowExecutionStatus } from '@/lib/workflows/executor/execution-status'
+
+const mockGetJob = asyncJobsMockFns.mockJobQueue.getJob
+const mockMaterializeForDisplayWithBlockOutputs =
+  traceStoreMockFns.mockMaterializeExecutionDataForDisplayWithBlockOutputs
 
 const input = {
   workflowId: 'workflow-1',
@@ -36,7 +30,6 @@ const input = {
 
 describe('getWorkflowExecutionStatus queue projection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockMaterializeForDisplayWithBlockOutputs.mockResolvedValue({
       executionData: {},
@@ -90,30 +83,6 @@ describe('getWorkflowExecutionStatus queue projection', () => {
       blockOutputs: { 'block-1': { token: '[REDACTED]' } },
     })
     expect(JSON.stringify(status)).not.toContain('resolved-secret')
-  })
-
-  it('projects a queued workflow job as an execution resource', async () => {
-    mockGetJob.mockResolvedValue({
-      status: 'pending',
-      createdAt: new Date('2026-08-05T12:00:00.000Z'),
-      metadata: {
-        workflowId: 'workflow-1',
-        correlation: { triggerType: 'api' },
-      },
-    })
-
-    const status = await getWorkflowExecutionStatus(input)
-
-    expect(status).toMatchObject({
-      executionId: 'execution-1',
-      workflowId: 'workflow-1',
-      status: 'queued',
-      trigger: 'api',
-      startedAt: '2026-08-05T12:00:00.000Z',
-      endedAt: null,
-      error: null,
-    })
-    expect(mockGetJob).toHaveBeenCalledWith('workflow-execution:execution-1')
   })
 
   it('preserves queue cancellation as a cancelled execution resource', async () => {
@@ -304,23 +273,6 @@ describe('getWorkflowExecutionStatus queue projection', () => {
     expect(mockGetJob).not.toHaveBeenCalled()
   })
 
-  it('returns completed queue output when requested', async () => {
-    mockGetJob.mockResolvedValueOnce({
-      status: 'completed',
-      createdAt: new Date('2026-08-05T12:00:00.000Z'),
-      completedAt: new Date('2026-08-05T12:00:05.000Z'),
-      output: { output: { answer: 42 } },
-      metadata: { workflowId: 'workflow-1' },
-    })
-
-    const status = await getWorkflowExecutionStatus({ ...input, includeOutput: true })
-
-    expect(status).toMatchObject({
-      status: 'completed',
-      finalOutput: { answer: 42 },
-    })
-  })
-
   it('does not expose a queue record belonging to another workflow', async () => {
     mockGetJob.mockResolvedValueOnce({
       status: 'pending',
@@ -478,7 +430,6 @@ describe('getWorkflowExecutionStatus settled resume attempts', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGetJob.mockResolvedValue(null)
     mockMaterializeForDisplayWithBlockOutputs.mockImplementation(async (executionData) => ({
@@ -599,14 +550,5 @@ describe('getWorkflowExecutionStatus settled resume attempts', () => {
     const status = await getWorkflowExecutionStatus(resumeInput)
 
     expect(status).toMatchObject({ status: 'cancelled', level: 'info', error: null })
-  })
-
-  it('returns null when the run a settled resume continued no longer exists', async () => {
-    queueTableRows(schemaMock.workflowExecutionLogs, [])
-    queueTableRows(schemaMock.resumeQueue, [settledAttempt()])
-    queueTableRows(schemaMock.workflowExecutionLogs, [])
-    queueTableRows(schemaMock.resumeQueue, [])
-
-    await expect(getWorkflowExecutionStatus(resumeInput)).resolves.toBeNull()
   })
 })

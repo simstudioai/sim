@@ -1,38 +1,35 @@
-/** @vitest-environment node */
-import { recordAudit } from '@sim/audit'
 import { member } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import {
+  invitationsCoreMock,
+  invitationsCoreMockFns,
+} from '@sim/testing/mocks/invitations-core.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import {
+  v2ApiKeyAuthModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing/mocks/v2-route.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  authenticate: vi.fn(),
-  preauth: vi.fn(),
-  rate: vi.fn(),
-  config: vi.fn(),
-  invitation: vi.fn(),
   resend: vi.fn(),
-  Unauthenticated: class extends Error {},
 }))
-vi.mock('@sim/audit', async (original) => ({
-  ...(await original<typeof import('@sim/audit')>()),
-  recordAudit: vi.fn(),
-}))
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: mocks.Unauthenticated,
-}))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mocks.preauth
-    checkRateLimitDirectOrThrow = mocks.rate
-  },
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60_000 }),
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
-vi.mock('@/lib/invitations/core', () => ({ getInvitationById: mocks.invitation }))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/invitations/core', () => invitationsCoreMock)
 vi.mock('@/lib/invitations/mutation-manager', () => ({
   resendInvitationRecord: mocks.resend,
   revokeInvitationRecord: vi.fn(),
@@ -47,9 +44,11 @@ import { InvitationNotPendingError } from '@/lib/invitations/errors'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { POST } from '@/app/api/v2/organizations/[organizationId]/invitations/[invitationId]/resend/route'
 
-const principal = { kind: 'personal_api_key', userId: 'actor', keyId: 'key' } as const
+const { mockGetInvitationById } = invitationsCoreMockFns
+
+const principal = createPersonalApiKeyPrincipal({ userId: 'actor', keyId: 'key' })
 const params = { organizationId: 'org', invitationId: 'invite' }
-const context = { params: Promise.resolve(params) }
+const context = createRouteContext(params)
 const inv = {
   id: 'invite',
   organizationId: 'org',
@@ -64,20 +63,20 @@ const inv = {
   expiresAt: new Date('2099-01-01'),
 }
 function request(body?: unknown) {
-  return new NextRequest('http://localhost/api/v2/organizations/org/invitations/invite/resend', {
+  return createMockRequest({
     method: 'POST',
+    url: 'http://localhost/api/v2/organizations/org/invitations/invite/resend',
     headers: {
       'x-api-key': 'key',
       'content-type': 'application/json',
       'x-forwarded-for': '127.0.0.1',
     },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    body,
   })
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
-  mocks.authenticate.mockResolvedValue({
+  v2RouteMocks.authenticate.mockResolvedValue({
     principal,
     keyType: 'personal',
     rateLimitSubjectIds: ['key:key'],
@@ -89,10 +88,10 @@ beforeEach(() => {
     resetAt: new Date(Date.now() + 60_000),
     retryAfterMs: 0,
   }
-  mocks.preauth.mockResolvedValue(admission)
-  mocks.rate.mockResolvedValue(admission)
-  mocks.config.mockResolvedValue(null)
-  mocks.invitation.mockResolvedValue(inv)
+  v2RouteMocks.preauthRate.mockResolvedValue(admission)
+  v2RouteMocks.operationRate.mockResolvedValue(admission)
+  permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue(null)
+  mockGetInvitationById.mockResolvedValue(inv)
   mocks.resend.mockResolvedValue(inv)
 })
 
@@ -121,12 +120,6 @@ describe('organization invitation API and MCP', () => {
     }
   )
 
-  it('rejects unknown action fields before protected loading', async () => {
-    expect((await POST(request({ role: 'owner' }), context)).status).toBe(400)
-    expect(mocks.invitation).not.toHaveBeenCalled()
-    expect(recordAudit).not.toHaveBeenCalled()
-  })
-
   it.each([
     ['member', 403],
     [null, 404],
@@ -137,25 +130,25 @@ describe('organization invitation API and MCP', () => {
   })
 
   it('conceals a cross-organization invitation', async () => {
-    mocks.invitation.mockResolvedValue({ ...inv, organizationId: 'another' })
+    mockGetInvitationById.mockResolvedValue({ ...inv, organizationId: 'another' })
     expect((await POST(request(), context)).status).toBe(404)
     expect(mocks.resend).not.toHaveBeenCalled()
   })
 
   it('refuses workspace keys before canonical loading', async () => {
-    mocks.authenticate.mockResolvedValue({
-      principal: { kind: 'workspace_api_key', workspaceId: 'ws', keyId: 'key' },
+    v2RouteMocks.authenticate.mockResolvedValue({
+      principal: createWorkspaceApiKeyPrincipal({ workspaceId: 'ws', keyId: 'key' }),
       keyType: 'workspace',
       rateLimitSubjectIds: ['key:key'],
       rateLimitSubscription: null,
     })
     expect((await POST(request(), context)).status).toBe(403)
-    expect(mocks.invitation).not.toHaveBeenCalled()
+    expect(mockGetInvitationById).not.toHaveBeenCalled()
   })
 
   it('rechecks the organization credential restriction', async () => {
     queueTableRows(member, [{ role: 'admin' }])
-    mocks.config.mockResolvedValue({
+    permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue({
       ...DEFAULT_PERMISSION_GROUP_CONFIG,
       disablePersonalApiKeys: true,
     })

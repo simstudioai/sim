@@ -1,20 +1,14 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { remoteSandboxMock, remoteSandboxMockFns } from '@sim/testing/mocks/remote-sandbox.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  executeInSandboxMock,
-  executeShellInSandboxMock,
   loadCompiledDocMock,
   publishCompiledDocArtifactMock,
   readWorkspaceFileContentMock,
   readWorkspaceFileMetadataMock,
   storeCompiledDocMock,
 } = vi.hoisted(() => ({
-  executeInSandboxMock: vi.fn(),
-  executeShellInSandboxMock: vi.fn(),
   loadCompiledDocMock: vi.fn(),
   publishCompiledDocArtifactMock: vi.fn(),
   readWorkspaceFileContentMock: vi.fn(),
@@ -22,10 +16,7 @@ const {
   storeCompiledDocMock: vi.fn(),
 }))
 
-vi.mock('@/lib/execution/remote-sandbox', () => ({
-  executeInSandbox: executeInSandboxMock,
-  executeShellInSandbox: executeShellInSandboxMock,
-}))
+vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
 vi.mock('@/lib/execution/languages', () => ({
   CodeLanguage: { javascript: 'javascript', python: 'python' },
 }))
@@ -44,6 +35,8 @@ vi.mock('./doc-compiled-store', () => ({
 
 import { collectReferencedFileIds, compileDoc } from './doc-compile'
 
+const executeInSandboxMock = remoteSandboxMockFns.mockExecuteInSandbox
+
 const ID = '550e8400-e29b-41d4-a716-446655440000'
 const FILE_PRINCIPAL = { kind: 'session', userId: 'user-1' } as const
 
@@ -55,7 +48,6 @@ afterAll(resetEnvFlagsMock)
 
 describe('collectReferencedFileIds', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isDocSandboxEnabled: true })
   })
 
@@ -102,10 +94,6 @@ describe('collectReferencedFileIds', () => {
   it('does not match slide.addImage({ data }) — no fileId is present there', () => {
     const src = `slide.addImage({ data: base64Data, x: 1, y: 1, w: 2, h: 2 })`
     expect(collectReferencedFileIds(src)).toEqual(new Set())
-  })
-
-  it('returns an empty set when there are no image references', () => {
-    expect(collectReferencedFileIds(`slide.addText('hello', { x: 1, y: 1 })`)).toEqual(new Set())
   })
 
   it('retains a full deck rebuild — every extracted image plus headroom fits the cap', () => {

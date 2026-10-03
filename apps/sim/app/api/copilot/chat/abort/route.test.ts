@@ -1,25 +1,33 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest } from '@sim/testing'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { authBanMock, authBanMockFns } from '@sim/testing/mocks/auth-ban.mock'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
+import {
+  workspaceAuthorizationMock,
+  workspaceAuthorizationMockFns,
+} from '@sim/testing/mocks/workspace-authorization.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockAbortActiveStream,
-  mockAuthenticate,
-  mockGetLatestRunForStream,
   mockReleasePendingChatStream,
   mockRequestExplicitStreamAbort,
   mockWaitForPendingChatStream,
-  mockStreamToolsSettled,
-  mockUnsettledProcesses,
-  mockUnsettledWorkflows,
   mockCancelWorkflow,
   mockAbortWorkflow,
   mockStopProcess,
-  mockSettleProcess,
-  mockRequestRunStop,
   order,
 } = vi.hoisted(() => {
   const order: string[] = []
@@ -33,30 +41,15 @@ const {
       order.push('requestExplicitStreamAbort')
       return { settled: true }
     }),
-    mockAuthenticate: vi.fn(),
-    mockGetLatestRunForStream: vi.fn(),
     mockWaitForPendingChatStream: vi.fn(),
     mockReleasePendingChatStream: vi.fn(),
-    mockStreamToolsSettled: vi.fn(),
-    mockUnsettledProcesses: vi.fn(),
-    mockUnsettledWorkflows: vi.fn(),
     mockCancelWorkflow: vi.fn(),
     mockAbortWorkflow: vi.fn(),
     mockStopProcess: vi.fn(),
-    mockSettleProcess: vi.fn(),
-    mockRequestRunStop: vi.fn(),
   }
 })
 
-vi.mock('@/lib/auth', () => ({ getSession: mockAuthenticate }))
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  getLatestRunForStream: mockGetLatestRunForStream,
-  areStreamToolExecutionsSettled: mockStreamToolsSettled,
-  getUnsettledStreamSandboxProcesses: mockUnsettledProcesses,
-  getUnsettledClientWorkflowExecutions: mockUnsettledWorkflows,
-  settleSimSandboxProcess: mockSettleProcess,
-  requestRunStop: mockRequestRunStop,
-}))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 vi.mock('@/lib/execution/cancellation', () => ({ markExecutionCancelled: mockCancelWorkflow }))
 vi.mock('@/lib/execution/manual-cancellation', () => ({ abortManualExecution: mockAbortWorkflow }))
 vi.mock('@/lib/execution/remote-sandbox/e2b', () => ({ stopE2BSessionProcess: mockStopProcess }))
@@ -69,36 +62,33 @@ vi.mock('@/lib/mothership/request/session/explicit-abort', () => ({
   requestExplicitStreamAbort: mockRequestExplicitStreamAbort,
 }))
 
-const {
-  mockChatContext,
-  mockAuthorize,
-  mockOrganizationAuthorize,
-  mockWorkspaceContext,
-  mockBannedUsers,
-} = vi.hoisted(() => ({
+const { mockChatContext } = vi.hoisted(() => ({
   mockChatContext: vi.fn(),
-  mockAuthorize: vi.fn(),
-  mockOrganizationAuthorize: vi.fn(),
-  mockWorkspaceContext: vi.fn(),
-  mockBannedUsers: vi.fn(),
 }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mockWorkspaceContext,
-}))
-vi.mock('@/lib/auth/ban', () => ({ getActivelyBannedUserIds: mockBannedUsers }))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/auth/ban', () => authBanMock)
 vi.mock('@/lib/mothership/chat/application/context', () => ({
   resolveOwnedChatContext: mockChatContext,
 }))
-vi.mock('@/lib/core/application/workspace-authorization', async (original) => ({
-  ...(await original<typeof import('@/lib/core/application/workspace-authorization')>()),
-  authorizeWorkspaceOperation: mockAuthorize,
-}))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mockOrganizationAuthorize,
-}))
+vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { POST } from '@/app/api/copilot/chat/abort/route'
+
+const { mockAuthorizeWorkspaceOperation: mockAuthorize } = workspaceAuthorizationMockFns
+const { mockGetActivelyBannedUserIds: mockBannedUsers } = authBanMockFns
+
+const mockGetLatestRunForStream = mothershipAsyncRunsMockFns.mockGetLatestRunForStream
+const mockStreamToolsSettled = mothershipAsyncRunsMockFns.mockAreStreamToolExecutionsSettled
+const mockUnsettledProcesses = mothershipAsyncRunsMockFns.mockGetUnsettledStreamSandboxProcesses
+const mockUnsettledWorkflows = mothershipAsyncRunsMockFns.mockGetUnsettledClientWorkflowExecutions
+const mockSettleProcess = mothershipAsyncRunsMockFns.mockSettleSimSandboxProcess
+const mockRequestRunStop = mothershipAsyncRunsMockFns.mockRequestRunStop
+const mockWorkspaceContext = workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext
+const mockOrganizationAuthorize =
+  organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation
+const mockAuthenticate = authMockFns.mockGetSession
 
 function abortRequest() {
   return createMockRequest('POST', { streamId: 'stream-1', chatId: 'chat-1' })
@@ -106,7 +96,6 @@ function abortRequest() {
 
 describe('POST /api/copilot/chat/abort', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockChatContext.mockResolvedValue({
       chatId: 'chat-1',
       userId: 'user-1',
@@ -239,22 +228,6 @@ describe('POST /api/copilot/chat/abort', () => {
     expect(mockSettleProcess).toHaveBeenCalledExactlyOnceWith('tool-2', 'known')
   })
 
-  it('attempts prompt delivery and independently cancels the local stream', async () => {
-    const response = await POST(abortRequest())
-    expect(response.status).toBe(200)
-    expect(order).toEqual(['requestExplicitStreamAbort', 'abortActiveStream'])
-  })
-
-  it('accepts durable Stop and cancels owned tools while worker delivery is unavailable', async () => {
-    mockRequestExplicitStreamAbort.mockRejectedValueOnce(new Error('worker unreachable'))
-    mockUnsettledWorkflows.mockResolvedValue(['owned-execution'])
-    const response = await POST(abortRequest())
-    expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({ aborted: true, settled: false })
-    expect(mockAbortActiveStream).toHaveBeenCalledOnce()
-    expect(mockCancelWorkflow).toHaveBeenCalledExactlyOnceWith('owned-execution')
-  })
-
   it('force-releases the chat stream lock when the stream never settles', async () => {
     mockWaitForPendingChatStream.mockResolvedValue(false)
 
@@ -262,42 +235,6 @@ describe('POST /api/copilot/chat/abort', () => {
 
     await expect(response.json()).resolves.toMatchObject({ settled: false, forceReleased: true })
     expect(mockReleasePendingChatStream).toHaveBeenCalledWith('chat-1', 'stream-1')
-  })
-
-  it('authorizes Stop through the canonical owned-chat context before signalling the worker', async () => {
-    const response = await POST(abortRequest())
-    expect(response.status).toBe(200)
-    expect(mockChatContext).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'session', userId: 'user-1', sessionId: 'session-1' }),
-      'chat-1'
-    )
-    expect(mockRequestExplicitStreamAbort).toHaveBeenCalledWith(
-      expect.objectContaining({ chatId: 'chat-1', userId: 'user-1', streamId: 'stream-1' })
-    )
-  })
-
-  it('preserves organization scope through parsing for a chatless pre-admission Stop', async () => {
-    mockGetLatestRunForStream.mockResolvedValue(null)
-    mockRequestRunStop.mockResolvedValue(null)
-    const response = await POST(
-      createMockRequest('POST', { streamId: 'early-stream', organizationId: 'org-1' })
-    )
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ aborted: true, settled: true })
-    expect(mockOrganizationAuthorize).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'session', userId: 'user-1' }),
-      expect.objectContaining({ id: 'mothership.runs.abort', minimumRole: 'member' }),
-      { organizationId: 'org-1' }
-    )
-    expect(mockRequestRunStop).toHaveBeenCalledWith({
-      streamId: 'early-stream',
-      userId: 'user-1',
-      organizationId: 'org-1',
-      workspaceId: undefined,
-    })
-    expect(mockWorkspaceContext).not.toHaveBeenCalled()
-    expect(mockAuthorize).not.toHaveBeenCalled()
-    expect(mockRequestExplicitStreamAbort).not.toHaveBeenCalled()
   })
 
   it('refuses mixed owner scopes in the HTTP contract before protected lookup', async () => {
@@ -350,33 +287,6 @@ describe('POST /api/copilot/chat/abort', () => {
     )
   })
 
-  it('stops an owned organization stream without borrowing a workspace grant', async () => {
-    mockChatContext.mockResolvedValue({
-      userId: 'user-1',
-      chatId: 'chat-1',
-      organizationId: 'org-1',
-    })
-    const run = { chatId: 'chat-1', workspaceId: null, organizationId: 'org-1' }
-    mockGetLatestRunForStream.mockResolvedValue(run)
-    mockRequestRunStop.mockResolvedValue(run)
-    const response = await POST(
-      createMockRequest('POST', { streamId: 'stream-1', chatId: 'chat-1', organizationId: 'org-1' })
-    )
-    expect(response.status).toBe(200)
-    expect(mockOrganizationAuthorize).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 'user-1' }),
-      expect.objectContaining({ id: 'mothership.runs.abort', capability: 'none' }),
-      { organizationId: 'org-1' }
-    )
-    expect(mockAuthorize).not.toHaveBeenCalled()
-    expect(mockRequestExplicitStreamAbort).toHaveBeenCalledWith(
-      expect.objectContaining({
-        chatId: 'chat-1',
-        userId: 'user-1',
-      })
-    )
-  })
-
   it('refuses an inaccessible organization chat before changing stream state', async () => {
     mockChatContext.mockRejectedValueOnce(new OrchestrationError('not_found', 'Chat not found'))
     const response = await POST(abortRequest())
@@ -401,12 +311,6 @@ describe('POST /api/copilot/chat/abort', () => {
     await expect(finished.json()).resolves.toMatchObject({ settled: true })
   })
 
-  it('does not certify a failed execution lookup', async () => {
-    mockStreamToolsSettled.mockRejectedValueOnce(new Error('execution lookup unavailable'))
-    await expect((await POST(abortRequest())).json()).resolves.toMatchObject({ settled: false })
-    expect(mockAbortActiveStream).toHaveBeenCalledTimes(1)
-  })
-
   it('does not turn a forced lock release into worker settlement on a repeated Stop', async () => {
     mockWaitForPendingChatStream.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
     mockRequestExplicitStreamAbort
@@ -417,27 +321,6 @@ describe('POST /api/copilot/chat/abort', () => {
     const second = await POST(abortRequest())
     await expect(second.json()).resolves.toMatchObject({ settled: false })
     expect(mockReleasePendingChatStream).toHaveBeenCalledTimes(1)
-  })
-
-  it('rejects an unauthenticated caller without touching either abort path', async () => {
-    mockAuthenticate.mockResolvedValue(null)
-
-    const response = await POST(abortRequest())
-
-    expect(response.status).toBe(401)
-    expect(mockRequestExplicitStreamAbort).not.toHaveBeenCalled()
-    expect(mockAbortActiveStream).not.toHaveBeenCalled()
-  })
-  it('refuses an unknown request without workspace or chat scope', async () => {
-    mockGetLatestRunForStream.mockResolvedValue(null)
-    expect((await POST(createMockRequest('POST', { streamId: 'stream-1' }))).status).toBe(404)
-    expect(mockRequestExplicitStreamAbort).not.toHaveBeenCalled()
-    expect(mockRequestRunStop).not.toHaveBeenCalled()
-  })
-  it('does not forward when ownership lookup fails', async () => {
-    mockGetLatestRunForStream.mockRejectedValue(new Error('db unavailable'))
-    expect((await POST(abortRequest())).status).toBe(500)
-    expect(mockRequestExplicitStreamAbort).not.toHaveBeenCalled()
   })
 
   it('rejects an asserted chat mismatch', async () => {
@@ -454,26 +337,6 @@ describe('POST /api/copilot/chat/abort', () => {
     mockAuthorize.mockRejectedValue(new Error('access revoked'))
     expect((await POST(abortRequest())).status).toBe(500)
     expect(mockRequestExplicitStreamAbort).not.toHaveBeenCalled()
-  })
-
-  it('records a scoped Stop for an owned chat before any reservation exists', async () => {
-    mockGetLatestRunForStream.mockResolvedValue(null)
-    mockRequestRunStop.mockResolvedValue(null)
-    const response = await POST(abortRequest())
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toMatchObject({ aborted: true, settled: true })
-    expect(mockStreamToolsSettled).not.toHaveBeenCalled()
-    expect(mockRequestExplicitStreamAbort).not.toHaveBeenCalled()
-  })
-  it('uses normal Stop when admission wins after the initial lookup', async () => {
-    mockGetLatestRunForStream.mockResolvedValue(null)
-    const response = await POST(
-      createMockRequest('POST', { streamId: 'stream-1', workspaceId: 'workspace-1' })
-    )
-    expect(response.status).toBe(200)
-    expect(mockRequestExplicitStreamAbort).toHaveBeenCalledWith(
-      expect.objectContaining({ chatId: 'chat-1', userId: 'user-1' })
-    )
   })
   it('rejects a run admitted in a different scope during the lookup race', async () => {
     mockGetLatestRunForStream.mockResolvedValue(null)

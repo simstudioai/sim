@@ -151,7 +151,7 @@ describe('bounded embedding insert transactions', () => {
         .from(embedding)
         .where(eq(embedding.documentId, file.documentId))
     ).toEqual([{ id: previousId }])
-    for (const table of ['embedding_search', 'embedding_keyword_search']) {
+    for (const table of ['embedding_search']) {
       expect(
         await db.$client.unsafe(`SELECT id FROM ${table} WHERE document_id = $1`, [file.documentId])
       ).toEqual([{ id: previousId }])
@@ -175,7 +175,7 @@ describe('bounded embedding insert transactions', () => {
     expect(await db.select().from(document).where(eq(document.id, file.documentId))).toMatchObject([
       { processingStatus: 'completed', chunkCount: 205, processingError: null },
     ])
-    for (const table of ['embedding', 'embedding_search', 'embedding_keyword_search']) {
+    for (const table of ['embedding', 'embedding_search']) {
       expect(
         await db.$client.unsafe(
           `SELECT count(*)::int AS count FROM ${table} WHERE document_id = $1`,

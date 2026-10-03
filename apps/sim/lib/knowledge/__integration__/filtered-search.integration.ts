@@ -18,7 +18,7 @@ import {
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { confluencePageAcl } from '@/lib/knowledge/access/confluence-permissions'
 import { resolveKnowledgeAccessScope } from '@/lib/knowledge/access/scope'
-import { executeKnowledgeSearch } from '@/lib/knowledge/search/queries'
+import { retrieveKnowledgeSearch } from '@/lib/knowledge/search/queries'
 import { embeddingVectorValues } from '@/lib/knowledge/vector-columns'
 
 afterAll(async () => {
@@ -130,7 +130,7 @@ describe.each([384, 768, 1024, 1536, 3072] as const)(
 
     async function search(principal: Principal, mode: 'vector' | 'hybrid' = 'vector') {
       const access = await resolveKnowledgeAccessScope(principal, { workspaceId: ids.workspaceId })
-      const rows = await executeKnowledgeSearch({
+      const { rows, retrieval } = await retrieveKnowledgeSearch({
         knowledgeBaseIds: [ids.knowledgeBaseId, secondBaseId],
         topK: 3,
         access,
@@ -145,6 +145,7 @@ describe.each([384, 768, 1024, 1536, 3072] as const)(
           { tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'common' },
         ],
       })
+      expect(retrieval.status).toBe('complete')
       return rows.map((row) => fixtures.find((fixture) => fixture.embeddingId === row.id)!.name)
     }
 

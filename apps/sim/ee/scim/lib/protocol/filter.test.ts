@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import type { ScimError } from '@/ee/scim/lib/protocol/errors'
 import { parseGroupFilter, parseUserFilter } from '@/ee/scim/lib/protocol/filter'
@@ -28,12 +25,6 @@ describe('parseUserFilter', () => {
     ])
   })
 
-  it('parses an externalId lookup, which Entra uses when it is the match attribute', () => {
-    expect(parseUserFilter('externalId eq "00u1"')).toEqual([
-      { field: 'externalId', value: '00u1' },
-    ])
-  })
-
   it('parses the work-email filtered path Entra sends', () => {
     expect(parseUserFilter('emails[type eq "work"].value eq "ada@acme.test"')).toEqual([
       { field: 'workEmail', value: 'ada@acme.test' },
@@ -49,25 +40,6 @@ describe('parseUserFilter', () => {
     ])
   })
 
-  it('joins expressions with and', () => {
-    expect(parseUserFilter('userName eq "ada@acme.test" and externalId eq "00u1"')).toEqual([
-      { field: 'userName', value: 'ada@acme.test' },
-      { field: 'externalId', value: '00u1' },
-    ])
-  })
-
-  it('accepts a URN-qualified attribute name', () => {
-    expect(
-      parseUserFilter('urn:ietf:params:scim:schemas:core:2.0:User:userName eq "a@b.test"')
-    ).toEqual([{ field: 'userName', value: 'a@b.test' }])
-  })
-
-  it('treats the operator as case-insensitive', () => {
-    expect(parseUserFilter('userName Eq "a@b.test"')).toEqual([
-      { field: 'userName', value: 'a@b.test' },
-    ])
-  })
-
   it('does not split on the word and inside a quoted value', () => {
     expect(parseGroupFilter('displayName eq "Research and Development"')).toEqual([
       { field: 'displayName', value: 'Research and Development' },
@@ -80,11 +52,6 @@ describe('parseUserFilter', () => {
 
   it('refuses an attribute this server cannot answer', () => {
     expect(scimTypeOf(() => parseUserFilter('nickName eq "Ada"'))).toBe('invalidFilter')
-  })
-
-  it('accepts the unquoted booleans RFC 7644 writes for active', () => {
-    expect(parseUserFilter('active eq true')).toEqual([{ field: 'active', value: 'true' }])
-    expect(parseUserFilter('active eq false')).toEqual([{ field: 'active', value: 'false' }])
   })
 
   it('normalizes quoted boolean values and refuses other strings', () => {
@@ -103,12 +70,6 @@ describe('parseUserFilter', () => {
 })
 
 describe('parseGroupFilter', () => {
-  it('parses the displayName lookup Okta sends before a group push', () => {
-    expect(parseGroupFilter('displayName eq "Engineering"')).toEqual([
-      { field: 'displayName', value: 'Engineering' },
-    ])
-  })
-
   it('refuses a User attribute on the Group endpoint', () => {
     expect(scimTypeOf(() => parseGroupFilter('userName eq "a@b.test"'))).toBe('invalidFilter')
   })

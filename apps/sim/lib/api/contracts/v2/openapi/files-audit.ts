@@ -208,9 +208,9 @@ const declaredRoutes = [
       ),
       response: documentedSchema(
         v2CreateFileContract.response.schema,
-        'V2FileResponse',
-        'File response',
-        'A single workspace file.',
+        'V2CreatedFileResponse',
+        'Created file response',
+        'A newly created workspace file, with the revision it produced.',
         [{ data: FILE_EXAMPLE }]
       ),
     }

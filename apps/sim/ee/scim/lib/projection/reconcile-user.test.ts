@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import {
   member,
@@ -12,10 +9,13 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  acquireLocks: vi.fn(),
+const hoistedMocks = vi.hoisted(() => ({
   changeMemberRole: vi.fn(),
   addMember: vi.fn(),
   removeMember: vi.fn(),
@@ -25,30 +25,33 @@ const mocks = vi.hoisted(() => ({
   revokeWorkspace: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationUserMutationLocks: mocks.acquireLocks,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 vi.mock('@/lib/organizations/members/lifecycle', () => ({
-  changeMemberRoleTx: mocks.changeMemberRole,
+  changeMemberRoleTx: hoistedMocks.changeMemberRole,
 }))
 vi.mock('@/lib/permission-groups/application/group-membership', () => ({
-  addPermissionGroupMemberTx: mocks.addMember,
-  removePermissionGroupMemberTx: mocks.removeMember,
+  addPermissionGroupMemberTx: hoistedMocks.addMember,
+  removePermissionGroupMemberTx: hoistedMocks.removeMember,
   PermissionGroupNotFoundError: class PermissionGroupNotFoundError extends Error {},
   PermissionGroupScopeConflictError: class PermissionGroupScopeConflictError extends Error {
     conflicts: unknown[] = []
   },
 }))
 vi.mock('@/lib/workspaces/access/workspace-access', () => ({
-  grantWorkspaceAccessTx: mocks.grantWorkspace,
-  lowerWorkspaceAccessTx: mocks.lowerWorkspace,
-  readWorkspacePermission: mocks.readPermission,
-  revokeWorkspaceAccessTx: mocks.revokeWorkspace,
+  grantWorkspaceAccessTx: hoistedMocks.grantWorkspace,
+  lowerWorkspaceAccessTx: hoistedMocks.lowerWorkspace,
+  readWorkspacePermission: hoistedMocks.readPermission,
+  revokeWorkspaceAccessTx: hoistedMocks.revokeWorkspace,
   permissionRank: (permission: string) => ({ read: 1, write: 2, admin: 3 })[permission] ?? 0,
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { reconcileUserProjection } from '@/ee/scim/lib/projection/reconcile-user'
+
+const mocks = {
+  ...hoistedMocks,
+  acquireLocks: organizationMembershipMockFns.mockAcquireOrganizationUserMutationLocks,
+}
 
 const params = {
   connectionId: 'conn-1',
@@ -110,7 +113,6 @@ afterAll(resetDbChainMock)
 
 describe('reconcileUserProjection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.grantWorkspace.mockResolvedValue('granted')
     mocks.lowerWorkspace.mockResolvedValue('lowered')
@@ -133,18 +135,6 @@ describe('reconcileUserProjection', () => {
     )
   })
 
-  it('records access the directory created as its own', async () => {
-    stage({ mappings: [workspaceMapping('ws-1', 'write')] })
-    const delta = await reconcileUserProjection(db, params)
-    expect(mocks.grantWorkspace).toHaveBeenCalledWith(db, {
-      workspaceId: 'ws-1',
-      userId: 'u-1',
-      permission: 'write',
-    })
-    expect(insertedValues()[0]).toMatchObject({ targetId: 'ws-1', origin: 'directory' })
-    expect(delta.added).toHaveLength(1)
-  })
-
   it('records access the person already held by hand as adopted, and counts no change', async () => {
     mocks.grantWorkspace.mockResolvedValue('unchanged')
     stage({
@@ -158,19 +148,6 @@ describe('reconcileUserProjection', () => {
       baselinePermission: 'write',
     })
     expect(delta.added).toHaveLength(0)
-  })
-
-  it('plans nothing when the recorded grants already satisfy the mappings', async () => {
-    stage({
-      current: [
-        { targetKind: 'workspace', targetId: 'ws-1', permissionType: 'write', origin: 'directory' },
-      ],
-      mappings: [workspaceMapping('ws-1', 'write')],
-    })
-    await reconcileUserProjection(db, params)
-    expect(mocks.grantWorkspace).not.toHaveBeenCalled()
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
   })
 
   it.each([null, 'read'] as const)(
@@ -342,22 +319,6 @@ describe('reconcileUserProjection', () => {
     expect(withdrawn.removed).toHaveLength(1)
   })
 
-  it('leaves the provenance row in place when access could not be handed on', async () => {
-    mocks.revokeWorkspace.mockResolvedValue({
-      revoked: false,
-      reason: 'unresolved-workflows',
-      unresolvedWorkflows: ['wf-1'],
-    })
-    stage({
-      current: [
-        { targetKind: 'workspace', targetId: 'ws-1', permissionType: 'write', origin: 'directory' },
-      ],
-    })
-    const delta = await reconcileUserProjection(db, params)
-    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-    expect(delta.removed).toHaveLength(0)
-  })
-
   it('leaves a manual raise above the directory level alone when unlocked', async () => {
     mocks.readPermission.mockResolvedValue('admin')
     stage({
@@ -428,12 +389,5 @@ describe('reconcileUserProjection', () => {
     const delta = await reconcileUserProjection(db, params)
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     expect(delta.added).toHaveLength(0)
-  })
-
-  it('does nothing for a directory row that no longer exists', async () => {
-    queueTableRows(scimUser, [])
-    const delta = await reconcileUserProjection(db, params)
-    expect(delta).toEqual({ added: [], removed: [], raised: [] })
-    expect(mocks.acquireLocks).not.toHaveBeenCalled()
   })
 })

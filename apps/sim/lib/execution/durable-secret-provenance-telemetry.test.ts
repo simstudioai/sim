@@ -1,16 +1,13 @@
-/** @vitest-environment node */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { logger } = vi.hoisted(() => ({ logger: { error: vi.fn() } }))
-vi.mock('@sim/logger', () => ({ createLogger: () => logger }))
-
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { describe, expect, it } from 'vitest'
 import {
   reportDurableSecretProvenanceRefusal,
   reportDurableSecretProvenanceWrite,
 } from '@/lib/execution/durable-secret-provenance-telemetry'
 
+const logger = getMockLogger('DurableSecretProvenancePersistence')
+
 describe('durable secret provenance telemetry', () => {
-  beforeEach(() => vi.clearAllMocks())
   it('reports non-exact writes without including private content or entries', () => {
     const report = {
       surface: 'knowledge' as const,

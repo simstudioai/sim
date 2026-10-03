@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { TERMINAL_TOOL_NAME } from '@sim/terminal-protocol'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { AsyncCompletionSignal } from '@/lib/mothership/async-runs/lifecycle'
-import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/mothership/constants'
+import { PERMISSION_WAIT_TIMEOUT_MS } from '@/lib/mothership/constants'
 import {
   MothershipStreamV1EventType,
   type MothershipStreamV1ToolExecutor,
@@ -43,19 +43,13 @@ function terminalOperationNeedsApproval(args: Record<string, unknown> | undefine
   return args?.operation === 'run'
 }
 
-/**
- * A human can take as long as they like to answer, so the wait is bounded only
- * by the overall orchestration budget rather than a per-tool watchdog.
- */
-const PERMISSION_WAIT_TIMEOUT_MS = ORCHESTRATION_TIMEOUT_MS
-
 export const TOOL_AWAITING_APPROVAL_STATUS = MothershipStreamV1ToolStatus.awaiting_approval
 
 /**
  * Whether this call must be held for an explicit user decision.
  *
  * Headless one-shot executions are never gated: nobody is there to answer, and
- * blocking them would hang the run until the orchestration timeout.
+ * blocking them would hang the run until the permission wait expires.
  *
  * This is the dispatch lane's answer, and it needs a streaming context. A lane
  * that has none — the in-band route — asks `toolRequiresApprovalLane` instead,

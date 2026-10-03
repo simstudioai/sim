@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getHostedModels,
@@ -61,8 +60,6 @@ describe('TypeSafe provider', () => {
     vi.stubGlobal('fetch', fetchMock)
   })
   afterEach(() => {
-    vi.unstubAllGlobals()
-    vi.restoreAllMocks()
     vi.useRealTimers()
   })
 

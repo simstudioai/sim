@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { describe, expect, it } from 'vitest'
 import { v2ApiRowSchema, v2EnrichmentRunDetailSchema } from '@/lib/api/contracts/v2/tables'
 import type { TableSchema, WorkflowGroup } from '@/lib/table/types'

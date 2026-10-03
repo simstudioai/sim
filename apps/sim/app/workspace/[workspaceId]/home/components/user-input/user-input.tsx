@@ -32,8 +32,10 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components'
 import { ConversationModeSelector } from '@/app/workspace/[workspaceId]/home/components/user-input/components/conversation-mode-selector'
 import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
+import { useConversationModeShortcut } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-conversation-mode-shortcut'
 import { handleMothershipAddContextEvent } from '@/app/workspace/[workspaceId]/home/components/user-input/mothership-context-event'
 import type {
+  ChatRequestMode,
   FileAttachmentForApi,
   MothershipResource,
   QueuedMessage,
@@ -113,7 +115,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   const files = useFileAttachments({
     userId,
     workspaceId,
-    isLoading: isSending,
   })
   const hasFiles = files.attachedFiles.some((f) => !f.uploading && f.key)
   const hasUploadingFiles = files.attachedFiles.some((f) => f.uploading)
@@ -134,6 +135,15 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   const editorRef = useRef(editor)
   editorRef.current = editor
   const textareaRef = editor.textareaRef
+  const handleModeChange = (mode: ChatRequestMode) => {
+    if (mode === 'agent' || mode === 'plan') onModeChange?.(mode)
+  }
+  const handleModeShortcut = useConversationModeShortcut({
+    value: requestMode,
+    onChange: onModeChange ? handleModeChange : undefined,
+    textareaRef,
+    pickerOpen: editor.mentionQuery !== null || editor.slashQuery !== null,
+  })
   useChatInputFocus({ textareaRef })
 
   /**
@@ -259,6 +269,8 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
           return `knowledge:${ctx.knowledgeId ?? ''}`
         case 'table':
           return `table:${ctx.tableId}`
+        case 'dashboard':
+          return `dashboard:${ctx.dashboardId}`
         case 'file':
           return `file:${ctx.fileId}`
         case 'folder':
@@ -312,7 +324,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   }
 
   const {
-    audioLevelsRef,
+    audioLevels,
     isListening,
     isSupported: isSttSupported,
     toggleListening,
@@ -550,6 +562,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
   return (
     <div
       onClick={handleContainerClick}
+      onKeyDown={handleModeShortcut}
       onFocusCapture={() => {
         composerOwnsFocusRef.current = true
       }}
@@ -621,19 +634,14 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
               <Tooltip.Content side='top'>Skills</Tooltip.Content>
             </Tooltip.Root>
             {onModeChange && (
-              <ConversationModeSelector
-                value={requestMode}
-                onChange={(mode) => {
-                  if (mode === 'agent' || mode === 'plan') onModeChange(mode)
-                }}
-              />
+              <ConversationModeSelector value={requestMode} onChange={handleModeChange} />
             )}
           </>
         }
         voiceControl={
           isSttSupported && (
             <MicButton
-              audioLevelsRef={audioLevelsRef}
+              audioLevels={audioLevels}
               isListening={isListening}
               onToggle={toggleListening}
             />

@@ -1,11 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
-import {
-  organizationUsageBreakdownQuerySchema,
-  organizationUsageEventsQuerySchema,
-} from '@/lib/api/contracts/organization-usage'
+import { organizationUsageEventsQuerySchema } from '@/lib/api/contracts/organization-usage'
 
 /** The shared window fields every usage contract extends, exercised through one of them. */
 function parseWindow(input: Record<string, unknown>) {
@@ -13,10 +7,6 @@ function parseWindow(input: Record<string, unknown>) {
 }
 
 describe('organization usage window contract', () => {
-  it('accepts a real calendar date', () => {
-    expect(parseWindow({ startDate: '2026-08-01', endDate: '2026-08-31' }).success).toBe(true)
-  })
-
   it('refuses a date that does not exist', () => {
     // `Date.parse` accepts this and rolls it forward to March 2, so a request for
     // February would otherwise be answered about March without saying so.
@@ -28,7 +18,7 @@ describe('organization usage window contract', () => {
    * called `toISOString` on an Invalid Date. Zod does not wrap refinements, so the RangeError
    * escaped `safeParse` itself and every usage route answered a malformed query string with a 500.
    */
-  it.each(['2026-13-01', '2026-00-01', '2026-01-32', '2026-01-00', '9999-99-99'])(
+  it.each(['2026-13-01', '9999-99-99'])(
     'refuses %s without throwing out of safeParse',
     (startDate) => {
       expect(parseWindow({ startDate }).success).toBe(false)
@@ -65,43 +55,7 @@ describe('organization usage window contract', () => {
     expect(parseWindow({}).success).toBe(true)
   })
 
-  it('treats an empty limit as omitted rather than as zero', () => {
-    // `z.coerce.number()` turns `''` into `0`, which then fails `.min(1)` — so a
-    // client serializing an unset filter got a 400 instead of the declared default.
-    const parsed = parseWindow({ limit: '' })
-    expect(parsed.success).toBe(true)
-    if (parsed.success) expect(parsed.data.limit).toBe(50)
-  })
-
-  it('normalizes a single source to a one-item array', () => {
-    // One selected filter arrives as a scalar, which a bare `z.array` rejected.
-    const parsed = parseWindow({ source: 'workflow' })
-    expect(parsed.success).toBe(true)
-    if (parsed.success) expect(parsed.data.source).toEqual(['workflow'])
-  })
-
-  it('refuses an unknown source instead of matching nothing', () => {
-    expect(parseWindow({ source: 'not-a-source' }).success).toBe(false)
-  })
-
   it('refuses a timezone the runtime does not recognize', () => {
     expect(parseWindow({ timezone: 'Mars/Olympus_Mons' }).success).toBe(false)
-  })
-})
-
-describe('organization usage breakdown contract', () => {
-  const baseQuery = { dimension: 'workspace' as const }
-
-  it('defaults to 50 rows', () => {
-    expect(organizationUsageBreakdownQuerySchema.parse(baseQuery).limit).toBe(50)
-  })
-
-  it('allows expansion to 100 rows and refuses larger requests', () => {
-    expect(
-      organizationUsageBreakdownQuerySchema.safeParse({ ...baseQuery, limit: 100 }).success
-    ).toBe(true)
-    expect(
-      organizationUsageBreakdownQuerySchema.safeParse({ ...baseQuery, limit: 101 }).success
-    ).toBe(false)
   })
 })

@@ -4,6 +4,7 @@ import { tableJobs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { and, eq } from 'drizzle-orm'
 import {
   type V2CreateTableImportBody,
@@ -527,7 +528,7 @@ function parseRejectionSummary(payload: unknown): TableImportRejectionSummary {
     cellsRejected: 0,
     rejectedSamples: [],
   }
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return empty
+  if (!isRecordLike(payload)) return empty
   const candidate = payload as Partial<TableImportRejectionSummary>
   const samples = Array.isArray(candidate.rejectedSamples) ? candidate.rejectedSamples : []
   return {
@@ -548,7 +549,7 @@ function parseRejectionSummary(payload: unknown): TableImportRejectionSummary {
  * handed unchanged to a `.strict()` schema and turn a read of the import into a 500.
  */
 function parseRejectedSample(value: unknown): CsvSkippedRecord | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  if (!isRecordLike(value)) return null
   const candidate = value as Partial<CsvSkippedRecord>
   if (typeof candidate.code !== 'string' || typeof candidate.message !== 'string') return null
   const line =
@@ -570,7 +571,7 @@ function parseRejectionCount(value: unknown): number {
  * an ordinary "not this resource" answer rather than an error condition.
  */
 function parseImportJobPayload(payload: unknown): ParsedTableImportPayload | null {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
+  if (!isRecordLike(payload)) return null
   const candidate = payload as Partial<TableImportJobPayload>
   if (
     candidate.kind !== 'table_import' ||

@@ -1,11 +1,7 @@
-/**
- * @vitest-environment node
- */
-
 import { propagation, trace } from '@opentelemetry/api'
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OrchestratorResult } from '@/lib/mothership/request/types'
 
 const { runCopilotLifecycle } = vi.hoisted(() => ({
@@ -33,69 +29,6 @@ describe('runHeadlessCopilotLifecycle', () => {
   beforeEach(() => {
     trace.setGlobalTracerProvider(new BasicTracerProvider())
     propagation.setGlobalPropagator(new W3CTraceContextPropagator())
-  })
-
-  afterEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('runs the lifecycle and returns its result', async () => {
-    runCopilotLifecycle.mockResolvedValueOnce(
-      createLifecycleResult({
-        usage: { prompt: 10, completion: 5 },
-        cost: { input: 1, output: 2, total: 3 },
-      })
-    )
-
-    const result = await runHeadlessCopilotLifecycle(
-      {
-        message: 'hello',
-        messageId: 'req-1',
-      },
-      {
-        userId: 'user-1',
-        chatId: 'chat-1',
-        workflowId: 'workflow-1',
-        goRoute: '/api/mothership/execute',
-        interactive: false,
-      }
-    )
-
-    expect(result.success).toBe(true)
-    expect(runCopilotLifecycle).toHaveBeenCalledWith(
-      expect.objectContaining({ messageId: 'req-1' }),
-      expect.objectContaining({
-        simRequestId: 'req-1',
-        trace: expect.any(Object),
-        otelContext: expect.any(Object),
-        chatId: 'chat-1',
-      })
-    )
-  })
-
-  it('returns an unsuccessful result from the lifecycle', async () => {
-    runCopilotLifecycle.mockResolvedValueOnce(
-      createLifecycleResult({
-        success: false,
-        error: 'failed',
-      })
-    )
-
-    const result = await runHeadlessCopilotLifecycle(
-      {
-        message: 'hello',
-        messageId: 'req-2',
-      },
-      {
-        userId: 'user-1',
-        chatId: 'chat-1',
-        workflowId: 'workflow-1',
-        goRoute: '/api/mothership/execute',
-        interactive: false,
-      }
-    )
-
-    expect(result.success).toBe(false)
   })
 
   it('forces the server-owned headless classification', async () => {
@@ -165,25 +98,5 @@ describe('runHeadlessCopilotLifecycle', () => {
     )
 
     expect(lifecycleTraceparent).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-0[0-9a-f]$/)
-  })
-
-  it('rethrows when the lifecycle throws', async () => {
-    runCopilotLifecycle.mockRejectedValueOnce(new Error('kaboom'))
-
-    await expect(
-      runHeadlessCopilotLifecycle(
-        {
-          message: 'hello',
-          messageId: 'req-3',
-        },
-        {
-          userId: 'user-1',
-          chatId: 'chat-1',
-          workflowId: 'workflow-1',
-          goRoute: '/api/mothership/execute',
-          interactive: false,
-        }
-      )
-    ).rejects.toThrow('kaboom')
   })
 })

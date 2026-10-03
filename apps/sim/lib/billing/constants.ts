@@ -103,3 +103,7 @@ export const ANNUAL_DISCOUNT_RATE = 0.15
  * Effectively unlimited — any limit >= this threshold is treated as uncapped.
  */
 export const ON_DEMAND_UNLIMITED = 999999
+
+/** Shown when usage could not be read, instead of a limit the read never measured. */
+export const USAGE_UNAVAILABLE_MESSAGE =
+  'Usage could not be verified right now. Please try again in a moment.'

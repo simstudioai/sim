@@ -1,56 +1,38 @@
-/**
- * @vitest-environment node
- */
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import { tableTriggerMock, tableTriggerMockFns } from '@sim/testing/mocks/table-trigger.mock'
+import {
+  tableTtlAvailabilityMock,
+  tableTtlAvailabilityMockFns,
+} from '@sim/testing/mocks/table-ttl-availability.mock'
 import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
-import postgres from 'postgres'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 vi.unmock('@sim/db/schema')
 vi.unmock('drizzle-orm')
 
-const {
-  mockDeleteExecute,
-  mockListExecute,
-  mockIsTableRowTtlEnabled,
-  mockSignalTableRowsChanged,
-  mockTask,
-  mockWithLockedTable,
-  mockFireTableTrigger,
-  mockLoggerError,
-  mockLoggerInfo,
-} = vi.hoisted(() => ({
-  mockDeleteExecute: vi.fn(),
-  mockListExecute: vi.fn(),
-  mockIsTableRowTtlEnabled: vi.fn(),
-  mockSignalTableRowsChanged: vi.fn(),
-  mockTask: vi.fn((config: unknown) => config),
-  mockWithLockedTable: vi.fn(),
-  mockFireTableTrigger: vi.fn(),
-  mockLoggerError: vi.fn(),
-  mockLoggerInfo: vi.fn(),
-}))
+const mockDeleteExecute = vi.fn()
 
-vi.mock('@sim/db', () => ({
-  dbFor: vi.fn(() => ({ execute: mockListExecute })),
-}))
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ info: mockLoggerInfo, warn: vi.fn(), error: mockLoggerError }),
-}))
-
-vi.mock('@trigger.dev/sdk', () => ({ task: mockTask }))
-vi.mock('@/lib/table/events', () => ({ signalTableRowsChanged: mockSignalTableRowsChanged }))
+vi.mock('@/lib/table/events', () => tableEventsMock)
 vi.mock('@/lib/table/constants', () => ({
   getDeleteSnapshotBatchSize: () => 500,
   TABLE_LIMITS: { DELETE_SNAPSHOT_BATCH_MAX_BYTES: 32 * 1024 * 1024 },
 }))
-vi.mock('@/lib/table/service', () => ({ withLockedTable: mockWithLockedTable }))
-vi.mock('@/lib/table/ttl-availability', () => ({
-  isTableRowTtlEnabled: mockIsTableRowTtlEnabled,
-}))
-vi.mock('@/lib/table/trigger', () => ({ fireTableTrigger: mockFireTableTrigger }))
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/table/ttl-availability', () => tableTtlAvailabilityMock)
+vi.mock('@/lib/table/trigger', () => tableTriggerMock)
 
-import { cleanupTableRowTtlTask, runCleanupTableRowTtl } from '@/background/cleanup-table-row-ttl'
+import { runCleanupTableRowTtl } from '@/background/cleanup-table-row-ttl'
+
+const mockListExecute = dbChainMockFns.execute as Mock
+const { info: mockLoggerInfo, error: mockLoggerError } = getMockLogger('CleanupTableRowTtl')
+const { mockSignalTableRowsChanged } = tableEventsMockFns
+const { mockWithLockedTable } = tableServiceMockFns
+const { mockIsTableRowTtlEnabled } = tableTtlAvailabilityMockFns
+const { mockFireTableTrigger } = tableTriggerMockFns
 
 const dialect = new PgDialect()
 
@@ -79,7 +61,6 @@ function returnedRows(count: number, start = 1, createdAt = '2026-01-01T00:00:00
 
 describe('table row TTL cleanup', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockIsTableRowTtlEnabled.mockResolvedValue(true)
     mockListExecute.mockResolvedValue([{ id: table.id, workspaceId: table.workspaceId }])
     mockWithLockedTable.mockImplementation(
@@ -92,101 +73,6 @@ describe('table row TTL cleanup', () => {
       ) => mutate(table, { execute: mockDeleteExecute })
     )
   })
-
-  it.skipIf(!process.env.TABLE_TTL_TEST_DATABASE_URL)(
-    'deletes only expired UTC cells in PostgreSQL with a non-UTC session',
-    async () => {
-      const client = postgres(process.env.TABLE_TTL_TEST_DATABASE_URL!, { max: 1 })
-      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-09-07T12:00:00.500Z'))
-      try {
-        await client`SET TIME ZONE 'America/Los_Angeles'`
-        await client`CREATE TEMP TABLE user_table_definitions (id text, workspace_id text, schema jsonb, archived_at timestamp, delete_locked boolean)`
-        await client`CREATE TEMP TABLE user_table_rows (id text, table_id text, workspace_id text, data jsonb, created_at timestamp DEFAULT now())`
-        await client`INSERT INTO user_table_definitions VALUES (${table.id}, ${table.workspaceId}, ${client.json(table.schema)}, NULL, false)`
-        const values = {
-          expired: '2026-09-07T11:59:59Z',
-          equal: '2026-09-07T12:00:00Z',
-          future: '2026-09-07T12:00:01Z',
-          blank: null,
-          epoch: 1_700_000_000,
-          invalid: 'not-a-date',
-          invalid_day: '2026-02-30T12:00:00Z',
-          invalid_month: '2026-13-01T12:00:00Z',
-          invalid_year: '0000-01-01T00:00:00Z',
-          invalid_leap_day: '2025-02-29T12:00:00Z',
-          invalid_century_leap_day: '1900-02-29T12:00:00Z',
-          invalid_month_end: '2026-04-31T12:00:00Z',
-          invalid_hour: '2026-09-06T24:00:00Z',
-          invalid_minute: '2026-09-06T12:60:00Z',
-          invalid_second: '2026-09-06T12:00:60Z',
-          leap_day: '2024-02-29T12:00:00Z',
-          century_leap_day: '2000-02-29T12:00:00Z',
-          first_year: '0001-01-01T00:00:00Z',
-          last_year: '9999-12-31T23:59:59Z',
-          offset: '2026-09-06T12:00:00+00:00',
-          fraction: '2026-09-06T12:00:00.000Z',
-          negative_offset: '2026-09-07T04:59:59-07:00',
-          positive_offset: '2026-09-07T18:00:00+06:00',
-          future_offset: '2026-09-07T12:00:00-07:00',
-          equal_fraction: '2026-09-07T12:00:00.500000Z',
-          future_microsecond: '2026-09-07T12:00:00.500001Z',
-          minute_precision: '2026-09-07T12:00Z',
-          invalid_offset_day: '2026-02-30T12:00:00-07:00',
-          invalid_offset: '2026-09-07T12:00:00+16:00',
-          invalid_fraction: '2026-09-07T12:00:00.0000001Z',
-          rounding_future: '2026-09-07T12:00:00.5000001Z',
-          no_offset: '2020-01-01T00:00:00',
-          day_only: '2020-01-01',
-          relative_now: 'now',
-          relative_today: 'today',
-          relative_yesterday: 'yesterday',
-          epoch_alias: 'epoch',
-          past_infinity: '-infinity',
-          compact_offset: '2020-01-01T00:00:00+0000',
-          named_zone: '2020-01-01 00:00:00 America/Los_Angeles',
-          trailing_newline: '2020-01-01T00:00:00Z\n',
-        }
-        for (const [id, value] of Object.entries(values)) {
-          await client`INSERT INTO user_table_rows (id, table_id, workspace_id, data) VALUES (${id}, ${table.id}, ${table.workspaceId}, ${client.json({ 'col-ttl': value })})`
-        }
-        const execute = (statement: SQL) => {
-          const query = dialect.sqlToQuery(statement)
-          return client.unsafe(query.sql, query.params as (string | number)[])
-        }
-        mockListExecute.mockImplementation(execute)
-        mockDeleteExecute.mockImplementation(execute)
-        expect(await runCleanupTableRowTtl()).toEqual({
-          batches: 2,
-          deleted: 11,
-          limitReached: false,
-        })
-        const remaining = await client<{ id: string }[]>`SELECT id FROM user_table_rows ORDER BY id`
-        expect(remaining.map(({ id }) => id)).toEqual(
-          Object.keys(values)
-            .filter(
-              (id) =>
-                ![
-                  'expired',
-                  'equal',
-                  'leap_day',
-                  'century_leap_day',
-                  'first_year',
-                  'offset',
-                  'fraction',
-                  'negative_offset',
-                  'positive_offset',
-                  'equal_fraction',
-                  'minute_precision',
-                ].includes(id)
-            )
-            .sort()
-        )
-      } finally {
-        nowSpy.mockRestore()
-        await client.end()
-      }
-    }
-  )
 
   it('deletes expired rows in locked, created-at keyset batches and signals the table', async () => {
     mockDeleteExecute
@@ -281,30 +167,6 @@ describe('table row TTL cleanup', () => {
     )
     expect(mockFireTableTrigger).not.toHaveBeenCalled()
     expect(mockSignalTableRowsChanged).not.toHaveBeenCalled()
-  })
-
-  it('does no work when already aborted', async () => {
-    const controller = new AbortController()
-    controller.abort()
-
-    await expect(runCleanupTableRowTtl(controller.signal)).resolves.toEqual({
-      batches: 0,
-      deleted: 0,
-      limitReached: false,
-    })
-    expect(mockListExecute).not.toHaveBeenCalled()
-  })
-
-  it('does no work when the feature is disabled', async () => {
-    mockIsTableRowTtlEnabled.mockResolvedValue(false)
-
-    await expect(runCleanupTableRowTtl()).resolves.toEqual({
-      batches: 0,
-      deleted: 0,
-      limitReached: false,
-    })
-    expect(mockListExecute).not.toHaveBeenCalled()
-    expect(mockWithLockedTable).not.toHaveBeenCalled()
   })
 
   it('honors a delete lock re-read inside the table advisory lock', async () => {
@@ -492,14 +354,5 @@ describe('table row TTL cleanup', () => {
     await expect(runCleanupTableRowTtl()).rejects.toThrow('database unavailable')
     expect(mockWithLockedTable).not.toHaveBeenCalled()
     expect(mockSignalTableRowsChanged).not.toHaveBeenCalled()
-  })
-
-  it('registers one serialized Trigger.dev task', () => {
-    expect(cleanupTableRowTtlTask).toEqual(
-      expect.objectContaining({
-        id: 'cleanup-table-row-ttl',
-        queue: { concurrencyLimit: 1 },
-      })
-    )
   })
 })

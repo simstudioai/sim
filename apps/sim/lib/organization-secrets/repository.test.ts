@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { organizationSecret, organizationSecretSource } from '@sim/db/schema'
 import {
   dbChainMockFns,
@@ -11,16 +10,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
-import {
-  listSecretNames,
-  materializeSecrets,
-  readSecrets,
-  saveSecrets,
-} from '@/lib/organization-secrets/repository'
+import { materializeSecrets, readSecrets, saveSecrets } from '@/lib/organization-secrets/repository'
 
 const scope = { organizationId: 'org', userId: 'actor' }
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   encryptionMockFns.mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
     decrypted: encryptedValue.replace('cipher:', ''),
@@ -80,17 +73,6 @@ describe('Generic Secrets storage and isolation', () => {
     ).rejects.toMatchObject({ code: 'conflict' })
     expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-  })
-  it('discovers names without decrypting or selecting values', async () => {
-    source()
-    queueTableRows(organizationSecret, [{ name: 'TOKEN' }])
-    expect(await listSecretNames(scope)).toEqual(['TOKEN'])
-    expect(dbChainMockFns.select).toHaveBeenLastCalledWith({ name: organizationSecret.name })
-    expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
-  })
-  it('returns no inventory when the source was removed', async () => {
-    expect(await listSecretNames(scope)).toEqual([])
-    await expect(materializeSecrets(scope, ['TOKEN'])).rejects.toMatchObject({ code: 'not_found' })
   })
   it('refuses partial mounts before decrypting any requested value', async () => {
     source()

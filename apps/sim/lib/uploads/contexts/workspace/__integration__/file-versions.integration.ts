@@ -24,10 +24,13 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
   },
 }))
 
+import { encryptSecret } from '@/lib/core/security/encryption'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
+import { createFileReadTransport } from '@/lib/mothership/agent-cli/file-read-transport'
+import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 import {
   deleteWorkspaceFileVersion,
   fetchWorkspaceFileBuffer,
@@ -36,15 +39,25 @@ import {
   updateWorkspaceFileContent,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT } from '@/lib/uploads/contexts/workspace/workspace-file-storage-cleanup-outbox'
 import {
   getCurrentWorkspaceFileVersion,
   getWorkspaceFileVersion,
+  getWorkspaceFileVersionProvenance,
   queryWorkspaceFileVersions,
   releaseWorkspaceFileVersionsForPurgeInTx,
 } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
-import { revertWorkspaceFileVersion } from '@/lib/workspace-files/application/file-versions'
+import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
+import { presentWorkspaceFileText } from '@/lib/workspace-files/api/text-presenter'
+import {
+  downloadWorkspaceFileVersion,
+  readWorkspaceFileVersionText,
+  revertWorkspaceFileVersion,
+} from '@/lib/workspace-files/application/file-versions'
 import { runCleanupFileVersions } from '@/background/cleanup-file-versions'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 describe('workspace file version history in PostgreSQL', () => {
   const fixtures: ReturnType<typeof createKnowledgeAclFixtureIds>[] = []
@@ -63,7 +76,7 @@ describe('workspace file version history in PostgreSQL', () => {
     await Promise.all([db.$client.end(), dbFor('cleanup').$client.end()])
   })
 
-  async function seedFile(content: string) {
+  async function seedFile(content: string, extension = 'txt') {
     const ids = createKnowledgeAclFixtureIds()
     fixtures.push(ids)
     await seedKnowledgeAclFixture(ids)
@@ -71,8 +84,8 @@ describe('workspace file version history in PostgreSQL', () => {
       ids.workspaceId,
       ids.aliceId,
       Buffer.from(content),
-      `notes-${generateId()}.txt`,
-      'text/plain',
+      `notes-${generateId()}.${extension}`,
+      extension === 'json' ? 'application/json' : 'text/plain',
       { notifyWorkspaceChange: false }
     )
     return { ...ids, fileId: uploaded.id, firstKey: uploaded.key }
@@ -117,6 +130,323 @@ describe('workspace file version history in PostgreSQL', () => {
       authorUserIds: [fixture.aliceId],
     })
     expect(await versionRows(fixture.fileId)).toEqual([])
+  })
+
+  it.each([
+    ['named', 'download'],
+    ['anonymous', 'download'],
+    ['named', 'read'],
+    ['anonymous', 'read'],
+    ['empty', 'read'],
+    ['unrecorded', 'read'],
+  ] as const)(
+    'preserves %s historical provenance through CLI versions %s',
+    async (kind, command) => {
+      const fixture = await seedFile('original')
+      const secret = 'SYNTHETIC_VERSION_SECRET_FOR_LOCAL_TEST'
+      const hasSecret = kind === 'named' || kind === 'anonymous'
+      const historicalContent = hasSecret ? secret : 'ordinary historical text'
+      const provenance: WorkspaceFileSecretProvenance =
+        kind === 'unrecorded'
+          ? { status: 'unrecorded' }
+          : {
+              status: 'exact',
+              entries: hasSecret
+                ? [
+                    {
+                      encryptedValue: (await encryptSecret(secret)).encrypted,
+                      sourceUserId: fixture.aliceId,
+                      sourceWorkspaceId: fixture.workspaceId,
+                      ...(kind === 'named' ? { name: 'FILE_TOKEN' } : {}),
+                    },
+                  ]
+                : [],
+            }
+      for (const [content, secretProvenance] of [
+        [historicalContent, provenance],
+        ['public replacement', { status: 'exact', entries: [] }],
+      ] as const) {
+        await updateWorkspaceFileContent(
+          fixture.workspaceId,
+          fixture.fileId,
+          fixture.aliceId,
+          Buffer.from(content),
+          undefined,
+          {
+            version: { source: 'api', authorUserId: fixture.aliceId },
+            secretProvenancePolicy: { mode: 'replace', provenance: secretProvenance },
+          }
+        )
+      }
+      const registry = new ResolvedSecretTraceRegistry([], {
+        userId: fixture.aliceId,
+        workspaceId: fixture.workspaceId,
+      })
+      const delivered: Array<{
+        stream: ReadableStream<Uint8Array>
+        provenance: WorkspaceFileSecretProvenance | undefined
+      }> = []
+      const transport = createFileReadTransport({
+        endpoint: 'https://version-fixture.test',
+        userId: fixture.aliceId,
+        registry,
+        invocation: {
+          userId: fixture.aliceId,
+          workspaceId: fixture.workspaceId,
+          chatId: 'version-fixture',
+        },
+        trackDownload: (stream, provenance) => {
+          delivered.push({ stream, provenance })
+        },
+        transport: async () => {
+          if (command === 'read') {
+            const result = await readWorkspaceFileVersionText.execute({
+              principal: { kind: 'session', userId: fixture.aliceId, sessionId: generateId() },
+              input: {
+                fileId: fixture.fileId,
+                assertedWorkspaceId: fixture.workspaceId,
+                version: 2,
+              },
+            })
+            return Response.json({
+              data: { ...presentWorkspaceFileText(result).data, version: result.version.version },
+            })
+          }
+          const result = await downloadWorkspaceFileVersion.execute({
+            principal: { kind: 'session', userId: fixture.aliceId, sessionId: generateId() },
+            input: { fileId: fixture.fileId, assertedWorkspaceId: fixture.workspaceId, version: 2 },
+          })
+          return new Response(result.stream, { headers: { 'content-type': result.contentType } })
+        },
+      })
+      const result = await runCli(
+        ['files', 'versions', command, fixture.fileId, '2'],
+        {
+          endpoint: 'https://version-fixture.test',
+          apiKey: 'fixture',
+          workspaceId: fixture.workspaceId,
+          transport,
+        },
+        null
+      )
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain(historicalContent)
+      const projected = projectResolvedSecretModelContent(result.stdout, registry)
+      expect(projected.safe).toBe(true)
+      if (!projected.safe) throw new Error('Historical file output was withheld')
+      if (hasSecret) expect(projected.value).not.toContain(secret)
+      else expect(projected.value).toBe(result.stdout)
+      if (kind === 'named') expect(projected.value).toContain('{{FILE_TOKEN}}')
+      expect(delivered.map((delivery) => delivery.provenance)).toEqual([provenance])
+    }
+  )
+
+  it.each(['legacy', 'nonempty', 'malformed'] as const)(
+    'requires a valid empty legacy snapshot before delivering historical bytes: %s',
+    async (kind) => {
+      const content = 'Historical content whose protection must not be discarded'
+      const fixture = await seedFile(content)
+      await updateWorkspaceFileContent(
+        fixture.workspaceId,
+        fixture.fileId,
+        fixture.aliceId,
+        Buffer.from('current content'),
+        undefined,
+        { version: { source: 'api', authorUserId: fixture.aliceId } }
+      )
+      await db
+        .update(workspaceFileVersion)
+        .set({
+          secretProvenanceStatus: null,
+          secretProvenanceEntries:
+            kind === 'malformed'
+              ? sql`'{}'::jsonb`
+              : kind === 'nonempty'
+                ? [
+                    {
+                      name: 'TOKEN',
+                      encryptedValue: 'fixture-ciphertext',
+                      sourceUserId: fixture.aliceId,
+                    },
+                  ]
+                : [],
+        })
+        .where(
+          and(eq(workspaceFileVersion.fileId, fixture.fileId), eq(workspaceFileVersion.version, 1))
+        )
+      const registry = new ResolvedSecretTraceRegistry([], {
+        userId: fixture.aliceId,
+        workspaceId: fixture.workspaceId,
+      })
+      const transport = createFileReadTransport({
+        endpoint: 'https://version-fixture.test',
+        userId: fixture.aliceId,
+        registry,
+        invocation: {
+          userId: fixture.aliceId,
+          workspaceId: fixture.workspaceId,
+          chatId: 'version-fixture',
+        },
+        transport: async () => {
+          const result = await downloadWorkspaceFileVersion.execute({
+            principal: { kind: 'session', userId: fixture.aliceId, sessionId: generateId() },
+            input: { fileId: fixture.fileId, assertedWorkspaceId: fixture.workspaceId, version: 1 },
+          })
+          return new Response(result.stream, { headers: { 'content-type': result.contentType } })
+        },
+      })
+      const result = await runCli(
+        ['files', 'versions', 'download', fixture.fileId, '1'],
+        {
+          endpoint: 'https://version-fixture.test',
+          apiKey: 'fixture',
+          workspaceId: fixture.workspaceId,
+          transport,
+        },
+        null
+      )
+      if (kind === 'legacy') {
+        expect(result.exitCode).toBe(0)
+        expect(result.stdout).toContain(content)
+      } else {
+        expect(result.exitCode).not.toBe(0)
+        expect(`${result.stdout}${result.stderr}`).not.toContain(content)
+        expect(`${result.stdout}${result.stderr}`).toContain('provenance is unavailable')
+      }
+    }
+  )
+
+  it.each(['current', 'historical'] as const)(
+    'redacts %s file contents when the real parser includes them in a CLI error',
+    async (revision) => {
+      const fixture = await seedFile('{}', 'json')
+      const secret = 'ZZTOKEN99'
+      const provenance: WorkspaceFileSecretProvenance = {
+        status: 'exact',
+        entries: [
+          {
+            encryptedValue: (await encryptSecret(secret)).encrypted,
+            sourceUserId: fixture.aliceId,
+            sourceWorkspaceId: fixture.workspaceId,
+            name: 'FILE_TOKEN',
+          },
+        ],
+      }
+      await updateWorkspaceFileContent(
+        fixture.workspaceId,
+        fixture.fileId,
+        fixture.aliceId,
+        Buffer.from(secret),
+        'application/json',
+        {
+          version: { source: 'api', authorUserId: fixture.aliceId },
+          secretProvenancePolicy: { mode: 'replace', provenance },
+        }
+      )
+      if (revision === 'historical') {
+        await updateWorkspaceFileContent(
+          fixture.workspaceId,
+          fixture.fileId,
+          fixture.aliceId,
+          Buffer.from('{}'),
+          'application/json',
+          {
+            version: { source: 'api', authorUserId: fixture.aliceId },
+            secretProvenancePolicy: {
+              mode: 'replace',
+              provenance: { status: 'exact', entries: [] },
+            },
+          }
+        )
+      }
+      const registry = new ResolvedSecretTraceRegistry([], {
+        userId: fixture.aliceId,
+        workspaceId: fixture.workspaceId,
+      })
+      const transport = createFileReadTransport({
+        endpoint: 'https://version-fixture.test',
+        userId: fixture.aliceId,
+        registry,
+        invocation: {
+          userId: fixture.aliceId,
+          workspaceId: fixture.workspaceId,
+          chatId: 'version-fixture',
+        },
+        transport: async () => {
+          try {
+            const result = await readWorkspaceFileVersionText.execute({
+              principal: { kind: 'session', userId: fixture.aliceId, sessionId: generateId() },
+              input: {
+                fileId: fixture.fileId,
+                assertedWorkspaceId: fixture.workspaceId,
+                version: 2,
+              },
+            })
+            return Response.json({
+              data: { ...presentWorkspaceFileText(result).data, version: result.version.version },
+            })
+          } catch (error) {
+            const response = v2FileErrorPolicies.concealResourceAuthorization.render(error)
+            if (!response) throw error
+            return response
+          }
+        },
+      })
+      const result = await runCli(
+        revision === 'current'
+          ? ['files', 'read', fixture.fileId]
+          : ['files', 'versions', 'read', fixture.fileId, '2'],
+        {
+          endpoint: 'https://version-fixture.test',
+          apiKey: 'fixture',
+          workspaceId: fixture.workspaceId,
+          transport,
+        },
+        null
+      )
+      expect(result.exitCode).not.toBe(0)
+      expect(result.stderr).toContain(secret)
+      const projected = projectResolvedSecretModelContent(result.stderr, registry)
+      expect(projected.safe).toBe(true)
+      if (!projected.safe) throw new Error('File parser error was withheld')
+      expect(projected.value).not.toContain(secret)
+      expect(projected.value).toContain('{{FILE_TOKEN}}')
+    }
+  )
+
+  it('does not bind a coalesced version classification to its previously captured storage key', async () => {
+    const fixture = await seedFile('original')
+    const write = { source: 'collab', authorUserId: fixture.aliceId } as const
+    const first = await updateWorkspaceFileContent(
+      fixture.workspaceId,
+      fixture.fileId,
+      fixture.aliceId,
+      Buffer.from('first draft'),
+      undefined,
+      {
+        version: write,
+        secretProvenancePolicy: { mode: 'replace', provenance: { status: 'unknown' } },
+      }
+    )
+    const captured = await getCurrentWorkspaceFileVersion(first)
+    const replacement = await updateWorkspaceFileContent(
+      fixture.workspaceId,
+      fixture.fileId,
+      fixture.aliceId,
+      Buffer.from('second draft'),
+      undefined,
+      {
+        version: write,
+        secretProvenancePolicy: { mode: 'replace', provenance: { status: 'exact', entries: [] } },
+      }
+    )
+    expect((await getCurrentWorkspaceFileVersion(replacement)).version).toBe(captured.version)
+    expect(
+      await getWorkspaceFileVersionProvenance(fixture.fileId, captured.version, captured.key)
+    ).toBeNull()
+    expect(
+      await getWorkspaceFileVersionProvenance(fixture.fileId, captured.version, replacement.key)
+    ).toEqual({ status: 'exact', entries: [] })
   })
 
   it('materializes version 1 on the first write and keeps the outgoing bytes readable', async () => {

@@ -11,6 +11,12 @@ export const searchIntegrationApprovalSchema = z.object({
 })
 export type SearchIntegrationApproval = z.output<typeof searchIntegrationApprovalSchema>
 
+export const searchIntegrationStatusSchema = searchIntegrationApprovalSchema.extend({
+  available: z.boolean().optional(),
+  configuredServiceSource: z.boolean().optional(),
+})
+export type SearchIntegrationStatus = z.output<typeof searchIntegrationStatusSchema>
+
 export const listSearchIntegrationsQuerySchema = z.object({ organizationId: organizationIdSchema })
 export type ListSearchIntegrationsQuery = z.input<typeof listSearchIntegrationsQuerySchema>
 export const listSearchIntegrationsContract = defineRouteContract({
@@ -19,7 +25,7 @@ export const listSearchIntegrationsContract = defineRouteContract({
   query: listSearchIntegrationsQuerySchema,
   response: {
     mode: 'json',
-    schema: successResponseSchema(z.array(searchIntegrationApprovalSchema).max(100)),
+    schema: successResponseSchema(z.array(searchIntegrationStatusSchema).max(100)),
   },
 })
 

@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Enable with SIM_HELPERS_SMOKE=1 and the installed Node isolated-vm runtime.
  * Real CLI, routes, application operations, execution service/core, registry,
  * serializer, DAG, Function isolate and file broker. Identity, admission/billing,
@@ -518,7 +516,6 @@ describe.skipIf(!smokeEnabled)(
       })
     })
     beforeEach(() => {
-      vi.clearAllMocks()
       fixtures.saved.clear()
       fixtures.loaded.length = 0
       fixtures.completed.length = 0

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import { tableBatchInsertRowsTool } from '@/tools/table/batch_insert_rows'
 import { tableCreateTool } from '@/tools/table/create'

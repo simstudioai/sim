@@ -1,34 +1,20 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
-import { ChipLink, ChipModalTabs } from '@sim/emcn'
+import { ChipLink } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
-import { useQueryState } from 'nuqs'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction, SettingsBackAction } from '@/components/settings/settings-header'
 import { SettingsPanel } from '@/components/settings/settings-panel'
 import { useSettingsUnsavedGuard } from '@/components/settings/use-settings-unsaved-guard'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { ConnectorData, ConnectorDetailData } from '@/lib/api/contracts/knowledge/connectors'
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import type { ResourceScope } from '@/lib/core/resource-scope'
-import { SOURCE_PERMISSION_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { describeSearchSource } from '@/lib/sim-search/source-identity'
-import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
-import {
-  type SourceView,
-  sourceDocumentFilterParam,
-  sourceViewParam,
-} from '@/app/o/[organizationId]/settings/integrations/sources/[connectorId]/search-params'
 import { UnsavedChangesModal } from '@/app/workspace/[workspaceId]/components/credential-detail/components/unsaved-changes-modal'
-import { ConnectorDocuments } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-documents/connector-documents'
-import {
-  ConnectorRecovery,
-  ConnectorSyncHistory,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section'
 import { ConnectorActionFeedback } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-actions'
 import { getConnectorSyncState } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-sync-state'
 import { useConnectorActions } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions'
@@ -39,7 +25,6 @@ import {
   SettingsQueryErrorState,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import {
   isConnectorSyncingOrPending,
@@ -47,14 +32,7 @@ import {
   useSearchIndex,
 } from '@/hooks/queries/kb/connectors'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
-import { useDebounce } from '@/hooks/use-debounce'
 import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
-
-const SOURCE_VIEWS = [
-  { value: 'documents', label: 'Documents' },
-  { value: 'settings', label: 'Settings' },
-  { value: 'history', label: 'Sync history' },
-] as const
 
 interface OrganizationSourceDetailProps {
   connectorId: string
@@ -63,7 +41,6 @@ interface OrganizationSourceDetailProps {
 export function OrganizationSourceDetail({ connectorId }: OrganizationSourceDetailProps) {
   const { organization, viewer } = useOrganizationContext()
   const router = useRouter()
-  const liveSearch = useDeploymentShape().features.liveEnterpriseSearch
   const scope: ResourceScope = { kind: 'organization', organizationId: organization.id }
   const backHref = organizationRoutes(organization.id).settingsSection('integrations')
   const index = useSearchIndex(scope, { enabled: viewer.isAdmin })
@@ -124,11 +101,10 @@ export function OrganizationSourceDetail({ connectorId }: OrganizationSourceDeta
   )
     return (
       <SettingsPanel back={back} title='Connection'>
-        <SettingsEmptyState variant='inline'>Loading connection…</SettingsEmptyState>
+        <SettingsEmptyState variant='inline'>Loading connection</SettingsEmptyState>
       </SettingsPanel>
     )
   if (
-    liveSearch &&
     detail.data.accessMode === 'members' &&
     !(detail.data.connectorType === 'github' && detail.data.sourceConfig.githubRepositoryId)
   )
@@ -188,47 +164,22 @@ function SourceDetailContent({
   const { organization } = useOrganizationContext()
   const integrations = useSearchIntegrations(organization.id)
   const router = useRouter()
-  const liveSearch = useDeploymentShape().features.liveEnterpriseSearch
-  const [view, setView] = useQueryState(
-    sourceViewParam.key,
-    sourceViewParam.parser.withOptions({ history: 'replace' })
-  )
-  const [filter, setFilter] = useQueryState(
-    sourceDocumentFilterParam.key,
-    sourceDocumentFilterParam.parser
-  )
-  const [search, setSearch] = useSettingsSearch()
-  const documentSearch = useDebounce(search.trim(), SEARCH_DEBOUNCE_MS)
   const meta = CONNECTOR_META_REGISTRY[connector.connectorType]
   const title = meta
     ? describeSearchSource(meta, connector.sourceConfig) || meta.name
     : 'Connection'
-  const { effectiveStatus, lastSyncError } = getConnectorSyncState(connector)
-  const permissionsIncomplete =
-    connector.lastSyncError?.split('\n').includes(SOURCE_PERMISSION_ERROR) ?? false
+  const { effectiveStatus } = getConnectorSyncState(connector)
   const status =
     effectiveStatus === 'paused'
-      ? liveSearch
-        ? 'Search paused'
-        : 'Sync paused'
+      ? 'Search paused'
       : effectiveStatus === 'disabled'
-        ? liveSearch
-          ? 'Search disabled'
-          : 'Sync disabled'
-        : effectiveStatus === 'error'
-          ? liveSearch
-            ? undefined
-            : 'Sync failed'
-          : undefined
+        ? 'Search disabled'
+        : undefined
   const description =
     [title === meta?.name ? undefined : meta?.name, status].filter(Boolean).join(' · ') || undefined
   const onBack = () => router.push(backHref)
   const onRemoved = () =>
     router.replace(organizationRoutes(organization.id).settingsSection('integrations'))
-  const onViewChange = (value: string) => {
-    const next = sourceViewParam.parser.parse(value)
-    if (next) void setView(next)
-  }
   if (
     integrations.isError &&
     isApiClientError(integrations.error) &&
@@ -260,7 +211,7 @@ function SourceDetailContent({
           variant='inline'
         />
       ) : integrations.isPending ? (
-        <SettingsEmptyState variant='inline'>Loading integration status…</SettingsEmptyState>
+        <SettingsEmptyState variant='inline'>Loading integration status</SettingsEmptyState>
       ) : null}
       {integrations.data?.find((item) => item.connectorType === connector.connectorType)
         ?.approved === false && (
@@ -271,95 +222,18 @@ function SourceDetailContent({
       )}
     </>
   )
-  if (liveSearch || view === 'settings')
-    return (
-      <SourceSettingsEditor
-        key={connector.id}
-        connector={connector}
-        scope={scope}
-        title={title}
-        description={description}
-        queryError={integrationFeedback}
-        backText={backText}
-        onBack={onBack}
-        onRemoved={onRemoved}
-        onViewChange={onViewChange}
-      />
-    )
   return (
-    <SourcePanel
+    <SourceSettingsEditor
+      key={connector.id}
       connector={connector}
-      back={{ text: backText, icon: ArrowLeft, onSelect: onBack }}
+      scope={scope}
       title={title}
       description={description}
-      docsLink={meta?.searchDocsUrl}
+      queryError={integrationFeedback}
+      backText={backText}
+      onBack={onBack}
       onRemoved={onRemoved}
-    >
-      {integrationFeedback}
-      <SourceNavigation view={view} onViewChange={onViewChange} />
-      {lastSyncError &&
-        (effectiveStatus === 'active' ||
-          (permissionsIncomplete &&
-            (effectiveStatus === 'pending' || effectiveStatus === 'syncing'))) && (
-          <SettingsResourceRow
-            title={
-              permissionsIncomplete
-                ? 'Permission verification incomplete'
-                : 'Some connection updates are incomplete'
-            }
-            description={
-              permissionsIncomplete
-                ? SOURCE_PERMISSION_ERROR
-                : 'Review the connection settings and try syncing again.'
-            }
-          />
-        )}
-      <ConnectorRecovery
-        connector={connector}
-        knowledgeBaseId={connector.knowledgeBaseId}
-        scope={scope}
-        isSearchIndex
-        canEdit
-        onEdit={() => onViewChange('settings')}
-      />
-      {view === 'documents' ? (
-        <ConnectorDocuments
-          knowledgeBaseId={connector.knowledgeBaseId}
-          connectorId={connector.id}
-          search={documentSearch}
-          searchControl={{ value: search, onChange: setSearch }}
-          filter={filter}
-          onFilterChange={(next) => void setFilter(next)}
-          progressScope={scope}
-          isSearchIndex
-          syncing={isConnectorSyncingOrPending(connector)}
-        />
-      ) : (
-        <ConnectorSyncHistory
-          connector={connector}
-          knowledgeBaseId={connector.knowledgeBaseId}
-          detail={connector}
-        />
-      )}
-    </SourcePanel>
-  )
-}
-
-interface SourceNavigationProps {
-  view: SourceView
-  onViewChange: (view: string) => void
-}
-
-function SourceNavigation({ view, onViewChange }: SourceNavigationProps) {
-  return (
-    <div>
-      <ChipModalTabs
-        tabs={SOURCE_VIEWS}
-        value={view}
-        onChange={onViewChange}
-        aria-label='Connection views'
-      />
-    </div>
+    />
   )
 }
 
@@ -383,7 +257,6 @@ function SourcePanel({
   children,
   ...panel
 }: SourcePanelProps) {
-  const liveSearch = useDeploymentShape().features.liveEnterpriseSearch
   const lifecycle = useConnectorActions({
     connector,
     knowledgeBaseId: connector.knowledgeBaseId,
@@ -397,9 +270,9 @@ function SourcePanel({
       {...panel}
       actions={[
         ...lifecycle.actions
-          .filter((action) => !liveSearch || action.id !== 'sync')
+          .filter((action) => action.id !== 'sync')
           .map((action) =>
-            liveSearch && action.id === 'pause'
+            action.id === 'pause'
               ? {
                   ...action,
                   text: connector.status === 'paused' ? 'Resume search' : 'Pause search',
@@ -424,7 +297,6 @@ interface SourceSettingsEditorProps {
   backText: string
   onBack: () => void
   onRemoved: () => void
-  onViewChange: (view: string) => void
 }
 
 function SourceSettingsEditor(props: SourceSettingsEditorProps) {
@@ -458,11 +330,9 @@ function SourceSettingsForm({
   backText,
   onBack,
   onRemoved,
-  onViewChange,
   onSaved,
   onDiscard,
 }: SourceSettingsFormProps) {
-  const liveSearch = useDeploymentShape().features.liveEnterpriseSearch
   const form = useConnectorSettingsForm({
     connector: baseline,
     syncing: isConnectorSyncingOrPending(connector),
@@ -491,15 +361,7 @@ function SourceSettingsForm({
       })}
     >
       {queryError}
-      {!liveSearch && (
-        <SourceNavigation
-          view='settings'
-          onViewChange={(next) => {
-            if (next !== 'settings') guard.guardBack(() => onViewChange(next))
-          }}
-        />
-      )}
-      {liveSearch && connector.connectorType === 'gitlab' && (
+      {connector.connectorType === 'gitlab' && (
         <SettingsResourceRow
           title='Organization-managed GitLab'
           description='Admin tokens check current permissions. Other tokens use the CSV mappings below.'

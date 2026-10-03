@@ -26,7 +26,7 @@ export const lemlistEmailRepliedTrigger: TriggerConfig = {
     triggerId: 'lemlist_email_replied',
     triggerOptions: lemlistTriggerOptions,
     includeDropdown: true,
-    setupInstructions: lemlistSetupInstructions('emailsReplied'),
+    setupInstructions: lemlistSetupInstructions(),
     extraFields: buildLemlistExtraFields('lemlist_email_replied'),
   }),
 

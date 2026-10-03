@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -33,7 +30,6 @@ const INPUT = {
 describe('provider admission', () => {
   beforeEach(() => {
     vi.useFakeTimers()
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnv({
       KB_CONFIG_RERANK_REQUESTS_PER_MINUTE: undefined,

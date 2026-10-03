@@ -55,7 +55,6 @@ async function mothershipGet(
 export const MOTHERSHIP_REQUESTS_STALE_TIME = 60 * 1000
 export const MOTHERSHIP_USER_BREAKDOWN_STALE_TIME = 60 * 1000
 export const MOTHERSHIP_LICENSE_LIST_STALE_TIME = 60 * 1000
-export const MOTHERSHIP_LICENSE_DETAIL_STALE_TIME = 60 * 1000
 
 export const mothershipKeys = {
   all: ['mothership-admin'] as const,

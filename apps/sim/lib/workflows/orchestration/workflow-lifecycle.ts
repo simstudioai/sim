@@ -11,6 +11,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import type { DbOrTx } from '@/lib/db/types'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { archiveWorkflow, restoreWorkflow } from '@/lib/workflows/lifecycle'
+import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { nextWorkflowSortOrder } from '@/lib/workflows/sort-order'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
@@ -189,24 +190,15 @@ export async function createWorkflowInTransaction(tx: DbOrTx, params: PerformCre
   const name = params.deduplicate
     ? await deduplicateWorkflowName(params.name, params.workspaceId, folderId, tx)
     : params.name
-  const sortOrder =
-    params.sortOrder ?? (await nextWorkflowSortOrder(params.workspaceId, folderId, tx))
-  const now = new Date()
-  const row = {
+  const row = await buildNewWorkflowRow(tx, {
     id: params.id ?? generateId(),
     userId: params.userId,
     workspaceId: params.workspaceId,
     folderId,
     name,
     description: params.description ?? null,
-    sortOrder,
-    lastSynced: now,
-    createdAt: now,
-    updatedAt: now,
-    isDeployed: false,
-    runCount: 0,
-    variables: {},
-  }
+    sortOrder: params.sortOrder ?? (await nextWorkflowSortOrder(params.workspaceId, folderId, tx)),
+  })
   if (!params.deduplicate) {
     await tx.insert(workflow).values(row)
     return row
@@ -269,21 +261,19 @@ export async function performCreateWorkflowTransition(
 
     try {
       await db.transaction(async (tx) => {
-        await tx.insert(workflow).values({
+        // Built per attempt inside the insert transaction, so the fork-sync policy is read
+        // with the write rather than carried across retries.
+        const row = await buildNewWorkflowRow(tx, {
           id: workflowId,
           userId: params.userId,
           workspaceId: params.workspaceId,
           folderId,
-          sortOrder,
           name,
-          description: params.description,
-          lastSynced: now,
-          createdAt: now,
-          updatedAt: now,
-          isDeployed: false,
-          runCount: 0,
-          variables: {},
+          description: params.description ?? null,
+          sortOrder,
+          now,
         })
+        await tx.insert(workflow).values(row)
 
         await saveWorkflowToNormalizedTables(
           workflowId,

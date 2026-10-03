@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -28,7 +27,6 @@ const image = {
 
 describe('Assistant image preparation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     readImage.mockResolvedValue(image)
   })
 

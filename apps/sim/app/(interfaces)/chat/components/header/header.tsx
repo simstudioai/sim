@@ -4,6 +4,7 @@ import { SimWordmark } from '@sim/emcn'
 import Image from 'next/image'
 import Link from 'next/link'
 import { GithubIcon } from '@/components/icons'
+import { SITE_URL } from '@/lib/core/utils/urls'
 import { useBrandConfig } from '@/ee/whitelabeling'
 
 interface ChatHeaderProps {
@@ -61,7 +62,7 @@ export function ChatHeader({ chatConfig, starCount }: ChatHeaderProps) {
           {/* Only show Sim logo if no custom branding is set */}
 
           <Link
-            href='https://sim.ai'
+            href={SITE_URL}
             target='_blank'
             rel='noopener noreferrer'
             aria-label='Sim home'

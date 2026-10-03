@@ -1,11 +1,6 @@
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import postgres from 'postgres'
-
-/**
- * Connection for the migration-contract suites, which replay real migration files against a
- * throwaway schema in the CI PostgreSQL service. Unset outside CI, where these suites skip.
- */
-export const migrationTestDatabaseUrl = process.env.MIGRATION_CONTRACT_TEST_DATABASE_URL
 
 /**
  * Runs `body` against a disposable schema on its own connection, dropping both afterwards even if
@@ -16,7 +11,7 @@ export async function withMigrationSchema(
   prefix: string,
   body: (sql: postgres.Sql) => Promise<void>
 ): Promise<void> {
-  const sql = postgres(migrationTestDatabaseUrl!, { max: 1, onnotice: () => {} })
+  const sql = postgres(readTestDatabaseUrl(), { max: 1, onnotice: () => {} })
   const schemaName = `${prefix}_${generateId().replaceAll('-', '')}`
   try {
     await sql`CREATE SCHEMA ${sql(schemaName)}`

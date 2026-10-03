@@ -374,19 +374,6 @@ async function resolveUserKnowledgeIdentity(userId: string, context: KnowledgeAc
   }
 }
 
-/**
- * The scope of a person identified only by user id — the shape session-backed
- * routes outside the application layer have in hand. Never call this with a
- * user id that stands in for an actorless run (a workflow owner, a billing
- * owner); those callers use {@link WORKSPACE_ACCESS_SCOPE}.
- */
-export async function resolveUserKnowledgeAccessScope(
-  userId: string,
-  workspaceId: string | undefined
-): Promise<KnowledgeAccessScope> {
-  return { kind: 'user', userId, tokens: (await loadUserAccess(userId, { workspaceId })).tokens }
-}
-
 /** Memoises {@link resolveKnowledgeAccessScope} for one operation; a failed lookup is retried on the next call. */
 export function createKnowledgeAccessProvider(
   principal: Principal,

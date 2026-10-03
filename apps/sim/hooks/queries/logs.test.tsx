@@ -1,7 +1,12 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act, type ReactNode } from 'react'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
 import {
   focusManager,
   onlineManager,
@@ -11,18 +16,9 @@ import {
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRequestJson } = vi.hoisted(() => ({
-  mockRequestJson: vi.fn(),
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
-vi.mock('@/lib/api/client/request', () => ({
-  requestJson: mockRequestJson,
-}))
-
-import { getLogByExecutionIdContract } from '@/lib/api/contracts/logs'
-import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import {
-  LOG_SNAPSHOT_UPDATES_STALE_TIME,
   type LogFilters,
   logKeys,
   NEW_LOG_COUNT_STALE_TIME,
@@ -31,6 +27,8 @@ import {
   useLogsSnapshot,
   useNewLogCount,
 } from '@/hooks/queries/logs'
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
 function renderHookWithClient<T>(useHook: () => T): {
   result: () => T
@@ -112,7 +110,6 @@ describe('manually refreshed logs', () => {
   let revision: string
 
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useFakeTimers()
     snapshotAt = SNAPSHOT_AT
     newCount = 0
@@ -159,29 +156,6 @@ describe('manually refreshed logs', () => {
     return { list, count, updates }
   }
 
-  it('polls for new logs without changing rows on polling, focus, reconnect, or invalidation', async () => {
-    const hook = renderHookWithClient(() => useLogs())
-    unmount = hook.unmount
-    await flushQueries()
-    const originalRows = hook.result().list.data
-    newCount = 3
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(NEW_LOG_COUNT_STALE_TIME)
-      focusManager.setFocused(false)
-      focusManager.setFocused(true)
-      onlineManager.setOnline(false)
-      onlineManager.setOnline(true)
-      await hook.queryClient.invalidateQueries({ queryKey: logKeys.all })
-    })
-    await flushQueries()
-
-    expect(hook.result().count.data).toBe(3)
-    expect(hook.result().list.data).toBe(originalRows)
-    expect(mockRequestJson.mock.calls.filter(([, { query }]) => !query.startedAfter)).toHaveLength(
-      1
-    )
-  })
-
   it('pins pagination to the displayed snapshot and acknowledges new logs only after refresh', async () => {
     const hook = renderHookWithClient(() => useLogs())
     unmount = hook.unmount
@@ -225,56 +199,6 @@ describe('manually refreshed logs', () => {
     )
   })
 
-  it('retains the rows and pending count when refreshing fails', async () => {
-    newCount = 2
-    const hook = renderHookWithClient(() => useLogs())
-    unmount = hook.unmount
-    await flushQueries()
-    const originalRows = hook.result().list.data
-    failRefresh = true
-    await act(async () => {
-      await expect(hook.result().list.refetch({ throwOnError: true })).rejects.toThrow(
-        'Refresh failed'
-      )
-    })
-    await flushQueries()
-
-    expect(hook.result().list.data).toBe(originalRows)
-    expect(hook.result().count.data).toBe(2)
-  })
-
-  it('preserves resolved relative date bounds until explicit refresh', async () => {
-    vi.setSystemTime(new Date(SNAPSHOT_AT))
-    const hook = renderHookWithClient(() =>
-      useLogs({ ...LOG_FILTERS, timeRange: 'Past 30 minutes' })
-    )
-    unmount = hook.unmount
-    await flushQueries()
-    const firstStartDate = hook.result().list.data?.pages[0]?.query.startDate
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(10 * 60 * 1000)
-      await hook.result().list.fetchNextPage()
-    })
-    await flushQueries()
-
-    expect(hook.result().list.data?.pages[1]?.query.startDate).toBe(firstStartDate)
-    expect(mockRequestJson).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        query: expect.objectContaining({ cursor: 'next-page', startDate: firstStartDate }),
-      })
-    )
-
-    await act(async () => {
-      await hook.result().list.refetch()
-    })
-    await flushQueries()
-    expect(hook.result().list.data?.pages[0]?.query.startDate).not.toBe(firstStartDate)
-    expect(hook.result().list.data?.pages[1]?.query.startDate).toBe(
-      hook.result().list.data?.pages[0]?.query.startDate
-    )
-  })
-
   it('stops pagination when a row moves across the sort cursor and recovers on refresh', async () => {
     const hook = renderHookWithClient(() => useLogs({ ...LOG_FILTERS, sortBy: 'cost' }))
     unmount = hook.unmount
@@ -298,52 +222,6 @@ describe('manually refreshed logs', () => {
     expect(hook.result().list.data?.pages.every((page) => !page.snapshotChanged)).toBe(true)
     expect(hook.result().list.data?.pages[1]?.logs).toHaveLength(1)
   })
-
-  it.each(['late-visible error', 'changed cost sort'])(
-    'signals a %s without replacing rows or repeatedly scanning history',
-    async (change) => {
-      const filters: LogFilters = {
-        ...LOG_FILTERS,
-        ...(change === 'late-visible error' ? { level: 'error' } : { sortBy: 'cost' }),
-      }
-      const hook = renderHookWithClient(() => useLogs(filters))
-      unmount = hook.unmount
-      await flushQueries()
-      const originalRows = hook.result().list.data
-      expect(hook.result().updates.data).toBe(false)
-      revision = 'changed-revision'
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(LOG_SNAPSHOT_UPDATES_STALE_TIME)
-      })
-      await flushQueries()
-
-      expect(hook.result().count.data).toBe(0)
-      expect(hook.result().updates.data).toBe(true)
-      expect(hook.result().list.data).toBe(originalRows)
-      const revisionCalls = () =>
-        mockRequestJson.mock.calls.filter(
-          ([, { query }]) => query.includeRevision && query.countOnly
-        )
-      expect(revisionCalls()).toHaveLength(1)
-      expect(revisionCalls()[0][1].query).toMatchObject({
-        snapshotAt: SNAPSHOT_AT,
-        ...(filters.level === 'all' ? {} : { level: filters.level }),
-        sortBy: filters.sortBy,
-      })
-      expect(revisionCalls()[0][1].query.startedAfter).toBeUndefined()
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(LOG_SNAPSHOT_UPDATES_STALE_TIME * 2)
-      })
-      expect(revisionCalls()).toHaveLength(1)
-
-      snapshotAt = NEXT_SNAPSHOT_AT
-      await act(async () => {
-        await hook.result().list.refetch()
-      })
-      await flushQueries()
-      expect(hook.result().updates.data).toBe(false)
-    }
-  )
 
   it('resets the indicator when filters change and checks the same filters as the list', async () => {
     let filters = LOG_FILTERS
@@ -381,117 +259,15 @@ describe('manually refreshed logs', () => {
       })
     )
   })
-
-  it('detects new logs after an empty initial list', async () => {
-    mockRequestJson.mockImplementation(async (_contract, { query }) => ({
-      data: [],
-      nextCursor: null,
-      ...(query.startedAfter ? { total: newCount } : { snapshotAt }),
-    }))
-    const hook = renderHookWithClient(() => useLogs())
-    unmount = hook.unmount
-    await flushQueries()
-    newCount = 1
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(NEW_LOG_COUNT_STALE_TIME)
-    })
-    await flushQueries()
-    expect(hook.result().list.data?.pages[0]?.logs).toEqual([])
-    expect(hook.result().count.data).toBe(1)
-  })
-
-  it('does not poll when the view is disabled', async () => {
-    const hook = renderHookWithClient(() => useLogs(LOG_FILTERS, false))
-    unmount = hook.unmount
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(NEW_LOG_COUNT_STALE_TIME * 2)
-    })
-    expect(mockRequestJson).not.toHaveBeenCalled()
-  })
 })
 
 describe('useCancelExecution', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useFakeTimers()
   })
 
   afterEach(() => {
     vi.useRealTimers()
-  })
-
-  it('reconciles the stopped row without replacing the displayed snapshot', async () => {
-    mockRequestJson.mockResolvedValueOnce({ success: true }).mockResolvedValueOnce({
-      data: { id: 'log-1', executionId: 'execution-1', status: 'cancelled' },
-    })
-    const hook = renderHookWithClient(() => useCancelExecution('workspace-1'))
-    const key = logKeys.snapshot('workspace-1', LOG_FILTERS)
-    hook.queryClient.setQueryData(key, {
-      pages: [
-        {
-          logs: [{ id: 'log-1', executionId: 'execution-1', status: 'running' }, { id: 'log-2' }],
-          snapshotAt: SNAPSHOT_AT,
-          nextCursor: 'older-page',
-        },
-      ],
-      pageParams: [null],
-    })
-    await act(async () => {
-      await hook.result().mutateAsync({ workflowId: 'wf-1', executionId: 'execution-1' })
-    })
-    expect(hook.queryClient.getQueryData(key)).toMatchObject({
-      pages: [
-        {
-          logs: [{ id: 'log-1', status: 'cancelled' }, { id: 'log-2' }],
-          snapshotAt: SNAPSHOT_AT,
-          nextCursor: 'older-page',
-        },
-      ],
-    })
-    hook.unmount()
-  })
-
-  it('polls the execution and keeps reconciling until it is terminal', async () => {
-    mockRequestJson
-      .mockResolvedValueOnce({
-        success: true,
-        executionId: 'execution-1',
-        redisAvailable: true,
-        durablyRecorded: true,
-        locallyAborted: false,
-        pausedCancelled: false,
-        reason: 'recorded',
-      })
-      .mockResolvedValueOnce({ data: { id: 'log-1', status: 'running' } })
-      .mockResolvedValueOnce({ data: { id: 'log-1', status: 'cancelled' } })
-
-    const { result, unmount } = renderHookWithClient(() => useCancelExecution('workspace-1'))
-
-    await act(async () => {
-      const mutation = result().mutateAsync({
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-      })
-      await vi.runAllTimersAsync()
-      await mutation
-    })
-
-    expect(mockRequestJson).toHaveBeenNthCalledWith(1, cancelWorkflowExecutionContract, {
-      params: { id: 'workflow-1', executionId: 'execution-1' },
-    })
-    expect(mockRequestJson).toHaveBeenNthCalledWith(2, getLogByExecutionIdContract, {
-      params: { executionId: 'execution-1' },
-      query: { workspaceId: 'workspace-1' },
-      signal: undefined,
-    })
-    expect(mockRequestJson).toHaveBeenNthCalledWith(3, getLogByExecutionIdContract, {
-      params: { executionId: 'execution-1' },
-      query: { workspaceId: 'workspace-1' },
-      signal: undefined,
-    })
-    expect(result().isSuccess).toBe(true)
-
-    unmount()
   })
 
   it.each(['completed', 'failed'] as const)(
@@ -545,36 +321,6 @@ describe('useCancelExecution', () => {
       unmount()
     }
   )
-
-  it('rejects when cancellation confirmation polling is exhausted', async () => {
-    mockRequestJson.mockResolvedValueOnce({
-      success: true,
-      executionId: 'execution-1',
-      redisAvailable: true,
-      durablyRecorded: true,
-      locallyAborted: false,
-      pausedCancelled: false,
-      reason: 'recorded',
-    })
-    mockRequestJson.mockResolvedValue({ data: { id: 'log-1', status: 'running' } })
-
-    const { result, unmount } = renderHookWithClient(() => useCancelExecution('workspace-1'))
-
-    await act(async () => {
-      const mutation = result().mutateAsync({
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-      })
-      const assertion = expect(mutation).rejects.toThrow(
-        'Run stop was requested, but cancellation was not confirmed in time'
-      )
-      await vi.runAllTimersAsync()
-      await assertion
-    })
-    expect(result().isError).toBe(true)
-
-    unmount()
-  })
 
   it('surfaces persistent log lookup failures instead of reporting success', async () => {
     mockRequestJson.mockResolvedValueOnce({

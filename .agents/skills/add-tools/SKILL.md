@@ -186,6 +186,9 @@ fallback, or caller-controlled `_context` authority.
 - `'hidden'` - System-injected (OAuth tokens, internal params). User never sees.
 - `'user-only'` - User must provide (credentials, api keys, account-specific IDs)
 - `'user-or-llm'` - User provides OR LLM can compute (search queries, content, filters, most fall into this category)
+- `'llm-only'` - Computed by the LLM only; never shown as a user field
+
+A required `'hidden'` param needs an `oauth` declaration or `hosting.apiKeyParam` to supply it (`bun run check:tool-param-reachability`).
 
 ### Parameter Types
 - `'string'` - Text values
@@ -256,7 +259,7 @@ Hard rules:
   provider responses, filenames, URLs, and errors remain unchanged when Sim did not resolve a
   secret into them.
 
-Add focused tests covering named projection, ordinary identical text without provenance, nested and
+Run the `test-audit` authoring gate, then cover these risks at the boundary that owns them: named projection, ordinary identical text without provenance, nested and
 serialized shape handling, unchanged ordinary external inputs, malformed/incomplete private metadata
 failing closed, headerless legacy requests, and absence of private metadata in the public tool result.
 For durable sinks, also cover legacy `NULL` markers, exact-empty new writes, tracked secret writes,
@@ -287,8 +290,9 @@ downloads. Prefer raw provider endpoints over base64 metadata. Return the same f
 declared `file` / `file[]` output and nested message associations; `FileToolProcessor` stores it once
 and replaces every alias with the same `UserFile` in both workflow and Copilot execution.
 
-Preserve stored `UserFile` fields (`id`, `key`, `url`, `context`, `type`, `name`, `size`) in transforms;
-rebuilding the old `{ name, mimeType, data, size }` shape discards the reference. File outputs do not
+When a transform receives an already-stored `UserFile`, return it unchanged (keep `id`, `key`, `url`,
+`context`, `type`, `name`, `size`). Building a new `{ name, mimeType, data, size }` object from it
+discards the stored reference; that shape is only for fresh raw-binary responses. File outputs do not
 need duplicate inline text/base64 aliases; the file system handles content materialization. When
 an existing tool explicitly exposes content aliases in its contract, preserve its legacy version and
 use the existing block/tool version pattern for a file-only output. Test a file over 10 MiB through
@@ -301,6 +305,7 @@ tool result; keep additional provider fields only when they convey distinct info
 - `'json'` - Complex objects (use this, NOT 'object')
 - `'array'` - Arrays with `items` property
 - `'object'` - Objects with `properties` property
+- `'file'` / `'file[]'` - Stored files; the executor persists them (see File Downloads above)
 
 ### Optional Outputs
 Add `optional: true` for fields that may not exist in the response:
@@ -538,10 +543,13 @@ Add any type coercions needed for new params (runs at execution time, after vari
 params: (params) => {
   const result: Record<string, unknown> = {}
   if (params.limit != null && params.limit !== '') result.limit = Number(params.limit)
-  if (params.newParamName) result.toolParamName = params.newParamName  // rename if IDs differ
   return result
 },
 ```
+
+Name each subBlock (or its `canonicalParamId`) exactly after the tool param it fills. A required
+`user-only` param that is only renamed in `tools.config.params` fails
+`bun run apps/sim/scripts/check-block-registry.ts origin/staging`; remap only optional or `user-or-llm` params.
 
 ### 6. Add new outputs
 

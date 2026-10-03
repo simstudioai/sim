@@ -7,7 +7,6 @@ import {
   organization,
   workspace,
 } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -22,7 +21,7 @@ import {
 } from '@/components/emails'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { computeInvitationExpiry, lockInvitationForMutation } from '@/lib/invitations/core'
 import { InvitationNotPendingError } from '@/lib/invitations/errors'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
@@ -30,8 +29,6 @@ import { lockInvitationResendPolicy } from '@/lib/invitations/resend-policy'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import { getBrandConfig } from '@/ee/whitelabeling'
-
-const logger = createLogger('InvitationSend')
 
 interface WorkspaceGrantInput {
   workspaceId: string
@@ -54,7 +51,7 @@ export interface CreatePendingInvitationInput {
    * and re-authorize stale preflight decisions.
    */
   validateLockedContext?: (context: {
-    tx: DbOrTx
+    tx: DbTransaction
     organizationId: string | null
     workspaceIds: string[]
   }) => Promise<void>

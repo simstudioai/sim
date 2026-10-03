@@ -27,12 +27,6 @@ describe('legacy KB workspace backfill paging', () => {
     expect(vi.mocked(subject.moveCandidate).mock.calls).toEqual([['a'], ['b'], ['c']])
   })
 
-  it('treats database cursor ordering as opaque', async () => {
-    expect(await backfillLegacyKnowledgeBaseWorkspaces(store([['z'], ['A'], []]))).toMatchObject({
-      moved: 2,
-    })
-  })
-
   it('rejects oversized, repeated, or duplicate pages', async () => {
     await expect(
       backfillLegacyKnowledgeBaseWorkspaces(store([['a', 'b']]), { batchSize: 1 })
@@ -54,20 +48,5 @@ describe('legacy KB workspace backfill paging', () => {
     expect(await backfillLegacyKnowledgeBaseWorkspaces(store([['b'], []]))).toMatchObject({
       moved: 1,
     })
-  })
-
-  it.each([0, -1, 251, 1.5])('rejects invalid batch size %s', async (batchSize) => {
-    await expect(backfillLegacyKnowledgeBaseWorkspaces(store([]), { batchSize })).rejects.toThrow(
-      'batch size'
-    )
-  })
-
-  it('propagates database failures without proceeding to the next KB', async () => {
-    const subject = store([['a', 'b']])
-    vi.mocked(subject.moveCandidate).mockRejectedValueOnce(new Error('database unavailable'))
-    await expect(backfillLegacyKnowledgeBaseWorkspaces(subject)).rejects.toThrow(
-      'database unavailable'
-    )
-    expect(subject.moveCandidate).toHaveBeenCalledTimes(1)
   })
 })

@@ -1,4 +1,4 @@
-import { matchQuery, type QueryClient } from '@tanstack/react-query'
+import type { QueryClient } from '@tanstack/react-query'
 import { resourceScopeKey } from '@/lib/core/resource-scope'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
@@ -9,10 +9,6 @@ export async function resetOrganizationSearchAccess(
   organizationId: string
 ) {
   const scope = { kind: 'organization', organizationId } as const
-  const adminOverview = {
-    queryKey: searchSourceKeys.organizationOverview(organizationId),
-    exact: true,
-  }
   await Promise.all([
     queryClient.resetQueries({
       queryKey: [...knowledgeKeys.searches(), resourceScopeKey(scope)],
@@ -21,8 +17,6 @@ export async function resetOrganizationSearchAccess(
     queryClient.resetQueries({ queryKey: knowledgeKeys.details() }),
     queryClient.resetQueries({
       queryKey: searchSourceKeys.list(scope),
-      predicate: (query) => !matchQuery(adminOverview, query),
     }),
-    queryClient.invalidateQueries(adminOverview),
   ])
 }

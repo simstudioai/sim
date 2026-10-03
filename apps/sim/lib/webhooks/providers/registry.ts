@@ -38,6 +38,7 @@ import { loopsHandler } from '@/lib/webhooks/providers/loops'
 import { microsoftTeamsHandler } from '@/lib/webhooks/providers/microsoft-teams'
 import { mondayHandler } from '@/lib/webhooks/providers/monday'
 import { notionHandler } from '@/lib/webhooks/providers/notion'
+import { otterHandler } from '@/lib/webhooks/providers/otter'
 import { outlookHandler } from '@/lib/webhooks/providers/outlook'
 import { pagerdutyHandler } from '@/lib/webhooks/providers/pagerduty'
 import { quickBooksHandler } from '@/lib/webhooks/providers/quickbooks'
@@ -111,6 +112,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   sentry: sentryHandler,
   'microsoft-teams': microsoftTeamsHandler,
   notion: notionHandler,
+  otter: otterHandler,
   outlook: outlookHandler,
   pagerduty: pagerdutyHandler,
   quickbooks: quickBooksHandler,

@@ -354,9 +354,8 @@ In addition, you will need to update the registries:
    // apps/sim/blocks/blocks/pinecone.ts
    import { PineconeIcon } from '@/components/icons'
    import type { BlockConfig } from '@/blocks/types'
-   import type { PineconeResponse } from '@/tools/pinecone/types'
 
-   export const PineconeBlock: BlockConfig<PineconeResponse> = {
+   export const PineconeBlock: BlockConfig = {
      type: 'pinecone',
      name: 'Pinecone',
      description: 'Use Pinecone vector database',

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it, vi } from 'vitest'
 import type { LargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import type { AgentTurnState, ConversationToolResult } from '@/lib/memory/conversation-types'

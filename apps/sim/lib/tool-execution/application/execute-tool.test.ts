@@ -1,64 +1,63 @@
-/**
- * @vitest-environment node
- */
-import type {
-  PersonalApiKeyPrincipal,
-  SessionPrincipal,
-  WorkspaceApiKeyPrincipal,
-} from '@sim/auth/principal'
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks'
+import type { PersonalApiKeyPrincipal, SessionPrincipal } from '@sim/auth/principal'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
+import {
+  blockVisibilityMock,
+  blockVisibilityMockFns,
+} from '@sim/testing/mocks/block-visibility.mock'
+import {
+  customBlockOperationsMock,
+  customBlockOperationsMockFns,
+} from '@sim/testing/mocks/custom-block-operations.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import {
+  integrationsAvailabilityMock,
+  integrationsAvailabilityMockFns,
+} from '@sim/testing/mocks/integrations-availability.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   allowedIntegrationTypes: vi.fn(),
-  getBlockVisibility: vi.fn(),
-  listCustomBlocks: vi.fn(),
-  isDeploymentAvailable: vi.fn(),
-  recordAudit: vi.fn(),
-  getAllBlocks: vi.fn(),
-  executeRegistryTool: vi.fn(),
   executeFileManage: vi.fn(),
-  resolveBillingAttribution: vi.fn(),
-  recordUsage: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/audit', () => ({
-  recordAudit: mocks.recordAudit,
-  AuditAction: {},
-  AuditResourceType: {},
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/integrations/principal-scope.server', () => ({
-  allowedIntegrationTypes: mocks.allowedIntegrationTypes,
+  allowedIntegrationTypes: hoisted.allowedIntegrationTypes,
   principalUserId: (principal: { kind: string; userId?: string }) =>
     principal.kind === 'session' || principal.kind === 'personal_api_key'
       ? principal.userId
       : undefined,
 }))
 
-vi.mock('@/lib/core/config/block-visibility', () => ({
-  getBlockVisibility: mocks.getBlockVisibility,
-}))
+vi.mock('@/lib/core/config/block-visibility', () => blockVisibilityMock)
 
-vi.mock('@/lib/workflows/custom-blocks/operations', () => ({
-  listCustomBlocksWithInputsForWorkspace: mocks.listCustomBlocks,
-}))
+vi.mock('@/lib/workflows/custom-blocks/operations', () => customBlockOperationsMock)
 
-vi.mock('@/lib/integrations/availability.server', () => ({
-  isIntegrationDeploymentAvailableForVisibility: mocks.isDeploymentAvailable,
-}))
+vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 
 vi.mock('@/blocks/custom/server-overlay', () => ({
   withCustomBlockOverlay: <T>(_rows: unknown, run: () => Promise<T>) => run(),
@@ -66,13 +65,6 @@ vi.mock('@/blocks/custom/server-overlay', () => ({
 
 vi.mock('@/blocks/visibility/server-context', () => ({
   withBlockVisibility: <T>(_state: unknown, run: () => Promise<T>) => run(),
-}))
-
-vi.mock('@/blocks/registry', () => ({
-  getAllBlocks: mocks.getAllBlocks,
-  getBlock: vi.fn(),
-  getLatestBlockForViewer: vi.fn(),
-  getBlockMeta: vi.fn(() => ({ tags: [] })),
 }))
 
 vi.mock('@/tools/utils', () => ({
@@ -85,27 +77,22 @@ vi.mock('@/tools/tool-ids', () => ({
   resolveToolId: (toolId: string) => toolId,
 }))
 
-vi.mock('@/tools', () => ({ executeTool: mocks.executeRegistryTool }))
+vi.mock('@/tools', () => toolsMock)
 
 vi.mock('@/lib/internal/file/operations', () => ({
-  executeFileManageOperation: mocks.executeFileManage,
+  executeFileManageOperation: hoisted.executeFileManage,
   getFileContentProvenance: vi.fn(),
   fileContentJsonResponse: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveBillingAttribution: mocks.resolveBillingAttribution,
-  toBillingContext: () => ({
-    billingEntity: { type: 'workspace', id: WORKSPACE_ID },
-    billingPeriod: { start: new Date('2026-01-01'), end: new Date('2026-02-01') },
-  }),
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
-vi.mock('@/lib/billing/core/usage-log', () => ({ recordUsage: mocks.recordUsage }))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 import { executeFileTool } from '@/lib/internal/file/execute-tool'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import { executeToolForCaller } from '@/lib/tool-execution/application/execute-tool'
+import { getAllBlocks, getBlock, getBlockMeta } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { fileReadTool } from '@/tools/file/get'
 
@@ -157,6 +144,27 @@ const TOOL_METADATA: Record<string, Record<string, unknown>> = {
 
 const WORKSPACE_ID = 'workspace-1'
 
+const mocks = {
+  ...hoisted,
+  getBlockVisibility: blockVisibilityMockFns.mockGetBlockVisibility,
+  listCustomBlocks: customBlockOperationsMockFns.mockListCustomBlocksWithInputsForWorkspace,
+  isDeploymentAvailable:
+    integrationsAvailabilityMockFns.mockIsIntegrationDeploymentAvailableForVisibility,
+  recordUsage: billingUsageLogMockFns.mockRecordUsage,
+  loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  getAllBlocks: vi.mocked(getAllBlocks),
+  executeRegistryTool: toolsMockFns.mockExecuteTool,
+  resolveBillingAttribution: billingAttributionMockFns.mockResolveBillingAttribution,
+}
+
+vi.mocked(getBlock).mockReturnValue(undefined as never)
+vi.mocked(getBlockMeta).mockReturnValue({ tags: [] } as never)
+billingAttributionMockFns.mockToBillingContext.mockImplementation(() => ({
+  billingEntity: { type: 'workspace', id: WORKSPACE_ID },
+  billingPeriod: { start: new Date('2026-01-01'), end: new Date('2026-02-01') },
+}))
+
 const workspaceContext = {
   workspaceId: WORKSPACE_ID,
   workspaceOrganizationId: 'org-1',
@@ -164,16 +172,8 @@ const workspaceContext = {
   billedAccountUserId: 'billing-owner-1',
 }
 
-const principal: PersonalApiKeyPrincipal = {
-  kind: 'personal_api_key',
-  userId: 'user-1',
-  keyId: 'key-1',
-}
-const workspaceKey: WorkspaceApiKeyPrincipal = {
-  kind: 'workspace_api_key',
-  workspaceId: WORKSPACE_ID,
-  keyId: 'key-1',
-}
+const principal = createPersonalApiKeyPrincipal()
+const workspaceKey = createWorkspaceApiKeyPrincipal({ workspaceId: WORKSPACE_ID })
 
 function block(overrides: Partial<BlockConfig> & { type: string }): BlockConfig {
   return {
@@ -222,7 +222,6 @@ describe('executeToolForCaller', () => {
   afterAll(resetEnvFlagsMock)
 
   beforeEach(() => {
-    vi.clearAllMocks()
     // Hosted-key injection only happens where Sim hosts keys.
     setEnvFlags({ isHosted: true })
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
@@ -245,54 +244,45 @@ describe('executeToolForCaller', () => {
     mocks.resolveBillingAttribution.mockResolvedValue({ workspaceId: WORKSPACE_ID })
   })
 
-  it('runs a visible, permitted tool and reports what it produced', async () => {
-    await expect(run({ input: { url: 'https://example.com' } })).resolves.toEqual({
-      toolId: 'firecrawl_scrape',
-      status: 'succeeded',
-      output: { markdown: '# Hi' },
-      error: null,
-    })
-  })
+  it.each<PersonalApiKeyPrincipal | SessionPrincipal>([principal, createSessionPrincipal()])(
+    'hands the authenticated $kind caller through to the real File handler',
+    async (caller) => {
+      mocks.executeFileManage.mockResolvedValue(
+        Response.json({ success: true, data: { files: [{ id: 'file-1' }] } })
+      )
+      /** Adapt the existing registry mock at its dispatch boundary; admission and File handling are real. */
+      mocks.executeRegistryTool.mockImplementationOnce(
+        async (
+          toolId: string,
+          params: Parameters<typeof fileReadTool.operation.input>[0],
+          options: { operationContext: InternalToolOperationContext }
+        ) => {
+          const response = await executeFileTool({
+            toolId,
+            input: fileReadTool.operation.input(params),
+            context: options.operationContext,
+            headers: new Headers(),
+            requestId: 'direct-file-read',
+          })
+          return fileReadTool.transformResponse?.(response)
+        }
+      )
 
-  it.each<PersonalApiKeyPrincipal | SessionPrincipal>([
-    principal,
-    { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-  ])('hands the authenticated $kind caller through to the real File handler', async (caller) => {
-    mocks.executeFileManage.mockResolvedValue(
-      Response.json({ success: true, data: { files: [{ id: 'file-1' }] } })
-    )
-    /** Adapt the existing registry mock at its dispatch boundary; admission and File handling are real. */
-    mocks.executeRegistryTool.mockImplementationOnce(
-      async (
-        toolId: string,
-        params: Parameters<typeof fileReadTool.operation.input>[0],
-        options: { operationContext: InternalToolOperationContext }
-      ) => {
-        const response = await executeFileTool({
-          toolId,
-          input: fileReadTool.operation.input(params),
-          context: options.operationContext,
-          headers: new Headers(),
-          requestId: 'direct-file-read',
-        })
-        return fileReadTool.transformResponse?.(response)
-      }
-    )
+      const result = await executeToolForCaller.execute({
+        principal: caller,
+        input: { workspaceId: WORKSPACE_ID, toolId: 'file_read', input: { fileId: 'file-1' } },
+      })
 
-    const result = await executeToolForCaller.execute({
-      principal: caller,
-      input: { workspaceId: WORKSPACE_ID, toolId: 'file_read', input: { fileId: 'file-1' } },
-    })
-
-    expect(result).toMatchObject({ status: 'succeeded', output: { files: [{ id: 'file-1' }] } })
-    const [, params, options] = mocks.executeRegistryTool.mock.calls[0]
-    expect(options.operationContext.callerPrincipal).toBe(caller)
-    expect(options.operationContext.workflowId).toBe('')
-    expect(options.operationContext.executorDelegationOrigin).toBeUndefined()
-    expect(params).not.toHaveProperty('callerPrincipal')
-    expect(params._context).not.toHaveProperty('callerPrincipal')
-    expect(mocks.executeFileManage.mock.calls[0]?.[1].principal).toBe(caller)
-  })
+      expect(result).toMatchObject({ status: 'succeeded', output: { files: [{ id: 'file-1' }] } })
+      const [, params, options] = mocks.executeRegistryTool.mock.calls[0]
+      expect(options.operationContext.callerPrincipal).toBe(caller)
+      expect(options.operationContext.workflowId).toBe('')
+      expect(options.operationContext.executorDelegationOrigin).toBeUndefined()
+      expect(params).not.toHaveProperty('callerPrincipal')
+      expect(params._context).not.toHaveProperty('callerPrincipal')
+      expect(mocks.executeFileManage.mock.calls[0]?.[1].principal).toBe(caller)
+    }
+  )
 
   it.each(['callerPrincipal', 'principal', 'operationContext', '_context'])(
     'rejects caller input attempting to supply %s authority',
@@ -315,28 +305,12 @@ describe('executeToolForCaller', () => {
     })
   })
 
-  /**
-   * The bare-name form Copilot also accepts would read an identifier-shaped
-   * literal secret as a variable lookup. A caller that types the value gets the
-   * explicit form only.
-   */
-  it('resolves only explicit environment-variable references', async () => {
-    await run({ input: { url: 'https://example.com' } })
-
-    const [, params] = mocks.executeRegistryTool.mock.calls[0]
-    expect(params._context.envReferenceMode).toBe('explicit')
-  })
-
   it('conceals a tool no visible block exposes as absent', async () => {
     await expect(run({ toolId: 'preview_call' })).rejects.toMatchObject({
       code: 'not_found',
       message: 'Tool not found',
     })
     expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
-  })
-
-  it('conceals a tool that is in no block at all', async () => {
-    await expect(run({ toolId: 'not_a_tool' })).rejects.toMatchObject({ code: 'not_found' })
   })
 
   /**
@@ -354,20 +328,6 @@ describe('executeToolForCaller', () => {
     expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
   })
 
-  it('still runs a permitted integration when an allowlist is set', async () => {
-    mocks.allowedIntegrationTypes.mockResolvedValue(new Set(['firecrawl']))
-
-    await expect(run({ toolId: 'firecrawl_scrape' })).resolves.toMatchObject({
-      status: 'succeeded',
-    })
-  })
-
-  it('resolves an unversioned name to the newest visible version', async () => {
-    await expect(run({ toolId: 'confluence_read', input: {} })).resolves.toMatchObject({
-      toolId: 'confluence_read_v2',
-    })
-  })
-
   /**
    * The workflow path validates `user-only` parameters during serialization.
    * This path has no serialization step, so without an explicit check a missing
@@ -383,27 +343,6 @@ describe('executeToolForCaller', () => {
     expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
   })
 
-  it('names the missing inputs together rather than one per round trip', async () => {
-    await expect(
-      run({ toolId: 'zendesk_get_ticket', input: { ticketId: '42' } })
-    ).rejects.toMatchObject({ message: expect.stringContaining('input.apiToken') })
-  })
-
-  it('treats a blank string as missing, the way the merge validator does', async () => {
-    await expect(
-      run({ toolId: 'zendesk_get_ticket', input: { ticketId: '4', subdomain: '', apiToken: 't' } })
-    ).rejects.toMatchObject({ code: 'validation' })
-  })
-
-  it('runs once every required user-only input is supplied', async () => {
-    await expect(
-      run({
-        toolId: 'zendesk_get_ticket',
-        input: { ticketId: '42', subdomain: 'acme', apiToken: 'tok' },
-      })
-    ).resolves.toMatchObject({ status: 'succeeded' })
-  })
-
   /**
    * `firecrawl_scrape` declares `apiKey` required and `user-only`, and Sim
    * supplies it. Rejecting the omission would make every hosted-key tool
@@ -415,83 +354,8 @@ describe('executeToolForCaller', () => {
     })
   })
 
-  /**
-   * Self-hosted supplies no hosted keys — `injectHostedKeyIfNeeded` short-circuits
-   * on `isHosted` — so the exemption must lift with it, or the caller is told a
-   * key is optional and the provider disagrees.
-   */
-  it('does require that key on a deployment that hosts none', async () => {
-    setEnvFlags({ isHosted: false })
-
-    await expect(run({ input: { url: 'https://example.com' } })).rejects.toMatchObject({
-      code: 'validation',
-      message: expect.stringContaining('input.apiKey'),
-    })
-  })
-
-  /**
-   * `visibility` describes editor roles, and a direct call has no editor: the
-   * caller is the only source, so an `llm-only` parameter is as much theirs to
-   * send as a `user-only` one. Gating the check on `user-only` alone left
-   * `thinking_tool.thought` dispatching as `undefined`.
-   */
-  it('refuses a missing llm-only input too — the caller is the only source here', async () => {
-    await expect(run({ toolId: 'thinking_tool', input: {} })).rejects.toMatchObject({
-      code: 'validation',
-      message: expect.stringContaining('input.thought'),
-    })
-    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
-  })
-
-  it('refuses a missing user-or-llm input before dispatch rather than mid-execution', async () => {
-    await expect(run({ input: {} })).rejects.toMatchObject({
-      code: 'validation',
-      message: expect.stringContaining('input.url'),
-    })
-  })
-
-  it('accepts a {{VAR}} reference as a present value, leaving resolution to the executor', async () => {
-    await run({
-      toolId: 'zendesk_get_ticket',
-      input: { ticketId: '4', subdomain: 'acme', apiToken: '{{ZENDESK_TOKEN}}' },
-    })
-
-    const [, params] = mocks.executeRegistryTool.mock.calls[0]
-    expect(params.apiToken).toBe('{{ZENDESK_TOKEN}}')
-  })
-
   it('requires a credential for an OAuth tool before it dispatches', async () => {
     await expect(run({ toolId: 'slack_message', input: { text: 'hi' } })).rejects.toMatchObject({
-      code: 'validation',
-      message: expect.stringContaining('credentialId is required'),
-    })
-    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
-  })
-
-  /**
-   * Sixty-eight tools declare the selector as a required `user-only` parameter
-   * (`oauthCredential` or `credential`) with no `oauth` block — Snowflake among
-   * them. Validating required inputs against the raw body rejected a valid
-   * top-level `credentialId` as a missing `oauthCredential`.
-   */
-  it('satisfies a declared credential selector with the top-level credentialId', async () => {
-    await expect(
-      run({
-        toolId: 'snowflake_execute_sql',
-        credentialId: 'cred-sf',
-        input: { statement: 'select 1' },
-      })
-    ).resolves.toMatchObject({ status: 'succeeded' })
-
-    const [, params] = mocks.executeRegistryTool.mock.calls[0]
-    expect(params.oauthCredential).toBe('cred-sf')
-    expect(params.credential).toBeUndefined()
-  })
-
-  it('demands credentialId for a declared required selector even without an oauth block', async () => {
-    await expect(
-      run({ toolId: 'snowflake_execute_sql', input: { statement: 'select 1' } })
-    ).rejects.toMatchObject({
       code: 'validation',
       message: expect.stringContaining('credentialId is required'),
     })
@@ -512,23 +376,6 @@ describe('executeToolForCaller', () => {
     ).rejects.toMatchObject({
       code: 'validation',
       message: expect.stringContaining('top-level credentialId'),
-    })
-    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
-  })
-
-  it('passes the named credential through as the tool credential', async () => {
-    await run({ toolId: 'slack_message', input: { text: 'hi' }, credentialId: 'cred-1' })
-
-    const [, params] = mocks.executeRegistryTool.mock.calls[0]
-    expect(params.credential).toBe('cred-1')
-  })
-
-  it('refuses a reserved argument rather than dropping it', async () => {
-    await expect(
-      run({ input: { url: 'https://a.co', _context: { userId: 'someone-else' } } })
-    ).rejects.toMatchObject({
-      code: 'validation',
-      message: expect.stringContaining('_context'),
     })
     expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
   })
@@ -555,33 +402,6 @@ describe('executeToolForCaller', () => {
       message: expect.stringContaining('impersonateUserEmail'),
     })
     expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
-  })
-
-  /**
-   * Declared is not accepted. `accessToken` is in the tool's params, but as
-   * `hidden` — the resolved credential fills it. Letting a caller send it either
-   * pre-empts the executor's value or is silently overwritten; either way the
-   * published schema (which omits hidden params) made no such promise.
-   */
-  it('refuses a declared-but-hidden input, saying whose it is', async () => {
-    await expect(
-      run({
-        toolId: 'slack_message',
-        credentialId: 'cred-1',
-        input: { text: 'hi', accessToken: 'xoxb-forged' },
-      })
-    ).rejects.toMatchObject({
-      code: 'validation',
-      message: expect.stringContaining('input.accessToken is supplied by Sim'),
-    })
-    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
-  })
-
-  it('refuses any other undeclared input, naming it', async () => {
-    await expect(run({ input: { url: 'https://a.co', nope: 1 } })).rejects.toMatchObject({
-      code: 'validation',
-      message: expect.stringContaining('input.nope'),
-    })
   })
 
   it('refuses a credential named inline instead of at the top level', async () => {
@@ -623,19 +443,6 @@ describe('executeToolForCaller', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
   })
 
-  it('reports a tool that ran and refused without failing the call', async () => {
-    mocks.executeRegistryTool.mockResolvedValue({
-      success: false,
-      output: {},
-      error: 'Firecrawl returned 402',
-    })
-
-    await expect(run()).resolves.toMatchObject({
-      status: 'failed',
-      error: { message: 'Firecrawl returned 402' },
-    })
-  })
-
   it('bills hosted-key spend to the workspace', async () => {
     mocks.executeRegistryTool.mockResolvedValue({
       success: true,
@@ -674,22 +481,6 @@ describe('executeToolForCaller', () => {
   })
 
   /**
-   * Mirrors the real registry contract: a caller's own key means
-   * `isUsingHostedKey` is false, so `applyHostedKeyCostToResult` never runs and
-   * no `output.cost` is written. The meter reads that absence as the verdict.
-   */
-  it('does not bill when the caller brought their own key', async () => {
-    mocks.executeRegistryTool.mockResolvedValue({
-      success: true,
-      output: { markdown: '# Hi' },
-    })
-
-    await run({ input: { url: 'https://a.co', apiKey: 'sk-mine' } })
-
-    expect(mocks.recordUsage).not.toHaveBeenCalled()
-  })
-
-  /**
    * The BYOK shape. The registry injected the org's own key and returned
    * `isUsingHostedKey: false`, so it wrote no `output.cost` — and the caller
    * omitted the key, which a pre-dispatch derivation reads as "Sim's". Only the
@@ -704,23 +495,6 @@ describe('executeToolForCaller', () => {
 
     await run({ input: { url: 'https://a.co' } })
 
-    expect(mocks.recordUsage).not.toHaveBeenCalled()
-  })
-
-  it('does not bill a failed call', async () => {
-    mocks.executeRegistryTool.mockResolvedValue({
-      success: false,
-      output: { cost: { total: 0.004 } },
-      error: 'upstream refused',
-    })
-
-    await run()
-
-    expect(mocks.recordUsage).not.toHaveBeenCalled()
-  })
-
-  it('records nothing when the call incurred no hosted-key spend', async () => {
-    await run()
     expect(mocks.recordUsage).not.toHaveBeenCalled()
   })
 

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { assert, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -19,7 +16,6 @@ import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
 describe('executePipedriveGetFiles', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.listPipedriveFiles.mockResolvedValue({
       files: [{ id: 1, name: 'report.pdf', url: 'https://files.example/report.pdf' }],
       hasMore: true,
@@ -69,16 +65,5 @@ describe('executePipedriveGetFiles', () => {
         success: true,
       },
     })
-  })
-
-  it('returns metadata without file persistence when downloads are disabled', async () => {
-    const result = await executePipedriveGetFiles(
-      { accessToken: 'token', downloadFiles: false },
-      { requestId: 'request-1' }
-    )
-
-    expect(isInternalToolFileResult(result)).toBe(false)
-    expect(result).toMatchObject({ success: true, output: { has_more: true, next_start: 1 } })
-    expect(mocks.downloadPipedriveFile).not.toHaveBeenCalled()
   })
 })

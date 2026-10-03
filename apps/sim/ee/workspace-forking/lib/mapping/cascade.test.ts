@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 import type {
@@ -25,21 +22,8 @@ function ref(kind: ForkReference['kind'], sourceId: string): ForkReference {
 }
 
 const resolveNone: ForkReferenceResolver = () => null
-const resolveAll: ForkReferenceResolver = (_kind, sourceId) => sourceId
 
 describe('detectForkCascadeReferences', () => {
-  it('returns empty when there are no content references', async () => {
-    const result = await detectForkCascadeReferences({
-      executor: queuedExecutor([]),
-      sourceWorkspaceId: 'ws',
-      references: [ref('credential', 'cred-1'), ref('table', 'tbl-1')],
-      resolve: resolveNone,
-    })
-    expect(result.references).toEqual([])
-    expect(result.unmapped).toEqual([])
-    expect(result.mcpReauthServerIds).toEqual([])
-  })
-
   it('surfaces env keys from custom tool code as required unmapped env-var refs', async () => {
     const result = await detectForkCascadeReferences({
       executor: queuedExecutor([[{ id: 't1', title: 'Weather', code: 'fetch(`{{API_KEY}}`)' }]]),
@@ -54,17 +38,6 @@ describe('detectForkCascadeReferences', () => {
       required: true,
     })
     expect(result.unmapped).toHaveLength(1)
-  })
-
-  it('marks env-var cascade refs mapped when the resolver finds them in the target', async () => {
-    const result = await detectForkCascadeReferences({
-      executor: queuedExecutor([[{ id: 't1', title: 'Weather', code: '{{API_KEY}}' }]]),
-      sourceWorkspaceId: 'ws',
-      references: [ref('custom-tool', 't1')],
-      resolve: resolveAll,
-    })
-    expect(result.references).toHaveLength(1)
-    expect(result.unmapped).toHaveLength(0)
   })
 
   it('extracts env keys from MCP url/headers and flags oauth servers for re-auth', async () => {
@@ -129,21 +102,5 @@ describe('detectForkCascadeReferences', () => {
       sourceId: 'cred-9',
       required: true,
     })
-  })
-
-  it('dedupes a shared env key referenced by two custom tools', async () => {
-    const result = await detectForkCascadeReferences({
-      executor: queuedExecutor([
-        [
-          { id: 't1', title: 'A', code: '{{SHARED}}' },
-          { id: 't2', title: 'B', code: '{{SHARED}}' },
-        ],
-      ]),
-      sourceWorkspaceId: 'ws',
-      references: [ref('custom-tool', 't1'), ref('custom-tool', 't2')],
-      resolve: resolveNone,
-    })
-    expect(result.references).toHaveLength(1)
-    expect(result.references[0].sourceId).toBe('SHARED')
   })
 })

@@ -311,6 +311,9 @@ test.describe('saved password autofill', () => {
     await expect
       .poll(() => pageScript('document.getElementById("user").value'))
       .toBe('account9@example.test')
+    await expect
+      .poll(() => app.windows().some((page) => page.url().includes('credential-picker.html')))
+      .toBe(false)
     await clickField()
     await picker()
     await pickerKey('Escape')

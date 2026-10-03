@@ -3,7 +3,6 @@ import { db } from '@sim/db'
 import {
   document,
   embedding,
-  knowledgeBase,
   knowledgeConnector,
   knowledgeConnectorMember,
   knowledgeDocumentObservation,
@@ -133,10 +132,6 @@ describe('excluded member documents retain current source authorization', () => 
       },
       ids.aliceId
     )
-    await db
-      .update(knowledgeBase)
-      .set({ isSearchIndex: true })
-      .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
     await db
       .update(knowledgeConnector)
       .set({ status: 'active', memberSyncStatus: 'idle', memberSyncLockToken: null })

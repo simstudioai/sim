@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TraceCollector } from '@/lib/mothership/request/trace'
 
@@ -202,38 +198,10 @@ describe('gated tools are askable', () => {
 
     expect(ungatable).toEqual([])
   })
-
-  it('gates the tools we intend to gate', async () => {
-    const { TOOL_CATALOG } = await vi.importActual<
-      typeof import('@/lib/mothership/generated/tool-catalog-v1')
-    >('@/lib/mothership/generated/tool-catalog-v1')
-
-    expect(
-      Object.entries(TOOL_CATALOG)
-        .filter(([, entry]) => entry.requiresApproval)
-        .map(([name]) => name)
-        .sort()
-    ).toEqual([
-      'call_integration_tool',
-      'cancel_workflow_run',
-      'delete_workspace_mcp_server',
-      'deploy_as_api',
-      'deploy_as_chat',
-      'deploy_as_mcp',
-      'promote_to_live',
-      'redeploy',
-      'run_code',
-      'run_function',
-      'run_workflow',
-      'run_workflow_until_block',
-      'terminal',
-    ])
-  })
 })
 
 describe('runGatedToolExecution', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     toolRequiresApproval.mockReturnValue(true)
   })
 

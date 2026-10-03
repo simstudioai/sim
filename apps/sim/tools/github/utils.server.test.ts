@@ -2,8 +2,6 @@
  * Pins the redirect contract of the GitHub direct-execution transport: the workspace
  * token must never cross an origin boundary, while a legitimate same-origin GitHub
  * redirect (a renamed repository) must stay authenticated.
- *
- * @vitest-environment node
  */
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
@@ -12,14 +10,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@sim/security/dns', () => ({
   resolveHostAddresses: vi.fn(async () => ({ addresses: ['127.0.0.1'] })),
   preferIpv4: (addresses: string[]) => addresses[0],
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isHosted: false,
-  getEgressAllowedHosts: () => undefined,
-  getEgressAllowedIpRanges: () => undefined,
-  isLegacyPrivateDatabaseAccessAllowed: () => false,
-  getProxyUrl: () => undefined,
 }))
 
 import { secureGitHubRequest } from '@/tools/github/utils.server'

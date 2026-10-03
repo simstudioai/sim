@@ -3,29 +3,22 @@ import { readFileSync, statSync, writeFileSync } from 'node:fs'
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
-  copilotChats,
   credential,
   credentialGroup,
   document,
-  embedding,
-  embeddingSearch,
   knowledgeBase,
   knowledgeConnector,
   knowledgeConnectorMember,
   knowledgeDocumentObservation,
-  member,
   organization,
   user,
   workspace,
 } from '@sim/db/schema'
 import { createLogger, Logger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, type SQL, sql } from 'drizzle-orm'
-import { NextRequest } from 'next/server'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, type MockInstance, vi } from 'vitest'
 import { z } from 'zod'
-import { workspaceKnowledgeSearchDataSchema } from '@/lib/api/contracts/knowledge/search'
-import { internalSessionAuth } from '@/lib/api/server/routes'
 import { seedSearchReaderFixture } from '@/lib/knowledge/__integration__/seed-search-reader-fixture'
 import {
   createKnowledgeAclFixtureIds,
@@ -33,7 +26,6 @@ import {
   seedKnowledgeMemberFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { type KnowledgeSearchTagFilter, searchKnowledge } from '@/lib/knowledge/application/search'
-import type { KbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
 import {
   SearchBudget,
   SearchDeadlineError,
@@ -41,18 +33,6 @@ import {
 } from '@/lib/knowledge/search/budget'
 import type { SearchStage } from '@/lib/knowledge/search/diagnostics'
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
-import { embeddingCandidateDistance } from '@/lib/knowledge/vector-columns'
-import type {
-  MothershipStreamV1CheckpointPausePayload,
-  MothershipStreamV1ToolCallDescriptor,
-} from '@/lib/mothership/generated/mothership-stream-v1'
-import { isContractStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
-import {
-  readDocumentServerTool,
-  searchWorkspaceServerTool,
-} from '@/lib/mothership/tools/server/knowledge/workspace-search'
-import { POST as searchRoute } from '@/app/api/knowledge/search/route'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 /** Initialize controlled provider configuration before the real application modules load. */
 vi.hoisted(() => {
@@ -66,7 +46,6 @@ vi.hoisted(() => {
   }
 })
 
-const externalFetch = globalThis.fetch
 const enabled = process.env.KNOWLEDGE_SEARCH_PERFORMANCE_TEST === 'true'
 const batchSize = 1000
 const MIN_CHUNK_COUNT = 5000
@@ -78,7 +57,6 @@ const unrelatedChunkCount = Number(
 const evictSharedBuffers = process.env.KNOWLEDGE_SEARCH_PERFORMANCE_EVICT_BUFFERS === 'true'
 const dimensions = 1536
 const candidateDimensions = 512
-const HYBRID_CANDIDATE_LIMIT = 1600
 const chunksPerDocument = 4
 const logger = createLogger('SearchLatencyIntegration')
 const fixtureSchema = z.object({
@@ -111,7 +89,6 @@ const ids = reused?.fixture ?? createKnowledgeAclFixtureIds()
 const unrelated = reused?.unrelatedFixture ?? createKnowledgeAclFixtureIds()
 const fullWidthFixture = reused?.fullWidthFixture ?? createKnowledgeAclFixtureIds()
 const FULL_WIDTH_CHUNK_COUNT = 5000
-const organizationChatId = generateId()
 function topicVector(topic = 0) {
   const vector = Array.from({ length: dimensions }, (_, index) =>
     Math.sin(
@@ -129,20 +106,6 @@ const queryVector = topicVector()
  * The exact nearest chunks on the projection's stored halfvec, which is what the page's order
  * is measured against: the walk ranks on that column, and nothing rescores it.
  */
-async function exactProjectionNeighbors(vector: number[], limit: number, readerClause?: SQL) {
-  const distance = embeddingCandidateDistance(
-    dimensions as KbEmbeddingDimensions,
-    JSON.stringify(vector),
-    'text-embedding-3-small'
-  )
-  /** Unaliased: the distance expression qualifies its column with the table's own name. */
-  return db.execute<{ id: string }>(sql`SELECT ${embeddingSearch.id} AS id FROM ${embeddingSearch}
-    INNER JOIN document d ON d.id = ${embeddingSearch.documentId}
-    WHERE ${embeddingSearch.knowledgeBaseId} = ${ids.knowledgeBaseId}
-      AND ${embeddingSearch.enabled} ${readerClause ?? sql``}
-    ORDER BY (${distance}) + 0, ${embeddingSearch.id}
-    LIMIT ${limit}`)
-}
 const captured: CapturedQuery[] = []
 const report: Record<string, unknown> = {
   fixture: ids,
@@ -162,7 +125,7 @@ const report: Record<string, unknown> = {
     vectors:
       'Normalized 512-dimensional topic/noise geometry with permuted copies across 1536 dimensions; verifies prefix candidate ranking, not semantic embedding quality',
     cache: evictSharedBuffers
-      ? 'Selected workspace and organization samples evict PostgreSQL shared buffers; operating-system cache is not cleared'
+      ? 'Selected workspace samples evict PostgreSQL shared buffers; operating-system cache is not cleared'
       : 'First and repeated samples; no claim of a cold operating-system cache',
     layout: reused
       ? 'Reused fixture; physical layout is inherited from its original report'
@@ -170,7 +133,6 @@ const report: Record<string, unknown> = {
   },
 }
 let capture = false
-let embeddingCalls = 0
 let readerCalls = 0
 let readerRevoked = false
 const previousDebug = db.$client.options.debug
@@ -275,19 +237,6 @@ function assertIndexedCandidates(
   expect(traversed['Actual Rows']).toBeLessThanOrEqual(candidateLimit)
 }
 
-/** Small scopes must seek chunk metadata by document without reading the full vector projection. */
-function assertIndexedChunkProbe(node: ExplainNode): number {
-  let lookups = 0
-  if (node['Relation Name'] === 'embedding_search') {
-    expect(['Index Scan', 'Index Only Scan']).toContain(node['Node Type'])
-    expect(node['Index Name']).toBe('embedding_search_document_lookup_idx')
-    expect((node.Output ?? []).join(' ')).not.toMatch(/(?:embedding_search\.)?(?:vector|binary)/)
-    lookups = node['Actual Loops']
-  }
-  for (const child of node.Plans ?? []) lookups += assertIndexedChunkProbe(child)
-  return lookups
-}
-
 /** Keyword sort memory must scale with identities and scores, not the matched document text. */
 function assertScalarKeywordSorts(node: ExplainNode) {
   if (node['Node Type'] === 'Sort') {
@@ -302,7 +251,7 @@ function saveReport() {
 }
 
 /** Only the disposable fixture may evict shared buffers; the operating-system cache stays intact. */
-async function prepareOrganizationSample(label: string) {
+async function prepareSample(label: string) {
   if (!evictSharedBuffers) return
   const [eviction] = await db.execute<{ buffers: number; evicted: number }>(sql`
     WITH cached AS MATERIALIZED (
@@ -346,6 +295,9 @@ const diagnosticSchema = z
 const resultSchema = z.object({
   success: z.literal(true),
   data: z.object({
+    retrieval: z
+      .object({ status: z.enum(['complete', 'partial']), timedOutLegs: z.array(z.string()) })
+      .optional(),
     results: z.array(
       z.object({
         documentId: z.string(),
@@ -360,63 +312,22 @@ const resultSchema = z.object({
 async function search(
   userId = ids.aliceId,
   query = 'Orion deployment',
-  filters: WorkspaceSearchFilters = {},
-  organizationScope = false,
-  topK = 15
+  filters: WorkspaceSearchFilters = {}
 ) {
-  return resultSchema.parse(
-    await searchWorkspaceServerTool.execute(
-      { query, topK, ...filters },
-      {
-        userId,
-        ...(organizationScope
-          ? { organizationId: ids.organizationId, chatId: organizationChatId }
-          : { workspaceId: ids.workspaceId }),
-        requestMode: 'assistant',
-        toolCallId: generateId(),
-        copilotToolExecution: true,
-        resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], {
-          userId,
-          ...(organizationScope ? {} : { workspaceId: ids.workspaceId }),
-        }),
-      }
-    )
-  )
-}
-
-async function searchDashboard(
-  query = 'Orion deployment',
-  userId = ids.aliceId,
-  organizationScope = false,
-  topK = 15
-) {
-  const authenticate = vi.spyOn(internalSessionAuth, 'authenticate').mockResolvedValue({
-    kind: 'session',
-    userId,
-    sessionId: 'fixture-dashboard',
+  const data = await searchKnowledge.execute({
+    principal: { kind: 'session', userId, sessionId: 'fixture-knowledge-search' },
+    input: {
+      workspaceId: ids.workspaceId,
+      knowledgeBaseIds: [ids.knowledgeBaseId],
+      query,
+      topK: 15,
+      filters,
+      searchMode: 'hybrid',
+      allowPartialResults: true,
+      surface: 'api',
+    },
   })
-  try {
-    const response = await searchRoute(
-      new NextRequest('http://localhost/api/knowledge/search', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          ...(organizationScope
-            ? { organizationId: ids.organizationId }
-            : { workspaceId: ids.workspaceId }),
-          query,
-          topK,
-        }),
-      })
-    )
-    expect(response.status).toBe(200)
-    return {
-      success: true as const,
-      data: workspaceKnowledgeSearchDataSchema.parse((await response.json()).data),
-    }
-  } finally {
-    authenticate.mockRestore()
-  }
+  return resultSchema.parse({ success: true, data })
 }
 
 async function searchWorkspaceKb(
@@ -481,15 +392,6 @@ async function sample(
   const diagnostics = diagnosticSchema.parse(completed[0][1])
   expect(diagnostics.stages.embedding.count).toBe(1)
   expect(diagnostics.stages.retrieval.count).toBe(1)
-  if (diagnostics.surface === 'copilot') {
-    const passageBytes = result.data.results.map((row) => Buffer.byteLength(row.content))
-    expect(diagnostics.passageBytes).toBe(passageBytes.reduce((total, bytes) => total + bytes, 0))
-    expect(diagnostics.maxPassageBytes).toBe(Math.max(0, ...passageBytes))
-    expect(diagnostics.uniqueDocumentCount).toBe(
-      new Set(result.data.results.map((row) => row.documentId)).size
-    )
-    expect(diagnostics.toolResultBytes).toBeGreaterThan(diagnostics.passageBytes!)
-  }
   expect(captured.length).toBeLessThan(300)
   const searches = captured.filter(
     (item) =>
@@ -630,7 +532,6 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
             )
             .length(1),
         }).parse(JSON.parse(String(init?.body)))
-        embeddingCalls++
         return Response.json({
           embeddings: [{ values: queryVector }],
           usageMetadata: { promptTokenCount: 4 },
@@ -645,7 +546,6 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
           model: z.literal('text-embedding-3-small'),
         })
         .parse(JSON.parse(String(init?.body)))
-      embeddingCalls += body.input.length
       const bytes = Buffer.alloc(dimensions * 4)
       const topic = Number(/^Topic (\d+) deployment$/.exec(body.input[0])?.[1] ?? 0)
       topicVector(topic).forEach((value, index) => bytes.writeFloatLE(value, index * 4))
@@ -677,6 +577,7 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
           workspaceId: ids.workspaceId,
           organizationId: null,
           embeddingModel: 'text-embedding-3-small',
+          isSearchIndex: false,
         })
         .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
       await db
@@ -685,17 +586,6 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
         .where(eq(knowledgeConnector.id, ids.connectorId))
       await db.delete(credential).where(eq(credential.workspaceId, ids.workspaceId))
       await db.delete(credentialGroup).where(eq(credentialGroup.workspaceId, ids.workspaceId))
-      await db
-        .delete(copilotChats)
-        .where(
-          and(
-            eq(copilotChats.organizationId, ids.organizationId),
-            eq(copilotChats.userId, ids.aliceId)
-          )
-        )
-      await db
-        .delete(member)
-        .where(and(eq(member.organizationId, ids.organizationId), eq(member.userId, ids.aliceId)))
       await db.execute(
         sql`UPDATE document SET acl = ARRAY[${`u:${ids.aliceId}@fixture.test`}], user_excluded = false, acl_verified_at = statement_timestamp() WHERE knowledge_base_id = ${ids.knowledgeBaseId}`
       )
@@ -707,10 +597,6 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
         .update(knowledgeBase)
         .set({ embeddingModel: 'text-embedding-3-small' })
         .where(inArray(knowledgeBase.id, [ids.knowledgeBaseId, unrelated.knowledgeBaseId]))
-      await db
-        .update(knowledgeBase)
-        .set({ isSearchIndex: true })
-        .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
       const indexes = await db.execute<{
         indexname: string
         indexdef: string
@@ -896,7 +782,7 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
   })
 
   it.each(['vector', 'keyword', 'both'] as const)(
-    'keeps the Assistant budget when %s SQL branches are delayed',
+    'keeps knowledge-search deadlines when %s SQL branches are delayed',
     async (delayedLegs) => {
       diagnosticLog?.mockClear()
       let vectorDelayed = false
@@ -919,19 +805,7 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
         }) as Promise<T>
       })
       try {
-        const result = await searchWorkspaceServerTool.execute(
-          { query: 'Orion deployment', topK: 15 },
-          {
-            userId: ids.aliceId,
-            workspaceId: ids.workspaceId,
-            toolCallId: generateId(),
-            copilotToolExecution: true,
-            resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], {
-              userId: ids.aliceId,
-              workspaceId: ids.workspaceId,
-            }),
-          }
-        )
+        const result = await search()
         const completed = diagnosticLog?.mock.calls.find(
           ([message]) => message === 'Knowledge search completed'
         )
@@ -963,268 +837,18 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
         expect(
           parsed.data.results.every((row) => row.knowledgeBaseId === ids.knowledgeBaseId)
         ).toBe(true)
-        report[`assistant.deadline.${delayedLegs}`] = { resultCount: parsed.data.results.length }
+        report[`knowledge.deadline.${delayedLegs}`] = { resultCount: parsed.data.results.length }
       } finally {
         delayed.mockRestore()
       }
     },
     30_000
   )
-
-  it.each(['vector', 'both'] as const)(
-    'returns incomplete dashboard coverage when %s SQL branches exceed their deadline',
-    async (delayedLegs) => {
-      diagnosticLog?.mockClear()
-      const query = SearchBudget.prototype.query
-      const delayed = vi.spyOn(SearchBudget.prototype, 'query').mockImplementation(function <T>(
-        this: SearchBudget,
-        stage: SearchStage,
-        run: (executor: SearchExecutor) => PromiseLike<T>
-      ): Promise<T> {
-        return query.call(this, stage, async (tx) => {
-          if (delayedLegs === 'both' || this.leg === 'vector')
-            await tx.execute(sql`SELECT pg_sleep(${delayedLegs === 'both' ? 9 : 4})`)
-          return run(tx)
-        }) as Promise<T>
-      })
-      try {
-        const { data } = await searchDashboard()
-        const completed = diagnosticLog?.mock.calls.find(
-          ([message]) => message === 'Knowledge search completed'
-        )
-        const diagnostics = diagnosticSchema.parse(completed?.[1])
-        expect(diagnostics.outcome).toBe('partial')
-        expect(diagnostics.vectorBudgetMs).toBe(3000)
-        expect(diagnostics.stages.vector.totalMs).toBeGreaterThan(2500)
-        expect(diagnostics.stages.vector.totalMs).toBeLessThan(4000)
-        expect(data.retrieval).toEqual({
-          status: 'partial',
-          timedOutLegs: delayedLegs === 'both' ? ['vector', 'keyword'] : ['vector'],
-        })
-        if (delayedLegs === 'both') expect(data.results).toEqual([])
-        else {
-          expect(data.results.length).toBeGreaterThan(0)
-          expect(
-            data.results.every((result) => result.knowledgeBaseId === ids.knowledgeBaseId)
-          ).toBe(true)
-        }
-        report[`dashboard.deadline.${delayedLegs}`] = { resultCount: data.results.length }
-      } finally {
-        delayed.mockRestore()
-      }
-    },
-    30_000
-  )
-
-  it('records first and repeated application searches with the actual SQL plans', async () => {
-    const before = embeddingCalls
-    for (let iteration = 0; iteration < 2; iteration++) {
-      const { result, plans, diagnostics } = await sample(`broad.${iteration}`, () => search())
-      expectCompleteVectorSearch(diagnostics)
-      expect(result.data.results).toHaveLength(15)
-      expect(result.data.results.every((row) => row.knowledgeBaseId === ids.knowledgeBaseId)).toBe(
-        true
-      )
-      expect(plans.length).toBeGreaterThanOrEqual(2)
-      const vectorPlans = plans.filter((plan) => plan.kind === 'vector')
-      expect(vectorPlans).toHaveLength(1)
-      expect(vectorPlans[0].plan[0].Plan['Actual Rows']).toBeGreaterThan(0)
-      assertCompactCandidates(vectorPlans[0].plan[0].Plan)
-      expect(plans.some((plan) => plan.kind === 'page')).toBe(true)
-      const page = plans.find((plan) => plan.kind === 'page')!
-      const actual = await db.$client.unsafe(page.query, page.parameters).values()
-      const expected = await exactProjectionNeighbors(queryVector, actual.length)
-      const expectedIds = new Set(expected.map(({ id }) => id))
-      const recall = actual.filter(([id]) => expectedIds.has(id)).length / expected.length
-      expect(recall).toBeGreaterThanOrEqual(0.95)
-      report[`recall.${iteration}`] = { neighbors: expected.length, recall }
-      saveReport()
-    }
-    expect(embeddingCalls - before).toBe(2)
-  }, 180_000)
-
-  it('preserves exact-neighbor recall across different query vectors', async () => {
-    for (const topic of [3, 11, 23]) {
-      const { plans, diagnostics } = await sample(`topic.${topic}`, () =>
-        search(ids.aliceId, `Topic ${topic} deployment`)
-      )
-      expectCompleteVectorSearch(diagnostics)
-      const candidates = plans.find((plan) => plan.kind === 'vector')!
-      assertCompactCandidates(candidates.plan[0].Plan)
-      const page = plans.find((plan) => plan.kind === 'page')!
-      const actual = await db.$client.unsafe(page.query, page.parameters).values()
-      const expected = await exactProjectionNeighbors(topicVector(topic), actual.length)
-      const expectedIds = new Set(expected.map(({ id }) => id))
-      const recall = actual.filter(([id]) => expectedIds.has(id)).length / expected.length
-      expect(recall).toBeGreaterThanOrEqual(0.95)
-      report[`recall.topic.${topic}`] = { neighbors: expected.length, recall }
-      saveReport()
-    }
-  }, 180_000)
-
-  it('compares the Search tab and Assistant with the same person, query and index', async () => {
-    const dashboard = await sample('dashboard', searchDashboard)
-    const assistant = await sample('assistant.comparison', () => search())
-    expectCompleteVectorSearch(dashboard.diagnostics)
-    expectCompleteVectorSearch(assistant.diagnostics)
-    expect(dashboard.diagnostics.surface).toBe('dashboard')
-    expect(assistant.diagnostics.surface).toBe('copilot')
-    expect(dashboard.diagnostics.stages.result_provenance).toBeUndefined()
-    expect(assistant.diagnostics.stages.result_provenance.count).toBe(1)
-    expect(dashboard.result.data.results).toHaveLength(15)
-    expect(assistant.result.data.results).toHaveLength(15)
-    const dashboardVector = dashboard.plans.filter((plan) => plan.kind === 'vector')
-    const assistantVector = assistant.plans.filter((plan) => plan.kind === 'vector')
-    expect(dashboardVector).toHaveLength(1)
-    expect(assistantVector).toHaveLength(1)
-    expect(dashboardVector[0].query).toBe(assistantVector[0].query)
-    expect(dashboardVector[0].parameters).toEqual(assistantVector[0].parameters)
-    expect(dashboardVector[0].plan[0].Plan['Actual Rows']).toBeGreaterThan(0)
-  }, 180_000)
 
   it('keeps inaccessible content out of an otherwise identical search', async () => {
     const { result } = await sample('denied', () => search(ids.bobId))
     expect(result.data.results).toEqual([])
   }, 180_000)
-
-  it('preserves recall when the nearest topic is mostly inaccessible within a broad permission scope', async () => {
-    const reader = `u:${ids.aliceId}@fixture.test`
-    /** Four consecutive topics share each document; hide 99% of the query's topic cluster. */
-    await db.execute(sql`UPDATE document
-      SET acl = ARRAY[${`u:${ids.bobId}@fixture.test`}]
-      WHERE knowledge_base_id = ${ids.knowledgeBaseId}
-        AND external_id::int % 8 = 0 AND external_id::int % 800 <> 0`)
-    try {
-      for (const surface of ['copilot', 'dashboard'] as const) {
-        const { result, plans, diagnostics } = await sample(
-          `filtered-neighborhood.${surface}`,
-          surface === 'copilot' ? () => search() : searchDashboard
-        )
-        expectCompleteVectorSearch(diagnostics)
-        expect(result.data.results).toHaveLength(15)
-        const page = plans.find((plan) => plan.kind === 'page')!
-        expect(page).toBeDefined()
-        const actual = await db.$client.unsafe(page.query, page.parameters).values()
-        const expected = await exactProjectionNeighbors(
-          queryVector,
-          actual.length,
-          sql`AND d.acl @> ARRAY[${reader}]::text[]`
-        )
-        expect(expected.length).toBeGreaterThan(0)
-        const expectedIds = new Set(expected.map(({ id }) => id))
-        const recall = actual.filter(([id]) => expectedIds.has(id)).length / expected.length
-        expect(recall).toBeGreaterThanOrEqual(0.95)
-        report[`recall.filtered-neighborhood.${surface}`] = { neighbors: expected.length, recall }
-        saveReport()
-      }
-    } finally {
-      await db
-        .update(document)
-        .set({ acl: [reader] })
-        .where(eq(document.knowledgeBaseId, ids.knowledgeBaseId))
-    }
-  }, 180_000)
-
-  it('ranks a small permission scope by its bounded IDs without a corpus-wide vector probe', async () => {
-    const lastTopicDocument = Math.floor((chunkCount / chunksPerDocument - 1) / 8) * 8
-    const documentIds = [0, 8, 16].map(
-      (offset) => `${ids.workspaceId}-doc-${lastTopicDocument - offset}`
-    )
-    await db
-      .update(document)
-      .set({ acl: [`u:${ids.aliceId}@fixture.test`, `u:${ids.bobId}@fixture.test`] })
-      .where(inArray(document.id, documentIds))
-    try {
-      for (const surface of ['copilot', 'dashboard'] as const) {
-        const { result, plans, diagnostics } = await sample(`small-scope.${surface}`, () =>
-          surface === 'copilot' ? search(ids.bobId) : searchDashboard('Orion deployment', ids.bobId)
-        )
-        expectCompleteVectorSearch(diagnostics)
-        expect(result.data.results.length).toBeGreaterThan(0)
-        expect(result.data.results.every((row) => documentIds.includes(row.documentId))).toBe(true)
-        const probe = plans.filter((plan) => plan.kind === 'probe')
-        expect(probe).toHaveLength(1)
-        expect(probe[0].query).not.toContain('<=>')
-        expect(probe[0].plan[0].Plan['Actual Rows']).toBe(12)
-        expect(assertIndexedChunkProbe(probe[0].plan[0].Plan)).toBe(documentIds.length)
-        /** The page reads the bounded ranking's identities from the projection, never the original vectors. */
-        const page = plans.filter((plan) => plan.kind === 'page')
-        expect(page).toHaveLength(1)
-        expect(page[0].query).not.toContain('"embedding"."embedding"')
-      }
-    } finally {
-      await db
-        .update(document)
-        .set({ acl: [`u:${ids.aliceId}@fixture.test`] })
-        .where(inArray(document.id, documentIds))
-    }
-  }, 180_000)
-
-  it.each([200, 1000, 1596, 1600, 2000])(
-    'keeps a selective scope of %s chunks within both retrieval budgets',
-    async (count) => {
-      const documentCount = count / chunksPerDocument
-      const documentIds = Array.from(
-        { length: documentCount },
-        (_, index) => `${ids.workspaceId}-doc-${chunkCount / chunksPerDocument - 1 - index}`
-      )
-      await db
-        .update(document)
-        .set({ acl: [`u:${ids.aliceId}@fixture.test`, `u:${ids.bobId}@fixture.test`] })
-        .where(inArray(document.id, documentIds))
-      try {
-        for (const surface of ['copilot', 'dashboard'] as const) {
-          const { result, plans, diagnostics } = await sample(
-            `selective-${count}.${surface}`,
-            () =>
-              surface === 'copilot'
-                ? search(ids.bobId)
-                : searchDashboard('Orion deployment', ids.bobId)
-          )
-          expectCompleteVectorSearch(diagnostics)
-          expect(result.data.results.length).toBeGreaterThan(0)
-          expect(result.data.results.every((row) => documentIds.includes(row.documentId))).toBe(
-            true
-          )
-          const probe = plans.find((plan) => plan.kind === 'probe')!
-          expect(probe.plan[0].Plan['Actual Rows']).toBe(Math.min(count, HYBRID_CANDIDATE_LIMIT))
-          expect(assertIndexedChunkProbe(probe.plan[0].Plan)).toBe(
-            Math.min(documentCount, HYBRID_CANDIDATE_LIMIT / chunksPerDocument)
-          )
-          expect(plans.filter((plan) => plan.kind === 'vector')).toHaveLength(
-            count < HYBRID_CANDIDATE_LIMIT ? 0 : 1
-          )
-          if (count > HYBRID_CANDIDATE_LIMIT) {
-            const page = plans.find((plan) => plan.kind === 'page')!
-            const actual = await db.$client.unsafe(page.query, page.parameters).values()
-            const expected = await exactProjectionNeighbors(
-              queryVector,
-              actual.length,
-              sql`AND ${embeddingSearch.documentId} IN (${sql.join(
-                documentIds.map((id) => sql`${id}`),
-                sql`, `
-              )})`
-            )
-            const expectedIds = new Set(expected.map(({ id }) => id))
-            const recall = actual.filter(([id]) => expectedIds.has(id)).length / expected.length
-            expect(recall).toBeGreaterThanOrEqual(0.95)
-            report[`recall.selective-${count}.${surface}`] = {
-              neighbors: expected.length,
-              recall,
-              candidateScan: diagnostics.vectorCandidateScan,
-            }
-            saveReport()
-          }
-        }
-      } finally {
-        await db
-          .update(document)
-          .set({ acl: [`u:${ids.aliceId}@fixture.test`] })
-          .where(inArray(document.id, documentIds))
-      }
-    },
-    180_000
-  )
 
   it('bounds member-observation searches and rejects suspended readers with current ACL checks', async () => {
     const fixture = await seedKnowledgeMemberFixture(ids)
@@ -1255,28 +879,13 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
         .where(inArray(document.id, documentIds))
       await db.execute(sql`ANALYZE document`)
       await db.execute(sql`ANALYZE knowledge_document_observation`)
-      for (const surface of ['copilot', 'dashboard'] as const) {
-        const broad = await sample(`member-broad.${surface}`, () =>
-          surface === 'copilot' ? search() : searchDashboard()
-        )
-        expectCompleteVectorSearch(broad.diagnostics)
-        expect(broad.result.data.results).toHaveLength(15)
-        const broadProbe = broad.plans.find((plan) => plan.kind === 'probe')!
-        expect(broadProbe.plan[0].Plan['Actual Rows']).toBe(HYBRID_CANDIDATE_LIMIT)
-        expect(assertIndexedChunkProbe(broadProbe.plan[0].Plan)).toBe(
-          HYBRID_CANDIDATE_LIMIT / chunksPerDocument
-        )
-        const { result, plans, diagnostics } = await sample(`member-scope.${surface}`, () =>
-          surface === 'copilot' ? search(ids.bobId) : searchDashboard('Orion deployment', ids.bobId)
-        )
-        expectCompleteVectorSearch(diagnostics)
-        expect(result.data.results.length).toBeGreaterThan(0)
-        expect(result.data.results.every((row) => documentIds.includes(row.documentId))).toBe(true)
-        const probe = plans.find((plan) => plan.kind === 'probe')!
-        expect(probe).toBeDefined()
-        expect(probe.query).toContain('knowledge_document_observation')
-        expect(assertIndexedChunkProbe(probe.plan[0].Plan)).toBe(documentIds.length)
-      }
+      const broad = await sample('member-broad', () => search())
+      expectCompleteVectorSearch(broad.diagnostics)
+      expect(broad.result.data.results).toHaveLength(15)
+      const { result, diagnostics } = await sample('member-scope', () => search(ids.bobId))
+      expectCompleteVectorSearch(diagnostics)
+      expect(result.data.results.length).toBeGreaterThan(0)
+      expect(result.data.results.every((row) => documentIds.includes(row.documentId))).toBe(true)
       await db
         .update(knowledgeConnectorMember)
         .set({ status: 'suspended' })
@@ -1320,21 +929,15 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
     }
   }, 180_000)
 
-  it.each(['copilot', 'dashboard'] as const)(
-    'keeps %s searches for common keyword terms complete',
-    async (surface) => {
-      const { result, diagnostics } = await sample(`common-keyword.${surface}`, () =>
-        surface === 'dashboard'
-          ? searchDashboard('Engineering operations')
-          : search(ids.aliceId, 'Engineering operations')
-      )
-      expectCompleteVectorSearch(diagnostics)
-      expect(result.data.results).toHaveLength(15)
-    },
-    180_000
-  )
+  it('keeps common-keyword searches complete', async () => {
+    const { result, diagnostics } = await sample('common-keyword', () =>
+      search(ids.aliceId, 'Engineering operations')
+    )
+    expectCompleteVectorSearch(diagnostics)
+    expect(result.data.results).toHaveLength(15)
+  }, 180_000)
 
-  it('runs two independent Assistant searches concurrently', async () => {
+  it('runs two independent knowledge-base searches concurrently', async () => {
     diagnosticLog?.mockClear()
     const start = performance.now()
     const results = await Promise.all([search(), search(ids.aliceId, 'Topic 11 deployment')])
@@ -1366,7 +969,7 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
         WHERE knowledge_base_id = ${ids.knowledgeBaseId}`)
       for (const topic of [0, 11, 23]) {
         const label = `workspace-kb.topic.${topic}`
-        await prepareOrganizationSample(label)
+        await prepareSample(label)
         const { result, plans, diagnostics } = await sample(label, () =>
           searchWorkspaceKb(`Topic ${topic} deployment`)
         )
@@ -1433,7 +1036,7 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
 
       for (const concurrency of [2, 8]) {
         const label = `workspace-kb.concurrent.${concurrency}`
-        await prepareOrganizationSample(label)
+        await prepareSample(label)
         diagnosticLog?.mockClear()
         const started = performance.now()
         const results = await Promise.all(
@@ -1523,285 +1126,4 @@ describe.skipIf(!enabled)('Knowledge search latency on a realistic indexed corpu
     const restored = await sample('live.restored', () => search())
     expect(restored.result.data.results).toHaveLength(15)
   }, 180_000)
-
-  it('keeps organization searches complete with stale ACL estimates and concurrent requests', async () => {
-    await db.insert(member).values({
-      id: generateId(),
-      organizationId: ids.organizationId,
-      userId: ids.aliceId,
-      role: 'owner',
-    })
-    await db.insert(copilotChats).values({
-      id: organizationChatId,
-      organizationId: ids.organizationId,
-      userId: ids.aliceId,
-      type: 'mothership',
-    })
-    await db
-      .update(knowledgeBase)
-      .set({ workspaceId: null, organizationId: ids.organizationId })
-      .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
-    await db
-      .update(knowledgeConnector)
-      .set({ connectorType: 'google_drive', credentialId: null, sourceConfig: {} })
-      .where(eq(knowledgeConnector.id, ids.connectorId))
-    /** Keep the deliberate tenfold visibility underestimate until the measured requests finish. */
-    await db.execute(sql`ALTER TABLE document SET (autovacuum_enabled = false)`)
-    try {
-      await db.execute(sql`UPDATE document
-        SET acl = ARRAY[CASE WHEN external_id::int % 10 = 0
-          THEN ${`u:${ids.aliceId}@fixture.test`} ELSE ${`u:${ids.bobId}@fixture.test`} END]
-        WHERE knowledge_base_id = ${ids.knowledgeBaseId}`)
-      await db.execute(sql`ANALYZE document`)
-      await db.execute(sql`UPDATE document SET acl = ARRAY[${`u:${ids.aliceId}@fixture.test`}]
-        WHERE knowledge_base_id = ${ids.knowledgeBaseId}`)
-      report.organizationVisibility = {
-        analyzedVisibleDocuments: chunkCount / chunksPerDocument / 10,
-        actualVisibleDocuments: chunkCount / chunksPerDocument,
-        unrelatedChunks: unrelatedChunkCount,
-      }
-      /** Capture latency samples before EXPLAIN ANALYZE can warm the candidate paths. */
-      for (const surface of ['dashboard', 'copilot'] as const) {
-        const label = `organization.${surface}`
-        await prepareOrganizationSample(label)
-        const { result, diagnostics } = await sample(
-          label,
-          () =>
-            surface === 'dashboard'
-              ? searchDashboard('Orion deployment', ids.aliceId, true, 20)
-              : search(ids.aliceId, 'Orion deployment', {}, true, 20),
-          { explain: false }
-        )
-        expectCompleteVectorSearch(diagnostics)
-        expect(result.data.results).toHaveLength(20)
-        expect(
-          result.data.results.every((row) => row.knowledgeBaseId === ids.knowledgeBaseId)
-        ).toBe(true)
-      }
-      await prepareOrganizationSample('organization.concurrent')
-      diagnosticLog?.mockClear()
-      const started = performance.now()
-      const results = await Promise.all([
-        search(ids.aliceId, 'Orion deployment', {}, true, 20),
-        search(ids.aliceId, 'Topic 11 deployment', {}, true, 20),
-      ])
-      const diagnostics = diagnosticLog!.mock.calls
-        .filter(([message]) => message === 'Knowledge search completed')
-        .map(([, metadata]) => diagnosticSchema.parse(metadata))
-      report['organization.concurrent'] = {
-        milliseconds: performance.now() - started,
-        resultCounts: results.map((result) => result.data.results.length),
-        diagnostics,
-      }
-      saveReport()
-      expect(diagnostics).toHaveLength(2)
-      for (const item of diagnostics) expectCompleteVectorSearch(item)
-      for (const result of results) {
-        expect(result.data.results).toHaveLength(20)
-        expect(
-          result.data.results.every((row) => row.knowledgeBaseId === ids.knowledgeBaseId)
-        ).toBe(true)
-      }
-      const planned = await sample('organization.plans', () =>
-        search(ids.aliceId, 'Orion deployment', {}, true, 20)
-      )
-      expectCompleteVectorSearch(planned.diagnostics)
-      expect(planned.plans.filter((plan) => plan.kind === 'vector')).toHaveLength(1)
-    } finally {
-      await db.execute(sql`ALTER TABLE document RESET (autovacuum_enabled)`)
-      await db.execute(sql`ANALYZE document`)
-    }
-  }, 180_000)
-  /** Opt in with local Sim and Go URLs; uses the real configured provider, billing adapter, and async resume protocol. */
-  it.skipIf(!process.env.KNOWLEDGE_SEARCH_ASSISTANT_URL)(
-    'recovers quietly from incomplete search through local Go Assistant, then reads and cites evidence',
-    async () => {
-      const assistantUrl = new URL(process.env.KNOWLEDGE_SEARCH_ASSISTANT_URL!)
-      const simUrl = new URL(process.env.KNOWLEDGE_SEARCH_SIM_URL!)
-      for (const url of [assistantUrl, simUrl]) {
-        if (!['127.0.0.1', 'localhost'].includes(url.hostname))
-          throw new Error(
-            'Assistant integration requires local servers using the disposable test databases'
-          )
-      }
-      const apiKey = process.env.KNOWLEDGE_SEARCH_ASSISTANT_API_KEY!
-      const internalKey = process.env.KNOWLEDGE_SEARCH_SIM_INTERNAL_KEY!
-      expect(apiKey).toBeTruthy()
-      expect(internalKey).toBeTruthy()
-      const chunkId = `${ids.workspaceId}-chunk-0`
-      const [original] = await db
-        .select({
-          content: embedding.content,
-          contentLength: embedding.contentLength,
-          tokenCount: embedding.tokenCount,
-        })
-        .from(embedding)
-        .where(eq(embedding.id, chunkId))
-        .limit(1)
-      const longContent =
-        'Orion deployment guide. The activation phrase and final checksum appear at the end.\n' +
-        'Review the deployment stages in order. Preserve the rollback procedure.\n'.repeat(320) +
-        '\nActivation phrase: SILVER COMET\nFinal checksum: K7M2-84\n'
-      const registry = new ResolvedSecretTraceRegistry([], { userId: ids.aliceId })
-      const calls: Array<{
-        name: string
-        arguments: unknown
-        milliseconds: number
-        bytes: number
-      }> = []
-      let answer = ''
-      let incompleteSearch = true
-      const query = SearchBudget.prototype.query
-      const delayed = vi.spyOn(SearchBudget.prototype, 'query').mockImplementation(function <T>(
-        this: SearchBudget,
-        stage: SearchStage,
-        run: (executor: SearchExecutor) => PromiseLike<T>
-      ): Promise<T> {
-        return query.call(this, stage, async (tx) => {
-          if (incompleteSearch) await tx.execute(sql`SELECT pg_sleep(9)`)
-          return run(tx)
-        }) as Promise<T>
-      })
-      const started = performance.now()
-      try {
-        await db
-          .update(embedding)
-          .set({
-            content: longContent,
-            contentLength: longContent.length,
-            tokenCount: Math.ceil(longContent.length / 4),
-          })
-          .where(eq(embedding.id, chunkId))
-        const admission = await externalFetch(new URL('/api/copilot/api-keys/validate', simUrl), {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            'x-api-key': internalKey,
-            'x-sim-billing-protocol': 'legacy-v0',
-          },
-          body: JSON.stringify({
-            userId: ids.aliceId,
-            organizationId: ids.organizationId,
-            chatId: organizationChatId,
-          }),
-        })
-        expect(admission.status, await admission.text()).toBe(200)
-        let path = '/api/mothership'
-        let body: Record<string, unknown> = {
-          message:
-            'Search for the Orion deployment guide that mentions an activation phrase and final checksum. Read enough of that document to report both values and cite it.',
-          version: '3.0.0',
-          mode: 'assistant',
-          userId: ids.aliceId,
-          organizationId: ids.organizationId,
-          chatId: organizationChatId,
-        }
-        for (let round = 0; round < 8; round++) {
-          const response = await externalFetch(new URL(path, assistantUrl), {
-            method: 'POST',
-            headers: {
-              'content-type': 'application/json',
-              'x-api-key': apiKey,
-              'x-sim-billing-protocol': 'legacy-v0',
-            },
-            body: JSON.stringify(body),
-            signal: AbortSignal.timeout(120000),
-          })
-          const wire = await response.text()
-          expect(response.status, wire.slice(0, 2000)).toBe(200)
-          expect(Buffer.byteLength(wire)).toBeLessThan(2 * 1024 * 1024)
-          const pending = new Map<string, MothershipStreamV1ToolCallDescriptor>()
-          let checkpoint: MothershipStreamV1CheckpointPausePayload | undefined
-          let streamId = ''
-          for (const line of wire.split('\n')) {
-            if (!line.startsWith('data:')) continue
-            const raw = line.slice(5).trim()
-            if (!raw || raw === '[DONE]') continue
-            const event: unknown = JSON.parse(raw)
-            if (!isContractStreamEventEnvelope(event))
-              throw new Error('Assistant returned an invalid generated stream envelope')
-            streamId = event.stream.streamId
-            if (event.type === 'error') throw new Error(JSON.stringify(event.payload))
-            if (event.type === 'text') answer += event.payload.text
-            if (
-              event.type === 'tool' &&
-              event.payload.phase === 'call' &&
-              !event.payload.partial &&
-              event.payload.arguments
-            )
-              pending.set(event.payload.toolCallId, event.payload)
-            if (event.type === 'run' && event.payload.kind === 'checkpoint_pause')
-              checkpoint = event.payload
-          }
-          if (!checkpoint) break
-          const results = await Promise.all(
-            checkpoint.pendingToolCallIds.map(async (callId) => {
-              const call = pending.get(callId)
-              if (!call) throw new Error('Checkpoint referenced an absent tool call')
-              const tool =
-                call.toolName === 'search_workspace'
-                  ? searchWorkspaceServerTool
-                  : call.toolName === 'read_document'
-                    ? readDocumentServerTool
-                    : undefined
-              if (!tool) throw new Error(`Unexpected Assistant tool: ${call.toolName}`)
-              const toolStarted = performance.now()
-              const result = await tool.execute(call.arguments, {
-                userId: ids.aliceId,
-                organizationId: ids.organizationId,
-                chatId: organizationChatId,
-                toolCallId: callId,
-                copilotToolExecution: true,
-                requestMode: 'assistant',
-                resolvedSecretTraceRegistry: registry,
-              })
-              calls.push({
-                name: call.toolName,
-                arguments: call.arguments,
-                milliseconds: performance.now() - toolStarted,
-                bytes: Buffer.byteLength(JSON.stringify(result)),
-              })
-              const { success } = z.object({ success: z.boolean() }).parse(result)
-              expect(success).toBe(true)
-              if (incompleteSearch) {
-                expect(call.toolName).toBe('search_workspace')
-                expect(result).toMatchObject({
-                  data: {
-                    retrieval: { status: 'partial', timedOutLegs: ['vector', 'keyword'] },
-                    results: [],
-                  },
-                })
-              }
-              return { callId, name: call.toolName, success, data: result }
-            })
-          )
-          incompleteSearch = false
-          path = '/api/tools/resume'
-          body = {
-            checkpointId: checkpoint.checkpointId,
-            streamId,
-            userId: ids.aliceId,
-            organizationId: ids.organizationId,
-            chatId: organizationChatId,
-            results,
-          }
-          report['assistant.live.progress'] = { rounds: round + 1, calls }
-          saveReport()
-        }
-        report['assistant.live'] = { milliseconds: performance.now() - started, calls, answer }
-        saveReport()
-        expect(answer).toContain('SILVER COMET')
-        expect(answer).toContain('K7M2-84')
-        expect(answer).toContain('<source>')
-        expect(answer).not.toMatch(/timed?\s*out|timeout|internal retr(?:y|ies)/i)
-        expect(calls.some((call) => call.name === 'read_document')).toBe(true)
-        expect(calls.filter((call) => call.name === 'search_workspace').length).toBeGreaterThan(1)
-        expect(calls.every((call) => call.bytes < 40000)).toBe(true)
-      } finally {
-        delayed.mockRestore()
-        await db.update(embedding).set(original).where(eq(embedding.id, chunkId))
-      }
-    },
-    10 * 60_000
-  )
 })

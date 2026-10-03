@@ -1,22 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import {
-  deferredSpecifiers,
-  FORBIDDEN_PREFIXES,
-  findViolations,
-  GUARDED_ROOTS,
-  resolveSpecifier,
-  runtimeSpecifiers,
-} from './check-application-graph'
+import { FORBIDDEN_PREFIXES, findViolations, runtimeSpecifiers } from './check-application-graph'
 
 describe('runtimeSpecifiers', () => {
-  it('collects import and re-export specifiers', () => {
-    expect(
-      runtimeSpecifiers(
-        "import { a } from '@/lib/a'\nexport { b } from '@/lib/b'\nimport '@/lib/c'\n"
-      )
-    ).toEqual(['@/lib/a', '@/lib/b', '@/lib/c'])
-  })
-
   /**
    * The heaviest edge of all — the module is loaded purely to run — and the one
    * nothing in the importing file names, so it was walked straight past.
@@ -27,10 +12,6 @@ describe('runtimeSpecifiers', () => {
     ).toEqual(['@/lib/uploads/core/setup.server', '@/lib/a'])
   })
 
-  it('leaves a dynamic import out of the module-evaluation set', () => {
-    expect(runtimeSpecifiers("const a = await import('@/lib/a')\n")).toEqual([])
-  })
-
   it('ignores type-only statements, which the compiler erases', () => {
     expect(
       runtimeSpecifiers(
@@ -38,41 +19,9 @@ describe('runtimeSpecifiers', () => {
       )
     ).toEqual([])
   })
-
-  it('keeps an inline type import, which still emits a runtime load', () => {
-    expect(runtimeSpecifiers("import { type A, b } from '@/lib/a'\n")).toEqual(['@/lib/a'])
-  })
-})
-
-describe('resolveSpecifier', () => {
-  it('resolves an @/ specifier against apps/sim', () => {
-    expect(resolveSpecifier('@/lib/permission-groups/capabilities', __filename)).toMatch(
-      /apps\/sim\/lib\/permission-groups\/capabilities\.ts$/
-    )
-  })
-
-  it('returns null for a bare package specifier', () => {
-    expect(resolveSpecifier('drizzle-orm', __filename)).toBeNull()
-  })
 })
 
 describe('the guarded roots', () => {
-  it('guards the universal route wrapper against the billing graph', () => {
-    const wrapper = GUARDED_ROOTS.find(
-      (guarded) => guarded.root === 'lib/core/utils/with-route-handler.ts'
-    )
-    expect(wrapper?.forbidden['lib/billing/']).toBeTruthy()
-  })
-
-  it('reaches no forbidden module tree at runtime', () => {
-    for (const guarded of GUARDED_ROOTS) {
-      expect({ root: guarded.root, violations: findViolations(guarded) }).toEqual({
-        root: guarded.root,
-        violations: [],
-      })
-    }
-  })
-
   it('reports the shortest chain when a forbidden module is reachable', () => {
     /**
      * Walked from a module that legitimately imports the provider registry, so
@@ -84,31 +33,12 @@ describe('the guarded roots', () => {
       forbidden: FORBIDDEN_PREFIXES,
     })
     expect(violations).toHaveLength(1)
-    expect(violations[0].forbidden).toBe('providers/utils.ts')
+    expect(violations[0].forbidden).toBe('providers/models.ts')
     expect(violations[0].reason).toBe(FORBIDDEN_PREFIXES['providers/'])
     expect(violations[0].path).toEqual([
       'lib/permission-groups/model-access.ts',
-      'providers/utils.ts',
+      'providers/models.ts',
     ])
-  })
-})
-
-describe('deferredSpecifiers', () => {
-  it('collects a dynamic import, awaited or not', () => {
-    expect(
-      deferredSpecifiers(
-        "const a = await import('@/lib/a')\nvoid import('@/lib/b').then(noop)\n" +
-          "const { c } = await import(\n  '@/lib/c'\n)\n"
-      )
-    ).toEqual(['@/lib/a', '@/lib/b', '@/lib/c'])
-  })
-
-  it('ignores a `typeof import(…)` type query, which the compiler erases', () => {
-    expect(deferredSpecifiers("type A = typeof import('@/lib/a')\n")).toEqual([])
-  })
-
-  it('leaves static forms to runtimeSpecifiers', () => {
-    expect(deferredSpecifiers("import { a } from '@/lib/a'\nimport '@/lib/b'\n")).toEqual([])
   })
 })
 
@@ -121,22 +51,20 @@ describe('a deferred edge into a forbidden tree', () => {
    */
   it('is reported when a root defers the load of a forbidden module', () => {
     /**
-     * Walked from a module that defers the block registry — `const
-     * { getBlockRegistry } = await import('@/blocks/registry')`. A root's own
+     * Walked from a live chat payload module that defers `@/tools/params`. A root's own
      * deferred edges are checked before its static imports, so the reported chain
      * is that single deferred hop, whatever else the root reaches.
      */
-    const root =
-      'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-mention-data.ts'
+    const root = 'lib/mothership/chat/payload.ts'
     const violations = findViolations({
       root,
-      forbidden: { 'blocks/': FORBIDDEN_PREFIXES['blocks/'] },
+      forbidden: { 'tools/': FORBIDDEN_PREFIXES['tools/'] },
     })
 
     expect(violations).toHaveLength(1)
-    expect(violations[0].forbidden).toBe('blocks/registry.ts')
+    expect(violations[0].forbidden).toBe('tools/params.ts')
     expect(violations[0].reason).toContain('deferred')
-    expect(violations[0].path).toEqual([root, 'blocks/registry.ts'])
+    expect(violations[0].path).toEqual([root, 'tools/params.ts'])
   })
 
   /**

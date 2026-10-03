@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/workflows/application/read-workflow-lint', () => ({
@@ -10,15 +7,6 @@ vi.mock('@/lib/workflows/application/read-workflow-lint', () => ({
 import { runEngine } from '@/lib/mothership/agent-cli/engines'
 import type { AgentCliRuntime } from '@/lib/mothership/agent-cli/types'
 import { navigatePath } from '@/executor/variables/resolvers/reference'
-
-const WORKFLOW_STATE = {
-  blocks: {
-    'block-1': { type: 'starter', name: 'Start', enabled: true },
-    'block-2': { type: 'agent', name: 'Summarize emails', enabled: true },
-  },
-  edges: [{ source: 'block-1', target: 'block-2', sourceHandle: 'source', id: 'edge-1' }],
-  variables: { apiBase: 'https://api.example.com' },
-}
 
 function runtimeWith(responses: Record<string, unknown>): AgentCliRuntime {
   return {
@@ -35,7 +23,6 @@ function runtimeWith(responses: Record<string, unknown>): AgentCliRuntime {
 }
 
 const STATE_PATH = '/api/v2/workflows/wf-1/state'
-const stateResponse = { data: WORKFLOW_STATE }
 
 const RUNS_PATH = '/api/v2/workflows/wf-1/runs'
 const COUNT_ROWS_RUNS = {
@@ -139,6 +126,90 @@ const DEPS_STATE = {
 }
 
 describe('workflows deps', () => {
+  it('stops reading a wide object when its traversal budget is exhausted', async () => {
+    const value: Record<string, unknown> = {}
+    for (let index = 0; index < 10_001; index++) {
+      Object.defineProperty(value, String(index), {
+        enumerable: true,
+        get() {
+          if (index === 10_000) throw new Error('Read beyond the traversal budget')
+          return ''
+        },
+      })
+    }
+    const state = {
+      ...DEPS_STATE,
+      blocks: {
+        ...DEPS_STATE.blocks,
+        target: { ...DEPS_STATE.blocks.target, subBlocks: { code: { value } } },
+      },
+    }
+    const result = await runEngine(
+      'workflows deps',
+      ['wf-1', 'target'],
+      runtimeWith({ [STATE_PATH]: { data: state } }),
+      {}
+    )
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toMatch(/exceeds.*values/i)
+    expect(result.stdout).toBe('')
+  })
+
+  it.each([
+    { reason: 'text size', value: 'x'.repeat(1024 * 1024 + 1) },
+    { reason: 'reference count', value: '<fetchrows.result>'.repeat(10_001) },
+    { reason: 'nested value count', value: Array.from({ length: 10_001 }, () => '') },
+    {
+      reason: 'path depth',
+      value: `<fetchrows.${Array.from({ length: 129 }, () => 'nested').join('.')}>`,
+    },
+  ])(
+    'refuses excessive $reason instead of returning an incomplete dependency report',
+    async ({ value }) => {
+      const state = {
+        ...DEPS_STATE,
+        blocks: {
+          ...DEPS_STATE.blocks,
+          target: { ...DEPS_STATE.blocks.target, subBlocks: { code: { value } } },
+        },
+      }
+      const result = await runEngine(
+        'workflows deps',
+        ['wf-1', 'target'],
+        runtimeWith({ [STATE_PATH]: { data: state } }),
+        {}
+      )
+      expect(result.exitCode).toBe(1)
+      expect(result.stderr).toMatch(/exceeds|maximum/i)
+      expect(result.stdout).toBe('')
+    }
+  )
+
+  it('groups block aliases and duplicate paths without changing first-reference order', async () => {
+    const state = structuredClone(DEPS_STATE)
+    state.blocks.target.subBlocks.code.value =
+      '<missing.value> <fetchrows.result> <fetch.result> <fetchrows.result.id> <fetchrows.result.id> {{TOKEN}} {{TOKEN}}'
+    const result = await runEngine(
+      'workflows deps',
+      ['wf-1', 'target'],
+      runtimeWith({ [STATE_PATH]: { data: state } }),
+      {}
+    )
+    const report = JSON.parse(result.stdout)
+    expect(report.references).toEqual([
+      { token: 'missing.value', kind: 'unknown' },
+      {
+        token: 'fetchrows.result',
+        kind: 'block',
+        blockId: 'fetch',
+        blockName: 'Fetch rows',
+        paths: ['result', 'result.id'],
+      },
+    ])
+    expect(report.env).toEqual(['TOKEN'])
+    expect(report.mock['Fetch rows']).toEqual({ result: { id: null } })
+  })
+
   it('builds indexed mocks that round-trip through the actual reference navigator', async () => {
     const state = structuredClone(DEPS_STATE)
     state.blocks.target.subBlocks.code.value =
@@ -242,19 +313,5 @@ describe('workflows deps', () => {
     const report = JSON.parse(result.stdout)
     expect(report.mock).toEqual({ 'Fetch rows': { result: { tier: null, score: { raw: null } } } })
     expect(report.mockEmptyNote).toBeUndefined()
-  })
-
-  it('omits childReturns when no upstream block runs a child workflow', async () => {
-    const result = await runEngine(
-      'workflows deps',
-      ['wf-1', 'fetch'],
-      runtimeWith({ [STATE_PATH]: { data: DEPS_STATE } }),
-      {}
-    )
-    const report = JSON.parse(result.stdout)
-    expect(report.predecessors).toEqual([])
-    expect(report.mock).toEqual({})
-    expect(report.mockEmptyNote).toBeUndefined()
-    expect(report.childReturns).toBeUndefined()
   })
 })

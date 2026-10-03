@@ -1,4 +1,4 @@
-/** User-token RTS permissions. Existing grant policies remain valid when switching back to indexed search. */
+/** User-token permissions required by Slack's live retrieval API. */
 export const SLACK_RTS_USER_SCOPES = [
   'search:read.files',
   'files:read',

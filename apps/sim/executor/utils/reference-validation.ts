@@ -145,17 +145,6 @@ export function createWorkflowVariablePattern(): RegExp {
 }
 
 /**
- * Combined pattern matching both <reference> and {{env_var}}
- */
-export function createCombinedPattern(): RegExp {
-  return new RegExp(
-    `${REFERENCE.START}[^${REFERENCE.START}${REFERENCE.END}]+${REFERENCE.END}|` +
-      `\\${REFERENCE.ENV_VAR_START}${ENV_VAR_BODY}\\${REFERENCE.ENV_VAR_END}`,
-    'g'
-  )
-}
-
-/**
  * Collects every string leaf in a nested value — the shared walk for reference/env-token
  * audits over block inputs (lint, deps, and the agent-cli mirrors each carried a copy).
  */

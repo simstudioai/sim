@@ -1,5 +1,9 @@
-/** @vitest-environment node */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { billingAccessMock, billingAccessMockFns } from '@sim/testing/mocks/billing-access.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FeatureFlagsConfig } from '@/lib/core/config/feature-flags'
 
@@ -12,15 +16,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/core/config/appconfig', () => ({ fetchAppConfigProfile: mocks.appConfig }))
 vi.mock('@/lib/permissions/super-user', () => ({ isPlatformAdmin: mocks.platformAdmin }))
 vi.mock('@/lib/organizations/surface', () => ({ resolveOrganizationLanding: mocks.landing }))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationOnEnterprisePlan: vi.fn().mockResolvedValue(true),
-  getOrganizationSubscriptionUsable: vi
-    .fn()
-    .mockResolvedValue({ plan: 'enterprise', status: 'active' }),
-}))
-vi.mock('@/lib/billing/core/access', () => ({
-  isOrganizationBillingBlocked: vi.fn().mockResolvedValue(false),
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/billing/core/access', () => billingAccessMock)
 
 import {
   forgetKnowledgeAccessAvailability,
@@ -28,13 +25,19 @@ import {
 } from '@/lib/knowledge/access/availability'
 import { resolveAppEntryPath } from '@/lib/navigation/resolve-app-entry'
 
+billingAccessMockFns.mockIsOrganizationBillingBlocked.mockResolvedValue(false)
+billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan.mockResolvedValue(true)
+billingSubscriptionMockFns.mockGetOrganizationSubscriptionUsable.mockResolvedValue({
+  plan: 'enterprise',
+  status: 'active',
+})
+
 afterAll(resetEnvFlagsMock)
 
 describe('organization rollout during impersonation', () => {
   beforeEach(() => {
     /** Each case answers the same organization differently; the memo must not carry one across. */
     forgetKnowledgeAccessAvailability()
-    vi.clearAllMocks()
     setEnvFlags({ isAppConfigEnabled: true, isHosted: true })
     mocks.landing.mockImplementation(async (userId: string) =>
       userId === 'platform-admin' ? 'admin-org' : 'customer-org'

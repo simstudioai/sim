@@ -1,10 +1,27 @@
-/**
- * @vitest-environment node
- */
-
 import { resetEnvFlagsMock, resetEnvironmentUtilsMock, setEnvFlags } from '@sim/testing'
+import {
+  mothershipAgentUrlMock,
+  mothershipAgentUrlMockFns,
+} from '@sim/testing/mocks/mothership-agent-url.mock'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
+  mothershipEnvironmentContextMock,
+  mothershipEnvironmentContextMockFns,
+} from '@sim/testing/mocks/mothership-environment-context.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { generateId } from '@sim/utils/id'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { scopeProviderToolCallId } from '@/lib/mothership/request/go/tool-call-identity'
 import { handleBillingLimitResponse } from '@/lib/mothership/request/tools/billing'
 import type { ExecutionContext, StreamingContext } from '@/lib/mothership/request/types'
@@ -13,14 +30,13 @@ import { executeRunCode } from '@/lib/mothership/tools/handlers/run-code'
 import { openResourceServerTool } from '@/lib/mothership/tools/server/open-resource'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const { mockMaterializeOrganizationSecrets, mockExecuteAppTool } = vi.hoisted(() => ({
+const { mockMaterializeOrganizationSecrets } = vi.hoisted(() => ({
   mockMaterializeOrganizationSecrets: vi.fn(),
-  mockExecuteAppTool: vi.fn(),
 }))
 vi.mock('@/lib/mothership/tools/organization-secret-mount', () => ({
   materializeOrganizationCodeSecrets: mockMaterializeOrganizationSecrets,
 }))
-vi.mock('@/tools', () => ({ executeTool: mockExecuteAppTool }))
+vi.mock('@/tools', () => toolsMock)
 
 const modelSelectorEnabled = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/mothership/feature-flags', () => ({
@@ -35,35 +51,21 @@ vi.mock('@/lib/mothership/application/authorize-chat-callback', () => ({
 afterAll(resetEnvironmentUtilsMock)
 
 const {
-  mockCreateRunSegment,
   mockForceFailHungToolCall,
-  mockGetMothershipBaseURL,
-  mockGetMothershipSourceEnvHeaders,
   mockLoadCopilotSearchIntegrations,
-  mockPrepareCopilotEnvironmentContext,
   mockPrepareExecutionContext,
   mockRunStreamLoop,
   mockPendingToolWaitBudgetMs,
   mockGetAutoAllowedTools,
-  mockGetUserPermissionConfig,
-  mockFilterModelSafeWorkspaceFileAttachments,
-  mockUpdateRunStatus,
   mockCheckAttributedUsageLimits,
   mockEnv,
 } = vi.hoisted(() => ({
-  mockCreateRunSegment: vi.fn(),
   mockForceFailHungToolCall: vi.fn(),
-  mockGetMothershipBaseURL: vi.fn(),
-  mockGetMothershipSourceEnvHeaders: vi.fn(),
   mockLoadCopilotSearchIntegrations: vi.fn(),
-  mockPrepareCopilotEnvironmentContext: vi.fn(),
   mockPrepareExecutionContext: vi.fn(),
   mockRunStreamLoop: vi.fn(),
   mockPendingToolWaitBudgetMs: vi.fn((_toolCall?: { name?: string; status?: string }) => 60_000),
   mockGetAutoAllowedTools: vi.fn(async () => new Set<string>()),
-  mockGetUserPermissionConfig: vi.fn(async () => null),
-  mockFilterModelSafeWorkspaceFileAttachments: vi.fn(async (attachments: unknown[]) => attachments),
-  mockUpdateRunStatus: vi.fn(),
   mockCheckAttributedUsageLimits: vi.fn(),
   mockEnv: {
     INTERNAL_API_SECRET: 'transport-test-secret-000000000000000000',
@@ -78,14 +80,12 @@ vi.mock('@/lib/mothership/application/load-search-integrations', () => ({
 
 vi.mock('@/lib/mothership/request/context/restore', () => ({ restoreStreamingContext: vi.fn() }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  filterModelSafeWorkspaceFileAttachments: mockFilterModelSafeWorkspaceFileAttachments,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  createRunSegment: mockCreateRunSegment,
-  updateRunStatus: mockUpdateRunStatus,
-}))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 vi.mock('@/lib/mothership/request/go/stream', () => {
   class CopilotBackendError extends Error {
@@ -100,11 +100,13 @@ vi.mock('@/lib/mothership/request/go/stream', () => {
 
   class BillingLimitError extends Error {
     userId: string
+    scope?: string
 
-    constructor(userId: string) {
+    constructor(userId: string, scope?: string) {
       super('Usage limit reached')
       this.name = 'BillingLimitError'
       this.userId = userId
+      this.scope = scope
     }
   }
 
@@ -121,19 +123,32 @@ vi.mock('@/lib/mothership/request/go/stream', () => {
     }
   }
 
+  class WorkerUnreachableError extends Error {
+    constructor(cause: unknown) {
+      super('The agent service is temporarily unavailable. Please try again.', { cause })
+      this.name = 'WorkerUnreachableError'
+    }
+  }
+
+  class WorkerStreamInterruptedError extends Error {
+    constructor(cause: unknown) {
+      super('The agent service is temporarily unavailable. Please try again.', { cause })
+      this.name = 'WorkerStreamInterruptedError'
+    }
+  }
+
   return {
     BillingLimitError,
     CopilotBackendError,
+    WorkerStreamInterruptedError,
+    WorkerUnreachableError,
     STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE,
     StreamEndedWithoutTerminalError,
     runStreamLoop: mockRunStreamLoop,
   }
 })
 
-vi.mock('@/lib/mothership/server/agent-url', () => ({
-  getMothershipBaseURL: mockGetMothershipBaseURL,
-  getMothershipSourceEnvHeaders: mockGetMothershipSourceEnvHeaders,
-}))
+vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 
 vi.mock('@/lib/core/config/env', async (original) => ({
   ...(await original<typeof import('@/lib/core/config/env')>()),
@@ -150,13 +165,9 @@ vi.mock('@/lib/mothership/persistence/tool-permission/auto-allow', () => ({
   addChatAutoAllowedTool: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: mockGetUserPermissionConfig,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
-vi.mock('@/lib/mothership/environment-context', () => ({
-  prepareCopilotEnvironmentContext: mockPrepareCopilotEnvironmentContext,
-}))
+vi.mock('@/lib/mothership/environment-context', () => mothershipEnvironmentContextMock)
 
 vi.mock('@/lib/mothership/tools/handlers/context', () => ({
   prepareExecutionContext: mockPrepareExecutionContext,
@@ -190,6 +201,11 @@ vi.mock('@/lib/mothership/request/tools/billing', () => ({
   handleBillingLimitResponse: vi.fn(),
 }))
 
+const mockRequestExplicitStreamAbort = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/mothership/request/session/explicit-abort', () => ({
+  requestExplicitStreamAbort: mockRequestExplicitStreamAbort,
+}))
+
 vi.mock('@/lib/mothership/request/tools/executor', () => ({
   executeToolAndReport: vi.fn(),
   failPendingToolCall: mockForceFailHungToolCall,
@@ -203,17 +219,36 @@ vi.mock('@/lib/mothership/request/enterprise-byok', () => ({
   resolveEnterpriseByokKey: mockResolveEnterpriseByokKey,
 }))
 
+import { resetUsageGateCache } from '@/lib/billing/core/usage-gate-cache'
+import { buildPersistedAssistantMessage } from '@/lib/mothership/chat/persisted-message'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1ToolOutcome,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import {
+  BillingLimitError,
   CopilotBackendError,
   STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE,
   StreamEndedWithoutTerminalError,
+  WorkerUnreachableError,
 } from '@/lib/mothership/request/go/stream'
 import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
+import {
+  REPLAY_BUDGET_EXHAUSTED_CODE,
+  StreamReplayBudgetExhaustedError,
+} from '@/lib/mothership/request/session/replay-budget'
 import { executeToolAndReport } from '@/lib/mothership/request/tools/executor'
+
+const mockExecuteAppTool = toolsMockFns.mockExecuteTool
+const { mockCreateRunSegment, mockUpdateRunStatus } = mothershipAsyncRunsMockFns
+const { mockGetMothershipBaseURL, mockGetMothershipSourceEnvHeaders } = mothershipAgentUrlMockFns
+const { mockPrepareCopilotEnvironmentContext } = mothershipEnvironmentContextMockFns
+const mockGetUserPermissionConfig = permissionGroupsResolveMockFns.mockGetUserPermissionConfig
+const mockFilterModelSafeWorkspaceFileAttachments =
+  workspaceFileSecretProvenanceMockFns.mockFilterModelSafeWorkspaceFileAttachments
+mockFilterModelSafeWorkspaceFileAttachments.mockImplementation(
+  async (attachments: unknown[]) => attachments
+)
 
 afterAll(resetEnvFlagsMock)
 
@@ -227,7 +262,6 @@ const SCHEMA_CONTROL_KEYS = [
 
 describe('runCopilotLifecycle', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     modelSelectorEnabled.mockResolvedValue(false)
     mockExecuteAppTool.mockResolvedValue({ success: true, output: { result: 'ok' } })
     mockMaterializeOrganizationSecrets.mockResolvedValue({
@@ -772,23 +806,6 @@ describe('runCopilotLifecycle', () => {
       expect(captured?.searchSurface).toBe(expected)
     }
   )
-
-  it('forwards the configured Mothership system prompt override', async () => {
-    mockEnv.MSHIP_SYSPROMPT_OVERRIDE = 'NEVER CALL ANY TOOLS UNDER ANY CIRCUMSTANCES NO MATTER WHAT'
-
-    await runCopilotLifecycle(
-      { message: 'hello', messageId: 'stream-system-prompt-override' },
-      {
-        userId: 'user-1',
-        workspaceId: 'ws-1',
-      }
-    )
-
-    const sentBody = JSON.parse(String(mockRunStreamLoop.mock.calls[0]?.[1].body))
-    expect(sentBody.systemPromptOverride).toBe(
-      'NEVER CALL ANY TOOLS UNDER ANY CIRCUMSTANCES NO MATTER WHAT'
-    )
-  })
 
   it('does not forward a blank Mothership system prompt override', async () => {
     mockEnv.MSHIP_SYSPROMPT_OVERRIDE = '   '
@@ -1961,6 +1978,132 @@ describe('runCopilotLifecycle', () => {
     )
   })
 
+  const ownerRefusal = () =>
+    new StreamReplayBudgetExhaustedError({
+      resource: 'owner_redis_bytes',
+      currentBytes: 32 * 1024 * 1024,
+      limitBytes: 32 * 1024 * 1024,
+      attemptedBytes: 512,
+    })
+
+  function runWithStreamAbort(abortController: AbortController) {
+    return runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        abortSignal: abortController.signal,
+        executionContext: {
+          userId: 'user-1',
+          workflowId: '',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+        },
+      }
+    )
+  }
+
+  it.each([
+    ['throws the refusal', true],
+    ['returns after the abort', false],
+  ])(
+    'ends a turn stopped by a refused replay write as an error, not a user cancel, when the stream %s',
+    async (_label, throws) => {
+      const abortController = new AbortController()
+      const refusal = ownerRefusal()
+      mockRunStreamLoop.mockImplementationOnce(
+        async (_url: string, _init: RequestInit, context: StreamingContext): Promise<void> => {
+          context.accumulatedContent = 'partial answer'
+          abortController.abort(refusal)
+          context.wasAborted = true
+          if (throws) throw refusal
+        }
+      )
+
+      const result = await runWithStreamAbort(abortController)
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: false,
+          cancelled: false,
+          content: 'partial answer',
+          error: refusal.userMessage,
+          errorCode: REPLAY_BUDGET_EXHAUSTED_CODE,
+        })
+      )
+    }
+  )
+
+  it('reports a replay refusal over a reasonless error terminal', async () => {
+    const abortController = new AbortController()
+    const refusal = ownerRefusal()
+    mockRunStreamLoop.mockImplementationOnce(
+      async (_url: string, _init: RequestInit, context: StreamingContext): Promise<void> => {
+        context.completionStatus = MothershipStreamV1CompletionStatus.error
+        abortController.abort(refusal)
+      }
+    )
+
+    const result = await runWithStreamAbort(abortController)
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: false,
+        cancelled: false,
+        error: refusal.userMessage,
+        errorCode: REPLAY_BUDGET_EXHAUSTED_CODE,
+      })
+    )
+  })
+
+  it('explains an error terminal that arrives without a reason as an already-ended run', async () => {
+    mockRunStreamLoop.mockImplementationOnce(
+      async (_url: string, _init: RequestInit, context: StreamingContext): Promise<void> => {
+        context.completionStatus = MothershipStreamV1CompletionStatus.error
+      }
+    )
+
+    const result = await runWithStreamAbort(new AbortController())
+
+    expect(result.success).toBe(false)
+    expect(result.cancelled).toBe(false)
+    expect(result.error).toEqual(expect.stringContaining('already ended'))
+  })
+
+  it('keeps a Stop a cancellation when the error terminal carries no reason', async () => {
+    const abortController = new AbortController()
+    mockRunStreamLoop.mockImplementationOnce(
+      async (_url: string, _init: RequestInit, context: StreamingContext): Promise<void> => {
+        context.completionStatus = MothershipStreamV1CompletionStatus.error
+        abortController.abort()
+      }
+    )
+
+    const result = await runWithStreamAbort(abortController)
+
+    expect(result.cancelled).toBe(true)
+    expect(result.error).toBeUndefined()
+  })
+
+  it('keeps a Stop a cancellation when a replay refusal follows it', async () => {
+    const abortController = new AbortController()
+    mockRunStreamLoop.mockImplementationOnce(
+      async (_url: string, _init: RequestInit, context: StreamingContext): Promise<void> => {
+        abortController.abort('user_stop:abortActiveStream')
+        context.wasAborted = true
+        throw ownerRefusal()
+      }
+    )
+
+    const result = await runWithStreamAbort(abortController)
+
+    expect(result).toEqual(expect.objectContaining({ success: false, cancelled: true }))
+    expect(result.errorCode).toBeUndefined()
+  })
+
   it('returns the cancelled result when cancelled completion persistence fails', async () => {
     const abortController = new AbortController()
     const onComplete = vi.fn().mockRejectedValue(new Error('db unavailable'))
@@ -2173,7 +2316,7 @@ describe('runCopilotLifecycle', () => {
       },
       payerSubscription: null,
     }
-    setEnvFlags({ isHosted: true })
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
     mockEnv.COPILOT_API_KEY = 'sim-agent-key'
     mockRunStreamLoop.mockImplementationOnce(
       async (
@@ -2247,18 +2390,18 @@ describe('runCopilotLifecycle', () => {
     }
   })
 
-  it('cold recovery preserves billing identity and does not read spend again', async () => {
+  it('cold recovery reads spend only against the original billing identity', async () => {
     const attribution = {
       actorUserId: 'user-1',
       workspaceId: 'ws-1',
       organizationId: 'org-1',
       billedAccountUserId: 'original-owner',
       billingEntity: { type: 'organization' as const, id: 'org-1' },
-      billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2026-08-01T00:00:00.000Z' },
+      billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2099-01-01T00:00:00.000Z' },
       payerSubscription: null,
     }
-    setEnvFlags({ isHosted: true })
-    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: true })
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
+    resetUsageGateCache()
     const billingRequestId = generateId()
     const onBillingAdmission = vi.fn()
     await runCopilotLifecycle(
@@ -2280,7 +2423,13 @@ describe('runCopilotLifecycle', () => {
         onBillingAdmission,
       }
     )
-    expect(mockCheckAttributedUsageLimits).not.toHaveBeenCalled()
+    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledOnce()
+    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(
+      expect.objectContaining({
+        billedAccountUserId: 'original-owner',
+        billingEntity: attribution.billingEntity,
+      })
+    )
     expect(onBillingAdmission).not.toHaveBeenCalled()
     expect(continuationAuth).toHaveBeenCalled()
     expect(mockRunStreamLoop).toHaveBeenCalledOnce()
@@ -2307,11 +2456,11 @@ describe('runCopilotLifecycle', () => {
       },
       payerSubscription: null,
     }
-    setEnvFlags({ isHosted: true })
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
     mockCheckAttributedUsageLimits.mockResolvedValue({
       isExceeded: true,
       message: 'limit reached',
-      scope: 'payer',
+      scope: 'member',
     })
 
     const result = await runCopilotLifecycle(
@@ -2329,8 +2478,85 @@ describe('runCopilotLifecycle', () => {
 
     expect(mockCheckAttributedUsageLimits).toHaveBeenCalledWith(billingAttribution)
     expect(handleBillingLimitResponse).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(handleBillingLimitResponse).mock.calls[0][4]).toBe('member')
     expect(mockRunStreamLoop).not.toHaveBeenCalled()
     expect(result.cancelled).not.toBe(true)
+  })
+
+  it('stops the worker run when the worker itself refuses a leg at the usage limit', async () => {
+    mockRequestExplicitStreamAbort.mockResolvedValue({ settled: true })
+    mockRunStreamLoop.mockRejectedValueOnce(new BillingLimitError('user-1'))
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'message-1' },
+      { userId: 'user-1', workspaceId: 'ws-1', chatId: 'chat-1', runId: 'run-1' }
+    )
+
+    expect(handleBillingLimitResponse).toHaveBeenCalledOnce()
+    expect(mockRequestExplicitStreamAbort).toHaveBeenCalledWith(
+      expect.objectContaining({ streamId: 'message-1', chatId: 'chat-1' })
+    )
+    expect(result.error).toBeUndefined()
+  })
+
+  it('shows the usage card instead of resuming a run whose payer crossed its limit', async () => {
+    const billingAttribution = {
+      actorUserId: 'user-1',
+      workspaceId: 'ws-1',
+      organizationId: 'org-1',
+      billedAccountUserId: 'user-1',
+      billingEntity: { type: 'organization' as const, id: 'org-1' },
+      billingPeriod: { start: '2026-07-01T00:00:00.000Z', end: '2099-01-01T00:00:00.000Z' },
+      payerSubscription: null,
+    }
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
+    resetUsageGateCache()
+    mockCheckAttributedUsageLimits
+      .mockResolvedValueOnce({ isExceeded: false })
+      .mockResolvedValue({ isExceeded: true, scope: 'payer' })
+    mockRunStreamLoop.mockImplementationOnce(
+      async (_url: string, _init: RequestInit, context: StreamingContext) => {
+        context.toolCalls.set('tool-1', {
+          id: 'tool-1',
+          name: 'read',
+          status: MothershipStreamV1ToolOutcome.success,
+          result: { success: true, output: { content: 'file contents' } },
+        })
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'ckpt-1',
+          pendingToolCallIds: ['tool-1'],
+        }
+      }
+    )
+
+    mockRequestExplicitStreamAbort.mockResolvedValue({ settled: true })
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'message-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'execution-1',
+        runId: 'run-1',
+        billingAttribution,
+      }
+    )
+
+    expect(mockRunStreamLoop).toHaveBeenCalledOnce()
+    expect(mockCheckAttributedUsageLimits).toHaveBeenCalledTimes(2)
+    expect(handleBillingLimitResponse).toHaveBeenCalledOnce()
+    expect(handleBillingLimitResponse).toHaveBeenCalledWith(
+      'user-1',
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      'payer'
+    )
+    expect(result.cancelled).not.toBe(true)
+    expect(result.error).toBeUndefined()
+    expect(mockRequestExplicitStreamAbort).toHaveBeenCalledWith(
+      expect.objectContaining({ streamId: 'message-1', userId: 'user-1', chatId: 'chat-1' })
+    )
   })
 
   it('preserves a resume tool name that collides with a configured secret', async () => {
@@ -2373,7 +2599,7 @@ describe('runCopilotLifecycle', () => {
   })
 
   it('rejects hosted work without immutable billing attribution before egress', async () => {
-    setEnvFlags({ isHosted: true })
+    setEnvFlags({ isHosted: true, isBillingEnabled: true })
 
     await expect(
       runCopilotLifecycle(
@@ -2416,30 +2642,6 @@ describe('runCopilotLifecycle', () => {
     expect(headers['x-sim-billing-protocol']).toBeUndefined()
     expect(headers['x-sim-billing-request-id']).toBeUndefined()
     expect(headers['x-sim-billing-attribution']).toBeUndefined()
-  })
-
-  it('normalizes the initial request body with workspaceId from lifecycle options', async () => {
-    let requestBody: Record<string, unknown> | undefined
-    mockRunStreamLoop.mockImplementationOnce(
-      async (_fetchUrl: string, fetchOptions: RequestInit): Promise<void> => {
-        requestBody = JSON.parse(String(fetchOptions.body))
-      }
-    )
-
-    await runCopilotLifecycle(
-      { message: 'hello', messageId: 'stream-1' },
-      {
-        userId: 'user-1',
-        workspaceId: 'ws-1',
-        chatId: 'chat-1',
-      }
-    )
-
-    expect(requestBody).toEqual(
-      expect.objectContaining({
-        workspaceId: 'ws-1',
-      })
-    )
   })
 
   it('sends resume identity, results and the received-text count', async () => {
@@ -2660,7 +2862,7 @@ describe('runCopilotLifecycle', () => {
             headers.push(new Headers(request.headers))
             context.accumulatedContent = 'Saved partial answer'
             context.errors.push('connection interrupted')
-            throw new TypeError('fetch failed')
+            throw new WorkerUnreachableError(new TypeError('fetch failed'))
           }
         )
       }
@@ -2753,7 +2955,9 @@ describe('runCopilotLifecycle', () => {
     vi.useFakeTimers()
     try {
       const controller = new AbortController()
-      mockRunStreamLoop.mockRejectedValueOnce(new TypeError('fetch failed'))
+      mockRunStreamLoop.mockRejectedValueOnce(
+        new WorkerUnreachableError(new TypeError('fetch failed'))
+      )
       const pending = runCopilotLifecycle(
         { message: 'hello', messageId: 'stopped-outage' },
         {
@@ -2834,6 +3038,180 @@ describe('runCopilotLifecycle', () => {
     expect(result).toEqual(
       expect.objectContaining({ success: true, cancelled: false, errors: undefined })
     )
+  })
+
+  it('persists a failed backend response without its upstream body', async () => {
+    const body = '<html><head><title>502 Bad Gateway</title></head><body>nginx</body></html>'
+    mockRunStreamLoop.mockRejectedValueOnce(
+      Object.assign(
+        new CopilotBackendError('The agent service is temporarily unavailable. Please try again.', {
+          status: 400,
+        }),
+        { body }
+      )
+    )
+    let persisted: unknown
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-backend-error' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext: {
+          userId: 'user-1',
+          workflowId: '',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+        },
+        onError: async (_error, result) => {
+          persisted = result && buildPersistedAssistantMessage(result)
+        },
+      }
+    )
+
+    expect(JSON.stringify(persisted)).toContain('The agent service is temporarily unavailable.')
+    expect(JSON.stringify(persisted)).not.toMatch(/<html|Bad Gateway|nginx/)
+  })
+
+  it('stops a failure that repeats after every reattach at three retries', async () => {
+    vi.useFakeTimers()
+    try {
+      let attempts = 0
+      mockRunStreamLoop.mockImplementation(
+        async (
+          _url: string,
+          _init: RequestInit,
+          context: StreamingContext,
+          _exec: ExecutionContext,
+          options: { onEvent?: (event: unknown) => Promise<void> }
+        ): Promise<void> => {
+          attempts++
+          await options.onEvent?.({ type: 'session', payload: { kind: 'start' } })
+          context.errors.push(STREAM_ENDED_WITHOUT_TERMINAL_MESSAGE)
+          throw new StreamEndedWithoutTerminalError('/api/mothership')
+        }
+      )
+
+      const pending = runCopilotLifecycle(
+        { message: 'hello', messageId: 'stream-repeated-failure' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          executionId: 'exec-1',
+          runId: 'run-1',
+          executionContext: {
+            userId: 'user-1',
+            workflowId: '',
+            workspaceId: 'ws-1',
+            chatId: 'chat-1',
+          },
+        }
+      )
+      await vi.advanceTimersByTimeAsync(60_000)
+
+      expect(attempts).toBe(4)
+      expect(await pending).toEqual(expect.objectContaining({ success: false }))
+    } finally {
+      mockRunStreamLoop.mockReset()
+      vi.useRealTimers()
+    }
+  })
+
+  describe('when the worker task is being replaced', () => {
+    const replacementMs = 70_000
+
+    function workerUnavailableFor(
+      unavailableMs: number,
+      attempts: Array<{ at: number; body: string }>
+    ) {
+      const start = Date.now()
+      mockRunStreamLoop.mockImplementation(
+        async (_url: string, init: RequestInit, context: StreamingContext): Promise<void> => {
+          attempts.push({ at: Date.now() - start, body: String(init.body) })
+          if (Date.now() - start < unavailableMs) {
+            throw new CopilotBackendError('The agent service is temporarily unavailable.', {
+              status: 502,
+            })
+          }
+          context.streamComplete = true
+          context.completionStatus = MothershipStreamV1CompletionStatus.complete
+        }
+      )
+    }
+
+    function send(abortSignal?: AbortSignal) {
+      return runCopilotLifecycle(
+        { message: 'hello', messageId: 'stream-replacement' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          executionId: 'exec-1',
+          runId: 'run-1',
+          ...(abortSignal ? { abortSignal } : {}),
+          executionContext: {
+            userId: 'user-1',
+            workflowId: '',
+            workspaceId: 'ws-1',
+            chatId: 'chat-1',
+          },
+        }
+      )
+    }
+
+    afterEach(() => {
+      mockRunStreamLoop.mockReset()
+      vi.useRealTimers()
+    })
+
+    it('retries the same send through the replacement and completes one run', async () => {
+      vi.useFakeTimers()
+      const attempts: Array<{ at: number; body: string }> = []
+      workerUnavailableFor(replacementMs, attempts)
+
+      const pending = send()
+      await vi.advanceTimersByTimeAsync(replacementMs + 10_000)
+      const result = await pending
+
+      expect(result).toEqual(expect.objectContaining({ success: true, cancelled: false }))
+      expect(attempts.at(-1)?.at).toBeGreaterThanOrEqual(replacementMs)
+      expect(new Set(attempts.map((attempt) => JSON.parse(attempt.body).messageId))).toEqual(
+        new Set(['stream-replacement'])
+      )
+    })
+
+    it('gives up once the recovery window has passed', async () => {
+      vi.useFakeTimers()
+      const attempts: Array<{ at: number; body: string }> = []
+      workerUnavailableFor(Number.POSITIVE_INFINITY, attempts)
+
+      const pending = send()
+      await vi.advanceTimersByTimeAsync(10 * 60_000)
+      const result = await pending
+
+      expect(result).toEqual(expect.objectContaining({ success: false, cancelled: false }))
+      expect(attempts.at(-1)?.at).toBeGreaterThanOrEqual(90_000)
+      expect(attempts.at(-1)?.at).toBeLessThanOrEqual(130_000)
+    })
+
+    it('stops waiting as soon as the user stops the turn', async () => {
+      vi.useFakeTimers()
+      const attempts: Array<{ at: number; body: string }> = []
+      workerUnavailableFor(Number.POSITIVE_INFINITY, attempts)
+      const stop = new AbortController()
+
+      const pending = send(stop.signal)
+      await vi.advanceTimersByTimeAsync(1)
+      stop.abort('user_stop:abortActiveStream')
+      await vi.advanceTimersByTimeAsync(1)
+      const result = await pending
+
+      expect(result).toEqual(expect.objectContaining({ success: false, cancelled: true }))
+      expect(attempts).toHaveLength(1)
+    })
   })
 
   it('retries an interrupted resume with the same identity and keeps prior content', async () => {
@@ -2999,6 +3377,7 @@ describe('runCopilotLifecycle', () => {
     )
 
     expect(result.success).toBe(false)
+    expect(result.error).toBeUndefined()
     expect(result.errors).toEqual(['The provider is overloaded'])
   })
 

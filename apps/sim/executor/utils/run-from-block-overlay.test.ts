@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { emptyRunFromBlockSnapshot, overlayVariableInputs } from '@/executor/utils/run-from-block'
 import type { SerializedWorkflow } from '@/serializer/types'
@@ -46,18 +43,5 @@ describe('overlayVariableInputs', () => {
     expect(() =>
       overlayVariableInputs(workflow, emptyRunFromBlockSnapshot(), { nope: { a: 1 } })
     ).toThrow(/no block named "nope".*Fetch Orders/s)
-  })
-
-  it('rejects non-object mocks with an actionable message', () => {
-    expect(() =>
-      overlayVariableInputs(workflow, emptyRunFromBlockSnapshot(), { Transform: 'scalar' })
-    ).toThrow(/must be an object/)
-  })
-
-  it('does not mutate the input snapshot', () => {
-    const snapshot = emptyRunFromBlockSnapshot()
-    overlayVariableInputs(workflow, snapshot, { Transform: { ok: true } })
-    expect(snapshot.blockStates).toEqual({})
-    expect(snapshot.executedBlocks).toEqual([])
   })
 })

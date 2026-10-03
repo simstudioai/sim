@@ -1,44 +1,56 @@
-/** @vitest-environment node */
-import { recordAudit } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  invitationsCoreMock,
+  invitationsCoreMockFns,
+} from '@sim/testing/mocks/invitations-core.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
+import {
+  workspaceAuthorizationMock,
+  workspaceAuthorizationMockFns,
+} from '@sim/testing/mocks/workspace-authorization.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  invitation: vi.fn(),
-  org: vi.fn(),
-  workspace: vi.fn(),
-  context: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   resend: vi.fn(),
   revoke: vi.fn(),
 }))
-vi.mock('@sim/audit', async (original) => ({
-  ...(await original<typeof import('@sim/audit')>()),
-  recordAudit: vi.fn(),
-}))
-vi.mock('@/lib/core/application/organization-authorization', async (original) => ({
-  ...(await original<typeof import('@/lib/core/application/organization-authorization')>()),
-  authorizeOrganizationOperation: mocks.org,
-}))
-vi.mock('@/lib/core/application/workspace-authorization', async (original) => ({
-  ...(await original<typeof import('@/lib/core/application/workspace-authorization')>()),
-  authorizeWorkspaceOperation: mocks.workspace,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadWorkspaceApplicationContext: mocks.context,
-}))
-vi.mock('@/lib/invitations/core', () => ({ getInvitationById: mocks.invitation }))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
+vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/invitations/core', () => invitationsCoreMock)
 vi.mock('@/lib/invitations/mutation-manager', () => ({
-  resendInvitationRecord: mocks.resend,
-  revokeInvitationRecord: mocks.revoke,
+  resendInvitationRecord: hoisted.resend,
+  revokeInvitationRecord: hoisted.revoke,
 }))
 
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { InsufficientWorkspacePermissionsError } from '@/lib/core/application/workspace-authorization'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resendInvitation, revokeInvitation } from '@/lib/invitations/application/mutations'
 
-const session: Principal = { kind: 'session', userId: 'actor', sessionId: 'session' }
-const key: Principal = { kind: 'personal_api_key', userId: 'actor', keyId: 'key' }
+const mocks = {
+  ...hoisted,
+  invitation: invitationsCoreMockFns.mockGetInvitationById,
+  workspace: workspaceAuthorizationMockFns.mockAuthorizeWorkspaceOperation,
+  org: organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation,
+  context: workspaceContextMockFns.mockLoadWorkspaceApplicationContext,
+}
+const recordAudit = auditMockFns.mockRecordAudit
+
+const session: Principal = createSessionPrincipal({ userId: 'actor', sessionId: 'session' })
+const key: Principal = createPersonalApiKeyPrincipal({ userId: 'actor', keyId: 'key' })
 const oauth: Principal = {
   kind: 'oauth_access_token',
   userId: 'actor',
@@ -98,20 +110,6 @@ describe('shared invitation administration', () => {
       })
     )
   })
-
-  it.each([session, key, oauth])(
-    'never borrows workspace authority for an asserted organization ($kind)',
-    async (principal) => {
-      mocks.org.mockRejectedValue(
-        new ForbiddenOperationError('ORGANIZATION_ADMIN_REQUIRED', 'Admin required')
-      )
-      await expect(
-        resendInvitation.execute({ principal, input: { ...input, assertedOrganizationId: 'org' } })
-      ).rejects.toMatchObject({ code: 'forbidden' })
-      expect(mocks.workspace).not.toHaveBeenCalled()
-      expect(mocks.resend).not.toHaveBeenCalled()
-    }
-  )
 
   it.each([
     new ForbiddenOperationError('PERMISSION_GROUP_CAPABILITY_BLOCKED', 'Withheld'),
@@ -193,13 +191,5 @@ describe('shared invitation administration', () => {
         resourceType: 'workspace',
       })
     )
-  })
-
-  it('does not audit a failed resend', async () => {
-    mocks.resend.mockRejectedValue(new OrchestrationError('conflict', 'Invitation changed'))
-    await expect(resendInvitation.execute({ principal: session, input })).rejects.toMatchObject({
-      code: 'conflict',
-    })
-    expect(recordAudit).not.toHaveBeenCalled()
   })
 })

@@ -74,6 +74,16 @@ export const LIVE_SEARCH_SCOPE_FIELDS: Record<
     hint: 'Use label names. The same names are matched in each person’s mailbox.',
     example: 'INBOX, Customer requests',
   },
+  google_meet: {
+    label: 'Meetings',
+    hint: 'Member accounts search recent conference transcripts and generated note links.',
+    example: '',
+  },
+  zoom: {
+    label: 'Meetings',
+    hint: 'Member accounts search past meetings and artifacts allowed by their Zoom permissions.',
+    example: '',
+  },
   google_calendar: {
     label: 'Calendars',
     hint: 'Use calendar IDs from Google Calendar settings. Use primary for each person’s primary calendar.',
@@ -103,6 +113,32 @@ export const LIVE_SEARCH_SCOPE_FIELDS: Record<
     label: 'Spaces',
     hint: 'Use Confluence space keys. Restrict the site below when spaces share a key.',
     example: 'ENG, TEAM',
+  },
+  lucid: {
+    label: 'Documents',
+    hint: 'Member accounts search accessible Lucidchart diagrams and Lucidspark boards.',
+    example: '',
+  },
+  linear: { label: 'Projects', hint: 'Member accounts search all accessible issues.', example: '' },
+  hubspot: {
+    label: 'CRM records',
+    hint: 'Member accounts search CRM records allowed by their HubSpot permissions.',
+    example: '',
+  },
+  fireflies: {
+    label: 'Meetings',
+    hint: 'Member accounts search accessible meeting transcripts.',
+    example: '',
+  },
+  granola: {
+    label: 'Meetings',
+    hint: 'Member accounts search accessible meeting notes.',
+    example: '',
+  },
+  notion: {
+    label: 'Pages',
+    hint: 'Member accounts search accessible Notion content.',
+    example: '',
   },
   coda: {
     label: 'Documents',

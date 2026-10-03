@@ -86,7 +86,7 @@ export async function planFolderSelection(
   }
 
   const insideAnotherSelection = new Set<string>()
-  for (const [folderId, descendants] of descendantsOf) {
+  for (const descendants of descendantsOf.values()) {
     for (const descendantId of descendants) {
       if (requested.has(descendantId)) insideAnotherSelection.add(descendantId)
     }

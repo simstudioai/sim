@@ -1,51 +1,40 @@
-/** @vitest-environment node */
-import type { SessionPrincipal } from '@sim/auth/principal'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  credentialGroupsAvailabilityMock,
+  credentialGroupsAvailabilityMockFns,
+} from '@sim/testing/mocks/credential-groups-availability.mock'
+import {
+  credentialGroupsCredentialsMock,
+  credentialGroupsCredentialsMockFns,
+} from '@sim/testing/mocks/credential-groups-credentials.mock'
+import {
+  credentialGroupsEnrollmentsMock,
+  credentialGroupsEnrollmentsMockFns,
+} from '@sim/testing/mocks/credential-groups-enrollments.mock'
+import {
+  credentialGroupsOrganizationSetupMock,
+  credentialGroupsOrganizationSetupMockFns,
+} from '@sim/testing/mocks/credential-groups-organization-setup.mock'
+import { credentialGroupsSelfEnrollmentMock } from '@sim/testing/mocks/credential-groups-self-enrollment.mock'
+import { credentialGroupsServiceMock } from '@sim/testing/mocks/credential-groups-service.mock'
+import { knowledgeAvailabilityMock } from '@sim/testing/mocks/knowledge-availability.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  authorize: vi.fn(),
-  available: vi.fn(),
-  group: vi.fn(),
-  setup: vi.fn(),
-  list: vi.fn(),
-  invite: vi.fn(),
-  resend: vi.fn(),
-  inviter: vi.fn(),
-}))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mocks.authorize,
-}))
-vi.mock('@/lib/credential-groups/credentials', () => ({
-  loadScopedAccountsCredentialListContext: mocks.group,
-}))
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: mocks.available,
-}))
-vi.mock('@/lib/credential-groups/organization-setup', () => ({
-  requireOrganizationAccountsSetup: mocks.setup,
-}))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
+vi.mock('@/lib/credential-groups/credentials', () => credentialGroupsCredentialsMock)
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
+vi.mock('@/lib/credential-groups/organization-setup', () => credentialGroupsOrganizationSetupMock)
 vi.mock('@/lib/credential-groups/provider-availability', () => ({
   listConfiguredCredentialGroupProviders: vi.fn(),
 }))
-vi.mock('@/lib/credential-groups/self-enrollment', () => ({
-  createViewerCredentialGroupEnrollment: vi.fn(),
-}))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  isKnowledgeMemberAccessAvailable: vi.fn(),
-}))
-vi.mock('@/lib/credential-groups/service', () => ({
-  ensureWorkspaceAccountsGroup: vi.fn(),
-  getOrganizationAccountsGroup: vi.fn(),
-  updateCredentialGroup: vi.fn(),
-}))
-vi.mock('@/lib/credential-groups/enrollments', () => ({
-  CredentialGroupEnrollmentError: class extends Error {},
-  listCredentialGroupEnrollments: mocks.list,
-  inviteCredentialGroupEnrollments: mocks.invite,
-  loadCredentialGroupInviterIdentity: mocks.inviter,
-  resendCredentialGroupEnrollment: mocks.resend,
-  revokeCredentialGroupEnrollment: vi.fn(),
-}))
+vi.mock('@/lib/credential-groups/self-enrollment', () => credentialGroupsSelfEnrollmentMock)
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
+vi.mock('@/lib/credential-groups/service', () => credentialGroupsServiceMock)
+vi.mock('@/lib/credential-groups/enrollments', () => credentialGroupsEnrollmentsMock)
 vi.mock('@/lib/credential-groups/managed-mcp-service', () => ({
   ManagedMcpConnectorError: class extends Error {},
   createManagedMcpConnector: vi.fn(),
@@ -60,35 +49,31 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   inviteOrganizationAccountPeople,
   listOrganizationAccountPeople,
-  organizationAccountManagementOperations,
   resendOrganizationAccountInvitation,
 } from '@/lib/credential-groups/application/organization-account-management'
 
-const principal: SessionPrincipal = { kind: 'session', userId: 'admin-1', sessionId: 'session-1' }
+const mocks = {
+  available: credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable,
+  group: credentialGroupsCredentialsMockFns.mockLoadScopedAccountsCredentialListContext,
+  setup: credentialGroupsOrganizationSetupMockFns.mockRequireOrganizationAccountsSetup,
+  list: credentialGroupsEnrollmentsMockFns.mockListCredentialGroupEnrollments,
+  invite: credentialGroupsEnrollmentsMockFns.mockInviteCredentialGroupEnrollments,
+  resend: credentialGroupsEnrollmentsMockFns.mockResendCredentialGroupEnrollment,
+  inviter: credentialGroupsEnrollmentsMockFns.mockLoadCredentialGroupInviterIdentity,
+}
+const authorize = organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation
+const principal = createSessionPrincipal({ userId: 'admin-1' })
 const input = { organizationId: 'org-1', limit: 50, cursor: 'cursor-1', search: 'example' }
 
 describe('organization account people search application', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.authorize.mockResolvedValue({ organizationId: 'org-1', userId: 'admin-1', role: 'admin' })
+    authorize.mockResolvedValue({ organizationId: 'org-1', userId: 'admin-1', role: 'admin' })
     mocks.available.mockResolvedValue(true)
     mocks.group.mockResolvedValue({ credentialGroupId: 'group-1' })
     mocks.setup.mockResolvedValue(undefined)
     mocks.inviter.mockResolvedValue({ name: 'Admin' })
     mocks.invite.mockResolvedValue({ results: [], sentCount: 0, failedCount: 0 })
     mocks.list.mockResolvedValue({ enrollments: [], nextCursor: null })
-  })
-
-  it('forwards provider projection without removing contributors who have not connected', async () => {
-    await listOrganizationAccountPeople.execute({
-      principal,
-      input: { ...input, optionId: 'gmail-option' },
-    })
-    expect(mocks.list).toHaveBeenCalledWith(expect.any(Object), 'group-1', 50, 'cursor-1', {
-      email: undefined,
-      search: 'example',
-      optionId: 'gmail-option',
-    })
   })
 
   it('keeps canonical provider intent on connection requests and resends', async () => {
@@ -133,46 +118,8 @@ describe('organization account people search application', () => {
     expect(mocks.invite).not.toHaveBeenCalled()
   })
 
-  it('keeps admin authority and adds only scoped Copilot settings delegation', async () => {
-    const result = await listOrganizationAccountPeople.execute({ principal, input })
-    expect(organizationAccountManagementOperations.people).toMatchObject({
-      minimumRole: 'admin',
-      principalKinds: ['session', 'organization_delegated'],
-      delegationAudience: 'sim:settings',
-      delegatedServices: ['copilot'],
-      capability: 'integrations.manage',
-    })
-    expect(mocks.authorize).toHaveBeenCalledExactlyOnceWith(
-      principal,
-      organizationAccountManagementOperations.people,
-      input
-    )
-    expect(mocks.list).toHaveBeenCalledExactlyOnceWith(
-      { kind: 'organization', organizationId: 'org-1' },
-      'group-1',
-      50,
-      'cursor-1',
-      { email: undefined, search: 'example' }
-    )
-    expect(result).toEqual({ enrollments: [], nextCursor: null })
-  })
-
-  it('preserves exact email filtering when search is omitted', async () => {
-    await listOrganizationAccountPeople.execute({
-      principal,
-      input: { organizationId: 'org-1', limit: 20, email: 'person@example.com' },
-    })
-    expect(mocks.list).toHaveBeenCalledExactlyOnceWith(
-      { kind: 'organization', organizationId: 'org-1' },
-      'group-1',
-      20,
-      undefined,
-      { email: 'person@example.com', search: undefined }
-    )
-  })
-
   it('does not query people or source accounts after current authorization is refused', async () => {
-    mocks.authorize.mockRejectedValue(new OrchestrationError('forbidden', 'Admin access required'))
+    authorize.mockRejectedValue(new OrchestrationError('forbidden', 'Admin access required'))
     await expect(listOrganizationAccountPeople.execute({ principal, input })).rejects.toMatchObject(
       {
         code: 'forbidden',

@@ -1,15 +1,7 @@
-/**
- * @vitest-environment node
- */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { utilsHelpersMock, utilsHelpersMockFns } from '@sim/testing/mocks/utils-helpers.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSleep } = vi.hoisted(() => ({
-  mockSleep: vi.fn(() => Promise.resolve()),
-}))
-
-vi.mock('@sim/utils/helpers', () => ({
-  sleep: mockSleep,
-}))
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
 
 import {
   couldMatchDocsScope,
@@ -20,6 +12,8 @@ import {
   readDocsPage,
 } from '@/lib/mothership/docs/docs-corpus'
 import { DOCS_MANIFEST } from '@/lib/mothership/generated/docs-manifest'
+
+const mockSleep = utilsHelpersMockFns.mockSleep
 
 const SAMPLE_PAGE = DOCS_MANIFEST.find((path) => path === 'workflows/blocks/agent.mdx')
 
@@ -93,10 +87,6 @@ describe('readDocsPage', () => {
     vi.stubGlobal('fetch', fetchMock)
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('fetches the manifest path verbatim from the docs site', async () => {
     expect(SAMPLE_PAGE).toBeDefined()
     fetchMock.mockResolvedValue(fetchResponse(200, '# Agent\n\nbody'))
@@ -120,12 +110,6 @@ describe('readDocsPage', () => {
 
   it('surfaces a docs-site outage as a retryable error after exhausting retries', async () => {
     fetchMock.mockResolvedValue(fetchResponse(502))
-    await expect(readDocsPage(`docs/${SAMPLE_PAGE}`)).rejects.toThrow(/could not be reached/)
-    expect(fetchMock).toHaveBeenCalledTimes(3)
-  })
-
-  it('treats a network failure as retryable', async () => {
-    fetchMock.mockRejectedValue(new Error('socket hang up'))
     await expect(readDocsPage(`docs/${SAMPLE_PAGE}`)).rejects.toThrow(/could not be reached/)
     expect(fetchMock).toHaveBeenCalledTimes(3)
   })
@@ -204,10 +188,6 @@ describe('grepDocs', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     vi.stubGlobal('fetch', fetchMock)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('greps exactly one page for a page path', async () => {

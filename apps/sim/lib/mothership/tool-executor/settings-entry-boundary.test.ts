@@ -1,14 +1,16 @@
-/** @vitest-environment node */
+import {
+  mothershipEnvironmentContextMock,
+  mothershipEnvironmentContextMockFns,
+} from '@sim/testing/mocks/mothership-environment-context.mock'
+import {
+  mothershipWorkspaceTargetMock,
+  mothershipWorkspaceTargetMockFns,
+} from '@sim/testing/mocks/mothership-workspace-target.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const boundary = vi.hoisted(() => ({ target: vi.fn(), environment: vi.fn() }))
-vi.mock('@/lib/mothership/application/workspace-target', () => ({
-  resolveInvocationWorkspace: boundary.target,
-}))
-vi.mock('@/lib/mothership/environment-context', () => ({
-  prepareCopilotEnvironmentContext: boundary.environment,
-}))
+vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
+vi.mock('@/lib/mothership/environment-context', () => mothershipEnvironmentContextMock)
 
 import {
   clearHandlers,
@@ -17,6 +19,11 @@ import {
 } from '@/lib/mothership/tool-executor/executor'
 import { createServerToolHandler } from '@/lib/mothership/tools/registry/server-tool-adapter'
 import { readSettingsWorkspaceContext } from '@/lib/settings/application/context'
+
+const boundary = {
+  target: mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace,
+  environment: mothershipEnvironmentContextMockFns.mockPrepareCopilotEnvironmentContext,
+}
 
 const workspaceId = '11111111-1111-4111-8111-111111111111'
 const context = {
@@ -30,8 +37,6 @@ const context = {
   targetWorkspaceId: workspaceId,
 }
 beforeEach(() => {
-  vi.restoreAllMocks()
-  vi.clearAllMocks()
   vi.spyOn(readSettingsWorkspaceContext, 'execute').mockResolvedValue({
     workspaceId,
     organizationId: 'organization',

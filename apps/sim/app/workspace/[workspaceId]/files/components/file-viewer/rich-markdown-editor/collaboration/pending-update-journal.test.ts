@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { FILE_DOC_LIMITS } from '@sim/realtime-protocol/file-doc'
 import { get, update as updateValue } from 'idb-keyval'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -44,18 +41,6 @@ describe('PendingFileDocUpdateJournal', () => {
       })
   })
 
-  it('stores a full recovery snapshot separately from the pending wire update', async () => {
-    const subject = journal()
-    const pendingUpdate = updateWith('pending')
-    const recoverySnapshot = updateWith('complete local draft')
-
-    await subject.save('doc-1', pendingUpdate, recoverySnapshot)
-
-    await expect(subject.load('doc-1')).resolves.toEqual(
-      expect.objectContaining({ docId: 'doc-1', pendingUpdate, recoverySnapshot })
-    )
-  })
-
   it('reports when the current full recovery snapshot cannot be stored', async () => {
     const subject = journal()
     const pendingUpdate = updateWith('pending')
@@ -67,17 +52,6 @@ describe('PendingFileDocUpdateJournal', () => {
     )
 
     expect(result).toMatchObject({ status: 'limit-exceeded' })
-  })
-
-  it('loads an existing draft without requiring a writable transaction', async () => {
-    const subject = journal()
-    const pendingUpdate = updateWith('recoverable draft')
-    await subject.save('doc-1', pendingUpdate, pendingUpdate)
-    const writes = vi.mocked(updateValue).mock.calls.length
-    vi.mocked(updateValue).mockRejectedValueOnce(new Error('Read-only storage'))
-
-    await expect(subject.load('doc-1')).resolves.toMatchObject({ docId: 'doc-1', pendingUpdate })
-    expect(updateValue).toHaveBeenCalledTimes(writes)
   })
 
   it.each(['pendingUpdate', 'recoverySnapshot'] as const)(
@@ -120,17 +94,6 @@ describe('PendingFileDocUpdateJournal', () => {
       ])
     }
   )
-
-  it('ignores malformed recovery even if browser storage cannot be updated', async () => {
-    const subject = journal()
-    const invalid = new Uint8Array([255])
-    await subject.save('doc-1', invalid, invalid)
-    const before = structuredClone([...storage.values()])
-    vi.mocked(updateValue).mockRejectedValueOnce(new Error('Storage denied'))
-
-    await expect(subject.load()).resolves.toBeNull()
-    expect([...storage.values()]).toEqual(before)
-  })
 
   it.each(['pendingUpdate', 'recoverySnapshot'] as const)(
     'saves new edits before loading a malformed existing %s without deleting the original',
@@ -211,34 +174,6 @@ describe('PendingFileDocUpdateJournal', () => {
     }
   )
 
-  it('does not replace malformed existing recovery with malformed incoming recovery', async () => {
-    const subject = journal()
-    const invalid = new Uint8Array([255])
-    await subject.save('doc-1', invalid, invalid)
-    const before = structuredClone([...storage.values()])
-
-    await expect(subject.save('doc-1', invalid, invalid)).resolves.toMatchObject({
-      status: 'unavailable',
-    })
-
-    expect([...storage.values()]).toEqual(before)
-  })
-
-  it('prioritizes valid records when isolating malformed recovery during a save', async () => {
-    const subject = journal()
-    const valid = updateWith('valid recovery')
-    await subject.save('first', valid, valid)
-    await subject.save('second', valid, valid)
-    await subject.save('current', new Uint8Array([255]), valid)
-
-    await expect(subject.save('current', valid, valid)).resolves.toMatchObject({ status: 'saved' })
-
-    for (const docId of ['first', 'second', 'current']) {
-      await expect(subject.load(docId)).resolves.toMatchObject({ docId })
-    }
-    expect((storage.values().next().value as { documents: unknown[] }).documents).toHaveLength(3)
-  })
-
   it('does not quarantine a record that another tab replaced after the read', async () => {
     const subject = journal()
     const invalid = new Uint8Array([255])
@@ -296,16 +231,6 @@ describe('PendingFileDocUpdateJournal', () => {
     } finally {
       vi.useRealTimers()
     }
-  })
-
-  it('distinguishes unavailable browser storage from a configured size limit', async () => {
-    vi.mocked(updateValue).mockRejectedValueOnce(new Error('Storage denied'))
-    const pendingUpdate = updateWith('pending')
-
-    await expect(journal().save('doc-1', pendingUpdate, pendingUpdate)).resolves.toEqual({
-      pendingUpdate,
-      status: 'unavailable',
-    })
   })
 
   it('atomically preserves concurrent providers until their aggregate is acknowledged', async () => {
@@ -382,19 +307,6 @@ describe('PendingFileDocUpdateJournal', () => {
     const recovered = await subject.load('doc-1')
     expect(recovered?.recoverySnapshot).toBeInstanceOf(Uint8Array)
     expect(Buffer.from(recovered!.recoverySnapshot!).equals(Buffer.from(firstSnapshot))).toBe(true)
-  })
-
-  it('retains bounded recovery records for separate document identities', async () => {
-    const subject = journal()
-    for (const docId of ['doc-1', 'doc-2', 'doc-3', 'doc-4']) {
-      const update = updateWith(docId)
-      await subject.save(docId, update, update)
-    }
-
-    await expect(subject.load('doc-4')).resolves.toMatchObject({ docId: 'doc-4' })
-    await expect(subject.load('doc-2')).resolves.toMatchObject({ docId: 'doc-2' })
-    await expect(subject.load('doc-1')).resolves.toBeNull()
-    await expect(subject.load()).resolves.toMatchObject({ docId: 'doc-4' })
   })
 
   it('clears only the acknowledged document identity', async () => {

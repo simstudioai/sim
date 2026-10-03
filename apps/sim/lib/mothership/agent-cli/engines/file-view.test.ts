@@ -1,8 +1,7 @@
-/** @vitest-environment node */
 import type { Principal } from '@sim/auth/principal'
 import { PDFDocument } from 'pdf-lib'
 import sharp from 'sharp'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { read } = vi.hoisted(() => ({ read: vi.fn() }))
 vi.mock('@/lib/workspace-files/application/read-workspace-file-artifact', () => ({
@@ -26,9 +25,6 @@ const runtime: AgentCliRuntime = {
 }
 
 describe('registered files view boundary', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
   it.each(['image/png', 'application/pdf'])(
     'returns %s bytes through the shared observation contract',
     async (contentType) => {

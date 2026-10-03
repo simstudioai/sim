@@ -2,7 +2,7 @@ import { db, workflowMcpServer, workflowMcpTool } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, notExists } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { MAX_MCP_SERVERS_PER_WORKFLOW, MAX_MCP_TOOLS_PER_SERVER } from '@/lib/mcp/constants'
 import { acquireWorkflowMcpServerLock } from '@/lib/mcp/server-locks'
 import {
@@ -268,7 +268,7 @@ async function getRestoreSkipReason(
  * neither deadlock against each other nor race the checks.
  */
 async function restoreArchivedMcpToolsForWorkflow(
-  tx: DbOrTx,
+  tx: DbTransaction,
   workflowId: string,
   requestId: string
 ): Promise<void> {
@@ -434,7 +434,7 @@ interface SyncOptionsBase {
  */
 type SyncOptions = SyncOptionsBase &
   (
-    | { tx: DbOrTx; state: { blocks?: Record<string, unknown> }; notify?: false }
+    | { tx: DbTransaction; state: { blocks?: Record<string, unknown> }; notify?: false }
     | { tx?: undefined; state?: { blocks?: Record<string, unknown> }; notify?: boolean }
   )
 
@@ -607,7 +607,7 @@ export async function syncMcpToolsForWorkflow(
 export async function removeMcpToolsForWorkflow(
   workflowId: string,
   requestId: string,
-  tx?: DbOrTx,
+  tx?: DbTransaction,
   throwOnError = false
 ): Promise<Array<{ serverId: string }>> {
   if (!tx) {

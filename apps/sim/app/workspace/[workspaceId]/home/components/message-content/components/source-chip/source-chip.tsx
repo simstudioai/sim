@@ -2,10 +2,8 @@
 
 import { chipFilledFillTokens, chipHoverSurfaceClass, cn, OverflowText } from '@sim/emcn'
 import { SourceIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip/source-icon'
-import {
-  handleExternalLinkClick,
-  linkSiteName,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
+import { useSourceNavigation } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
+import { linkSiteName } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
 import { SourcePreview } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-preview'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 
@@ -31,6 +29,7 @@ interface SourceChipProps {
  * for a citation. Opens the document like any external link in the reply.
  */
 export function SourceChip({ source }: SourceChipProps) {
+  const navigate = useSourceNavigation(source)
   /** Slack's connector prefixes channel titles with `#channel: `; direct messages omit `#`. */
   const slackChannel =
     source.connectorType === 'slack' ? source.title?.match(/^(#[^:\s]+): /)?.[1] : undefined
@@ -41,7 +40,8 @@ export function SourceChip({ source }: SourceChipProps) {
         href={source.url}
         target='_blank'
         rel='noopener noreferrer'
-        onClick={(event) => handleExternalLinkClick(event, source.url)}
+        onClick={navigate}
+        onAuxClick={navigate}
         className={cn(
           'not-prose inline-flex h-[20px] max-w-[160px] shrink-0 items-center gap-1 rounded-full px-1.5 align-middle font-normal text-[var(--text-body)] text-caption no-underline transition-colors',
           chipFilledFillTokens,

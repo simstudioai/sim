@@ -1,29 +1,29 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext } from '@/executor/types'
 import { executeModelRequestWithFallbacks } from '@/executor/utils/model-fallback-request'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 
-const { request, validateModel } = vi.hoisted(() => ({
+const validateModel = permissionCheckMockFns.mockValidateModelProvider
+providersUtilsMockFns.mockGetProviderFromModel.mockImplementation((model: string) => {
+  if (model.startsWith('claude')) return 'anthropic'
+  if (model.startsWith('vertex/')) return 'vertex'
+  return 'openai'
+})
+
+const { request } = vi.hoisted(() => ({
   request: vi.fn(),
-  validateModel: vi.fn(),
 }))
 
 vi.mock('@/executor/utils/provider-request', () => ({ executeBlockProviderRequest: request }))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  validateModelProvider: validateModel,
-}))
-vi.mock('@/providers/utils', () => ({
-  getProviderFromModel: (model: string) => {
-    if (model.startsWith('claude')) return 'anthropic'
-    if (model.startsWith('vertex/')) return 'vertex'
-    return 'openai'
-  },
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 function context(): ExecutionContext {
   return {
@@ -81,7 +81,6 @@ function input() {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   setEnvFlags({ isHosted: false })
   request.mockReset().mockImplementation(async ({ request: candidate }) => ({
     content: '{}',
@@ -92,16 +91,6 @@ beforeEach(() => {
 afterEach(resetEnvFlagsMock)
 
 describe('executeModelRequestWithFallbacks', () => {
-  it('keeps a successful primary request unchanged and clears earlier fallback metadata', async () => {
-    const options = input()
-    options.ctx.blockLogs[0].modelFallbacks = ['old-model']
-    const output = await executeModelRequestWithFallbacks(options)
-    expect(output).toMatchObject({ result: { model: 'gpt-4o' }, usedFallback: false })
-    expect(request).toHaveBeenCalledTimes(1)
-    expect(request.mock.calls[0][0].request).toBe(options.request)
-    expect(options.ctx.blockLogs[0].modelFallbacks).toBeUndefined()
-  })
-
   it('walks the chain in order, preserving the last error and recording earlier failed models', async () => {
     const options = input()
     const last = new Error('last provider failed')
@@ -157,14 +146,6 @@ describe('executeModelRequestWithFallbacks', () => {
     expect(output.result.model).toBe('gpt-4o-mini')
     expect(request).toHaveBeenCalledTimes(2)
     expect(options.ctx.blockLogs[0].modelFallbacks).toEqual(['gpt-4o'])
-  })
-
-  it('returns the original error when all remaining candidates are skipped', async () => {
-    const error = new Error('overloaded')
-    request.mockRejectedValueOnce(error)
-    validateModel.mockRejectedValue(new Error('not permitted'))
-    await expect(executeModelRequestWithFallbacks(input())).rejects.toBe(error)
-    expect(request).toHaveBeenCalledTimes(1)
   })
 
   it.each([

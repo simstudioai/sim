@@ -33,7 +33,7 @@ import type { BrowserDownloadsState, BrowserToolbarCommand } from '@sim/desktop-
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { isRecordLike, omit, toRecord } from '@sim/utils/object'
+import { isRecordLike, omit, toArray, toRecord } from '@sim/utils/object'
 import type { BrowserWindow, MenuItemConstructorOptions, WebContents, WebFrameMain } from 'electron'
 import { Menu } from 'electron'
 import * as cdp from '@/main/browser-agent/cdp'
@@ -76,6 +76,7 @@ import {
   resolveFileInputTarget,
   scrollPage,
   selectOptionInElement,
+  serializePageCall,
   setFocusedInputValue,
   typeIntoElement,
 } from '@/main/browser-agent/page-functions'
@@ -186,6 +187,14 @@ function parseBatchActions(params: Record<string, unknown>): BatchAction[] {
     }
     if ('observe' in action.args) {
       throw new ToolError(`Batch action ${index} cannot observe; pass observe on the batch itself.`)
+    }
+    if (num(action.args, 'holdMs')) {
+      throw new ToolError(`Batch action ${index} cannot press and hold; run it as its own click.`)
+    }
+    if ('via' in action.args || 'durationMs' in action.args) {
+      throw new ToolError(
+        `Batch action ${index} cannot follow a timed pointer path; run it as its own action.`
+      )
     }
     return { tool: action.tool, args: action.args }
   })
@@ -1121,6 +1130,9 @@ const POINTER_BUTTONS: ReadonlySet<string> = new Set(['left', 'right', 'middle']
 /** Enough to walk a slider or list by keyboard in one call without flooding the page. */
 const MAX_KEY_REPEAT = 50
 
+/** Longest press-and-hold a click may request; well inside the click tool's watchdog. */
+const MAX_POINTER_HOLD_MS = 10_000
+
 /** The optional click gesture shared by `browser_click` and `browser_click_at`. */
 function pointerClick(params: Record<string, unknown>): cdp.PointerClick {
   const button = str(params, 'button') ?? 'left'
@@ -1133,11 +1145,59 @@ function pointerClick(params: Record<string, unknown>): cdp.PointerClick {
   if (!Array.isArray(names) || names.length > 4 || names.some((name) => typeof name !== 'string')) {
     throw new ToolError('modifiers must be a list of modifier names such as ["Shift"] or ["Mod"].')
   }
+  const holdMs = num(params, 'holdMs') ?? 0
+  if (!Number.isInteger(holdMs) || holdMs < 0 || holdMs > MAX_POINTER_HOLD_MS) {
+    throw new ToolError(
+      `holdMs must be a whole number of milliseconds from 0 to ${MAX_POINTER_HOLD_MS}.`
+    )
+  }
+  if (holdMs > 0 && clickCount !== 1) {
+    throw new ToolError('holdMs applies to a single press; use clickCount 1.')
+  }
   return {
     button: button as cdp.PointerClick['button'],
     clickCount,
     modifiers: cdpModifiers(parseModifiers(names)),
+    holdMs,
   }
+}
+
+const NOTHING_RENDERED_AT_POINT =
+  "Nothing is rendered at that point. Coordinates are CSS pixels in the current viewport — when reading them off a browser_screenshot, follow its caption's X/Y coordinate mapping and crop origin."
+
+const MAX_POINTER_PATH_POINTS = 20
+/** Longest timed pointer movement; well inside the pointer tools' watchdog. */
+const MAX_POINTER_PATH_MS = 10_000
+
+/** The optional pointer route shared by `browser_drag` and coordinate `browser_hover`. */
+function pointerPath(params: Record<string, unknown>): cdp.PointerPath {
+  const rawVia = params.via ?? []
+  if (!Array.isArray(rawVia) || rawVia.length > MAX_POINTER_PATH_POINTS) {
+    throw new ToolError(
+      `via must be a list of at most ${MAX_POINTER_PATH_POINTS} {x, y} viewport points.`
+    )
+  }
+  const via = rawVia.map((point) => {
+    const x = isRecordLike(point) ? point.x : undefined
+    const y = isRecordLike(point) ? point.y : undefined
+    if (typeof x !== 'number' || typeof y !== 'number' || !Number.isFinite(x + y)) {
+      throw new ToolError('Each via point must be {x, y} in CSS viewport pixels.')
+    }
+    return { x, y }
+  })
+  const durationMs = params.durationMs ?? null
+  if (
+    durationMs !== null &&
+    (typeof durationMs !== 'number' ||
+      !Number.isInteger(durationMs) ||
+      durationMs < 0 ||
+      durationMs > MAX_POINTER_PATH_MS)
+  ) {
+    throw new ToolError(
+      `durationMs must be a whole number of milliseconds from 0 to ${MAX_POINTER_PATH_MS}.`
+    )
+  }
+  return { via, durationMs }
 }
 
 /** The exact client tool call executing now; the app binds file transfers to it. */
@@ -1163,7 +1223,9 @@ function uploadPaths(params: Record<string, unknown>): string[] {
 }
 
 function isPrimaryClick(click: cdp.PointerClick): boolean {
-  return click.button === 'left' && click.clickCount === 1 && click.modifiers === 0
+  return (
+    click.button === 'left' && click.clickCount === 1 && click.modifiers === 0 && click.holdMs === 0
+  )
 }
 
 const DIALOG_ANSWERING_TOOLS: ReadonlySet<BrowserToolName> = new Set([
@@ -1274,7 +1336,7 @@ async function execInPage<Args extends unknown[], Result>(
       'The active tab is blank. Call browser_navigate before using page inspection or interaction tools.'
     )
   }
-  const invocation = `(${String(fn)}).apply(null, ${JSON.stringify(args)})`
+  const invocation = serializePageCall(fn as (...args: never[]) => unknown, args)
   const expression =
     typeof notAfter === 'number'
       ? `(Date.now() >= ${Math.floor(notAfter)} ? ({error: "expired"}) : ${invocation})`
@@ -1421,14 +1483,23 @@ function unwrapPageResult(result: unknown): unknown {
     }
     if (code === 'obstructed') {
       const blocker = String((result as { blocker?: unknown }).blocker || 'another element')
+      const controls = toArray((result as { blockerControls?: unknown }).blockerControls)
+        .map(toRecord)
+        .filter((control) => typeof control.id === 'number')
+        .map((control) => `[ref=${control.id}] "${String(control.name ?? '')}"`)
       throw new ToolError(
-        `That element is covered by ${blocker}. Close or move the overlay, then take a fresh browser_snapshot.`
+        controls.length > 0
+          ? `That element is covered by ${blocker}. The overlay's controls in the current snapshot: ${controls.join(', ')}. Dismiss it with one of those, then retry the same id.`
+          : `That element is covered by ${blocker}. Close or move the overlay, then take a fresh browser_snapshot.`
       )
     }
     if (code === 'nested-control') {
       const blocker = String((result as { blocker?: unknown }).blocker || 'a nested control')
+      const controlId = (result as { controlId?: unknown }).controlId
       throw new ToolError(
-        `The point you targeted lands on ${blocker}, which is its own control inside that element — nothing is covering it. Take a fresh browser_snapshot and use the id of the control you actually want.`
+        typeof controlId === 'number'
+          ? `The point you targeted lands on ${blocker} [ref=${controlId}], which is its own control inside that element — nothing is covering it. Use id ${controlId} if that is the control you want; otherwise target the element through a part that is not a separate control.`
+          : `The point you targeted lands on ${blocker}, which is its own control inside that element — nothing is covering it. Take a fresh browser_snapshot and use the id of the control you actually want.`
       )
     }
     if (code === 'suggestions-open') {
@@ -1667,7 +1738,7 @@ function requireSnapshotForElementAction(): void {
   )
 }
 
-function pageTargetForElement(contents: WebContents, elementId: number): PageExecutionTarget {
+function pageTargetForElement(elementId: number): PageExecutionTarget {
   requireSnapshotForElementAction()
   const target = driverScopeState().snapshotTargets.get(elementId)
   if (!target || ('isDestroyed' in target && target.isDestroyed())) {
@@ -2266,19 +2337,21 @@ function validateSnapshotRefs(
  * Captures the top page plus each cross-origin boundary frame in its own
  * isolated world. CDP is the privileged bridge the top document's same-origin
  * policy intentionally lacks; password redaction still runs inside every frame
- * before any result crosses back to the driver.
+ * before any result crosses back to the driver. `markNew` is false for reads the
+ * model never sees as an outline, so they neither carry nor consume `new` markers.
  */
 async function captureSnapshot(
   contents: WebContents,
   notAfter?: number,
-  elementId?: number
+  elementId?: number,
+  markNew = true
 ): Promise<unknown> {
   const state = driverScopeState()
   const tab = session.requireAutomationTab()
   if (tab.view.webContents !== contents) {
     throw new ToolError('The active tab changed before the snapshot started. Try again.')
   }
-  if (elementId !== undefined && pageTargetForElement(contents, elementId) !== contents) {
+  if (elementId !== undefined && pageTargetForElement(elementId) !== contents) {
     throw new ToolError(
       'Scoped snapshots require a top-page element. Omit elementId to capture framed content.'
     )
@@ -2307,7 +2380,7 @@ async function captureSnapshot(
     await execInPage(
       contents,
       collectSnapshot,
-      elementId === undefined ? [mainStartingElementId] : [mainStartingElementId, elementId],
+      [mainStartingElementId, elementId ?? null, markNew],
       false,
       notAfter
     )
@@ -2364,7 +2437,7 @@ async function captureSnapshot(
       const frameSnapshot = await execInPage(
         frame,
         collectSnapshot,
-        [frameStartingElementId],
+        [frameStartingElementId, null, markNew],
         false,
         notAfter
       )
@@ -2672,7 +2745,7 @@ async function executeToolInner(
       const contents = session.requireAutomationTab().view.webContents
       const elementId = requireNum(params, 'elementId')
       const paths = uploadPaths(params)
-      const target = pageTargetForElement(contents, elementId)
+      const target = pageTargetForElement(elementId)
       assertCurrentExecution()
       const frame = 'getURL' in target ? target.mainFrame : target
       const expression = `(${String(resolveFileInputTarget)})(${elementId})`
@@ -2743,8 +2816,7 @@ async function executeToolInner(
       }
       const waitedTab = session.requireAutomationTab()
       const contents = waitedTab.view.webContents
-      const elementTarget =
-        elementId === undefined ? undefined : pageTargetForElement(contents, elementId)
+      const elementTarget = elementId === undefined ? undefined : pageTargetForElement(elementId)
       if (elementTarget && elementTarget !== contents) {
         throw new ToolError(
           'Element-state waits are limited to the top page. Use a text or URL condition for framed content.'
@@ -2848,7 +2920,7 @@ async function executeToolInner(
       const maxResults = Math.min(50, Math.max(1, Math.floor(requestedMax ?? 20)))
       const contents = session.requireAutomationTab().view.webContents
       const snapshot = toRecord(
-        await captureSnapshot(contents, executionDeadline, num(params, 'elementId'))
+        await captureSnapshot(contents, executionDeadline, num(params, 'elementId'), false)
       )
       const outline = typeof snapshot.outline === 'string' ? snapshot.outline : ''
       const needle = query.toLowerCase()
@@ -2873,7 +2945,7 @@ async function executeToolInner(
       const contents = session.requireAutomationTab().view.webContents
       const elementId = num(params, 'elementId')
       if (elementId === undefined) return await readWholePageText(contents, executionDeadline)
-      const target = pageTargetForElement(contents, elementId)
+      const target = pageTargetForElement(elementId)
       return unwrapPageResult(
         await execInPage(target, readPageText, [elementId], false, executionDeadline)
       )
@@ -2888,7 +2960,7 @@ async function executeToolInner(
       const elementId = num(params, 'elementId')
       let elementClip: Record<string, unknown> | undefined
       if (elementId !== undefined) {
-        const target = pageTargetForElement(contents, elementId)
+        const target = pageTargetForElement(elementId)
         if (target !== contents) {
           throw new ToolError(
             'Element screenshots are limited to the top page. Use browser_screenshot without elementId for framed content.'
@@ -3046,7 +3118,7 @@ async function executeToolInner(
       const contents = clickedTab.view.webContents
       const elementId = requireNum(params, 'elementId')
       const click = pointerClick(params)
-      const target = pageTargetForElement(contents, elementId)
+      const target = pageTargetForElement(elementId)
       const targetFrame = frameExecutionTarget(target, contents)
       let trusted = false
       let activation = 'synthetic-pointer'
@@ -3204,7 +3276,10 @@ async function executeToolInner(
         try {
           assertCurrentExecution()
           assertElementActionCurrent(contents, elementId, target)
-          await cdp.clickAt(contents, x, y, false, click)
+          // A hold keeps the press in flight for seconds; cancelling it mid-gesture must read as
+          // an outcome that may have acted, never as a click that did not start.
+          if (click.holdMs > 0) onActionOutcome?.({ status: 'pending' })
+          await cdp.clickAt(contents, x, y, false, click, signal)
           trusted = true
           activation = 'native-pointer'
         } catch (error) {
@@ -3244,7 +3319,8 @@ async function executeToolInner(
           try {
             assertCurrentExecution()
             assertElementActionCurrent(contents, elementId, target)
-            await cdp.clickAt(contents, finalTopPoint.x, finalTopPoint.y, false, click)
+            if (click.holdMs > 0) onActionOutcome?.({ status: 'pending' })
+            await cdp.clickAt(contents, finalTopPoint.x, finalTopPoint.y, false, click, signal)
             trusted = true
             activation = 'native-pointer'
             prepared = finalSurface
@@ -3261,7 +3337,7 @@ async function executeToolInner(
         } else {
           if (!isPrimaryClick(click)) {
             throw new ToolError(
-              'This framed control has no reliable pointer position, so only a plain left click can activate it. Use browser_screenshot and browser_click_at for other buttons, click counts, or modifiers.'
+              'This framed control has no reliable pointer position, so only a plain left click can activate it. Use browser_screenshot and browser_click_at for other buttons, click counts, holds, or modifiers.'
             )
           }
           const activationKey = prepared.activationKey
@@ -3519,7 +3595,7 @@ async function executeToolInner(
       let stoppedIndex = 0
       let dispatchStarted = false
       const readField = async (field: FormField) => {
-        const target = pageTargetForElement(contents, field.elementId)
+        const target = pageTargetForElement(field.elementId)
         if (target !== contents)
           throw new ToolError(
             'Form batches require top-page fields; use individual tools for framed fields.'
@@ -3680,7 +3756,7 @@ async function executeToolInner(
       if (typeof text !== 'string') throw new ToolError('Missing required parameter "text"')
       const submit = params.submit === true
       const contents = session.requireAutomationTab().view.webContents
-      const target = pageTargetForElement(contents, elementId)
+      const target = pageTargetForElement(elementId)
       const targetFrame = frameExecutionTarget(target, contents)
 
       // Native path: focus + select current content, then insert through the
@@ -4230,9 +4306,7 @@ async function executeToolInner(
       const contents = session.requireAutomationTab().view.webContents
       const elementId = num(params, 'elementId')
       const target =
-        elementId !== undefined
-          ? pageTargetForElement(contents, elementId)
-          : focusedPageTarget(contents)
+        elementId !== undefined ? pageTargetForElement(elementId) : focusedPageTarget(contents)
       const targetFrame = frameExecutionTarget(target, contents)
       assertCurrentExecution()
       if (elementId !== undefined) assertElementActionCurrent(contents, elementId, target)
@@ -4278,7 +4352,7 @@ async function executeToolInner(
       const selection = values === undefined ? requireStr(params, 'value') : (values as string[])
       const contents = session.requireAutomationTab().view.webContents
       const elementId = requireNum(params, 'elementId')
-      const target = pageTargetForElement(contents, elementId)
+      const target = pageTargetForElement(elementId)
       const targetFrame = frameExecutionTarget(target, contents)
       assertCurrentExecution()
       assertElementActionCurrent(contents, elementId, target)
@@ -4357,8 +4431,7 @@ async function executeToolInner(
         throw new ToolError('Missing required boolean parameter "checked"')
       }
       const checked = params.checked
-      const contents = session.requireAutomationTab().view.webContents
-      const target = pageTargetForElement(contents, elementId)
+      const target = pageTargetForElement(elementId)
       const before = toRecord(
         unwrapPageResult(
           await execInPage(target, readCheckableElementState, [elementId], false, executionDeadline)
@@ -4431,8 +4504,61 @@ async function executeToolInner(
 
     case 'browser_hover': {
       const contents = session.requireAutomationTab().view.webContents
+      if (params.elementId === undefined) {
+        const hoverNavigationEpoch = navigationEpoch(contents)
+        const x = requireNum(params, 'x')
+        const y = requireNum(params, 'y')
+        const path = pointerPath(params)
+        if (path.via.length === 0 && path.durationMs !== null) {
+          throw new ToolError(
+            'durationMs paces a hover route; pass via points for the pointer to travel through.'
+          )
+        }
+        assertCurrentExecution()
+        assertActiveContents(contents, hoverNavigationEpoch)
+        const pointTarget = unwrapPageResult(
+          await execInPage(contents, describePointTarget, [x, y], false, executionDeadline)
+        )
+        if (!isRecordLike(pointTarget) || pointTarget.found !== true) {
+          throw new ToolError(NOTHING_RENDERED_AT_POINT)
+        }
+        const beforePage = await pageActionState(contents, true)
+        const beforeElement = await activeElementState(contents)
+        assertCurrentExecution()
+        assertActiveContents(contents, hoverNavigationEpoch)
+        await cdp.movePointer(contents, path, { x, y }, signal)
+        await sleep(150)
+        const afterElement = await activeElementState(contents)
+        const afterPage = await pageActionState(contents)
+        const observation = pageEffect(beforePage, afterPage, beforeElement, afterElement)
+        const effectObserved =
+          observation.effect.urlChanged ||
+          observation.effect.dialogChanged ||
+          observation.effect.popupChanged
+        return {
+          hovered: true,
+          x,
+          y,
+          trusted: true,
+          effect: observation.effect,
+          possibleEffectObserved: observation.possibleEffectObserved,
+          effectObserved,
+          ...(!effectObserved
+            ? {
+                note: observation.possibleEffectObserved
+                  ? 'The page changed while the pointer moved; confirm the intended effect with browser_snapshot or browser_screenshot.'
+                  : 'No tooltip, menu, or other strong hover effect was observed.',
+              }
+            : {}),
+        }
+      }
+      if ('via' in params || 'durationMs' in params) {
+        throw new ToolError(
+          'via and durationMs apply to a coordinate hover; pass x and y instead of elementId.'
+        )
+      }
       const elementId = requireNum(params, 'elementId')
-      const target = pageTargetForElement(contents, elementId)
+      const target = pageTargetForElement(elementId)
       const targetFrame = frameExecutionTarget(target, contents)
       let beforePage = await pageActionState(target, true, elementId)
       let beforeElement = await activeElementState(target)
@@ -4611,9 +4737,7 @@ async function executeToolInner(
         await execInPage(contents, describePointTarget, [x, y], false, executionDeadline)
       )
       if (!isRecordLike(pointTarget) || pointTarget.found !== true) {
-        throw new ToolError(
-          "Nothing is rendered at that point. Coordinates are CSS pixels in the current viewport — when reading them off a browser_screenshot, follow its caption's X/Y coordinate mapping and crop origin."
-        )
+        throw new ToolError(NOTHING_RENDERED_AT_POINT)
       }
       if (pointTarget.fileInput === true) {
         throw new ToolError(FILE_INPUT_REFUSAL)
@@ -4622,8 +4746,9 @@ async function executeToolInner(
       const beforeElement = await activeElementState(contents)
       assertCurrentExecution()
       assertActiveContents(contents, clickNavigationEpoch)
+      if (click.holdMs > 0) onActionOutcome?.({ status: 'pending' })
       try {
-        await cdp.clickAt(contents, x, y, true, click)
+        await cdp.clickAt(contents, x, y, true, click, signal)
       } catch (error) {
         const rescued = navigationRescue(contents, clickNavigationEpoch, urlAtDispatch, {
           trusted: true,
@@ -4803,13 +4928,14 @@ async function executeToolInner(
       const draggedTab = session.requireAutomationTab()
       const contents = draggedTab.view.webContents
       const dragNavigationEpoch = navigationEpoch(contents)
+      const path = pointerPath(params)
 
       const resolveEndpoint = async (
         which: 'from' | 'to'
       ): Promise<{ x: number; y: number; element?: string }> => {
         const elementId = num(params, `${which}ElementId`)
         if (elementId !== undefined) {
-          const target = pageTargetForElement(contents, elementId)
+          const target = pageTargetForElement(elementId)
           if (frameExecutionTarget(target, contents)) {
             throw new ToolError(
               `Dragging elements inside embedded frames is not supported. Use ${which}X/${which}Y viewport coordinates instead.`
@@ -4868,7 +4994,7 @@ async function executeToolInner(
       assertActiveContents(contents)
       const from = await resolveEndpoint('from')
       const to = await resolveEndpoint('to')
-      if (Math.abs(from.x - to.x) < 1 && Math.abs(from.y - to.y) < 1) {
+      if (path.via.length === 0 && Math.abs(from.x - to.x) < 1 && Math.abs(from.y - to.y) < 1) {
         throw new ToolError('The drag source and target are the same point; nothing to drag.')
       }
       const beforePage = await pageActionState(contents, true)
@@ -4877,7 +5003,7 @@ async function executeToolInner(
       assertActiveContents(contents, dragNavigationEpoch)
       let interception: { nativeDragIntercepted: boolean }
       try {
-        interception = await cdp.dragPointer(contents, from, to)
+        interception = await cdp.dragPointer(contents, from, to, path, signal)
       } catch (error) {
         throw new ToolError(
           `Native drag dispatch failed (${getErrorMessage(error)}). The pointer may have been mid-drag; take a fresh snapshot to see the page's current state before retrying.`
@@ -5269,6 +5395,7 @@ export async function handlePanelAction(
         )
         session.prepareExplicitNavigation(contents)
         void contents.loadURL(action.url).catch(() => {})
+        session.focusPageForUser(contents)
       }
       return
     }

@@ -8,6 +8,7 @@ import { and, eq } from 'drizzle-orm'
 import type { Workspace } from '@/lib/api/contracts/workspaces'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
+import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import {
   collectReferencedDocumentIds,
@@ -59,7 +60,11 @@ import {
 import { buildForkWorkflowIdMap } from '@/ee/workspace-forking/lib/copy/workflow-id-map'
 import { copyForkWorkflowMcpAttachments } from '@/ee/workspace-forking/lib/copy/workflow-mcp-attachments'
 import { ForkError } from '@/ee/workspace-forking/lib/lineage/authz'
-import { setForkLockTimeout } from '@/ee/workspace-forking/lib/lineage/lineage'
+import {
+  acquireForkLineageLock,
+  setForkLockTimeout,
+} from '@/ee/workspace-forking/lib/lineage/lineage'
+import { resolveForkLineageRootId } from '@/ee/workspace-forking/lib/lineage/lineage-root'
 import {
   type ForkBlockPair,
   reconcileForkBlockPairs,
@@ -167,6 +172,9 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
     bytes: copyBytes,
   })
 
+  // The root is the lineage lock key, so it is resolved first and re-checked under the lock.
+  const lineageRootId = await resolveForkLineageRootId(db, source.id)
+
   // Read the source's deployed workflows + states BEFORE the transaction so these
   // global-pool reads don't check out a second pooled connection from inside the
   // fork tx (which can deadlock the pool at saturation).
@@ -209,7 +217,21 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
         admission.requestId,
         admission.requestHash
       )
+      // Replay before the lineage lock, so an idempotent retry never waits on it.
       if (receipt?.forkResult) return { replay: receipt }
+    }
+    // Rank 2, before `lockForkRevision` (rank 5) - see the rank table on
+    // `acquireForkLineageLock`. Shared: other forks of this lineage proceed, while
+    // `setForkSyncDefault` and unlink wait, so the child cannot inherit a stale default.
+    await acquireForkLineageLock(tx, lineageRootId, { shared: true })
+    // The root was resolved before this transaction; refuse if an unlink moved it since.
+    if ((await resolveForkLineageRootId(tx, source.id)) !== lineageRootId) {
+      throw new ForkError(
+        'The source workspace changed fork lineage while this fork was being created. Try again.',
+        409
+      )
+    }
+    if (admission) {
       await lockForkRevision(tx, { sourceWorkspaceId: source.id })
       await assertForkPreviewFresh(tx, { sourceWorkspaceId: source.id }, admission)
       await assertForkSourceVersions(tx, source.id, sourceVersionIds)
@@ -224,7 +246,10 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
      * organization.
      */
     const [currentSource] = await tx
-      .select({ organizationId: workspace.organizationId })
+      .select({
+        organizationId: workspace.organizationId,
+        forkSyncNewWorkflowsExcluded: workspace.forkSyncNewWorkflowsExcluded,
+      })
       .from(workspace)
       .where(eq(workspace.id, source.id))
       /**
@@ -279,6 +304,8 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
       workspaceMode: policy.workspaceMode,
       billedAccountUserId: policy.billedAccountUserId,
       allowPersonalApiKeys: source.allowPersonalApiKeys,
+      // Lineage-uniform, so the child inherits the value read under the source row lock.
+      forkSyncNewWorkflowsExcluded: currentSource.forkSyncNewWorkflowsExcluded,
       forkedFromWorkspaceId: source.id,
       createdAt: now,
       updatedAt: now,
@@ -475,20 +502,17 @@ export async function createFork(params: CreateForkParams): Promise<CreateForkRe
     // starter "New workspace" creates. Any copied resources still land alongside it.
     if (workflowsCopied === 0) {
       const defaultWorkflowId = generateId()
-      await tx.insert(workflow).values({
-        id: defaultWorkflowId,
-        userId,
-        workspaceId: childWorkspaceId,
-        folderId: null,
-        name: 'default-agent',
-        description: 'Your first workflow - start building here!',
-        lastSynced: now,
-        createdAt: now,
-        updatedAt: now,
-        isDeployed: false,
-        runCount: 0,
-        variables: {},
-      })
+      await tx.insert(workflow).values(
+        await buildNewWorkflowRow(tx, {
+          id: defaultWorkflowId,
+          userId,
+          workspaceId: childWorkspaceId,
+          folderId: null,
+          name: 'default-agent',
+          description: 'Your first workflow - start building here!',
+          now,
+        })
+      )
       const { workflowState } = buildDefaultWorkflowArtifacts()
       await saveWorkflowToNormalizedTables(
         defaultWorkflowId,

@@ -509,113 +509,6 @@ export async function deleteColumn(
 }
 
 /**
- * Deletes multiple columns from a table in a single transaction.
- * Avoids the race condition of calling deleteColumn multiple times in parallel.
- */
-export async function deleteColumns(
-  data: { tableId: string; columnNames: string[] },
-  requestId: string,
-  options?: ColumnMutationOptions
-): Promise<TableDefinition> {
-  const { def, stripKeys } = await withLockedTable(
-    data.tableId,
-    async (table, trx) => {
-      assertColumnDestructive(table)
-      const schema = table.schema
-      const namesToDelete = new Set<string>()
-      const idsToDelete = new Set<string>()
-      const notFound: string[] = []
-
-      for (const name of data.columnNames) {
-        const col = schema.columns.find((c) => columnMatchesRef(c, name))
-        if (!col) {
-          notFound.push(name)
-        } else {
-          namesToDelete.add(col.name)
-          idsToDelete.add(getColumnId(col))
-        }
-      }
-
-      if (notFound.length > 0) {
-        throw new OrchestrationError('not_found', `Columns not found: ${notFound.join(', ')}`)
-      }
-
-      const remaining = schema.columns.filter((c) => !namesToDelete.has(c.name))
-      if (remaining.length === 0) {
-        throw new OrchestrationError('validation', 'Cannot delete all columns from a table')
-      }
-
-      // For each group, drop outputs whose column (by id) is being deleted. Groups
-      // that end up with zero outputs are removed entirely (they'd be invalid).
-      // Then any remaining group's dependencies referencing a removed column are
-      // cleaned up.
-      const removedGroupIds = new Set<string>()
-      let updatedGroups = (schema.workflowGroups ?? []).map((group) => {
-        const remainingOutputs = group.outputs.filter((o) => !idsToDelete.has(o.columnName))
-        if (remainingOutputs.length === 0) {
-          removedGroupIds.add(group.id)
-        }
-        return remainingOutputs.length === group.outputs.length
-          ? group
-          : { ...group, outputs: remainingOutputs }
-      })
-      updatedGroups = updatedGroups
-        .filter((g) => !removedGroupIds.has(g.id))
-        .map((group) => stripGroupDeps(group, idsToDelete))
-      const updatedSchema: TableSchema = {
-        ...schema,
-        columns: remaining,
-        ...(updatedGroups.length > 0 ? { workflowGroups: updatedGroups } : {}),
-      }
-      const updatedMetadata = stripColumnIdsFromMetadata(
-        table.metadata as TableMetadata | null,
-        idsToDelete
-      )
-      assertValidSchema(updatedSchema, updatedMetadata?.columnOrder)
-
-      const now = new Date()
-
-      // Schema/metadata commit now; row storage for the deleted columns is
-      // reclaimed in the background (fire-and-forget).
-      await trx
-        .update(userTableDefinitions)
-        .set({ schema: updatedSchema, metadata: updatedMetadata, updatedAt: now })
-        .where(
-          and(
-            eq(userTableDefinitions.id, data.tableId),
-            eq(userTableDefinitions.workspaceId, table.workspaceId)
-          )
-        )
-
-      await stripGroupExecutions(trx, data.tableId, removedGroupIds, {
-        expectedWorkspaceId: table.workspaceId,
-      })
-
-      logger.info(
-        `[${requestId}] Deleted columns [${[...namesToDelete].join(', ')}] from table ${data.tableId}`
-      )
-
-      return {
-        def: { ...table, schema: updatedSchema, metadata: updatedMetadata, updatedAt: now },
-        stripKeys: Array.from(idsToDelete),
-      }
-    },
-    { expectedWorkspaceId: options?.expectedWorkspaceId }
-  )
-
-  if (stripKeys.length > 0) {
-    stripColumnDataInBackground(
-      data.tableId,
-      def.workspaceId,
-      stripKeys,
-      def.rowCount ?? 0,
-      requestId
-    )
-  }
-  return def
-}
-
-/**
  * Validates a constraint change against the column's stored data, and returns
  * the column with those constraints applied.
  *
@@ -917,10 +810,7 @@ export async function updateColumnType(
       }
       const columnKey = getColumnId(column)
 
-      // Options the column will carry after the change — a `select` value is only
-      // compatible if it resolves against this set.
       const isSelectType = data.newType === 'select'
-      const targetOptions = data.options ?? column.options ?? []
       const targetMultiple = data.multiple ?? column.multiple
       // Leaving `select` behind: stored cells hold option ids, which mean nothing
       // once the column is text/number/etc. Check compatibility against the option

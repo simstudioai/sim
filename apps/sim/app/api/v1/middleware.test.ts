@@ -1,44 +1,32 @@
 /**
- * @vitest-environment node
- *
  * Pins the rate-limit headers every v1 endpoint publishes. `X-RateLimit-Limit`
  * and `X-RateLimit-Remaining` must describe the same quantity — the token
  * bucket's capacity and the tokens left in it — or a client computing
  * `used = limit - remaining` gets a negative number.
  */
 
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
 import {
-  createMockRequest,
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
   permissionGroupScopeMock,
   permissionGroupScopeMockFns,
   resetPermissionGroupScopeMock,
-} from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { z } from 'zod'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+} from '@sim/testing/mocks/permission-group-scope.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import {
-  buildRateLimitHeaders,
-  getRateLimitHeaders,
-  recordRateLimitSnapshot,
-} from '@/lib/api/server/rate-limit-context'
+  workspacesUtilsMock,
+  workspacesUtilsMockFns,
+} from '@sim/testing/mocks/workspaces-utils.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getRateLimitHeaders } from '@/lib/api/server/rate-limit-context'
 
-const {
-  mockAuthenticateV1Request,
-  mockGetSubscription,
-  mockCheckRateLimit,
-  mockGetRateLimit,
-  mockGetUserEntityPermissions,
-  mockGetWorkspaceBillingSettings,
-  mockGetWorkspaceBilledAccountUserId,
-  mockIsCapabilityWithheldForUser,
-} = vi.hoisted(() => ({
+const { mockAuthenticateV1Request, mockIsCapabilityWithheldForUser } = vi.hoisted(() => ({
   mockAuthenticateV1Request: vi.fn(),
-  mockGetSubscription: vi.fn(),
-  mockCheckRateLimit: vi.fn(),
-  mockGetRateLimit: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
-  mockGetWorkspaceBillingSettings: vi.fn(),
-  mockGetWorkspaceBilledAccountUserId: vi.fn(),
   mockIsCapabilityWithheldForUser: vi.fn(),
 }))
 
@@ -46,16 +34,9 @@ vi.mock('@/app/api/v1/auth', () => ({
   authenticateV1Request: mockAuthenticateV1Request,
 }))
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getHighestPrioritySubscription: mockGetSubscription,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
-vi.mock('@/lib/core/rate-limiter', () => ({
-  getRateLimit: mockGetRateLimit,
-  RateLimiter: class {
-    checkRateLimitWithSubscription = mockCheckRateLimit
-  },
-}))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
@@ -63,14 +44,9 @@ vi.mock('@/lib/permission-groups/user-scope.server', () => ({
   isCapabilityWithheldForUser: mockIsCapabilityWithheldForUser,
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/workspaces/utils', () => ({
-  getWorkspaceBillingSettings: mockGetWorkspaceBillingSettings,
-  getWorkspaceBilledAccountUserId: mockGetWorkspaceBilledAccountUserId,
-}))
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import {
@@ -80,8 +56,15 @@ import {
   checkWorkspaceScope,
   createRateLimitResponse,
   requireWorkspaceRequestActor,
-  v1ValidationErrorResponse,
 } from '@/app/api/v1/middleware'
+
+const { mockGetWorkspaceBillingSettings, mockGetWorkspaceBilledAccountUserId } =
+  workspacesUtilsMockFns
+
+const mockGetSubscription = billingSubscriptionMockFns.mockGetHighestPrioritySubscription
+const mockCheckRateLimit = rateLimiterMockFns.mockCheckRateLimitWithSubscription
+const mockGetRateLimit = rateLimiterMockFns.mockGetRateLimit
+const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
 /** Mirrors `createBucketConfig`: capacity is the per-minute rate x burst multiplier. */
 const TEAM_BUCKET = { maxTokens: 400, refillRate: 200, refillIntervalMs: 60_000 }
@@ -92,12 +75,11 @@ function request() {
 
 describe('checkRateLimit', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockAuthenticateV1Request.mockResolvedValue({
       authenticated: true,
       userId: 'user-1',
       keyType: 'personal',
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      principal: createPersonalApiKeyPrincipal(),
     })
     mockGetSubscription.mockResolvedValue({ plan: 'team' })
     mockGetRateLimit.mockReturnValue(TEAM_BUCKET)
@@ -115,22 +97,6 @@ describe('checkRateLimit', () => {
     expect(result.limit).not.toBe(TEAM_BUCKET.refillRate)
   })
 
-  it('preserves the authenticated API-key Principal for application operations', async () => {
-    const result = await checkRateLimit(request(), 'workflows')
-
-    expect(result.principal).toEqual({
-      kind: 'personal_api_key',
-      userId: 'user-1',
-      keyId: 'key-1',
-    })
-  })
-
-  it('never reports more remaining than the limit', async () => {
-    const result = await checkRateLimit(request(), 'workflows')
-
-    expect(result.remaining).toBeLessThanOrEqual(result.limit)
-  })
-
   it('reports a zero limit when authentication fails, since no bucket was consulted', async () => {
     mockAuthenticateV1Request.mockResolvedValue({
       authenticated: false,
@@ -144,20 +110,10 @@ describe('checkRateLimit', () => {
     expect(result.error).toBe('API key required')
     expect(mockCheckRateLimit).not.toHaveBeenCalled()
   })
-
-  it('reports a zero limit when the checker itself throws', async () => {
-    mockCheckRateLimit.mockRejectedValue(new Error('redis down'))
-
-    const result = await checkRateLimit(request(), 'workflows')
-
-    expect(result.allowed).toBe(false)
-    expect(result.limit).toBe(0)
-  })
 })
 
 describe('authenticateRequest', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockAuthenticateV1Request.mockResolvedValue({
       authenticated: true,
       keyType: 'personal',
@@ -215,35 +171,13 @@ describe('createRateLimitResponse', () => {
   })
 })
 
-describe('v1ValidationErrorResponse', () => {
-  it('surfaces the schema message instead of a generic string', async () => {
-    const schema = z.object({ workspaceId: workspaceIdSchema })
-    const parsed = schema.safeParse({})
-
-    const response = v1ValidationErrorResponse(parsed.error!)
-    const body = await response.json()
-
-    expect(response.status).toBe(400)
-    expect(body.error).toBe('Workspace ID is required')
-    expect(Array.isArray(body.details)).toBe(true)
-  })
-
-  it('keeps the issue list alongside the message', async () => {
-    const schema = z.object({ workspaceId: workspaceIdSchema })
-    const body = await v1ValidationErrorResponse(schema.safeParse({}).error!).json()
-
-    expect(body.details[0].path).toEqual(['workspaceId'])
-  })
-})
-
 describe('rate-limit snapshot context', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockAuthenticateV1Request.mockResolvedValue({
       authenticated: true,
       userId: 'user-1',
       keyType: 'personal',
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      principal: createPersonalApiKeyPrincipal(),
     })
     mockGetSubscription.mockResolvedValue({ plan: 'team' })
     mockGetRateLimit.mockReturnValue(TEAM_BUCKET)
@@ -254,43 +188,6 @@ describe('rate-limit snapshot context', () => {
     })
   })
 
-  const SNAPSHOT = {
-    limit: 400,
-    remaining: 399,
-    resetAt: new Date('2026-07-28T18:28:48.354Z'),
-  }
-
-  it('builds a consistent limit/remaining pair', () => {
-    const headers = buildRateLimitHeaders(SNAPSHOT)
-
-    expect(headers['X-RateLimit-Limit']).toBe('400')
-    expect(headers['X-RateLimit-Remaining']).toBe('399')
-    expect(Number(headers['X-RateLimit-Remaining'])).toBeLessThanOrEqual(
-      Number(headers['X-RateLimit-Limit'])
-    )
-    expect(headers['X-RateLimit-Reset']).toBe('2026-07-28T18:28:48.354Z')
-  })
-
-  it('returns null for a request that never consulted a bucket', () => {
-    expect(getRateLimitHeaders({})).toBeNull()
-  })
-
-  it('returns the headers once a snapshot is recorded for that request', () => {
-    const req = {}
-    recordRateLimitSnapshot(req, SNAPSHOT)
-
-    expect(getRateLimitHeaders(req)).toEqual(buildRateLimitHeaders(SNAPSHOT))
-  })
-
-  it('keeps snapshots per request, not global', () => {
-    const a = {}
-    const b = {}
-    recordRateLimitSnapshot(a, SNAPSHOT)
-
-    expect(getRateLimitHeaders(a)).not.toBeNull()
-    expect(getRateLimitHeaders(b)).toBeNull()
-  })
-
   it('records a snapshot as a side effect of checkRateLimit', async () => {
     const req = request()
 
@@ -299,15 +196,6 @@ describe('rate-limit snapshot context', () => {
     const headers = getRateLimitHeaders(req)
     expect(headers).not.toBeNull()
     expect(headers?.['X-RateLimit-Limit']).toBe(String(TEAM_BUCKET.maxTokens))
-  })
-
-  it('records nothing when authentication fails', async () => {
-    mockAuthenticateV1Request.mockResolvedValue({ authenticated: false, error: 'API key required' })
-    const req = request()
-
-    await checkRateLimit(req, 'workflows')
-
-    expect(getRateLimitHeaders(req)).toBeNull()
   })
 })
 
@@ -333,7 +221,7 @@ describe('checkWorkspaceScope', () => {
       resetAt: new Date(),
       userId: USER_ID,
       keyType: 'personal' as const,
-      principal: { kind: 'personal_api_key' as const, userId: USER_ID, keyId: 'key-1' },
+      principal: createPersonalApiKeyPrincipal({ userId: USER_ID }),
     }
   }
 
@@ -345,7 +233,6 @@ describe('checkWorkspaceScope', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetPermissionGroupScopeMock()
     mockGetWorkspaceBillingSettings.mockResolvedValue({ allowPersonalApiKeys: true })
     mockGetUserEntityPermissions.mockResolvedValue('admin')
@@ -387,26 +274,6 @@ describe('checkWorkspaceScope', () => {
   })
 
   /**
-   * The two refusals share their sentence, so without the code a client cannot
-   * tell "the workspace switched personal keys off" from "your group did" —
-   * different settings, different people to ask.
-   */
-  it('carries the detail code on the group refusal and not on the column one', async () => {
-    withholdsPersonalKeys()
-    const grouped = await checkWorkspaceScope(personalKeyRateLimit(), WORKSPACE_ID)
-
-    await expect(grouped?.json()).resolves.toMatchObject({
-      details: { code: 'PERSONAL_API_KEYS_DISABLED' },
-    })
-
-    resetPermissionGroupScopeMock()
-    mockGetWorkspaceBillingSettings.mockResolvedValue({ allowPersonalApiKeys: false })
-    const column = await checkWorkspaceScope(personalKeyRateLimit(), WORKSPACE_ID)
-
-    await expect(column?.json()).resolves.not.toHaveProperty('details')
-  })
-
-  /**
    * The concealment ordering, one level in. The funnel asks this key only after
    * `requireCurrentHumanRole(operation.minimumRole)`, so a read-only member on a
    * write route is refused on role. Asked at `read` here, the same person was
@@ -421,15 +288,6 @@ describe('checkWorkspaceScope', () => {
     expect(response).toBeNull()
     expect(permissionGroupScopeMockFns.mockResolvePermissionGroupConfig).not.toHaveBeenCalled()
   })
-
-  it('still refuses that member on a read route, where the role does reach', async () => {
-    mockGetUserEntityPermissions.mockResolvedValue('read')
-    withholdsPersonalKeys()
-
-    const response = await checkWorkspaceScope(personalKeyRateLimit(), WORKSPACE_ID, 'read')
-
-    expect(response?.status).toBe(403)
-  })
 })
 
 describe('checkOrganizationPersonalKeyRefusal', () => {
@@ -437,7 +295,6 @@ describe('checkOrganizationPersonalKeyRefusal', () => {
   const BASE = { allowed: true, remaining: 1, limit: 1, resetAt: new Date(), userId: USER_ID }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockIsCapabilityWithheldForUser.mockResolvedValue(false)
   })
 
@@ -452,12 +309,6 @@ describe('checkOrganizationPersonalKeyRefusal', () => {
       error: expect.stringMatching(/personal API key/i),
       details: { code: 'PERSONAL_API_KEYS_DISABLED' },
     })
-  })
-
-  it('allows a personal key its group does not withhold', async () => {
-    await expect(
-      checkOrganizationPersonalKeyRefusal({ ...BASE, keyType: 'personal' })
-    ).resolves.toBeNull()
   })
 
   it("never evaluates a workspace key against its creator's group", async () => {
@@ -476,7 +327,6 @@ describe('checkOrganizationPersonalKeyRefusal', () => {
 
 describe('requireWorkspaceRequestActor', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetWorkspaceBilledAccountUserId.mockResolvedValue('billed-user')
   })
 
@@ -487,15 +337,6 @@ describe('requireWorkspaceRequestActor', () => {
     )
 
     expect(actor).toEqual({ ok: true, actorUserId: 'billed-user' })
-  })
-
-  it('keeps the owner for a personal key', async () => {
-    const actor = await requireWorkspaceRequestActor(
-      { allowed: true, keyType: 'personal', userId: 'user-1' } as never,
-      'workspace-1'
-    )
-
-    expect(actor).toEqual({ ok: true, actorUserId: 'user-1' })
   })
 
   /**

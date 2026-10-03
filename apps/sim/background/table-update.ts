@@ -1,8 +1,9 @@
-import { task } from '@trigger.dev/sdk'
+import { AbortTaskRunError, task } from '@trigger.dev/sdk'
 import {
   markTableUpdateFailed,
   runTableUpdate,
   type TableUpdatePayload,
+  UpdatePatchRejectedError,
 } from '@/lib/table/update-runner'
 
 /**
@@ -19,7 +20,8 @@ export interface TableUpdateTaskPayload extends Omit<TableUpdatePayload, 'cutoff
  * worker keysets by id with a `created_at <= cutoff` floor and the JSONB-merge patch is idempotent
  * (re-applying the same patch to an already-patched row is a no-op), so a retried attempt re-walks
  * and re-applies whatever remains. The `table_jobs` ownership gate stops a retried run that lost
- * the job within one page.
+ * the job within one page. A patch the table's schema refuses aborts without a retry: the retry
+ * would read the same schema.
  */
 export const tableUpdateTask = task({
   id: 'table-update',
@@ -30,7 +32,12 @@ export const tableUpdateTask = task({
     concurrencyLimit: 10,
   },
   run: async (payload: TableUpdateTaskPayload) => {
-    await runTableUpdate({ ...payload, cutoff: new Date(payload.cutoff) })
+    try {
+      await runTableUpdate({ ...payload, cutoff: new Date(payload.cutoff) })
+    } catch (error) {
+      if (error instanceof UpdatePatchRejectedError) throw new AbortTaskRunError(error.message)
+      throw error
+    }
   },
   onFailure: async ({ payload, error }) => {
     await markTableUpdateFailed(payload.tableId, payload.jobId, error)

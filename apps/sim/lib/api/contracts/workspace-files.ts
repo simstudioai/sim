@@ -344,8 +344,3 @@ export const workspaceFileStyleContract = defineRouteContract({
     schema: documentStyleSummarySchema,
   },
 })
-
-const compiledCheckResponseSchema = z.union([
-  z.object({ ok: z.literal(true) }),
-  z.object({ ok: z.literal(false), error: z.string(), errorName: z.string() }),
-])

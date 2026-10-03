@@ -11,7 +11,6 @@ import {
   document,
   embedding,
   knowledgeBase,
-  member,
   organization,
   outboxEvent,
   rateLimitBucket,
@@ -31,10 +30,7 @@ vi.mock('@/lib/uploads/core/setup.server', () => ({
   },
 }))
 
-import {
-  resolveBillingAttribution,
-  resolveOrganizationBillingAttribution,
-} from '@/lib/billing/core/billing-attribution'
+import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { env } from '@/lib/core/config/env'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import * as egress from '@/lib/core/security/input-validation.server'
@@ -49,13 +45,12 @@ import {
   seedKnowledgeMemberFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
-import { searchScopedKnowledge } from '@/lib/knowledge/application/workspace-search'
 import {
   materializeDocumentAcls,
   recordMemberObservations,
 } from '@/lib/knowledge/connectors/member-observations'
 import { createContentSyncLease, createMemberSyncLease } from '@/lib/knowledge/connectors/sync-lock'
-import { addDocument, persistDocumentAcls } from '@/lib/knowledge/connectors/sync-persistence'
+import { addDocument } from '@/lib/knowledge/connectors/sync-persistence'
 import { KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-continuation-dispatch'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 import { assertDocumentProcessingPayload } from '@/lib/knowledge/documents/processing-payload'
@@ -108,7 +103,7 @@ describe('provider throttling resumes the shared indexing pipeline', () => {
     await db.$client.end()
   })
 
-  it.each(['regular KB', 'member source', 'organization Search'] as const)(
+  it.each(['regular KB', 'member source'] as const)(
     'recovers a %s after Mistral 429 without burning dispatches or charging twice',
     async (scope) => {
       vi.useRealTimers()
@@ -123,28 +118,6 @@ describe('provider throttling resumes the shared indexing pipeline', () => {
         connectorId = memberFixture.connectorId
         lease = createMemberSyncLease(connectorId, memberFixture.runId)
       }
-      const orgOwned = scope === 'organization Search'
-      if (orgOwned) {
-        await db.insert(member).values([
-          {
-            id: generateId(),
-            organizationId: ids.organizationId,
-            userId: ids.aliceId,
-            role: 'owner',
-          },
-          {
-            id: generateId(),
-            organizationId: ids.organizationId,
-            userId: ids.bobId,
-            role: 'member',
-          },
-        ])
-        await db
-          .update(knowledgeBase)
-          .set({ workspaceId: null, organizationId: ids.organizationId, isSearchIndex: true })
-          .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
-      }
-
       const file = await addDocument(
         ids.knowledgeBaseId,
         connectorId,
@@ -157,11 +130,9 @@ describe('provider throttling resumes the shared indexing pipeline', () => {
           contentHash: 'synthetic-scan-v1',
           sourceFile: { bytes: PNG, fileName: 'Orion scan.png', mimeType: 'image/png' },
         },
-        orgOwned
-          ? { userId: ids.aliceId, workspaceId: null, organizationId: ids.organizationId }
-          : { userId: ids.aliceId, workspaceId: ids.workspaceId },
+        { userId: ids.aliceId, workspaceId: ids.workspaceId },
         undefined,
-        scope === 'member source' ? 'members' : orgOwned ? 'admin' : 'workspace',
+        scope === 'member source' ? 'members' : 'workspace',
         lease
       )
       if (scope === 'regular KB') {
@@ -174,11 +145,6 @@ describe('provider throttling resumes the shared indexing pipeline', () => {
           memberFixture.runId
         )
         await materializeDocumentAcls(connectorId, [file.documentId])
-      } else {
-        await persistDocumentAcls(
-          connectorId,
-          new Map([['orion-scan', [`u:${ids.aliceId}@fixture.test`]]])
-        )
       }
 
       let ocrRequests = 0
@@ -254,15 +220,10 @@ describe('provider throttling resumes the shared indexing pipeline', () => {
           arrayBuffer: () => response.arrayBuffer(),
         }
       })
-      const billing = orgOwned
-        ? await resolveOrganizationBillingAttribution({
-            actorUserId: ids.aliceId,
-            organizationId: ids.organizationId,
-          })
-        : await resolveBillingAttribution({
-            actorUserId: ids.aliceId,
-            workspaceId: ids.workspaceId,
-          })
+      const billing = await resolveBillingAttribution({
+        actorUserId: ids.aliceId,
+        workspaceId: ids.workspaceId,
+      })
       const requestId = generateId()
       const startedAt = Date.now()
       const holdParentHandoff = scope === 'regular KB'
@@ -425,26 +386,16 @@ describe('provider throttling resumes the shared indexing pipeline', () => {
         expect(ocrRequests).toBe(2)
         expect(await charges()).toHaveLength(1)
         const principal = { kind: 'session' as const, userId: ids.aliceId, sessionId: generateId() }
-        const result = orgOwned
-          ? await searchScopedKnowledge.execute({
-              principal,
-              input: {
-                organizationId: ids.organizationId,
-                query: 'Orion',
-                topK: 3,
-                searchMode: 'hybrid',
-              },
-            })
-          : await searchKnowledge.execute({
-              principal,
-              input: {
-                workspaceId: ids.workspaceId,
-                knowledgeBaseIds: [ids.knowledgeBaseId],
-                query: 'Orion',
-                topK: 3,
-                searchMode: 'hybrid',
-              },
-            })
+        const result = await searchKnowledge.execute({
+          principal,
+          input: {
+            workspaceId: ids.workspaceId,
+            knowledgeBaseIds: [ids.knowledgeBaseId],
+            query: 'Orion',
+            topK: 3,
+            searchMode: 'hybrid',
+          },
+        })
         expect(result.results.map((row) => row.documentId)).toContain(file.documentId)
         if (scope === 'member source') {
           const hidden = await searchKnowledge.execute({

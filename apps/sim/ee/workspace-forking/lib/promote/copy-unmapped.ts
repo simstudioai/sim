@@ -168,7 +168,6 @@ export async function copyPromoteUnmappedResources(params: {
   edge: ForkEdge
   sourceWorkspaceId: string
   targetWorkspaceId: string
-  direction: 'push' | 'pull'
   userId: string
   now: Date
   selection: PromoteCopySelection
@@ -200,7 +199,6 @@ export async function copyPromoteUnmappedResources(params: {
     edge,
     sourceWorkspaceId,
     targetWorkspaceId,
-    direction,
     userId,
     now,
     selection,

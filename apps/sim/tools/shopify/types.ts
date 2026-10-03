@@ -550,17 +550,6 @@ export const CANCEL_ORDER_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 // Common GraphQL Response Types
-interface ShopifyGraphQLError {
-  message: string
-  locations?: { line: number; column: number }[]
-  path?: string[]
-  extensions?: Record<string, unknown>
-}
-
-interface ShopifyUserError {
-  field: string[]
-  message: string
-}
 
 // Product Types
 interface ShopifyProduct {
@@ -707,17 +696,6 @@ interface ShopifyInventoryLevel {
   location: {
     id: string
     name: string
-  }
-}
-
-interface ShopifyInventoryItem {
-  id: string
-  sku: string | null
-  tracked: boolean
-  inventoryLevels: {
-    edges: Array<{
-      node: ShopifyInventoryLevel
-    }>
   }
 }
 

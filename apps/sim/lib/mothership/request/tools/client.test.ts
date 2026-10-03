@@ -1,41 +1,23 @@
-/**
- * @vitest-environment node
- */
-
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  encryptSecret,
-  decryptSecret,
-  waitForToolConfirmation,
-  replaceTerminalAsyncToolCallResult,
-  getTrustedWorkflowToolExecution,
-  mockError,
-} = vi.hoisted(() => ({
-  encryptSecret: vi.fn(),
-  decryptSecret: vi.fn(),
+const { waitForToolConfirmation, getTrustedWorkflowToolExecution } = vi.hoisted(() => ({
   waitForToolConfirmation: vi.fn(),
-  replaceTerminalAsyncToolCallResult: vi.fn(),
   getTrustedWorkflowToolExecution: vi.fn(),
-  mockError: vi.fn(),
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ error: mockError, warn: vi.fn(), info: vi.fn(), debug: vi.fn() }),
-}))
-
-vi.mock('@/lib/core/security/encryption', () => ({
-  encryptSecret,
-  decryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/mothership/persistence/tool-confirm', () => ({
   waitForToolConfirmation,
 }))
 
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  replaceTerminalAsyncToolCallResult,
-}))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 vi.mock('@/lib/workflows/executor/execution-state', () => ({
   getTrustedWorkflowToolExecution,
@@ -48,6 +30,11 @@ import {
 import { sealClientToolContext } from '@/lib/mothership/request/tools/client-completion-seal.server'
 import { TOOL_RESULT_UNAVAILABLE_ERROR } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const { mockEncryptSecret: encryptSecret, mockDecryptSecret: decryptSecret } = encryptionMockFns
+const { mockReplaceTerminalAsyncToolCallResult: replaceTerminalAsyncToolCallResult } =
+  mothershipAsyncRunsMockFns
+const mockError = getMockLogger('CopilotClientToolWaiter').error
 
 const TRACE_SCOPE = { userId: 'user-1', workspaceId: 'workspace-1' }
 
@@ -100,7 +87,6 @@ function trustedExecution(executionId: string) {
 
 describe('workflow client tool completion', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     decryptSecret.mockImplementation(async (encrypted: string) => ({
       decrypted:
         encrypted === 'encrypted-parent-secret'
@@ -214,6 +200,187 @@ describe('workflow client tool completion', () => {
     expect(JSON.stringify(replaceTerminalAsyncToolCallResult.mock.calls)).not.toContain(
       'parent-secret-value'
     )
+  })
+
+  /**
+   * A browser-run workflow reaches the model through this restoration, not the server handler, so
+   * it needs the same block-log budget: a synthetic run whose block outputs exceed the projection's
+   * traversal cap would otherwise be withheld whole once a secret is active.
+   */
+  it('bounds bulky block-log outputs so a large browser run still projects', async () => {
+    const rows = (count: number) =>
+      Array.from({ length: count }, (_, index) => ({
+        id: `row_${index}`,
+        data: { a: 'x', b: 'y', c: 'z', d: 'w' },
+      }))
+    getTrustedWorkflowToolExecution.mockResolvedValue({
+      ...trustedExecution('execution-1'),
+      blockLogs: [
+        { blockId: 'small', blockName: 'Small', output: { count: 1 } },
+        ...Array.from({ length: 4 }, (_, index) => ({
+          blockId: `query-${index}`,
+          blockName: `Query ${index}`,
+          output: { rows: rows(5_000) },
+        })),
+      ],
+    })
+    waitForToolConfirmation.mockResolvedValue({
+      status: 'success',
+      data: { workflowId: 'workflow-1', executionId: 'execution-1' },
+    })
+
+    const completion = await waitForWorkflowToolCompletion({
+      toolCallId: 'tool-1',
+      workflowId: 'workflow-1',
+      timeoutMs: 1_000,
+      registry: createParentRegistry(),
+    })
+
+    const data = completion?.data as Record<string, unknown>
+    expect(data.output).toEqual({ value: 'child read {{PARENT_SECRET}} from execution-1' })
+    const logs = data.logs as Array<Record<string, unknown>>
+    expect(logs[0]?.output).toEqual({ count: 1 })
+    expect(logs.some((log) => typeof log.output === 'string')).toBe(true)
+    for (const log of logs.filter((entry) => typeof entry.output === 'string')) {
+      expect(log.output).toContain('logs get execution-1 --trace')
+    }
+    expect(JSON.stringify(completion)).not.toContain('parent-secret-value')
+  })
+
+  /** Without an active secret a browser run's logs cross untouched, as they always have. */
+  it('leaves a browser run without an active secret untouched', async () => {
+    const blockLogs = [
+      {
+        blockId: 'fn',
+        blockName: 'Function',
+        input: { code: 'x'.repeat(3_000) },
+        output: { ok: 1 },
+      },
+    ]
+    getTrustedWorkflowToolExecution.mockResolvedValue({
+      ...trustedExecution('execution-1'),
+      finalOutput: { value: 'plain' },
+      blockLogs,
+      provenance: { version: 1 as const, complete: true, entries: [], scope: TRACE_SCOPE },
+    })
+    waitForToolConfirmation.mockResolvedValue({
+      status: 'success',
+      data: { workflowId: 'workflow-1', executionId: 'execution-1' },
+    })
+
+    const completion = await waitForWorkflowToolCompletion({
+      toolCallId: 'tool-1',
+      workflowId: 'workflow-1',
+      timeoutMs: 1_000,
+      registry: new ResolvedSecretTraceRegistry([], TRACE_SCOPE),
+    })
+
+    expect(Object.keys(completion?.data as object)).toEqual([
+      'success',
+      'workflowId',
+      'executionId',
+      'output',
+      'logs',
+    ])
+    expect((completion?.data as Record<string, unknown>).logs).toEqual(blockLogs)
+  })
+
+  /** Parity with the server path: a final output that would push the result past a cap is replaced. */
+  it('replaces an oversized final output so a browser run still projects', async () => {
+    const rows = Array.from({ length: 20_000 }, (_, index) => ({
+      id: `row_${index}`,
+      data: { a: 'x', b: 'y', c: 'z', d: 'w' },
+    }))
+    getTrustedWorkflowToolExecution.mockResolvedValue({
+      ...trustedExecution('execution-1'),
+      finalOutput: { rows },
+      blockLogs: [{ blockId: 'small', blockName: 'Small', output: { count: 1 } }],
+    })
+    waitForToolConfirmation.mockResolvedValue({
+      status: 'success',
+      data: { workflowId: 'workflow-1', executionId: 'execution-1' },
+    })
+
+    const completion = await waitForWorkflowToolCompletion({
+      toolCallId: 'tool-1',
+      workflowId: 'workflow-1',
+      timeoutMs: 1_000,
+      registry: createParentRegistry(),
+    })
+
+    const data = completion?.data as Record<string, unknown>
+    expect(data.output).toEqual(expect.stringContaining('logs get execution-1 --trace'))
+    expect((data.logs as Array<Record<string, unknown>>)[0]?.output).toEqual({ count: 1 })
+  })
+
+  /** Parity with the server path: a `select` is resolved from raw logs before projection. */
+  it('projects selected values from a large browser run instead of withholding it', async () => {
+    const rows = (count: number) =>
+      Array.from({ length: count }, (_, index) => ({
+        id: `row_${index}`,
+        data: { a: 'x', b: 'y', c: 'z', d: 'w' },
+      }))
+    getTrustedWorkflowToolExecution.mockResolvedValue({
+      ...trustedExecution('execution-1'),
+      blockLogs: [
+        { blockId: 'reader', blockName: 'Reader', output: { token: 'parent-secret-value', n: 2 } },
+        ...Array.from({ length: 4 }, (_, index) => ({
+          blockId: `query-${index}`,
+          blockName: `Query ${index}`,
+          output: { rows: rows(5_000) },
+        })),
+      ],
+    })
+    waitForToolConfirmation.mockResolvedValue({
+      status: 'success',
+      data: { workflowId: 'workflow-1', executionId: 'execution-1' },
+    })
+
+    const completion = await waitForWorkflowToolCompletion({
+      toolCallId: 'tool-1',
+      workflowId: 'workflow-1',
+      timeoutMs: 1_000,
+      registry: createParentRegistry(),
+      select: ['Reader.token', 'Reader.n'],
+    })
+
+    expect(completion?.data).toMatchObject({
+      output: { value: 'child read {{PARENT_SECRET}} from execution-1' },
+      selected: { 'Reader.token': '{{PARENT_SECRET}}', 'Reader.n': 2 },
+      logsOmitted: true,
+    })
+    expect(completion?.data).not.toHaveProperty('logs')
+    expect(JSON.stringify(completion)).not.toContain('parent-secret-value')
+  })
+
+  /** Parity with the server path: echoed block inputs are truncated before projection. */
+  it('truncates long echoed block inputs on a browser run', async () => {
+    getTrustedWorkflowToolExecution.mockResolvedValue({
+      ...trustedExecution('execution-1'),
+      blockLogs: [
+        {
+          blockId: 'fn',
+          blockName: 'Function',
+          input: { code: 'c'.repeat(5_000) },
+          output: { ok: true },
+        },
+      ],
+    })
+    waitForToolConfirmation.mockResolvedValue({
+      status: 'success',
+      data: { workflowId: 'workflow-1', executionId: 'execution-1' },
+    })
+
+    const completion = await waitForWorkflowToolCompletion({
+      toolCallId: 'tool-1',
+      workflowId: 'workflow-1',
+      timeoutMs: 1_000,
+      registry: createParentRegistry(),
+    })
+
+    const logs = (completion?.data as { logs: Array<{ input: { code: string } }> }).logs
+    expect(logs[0]?.input.code).toContain('logs get execution-1 --trace')
+    expect(logs[0]?.input.code.length).toBeLessThan(400)
   })
 
   it('preserves the server-confirmed status while omitting unavailable execution content', async () => {
@@ -483,6 +650,8 @@ describe('workflow client tool completion', () => {
         success: true,
         workflowId: 'workflow-1',
         executionId: 'execution-1',
+        resultWithheld: true,
+        withheldReason: expect.stringMatching(/could not be checked/),
       },
     })
     expect(registry.isComplete()).toBe(true)
@@ -585,6 +754,8 @@ describe('workflow client tool completion', () => {
         success: true,
         workflowId: 'workflow-1',
         executionId: 'execution-1',
+        resultWithheld: true,
+        withheldReason: expect.stringMatching(/could not be verified/),
       },
     })
     expect(registry.isComplete()).toBe(true)
@@ -663,7 +834,6 @@ describe('workflow client tool completion', () => {
 
 describe('generic client tool completion', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     encryptSecret.mockImplementation(async (plaintext: string) => ({
       encrypted: plaintext,
       iv: 'iv',

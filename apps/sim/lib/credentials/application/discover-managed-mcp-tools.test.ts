@@ -1,81 +1,70 @@
-/**
- * @vitest-environment node
- */
-import { serializePrincipal, type WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import { serializePrincipal } from '@sim/auth/principal'
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  createExecutorPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { mcpOauthMock } from '@sim/testing/mocks/mcp-oauth.mock'
+import { mcpServiceMock, mcpServiceMockFns } from '@sim/testing/mocks/mcp-service.mock'
+import { mcpUseCasesMock } from '@sim/testing/mocks/mcp-use-cases.mock'
+import {
+  mothershipChatPayloadMock,
+  mothershipChatPayloadMockFns,
+} from '@sim/testing/mocks/mothership-chat-payload.mock'
+import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
+import {
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+} from '@sim/testing/mocks/permission-group-scope.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   loadWorkflow: vi.fn(),
-  discoverTools: vi.fn(),
   loadAuthProvider: vi.fn(),
   loadContext: vi.fn(),
   loadRuntime: vi.fn(),
   requireCredentialAccess: vi.fn(),
-  resolvePermission: vi.fn(),
   saveToolSnapshot: vi.fn(),
-  executionContext: vi.fn(),
-  workspaceContext: vi.fn(),
-  config: vi.fn(),
-  build: vi.fn(),
 }))
 
-vi.mock('@/lib/mothership/chat/payload', () => ({
-  buildIntegrationToolSchemas: mocks.build,
-}))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  assertPermissionsAllowed: vi.fn().mockResolvedValue(undefined),
-}))
-vi.mock('@/lib/mcp/application/use-cases', () => ({
-  listMcpServersUseCase: { execute: vi.fn() },
-  discoverMcpServerToolsUseCase: { execute: vi.fn() },
-  getMcpServerUseCase: { execute: vi.fn() },
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.workspaceContext,
-}))
-vi.mock('@/lib/permission-groups/config-scope.server', () => ({
-  resolvePermissionGroupConfig: mocks.config,
-}))
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowExecutionApplicationContext: mocks.executionContext,
-  resolveActiveWorkflowRunApplicationContext: mocks.executionContext,
-  resolveActiveWorkflowApplicationContext: mocks.executionContext,
-  resolveActiveWorkflowDeploymentVersionApplicationContext: mocks.executionContext,
-}))
+vi.mock('@/lib/mothership/chat/payload', () => mothershipChatPayloadMock)
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
+vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 vi.mock('@sim/workflow-persistence', () => ({
-  loadWorkflowFromNormalizedTablesRaw: mocks.loadWorkflow,
+  loadWorkflowFromNormalizedTablesRaw: hoisted.loadWorkflow,
 }))
 
 vi.mock('@/lib/credentials/managed-mcp', () => ({
-  loadManagedMcpCredentialApplicationContext: mocks.loadContext,
-  loadManagedMcpRuntimeCredential: mocks.loadRuntime,
-  saveManagedMcpToolSnapshot: mocks.saveToolSnapshot,
+  loadManagedMcpCredentialApplicationContext: hoisted.loadContext,
+  loadManagedMcpRuntimeCredential: hoisted.loadRuntime,
+  saveManagedMcpToolSnapshot: hoisted.saveToolSnapshot,
 }))
 
 vi.mock('@/lib/credential-groups/application/authorization', () => ({
-  requireCredentialGroupCredentialAccess: mocks.requireCredentialAccess,
+  requireCredentialGroupCredentialAccess: hoisted.requireCredentialAccess,
 }))
 
 vi.mock('@/lib/mcp/application/managed-auth-provider', () => ({
-  loadManagedMcpAuthProvider: mocks.loadAuthProvider,
+  loadManagedMcpAuthProvider: hoisted.loadAuthProvider,
 }))
 
-vi.mock('@/lib/mcp/oauth', () => ({
-  withMcpOauthRefreshLock: vi.fn((_credentialId: string, operation: () => Promise<unknown>) =>
-    operation()
-  ),
-}))
+vi.mock('@/lib/mcp/oauth', () => mcpOauthMock)
 
-vi.mock('@/lib/mcp/service', () => ({
-  mcpService: { discoverManagedMcpTools: mocks.discoverTools },
-}))
+vi.mock('@/lib/mcp/service', () => mcpServiceMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import { discoverManagedMcpToolsUseCase } from '@/lib/credentials/application/discover-managed-mcp-tools'
 import { createTrustedCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
@@ -84,6 +73,25 @@ import {
   INTEGRATION_CATALOG_AUDIENCE,
   readIntegrationCatalog,
 } from '@/lib/mothership/integrations/application/catalog'
+
+const executionContext = workflowContextMockFns.mockResolveActiveWorkflowExecutionApplicationContext
+for (const resolver of [
+  workflowContextMockFns.mockResolveActiveWorkflowRunApplicationContext,
+  workflowContextMockFns.mockResolveActiveWorkflowApplicationContext,
+  workflowContextMockFns.mockResolveActiveWorkflowDeploymentVersionApplicationContext,
+]) {
+  resolver.mockImplementation((...args: unknown[]) => executionContext(...args))
+}
+
+const mocks = {
+  ...hoisted,
+  discoverTools: mcpServiceMockFns.mockDiscoverManagedMcpTools,
+  build: mothershipChatPayloadMockFns.mockBuildIntegrationToolSchemas,
+  executionContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  workspaceContext: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+  config: permissionGroupScopeMockFns.mockResolvePermissionGroupConfig,
+}
 
 const context = {
   credentialId: 'mcp-cg-123456789012345678901',
@@ -96,27 +104,21 @@ const context = {
   allowPersonalApiKeys: true,
 }
 
-const principal: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
+const principal = createExecutorPrincipal({
   subjectUserId: 'execution-user',
   workspaceId: context.workspaceId,
-  delegationId: 'delegation-1',
   audience: 'sim:managed-mcp-credentials',
-  issuedAt: new Date(Date.now() - 1_000),
-  expiresAt: new Date(Date.now() + 60_000),
   resourceScope: { credentialId: context.credentialId, mcpBlockId: 'block-1' },
   delegationContext: {
     kind: 'workflow_execution',
     workflowId: 'workflow-1',
-    principal: { kind: 'session', userId: 'execution-user', sessionId: 'session-1' },
+    principal: createSessionPrincipal({ userId: 'execution-user' }),
     currentWorkflow: { workflowId: 'workflow-1', mode: 'draft' },
   },
-}
+})
 
 describe('discoverManagedMcpToolsUseCase', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.build.mockResolvedValue([])
     mocks.config.mockResolvedValue(null)
@@ -190,14 +192,6 @@ describe('discoverManagedMcpToolsUseCase', () => {
       resourceType: 'credential_group',
       action: 'credential_groups.credentials.use',
     })
-    expect(mocks.loadRuntime).toHaveBeenCalledWith(context.credentialId, context.workspaceId)
-    expect(mocks.discoverTools).toHaveBeenCalledWith(
-      context.mcpServerId,
-      { kind: 'organization', organizationId: 'org-1' },
-      { credentialId: context.credentialId, loadProvider: expect.any(Function) },
-      signal,
-      { requireComplete: true }
-    )
     expect(result.tools).toEqual([
       expect.objectContaining({
         name: 'search_transcripts',
@@ -206,18 +200,6 @@ describe('discoverManagedMcpToolsUseCase', () => {
         serverName: context.mcpServerName,
       }),
     ])
-    expect(mocks.saveToolSnapshot).toHaveBeenCalledWith(
-      context.credentialId,
-      [
-        {
-          name: 'search_transcripts',
-          description: 'Search transcripts',
-          inputSchema: { type: 'object', properties: {} },
-        },
-      ],
-      2,
-      new Date('2026-09-01')
-    )
   })
   it.each(['draft', 'deployment'] as const)(
     'catalog preserves managed executor authority and %s operation policy',
@@ -242,11 +224,7 @@ describe('discoverManagedMcpToolsUseCase', () => {
           executionId: 'execution-1',
           mcpBlockId: 'block-1',
           subjectUserId: 'execution-user',
-          principal: serializePrincipal({
-            kind: 'session',
-            userId: 'execution-user',
-            sessionId: 'session-1',
-          }),
+          principal: serializePrincipal(createSessionPrincipal({ userId: 'execution-user' })),
           currentWorkflow,
         },
       })

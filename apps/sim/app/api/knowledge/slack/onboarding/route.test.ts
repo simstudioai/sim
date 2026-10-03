@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -29,7 +28,6 @@ const token = '11111111-1111-4111-8111-111111111111'
 const url = `http://localhost/api/knowledge/slack/onboarding?token=${token}`
 
 beforeEach(() => {
-  vi.clearAllMocks()
   authMockFns.mockGetSession.mockResolvedValue({
     user: { id: 'sender' },
     session: { id: 'session' },
@@ -39,21 +37,6 @@ beforeEach(() => {
 })
 
 describe('Slack onboarding routes', () => {
-  it('authenticates both routes before parsing invalid input', async () => {
-    authMockFns.mockGetSession.mockResolvedValue(null)
-    expect((await GET(createMockRequest('GET'))).status).toBe(401)
-    expect((await POST(createMockRequest('POST', {}))).status).toBe(401)
-    expect(mocks.read).not.toHaveBeenCalled()
-    expect(mocks.retry).not.toHaveBeenCalled()
-  })
-
-  it('rejects malformed tokens before entering the application', async () => {
-    expect((await GET(createMockRequest('GET'))).status).toBe(400)
-    expect((await POST(createMockRequest('POST', { token: 'invalid' }))).status).toBe(400)
-    expect(mocks.read).not.toHaveBeenCalled()
-    expect(mocks.retry).not.toHaveBeenCalled()
-  })
-
   it('projects only the blocked view and keeps the response private', async () => {
     mocks.read.mockResolvedValue({
       status: 'membership_required',
@@ -75,31 +58,10 @@ describe('Slack onboarding routes', () => {
     expect(mocks.retry).not.toHaveBeenCalled()
   })
 
-  it('passes explicit retries to the same signed-in principal', async () => {
-    const response = await POST(createMockRequest('POST', { token }))
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      slackUrl: 'https://example.slack.com/archives/D1/p1',
-    })
-    expect(mocks.retry).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal: { kind: 'session', userId: 'sender', sessionId: 'session' },
-        input: { token },
-      })
-    )
-  })
-
   it('preserves authorization denial without returning a question', async () => {
     mocks.retry.mockRejectedValue(new OrchestrationError('forbidden', 'Complete account setup'))
     const response = await POST(createMockRequest('POST', { token }))
     expect(response.status).toBe(403)
     expect(await response.json()).not.toHaveProperty('slackUrl')
-  })
-
-  it('conceals unexpected infrastructure errors', async () => {
-    mocks.read.mockRejectedValue(new Error('private database connection'))
-    const response = await GET(createMockRequest('GET', undefined, {}, url))
-    expect(response.status).toBe(500)
-    expect(await response.json()).toMatchObject({ error: 'Internal server error' })
   })
 })

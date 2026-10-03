@@ -1,3 +1,4 @@
+import { sleep } from '@sim/utils/helpers'
 import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import { type Command, Option } from 'commander'
 import { printError, writeStderr } from '#sim-cli/output/io'
@@ -7,7 +8,6 @@ import { CLI_CONTRACT } from '../../contract/commands'
 import type { CommandSpec } from '../../contract/types'
 import { setSoftExitCode } from '../../embed-context'
 import { V2_OPERATIONS } from '../../generated/v2-api'
-import { sleep } from '../../helpers'
 import { resolvePath, SimApiError } from '../../http/client'
 import { renderResult } from '../../runtime/result'
 

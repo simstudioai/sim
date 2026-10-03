@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
-import { cn, pageHeadingClassName, toast } from '@sim/emcn'
+import { toast } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useQueryStates } from 'nuqs'
@@ -9,19 +9,20 @@ import { requestJson } from '@/lib/api/client/request'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
-import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import {
   getMothershipAttachmentPreviewUrl,
   getMothershipAttachmentUrl,
 } from '@/lib/mothership/chat/attachment-preview'
 import { createSearchResource } from '@/lib/mothership/resources/search'
+import { OrganizationLanding } from '@/app/o/[organizationId]/components/organization-landing'
 import { Composer } from '@/app/o/[organizationId]/home/components/composer'
 import { GetStarted } from '@/app/o/[organizationId]/home/components/get-started'
 import { organizationHomeParsers } from '@/app/o/[organizationId]/home/search-params'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { organizationSearchUrlKeys } from '@/app/o/[organizationId]/search/search-params'
 import { ChatResourcePanel } from '@/app/workspace/[workspaceId]/home/components/chat-resource-panel'
+import { useSearchHistoryActions } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
 import { SearchIntegrationConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'
 import { SuggestedActions } from '@/app/workspace/[workspaceId]/home/components/suggested-actions'
@@ -137,9 +138,8 @@ function OrganizationHomeContent({
   const hasChat = Boolean(chatId || chat.messages.length)
   const canSelectMode =
     !hasChat && mothershipAvailable && canBuild && (searchAccess.memberScoped || planEnabled)
-  const liveSearch = getDeploymentShape().features.liveEnterpriseSearch === true
   const assistantSearchLevel = 'fast'
-  const panel = useChatResourcePanel(chat, controller)
+  const panel = useChatResourcePanel(chat, controller, userId)
   const addResource = panel.addResourceFromUser
   /** Restore only an explicitly selected results tab on an empty Home; closing it clears the URL. */
   useEffect(() => {
@@ -223,6 +223,7 @@ function OrganizationHomeContent({
   useEffect(() => {
     if (chat.error) toast.error(chat.error)
   }, [chat.error])
+  const { recordQuery } = useSearchHistoryActions()
   const { sendMessage } = chat
   const { mutate: markRead } = useMarkMothershipChatRead({ organizationId: organization.id })
   const firstName = userName?.split(' ')[0] ?? ''
@@ -254,7 +255,7 @@ function OrganizationHomeContent({
         ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
       })
     }
-  }, [chatId, organization.id, requestMode, sendMessage, assistantSearchLevel, liveSearch])
+  }, [chatId, organization.id, requestMode, sendMessage, assistantSearchLevel])
 
   const send = (
     message: string,
@@ -263,6 +264,7 @@ function OrganizationHomeContent({
     assistantSearch?: WorkspaceSearchFilters
   ) => {
     if (requestMode !== 'assistant' && !canBuild) return
+    if (requestMode === 'assistant') recordQuery(message)
     setSelectedMode(requestMode)
     if (requestMode !== 'assistant') panel.prepareResourceViewForAgentTurn()
     void sendMessage(message, fileAttachments, contexts, {
@@ -334,6 +336,14 @@ function OrganizationHomeContent({
     <div className='flex h-full min-h-0 min-w-[min(480px,100%)] flex-1 flex-col bg-[var(--bg)]'>
       {hasChat ? (
         <MothershipChat
+          onViewSources={(messageId, requestId) =>
+            addResource({
+              type: 'sources',
+              id: 'cited-sources',
+              title: 'Sources',
+              sources: { messageId, ...(requestId ? { requestId } : {}) },
+            })
+          }
           SearchConnectionComponent={SearchIntegrationConnection}
           messages={chat.messages}
           isSending={chat.isSending}
@@ -378,39 +388,30 @@ function OrganizationHomeContent({
           chatId={chat.resolvedChatId}
           composer={composer}
           onWorkspaceResourceSelect={requestMode !== 'assistant' ? selectResource : undefined}
-          initialScrollBlocked={
-            (requestMode !== 'assistant' || liveSearch) &&
-            chat.resources.length > 0 &&
-            panel.isResourceCollapsed
-          }
+          initialScrollBlocked={chat.resources.length > 0 && panel.isResourceCollapsed}
         />
       ) : (
-        <div className='min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]'>
-          {/* Asymmetric padding biases the group up so the full cluster (heading + input + steps) sits at the optical center */}
-          <div className='flex min-h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[22vh]'>
-            <h1 className={cn(pageHeadingClassName, 'mb-7 max-w-chat')}>
-              {requestMode === 'assistant'
-                ? `Search ${organization.name}`
-                : requestMode === 'plan'
-                  ? `What should we understand and plan${firstName ? `, ${firstName}` : ''}?`
-                  : `What should we get done${firstName ? `, ${firstName}` : ''}?`}
-            </h1>
-            <div className='relative w-full max-w-chat'>
-              {composer}
-              {/* Anchored out of flow so expanding/collapsing never shifts the centered input */}
-              <div className='absolute inset-x-0 top-full'>
-                {requestMode === 'agent' ? (
-                  <SuggestedActions
-                    organizationId={organization.id}
-                    onSelectPrompt={(prompt) => setDraft(mentionifyIntegrations(prompt))}
-                  />
-                ) : searchAccess.memberScoped ? (
-                  <GetStarted />
-                ) : null}
-              </div>
-            </div>
+        <OrganizationLanding
+          heading={
+            requestMode === 'assistant'
+              ? `Search ${organization.name}`
+              : requestMode === 'plan'
+                ? `What should we understand and plan${firstName ? `, ${firstName}` : ''}?`
+                : `What should we get done${firstName ? `, ${firstName}` : ''}?`
+          }
+        >
+          {composer}
+          <div className='absolute inset-x-0 top-full'>
+            {requestMode === 'agent' ? (
+              <SuggestedActions
+                organizationId={organization.id}
+                onSelectPrompt={(prompt) => setDraft(mentionifyIntegrations(prompt))}
+              />
+            ) : searchAccess.memberScoped ? (
+              <GetStarted />
+            ) : null}
           </div>
-        </div>
+        </OrganizationLanding>
       )}
     </div>
   )

@@ -1,4 +1,5 @@
 import type { ListMessagesParams, ListMessagesResult } from '@/tools/mailgun/types'
+import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const mailgunListMessagesTool: ToolConfig<ListMessagesParams, ListMessagesResult> = {
@@ -13,6 +14,12 @@ export const mailgunListMessagesTool: ToolConfig<ListMessagesParams, ListMessage
       required: true,
       visibility: 'user-only',
       description: 'Mailgun API key',
+    },
+    region: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Mailgun account region: "us" (default) or "eu"',
     },
     domain: {
       type: 'string',
@@ -36,7 +43,7 @@ export const mailgunListMessagesTool: ToolConfig<ListMessagesParams, ListMessage
 
   request: {
     url: (params) => {
-      const baseUrl = `https://api.mailgun.net/v3/${params.domain}/events`
+      const baseUrl = `${getMailgunApiBaseUrl(params.region)}/${params.domain}/events`
       const queryParams = new URLSearchParams()
 
       if (params.event) {
@@ -55,7 +62,7 @@ export const mailgunListMessagesTool: ToolConfig<ListMessagesParams, ListMessage
     }),
   },
 
-  transformResponse: async (response, params): Promise<ListMessagesResult> => {
+  transformResponse: async (response): Promise<ListMessagesResult> => {
     if (!response.ok) {
       const error = await response.json()
       throw new Error(error.message || 'Failed to list messages')

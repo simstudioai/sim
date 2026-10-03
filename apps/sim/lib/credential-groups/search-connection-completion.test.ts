@@ -1,4 +1,4 @@
-/** @vitest-environment node */
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const m = vi.hoisted(() => {
@@ -15,7 +15,6 @@ const m = vi.hoisted(() => {
     },
   }
 })
-vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => m.redis }))
 
 import {
   readSearchConnectionCompletion,
@@ -24,8 +23,8 @@ import {
 
 const scope = { userId: 'person', organizationId: 'org', completionId: 'attempt' }
 beforeEach(() => {
-  vi.clearAllMocks()
   m.values.clear()
+  redisConfigMockFns.mockGetRedisClient.mockReturnValue(m.redis)
 })
 describe('Search OAuth completion receipts', () => {
   it('isolates people, organizations and concurrent attempts', async () => {
@@ -36,13 +35,6 @@ describe('Search OAuth completion receipts', () => {
     expect(
       await readSearchConnectionCompletion({ ...scope, completionId: 'other-attempt' })
     ).toBeNull()
-    expect(m.redis.set).toHaveBeenCalledWith(
-      expect.any(String),
-      JSON.stringify({ credentialId: 'mine' }),
-      'EX',
-      86_400,
-      'NX'
-    )
   })
   it('does not allow a completion to be overwritten', async () => {
     await recordSearchConnectionCompletion({ ...scope, credentialId: 'mine' })

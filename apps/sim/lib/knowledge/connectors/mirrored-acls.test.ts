@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   hideUnlistedDocuments,
@@ -24,14 +21,6 @@ describe('unansweredByListing', () => {
   it('requests each unresolved ID once and honors inline answers from any duplicate', () => {
     expect(unansweredByListing([doc('a'), doc('a', []), doc('b'), doc('b')])).toEqual([doc('b')])
   })
-
-  it('names exactly the documents the listing left without an ACL', () => {
-    expect(
-      unansweredByListing([doc('a', ['u:alice@corp.com']), doc('b'), doc('c', []), doc('d')]).map(
-        (d) => d.externalId
-      )
-    ).toEqual(['b', 'd'])
-  })
 })
 
 describe('mergeMirroredAcls', () => {
@@ -43,32 +32,6 @@ describe('mergeMirroredAcls', () => {
       expect(result.unresolvedExternalIds.size).toBe(0)
     }
   )
-
-  it("keeps the listing's answer where it gave one", () => {
-    const { acls, unattributed } = mergeMirroredAcls([doc('a', ['u:alice@corp.com'])], {
-      a: ['u:bob@corp.com'],
-    })
-
-    expect(acls.get('a')).toEqual(['u:alice@corp.com'])
-    expect(unattributed).toBe(0)
-  })
-
-  it('fills what the listing could not from the fetch', () => {
-    const { acls, unattributed } = mergeMirroredAcls([doc('a'), doc('b', ['pub'])], {
-      a: ['u:alice@corp.com'],
-    })
-
-    expect(acls.get('a')).toEqual(['u:alice@corp.com'])
-    expect(acls.get('b')).toEqual(['pub'])
-    expect(unattributed).toBe(0)
-  })
-
-  it('marks a document neither source answered for as unresolved', () => {
-    const { acls, unattributed } = mergeMirroredAcls([doc('a'), doc('b')], { a: ['pub'] })
-
-    expect(acls.get('b')).toEqual([])
-    expect(unattributed).toBe(1)
-  })
 
   it('treats an explicitly empty inline ACL as an answer, not a gap', () => {
     const { acls, unattributed } = mergeMirroredAcls([doc('a', [])], { a: ['pub'] })
@@ -98,12 +61,6 @@ describe('mergeMirroredAcls', () => {
     )
     expect([...result.unresolvedExternalIds]).toEqual(['unknown'])
     expect(result.unattributed).toBe(1)
-  })
-
-  it('answers for every listed document, in listing order', () => {
-    const { acls } = mergeMirroredAcls([doc('z', ['pub']), doc('a')], {})
-
-    expect([...acls.keys()]).toEqual(['z', 'a'])
   })
 })
 

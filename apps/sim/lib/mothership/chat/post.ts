@@ -38,10 +38,19 @@ import {
 } from '@/lib/mothership/chat/assistant-images'
 import { buildOnComplete, buildOnError } from '@/lib/mothership/chat/completion'
 import {
+  MAX_CHAT_CONTEXT_LABEL_LENGTH,
+  MAX_CHAT_CONTEXTS,
+  MAX_CHAT_MESSAGE_LENGTH,
+} from '@/lib/mothership/chat/context-limits'
+import {
   DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
   DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH,
 } from '@/lib/mothership/chat/desktop-capabilities'
-import { type ChatLoadResult, resolveOrCreateChat } from '@/lib/mothership/chat/lifecycle'
+import {
+  type ChatLoadResult,
+  loadChatMcpServerIds,
+  resolveOrCreateChat,
+} from '@/lib/mothership/chat/lifecycle'
 import { authorizeOrganizationChat } from '@/lib/mothership/chat/organization-chats'
 import { buildCopilotRequestPayload } from '@/lib/mothership/chat/payload'
 import {
@@ -120,6 +129,7 @@ const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['t
   table: 'Table',
   integration: 'Integration',
   file: 'File',
+  dashboard: 'Dashboard',
   knowledgebase: 'Knowledge Base',
   folder: 'Folder',
   filefolder: 'File Folder',
@@ -205,6 +215,7 @@ const ChatContextSchema = z
       'table_selection',
       'file',
       'file_selection',
+      'dashboard',
       'folder',
       'filefolder',
       'integration',
@@ -212,8 +223,9 @@ const ChatContextSchema = z
       'mcp',
       'browser_tab',
       'terminal_tab',
+      'workspace',
     ]),
-    label: z.string(),
+    label: z.string().max(MAX_CHAT_CONTEXT_LABEL_LENGTH),
     chatId: z.string().optional(),
     workflowId: z.string().optional(),
     knowledgeId: z.string().optional(),
@@ -225,6 +237,7 @@ const ChatContextSchema = z
     viewId: mothershipResourceSchema.shape.viewId,
     currentView: mothershipTableViewContextSchema.optional(),
     fileId: z.string().optional(),
+    dashboardId: z.string().optional(),
     folderId: z.string().optional(),
     fileFolderId: z.string().optional(),
     skillId: z.string().optional(),
@@ -242,7 +255,14 @@ const ChatContextSchema = z
     columnIds: z.array(z.string()).max(MAX_TABLE_SELECTION_COLUMNS).optional(),
     selection: z.union([BrowserTextSelectionSchema, TerminalTextSelectionSchema]).optional(),
   })
-  .superRefine(({ kind, selection }, refinementContext) => {
+  .superRefine(({ kind, selection, workspaceId }, refinementContext) => {
+    if (kind === 'workspace' && !workspaceId) {
+      refinementContext.addIssue({
+        code: 'custom',
+        message: 'workspaceId is required for a workspace context',
+        path: ['workspaceId'],
+      })
+    }
     if (!selection) return
     const isTerminalSelection = 'startLine' in selection
     const selectionMatchesKind =
@@ -259,7 +279,7 @@ const ChatContextSchema = z
 
 const ChatMessageSchema = z
   .object({
-    message: z.string(),
+    message: z.string().max(MAX_CHAT_MESSAGE_LENGTH),
     /* Bounded because it becomes part of a Postgres key in `chatSendIdempotency`;
      a client-supplied id longer than the btree entry limit would throw there.
      A generated id is 36 chars. */
@@ -282,7 +302,7 @@ const ChatMessageSchema = z
       .preprocess(dropUnaddressableAttachments, z.array(ResourceAttachmentSchema))
       .optional(),
     provider: z.string().optional(),
-    contexts: z.array(ChatContextSchema).optional(),
+    contexts: z.array(ChatContextSchema).max(MAX_CHAT_CONTEXTS).optional(),
     commands: z.array(z.string()).optional(),
     userTimezone: z.string().optional(),
     effort: z.enum(['none', 'low', 'medium', 'high', 'xhigh', 'max']).optional(),
@@ -430,7 +450,6 @@ type UnifiedChatBranch =
         assistantImages?: AssistantImageContent[]
         userPermission?: string
         userTimezone?: string
-        userMetadata?: { name?: string; email?: string; timezone?: string }
         assistantSearchLevel?: AssistantSearchLevel
         assistantFast?: boolean
         assistantSearch?: WorkspaceSearchFilters
@@ -481,27 +500,13 @@ function normalizeContexts(contexts: UnifiedChatRequest['contexts']) {
  * on a sent message showing only what the user actually typed that turn.
  */
 function collectChatMcpServerIds(
-  conversationHistory: unknown[],
+  chatMcpServerIds: string[],
   currentContexts: UnifiedChatRequest['contexts']
 ): string[] {
-  const serverIds = new Set<string>()
-
-  const collect = (contexts: unknown) => {
-    if (!Array.isArray(contexts)) return
-    for (const ctx of contexts) {
-      if (!ctx || typeof ctx !== 'object') continue
-      const { kind, serverId } = ctx as { kind?: unknown; serverId?: unknown }
-      if (kind === 'mcp' && typeof serverId === 'string' && serverId) {
-        serverIds.add(serverId)
-      }
-    }
+  const serverIds = new Set(chatMcpServerIds)
+  for (const ctx of currentContexts ?? []) {
+    if (ctx.kind === 'mcp' && ctx.serverId) serverIds.add(ctx.serverId)
   }
-
-  for (const message of conversationHistory) {
-    collect((message as { contexts?: unknown } | null)?.contexts)
-  }
-  collect(currentContexts)
-
   return Array.from(serverIds)
 }
 
@@ -750,16 +755,13 @@ async function resolveBranch(params: {
       titleModel: DEFAULT_MODEL,
       notifyChatStatus: true,
       buildPayload: async (payloadParams) =>
-        buildCopilotRequestPayload(
-          {
-            ...payloadParams,
-            principal,
-            organizationId,
-            mode,
-            model: '',
-          },
-          { selectedModel: '' }
-        ),
+        buildCopilotRequestPayload({
+          ...payloadParams,
+          principal,
+          organizationId,
+          mode,
+          model: '',
+        }),
       buildExecutionContext: async ({ userId, chatId, userTimezone, messageId }) =>
         buildInitialExecutionContext({
           userId,
@@ -801,41 +803,38 @@ async function resolveBranch(params: {
       titleProvider: provider,
       notifyChatStatus: false,
       buildPayload: async (payloadParams) =>
-        buildCopilotRequestPayload(
-          {
-            message: payloadParams.message,
-            workflowId: payloadParams.workflowId,
-            workflowName: payloadParams.workflowName,
-            workspaceId: payloadParams.workspaceId,
-            userId: payloadParams.userId,
-            principal,
-            userMessageId: payloadParams.userMessageId,
-            mode: payloadParams.mode ?? 'agent',
-            model: selectedModel,
-            provider: payloadParams.provider,
-            contexts: payloadParams.contexts,
-            assistantSearch: payloadParams.assistantSearch,
-            assistantFast: payloadParams.assistantFast,
-            assistantSearchLevel: payloadParams.assistantSearchLevel,
-            mcpServerIds: payloadParams.mcpServerIds,
-            fileAttachments: payloadParams.fileAttachments,
-            commands: payloadParams.commands,
-            chatId: payloadParams.chatId,
-            prefetch: payloadParams.prefetch,
-            implicitFeedback: payloadParams.implicitFeedback,
-            userPermission: payloadParams.userPermission,
-            userTimezone: payloadParams.userTimezone,
-            effort: payloadParams.effort,
-            modelSelection: payloadParams.modelSelection,
-            desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
-            desktopLocalFiles: payloadParams.desktopLocalFiles,
-            browser: payloadParams.browser,
-            terminalCapable: payloadParams.terminalCapable,
-            terminals: payloadParams.terminals,
-            browserSessions: payloadParams.browserSessions,
-          },
-          { selectedModel }
-        ),
+        buildCopilotRequestPayload({
+          message: payloadParams.message,
+          workflowId: payloadParams.workflowId,
+          workflowName: payloadParams.workflowName,
+          workspaceId: payloadParams.workspaceId,
+          userId: payloadParams.userId,
+          principal,
+          userMessageId: payloadParams.userMessageId,
+          mode: payloadParams.mode ?? 'agent',
+          model: selectedModel,
+          provider: payloadParams.provider,
+          contexts: payloadParams.contexts,
+          assistantSearch: payloadParams.assistantSearch,
+          assistantFast: payloadParams.assistantFast,
+          assistantSearchLevel: payloadParams.assistantSearchLevel,
+          mcpServerIds: payloadParams.mcpServerIds,
+          fileAttachments: payloadParams.fileAttachments,
+          commands: payloadParams.commands,
+          chatId: payloadParams.chatId,
+          prefetch: payloadParams.prefetch,
+          implicitFeedback: payloadParams.implicitFeedback,
+          userPermission: payloadParams.userPermission,
+          userTimezone: payloadParams.userTimezone,
+          effort: payloadParams.effort,
+          modelSelection: payloadParams.modelSelection,
+          desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
+          desktopLocalFiles: payloadParams.desktopLocalFiles,
+          browser: payloadParams.browser,
+          terminalCapable: payloadParams.terminalCapable,
+          terminals: payloadParams.terminals,
+          browserSessions: payloadParams.browserSessions,
+        }),
       buildExecutionContext: async ({ userId, chatId, userTimezone, messageId }) =>
         buildInitialExecutionContext({
           userId,
@@ -872,36 +871,33 @@ async function resolveBranch(params: {
     titleModel: DEFAULT_MODEL,
     notifyChatStatus: true,
     buildPayload: async (payloadParams) =>
-      buildCopilotRequestPayload(
-        {
-          message: payloadParams.message,
-          workspaceId: requestedWorkspaceId,
-          userId: payloadParams.userId,
-          principal,
-          userMessageId: payloadParams.userMessageId,
-          mode: mode ?? 'agent',
-          model: '',
-          contexts: payloadParams.contexts,
-          workspaceContext: payloadParams.workspaceContext,
-          assistantSearch: payloadParams.assistantSearch,
-          assistantFast: payloadParams.assistantFast,
-          assistantSearchLevel: payloadParams.assistantSearchLevel,
-          mcpServerIds: payloadParams.mcpServerIds,
-          fileAttachments: payloadParams.fileAttachments,
-          chatId: payloadParams.chatId,
-          userPermission: payloadParams.userPermission,
-          userTimezone: payloadParams.userTimezone,
-          effort: payloadParams.effort,
-          modelSelection: payloadParams.modelSelection,
-          desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
-          desktopLocalFiles: payloadParams.desktopLocalFiles,
-          browser: payloadParams.browser,
-          terminalCapable: payloadParams.terminalCapable,
-          terminals: payloadParams.terminals,
-          browserSessions: payloadParams.browserSessions,
-        },
-        { selectedModel: '' }
-      ),
+      buildCopilotRequestPayload({
+        message: payloadParams.message,
+        workspaceId: requestedWorkspaceId,
+        userId: payloadParams.userId,
+        principal,
+        userMessageId: payloadParams.userMessageId,
+        mode: mode ?? 'agent',
+        model: '',
+        contexts: payloadParams.contexts,
+        workspaceContext: payloadParams.workspaceContext,
+        assistantSearch: payloadParams.assistantSearch,
+        assistantFast: payloadParams.assistantFast,
+        assistantSearchLevel: payloadParams.assistantSearchLevel,
+        mcpServerIds: payloadParams.mcpServerIds,
+        fileAttachments: payloadParams.fileAttachments,
+        chatId: payloadParams.chatId,
+        userPermission: payloadParams.userPermission,
+        userTimezone: payloadParams.userTimezone,
+        effort: payloadParams.effort,
+        modelSelection: payloadParams.modelSelection,
+        desktopLocalFilesystem: payloadParams.desktopLocalFilesystem,
+        desktopLocalFiles: payloadParams.desktopLocalFiles,
+        browser: payloadParams.browser,
+        terminalCapable: payloadParams.terminalCapable,
+        terminals: payloadParams.terminals,
+        browserSessions: payloadParams.browserSessions,
+      }),
     buildExecutionContext: async ({ userId, chatId, userTimezone, messageId }) =>
       buildInitialExecutionContext({
         userId,
@@ -984,7 +980,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       return createUnauthorizedResponse()
     }
     const authenticatedUserId = session.user.id
-    const authenticatedUserName = session.user.name
     const authenticatedUserEmail = session.user.email
 
     const body = ChatMessageSchema.parse(await req.json())
@@ -1009,11 +1004,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       )
     }
 
-    const userMetadata = {
-      ...(authenticatedUserName ? { name: authenticatedUserName } : {}),
-      ...(authenticatedUserEmail ? { email: authenticatedUserEmail } : {}),
-      ...(body.userTimezone ? { timezone: body.userTimezone } : {}),
-    }
     const normalizedContexts =
       body.mode === 'assistant' ? [] : (normalizeContexts(body.contexts) ?? [])
     userMessageId = body.userMessageId || generateId()
@@ -1145,7 +1135,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       activeOtelRoot.setInputMessages({ userMessage: body.message })
 
       let currentChat: ChatLoadResult['chat'] = null
-      let conversationHistory: unknown[] = []
       let chatIsNew = false
       actualChatId = body.chatId
 
@@ -1182,9 +1171,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         currentChat = chatResult.chat
         actualChatId = chatResult.chatId || body.chatId
         chatIsNew = chatResult.isNew
-        conversationHistory = Array.isArray(chatResult.conversationHistory)
-          ? chatResult.conversationHistory
-          : []
 
         if (body.chatId && !currentChat) {
           activeOtelRoot.span.setAttribute(TraceAttr.HttpStatusCode, 404)
@@ -1309,13 +1295,21 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           activeOtelRoot.context
         )
       })
-      const [agentContexts, userPermission, executionContext, personalCredentials] =
-        await Promise.all([
-          agentContextsPromise,
-          userPermissionPromise,
-          executionContextPromise,
-          personalCredentialsPromise,
-        ])
+      const chatMcpServerIdsPromise =
+        currentChat && !chatIsNew ? loadChatMcpServerIds(currentChat.id) : Promise.resolve([])
+      const [
+        agentContexts,
+        userPermission,
+        executionContext,
+        personalCredentials,
+        chatMcpServerIds,
+      ] = await Promise.all([
+        agentContextsPromise,
+        userPermissionPromise,
+        executionContextPromise,
+        personalCredentialsPromise,
+        chatMcpServerIdsPromise,
+      ])
       let workspaceContext: string | undefined
       if (personalCredentials) {
         workspaceContext = JSON.stringify({
@@ -1358,7 +1352,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           [TraceAttr.CopilotContextsCount]: normalizedContexts.length,
         },
         () => {
-          const mcpServerIds = collectChatMcpServerIds(conversationHistory, normalizedContexts)
+          const mcpServerIds = collectChatMcpServerIds(chatMcpServerIds, normalizedContexts)
           return branch.kind === 'workflow'
             ? branch.buildPayload({
                 message: body.message,

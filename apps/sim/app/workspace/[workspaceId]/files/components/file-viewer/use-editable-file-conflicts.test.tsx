@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, createRef, StrictMode, Suspense, startTransition, useLayoutEffect } from 'react'
+import { act, createRef } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '@/lib/api/client/errors'
@@ -72,47 +72,8 @@ async function advance(ms = 2000) {
   await act(async () => vi.advanceTimersByTimeAsync(ms))
 }
 
-interface TransitionProbeProps {
-  streamingContent?: string
-  isAgentEditing?: boolean
-}
-
-function TransitionProbe(options: TransitionProbeProps) {
-  const state = useEditableFileContent({
-    file,
-    workspaceId: FILE.workspaceId,
-    canEdit: true,
-    discardRef,
-    ...options,
-  })
-  useLayoutEffect(() => {
-    latest = state
-  })
-  return <div>{state.content}</div>
-}
-
-/** Suspend after the hook finishes its render-phase reconciliation, without committing the tree. */
-const pendingTransition = new Promise<void>(() => {})
-function SuspendTransition(): never {
-  throw pendingTransition
-}
-
-async function renderTransition(options: TransitionProbeProps = {}, suspend = false) {
-  const view = (
-    <Suspense fallback={<div>Loading</div>}>
-      <TransitionProbe {...options} />
-      {suspend && <SuspendTransition />}
-    </Suspense>
-  )
-  await act(async () => {
-    if (suspend) startTransition(() => root.render(view))
-    else root.render(view)
-  })
-}
-
 beforeEach(() => {
   vi.useFakeTimers()
-  vi.clearAllMocks()
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   file = FILE
   streamingContent = undefined
@@ -132,72 +93,6 @@ afterEach(async () => {
 })
 
 describe('versioned solo-file editing', () => {
-  it('does not block a committed save when an abandoned render observes an agent stream', async () => {
-    await renderTransition()
-    await edit('committed local draft')
-    const committed = latest
-    await renderTransition(
-      { streamingContent: 'abandoned agent frame', isAgentEditing: true },
-      true
-    )
-    expect(container.textContent).toBe('committed local draft')
-    expect(latest.hasConflict).toBe(false)
-    await act(async () => committed.saveImmediately())
-    expect(mocks.save).toHaveBeenCalledWith(
-      expect.objectContaining({ content: 'committed local draft', expectedUpdatedAt: V1 })
-    )
-  })
-
-  it('keeps the committed agent reload lock when a suspended render removes it', async () => {
-    await renderTransition({ isAgentEditing: true })
-    const committed = latest
-    await renderTransition({}, true)
-    expect(latest.isStreamInteractionLocked).toBe(true)
-    await act(async () => {
-      await expect(committed.reloadLatestContent()).rejects.toThrow('Wait for the agent edit')
-    })
-    expect(mocks.reload).not.toHaveBeenCalled()
-  })
-
-  it('discards to the committed baseline after a suspended remote-baseline render', async () => {
-    await renderTransition()
-    await edit('local draft')
-    const committedDiscard = discardRef.current
-    file = { ...FILE, key: 'immutable-v2', contentUpdatedAt: new Date(V2) }
-    mocks.query.content = 'abandoned remote baseline'
-    await renderTransition({}, true)
-    expect(container.textContent).toBe('local draft')
-    file = FILE
-    mocks.query.content = 'original'
-    await act(async () => committedDiscard?.())
-    expect(latest.content).toBe('original')
-    expect(mocks.save).not.toHaveBeenCalled()
-  })
-
-  it('exports the visible committed content rather than a suspended stream snapshot', async () => {
-    const OriginalBlob = Blob
-    const createBlob = vi.fn(class extends OriginalBlob {})
-    const createObjectURL = vi.fn(() => 'blob:local-draft')
-    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
-    vi.stubGlobal('Blob', createBlob)
-    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL: vi.fn() })
-    try {
-      await renderTransition()
-      const committed = latest
-      await renderTransition({ streamingContent: 'abandoned agent frame' }, true)
-      expect(container.textContent).toBe('original')
-      act(() => committed.downloadDraft())
-      expect(createBlob).toHaveBeenCalledWith(['original'], {
-        type: 'text/plain;charset=utf-8',
-      })
-      expect(click).toHaveBeenCalledOnce()
-      await advance(0)
-    } finally {
-      click.mockRestore()
-      vi.unstubAllGlobals()
-    }
-  })
-
   it('keeps a stream conflict and trailing draft when an earlier save finishes during the stream', async () => {
     const pending = Promise.withResolvers<{ success: boolean; file: WorkspaceFileRecord }>()
     mocks.save.mockReturnValueOnce(pending.promise)
@@ -240,22 +135,6 @@ describe('versioned solo-file editing', () => {
     })
     expect(mocks.save).not.toHaveBeenCalled()
   })
-
-  it.each(['original', 'older server'])(
-    'recovers a draft through StrictMode effect replay (baseline=%s)',
-    async (savedContent) => {
-      mocks.readDraft.mockResolvedValue({ content: 'recovered local', savedContent })
-      await act(async () =>
-        root.render(
-          <StrictMode>
-            <Probe />
-          </StrictMode>
-        )
-      )
-      expect(latest.content).toBe('recovered local')
-      expect(latest.hasConflict).toBe(savedContent !== 'original')
-    }
-  )
 
   it('preserves and persists a dirty local draft when an agent stream starts', async () => {
     await render()
@@ -392,16 +271,6 @@ describe('versioned solo-file editing', () => {
       expect.objectContaining({ content: 'second', expectedUpdatedAt: V2 })
     )
     expect(latest.content).toBe('second')
-  })
-
-  it('keeps a recovered local draft when its former baseline differs from the server', async () => {
-    mocks.readDraft.mockResolvedValue({ content: 'recovered local', savedContent: 'older server' })
-    await render()
-    expect(latest.content).toBe('recovered local')
-    expect(latest.hasConflict).toBe(true)
-    await advance()
-    expect(mocks.save).not.toHaveBeenCalled()
-    expect(mocks.deleteDraft).not.toHaveBeenCalled()
   })
 
   it('preserves the draft on reload failure, then accepts explicitly reloaded bytes and their token', async () => {

@@ -9,7 +9,9 @@ export class NativeSearchError extends Error {
   constructor(
     readonly status: 'reconnect' | 'rate_limited' | 'unavailable' | 'timeout',
     message: string,
-    readonly retryAfterSeconds?: number
+    readonly retryAfterSeconds?: number,
+    /** The provider's HTTP status, when the failure is a plain non-success response. */
+    readonly httpStatus?: number
   ) {
     super(message)
   }
@@ -17,6 +19,8 @@ export class NativeSearchError extends Error {
 
 /** Provider requests one native search may make, including discovery and verification. */
 export const NATIVE_SEARCH_REQUEST_BUDGET = 30
+/** Decoded bytes allowed in any native provider response, including file downloads. */
+export const NATIVE_RESPONSE_MAX_BYTES = 4 * 1024 * 1024
 
 /** Tokens only go to a code-selected provider origin; redirects never carry credentials. */
 export function createNativeClient(input: {
@@ -66,7 +70,7 @@ export function createNativeClient(input: {
       ...(options?.body ? { body: JSON.stringify(options.body) } : {}),
       signal: input.signal,
       timeout: 10_000,
-      maxResponseBytes: 4 * 1024 * 1024,
+      maxResponseBytes: NATIVE_RESPONSE_MAX_BYTES,
       maxRedirects: 0,
       acceptCompressed: true,
       connectionPool: input.pool,
@@ -104,7 +108,9 @@ export function createNativeClient(input: {
         'unavailable',
         response.status === 400 || response.status === 422
           ? `The provider rejected this query (${response.status}). Check its native query syntax and supported search scope.`
-          : `Provider request failed (${response.status}).`
+          : `Provider request failed (${response.status}).`,
+        undefined,
+        response.status
       )
     }
     return response
@@ -112,6 +118,14 @@ export function createNativeClient(input: {
   return withJsonMemo({
     async json(path, options) {
       return (await request(path, options)).json()
+    },
+    async bytes(path, query) {
+      try {
+        return Buffer.from(await (await request(path, { query })).arrayBuffer())
+      } catch (error) {
+        input.signal.throwIfAborted()
+        throw error
+      }
     },
     async text(path, query) {
       return (await request(path, { query })).text()

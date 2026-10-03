@@ -98,7 +98,7 @@ export const DEMO_BLOCKS: BlockDef[] = [
     bgColor: 'var(--text-primary)',
     sentence: {
       segments: ['Prompt', { subBlockId: 'model', noun: 'a model' }],
-      values: { model: 'claude-sonnet-5' },
+      values: { model: 'claude-sonnet-5-5' },
     },
     rows: [],
     x: col(2),
@@ -127,7 +127,7 @@ export const DEMO_BLOCKS: BlockDef[] = [
     bgColor: 'var(--text-primary)',
     sentence: {
       segments: ['Prompt', { subBlockId: 'model', noun: 'a model' }],
-      values: { model: 'claude-sonnet-5' },
+      values: { model: 'claude-sonnet-5-5' },
     },
     rows: [],
     x: col(4),

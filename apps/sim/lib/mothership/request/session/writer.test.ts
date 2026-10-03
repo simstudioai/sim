@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MothershipStreamV1EventType,
@@ -17,6 +13,8 @@ vi.mock('@/lib/mothership/request/session/buffer', () => ({
   appendEvents,
 }))
 
+import { StreamControllerSupersededError } from '@/lib/mothership/request/session/controller-lease'
+import { StreamReplayBudgetExhaustedError } from '@/lib/mothership/request/session/replay-budget'
 import { StreamWriter } from '@/lib/mothership/request/session/writer'
 
 function decodeChunk(value: Uint8Array): string {
@@ -25,7 +23,6 @@ function decodeChunk(value: Uint8Array): string {
 
 describe('StreamWriter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useRealTimers()
     // The buffer reports a refusal rather than throwing, so every persist resolves.
     appendEvents.mockResolvedValue({ persisted: true })
@@ -82,7 +79,7 @@ describe('StreamWriter', () => {
     expect(controller.close).toHaveBeenCalledOnce()
   })
 
-  it('does not deliver unreplayable events when an owned controller exhausts its byte budget', async () => {
+  it('ends delivery with a budget error, not a handoff, and still delivers the terminal verdict', async () => {
     appendEvents.mockResolvedValueOnce({
       persisted: false,
       refusal: {
@@ -98,14 +95,36 @@ describe('StreamWriter', () => {
       userId: 'user-1',
       lease: { key: 'chat-lock', value: 'current-controller' },
     })
-    const controller = { enqueue: vi.fn(), close: vi.fn() }
+    const delivered: string[] = []
+    const controller = {
+      enqueue: (value: Uint8Array) => delivered.push(decodeChunk(value)),
+      close: () => {},
+    }
     writer.attach(controller as unknown as ReadableStreamDefaultController)
+
+    const refused = writer.publish({
+      type: 'text',
+      payload: { channel: 'assistant', text: 'unsaved' },
+    })
+    await expect(refused).rejects.toBeInstanceOf(StreamReplayBudgetExhaustedError)
+    await expect(refused).rejects.not.toBeInstanceOf(StreamControllerSupersededError)
     await expect(
-      writer.publish({ type: 'text', payload: { channel: 'assistant', text: 'unsaved' } })
-    ).rejects.toThrow('Stream replay byte budget exhausted')
-    expect(controller.enqueue).not.toHaveBeenCalled()
-    expect(writer.persistenceStopped).toBe(true)
-    await expect(writer.close()).rejects.toThrow('Stream replay byte budget exhausted')
+      writer.publish({ type: 'text', payload: { channel: 'assistant', text: 'later' } })
+    ).rejects.toBeInstanceOf(StreamReplayBudgetExhaustedError)
+    expect(delivered).toEqual([])
+    await expect(writer.flush()).resolves.toBeUndefined()
+
+    await writer.publish({
+      type: 'error',
+      payload: { message: 'stopped', code: 'replay_budget_exhausted' },
+    })
+    await writer.publish({ type: 'complete', payload: { status: 'error' } })
+    await expect(writer.close()).resolves.toBeUndefined()
+    expect(delivered.map((frame) => JSON.parse(frame.replace(/^data: /, '')).type)).toEqual([
+      'error',
+      'complete',
+    ])
+    expect(writer.sawComplete).toBe(true)
   })
 
   it('enqueues before persistence completes and flushes pending writes on close', async () => {

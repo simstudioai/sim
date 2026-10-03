@@ -33,6 +33,7 @@ function isRadixIdMismatch(args: unknown[]): boolean {
  */
 export function HydrationErrorHandler() {
   useEffect(() => {
+    // biome-ignore lint/suspicious/noConsole: wraps console.error itself to filter extension hydration noise
     const originalError = console.error
     console.error = (...args) => {
       if (typeof args[0] === 'string' && args[0].includes('Hydration')) {

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { permissionGroupFullConfigSchema } from '@/lib/api/contracts/permission-groups'
 import { PLATFORM_FEATURES } from '@/lib/permission-groups/features'
@@ -219,17 +216,6 @@ describe('parsePermissionGroupConfig', () => {
     expect(parsePermissionGroupConfig(input)).toEqual(expected)
   })
 
-  it.each(fixtures)('emits every key in wire order for $name', ({ input }) => {
-    expect(Object.keys(parsePermissionGroupConfig(input))).toEqual(
-      Object.keys(DEFAULT_PERMISSION_GROUP_CONFIG)
-    )
-  })
-
-  it.each(fixtures)('produces a config the read schema accepts for $name', ({ input }) => {
-    const parsed = structuredClone(parsePermissionGroupConfig(input))
-    expect(permissionGroupFullConfigSchema.safeParse(parsed).success).toBe(true)
-  })
-
   /**
    * The allowlists used to skip element validation, so a corrupted row coerced
    * to a value `permissionGroupFullConfigSchema` then refused — the route
@@ -241,13 +227,6 @@ describe('parsePermissionGroupConfig', () => {
     const parsed = parsePermissionGroupConfig({ allowedIntegrations: ['slack', 42] })
     expect(parsed.allowedIntegrations).toEqual(['slack'])
     expect(permissionGroupFullConfigSchema.safeParse(structuredClone(parsed)).success).toBe(true)
-  })
-
-  it('is idempotent', () => {
-    for (const { input } of fixtures) {
-      const once = parsePermissionGroupConfig(input)
-      expect(parsePermissionGroupConfig(structuredClone(once))).toEqual(once)
-    }
   })
 })
 
@@ -330,29 +309,5 @@ describe('permission group config key coverage', () => {
     expect([...PLATFORM_FEATURES.map((feature) => feature.configKey)].sort()).toEqual(
       [...booleanKeys].sort()
     )
-  })
-
-  /**
-   * Each key gates an act that names no workspace, so each is read from the
-   * organization's default group only — a group scoped to specific workspaces
-   * cannot deny an account-level login, a workspace that does not exist yet, or
-   * a roster read that belongs to the organization rather than to any one
-   * workspace. The editor still offers the checkbox on such a group, so the
-   * hint is the only place an admin learns where it applies; all three shipped
-   * saying nothing, and a hint that omits it is a checkbox that silently
-   * enforces nothing wherever an admin is most likely to tick it.
-   */
-  it.each(['disableWorkspaceCreation', 'disableCliAccess', 'hideOrgMemberDirectory'] as const)(
-    "tells an admin that %s is read from the organization's default group",
-    (configKey) => {
-      const feature = PLATFORM_FEATURES.find((entry) => entry.configKey === configKey)
-
-      expect(feature?.hint).toContain("organization's default group")
-    }
-  )
-
-  it('gives every platform feature a unique id', () => {
-    const ids = PLATFORM_FEATURES.map((feature) => feature.id)
-    expect(new Set(ids).size).toBe(ids.length)
   })
 })

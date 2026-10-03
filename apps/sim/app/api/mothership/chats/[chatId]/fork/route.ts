@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { forkMothershipChatContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
-import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { forkChat } from '@/lib/mothership/chat/application/fork'
 import {
@@ -38,6 +38,11 @@ export const POST = withRouteHandler(
       if (classified?.code === 'not_found' || classified?.code === 'forbidden')
         return NextResponse.json({ error: 'Chat not found' }, { status: 404 })
       if (classified?.code === 'validation') return createBadRequestResponse(classified.message)
+      if (classified?.code === 'conflict' || classified?.code === 'payload_too_large')
+        return NextResponse.json(
+          { error: classified.message },
+          { status: statusForOrchestrationError(classified.code) }
+        )
       logger.error('Error forking chat:', error)
       return createInternalServerErrorResponse('Failed to fork chat')
     }

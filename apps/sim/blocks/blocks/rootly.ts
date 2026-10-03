@@ -1,10 +1,9 @@
 import { RootlyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { RootlyResponse } from '@/tools/rootly/types'
 import { getTrigger } from '@/triggers'
 
-export const RootlyBlock: BlockConfig<RootlyResponse> = {
+export const RootlyBlock: BlockConfig = {
   type: 'rootly',
   name: 'Rootly',
   description: 'Manage incidents, alerts, and on-call with Rootly',

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { generateToolInputSchema } from '@/lib/mcp/workflow-tool-schema'

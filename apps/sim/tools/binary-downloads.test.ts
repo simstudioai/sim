@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { boxDownloadFileTool, boxDownloadFileV2Tool } from '@/tools/box/download_file'
 import { daytonaDownloadFileTool } from '@/tools/daytona/download_file'
@@ -185,7 +184,6 @@ beforeEach(() => {
 
 afterEach(() => {
   expect(fetch).not.toHaveBeenCalled()
-  vi.unstubAllGlobals()
 })
 
 describe.each(DOWNLOAD_CASES)('$tool.id binary download', (provider) => {

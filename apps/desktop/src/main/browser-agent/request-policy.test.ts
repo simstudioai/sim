@@ -15,7 +15,6 @@ import { allowBrowserRequest, handleBrowserRequest } from '@/main/browser-agent/
 
 describe('authenticated browser request policy', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     guards.checkAgentUrl.mockResolvedValue({ ok: true })
     guards.isBlockedRequestUrl.mockReturnValue(false)
     guards.isBlockedSubresourceUrl.mockResolvedValue(false)

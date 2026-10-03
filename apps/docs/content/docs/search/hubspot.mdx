@@ -1,0 +1,22 @@
+---
+title: HubSpot
+description: Search contacts, companies, deals, and tickets with your HubSpot permissions
+---
+
+HubSpot live Search uses **Member accounts** through HubSpot's official MCP service. An administrator enables HubSpot under **Settings → Sources**, then each person selects **Connect** under **Integrations** and signs in to HubSpot. Allow read access to contacts, companies, deals, and tickets. Write access is not needed.
+
+## What you can search
+
+Search names, domains, email addresses, deal names, and ticket subjects using concise keywords. Select a CRM kind to focus on contacts, companies, deals, or tickets; an unrestricted search checks all four. HubSpot searches each object's default searchable properties. It is lexical search, so a long natural-language question may need shorter keywords.
+
+Read a result to see its returned CRM properties, including available custom properties. Links open the verified record in HubSpot. Reads do not include activity histories, notes, or associated records.
+
+Dates and date sorting use the record's last modification time. To list records without keywords, select newest/oldest sorting or a date range. Continue an individual CRM kind with the returned cursor and the same query and filters. Searches are bounded and do not establish aggregate totals or revenue. Ownership, pipeline, lifecycle-stage filters, and custom object types are not supported; “my deals” is not treated as “all visible deals.”
+
+## Access and setup
+
+Every request uses the connected person's current HubSpot permissions. Search uses a fixed read-only tool allowlist and cannot create or change CRM records. Account permissions, subscription restrictions, and HubSpot request limits still apply.
+
+The deployment configures one HubSpot MCP OAuth app; teammates only sign in. This is separate from the ordinary HubSpot OAuth app used by workflow integrations. For a self-hosted deployment, register an MCP app in HubSpot, set `HUBSPOT_MCP_CLIENT_ID` and `HUBSPOT_MCP_CLIENT_SECRET`, and register the exact callback `<your Sim app URL>/api/mcp/oauth/callback`. Sim uses `https://mcp.hubspot.com` and handles HubSpot's regional redirect. Replacing the shared registration requires people to reconnect.
+
+If HubSpot is unavailable in the source picker, ask the deployment administrator to configure the MCP app. If read access is missing, reconnect with the needed read permissions. See [HubSpot's remote MCP server documentation](https://developers.hubspot.com/docs/apps/developer-platform/build-apps/integrate-with-the-remote-hubspot-mcp-server).
