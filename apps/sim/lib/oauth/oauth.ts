@@ -54,6 +54,7 @@ import {
   MondayIcon,
   NetSuiteIcon,
   NotionIcon,
+  OracleIcon,
   OutlookIcon,
   PipedriveIcon,
   PowerBIIcon,
@@ -1071,6 +1072,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'netsuite',
+  },
+  oci: {
+    name: 'Oracle Cloud Infrastructure',
+    icon: OracleIcon,
+    services: {
+      oci: {
+        name: 'Oracle Cloud Infrastructure',
+        description: 'Connect OCI services with an API signing key.',
+        providerId: 'oci',
+        serviceAccountProviderId: 'oci-api-key-service-account',
+        icon: OracleIcon,
+        baseProviderIcon: OracleIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'oci',
   },
   reddit: {
     name: 'Reddit',
