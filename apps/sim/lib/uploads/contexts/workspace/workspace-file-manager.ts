@@ -100,6 +100,7 @@ import {
 import { getWorkspaceFileSize, MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import type { ServableFile } from '@/lib/uploads/utils/file-utils.server'
+import { displaySegmentPattern } from '@/lib/vfs/path'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import {
   MAX_SIM_PAGE_UPLOAD_SNIFF_BYTES,
@@ -1577,12 +1578,19 @@ export function parseChatUploadReference(fileReference: string): string | null {
 /**
  * Display names are unique per chat. Mothership supplies that namespace; callers
  * without a chat scope retain the workspace-wide newest-name lookup.
+ *
+ * `name` is decoded from the path the upload notice prints, which VFS encoding normalizes
+ * (NFC, control characters removed, whitespace runs collapsed and trimmed), while the stored
+ * name keeps the uploaded spelling: a macOS screenshot carries U+202F before AM/PM. The stored
+ * name is composed and stripped of control characters in SQL, and
+ * {@link displaySegmentPattern} matches its whitespace the way the encoding collapses it.
  */
 async function getChatUploadByName(
   workspaceId: string,
   name: string,
   chatId?: string
 ): Promise<WorkspaceFileRecord | null> {
+  const storedName = sql`coalesce(${workspaceFiles.displayName}, ${workspaceFiles.originalName})`
   const [file] = await db
     .select()
     .from(workspaceFiles)
@@ -1591,10 +1599,7 @@ async function getChatUploadByName(
         eq(workspaceFiles.workspaceId, workspaceId),
         eq(workspaceFiles.context, 'mothership'),
         chatId === undefined ? undefined : eq(workspaceFiles.chatId, chatId),
-        or(
-          eq(workspaceFiles.displayName, name),
-          and(isNull(workspaceFiles.displayName), eq(workspaceFiles.originalName, name))
-        ),
+        sql`regexp_replace(normalize(${storedName}, NFC), '[\\x01-\\x1f\\x7f]', '', 'g') ~ ${displaySegmentPattern(name)}`,
         isNull(workspaceFiles.deletedAt)
       )
     )

@@ -44,10 +44,9 @@ vi.mock('@/lib/sim-search/live/policy-store', () => ({
   livePolicyFor: vi.fn(() => defaultLiveSearchPolicy()),
 }))
 vi.mock('@/lib/sim-search/live/managed-mcp', () => ({
-  createManagedSearchMcpClient: async () => ({ call: mocks.mcpCall }),
+  createManagedSearchMcpClient: async () => ({ call: mocks.mcpCall, close: async () => {} }),
 }))
 vi.mock('@/lib/sim-search/live/coda-mcp', () => ({
-  createCodaMcpClient: vi.fn(),
   searchCodaMcp: vi.fn(),
   readCodaMcp: vi.fn(),
 }))
@@ -396,34 +395,19 @@ describe('authorized live retrieval', () => {
       }
     )
   })
-  describe.each(['notion', 'lucid'] as const)('%s requires terms before dispatch', (provider) => {
-    it.each([
-      { startDate: '2026-08-01T00:00:00Z' },
-      { source: ` ${provider} `, startDate: '2026-08-01T00:00:00Z' },
-      { sortBy: 'newest' as const },
-      { sortBy: 'oldest' as const },
-    ])('rejects a provider-only listing with %j', async (bound) => {
-      await expect(
-        searchLiveKnowledge.execute({
-          principal,
-          input: { ...input, query: ' \t ', filters: { source: provider, ...bound } },
-        })
-      ).rejects.toMatchObject({ code: 'validation' })
-    })
-    it('rejects an empty native query even with a date bound', async () => {
-      await expect(
-        searchLiveKnowledge.execute({
-          principal,
-          input: {
-            ...input,
-            query: 'topology',
-            filters: { startDate: '2026-08-01T00:00:00Z' },
-            nativeQueries: [{ provider, query: ' \t ' }],
-          },
-        })
-      ).rejects.toMatchObject({
-        issues: expect.arrayContaining([expect.objectContaining({ path: [0, 'query'] })]),
+  it('rejects an empty Lucid native query without an explicit browse mode', async () => {
+    await expect(
+      searchLiveKnowledge.execute({
+        principal,
+        input: {
+          ...input,
+          query: 'topology',
+          filters: { startDate: '2026-08-01T00:00:00Z' },
+          nativeQueries: [{ provider: 'lucid', query: ' \t ' }],
+        },
       })
+    ).rejects.toMatchObject({
+      issues: expect.arrayContaining([expect.objectContaining({ path: [0, 'query'] })]),
     })
   })
   it.each([undefined, 'google_drive'])(

@@ -175,7 +175,7 @@ beforeEach(() => {
   mocks.speech.mockReturnValue({
     isSupported: true,
     isListening: false,
-    audioLevelsRef: { current: new Float32Array(5) },
+    audioLevels: new Float32Array(5),
     toggleListening: mocks.toggleListening,
     resetTranscript: mocks.resetTranscript,
   })

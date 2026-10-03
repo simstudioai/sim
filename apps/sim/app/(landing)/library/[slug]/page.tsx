@@ -6,8 +6,11 @@ import { ComparisonLinks } from '@/app/(landing)/comparisons/components/comparis
 import { getComparisonsForPost } from '@/app/(landing)/comparisons/library-links'
 import { ContentPostPage } from '@/app/(landing)/components'
 
-/** Unknown slugs reach the section 404 while known pages remain pre-rendered. */
-export const dynamicParams = true
+/**
+ * Unknown params must 404 before rendering: `notFound()` during render streams this segment's
+ * `loading.tsx` with a 200 status first.
+ */
+export const dynamicParams = false
 
 export async function generateStaticParams() {
   const posts = await getAllPostMeta()

@@ -21,7 +21,7 @@ The menu surface intentionally diverges from the pill: `dropdown-menu.tsx` items
 
 ## Component catalogue
 
-- **`Chip` / `ChipLink`** — the pill button (`<button>` / Next `<Link>`). Variants: `primary`, `destructive`, `border-shadow`, `border`, `outline` (a true `--border` border, no shadow or hover fill); the bare chip is implicit (omit `variant`). `filled` is deliberately NOT a `Chip` variant — it is reserved for chip fields/triggers. For a selected/toggle chip use the `active` prop, never a variant. `leftIcon`/`rightIcon`, `active`, `fullWidth`. Chips carry **no outer margin** — space between them is the parent's `gap`. The old `mx-0.5` default and its `flush` opt-out are gone; do not reintroduce either, and never add a margin to a chip through `className`.
+- **`Chip` / `ChipLink`** — the pill button (`<button>` / Next `<Link>`). Variants: `primary`, `destructive`, `border-shadow`, `border`, `outline` (a true `--border` border, no shadow or hover fill); the bare chip is implicit (omit `variant`). `filled` is deliberately NOT a `Chip` variant — it is reserved for chip fields/triggers. For a selected/toggle chip use the `active` prop, never a variant. `leftIcon`/`rightIcon`, `active`, `fullWidth`. Chips carry **no outer margin** — space between them is the parent's `gap`, so never give a chip a margin, by default or through `className`.
 - **`ChipInput`** — single-line text field. `icon`, `endAdornment`, `error`, `inputClassName` (inner `<input>`); `className` styles the chrome wrapper.
 - **`ChipCopyInput`** — the canonical view-only field: a read-only `ChipInput` at full opacity with a trailing copy-to-clipboard button. View-only is a display mode, not a disabled state — reach for it (or `ChipModalField type='copy'`) over a `disabled` (greyed) input for values the user cannot edit.
 - **`ChipTextarea`** — multi-line sibling. `error`, `resizable` (off by default), `viewOnly` (read-only at full opacity with the default cursor — the multi-line counterpart of `ChipCopyInput`).
@@ -52,8 +52,8 @@ Declare keyboard intent on the action-owning primitive; never add document-level
 - **Props over `className` overrides.** When a consumer needs to change chrome, expose a prop (`error`, `icon`, `endAdornment`, `inputClassName`); reaching for `className` to restyle chrome is the smell.
 - **`cn()` for a single state toggle, CVA for genuine multiple variants.** A lone `error` boolean is `cn()`, not a CVA variant.
 - **Discriminated-union props for modes** (e.g. `multiple`, the modal field `type`) instead of near-duplicate components.
-- **Delete legacy variants after migration** — don't leave dead paths (this paradigm removed `Input variant='chip'` and `ChipMultiSelect`).
-- **Verify CSS vars exist.** An undefined var resolves to `currentColor` (caused a real black-border bug). Align to the canonical tokens: normal weight, `--text-body`, `--text-icon`.
+- **Delete legacy variants after migration** — leave no dead paths.
+- **Verify CSS vars exist.** An undefined var resolves to `currentColor`, which draws black borders. Align to the canonical tokens: normal weight, `--text-body`, `--text-icon`.
 - Use Radix UI primitives for accessibility. Export the component and its `variants` (when using CVA). Document with TSDoc + a usage example.
 
 Color tokens and icon-size conventions are canonical in `.claude/rules/sim-styling.md` — follow it rather than restating.

@@ -59,17 +59,21 @@ export function useFilePreviewController({
 }: FilePreviewControllerDeps) {
   const queryClient = useQueryClient()
 
-  const previewActivationOwnerRef = useRef<Map<string, string | null>>(new Map())
-  const completedPreviewResourceHandoffRef = useRef<
-    Map<string, { sessionId: string; suppressActivation: boolean }>
-  >(new Map())
+  const previewActivationOwnerRef = useRef<Map<string, string | null> | null>(null)
+  const previewActivationOwners = (previewActivationOwnerRef.current ??= new Map())
+  const completedPreviewResourceHandoffRef = useRef<Map<
+    string,
+    { sessionId: string; suppressActivation: boolean }
+  > | null>(null)
+  const completedPreviewResourceHandoffs = (completedPreviewResourceHandoffRef.current ??=
+    new Map())
 
   const rememberPreviewActivationOwner = useCallback(
     (session: FilePreviewSession) => {
-      if (!session.fileId || previewActivationOwnerRef.current.has(session.id)) {
+      if (!session.fileId || previewActivationOwners.has(session.id)) {
         return
       }
-      previewActivationOwnerRef.current.set(session.id, activeResourceIdRef.current)
+      previewActivationOwners.set(session.id, activeResourceIdRef.current)
     },
     [activeResourceIdRef]
   )
@@ -81,7 +85,7 @@ export function useFilePreviewController({
       }
       if (onResourceEventRef.current) return true
       const currentActiveResourceId = activeResourceIdRef.current
-      const activationOwnerId = previewActivationOwnerRef.current.get(session.id)
+      const activationOwnerId = previewActivationOwners.get(session.id)
       return (
         currentActiveResourceId === null ||
         currentActiveResourceId ===
@@ -219,8 +223,8 @@ export function useFilePreviewController({
 
   const resetEphemeralPreviewState = useCallback(
     (options?: { removeStreamingResource?: boolean }) => {
-      previewActivationOwnerRef.current.clear()
-      completedPreviewResourceHandoffRef.current.clear()
+      previewActivationOwners.clear()
+      completedPreviewResourceHandoffs.clear()
       latestPreviewTargetToolCallIdRef.current = null
       syncPreviewSessionRefs(INITIAL_FILE_PREVIEW_SESSIONS_STATE)
       resetPreviewSessions()
@@ -380,7 +384,7 @@ export function useFilePreviewController({
         if (shouldActivateOnComplete) {
           requestResourceAttention(fileId)
         }
-        completedPreviewResourceHandoffRef.current.set(fileId, {
+        completedPreviewResourceHandoffs.set(fileId, {
           sessionId: nextSession.id,
           suppressActivation: !shouldActivateOnComplete,
         })

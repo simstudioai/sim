@@ -611,7 +611,7 @@ const DropdownMenuSearchInput = React.forwardRef<
           onKeyDown?.(e)
         }}
         className={cn(
-          'h-full w-full bg-transparent text-[var(--text-body)] text-small outline-hidden placeholder:text-[var(--text-muted)] focus:outline-hidden',
+          'size-full bg-transparent text-[var(--text-body)] text-small outline-hidden placeholder:text-[var(--text-muted)] focus:outline-hidden',
           className
         )}
         {...props}

@@ -1099,7 +1099,7 @@
     "scripts/check-fork-dependent-coverage.ts": 2,
     "scripts/check-import-specifiers.ts": 1,
     "scripts/create-single-release.ts": 2,
-    "scripts/generate-docs.ts": 41,
+    "scripts/generate-docs.ts": 40,
     "scripts/generate-v2-cli-api.ts": 3
   },
   "nonNullAssertion": {

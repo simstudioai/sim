@@ -19,10 +19,14 @@ import {
   planChatFileCopies,
 } from '@/lib/mothership/chat/fork-chat-files'
 import { planForkInlineImages } from '@/lib/mothership/chat/fork-inline-images'
-import { copyWorkerConversation } from '@/lib/mothership/chat/fork-worker'
+import {
+  copyWorkerConversation,
+  discardWorkerConversation,
+} from '@/lib/mothership/chat/fork-worker'
 import { loadCopilotChatMessages } from '@/lib/mothership/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import {
+  publishedFileRefMaps,
   rewriteMessageFileRefs,
   rewriteResourceFileRefs,
 } from '@/lib/mothership/chat/rewrite-file-references'
@@ -88,6 +92,8 @@ export const forkChat = defineAuthorizedChatUseCase({
     const { chatId, upToMessageId } = input
     let preparedBlobs: ChatBlobCopyTask[] = []
     let published = false
+    const newId = generateId()
+    let workerCopyRequested = false
     try {
       const messages = await loadCopilotChatMessages(chatId)
       const forkIdx = messages.findIndex((m) => m.id === upToMessageId)
@@ -95,23 +101,28 @@ export const forkChat = defineAuthorizedChatUseCase({
         throw new OrchestrationError('validation', 'Message not found in chat')
       }
       const forkedMessages = messages.slice(0, forkIdx + 1)
+      const keptMessageIds = new Set(forkedMessages.map((m) => m.id))
+      const keptRequestIds = new Set(
+        forkedMessages.flatMap((m) => (m.requestId ? [m.requestId] : []))
+      )
+      /** The Sources panel reads its response by message or request id; a response past the cut is not in the fork. */
+      const addressesKeptMessage = ({ sources }: MothershipResource) =>
+        !!sources &&
+        (keptMessageIds.has(sources.messageId) ||
+          (!!sources.requestId && keptRequestIds.has(sources.requestId)))
 
       /** Single workspace_files read per fork: every chat-owned upload. The copied set is timeline-cut to the kept message slice in memory (files born after the fork point stay behind). */
       const chatOwnedFiles = context.workspaceId ? await listForkableChatFiles(db, chatId) : []
-      const sourceFiles = filterForkableChatFiles(
-        chatOwnedFiles,
-        new Set(forkedMessages.map((m) => m.id))
-      )
+      const sourceFiles = filterForkableChatFiles(chatOwnedFiles, keptMessageIds)
 
       /** Resources are stored as a jsonb array on the chat row. They carry no timestamps, so they can't be timeline-cut like messages — instead, file resources whose chat-owned file is NOT copied (uploads born after the cut) are dropped in the rewrite below; everything else is copied. */
       const parentResources = sanitizeChatResources(
         Array.isArray(parent.resources) ? (parent.resources as MothershipResource[]) : []
-      )
+      ).filter((resource) => resource.type !== 'sources' || addressesKeptMessage(resource))
 
       /** The source chat's chat-owned file ids (no cut) — the "is this resource a ghost?" test set for the rewrite. */
       const chatOwnedFileIds = new Set(chatOwnedFiles.map((row) => row.id))
 
-      const newId = generateId()
       /** Strip a leading "Fork | " so titles don't stack prefixes when forking a forked chat. */
       const baseTitle = (parent.title ?? 'New chat').replace(/^Fork \| /, '')
       const title = `Fork | ${baseTitle}`
@@ -121,14 +132,15 @@ export const forkChat = defineAuthorizedChatUseCase({
       preparedBlobs = [...plan.blobTasks, ...planForkInlineImages(forkedMessages, chatId, newId)]
       const { failed, failedCopyIds } = await executeChatFileBlobCopies(preparedBlobs)
       const failedIds = new Set(failedCopyIds)
-      const maps = { fileIds: plan.idMap, fileKeys: plan.keyMap }
-      const newChatResources = rewriteResourceFileRefs(
-        parentResources,
-        maps,
-        chatOwnedFileIds
-      ).filter((resource) => resource.type !== 'file' || !failedIds.has(resource.id))
+      const maps = {
+        ...publishedFileRefMaps(plan, failedIds),
+        workspaceId: context.workspaceId,
+      }
+      /** A chat-owned file whose copy failed is a ghost here too: no published copy stands in for it. */
+      const newChatResources = rewriteResourceFileRefs(parentResources, maps, chatOwnedFileIds)
       const cutUser = [...forkedMessages].reverse().find((message) => message.role === 'user')
       if (!cutUser) throw new Error('The fork has no user message')
+      workerCopyRequested = true
       await copyWorkerConversation({
         sourceChatId: chatId,
         newChatId: newId,
@@ -138,12 +150,26 @@ export const forkChat = defineAuthorizedChatUseCase({
         userId,
         upToMessageId: cutUser.id,
         includeResponse: forkedMessages.at(-1)?.role === 'assistant',
-        fileIds: Object.fromEntries(plan.idMap),
-        fileKeys: Object.fromEntries(plan.keyMap),
+        fileIds: Object.fromEntries(maps.fileIds),
+        fileKeys: Object.fromEntries(maps.fileKeys),
       })
 
       /** Publish only after both the file bytes and the worker conversation are prepared. */
       await db.transaction(async (tx) => {
+        /**
+         * The fork can share keys with its source (organization attachments, files whose copy
+         * failed), and chat cleanup deletes a shared key once no remaining chat references it,
+         * checking only after it deletes the source row. Holding the source row until commit
+         * orders the two: a purge that already removed it refuses this fork, and one that has
+         * not waits for this commit and then sees the fork's references.
+         */
+        const [source] = await tx
+          .select({ id: copilotChats.id })
+          .from(copilotChats)
+          .where(eq(copilotChats.id, chatId))
+          .for('key share')
+          .limit(1)
+        if (!source) throw new OrchestrationError('not_found', 'Chat not found')
         const [row] = await tx
           .insert(copilotChats)
           .values({
@@ -198,6 +224,8 @@ export const forkChat = defineAuthorizedChatUseCase({
         ...(failed > 0 ? { failedFileCopies: failed } : {}),
       }
     } catch (error) {
+      if (!published && workerCopyRequested)
+        await discardWorkerConversation({ newChatId: newId, userId })
       if (!published) {
         await mapWithConcurrency(preparedBlobs, 4, async (task) => {
           try {

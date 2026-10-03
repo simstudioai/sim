@@ -1,4 +1,9 @@
-import { dateSortDirection, hasDateBounds, nativeText } from '@/lib/sim-search/live/dates'
+import {
+  dateSortDirection,
+  hasDateBounds,
+  nativeDateBounds,
+  nativeText,
+} from '@/lib/sim-search/live/dates'
 import { array, NativeSearchError, object, string } from '@/lib/sim-search/live/http'
 import type { ManagedSearchMcpClient } from '@/lib/sim-search/live/managed-mcp'
 import type { NativeDocument, NativePage, NativeSearchInput } from '@/lib/sim-search/live/types'
@@ -59,17 +64,49 @@ function searchDocument(row: Record<string, unknown>): NativeDocument | undefine
   }
 }
 
+const BROWSE_TOOLS = {
+  private: 'notion-list-private-pages',
+  shared: 'notion-list-shared-pages',
+  favorites: 'notion-list-favorite-pages',
+  recent: 'notion-list-recent-pages',
+} as const
+
 /** Tool visibility and workspace-plan access are separate; the current access map owns routing. */
-async function searchTool(client: ManagedSearchMcpClient): Promise<string> {
+async function searchTool(
+  client: ManagedSearchMcpClient,
+  browse?: NativeSearchInput['native']
+): Promise<{ tool: string; restrictions: Record<string, unknown> }> {
   const access = object(object(await client.call('notion-get-tool-access', {})).current_tool_access)
-  const ai = string(object(access.ai_search).status)
-  const keyword = string(object(access.search).status)
+  if (browse?.browse) {
+    if (!(browse.browse in BROWSE_TOOLS))
+      throw new NativeSearchError('unavailable', 'Unsupported Notion browse mode.')
+    const name = BROWSE_TOOLS[browse.browse as keyof typeof BROWSE_TOOLS]
+    const entry = object(access[name.replace('notion-', '').replaceAll('-', '_')])
+    if (
+      client.hasTool?.(name) !== true ||
+      !['available', 'available_with_limit'].includes(string(entry.status))
+    )
+      throw new NativeSearchError(
+        'unavailable',
+        'Notion browsing is unavailable for this connection.'
+      )
+    return { tool: name, restrictions: object(entry.restricted_parameters) }
+  }
+  const ai = object(access.ai_search)
+  const keyword = object(access.search)
   const exposed = (name: string) => client.hasTool?.(name) !== false
-  if (ai === 'available' && exposed('notion-ai-search')) return 'notion-ai-search'
-  if (['available', 'available_with_limit'].includes(keyword) && exposed('notion-search'))
-    return 'notion-search'
-  if (['upgrade_required', 'plan_required'].includes(ai) && exposed('notion-ai-search'))
-    return 'notion-ai-search'
+  if (ai.status === 'available' && exposed('notion-ai-search'))
+    return { tool: 'notion-ai-search', restrictions: object(ai.restricted_parameters) }
+  if (
+    ['available', 'available_with_limit'].includes(string(keyword.status)) &&
+    exposed('notion-search')
+  )
+    return { tool: 'notion-search', restrictions: object(keyword.restricted_parameters) }
+  if (
+    ['upgrade_required', 'plan_required'].includes(string(ai.status)) &&
+    exposed('notion-ai-search')
+  )
+    return { tool: 'notion-ai-search', restrictions: object(ai.restricted_parameters) }
   throw new NativeSearchError(
     'unavailable',
     'Notion search is unavailable for this connection. Check the enabled tools and workspace plan.'
@@ -81,24 +118,63 @@ export async function searchNotionMcp(
   input: NativeSearchInput
 ): Promise<NativePage> {
   const query = nativeText(input)
-  if (!query)
+  const browsing = Boolean(input.native?.browse)
+  if (
+    browsing &&
+    (query ||
+      input.native?.project ||
+      input.native?.modifiers ||
+      input.native?.termClauses?.length ||
+      input.native?.keywordOnly)
+  )
     throw new NativeSearchError(
       'unavailable',
-      'Notion requires search terms. Use short keywords or a concise question, then narrow by dates.'
+      'Notion sidebar browsing requires an empty query without page scope or search operators.'
     )
-  const tool = await searchTool(client)
+  const { tool, restrictions } = await searchTool(client, input.native)
+  const supported = (path: string) =>
+    client.hasArgument?.(tool, path) === true &&
+    !Object.keys(restrictions).some((key) => path === key || path.startsWith(`${key}.`))
   const localFilters = hasDateBounds(input.filters) || Boolean(dateSortDirection(input.filters))
-  const args: Record<string, unknown> = { query, query_type: 'internal' }
-  if (input.native?.project) {
-    const scope = notionResource(input.native.project)
-    if (!scope || !client.hasArgument?.(tool, 'page_url'))
+  const args: Record<string, unknown> = browsing ? {} : { query, query_type: 'internal' }
+  let providerDates = false
+  if (!browsing) {
+    if (input.native?.project) {
+      const scope = notionResource(input.native.project)
+      if (!scope || !supported('page_url'))
+        throw new NativeSearchError(
+          'unavailable',
+          'Notion page scope requires a Notion page URL or ID and a connection advertising page_url. Search by page title if scoped search is unavailable.'
+        )
+      args.page_url = scope.url
+    }
+    const bounds = nativeDateBounds(input)
+    const start =
+      bounds.start && supported('filters.last_edited_date_range.start_date')
+        ? bounds.start
+        : undefined
+    const end =
+      bounds.end && supported('filters.last_edited_date_range.end_date') ? bounds.end : undefined
+    if (start || end) {
+      // Date-only provider bounds have no timezone; widen candidate days before exact local checks.
+      const day = (value: string, offset: number) =>
+        new Date(Date.parse(value) + offset * 86_400_000).toISOString().slice(0, 10)
+      args.filters = {
+        last_edited_date_range: {
+          ...(start ? { start_date: day(start, -1) } : {}),
+          ...(end ? { end_date: day(end, 2) } : {}),
+        },
+      }
+      providerDates = true
+    }
+    if (input.filters?.sortBy === 'newest' && supported('sort')) args.sort = 'last_edited'
+    if (!query && !providerDates && !args.sort)
       throw new NativeSearchError(
         'unavailable',
-        'Notion page scope requires a Notion page URL or ID and a connection advertising page_url. Search by page title if scoped search is unavailable.'
+        'Notion date-only search requires supported modification filters or newest sorting on the workspace plan. Use an explicit private, shared, favorites or recent browse mode, or supply search terms.'
       )
-    args.page_url = scope.url
   }
-  const limit = Math.min(input.limit, localFilters ? 10 : 50)
+  const limit = Math.max(1, Math.min(input.limit, localFilters ? 10 : 50))
   if (client.hasArgument?.(tool, 'page_size')) args.page_size = limit
   else if (client.hasArgument?.(tool, 'limit')) args.limit = limit
   const cursorKey = client.hasArgument?.(tool, 'cursor')
@@ -152,7 +228,17 @@ export async function searchNotionMcp(
     }
     documents = hydrated
   }
-  const next = string(result.next_cursor ?? result.nextCursor)
+  const continuation = result.next_cursor ?? result.nextCursor
+  if (
+    continuation !== undefined &&
+    continuation !== null &&
+    (typeof continuation !== 'string' ||
+      !continuation ||
+      continuation.length > 2048 ||
+      continuation === input.native?.cursor)
+  )
+    throw new NativeSearchError('unavailable', 'Notion returned an invalid search continuation.')
+  const next = string(continuation)
   const nextCursor = cursorKey && next && !clipped ? next : undefined
   const notices = array(result.notices).length > 0
   const aiSearch =
@@ -174,7 +260,9 @@ export async function searchNotionMcp(
       cappedWithoutCoverage ||
       (hasMore && !nextCursor),
     message:
-      'Notion searches page content with the connected member’s current access. Only Notion pages and databases are returned; connected-app results are excluded. Read important matches before relying on them.' +
+      (browsing
+        ? `Notion lists ${input.native?.browse} sidebar pages and databases, not an exhaustive workspace inventory. Recent means viewed/frequency, not last modified. List entries are navigation metadata; read pages for content evidence.`
+        : 'Notion searches page content with the connected member’s current access. Only Notion pages and databases are returned; connected-app results are excluded. Read important matches before relying on them.') +
       (tool === 'notion-search'
         ? ' This connection uses keyword search; use short, specific title or content terms.'
         : '') +
@@ -184,8 +272,11 @@ export async function searchNotionMcp(
       (notices
         ? ' Notion returned plan or search notices; requested coverage may be limited.'
         : '') +
+      (providerDates
+        ? ' Provider modification-day filters narrow candidates; exact timestamps are checked from current page metadata.'
+        : '') +
       (localFilters
-        ? ' Dates and sorting use freshly fetched page modification timestamps for at most 10 candidates; this does not exhaustively search a date range.'
+        ? ' Dates and sorting use freshly fetched page modification timestamps for at most 10 candidates; this does not exhaustively search a date range or establish global oldest/newest results.'
         : '') +
       (hasMore && !nextCursor
         ? ' More results may exist, but no safe continuation is available. Narrow the query.'

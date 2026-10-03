@@ -10,8 +10,6 @@ paths:
 
 **A list orders itself the way the user already reads the same things somewhere else.** Dropdowns, context menus, tab strips, command palettes, and settings navs are all *second* presentations of a set the user has already seen — in a toolbar, in the settings nav, in a column-header row. When the second presentation reorders that set, the user re-reads it from scratch every time.
 
-This is not a style preference. Order is the cheapest affordance a list has, and the only one that costs nothing to get right.
-
 ## The rule
 
 Before writing a list of items, find where the user sees those same items *first*. That surface owns the order; your list mirrors it.
@@ -94,14 +92,10 @@ const hasDestructiveSection = (showLeave && onLeave) || showDelete
 {hasActionsAboveDestructive && hasDestructiveSection && <DropdownMenuSeparator />}
 ```
 
-This is the failure that put a dangling rule at the bottom of the logs row menu, where two
-unconditional separators sat above conditional items.
+Unconditional separators above conditional items leave a dangling rule at the bottom of the menu.
 
-**Do not add a prop to move a rule.** The shared workflow context menu grew
-`groupNonDestructiveActions` and `separateNavigationAction` for this; between them they moved one
-separator for one caller, four of six branches were unreachable, and `separateNavigationAction`
-had no observable effect anywhere in the repo. Both are gone. A menu that wants different
-grouping wants the standard grouping.
+**Never add a prop to move a rule.** Per-caller grouping props multiply unreachable branches; a
+menu that wants different grouping wants the standard grouping.
 
 ## Encode the order once
 
@@ -131,7 +125,7 @@ The most common way a canonical order gets silently defeated: emitting all items
 {groups.filter((g) => !FOLDERED.has(g.type)).map(renderFlat)}
 
 // ✓ Good — one ordered pass; each entry picks its own rendering
-{entries.sort(byResourceMenuOrder).map((entry) =>
+{[...entries].sort(byResourceMenuOrder).map((entry) =>
   sectionByType.has(entry.type) ? renderTree(entry) : renderFlat(entry)
 )}
 ```

@@ -58,7 +58,7 @@ The `'use client'` hook module then imports these back for its hooks. **Never** 
 
 ```typescript
 import { requestJson } from '@/lib/api/client/request'
-import { listEntitiesContract, type EntityList } from '@/lib/api/contracts/entities'
+import { listEntitiesContract, type EntityList } from '@/lib/api/contracts/<domain>'
 
 export const ENTITY_LIST_STALE_TIME = 60 * 1000
 
@@ -141,7 +141,6 @@ const handler = useCallback(() => {
 // ✓ Good — omit from deps, mutate is stable
 const handler = useCallback(() => {
   createEntity.mutate(data)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [data])
 ```
 

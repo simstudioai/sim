@@ -18,15 +18,13 @@ const DIFF_LABEL_CLASS: Record<BlockDiffStatus, string> = {
 
 interface DiffStatusLabelProps {
   status: BlockDiffStatus
-  /** How many fields changed on a modified block; shown after the label when known */
-  count?: number
 }
 
 /**
  * The comparison label floating above a canvas card or container: the same
  * chrome wherever it appears so a block and a loop read as one system.
  */
-export function DiffStatusLabel({ status, count }: DiffStatusLabelProps) {
+export function DiffStatusLabel({ status }: DiffStatusLabelProps) {
   return (
     <div
       className={cn(
@@ -35,7 +33,6 @@ export function DiffStatusLabel({ status, count }: DiffStatusLabelProps) {
       )}
     >
       {DIFF_LABEL[status]}
-      {status === 'modified' && count ? ` · ${count}` : null}
     </div>
   )
 }

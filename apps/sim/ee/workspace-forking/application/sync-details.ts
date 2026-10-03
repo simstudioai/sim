@@ -26,6 +26,7 @@ import {
   collectForkClearedRefCandidates,
 } from '@/ee/workspace-forking/lib/promote/cleared-refs'
 import { computeForkPromotePlan } from '@/ee/workspace-forking/lib/promote/promote-plan'
+import { loadForkWorkflowComparisons } from '@/ee/workspace-forking/lib/promote/sync-provenance'
 import { buildForkTriggerPlan } from '@/ee/workspace-forking/lib/promote/trigger-urls'
 import { buildForkBlockIdResolver } from '@/ee/workspace-forking/lib/remap/block-identity'
 
@@ -52,7 +53,7 @@ export const getWorkspaceSyncDetails = defineForkUseCase({
       sourceWorkspaceId: direction === 'push' ? id : input.otherWorkspaceId,
       targetWorkspaceId: direction === 'push' ? input.otherWorkspaceId : id,
     }
-    const { deployedWorkflows, sourceStates } = await loadSourceDeployedStates(
+    const { deployedWorkflows, sourceStates, sourceVersionIds } = await loadSourceDeployedStates(
       auth.sourceWorkspaceId
     )
     const plan = await computeForkPromotePlan({
@@ -245,12 +246,22 @@ export const getWorkspaceSyncDetails = defineForkUseCase({
     // Orient the mapping around the workspace the modal is open in (`id`): show the
     // caller's workflow name first, the sync partner's second, so renames are legible.
     const currentIsSource = auth.sourceWorkspaceId === id
+    const comparisons = await loadForkWorkflowComparisons(
+      db,
+      auth.edge.childWorkspaceId,
+      plan.items,
+      sourceVersionIds
+    )
     const workflows = [
       ...plan.items.map((item) => {
+        const comparison = comparisons.get(item.sourceWorkflowId)
+        if (!comparison) throw new Error('Missing source workflow comparison')
         if (item.mode === 'create') {
           // The target inherits the source's name, so both sides read the same.
           return {
             action: 'create' as const,
+            sourceWorkflowId: item.sourceWorkflowId,
+            comparison,
             currentName: item.sourceMeta.name,
             otherName: item.sourceMeta.name,
           }
@@ -258,12 +269,15 @@ export const getWorkspaceSyncDetails = defineForkUseCase({
         const targetName = item.targetName ?? item.sourceMeta.name
         return {
           action: 'update' as const,
+          sourceWorkflowId: item.sourceWorkflowId,
+          comparison,
           currentName: currentIsSource ? item.sourceMeta.name : targetName,
           otherName: currentIsSource ? targetName : item.sourceMeta.name,
         }
       }),
       ...plan.archivedTargets.map((target) => ({
         action: 'archive' as const,
+        targetWorkflowId: target.id,
         currentName: target.name,
         otherName: target.name,
       })),
@@ -272,6 +286,10 @@ export const getWorkspaceSyncDetails = defineForkUseCase({
     return {
       sourceWorkspaceId: auth.sourceWorkspaceId,
       targetWorkspaceId: auth.targetWorkspaceId,
+      sourceVersions: [...sourceVersionIds].map(([workflowId, version]) => ({
+        workflowId,
+        deploymentVersionId: version.id,
+      })),
       willUpdate: plan.willUpdate,
       willCreate: plan.willCreate,
       willArchive: plan.willArchive,

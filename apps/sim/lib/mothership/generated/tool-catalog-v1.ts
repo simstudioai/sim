@@ -6097,7 +6097,7 @@ export const SearchWorkspace: ToolCatalogEntry = {
       },
       nativeQueries: {
         description:
-          "Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies/HubSpot/Lucid/Zoom terms, bounded local Google Meet text matching, Granola natural-language questions, Notion keywords or AI questions when available). Blank queries require a date bound or sortBy newest/oldest; Notion and Lucid always require search terms. Up to 4 per account run separately and merge; one GitHub, GitLab, or HubSpot query without a kind searches GitHub issues (plus code when the query has no date bound or boolean operators, as its status message says), GitLab issues, merge requests, and code, or every HubSpot CRM kind; other collections, and multiple queries on one account, each need a kind, which may repeat. HubSpot kinds are contacts, companies, deals, and tickets; Lucid kinds are lucidchart and lucidspark. Google Meet kinds are transcript and smart_notes (note metadata and Docs link only); it searches bounded recent conference artifacts with 30-day retention. Zoom kind is meeting and searches past occurrences; read for transcripts and separately labeled summaries. Use Drive for saved Meet note bodies and older transcripts; Drive dates mean file modification time. HubSpot, Lucid, Zoom and Meet reject ownership filters. Lucid searches titles with no search continuation; project can scope a literal shape-text query to one known document UUID or Lucid URL. Read for structured diagram evidence. Dates and sorting cover only retrieved candidates, not globally newest/oldest matches. Write queries from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.",
+          "Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS, plain Linear/Fireflies/HubSpot/Lucid/Zoom terms, bounded local Google Meet text matching, Granola natural-language questions, Notion keywords or AI questions when available). Blank queries require a date bound, sortBy newest/oldest, or explicit browse mode. Lucid browse folder lists root or a numeric folder project; Notion browse private/shared/favorites/recent lists sidebar pages. Recent means viewed, not modified. Up to 4 per account run separately and merge; one GitHub, GitLab, or HubSpot query without a kind searches GitHub issues (plus code when the query has no date bound or boolean operators, as its status message says), GitLab issues, merge requests, and code, or every HubSpot CRM kind; other collections, and multiple content queries on one account, each need a kind, which may repeat; explicit browse queries may select distinct folders or sidebar sections without a kind. HubSpot kinds are contacts, companies, deals, and tickets; Lucid kinds are lucidchart and lucidspark. Google Meet kinds are transcript and smart_notes (note metadata and Docs link only); it searches bounded recent conference artifacts with 30-day retention. Zoom kind is meeting and searches past occurrences; read for transcripts and separately labeled summaries. Use Drive for saved Meet note bodies and older transcripts; Drive dates mean file modification time. HubSpot, Lucid, Zoom and Meet reject ownership filters. Lucid title search has no continuation; folder browsing is paginated and returns child folders in account coverage; project can scope a literal shape-text query to one known document UUID or Lucid URL. Read for structured diagram evidence. Dates and sorting cover only retrieved candidates, not globally newest/oldest matches. Write queries from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.",
         minItems: 1,
         maxItems: 9,
         type: 'array',
@@ -6149,6 +6149,12 @@ export const SearchWorkspace: ToolCatalogEntry = {
               ],
             },
             project: { type: 'string', minLength: 1, maxLength: 300 },
+            browse: {
+              description:
+                'Queryless discovery: Lucid folder lists one folder page (omit project for root; otherwise use a returned numeric folder ID). Notion private/shared list sidebar pages, favorites lists pinned pages, recent lists recently viewed pages, not recently modified pages. These lists are not an exhaustive workspace inventory. Follow the returned cursor with the same account, browse mode, project, filters and topK.',
+              type: 'string',
+              enum: ['folder', 'private', 'shared', 'favorites', 'recent'],
+            },
             cursor: { type: 'string', maxLength: 4000 },
             termClauses: { maxItems: 10, type: 'array', items: { type: 'string', maxLength: 500 } },
             modifiers: { type: 'string', maxLength: 1000 },
@@ -6161,7 +6167,7 @@ export const SearchWorkspace: ToolCatalogEntry = {
       query: {
         default: '',
         description:
-          'Search terms, without dates already supplied as filters. May be empty for a live listing with a date bound or sortBy newest or oldest where supported; Notion requires search terms.',
+          'Search terms, without dates already supplied as filters. May be empty for a live listing with a date bound or sortBy newest or oldest where supported, or use an explicit native browse mode. Notion date-only search depends on plan capabilities.',
         type: 'string',
         maxLength: 2000,
       },

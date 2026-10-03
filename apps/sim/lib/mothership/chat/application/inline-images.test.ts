@@ -46,8 +46,8 @@ import {
   materializeStreamImage,
   readInlineChatImage,
 } from '@/lib/mothership/chat/application/inline-images'
+import { inlineChatImageKey } from '@/lib/mothership/chat/inline-image-key'
 import { inlineChatImageUrl } from '@/lib/mothership/chat/inline-image-reference'
-import { inlineChatImageKey } from '@/lib/mothership/chat/inline-image-storage'
 import { GET } from '@/app/api/mothership/chats/[chatId]/images/[requestId]/route'
 
 const mocks = {

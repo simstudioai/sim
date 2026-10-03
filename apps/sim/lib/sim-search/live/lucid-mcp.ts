@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { truncate } from '@sim/utils/string'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import {
   dateSortDirection,
@@ -80,6 +81,7 @@ export async function searchLucidMcp(
   input: NativeSearchInput
 ): Promise<NativePage> {
   const query = nativeText(input)
+  if (input.native?.browse) return browseFolder(client, input)
   if (!query.trim()) invalid('Lucid requires search terms, including for date-filtered searches.')
   const project = input.native?.project
   if ([...query].length > (project ? 200 : 400))
@@ -199,6 +201,100 @@ export async function searchLucidMcp(
         : '') +
       (capped ? ' The candidate limit was reached; narrow the title query.' : '') +
       (dropped ? ' Unsupported or no-longer-readable search results were excluded.' : ''),
+  }
+}
+
+/** A single folder page stays within the metadata budget and never recursively expands folders. */
+async function browseFolder(
+  client: ManagedSearchMcpClient,
+  input: NativeSearchInput
+): Promise<NativePage> {
+  const native = input.native
+  if (
+    native?.browse !== 'folder' ||
+    nativeText(input) ||
+    native.modifiers ||
+    native.termClauses?.length ||
+    native.keywordOnly
+  )
+    invalid('Lucid folder browsing requires an empty query without search operators.')
+  if (native.project && !/^[1-9]\d{0,14}$/.test(native.project))
+    invalid('Lucid folder browsing requires a numeric folder ID.')
+  if (client.hasTool?.('lucid_list_folder_contents') !== true)
+    invalid('Lucid folder browsing is unavailable on this connection.')
+  if (native.kind && !PRODUCTS.some((product) => product === native.kind))
+    invalid('Lucid supports lucidchart and lucidspark document kinds.')
+  const limit = Math.max(1, Math.min(MAX_CANDIDATES, input.limit))
+  const result = object(
+    await client.call('lucid_list_folder_contents', {
+      page_size: limit,
+      ...(native.project ? { folder_id: Number(native.project) } : {}),
+      ...(native.cursor ? { page_token: native.cursor } : {}),
+    })
+  )
+  if (!Array.isArray(result.items) || result.items.length > limit)
+    invalid('Lucid returned an invalid or oversized folder page; restart with a smaller page.')
+  if (
+    result.nextPageToken !== undefined &&
+    (typeof result.nextPageToken !== 'string' ||
+      !result.nextPageToken ||
+      result.nextPageToken.length > 2048 ||
+      result.nextPageToken === native.cursor)
+  )
+    invalid('Lucid returned an invalid folder continuation.')
+  const folders: NonNullable<NativePage['folders']> = []
+  const candidates: { id: string; kind: string }[] = []
+  const seen = new Set<string>()
+  let dropped = false
+  for (const item of result.items) {
+    const row = object(item)
+    if (row.isShortcut !== false) {
+      dropped = true
+      continue
+    }
+    if (row.type === 'folder') {
+      const id =
+        typeof row.id === 'number' && Number.isSafeInteger(row.id) ? String(row.id) : string(row.id)
+      if (!/^[1-9]\d{0,14}$/.test(id) || typeof row.name !== 'string') {
+        dropped = true
+        continue
+      }
+      if (!seen.has(`folder:${id}`)) folders.push({ id, name: truncate(row.name, 200) })
+      seen.add(`folder:${id}`)
+      continue
+    }
+    const id = string(row.id)
+    const kind = string(row.product)
+    if (
+      row.type !== 'document' ||
+      !UUID.test(id) ||
+      !PRODUCTS.some((product) => product === kind)
+    ) {
+      dropped = true
+      continue
+    }
+    if (native.kind && native.kind !== kind) continue
+    if (!seen.has(id)) candidates.push({ id, kind })
+    seen.add(id)
+  }
+  const documents = await mapWithConcurrency(candidates, 3, async (candidate) => {
+    const document = await metadata(client, candidate.id)
+    if (!document || document.kind !== candidate.kind) {
+      dropped = true
+      return undefined
+    }
+    return document
+  })
+  const nextCursor = string(result.nextPageToken) || undefined
+  return {
+    documents: documents.filter((document) => document !== undefined),
+    folders,
+    nextCursor,
+    hasMore: Boolean(nextCursor),
+    partial: dropped || hasDateBounds(input.filters) || Boolean(dateSortDirection(input.filters)),
+    message:
+      'Lucid lists one folder’s direct children, not the entire account. Child folders are navigation references: use browse folder with their ID as project. Continue the same folder with nextCursor, including when no documents matched this page. Dates and sorting apply only to this page’s current document metadata; folder names and document titles are not diagram evidence.' +
+      (dropped ? ' Shortcuts, unsupported items or unreadable metadata were excluded.' : ''),
   }
 }
 

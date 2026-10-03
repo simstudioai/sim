@@ -12,7 +12,7 @@ A `case 'yourtype':` outside `column-types/` fails **silently** when missed (a w
 
 ## Hard Rule: the compiler tells you what to do
 
-Do **not** hunt for places to edit. Add your type to the `ColumnType` union first and let `tsc` produce the list:
+Do **not** hunt for places to edit. Append your type's id to the `COLUMN_TYPES` array in `column-types/types.ts` first (`ColumnType` derives from it) and let `tsc` produce the list:
 
 ```bash
 cd apps/sim && bun run type-check
@@ -86,7 +86,7 @@ export function Type{Pascal}(props: SVGProps<SVGSVGElement>) {
 
 ## Step 3: Write the type file
 
-`apps/sim/lib/table/column-types/{name}.ts`. Copy the closest existing type and change what differs. Every field is required by the interface, so the compiler enumerates them for you — read the TSDoc in `types.ts` rather than guessing.
+`apps/sim/lib/table/column-types/{name}.ts`. Copy the closest existing type and change what differs. Required fields are compiler-enforced; optional hooks (`isCompatibleWith`, `salvage`, `valueForEquality`, `filterOperatorsFor`, …) default sensibly — read the TSDoc in `types.ts` before overriding.
 
 The three that are easy to get wrong:
 
@@ -132,18 +132,18 @@ Registering the *type* is compiler-enforced. Registering its *metadata* is not, 
 | `column-types/types.ts` `TYPE_SPECIFIC_COLUMN_KEYS` | it is never stripped on conversion, and poisons the target type |
 | `lib/api/contracts/tables.ts` — the schema slot in all three column schemas, plus `refineColumnOptions` | zod strips it at the boundary; silently never saved |
 | `columns/service.ts` `addTableColumn` param type | callers cannot pass it |
-| A metadata-only update path (`updateColumnCurrency` is the model) + a branch in both column routes + the copilot tool | changing it on an existing column is a silent 200 no-op |
+| A metadata-only update in `lib/table/columns/service.ts` (`updateColumnCurrency` is the model) + a branch in `performUpdateTableColumn` in `lib/table/orchestration/columns.ts` | changing it on an existing column is a silent 200 no-op |
 | `column-config-sidebar.tsx` | no UI to set it |
 | `table-grid.tsx` delete-column undo + `use-table-undo.ts` restore | undo silently resets it to the default |
 
 `normalizeColumn`, `buildConvertedColumn`, and the undo snapshot read `TYPE_SPECIFIC_COLUMN_KEYS` generically, so those three are already zero-edit.
 
-**Known gap:** the metadata-only update path is ~6 near-identical copies (service + 2 routes + copilot). A `metadataUpdate` descriptor on `ColumnTypeServerDefinition` would collapse them; until that exists, copy `currency`'s.
+Copy `currency`'s service function and orchestration branch.
 
 ## Checklist Before Finishing
 
-- [ ] Added to the `ColumnType` union in `column-types/types.ts`
-- [ ] `column-types/{id}.ts` created, every interface field filled in
+- [ ] Id appended to `COLUMN_TYPES` in `column-types/types.ts`
+- [ ] `column-types/{id}.ts` created, every required field filled in
 - [ ] Registered in **both** `registry.ts` and `registry.server.ts`
 - [ ] Icon added, centered on the family's optical center, exported alphabetically
 - [ ] `migrateCellsTo` / `migrateCellsFrom` added if the stored bytes change
@@ -155,6 +155,6 @@ Registering the *type* is compiler-enforced. Registering its *metadata* is not, 
 
 1. **`cd apps/sim && bun run type-check`** — must be clean. If any file *outside* `column-types/` errors, that file has a hardcoded type list; fix it to read the registry.
 2. **Grep for leaks** — `grep -rnE "(===|!==) '{id}'|case '{id}':" apps/sim --include='*.ts' --include='*.tsx' | grep -v column-types/`. (All three forms: a plain `!==` and a `case` are how half of `currency`'s real branches are written.) Hits are expected; judge each. A hit is fine when it mounts a specific React component or encodes a genuinely one-off behavior (`json`'s mono textarea, `date`'s timezone-aware parsing). A hit is a **leak** when it restates something the registry could answer — an icon, a label, a colour, an operator set, a cast, a coercion. Leaks get a registry field, not a new branch.
-3. **Run the suite** — `bun run --cwd apps/sim test lib/table 'app/workspace/[workspaceId]/tables' lib/api app/api/table app/api/v1 lib/copilot/tools/server/table`. Existing tests must pass **unchanged**; needing to edit one means you changed behavior for the other types.
-4. **`bun run lint`, `bun run check:api-validation`, `bun run check:client-boundary`** from the repo root.
+3. **Run the suite** — `bun run --cwd apps/sim test lib/table 'app/workspace/[workspaceId]/tables' lib/api app/api/table app/api/v1`. Existing tests must pass **unchanged**; needing to edit one means you changed behavior for the other types.
+4. **`bun run lint`, `bun run check:api-validation:strict`, `bun run check:client-boundary`** from the repo root.
 5. **Exercise it in the running app** on a table with one column of every type: create, edit inline / in the expanded popover / in the row modal, paste from a spreadsheet, filter, sort, convert to and from other types, export CSV, undo a column delete.

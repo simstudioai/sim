@@ -56,6 +56,7 @@ import {
   NotionIcon,
   OutlookIcon,
   PipedriveIcon,
+  PowerBIIcon,
   QuickBooksIcon,
   RedditIcon,
   SalesforceIcon,
@@ -442,6 +443,22 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'Group.ReadWrite.All',
           'Group.Read.All',
           'Tasks.ReadWrite',
+          'offline_access',
+        ],
+      },
+      'microsoft-powerbi': {
+        name: 'Power BI',
+        description: 'Connect to Power BI and query semantic models, reports, and refresh history.',
+        providerId: 'microsoft-powerbi',
+        icon: PowerBIIcon,
+        baseProviderIcon: MicrosoftIcon,
+        scopes: [
+          'https://analysis.windows.net/powerbi/api/Workspace.Read.All',
+          'https://analysis.windows.net/powerbi/api/Report.Read.All',
+          'https://analysis.windows.net/powerbi/api/Dataset.ReadWrite.All',
+          'openid',
+          'profile',
+          'email',
           'offline_access',
         ],
       },
@@ -2345,6 +2362,11 @@ export async function refreshOAuthToken(
     }
 
     const { headers, bodyParams, useJsonBody } = buildAuthRequest(config, refreshToken)
+
+    // Microsoft refresh tokens are resource-independent. Keep the Power BI audience explicit.
+    if (providerId === 'microsoft-powerbi') {
+      bodyParams.scope = OAUTH_PROVIDERS.microsoft.services['microsoft-powerbi'].scopes.join(' ')
+    }
 
     const response = await fetch(config.tokenEndpoint, {
       method: 'POST',

@@ -6,6 +6,7 @@
 
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { omit } from '@sim/utils/object'
 import {
   type InfiniteData,
   infiniteQueryOptions,
@@ -2207,9 +2208,7 @@ export function useDeleteColumn({ workspaceId, tableId }: RowMutationContext) {
         const nextMetadata = prevWidths
           ? {
               ...previousDetail.metadata,
-              columnWidths: Object.fromEntries(
-                Object.entries(prevWidths).filter(([k]) => k !== stripKey)
-              ),
+              columnWidths: omit(prevWidths, [stripKey]),
             }
           : previousDetail.metadata
         queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), {
