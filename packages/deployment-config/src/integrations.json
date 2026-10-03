@@ -1203,6 +1203,45 @@
       "tags": ["data-analytics", "marketing"]
     },
     {
+      "type": "anymailfinder",
+      "slug": "anymail-finder",
+      "name": "Anymail Finder",
+      "description": "Find and verify B2B work emails, paying only for verified results",
+      "longDescription": "Integrate Anymail Finder to find verified work emails from a name and company or a LinkedIn URL, find the decision maker in a department at a company, list verified emails at a company, verify addresses you already have, and check your credit balance. A find is charged only when it returns a verified email.",
+      "bgColor": "#0E2240",
+      "iconName": "AnymailFinderIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/anymailfinder",
+      "operations": [
+        {
+          "name": "Find Person Email",
+          "description": "Find a person's verified work email from their name and company domain or name, or from their LinkedIn URL alone. Charges 1 credit only when a verified email is found."
+        },
+        {
+          "name": "Find Decision Maker Email",
+          "description": "Find the name, job title and verified email of a decision maker in a given department at a company, when you do not know who to look for. Charges 2 credits only when a verified email is found."
+        },
+        {
+          "name": "Find Company Emails",
+          "description": "List up to 20 verified email addresses at a company, generic ones like contact@ and individual employees. Charges 1 credit for the whole list, only when at least one address is found."
+        },
+        {
+          "name": "Verify Email",
+          "description": "Check whether an email address exists and can receive mail, including on catch-all domains. Charges 0.2 credits per check whatever the outcome; repeats within 30 days are free."
+        },
+        {
+          "name": "Get Account Balance",
+          "description": "Retrieve the remaining credit balance of the authenticated account. Free."
+        }
+      ],
+      "operationCount": 5,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement"]
+    },
+    {
       "type": "apify",
       "slug": "apify",
       "name": "Apify",

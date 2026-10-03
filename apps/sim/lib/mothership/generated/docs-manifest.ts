@@ -77,6 +77,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/airweave.mdx',
   'integrations/algolia.mdx',
   'integrations/amplitude.mdx',
+  'integrations/anymailfinder.mdx',
   'integrations/apify.mdx',
   'integrations/apollo.mdx',
   'integrations/appconfig.mdx',

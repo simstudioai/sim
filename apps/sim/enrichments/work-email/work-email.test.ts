@@ -24,6 +24,28 @@ describe('work-email enrichment cascade', () => {
     })
   })
 
+  describe('anymailfinder', () => {
+    const p = provider('anymailfinder')
+    it('takes name + domain, a LinkedIn URL alone, or both, and only fills from valid_email', () => {
+      expect(p.toolId).toBe('anymailfinder_find_person_email')
+      expect(p.buildParams(nameDomain)).toEqual({ full_name: 'John Doe', domain: 'acme.com' })
+      expect(p.buildParams(linkedinOnly)).toEqual({
+        full_name: 'John Doe',
+        linkedin_url: 'https://linkedin.com/in/johndoe',
+      })
+      expect(p.buildParams({ fullName: 'John Doe' })).toBeNull()
+      expect(
+        p.mapOutput({ email: 'j@acme.com', valid_email: 'j@acme.com', email_status: 'valid' })
+      ).toEqual({
+        email: 'j@acme.com',
+      })
+      // a risky guess is returned in `email` only and must not fill the cell
+      expect(
+        p.mapOutput({ email: 'j@acme.com', valid_email: null, email_status: 'risky' })
+      ).toBeNull()
+    })
+  })
+
   describe('prospeo (opportunistic)', () => {
     const p = provider('prospeo')
     it('projects Prospeo NO_MATCH as a clean miss without hiding genuine errors', () => {

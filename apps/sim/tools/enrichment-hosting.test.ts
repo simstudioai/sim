@@ -1,4 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { findCompanyEmailsTool as anymailFindCompanyEmailsTool } from '@/tools/anymailfinder/find_company_emails'
+import { findDecisionMakerEmailTool as anymailFindDecisionMakerEmailTool } from '@/tools/anymailfinder/find_decision_maker_email'
+import { findPersonEmailTool as anymailFindPersonEmailTool } from '@/tools/anymailfinder/find_person_email'
+import { ANYMAILFINDER_CREDIT_USD } from '@/tools/anymailfinder/hosting'
+import { verifyEmailTool as anymailVerifyEmailTool } from '@/tools/anymailfinder/verify_email'
 import { findEmailFromNameTool } from '@/tools/findymail/find_email_from_name'
 import { findEmailsByDomainTool } from '@/tools/findymail/find_emails_by_domain'
 import { findPhoneTool } from '@/tools/findymail/find_phone'
@@ -60,6 +65,38 @@ describe('Findymail hosted key pricing', () => {
 
   it('charges one verifier credit per verification', () => {
     expect(cost(verifyEmailTool, {}, { verified: true }).cost).toBeCloseTo(FINDYMAIL_CREDIT_USD)
+  })
+})
+
+describe('Anymail Finder hosted key pricing', () => {
+  it('bills the credits_charged the API reports, so a miss and a 30-day repeat cost nothing', () => {
+    expect(
+      cost(anymailFindPersonEmailTool, {}, { valid_email: 'a@b.com', credits_charged: 1 }).cost
+    ).toBeCloseTo(ANYMAILFINDER_CREDIT_USD)
+    expect(
+      cost(anymailFindPersonEmailTool, {}, { valid_email: null, credits_charged: 0 }).cost
+    ).toBe(0)
+    expect(
+      cost(anymailFindPersonEmailTool, {}, { valid_email: 'a@b.com', credits_charged: 0 }).cost
+    ).toBe(0)
+  })
+
+  it('charges 2 credits for a decision maker, 1 for a company list and 0.2 for a verification', () => {
+    expect(cost(anymailFindDecisionMakerEmailTool, {}, { credits_charged: 2 }).cost).toBeCloseTo(
+      2 * ANYMAILFINDER_CREDIT_USD
+    )
+    expect(cost(anymailFindCompanyEmailsTool, {}, { credits_charged: 1 }).cost).toBeCloseTo(
+      ANYMAILFINDER_CREDIT_USD
+    )
+    expect(cost(anymailVerifyEmailTool, {}, { credits_charged: 0.2 }).cost).toBeCloseTo(
+      0.2 * ANYMAILFINDER_CREDIT_USD
+    )
+  })
+
+  it('refuses to bill a response that does not state its charge', () => {
+    expect(() => cost(anymailFindPersonEmailTool, {}, { valid_email: 'a@b.com' })).toThrow(
+      'credits_charged'
+    )
   })
 })
 

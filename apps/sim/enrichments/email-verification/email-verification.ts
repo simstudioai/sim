@@ -5,7 +5,7 @@ import type { EnrichmentConfig } from '@/enrichments/types'
 /**
  * Email Verification enrichment. Checks an email address's deliverability via a
  * verifier waterfall — ZeroBounce first (highest coverage), then NeverBounce,
- * then MillionVerifier, then Enrow. A provider that returns a
+ * then MillionVerifier, then Anymail Finder, then Enrow. A provider that returns a
  * definitive verdict (valid / invalid / catch_all / disposable / etc.) fills the
  * cell; a provider that can only return `unknown` falls through to the next so
  * the row gets the most confident answer available. All providers support hosted
@@ -66,6 +66,23 @@ export const emailVerificationEnrichment: EnrichmentConfig = {
         const status = str(output.status)
         if (!status || status === 'unknown') return null
         return { status, deliverable: output.deliverable === true }
+      },
+    }),
+    toolProvider({
+      id: 'anymailfinder',
+      label: 'Anymail Finder',
+      toolId: 'anymailfinder_verify_email',
+      buildParams: (inputs) => {
+        const email = str(inputs.email)
+        if (!email) return null
+        return { email }
+      },
+      mapOutput: (output) => {
+        // valid / invalid are verdicts; risky means undetermined, so fall through.
+        const status = str(output.email_status)
+        if (status === 'valid') return { status, deliverable: true }
+        if (status === 'invalid') return { status, deliverable: false }
+        return null
       },
     }),
     toolProvider({

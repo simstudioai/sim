@@ -7,6 +7,7 @@ import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import {
   AnthropicIcon,
+  AnymailFinderIcon,
   BasetenIcon,
   BrandfetchIcon,
   CohereIcon,
@@ -280,6 +281,13 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
     placeholder: 'Enter your Findymail API key',
   },
   {
+    id: 'anymailfinder',
+    name: 'Anymail Finder',
+    icon: AnymailFinderIcon,
+    description: 'Verified email finder, decision maker lookup, and verification',
+    placeholder: 'Enter your Anymail Finder API key',
+  },
+  {
     id: 'prospeo',
     name: 'Prospeo',
     icon: ProspeoIcon,
@@ -399,6 +407,7 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
       'hunter',
       'peopledatalabs',
       'findymail',
+      'anymailfinder',
       'prospeo',
       'wiza',
       'datagma',

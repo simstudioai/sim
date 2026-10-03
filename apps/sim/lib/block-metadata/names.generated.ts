@@ -14,6 +14,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   airweave: 'Airweave',
   algolia: 'Algolia',
   amplitude: 'Amplitude',
+  anymailfinder: 'Anymail Finder',
   api: 'API',
   apify: 'Apify',
   apollo: 'Apollo',
