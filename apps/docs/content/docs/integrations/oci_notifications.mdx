@@ -1,0 +1,572 @@
+---
+title: OCI Notifications
+description: Publish messages and manage notification topics and subscriptions
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oci_notifications"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Connect an OCI API-key service account to publish messages and manage topics, subscriptions, tags, compartments, and locks. Subscription and publish operations discover the topic endpoint using GetTopic and require ONS_TOPIC_READ in addition to their operation permissions. Use the recipient confirmation flow; pending subscriptions do not receive messages and Functions need no confirmation. Direct publication does not deliver SMS. Publish runs once, and acceptance is not delivery. Leave whole-block retries disabled because an ambiguous failure can still have published. Sim conservatively caps serialized publish requests at 64,000 UTF-8 bytes. No inbound trigger is provided.
+
+
+
+## Actions
+
+### OCI Notifications List Topics
+
+List topics in one compartment, one page at a time.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `compartmentId` | string | Yes | Compartment OCID. For subscriptions, use their current compartment, which may differ from the topic. |
+| `id` | string | No | Optional exact topic OCID filter. |
+| `name` | string | No | Topic name, unique across the tenancy when creating \(maximum 256 characters\). List filtering is exact. |
+| `lifecycleState` | string | No | Filter topics by ACTIVE, CREATING, or DELETING. |
+| `sortBy` | string | No | TIMECREATED \(default\) or LIFECYCLESTATE. |
+| `sortOrder` | string | No | ASC or DESC. Time-created sorting defaults to DESC. |
+| `limit` | number | No | Maximum results in this page: 1–50; Oracle defaults to 10. |
+| `page` | string | No | Opaque nextPage token from the preceding list response. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `nextPage` | string | Opaque next-page token. |
+| `topics` | array | One page of topics. |
+|   ↳ `freeformTags` | object | Freeform string tags. |
+|   ↳ `definedTags` | object | Namespaced string tags. |
+|   ↳ `topicId` | string | Topic OCID. |
+|   ↳ `name` | string | Topic name. |
+|   ↳ `compartmentId` | string | Topic compartment OCID. |
+|   ↳ `lifecycleState` | string | ACTIVE, CREATING, or DELETING. |
+|   ↳ `timeCreated` | string | RFC3339 creation time. |
+|   ↳ `apiEndpoint` | string | Topic API endpoint; informational only. |
+|   ↳ `description` | string | Topic description. |
+|   ↳ `etag` | string | Resource ETag. |
+|   ↳ `shortTopicId` | string | Short topic code for SMS. |
+|   ↳ `systemTags` | object | Namespaced system tags. |
+|   ↳ `locks` | array | Resource locks. |
+|     ↳ `type` | string | FULL or DELETE. |
+|     ↳ `compartmentId` | string | Lock compartment OCID. |
+|     ↳ `message` | string | Lock reason. |
+|     ↳ `relatedResourceId` | string | Locking resource OCID. |
+|     ↳ `timeCreated` | string | RFC3339 lock creation time. |
+
+### OCI Notifications Get Topic
+
+Get topic configuration and its subscription/publishing endpoint.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `topicId` | string | Yes | Topic OCID. Subscription and publish endpoints are discovered with GetTopic; ONS_TOPIC_READ is required. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `topic` | object | Oracle topic configuration. |
+|   ↳ `freeformTags` | object | Freeform string tags. |
+|   ↳ `definedTags` | object | Namespaced string tags. |
+|   ↳ `topicId` | string | Topic OCID. |
+|   ↳ `name` | string | Topic name. |
+|   ↳ `compartmentId` | string | Topic compartment OCID. |
+|   ↳ `lifecycleState` | string | ACTIVE, CREATING, or DELETING. |
+|   ↳ `timeCreated` | string | RFC3339 creation time. |
+|   ↳ `apiEndpoint` | string | Topic API endpoint; informational only. |
+|   ↳ `description` | string | Topic description. |
+|   ↳ `etag` | string | Resource ETag. |
+|   ↳ `shortTopicId` | string | Short topic code for SMS. |
+|   ↳ `systemTags` | object | Namespaced system tags. |
+|   ↳ `locks` | array | Resource locks. |
+|     ↳ `type` | string | FULL or DELETE. |
+|     ↳ `compartmentId` | string | Lock compartment OCID. |
+|     ↳ `message` | string | Lock reason. |
+|     ↳ `relatedResourceId` | string | Locking resource OCID. |
+|     ↳ `timeCreated` | string | RFC3339 lock creation time. |
+| `etag` | string | ETag for conditional requests. |
+
+### OCI Notifications Create Topic
+
+Create a topic with optional tags and an explicit retry token.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `compartmentId` | string | Yes | Compartment OCID. For subscriptions, use their current compartment, which may differ from the topic. |
+| `name` | string | Yes | Topic name, unique across the tenancy when creating \(maximum 256 characters\). List filtering is exact. |
+| `description` | string | No | Topic description, at most 256 characters. Required for Update Topic; an empty string clears it. |
+| `freeformTags` | json | No | Object mapping freeform tag names to string values. Example: \{"Department":"Operations"\}. |
+| `definedTags` | json | No | Namespaced string tags. Example: \{"Operations":\{"CostCenter":"42"\}\}. |
+| `retryToken` | string | No | Optional Oracle retry token \(1–64 characters\). Enables at most two tokenized attempts; expires after 24 hours or a conflict. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `topic` | object | Oracle topic configuration. |
+|   ↳ `freeformTags` | object | Freeform string tags. |
+|   ↳ `definedTags` | object | Namespaced string tags. |
+|   ↳ `topicId` | string | Topic OCID. |
+|   ↳ `name` | string | Topic name. |
+|   ↳ `compartmentId` | string | Topic compartment OCID. |
+|   ↳ `lifecycleState` | string | ACTIVE, CREATING, or DELETING. |
+|   ↳ `timeCreated` | string | RFC3339 creation time. |
+|   ↳ `apiEndpoint` | string | Topic API endpoint; informational only. |
+|   ↳ `description` | string | Topic description. |
+|   ↳ `etag` | string | Resource ETag. |
+|   ↳ `shortTopicId` | string | Short topic code for SMS. |
+|   ↳ `systemTags` | object | Namespaced system tags. |
+|   ↳ `locks` | array | Resource locks. |
+|     ↳ `type` | string | FULL or DELETE. |
+|     ↳ `compartmentId` | string | Lock compartment OCID. |
+|     ↳ `message` | string | Lock reason. |
+|     ↳ `relatedResourceId` | string | Locking resource OCID. |
+|     ↳ `timeCreated` | string | RFC3339 lock creation time. |
+| `etag` | string | ETag for conditional requests. |
+
+### OCI Notifications Update Topic
+
+Update topic description and tags without renaming the topic.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `topicId` | string | Yes | Topic OCID. Subscription and publish endpoints are discovered with GetTopic; ONS_TOPIC_READ is required. |
+| `description` | string | No | Topic description, at most 256 characters. Required for Update Topic; an empty string clears it. |
+| `freeformTags` | json | No | Object mapping freeform tag names to string values. Example: \{"Department":"Operations"\}. |
+| `definedTags` | json | No | Namespaced string tags. Example: \{"Operations":\{"CostCenter":"42"\}\}. |
+| `ifMatch` | string | No | Optional ETag for optimistic concurrency. |
+| `isLockOverride` | boolean | No | Override topic locks for this operation, with appropriate lock permissions. Defaults to false. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `topic` | object | Oracle topic configuration. |
+|   ↳ `freeformTags` | object | Freeform string tags. |
+|   ↳ `definedTags` | object | Namespaced string tags. |
+|   ↳ `topicId` | string | Topic OCID. |
+|   ↳ `name` | string | Topic name. |
+|   ↳ `compartmentId` | string | Topic compartment OCID. |
+|   ↳ `lifecycleState` | string | ACTIVE, CREATING, or DELETING. |
+|   ↳ `timeCreated` | string | RFC3339 creation time. |
+|   ↳ `apiEndpoint` | string | Topic API endpoint; informational only. |
+|   ↳ `description` | string | Topic description. |
+|   ↳ `etag` | string | Resource ETag. |
+|   ↳ `shortTopicId` | string | Short topic code for SMS. |
+|   ↳ `systemTags` | object | Namespaced system tags. |
+|   ↳ `locks` | array | Resource locks. |
+|     ↳ `type` | string | FULL or DELETE. |
+|     ↳ `compartmentId` | string | Lock compartment OCID. |
+|     ↳ `message` | string | Lock reason. |
+|     ↳ `relatedResourceId` | string | Locking resource OCID. |
+|     ↳ `timeCreated` | string | RFC3339 lock creation time. |
+| `etag` | string | ETag for conditional requests. |
+
+### OCI Notifications Delete Topic
+
+Request topic deletion; success does not mean deletion has finished.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `topicId` | string | Yes | Topic OCID. Subscription and publish endpoints are discovered with GetTopic; ONS_TOPIC_READ is required. |
+| `ifMatch` | string | No | Optional ETag for optimistic concurrency. |
+| `isLockOverride` | boolean | No | Override topic locks for this operation, with appropriate lock permissions. Defaults to false. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+
+### OCI Notifications Change Topic Compartment
+
+Move a topic within its tenancy; subscriptions stay in their compartments.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `topicId` | string | Yes | Topic OCID. Subscription and publish endpoints are discovered with GetTopic; ONS_TOPIC_READ is required. |
+| `destinationCompartmentId` | string | Yes | Destination compartment OCID in the same tenancy. Moving a topic does not move its subscriptions. |
+| `ifMatch` | string | No | Optional ETag for optimistic concurrency. |
+| `retryToken` | string | No | Optional Oracle retry token \(1–64 characters\). Enables at most two tokenized attempts; expires after 24 hours or a conflict. |
+| `isLockOverride` | boolean | No | Override topic locks for this operation, with appropriate lock permissions. Defaults to false. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+
+### OCI Notifications Add Topic Lock
+
+Add a FULL or DELETE topic lock using Oracle resource-lock permissions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `topicId` | string | Yes | Topic OCID. Subscription and publish endpoints are discovered with GetTopic; ONS_TOPIC_READ is required. |
+| `lock` | json | Yes | Lock object: required type \(FULL or DELETE\) and compartmentId; optional message, relatedResourceId, timeCreated \(RFC3339\). |
+| `ifMatch` | string | No | Optional ETag for optimistic concurrency. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `topic` | object | Oracle topic configuration. |
+|   ↳ `freeformTags` | object | Freeform string tags. |
+|   ↳ `definedTags` | object | Namespaced string tags. |
+|   ↳ `topicId` | string | Topic OCID. |
+|   ↳ `name` | string | Topic name. |
+|   ↳ `compartmentId` | string | Topic compartment OCID. |
+|   ↳ `lifecycleState` | string | ACTIVE, CREATING, or DELETING. |
+|   ↳ `timeCreated` | string | RFC3339 creation time. |
+|   ↳ `apiEndpoint` | string | Topic API endpoint; informational only. |
+|   ↳ `description` | string | Topic description. |
+|   ↳ `etag` | string | Resource ETag. |
+|   ↳ `shortTopicId` | string | Short topic code for SMS. |
+|   ↳ `systemTags` | object | Namespaced system tags. |
+|   ↳ `locks` | array | Resource locks. |
+|     ↳ `type` | string | FULL or DELETE. |
+|     ↳ `compartmentId` | string | Lock compartment OCID. |
+|     ↳ `message` | string | Lock reason. |
+|     ↳ `relatedResourceId` | string | Locking resource OCID. |
+|     ↳ `timeCreated` | string | RFC3339 lock creation time. |
+| `etag` | string | ETag for conditional requests. |
+
+### OCI Notifications Remove Topic Lock
+
+Remove the specified topic lock using RESOURCE_LOCK_REMOVE permission.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `topicId` | string | Yes | Topic OCID. Subscription and publish endpoints are discovered with GetTopic; ONS_TOPIC_READ is required. |
+| `lock` | json | Yes | Lock object: required type \(FULL or DELETE\) and compartmentId; optional message, relatedResourceId, timeCreated \(RFC3339\). |
+| `ifMatch` | string | No | Optional ETag for optimistic concurrency. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `topic` | object | Oracle topic configuration. |
+|   ↳ `freeformTags` | object | Freeform string tags. |
+|   ↳ `definedTags` | object | Namespaced string tags. |
+|   ↳ `topicId` | string | Topic OCID. |
+|   ↳ `name` | string | Topic name. |
+|   ↳ `compartmentId` | string | Topic compartment OCID. |
+|   ↳ `lifecycleState` | string | ACTIVE, CREATING, or DELETING. |
+|   ↳ `timeCreated` | string | RFC3339 creation time. |
+|   ↳ `apiEndpoint` | string | Topic API endpoint; informational only. |
+|   ↳ `description` | string | Topic description. |
+|   ↳ `etag` | string | Resource ETag. |
+|   ↳ `shortTopicId` | string | Short topic code for SMS. |
+|   ↳ `systemTags` | object | Namespaced system tags. |
+|   ↳ `locks` | array | Resource locks. |
+|     ↳ `type` | string | FULL or DELETE. |
+|     ↳ `compartmentId` | string | Lock compartment OCID. |
+|     ↳ `message` | string | Lock reason. |
+|     ↳ `relatedResourceId` | string | Locking resource OCID. |
+|     ↳ `timeCreated` | string | RFC3339 lock creation time. |
+| `etag` | string | ETag for conditional requests. |
+
+### OCI Notifications List Subscriptions
+
+List one page of subscriptions for a topic in the selected subscription compartment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `topicId` | string | Yes | Topic OCID. Subscription and publish endpoints are discovered with GetTopic; ONS_TOPIC_READ is required. |
+| `compartmentId` | string | Yes | Compartment OCID. For subscriptions, use their current compartment, which may differ from the topic. |
+| `limit` | number | No | Maximum results in this page: 1–50; Oracle defaults to 10. |
+| `page` | string | No | Opaque nextPage token from the preceding list response. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `nextPage` | string | Opaque next-page token. |
+| `subscriptions` | array | One page of subscriptions. |
+|   ↳ `freeformTags` | object | Freeform string tags. |
+|   ↳ `definedTags` | object | Namespaced string tags. |
+|   ↳ `deliveryPolicy` | object | Subscription delivery policy. |
+|     ↳ `backoffRetryPolicy` | object | Exponential delivery retry policy. |
+|       ↳ `policyType` | string | EXPONENTIAL. |
+|       ↳ `maxRetryDuration` | number | Retry duration in milliseconds. |
+|   ↳ `id` | string | Subscription OCID. |
+|   ↳ `topicId` | string | Parent topic OCID. |
+|   ↳ `compartmentId` | string | Subscription compartment OCID. |
+|   ↳ `protocol` | string | Delivery protocol. |
+|   ↳ `endpoint` | string | Configured delivery endpoint. |
+|   ↳ `lifecycleState` | string | PENDING, ACTIVE, or DELETED. |
+|   ↳ `createdTime` | number | Oracle creation time, unchanged. |
+|   ↳ `etag` | string | Resource ETag. |
+
+### OCI Notifications Get Subscription
+
+Get subscription configuration, protocol, and confirmation state.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `topicId` | string | Yes | Topic OCID. Subscription and publish endpoints are discovered with GetTopic; ONS_TOPIC_READ is required. |
+| `subscriptionId` | string | Yes | Subscription OCID. The topic selects its routing endpoint. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `subscription` | object | Oracle subscription configuration. |
+|   ↳ `freeformTags` | object | Freeform string tags. |
+|   ↳ `definedTags` | object | Namespaced string tags. |
+|   ↳ `deliveryPolicy` | object | Subscription delivery policy. |
+|     ↳ `backoffRetryPolicy` | object | Exponential delivery retry policy. |
+|       ↳ `policyType` | string | EXPONENTIAL. |
+|       ↳ `maxRetryDuration` | number | Retry duration in milliseconds. |
+|   ↳ `id` | string | Subscription OCID. |
+|   ↳ `topicId` | string | Parent topic OCID. |
+|   ↳ `compartmentId` | string | Subscription compartment OCID. |
+|   ↳ `protocol` | string | Delivery protocol. |
+|   ↳ `endpoint` | string | Configured delivery endpoint. |
+|   ↳ `lifecycleState` | string | PENDING, ACTIVE, or DELETED. |
+|   ↳ `createdTime` | number | Oracle creation time, unchanged. |
+|   ↳ `etag` | string | Resource ETag. |
+|   ↳ `deliverPolicy` | string | Legacy JSON delivery policy. |
+| `etag` | string | ETag for conditional requests. |
+
+### OCI Notifications Create Subscription
+
+Create a subscription in the parent topic compartment; recipients confirm except for Functions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `topicId` | string | Yes | Topic OCID. Subscription and publish endpoints are discovered with GetTopic; ONS_TOPIC_READ is required. |
+| `protocol` | string | Yes | EMAIL, CUSTOM_HTTPS, ORACLE_FUNCTIONS, PAGERDUTY, SLACK, or SMS. Direct publishing does not deliver SMS. |
+| `endpoint` | string | Yes | Delivery endpoint \(maximum 512 characters\): email, public HTTPS URL, function OCID, PagerDuty/Slack webhook, or E.164 phone. HTTPS permits Basic authentication but no query parameters or custom headers. |
+| `metadata` | string | No | Optional subscription metadata string, at most 1024 characters. |
+| `freeformTags` | json | No | Object mapping freeform tag names to string values. Example: \{"Department":"Operations"\}. |
+| `definedTags` | json | No | Namespaced string tags. Example: \{"Operations":\{"CostCenter":"42"\}\}. |
+| `retryToken` | string | No | Optional Oracle retry token \(1–64 characters\). Enables at most two tokenized attempts; expires after 24 hours or a conflict. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `subscription` | object | Oracle subscription configuration. |
+|   ↳ `freeformTags` | object | Freeform string tags. |
+|   ↳ `definedTags` | object | Namespaced string tags. |
+|   ↳ `deliveryPolicy` | object | Subscription delivery policy. |
+|     ↳ `backoffRetryPolicy` | object | Exponential delivery retry policy. |
+|       ↳ `policyType` | string | EXPONENTIAL. |
+|       ↳ `maxRetryDuration` | number | Retry duration in milliseconds. |
+|   ↳ `id` | string | Subscription OCID. |
+|   ↳ `topicId` | string | Parent topic OCID. |
+|   ↳ `compartmentId` | string | Subscription compartment OCID. |
+|   ↳ `protocol` | string | Delivery protocol. |
+|   ↳ `endpoint` | string | Configured delivery endpoint. |
+|   ↳ `lifecycleState` | string | PENDING, ACTIVE, or DELETED. |
+|   ↳ `createdTime` | number | Oracle creation time, unchanged. |
+|   ↳ `etag` | string | Resource ETag. |
+|   ↳ `deliverPolicy` | string | Legacy JSON delivery policy. |
+| `etag` | string | ETag for conditional requests. |
+
+### OCI Notifications Update Subscription
+
+Update subscription delivery retry policy and tags; endpoint and protocol are immutable.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `topicId` | string | Yes | Topic OCID. Subscription and publish endpoints are discovered with GetTopic; ONS_TOPIC_READ is required. |
+| `subscriptionId` | string | Yes | Subscription OCID. The topic selects its routing endpoint. |
+| `deliveryPolicy` | json | No | Delivery retry object: \{"backoffRetryPolicy":\{"policyType":"EXPONENTIAL","maxRetryDuration":7200000\}\}. Duration is 60000–7200000 milliseconds. |
+| `freeformTags` | json | No | Object mapping freeform tag names to string values. Example: \{"Department":"Operations"\}. |
+| `definedTags` | json | No | Namespaced string tags. Example: \{"Operations":\{"CostCenter":"42"\}\}. |
+| `ifMatch` | string | No | Optional ETag for optimistic concurrency. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `subscriptionUpdate` | object | Updated subscription policy and tags. |
+|   ↳ `freeformTags` | object | Freeform string tags. |
+|   ↳ `definedTags` | object | Namespaced string tags. |
+|   ↳ `deliveryPolicy` | object | Subscription delivery policy. |
+|     ↳ `backoffRetryPolicy` | object | Exponential delivery retry policy. |
+|       ↳ `policyType` | string | EXPONENTIAL. |
+|       ↳ `maxRetryDuration` | number | Retry duration in milliseconds. |
+| `etag` | string | ETag for conditional requests. |
+
+### OCI Notifications Delete Subscription
+
+Administratively delete a subscription using the OCI credential.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `topicId` | string | Yes | Topic OCID. Subscription and publish endpoints are discovered with GetTopic; ONS_TOPIC_READ is required. |
+| `subscriptionId` | string | Yes | Subscription OCID. The topic selects its routing endpoint. |
+| `ifMatch` | string | No | Optional ETag for optimistic concurrency. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+
+### OCI Notifications Change Subscription Compartment
+
+Move a subscription within its tenancy without moving its topic.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `topicId` | string | Yes | Topic OCID. Subscription and publish endpoints are discovered with GetTopic; ONS_TOPIC_READ is required. |
+| `subscriptionId` | string | Yes | Subscription OCID. The topic selects its routing endpoint. |
+| `destinationCompartmentId` | string | Yes | Destination compartment OCID in the same tenancy. Moving a topic does not move its subscriptions. |
+| `ifMatch` | string | No | Optional ETag for optimistic concurrency. |
+| `retryToken` | string | No | Optional Oracle retry token \(1–64 characters\). Enables at most two tokenized attempts; expires after 24 hours or a conflict. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+
+### OCI Notifications Resend Subscription Confirmation
+
+Resend confirmation to the recipient; the URL expires after three days.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `topicId` | string | Yes | Topic OCID. Subscription and publish endpoints are discovered with GetTopic; ONS_TOPIC_READ is required. |
+| `subscriptionId` | string | Yes | Subscription OCID. The topic selects its routing endpoint. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `subscription` | object | Oracle subscription configuration. |
+|   ↳ `freeformTags` | object | Freeform string tags. |
+|   ↳ `definedTags` | object | Namespaced string tags. |
+|   ↳ `deliveryPolicy` | object | Subscription delivery policy. |
+|     ↳ `backoffRetryPolicy` | object | Exponential delivery retry policy. |
+|       ↳ `policyType` | string | EXPONENTIAL. |
+|       ↳ `maxRetryDuration` | number | Retry duration in milliseconds. |
+|   ↳ `id` | string | Subscription OCID. |
+|   ↳ `topicId` | string | Parent topic OCID. |
+|   ↳ `compartmentId` | string | Subscription compartment OCID. |
+|   ↳ `protocol` | string | Delivery protocol. |
+|   ↳ `endpoint` | string | Configured delivery endpoint. |
+|   ↳ `lifecycleState` | string | PENDING, ACTIVE, or DELETED. |
+|   ↳ `createdTime` | number | Oracle creation time, unchanged. |
+|   ↳ `etag` | string | Resource ETag. |
+|   ↳ `deliverPolicy` | string | Legacy JSON delivery policy. |
+
+### OCI Notifications Publish Message
+
+Publish once to active subscriptions. Acceptance is not delivery; block retries can duplicate messages. Direct SMS is unsupported.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | OCI API-key service account credential ID. |
+| `region` | string | No | Optional OCI region; defaults to the saved credential region. |
+| `topicId` | string | Yes | Topic OCID. Subscription and publish endpoints are discovered with GetTopic; ONS_TOPIC_READ is required. |
+| `body` | string | Yes | Message text. Sim caps the entire serialized request at 64,000 UTF-8 bytes. Publish runs once; keep block retries disabled to avoid duplicates. |
+| `title` | string | No | Optional title, at most 255 characters. Used by email and PagerDuty; ignored by HTTPS, Slack, and SMS. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | HTTP status from Oracle. |
+| `requestId` | string | Oracle request ID. |
+| `messageId` | string | Accepted message ID; not a delivery receipt. |
+| `timeStamp` | string | RFC3339 service-received timestamp. |
+
+
