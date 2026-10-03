@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { executeBitbucketGetPipelineStepLogOperation } from '@/lib/internal/bitbucket/operations/get-pipeline-step-log'
 import { bitbucketGetPipelineTool } from '@/tools/bitbucket/get_pipeline'
 import { bitbucketListPipelineStepsTool } from '@/tools/bitbucket/list_pipeline_steps'
@@ -501,10 +498,6 @@ describe('Bitbucket pipeline step logs', () => {
 })
 
 describe('Bitbucket pipeline step log transfer boundary', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   const LOG_PARAMS = {
     ...REPOSITORY_PARAMS,
     pipelineUuid: '{pipeline-1}',

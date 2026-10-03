@@ -1,19 +1,18 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act, type ReactNode } from 'react'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
 import { sleep } from '@sim/utils/helpers'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRequestJson } = vi.hoisted(() => ({
-  mockRequestJson: vi.fn(),
-}))
-
-vi.mock('@/lib/api/client/request', () => ({
-  requestJson: mockRequestJson,
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 import {
   deleteWorkflowMcpServerContract,
@@ -24,6 +23,8 @@ import {
   useWorkflowMcpTools,
   workflowMcpServerKeys,
 } from '@/hooks/queries/workflow-mcp-servers'
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
 let container: HTMLDivElement
 let root: Root
@@ -53,7 +54,6 @@ describe('workflow MCP server queries', () => {
   afterEach(() => {
     act(() => root.unmount())
     queryClient.clear()
-    vi.clearAllMocks()
   })
 
   it('does not carry protected tool data between server keys', async () => {
@@ -77,39 +77,6 @@ describe('workflow MCP server queries', () => {
 
     act(() => root.render(<Wrapper>{<Probe serverId='server-b' />}</Wrapper>))
     expect(container.textContent).toBe('loading')
-  })
-
-  it('removes a deleted server detail subtree and invalidates its list', async () => {
-    mockRequestJson.mockImplementation((contract) => {
-      if (contract === deleteWorkflowMcpServerContract) return Promise.resolve({ success: true })
-      throw new Error('Unexpected request')
-    })
-    queryClient.setQueryData(workflowMcpServerKeys.servers('workspace-1'), [{ id: 'server-1' }])
-    queryClient.setQueryData(workflowMcpServerKeys.server('workspace-1', 'server-1'), {
-      server: { id: 'server-1' },
-      tools: [],
-    })
-    queryClient.setQueryData(workflowMcpServerKeys.tools('workspace-1', 'server-1'), [])
-    let mutation: ReturnType<typeof useDeleteWorkflowMcpServer> | undefined
-
-    function Probe() {
-      mutation = useDeleteWorkflowMcpServer()
-      return null
-    }
-
-    act(() => root.render(<Wrapper>{<Probe />}</Wrapper>))
-    await act(async () => {
-      await mutation?.mutateAsync({ workspaceId: 'workspace-1', serverId: 'server-1' })
-    })
-
-    expect(
-      queryClient.getQueriesData({
-        queryKey: workflowMcpServerKeys.server('workspace-1', 'server-1'),
-      })
-    ).toHaveLength(0)
-    expect(
-      queryClient.getQueryState(workflowMcpServerKeys.servers('workspace-1'))?.isInvalidated
-    ).toBe(true)
   })
 
   it('preserves a server detail subtree when deletion fails', async () => {

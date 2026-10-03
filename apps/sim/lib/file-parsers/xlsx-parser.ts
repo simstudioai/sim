@@ -3,12 +3,17 @@ import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
 import { truncate } from '@sim/utils/string'
 import * as XLSX from 'xlsx'
+import { CompleteTextBuilder } from '@/lib/file-parsers/complete-text'
 import {
   FileParserError,
   isEncryptedOfficeParserError,
   toFileParserError,
 } from '@/lib/file-parsers/errors'
-import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
+import {
+  normalizeSheetDisplayText,
+  SHEET_DISPLAY_READ_OPTIONS,
+} from '@/lib/file-parsers/sheet-display-text'
+import type { FileParseOptions, FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8, truncationNotice } from '@/lib/file-parsers/utils'
 import { assertOoxmlArchiveWithinLimits } from '@/lib/file-parsers/zip-guard'
 
@@ -46,7 +51,7 @@ export class XlsxParser implements FileParser {
    * Read the file into a buffer and delegate to {@link parseBuffer} so the
    * decompression-bomb guard runs before SheetJS inflates the workbook.
    */
-  async parseFile(filePath: string): Promise<FileParseResult> {
+  async parseFile(filePath: string, options: FileParseOptions = {}): Promise<FileParseResult> {
     if (!filePath) {
       throw new Error('No file path provided')
     }
@@ -57,11 +62,12 @@ export class XlsxParser implements FileParser {
 
     logger.info(`Parsing XLSX file: ${filePath}`)
 
-    const buffer = await readFile(filePath)
-    return this.parseBuffer(buffer)
+    const buffer = await readFile(filePath, { signal: options.signal })
+    return this.parseBuffer(buffer, options)
   }
 
-  async parseBuffer(buffer: Buffer): Promise<FileParseResult> {
+  async parseBuffer(buffer: Buffer, options: FileParseOptions = {}): Promise<FileParseResult> {
+    options.signal?.throwIfAborted()
     try {
       const bufferSize = buffer.length
       logger.info(
@@ -78,10 +84,17 @@ export class XlsxParser implements FileParser {
         type: 'buffer',
         dense: true, // Use dense mode for better memory efficiency
         sheetStubs: false, // Don't create stub cells
+        ...SHEET_DISPLAY_READ_OPTIONS,
       })
 
-      return this.processWorkbook(workbook)
+      const result =
+        options.contentMode === 'complete'
+          ? this.processCompleteWorkbook(workbook, options)
+          : this.processWorkbook(workbook)
+      options.signal?.throwIfAborted()
+      return result
     } catch (error) {
+      options.signal?.throwIfAborted()
       logger.error('XLSX buffer parsing error:', error)
       if (isEncryptedOfficeParserError(error)) {
         throw new FileParserError(
@@ -91,6 +104,64 @@ export class XlsxParser implements FileParser {
         )
       }
       throw toFileParserError(error, 'invalid_format', 'Failed to parse XLSX buffer')
+    }
+  }
+
+  /** Visits populated cells, never the possibly enormous declared worksheet rectangle. */
+  private processCompleteWorkbook(
+    workbook: XLSX.WorkBook,
+    options: FileParseOptions
+  ): FileParseResult {
+    const content = new CompleteTextBuilder(options.maxTextBytes)
+    let rowCount = 0
+    for (const sheetName of workbook.SheetNames) {
+      options.signal?.throwIfAborted()
+      const sheet = workbook.Sheets[sheetName]
+      const data: (XLSX.CellObject[] | undefined)[] | undefined = sheet['!data']
+      if (!data) {
+        if (!sheet['!ref']) continue
+        throw new FileParserError(
+          'runtime_failure',
+          'Complete spreadsheet extraction requires dense cell data'
+        )
+      }
+      content.append(`\n=== Sheet: ${sanitizeTextForUTF8(sheetName)} ===\n`)
+      for (const rowKey in data) {
+        if (!Object.hasOwn(data, rowKey) || !/^\d+$/.test(rowKey)) continue
+        options.signal?.throwIfAborted()
+        const row = data[Number(rowKey)]
+        if (!row) continue
+        const rowText = new CompleteTextBuilder(options.maxTextBytes)
+        let previousColumn = -1
+        let meaningful = false
+        for (const columnKey in row) {
+          if (!Object.hasOwn(row, columnKey) || !/^\d+$/.test(columnKey)) continue
+          const column = Number(columnKey)
+          if (column > 16383)
+            throw new FileParserError(
+              'complexity_limit',
+              'Spreadsheet column exceeds the Excel format limit'
+            )
+          const cell = row[column]
+          if (!cell || cell.t === 'z') continue
+          const address = { r: Number(rowKey), c: column }
+          normalizeSheetDisplayText(sheet, { s: address, e: address }, XLSX.utils)
+          const value = this.truncateCell(XLSX.utils.format_cell(cell))
+          rowText.append('\t'.repeat(previousColumn < 0 ? column : column - previousColumn))
+          rowText.append(value)
+          previousColumn = column
+          meaningful ||= value.trim().length > 0
+        }
+        if (meaningful) {
+          content.append(rowText.finish())
+          content.append('\n')
+          rowCount++
+        }
+      }
+    }
+    return {
+      content: content.finish(),
+      metadata: { rowCount, truncated: false, degraded: rowCount === 0 },
     }
   }
 
@@ -162,13 +233,27 @@ export class XlsxParser implements FileParser {
        */
       const lastPreviewRow = Math.min(range.e.r, range.s.r + CONFIG.MAX_PREVIEW_ROWS - 1)
       const lastPreviewColumn = Math.min(range.e.c, range.s.c + CONFIG.MAX_PREVIEW_COLUMNS - 1)
+      const previewRange = {
+        s: { r: range.s.r, c: range.s.c },
+        e: { r: lastPreviewRow, c: lastPreviewColumn },
+      }
+
+      /**
+       * Indexed as the text a user sees, not the value Excel stores: `raw: false`
+       * emits each cell's formatted text, so `$1,250.00` and `20%` survive
+       * instead of `1250` and `0.2` — the same currency and percent text the
+       * Google Sheets and Excel connectors request, so a Drive export of a sheet
+       * indexes its numbers the way the connectors do. Dates and General numbers
+       * are rewritten first because their file-formatted text is locale-shaped
+       * or loses digits; dates therefore index as ISO text here where the
+       * connectors carry the locale text.
+       */
+      normalizeSheetDisplayText(worksheet, previewRange, XLSX.utils)
       const sheetData = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
         header: 1,
         blankrows: false, // Skip blank rows
-        range: {
-          s: { r: range.s.r, c: range.s.c },
-          e: { r: lastPreviewRow, c: lastPreviewColumn },
-        },
+        raw: false,
+        range: previewRange,
       })
 
       // Reported from the declared range, as before, so bounding the conversion
@@ -291,7 +376,11 @@ export class XlsxParser implements FileParser {
       return ''
     }
 
-    let cellStr = String(cell)
+    /**
+     * A cell is one column: a tab or line break inside it (LibreOffice writes
+     * rendered text with embedded newlines) would otherwise split the row.
+     */
+    let cellStr = String(cell).replace(/[\t\r\n]+/g, ' ')
 
     /**
      * Samples are previews; canonical content is bounded only by the aggregate

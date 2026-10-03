@@ -2,37 +2,33 @@ import { vi } from 'vitest'
 
 /**
  * Controllable mock functions for `@/lib/workflows/orchestration`.
- * All defaults are bare `vi.fn()` — configure per-test as needed.
+ * Every function is a bare `vi.fn()` (resolves `undefined`) — configure per-test.
  *
  * @example
  * ```ts
- * import { workflowsOrchestrationMockFns } from '@sim/testing'
+ * import { workflowsOrchestrationMockFns } from '@sim/testing/mocks/workflows-orchestration.mock'
  *
- * workflowsOrchestrationMockFns.mockPerformFullDeploy.mockResolvedValue({
- *   success: true,
- *   version: 1,
- * })
+ * workflowsOrchestrationMockFns.mockPerformFullDeploy.mockResolvedValue({ success: true })
  * ```
  */
 export const workflowsOrchestrationMockFns = {
   mockPerformChatDeploy: vi.fn(),
   mockPerformChatUndeploy: vi.fn(),
-  mockNotifySocketDeploymentChanged: vi.fn(),
   mockGetWorkflowDeploymentSummary: vi.fn(),
   mockPerformActivateVersion: vi.fn(),
   mockPerformFullDeploy: vi.fn(),
   mockPerformFullUndeploy: vi.fn(),
   mockPerformRevertToVersion: vi.fn(),
-  mockPerformCreateFolder: vi.fn(),
-  mockPerformUpdateFolder: vi.fn(),
-  mockPerformDeleteFolder: vi.fn(),
+  mockDeleteWorkflowRecord: vi.fn(),
   mockPerformCreateWorkflow: vi.fn(),
-  mockPerformUpdateWorkflow: vi.fn(),
+  mockPerformCreateWorkflowTransition: vi.fn(),
   mockPerformDeleteWorkflow: vi.fn(),
+  mockPerformRestoreWorkflow: vi.fn(),
+  mockUpdateWorkflowRecord: vi.fn(),
 }
 
 /**
- * Static mock module for `@/lib/workflows/orchestration`.
+ * Static mock module for `@/lib/workflows/orchestration`. Covers every runtime export.
  *
  * @example
  * ```ts
@@ -42,16 +38,16 @@ export const workflowsOrchestrationMockFns = {
 export const workflowsOrchestrationMock = {
   performChatDeploy: workflowsOrchestrationMockFns.mockPerformChatDeploy,
   performChatUndeploy: workflowsOrchestrationMockFns.mockPerformChatUndeploy,
-  notifySocketDeploymentChanged: workflowsOrchestrationMockFns.mockNotifySocketDeploymentChanged,
   getWorkflowDeploymentSummary: workflowsOrchestrationMockFns.mockGetWorkflowDeploymentSummary,
   performActivateVersion: workflowsOrchestrationMockFns.mockPerformActivateVersion,
   performFullDeploy: workflowsOrchestrationMockFns.mockPerformFullDeploy,
   performFullUndeploy: workflowsOrchestrationMockFns.mockPerformFullUndeploy,
   performRevertToVersion: workflowsOrchestrationMockFns.mockPerformRevertToVersion,
-  performCreateFolder: workflowsOrchestrationMockFns.mockPerformCreateFolder,
-  performUpdateFolder: workflowsOrchestrationMockFns.mockPerformUpdateFolder,
-  performDeleteFolder: workflowsOrchestrationMockFns.mockPerformDeleteFolder,
+  deleteWorkflowRecord: workflowsOrchestrationMockFns.mockDeleteWorkflowRecord,
   performCreateWorkflow: workflowsOrchestrationMockFns.mockPerformCreateWorkflow,
-  performUpdateWorkflow: workflowsOrchestrationMockFns.mockPerformUpdateWorkflow,
+  performCreateWorkflowTransition:
+    workflowsOrchestrationMockFns.mockPerformCreateWorkflowTransition,
   performDeleteWorkflow: workflowsOrchestrationMockFns.mockPerformDeleteWorkflow,
+  performRestoreWorkflow: workflowsOrchestrationMockFns.mockPerformRestoreWorkflow,
+  updateWorkflowRecord: workflowsOrchestrationMockFns.mockUpdateWorkflowRecord,
 }

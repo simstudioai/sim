@@ -1,0 +1,204 @@
+import { db } from '@sim/db'
+import { member, user } from '@sim/db/schema'
+import {
+  auditMock,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  setEnvFlags,
+} from '@sim/testing'
+import {
+  billingOrganizationMock,
+  billingOrganizationMockFns,
+} from '@sim/testing/mocks/billing-organization.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  invitationsSendMock,
+  invitationsSendMockFns,
+} from '@sim/testing/mocks/invitations-send.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import {
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { CreatePendingInvitationInput } from '@/lib/invitations/send'
+
+const hoisted = vi.hoisted(() => ({
+  seats: vi.fn(),
+}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/billing/core/organization', () => billingOrganizationMock)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/lib/billing/validation/seat-management', () => ({
+  validateSeatAvailability: hoisted.seats,
+}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
+vi.mock('@/lib/invitations/send', () => invitationsSendMock)
+
+import {
+  createOrganizationInvitation,
+  prepareOrganizationInvitationContext,
+} from '@/lib/invitations/organization-invitations'
+
+const mocks = {
+  ...hoisted,
+  admin: billingOrganizationMockFns.mockIsOrganizationOwnerOrAdmin,
+  pending: invitationsSendMockFns.mockFindPendingOrganizationInvitation,
+  create: invitationsSendMockFns.mockCreatePendingInvitation,
+  send: invitationsSendMockFns.mockSendInvitationEmail,
+  cancel: invitationsSendMockFns.mockCancelPendingInvitation,
+  plan: billingSubscriptionMockFns.mockResolveOrganizationPlan,
+  policy: permissionCheckMockFns.mockValidateInvitationsAllowed,
+  membership: organizationMembershipMockFns.mockGetUserOrganization,
+  lockOrg: organizationMembershipMockFns.mockAcquireOrganizationMutationLock,
+  lockUser: organizationMembershipMockFns.mockAcquireOrganizationUserMutationLocks,
+}
+
+const context = {
+  organizationId: 'org-target',
+  inviterId: 'admin-user',
+  inviterName: 'Admin',
+  inviterEmail: 'admin@example.com',
+}
+const revision = new Date('2026-09-07T12:00:00Z')
+const create = () =>
+  createOrganizationInvitation({ context, email: ' Person@example.com ', role: 'member' })
+
+beforeEach(() => {
+  resetDbChainMock()
+  setEnvFlags({ isBillingEnabled: true })
+  mocks.admin.mockResolvedValue(true)
+  mocks.plan.mockResolvedValue(true)
+  mocks.policy.mockResolvedValue(undefined)
+  mocks.membership.mockResolvedValue(null)
+  mocks.pending.mockResolvedValue(null)
+  mocks.seats.mockResolvedValue({ canInvite: true })
+  mocks.send.mockResolvedValue({ success: true })
+  mocks.cancel.mockResolvedValue(true)
+  mocks.create.mockImplementation(async (input: CreatePendingInvitationInput) => {
+    await input.validateLockedContext?.({
+      tx: db,
+      organizationId: input.organizationId,
+      workspaceIds: [],
+    })
+    return {
+      invitationId: 'invite-new',
+      token: 'synthetic-token',
+      expiresAt: new Date('2026-09-14T12:00:00Z'),
+      created: true,
+      grants: [],
+      mutationUpdatedAt: revision,
+      mutationOrganizationId: 'org-target',
+    }
+  })
+})
+afterEach(() => {
+  resetDbChainMock()
+  resetEnvFlagsMock()
+})
+
+describe('organization-only invitations', () => {
+  it('requires authority in the explicitly routed organization before policy or plan reads', async () => {
+    mocks.admin.mockResolvedValue(false)
+    await expect(prepareOrganizationInvitationContext(context)).rejects.toThrow(
+      'Only organization owners and admins'
+    )
+    expect(mocks.admin).toHaveBeenCalledWith('admin-user', 'org-target')
+    expect(mocks.policy).not.toHaveBeenCalled()
+    expect(mocks.plan).not.toHaveBeenCalled()
+  })
+
+  it('creates no workspace grants and rechecks target-org admin and seats under the lock', async () => {
+    queueTableRows(member, [{ role: 'admin' }])
+    const result = await create()
+    expect(result).toMatchObject({
+      email: 'person@example.com',
+      workspaceIds: [],
+      membershipIntent: 'internal',
+    })
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'organization',
+        role: 'member',
+        grants: [],
+        organizationId: 'org-target',
+      })
+    )
+    expect(mocks.lockOrg).toHaveBeenCalledWith(db, 'org-target')
+    expect(mocks.seats).toHaveBeenCalledWith('org-target', 1, { executor: db })
+    expect(dbChainMockFns.where).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'and',
+        conditions: [
+          { type: 'eq', left: member.organizationId, right: 'org-target' },
+          { type: 'eq', left: member.userId, right: 'admin-user' },
+        ],
+      })
+    )
+    expect(mocks.send).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'organization', grants: [], email: 'person@example.com' })
+    )
+    expect(auditMock.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('refuses an admin whose role changed while sending', async () => {
+    queueTableRows(member, [{ role: 'member' }])
+    await expect(create()).rejects.toThrow('organization role changed')
+    expect(mocks.send).not.toHaveBeenCalled()
+    expect(mocks.seats).not.toHaveBeenCalled()
+  })
+
+  it.each(['org-target', 'org-other'])(
+    'does not silently convert an existing %s member into an external invite',
+    async (organizationId) => {
+      queueTableRows(user, [{ id: 'existing-user' }])
+      mocks.membership.mockResolvedValue({
+        organizationId,
+        role: 'member',
+        memberId: 'existing-member',
+      })
+      await expect(create()).rejects.toThrow(
+        organizationId === 'org-target' ? 'already a member' : 'already belongs'
+      )
+      expect(mocks.create).not.toHaveBeenCalled()
+    }
+  )
+
+  it('rechecks the existing invitee membership under the organization/user lock', async () => {
+    queueTableRows(user, [{ id: 'existing-user' }])
+    queueTableRows(member, [{ role: 'owner' }])
+    mocks.membership
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ organizationId: 'org-other' })
+    await expect(create()).rejects.toThrow('invitee joined an organization')
+    expect(mocks.lockUser).toHaveBeenCalledWith(db, {
+      userId: 'existing-user',
+      organizationIds: ['org-target'],
+    })
+    expect(mocks.send).not.toHaveBeenCalled()
+  })
+
+  it('refuses exhausted seats before delivery', async () => {
+    queueTableRows(member, [{ role: 'owner' }])
+    mocks.seats.mockResolvedValue({ canInvite: false, reason: 'Seat capacity exhausted' })
+    await expect(create()).rejects.toThrow('Seat capacity exhausted')
+    expect(mocks.send).not.toHaveBeenCalled()
+  })
+
+  it('does not undo a concurrently changed invitation after failed delivery', async () => {
+    queueTableRows(member, [{ role: 'owner' }])
+    mocks.send.mockResolvedValue({ success: false })
+    mocks.cancel.mockResolvedValue(false)
+    await expect(create()).rejects.toThrow('invitation changed while delivery failed')
+    expect(auditMock.recordAudit).not.toHaveBeenCalled()
+  })
+})

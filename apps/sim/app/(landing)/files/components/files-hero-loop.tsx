@@ -3,12 +3,20 @@
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { cn } from '@sim/emcn'
-import { ArrowUpDown, File, ListFilter, Plus, Search } from '@sim/emcn/icons'
+import {
+  ArrowUpDown,
+  CsvIcon,
+  DocxIcon,
+  File,
+  ListFilter,
+  PdfIcon,
+  Plus,
+  Search,
+  ZipIcon,
+} from '@sim/emcn/icons'
 import { AgentIcon } from '@/components/icons'
-import { CsvIcon, DocxIcon, PdfIcon } from '@/components/icons/document-icons'
 import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
 import { PLATFORM_LOOP_RESET_FADE_MS } from '@/app/(landing)/components/shared/platform-loop-constants'
-import { ZipIcon } from '@/app/(landing)/components/shared/zip-icon'
 import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'
 
 /** Sidebar content for the files hero - a file-heavy team's workspace. */
@@ -144,7 +152,7 @@ const COL_HEADERS = ['Name', 'Size', 'Type', 'Created', 'Owner'] as const
 function OwnerCell({ owner }: { owner: FileOwner }) {
   return (
     <span className='flex min-w-0 items-center gap-3 text-sm'>
-      <span className='flex size-[14px] flex-shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] text-[8px] text-[var(--text-secondary)]'>
+      <span className='flex size-[14px] shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] text-[8px] text-[var(--text-secondary)]'>
         {owner.agent ? <AgentIcon className='size-[8px]' /> : owner.initial}
       </span>
       <span className='truncate text-[var(--text-secondary)]'>{owner.name}</span>
@@ -158,12 +166,12 @@ function FileRow({ row }: { row: FileRowData }) {
   return (
     <div className={cn(ROW_GRID, 'h-[40px] items-center')}>
       <span className='flex min-w-0 items-center gap-3 px-6 text-[var(--text-body)] text-sm'>
-        <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+        <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
         <span className='truncate'>{row.name}</span>
       </span>
       <span className='px-6 text-[var(--text-secondary)] text-sm'>{row.size}</span>
       <span className='flex items-center gap-3 px-6 text-[var(--text-secondary)] text-sm'>
-        <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+        <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
         {row.type}
       </span>
       <span className='px-6 text-[var(--text-secondary)] text-sm'>{row.created}</span>
@@ -236,14 +244,14 @@ export function FilesHeroLoop() {
 
   return (
     <HeroLoopShell chats={SIDEBAR_CHATS} workflows={SIDEBAR_WORKFLOWS} activeItem='Files'>
-      <div className='h-full w-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
+      <div className='size-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
         <div
           className={cn(
-            'flex h-full w-full flex-col transition-opacity duration-300 ease-out',
+            'flex size-full flex-col transition-opacity duration-300 ease-out',
             fading ? 'opacity-0' : 'opacity-100'
           )}
         >
-          <div className='flex h-[44px] flex-shrink-0 items-center justify-between border-[var(--border)] border-b px-6'>
+          <div className='flex h-[44px] shrink-0 items-center justify-between border-[var(--border)] border-b px-6'>
             <div className='flex items-center gap-3'>
               <File className='size-[14px] text-[var(--text-icon)]' />
               <span className='text-[var(--text-body)] text-sm'>Files</span>
@@ -254,9 +262,9 @@ export function FilesHeroLoop() {
             </span>
           </div>
 
-          <div className='flex flex-shrink-0 items-center justify-between border-[var(--border)] border-b px-6 py-2.5'>
+          <div className='flex shrink-0 items-center justify-between border-[var(--border)] border-b px-6 py-2.5'>
             <div className='flex flex-1 items-center gap-2.5'>
-              <Search className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+              <Search className='size-[14px] shrink-0 text-[var(--text-icon)]' />
               <span className='text-[var(--text-subtle)] text-caption'>Search files...</span>
             </div>
             <div className='flex items-center gap-1.5'>
@@ -272,10 +280,7 @@ export function FilesHeroLoop() {
           </div>
 
           <div
-            className={cn(
-              ROW_GRID,
-              'h-10 flex-shrink-0 items-center border-[var(--border)] border-b'
-            )}
+            className={cn(ROW_GRID, 'h-10 shrink-0 items-center border-[var(--border)] border-b')}
           >
             {COL_HEADERS.map((header) => (
               <span key={header} className='px-6 text-[var(--text-muted)] text-caption'>

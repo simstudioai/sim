@@ -1,5 +1,6 @@
 import type { Logger } from '@sim/logger'
 import { createLogger } from '@sim/logger'
+import { toRecord } from '@sim/utils/object'
 import { validateAlphanumericId, validateJiraIssueKey } from '@/lib/core/security/input-validation'
 import { createJiraClient, type JiraClient } from '@/lib/internal/jira/client'
 import { JiraOperationError } from '@/lib/internal/jira/errors'
@@ -25,14 +26,8 @@ export interface JiraOperationContext {
 
 type JsonObject = Record<string, unknown>
 
-function asObject(value: unknown): JsonObject {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as JsonObject)
-    : {}
-}
-
 function parseObject(text: string): JsonObject {
-  return asObject(JSON.parse(text))
+  return toRecord(JSON.parse(text))
 }
 
 function optionalObject(text: string): JsonObject {
@@ -45,7 +40,7 @@ function optionalObject(text: string): JsonObject {
 }
 
 function nestedString(value: unknown, key: string): string | undefined {
-  const nested = asObject(value)[key]
+  const nested = toRecord(value)[key]
   return typeof nested === 'string' ? nested : undefined
 }
 
@@ -244,7 +239,7 @@ async function throwResponse(response: Response): Promise<never> {
 }
 
 function attachmentObject(value: unknown) {
-  const object = asObject(value)
+  const object = toRecord(value)
   return {
     id: typeof object.id === 'string' ? object.id : '',
     filename: typeof object.filename === 'string' ? object.filename : '',

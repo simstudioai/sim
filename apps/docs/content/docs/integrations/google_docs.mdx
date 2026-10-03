@@ -11,17 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Google Docs](https://docs.google.com) is Google’s collaborative, cloud-based document service, enabling users to create, edit, and share documents in real time. As an integral part of Google Workspace, Docs offers rich formatting tools, commenting, version history, and seamless integration with other Google productivity tools.
-
-Google Docs empowers individuals and teams to:
-
-- **Create and format documents:** Develop rich text documents with advanced formatting, images, and tables.
-- **Collaborate and comment:** Multiple users can edit and comment with suggestions instantly.
-- **Track changes and version history:** Review, revert, and manage revisions over time.
-- **Access from any device:** Work on documents from web, mobile, or desktop with full cloud synchronization.
-- **Integrate across Google services:** Connect Docs with Drive, Sheets, Slides, and external platforms for powerful workflows.
-
-In Sim, the Google Docs integration allows your agents to read document content, write new content, and create documents programmatically as part of automated workflows. This integration unlocks automation such as document generation, report writing, content extraction, and collaborative editing—bridging the gap between AI-driven workflows and document management in your organization.
+Use [Google Docs](https://docs.google.com) in Sim to read, create, and update documents. Workflows can insert text, tables, images, and page breaks; find and replace text; and apply text styling.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -386,5 +376,21 @@ Delete one or more named ranges from a Google Docs document by their ID or by na
 |   ↳ `title` | string | Document title |
 |   ↳ `mimeType` | string | Document MIME type |
 |   ↳ `url` | string | Document URL |
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Google Docs account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-docs` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/drive.file` | View and manage Google Drive files you open or create with Sim |
+| `https://www.googleapis.com/auth/drive` | View, edit, create, and delete all Google Drive files |
 
 

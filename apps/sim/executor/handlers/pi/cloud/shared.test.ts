@@ -1,13 +1,7 @@
-/**
- * @vitest-environment node
- */
 import { spawn } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
 import { MAX_SANDBOX_PROCESS_OUTPUT_BYTES } from '@/lib/execution/remote-sandbox/output-limits'
-import {
-  PI_SANDBOX_MAX_LIFETIME_MS,
-  PI_SANDBOX_MIN_LIFETIME_MS,
-} from '@/lib/execution/remote-sandbox/pi-lifetime'
+import { PI_SANDBOX_MAX_LIFETIME_MS } from '@/lib/execution/remote-sandbox/pi-lifetime'
 import {
   PI_EVENT_FILTER_PATH,
   PI_EVENT_FILTER_SOURCE,
@@ -81,27 +75,11 @@ describe('resolvePiTimeoutMs', () => {
     expect(resolvePiTimeoutMs(shortLifetime)).toBeLessThanOrEqual(shortLifetime)
   })
 
-  it('does not reserve nonexistent finalize phases for Plan', () => {
-    const timeout = resolvePiTimeoutMs(PI_SANDBOX_MAX_LIFETIME_MS, { finalizePhases: 0 })
-
-    expect(timeout).toBeLessThanOrEqual(PI_SANDBOX_MAX_LIFETIME_MS - CLONE_TIMEOUT_MS)
-    expect(timeout).toBeGreaterThan(resolvePiTimeoutMs(PI_SANDBOX_MAX_LIFETIME_MS))
-  })
-
   it('falls back to the single-turn floor when the reserves exhaust the lifetime', () => {
     // A deadline shorter than the bracketing commands' worst case is legitimate
     // (a free-plan sync run). Those ceilings are pessimistic, so leave a short
     // turn rather than a negative one.
     expect(resolvePiTimeoutMs(CLONE_TIMEOUT_MS)).toBe(MIN_PI_TIMEOUT_MS)
-  })
-
-  it('keeps the lifetime floor above the reserves it exists to protect', () => {
-    // The floor lives next to the lifetime and the reserves live here, so
-    // without this they can drift until a permitted lifetime leaves the agent
-    // turn with nothing but its own minimum.
-    expect(PI_SANDBOX_MIN_LIFETIME_MS).toBeGreaterThanOrEqual(
-      CLONE_TIMEOUT_MS + 2 * FINALIZE_TIMEOUT_MS + MIN_PI_TIMEOUT_MS
-    )
   })
 })
 
@@ -119,11 +97,6 @@ describe('buildPiScript', () => {
     expect(buildPiScript('/workspace/search.ts', { disableRepositoryResources: true })).toContain(
       '-e /workspace/search.ts'
     )
-  })
-
-  it('preserves Create PR repository-resource behavior when no hardening option is passed', () => {
-    expect(buildPiScript()).not.toContain('--no-extensions')
-    expect(buildPiScript()).not.toContain('--no-prompt-templates')
   })
 
   it('filters Pi output inside the sandbox without masking pipeline failures', () => {

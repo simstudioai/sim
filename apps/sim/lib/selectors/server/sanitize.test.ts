@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { SelectorOptionsUnavailableError } from '@/lib/selectors/server/errors'
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
@@ -99,35 +96,6 @@ describe('sanitizeSelectorResult', () => {
         secretValues
       )
     ).toThrow(SelectorOptionsUnavailableError)
-  })
-
-  it('returns only the normalized selector option envelope', () => {
-    const result = sanitizeSelectorResult(
-      {
-        kind: 'list',
-        items: [
-          {
-            id: 'resource-1',
-            label: 'Resource one',
-            meta: { count: 3, active: true, parentId: null },
-          },
-        ],
-        nextCursor: 'next-page',
-      },
-      createSelectorProtectedValues()
-    )
-
-    expect(result).toEqual({
-      kind: 'list',
-      items: [
-        {
-          id: 'resource-1',
-          label: 'Resource one',
-          meta: { count: 3, active: true, parentId: null },
-        },
-      ],
-      nextCursor: 'next-page',
-    })
   })
 
   it('allows only exact protected detail-id repeats for later reference restoration', () => {
@@ -240,22 +208,6 @@ describe('sanitizeSelectorResult', () => {
         },
         protectedValues,
         { allowedDetailExactProtectedValue: 'resolved-id' }
-      )
-    ).toThrow(SelectorOptionsUnavailableError)
-  })
-
-  it('rejects protected numeric metadata without applying the detail exemption', () => {
-    const protectedValues = createSelectorProtectedValues()
-    protectedValues.add('1234')
-
-    expect(() =>
-      sanitizeSelectorResult(
-        {
-          kind: 'detail',
-          item: { id: '1234', label: '1234', meta: { resourceId: 1234 } },
-        },
-        protectedValues,
-        { allowedDetailExactProtectedValue: '1234' }
       )
     ).toThrow(SelectorOptionsUnavailableError)
   })

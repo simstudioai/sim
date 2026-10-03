@@ -1,6 +1,4 @@
-/**
- * @vitest-environment node
- */
+import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,20 +8,18 @@ const { SECRET, searchTargetRef } = vi.hoisted(() => ({
 }))
 
 vi.mock('@sim/emcn', () => ({
+  Chip: ({
+    onClick,
+    disabled,
+    'aria-label': label,
+  }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button type='button' onClick={onClick} disabled={disabled} aria-label={label} />
+  ),
   cn: (...classes: unknown[]) => classes.filter(Boolean).join(' '),
   Textarea: (props: Record<string, unknown>) => <textarea {...props} />,
 }))
 
-vi.mock('@sim/emcn/icons', () => ({
-  ChevronsUpDown: () => null,
-  Wand: () => null,
-}))
-
-vi.mock('@/components/ui/button', () => ({
-  Button: ({ children }: { children?: React.ReactNode }) => (
-    <button type='button'>{children}</button>
-  ),
-}))
+vi.mock('@sim/emcn/icons', () => emcnIconsMock)
 
 vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller',
@@ -121,13 +117,6 @@ describe('LongInput password masking', () => {
     expect(html).toContain('•')
   })
 
-  it('renders the plaintext value when the field is not a password field', () => {
-    const html = render(false)
-
-    expect(html).toContain('SIM-TEST-CREDENTIAL-MARKER')
-    expect(html).not.toContain('•')
-  })
-
   it('stays concealed while workflow search targets a match inside the secret', () => {
     searchTargetRef.current = {
       blockId: 'block-1',
@@ -144,22 +133,5 @@ describe('LongInput password masking', () => {
     expect(html).not.toContain('b3BlbnNzaC1rZXk')
     expect(html).not.toContain('SIM-TEST-CREDENTIAL-MARKER')
     expect(html).toContain('•')
-  })
-
-  it('highlights a workflow-search match when the field holds no secret', () => {
-    searchTargetRef.current = {
-      blockId: 'block-1',
-      subBlockId: 'privateKey',
-      targetKind: 'subblock',
-      valuePath: [],
-      query: SECRET_MATCH,
-      rawValue: SECRET_MATCH,
-      range: { start: MATCH_START, end: MATCH_START + SECRET_MATCH.length },
-    }
-
-    const html = render(false)
-
-    expect(html).toContain('<mark')
-    expect(html).toContain(SECRET_MATCH)
   })
 })

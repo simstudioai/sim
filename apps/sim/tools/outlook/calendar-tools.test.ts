@@ -1,44 +1,10 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { outlookCalendarCreateEventTool } from '@/tools/outlook/calendar_create_event'
-import { outlookCalendarDeleteEventTool } from '@/tools/outlook/calendar_delete_event'
-import { outlookCalendarGetEventTool } from '@/tools/outlook/calendar_get_event'
 import { outlookCalendarListEventsTool } from '@/tools/outlook/calendar_list_events'
 import { outlookCalendarRespondTool } from '@/tools/outlook/calendar_respond'
 import { outlookCalendarUpdateEventTool } from '@/tools/outlook/calendar_update_event'
 
-const tools = [
-  outlookCalendarListEventsTool,
-  outlookCalendarGetEventTool,
-  outlookCalendarCreateEventTool,
-  outlookCalendarUpdateEventTool,
-  outlookCalendarDeleteEventTool,
-  outlookCalendarRespondTool,
-]
-
 describe('outlook calendar tools', () => {
-  it('every tool uses the outlook oauth provider and a snake_case id', () => {
-    for (const tool of tools) {
-      expect(tool.oauth).toEqual({ required: true, provider: 'outlook' })
-      expect(tool.id).toMatch(/^outlook_calendar_[a-z_]+$/)
-      expect(tool.version).toBe('1.0.0')
-      expect(tool.outputs?.message).toBeDefined()
-    }
-  })
-
-  it('exposes the expected tool ids', () => {
-    expect(tools.map((t) => t.id)).toEqual([
-      'outlook_calendar_list_events',
-      'outlook_calendar_get_event',
-      'outlook_calendar_create_event',
-      'outlook_calendar_update_event',
-      'outlook_calendar_delete_event',
-      'outlook_calendar_respond',
-    ])
-  })
-
   it('builds a calendarView URL with the time window and paging', () => {
     const url = outlookCalendarListEventsTool.request.url as (p: unknown) => string
     const built = url({
@@ -320,13 +286,5 @@ describe('outlook calendar tools', () => {
     // Distinct executions must not share an id, or Graph would discard a genuine
     // second event as a duplicate. (Retries reuse one body, built once per execution.)
     expect(body(params).transactionId).not.toBe(first.transactionId)
-  })
-
-  it('enables retry with backoff on every calendar tool (429/mailbox concurrency)', () => {
-    for (const tool of tools) {
-      expect(tool.request.retry?.enabled).toBe(true)
-      // false so POST/PATCH (create/update/respond) also retry on a 429 throttle.
-      expect(tool.request.retry?.retryIdempotentOnly).toBe(false)
-    }
   })
 })

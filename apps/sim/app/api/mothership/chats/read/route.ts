@@ -5,18 +5,20 @@ import { and, eq, isNull, lt, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { markMothershipChatReadContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getAccessibleCopilotChatAuth } from '@/lib/mothership/chat/lifecycle'
+import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
-} from '@/lib/copilot/request/http'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/request/http'
 
 const logger = createLogger('MarkTaskReadAPI')
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
-    const { userId, isAuthenticated } = await authenticateCopilotRequestSessionOnly()
+    const { userId, isAuthenticated, principal } = await authenticateCopilotRequestSessionOnly()
     if (!isAuthenticated || !userId) {
       return createUnauthorizedResponse()
     }
@@ -24,8 +26,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const parsed = await parseRequest(markMothershipChatReadContract, request, {})
     if (!parsed.success) return parsed.response
     const { chatId } = parsed.data.body
+    const chat = await getAccessibleCopilotChatAuth(chatId, userId, { principal })
+    if (!chat) return NextResponse.json({ success: true })
 
-    await db
+    const [updatedChat] = await db
       .update(copilotChats)
       .set({ lastSeenAt: sql`GREATEST(${copilotChats.updatedAt}, NOW())` })
       .where(
@@ -35,6 +39,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           or(isNull(copilotChats.lastSeenAt), lt(copilotChats.lastSeenAt, copilotChats.updatedAt))
         )
       )
+      .returning({ id: copilotChats.id })
+    if (updatedChat && chat.type === 'mothership') {
+      publishChatStatusChanged(chat, { chatId, type: 'updated' })
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {

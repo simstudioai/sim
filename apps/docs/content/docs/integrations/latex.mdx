@@ -11,17 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[LaTeX](https://www.latex-project.org/) is a typesetting system that is the de facto standard for producing high-quality scientific and technical documents. Unlike word processors, LaTeX uses plain-text markup to describe a document's structure and lets the compiler handle layout, which makes it ideal for documents with mathematical notation, citations, cross-references, and consistent professional formatting.
-
-With LaTeX, you can:
-
-- **Compile documents to PDF**: Turn LaTeX source into a polished, print-ready PDF
-- **Typeset mathematics**: Render equations, theorems, and scientific notation with precision
-- **Choose your compiler**: Build with pdfLaTeX, XeLaTeX, LuaLaTeX, pLaTeX, upLaTeX, or ConTeXt
-- **Include supporting files**: Add images, included `.tex` files, bibliographies, and custom classes or styles to the build
-- **Automate document production**: Generate reports, invoices, certificates, and papers from templates
-
-In Sim, the LaTeX integration enables your agents to compile LaTeX source into PDF files as part of any workflow — no OAuth or API key required. Agents can draft documents in LaTeX, attach supporting resources such as images or BibTeX bibliographies, and produce a finished PDF that downstream blocks can email, upload, or store. Agents can also search the available TeX Live packages and system fonts to pick the right tools for a document. This makes it easy to build agents that generate reports, typeset research digests, or produce templated documents like invoices and certificates.
+[LaTeX](https://www.latex-project.org/) compiles plain-text document source into PDFs. Provide the source, select a compiler, and attach any required images, included files, or bibliographies. You can also inspect the available TeX Live packages and system fonts. No OAuth connection or API key is required.
 
 Note: compilation runs on the public [LaTeX-on-HTTP](https://github.com/YtoTech/latex-on-http) service at latex.ytotech.com, so the document source and any attached resources are sent to that third-party service. Avoid compiling documents whose contents must not leave your environment.
 {/* MANUAL-CONTENT-END */}

@@ -1,6 +1,6 @@
 import { GoogleGenAI } from '@google/genai'
 import { createLogger } from '@sim/logger'
-import { isRecordLike } from '@sim/utils/object'
+import { toRecord } from '@sim/utils/object'
 import type { EgressProfile } from '@/lib/core/security/egress/profiles'
 import {
   MAX_JSON_API_RESPONSE_BYTES,
@@ -40,7 +40,7 @@ export interface VisionAnalysisResult {
 }
 
 function record(value: unknown): Record<string, unknown> {
-  return isRecordLike(value) ? value : {}
+  return toRecord(value)
 }
 
 function number(value: unknown): number | undefined {

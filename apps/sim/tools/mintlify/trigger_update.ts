@@ -1,3 +1,4 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import type {
   MintlifyTriggerUpdateParams,
   MintlifyTriggerUpdateResponse,
@@ -7,7 +8,6 @@ import {
   mintlifyHeaders,
   pathSegment,
   readMintlifyJson,
-  toNullableString,
 } from '@/tools/mintlify/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -48,7 +48,7 @@ export const mintlifyTriggerUpdateTool: ToolConfig<
     return {
       success: true,
       output: {
-        statusId: toNullableString(data.statusId),
+        statusId: toStringOrNull(data.statusId),
       },
     }
   },

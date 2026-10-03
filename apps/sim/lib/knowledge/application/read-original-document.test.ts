@@ -1,0 +1,133 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  provenance: vi.fn(),
+}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@/lib/knowledge/secret-provenance', () => ({
+  createKnowledgeDocumentSourceValue: (doc: { filename: string; fileUrl: string }) => ({
+    filename: doc.filename,
+    fileUrl: doc.fileUrl,
+  }),
+  loadKnowledgeDocumentDurableSecretProvenance: mocks.provenance,
+}))
+
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { readOriginalKnowledgeDocument } from '@/lib/knowledge/application/read-original-document'
+
+workspaceAuthzMockFns.mockPermissionSatisfies.mockImplementation(
+  (actual: string | null) => actual !== null
+)
+
+const principal = createSessionPrincipal({ userId: 'reader', sessionId: 'session' })
+const document = {
+  id: 'doc',
+  filename: 'policy.md',
+  fileUrl: 'data:text/markdown;base64,IyBQb2xpY3k=',
+  storageKey: null,
+  fileSize: 8,
+  mimeType: 'text/markdown',
+  enabled: true,
+  processingStatus: 'failed',
+}
+const context = {
+  workspaceId: 'workspace',
+  workspaceOrganizationId: null,
+  allowPersonalApiKeys: true,
+  knowledgeBaseId: 'kb',
+  document,
+}
+const input = {
+  knowledgeBaseId: 'kb',
+  documentId: 'doc',
+  assertedWorkspaceId: 'workspace',
+  maxBytes: 64,
+}
+const run = () => readOriginalKnowledgeDocument.execute({ principal, input })
+
+describe('original knowledge document read', () => {
+  beforeEach(() => {
+    knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockResolvedValue(
+      context
+    )
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
+    mocks.provenance.mockResolvedValue({
+      source: { filename: document.filename, fileUrl: document.fileUrl },
+      provenance: { status: 'exact', entries: [] },
+    })
+    storageServiceMockFns.mockDownloadFile.mockResolvedValue(Buffer.from('# Policy'))
+  })
+  it('reports no stored source without fetching an external URL', async () => {
+    knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockResolvedValue({
+      ...context,
+      document: {
+        ...document,
+        fileUrl: 'https://example.test/private',
+        processingStatus: 'completed',
+      },
+    })
+    mocks.provenance.mockResolvedValue({
+      source: { filename: document.filename, fileUrl: 'https://example.test/private' },
+      provenance: { status: 'exact', entries: [] },
+    })
+    expect(await run()).toMatchObject({
+      indexReady: true,
+      sourceAvailable: false,
+      buffer: undefined,
+    })
+    expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
+    expect(mocks.provenance).toHaveBeenCalledWith('doc')
+  })
+  it('rechecks permission before reading source or provenance', async () => {
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
+    await expect(run()).rejects.toThrow('Insufficient workspace')
+    expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
+    expect(mocks.provenance).not.toHaveBeenCalled()
+  })
+  it('conceals a document outside the canonical scope', async () => {
+    knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockRejectedValue(
+      new OrchestrationError('not_found', 'Document not found')
+    )
+    await expect(run()).rejects.toThrow('Document not found')
+    expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
+  })
+  it('bounds actual inline bytes even when stored metadata understates them', async () => {
+    await expect(
+      readOriginalKnowledgeDocument.execute({ principal, input: { ...input, maxBytes: 1 } })
+    ).rejects.toThrow('byte limit')
+    knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockResolvedValue({
+      ...context,
+      document: { ...document, fileSize: 1 },
+    })
+    await expect(
+      readOriginalKnowledgeDocument.execute({ principal, input: { ...input, maxBytes: 1 } })
+    ).rejects.toThrow(/limit/)
+  })
+  it.each([{ status: 'unknown' }, { status: 'exact', entries: [{ secret: 'private' }] }])(
+    'refuses originals without secret-free provenance',
+    async (provenance) => {
+      mocks.provenance.mockResolvedValue({
+        source: { filename: document.filename, fileUrl: document.fileUrl },
+        provenance,
+      })
+      await expect(run()).rejects.toThrow('secret-free')
+      expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
+    }
+  )
+  it('refuses a concurrent source replacement before reading', async () => {
+    mocks.provenance.mockResolvedValue({
+      source: { filename: 'changed', fileUrl: document.fileUrl },
+      provenance: { status: 'exact', entries: [] },
+    })
+    await expect(run()).rejects.toThrow('secret-free')
+  })
+})

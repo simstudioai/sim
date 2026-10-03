@@ -143,3 +143,23 @@ export function projectConnectorType(
     tagDefinitions: (meta.tagDefinitions ?? []).map(projectTagDefinition),
   }
 }
+
+/** A connector type as the default list projection publishes it: enough to choose one. */
+export interface CatalogConnectorTypeSummary {
+  connectorType: string
+  name: string
+  description: string
+  auth: { mode: CatalogConnectorAuth['mode'] }
+}
+
+/** Narrows a projected connector type to the summary the list returns by default. */
+export function toConnectorTypeSummary(
+  connectorType: CatalogConnectorType
+): CatalogConnectorTypeSummary {
+  return {
+    connectorType: connectorType.connectorType,
+    name: connectorType.name,
+    description: connectorType.description,
+    auth: { mode: connectorType.auth.mode },
+  }
+}

@@ -9,9 +9,12 @@ import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import type { ServedFolderResourceType } from '@/lib/api/contracts/folders'
-import { isChatEnabled } from '@/lib/core/config/env-flags'
-import { type ColumnOption, SortDropdown } from '@/app/workspace/[workspaceId]/components'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { folderedResourceListHref } from '@/app/workspace/[workspaceId]/components/folders'
+import {
+  type ColumnOption,
+  SortDropdown,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -193,6 +196,7 @@ export function RecentlyDeleted() {
   const router = useRouter()
   const workspaceId = params?.workspaceId as string
   const workspacePermissions = useUserPermissionsContext()
+  const { chatEnabled } = useDeploymentShape()
   const canEdit = canMutateWorkspaceSettingsSection('recently-deleted', workspacePermissions)
   const [{ tab: activeTab }, setRecentlyDeletedFilters] = useQueryStates(
     recentlyDeletedParsers,
@@ -254,7 +258,7 @@ export function RecentlyDeleted() {
   // query's loading/error state feeds the whole panel's.
   const chatsQuery = useMothershipChats(workspaceId, {
     scope: 'archived',
-    enabled: queryPlan.chats && isChatEnabled,
+    enabled: queryPlan.chats && chatEnabled,
   })
 
   const restoreWorkflow = useRestoreWorkflow()
@@ -274,7 +278,7 @@ export function RecentlyDeleted() {
     queryPlan.tableFolders ? tableFoldersQuery : null,
     queryPlan.files ? filesQuery : null,
     queryPlan.workspaceFolders ? workspaceFoldersQuery : null,
-    queryPlan.chats && isChatEnabled ? chatsQuery : null,
+    queryPlan.chats && chatEnabled ? chatsQuery : null,
   ]
   const isLoading = activeQueryStates.some((query) => query?.isLoading)
   const error = activeQueryStates.find((query) => query?.error)?.error

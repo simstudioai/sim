@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * The universe below is the editor's row set, which excludes superseded blocks
  * (`isAccessControlAllowlistRow`). Every id is a real one, so the assertions
  * rest on the repository's own lifecycle facts: `slack` was replaced by

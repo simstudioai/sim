@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { uuidV5 } from '@/lib/core/utils/uuid-v5'
 
 /**
  * Fixed namespace UUID for fork block-identity derivation. Changing this value
@@ -7,30 +7,6 @@ import { createHash } from 'node:crypto'
  * promotes - so it must never change.
  */
 const FORK_BLOCK_NAMESPACE = '6f1c0e2a-9b3d-5e47-8a1c-2d4f6b8e0c13'
-
-function uuidToBytes(uuid: string): Buffer {
-  return Buffer.from(uuid.replace(/-/g, ''), 'hex')
-}
-
-/**
- * Deterministic UUIDv5 (SHA-1) of `name` within `namespace`. The same inputs
- * always yield the same UUID, which is how fork block identity stays stable.
- *
- * SHA-1 is mandated by RFC 4122 for UUIDv5 and is used here only for deterministic id derivation,
- * never for secrecy or integrity — not a security use of the algorithm. Swapping it would change
- * every derived id, breaking webhook URLs and stored block-id references across existing forks
- * (see {@link FORK_BLOCK_NAMESPACE}).
- */
-function uuidV5(name: string, namespace: string): string {
-  const hash = createHash('sha1')
-  hash.update(uuidToBytes(namespace)) // lgtm[js/weak-cryptographic-algorithm]
-  hash.update(Buffer.from(name, 'utf8')) // lgtm[js/weak-cryptographic-algorithm]
-  const bytes = hash.digest().subarray(0, 16)
-  bytes[6] = (bytes[6] & 0x0f) | 0x50
-  bytes[8] = (bytes[8] & 0x3f) | 0x80
-  const hex = bytes.toString('hex')
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
-}
 
 /**
  * Derive the target block id for a source block copied into a target workflow.

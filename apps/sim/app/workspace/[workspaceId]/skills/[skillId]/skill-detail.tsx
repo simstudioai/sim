@@ -8,13 +8,13 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { AddPeopleModal } from '@/components/permissions'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
-import { SkillTile } from '@/app/workspace/[workspaceId]/components'
 import {
   CredentialDetailHeading,
   CredentialDetailLayout,
   UnsavedChangesModal,
   useUnsavedChangesGuard,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { SkillTile } from '@/app/workspace/[workspaceId]/components/skill-tile'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SkillEditorsCard } from '@/app/workspace/[workspaceId]/skills/[skillId]/components/skill-editors-card'
 import {

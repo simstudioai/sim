@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'

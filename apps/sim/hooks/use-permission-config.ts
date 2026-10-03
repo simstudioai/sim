@@ -1,14 +1,8 @@
 'use client'
 
 import { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
-import { requestJson } from '@/lib/api/client/request'
-import {
-  type GetAllowedIntegrationsResponse,
-  getAllowedIntegrationsContract,
-  type IntegrationAvailabilityResponse,
-} from '@/lib/api/contracts/common'
+import type { IntegrationAvailabilityResponse } from '@/lib/api/contracts/common'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import {
   isDeploymentGatedIntegrationType,
@@ -29,6 +23,7 @@ import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/p
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { overlayVisibility } from '@/blocks/visibility/context'
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
+import { useIntegrationAvailability } from '@/hooks/queries/integration-availability'
 
 export interface PermissionConfigResult {
   config: PermissionGroupConfig
@@ -37,6 +32,8 @@ export interface PermissionConfigResult {
   filterBlocks: <T extends { type: string }>(blocks: T[]) => T[]
   filterProviders: (providerIds: string[]) => string[]
   isBlockAllowed: (blockType: string) => boolean
+  /** Presentation-only hint; request creation revalidates the deployed public catalog. */
+  isBlockRequestable: (blockType: string) => boolean
   /**
    * Whether a model is usable at all: allowed by the model denylist *and* by
    * the provider allowlist. Both gates apply to every model field, so this is
@@ -47,21 +44,12 @@ export interface PermissionConfigResult {
   isInvitationsDisabled: boolean
   isPublicApiDisabled: boolean
   integrationAvailability: ReadonlyMap<string, IntegrationAvailabilityResponse>
-}
-
-const allowedIntegrationsKeys = {
-  all: ['allowedIntegrations'] as const,
-  env: () => [...allowedIntegrationsKeys.all, 'env'] as const,
-}
-
-export const ALLOWED_INTEGRATIONS_STALE_TIME = 5 * 60 * 1000
-
-function useAllowedIntegrationsFromEnv() {
-  return useQuery<GetAllowedIntegrationsResponse>({
-    queryKey: allowedIntegrationsKeys.env(),
-    queryFn: ({ signal }) => requestJson(getAllowedIntegrationsContract, { signal }),
-    staleTime: ALLOWED_INTEGRATIONS_STALE_TIME,
-  })
+  oauthServiceAvailability: ReadonlyMap<string, boolean>
+  isIntegrationAvailabilityLoading: boolean
+  isIntegrationAvailabilityFetching: boolean
+  isIntegrationAvailabilityReady: boolean
+  integrationAvailabilityError: Error | null
+  refetchIntegrationAvailability: ReturnType<typeof useIntegrationAvailability>['refetch']
 }
 
 export function usePermissionConfig(): PermissionConfigResult {
@@ -72,8 +60,14 @@ export function usePermissionConfig(): PermissionConfigResult {
 
   const { data: permissionData, isLoading: isPermissionLoading } =
     useUserPermissionConfig(workspaceId)
-  const { data: envAllowlistData, isLoading: isEnvAllowlistLoading } =
-    useAllowedIntegrationsFromEnv()
+  const {
+    data: envAllowlistData,
+    isLoading: isEnvAllowlistLoading,
+    isFetching: isIntegrationAvailabilityFetching,
+    isSuccess: isIntegrationAvailabilityReady,
+    error: integrationAvailabilityError,
+    refetch: refetchIntegrationAvailability,
+  } = useIntegrationAvailability()
 
   const isLoading = isPermissionLoading || isEnvAllowlistLoading
 
@@ -125,6 +119,17 @@ export function usePermissionConfig(): PermissionConfigResult {
     )
   }, [envAllowlistData?.integrationAvailability, blockOverlayVersion])
 
+  const oauthServiceAvailability = useMemo(
+    () =>
+      new Map(
+        (envAllowlistData?.oauthServiceAvailability ?? []).map(({ providerId, available }) => [
+          providerId.toLowerCase(),
+          available,
+        ])
+      ),
+    [envAllowlistData?.oauthServiceAvailability]
+  )
+
   const isBlockAllowed = useMemo(() => {
     return (blockType: string) => {
       const normalizedBlockType = blockType.toLowerCase()
@@ -144,6 +149,36 @@ export function usePermissionConfig(): PermissionConfigResult {
       return allowedAccessControlTypes.has(resolveAccessControlBlockType(normalizedBlockType))
     }
   }, [hostContext?.features?.credentialGroups, integrationAvailability, allowedAccessControlTypes])
+
+  const isBlockRequestable = useMemo(() => {
+    const deploymentAllowlist = intersectAccessControlAllowlists(
+      null,
+      envAllowlistData?.allowedIntegrations ?? null
+    )
+    return (blockType: string): boolean => {
+      if (isLoading || !isIntegrationAvailabilityReady || isBlockAllowed(blockType)) return false
+      if (isBlockTypeAccessControlExempt(blockType)) return false
+      if (blockType === 'credential_group' && !hostContext?.features?.credentialGroups) return false
+      const availability = integrationAvailability.get(blockType.toLowerCase())
+      if (
+        isDeploymentGatedIntegrationType(blockType) &&
+        availability &&
+        (availability.state === 'unavailable' || availability.state === 'misconfigured')
+      )
+        return false
+      return (
+        deploymentAllowlist === null ||
+        deploymentAllowlist.has(resolveAccessControlBlockType(blockType))
+      )
+    }
+  }, [
+    envAllowlistData,
+    isLoading,
+    isIntegrationAvailabilityReady,
+    isBlockAllowed,
+    hostContext?.features?.credentialGroups,
+    integrationAvailability,
+  ])
 
   const isModelUsable = useMemo(
     () =>
@@ -195,11 +230,18 @@ export function usePermissionConfig(): PermissionConfigResult {
       filterBlocks,
       filterProviders,
       isBlockAllowed,
+      isBlockRequestable,
       isModelUsable,
       isToolAllowed,
       isInvitationsDisabled,
       isPublicApiDisabled,
       integrationAvailability,
+      oauthServiceAvailability,
+      isIntegrationAvailabilityLoading: isEnvAllowlistLoading,
+      isIntegrationAvailabilityFetching,
+      isIntegrationAvailabilityReady,
+      integrationAvailabilityError,
+      refetchIntegrationAvailability,
     }),
     [
       mergedConfig,
@@ -208,11 +250,18 @@ export function usePermissionConfig(): PermissionConfigResult {
       filterBlocks,
       filterProviders,
       isBlockAllowed,
+      isBlockRequestable,
       isModelUsable,
       isToolAllowed,
       isInvitationsDisabled,
       isPublicApiDisabled,
       integrationAvailability,
+      oauthServiceAvailability,
+      isEnvAllowlistLoading,
+      isIntegrationAvailabilityFetching,
+      isIntegrationAvailabilityReady,
+      integrationAvailabilityError,
+      refetchIntegrationAvailability,
     ]
   )
 }

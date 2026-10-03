@@ -18,7 +18,7 @@ through `lib/internal/tool-operations/registry.server.ts`. Request closures can 
 clients, API helpers, and parsers, which is what makes the executable barrel expensive: reaching it
 costs roughly 4,700 additional modules (measured; re-measure with `--verbose`).
 
-`getTool()` returns the whole `ToolConfig`, so a single `getTool` import anywhere in a client-reachable file drags all of it in.
+`getTool()` returns the whole `ExecutableToolConfig`, so a single `getTool` import anywhere in a client-reachable file drags all of it in.
 
 ## Which module to import
 
@@ -29,7 +29,7 @@ costs roughly 4,700 additional modules (measured; re-measure with `--verbose`).
 | every tool id | `getToolIds` from `@/tools/tool-ids` | |
 | a tool's params | `getToolParams` / `getToolMetadata` from `@/tools/metadata` | ~4 MB |
 | a tool's declared outputs | `getToolOutputsMetadata` from `@/tools/metadata-outputs` | ~4 MB, separate on purpose |
-| to **execute** a tool | `getTool` from `@/tools/utils`, or `@/tools/utils.server` | server paths only |
+| to **execute** a tool | `getTool` from `@/tools/utils`, or `getToolAsync` from `@/tools/utils.server` (async/workspace-context lookup) | server paths only |
 
 Three modules, cheapest first. Ids are their own artifact because resolution and existence checks need only the key set; outputs are their own because they are the larger half of the data with a single consumer. `@/tools/metadata` and `@/tools/metadata-outputs` both resolve ids through `@/tools/tool-ids`, which is what keeps them independent of each other — do not "helpfully" re-export one from another, or every caller pays for all three.
 
@@ -46,7 +46,7 @@ bun run tool-metadata:check      # what CI runs; fails if stale
 
 Never hand-edit them. If you add a tool or change a tool's `params`/`outputs`, regenerate and commit the result, or CI fails.
 
-Three non-obvious properties, each of which was measured and is easy to undo by accident:
+Four non-obvious properties, each of which was measured and is easy to undo by accident:
 
 - **The data is a JSON string parsed at runtime, not an imported `.json` and not an object literal.** With `resolveJsonModule` (which this repo enables), a `.json` import makes TypeScript infer a literal type for all 5,000+ entries and takes `tsc --noEmit` from **12.6s to 8m07s** — a 38x regression. An ambient `declare module` does *not* short-circuit it, and an object literal costs the same. A single string literal is one cheap token for both the compiler and the bundler, and `JSON.parse` beats evaluating the equivalent literal at runtime. Do not "clean this up" into a `.json` import.
 - **The generator refuses to emit function values.** If you add a field to `METADATA_FIELDS` that contains a closure, generation fails loudly rather than shipping executable config to the client. `hosting` and `schemaEnrichment` are excluded for exactly this reason (`hosting.enabled`, `pricing`, and `enrichSchema` are functions) — they are server-only.
@@ -55,25 +55,25 @@ Three non-obvious properties, each of which was measured and is easy to undo by 
 
 ## Testing code that reads tool metadata
 
-Mock the module the code under test actually reads. `vi.mock('@/tools/utils', () => toolsUtilsMock)` only controls `getTool`; code that reads `params`/`outputs`/`name` goes through `@/tools/metadata`, so mocking `tools/utils` there is a **no-op that still passes** — because the real generated artifacts happen to agree with the mock fixtures. The test looks green while controlling nothing.
+Mock the module the code under test actually reads. `@/tools/metadata` and `@/tools/metadata-outputs` are mocked globally in `apps/sim/vitest.setup.ts` and return `undefined`; never `vi.mock` them again (`check:test-patterns` fails a `global-remock`). Install fixtures on the global mock instead:
 
 ```ts
-import { blocksMock, toolsMetadataMock, toolsUtilsMock } from '@sim/testing/mocks'
+import { toolsMetadataMock } from '@sim/testing/mocks/blocks.mock'
+import { getToolMetadata } from '@/tools/metadata'
 
-vi.mock('@/tools/utils', () => toolsUtilsMock)      // executable lookup
-vi.mock('@/tools/metadata', () => toolsMetadataMock) // params / outputs / name
+vi.mocked(getToolMetadata).mockImplementation(toolsMetadataMock.getToolMetadata)
 ```
 
-Both are backed by the same `mockToolConfigs`, so mocking both gives one consistent tool universe. If you are unsure whether a mock is load-bearing, change a fixture value to a sentinel and confirm the test fails.
+Do the same for `getToolParams`. `vi.mock('@/tools/utils', () => toolsUtilsMock)` controls only `getTool`. Both mocks share `mockToolConfigs`, so together they give one consistent tool universe. If you are unsure whether a mock is load-bearing, change a fixture value to a sentinel and confirm the test fails.
 ## The guard
 
-`bun run check:tool-registry-boundary` (CI: "Tool registry client-boundary audit") walks the module graph from each workspace route and fails if `@/tools/registry` is reachable, printing the exact import chain that reintroduced it.
+`bun run check:tool-registry-boundary` (run in CI by `check:audits`) walks the module graph from each workspace route and fails if `@/tools/registry` is reachable, printing the exact import chain that reintroduced it.
 
-If it fails, do not add the entry to an allowlist — there isn't one. Find the symbol the offending file actually needs and move it to a registry-free module, exactly as `mergeToolParameters` and `formatParameterLabel` were.
+If it fails, do not add the entry to an allowlist — there isn't one. Find the symbol the offending file actually needs and move it to a registry-free module (e.g. `tools/merge-params.ts`).
 
 Run it with `--verbose` to print per-route module counts, which is also the quickest way to see whether a change moved the graph.
 
-The same command also ratchets those counts against `check-tool-registry-boundary.baseline.json`. `--check` (what CI runs) fails when an entry exceeds its baseline by more than `max(25 modules, 2%)`, naming the import chain responsible. This catches bloat the registry rule misses — a prefetch importing `listTables` cost the Tables page 444 modules without ever touching `@/tools/registry`.
+The same command also ratchets those counts against `check-tool-registry-boundary.baseline.json`. `--check` (what CI runs) fails when an entry exceeds its baseline by more than `max(25 modules, 2%)`, naming the import chain responsible. The baseline also catches graph growth that never touches `@/tools/registry`.
 
 Re-record with `--update-baseline` and commit the JSON when growth is deliberate. A *shrink* passes but is reported — re-record then too, or the win is silently spendable again.
 
@@ -85,16 +85,7 @@ Do not eyeball imports — the registry is reached through several redundant pat
 2. Check whether `apps/sim/tools/registry.ts` is in the reachable set, and print the parent chain if it is.
 3. Compare the reachable module count before and after.
 
-Reference points measured on this repo:
-
-| entry | modules |
-| --- | --- |
-| `tools/registry.ts` reachable | ~4,900 |
-| `tools/merge-params.ts` (leaf) | 2 |
-| `providers/utils.ts` after cutting its `params` edge | 22 |
-| `app/workspace/[workspaceId]/w/page.tsx` (canvas) | 6,592 before, 1,908 after |
-
-The canvas route reached the registry through **four** redundant edges — `providers/utils` (via `tools/params`), `lib/workflows/blocks/block-outputs`, `lib/workflows/sanitization/validation`, and `serializer/index`. Cutting any one alone moved the module count by ~1. They all had to go before anything improved; measure the route, not the file you edited.
+A route can reach the registry through several redundant edges; cutting one changes nothing until all are gone, so measure the route, not the file you edited.
 
 ## When adding a new caller
 

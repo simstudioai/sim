@@ -33,7 +33,7 @@ export const brightDataScrapeDatasetTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'JSON array of URL objects to scrape (e.g., [{"url": "https://example.com/product"}])',
+        'JSON array of URL objects to scrape (e.g., [ { "url": "https://example.com/product" } ])',
     },
     format: {
       type: 'string',

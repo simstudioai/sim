@@ -54,7 +54,5 @@ This pairs naturally with the [Sim trigger](/workflows/triggers/sim): the trigge
 
 <FAQ items={[
   { question: "Why does Query Logs only return run IDs?", answer: "To keep payloads small and predictable. Run summaries can be large — fetch only the runs you actually need with Get Run Details." },
-  { question: "Can I query logs from another workspace?", answer: "No. The block is scoped to the workspace the workflow lives in." },
-  { question: "What are trace spans?", answer: "The execution trace for a run: every block that ran, its inputs and outputs, timings, and any tool calls — the same data shown in the Logs page trace view." },
   { question: "How far back can I query?", answer: "As far as your plan's log retention. Free plans retain logs for 7 days; paid plans retain them indefinitely." },
 ]} />

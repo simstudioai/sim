@@ -1,0 +1,2 @@
+ALTER TABLE "knowledge_connector_member_sync_log" ADD COLUMN "docs_failed" integer;--> statement-breakpoint
+ALTER TABLE "knowledge_connector_member_sync_log" ADD COLUMN "processing_dispatch_failed" integer;

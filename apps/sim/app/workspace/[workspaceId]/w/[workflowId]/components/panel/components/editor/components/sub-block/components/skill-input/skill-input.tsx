@@ -170,14 +170,14 @@ export function SkillInput({
                   }}
                 >
                   <div className='flex min-w-0 flex-1 items-center gap-2'>
-                    <div className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm bg-[var(--border-1)]'>
+                    <div className='flex size-[16px] shrink-0 items-center justify-center rounded-sm bg-[var(--border-1)]'>
                       <AgentSkillsIcon className='size-[10px] text-[var(--text-icon)]' />
                     </div>
                     <span className='truncate text-[var(--text-primary)] text-small'>
                       {formatDisplayText(skillName, { workflowSearchHighlight })}
                     </span>
                   </div>
-                  <div className='flex flex-shrink-0 items-center gap-2'>
+                  <div className='flex shrink-0 items-center gap-2'>
                     {!disabled && !isPreview && (
                       <button
                         type='button'
