@@ -49,13 +49,13 @@ interface UsageLogRowProps {
 function UsageLogRow({ log }: UsageLogRowProps) {
   return (
     <div className='flex items-center gap-2.5 rounded-lg p-2 text-left'>
-      <span className='w-[150px] flex-shrink-0 text-[var(--text-muted)] text-caption'>
+      <span className='w-[150px] shrink-0 text-[var(--text-muted)] text-caption'>
         {formatDateTime(new Date(log.createdAt))}
       </span>
       <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'>
         {rowLabel(log)}
       </span>
-      <span className='flex-shrink-0 text-[var(--text-muted)] text-caption tabular-nums'>
+      <span className='shrink-0 text-[var(--text-muted)] text-caption tabular-nums'>
         {formatApportionedCreditCost(log.creditCost, log.hasCost)}
       </span>
     </div>

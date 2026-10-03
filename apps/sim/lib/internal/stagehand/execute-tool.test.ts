@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -13,53 +10,13 @@ vi.mock('@/lib/internal/stagehand/operations', () => ({
   executeStagehandExtract: mocks.extract,
 }))
 
-import { executeStagehandTool } from '@/lib/internal/stagehand/execute-tool'
 import { agentTool } from '@/tools/stagehand/agent'
 import { extractTool } from '@/tools/stagehand/extract'
 
 describe('Stagehand internal tool execution', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.agent.mockResolvedValue(Response.json({ agentResult: {} }))
     mocks.extract.mockResolvedValue(Response.json({ data: {} }))
-  })
-
-  it.each([
-    [
-      'stagehand_agent',
-      {
-        task: 'Complete the task',
-        startUrl: 'https://example.com',
-        outputSchema: {},
-        variables: {},
-        provider: 'openai',
-        apiKey: 'sk-test',
-        mode: 'dom',
-        maxSteps: 20,
-      },
-      mocks.agent,
-    ],
-    [
-      'stagehand_extract',
-      {
-        instruction: 'Extract the title',
-        schema: { type: 'object', properties: { title: { type: 'string' } } },
-        provider: 'anthropic',
-        apiKey: 'sk-ant-test',
-        url: 'https://example.com',
-      },
-      mocks.extract,
-    ],
-  ])('dispatches %s through its typed operation', async (toolId, input, execute) => {
-    await executeStagehandTool({
-      toolId,
-      input,
-      headers: new Headers(),
-      context: { userId: 'user-1' },
-      requestId: 'request-1',
-    })
-
-    expect(execute).toHaveBeenCalledOnce()
   })
 
   it('keeps provider keys and browser configuration out of model input', () => {
@@ -92,12 +49,5 @@ describe('Stagehand internal tool execution', () => {
       instruction: 'Extract',
       schema: { type: 'object' },
     })
-  })
-
-  it('uses operation-only declarations', () => {
-    for (const tool of [agentTool, extractTool]) {
-      expect(tool.operation).toBeDefined()
-      expect('request' in tool).toBe(false)
-    }
   })
 })

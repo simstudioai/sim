@@ -1,9 +1,7 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import {
-  resolvePrincipalSubject,
-  type WorkflowExecutionDelegatedPrincipal,
-} from '@sim/auth/principal'
+import { type DelegatedPrincipal, resolvePrincipalSubject } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   impersonateEmailSchema,
   type OAuthTokenResponse,
@@ -26,6 +24,7 @@ import {
   extractMicrosoftDataverseEnvironmentUrl,
   MICROSOFT_DATAVERSE_PROVIDER_ID,
 } from '@/lib/oauth/microsoft-dataverse'
+import { parseQuickBooksAccountId } from '@/lib/oauth/quickbooks'
 import { extractSalesforceInstanceUrl, isSalesforceOAuthProviderId } from '@/lib/oauth/salesforce'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -67,6 +66,30 @@ export interface ResolveCredentialTokenInput {
 export type ResolveCredentialTokenResult =
   | { ok: true; token: CredentialTokenPayload }
   | { ok: false; status: number; error: string; code?: string }
+
+interface OAuthCredentialContext {
+  providerId: string
+  accountId?: string | null
+}
+
+export function validateOAuthCredentialContext(
+  credential: OAuthCredentialContext
+): { ok: true } | { ok: false; error: string } {
+  if (credential.providerId !== 'quickbooks') return { ok: true }
+
+  try {
+    parseQuickBooksAccountId(credential.accountId ?? '')
+    return { ok: true }
+  } catch (error) {
+    return {
+      ok: false,
+      error: getErrorMessage(
+        error,
+        'QuickBooks company identity is invalid. Reconnect the QuickBooks credential.'
+      ),
+    }
+  }
+}
 
 /**
  * Emits the semantic "credential used" trail for one resolved credential.
@@ -112,7 +135,12 @@ export function recordCredentialAccess(params: {
  * local regex — these values are injected into tool calls that carry the token.
  */
 function buildOAuthTokenPayload(
-  credential: { providerId: string; scope?: string | null; idToken?: string | null },
+  credential: {
+    providerId: string
+    accountId?: string | null
+    scope?: string | null
+    idToken?: string | null
+  },
   accessToken: string
 ): CredentialTokenPayload {
   const instanceUrl = isSalesforceOAuthProviderId(credential.providerId)
@@ -126,12 +154,21 @@ function buildOAuthTokenPayload(
     apiDomain = extractZohoDeskBaseFromScope(credential.scope)
   }
 
+  const quickBooksIdentity =
+    credential.providerId === 'quickbooks'
+      ? parseQuickBooksAccountId(credential.accountId ?? '')
+      : undefined
+
   return {
     accessToken,
     credentialType: 'oauth',
     idToken: credential.idToken || undefined,
     ...(instanceUrl && { instanceUrl }),
     ...(apiDomain && { apiDomain }),
+    ...(quickBooksIdentity && {
+      realmId: quickBooksIdentity.realmId,
+      quickBooksEnvironment: quickBooksIdentity.environment,
+    }),
   }
 }
 
@@ -142,13 +179,23 @@ function buildOAuthTokenPayload(
  */
 export async function completeOAuthCredentialToken(params: {
   requestId: string
-  credential: { providerId: string; scope?: string | null; idToken?: string | null }
+  credential: {
+    providerId: string
+    accountId?: string | null
+    scope?: string | null
+    idToken?: string | null
+  }
   resolvedCredentialId: string
   actorId?: string
   workspaceId: string | null
   auditRequest?: CredentialAuditRequest
 }): Promise<ResolveCredentialTokenResult> {
   const { requestId, credential, resolvedCredentialId, actorId, workspaceId, auditRequest } = params
+  const contextValidation = validateOAuthCredentialContext(credential)
+  if (!contextValidation.ok) {
+    return { ok: false, status: 401, error: contextValidation.error }
+  }
+
   try {
     const { accessToken } = await refreshTokenIfNeeded(requestId, credential, resolvedCredentialId)
 
@@ -326,13 +373,13 @@ export interface ResolveCredentialAccessTokenInput
    */
   authenticate: () => AuthResult | Promise<AuthResult>
   /**
-   * Proves a workflow-execution delegation for one managed credential. The route
-   * verifies the delegation JWT header; the executor binds its delegation origin
-   * in-process. Absent, managed credentials are rejected with
-   * `MANAGED_CREDENTIAL_DELEGATION_REQUIRED`. Must throw
-   * {@link InvalidManagedOAuthDelegationError} on an invalid delegation.
+   * Proves a delegation for one managed credential: a workflow execution (the
+   * route verifies the delegation JWT header; the executor binds its delegation
+   * origin in-process) or a Chat turn acting as the signed-in user. Absent,
+   * managed credentials are rejected with `MANAGED_CREDENTIAL_DELEGATION_REQUIRED`.
+   * Must throw {@link InvalidManagedOAuthDelegationError} on an invalid delegation.
    */
-  resolveManagedPrincipal?: (credentialId: string) => Promise<WorkflowExecutionDelegatedPrincipal>
+  resolveManagedPrincipal?: (credentialId: string) => Promise<DelegatedPrincipal>
 }
 
 /**
@@ -376,7 +423,7 @@ export async function resolveCredentialAccessToken(
     }
   }
 
-  let principal: WorkflowExecutionDelegatedPrincipal
+  let principal: DelegatedPrincipal
   try {
     principal = await input.resolveManagedPrincipal(resolved.credentialId)
   } catch (error) {
@@ -410,7 +457,7 @@ export async function resolveCredentialAccessToken(
   }
   const requiredScopes =
     toolMetadata.oauth.requiredScopes ?? getCanonicalScopesForProvider(toolMetadata.oauth.provider)
-  if (requiredScopes.length === 0) {
+  if (requiredScopes.length === 0 && toolMetadata.oauth.requiredScopes === undefined) {
     logger.error(`[${requestId}] Tool has no trusted OAuth scope policy`, {
       toolId,
       providerId: toolMetadata.oauth.provider,

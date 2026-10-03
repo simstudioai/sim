@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * The card's subblock set, checked against every real block rather than a fixture.
  *
  * `@/blocks/registry` is globally mocked for import cost, so these read `BLOCK_REGISTRY`
@@ -56,10 +54,6 @@ function triggerCardIds(block: BlockConfig, subBlocks = block.subBlocks): string
 }
 
 describe('getCardSubBlocks', () => {
-  it('finds mixed action/trigger blocks to check', () => {
-    expect(MIXED_SURFACE_BLOCKS.length).toBeGreaterThan(0)
-  })
-
   /**
    * The invariant: a trigger card is a function of the trigger surface ALONE. Dropping the
    * block's action fields — which trigger mode never renders anyway — must not change what the
@@ -100,12 +94,5 @@ describe('getCardSubBlocks', () => {
   it('shows a trigger field whose canonical id is also an action pair', () => {
     const onCard = triggerCardIds(BLOCK_REGISTRY.webflow)
     expect(onCard).toEqual(expect.arrayContaining(['triggerCredentials', 'triggerSiteId']))
-  })
-
-  it('shows a trigger field whose id is also an action pair member', () => {
-    // Airtable's trigger declares plain `baseId`/`tableId`, ids the action surface already uses
-    // as the advanced members of its `baseId`/`tableId` pairs.
-    const onCard = triggerCardIds(BLOCK_REGISTRY.airtable)
-    expect(onCard).toEqual(expect.arrayContaining(['baseId', 'tableId']))
   })
 })

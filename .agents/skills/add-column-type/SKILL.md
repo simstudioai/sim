@@ -8,11 +8,11 @@ argument-hint: <type-name>
 
 A column type is **one file** in `apps/sim/lib/table/column-types/` plus a registry entry. Everything that varies per type — label, icon, storage cast, coercion, validation, conversion compatibility, formatting, editor, filter operators — lives on that one object, so no consumer needs editing.
 
-This was not always true: adding `currency` originally took ~40 edits across 32 `switch` arms and 26 UI branches, each of which failed **silently** when missed. The registry exists to make that impossible, so the rule is absolute: **if you find yourself adding a `case 'yourtype':` anywhere outside `column-types/`, the registry is missing a field. Add the field instead.**
+A `case 'yourtype':` outside `column-types/` fails **silently** when missed (a wrong `jsonbCast` breaks every filter on the column). The registry exists to make that impossible, so the rule is absolute with one documented exception (`import.ts`'s `coerceValue`, see "Traps" below): **if you find yourself adding a `case 'yourtype':` anywhere else outside `column-types/`, the registry is missing a field. Add the field instead.**
 
 ## Hard Rule: the compiler tells you what to do
 
-Do **not** hunt for places to edit. Add your type to the `ColumnType` union first and let `tsc` produce the list:
+Do **not** hunt for places to edit. Append your type's id to the `COLUMN_TYPES` array in `column-types/types.ts` first (`ColumnType` derives from it) and let `tsc` produce the list:
 
 ```bash
 cd apps/sim && bun run type-check
@@ -86,7 +86,7 @@ export function Type{Pascal}(props: SVGProps<SVGSVGElement>) {
 
 ## Step 3: Write the type file
 
-`apps/sim/lib/table/column-types/{name}.ts`. Copy the closest existing type and change what differs. Every field is required by the interface, so the compiler enumerates them for you — read the TSDoc in `types.ts` rather than guessing.
+`apps/sim/lib/table/column-types/{name}.ts`. Copy the closest existing type and change what differs. Required fields are compiler-enforced; optional hooks (`isCompatibleWith`, `salvage`, `valueForEquality`, `filterOperatorsFor`, …) default sensibly — read the TSDoc in `types.ts` before overriding.
 
 The three that are easy to get wrong:
 
@@ -116,9 +116,9 @@ Prefer set-based SQL. When the transform genuinely needs JS (`currency`'s separa
 
 ## Watch out
 
-- **Import cycles.** `column-types/select.ts` imports `select-values.ts`, so `select-values.ts` must **not** import the registry — that closes a cycle and fails at module init. Inside a type's own helper module the string literal is the implementation, not a config leak.
+- **Import cycles.** `column-types/select.ts` imports `lib/table/select-values.ts`, so `select-values.ts` must **not** import the registry — that closes a cycle and fails at module init. Inside a type's own helper module the string literal is the implementation, not a config leak.
 - **The client-safe boundary.** `registry.ts` and everything it imports must stay free of `@sim/db`, `drizzle-orm`, and `next/server` — the tables grid imports it directly. A React icon is fine (it's a component *reference*, never called server-side). Only `registry.server.ts` may touch drizzle.
-- **Don't re-export the registry from `@/lib/table`.** 44 server modules import that barrel; routing this through it pulls `@sim/emcn/icons` into all of them. Deep-import `@/lib/table/column-types`.
+- **Don't re-export the registry from `@/lib/table`.** Dozens of server modules import that barrel; routing this through it pulls `@sim/emcn/icons` into all of them. Deep-import `@/lib/table/column-types`.
 - **`import.ts`'s `coerceValue` is a SECOND write path and is not opt-in.** Importing into a column of your type always hits it, and its `default` arm silently `String(value)`s — so a missing `case` stores text in a column whose `jsonbCast` is numeric, and then every filter and sort on that column errors in Postgres. Add a `case`, even though the switch compiles without one. (It is deliberately separate from the registry's `coerce`: an import wants an unparseable value to survive as its raw string so the row error can name it.)
 - **CSV inference** is an ordered heuristic in `import.ts`, deliberately not registry-driven. A new type is not inferred from a CSV unless you extend `inferColumnType` — usually you should not, since inference cannot supply configuration (an option set, a currency code).
 
@@ -132,29 +132,29 @@ Registering the *type* is compiler-enforced. Registering its *metadata* is not, 
 | `column-types/types.ts` `TYPE_SPECIFIC_COLUMN_KEYS` | it is never stripped on conversion, and poisons the target type |
 | `lib/api/contracts/tables.ts` — the schema slot in all three column schemas, plus `refineColumnOptions` | zod strips it at the boundary; silently never saved |
 | `columns/service.ts` `addTableColumn` param type | callers cannot pass it |
-| A metadata-only update path (`updateColumnCurrency` is the model) + a branch in both column routes + the copilot tool | changing it on an existing column is a silent 200 no-op |
+| A metadata-only update in `lib/table/columns/service.ts` (`updateColumnCurrency` is the model) + a branch in `performUpdateTableColumn` in `lib/table/orchestration/columns.ts` | changing it on an existing column is a silent 200 no-op |
 | `column-config-sidebar.tsx` | no UI to set it |
 | `table-grid.tsx` delete-column undo + `use-table-undo.ts` restore | undo silently resets it to the default |
 
 `normalizeColumn`, `buildConvertedColumn`, and the undo snapshot read `TYPE_SPECIFIC_COLUMN_KEYS` generically, so those three are already zero-edit.
 
-**Known gap:** the metadata-only update path is ~6 near-identical copies (service + 2 routes + copilot). A `metadataUpdate` descriptor on `ColumnTypeServerDefinition` would collapse them; until that exists, copy `currency`'s.
+Copy `currency`'s service function and orchestration branch.
 
 ## Checklist Before Finishing
 
-- [ ] Added to the `ColumnType` union in `column-types/types.ts`
-- [ ] `column-types/{id}.ts` created, every interface field filled in
+- [ ] Id appended to `COLUMN_TYPES` in `column-types/types.ts`
+- [ ] `column-types/{id}.ts` created, every required field filled in
 - [ ] Registered in **both** `registry.ts` and `registry.server.ts`
 - [ ] Icon added, centered on the family's optical center, exported alphabetically
 - [ ] `migrateCellsTo` / `migrateCellsFrom` added if the stored bytes change
 - [ ] New metadata keys added to `TYPE_SPECIFIC_COLUMN_KEYS` + `FOREIGN_METADATA_VERB`
-- [ ] Unit tests for `coerce` / `isCompatibleWith` round-trips, verified to fail without the code
+- [ ] Unit tests for `coerce` / `isCompatibleWith` round-trips only if they pass the `test-audit` authoring gate, verified to fail without the code
 - [ ] Docs row added to `apps/docs/content/docs/tables/index.mdx`
 
 ## Final Validation (Required)
 
 1. **`cd apps/sim && bun run type-check`** — must be clean. If any file *outside* `column-types/` errors, that file has a hardcoded type list; fix it to read the registry.
 2. **Grep for leaks** — `grep -rnE "(===|!==) '{id}'|case '{id}':" apps/sim --include='*.ts' --include='*.tsx' | grep -v column-types/`. (All three forms: a plain `!==` and a `case` are how half of `currency`'s real branches are written.) Hits are expected; judge each. A hit is fine when it mounts a specific React component or encodes a genuinely one-off behavior (`json`'s mono textarea, `date`'s timezone-aware parsing). A hit is a **leak** when it restates something the registry could answer — an icon, a label, a colour, an operator set, a cast, a coercion. Leaks get a registry field, not a new branch.
-3. **Run the suite** — `bunx vitest run lib/table 'app/workspace/[workspaceId]/tables' lib/api app/api/table app/api/v1 lib/copilot/tools/server/table`. Existing tests must pass **unchanged**; needing to edit one means you changed behavior for the other types.
-4. **`bun run lint:check`, `bun run check:api-validation`, `bun run check:client-boundary`** from the repo root.
+3. **Run the suite** — `bun run --cwd apps/sim test lib/table 'app/workspace/[workspaceId]/tables' lib/api app/api/table app/api/v1`. Existing tests must pass **unchanged**; needing to edit one means you changed behavior for the other types.
+4. **`bun run lint`, `bun run check:api-validation:strict`, `bun run check:client-boundary`** from the repo root.
 5. **Exercise it in the running app** on a table with one column of every type: create, edit inline / in the expanded popover / in the row modal, paste from a spreadsheet, filter, sort, convert to and from other types, export CSV, undo a column delete.

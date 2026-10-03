@@ -8,7 +8,7 @@ import {
   extractBaseBlockId,
   extractBranchIndex,
   isBranchNodeId,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
 import type { SerializedBlock } from '@/serializer/types'
 
 export interface BlockDataCollection {

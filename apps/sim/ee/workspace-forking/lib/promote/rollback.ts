@@ -22,6 +22,7 @@ import {
   getLatestPromoteRunForTarget,
 } from '@/ee/workspace-forking/lib/promote/promote-run-store'
 import { reactivateDeployedVersionInTx } from '@/ee/workspace-forking/lib/promote/reactivate-in-tx'
+import { undeployForkSyncProvenance } from '@/ee/workspace-forking/lib/promote/sync-provenance'
 import { notifyForkWorkflowChanged } from '@/ee/workspace-forking/lib/socket'
 
 const logger = createLogger('WorkspaceForkRollback')
@@ -133,6 +134,7 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
 
   await db.transaction(async (tx) => {
     await setForkLockTimeout(tx)
+    // Ranks 3 then 4 - see the rank table on `acquireForkLineageLock`.
     await acquireForkTargetLock(tx, targetWorkspaceId)
     await acquireForkEdgeLock(tx, edge.childWorkspaceId)
 
@@ -183,6 +185,7 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
           version: op.version,
           userId,
           requestId,
+          promoteRunId: run.id,
         })
         // A null result means the workflow / version was hard-deleted since the
         // promote - record it so the partial restore is surfaced, never silent.
@@ -221,6 +224,7 @@ export async function rollbackFork(params: RollbackForkParams): Promise<Rollback
           500
         )
       }
+      await undeployForkSyncProvenance(tx, run.id, op.workflowId)
     }
 
     // Archive the workflows the promote created and dissolve their identity rows.

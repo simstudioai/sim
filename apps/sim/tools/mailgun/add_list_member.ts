@@ -1,4 +1,5 @@
 import type { AddListMemberParams, AddListMemberResult } from '@/tools/mailgun/types'
+import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const mailgunAddListMemberTool: ToolConfig<AddListMemberParams, AddListMemberResult> = {
@@ -13,6 +14,12 @@ export const mailgunAddListMemberTool: ToolConfig<AddListMemberParams, AddListMe
       required: true,
       visibility: 'user-only',
       description: 'Mailgun API key',
+    },
+    region: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Mailgun account region: "us" (default) or "eu"',
     },
     listAddress: {
       type: 'string',
@@ -47,7 +54,7 @@ export const mailgunAddListMemberTool: ToolConfig<AddListMemberParams, AddListMe
   },
 
   request: {
-    url: (params) => `https://api.mailgun.net/v3/lists/${params.listAddress}/members`,
+    url: (params) => `${getMailgunApiBaseUrl(params.region)}/lists/${params.listAddress}/members`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Basic ${Buffer.from(`api:${params.apiKey}`).toString('base64')}`,
@@ -70,7 +77,7 @@ export const mailgunAddListMemberTool: ToolConfig<AddListMemberParams, AddListMe
     },
   },
 
-  transformResponse: async (response, params): Promise<AddListMemberResult> => {
+  transformResponse: async (response): Promise<AddListMemberResult> => {
     if (!response.ok) {
       const error = await response.json()
       throw new Error(error.message || 'Failed to add list member')

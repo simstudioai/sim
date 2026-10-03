@@ -2,11 +2,10 @@ import { PipedriveIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { PipedriveResponse } from '@/tools/pipedrive/types'
 
 const PIPELINE_FIELD = ['pipelineSelector', 'pipeline_id'] as const
 
-export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
+export const PipedriveBlock: BlockConfig = {
   type: 'pipedrive',
   name: 'Pipedrive',
   description: 'Interact with Pipedrive CRM',

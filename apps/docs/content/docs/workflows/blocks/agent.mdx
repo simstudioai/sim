@@ -25,7 +25,35 @@ Answer in two sentences, cite the doc you used, and never guess a price.
 
 ### Model
 
-The model that runs the step. Defaults to `claude-sonnet-4-6`. Type or pick any model from OpenAI, Anthropic, Google, xAI, Groq, Cerebras, DeepSeek, Azure, AWS Bedrock, Google Vertex, or OpenRouter, or a local model through Ollama or VLLM.
+The model that runs the step. Defaults to `claude-sonnet-5-5`. Type or pick any model from OpenAI, Anthropic, Google, xAI, Groq, Cerebras, DeepSeek, Azure, AWS Bedrock, Google Vertex, or OpenRouter, or a local model through Ollama or VLLM.
+
+For a custom cloud deployment, enter its provider prefix and model ID: `azure/my-deployment`, `azure-anthropic/my-deployment`, `bedrock/my-inference-profile`, or `vertex/my-gemini-model`. The prefix selects the provider and shows its credential fields even when the ID is absent from the catalog. Bedrock accepts full inference profile ARNs after `bedrock/`; Vertex uses the Gemini API and accepts Google model resource names. The deployment must support the selected provider's API. Custom IDs have no catalog pricing or token limits.
+
+Ollama Cloud, OpenRouter, Fireworks, Together AI, Baseten, Ollama, vLLM, and LiteLLM load their available models from the configured provider. New models appear through that discovery without a Sim catalog release. You can also enter a namespaced ID directly, such as `ollama-cloud/deepseek-v4.1-flash`, `openrouter/provider/model`, or `ollama/my-local-model`. Provider prefixes are case-insensitive; the model ID after the prefix keeps its original casing.
+
+### Jev evaluation models
+
+Select `jev-latest` from TypeSafe in the Agent model selector. Hosted Sim supplies a key and bills model usage through the normal credit system; workspace or organization BYOK keys override the hosted key without model charges. Self-hosted users enter their TypeSafe key in the block. Use `jev-1.13.0` to pin a version or `jev-preview` to follow preview releases. These models use **State** and **Questions** in place of conversational messages. State accepts text or a reference to a JSON object or array. Questions is a JSON object keyed by the answer names you want:
+
+```json
+{
+  "route": {
+    "type": "choice",
+    "instructions": "Which team should handle this request?",
+    "criteria": { "billing": "Payments and invoices", "support": "Product issues" }
+  },
+  "urgency": {
+    "type": "score",
+    "instructions": "How urgent is the request?",
+    "criteria": ["Routine", "Soon", "Immediate"]
+  },
+  "resolved": { "type": "noul", "instructions": "Has the request been resolved?" }
+}
+```
+
+Read results from `<agent.answers>` or expand an answer in the reference picker, such as `<agent.answers.route.choice>`. Each Choice answer includes `choice`, `probabilities`, and `confidence`; each Score answer includes `score`, `legend`, `probabilities`, and `confidence`; each Noul answer includes `noul`, a probability from 0 to 1. `content` contains the same answers as JSON text, and the standard model, token, timing, and cost outputs remain available. Use a Condition block to route on these results.
+
+Jev evaluates the supplied state in one request. Chat messages, files, tools, skills, conversation memory, response-format schemas, and chat model fallbacks are hidden for these models. Saved settings return when you switch back to a chat model. TypeSafe documents a 64,000-token total request limit and a 32,000-token limit for state plus the longest question. See [TypeSafe's model documentation](https://docs.typesafe.ai/models) and [question formats](https://docs.typesafe.ai/api).
 
 ### Files
 
@@ -33,11 +61,13 @@ Files for the model to read: images for a vision-capable model, or documents for
 
 ### Tools
 
-Capabilities the agent can call while it runs: search a knowledge base, send a Slack message, run a [Function](/workflows/blocks/function), call any of the [integrations](/integrations), or use a [custom tool](/agents/custom-tools) or [MCP server](/agents/mcp) you've added. The model decides which to call and when. (For where tools come from and when to reach for which, see [Agents](/agents).) Each tool has a usage control:
+Capabilities the agent can call while it runs: search a knowledge base, send a Slack message, run a [Function](/workflows/blocks/function), call any of the [integrations](/integrations), or use a [custom tool](/agents/custom-tools) or [MCP server](/agents/mcp) you've added. The model decides which to call and when. (For where tools come from and when to reach for which, see [Agents](/agents).) Expand a tool to set its **Permission Mode**:
 
 - **Auto.** The model calls it when the context warrants.
 - **Force.** The model must call it on every run.
 - **None.** The tool is hidden from the model, which disables it without removing it from the block.
+
+To pick the mode when the workflow runs, use the switch next to Permission Mode to change it to a variable, then enter a reference such as `<start.toolMode>`. The value must resolve to `auto`, `force`, or `none`. Any other value stops the run before the model is called.
 
 ### Skills
 
@@ -48,11 +78,29 @@ Capabilities the agent can call while it runs: search a knowledge base, send a S
 Built-in conversation memory, kept across runs by a conversation ID:
 
 - **None.** Each run is independent.
-- **Conversation.** The full history for that conversation ID.
+- **Conversation.** Stored history for that conversation ID, subject to history-loading and model context limits.
 - **Sliding window (messages).** The most recent N messages.
-- **Sliding window (tokens).** Recent messages up to a token budget.
+- **Sliding window (tokens).** Recent history selected against a token budget, keeping tool exchanges together.
 
 Memory needs a conversation ID to persist between runs. For memory that's shared across workflows or managed as its own store, use the [Memory](/integrations/memory) block instead.
+
+When durable tool history is enabled for your workspace, memory also keeps the assistant messages that led to tool calls, the calls' original arguments, and their results or errors. Later runs can use completed tool exchanges even if the run that produced them failed before answering. Older conversations remain readable; tool history is captured on new runs after the feature is enabled.
+
+Tool calls and their results are selected together, including parallel calls. They do not each use another slot in a message-count window, but their arguments and results still consume input tokens. Use a token window when the amount of recalled context matters more than the number of messages. Windowing changes what the model receives, not what is stored.
+
+Large results are retained separately, with their first 8,000 characters in model context and a notice when the result is truncated. The built-in `agent_memory_read` tool lets the agent search retained history and read omitted result details in small pages. It can only read the current conversation. When exact details matter, ask the agent to check the original result instead of relying on its preview.
+
+Sim normally targets up to 16,000 estimated tokens of recalled history, subject to your memory window and the model's available context. Large or difficult-to-tokenize content uses a conservative estimate. It checks the input before every model generation, including generations after tool calls and on fallback models, leaving room for instructions, tool definitions, attachments, and output. The current request and required tool exchanges stay intact. If their estimated size uses up the available budget, Sim omits optional history and still sends the current request; the provider enforces its actual context limit. These estimates guide recalled context per generation, not the total tokens used across a run.
+
+When a generation would omit older history, Sim can create a concise summary while keeping recent exchanges, including during long tool loops. Summaries can omit details and do not replace the stored conversation. Generating one uses an additional model call whose tokens and cost are included in the Agent's usage; a cached summary can be reused when its source history is unchanged. If summarization is unavailable, the Agent continues with bounded history selection.
+
+The Memory API and Memory block still return plain conversation messages. Internal tool history, retry state, and cached summaries are not added to their `data` responses.
+
+#### Retries and fallbacks
+
+With durable tool history enabled, retries and fallback models continue the same Agent invocation using recorded tool results. For example, if a tool returns an order number and final generation fails, the fallback receives that result without calling the tool again. A new workflow execution or loop iteration is a separate invocation.
+
+A recorded terminal outcome is kept even when its stored details become unavailable; the Agent does not repeat that action merely to recover the missing details. A call whose outcome was not recorded can execute again, including when an external action succeeded just before a failure. Use tools that safely handle repeated requests for actions that must not happen twice. If durable history is disabled or persistence is unavailable, saved-progress recovery is not guaranteed. This does not restart crashed workflows, override cancellation, or retry failures marked nonretryable. A failure after streaming output has started is not restarted on another model.
 
 ### Response Format
 
@@ -80,7 +128,9 @@ Some settings live under advanced, or appear only for models that support them:
 - **Max output tokens.** Caps the response length. Defaults to the model's full limit.
 - **Reasoning effort / Thinking level.** For models with extended reasoning, how much the model thinks before answering. Higher is more thorough but slower and costs more tokens.
 - **Prompt caching.** For Anthropic Claude models, reuses the system prompt and tool definitions between runs instead of re-reading them every time. Cached input costs a tenth of the normal rate, but writing the cache costs 1.25x, so leave it off for one-off runs and turn it on when the same agent runs repeatedly. The cache covers a prefix only if it reaches 1,024 tokens (2,048 on Haiku) — below that Anthropic ignores it and nothing changes. Entries expire after five minutes of no use.
-- **API key.** Your key for the chosen provider. Hidden on hosted Sim, which supplies one.
+- **API key.** Your key for the chosen provider. Hidden when hosted Sim supplies a key for the selected model, including Jev.
+- **Fallback models.** An ordered list of up to five models to try when the request to the selected model fails, whether the provider is overloaded, rate-limited, or down. Sim tries the 2nd choice, then the 3rd, and so on, once each, and `<agent.model>` reports the model that answered. On hosted Sim, hosted models use your workspace's BYOK or platform credentials; local and self-hosted installations may still require a key. A model that needs its own key takes it from a workspace environment variable you pick on the row; a model on the same provider as the selected model reuses the block's key. A stored row key stops applying when its key field is hidden. Providers that require family-specific credentials, such as Vertex, can only be fallbacks for a selected model of the same family. The Auto model cannot be a fallback. A fallback runs with the selected model's settings where its provider accepts them: temperature and max output tokens are clamped to the fallback's limits, and when the fallback has a reasoning effort, thinking level, or verbosity setting that the selected model's value does not fit, the row shows that field so you can pick a value for it; leave it empty and the provider's default applies.
+- **Retry on fail.** Retries the selected model after a failure, up to a maximum number of tries with a wait between them. When its tries run out, the fallback models are tried in order, once each, with no wait before the first of them. A fallback is never retried. See [Retries and fallbacks](#retries-and-fallbacks) for how recorded tool results are reused and when a tool can execute again.
 
 OpenAI and Gemini cache automatically at no extra cost and need no setting; their discount is already reflected in what you are charged.
 
@@ -100,26 +150,28 @@ When a response format is set, its fields are readable directly, like `<agent.se
 
 ## Streamed thinking and tool calls
 
-While an agent runs, Sim can stream its thinking and tool lifecycle live — the canvas terminal always shows them, and a [deployed chat](/docs/workflows/deployment/agent-events) shows them when its **Include thinking** setting and the client's protocol opt-in agree. What actually streams depends on the model: models marked with full deltas or summaries stream thinking when a Thinking level or Reasoning effort is set (DeepSeek reasoner models always reason); a model marked "Not streamed" thinks internally but its provider withholds the text.
+While an agent runs, Sim can stream its thinking and tool lifecycle live — the canvas terminal always shows them, and a [deployed chat](/workflows/deployment/agent-events) shows them when its **Include thinking** setting and the client's protocol opt-in agree. What actually streams depends on the model: models marked with full deltas or summaries stream thinking when a Thinking level or Reasoning effort is set (DeepSeek reasoner models always reason); a model marked "Not streamed" thinks internally but its provider withholds the text.
 
 {/* agent-stream-capabilities:begin — generated by `bun run agent-stream-docs:generate`; do not edit between markers */}
 
-Live tool-call chips stream for **OpenAI, Anthropic, Azure Anthropic, Google, Vertex AI, DeepSeek, Groq, AWS Bedrock** models. Other providers run tools without live chips and project the settled final answer when the run completes; they do not ask the model to regenerate that answer just to create a stream.
+Live tool-call chips stream for **OpenAI, Anthropic, Azure Anthropic, Google, Vertex AI, DeepSeek, Groq, Kie, AWS Bedrock** models. Other providers run tools without live chips and project the settled final answer when the run completes; they do not ask the model to regenerate that answer just to create a stream.
 
 | Provider | Streamed thinking | Models |
 |----------|-------------------|--------|
-| OpenAI | Summaries only — Requires OpenAI organization verification; falls back to no summaries. | `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5-pro`, `gpt-5.5`, `gpt-5.4-pro`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano`, `gpt-5.2-pro`, `gpt-5.2`, `gpt-5.1`, `gpt-5-pro`, `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `o4-mini`, `o3`, `o3-mini`, `o1` |
-| Anthropic | Summaries only — These generations omit full thinking; Sim requests summarized thinking on streaming runs. | `claude-fable-5-1`, `claude-fable-5`, `claude-sonnet-5`, `claude-opus-5`, `claude-opus-4-8`, `claude-opus-4-7`, `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-opus-4-5`, `claude-opus-4-1`, `claude-sonnet-4-5`, `claude-haiku-4-5` |
-| Azure OpenAI | Summaries only — Requires OpenAI organization verification; falls back to no summaries. | `azure/gpt-5.4`, `azure/gpt-5.4-mini`, `azure/gpt-5.4-nano`, `azure/gpt-5.2`, `azure/gpt-5.1`, `azure/gpt-5.1-codex`, `azure/gpt-5`, `azure/gpt-5-mini`, `azure/gpt-5-nano`, `azure/o3`, `azure/o4-mini` |
-| Azure Anthropic | Summaries only — These generations omit full thinking; Sim requests summarized thinking on streaming runs. | `azure-anthropic/claude-opus-4-6`, `azure-anthropic/claude-opus-4-5`, `azure-anthropic/claude-sonnet-4-5`, `azure-anthropic/claude-opus-4-1`, `azure-anthropic/claude-haiku-4-5` |
-| Google | Summaries only | `gemini-3.6-flash`, `gemini-3.5-flash-lite`, `gemini-3.5-flash`, `gemini-3.1-pro-preview`, `gemini-3.1-flash-lite`, `gemini-3-flash-preview`, `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite` |
-| Vertex AI | Summaries only | `vertex/gemini-3.5-flash`, `vertex/gemini-3.1-pro-preview`, `vertex/gemini-3.1-flash-lite`, `vertex/gemini-3-flash-preview`, `vertex/gemini-2.5-pro`, `vertex/gemini-2.5-flash`, `vertex/gemini-2.5-flash-lite` |
-| DeepSeek | Full thinking deltas | `deepseek-v4-pro`, `deepseek-v4-flash`, `deepseek-reasoner` |
+| OpenAI | Summaries only — Requires OpenAI organization verification; falls back to no summaries. | `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5-pro`, `gpt-5.5`, `gpt-5.4-pro`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.4-nano`, `gpt-5.3-codex`, `gpt-5.2-pro`, `gpt-5.2`, `gpt-5.1`, `gpt-5-pro`, `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `o4-mini`, `o3`, `o3-mini`, `o1` |
+| Anthropic | Summaries only — These generations omit full thinking; Sim requests summarized thinking on streaming runs. | `claude-fable-5-1`, `claude-fable-5`, `claude-sonnet-5-5`, `claude-sonnet-5`, `claude-opus-5-5`, `claude-opus-5`, `claude-opus-4-8`, `claude-opus-4-7`, `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-opus-4-5`, `claude-sonnet-4-5`, `claude-haiku-4-5` |
+| Azure OpenAI | Summaries only — Requires OpenAI organization verification; falls back to no summaries. | `azure/gpt-6-astra`, `azure/gpt-5.6-sol`, `azure/gpt-5.6-terra`, `azure/gpt-5.6-luna`, `azure/gpt-5.5`, `azure/gpt-5.4-pro`, `azure/gpt-5.4`, `azure/gpt-5.4-mini`, `azure/gpt-5.4-nano`, `azure/gpt-5.2`, `azure/gpt-5.1`, `azure/gpt-5.1-codex`, `azure/gpt-5`, `azure/gpt-5-mini`, `azure/gpt-5-nano`, `azure/o3`, `azure/o4-mini` |
+| Azure Anthropic | Summaries only — These generations omit full thinking; Sim requests summarized thinking on streaming runs. | `azure-anthropic/claude-fable-5-1`, `azure-anthropic/claude-opus-5`, `azure-anthropic/claude-opus-4-8`, `azure-anthropic/claude-opus-4-7`, `azure-anthropic/claude-opus-4-6`, `azure-anthropic/claude-opus-4-5`, `azure-anthropic/claude-sonnet-5`, `azure-anthropic/claude-sonnet-4-6`, `azure-anthropic/claude-sonnet-4-5`, `azure-anthropic/claude-opus-4-1`, `azure-anthropic/claude-haiku-4-5` |
+| Google | Summaries only | `gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash-lite`, `gemini-3.5-flash`, `gemini-3.1-pro-preview`, `gemini-3.1-flash-lite`, `gemini-3-flash-preview`, `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite` |
+| Vertex AI | Summaries only | `vertex/gemini-3.8-flash`, `vertex/gemini-3.7-flash`, `vertex/gemini-3.6-flash`, `vertex/gemini-3.5-flash-lite`, `vertex/gemini-3.5-flash`, `vertex/gemini-3.1-pro-preview`, `vertex/gemini-3.1-flash-lite`, `vertex/gemini-3-flash-preview`, `vertex/gemini-2.5-pro`, `vertex/gemini-2.5-flash`, `vertex/gemini-2.5-flash-lite` |
+| DeepSeek | Full thinking deltas | `deepseek-v4-pro`, `deepseek-flash`, `deepseek-v4-flash`, `deepseek-reasoner` |
 | xAI | Full thinking deltas | `grok-4.6`, `grok-4.5`, `grok-4.3`, `grok-4.20-multi-agent-0309` |
-| Groq | Full thinking deltas | `groq/openai/gpt-oss-120b`, `groq/openai/gpt-oss-20b`, `groq/openai/gpt-oss-safeguard-20b`, `groq/qwen/qwen3.6-27b` |
-| Meta | Not streamed | `muse-spark-1.1` |
-| Kimi | Full thinking deltas | `kimi-k2.6` |
-| Z.ai | Full thinking deltas | `glm-5.3`, `glm-5.2`, `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`, `glm-4.6`, `glm-4.5`, `glm-4.5-air` |
+| Cerebras | Full thinking deltas | `cerebras/qwen-3.8-27b` |
+| Groq | Full thinking deltas | `groq/openai/gpt-oss-120b`, `groq/openai/gpt-oss-20b`, `groq/openai/gpt-oss-safeguard-20b`, `groq/qwen/qwen3.8-27b`, `groq/qwen/qwen3.6-27b` |
+| Meta | Not streamed | `muse-spark-1.3`, `muse-spark-1.1` |
+| Kimi | Full thinking deltas | `kimi-k3`, `kimi-k2.6` |
+| Kie | Summaries only | `kie/claude-opus-5-5`, `kie/claude-opus-5`, `kie/claude-fable-5`, `kie/claude-sonnet-5`, `kie/claude-opus-4-8`, `kie/claude-opus-4-7`, `kie/claude-opus-4-6`, `kie/claude-sonnet-4-6`, `kie/claude-opus-4-5`, `kie/claude-sonnet-4-5`, `kie/claude-haiku-4-5`, `kie/gpt-6-astra`, `kie/gpt-6-sol`, `kie/gpt-6-luna`, `kie/gpt-5-6-sol`, `kie/gpt-5-6-terra`, `kie/gpt-5-6-luna`, `kie/gpt-5-5`, `kie/grok-4-6`, `kie/grok-4-5`, `kie/grok-4-3`, `kie/kimi-k3` |
+| Z.ai | Full thinking deltas | `glm-5.3`, `glm-5.3-flash`, `glm-5.2`, `glm-5.1`, `glm-5`, `glm-5-turbo`, `glm-4.7`, `glm-4.6`, `glm-4.5`, `glm-4.5-air` |
 
 {/* agent-stream-capabilities:end */}
 
@@ -139,12 +191,7 @@ The Agent reads the message from Start with `<start.input>` and returns a result
 - **Use a response format when a downstream block needs specific fields.** It guarantees the shape, and you read each field as `<agent.field>`.
 
 <FAQ items={[
-  { question: "What LLM providers does the Agent block support?", answer: "OpenAI, Anthropic, Google (Gemini), xAI (Grok), DeepSeek, Groq, Cerebras, Azure OpenAI, Azure Anthropic, Google Vertex AI, AWS Bedrock, OpenRouter, and local models via Ollama or VLLM. Type or select any supported model from the model combobox." },
-  { question: "What are the memory options for the Agent block?", answer: "Four modes: None (no memory, each run is independent), Conversation (full history keyed by a conversation ID), Sliding window by messages (the N most recent messages), and Sliding window by tokens (messages up to a token budget). Memory needs a conversation ID to persist across runs." },
-  { question: "What is the difference between the tool usage controls (Auto, Force, None)?", answer: "In Auto, the model decides when to call a tool based on context. In Force, the model must call the tool on every run. In None, the tool is hidden from the model and never sent, which disables it without removing it from the block." },
-  { question: "How does the Response Format work?", answer: "It enforces structured output by providing a JSON Schema. When set, the model's response is constrained to match the schema exactly, and each field is read directly by downstream blocks using <agent.fieldName>. Without a response format, the agent returns its standard outputs: content, model, tokens, and toolCalls." },
-  { question: "What does the Reasoning Effort / Thinking Level setting do?", answer: "They appear only for models that support extended reasoning. Reasoning Effort (OpenAI, Azure OpenAI, xAI Grok, DeepSeek, Groq, Meta, and Z.ai models that accept an effort level) and Thinking Level (Anthropic Claude and Gemini models with thinking) control how much compute the model spends reasoning before responding. Higher levels produce more thorough answers but cost more tokens and take longer." },
-  { question: "When should I turn on Prompt Caching?", answer: "Turn it on when the same agent runs repeatedly with a large, stable system prompt or tool set — cached input bills at a tenth of the normal input rate. Leave it off for one-off runs, because writing the cache costs 1.25x and nothing reads it back. The setting appears only for Anthropic Claude models; OpenAI and Gemini cache automatically with no setting and no write fee. Anthropic only caches a prefix of at least 1,024 tokens (2,048 on Haiku), and entries expire after five minutes of no use." },
   { question: "How does max output tokens work with Anthropic models?", answer: "The Agent block uses each Anthropic model's full max output token limit by default (for example, 64,000 tokens). You can override this with the Max Output Tokens setting. For non-streaming requests that exceed the SDK's internal threshold, the provider automatically uses internal streaming to avoid timeouts." },
   { question: "Can I use the Agent block with a custom or self-hosted model?", answer: "Yes. Use any Ollama or VLLM-compatible model by typing the model name directly into the model combobox, as long as it exposes a compatible API endpoint." },
+  { question: "What happens when my model's provider is down?", answer: "Add fallback models under Additional fields. When the request to the selected model fails, Sim tries the 2nd choice, then the 3rd, in order, and the block succeeds if any of them answers. The log detail shows the model that answered and the models it fell back from. Turn on Retry on fail as well to give the selected model a few tries first; the fallbacks are tried once each after its last try fails." },
 ]} />

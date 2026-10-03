@@ -1,20 +1,21 @@
-/**
- * @vitest-environment node
- */
+import {
+  selectorCredentialsMock,
+  selectorCredentialsMockFns,
+} from '@sim/testing/mocks/selector-credentials.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetch, mockResolveSelectorOAuthAccessToken } = vi.hoisted(() => ({
+const { mockFetch } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
-  mockResolveSelectorOAuthAccessToken: vi.fn(),
 }))
 
-vi.mock('@/lib/selectors/server/credentials', () => ({
-  resolveSelectorOAuthAccessToken: mockResolveSelectorOAuthAccessToken,
-}))
+vi.mock('@/lib/selectors/server/credentials', () => selectorCredentialsMock)
 
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { notionSelectorAttachments } from '@/lib/selectors/server/providers/notion'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
+
+const mockResolveSelectorOAuthAccessToken =
+  selectorCredentialsMockFns.mockResolveSelectorOAuthAccessToken
 
 function detailArgs(): ExecuteServerSelectorArgs {
   return {
@@ -33,7 +34,6 @@ function detailArgs(): ExecuteServerSelectorArgs {
 
 describe('Notion server selector adapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
     mockResolveSelectorOAuthAccessToken.mockResolvedValue('server-only-token')
   })

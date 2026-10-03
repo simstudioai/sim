@@ -13,41 +13,17 @@ import {
   validateDeploymentAuth,
 } from '@/lib/core/security/deployment-auth'
 
-export function setChatAuthCookie(
+export async function setChatAuthCookie(
   response: NextResponse,
   deployment: DeploymentAuthResource,
   verifiedEmail?: string
-): void {
-  setDeploymentAuthCookie({
+): Promise<void> {
+  await setDeploymentAuthCookie({
     response,
     cookiePrefix: 'chat',
     resource: deployment,
     verifiedEmail,
   })
-}
-
-/**
- * Check if user has permission to create a chat for a specific workflow
- */
-export async function checkWorkflowAccessForChatCreation(
-  workflowId: string,
-  userId: string
-): Promise<{ hasAccess: boolean; workflow?: any }> {
-  const authorization = await authorizeWorkflowByWorkspacePermission({
-    workflowId,
-    userId,
-    action: 'admin',
-  })
-
-  if (!authorization.workflow) {
-    return { hasAccess: false }
-  }
-
-  if (authorization.allowed) {
-    return { hasAccess: true, workflow: authorization.workflow }
-  }
-
-  return { hasAccess: false }
 }
 
 /**

@@ -5,7 +5,7 @@ import {
   ENV_REF_PATTERN,
   type ForkReference,
   type ForkReferenceResolver,
-} from '@/ee/workspace-forking/lib/remap/remap-references'
+} from '@/lib/workflows/references/remap-references'
 
 function extractEnvKeys(text: string): string[] {
   const keys = new Set<string>()
@@ -165,7 +165,8 @@ export async function detectForkCascadeReferences(params: {
           inArray(knowledgeConnector.knowledgeBaseId, Array.from(knowledgeBaseIds)),
           eq(knowledgeBase.workspaceId, sourceWorkspaceId),
           isNull(knowledgeBase.deletedAt),
-          isNull(knowledgeConnector.deletedAt)
+          isNull(knowledgeConnector.deletedAt),
+          isNull(knowledgeConnector.detachedAt)
         )
       )
     for (const connector of connectors) {

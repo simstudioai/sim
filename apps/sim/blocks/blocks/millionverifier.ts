@@ -1,8 +1,7 @@
 import { MillionVerifierIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { MillionVerifierResponse } from '@/tools/millionverifier/types'
 
-export const MillionVerifierBlock: BlockConfig<MillionVerifierResponse> = {
+export const MillionVerifierBlock: BlockConfig = {
   type: 'millionverifier',
   name: 'MillionVerifier',
   description: 'Verify email deliverability and check account credits',

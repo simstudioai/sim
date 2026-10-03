@@ -1,5 +1,5 @@
 import type { ApplicationOperation } from '@/lib/core/application'
-import { assertOperationCapability } from '@/lib/core/application'
+import { assertOperationCapability } from '@/lib/core/application/operation'
 
 export interface CredentialGroupEnrollmentOperation<Id extends string = string>
   extends ApplicationOperation<Id> {
@@ -30,6 +30,18 @@ export const credentialGroupEnrollmentOperations = {
   // permission-group-exempt: the enrollment principal is a one-time credential-connect token, not a workspace member, so no permission group governs it
   completeOAuth: defineCredentialGroupEnrollmentOperation({
     id: 'credential_groups.enrollment.oauth.complete',
+    capability: 'none',
+    principalKind: 'credential_group_enrollment',
+  }),
+  // permission-group-exempt: the enrollment principal is a one-time credential-connect token, not a workspace member, so no permission group governs it
+  startMcpOAuth: defineCredentialGroupEnrollmentOperation({
+    id: 'credential_groups.enrollment.mcp_oauth.start',
+    capability: 'none',
+    principalKind: 'credential_group_enrollment',
+  }),
+  // permission-group-exempt: the enrollment principal is a one-time credential-connect token, not a workspace member, so no permission group governs it
+  completeMcpOAuth: defineCredentialGroupEnrollmentOperation({
+    id: 'credential_groups.enrollment.mcp_oauth.complete',
     capability: 'none',
     principalKind: 'credential_group_enrollment',
   }),

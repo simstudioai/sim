@@ -1,5 +1,5 @@
 ---
-title: Overview
+title: Workflows
 description: A workflow is a visual program made of blocks, a saved procedure your AI systems run.
 ---
 
@@ -20,7 +20,7 @@ Here's a simple one. It takes an incoming customer message, classifies its categ
 
 ### Trigger
 
-A **trigger** is where a workflow begins and what it hands in. Every workflow has exactly one. The [Start](/workflows/triggers/start) trigger takes input directly — from the editor while you build, and from an API call or a chat once deployed. For runs that should start on an event or a timer, you swap in a [webhook](/workflows/triggers/webhook) or [schedule](/workflows/triggers/schedule) trigger, and the downstream blocks don't change.
+A **trigger** is where a workflow begins and what it hands in. A workflow can have multiple triggers, but each run starts from one. The [Start](/workflows/triggers/start) trigger takes input directly — from the editor while you build, and from an API call or a chat once deployed. For runs that should start on an event or a timer, you swap in a [webhook](/workflows/triggers/webhook) or [schedule](/workflows/triggers/schedule) trigger, and the downstream blocks don't change.
 
 <WorkflowPreview workflow={CLASSIFY_WORKFLOW} height={170} highlightBlock="start" />
 
@@ -70,7 +70,7 @@ Two larger families do more specific jobs:
 A trigger decides what starts the run and what input it receives. **Native triggers** need no connected account: [Start](/workflows/triggers/start) (manual, API, or chat), [Schedule](/workflows/triggers/schedule) (a timer), [Webhook](/workflows/triggers/webhook) (any inbound HTTP request), [RSS](/workflows/triggers/rss) (a new feed item), and [Table](/workflows/triggers/table) (a row change in a Sim table). **Integration triggers** fire on an event in a connected service — a GitHub push, a new email — and hand it to the workflow.
 
 <Callout type="info">
-Every trigger runs the active [deployment](/workflows/deployment), so redeploy after changing a workflow for it to pick up the new version.
+Automatic trigger runs use the active [deployment](/workflows/deployment), so redeploy after changing a workflow for those runs to pick up the new version. Editor runs use the draft.
 </Callout>
 
 ## How it runs
@@ -78,17 +78,6 @@ Every trigger runs the active [deployment](/workflows/deployment), so redeploy a
 When a workflow runs, blocks execute in dependency order: a block runs as soon as the blocks it depends on have finished, so independent branches run in parallel. Conditions, loops, and parallel blocks change the path data takes.
 
 <Card title="How workflows run" href="/workflows/how-it-runs" description="Execution order, concurrency, branches, and loops." />
-
-## Workflows in context
-
-A workflow is where the rest of the workspace becomes behavior. On their own, tables, knowledge bases, files, and integrations are just resources. Workflows are where they *do* something.
-
-{/* VISUAL: system-context diagram. Sim builds; tables/KBs/files/integrations feed; deployments expose; logs verify. */}
-
-- **Sim** builds and edits workflows in natural language from Chat.
-- **Tables, knowledge bases, files, and integrations** feed data, memory, artifacts, and actions into a workflow.
-- **Deployments** expose a workflow as an API, chat, or MCP server.
-- **Logs** record every run so you can verify what happened, step by step.
 
 ## Next
 
@@ -100,7 +89,5 @@ A workflow is where the rest of the workspace becomes behavior. On their own, ta
 </Cards>
 
 <FAQ items={[
-  { question: "What is the difference between work blocks and flow blocks?", answer: "Work blocks (Agent, Function, API) transform or generate data. Flow blocks (Condition, Router) decide which path the workflow takes based on the data, without changing it." },
-  { question: "What happens if a block in the middle of a workflow fails?", answer: "The run stops along that path. Blocks that support error handling, like the Router, can route to an error path so you handle the failure instead of halting the whole workflow. Independent paths keep running." },
   { question: "Can one block's output connect to multiple blocks?", answer: "Yes. A single output can feed several blocks, so you can fan data out from one step to multiple paths without duplicating the block." },
 ]} />

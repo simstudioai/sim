@@ -1,17 +1,16 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
-import {
-  fetchWithRetry,
-  readBoundedHttpErrorBody,
-  VALIDATE_RETRY_OPTIONS,
-} from '@/lib/knowledge/documents/utils'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { readBoundedHttpErrorBody, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { googleDocsConnectorMeta } from '@/connectors/google-docs/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
   buildDriveParentsClause,
   ConnectorFileTooLargeError,
+  isListingScopeUnavailableError,
   joinTagArray,
+  listingRequestError,
   markSkipped,
   parseMultiValue,
   parseOptionalUnlimitedSafeInteger,
@@ -493,6 +492,8 @@ function buildQuery(sourceConfig: Record<string, unknown>): string {
 export const googleDocsConnector: ConnectorConfig = {
   ...googleDocsConnectorMeta,
 
+  isListingScopeUnavailableError,
+
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
@@ -553,7 +554,7 @@ export const googleDocsConnector: ConnectorConfig = {
         status: response.status,
         error: failure,
       })
-      throw new Error(`Failed to list Google Docs: ${failure}`)
+      throw listingRequestError(`Failed to list Google Docs: ${failure}`, response.status)
     }
 
     const data = parseDriveFileListResponse(await response.json())

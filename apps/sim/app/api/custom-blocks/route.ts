@@ -1,146 +1,37 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import type { NextRequest } from 'next/server'
-import { NextResponse } from 'next/server'
 import {
   listCustomBlocksContract,
   publishCustomBlockContract,
 } from '@/lib/api/contracts/custom-blocks'
-import { parseRequest } from '@/lib/api/server'
-import { getSession } from '@/lib/auth'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
-  CustomBlockValidationError,
-  type CustomBlockWithInputs,
-  isCustomBlocksEligibleForOrganization,
-  listCustomBlocksWithInputs,
-  publishCustomBlock,
-} from '@/lib/workflows/custom-blocks/operations'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import {
+  customBlockSettingsOperations,
+  listCustomBlockSettings,
+  publishCustomBlockSettings,
+} from '@/lib/workflows/custom-blocks/application/settings'
+import { customBlockError } from '@/app/api/custom-blocks/errors'
 
-const logger = createLogger('CustomBlocksAPI')
-
-/** Wire shape for a custom block. Keeps the icon field name explicit for the client. */
-function toWire(block: CustomBlockWithInputs) {
-  return {
-    id: block.id,
-    organizationId: block.organizationId,
-    workflowId: block.workflowId,
-    workflowName: block.workflowName,
-    workspaceId: block.workspaceId,
-    workspaceName: block.workspaceName,
-    type: block.type,
-    name: block.name,
-    description: block.description,
-    iconUrl: block.iconUrl,
-    enabled: block.enabled,
-    traceChildRuns: block.traceChildRuns,
-    inputFields: block.inputFields,
-    exposedOutputs: block.exposedOutputs,
-  }
-}
-
-export const GET = withRouteHandler(async (request: NextRequest) => {
-  const session = await getSession()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const parsed = await parseRequest(listCustomBlocksContract, request, {})
-  if (!parsed.success) return parsed.response
-
-  const userId = session.user.id
-  const { workspaceId } = parsed.data.query
-
-  const access = await checkWorkspaceAccess(workspaceId, userId)
-  if (!access.hasAccess) {
-    return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-  }
-
-  const organizationId = access.workspace?.organizationId
-  if (!organizationId) {
-    return NextResponse.json({ enabled: false, customBlocks: [] })
-  }
-
-  const enabled = await isCustomBlocksEligibleForOrganization(organizationId)
-  const blocks = enabled ? await listCustomBlocksWithInputs(organizationId) : []
-  return NextResponse.json({ enabled, customBlocks: blocks.map(toWire) })
+export const GET = defineInternalJsonRoute({
+  contract: listCustomBlocksContract,
+  auth: internalSessionAuth,
+  operation: customBlockSettingsOperations.list,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve existing custom block listing policy.' }),
+  errorPolicy: { project: (error) => customBlockError(error, true) },
+  mapInput: ({ query }) => query,
+  useCase: listCustomBlockSettings,
 })
 
-export const POST = withRouteHandler(async (request: NextRequest) => {
-  const session = await getSession()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const parsed = await parseRequest(publishCustomBlockContract, request, {})
-  if (!parsed.success) return parsed.response
-
-  const userId = session.user.id
-  const {
-    workspaceId,
-    workflowId,
-    name,
-    description,
-    iconUrl,
-    inputs,
-    exposedOutputs,
-    traceChildRuns,
-  } = parsed.data.body
-
-  const access = await checkWorkspaceAccess(workspaceId, userId)
-  if (!access.canAdmin) {
-    return NextResponse.json({ error: 'Admin permissions required' }, { status: 403 })
-  }
-
-  const organizationId = access.workspace?.organizationId
-  if (!organizationId) {
-    return NextResponse.json(
-      { error: 'Publishing a block requires the workspace to belong to an organization' },
-      { status: 400 }
-    )
-  }
-
-  if (!(await isCustomBlocksEligibleForOrganization(organizationId))) {
-    return NextResponse.json(
-      { error: 'Custom blocks are not enabled for this organization' },
-      { status: 403 }
-    )
-  }
-
-  try {
-    const block = await publishCustomBlock({
-      organizationId,
-      workspaceId,
-      workflowId,
-      userId,
-      name,
-      description,
-      iconUrl,
-      inputs,
-      exposedOutputs,
-      traceChildRuns,
-    })
-    recordAudit({
-      workspaceId,
-      actorId: userId,
-      actorName: session.user.name,
-      actorEmail: session.user.email,
-      action: AuditAction.CUSTOM_BLOCK_PUBLISHED,
-      resourceType: AuditResourceType.CUSTOM_BLOCK,
-      resourceId: block.id,
-      resourceName: block.name,
-      description: `Published custom block "${block.name}"`,
-      metadata: { organizationId, type: block.type, workflowId },
-      request,
-    })
-    return NextResponse.json({ customBlock: toWire(block) })
-  } catch (error) {
-    if (error instanceof CustomBlockValidationError) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
-    }
-    logger.error('Failed to publish custom block', { error: getErrorMessage(error) })
-    throw error
-  }
+export const POST = defineInternalJsonRoute({
+  contract: publishCustomBlockContract,
+  auth: internalSessionAuth,
+  operation: customBlockSettingsOperations.publish,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve existing custom block publishing policy.',
+  }),
+  errorPolicy: { project: customBlockError },
+  mapInput: ({ body }) => body,
+  useCase: publishCustomBlockSettings,
 })

@@ -1,4 +1,4 @@
-import type { SessionPrincipal } from '@sim/auth/principal'
+import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { account, credential } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
@@ -6,7 +6,10 @@ import {
   authorizeCredentialUseForAuth,
   type CredentialAccessResult,
 } from '@/lib/auth/credential-access'
-import { AuthType } from '@/lib/auth/hybrid'
+import {
+  authorizeOrganizationCredentialUse,
+  resolveOrganizationCredentialTokenBundle,
+} from '@/lib/credentials/application/organization-credentials'
 import { resolveCredentialTokenBundle } from '@/lib/oauth/credential-service'
 import { credentialProviderMatchesService, getServiceConfigByServiceId } from '@/lib/oauth/utils'
 import { SelectorConnectionUnavailableError } from '@/lib/selectors/server/errors'
@@ -14,6 +17,7 @@ import type {
   AuthorizedSelectorCredential,
   ResolvedSelectorReference,
   SelectorCredentialPolicy,
+  SelectorPrincipal,
   SelectorProtectedValues,
 } from '@/lib/selectors/server/types'
 import type { SelectorContext, SelectorScope } from '@/lib/selectors/types'
@@ -96,16 +100,47 @@ async function requireCredentialProviderBinding(
 }
 
 export async function authorizeSelectorCredential(input: {
-  principal: SessionPrincipal
+  principal: SelectorPrincipal
   context: SelectorContext
   scope: SelectorScope
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   policy: SelectorCredentialPolicy
   protectedValues: SelectorProtectedValues
   references: ReadonlyMap<string, ResolvedSelectorReference>
 }): Promise<AuthorizedSelectorCredential> {
   const suppliedId = input.context[input.policy.field]
   if (!suppliedId) throw new SelectorConnectionUnavailableError()
+
+  if (input.scope.kind === 'organization') {
+    if (
+      input.principal.kind !== 'session' ||
+      input.workspaceId ||
+      input.organizationId !== input.scope.organizationId
+    )
+      throw new SelectorConnectionUnavailableError()
+    const { credential: row } = await authorizeOrganizationCredentialUse({
+      principal: input.principal,
+      organizationId: input.scope.organizationId,
+      credentialId: suppliedId,
+      requestId: 'selector-execution',
+      purpose: 'browsing',
+    })
+    if (
+      !row.providerId ||
+      !input.policy.serviceIds.some((serviceId) => {
+        const service = getServiceConfigByServiceId(serviceId)
+        return service && credentialProviderMatchesService(row.providerId!, service)
+      })
+    )
+      throw new SelectorConnectionUnavailableError()
+    input.protectedValues.add(suppliedId, 'reference')
+    return {
+      suppliedId,
+      providerId: row.providerId,
+      organization: { principal: input.principal, organizationId: input.scope.organizationId },
+    }
+  }
 
   if (
     input.policy.kind === 'stored-or-fixed-token' &&
@@ -121,8 +156,7 @@ export async function authorizeSelectorCredential(input: {
   const access = await authorizeCredentialUseForAuth(
     {
       success: true,
-      userId: input.principal.userId,
-      authType: AuthType.SESSION,
+      userId: requirePrincipalSubjectUserId(input.principal),
     },
     {
       credentialId: suppliedId,
@@ -153,6 +187,29 @@ export async function resolveSelectorOAuthAccessToken(input: {
 }): Promise<string> {
   input.credential.signal?.throwIfAborted()
   if (input.credential.fixedToken) return input.credential.fixedToken
+
+  if (input.credential.organization) {
+    const result = await waitForSelectorCredentialResolution(
+      resolveOrganizationCredentialTokenBundle({
+        ...input.credential.organization,
+        credentialId: input.credential.suppliedId,
+        requestId: 'selector-execution',
+        purpose: 'browsing',
+        requiredScopes: input.scopes ? [...input.scopes] : undefined,
+        impersonateEmail: input.impersonateEmail,
+        expectedProviderId: input.credential.providerId,
+      }),
+      input.credential.signal
+    )
+    input.credential.signal?.throwIfAborted()
+    if (!result?.accessToken) throw new SelectorConnectionUnavailableError()
+    input.protectedValues.add(result.accessToken)
+    input.protectedValues.add(result.domain, 'reference')
+    input.protectedValues.add(result.instanceUrl, 'reference')
+    input.protectedValues.add(result.apiDomain, 'reference')
+    input.recordCredentialUse?.(input.credential.providerId ?? input.serviceId)
+    return result.accessToken
+  }
 
   const access = input.credential.access
   if (!access?.credentialOwnerUserId || !access.resolvedCredentialId) {

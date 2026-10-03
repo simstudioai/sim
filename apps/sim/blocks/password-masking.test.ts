@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
@@ -20,6 +17,7 @@ const FIELDS_REQUIRING_MASKING: ReadonlyArray<{ block: string; subBlock: string 
   { block: 'sftp', subBlock: 'privateKey' },
   { block: 'ssh', subBlock: 'privateKey' },
   { block: 'secrets_manager', subBlock: 'secretValue' },
+  { block: 'ssm', subBlock: 'parameterValue' },
   { block: 'kalshi', subBlock: 'privateKey' },
   { block: 'sts', subBlock: 'webIdentityToken' },
   { block: 'sts', subBlock: 'samlAssertion' },

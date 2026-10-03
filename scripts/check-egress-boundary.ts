@@ -78,8 +78,6 @@ const ALLOWED = new Set([
   'apps/sim/lib/internal/oracledb/connect-proxy.ts',
   // Streaming MCP transport, built on the guard's pinned dispatcher.
   'apps/sim/lib/mcp/pinned-fetch.ts',
-  // Builds a dispatcher to carry a caller's deadline; issues no request itself.
-  'apps/sim/lib/core/utils/fetch-deadline.ts',
 ])
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -93,7 +91,8 @@ function walk(dir: string, out: string[] = []): string[] {
     if (SKIP_DIRS.has(entry.name)) continue
     const full = path.join(dir, entry.name)
     if (entry.isDirectory()) walk(full, out)
-    else if (/\.(ts|tsx)$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name)) out.push(full)
+    else if (/\.(ts|tsx)$/.test(entry.name) && !/\.(test|integration)\.tsx?$/.test(entry.name))
+      out.push(full)
   }
   return out
 }

@@ -1,9 +1,16 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { truncate } from '@sim/utils/string'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { airtableConnectorMeta } from '@/connectors/airtable/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, parseTagDate } from '@/connectors/utils'
+import {
+  ConnectorListingScopeUnavailableError,
+  computeContentHash,
+  isListingScopeUnavailableError,
+  parseTagDate,
+} from '@/connectors/utils'
 
 const logger = createLogger('AirtableConnector')
 
@@ -92,7 +99,7 @@ function renderTitle(value: unknown): string | null {
   if (value == null) return null
   const rendered = typeof value === 'object' ? formatCellValue(value).trim() : String(value).trim()
   if (!rendered) return null
-  return rendered.length > MAX_TITLE_LENGTH ? `${rendered.slice(0, MAX_TITLE_LENGTH)}…` : rendered
+  return truncate(rendered, MAX_TITLE_LENGTH, '…')
 }
 
 /**
@@ -142,6 +149,8 @@ function readMaxRecords(sourceConfig: Record<string, unknown>): number {
 
 export const airtableConnector: ConnectorConfig = {
   ...airtableConnectorMeta,
+
+  isListingScopeUnavailableError: isListingScopeUnavailableError,
 
   /**
    * Lists records from `GET /v0/{baseId}/{tableIdOrName}`.
@@ -217,7 +226,15 @@ export const airtableConnector: ConnectorConfig = {
        * Throwing aborts the sync before reconciliation, which is the safe
        * outcome — the next run restarts iteration from the beginning.
        */
-      throw new Error(`Failed to list Airtable records: ${response.status}`)
+      const message = `Failed to list Airtable records: ${response.status}`
+      /**
+       * Airtable answers a base or table the caller cannot reach with 403
+       * (INVALID_PERMISSIONS_OR_MODEL_NOT_FOUND) or 404: the configured scope
+       * is out of this caller's reach.
+       */
+      throw response.status === 403 || response.status === 404
+        ? new ConnectorListingScopeUnavailableError(message, response.status)
+        : new Error(message)
     }
 
     const data = (await response.json()) as {

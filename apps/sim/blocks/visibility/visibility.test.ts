@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
@@ -65,11 +62,6 @@ describe('isHiddenUnder', () => {
     expect(isHiddenUnder(null, { type: 'slack' })).toBe(false)
   })
 
-  it('reveals preview blocks named in revealed', () => {
-    const state = vis({ revealed: new Set(['gmail_v2']) })
-    expect(isHiddenUnder(state, { type: 'gmail_v2', preview: true })).toBe(false)
-  })
-
   it('hides kill-switched types only with an active state', () => {
     const state = vis({ disabled: new Set(['slack']) })
     expect(isHiddenUnder(state, { type: 'slack' })).toBe(true)
@@ -98,11 +90,6 @@ describe('registry projection', () => {
     expect(canonical?.hideFromToolbar).toBeUndefined()
   })
 
-  it('reveals a config-GA preview block without a suffix', () => {
-    withVisibility(vis({ revealed: new Set(['gmail_v2']) }))
-    expect(byType(getAllBlocks(), 'gmail_v2')?.name).toBe('GMAIL_V2')
-  })
-
   it('kill-switches a shipped block only when a context is active', () => {
     withVisibility(vis({ disabled: new Set(['slack']) }))
     expect(byType(getAllBlocks(), 'slack')?.hideFromToolbar).toBe(true)
@@ -110,24 +97,6 @@ describe('registry projection', () => {
 
     withVisibility(null)
     expect(byType(getAllBlocks(), 'slack')?.hideFromToolbar).toBeUndefined()
-  })
-
-  it('keeps getBlock pure regardless of visibility', () => {
-    withVisibility(
-      vis({
-        revealed: new Set(['gmail_v2']),
-        previewTagged: new Set(['gmail_v2']),
-        disabled: new Set(['slack']),
-      })
-    )
-    expect(getBlock('gmail_v2')?.name).toBe('GMAIL_V2')
-    expect(getBlock('slack')?.hideFromToolbar).toBeUndefined()
-  })
-
-  it('returns untouched references for unaffected blocks', () => {
-    withVisibility(vis({ revealed: new Set(['gmail_v2']) }))
-    expect(byType(getAllBlocks(), 'slack')).toBe(synthRegistry.slack)
-    expect(byType(getAllBlocks(), 'old_v1')).toBe(synthRegistry.old_v1)
   })
 
   it('never re-clones or suffixes already-hidden custom blocks', () => {

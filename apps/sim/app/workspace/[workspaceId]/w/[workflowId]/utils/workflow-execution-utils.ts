@@ -1,11 +1,11 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import { normalizeWorkflowEdgeSourceHandle } from '@sim/workflow-types/workflow'
-import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/copilot/constants'
 import type { SecretSafeBlockLog } from '@/lib/logs/execution/display-types'
 import type { TraceSpan } from '@/lib/logs/types'
+import { COPILOT_WORKFLOW_EXECUTION_CONFLICT_CODE } from '@/lib/mothership/constants'
 import type {
   BlockChildWorkflowStartedData,
   BlockCompletedData,
@@ -13,12 +13,13 @@ import type {
   BlockStartedData,
 } from '@/lib/workflows/executor/execution-events'
 import type { BlockLog, BlockState, ExecutionResult, StreamingExecution } from '@/executor/types'
-import { stripCloneSuffixes } from '@/executor/utils/subflow-utils'
+import { stripCloneSuffixes } from '@/executor/utils/subflow-node-id-codec'
 import {
   ExecutionStreamHttpError,
   processSSEStream,
   SSEEventHandlerError,
   SSEStreamInterruptedError,
+  toStreamInterruptedError,
 } from '@/hooks/use-execution-stream'
 import { useExecutionStore } from '@/stores/execution'
 import type { ConsoleEntry, ConsoleUpdate } from '@/stores/terminal'
@@ -946,7 +947,7 @@ export function handleExecutionCancelledConsole(
   addCancelledConsoleEntry(deps.addConsole, params)
 }
 
-interface WorkflowExecutionOptions {
+export interface WorkflowExecutionOptions {
   workflowId?: string
   workflowInput?: any
   onStream?: (se: StreamingExecution) => Promise<void>
@@ -963,6 +964,8 @@ interface WorkflowExecutionOptions {
   runFromBlock?: {
     startBlockId: string
     executionId?: string
+    /** Mocked upstream outputs (block name/id → output object) overlaid server-side. */
+    variableInputs?: Record<string, unknown>
   }
 }
 
@@ -1036,6 +1039,9 @@ export async function executeWorkflowWithFullLogging(
           runFromBlock: {
             startBlockId: options.runFromBlock.startBlockId,
             executionId: options.runFromBlock.executionId || 'latest',
+            ...(options.runFromBlock.variableInputs
+              ? { variableInputs: options.runFromBlock.variableInputs }
+              : {}),
           },
         }
       : {}),
@@ -1221,6 +1227,20 @@ export async function executeWorkflowWithFullLogging(
       'CopilotExecution'
     )
   } catch (error) {
+    const interrupted = toStreamInterruptedError(
+      error,
+      executionIdRef.current,
+      'Execution stream interrupted before a terminal event was received'
+    )
+    if (interrupted) {
+      logger.warn('Execution stream interrupted; preserving execution for reconnect', {
+        workflowId: wfId,
+        executionId: executionIdRef.current,
+        error: getErrorMessage(error),
+      })
+      preserveExecutionForRecovery = true
+      throw interrupted
+    }
     if (error instanceof SSEEventHandlerError || error instanceof SSEStreamInterruptedError) {
       preserveExecutionForRecovery = true
     }

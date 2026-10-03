@@ -1,7 +1,6 @@
 import { SapS4HanaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta, CanvasSentence } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { SapS4HanaResponse } from '@/tools/sap_s4hana/types'
 
 /**
  * Whichever name a new business partner carries: an organization has
@@ -37,13 +36,13 @@ function updateSentence(noun: string, keyField: string): CanvasSentence {
   ]
 }
 
-export const SapS4HanaBlock: BlockConfig<SapS4HanaResponse> = {
+export const SapS4HanaBlock: BlockConfig = {
   type: 'sap_s4hana',
   name: 'SAP S4HANA',
   description: 'Read and write SAP S4HANA Cloud business data via OData',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Connect SAP S4HANA Cloud Public Edition with per-tenant OAuth 2.0 client credentials configured in your Communication Arrangements. Read and create business partners, customers, suppliers, sales orders, deliveries (inbound/outbound), billing documents, products, stock and material documents, purchase requisitions, purchase orders, and supplier invoices, or run arbitrary OData v2 queries against any whitelisted Communication Scenario.',
+    'Connect SAP S4HANA Cloud Public Edition, Cloud Private Edition, or an on-premise tenant using the deployment and authentication settings for that tenant. Read and manage business records through the listed OData operations.',
   docsLink: 'https://docs.sim.ai/integrations/sap_s4hana',
   category: 'tools',
   integrationType: IntegrationType.HR,

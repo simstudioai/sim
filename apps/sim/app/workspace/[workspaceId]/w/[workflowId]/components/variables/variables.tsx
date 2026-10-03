@@ -52,8 +52,6 @@ const TYPE_OPTIONS: ComboboxOption[] = [
 /**
  * UI constants for consistent styling and sizing
  */
-const BADGE_HEIGHT = 20
-const BADGE_TEXT_SIZE = 13
 const ICON_SIZE = 13
 const HEADER_ICON_SIZE = 16
 const LINE_HEIGHT = 21
@@ -449,16 +447,17 @@ export function Variables({ readOnly = false }: VariablesProps) {
       {/* Header (drag handle) */}
       <div
         role='presentation'
-        className='flex h-[32px] flex-shrink-0 cursor-grab items-center justify-between bg-[var(--surface-1)] p-0 active:cursor-grabbing'
+        className='flex h-[32px] shrink-0 cursor-grab items-center justify-between bg-[var(--surface-1)] p-0 active:cursor-grabbing'
         onMouseDown={handleMouseDown}
       >
         <div className='flex items-center'>
-          <span className='flex-shrink-0 text-[var(--text-primary)] text-sm'>Variables</span>
+          <span className='shrink-0 text-[var(--text-primary)] text-sm'>Variables</span>
         </div>
         <div className='flex items-center gap-2'>
           <Button
             variant='ghost'
-            className='!p-1.5 -m-1.5'
+            iconPadding='md'
+            className='-m-1.5'
             onClick={(e) => {
               e.stopPropagation()
               handleAddVariable()
@@ -470,7 +469,8 @@ export function Variables({ readOnly = false }: VariablesProps) {
           </Button>
           <Button
             variant='ghost'
-            className='!p-1.5 -m-1.5'
+            iconPadding='md'
+            className='-m-1.5'
             onClick={handleClose}
             aria-label='Close variables panel'
           >

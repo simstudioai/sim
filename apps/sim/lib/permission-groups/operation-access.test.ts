@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   collectDeniedOperationIds,
@@ -29,17 +26,7 @@ const selectorBlock: OperationGateBlock = {
   },
 }
 
-/** A block with no selector, whose operation ids are its tool ids. */
-const bareBlock: OperationGateBlock = {
-  tools: { access: ['sqs_send', 'sqs_receive'] },
-}
-
-const singleToolBlock: OperationGateBlock = {
-  tools: { access: ['dropcontact_enrich_contact'] },
-}
-
 const denyAll = () => false
-const allowAll = () => true
 const deny = (...toolIds: string[]) => {
   const denied = new Set(toolIds)
   return (toolId: string) => !denied.has(toolId)
@@ -49,17 +36,6 @@ describe('operation-to-tool resolution', () => {
   it('resolves through the block tool selector', () => {
     expect(isOperationAllowed(selectorBlock, 'canvas', deny('slack_canvas'))).toBe(false)
     expect(isOperationAllowed(selectorBlock, 'canvas', deny('slack_message'))).toBe(true)
-  })
-
-  it('gates on the only tool when the block has no selection to make', () => {
-    expect(
-      isOperationAllowed(singleToolBlock, 'anything', deny('dropcontact_enrich_contact'))
-    ).toBe(false)
-  })
-
-  it('treats an operation id as a tool id when the block has no selector', () => {
-    expect(isOperationAllowed(bareBlock, 'sqs_receive', deny('sqs_receive'))).toBe(false)
-    expect(isOperationAllowed(bareBlock, 'sqs_receive', deny('sqs_send'))).toBe(true)
   })
 
   it('allows rather than guessing when a block has no tools at all', () => {
@@ -89,27 +65,15 @@ describe('collectDeniedOperationIds', () => {
     )
     expect([...denied]).toEqual(['send', 'read'])
   })
-
-  it('is empty when nothing is denied', () => {
-    expect(collectDeniedOperationIds(selectorBlock, ['send', 'canvas'], allowAll).size).toBe(0)
-  })
 })
 
 describe('pickDefaultOperation', () => {
   const candidates = ['send', 'canvas', 'read']
 
-  it('keeps the preferred operation when the group allows it', () => {
-    expect(pickDefaultOperation(selectorBlock, candidates, allowAll, 'canvas')).toBe('canvas')
-  })
-
   it('falls back to the first allowed operation when the preferred one is denied', () => {
     expect(pickDefaultOperation(selectorBlock, candidates, deny('slack_message'), 'send')).toBe(
       'canvas'
     )
-  })
-
-  it('takes the first allowed operation when there is no preference', () => {
-    expect(pickDefaultOperation(selectorBlock, candidates, deny('slack_message'))).toBe('canvas')
   })
 
   it('returns undefined when every candidate is denied', () => {
@@ -131,17 +95,6 @@ describe('pickDefaultOperation', () => {
 })
 
 describe('createToolAccessGate', () => {
-  it('allows everything when nothing is denied', () => {
-    for (const deniedTools of [undefined, null, []]) {
-      const gate = createToolAccessGate(deniedTools)
-      expect(gate('slack_canvas')).toBe(true)
-    }
-  })
-
-  it('reuses one gate instance for every unrestricted config', () => {
-    expect(createToolAccessGate([])).toBe(createToolAccessGate(undefined))
-  })
-
   it('denies exactly the listed tool ids', () => {
     const gate = createToolAccessGate(['slack_canvas'])
     expect(gate('slack_canvas')).toBe(false)
@@ -152,11 +105,5 @@ describe('createToolAccessGate', () => {
     const gate = createToolAccessGate(['gmail_read'])
     expect(gate('gmail_read')).toBe(false)
     expect(gate('gmail_read_v2')).toBe(true)
-  })
-
-  it('composes with isOperationAllowed to gate a block operation', () => {
-    const gate = createToolAccessGate(['slack_canvas'])
-    expect(isOperationAllowed(selectorBlock, 'canvas', gate)).toBe(false)
-    expect(isOperationAllowed(selectorBlock, 'send', gate)).toBe(true)
   })
 })

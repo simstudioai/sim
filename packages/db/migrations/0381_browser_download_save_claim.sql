@@ -1,0 +1,1 @@
+ALTER TABLE "copilot_async_tool_calls" ADD COLUMN IF NOT EXISTS "browser_download_started_at" timestamp;

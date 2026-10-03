@@ -1,9 +1,8 @@
 import { InfisicalIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { InfisicalResponse } from '@/tools/infisical/types'
 
-export const InfisicalBlock: BlockConfig<InfisicalResponse> = {
+export const InfisicalBlock: BlockConfig = {
   type: 'infisical',
   name: 'Infisical',
   description: 'Manage secrets with Infisical',

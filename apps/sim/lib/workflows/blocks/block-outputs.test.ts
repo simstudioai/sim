@@ -79,11 +79,17 @@ describe('block outputs parity', () => {
     const paths = getEffectiveBlockOutputPaths('start_trigger', subBlocks, options)
 
     expect(outputs).toHaveProperty('metadata')
-    expect(paths).toContain('metadata.userEmail')
+    expect(paths).toContain('metadata.subject.kind')
+    expect(paths).toContain('metadata.subject.userId')
+    expect(paths).toContain('metadata.subject.email')
+    expect(paths).toContain('metadata.subject.provider')
+    expect(paths).toContain('metadata.subject.tenantId')
+    expect(paths).toContain('metadata.subject.subjectId')
+    expect(paths).not.toContain('metadata.userEmail')
     expect(paths).toContain('metadata.executionType')
     expect(paths).toContain('metadata.workflowId')
     expect(
-      getEffectiveBlockOutputType('start_trigger', 'metadata.userEmail', subBlocks, options)
+      getEffectiveBlockOutputType('start_trigger', 'metadata.subject.kind', subBlocks, options)
     ).toBe('string')
 
     const offOutputs = getEffectiveBlockOutputs('start_trigger', {}, options)

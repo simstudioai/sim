@@ -5,6 +5,7 @@ import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import type { NextResponse } from 'next/server'
 import { env } from '@/lib/core/config/env'
 import { isDev } from '@/lib/core/config/env-flags'
+import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 
 const DEPLOYMENT_AUTH_TOKEN_VERSION = 1
 const DEPLOYMENT_AUTH_TOKEN_TTL_MS = 24 * 60 * 60 * 1000
@@ -37,6 +38,7 @@ interface EmailAuthTokenPayload extends DeploymentAuthTokenBase {
   authType: 'email'
   emailSlot: string
   emailDomainSlot: string
+  encryptedEmail?: string
 }
 
 type DeploymentAuthTokenPayload = PasswordAuthTokenPayload | EmailAuthTokenPayload
@@ -103,7 +105,10 @@ function emailGrants(allowedEmails: unknown): EmailGrant[] {
   return grants
 }
 
-function generateAuthToken(resource: DeploymentAuthResource, verifiedEmail?: string): string {
+async function generateAuthToken(
+  resource: DeploymentAuthResource,
+  verifiedEmail?: string
+): Promise<string> {
   const base = {
     version: DEPLOYMENT_AUTH_TOKEN_VERSION,
     resourceId: resource.id,
@@ -124,10 +129,16 @@ function generateAuthToken(resource: DeploymentAuthResource, verifiedEmail?: str
     if (!verifiedEmail) {
       throw new Error('Cannot create email auth token without a verified email address')
     }
+    const normalizedEmail = normalizeEmail(verifiedEmail)
+    if (!isValidEmailSyntax(normalizedEmail)) {
+      throw new Error('Cannot create deployment auth token for an invalid email address')
+    }
+    const { encrypted: encryptedEmail } = await encryptSecret(normalizedEmail)
     payload = {
       ...base,
       authType: 'email',
-      ...emailIdentitySlots(verifiedEmail),
+      ...emailIdentitySlots(normalizedEmail),
+      encryptedEmail,
     }
   } else {
     throw new Error(`Cannot create auth token for unsupported auth type: ${resource.authType}`)
@@ -158,7 +169,12 @@ function isDeploymentAuthTokenPayload(value: unknown): value is DeploymentAuthTo
     return isSha256Hex(payload.passwordSlot)
   }
   if (payload.authType === 'email') {
-    return isSha256Hex(payload.emailSlot) && isSha256Hex(payload.emailDomainSlot)
+    return (
+      isSha256Hex(payload.emailSlot) &&
+      isSha256Hex(payload.emailDomainSlot) &&
+      (payload.encryptedEmail === undefined ||
+        (typeof payload.encryptedEmail === 'string' && payload.encryptedEmail.length > 0))
+    )
   }
   return false
 }
@@ -170,41 +186,72 @@ function isEmailTokenAllowed(payload: EmailAuthTokenPayload, allowedEmails: unkn
   })
 }
 
+export interface DeploymentAuthTokenClaims {
+  authenticatedEmail?: string
+}
+
 /**
- * Validates a signed deployment cookie against the resource's current auth policy.
- * Email tokens carry HMAC-derived identity slots so allow-list removals take effect
- * immediately without exposing the verified address in the cookie.
+ * Validates a signed deployment cookie and recovers any confidential identity claim.
+ * Email identity remains encrypted in the cookie while its HMAC slots make current
+ * allow-list removals take effect immediately. Tokens minted before the encrypted
+ * claim was added remain valid but carry no workflow-visible identity.
  */
-export function validateAuthToken({ token, resource }: ValidateAuthTokenParams): boolean {
+export async function readDeploymentAuthToken({
+  token,
+  resource,
+}: ValidateAuthTokenParams): Promise<DeploymentAuthTokenClaims | null> {
   try {
     const [encodedPayload, signature, extra] = token.split('.')
-    if (!encodedPayload || !signature || extra !== undefined) return false
+    if (!encodedPayload || !signature || extra !== undefined) return null
 
     const expectedSignature = signPayload(encodedPayload)
-    if (!safeCompare(signature, expectedSignature)) return false
+    if (!safeCompare(signature, expectedSignature)) return null
 
     const decoded: unknown = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'))
-    if (!isDeploymentAuthTokenPayload(decoded)) return false
-    if (decoded.resourceId !== resource.id || decoded.authType !== resource.authType) return false
+    if (!isDeploymentAuthTokenPayload(decoded)) return null
+    if (decoded.resourceId !== resource.id || decoded.authType !== resource.authType) return null
 
     const now = Date.now()
     if (
       decoded.issuedAt > now + DEPLOYMENT_AUTH_TOKEN_CLOCK_SKEW_MS ||
       now - decoded.issuedAt > DEPLOYMENT_AUTH_TOKEN_TTL_MS
     ) {
-      return false
+      return null
     }
 
     if (decoded.authType === 'password') {
-      return Boolean(
-        resource.password && safeCompare(decoded.passwordSlot, passwordSlot(resource.password))
-      )
+      if (
+        !resource.password ||
+        !safeCompare(decoded.passwordSlot, passwordSlot(resource.password))
+      ) {
+        return null
+      }
+      return {}
     }
 
-    return isEmailTokenAllowed(decoded, resource.allowedEmails)
+    if (!isEmailTokenAllowed(decoded, resource.allowedEmails)) return null
+    if (!decoded.encryptedEmail) return {}
+
+    const { decrypted } = await decryptSecret(decoded.encryptedEmail)
+    const authenticatedEmail = normalizeEmail(decrypted)
+    if (!isValidEmailSyntax(authenticatedEmail)) return null
+
+    const slots = emailIdentitySlots(authenticatedEmail)
+    if (
+      !safeCompare(decoded.emailSlot, slots.emailSlot) ||
+      !safeCompare(decoded.emailDomainSlot, slots.emailDomainSlot)
+    ) {
+      return null
+    }
+    return { authenticatedEmail }
   } catch {
-    return false
+    return null
   }
+}
+
+/** Validates a signed deployment cookie against the resource's current auth policy. */
+export async function validateAuthToken(params: ValidateAuthTokenParams): Promise<boolean> {
+  return (await readDeploymentAuthToken(params)) !== null
 }
 
 /** Canonical auth cookie name for a deployed resource (`{kind}_auth_{id}`). */
@@ -213,15 +260,15 @@ export function deploymentAuthCookieName(cookiePrefix: DeploymentAuthKind, id: s
 }
 
 /** Sets a signed, resource-bound authentication cookie for a deployment. */
-export function setDeploymentAuthCookie({
+export async function setDeploymentAuthCookie({
   response,
   cookiePrefix,
   resource,
   verifiedEmail,
-}: SetDeploymentAuthCookieParams): void {
+}: SetDeploymentAuthCookieParams): Promise<void> {
   response.cookies.set({
     name: deploymentAuthCookieName(cookiePrefix, resource.id),
-    value: generateAuthToken(resource, verifiedEmail),
+    value: await generateAuthToken(resource, verifiedEmail),
     httpOnly: true,
     secure: !isDev,
     sameSite: 'lax',

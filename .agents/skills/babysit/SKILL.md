@@ -73,10 +73,8 @@ conditions freshly after every push.
      reviewThreads(first: 50) { pageInfo { hasNextPage endCursor } nodes { id isResolved path line
        comments(first: 5) { nodes { id databaseId author { login } body } } } } } } }'
    ```
-   `[.comments[]] | last | .body`, not `... | .body | tail -1` — the latter pipes every matching
-   comment's full multi-line body through the pipeline and keeps only the final *line* of that
-   combined output (usually the "Reviews (n): Last reviewed commit..." footer), not the last
-   *comment*, so it silently misses the actual "Confidence Score: X/5" line.
+   The score is a line inside the body of Greptile's *latest* comment (`| last | .body`), which
+   it edits in place across rounds.
    `reviewThreads(first: 50)` is a single page — check `pageInfo.hasNextPage`. If `true`, don't
    stop yet: re-run the same query with `after: "<endCursor>"` and keep paging until
    `hasNextPage` is `false` before evaluating "clean." A PR with more than 50 threads is rare but
@@ -90,8 +88,10 @@ conditions freshly after every push.
    across all pages has `isResolved: true`, and every check has finished and passed, stop —
    report the outcome (see "Reporting" below) and skip the rest of this list.
 
-2. **If the PR has a merge conflict**, merge `origin/staging`, resolve the conflicts, run the
-   usual pre-push checks, push, and go to step 8 to re-trigger review.
+2. **If the PR has a merge conflict**, rebase rather than merge (step 6's rebase would discard a
+   merge commit): `git fetch origin staging && git rebase origin/staging`, resolve each conflict
+   and `git rebase --continue` until the rebase finishes. Then run step 6 (the sync check and the
+   `/ship` gates), then steps 7–8: push with `--force-with-lease` and re-trigger review.
 
 3. **If no review has run yet** (fresh PR, no bot comments): both run automatically on PR open —
    confirm via `gh pr checks <n>` (look for `Greptile Review` and `cubic · AI code reviewer`) and
@@ -123,15 +123,13 @@ conditions freshly after every push.
    ```
 
 6. **Before pushing, re-run the full sync check from `/ship` step 2** — not just the log command,
-   the whole check-and-recover flow (stash WIP if needed, rebase, verify the rebase didn't just
+   the whole check-and-recover flow (stash WIP pinned by SHA as `/ship` step 2 shows, rebase, verify the rebase didn't just
    cleanly replay stray commits, cherry-pick rebuild if it did or if it conflicted). A babysit
    loop spanning a long session is exactly the scenario where a branch can drift, and pushing
    review fixes on top of undetected drift is how an oversized PR happens even after the branch
-   was fixed once. Then run the repo's pre-ship checks the same way `/ship` does before
-   committing — not just lint/typecheck/boundary-validation, but also the conditional `/cleanup`
-   (if this round's fix touched UI code) and `/db-migrate` (if it touched schema/migrations)
-   gates from `/ship` steps 4 and 5. A review-fix round is still a code change and can trip
-   either gate just as easily as the original commit did.
+   was fixed once. Then run `/ship` steps 4–6 on this round's diff — the cleanup and test gates,
+   migration safety, and the regenerate + audit phases. A review-fix round is still a code change
+   and can trip any of them just as easily as the original commit did.
 
 7. **Commit and push** the round's fixes as one commit — `--force-with-lease` whenever step 6's
    sync check rewrote history, which includes a plain `git rebase origin/staging` that completed
@@ -142,9 +140,6 @@ conditions freshly after every push.
    git fetch origin staging && git log --oneline --reverse origin/staging..HEAD
    gh pr view <n> --json commits -q '.commits[].messageHeadline'
    ```
-   `--reverse` makes `git log` oldest-first, matching the PR commit list's order — plain
-   `git log` is newest-first, so without it a positional comparison can spuriously fail on any
-   multi-commit branch.
    These two lists must describe the same commits. A review loop runs many pushes across many
    rounds; checking sync only before the push (step 6) and never after is how a bad push or a
    PR whose commit history quietly went stale between rounds goes unnoticed.
@@ -177,13 +172,10 @@ thread count across both bots, and whether every check finished and passed.
 ## Public-repo hygiene
 
 Every reply, comment and commit you post here is public and permanent, and review bots quote
-your replies back so a leak propagates. Before each post, strip anything that ties the change to
-a tenant: customer/company names, workspace/user/org/KB/connector IDs, emails, tenant hostnames,
-verbatim document/sheet/folder names, log lines, and per-tenant DB output. Cite the mechanism and
-aggregate numbers instead — see `/ship`'s "What to Omit" for the full list and the pre-publish
-grep. Triaging a finding often means pasting evidence you gathered from prod; that is exactly the
-moment this gets violated. Check before posting, not after: editing a comment does not unsend its
-notification email.
+your replies back, so a leak propagates. `/ship`'s "What to Omit" (the category list and the
+pre-publish grep) applies to every post in this loop. Triaging a finding often means pasting
+evidence gathered from prod — that is exactly the moment it gets violated. Run the grep on the
+reply before posting, not after: editing a comment does not unsend its notification email.
 
 ## Hard rules
 

@@ -1,7 +1,7 @@
 # ========================================
 # Base Stage: runtime-only dependencies (inherited by the final image)
 # ========================================
-FROM oven/bun:1.3.14-slim AS base
+FROM oven/bun:1.4.2-slim AS base
 
 # Install Node.js 24 (Active LTS) and the runtime dependencies once in base.
 # Node runs the isolated-vm sandbox worker and the Oracle Database worker (the
@@ -140,6 +140,10 @@ RUN bun build apps/sim/bootstrap.ts --target=bun --outfile=apps/sim/bootstrap.js
 FROM base AS runner
 WORKDIR /app
 
+# Runtime flags override these image defaults; dev images opt into Plan.
+ARG MSHIP_PLAN_MODE_DEFAULT=false
+ENV MSHIP_PLAN_MODE_DEFAULT=$MSHIP_PLAN_MODE_DEFAULT
+
 # Node.js 24, Python, ffmpeg, etc. are already installed in base stage
 ENV NODE_ENV=production
 
@@ -155,6 +159,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/.next/static ./apps/sim/
 # Self-contained secrets-loading bootstrap (bundled in the builder stage). Runs
 # before the standalone server.js to hydrate process.env from the runtime secret.
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/bootstrap.js ./apps/sim/bootstrap.js
+COPY --from=builder --chown=nextjs:nodejs /app/packages/sim-cli/dist/runtime.js ./packages/sim-cli/dist/runtime.js
 
 # Copy blog/author content for runtime filesystem reads (not part of the JS bundle)
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/content ./apps/sim/content
@@ -190,6 +195,11 @@ COPY --from=deps --chown=nextjs:nodejs /app/node_modules/y-protocols ./node_modu
 # the standalone COPY, which ships its own partial node_modules that would otherwise win.
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/sharp ./node_modules/sharp
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@img ./node_modules/@img
+
+# PDF.js requires native canvas primitives even for text extraction. Standalone
+# tracing can miss the platform binding behind canvas's dynamic require. Copy
+# the complete matching install after the partial standalone node_modules.
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@napi-rs ./node_modules/@napi-rs
 
 # Copy the isolated-vm worker script
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-vm-worker.cjs ./apps/sim/lib/execution/isolated-vm-worker.cjs

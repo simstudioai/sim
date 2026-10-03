@@ -1,53 +1,56 @@
-/**
- * @vitest-environment node
- */
+import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import { fileParsersMock, fileParsersMockFns } from '@sim/testing/mocks/file-parsers.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { interruptibleSleep } from '@sim/utils/helpers'
+import { PDFDocument } from 'pdf-lib'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockDownloadFileFromUrl,
-  mockGenerateInternalToken,
-  mockGetInternalApiBaseUrl,
-  mockExecuteMistralParse,
-  mockParseBuffer,
-} = vi.hoisted(() => ({
-  mockDownloadFileFromUrl: vi.fn(),
-  mockGenerateInternalToken: vi.fn(),
-  mockGetInternalApiBaseUrl: vi.fn(),
+const { mockExecuteMistralParse, mockAdmit } = vi.hoisted(() => ({
   mockExecuteMistralParse: vi.fn(),
-  mockParseBuffer: vi.fn(),
+  mockAdmit: vi.fn(),
 }))
 
-vi.mock('@/lib/auth/internal', () => ({
-  generateInternalToken: mockGenerateInternalToken,
+vi.mock('@/lib/core/rate-limiter/provider-admission', () => ({
+  PROVIDER_QUOTA_COOLDOWN_MS: 300_000,
+  ProviderQuotaExhaustedError: class ProviderQuotaExhaustedError extends Error {},
+  isProviderQuotaExhausted: vi.fn().mockResolvedValue(false),
+  recordProviderCooldown: vi.fn().mockResolvedValue(undefined),
+  waitForProviderAdmission: mockAdmit,
 }))
 
-vi.mock('@/lib/core/utils/urls', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/core/utils/urls')>()),
-  getInternalApiBaseUrl: mockGetInternalApiBaseUrl,
-}))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
 
-vi.mock('@/lib/file-parsers', () => ({
-  parseBuffer: mockParseBuffer,
-  isSupportedFileType: (extension: string) => ['pdf', 'docx', 'txt', 'csv'].includes(extension),
-}))
+vi.mock('@/lib/file-parsers', () => fileParsersMock)
 
 vi.mock('@/lib/internal/mistral/operations', () => ({
   executeMistralParse: mockExecuteMistralParse,
 }))
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadFileFromUrl: mockDownloadFileFromUrl,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
 import { env } from '@/lib/core/config/env'
 import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const mockParseBuffer = fileParsersMockFns.mockParseBuffer
+const mockGenerateInternalToken = authInternalMockFns.mockGenerateInternalToken
+
+const mockGetInternalApiBaseUrl = urlsMockFns.mockGetInternalApiBaseUrl
+
+const mockDownloadFileFromUrl = fileUtilsServerMockFns.mockDownloadFileFromUrl
 
 describe('knowledge document model-input provenance', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+  beforeEach(async () => {
+    mockAdmit.mockReset().mockResolvedValue(undefined)
+    const pdf = await PDFDocument.create()
+    pdf.addPage()
+    mockDownloadFileFromUrl.mockReset().mockResolvedValue(Buffer.from(await pdf.save()))
+    mockParseBuffer.mockReset().mockResolvedValue({ content: '', metadata: { pageCount: 1 } })
     Object.assign(env, {
       OCR_PROVIDER: 'azure-mistral',
       OCR_AZURE_API_KEY: 'test-key',
@@ -67,41 +70,7 @@ describe('knowledge document model-input provenance', () => {
   })
 
   afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('parses tracked workspace-file bytes locally without treating parsing as model egress', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'tracked-secret', encryptedValue: 'encrypted-token' },
-    ])
-    registry.recordResolved('TOKEN', 'tracked-secret')
-    mockDownloadFileFromUrl.mockResolvedValue(
-      Buffer.from('Locally parsed content containing tracked-secret.')
-    )
-    mockParseBuffer.mockResolvedValue({
-      content: 'Locally parsed content containing tracked-secret.',
-      metadata: {},
-    })
-    const fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
-
-    const processed = await runWithKnowledgeModelInputProvenance(registry, () =>
-      processDocument(
-        '/api/files/serve/workspace/workspace-1/tracked.txt?context=workspace',
-        'tracked.txt',
-        'text/plain',
-        1024,
-        200,
-        1,
-        'user-1',
-        'workspace-1'
-      )
-    )
-
-    expect(processed.metadata.processingMethod).toBe('file-parser')
-    expect(processed.chunks.map((chunk) => chunk.text).join('\n')).toContain('tracked-secret')
-    expect(mockDownloadFileFromUrl).toHaveBeenCalledOnce()
-    expect(fetchMock).not.toHaveBeenCalled()
+    vi.useRealTimers()
   })
 
   /**
@@ -126,13 +95,15 @@ describe('knowledge document model-input provenance', () => {
             1024,
             200,
             100,
-            'user-1'
+            { userId: 'user-1' }
           ),
         { opaqueInputSafe: false }
       )
     ).rejects.toThrow('Knowledge model input could not be safely projected')
 
     expect(fetchMock).not.toHaveBeenCalled()
+    expect(mockAdmit).not.toHaveBeenCalled()
+    expect(mockExecuteMistralParse).not.toHaveBeenCalled()
   })
 
   it('attaches exact-empty provenance to the internal Mistral OCR request', async () => {
@@ -140,7 +111,6 @@ describe('knowledge document model-input provenance', () => {
       OCR_PROVIDER: 'mistral',
       MISTRAL_API_KEY: 'mistral-key',
     })
-    mockDownloadFileFromUrl.mockResolvedValue(Buffer.from('not-a-real-pdf'))
     const processed = await runWithKnowledgeModelInputProvenance(
       undefined,
       () =>
@@ -151,7 +121,7 @@ describe('knowledge document model-input provenance', () => {
           1024,
           200,
           1,
-          'user-1'
+          { userId: 'user-1' }
         ),
       { opaqueInputSafe: true }
     )
@@ -171,5 +141,38 @@ describe('knowledge document model-input provenance', () => {
       complete: true,
       entries: [],
     })
+  })
+  it('bounds Azure OCR admission and response reading with one overall deadline', async () => {
+    vi.useFakeTimers()
+    mockDownloadFileFromUrl.mockResolvedValue(Buffer.from('synthetic image'))
+    mockAdmit.mockImplementationOnce(() => interruptibleSleep(90_000))
+    const cancelBody = vi.fn()
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(new ReadableStream({ cancel: cancelBody })))
+    vi.stubGlobal('fetch', fetchMock)
+    const pending = runWithKnowledgeModelInputProvenance(
+      undefined,
+      () =>
+        processDocument(
+          'https://example.com/fixture.png',
+          'fixture.png',
+          'image/png',
+          1024,
+          200,
+          1,
+          { userId: 'user-1' }
+        ),
+      { opaqueInputSafe: true }
+    )
+    const rejected = expect(pending).rejects.toMatchObject({ name: 'TimeoutError' })
+    await vi.advanceTimersByTimeAsync(119_999)
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(cancelBody).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
+    await rejected
+    expect(cancelBody).toHaveBeenCalledOnce()
+    expect(mockAdmit).toHaveBeenCalledOnce()
+    expect(vi.getTimerCount()).toBe(0)
   })
 })

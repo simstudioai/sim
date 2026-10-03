@@ -7,15 +7,17 @@ import { fileServeParamsSchema, fileServeQuerySchema } from '@/lib/api/contracts
 import {
   concealCrossTenantResourceError,
   InternalUnauthenticatedError,
+  internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { resolveServableDocBytes } from '@/lib/copilot/tools/server/files/doc-compile'
-import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile-error'
+import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { resolveServableDocBytes } from '@/lib/mothership/tools/server/files/doc-compile'
+import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'
+import { readOrganizationChatAttachment } from '@/lib/uploads/contexts/organization-assistant/application'
 import { parseWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { resolveServableImageBytes } from '@/lib/uploads/server/image-derivative'
@@ -26,11 +28,13 @@ import { internalWorkspaceFileServeAuth } from '@/lib/workspace-files/api'
 import { readWorkspaceFileContentByKey } from '@/lib/workspace-files/application/read-workspace-file-content-by-key'
 import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import { renderSimPageDocumentWithAssets } from '@/lib/workspace-files/page-document.server'
-import { verifyFileAccess } from '@/app/api/files/authorization'
+import { type KnowledgeFileAccess, verifyFileAccess } from '@/app/api/files/authorization'
 import {
+  createConditionalFileResponse,
   createErrorResponse,
   createFileResponse,
   FileNotFoundError,
+  type FileResponse,
   findLocalFile,
   getContentType,
   readLocalFileWithinLimit,
@@ -62,8 +66,25 @@ interface ServeOptions {
   raw: boolean
   /** `preview=1` — the caller renders these bytes rather than saving them. */
   preview: boolean
-  /** `v=<updatedAt>` — the URL addresses content-immutable bytes. */
+  /** `v=<updatedAt>` — the caller asserts the URL addresses one fixed content revision. */
   versioned: boolean
+  /** The request's `If-None-Match`, so a revalidation can be answered 304 instead of re-sending. */
+  ifNoneMatch: string | null
+}
+
+interface ServableBytes {
+  buffer: Buffer
+  contentType: string
+  /**
+   * These bytes were resolved against OTHER files' current content — a page inlining its images,
+   * or a document compiled against the files it references — so the same storage key can serve
+   * different bytes over time while this file's own key and `updatedAt` stay put.
+   *
+   * Required, so a branch added to the resolver cannot inherit the cacheable answer by saying
+   * nothing — the same reason the transfer ceiling is asserted where the branches converge rather
+   * than inside each one.
+   */
+  dependsOnReferencedFiles: boolean
 }
 
 /**
@@ -93,12 +114,16 @@ async function resolveServableBytes(params: {
   /** The stored record's content type, where the caller has the record. */
   fileType?: string
   signal: AbortSignal | undefined
-}): Promise<{ buffer: Buffer; contentType: string }> {
+}): Promise<ServableBytes> {
   // `raw` is the stored source, already bounded by the read that produced it, but it
   // goes through the same check so the ceiling holds for everything this returns
   // rather than for every branch someone remembered to cover.
-  const resolved = params.options.raw
-    ? { buffer: params.buffer, contentType: getContentType(params.filename) }
+  const resolved: ServableBytes = params.options.raw
+    ? {
+        buffer: params.buffer,
+        contentType: getContentType(params.filename),
+        dependsOnReferencedFiles: false,
+      }
     : await resolveTransformedBytes(params)
   assertKnownSizeWithinLimit(
     resolved.buffer.length,
@@ -118,7 +143,7 @@ async function resolveTransformedBytes(params: {
   filePrincipal?: Principal
   fileType?: string
   signal: AbortSignal | undefined
-}): Promise<{ buffer: Buffer; contentType: string }> {
+}): Promise<ServableBytes> {
   const {
     buffer,
     filename,
@@ -144,7 +169,12 @@ async function resolveTransformedBytes(params: {
         await renderSimPageDocumentWithAssets(text, { workspaceId }),
         'utf8'
       )
-      return { buffer: rendered, contentType: 'text/html' }
+      // Inlines the workspace images the page references, read at their CURRENT content.
+      return {
+        buffer: rendered,
+        contentType: 'text/html',
+        dependsOnReferencedFiles: true,
+      }
     }
   }
 
@@ -152,10 +182,11 @@ async function resolveTransformedBytes(params: {
     // Images resolve independently of the document path: a HEIF has no compiled-source
     // concept, so it never reaches the doc branch.
     const image = await resolveServableImageBytes(buffer, storageKey)
-    if (image) return image
+    // Transcoded from THIS file's stored bytes, so it lives and dies with the storage key.
+    if (image) return { ...image, dependsOnReferencedFiles: false }
   }
 
-  return resolveServableDocBytes({
+  const doc = await resolveServableDocBytes({
     rawBuffer: buffer,
     fileName: filename,
     workspaceId,
@@ -163,6 +194,11 @@ async function resolveTransformedBytes(params: {
     ownerKey,
     signal,
   })
+  return {
+    buffer: doc.buffer,
+    contentType: doc.contentType,
+    dependsOnReferencedFiles: doc.dependsOnReferencedFiles,
+  }
 }
 
 const STORAGE_KEY_PREFIX_RE = /^\d{13}-[a-z0-9]{7}-/
@@ -182,18 +218,41 @@ const WORKSPACE_REVALIDATE_CACHE_CONTROL = 'private, no-cache, must-revalidate'
 const PUBLIC_ASSET_CACHE_CONTROL = 'public, max-age=31536000'
 
 /**
- * Cache-Control for a served file. A versioned request (`?v=<updatedAt>`) addresses
- * content-immutable bytes — generated docs are content-addressed and the version
- * bumps on every edit — so the browser may cache it indefinitely; re-opens and
- * focus refetches then resolve from cache with no round trip. Unversioned workspace
- * reads stay revalidated because the same storage key is edited in place.
+ * Cache-Control for a served file.
+ *
+ * A versioned request (`?v=<updatedAt>`) normally addresses content-immutable bytes: a workspace
+ * file's content write stores the new bytes under a NEW storage key, so a given key's stored
+ * source never changes and the browser may cache it indefinitely — re-opens and focus refetches
+ * then resolve from cache with no round trip.
+ *
+ * That promise does NOT hold when the response was resolved against other files' current content
+ * (`derived-from-referenced-files`): a document compiled against the files it references, or a page
+ * inlining its images, recompiles per request, so the same key serves different bytes once a
+ * referenced file changes — while this file's key and `updatedAt`, and therefore the whole URL,
+ * stay put. Promising immutability there pins a stale render in the browser cache for a year, so
+ * those responses stay revalidated whether or not the request carried a version.
  */
 function resolveServeCacheControl(
   versioned: boolean,
-  context: string | undefined
+  context: string | undefined,
+  dependsOnReferencedFiles: boolean
 ): string | undefined {
-  if (versioned) return IMMUTABLE_CACHE_CONTROL
-  return context === 'workspace' ? WORKSPACE_REVALIDATE_CACHE_CONTROL : undefined
+  if (versioned && !dependsOnReferencedFiles) return IMMUTABLE_CACHE_CONTROL
+  return context === 'workspace' || dependsOnReferencedFiles
+    ? WORKSPACE_REVALIDATE_CACHE_CONTROL
+    : undefined
+}
+
+/**
+ * Sends a resolved file, attaching a validator only where the client may actually revalidate.
+ *
+ * An immutable response is never revalidated, so digesting its buffer — a pass over up to the
+ * whole transfer ceiling — would cost the compute and never collect a single 304.
+ */
+function serveResolvedFile(file: FileResponse, ifNoneMatch: string | null): NextResponse {
+  return file.cacheControl === IMMUTABLE_CACHE_CONTROL
+    ? createFileResponse(file)
+    : createConditionalFileResponse(file, ifNoneMatch)
 }
 
 export const GET = withRouteHandler(
@@ -218,10 +277,30 @@ export const GET = withRouteHandler(
       const isCloudPath = isS3Path || isBlobPath || isGcsPath
       const cloudKey = isCloudPath ? path.slice(1).join('/') : fullPath
 
+      /** Chat images are served only through the current private-chat owner boundary. */
+      if (cloudKey.startsWith('chat-images/')) throw new FileNotFoundError('File not found')
+
+      if (cloudKey.startsWith('assistant/')) {
+        const principal = await internalSessionAuth.authenticate()
+        const image = await readOrganizationChatAttachment({
+          principal,
+          key: cloudKey,
+          maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+          signal: request.signal,
+        })
+        return createFileResponse({
+          buffer: image.buffer,
+          filename: image.name,
+          contentType: image.contentType,
+          cacheControl: 'private, no-store',
+        })
+      }
+
       const isPublicByKeyPrefix =
         cloudKey.startsWith('profile-pictures/') ||
         cloudKey.startsWith('og-images/') ||
-        cloudKey.startsWith('workspace-logos/')
+        cloudKey.startsWith('workspace-logos/') ||
+        cloudKey.startsWith('organization-logos/')
 
       if (isPublicByKeyPrefix) {
         const context = inferContextFromKey(cloudKey)
@@ -263,6 +342,7 @@ export const GET = withRouteHandler(
         raw: query.raw === '1',
         preview: query.preview === '1',
         versioned: query.v != null,
+        ifNoneMatch: request.headers.get('if-none-match'),
       }
 
       if (workspacePrincipal) {
@@ -271,12 +351,29 @@ export const GET = withRouteHandler(
 
       const userId = legacyAuthResult?.userId
       if (!userId) throw new Error('Authenticated file serve request is missing a user ID')
+      /** Only a session identifies a person; an internal token's user id reads as the workspace. */
+      const knowledgeAccess =
+        legacyAuthResult?.authType === AuthType.SESSION ? ('user' as const) : undefined
 
       if (isUsingCloudStorage()) {
-        return await handleCloudProxy(cloudKey, userId, options, request.signal, storageContext)
+        return await handleCloudProxy(
+          cloudKey,
+          userId,
+          options,
+          request.signal,
+          storageContext,
+          knowledgeAccess
+        )
       }
 
-      return await handleLocalFile(cloudKey, userId, options, request.signal, storageContext)
+      return await handleLocalFile(
+        cloudKey,
+        userId,
+        options,
+        request.signal,
+        storageContext,
+        knowledgeAccess
+      )
     } catch (error) {
       if (error instanceof InternalUnauthenticatedError) {
         logger.warn('Unauthorized file access attempt', { error: error.message })
@@ -346,12 +443,19 @@ async function handleWorkspaceFile(
     workspaceId,
     size: resolved.buffer.length,
   })
-  return createFileResponse({
-    buffer: resolved.buffer,
-    contentType: resolved.contentType,
-    filename: file.name,
-    cacheControl: resolveServeCacheControl(options.versioned, 'workspace'),
-  })
+  return serveResolvedFile(
+    {
+      buffer: resolved.buffer,
+      contentType: resolved.contentType,
+      filename: file.name,
+      cacheControl: resolveServeCacheControl(
+        options.versioned,
+        'workspace',
+        resolved.dependsOnReferencedFiles
+      ),
+    },
+    options.ifNoneMatch
+  )
 }
 
 async function handleLocalFile(
@@ -359,7 +463,8 @@ async function handleLocalFile(
   userId: string,
   options: ServeOptions,
   signal: AbortSignal | undefined,
-  context: StorageContext
+  context: StorageContext,
+  knowledgeAccess: KnowledgeFileAccess | undefined
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
   try {
@@ -368,7 +473,7 @@ async function handleLocalFile(
       userId,
       undefined, // customConfig
       context,
-      true // isLocal
+      { knowledgeAccess }
     )
 
     if (!hasAccess) {
@@ -390,7 +495,11 @@ async function handleLocalFile(
     const segment = filename.split('/').pop() || filename
     const displayName = stripStorageKeyPrefix(segment)
     const workspaceId = getWorkspaceIdForCompile(filename)
-    const { buffer: fileBuffer, contentType } = await resolveServableBytes({
+    const {
+      buffer: fileBuffer,
+      contentType,
+      dependsOnReferencedFiles,
+    } = await resolveServableBytes({
       buffer: rawBuffer,
       filename: displayName,
       storageKey: filename,
@@ -402,12 +511,19 @@ async function handleLocalFile(
 
     logger.info('Local file served', { userId, filename, size: fileBuffer.length })
 
-    return createFileResponse({
-      buffer: fileBuffer,
-      contentType,
-      filename: displayName,
-      cacheControl: resolveServeCacheControl(options.versioned, context),
-    })
+    return serveResolvedFile(
+      {
+        buffer: fileBuffer,
+        contentType,
+        filename: displayName,
+        cacheControl: resolveServeCacheControl(
+          options.versioned,
+          context,
+          dependsOnReferencedFiles
+        ),
+      },
+      options.ifNoneMatch
+    )
   } catch (error) {
     logServeFailure('Error reading local file:', error)
     throw error
@@ -419,7 +535,8 @@ async function handleCloudProxy(
   userId: string,
   options: ServeOptions,
   signal: AbortSignal | undefined,
-  context: StorageContext
+  context: StorageContext,
+  knowledgeAccess: KnowledgeFileAccess | undefined
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
   try {
@@ -429,8 +546,8 @@ async function handleCloudProxy(
       cloudKey,
       userId,
       undefined, // customConfig
-      context, // context
-      false // isLocal
+      context,
+      { knowledgeAccess }
     )
 
     if (!hasAccess) {
@@ -455,7 +572,11 @@ async function handleCloudProxy(
     const segment = cloudKey.split('/').pop() || 'download'
     const displayName = stripStorageKeyPrefix(segment)
     const workspaceId = getWorkspaceIdForCompile(cloudKey)
-    const { buffer: fileBuffer, contentType } = await resolveServableBytes({
+    const {
+      buffer: fileBuffer,
+      contentType,
+      dependsOnReferencedFiles,
+    } = await resolveServableBytes({
       buffer: rawBuffer,
       filename: displayName,
       storageKey: cloudKey,
@@ -472,12 +593,19 @@ async function handleCloudProxy(
       context,
     })
 
-    return createFileResponse({
-      buffer: fileBuffer,
-      contentType,
-      filename: displayName,
-      cacheControl: resolveServeCacheControl(options.versioned, context),
-    })
+    return serveResolvedFile(
+      {
+        buffer: fileBuffer,
+        contentType,
+        filename: displayName,
+        cacheControl: resolveServeCacheControl(
+          options.versioned,
+          context,
+          dependsOnReferencedFiles
+        ),
+      },
+      options.ifNoneMatch
+    )
   } catch (error) {
     logServeFailure('Error downloading from cloud storage:', error)
     throw error

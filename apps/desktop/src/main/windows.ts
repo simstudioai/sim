@@ -6,6 +6,7 @@ import {
   openExternalSafe,
 } from '@/main/navigation'
 import { scrubUrl } from '@/main/observability'
+import { handleWillPreventUnload } from '@/main/window'
 
 const logger = createLogger('DesktopWindows')
 
@@ -44,7 +45,7 @@ export interface WindowPolicyDeps {
   appOrigin: () => string
   openAppWindow: (url: string) => void
   allowHttpLocalhost: boolean
-  isMandatoryRelaunchPending: () => boolean
+  isCommittedRelaunchPending: () => boolean
 }
 
 /**
@@ -81,9 +82,7 @@ export function attachWindowOpenPolicy(contents: WebContents, deps: WindowPolicy
     registerPopupContents(child.webContents)
     attachWindowOpenPolicy(child.webContents, deps)
     child.webContents.on('will-prevent-unload', (event) => {
-      if (deps.isMandatoryRelaunchPending()) {
-        event.preventDefault()
-      }
+      handleWillPreventUnload(child, event, deps.isCommittedRelaunchPending())
     })
     const kind = classifyWindowOpen(details.url, details.frameName, deps.appOrigin())
     if (kind === 'popup-blank') {

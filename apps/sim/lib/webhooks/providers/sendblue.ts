@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   EventMatchContext,
@@ -67,7 +67,7 @@ export const sendblueHandler: WebhookProviderHandler = {
   },
 
   async formatInput({ body }: FormatInputContext): Promise<FormatInputResult> {
-    const b = isRecordLike(body) ? body : {}
+    const b = toRecord(body)
     return {
       input: {
         account_email: b.accountEmail ?? b.account_email ?? null,

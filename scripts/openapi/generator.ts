@@ -105,6 +105,31 @@ function stripLegacySchemaIds(value: unknown): unknown {
   )
 }
 
+function omitEnumValuesFromOpenApi(
+  metadata: z.core.GlobalMeta | undefined,
+  schema: JsonObject,
+  label: string
+): void {
+  const omittedValues = metadata?.omitEnumValuesFromOpenApi
+  if (omittedValues === undefined) return
+
+  invariant(
+    Array.isArray(omittedValues) && omittedValues.length > 0,
+    `${label} omitEnumValuesFromOpenApi must be a non-empty array`
+  )
+  invariant(
+    Array.isArray(schema.enum),
+    `${label} omitEnumValuesFromOpenApi requires an enum schema`
+  )
+  for (const value of omittedValues) {
+    invariant(schema.enum.includes(value), `${label} omits an enum value that does not exist`)
+  }
+
+  schema.enum = schema.enum.filter((value) => !omittedValues.includes(value))
+  invariant(schema.enum.length > 0, `${label} cannot omit every enum value`)
+  Reflect.deleteProperty(schema, 'omitEnumValuesFromOpenApi')
+}
+
 function comparableSchema(schema: ApiSchema, io: SchemaIo): unknown {
   const cached = comparableSchemaCache.get(schema)?.get(io)
   if (cached) return cached
@@ -206,14 +231,12 @@ function generateSchema(
       unrepresentable: 'any',
       cycles: 'ref',
       reused: 'inline',
-      override: ({ zodSchema, path }) => {
+      override: ({ zodSchema, jsonSchema, path }) => {
         const current = zodSchema as ApiSchema
-        validateExamples(
-          current,
-          z.globalRegistry.get(current)?.examples,
-          io,
-          `${label} at ${path.join('.') || '<root>'}`
-        )
+        const metadata = z.globalRegistry.get(current)
+        const schemaLabel = `${label} at ${path.join('.') || '<root>'}`
+        validateExamples(current, metadata?.examples, io, schemaLabel)
+        omitEnumValuesFromOpenApi(metadata, jsonSchema as JsonObject, schemaLabel)
       },
     }) as JsonObject
     const byIo = generatedSchemaCache.get(schema) ?? new Map<SchemaIo, JsonObject>()
@@ -470,6 +493,13 @@ function referencedHeaders(headerNames: readonly string[] | undefined): JsonObje
   )
 }
 
+/** Public APIs reject MCP resource-bound grants; API read access also satisfies Search reads. */
+function publicApiOAuthScope(
+  scope: OpenApiOperationMetadata['applicationOperation']['oauthScope']
+) {
+  return scope === 'search:read' ? 'api:read' : scope
+}
+
 function operationFor(
   route: OpenApiRouteDefinition,
   definition: OpenApiDocumentDefinition,
@@ -625,10 +655,15 @@ function operationFor(
   }
 
   const requestBody = requestBodyFor(route, components, label)
+  const oauthScope = publicApiOAuthScope(operation.applicationOperation.oauthScope)
   return {
     operationId: operation.operationId,
     summary: operation.summary,
-    description: operation.description,
+    description: oauthScope
+      ? `${operation.description}\n\nOAuth scope: \`${oauthScope}\`.`
+      : operation.description,
+    'x-sim-operation': operation.applicationOperation.id,
+    ...(oauthScope ? { 'x-oauth-scope': oauthScope } : {}),
     tags: [...operation.tags],
     ...(operation.deprecated === undefined ? {} : { deprecated: operation.deprecated }),
     ...(operation.security === undefined ? {} : { security: operation.security }),
@@ -643,6 +678,15 @@ function validateOperationMetadata(
   definition: OpenApiDocumentDefinition,
   label: string
 ): void {
+  nonEmpty(operation.applicationOperation.id, `${label} application operation id`)
+  const security = operation.security ?? definition.security
+  if (security.some((requirement) => 'oauthBearer' in requirement)) {
+    const oauthScope = publicApiOAuthScope(operation.applicationOperation.oauthScope)
+    invariant(
+      oauthScope === 'api:read' || oauthScope === 'api:write',
+      `${label} must declare its canonical application's OAuth scope`
+    )
+  }
   nonEmpty(operation.operationId, `${label} operationId`)
   nonEmpty(operation.summary, `${label} summary`)
   nonEmpty(operation.description, `${label} description`)
