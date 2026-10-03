@@ -2,7 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { NewRelicIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { NewRelicCustomAttributes, NewRelicResponse } from '@/tools/new_relic/types'
+import type { NewRelicCustomAttributes } from '@/tools/new_relic/types'
 
 function parseCustomAttributes(value: unknown): NewRelicCustomAttributes | undefined {
   if (!value) return undefined
@@ -18,7 +18,7 @@ function parseCustomAttributes(value: unknown): NewRelicCustomAttributes | undef
   }
 }
 
-export const NewRelicBlock: BlockConfig<NewRelicResponse> = {
+export const NewRelicBlock: BlockConfig = {
   type: 'new_relic',
   name: 'New Relic',
   description: 'Query observability data and record deployments in New Relic',
@@ -30,6 +30,25 @@ export const NewRelicBlock: BlockConfig<NewRelicResponse> = {
   integrationType: IntegrationType.Observability,
   bgColor: '#000000',
   icon: NewRelicIcon,
+  canvasPresentation: {
+    defaultTitle: 'New Relic',
+    sentences: {
+      byOperation: {
+        new_relic_nrql_query: [
+          { text: 'Run NRQL query', field: 'nrql', core: true },
+          { text: 'on account', field: 'accountId' },
+        ],
+        new_relic_search_entities: [
+          { text: 'Search entities matching', field: 'query', core: true },
+        ],
+        new_relic_get_entity: [{ text: 'Fetch entity', field: 'guid', core: true }],
+        new_relic_create_deployment_event: [
+          { text: 'Record deployment', field: 'version', core: true },
+          { text: 'on entity', field: 'entityGuid' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

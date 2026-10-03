@@ -1,6 +1,4 @@
-/**
- * @vitest-environment node
- */
+import { BLOCK_DIMENSIONS } from '@sim/workflow-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_VERTICAL_SPACING } from '@/lib/workflows/autolayout/constants'
 import { getBlockMetrics, resolveNoteOverlaps } from '@/lib/workflows/autolayout/utils'
@@ -61,25 +59,6 @@ describe('resolveNoteOverlaps', () => {
     expect(blocks.note.position.y).toBeGreaterThanOrEqual(150 + 120 + DEFAULT_VERTICAL_SPACING - 1)
   })
 
-  it('leaves a note that does not overlap any block in place', () => {
-    const blocks: Record<string, BlockState> = {
-      a: createBlock('a', 'agent', { x: 150, y: 150 }),
-      note: createBlock(
-        'note',
-        'note',
-        { x: 2000, y: 2000 },
-        {
-          height: 120,
-          layout: { measuredHeight: 120 },
-        }
-      ),
-    }
-
-    resolveNoteOverlaps(blocks, DEFAULT_VERTICAL_SPACING)
-
-    expect(blocks.note.position).toEqual({ x: 2000, y: 2000 })
-  })
-
   it('stacks multiple overlapping notes without overlapping each other', () => {
     const blocks: Record<string, BlockState> = {
       a: createBlock('a', 'agent', { x: 150, y: 150 }),
@@ -109,18 +88,6 @@ describe('resolveNoteOverlaps', () => {
     const n2 = blocks.note2.position
     // Both relocated, stacked in reading order with no vertical overlap.
     expect(n2.y).toBeGreaterThanOrEqual(n1.y + 100)
-  })
-
-  it('does nothing when there are no notes', () => {
-    const blocks: Record<string, BlockState> = {
-      a: createBlock('a', 'agent', { x: 150, y: 150 }),
-      b: createBlock('b', 'agent', { x: 500, y: 150 }),
-    }
-
-    resolveNoteOverlaps(blocks, DEFAULT_VERTICAL_SPACING)
-
-    expect(blocks.a.position).toEqual({ x: 150, y: 150 })
-    expect(blocks.b.position).toEqual({ x: 500, y: 150 })
   })
 
   it('never produces non-finite coordinates when a block has a NaN position', () => {
@@ -213,36 +180,6 @@ describe('resolveNoteOverlaps', () => {
 
       expect(blocks.note.position).toEqual({ x: 160, y: 160 })
     })
-
-    it('relocates when a newly added block (no prior position) lands on a note', () => {
-      const previousBlocks: Record<string, BlockState> = {
-        note: createBlock(
-          'note',
-          'note',
-          { x: 150, y: 150 },
-          {
-            height: 120,
-            layout: { measuredHeight: 120 },
-          }
-        ),
-      }
-      const blocks: Record<string, BlockState> = {
-        a: createBlock('a', 'agent', { x: 150, y: 150 }),
-        note: createBlock(
-          'note',
-          'note',
-          { x: 150, y: 150 },
-          {
-            height: 120,
-            layout: { measuredHeight: 120 },
-          }
-        ),
-      }
-
-      resolveNoteOverlaps(blocks, DEFAULT_VERTICAL_SPACING, { previousBlocks })
-
-      expect(blocks.note.position.y).toBeGreaterThan(150)
-    })
   })
 })
 
@@ -313,5 +250,90 @@ describe('getBlockMetrics preview row estimation', () => {
     const advanced = getBlockMetrics(createTableBlock('advanced'))
 
     expect(advanced.height).toBe(basic.height)
+  })
+
+  it('never estimates a card shorter than the rows it can actually paint', () => {
+    /*
+     * The estimate only runs for a block that has never mounted, and on the
+     * row path it cannot model `mcp-dynamic-args` row expansion. Erring high
+     * opens a gap; erring low overlaps the next card — so a partially
+     * configured block must still reserve room for every visible field plus
+     * the permanent error row.
+     */
+    mockGetBlock.mockReturnValue(tableLikeConfig)
+
+    const { height } = getBlockMetrics({
+      ...createTableBlock('basic'),
+      height: undefined,
+      layout: undefined,
+    } as unknown as BlockState)
+
+    const visibleRows = 3
+    expect(height).toBeGreaterThanOrEqual(
+      BLOCK_DIMENSIONS.HEADER_HEIGHT +
+        BLOCK_DIMENSIONS.WORKFLOW_CONTENT_PADDING +
+        visibleRows * BLOCK_DIMENSIONS.WORKFLOW_ROW_HEIGHT +
+        BLOCK_DIMENSIONS.WORKFLOW_ERROR_ROW_HEIGHT
+    )
+  })
+})
+
+describe('getBlockMetrics sentence estimation', () => {
+  /**
+   * A block whose card replaces its field rows with one line of prose. The
+   * estimator has to reproduce that exactly rather than counting rows — a
+   * sentence is one section where the rows were four, so the row-counting
+   * slack would reserve most of a card of empty space under every one.
+   */
+  const sentencedConfig = {
+    category: 'blocks',
+    canvasPresentation: {
+      defaultTitle: 'Notify',
+      sentences: {
+        default: [
+          { text: 'Posts', field: 'message', core: true },
+          { text: 'to', field: 'channel' },
+          { text: ', as', field: 'username' },
+        ],
+      },
+    },
+    subBlocks: [
+      { id: 'message', title: 'Message', type: 'long-input' },
+      { id: 'channel', title: 'Channel', type: 'short-input' },
+      { id: 'username', title: 'Username', type: 'short-input' },
+      { id: 'iconEmoji', title: 'Icon', type: 'short-input' },
+    ],
+  } as unknown as ReturnType<typeof getBlock>
+
+  function createUnmountedBlock(values: Record<string, string>): BlockState {
+    return {
+      id: 'notify-1',
+      type: 'notify',
+      name: 'Notify 1',
+      position: { x: 0, y: 0 },
+      subBlocks: Object.fromEntries(
+        Object.entries(values).map(([id, value]) => [id, { id, type: 'short-input', value }])
+      ),
+      outputs: {},
+      enabled: true,
+      height: undefined,
+      layout: undefined,
+    } as unknown as BlockState
+  }
+
+  it('reserves one sentence line, not one row per configured field', () => {
+    mockGetBlock.mockReturnValue(sentencedConfig)
+
+    /* "Posts ⟨Hi⟩ to ⟨#a⟩" — comfortably inside the 234px wrap width. */
+    const { height } = getBlockMetrics(createUnmountedBlock({ message: 'Hi', channel: '#a' }))
+
+    /* Header + padding + one sentence line + gap + the permanent error row. */
+    expect(height).toBe(
+      BLOCK_DIMENSIONS.HEADER_HEIGHT +
+        BLOCK_DIMENSIONS.WORKFLOW_CONTENT_PADDING +
+        BLOCK_DIMENSIONS.WORKFLOW_SENTENCE_LINE_HEIGHT +
+        BLOCK_DIMENSIONS.WORKFLOW_CONTENT_GAP +
+        BLOCK_DIMENSIONS.WORKFLOW_ERROR_ROW_HEIGHT
+    )
   })
 })

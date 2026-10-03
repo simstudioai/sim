@@ -6,14 +6,17 @@ import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { and, eq, or, type SQL, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { canonicalJson } from '@/lib/api/cursor-binding'
 import { getColumnId } from '@/lib/table/column-keys'
 import type { CoerceResult, TypeSpecificColumnKey } from '@/lib/table/column-types'
 import {
   COLUMN_TYPE_REGISTRY,
   COLUMN_TYPES,
   columnTypeOf,
+  columnValueForEquality,
   isColumnType,
   TYPE_SPECIFIC_COLUMN_KEYS,
+  validateColumnTypeLimits,
   validateTypeMetadata,
 } from '@/lib/table/column-types'
 import {
@@ -24,7 +27,7 @@ import {
 } from '@/lib/table/constants'
 import { withSeqscanOff } from '@/lib/table/planner'
 import { resolveSelectOptionId, splitMultiSelectInput } from '@/lib/table/select-options'
-import { fieldPredicate } from '@/lib/table/sql'
+import { uniqueValuePredicate } from '@/lib/table/sql'
 import type {
   ColumnDefinition,
   JsonValue,
@@ -62,6 +65,8 @@ export interface ValidateRowOptions {
   tableId: string
   excludeRowId?: string
   checkUnique?: boolean
+  /** See {@link UncoercibleValuePolicy}. Defaults to `null` — first-party behavior. */
+  uncoercibleValues?: UncoercibleValuePolicy
 }
 
 /** Error information for a single row in batch validation. */
@@ -76,6 +81,8 @@ export interface ValidateBatchRowsOptions {
   schema: TableSchema
   tableId: string
   checkUnique?: boolean
+  /** See {@link UncoercibleValuePolicy}. Defaults to `null` — first-party behavior. */
+  uncoercibleValues?: UncoercibleValuePolicy
 }
 
 /**
@@ -85,7 +92,7 @@ export interface ValidateBatchRowsOptions {
 export async function validateRowData(
   options: ValidateRowOptions
 ): Promise<ValidationSuccess | ValidationFailure> {
-  const { rowData, schema, tableId, excludeRowId, checkUnique = true } = options
+  const { rowData, schema, tableId, excludeRowId, checkUnique = true, uncoercibleValues } = options
 
   const sizeValidation = validateRowSize(rowData)
   if (!sizeValidation.valid) {
@@ -98,7 +105,7 @@ export async function validateRowData(
     }
   }
 
-  const schemaValidation = coerceRowToSchema(rowData, schema)
+  const schemaValidation = coerceRowToSchema(rowData, schema, uncoercibleValues)
   if (!schemaValidation.valid) {
     return {
       valid: false,
@@ -134,7 +141,7 @@ export async function validateRowData(
 export async function validateBatchRows(
   options: ValidateBatchRowsOptions
 ): Promise<ValidationSuccess | ValidationFailure> {
-  const { rows, schema, tableId, checkUnique = true } = options
+  const { rows, schema, tableId, checkUnique = true, uncoercibleValues } = options
   const errors: BatchRowError[] = []
 
   for (let i = 0; i < rows.length; i++) {
@@ -146,7 +153,7 @@ export async function validateBatchRows(
       continue
     }
 
-    const schemaValidation = coerceRowToSchema(rowData, schema)
+    const schemaValidation = coerceRowToSchema(rowData, schema, uncoercibleValues)
     if (!schemaValidation.valid) {
       errors.push({ row: i, errors: schemaValidation.errors })
     }
@@ -240,7 +247,17 @@ export function validateTableSchema(schema: TableSchema): ValidationResult {
     errors.push('Duplicate column names found')
   }
 
+  errors.push(...validateColumnTypeLimits(schema.columns))
+
   return { valid: errors.length === 0, errors }
+}
+
+/**
+ * The cell `row` holds for `columnId`, read as an own property: a legacy column keyed by its name
+ * can be called `constructor`, which a plain index would find on every row's prototype.
+ */
+export function cellOf(row: RowData, columnId: string): JsonValue | undefined {
+  return Object.hasOwn(row, columnId) ? row[columnId] : undefined
 }
 
 /** Validates row data matches schema column types and required fields. */
@@ -248,7 +265,7 @@ export function validateRowAgainstSchema(data: RowData, schema: TableSchema): Va
   const errors: string[] = []
 
   for (const column of schema.columns) {
-    const value = data[getColumnId(column)]
+    const value = cellOf(data, getColumnId(column))
 
     if (column.required && (value === undefined || value === null)) {
       errors.push(`Missing required field: ${column.name}`)
@@ -275,24 +292,83 @@ function coerceValueToColumnType(value: JsonValue, column: ColumnDefinition): Co
 }
 
 /**
+ * What a write does with a value its column's type cannot coerce.
+ *
+ * - `null` — blank the cell rather than fail the row. **The default**, and what
+ *   every first-party surface does: the workspace grid, the internal
+ *   `/api/table` routes, `/api/v1`, the Copilot table tools, the executor's
+ *   Table block, CSV import, and the workflow/enrichment writers. A tool
+ *   returning `"unknown"` for a numeric column nulls that one cell rather than
+ *   failing the entire row write.
+ * - `reject` — leave the value in place so the following
+ *   {@link validateRowAgainstSchema} reports it and the write fails. Opted into
+ *   by the `/api/v2` surface only, whose published contract is that a value it
+ *   cannot store exactly is answered with a 400 rather than stored as `null`.
+ *
+ * Under `null` a value the column type can still read lossily is kept rather
+ * than blanked — see `ColumnTypeDefinition.salvage`, which is why a cell naming
+ * two live options and one deleted one stores the two rather than nothing. A
+ * `required` column is never blanked under either policy: a null would fail the
+ * required check immediately after.
+ */
+export type UncoercibleValuePolicy = 'reject' | 'null'
+
+/**
+ * The keys of `data` this write's caller actually supplied, for when `data` is a
+ * MERGED row (stored cells overlaid with a patch) rather than the patch alone.
+ * Keys outside the set are pre-existing storage, so they fall back to the `null`
+ * policy whatever the caller's policy is: a legacy cell that no longer fits its
+ * column was written by an earlier request, and failing this one over it refuses
+ * an unrelated column's update — and, on a paged bulk job, refuses it after the
+ * earlier pages have already committed. The blanking stays in the in-memory
+ * copy; every merged-row caller persists only the patched keys.
+ *
+ * Omit it when every key in `data` is caller-supplied — a whole-row insert, or a
+ * patch validated on its own.
+ */
+export type PatchedKeys = readonly string[]
+
+function policyResolver(
+  policy: UncoercibleValuePolicy,
+  patchedKeys: PatchedKeys | undefined
+): (key: string) => UncoercibleValuePolicy {
+  if (patchedKeys === undefined) return () => policy
+  const patched = new Set(patchedKeys)
+  return (key) => (patched.has(key) ? policy : 'null')
+}
+
+/**
  * Coerces each present value in `data` toward its column's declared type **in
  * place**. Values that already match are untouched; unambiguous conversions
- * (e.g. `"1999"` → `1999`) are applied; values that cannot be coerced are set to
- * `null` when the column is optional, or left in place when required (so a
- * subsequent {@link validateRowAgainstSchema} reports them).
+ * (e.g. `"1999"` → `1999`) are applied; values that cannot be coerced are
+ * handled per {@link UncoercibleValuePolicy}, narrowed per key by
+ * {@link PatchedKeys}.
  *
  * Operates per-present-column, so it is safe on a partial patch (columns absent
  * from `data` are skipped — it never invents a missing-required-field error).
  */
-export function coerceRowValues(data: RowData, schema: TableSchema): void {
+export function coerceRowValues(
+  data: RowData,
+  schema: TableSchema,
+  policy: UncoercibleValuePolicy = 'null',
+  patchedKeys?: PatchedKeys
+): void {
+  const policyFor = policyResolver(policy, patchedKeys)
   for (const column of schema.columns) {
     const key = getColumnId(column)
-    const value = data[key]
+    const value = cellOf(data, key)
     if (value === null || value === undefined) continue
 
     const coerced = coerceValueToColumnType(value, column)
     if (coerced.ok) {
       data[key] = coerced.value
+      continue
+    }
+    if (policyFor(key) !== 'null') continue
+
+    const salvaged = columnTypeOf(column).salvage?.(value, column)
+    if (salvaged?.ok) {
+      data[key] = salvaged.value
     } else if (!column.required) {
       data[key] = null
     }
@@ -304,14 +380,20 @@ export function coerceRowValues(data: RowData, schema: TableSchema): void {
  * then validates the result.
  *
  * This is the write-path entry point — callers that persist a complete row use
- * it instead of {@link validateRowAgainstSchema} so a single off-type field (a
- * tool returning `"unknown"` for a numeric column, say) nulls that one cell
- * rather than failing the entire row write. Callers persisting only a partial
- * patch should use {@link coerceRowValues} on the patch and validate the merged
- * row separately.
+ * it instead of {@link validateRowAgainstSchema} so the coercion and the check
+ * that follows it can never disagree about what a cell holds.
+ *
+ * A caller validating a MERGED row — stored cells overlaid with a patch — passes
+ * the patch's keys as {@link PatchedKeys} so the strict policy applies to what
+ * this request sent and not to what was already there.
  */
-export function coerceRowToSchema(data: RowData, schema: TableSchema): ValidationResult {
-  coerceRowValues(data, schema)
+export function coerceRowToSchema(
+  data: RowData,
+  schema: TableSchema,
+  policy: UncoercibleValuePolicy = 'null',
+  patchedKeys?: PatchedKeys
+): ValidationResult {
+  coerceRowValues(data, schema, policy, patchedKeys)
   return validateRowAgainstSchema(data, schema)
 }
 
@@ -333,37 +415,21 @@ export function getUniqueColumns(schema: TableSchema): ColumnDefinition[] {
   return schema.columns.filter((col) => col.unique === true)
 }
 
-/** Validates unique constraints against existing rows (in-memory version for batch validation within a batch). */
-export function validateUniqueConstraints(
-  data: RowData,
-  schema: TableSchema,
-  existingRows: { id: string; data: RowData; position?: number }[],
-  excludeRowId?: string
-): ValidationResult {
-  const errors: string[] = []
-  const uniqueColumns = getUniqueColumns(schema)
+/**
+ * The unique columns `patch` writes. A patch applied to more than one row cannot write any of them
+ * without storing a duplicate.
+ */
+export function uniqueColumnsInPatch(schema: TableSchema, patch: RowData): ColumnDefinition[] {
+  return getUniqueColumns(schema).filter((column) => Object.hasOwn(patch, getColumnId(column)))
+}
 
-  for (const column of uniqueColumns) {
-    const key = getColumnId(column)
-    const value = data[key]
-    if (value === null || value === undefined) continue
-
-    const duplicate = existingRows.find((row) => {
-      if (excludeRowId && row.id === excludeRowId) return false
-      // Case-sensitive, matching the DB unique-check leaf (`fieldPredicate` eq).
-      return value === row.data[key]
-    })
-
-    if (duplicate) {
-      const rowLabel =
-        typeof duplicate.position === 'number' ? `row ${duplicate.position + 1}` : duplicate.id
-      errors.push(
-        `Column "${column.name}" must be unique. Value "${value}" already exists in ${rowLabel}`
-      )
-    }
-  }
-
-  return { valid: errors.length === 0, errors }
+/**
+ * The key two unique-column values share when the unique check treats them as equal. Object keys
+ * are sorted, since the check compares JSONB, where key order carries no meaning. In-batch
+ * duplicate detection and the unique-value locks both key on it.
+ */
+export function uniqueValueKey(value: JsonValue, column: ColumnDefinition): string {
+  return canonicalJson(columnValueForEquality(value, column))
 }
 
 /**
@@ -394,13 +460,14 @@ export async function checkUniqueConstraintsDb(
 
   for (const column of uniqueColumns) {
     const key = getColumnId(column)
-    const value = data[key]
+    const value = cellOf(data, key)
     if (value === null || value === undefined) continue
 
-    // Same leaf as the upsert conflict probe → case-sensitive JSONB containment
-    // (GIN-indexed). `eq` always yields a clause for a non-null value.
-    const clause = fieldPredicate(USER_TABLE_ROWS_SQL_NAME, key, 'eq', value, column)
-    if (clause) conditions.push({ column, value, sql: clause })
+    conditions.push({
+      column,
+      value,
+      sql: uniqueValuePredicate(USER_TABLE_ROWS_SQL_NAME, key, value, column),
+    })
   }
 
   if (conditions.length === 0) {
@@ -408,12 +475,13 @@ export async function checkUniqueConstraintsDb(
   }
 
   // Query for each unique column separately to provide specific error messages.
-  // The predicate is now case-sensitive JSONB containment (`data @> {...}`),
+  // The predicate leads with case-sensitive JSONB containment (`data @> {...}`),
   // which can use the GIN index. We still pin `enable_seqscan = off` (tenant-
   // bounded) defensively for the small-table / cold-stats case. With an external
-  // transaction the flag is set on it directly — opening our own transaction
-  // inside the caller's would be the nested pool checkout the migration-
-  // hardening work eliminated (self-deadlock under pool exhaustion).
+  // transaction the flag is set on it for the check only (see withSeqscanOffOn)
+  // — opening our own transaction inside the caller's would be the nested pool
+  // checkout the migration-hardening work eliminated (self-deadlock under pool
+  // exhaustion).
   const checkConditions = async (ex: UniqueCheckExecutor) => {
     for (const condition of conditions) {
       const baseCondition = and(eq(userTableRows.tableId, tableId), condition.sql)
@@ -439,11 +507,28 @@ export async function checkUniqueConstraintsDb(
   if (executor === db) {
     await withSeqscanOff(async (trx) => checkConditions(trx))
   } else {
-    await executor.execute(sql`SET LOCAL enable_seqscan = off`)
-    await checkConditions(executor)
+    await withSeqscanOffOn(executor, () => checkConditions(executor))
   }
 
   return { valid: errors.length === 0, errors }
+}
+
+/**
+ * Runs `check` on the caller's open transaction with seq scans penalized, then puts back the
+ * transaction's previous setting. Unique checks now run inside write transactions ahead of the
+ * row-order lock, and leaving the flag off for the rest of the transaction slowed the locked
+ * position and INSERT statements that follow. Reading the previous value and setting the new one
+ * in one statement keeps it one round trip each way; a caller that set the flag itself keeps it.
+ */
+async function withSeqscanOffOn(
+  executor: UniqueCheckExecutor,
+  check: () => Promise<void>
+): Promise<void> {
+  const [{ previous }] = await executor.execute<{ previous: string }>(sql`
+    SELECT current_setting('enable_seqscan') AS previous, set_config('enable_seqscan', 'off', true)
+  `)
+  await check()
+  await executor.execute(sql`SELECT set_config('enable_seqscan', ${previous}, true)`)
 }
 
 /**
@@ -495,10 +580,10 @@ export async function checkBatchUniqueConstraintsDb(
 
     for (const column of uniqueColumns) {
       const key = getColumnId(column)
-      const value = rowData[key]
+      const value = cellOf(rowData, key)
       if (value === null || value === undefined) continue
 
-      const normalizedValue = JSON.stringify(value)
+      const normalizedValue = uniqueValueKey(value, column)
 
       // Check for duplicate within batch
       const columnValueMap = batchValueMap.get(key)!
@@ -521,9 +606,8 @@ export async function checkBatchUniqueConstraintsDb(
   // Now check against database for all unique values at once. Tenant-bounded
   // for the same reason as checkUniqueConstraintsDb: the lower(data->>...)
   // predicates are unestimatable and otherwise trigger whole-relation seq
-  // scans. With an external transaction the flag is set on it directly (SET
-  // LOCAL dies at its commit; it only penalizes plan shape, and the statements
-  // that follow in those transactions are tenant-scoped writes).
+  // scans. With an external transaction the flag is set on it for the check
+  // only (see withSeqscanOffOn).
   const checkColumns = async (ex: UniqueCheckExecutor) => {
     for (const [columnId, { values, column }] of valuesByColumn) {
       if (values.size === 0) continue
@@ -541,18 +625,7 @@ export async function checkBatchUniqueConstraintsDb(
         // string — a unique `date` column normalized to a bare `2024-01-01`
         // and then threw `SyntaxError` trying to parse it back.
         const originalValue: JsonValue = JSON.parse(normalizedValue)
-        // Same case-sensitive containment leaf as every other matcher.
-        const clause = fieldPredicate(
-          USER_TABLE_ROWS_SQL_NAME,
-          columnId,
-          'eq',
-          originalValue,
-          column
-        )
-        if (!clause) {
-          throw new Error(`Failed to build unique-constraint predicate for column "${column.name}"`)
-        }
-        return clause
+        return uniqueValuePredicate(USER_TABLE_ROWS_SQL_NAME, columnId, originalValue, column)
       })
 
       const conflictingRows = await ex
@@ -568,19 +641,17 @@ export async function checkBatchUniqueConstraintsDb(
       // Map conflicts back to batch rows
       for (const conflict of conflictingRows) {
         const conflictData = conflict.data as RowData
-        const conflictValue = conflictData[columnId]
-        const normalizedConflictValue =
-          typeof conflictValue === 'string' ? conflictValue : JSON.stringify(conflictValue)
+        const conflictValue = cellOf(conflictData, columnId)
+        if (conflictValue === null || conflictValue === undefined) continue
+        // Keyed like the batch, since stored jsonb comes back with its keys reordered.
+        const normalizedConflictValue = uniqueValueKey(conflictValue, column)
 
         // Find which batch rows have this conflicting value
         for (let i = 0; i < rows.length; i++) {
-          const rowValue = rows[i][columnId]
+          const rowValue = cellOf(rows[i], columnId)
           if (rowValue === null || rowValue === undefined) continue
 
-          const normalizedRowValue =
-            typeof rowValue === 'string' ? rowValue : JSON.stringify(rowValue)
-
-          if (normalizedRowValue === normalizedConflictValue) {
+          if (uniqueValueKey(rowValue, column) === normalizedConflictValue) {
             // Check if this row already has errors for this column
             let rowError = rowErrors.find((e) => e.row === i)
             if (!rowError) {
@@ -601,8 +672,7 @@ export async function checkBatchUniqueConstraintsDb(
   if (executor === db) {
     await withSeqscanOff(async (trx) => checkColumns(trx))
   } else {
-    await executor.execute(sql`SET LOCAL enable_seqscan = off`)
-    await checkColumns(executor)
+    await withSeqscanOffOn(executor, () => checkColumns(executor))
   }
 
   // Sort errors by row index

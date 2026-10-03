@@ -1,5 +1,4 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import { buildQuickBooksCreatePurchaseOrderBody } from '@/tools/quickbooks/purchasing_utils'
 import type {
   QuickBooksCreatePurchaseOrderParams,
@@ -39,6 +38,12 @@ export const quickbooksCreatePurchaseOrderTool: ToolConfig<
       visibility: 'hidden',
       description: 'QuickBooks company ID derived from the connected credential',
     },
+    quickBooksEnvironment: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'QuickBooks API environment derived from the connected credential',
+    },
     vendorId: {
       type: 'string',
       required: true,
@@ -75,6 +80,26 @@ export const quickbooksCreatePurchaseOrderTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Internal purchase-order note',
     },
+    currencyCode: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Three-letter ISO 4217 currency code, required when multicurrency is enabled for the company',
+    },
+    globalTaxCalculation: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Tax treatment required for non-US companies: TaxExcluded, TaxInclusive, or NotApplicable',
+    },
+    dueDate: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Date the payment is due in YYYY-MM-DD format',
+    },
     requestId: {
       type: 'string',
       required: false,
@@ -85,20 +110,17 @@ export const quickbooksCreatePurchaseOrderTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'quickbooks',
+    authoritativeParams: ['realmId', 'quickBooksEnvironment'],
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
   request: {
     url: (p) =>
-      addQuickBooksRequestId(
-        buildQuickBooksEntityUrl(p.realmId, 'purchaseorder'),
-        p.requestId
-      ).toString(),
+      addQuickBooksRequestId(buildQuickBooksEntityUrl(p, 'purchaseorder'), p.requestId).toString(),
     method: 'POST',
     headers: (p) => getQuickBooksToolHeaders(p.accessToken, 'application/json'),
     body: buildQuickBooksCreatePurchaseOrderBody,
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: (r) =>
     transformQuickBooksMutationResponse<QuickBooksPurchasingTransaction>(r, 'PurchaseOrder'),

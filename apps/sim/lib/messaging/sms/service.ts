@@ -12,10 +12,6 @@ export interface SMSOptions {
   from?: string
 }
 
-interface BatchSMSOptions {
-  messages: SMSOptions[]
-}
-
 interface SMSResponseData {
   sid?: string
   status?: string
@@ -29,13 +25,6 @@ interface SMSResponseData {
 export interface SendSMSResult {
   success: boolean
   message: string
-  data?: SMSResponseData
-}
-
-interface BatchSendSMSResult {
-  success: boolean
-  message: string
-  results: SendSMSResult[]
   data?: SMSResponseData
 }
 
@@ -144,42 +133,5 @@ async function sendSingleSMS(to: string, body: string, from: string): Promise<Se
   } catch (error) {
     logger.error('Failed to send SMS via Twilio:', error)
     throw error
-  }
-}
-
-async function sendBatchSMS(options: BatchSMSOptions): Promise<BatchSendSMSResult> {
-  try {
-    const results: SendSMSResult[] = []
-
-    logger.info('Sending batch SMS messages')
-    for (const smsOptions of options.messages) {
-      try {
-        const result = await sendSMS(smsOptions)
-        results.push(result)
-      } catch (error) {
-        results.push({
-          success: false,
-          message: getErrorMessage(error, 'Failed to send SMS'),
-        })
-      }
-    }
-
-    const successCount = results.filter((r) => r.success).length
-    return {
-      success: successCount === results.length,
-      message:
-        successCount === results.length
-          ? 'All batch SMS messages sent successfully'
-          : `${successCount}/${results.length} SMS messages sent successfully`,
-      results,
-      data: { count: successCount },
-    }
-  } catch (error) {
-    logger.error('Error in batch SMS sending:', error)
-    return {
-      success: false,
-      message: 'Failed to send batch SMS messages',
-      results: [],
-    }
   }
 }

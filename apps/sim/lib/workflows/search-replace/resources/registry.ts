@@ -4,10 +4,10 @@ import type {
   WorkflowSearchMatch,
   WorkflowSearchMatchKind,
   WorkflowSearchResourceMeta,
+  WorkflowSearchSelectorContext,
   WorkflowSearchValuePath,
 } from '@/lib/workflows/search-replace/types'
 import type { SubBlockConfig } from '@/blocks/types'
-import type { SelectorContext } from '@/hooks/selectors/types'
 
 export type StructuredWorkflowSearchResourceKind = Exclude<
   WorkflowSearchMatchKind,
@@ -21,7 +21,7 @@ interface ResourceCodecParseParams {
     SubBlockConfig,
     'type' | 'serviceId' | 'selectorKey' | 'requiredScopes' | 'multiSelect' | 'multiple'
   >
-  selectorContext?: SelectorContext
+  selectorContext?: WorkflowSearchSelectorContext
 }
 
 export interface StructuredResourceReference {
@@ -39,6 +39,7 @@ interface ResourceCodecReplaceResult {
 }
 
 interface WorkflowSearchResourceCodec {
+  remap?(value: unknown, resolve: (sourceId: string) => string): unknown
   parse(params: ResourceCodecParseParams): StructuredResourceReference[]
   contains(value: unknown, rawValue: string): boolean
   replace(
@@ -69,7 +70,7 @@ function createResourceMeta({
   kind: StructuredWorkflowSearchResourceKind
   rawValue: string
   subBlockConfig: Pick<SubBlockConfig, 'serviceId' | 'selectorKey' | 'requiredScopes'>
-  selectorContext?: SelectorContext
+  selectorContext?: WorkflowSearchSelectorContext
 }): WorkflowSearchResourceMeta {
   const resource: WorkflowSearchResourceMeta = {
     kind,
@@ -135,7 +136,10 @@ function replaceCommaResourceValue(
       }
       return { success: true, nextValue }
     }
-    const nextValue = shouldReplace(value) ? replacement : value
+    // Compare the TRIMMED token, matching what `parse` and `contains` produced. Comparing the
+    // raw string made a padded single value (`" tbl_abc"`) unmatchable here even though it was
+    // detected as a reference, so it could never be remapped nor cleared and stuck forever.
+    const nextValue = shouldReplace(parts[0]) ? replacement : value
     if (targetOccurrenceIndex !== undefined && !replaced) {
       return { success: false, reason: 'Target resource changed since search' }
     }
@@ -193,6 +197,24 @@ function parseFileReplacement(replacement: string): ResourceCodecReplaceResult {
 }
 
 const scalarResourceCodec: WorkflowSearchResourceCodec = {
+  remap(value, resolve) {
+    const map = (item: unknown): unknown => {
+      if (Array.isArray(item)) {
+        const next = item.map(map)
+        return next.some((value, index) => value !== item[index]) ? next : item
+      }
+      if (typeof item !== 'string') return item
+      return item
+        .split(',')
+        .map((part) => {
+          const id = part.trim()
+          const target = id ? resolve(id) : id
+          return target === id ? part : target
+        })
+        .join(',')
+    }
+    return map(value)
+  },
   parse({ value, kind, subBlockConfig, selectorContext }) {
     const values = splitCommaResourceValue(value)
     return values.map((rawValue, index) => ({
@@ -353,6 +375,16 @@ const WORKFLOW_SEARCH_SUBBLOCK_RESOURCES: Partial<
   'project-selector': { kind: 'selector-resource', codec: scalarResourceCodec },
 }
 
+/**
+ * Every sub-block type that carries a resource reference. This registry is the single source of
+ * truth for "does this field hold an id scoped to a workspace or a credential", so consumers that
+ * need that answer derive it from here rather than keeping a parallel hand-written list — see
+ * `sanitizeWorkflowForSharing`, whose hand-maintained copy had silently omitted `table-selector`.
+ */
+export const WORKFLOW_SEARCH_SUBBLOCK_RESOURCE_TYPES = Object.keys(
+  WORKFLOW_SEARCH_SUBBLOCK_RESOURCES
+) as SubBlockType[]
+
 export function getWorkflowSearchResourceKindDefinition(
   kind: WorkflowSearchMatchKind
 ): WorkflowSearchResourceKindDefinition | null {
@@ -396,7 +428,7 @@ export function parseWorkflowSearchSubBlockResources(
     SubBlockConfig,
     'type' | 'serviceId' | 'selectorKey' | 'requiredScopes' | 'multiSelect' | 'multiple'
   >,
-  selectorContext?: SelectorContext
+  selectorContext?: WorkflowSearchSelectorContext
 ): StructuredResourceReference[] {
   const definition = getWorkflowSearchSubBlockResourceDefinition(subBlockConfig)
   if (!definition || !subBlockConfig) return []

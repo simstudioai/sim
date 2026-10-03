@@ -1,11 +1,11 @@
+import { encodeJupyterPath } from '@/lib/internal/jupyter/protocol'
 import type {
   JupyterDeleteContentParams,
   JupyterDeleteContentResponse,
 } from '@/tools/jupyter/types'
-import { encodeJupyterPath } from '@/tools/jupyter/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jupyterDeleteContentTool: ToolConfig<
+export const jupyterDeleteContentTool: InternalToolConfig<
   JupyterDeleteContentParams,
   JupyterDeleteContentResponse
 > = {
@@ -35,11 +35,8 @@ export const jupyterDeleteContentTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/jupyter/proxy',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       serverUrl: params.serverUrl,
       token: params.token,
       method: 'DELETE',

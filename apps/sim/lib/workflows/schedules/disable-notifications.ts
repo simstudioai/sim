@@ -38,11 +38,7 @@ export async function notifyScheduleAutoDisabled(params: {
   try {
     const rows = await db
       .select({
-        sourceType: workflowSchedule.sourceType,
-        jobTitle: workflowSchedule.jobTitle,
         failedCount: workflowSchedule.failedCount,
-        sourceUserId: workflowSchedule.sourceUserId,
-        sourceWorkspaceId: workflowSchedule.sourceWorkspaceId,
         workflowId: workflowSchedule.workflowId,
         workflowName: workflow.name,
         workflowUserId: workflow.userId,
@@ -59,11 +55,9 @@ export async function notifyScheduleAutoDisabled(params: {
       return
     }
 
-    const isJob = row.sourceType === 'job'
-    const kind = isJob ? 'job' : 'workflow'
-    const ownerUserId = isJob ? row.sourceUserId : row.workflowUserId
-    const workspaceId = isJob ? row.sourceWorkspaceId : row.workflowWorkspaceId
-    const resourceName = (isJob ? row.jobTitle : row.workflowName) ?? undefined
+    const ownerUserId = row.workflowUserId
+    const workspaceId = row.workflowWorkspaceId
+    const resourceName = row.workflowName ?? undefined
 
     const recipients = await resolveRecipients(ownerUserId, workspaceId)
     if (recipients.length === 0) {
@@ -75,14 +69,13 @@ export async function notifyScheduleAutoDisabled(params: {
       return
     }
 
-    const manageLink = buildManageLink(workspaceId, isJob ? null : row.workflowId)
+    const manageLink = buildManageLink(workspaceId, row.workflowId)
     const subject = getEmailSubject('schedule-disabled')
 
     for (const recipient of recipients) {
       try {
         const html = await renderScheduleDisabledEmail({
           recipientName: recipient.name ?? undefined,
-          kind,
           resourceName,
           reason,
           failedCount: row.failedCount,
@@ -169,7 +162,6 @@ function buildManageLink(
   workspaceId: string | null,
   workflowId: string | null
 ): string | undefined {
-  if (!workspaceId) return undefined
-  const base = `${getBaseUrl()}/workspace/${workspaceId}`
-  return workflowId ? `${base}/w/${workflowId}` : `${base}/scheduled-tasks`
+  if (!workspaceId || !workflowId) return undefined
+  return `${getBaseUrl()}/workspace/${workspaceId}/w/${workflowId}`
 }

@@ -1,6 +1,5 @@
 import { filterUndefined } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import type {
   QuickBooksCreateItemParams,
   QuickBooksItem,
@@ -15,6 +14,7 @@ import {
 } from '@/tools/quickbooks/utils'
 import {
   optionalQuickBooksString,
+  quickBooksItemName,
   quickBooksReference,
   quickBooksWritableItemType,
   requiredQuickBooksString,
@@ -43,11 +43,17 @@ export const quickbooksCreateItemTool: ToolConfig<
       visibility: 'hidden',
       description: 'QuickBooks company ID derived from the connected credential',
     },
+    quickBooksEnvironment: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'QuickBooks API environment derived from the connected credential',
+    },
     name: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Unique item name',
+      description: 'Unique item name, up to 100 characters, without tabs, new lines, or colons',
     },
     itemType: {
       type: 'string',
@@ -60,7 +66,7 @@ export const quickbooksCreateItemTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Sales of Product Income account ID recording proceeds from the sale. Required for Service items, optional for Non-inventory items and for France locales',
+        'Sales of Product Income account ID recording proceeds from the sale. Intuit requires it for Service items except in France locales',
     },
     description: {
       type: 'string',
@@ -88,10 +94,10 @@ export const quickbooksCreateItemTool: ToolConfig<
     },
     expenseAccountId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'Cost of Goods Sold account ID used to pay the vendor for this item. Required for both Service and Non-inventory items, except in France locales where it is optional',
+        'Cost of Goods Sold account ID used to pay the vendor for this item. Intuit requires it for Service and Non-inventory items except in France locales',
     },
     taxable: {
       type: 'boolean',
@@ -109,25 +115,21 @@ export const quickbooksCreateItemTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'quickbooks',
+    authoritativeParams: ['realmId', 'quickBooksEnvironment'],
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
   request: {
     url: (params) =>
-      addQuickBooksRequestId(
-        buildQuickBooksEntityUrl(params.realmId, 'item'),
-        params.requestId
-      ).toString(),
+      addQuickBooksRequestId(buildQuickBooksEntityUrl(params, 'item'), params.requestId).toString(),
     method: 'POST',
     headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
     body: (params) => {
       const type = quickBooksWritableItemType(params.itemType)
       const incomeAccountId = optionalQuickBooksString(params.incomeAccountId)
-      if (type === 'Service' && incomeAccountId === undefined) {
-        throw new Error('incomeAccountId is required for Service items')
-      }
+      const expenseAccountId = optionalQuickBooksString(params.expenseAccountId)
       return filterUndefined({
-        Name: requiredQuickBooksString(params.name, 'name'),
+        Name: quickBooksItemName(requiredQuickBooksString(params.name, 'name')),
         Type: type,
         IncomeAccountRef:
           incomeAccountId === undefined
@@ -137,15 +139,14 @@ export const quickbooksCreateItemTool: ToolConfig<
         UnitPrice: validateQuickBooksOptionalNumber(params.unitPrice, 'unitPrice'),
         PurchaseDesc: optionalQuickBooksString(params.purchaseDescription),
         PurchaseCost: validateQuickBooksOptionalNumber(params.purchaseCost, 'purchaseCost'),
-        ExpenseAccountRef: quickBooksReference(
-          requiredQuickBooksString(params.expenseAccountId ?? '', 'expenseAccountId'),
-          'expenseAccountId'
-        ),
+        ExpenseAccountRef:
+          expenseAccountId === undefined
+            ? undefined
+            : quickBooksReference(expenseAccountId, 'expenseAccountId'),
         Taxable: params.taxable,
       })
     },
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: (response) =>
     transformQuickBooksMutationResponse<QuickBooksItem>(response, 'Item'),

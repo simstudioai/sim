@@ -2,6 +2,7 @@ import type {
   CalendlyListEventTypesParams,
   CalendlyListEventTypesResponse,
 } from '@/tools/calendly/types'
+import { toResourceUri } from '@/tools/calendly/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listEventTypesTool: ToolConfig<
@@ -69,11 +70,13 @@ export const listEventTypesTool: ToolConfig<
       const queryParams = []
 
       if (params.user) {
-        queryParams.push(`user=${encodeURIComponent(params.user)}`)
+        queryParams.push(`user=${encodeURIComponent(toResourceUri(params.user, 'users'))}`)
       }
 
       if (params.organization) {
-        queryParams.push(`organization=${encodeURIComponent(params.organization)}`)
+        queryParams.push(
+          `organization=${encodeURIComponent(toResourceUri(params.organization, 'organizations'))}`
+        )
       }
 
       if (params.count) {
@@ -88,8 +91,8 @@ export const listEventTypesTool: ToolConfig<
         queryParams.push(`sort=${encodeURIComponent(params.sort)}`)
       }
 
-      if (params.active === true) {
-        queryParams.push('active=true')
+      if (params.active !== undefined) {
+        queryParams.push(`active=${params.active}`)
       }
 
       return queryParams.length > 0 ? `${url}?${queryParams.join('&')}` : url

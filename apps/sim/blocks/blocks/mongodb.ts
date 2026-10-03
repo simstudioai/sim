@@ -2,9 +2,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { MongoDBIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { MongoDBIntrospectResponse, MongoDBResponse } from '@/tools/mongodb/types'
 
-export const MongoDBBlock: BlockConfig<MongoDBResponse | MongoDBIntrospectResponse> = {
+export const MongoDBBlock: BlockConfig = {
   type: 'mongodb',
   name: 'MongoDB',
   description: 'Connect to MongoDB database',
@@ -15,6 +14,36 @@ export const MongoDBBlock: BlockConfig<MongoDBResponse | MongoDBIntrospectRespon
   integrationType: IntegrationType.Databases,
   bgColor: '#FFFFFF',
   icon: MongoDBIcon,
+  canvasPresentation: {
+    defaultTitle: 'MongoDB',
+    sentences: {
+      byOperation: {
+        query: [
+          { text: 'Find documents in', field: 'collection', core: true },
+          { text: ', matching', field: 'query' },
+          { text: ', up to', field: 'limit', after: 'documents' },
+        ],
+        insert: [
+          { text: 'Insert', field: 'documents', core: true },
+          { text: 'into', field: 'collection', core: true },
+        ],
+        update: [
+          { text: 'Update documents in', field: 'collection', core: true },
+          { text: ', matching', field: 'filter' },
+          { text: ', setting', field: 'update' },
+        ],
+        delete: [
+          { text: 'Delete documents from', field: 'collection', core: true },
+          { text: ', matching', field: 'filter' },
+        ],
+        execute: [
+          { text: 'Run an aggregation pipeline on', field: 'collection', core: true },
+          { text: ', with stages', field: 'pipeline' },
+        ],
+        introspect: [{ text: 'List collections and indexes in', field: 'database', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -995,7 +1024,7 @@ export const MongoDBBlockMeta = {
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'sync'],
-      alsoIntegrations: ['pinecone', 'openai'],
+      alsoIntegrations: ['pinecone', 'embeddings'],
     },
     {
       icon: MongoDBIcon,

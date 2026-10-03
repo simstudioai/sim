@@ -1,5 +1,4 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import type {
   QuickBooksRunFinancialReportParams,
   QuickBooksRunFinancialReportResponse,
@@ -37,6 +36,12 @@ export const quickbooksRunFinancialReportTool: ToolConfig<
       visibility: 'hidden',
       description: 'QuickBooks company ID derived from the connected credential',
     },
+    quickBooksEnvironment: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'QuickBooks API environment derived from the connected credential',
+    },
     reportType: {
       type: 'string',
       required: true,
@@ -56,6 +61,13 @@ export const quickbooksRunFinancialReportTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Report end or as-of date in YYYY-MM-DD format',
     },
+    dateMacro: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Predefined QuickBooks report date range, such as this_fiscal_year_to_date; cannot be combined with startDate or endDate',
+    },
     accountingMethod: {
       type: 'string',
       required: false,
@@ -67,6 +79,13 @@ export const quickbooksRunFinancialReportTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description: 'Time period or business dimension used to summarize report columns',
+    },
+    quickZoomUrl: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Ask QuickBooks to generate quick-zoom drill-down links, returned as the href on report row values',
     },
     customerId: {
       type: 'string',
@@ -85,6 +104,12 @@ export const quickbooksRunFinancialReportTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description: 'Single QuickBooks account ID filter',
+    },
+    employeeId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Single QuickBooks employee ID filter, supported by Profit and Loss Detail',
     },
     itemId: {
       type: 'string',
@@ -162,6 +187,7 @@ export const quickbooksRunFinancialReportTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'quickbooks',
+    authoritativeParams: ['realmId', 'quickBooksEnvironment'],
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
@@ -170,7 +196,6 @@ export const quickbooksRunFinancialReportTool: ToolConfig<
     method: 'GET',
     headers: (params) => getQuickBooksToolHeaders(params.accessToken),
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: async (response, params) => {
     if (!params) throw new Error('QuickBooks report parameters are required')

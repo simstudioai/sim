@@ -107,8 +107,8 @@ export interface InstagramListStoriesResponse extends ToolResponse {
   }
 }
 
-/** Uploaded UserFile object, or a public HTTPS URL string (advanced paste / legacy). */
-export type InstagramMediaInput = RawFileInput | string
+/** Canonical Sim file uploaded in basic mode or referenced from a prior block. */
+export type InstagramMediaInput = RawFileInput
 
 export interface InstagramPublishImageParams extends InstagramAccessParams {
   image: InstagramMediaInput
@@ -136,8 +136,7 @@ export interface InstagramPublishStoryParams extends InstagramAccessParams {
 }
 
 export interface InstagramPublishCarouselParams extends InstagramAccessParams {
-  /** File array, single file, or comma-separated public URLs (prefix videos with video:). */
-  media: RawFileInput | RawFileInput[] | string
+  media: RawFileInput[]
   caption?: string
 }
 

@@ -67,7 +67,17 @@ export const sixtyfourEnrichCompanyTool: ToolConfig<
   },
 
   request: {
-    url: 'https://api.sixtyfour.ai/enrich-company',
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        targetCompany: params.targetCompany,
+        struct: params.struct,
+        researchPlan: params.researchPlan,
+        peopleFocusPrompt: params.peopleFocusPrompt,
+        leadStruct: params.leadStruct,
+      }),
+    },
+    url: 'https://api.sixtyfour.ai/company-intelligence',
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',

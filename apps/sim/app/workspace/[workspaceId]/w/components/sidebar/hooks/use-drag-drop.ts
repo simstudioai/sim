@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { noop } from '@sim/utils/helpers'
 import { useParams } from 'next/navigation'
 import { getFolderPath } from '@/lib/folders/tree'
+import { compareByOrder } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import { useReorderFolders } from '@/hooks/queries/folders'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
@@ -49,6 +51,112 @@ function isSameFolderScope(
   return (parentOrFolderId ?? null) === (scope ?? null)
 }
 
+/**
+ * A reorder that did not fully commit. Carries whether the failure was partial rather than a
+ * ready-made sentence, so the copy is chosen where it is presented and raw transport errors from
+ * the underlying requests never reach the user.
+ */
+class ReorderFailedError extends Error {
+  readonly partial: boolean
+
+  constructor(partial: boolean, causes: unknown[]) {
+    super(partial ? 'Reorder partially failed' : 'Reorder failed', { cause: causes })
+    this.name = 'ReorderFailedError'
+    this.partial = partial
+  }
+}
+
+/** The parts of a drag event this module needs, shared by React's synthetic event and the native one. */
+type DragLeaveLike = Pick<DragEvent, 'relatedTarget' | 'clientX' | 'clientY'>
+
+/**
+ * Whether a drag has genuinely left `element`, rather than crossing one of its internal boundaries.
+ *
+ * `relatedTarget` alone cannot answer this. `dragleave` bubbles, so a listener sees one for every
+ * descendant the pointer leaves, and Chrome reports `relatedTarget` as `null` on all of them
+ * (Firefox populates it). Reading "no related node" as "left the element" therefore treated every
+ * internal crossing as an exit — which cleared the drop indicator mid-drag, and `handleDrop` bails
+ * on a null indicator, so releasing just after a crossing did nothing at all. Rows nested inside an
+ * expanded folder cross the most boundaries, which is why it looked like open folders broke
+ * dragging outright.
+ *
+ * The pointer position is the reliable signal on every engine, so it backs the null case.
+ */
+function hasDragLeftElement(element: HTMLElement, e: DragLeaveLike): boolean {
+  const related = e.relatedTarget as Node | null
+  if (related) return !element.contains(related)
+  const rect = element.getBoundingClientRect()
+  return !(
+    e.clientX >= rect.left &&
+    e.clientX <= rect.right &&
+    e.clientY >= rect.top &&
+    e.clientY <= rect.bottom
+  )
+}
+
+/** Which half of a workflow row the pointer is in, deciding whether the drop line sits above or below. */
+function calculateDropPosition(e: React.DragEvent, element: HTMLElement): 'before' | 'after' {
+  const rect = element.getBoundingClientRect()
+  const midY = rect.top + rect.height / 2
+  return e.clientY < midY ? 'before' : 'after'
+}
+
+/**
+ * Folder rows take a third outcome: the middle band drops *into* the folder, while the outer
+ * quarters reorder around it.
+ */
+function calculateFolderDropPosition(
+  e: React.DragEvent,
+  element: HTMLElement
+): 'before' | 'inside' | 'after' {
+  const rect = element.getBoundingClientRect()
+  const relativeY = e.clientY - rect.top
+  const height = rect.height
+  if (relativeY < height * 0.25) return 'before'
+  if (relativeY > height * 0.75) return 'after'
+  return 'inside'
+}
+
+/** The folder a drop lands in: the target itself when dropping inside one, otherwise its scope. */
+function getDestinationFolderId(indicator: DropIndicator): string | null {
+  return indicator.position === 'inside'
+    ? indicator.targetId === 'root'
+      ? null
+      : indicator.targetId
+    : indicator.folderId
+}
+
+/**
+ * Insert index into the list of siblings **excluding** moving items. Must use the full
+ * `siblingItems` list for lookup: when the drop line targets the dragged row,
+ * `indicator.targetId` is not present in `remaining`, so indexing `remaining` alone
+ * returns -1 and corrupts the splice.
+ */
+function getInsertIndexInRemaining(
+  siblingItems: SiblingItem[],
+  movingIds: Set<string>,
+  indicator: DropIndicator
+): number {
+  if (indicator.position === 'inside') {
+    return siblingItems.filter((s) => !movingIds.has(s.id)).length
+  }
+
+  const targetIdx = siblingItems.findIndex((s) => s.id === indicator.targetId)
+  if (targetIdx === -1) {
+    return siblingItems.filter((s) => !movingIds.has(s.id)).length
+  }
+
+  if (indicator.position === 'before') {
+    return siblingItems.slice(0, targetIdx).filter((s) => !movingIds.has(s.id)).length
+  }
+
+  return siblingItems.slice(0, targetIdx + 1).filter((s) => !movingIds.has(s.id)).length
+}
+
+/** Whether a drag has left the element the handler is bound to. See {@link hasDragLeftElement}. */
+const isLeavingElement = (e: React.DragEvent<HTMLElement>): boolean =>
+  hasDragLeftElement(e.currentTarget, e)
+
 export function useDragDrop(options: UseDragDropOptions = {}) {
   const { disabled = false } = options
   const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(null)
@@ -64,14 +172,24 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
   const hoverExpandTimerRef = useRef<number | null>(null)
   const lastDragYRef = useRef<number>(0)
   const draggedSourceFolderRef = useRef<string | null>(null)
-  const siblingsCacheRef = useRef<Map<string, SiblingItem[]> | null>(null)
   const isDraggingRef = useRef(false)
+  /**
+   * Folders this drag spring-opened, so {@link handleDragEnd} can close the ones the drop did not
+   * land in. Only ever holds folders that were collapsed when the drag reached them, so a folder
+   * the user opened themselves is never touched.
+   */
+  const autoExpandedRef = useRef<Set<string> | null>(null)
 
   const params = useParams()
   const workspaceId = params.workspaceId as string | undefined
 
-  const reorderWorkflowsMutation = useReorderWorkflows()
-  const reorderFoldersMutation = useReorderFolders()
+  /**
+   * Destructured because the mutation objects take a new identity on every state transition, so
+   * depending on them would re-create this hook's handler factories mid-drop and hand every sidebar
+   * row a fresh handler object. `mutateAsync` is stable in TanStack Query v5.
+   */
+  const { mutateAsync: reorderWorkflows } = useReorderWorkflows()
+  const { mutateAsync: reorderFolders } = useReorderFolders()
   const setExpanded = useFolderStore((s) => s.setExpanded)
   const expandedFolders = useFolderStore((s) => s.expandedFolders)
 
@@ -139,6 +257,8 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
     if (expandedFolders.has(hoverFolderId)) return
 
     hoverExpandTimerRef.current = window.setTimeout(() => {
+      autoExpandedRef.current ??= new Set()
+      autoExpandedRef.current.add(hoverFolderId)
       setExpanded(hoverFolderId, true)
     }, HOVER_EXPAND_DELAY)
 
@@ -150,75 +270,12 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
     }
   }, [hoverFolderId, isDragging, expandedFolders, setExpanded])
 
-  useEffect(() => {
-    siblingsCacheRef.current?.clear()
-  }, [workspaceId])
-
-  const calculateDropPosition = useCallback(
-    (e: React.DragEvent, element: HTMLElement): 'before' | 'after' => {
-      const rect = element.getBoundingClientRect()
-      const midY = rect.top + rect.height / 2
-      return e.clientY < midY ? 'before' : 'after'
-    },
-    []
-  )
-
-  const calculateFolderDropPosition = useCallback(
-    (e: React.DragEvent, element: HTMLElement): 'before' | 'inside' | 'after' => {
-      const rect = element.getBoundingClientRect()
-      const relativeY = e.clientY - rect.top
-      const height = rect.height
-      if (relativeY < height * 0.25) return 'before'
-      if (relativeY > height * 0.75) return 'after'
-      return 'inside'
-    },
-    []
-  )
-
-  const compareSiblingItems = (a: SiblingItem, b: SiblingItem): number => {
-    if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
-    const timeA = a.createdAt.getTime()
-    const timeB = b.createdAt.getTime()
-    if (timeA !== timeB) return timeA - timeB
-    return a.id.localeCompare(b.id)
-  }
-
-  const getDestinationFolderId = useCallback((indicator: DropIndicator): string | null => {
-    return indicator.position === 'inside'
-      ? indicator.targetId === 'root'
-        ? null
-        : indicator.targetId
-      : indicator.folderId
-  }, [])
-
-  /**
-   * Insert index into the list of siblings **excluding** moving items. Must use the full
-   * `siblingItems` list for lookup: when the drop line targets the dragged row,
-   * `indicator.targetId` is not present in `remaining`, so indexing `remaining` alone
-   * returns -1 and corrupts the splice.
-   */
-  const getInsertIndexInRemaining = useCallback(
-    (siblingItems: SiblingItem[], movingIds: Set<string>, indicator: DropIndicator): number => {
-      if (indicator.position === 'inside') {
-        return siblingItems.filter((s) => !movingIds.has(s.id)).length
-      }
-
-      const targetIdx = siblingItems.findIndex((s) => s.id === indicator.targetId)
-      if (targetIdx === -1) {
-        return siblingItems.filter((s) => !movingIds.has(s.id)).length
-      }
-
-      if (indicator.position === 'before') {
-        return siblingItems.slice(0, targetIdx).filter((s) => !movingIds.has(s.id)).length
-      }
-
-      return siblingItems.slice(0, targetIdx + 1).filter((s) => !movingIds.has(s.id)).length
-    },
-    []
-  )
-
   const buildAndSubmitUpdates = useCallback(
-    async (newOrder: SiblingItem[], destinationFolderId: string | null) => {
+    async (
+      targetWorkspaceId: string,
+      newOrder: SiblingItem[],
+      destinationFolderId: string | null
+    ) => {
       const indexed = newOrder.map((item, i) => ({ ...item, sortOrder: i }))
 
       const folderUpdates = indexed
@@ -229,29 +286,46 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
         .filter((item) => item.type === 'workflow')
         .map((item) => ({ id: item.id, sortOrder: item.sortOrder, folderId: destinationFolderId }))
 
-      await Promise.all(
-        [
-          folderUpdates.length > 0 &&
-            reorderFoldersMutation.mutateAsync({
-              workspaceId: workspaceId!,
-              updates: folderUpdates,
-            }),
-          workflowUpdates.length > 0 &&
-            reorderWorkflowsMutation.mutateAsync({
-              workspaceId: workspaceId!,
-              updates: workflowUpdates,
-            }),
-        ].filter(Boolean)
+      /**
+       * Folders and workflows share one index space but commit through separate endpoints, so a
+       * drop that moves both issues two requests. `allSettled` rather than `all`: with `all`, one
+       * rejection abandons the other request while it is still in flight and commits anyway,
+       * leaving the caller unable to tell a total failure from a half-applied one.
+       */
+      const pending: Promise<unknown>[] = []
+      if (folderUpdates.length > 0) {
+        pending.push(
+          reorderFolders({
+            workspaceId: targetWorkspaceId,
+            updates: folderUpdates,
+          })
+        )
+      }
+      if (workflowUpdates.length > 0) {
+        pending.push(
+          reorderWorkflows({
+            workspaceId: targetWorkspaceId,
+            updates: workflowUpdates,
+          })
+        )
+      }
+
+      const results = await Promise.allSettled(pending)
+      const rejected = results.filter((result) => result.status === 'rejected')
+      if (rejected.length === 0) return
+
+      /**
+       * Whether the failure was partial only selects the message. Convergence needs nothing here:
+       * each mutation's own `onSettled` invalidates its list on error as well as success, so the
+       * committed side and the rolled-back side both refetch to server truth on their own.
+       */
+      throw new ReorderFailedError(
+        rejected.length < results.length,
+        rejected.map((result) => result.reason)
       )
     },
-    [workspaceId, reorderFoldersMutation, reorderWorkflowsMutation]
+    [reorderFolders, reorderWorkflows]
   )
-
-  const isLeavingElement = useCallback((e: React.DragEvent<HTMLElement>): boolean => {
-    const relatedTarget = e.relatedTarget as HTMLElement | null
-    const currentTarget = e.currentTarget as HTMLElement
-    return !relatedTarget || !currentTarget.contains(relatedTarget)
-  }, [])
 
   const initDragOver = useCallback(
     (e: React.DragEvent<HTMLElement>, stopPropagation = true): boolean => {
@@ -259,7 +333,12 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
       if (stopPropagation) e.stopPropagation()
       lastDragYRef.current = e.clientY
 
-      if (!isDragging) {
+      /**
+       * Read from the ref, not the `isDragging` state: several `dragover` events fire before React
+       * commits the first `setIsDragging`, and on those frames the state still reads false while
+       * the drag is already live — which would skip restarting the auto-scroll loop below.
+       */
+      if (!isDraggingRef.current) {
         isDraggingRef.current = true
         setIsDragging(true)
       } else if (scrollAnimationRef.current === null) {
@@ -268,17 +347,16 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
 
       return true
     },
-    [isDragging, handleAutoScroll]
+    [handleAutoScroll]
   )
 
+  /**
+   * Siblings in one folder scope, read live from the query cache on every call. Deliberately
+   * uncached: the only callers are the drag-over indicator and the drop itself, and both must see
+   * the optimistic order the previous drop already wrote.
+   */
   const getSiblingItems = useCallback(
     (folderId: string | null): SiblingItem[] => {
-      const cacheKey = folderId ?? 'root'
-      if (!isDraggingRef.current) {
-        const cached = siblingsCacheRef.current?.get(cacheKey)
-        if (cached) return cached
-      }
-
       const currentFolders = workspaceId ? getFolderMap(workspaceId) : {}
       const currentWorkflows = workspaceId ? getWorkflows(workspaceId) : []
       const siblings = [
@@ -298,12 +376,8 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
             sortOrder: w.sortOrder,
             createdAt: w.createdAt,
           })),
-      ].sort(compareSiblingItems)
+      ].sort(compareByOrder)
 
-      if (!isDraggingRef.current) {
-        const cache = (siblingsCacheRef.current ??= new Map())
-        cache.set(cacheKey, siblings)
-      }
       return siblings
     },
     [workspaceId]
@@ -404,8 +478,8 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
         }
       }
 
-      fromDestination.sort(compareSiblingItems)
-      fromOther.sort(compareSiblingItems)
+      fromDestination.sort(compareByOrder)
+      fromOther.sort(compareByOrder)
 
       return { fromDestination, fromOther }
     },
@@ -444,13 +518,24 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
           ...remaining.slice(insertAt),
         ]
 
-        await buildAndSubmitUpdates(newOrder, destinationFolderId)
+        await buildAndSubmitUpdates(workspaceId, newOrder, destinationFolderId)
 
         const { clearSelection, clearFolderSelection } = useFolderStore.getState()
         clearSelection()
         clearFolderSelection()
       } catch (error) {
         logger.error('Failed to drop selection:', error)
+        /**
+         * Each mutation rolls its own slice of the cache back, so a failure is otherwise visible
+         * only as the rows silently returning to where they were — which reads as the sidebar
+         * spontaneously undoing the move. Copy is chosen here rather than carried on the error so
+         * transport-level text never reaches the user.
+         */
+        toast.error(
+          error instanceof ReorderFailedError && error.partial
+            ? 'Only some items moved'
+            : 'Failed to move items'
+        )
       }
     },
     [
@@ -474,7 +559,22 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
       setDropIndicator(null)
       isDraggingRef.current = false
       setIsDragging(false)
-      siblingsCacheRef.current?.clear()
+      /**
+       * The destination and its ancestors stop being candidates for the drag-end collapse, so the
+       * folders holding the moved rows stay open. Done synchronously, before any `await`, because
+       * `dragend` fires as soon as this handler yields. Discarding ids rather than recording one to
+       * keep also means a destination missing from the folder map simply survives untouched.
+       */
+      const destination = indicator ? getDestinationFolderId(indicator) : null
+      const autoExpanded = autoExpandedRef.current
+      if (destination && autoExpanded?.size) {
+        autoExpanded.delete(destination)
+        if (workspaceId) {
+          for (const folder of getFolderPath(getFolderMap(workspaceId), destination)) {
+            autoExpanded.delete(folder.id)
+          }
+        }
+      }
 
       if (!indicator) return
 
@@ -491,7 +591,7 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
         logger.error('Failed to handle drop:', error)
       }
     },
-    [handleSelectionDrop]
+    [handleSelectionDrop, workspaceId]
   )
 
   const createWorkflowDragHandlers = useCallback(
@@ -513,7 +613,7 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
       onDragLeave: () => {},
       onDrop: handleDrop,
     }),
-    [initDragOver, calculateDropPosition, setNormalizedDropIndicator, handleDrop]
+    [initDragOver, setNormalizedDropIndicator, handleDrop]
   )
 
   const createFolderDragHandlers = useCallback(
@@ -543,13 +643,7 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
       },
       onDrop: handleDrop,
     }),
-    [
-      initDragOver,
-      calculateFolderDropPosition,
-      setNormalizedDropIndicator,
-      isLeavingElement,
-      handleDrop,
-    ]
+    [initDragOver, setNormalizedDropIndicator, handleDrop]
   )
 
   const createEmptyFolderDropZone = useCallback(
@@ -591,7 +685,7 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
       },
       onDrop: handleDrop,
     }),
-    [initDragOver, setNormalizedDropIndicator, isLeavingElement, handleDrop]
+    [initDragOver, setNormalizedDropIndicator, handleDrop]
   )
 
   const createEdgeDropZone = useCallback(
@@ -614,10 +708,22 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
 
   const handleDragStart = useCallback((sourceFolderId: string | null) => {
     draggedSourceFolderRef.current = sourceFolderId
-    siblingsCacheRef.current?.clear()
     isDraggingRef.current = true
     setIsDragging(true)
   }, [])
+
+  /**
+   * Closes the folders this drag spring-opened, keeping the drop destination and its ancestors
+   * open so the moved rows stay visible. Runs on every drag end — drop, Esc-cancel, or a release
+   * outside the list — because `dragend` always fires on the source, so a cancelled drag cannot
+   * leave folders open that the user never chose to open.
+   */
+  const collapseAutoExpandedFolders = useCallback(() => {
+    const autoExpanded = autoExpandedRef.current
+    if (!autoExpanded?.size) return
+    for (const folderId of autoExpanded) setExpanded(folderId, false)
+    autoExpanded.clear()
+  }, [setExpanded])
 
   const handleDragEnd = useCallback(() => {
     isDraggingRef.current = false
@@ -626,16 +732,25 @@ export function useDragDrop(options: UseDragDropOptions = {}) {
     setDropIndicator(null)
     draggedSourceFolderRef.current = null
     setHoverFolderId(null)
-    siblingsCacheRef.current?.clear()
-  }, [])
+    /**
+     * Disarmed here rather than left to the effect cleanup, which only runs once React commits the
+     * state changes above. A timer due within that gap would otherwise fire after the collapse
+     * below, spring-opening a folder for a drag that already ended and leaving it in the set for
+     * the next drag to close — a folder the user, by then, opened themselves.
+     */
+    if (hoverExpandTimerRef.current) {
+      clearTimeout(hoverExpandTimerRef.current)
+      hoverExpandTimerRef.current = null
+    }
+    collapseAutoExpandedFolders()
+  }, [collapseAutoExpandedFolders])
 
   useEffect(() => {
     if (!isDragging) return
     const container = scrollContainerRef.current
     if (!container) return
     const onLeave = (e: DragEvent) => {
-      const related = e.relatedTarget as Node | null
-      if (related && container.contains(related)) return
+      if (!hasDragLeftElement(container, e)) return
       if (scrollAnimationRef.current !== null) {
         cancelAnimationFrame(scrollAnimationRef.current)
         scrollAnimationRef.current = null

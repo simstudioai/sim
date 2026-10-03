@@ -3,14 +3,13 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type ForkCopyableKind, forkCopyableKindSchema } from '@/lib/api/contracts/workspace-fork'
 import type { DbOrTx } from '@/lib/db/types'
-import type { DeployedWorkflowSummary } from '@/ee/workspace-forking/lib/copy/deploy-bridge'
-import type { ForkEdge } from '@/ee/workspace-forking/lib/lineage/lineage'
-import { detectForkCascadeReferences } from '@/ee/workspace-forking/lib/mapping/cascade'
+import { toScannerBlocks } from '@/lib/workflows/references/reference-scan'
 import {
-  buildForkResolver,
-  getEdgeMappingRows,
-  resourceTypeToForkKind,
-} from '@/ee/workspace-forking/lib/mapping/mapping-store'
+  type ForkReference,
+  type ForkReferenceResolver,
+  type ForkRemapKind,
+  scanWorkflowReferences,
+} from '@/lib/workflows/references/remap-references'
 import {
   type ForkCopyableLabel,
   type ForkCopyableSourceResource,
@@ -18,14 +17,16 @@ import {
   getWorkspaceEnvKeys,
   listForkCopyableSourceResources,
   loadForkCopyableResourceLabels,
-} from '@/ee/workspace-forking/lib/mapping/resources'
-import { toScannerBlocks } from '@/ee/workspace-forking/lib/remap/reference-scan'
+} from '@/lib/workflows/references/resources'
+import type { DeployedWorkflowSummary } from '@/ee/workspace-forking/lib/copy/deploy-bridge'
+import type { ForkEdge } from '@/ee/workspace-forking/lib/lineage/lineage'
+import { detectForkCascadeReferences } from '@/ee/workspace-forking/lib/mapping/cascade'
 import {
-  type ForkReference,
-  type ForkReferenceResolver,
-  type ForkRemapKind,
-  scanWorkflowReferences,
-} from '@/ee/workspace-forking/lib/remap/remap-references'
+  buildForkResolver,
+  type ForkMappingRow,
+  getEdgeMappingRows,
+  resourceTypeToForkKind,
+} from '@/ee/workspace-forking/lib/mapping/mapping-store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 export interface ForkPromotePlanItem {
@@ -140,6 +141,27 @@ export function buildPromoteWorkflowIdMap(params: {
  * reported in `excludedTargets` instead of written - the target side of the
  * "Exclude from sync" contract. Pure - split from the DB reads so it is unit-testable.
  */
+/**
+ * The target this source would write, when that target is live AND marked "Exclude from sync" -
+ * the target side of the exclusion contract, which makes the sync skip the source entirely.
+ * Returns null when the source is not excluded.
+ *
+ * Shared by the plan builder and by `getForkMappingView`, so the Mappings section can never list
+ * references carried only by a workflow the sync provably never touches. Such an entry would be
+ * unresolvable-looking (its "Used in" list is plan-scoped, so it renders empty) yet still block
+ * Sync, because every mapping entry is `required`.
+ */
+export function resolveForkExcludedTargetId(
+  sourceWorkflowId: string,
+  identityMap: ReadonlyMap<string, string>,
+  targetActiveIds: ReadonlySet<string>,
+  excludedTargetIds: ReadonlySet<string>
+): string | null {
+  const mappedTargetId = identityMap.get(sourceWorkflowId)
+  if (!mappedTargetId || !targetActiveIds.has(mappedTargetId)) return null
+  return excludedTargetIds.has(mappedTargetId) ? mappedTargetId : null
+}
+
 export function buildForkPromotePlanItems(params: {
   deployedSourceWorkflows: DeployedWorkflowSummary[]
   sourceStateIds: ReadonlySet<string>
@@ -164,16 +186,22 @@ export function buildForkPromotePlanItems(params: {
   for (const source of deployedSourceWorkflows) {
     if (!sourceStateIds.has(source.id)) continue
 
-    const mappedTargetId = identityMap.get(source.id)
-    const activeTargetId =
-      mappedTargetId && targetActiveIds.has(mappedTargetId) ? mappedTargetId : null
-    if (activeTargetId && excludedTargetIds.has(activeTargetId)) {
+    const excludedTargetId = resolveForkExcludedTargetId(
+      source.id,
+      identityMap,
+      targetActiveIds,
+      excludedTargetIds
+    )
+    if (excludedTargetId !== null) {
       excludedTargets.push({
-        id: activeTargetId,
-        name: targetNameById.get(activeTargetId) ?? source.name,
+        id: excludedTargetId,
+        name: targetNameById.get(excludedTargetId) ?? source.name,
       })
       continue
     }
+    const mappedTargetId = identityMap.get(source.id)
+    const activeTargetId =
+      mappedTargetId && targetActiveIds.has(mappedTargetId) ? mappedTargetId : null
     items.push({
       sourceWorkflowId: source.id,
       targetWorkflowId: activeTargetId ?? generateId(),
@@ -325,6 +353,7 @@ export function collectForkUnreferencedCopyables(
  * Shared by the diff preview and the promote orchestrator.
  */
 export async function computeForkPromotePlan(params: {
+  mappingRows?: ForkMappingRow[]
   executor: DbOrTx
   edge: ForkEdge
   sourceWorkspaceId: string
@@ -348,7 +377,8 @@ export async function computeForkPromotePlan(params: {
     sourceStates,
   } = params
 
-  const mappingRows = await getEdgeMappingRows(executor, edge.childWorkspaceId)
+  const mappingRows =
+    params.mappingRows ?? (await getEdgeMappingRows(executor, edge.childWorkspaceId))
   const [targetEnvKeys, sourceEnvKeys] = await Promise.all([
     getWorkspaceEnvKeys(executor, targetWorkspaceId),
     getWorkspaceEnvKeys(executor, sourceWorkspaceId),

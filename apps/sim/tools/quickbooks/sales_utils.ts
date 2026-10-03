@@ -32,6 +32,15 @@ const ITEM_LINE_KEYS = new Set([
 const DESCRIPTION_LINE_KEYS = new Set(['lineType', 'description'])
 const PAYMENT_ALLOCATION_KEYS = new Set(['invoiceId', 'amount'])
 
+/** Intuit documents `Line.Description` as "Max 4000 chars" on every sales line. */
+const MAX_LINE_DESCRIPTION_LENGTH = 4000
+
+/** Intuit documents `DocNumber` as a "maximum of 21 chars" on every sales transaction. */
+const MAX_DOCUMENT_NUMBER_LENGTH = 21
+
+/** Intuit documents `MemoRef.value` — the `CustomerMemo` payload — as "Maximum 1000 chars". */
+const MAX_CUSTOMER_MEMO_LENGTH = 1000
+
 function parseJsonArray(value: unknown, fieldName: string): unknown[] | undefined {
   if (value == null || value === '') return undefined
   let parsed = value
@@ -62,40 +71,57 @@ function assertAllowedKeys(
   if (unknownKey) throw new Error(`${fieldName} contains unsupported field "${unknownKey}"`)
 }
 
-function requiredPositiveNumber(value: unknown, fieldName: string): number {
-  const parsed = typeof value === 'number' ? value : Number(value)
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error(`${fieldName} must be a positive finite number`)
+function quickBooksMoneyDecimal(value: unknown, fieldName: string, requirement: string): Decimal {
+  if (typeof value !== 'number' && typeof value !== 'string') {
+    throw new Error(`${fieldName} must be a ${requirement}`)
   }
-  return parsed
+  const normalized = typeof value === 'string' ? value.trim() : value
+  if (normalized === '') throw new Error(`${fieldName} must be a ${requirement}`)
+
+  let decimal: Decimal
+  try {
+    decimal = new Decimal(normalized)
+  } catch {
+    throw new Error(`${fieldName} must be a ${requirement}`)
+  }
+  if (!decimal.isFinite()) throw new Error(`${fieldName} must be a ${requirement}`)
+  if (decimal.decimalPlaces() > 2) {
+    throw new Error(`${fieldName} cannot have more than two decimal places`)
+  }
+
+  const number = decimal.toNumber()
+  if (
+    !Number.isSafeInteger(decimal.times(100).toNumber()) ||
+    !Number.isFinite(number) ||
+    !new Decimal(number).equals(decimal)
+  ) {
+    throw new Error(`${fieldName} is outside the safely supported amount range`)
+  }
+  return decimal
 }
 
-function optionalPositiveNumber(value: unknown, fieldName: string): number | undefined {
-  if (value == null || value === '') return undefined
-  const parsed = typeof value === 'number' ? value : Number(value)
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error(`${fieldName} must be a positive finite number`)
-  }
-  return parsed
+function requiredPositiveNumber(value: unknown, fieldName: string): number {
+  const decimal = quickBooksMoneyDecimal(value, fieldName, 'positive finite number')
+  if (decimal.lte(0)) throw new Error(`${fieldName} must be a positive finite number`)
+  return decimal.toNumber()
 }
 
 /**
- * Sales line monetary fields accept negative values: QuickBooks models
- * `Line.Amount` and `SalesItemLineDetail.UnitPrice` as unconstrained decimals,
- * and negative amounts are how discounts, returns and credits are expressed on
- * a sales form. Only a zero or non-finite value is rejected.
+ * Sales line numeric fields are unconstrained decimals in Intuit's model:
+ * `Line.Amount` documents only "Max 15 digits in 10.5 format", and
+ * `SalesItemLineDetail.Qty` and `SalesItemLineDetail.UnitPrice` document no
+ * range at all. Negative values express discounts, returns and credits; zero is
+ * a legitimate free line, a zero-rate item, or a zero-quantity placeholder. Only
+ * a non-finite, over-precise or unsafely large value is rejected.
  */
-function requiredNonZeroNumber(value: unknown, fieldName: string): number {
-  const parsed = typeof value === 'number' ? value : Number(value)
-  if (!Number.isFinite(parsed) || parsed === 0) {
-    throw new Error(`${fieldName} must be a non-zero finite number`)
-  }
-  return parsed
+function requiredFiniteNumber(value: unknown, fieldName: string): number {
+  return quickBooksMoneyDecimal(value, fieldName, 'finite number').toNumber()
 }
 
-function optionalNonZeroNumber(value: unknown, fieldName: string): number | undefined {
+function optionalFiniteNumber(value: unknown, fieldName: string): number | undefined {
   if (value == null || value === '') return undefined
-  return requiredNonZeroNumber(value, fieldName)
+  if (typeof value === 'string' && value.trim() === '') return undefined
+  return requiredFiniteNumber(value, fieldName)
 }
 
 function requiredStringValue(value: unknown, fieldName: string): string {
@@ -107,6 +133,18 @@ function optionalStringValue(value: unknown, fieldName: string): string | undefi
   if (value === undefined) return undefined
   if (typeof value !== 'string') throw new Error(`${fieldName} must be a string`)
   return optionalQuickBooksString(value)
+}
+
+/** Applies a documented Intuit maximum length locally, before it costs a round trip. */
+function boundedString<T extends string | undefined>(
+  value: T,
+  fieldName: string,
+  maxLength: number
+): T {
+  if (value !== undefined && value.length > maxLength) {
+    throw new Error(`${fieldName} cannot exceed ${maxLength} characters`)
+  }
+  return value
 }
 
 export function parseQuickBooksSalesLines(
@@ -127,17 +165,25 @@ export function parseQuickBooksSalesLines(
       assertAllowedKeys(line, DESCRIPTION_LINE_KEYS, itemName)
       return {
         lineType: 'description',
-        description: requiredStringValue(line.description, `${itemName}.description`),
+        description: boundedString(
+          requiredStringValue(line.description, `${itemName}.description`),
+          `${itemName}.description`,
+          MAX_LINE_DESCRIPTION_LENGTH
+        ),
       }
     }
     if (line.lineType !== 'item') {
       throw new Error(`${itemName}.lineType must be item or description`)
     }
     assertAllowedKeys(line, ITEM_LINE_KEYS, itemName)
-    const description = optionalStringValue(line.description, `${itemName}.description`)
-    const amount = requiredNonZeroNumber(line.amount, `${itemName}.amount`)
-    const quantity = optionalPositiveNumber(line.quantity, `${itemName}.quantity`)
-    const unitPrice = optionalNonZeroNumber(line.unitPrice, `${itemName}.unitPrice`)
+    const description = boundedString(
+      optionalStringValue(line.description, `${itemName}.description`),
+      `${itemName}.description`,
+      MAX_LINE_DESCRIPTION_LENGTH
+    )
+    const amount = requiredFiniteNumber(line.amount, `${itemName}.amount`)
+    const quantity = optionalFiniteNumber(line.quantity, `${itemName}.quantity`)
+    const unitPrice = optionalFiniteNumber(line.unitPrice, `${itemName}.unitPrice`)
     if (
       quantity !== undefined &&
       unitPrice !== undefined &&
@@ -195,36 +241,56 @@ export function parseQuickBooksInvoiceAllocations(
   if (parsed.length > MAX_PAYMENT_ALLOCATIONS) {
     throw new Error(`${fieldName} cannot contain more than ${MAX_PAYMENT_ALLOCATIONS} allocations`)
   }
+  const invoiceIds = new Set<string>()
   return parsed.map((rawAllocation, index) => {
     const itemName = `${fieldName}[${index}]`
     const allocation = assertObject(rawAllocation, itemName)
     assertAllowedKeys(allocation, PAYMENT_ALLOCATION_KEYS, itemName)
+    const invoiceId = requiredStringValue(allocation.invoiceId, `${itemName}.invoiceId`)
+    if (invoiceIds.has(invoiceId)) {
+      throw new Error(`${fieldName} lists invoice ${invoiceId} more than once`)
+    }
+    invoiceIds.add(invoiceId)
     return {
-      invoiceId: requiredStringValue(allocation.invoiceId, `${itemName}.invoiceId`),
+      invoiceId,
       amount: requiredPositiveNumber(allocation.amount, `${itemName}.amount`),
     }
   })
 }
 
+/**
+ * Build a payment's `Line` collection from the caller's invoice allocations.
+ *
+ * `preservedLines` are lines the caller is not replacing and that QuickBooks
+ * must keep. Intuit documents a payment line's `LinkedTxn.TxnType` as one of
+ * `Expense`, `Check`, `CreditCardCredit`, `JournalEntry`, `CreditMemo`, or
+ * `Invoice`, and an update as "send all the Lines that need to be present MINUS
+ * the lines that need to be removed" — so a body carrying only invoice
+ * allocations detaches every credit memo, expense, check and journal entry the
+ * payment was applied to. They are emitted first, in the order QuickBooks
+ * returned them: "The sequence in which the lines are received is the sequence
+ * in which lines are preserved."
+ */
 function buildPaymentLines(
   allocations: QuickBooksInvoiceAllocationInput[] | undefined,
-  totalAmount: number | undefined
-): unknown[] | undefined {
+  totalAmount: number | undefined,
+  preservedLines: readonly QuickBooksTransactionLine[] = []
+): QuickBooksTransactionLine[] | undefined {
   if (!allocations) return undefined
   if (totalAmount === undefined) {
     throw new Error('totalAmount is required when invoice allocations are supplied')
   }
-  const allocationTotal = allocations.reduce(
-    (sum, allocation) => sum.plus(allocation.amount),
-    new Decimal(0)
-  )
-  if (allocationTotal.greaterThan(totalAmount)) {
+  const lines: QuickBooksTransactionLine[] = [
+    ...preservedLines,
+    ...allocations.map((allocation) => ({
+      Amount: allocation.amount,
+      LinkedTxn: [{ TxnId: allocation.invoiceId, TxnType: 'Invoice' }],
+    })),
+  ]
+  if (sumPaymentLineAmounts(lines).greaterThan(totalAmount)) {
     throw new Error('Invoice allocation amounts cannot exceed totalAmount')
   }
-  return allocations.map((allocation) => ({
-    Amount: allocation.amount,
-    LinkedTxn: [{ TxnId: allocation.invoiceId, TxnType: 'Invoice' }],
-  }))
+  return lines
 }
 
 function getLinkedInvoiceId(line: QuickBooksTransactionLine): string | undefined {
@@ -294,22 +360,41 @@ export function mergeQuickBooksPaymentLines(
   return merged
 }
 
+/**
+ * Build a sales-document create body.
+ *
+ * `customerOptional` reflects Intuit's create minimum. `salesreceiptrequest`
+ * lists only `Line [0..n]` as required and `refundreceiptrequest` only
+ * `DepositToAccountRef` and `Line [0..n]`; neither lists `CustomerRef`, so an
+ * anonymous counter sale is a valid receipt. Invoice, estimate and credit memo
+ * do list `CustomerRef` and keep the reference required.
+ */
 export function buildQuickBooksCreateSalesDocumentBody(
-  params: QuickBooksCreateSalesDocumentParams,
-  options: { requireDepositAccount?: boolean } = {}
+  params: Omit<QuickBooksCreateSalesDocumentParams, 'customerId'> & { customerId?: string },
+  options: { requireDepositAccount?: boolean; customerOptional?: boolean } = {}
 ): Record<string, unknown> {
   if (options.requireDepositAccount && !params.depositAccountId?.trim()) {
     throw new Error('depositAccountId is required to create a refund receipt')
   }
+  const customerMemo = boundedString(
+    optionalQuickBooksString(params.customerMemo),
+    'customerMemo',
+    MAX_CUSTOMER_MEMO_LENGTH
+  )
   return filterUndefined({
-    CustomerRef: quickBooksReference(params.customerId, 'customerId'),
+    CustomerRef:
+      options.customerOptional && !params.customerId?.trim()
+        ? undefined
+        : quickBooksReference(params.customerId ?? '', 'customerId'),
     Line: buildQuickBooksSalesLines(params.lines),
     TxnDate: validateQuickBooksDate(params.transactionDate, 'transactionDate'),
-    DocNumber: optionalQuickBooksString(params.documentNumber),
+    DocNumber: boundedString(
+      optionalQuickBooksString(params.documentNumber),
+      'documentNumber',
+      MAX_DOCUMENT_NUMBER_LENGTH
+    ),
     PrivateNote: optionalQuickBooksString(params.privateNote),
-    CustomerMemo: optionalQuickBooksString(params.customerMemo)
-      ? { value: optionalQuickBooksString(params.customerMemo) }
-      : undefined,
+    CustomerMemo: customerMemo ? { value: customerMemo } : undefined,
     DueDate: validateQuickBooksDate(params.dueDate, 'dueDate'),
     ExpirationDate: validateQuickBooksDate(params.expirationDate, 'expirationDate'),
     PaymentMethodRef: params.paymentMethodId
@@ -325,6 +410,11 @@ export function buildQuickBooksCreateSalesDocumentBody(
 export function buildQuickBooksUpdateSalesDocumentBody(
   params: QuickBooksUpdateSalesDocumentParams
 ): Record<string, unknown> {
+  const customerMemo = boundedString(
+    optionalQuickBooksString(params.customerMemo),
+    'customerMemo',
+    MAX_CUSTOMER_MEMO_LENGTH
+  )
   const body = filterUndefined({
     Id: requiredQuickBooksString(params.transactionId, 'transactionId'),
     SyncToken: requiredQuickBooksString(params.syncToken, 'syncToken'),
@@ -334,11 +424,13 @@ export function buildQuickBooksUpdateSalesDocumentBody(
       : undefined,
     Line: params.lines ? buildQuickBooksSalesLines(params.lines) : undefined,
     TxnDate: validateQuickBooksDate(params.transactionDate, 'transactionDate'),
-    DocNumber: optionalQuickBooksString(params.documentNumber),
+    DocNumber: boundedString(
+      optionalQuickBooksString(params.documentNumber),
+      'documentNumber',
+      MAX_DOCUMENT_NUMBER_LENGTH
+    ),
     PrivateNote: optionalQuickBooksString(params.privateNote),
-    CustomerMemo: optionalQuickBooksString(params.customerMemo)
-      ? { value: optionalQuickBooksString(params.customerMemo) }
-      : undefined,
+    CustomerMemo: customerMemo ? { value: customerMemo } : undefined,
     DueDate: validateQuickBooksDate(params.dueDate, 'dueDate'),
     ExpirationDate: validateQuickBooksDate(params.expirationDate, 'expirationDate'),
     PaymentMethodRef: params.paymentMethodId
@@ -379,9 +471,29 @@ function buildUpdatePaymentLines(
   allocations: QuickBooksInvoiceAllocationInput[] | undefined,
   totalAmount: number | undefined,
   currentPayment: QuickBooksSalesTransaction | undefined
-): unknown[] | undefined {
-  if (!allocations) return undefined
-  if (params.unapplyOmittedInvoices) return buildPaymentLines(allocations, totalAmount)
+): QuickBooksTransactionLine[] | undefined {
+  if (params.unapplyOmittedInvoices && !allocations) {
+    throw new Error('invoiceAllocations is required when unapplyOmittedInvoices is true')
+  }
+  const currentTotalAmount =
+    typeof currentPayment?.TotalAmt === 'number' ? currentPayment.TotalAmt : undefined
+  if (!allocations) {
+    if (
+      totalAmount !== undefined &&
+      currentPayment &&
+      sumPaymentLineAmounts(currentPayment.Line ?? []).greaterThan(totalAmount)
+    ) {
+      throw new Error('Existing invoice allocation amounts cannot exceed totalAmount')
+    }
+    return undefined
+  }
+  if (params.unapplyOmittedInvoices) {
+    return buildPaymentLines(
+      allocations,
+      totalAmount ?? currentTotalAmount,
+      (currentPayment?.Line ?? []).filter((line) => getLinkedInvoiceId(line) === undefined)
+    )
+  }
   if (!currentPayment) {
     throw new Error(
       'The current payment must be read before invoice allocations can be updated. Set unapplyOmittedInvoices to replace every allocation instead.'
@@ -390,20 +502,20 @@ function buildUpdatePaymentLines(
   return mergeQuickBooksPaymentLines(
     currentPayment.Line ?? [],
     allocations,
-    totalAmount ??
-      (typeof currentPayment.TotalAmt === 'number' ? currentPayment.TotalAmt : undefined)
+    totalAmount ?? currentTotalAmount
   )
 }
 
 /**
- * Build the sparse Payment update body.
+ * Build the Payment patch merged into the documented full-update request.
  *
  * `currentPayment` is the payment as QuickBooks currently holds it and is
  * required whenever invoice allocations are supplied: QuickBooks updates
  * payment lines all-or-none, so the allocations have to be merged into the
  * live line set before they can be sent. `unapplyOmittedInvoices` opts out of
- * the merge and replaces the line set outright, unapplying every invoice the
- * caller did not list.
+ * the merge and replaces the invoice allocations outright, unapplying every
+ * invoice the caller did not list while carrying forward every line linked to
+ * something other than an invoice.
  */
 export function buildQuickBooksUpdatePaymentBody(
   params: QuickBooksUpdateCustomerPaymentParams,

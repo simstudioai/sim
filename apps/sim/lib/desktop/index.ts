@@ -23,6 +23,11 @@
  */
 import type { BrowserKnownSession } from '@sim/browser-protocol'
 import type { DesktopPreferences, SimDesktopApi } from '@sim/desktop-bridge'
+import { truncate } from '@sim/utils/string'
+import {
+  DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
+  DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH,
+} from '@/lib/mothership/chat/desktop-capabilities'
 
 /** The preload bridge, or undefined outside the desktop app (and on the server). */
 export function getDesktopBridge(): SimDesktopApi | undefined {
@@ -56,27 +61,44 @@ export function hasDesktopSettings(): boolean {
 }
 
 /**
+ * True when an internal link must navigate the current view rather than open a
+ * second one. The shell has no tab strip, so its window-open policy routes a
+ * same-origin `window.open` to a full new Sim window — where a browser would
+ * have added a background tab, the desktop app throws up another window.
+ */
+export function prefersInPlaceNavigation(): boolean {
+  return isDesktopApp()
+}
+
+/**
  * The device switches for the browser and terminal, cached because the chat UI
  * reads availability synchronously while the shell only answers over async
  * IPC. An unread value uses the shell default (enabled).
  *
- * The cache is authoritative at call time, which is what tool execution and
- * capability reporting need. React trees that read it in a memo settle on the
- * next mount — flipping a switch happens on a settings route, so the chat view
- * has unmounted by then anyway.
+ * Synchronous callers read the cache at call time. React consumers subscribe
+ * to the same snapshot so asynchronous initialization and settings changes
+ * update mounted UI without keeping a second copy of the preferences.
  */
 let devicePreferences: DesktopPreferences | null = null
 let devicePreferencesLoad: Promise<void> | null = null
+const devicePreferencesListeners = new Set<() => void>()
 
 function loadDevicePreferences(): Promise<void> {
   devicePreferencesLoad ??=
     getDesktopBridge()
       ?.settings.getPreferences()
-      .then((preferences) => {
-        devicePreferences = preferences
-      })
+      .then(setDesktopPreferencesSnapshot)
       .catch(() => {}) ?? Promise.resolve()
   return devicePreferencesLoad
+}
+
+/** Subscribes React consumers to the shared desktop-preference snapshot. */
+export function subscribeDesktopPreferences(listener: () => void): () => void {
+  devicePreferencesListeners.add(listener)
+  void loadDevicePreferences()
+  return () => {
+    devicePreferencesListeners.delete(listener)
+  }
 }
 
 function isSurfaceSwitchedOn(key: 'browserEnabled' | 'terminalEnabled'): boolean {
@@ -91,6 +113,7 @@ function isSurfaceSwitchedOn(key: 'browserEnabled' | 'terminalEnabled'): boolean
 export function setDesktopPreferencesSnapshot(preferences: DesktopPreferences): void {
   devicePreferences = preferences
   devicePreferencesLoad = Promise.resolve()
+  for (const listener of devicePreferencesListeners) listener()
 }
 
 /** True when the agent browser is installed and switched on for this device. */
@@ -131,6 +154,7 @@ export interface DesktopTerminalHint {
 
 export interface DesktopChatCapabilities {
   desktopCapabilities?: {
+    localFiles?: true
     localFilesystem?: true
     browser?: true
     terminal?: true
@@ -151,6 +175,7 @@ export async function getDesktopChatCapabilities(
   // Never advertise a surface the user switched off, even on the first
   // request after launch, before the cached preferences have arrived.
   await loadDevicePreferences()
+  const localFiles = typeof bridge?.localFiles === 'function'
   const localFilesystem = hasLocalFilesystem()
   const browser = isBrowserAgentEnabled()
   const terminal = isTerminalEnabled()
@@ -162,13 +187,21 @@ export async function getDesktopChatCapabilities(
       ? await bridge.terminal
           .getTabs(scopeId)
           .then((state) =>
-            state.tabs.map((tab) => ({
-              id: tab.terminalId,
-              ...(tab.cwd ? { cwd: tab.cwd } : {}),
-              ...(tab.running ? { running: tab.running } : {}),
-              ...(tab.interactive ? { interactive: true as const } : {}),
-              ...(tab.active ? { active: true as const } : {}),
-            }))
+            state.tabs
+              .filter((tab) => tab.terminalId.length <= DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH)
+              .map((tab) => ({
+                id: tab.terminalId,
+                ...(tab.cwd
+                  ? { cwd: truncate(tab.cwd, DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH, '') }
+                  : {}),
+                ...(tab.running
+                  ? {
+                      running: truncate(tab.running, DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH, ''),
+                    }
+                  : {}),
+                ...(tab.interactive ? { interactive: true as const } : {}),
+                ...(tab.active ? { active: true as const } : {}),
+              }))
           )
           .catch(() => [])
       : []
@@ -180,9 +213,10 @@ export async function getDesktopChatCapabilities(
           .catch(() => [])
       : []
   return {
-    ...(localFilesystem || browser || terminal
+    ...(localFiles || localFilesystem || browser || terminal
       ? {
           desktopCapabilities: {
+            ...(localFiles ? { localFiles: true as const } : {}),
             ...(localFilesystem ? { localFilesystem: true as const } : {}),
             ...(browser ? { browser: true as const } : {}),
             ...(terminal ? { terminal: true as const } : {}),

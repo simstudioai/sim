@@ -3,13 +3,13 @@
   "version": "0.0.0",
   "private": true,
   "license": "Apache-2.0",
-  "description": "Sim desktop app for macOS — Electron shell around the hosted web app",
+  "description": "Sim desktop app for macOS \u2014 Electron shell around the hosted web app",
   "author": "Sim <support@sim.ai>",
   "homepage": "https://sim.ai",
   "type": "module",
   "main": "dist/main.cjs",
   "engines": {
-    "bun": ">=1.2.13",
+    "bun": ">=1.4.2",
     "node": ">=20.0.0"
   },
   "scripts": {
@@ -42,17 +42,27 @@
     "@xterm/headless": "6.0.0",
     "electron-updater": "6.8.9",
     "micromatch": "4.0.8",
-    "safe-regex2": "5.1.0"
+    "safe-regex2": "5.1.0",
+    "pdf-lib": "1.17.1"
   },
   "devDependencies": {
+    "@electron/fuses": "1.8.0",
     "@playwright/test": "1.61.1",
+    "@sim/emcn": "workspace:*",
     "@sim/tsconfig": "workspace:*",
     "@types/micromatch": "4.0.10",
     "@types/node": "24.2.1",
-    "electron": "43.1.1",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "electron": "43.5.0",
     "electron-builder": "26.15.3",
     "esbuild": "0.28.1",
+    "jsdom": "^26.0.0",
+    "postcss": "^8",
+    "postcss-load-config": "6.0.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.0"
+    "vitest": "^5.0.1"
   }
 }

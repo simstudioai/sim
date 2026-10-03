@@ -2,9 +2,9 @@ import type {
   SlackEphemeralMessageParams,
   SlackEphemeralMessageResponse,
 } from '@/tools/slack/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const slackEphemeralMessageTool: ToolConfig<
+export const slackEphemeralMessageTool: InternalToolConfig<
   SlackEphemeralMessageParams,
   SlackEphemeralMessageResponse
 > = {
@@ -17,6 +17,7 @@ export const slackEphemeralMessageTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'slack',
+    requiredScopes: ['chat:write'],
   },
 
   params: {
@@ -73,13 +74,8 @@ export const slackEphemeralMessageTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/slack/send-ephemeral',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: SlackEphemeralMessageParams) => ({
+  operation: {
+    input: (params: SlackEphemeralMessageParams) => ({
       accessToken: params.accessToken || params.botToken,
       channel: params.channel?.trim(),
       user: params.user?.trim(),

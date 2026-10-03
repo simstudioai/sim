@@ -1,7 +1,7 @@
 import type { OpenAiTtsParams, TtsBlockResponse } from '@/tools/tts/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const openaiTtsTool: ToolConfig<OpenAiTtsParams, TtsBlockResponse> = {
+export const openaiTtsTool: InternalToolConfig<OpenAiTtsParams, TtsBlockResponse> = {
   id: 'tts_openai',
   name: 'OpenAI TTS',
   description: 'Convert text to speech using OpenAI TTS models',
@@ -48,27 +48,18 @@ export const openaiTtsTool: ToolConfig<OpenAiTtsParams, TtsBlockResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/tts/unified',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (
-      params: OpenAiTtsParams & {
-        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
-      }
-    ) => ({
-      provider: 'openai',
+  operation: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ text: params.text }),
+    },
+    input: (params) => ({
       text: params.text,
       apiKey: params.apiKey,
       model: params.model || 'tts-1',
       voice: params.voice || 'alloy',
       responseFormat: params.responseFormat || 'mp3',
       speed: params.speed || 1.0,
-      workspaceId: params._context?.workspaceId,
-      workflowId: params._context?.workflowId,
-      executionId: params._context?.executionId,
     }),
   },
 

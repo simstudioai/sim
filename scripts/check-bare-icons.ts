@@ -30,7 +30,7 @@
  */
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { perceivedBrightness } from '../apps/sim/lib/colors'
+import { perceivedBrightness } from '../packages/utils/src/color'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 const BLOCKS_DIR = path.join(ROOT, 'apps/sim/blocks/blocks')

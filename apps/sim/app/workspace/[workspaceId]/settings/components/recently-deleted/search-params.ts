@@ -1,15 +1,20 @@
 import { parseAsStringLiteral } from 'nuqs/server'
 import { createSortParams } from '@/lib/url-state'
 
-/** Selectable resource-type tabs in the Recently Deleted view. */
+/**
+ * Selectable resource-type tabs in the Recently Deleted view, after the default
+ * `all`: the sidebar's top-down order, so the tabs read the way the user already
+ * reads these resources. `TABS` in `recently-deleted.tsx` labels this same list —
+ * keep the two in step.
+ */
 export const RECENTLY_DELETED_TABS = [
   'all',
+  'chat',
+  'table',
+  'file',
+  'knowledge',
   'workflow',
   'folder',
-  'table',
-  'knowledge',
-  'file',
-  'chat',
 ] as const
 
 export type RecentlyDeletedTab = (typeof RECENTLY_DELETED_TABS)[number]

@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { SIM_SITE_URL } from '@sim/utils/site'
 import type { NextConfig } from 'next'
 import { env, isTruthy } from './lib/core/config/env'
 import { isDev } from './lib/core/config/env-flags'
@@ -7,38 +8,8 @@ import {
   getMainCSPPolicy,
   getWorkflowExecutionCSPPolicy,
 } from './lib/core/security/csp'
-
-/**
- * Marketing routes (`app/(landing)/**`, plus the root) exempted from COEP.
- *
- * COEP is a *document* header and is inherited across client-side `<Link>`
- * navigations, so `/demo`'s own exemption only applies on a direct load. Any
- * landing page left isolated soft-navigates into `/demo` still credentialless,
- * where the Cal.com booker iframe loads uncredentialed and hangs forever.
- * Every route under `app/(landing)` must be listed here.
- */
-const LANDING_ROUTES = [
-  'blog',
-  'careers',
-  'changelog',
-  'comparisons',
-  'contact',
-  'demo',
-  'enterprise',
-  'files',
-  'integrations',
-  'knowledge',
-  'library',
-  'logs',
-  'models',
-  'pricing',
-  'privacy',
-  'scheduled-tasks',
-  'solutions',
-  'tables',
-  'terms',
-  'workflows',
-] as const
+import { LANDING_ROUTES } from './lib/landing/routes'
+import { LIBRARY_MERGED_SLUGS, LIBRARY_MOVED_BLOG_SLUGS } from './lib/library/retired-slugs'
 
 const nextConfig: NextConfig = {
   devIndicators: false,
@@ -123,8 +94,6 @@ const nextConfig: NextConfig = {
   output: isTruthy(env.DOCKER_BUILD) ? 'standalone' : undefined,
   serverExternalPackages: [
     '@1password/sdk',
-    'unpdf',
-    'fluent-ffmpeg',
     'ws',
     'isolated-vm',
     '@e2b/code-interpreter',
@@ -132,6 +101,12 @@ const nextConfig: NextConfig = {
     '@daytona/sdk',
     '@earendil-works/pi-ai',
     '@earendil-works/pi-coding-agent',
+    /**
+     * Keep PDF.js and its native canvas implementation intact. The shared server
+     * loader initializes canvas primitives before PDF.js evaluates its module.
+     */
+    'pdfjs-dist',
+    '@napi-rs/canvas',
     // The collab-doc seed converter lazily `require`s jsdom for a headless TipTap editor. Keep it
     // external so webpack doesn't try to bundle jsdom's dynamic internal requires.
     'jsdom',
@@ -159,7 +134,6 @@ const nextConfig: NextConfig = {
     '@tiptap/extension-highlight',
   ],
   outputFileTracingIncludes: {
-    '/api/tools/stagehand/*': ['./node_modules/ws/**/*'],
     // The seed, merge, and persist endpoints all lazily `require('jsdom')` (via the collab-doc
     // converter), which is invisible to the standalone file tracer, so force jsdom (and its transitive
     // deps, followed from its static requires) into the trace — otherwise a Docker/standalone build
@@ -169,10 +143,14 @@ const nextConfig: NextConfig = {
     '/api/internal/file-doc/seed': ['./node_modules/jsdom/**/*'],
     '/api/internal/file-doc/merge': ['./node_modules/jsdom/**/*'],
     '/api/internal/file-doc/persist': ['./node_modules/jsdom/**/*'],
+    /**
+     * No `sharp`/`@img` entries: these globs resolve against apps/sim while both hoist to the
+     * monorepo root, so they matched nothing. docker/app.Dockerfile copies them instead.
+     */
     '/*': [
-      './node_modules/sharp/**/*',
-      './node_modules/@img/**/*',
       './lib/execution/sandbox/bundles/*.cjs',
+      './node_modules/ws/**/*',
+      '../../packages/sim-cli/dist/runtime.js',
     ],
   },
   experimental: {
@@ -219,12 +197,17 @@ const nextConfig: NextConfig = {
      * it lives. Restoring across commits is separately undocumented-as-supported
      * (vercel/next.js#87283 reports stale HTML from a cache built elsewhere).
      *
-     * Pinned explicitly rather than left to the Next default: upstream already
-     * flips this default to true in canary/preview builds (vercel/next.js#94616),
-     * so relying on the default would let a version bump silently re-enable a
-     * config we measured as harmful.
+     * The explicit pin is load-bearing: 16.3.0 flipped this default to true for
+     * stable (vercel/next.js#94616), so dropping it re-enables the slower cache.
      */
     turbopackFileSystemCacheForBuild: false,
+    /**
+     * TypeScript 7 ships no JavaScript compiler API until 7.1, so Next's default
+     * checker cannot load it — this shells out to the project-local `tsc` instead.
+     * Pinned because the failure mode is not slower type checking but none at all:
+     * 16.2.12 skipped the stage silently in 138ms.
+     */
+    useTypeScriptCli: true,
     preloadEntriesOnStart: false,
     /**
      * Under Turbopack this is not a no-op: the list feeds
@@ -236,7 +219,7 @@ const nextConfig: NextConfig = {
      */
     optimizePackageImports: [
       'framer-motion',
-      'reactflow',
+      '@xyflow/react',
       '@radix-ui/react-dialog',
       '@radix-ui/react-dropdown-menu',
       '@radix-ui/react-popover',
@@ -270,6 +253,7 @@ const nextConfig: NextConfig = {
   transpilePackages: [
     '@react-email/components',
     '@react-email/render',
+    'sim',
     '@t3-oss/env-nextjs',
     '@t3-oss/env-core',
     '@sim/db',
@@ -292,6 +276,16 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        /** Generated footer artwork uses content hashes, so URLs are immutable. */
+        source: '/landing/footer-artwork/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
+      {
+        /** Generated hero artwork uses content hashes, so URLs are immutable. */
+        source: '/landing/hero-artwork/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
+      {
         source: '/.well-known/:path*',
         headers: [
           { key: 'Access-Control-Allow-Origin', value: '*' },
@@ -312,9 +306,24 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: '/api/v2/workflows/:workflowId/execute',
+        headers: [
+          { key: 'Cross-Origin-Embedder-Policy', value: 'unsafe-none' },
+          { key: 'Cross-Origin-Opener-Policy', value: 'unsafe-none' },
+          {
+            key: 'Content-Security-Policy',
+            value: getWorkflowExecutionCSPPolicy(),
+          },
+        ],
+      },
+      {
         // Exclude Vercel internal resources and static assets from strict COOP, Google Drive Picker
-        // and the /demo Cal.com booking embed to prevent 'refused to connect' / slow-load issues
-        source: '/((?!_next|_vercel|api|favicon.ico|w/.*|workspace/.*|api/tools/drive|demo).*)',
+        // and the /demo Cal.com booking embed to prevent 'refused to connect' / slow-load issues.
+        // The pages an OAuth popup can land on are excluded too: `same-origin` would disown the
+        // popup from its opener, leaving it not reliably script-closable and reporting `closed`
+        // for a live window.
+        source:
+          '/((?!_next|_vercel|api|favicon.ico|w/.*|workspace|api/tools/drive|demo|oauth-error|oauth/chat-complete).*)',
         headers: [
           {
             key: 'Cross-Origin-Opener-Policy',
@@ -337,8 +346,11 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // For main app routes, Google Drive Picker, the /demo Cal.com embed, and Vercel resources - use permissive policies
-        source: '/(w/.*|workspace/.*|api/tools/drive|demo.*|_next/.*|_vercel/.*)',
+        // For main app routes, Google Drive Picker, the /demo Cal.com embed, the OAuth popup pages,
+        // and Vercel resources - use permissive policies. The popup pages match their opener's
+        // value so the two stay in one browsing-context group.
+        source:
+          '/(w/.*|workspace.*|api/tools/drive|demo.*|oauth-error|oauth/chat-complete|_next/.*|_vercel/.*)',
         headers: [
           {
             key: 'Cross-Origin-Embedder-Policy',
@@ -441,7 +453,7 @@ const nextConfig: NextConfig = {
       },
       {
         source: '/linkedin',
-        destination: 'https://www.linkedin.com/company/simstudioai/',
+        destination: 'https://www.linkedin.com/company/simdotai/',
         permanent: false,
       },
       {
@@ -456,19 +468,34 @@ const nextConfig: NextConfig = {
       }
     )
 
-    // Redirect /building and /studio to /blog (legacy URL support)
-    redirects.push(
-      {
-        source: '/building/:path*',
-        destination: 'https://www.sim.ai/blog/:path*',
-        permanent: true,
-      },
-      {
-        source: '/studio/:path*',
-        destination: 'https://www.sim.ai/blog/:path*',
-        permanent: true,
+    /**
+     * Legacy `/building` and `/studio` URLs map to `/blog`. Posts since moved to
+     * `/library` get their own rules ahead of the wildcard (first match wins)
+     * so they land there in one hop instead of chaining through `/blog`.
+     */
+    for (const legacyPrefix of ['building', 'studio']) {
+      for (const slug of LIBRARY_MOVED_BLOG_SLUGS) {
+        redirects.push({
+          source: `/${legacyPrefix}/${slug}`,
+          destination: `${SIM_SITE_URL}/library/${slug}`,
+          permanent: true,
+        })
       }
-    )
+      redirects.push({
+        source: `/${legacyPrefix}/:path*`,
+        destination: `${SIM_SITE_URL}/blog/:path*`,
+        permanent: true,
+      })
+    }
+
+    // The scheduled-tasks marketing page is retired with the feature. The URL is
+    // indexed, so send it to the surface that still carries scheduled execution
+    // (the workflow Schedule trigger) instead of letting it 404.
+    redirects.push({
+      source: '/scheduled-tasks',
+      destination: '/workflows',
+      permanent: true,
+    })
 
     /**
      * The marketing Academy course/lesson pages were removed; content is
@@ -546,22 +573,18 @@ const nextConfig: NextConfig = {
       permanent: true,
     })
 
-    /**
-     * AEO/GEO-style posts (listicles, comparisons, how-tos) were split out of
-     * `/blog` into the dedicated `/library` section so `/blog` stays
-     * editorial-only. Preserve previously indexed URLs for the moved posts.
-     */
-    for (const slug of [
-      'best-zapier-alternatives',
-      'ai-agents-vs-rpa',
-      'ai-agent-vs-chatbot',
-      'openai-vs-n8n-vs-sim',
-      'ai-agent-ideas',
-      'how-to-create-an-ai-agent',
-    ]) {
+    for (const slug of LIBRARY_MOVED_BLOG_SLUGS) {
       redirects.push({
         source: `/blog/${slug}`,
         destination: `/library/${slug}`,
+        permanent: true,
+      })
+    }
+
+    for (const [retired, kept] of Object.entries(LIBRARY_MERGED_SLUGS)) {
+      redirects.push({
+        source: `/library/${retired}`,
+        destination: `/library/${kept}`,
         permanent: true,
       })
     }

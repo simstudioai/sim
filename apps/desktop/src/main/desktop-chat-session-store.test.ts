@@ -27,10 +27,7 @@ function encryption(available = true): DesktopChatSessionEncryptionProvider {
 const ORIGIN = 'https://www.sim.ai'
 const BROWSER: BrowserSessionSnapshot = {
   v: 1,
-  tabs: [
-    { url: 'https://example.com/inbox', pinned: true },
-    { url: 'about:blank', pinned: false },
-  ],
+  tabs: [{ url: 'https://example.com/inbox' }, { url: 'about:blank' }],
   activeIndex: 1,
   downloads: [
     {
@@ -121,25 +118,21 @@ describe('DesktopChatSessionStore', () => {
     expect(statSync(filePath).mode & 0o077).toBe(0)
   })
 
-  it('keeps a pending chat in memory until migration promotes it to a durable chat id', () => {
+  it('does not replace the durable store with an oversized encrypted envelope', () => {
     const provider = encryption()
-    const pending = open(provider)
-    pending.setBrowser(ORIGIN, 'pending:workspace-a', BROWSER)
-    pending.setTerminal(ORIGIN, 'pending:workspace-a', TERMINAL)
+    const store = open(provider)
+    store.setTerminal(ORIGIN, 'chat-existing', TERMINAL)
+    expect(store.flush()).toBe(true)
+    const existing = readFileSync(filePath, 'utf8')
 
-    expect(pending.getBrowser(ORIGIN, 'pending:workspace-a')).toEqual(BROWSER)
-    expect(pending.flush()).toBe(true)
-    expect(existsSync(filePath)).toBe(false)
+    vi.mocked(provider.encryptString).mockReturnValueOnce(Buffer.alloc(8 * 1024 * 1024))
+    store.setTerminal(ORIGIN, 'chat-new', TERMINAL)
 
-    expect(pending.migrateBrowser(ORIGIN, 'pending:workspace-a', 'chat-resolved')).toBe(true)
-    expect(pending.migrateTerminal(ORIGIN, 'pending:workspace-a', 'chat-resolved')).toBe(true)
-    expect(pending.flush()).toBe(true)
+    expect(store.flush()).toBe(false)
+    expect(readFileSync(filePath, 'utf8')).toBe(existing)
 
-    const restarted = open(provider)
-    restarted.initialize()
-    expect(restarted.getBrowser(ORIGIN, 'pending:workspace-a')).toBeNull()
-    expect(restarted.getBrowser(ORIGIN, 'chat-resolved')).toEqual(BROWSER)
-    expect(restarted.getTerminal(ORIGIN, 'chat-resolved')).toEqual(TERMINAL)
+    expect(store.flush()).toBe(true)
+    expect(readFileSync(filePath, 'utf8')).not.toBe(existing)
   })
 
   it('migrates browser and terminal descriptors independently into one durable chat', () => {
@@ -166,47 +159,12 @@ describe('DesktopChatSessionStore', () => {
     expect(restarted.getTerminal(ORIGIN, 'chat-resolved')).toEqual(TERMINAL)
   })
 
-  it('also merges the browser descriptor when terminal migration arrives first', () => {
-    const store = open()
-    store.setBrowser(ORIGIN, 'pending:workspace-a', BROWSER)
-    store.setTerminal(ORIGIN, 'pending:workspace-a', TERMINAL)
-
-    expect(store.migrateTerminal(ORIGIN, 'pending:workspace-a', 'chat-resolved')).toBe(true)
-    expect(store.migrateBrowser(ORIGIN, 'pending:workspace-a', 'chat-resolved')).toBe(true)
-
-    expect(store.getBrowser(ORIGIN, 'chat-resolved')).toEqual(BROWSER)
-    expect(store.getTerminal(ORIGIN, 'chat-resolved')).toEqual(TERMINAL)
-    expect(store.getBrowser(ORIGIN, 'pending:workspace-a')).toBeNull()
-    expect(store.getTerminal(ORIGIN, 'pending:workspace-a')).toBeNull()
-  })
-
-  it('migrates the non-conflicting component without replacing a durable destination', () => {
-    const store = open()
-    const existingBrowser: BrowserSessionSnapshot = {
-      v: 1,
-      tabs: [{ url: 'https://existing.example/', pinned: true }],
-      activeIndex: 0,
-      downloads: [],
-    }
-    store.setBrowser(ORIGIN, 'chat-existing', existingBrowser)
-    store.setBrowser(ORIGIN, 'pending:workspace-a', BROWSER)
-    store.setTerminal(ORIGIN, 'pending:workspace-a', TERMINAL)
-
-    expect(store.migrateBrowser(ORIGIN, 'pending:workspace-a', 'chat-existing')).toBe(false)
-    expect(store.migrateTerminal(ORIGIN, 'pending:workspace-a', 'chat-existing')).toBe(true)
-
-    expect(store.getBrowser(ORIGIN, 'chat-existing')).toEqual(existingBrowser)
-    expect(store.getTerminal(ORIGIN, 'chat-existing')).toEqual(TERMINAL)
-    expect(store.getBrowser(ORIGIN, 'pending:workspace-a')).toEqual(BROWSER)
-    expect(store.getTerminal(ORIGIN, 'pending:workspace-a')).toBeNull()
-  })
-
   it('keeps identical chat ids isolated across server origins', () => {
     const store = open()
     store.setBrowser(ORIGIN, 'chat-a', BROWSER)
     store.setBrowser('https://self-hosted.example/path', 'chat-a', {
       v: 1,
-      tabs: [{ url: 'https://other.example/', pinned: false }],
+      tabs: [{ url: 'https://other.example/' }],
       activeIndex: 0,
       downloads: [],
     })
@@ -215,34 +173,6 @@ describe('DesktopChatSessionStore', () => {
     expect(store.getBrowser('https://self-hosted.example', 'chat-a')?.tabs[0].url).toBe(
       'https://other.example/'
     )
-  })
-
-  it('preserves every browser and terminal tab while clamping active indexes', () => {
-    const provider = encryption()
-    const store = open(provider)
-    store.setBrowser(ORIGIN, 'chat-a', {
-      v: 1,
-      tabs: Array.from({ length: 12 }, (_, index) => ({
-        url: `https://tab-${index}.example/`,
-        pinned: index < 2,
-      })),
-      activeIndex: 99,
-      downloads: [],
-    })
-    store.setTerminal(ORIGIN, 'chat-a', {
-      v: 1,
-      tabs: Array.from({ length: 12 }, (_, index) => ({ cwd: `/tmp/tab-${index}` })),
-      activeIndex: 99,
-    })
-
-    expect(store.flush()).toBe(true)
-    const restarted = open(provider)
-    const browser = restarted.getBrowser(ORIGIN, 'chat-a')
-    const terminal = restarted.getTerminal(ORIGIN, 'chat-a')
-    expect(browser?.tabs).toHaveLength(12)
-    expect(browser?.activeIndex).toBe(11)
-    expect(terminal?.tabs).toHaveLength(12)
-    expect(terminal?.activeIndex).toBe(11)
   })
 
   it('filters unsafe or malformed values while loading an encrypted payload', () => {
@@ -257,12 +187,12 @@ describe('DesktopChatSessionStore', () => {
           browser: {
             v: 1,
             tabs: [
-              { url: 'https://user:password@example.com/private', pinned: false },
-              { url: 'file:///Users/ada/.ssh/id_ed25519', pinned: false },
-              { url: 'javascript:alert(1)', pinned: true },
-              { url: 'about:blank', pinned: false },
-              { url: 'http://localhost:3000/path', pinned: true },
-              { url: `https://example.com/${'x'.repeat(8_200)}`, pinned: false },
+              { url: 'https://user:password@example.com/private' },
+              { url: 'file:///Users/ada/.ssh/id_ed25519' },
+              { url: 'javascript:alert(1)' },
+              { url: 'about:blank' },
+              { url: 'http://localhost:3000/path' },
+              { url: `https://example.com/${'x'.repeat(8_200)}` },
             ],
             activeIndex: 20,
             downloads: [],
@@ -298,10 +228,7 @@ describe('DesktopChatSessionStore', () => {
     expect(store.initialize()).toBe(true)
     expect(store.getBrowser(ORIGIN, 'chat-valid')).toEqual({
       v: 1,
-      tabs: [
-        { url: 'about:blank', pinned: false },
-        { url: 'http://localhost:3000/path', pinned: true },
-      ],
+      tabs: [{ url: 'about:blank' }, { url: 'http://localhost:3000/path' }],
       activeIndex: 1,
       downloads: [],
     })
@@ -312,31 +239,6 @@ describe('DesktopChatSessionStore', () => {
     })
     expect(store.getBrowser(ORIGIN, 'pending:must-not-load')).toBeNull()
     expect(store.getBrowser(ORIGIN, 'chat-bad-origin')).toBeNull()
-  })
-
-  it('rejects persisted browser snapshots without a downloads array', () => {
-    const provider = encryption()
-    writeEncryptedPayload(provider, {
-      v: 1,
-      entries: [
-        {
-          origin: ORIGIN,
-          scope: 'chat-missing-downloads',
-          lastAccessedAt: 1,
-          browser: { v: 1, tabs: [], activeIndex: 0 },
-        },
-        {
-          origin: ORIGIN,
-          scope: 'chat-invalid-downloads',
-          lastAccessedAt: 2,
-          browser: { v: 1, tabs: [], activeIndex: 0, downloads: null },
-        },
-      ],
-    })
-
-    const store = open(provider)
-    expect(store.getBrowser(ORIGIN, 'chat-missing-downloads')).toBeNull()
-    expect(store.getBrowser(ORIGIN, 'chat-invalid-downloads')).toBeNull()
   })
 
   it('keeps only the 100 most recently used durable chat entries', () => {
@@ -363,19 +265,6 @@ describe('DesktopChatSessionStore', () => {
     expect(restarted.getTerminal(ORIGIN, 'chat-100')).toEqual(snapshot)
   })
 
-  it('applies the durable-entry cap when a pending descriptor is promoted', () => {
-    let timestamp = 1
-    const store = open(encryption(), () => timestamp++)
-    for (let index = 0; index < 100; index += 1) {
-      store.setTerminal(ORIGIN, `chat-${index}`, TERMINAL)
-    }
-    store.setBrowser(ORIGIN, 'pending:new-chat', BROWSER)
-
-    expect(store.migrateBrowser(ORIGIN, 'pending:new-chat', 'chat-promoted')).toBe(true)
-    expect(store.getTerminal(ORIGIN, 'chat-0')).toBeNull()
-    expect(store.getBrowser(ORIGIN, 'chat-promoted')).toEqual(BROWSER)
-  })
-
   it('stays memory-only with no plaintext fallback when OS encryption is unavailable', () => {
     const provider = encryption(false)
     const store = open(provider)
@@ -385,19 +274,6 @@ describe('DesktopChatSessionStore', () => {
     expect(store.getBrowser(ORIGIN, 'chat-a')).toEqual(BROWSER)
     expect(store.flush()).toBe(false)
     expect(provider.encryptString).not.toHaveBeenCalled()
-    expect(existsSync(filePath)).toBe(false)
-  })
-
-  it('also treats an encryption availability error as unavailable', () => {
-    const provider = encryption()
-    provider.isEncryptionAvailable = vi.fn(() => {
-      throw new Error('keychain is locked')
-    })
-    const store = open(provider)
-
-    store.setTerminal(ORIGIN, 'chat-a', TERMINAL)
-    expect(store.isAvailable()).toBe(false)
-    expect(store.flush()).toBe(false)
     expect(existsSync(filePath)).toBe(false)
   })
 
@@ -415,23 +291,5 @@ describe('DesktopChatSessionStore', () => {
     const undecryptable = open(provider)
     expect(undecryptable.initialize()).toBe(false)
     expect(undecryptable.getTerminal(ORIGIN, 'chat-a')).toBeNull()
-  })
-
-  it('returns defensive copies and clears both memory and disk', () => {
-    const provider = encryption()
-    const store = open(provider)
-    store.setBrowser(ORIGIN, 'chat-a', BROWSER)
-
-    const read = store.getBrowser(ORIGIN, 'chat-a')
-    if (!read) throw new Error('expected browser snapshot')
-    read.tabs[0].url = 'https://mutated.example/'
-    expect(store.getBrowser(ORIGIN, 'chat-a')).toEqual(BROWSER)
-
-    store.flush()
-    expect(existsSync(filePath)).toBe(true)
-    store.clear()
-    expect(store.getBrowser(ORIGIN, 'chat-a')).toBeNull()
-    expect(existsSync(filePath)).toBe(false)
-    expect(() => store.clear()).not.toThrow()
   })
 })

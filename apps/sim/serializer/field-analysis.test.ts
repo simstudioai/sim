@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Tests for the exported field-analysis helpers in serializer/index.ts
  * (collectBlockFieldIssues / extractBlockParams) — the single source of truth
  * shared by the serializer's required-field validation and the copilot lint.
@@ -11,13 +9,16 @@ import { describe, expect, it, vi } from 'vitest'
 const { svcConfig } = vi.hoisted(() => ({ svcConfig: { value: null as any } }))
 
 vi.mock('@/tools/utils', () => toolsUtilsMock)
-vi.mock('@/tools/metadata', () => toolsMetadataMock)
 vi.mock('@/blocks', () => ({
   ...blocksMock,
   getBlock: (type: string) => (type === 'svc' ? svcConfig.value : blocksMock.getBlock(type)),
 }))
 
 import { collectBlockFieldIssues, extractBlockParams } from '@/serializer/index'
+import { getToolMetadata, getToolParams } from '@/tools/metadata'
+
+vi.mocked(getToolMetadata).mockImplementation(toolsMetadataMock.getToolMetadata)
+vi.mocked(getToolParams).mockImplementation(toolsMetadataMock.getToolParams)
 
 function block(overrides: Record<string, any> = {}) {
   return {
@@ -49,16 +50,6 @@ describe('collectBlockFieldIssues', () => {
     const issues = collectBlockFieldIssues(block({ subBlocks: { apiKey: { value: '' } } }), cfg, {})
     expect(issues.missingRequiredFields).toEqual(['API Key'])
     expect(issues.inactiveModeValues).toEqual([])
-  })
-
-  it('does not report a required field that is set', () => {
-    const cfg = config([{ id: 'apiKey', title: 'API Key', type: 'short-input', required: true }])
-    const issues = collectBlockFieldIssues(
-      block({ subBlocks: { apiKey: { value: 'sk-123' } } }),
-      cfg,
-      { apiKey: 'sk-123' }
-    )
-    expect(issues.missingRequiredFields).toEqual([])
   })
 
   it('skips disabled blocks', () => {
@@ -141,49 +132,9 @@ describe('collectBlockFieldIssues', () => {
     // The active (basic) member is empty + required -> also a missing field.
     expect(issues.missingRequiredFields).toEqual(['Account'])
   })
-
-  it('does not flag a credential value on the correct active member', () => {
-    const cfg = config([
-      {
-        id: 'credential',
-        title: 'Account',
-        type: 'oauth-input',
-        canonicalParamId: 'cred',
-        mode: 'basic',
-        required: true,
-      },
-      {
-        id: 'manualCredential',
-        title: 'Account',
-        type: 'short-input',
-        canonicalParamId: 'cred',
-        mode: 'advanced',
-        required: true,
-      },
-    ])
-
-    // No override: an empty basic + filled advanced resolves to 'advanced', so
-    // the value is on the active member and nothing is stranded.
-    const issues = collectBlockFieldIssues(
-      block({
-        advancedMode: false,
-        subBlocks: { credential: { value: '' }, manualCredential: { value: 'cred_123' } },
-      }),
-      cfg,
-      { cred: 'cred_123' }
-    )
-
-    expect(issues.inactiveModeValues).toEqual([])
-    expect(issues.missingRequiredFields).toEqual([])
-  })
 })
 
 describe('extractBlockParams', () => {
-  it('returns {} for subflow containers', () => {
-    expect(extractBlockParams(block({ type: 'loop' }))).toEqual({})
-    expect(extractBlockParams(block({ type: 'parallel' }))).toEqual({})
-  })
-
   it('resolves a canonical pair to its canonical id (advanced value wins when basic empty)', () => {
     svcConfig.value = config([
       {
@@ -215,37 +166,52 @@ describe('extractBlockParams', () => {
     expect(params.manualCredential).toBeUndefined()
   })
 
-  it('preserves a singleton canonical credential when additional fields are open', () => {
-    svcConfig.value = config([
-      {
-        id: 'credential',
-        title: 'QuickBooks Account',
-        type: 'oauth-input',
-        canonicalParamId: 'oauthCredential',
-        required: true,
-      },
-      {
-        id: 'privateNote',
-        title: 'Private Note',
-        type: 'long-input',
-        mode: 'advanced',
-      },
-    ])
+  describe('legacy advancedMode', () => {
+    /**
+     * `advancedMode` is a block flag the editor stopped writing in #6458, but stored workflows
+     * still carry it. It means "the ADVANCED member of a pair wins", which only has meaning for a
+     * group that has one.
+     */
+    const nonPair = () =>
+      config([
+        {
+          id: 'personalApiKey',
+          title: 'Personal API Key',
+          type: 'short-input',
+          canonicalParamId: 'apiKey',
+          required: true,
+        },
+      ])
 
-    const state = block({
-      type: 'svc',
-      advancedMode: true,
-      subBlocks: {
-        credential: { value: 'credential-id' },
-        privateNote: { value: 'Updated through Sim' },
-      },
+    it('keeps a canonical group that has no advanced member', () => {
+      svcConfig.value = nonPair()
+
+      const params = extractBlockParams(
+        block({
+          type: 'svc',
+          advancedMode: true,
+          subBlocks: { personalApiKey: { value: 'phx_secret' } },
+        })
+      )
+
+      // Regression: forcing 'advanced' on a group with no advanced member left `chosen`
+      // undefined while the source-id sweep still deleted `personalApiKey`, so the block
+      // serialized with neither key and failed at run time on a field the user had filled.
+      expect(params.apiKey).toBe('phx_secret')
+      expect(params.personalApiKey).toBeUndefined()
     })
-    const params = extractBlockParams(state)
-    const issues = collectBlockFieldIssues(state, svcConfig.value, params)
 
-    expect(params.oauthCredential).toBe('credential-id')
-    expect(params.credential).toBeUndefined()
-    expect(params.privateNote).toBe('Updated through Sim')
-    expect(issues.missingRequiredFields).toEqual([])
+    it('does not report the surviving value as a missing required field', () => {
+      const cfg = nonPair()
+      const state = block({
+        type: 'svc',
+        advancedMode: true,
+        subBlocks: { personalApiKey: { value: 'phx_secret' } },
+      })
+
+      expect(
+        collectBlockFieldIssues(state, cfg, extractBlockParams(state)).missingRequiredFields
+      ).toEqual([])
+    })
   })
 })

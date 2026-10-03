@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Wrench } from '@sim/emcn/icons'
+import { Plus, Wrench } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Plus } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
@@ -12,7 +12,6 @@ import {
   customToolIdParam,
   customToolIdUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
-import { CustomToolDetail } from '@/app/workspace/[workspaceId]/settings/components/custom-tools/components/custom-tool-detail'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -22,6 +21,20 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import { useCustomTools } from '@/hooks/queries/custom-tools'
+
+/**
+ * The editor reaches the code-generation and tag-dropdown tooling, which pulls in the block
+ * registry. Loaded on open (or on Add-chip intent), so the list does not download it. `loading`
+ * gives it its own boundary: opening is a plain state update, and the section page has no
+ * boundary of its own.
+ */
+const loadCustomToolDetail = () =>
+  import(
+    '@/app/workspace/[workspaceId]/settings/components/custom-tools/components/custom-tool-detail'
+  )
+const CustomToolDetail = dynamic(() => loadCustomToolDetail().then((m) => m.CustomToolDetail), {
+  loading: () => null,
+})
 
 export function CustomTools() {
   const params = useParams()
@@ -69,6 +82,7 @@ export function CustomTools() {
           icon: Plus,
           variant: 'primary',
           onSelect: () => setIsCreating(true),
+          onPrefetch: () => void loadCustomToolDetail(),
           disabled: isLoading,
         },
       ]

@@ -1,0 +1,64 @@
+---
+title: Deploy Workflows
+description: How a workflow becomes an operational system that outside callers can run, with versioned snapshots and rollback.
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
+
+A deployment is a published version of a [workflow](/workflows) that outside callers can run. While you build, a workflow lives on your canvas as a draft you can run from the editor. Deploying publishes a fixed copy of that draft and gives it an address: a REST endpoint, a chat page, or a set of [MCP](/workflows/deployment/mcp) tools. Each is a **surface**, a channel callers reach the same published workflow through.
+
+## The deployment model
+
+### Snapshot
+
+A **snapshot** is an immutable copy of your workflow taken at the moment you deploy. It is frozen: editing the canvas afterward changes your draft, not the snapshot. Every call to your deployment runs against the snapshot, so a half-finished edit on the canvas never reaches a live caller. Publishing again takes a fresh snapshot of the current draft.
+
+### Version
+
+Each snapshot is recorded as a numbered **version** (v1, v2, and so on) in the Versions table, tagged with who deployed it and when. Versions are independent: one is live at a time, marked with a green dot, and the rest stay available to rename, describe, load back to the canvas, or promote. You publish v1 with **Deploy** and every later **Update** adds the next version.
+
+<Image src="/static/api-deployment/api-versions-menu.png" alt="Versions table with v2 live and the v1 menu open on Promote to live" width={700} height={303} className="mx-auto h-auto w-full max-w-xl" />
+
+### Live version
+
+The **live version** is the one snapshot currently exposed through every surface. The General tab shows it as **Live Workflow**, a read-only minimap of exactly what callers run. Only one version is live at a time. Promoting a different version, or updating to a new one, swaps which snapshot is live without affecting the others.
+
+### Update
+
+After you change the canvas on a deployed workflow, an **Update deployment** badge appears in the toolbar to flag that your live version is behind your draft. Clicking **Update** takes a new snapshot, records it as the next version, and makes it live, all without reopening the deploy modal.
+
+### Promote to live
+
+**Promote to live** makes an earlier version the live one again. It is the fast path for rollback: if a new deployment misbehaves, promote the last known-good version to restore it instantly. Promoting reuses an existing snapshot, so it does not create a new version.
+
+
+
+## The surfaces
+
+Every surface runs the same live snapshot. You manage them from the tabs of the deploy modal.
+
+The most common surface is the **API**. Once deployed, your workflow answers at:
+
+```
+POST https://www.sim.ai/api/v2/workflows/{workflow-id}/execute
+```
+
+Send the workflow's [Input Format](/workflows/triggers/start) as the request body's `input` value. The response includes workflow output and execution metadata; see [API deployment](/workflows/deployment/api) for response modes.
+
+```bash
+curl -X POST https://www.sim.ai/api/v2/workflows/{workflow-id}/execute \
+  -H "X-API-Key: $SIM_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "input": { "message": "Refund request from customer #4821" } }'
+```
+
+{/* VISUAL: deploy modal tab bar. General · API · MCP · Chat. */}
+
+<Cards>
+  <Card title="API" href="/workflows/deployment/api" description="A REST endpoint any application can call, with sync, streaming, and async modes." />
+  <Card title="Chat" href="/workflows/deployment/chat" description="A shareable conversational page that keeps conversation history." />
+  <Card title="MCP" href="/workflows/deployment/mcp" description="Expose the workflow as tools an external AI assistant can call." />
+</Cards>
+
+Open [Logs](/logs-debugging) to confirm which deployment version a run used.

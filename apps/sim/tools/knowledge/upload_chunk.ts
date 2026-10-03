@@ -1,7 +1,7 @@
 import type { KnowledgeUploadChunkResponse } from '@/tools/knowledge/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkResponse> = {
+export const knowledgeUploadChunkTool: InternalToolConfig<any, KnowledgeUploadChunkResponse> = {
   id: 'knowledge_upload_chunk',
   name: 'Knowledge Upload Chunk',
   description: 'Upload a new chunk to a document in a knowledge base',
@@ -28,17 +28,17 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
     },
   },
 
-  request: {
-    url: (params) =>
-      `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}/chunks`,
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => {
+  operation: {
+    secretProvenance: {
+      request: () => [{ key: 'chunk-content', inputPaths: [['content']] }],
+      response: { incomplete: 'reject' },
+    },
+    input: (params) => {
       const workflowId = params._context?.workflowId
 
       const requestBody = {
+        knowledgeBaseId: params.knowledgeBaseId,
+        documentId: params.documentId,
         content: params.content,
         enabled: true,
         ...(workflowId && { workflowId }),

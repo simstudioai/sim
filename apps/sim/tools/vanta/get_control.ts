@@ -1,9 +1,12 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import { VANTA_CONTROL_DETAIL_OUTPUT_PROPERTIES } from '@/tools/vanta/outputs'
 import type { VantaGetControlParams, VantaGetControlResponse } from '@/tools/vanta/types'
-import { createVantaTransformResponse, VANTA_QUERY_ROUTE } from '@/tools/vanta/utils'
+import { createVantaTransformResponse } from '@/tools/vanta/utils'
 
-export const vantaGetControlTool: ToolConfig<VantaGetControlParams, VantaGetControlResponse> = {
+export const vantaGetControlTool: InternalToolConfig<
+  VantaGetControlParams,
+  VantaGetControlResponse
+> = {
   id: 'vanta_get_control',
   name: 'Vanta Get Control',
   description:
@@ -37,11 +40,8 @@ export const vantaGetControlTool: ToolConfig<VantaGetControlParams, VantaGetCont
     },
   },
 
-  request: {
-    url: VANTA_QUERY_ROUTE,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       operation: 'vanta_get_control',
       clientId: params.clientId,
       clientSecret: params.clientSecret,

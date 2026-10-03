@@ -2,9 +2,9 @@ import type {
   CloudFormationDeleteStackParams,
   CloudFormationDeleteStackResponse,
 } from '@/tools/cloudformation/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteStackTool: ToolConfig<
+export const deleteStackTool: InternalToolConfig<
   CloudFormationDeleteStackParams,
   CloudFormationDeleteStackResponse
 > = {
@@ -47,13 +47,8 @@ export const deleteStackTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/cloudformation/delete-stack',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

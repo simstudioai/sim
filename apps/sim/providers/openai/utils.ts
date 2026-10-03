@@ -1,6 +1,11 @@
+import { isRecordLike } from '@sim/utils/object'
 import type OpenAI from 'openai'
 import { Stream } from 'openai/streaming'
 import { buildOpenAIMessageContent } from '@/providers/attachments'
+import {
+  getNativeConversationMessage,
+  retainConversationMessageSource,
+} from '@/providers/conversation-metadata'
 import type { ModelUsage } from '@/providers/cost-policy'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { Message } from '@/providers/types'
@@ -139,6 +144,7 @@ export async function* iterateResponsesStreamEvents(
 
 export interface ResponsesToolDefinition {
   type: 'function'
+  strict: false
   name: string
   description?: string
   parameters?: Record<string, unknown>
@@ -156,6 +162,12 @@ export function buildResponsesInputFromMessages(
   const input: ResponsesInputItem[] = []
 
   for (const message of messages) {
+    const nativeMessage = getNativeConversationMessage(message, 'responses')
+    if (Array.isArray(nativeMessage)) {
+      input.push(...(nativeMessage as ResponsesInputItem[]))
+      continue
+    }
+
     if (message.role === 'tool' && message.tool_call_id) {
       input.push({
         type: 'function_call_output',
@@ -170,17 +182,9 @@ export function buildResponsesInputFromMessages(
         message.role === 'user'
           ? buildOpenAIMessageContent(message.content, message.files, providerId)
           : (message.content ?? '')
-      if (
-        (typeof content === 'string' && !content) ||
-        (Array.isArray(content) && content.length === 0)
-      ) {
-        continue
+      if (content.length > 0) {
+        input.push(retainConversationMessageSource(message, { role: message.role, content }))
       }
-
-      input.push({
-        role: message.role,
-        content,
-      })
     }
 
     if (message.tool_calls?.length) {
@@ -199,7 +203,8 @@ export function buildResponsesInputFromMessages(
 }
 
 /**
- * Converts tool definitions to the Responses API format.
+ * Converts tool definitions without changing their required and optional inputs.
+ * Responses otherwise attempts strict normalization, which can require optional fields.
  */
 export function convertToolsToResponses(
   tools: Array<{
@@ -219,6 +224,7 @@ export function convertToolsToResponses(
 
       return {
         type: 'function' as const,
+        strict: false as const,
         name,
         description: tool.function?.description ?? tool.description,
         parameters: tool.function?.parameters ?? tool.parameters,
@@ -255,12 +261,8 @@ export function toResponsesToolChoice(
   return 'auto'
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
 function extractTextFromMessageItem(item: unknown): string {
-  if (!isRecord(item)) {
+  if (!isRecordLike(item)) {
     return ''
   }
 
@@ -274,7 +276,7 @@ function extractTextFromMessageItem(item: unknown): string {
 
   const textParts: string[] = []
   for (const part of item.content) {
-    if (!isRecord(part)) {
+    if (!isRecordLike(part)) {
       continue
     }
 
@@ -332,11 +334,20 @@ export function extractResponseReasoning(output: OpenAI.Responses.ResponseOutput
 
 /**
  * Converts Responses API output items into input items for subsequent calls.
+ *
+ * Echoing output items straight back as input is exactly what the Responses API asks for in a
+ * tool loop, but the SDK models `ResponseOutputItem` and `ResponseInputItem` as separate unions
+ * that diverge on members Sim never produces — computer-use call outputs (whose `status` admits
+ * `failed`, which the input shape rejects) and the `AdditionalTools` escape hatch. Narrowing
+ * member by member would have to be redone on every SDK bump, so the conversion is asserted
+ * once, here, and every caller goes through it rather than pushing raw output items.
  */
 export function convertResponseOutputToInputItems(
   output: OpenAI.Responses.ResponseOutputItem[]
 ): ResponsesInputItem[] {
-  return Array.isArray(output) ? output : []
+  if (!Array.isArray(output)) return []
+  // double-cast-allowed: the SDK's output and input item unions diverge only on members Sim never emits
+  return output as unknown as ResponsesInputItem[]
 }
 
 /**
@@ -352,7 +363,7 @@ export function extractResponseToolCalls(
   const toolCalls: ResponsesToolCall[] = []
 
   for (const item of output) {
-    if (!isRecord(item)) {
+    if (!isRecordLike(item)) {
       continue
     }
 
@@ -421,7 +432,12 @@ export function parseResponsesUsage(
  */
 export function createReadableStreamFromResponses(
   response: Response,
-  onComplete?: (content: string, usage?: ResponsesUsageTokens, thinking?: string) => void
+  onComplete?: (
+    content: string,
+    usage?: ResponsesUsageTokens,
+    thinking?: string,
+    response?: OpenAI.Responses.Response
+  ) => void | Promise<void>
 ): ReadableStream<AgentStreamEvent> {
   const streamAbortController = new AbortController()
 
@@ -432,6 +448,7 @@ export function createReadableStreamFromResponses(
         let fullThinking = ''
         let finalUsage: ResponsesUsageTokens | undefined
         let completed = false
+        let terminalResponse: OpenAI.Responses.Response | undefined
         let sawFunctionCall = false
 
         try {
@@ -457,6 +474,7 @@ export function createReadableStreamFromResponses(
               ) {
                 throw new Error(`OpenAI Responses stream incomplete: ${reason}`)
               }
+              terminalResponse = event.response
               finalUsage = parseResponsesUsage(event.response.usage)
               completed = true
               continue
@@ -483,6 +501,7 @@ export function createReadableStreamFromResponses(
               continue
             }
             if (event.type === 'response.completed') {
+              terminalResponse = event.response
               finalUsage = parseResponsesUsage(event.response.usage)
               completed = true
             }
@@ -492,7 +511,7 @@ export function createReadableStreamFromResponses(
             throw new Error('OpenAI Responses stream ended without a completed response')
           }
 
-          onComplete?.(fullContent, finalUsage, fullThinking || undefined)
+          await onComplete?.(fullContent, finalUsage, fullThinking || undefined, terminalResponse)
           controller.close()
         } catch (error) {
           if (!streamAbortController.signal.aborted) {

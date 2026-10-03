@@ -10,6 +10,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
 } from 'react'
@@ -32,6 +33,23 @@ const AUTO_DISMISS_MS = 5000
 
 /** Card width; tracks the workflow-panel inset on narrow viewports. */
 const TOAST_WIDTH = 'min(100vw - 2rem, 280px)'
+
+/** Gap from the viewport edge on an ordinary page. */
+const VIEWPORT_INSET_PX = 16
+/**
+ * Gap the stack keeps from the workflow panel and terminal it sits against —
+ * the same one the canvas controls keep, so the two floating surfaces read as
+ * one row.
+ *
+ * `--panel-width` / `--terminal-height` measure the element, not its distance
+ * from the viewport, and the stack is portalled to `<body>` so it anchors from
+ * the viewport. `--workspace-content-gap` adds back whatever padding the
+ * workspace shell insets those elements by — normally 8px, but 0 on the desktop
+ * shell with a collapsed sidebar. Hardcoding the sum would silently hold the
+ * stack 8px further out in that configuration while the controls, which are laid
+ * out inside the shell, stayed put.
+ */
+const WORKFLOW_INSET_PX = 12
 
 /** Most toasts kept alive at once; older arrivals are evicted. */
 const STACK_LIMIT = 3
@@ -81,6 +99,73 @@ interface ToastData {
   action?: ToastAction
   duration: number
   persistAcrossRoutes: boolean
+  onDismiss?: () => void
+  onUserDismiss?: () => void
+}
+
+interface ToastRemoval {
+  id: string
+  callback: () => void
+}
+
+interface ToastState {
+  toasts: ToastData[]
+  removals: ToastRemoval[]
+}
+
+type ToastStateAction =
+  | { type: 'add'; toast: ToastData }
+  | { type: 'dismiss'; id: string }
+  | { type: 'dismiss-all' }
+  | { type: 'sweep-route' }
+  | { type: 'ack-removals'; ids: string[] }
+
+const INITIAL_TOAST_STATE: ToastState = { toasts: [], removals: [] }
+
+function queueToastRemovals(state: ToastState, removed: ToastData[]): ToastRemoval[] {
+  const callbacks = removed.flatMap((toast) =>
+    toast.onDismiss ? [{ id: toast.id, callback: toast.onDismiss }] : []
+  )
+  return callbacks.length > 0 ? [...state.removals, ...callbacks] : state.removals
+}
+
+function toastStateReducer(state: ToastState, action: ToastStateAction): ToastState {
+  if (action.type === 'add') {
+    const toasts = [...state.toasts, action.toast]
+    if (toasts.length <= STACK_LIMIT) return { ...state, toasts }
+    const evictIndex = toasts.findIndex((toast) => toast.duration > 0)
+    const [removed] = toasts.splice(evictIndex === -1 ? 0 : evictIndex, 1)
+    return { toasts, removals: queueToastRemovals(state, [removed]) }
+  }
+
+  if (action.type === 'dismiss') {
+    const removed = state.toasts.find((toast) => toast.id === action.id)
+    if (!removed) return state
+    return {
+      toasts: state.toasts.filter((toast) => toast.id !== action.id),
+      removals: queueToastRemovals(state, [removed]),
+    }
+  }
+
+  if (action.type === 'dismiss-all') {
+    if (state.toasts.length === 0) return state
+    return { toasts: [], removals: queueToastRemovals(state, state.toasts) }
+  }
+
+  if (action.type === 'sweep-route') {
+    const removed = state.toasts.filter((toast) => !toast.persistAcrossRoutes)
+    if (removed.length === 0) return state
+    return {
+      toasts: state.toasts.filter((toast) => toast.persistAcrossRoutes),
+      removals: queueToastRemovals(state, removed),
+    }
+  }
+
+  const acknowledged = new Set(action.ids)
+  return {
+    ...state,
+    removals: state.removals.filter((removal) => !acknowledged.has(removal.id)),
+  }
 }
 
 type ToastInput = {
@@ -88,6 +173,10 @@ type ToastInput = {
   description?: string
   variant?: ToastVariant
   action?: ToastAction
+  /** Called once when the toast leaves the stack, regardless of how it was dismissed. */
+  onDismiss?: () => void
+  /** Called directly when the user closes the toast or selects its action, before removal. */
+  onUserDismiss?: () => void
   duration?: number
   /**
    * Keep the toast across navigation. The stack is otherwise cleared on every
@@ -288,7 +377,10 @@ function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: T
     return () => observer.disconnect()
   }, [t.id, onMeasure])
 
-  const dismiss = useCallback(() => onDismiss(t.id), [onDismiss, t.id])
+  const dismiss = () => {
+    t.onUserDismiss?.()
+    onDismiss(t.id)
+  }
 
   const { y, scale, height, zIndex } = geometry
   const cornerRadius = height <= COMPACT_CARD_HEIGHT_PX ? COMPACT_RADIUS_PX : CONCENTRIC_RADIUS_PX
@@ -313,8 +405,13 @@ function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: T
         transition: reduceMotion ? { duration: 0 } : { duration: 0.15, ease: 'easeIn' },
       }}
       transition={transition}
-      style={{ zIndex, transformOrigin: 'bottom', width: TOAST_WIDTH, borderRadius: cornerRadius }}
-      className='pointer-events-auto absolute right-0 bottom-0 m-0 overflow-hidden border border-[var(--border-1)] bg-[var(--bg)] shadow-[var(--shadow-overlay)]'
+      style={{
+        zIndex,
+        transformOrigin: 'bottom',
+        width: TOAST_WIDTH,
+        borderRadius: cornerRadius,
+      }}
+      className='pointer-events-auto absolute right-0 bottom-0 m-0 overflow-hidden border border-[var(--border-1)] bg-[var(--bg)]'
     >
       <div ref={contentRef} className='flex flex-col gap-2 p-2'>
         <div className='flex items-start gap-2'>
@@ -333,13 +430,13 @@ function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: T
               reduceMotion={reduceMotion}
             />
           </div>
-          <div className='flex h-5 flex-shrink-0 items-center'>
+          <div className='flex h-5 shrink-0 items-center'>
             <Button
               variant='quiet'
               onClick={dismiss}
               aria-label='Dismiss notification'
               title='Dismiss'
-              className='size-[18px] rounded-sm p-0'
+              size='icon'
             >
               <X className='size-[16px]' />
             </Button>
@@ -358,7 +455,6 @@ function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: T
         {t.action ? (
           <Chip
             fullWidth
-            flush
             onClick={() => {
               t.action!.onClick()
               dismiss()
@@ -390,11 +486,14 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   /** On the workflow editor (`/w/[id]` and the `/w` index) the stack insets by `--panel-width` / `--terminal-height` to clear the panel and terminal. */
   const isWorkflowPage = pathname ? /\/w(\/|$)/.test(pathname) : false
 
-  const [toasts, setToasts] = useState<ToastData[]>([])
+  const [{ toasts, removals }, dispatch] = useReducer(toastStateReducer, INITIAL_TOAST_STATE)
   const [heights, setHeights] = useState<Record<string, number>>({})
   const [expanded, setExpanded] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>> | null>(null)
+  const timers = (timersRef.current ??= new Map())
+  const processedRemovalIdsRef = useRef<Set<string> | null>(null)
+  const processedRemovalIds = (processedRemovalIdsRef.current ??= new Set())
 
   /**
    * Clear the previous route's toasts when the route changes. Toasts flagged
@@ -414,9 +513,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   const [sweptPathname, setSweptPathname] = useState(pathname)
   if (pathname !== sweptPathname) {
     setSweptPathname(pathname)
-    setToasts((prev) =>
-      prev.some((t) => !t.persistAcrossRoutes) ? prev.filter((t) => t.persistAcrossRoutes) : prev
-    )
+    dispatch({ type: 'sweep-route' })
   }
 
   useEffect(() => {
@@ -439,7 +536,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
    * auto-dismissable toast is evicted first, so a persistent (actionable) toast
    * isn't silently dropped — only an all-persistent overflow evicts the oldest.
    */
-  const addToast = useCallback((input: ToastInput): string => {
+  const addToast = (input: ToastInput): string => {
     const id = generateId()
     const data: ToastData = {
       id,
@@ -449,24 +546,35 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
       action: input.action,
       duration: input.duration ?? (input.action ? 0 : AUTO_DISMISS_MS),
       persistAcrossRoutes: input.persistAcrossRoutes ?? false,
+      onDismiss: input.onDismiss,
+      onUserDismiss: input.onUserDismiss,
     }
-    setToasts((prev) => {
-      const next = [...prev, data]
-      if (next.length <= STACK_LIMIT) return next
-      const evictIndex = next.findIndex((t) => t.duration > 0)
-      next.splice(evictIndex === -1 ? 0 : evictIndex, 1)
-      return next
-    })
+    dispatch({ type: 'add', toast: data })
     return id
-  }, [])
+  }
+
+  useEffect(() => {
+    if (removals.length === 0) {
+      processedRemovalIds.clear()
+      return
+    }
+    const ids: string[] = []
+    for (const removal of removals) {
+      if (processedRemovalIds.has(removal.id)) continue
+      processedRemovalIds.add(removal.id)
+      ids.push(removal.id)
+      removal.callback()
+    }
+    if (ids.length > 0) dispatch({ type: 'ack-removals', ids })
+  }, [removals])
 
   const dismissToast = useCallback((id: string) => {
-    const timer = timersRef.current.get(id)
+    const timer = timers.get(id)
     if (timer) {
       clearTimeout(timer)
-      timersRef.current.delete(id)
+      timers.delete(id)
     }
-    setToasts((prev) => prev.filter((t) => t.id !== id))
+    dispatch({ type: 'dismiss', id })
     setHeights((prev) => {
       if (!(id in prev)) return prev
       const next = { ...prev }
@@ -476,9 +584,9 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   }, [])
 
   const dismissAllToasts = useCallback(() => {
-    for (const timer of timersRef.current.values()) clearTimeout(timer)
-    timersRef.current.clear()
-    setToasts([])
+    for (const timer of timers.values()) clearTimeout(timer)
+    timers.clear()
+    dispatch({ type: 'dismiss-all' })
     setHeights({})
   }, [])
 
@@ -505,7 +613,6 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
    * every timer so a toast can't be cleared mid-read.
    */
   useEffect(() => {
-    const timers = timersRef.current
     if (toasts.length === 0 || expanded) {
       for (const timer of timers.values()) clearTimeout(timer)
       timers.clear()
@@ -532,13 +639,12 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   }, [toasts, expanded, dismissToast])
 
   useEffect(() => {
-    const timers = timersRef.current
     return () => {
       for (const timer of timers.values()) clearTimeout(timer)
     }
   }, [])
 
-  /** Held in a ref (seeded once from the stable `addToast`) so the module-level `toast` binds to the live provider. */
+  /** Held in a ref (seeded once from `addToast`) so the module-level `toast` binds to the live provider. */
   const toastFn = useRef<ToastFn>(createToastFn(addToast))
 
   useEffect(() => {
@@ -554,7 +660,11 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   }, [dismissToast, dismissAllToasts])
 
   const ctx = useMemo<ToastContextValue>(
-    () => ({ toast: toastFn.current, dismiss: dismissToast, dismissAll: dismissAllToasts }),
+    () => ({
+      toast: toastFn.current,
+      dismiss: dismissToast,
+      dismissAll: dismissAllToasts,
+    }),
     [dismissToast, dismissAllToasts]
   )
 
@@ -590,15 +700,28 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
                   key='toast-stack'
                   aria-live='polite'
                   aria-label='Notifications'
-                  data-native-surface-overlay=''
+                  data-native-surface-overlay='passive'
+                  /*
+                   * The stack is portalled to `<body>`, so it shares no ancestor
+                   * with the panel or terminal it insets by. A resize drag writes
+                   * `--panel-width` / `--terminal-height` to each consuming
+                   * subtree rather than to `:root`; this attribute is how it
+                   * finds this one, and without it the stack would hold the
+                   * pre-drag position until the drag commits.
+                   */
+                  data-toast-viewport=''
                   className='fixed z-[var(--z-toast)] m-0 list-none p-0'
                   exit={{
                     opacity: 0,
                     transition: reduceMotion ? { duration: 0 } : { duration: 0.2, ease: 'easeIn' },
                   }}
                   style={{
-                    right: isWorkflowPage ? 'calc(var(--panel-width) + 16px)' : '16px',
-                    bottom: isWorkflowPage ? 'calc(var(--terminal-height) + 16px)' : '16px',
+                    right: isWorkflowPage
+                      ? `calc(var(--panel-width) + var(--workspace-content-gap, 0px) + ${WORKFLOW_INSET_PX}px)`
+                      : `${VIEWPORT_INSET_PX}px`,
+                    bottom: isWorkflowPage
+                      ? `calc(var(--terminal-height) + var(--workspace-content-gap, 0px) + ${WORKFLOW_INSET_PX}px)`
+                      : `${VIEWPORT_INSET_PX}px`,
                     width: TOAST_WIDTH,
                     height: containerHeight,
                   }}

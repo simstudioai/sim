@@ -57,15 +57,6 @@ export const PIPEDRIVE_LEAD_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete lead output definition
- */
-export const PIPEDRIVE_LEAD_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Pipedrive lead object',
-  properties: PIPEDRIVE_LEAD_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for deal objects.
  * @see https://developers.pipedrive.com/docs/api/v1/Deals
  */
@@ -89,15 +80,6 @@ export const PIPEDRIVE_DEAL_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete deal output definition
- */
-export const PIPEDRIVE_DEAL_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Pipedrive deal object',
-  properties: PIPEDRIVE_DEAL_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for activity objects.
  * @see https://developers.pipedrive.com/docs/api/v1/Activities
  */
@@ -118,15 +100,6 @@ export const PIPEDRIVE_ACTIVITY_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete activity output definition
- */
-export const PIPEDRIVE_ACTIVITY_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Pipedrive activity object',
-  properties: PIPEDRIVE_ACTIVITY_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for file objects.
  * @see https://developers.pipedrive.com/docs/api/v1/Files
  */
@@ -144,15 +117,6 @@ export const PIPEDRIVE_FILE_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete file output definition
- */
-export const PIPEDRIVE_FILE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Pipedrive file object',
-  properties: PIPEDRIVE_FILE_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for pipeline objects.
  * @see https://developers.pipedrive.com/docs/api/v1/Pipelines
  */
@@ -166,15 +130,6 @@ export const PIPEDRIVE_PIPELINE_OUTPUT_PROPERTIES = {
   add_time: { type: 'string', description: 'When the pipeline was created' },
   update_time: { type: 'string', description: 'When the pipeline was last updated' },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete pipeline output definition
- */
-export const PIPEDRIVE_PIPELINE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Pipedrive pipeline object',
-  properties: PIPEDRIVE_PIPELINE_OUTPUT_PROPERTIES,
-}
 
 /**
  * Output definition for project objects.
@@ -191,15 +146,6 @@ export const PIPEDRIVE_PROJECT_OUTPUT_PROPERTIES = {
   add_time: { type: 'string', description: 'When the project was created' },
   update_time: { type: 'string', description: 'When the project was last updated' },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete project output definition
- */
-export const PIPEDRIVE_PROJECT_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Pipedrive project object',
-  properties: PIPEDRIVE_PROJECT_OUTPUT_PROPERTIES,
-}
 
 /**
  * Output definition for mail message objects.
@@ -234,15 +180,6 @@ export const PIPEDRIVE_MAIL_MESSAGE_OUTPUT_PROPERTIES = {
   person_id: { type: 'number', description: 'Associated person ID', optional: true },
   org_id: { type: 'number', description: 'Associated organization ID', optional: true },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete mail message output definition
- */
-export const PIPEDRIVE_MAIL_MESSAGE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Pipedrive mail message object',
-  properties: PIPEDRIVE_MAIL_MESSAGE_OUTPUT_PROPERTIES,
-}
 
 /**
  * List metadata output properties

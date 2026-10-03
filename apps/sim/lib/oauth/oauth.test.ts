@@ -1,69 +1,45 @@
-import { createMockFetch, loggerMock, resetEnvMock, setEnv } from '@sim/testing'
+import { createMockFetch, resetEnvMock, setEnv } from '@sim/testing'
+import { getOAuth2Tokens } from 'better-auth/oauth2'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 beforeAll(() => {
   setEnv({
+    NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
     GOOGLE_CLIENT_ID: 'google_client_id',
     GOOGLE_CLIENT_SECRET: 'google_client_secret',
-    GITHUB_CLIENT_ID: 'github_client_id',
-    GITHUB_CLIENT_SECRET: 'github_client_secret',
-    X_CLIENT_ID: 'x_client_id',
-    X_CLIENT_SECRET: 'x_client_secret',
     TIKTOK_CLIENT_ID: 'tiktok_client_key',
     TIKTOK_CLIENT_SECRET: 'tiktok_client_secret',
     INSTAGRAM_CLIENT_ID: 'instagram_client_id',
     INSTAGRAM_CLIENT_SECRET: 'instagram_client_secret',
-    CONFLUENCE_CLIENT_ID: 'confluence_client_id',
-    CONFLUENCE_CLIENT_SECRET: 'confluence_client_secret',
-    JIRA_CLIENT_ID: 'jira_client_id',
-    JIRA_CLIENT_SECRET: 'jira_client_secret',
     AIRTABLE_CLIENT_ID: 'airtable_client_id',
     AIRTABLE_CLIENT_SECRET: 'airtable_client_secret',
+    BITBUCKET_CLIENT_ID: 'bitbucket_client_id',
+    BITBUCKET_CLIENT_SECRET: 'bitbucket_client_secret',
     NOTION_CLIENT_ID: 'notion_client_id',
     NOTION_CLIENT_SECRET: 'notion_client_secret',
     MICROSOFT_CLIENT_ID: 'microsoft_client_id',
     MICROSOFT_CLIENT_SECRET: 'microsoft_client_secret',
-    LINEAR_CLIENT_ID: 'linear_client_id',
-    LINEAR_CLIENT_SECRET: 'linear_client_secret',
     SLACK_CLIENT_ID: 'slack_client_id',
     SLACK_CLIENT_SECRET: 'slack_client_secret',
-    REDDIT_CLIENT_ID: 'reddit_client_id',
-    REDDIT_CLIENT_SECRET: 'reddit_client_secret',
-    DROPBOX_CLIENT_ID: 'dropbox_client_id',
-    DROPBOX_CLIENT_SECRET: 'dropbox_client_secret',
-    WEALTHBOX_CLIENT_ID: 'wealthbox_client_id',
-    WEALTHBOX_CLIENT_SECRET: 'wealthbox_client_secret',
-    WEBFLOW_CLIENT_ID: 'webflow_client_id',
-    WEBFLOW_CLIENT_SECRET: 'webflow_client_secret',
-    ASANA_CLIENT_ID: 'asana_client_id',
-    ASANA_CLIENT_SECRET: 'asana_client_secret',
-    PIPEDRIVE_CLIENT_ID: 'pipedrive_client_id',
-    PIPEDRIVE_CLIENT_SECRET: 'pipedrive_client_secret',
-    QUICKBOOKS_CLIENT_ID: 'quickbooks_client_id',
-    QUICKBOOKS_CLIENT_SECRET: 'quickbooks_client_secret',
-    HUBSPOT_CLIENT_ID: 'hubspot_client_id',
-    HUBSPOT_CLIENT_SECRET: 'hubspot_client_secret',
-    LINKEDIN_CLIENT_ID: 'linkedin_client_id',
-    LINKEDIN_CLIENT_SECRET: 'linkedin_client_secret',
     SALESFORCE_CLIENT_ID: 'salesforce_client_id',
     SALESFORCE_CLIENT_SECRET: 'salesforce_client_secret',
     ZOHO_CLIENT_ID: 'zoho_client_id',
-    ZOHO_CLIENT_SECRET: 'zoho_client_secret',
-    SHOPIFY_CLIENT_ID: 'shopify_client_id',
-    SHOPIFY_CLIENT_SECRET: 'shopify_client_secret',
-    ZOOM_CLIENT_ID: 'zoom_client_id',
-    ZOOM_CLIENT_SECRET: 'zoom_client_secret',
-    WORDPRESS_CLIENT_ID: 'wordpress_client_id',
-    WORDPRESS_CLIENT_SECRET: 'wordpress_client_secret',
-    SPOTIFY_CLIENT_ID: 'spotify_client_id',
-    SPOTIFY_CLIENT_SECRET: 'spotify_client_secret',
+    ZOHO_CLIENT_SECRET: undefined,
+    CALCOM_CLIENT_ID: 'calcom_client_id',
+    JIRA_CLIENT_ID: 'jira_client_id',
+    JIRA_CLIENT_SECRET: 'jira_client_secret',
+    MONDAY_CLIENT_ID: 'monday_client_id',
+    MONDAY_CLIENT_SECRET: 'monday_client_secret',
   })
 })
 
 afterAll(resetEnvMock)
 
+import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
 import { DEFAULT_MAX_ERROR_BODY_BYTES } from '@/lib/core/utils/stream-limits'
-import { refreshOAuthToken } from '@/lib/oauth'
+import { getPerRequestOAuthLinkScopes, OAUTH_PROVIDERS, refreshOAuthToken } from '@/lib/oauth'
+import { getMissingRequiredScopes } from '@/lib/oauth/utils'
+import { PowerBIBlock } from '@/blocks/blocks/powerbi'
 
 /**
  * Default OAuth token response for successful requests.
@@ -77,229 +53,370 @@ const defaultOAuthResponse = {
   },
 }
 
+function oauthTestJwt(payload: Record<string, unknown>): string {
+  const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+  const body = Buffer.from(JSON.stringify(payload)).toString('base64url')
+  return `${header}.${body}.signature`
+}
+
 /**
  * Helper to run a function with a mocked global fetch.
  */
 function withMockFetch<T>(mockFetch: ReturnType<typeof vi.fn>, fn: () => Promise<T>): Promise<T> {
   const originalFetch = global.fetch
-  global.fetch = mockFetch
+  global.fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+    const mocked = (await mockFetch(input, init)) as Partial<Response>
+    if (mocked instanceof Response && mocked.body) return mocked
+
+    let bodyText = ''
+    if (typeof mocked.text === 'function') {
+      bodyText = await mocked.text()
+    } else if (typeof mocked.json === 'function') {
+      bodyText = JSON.stringify(await mocked.json())
+    }
+
+    return new Response(bodyText, {
+      status: mocked.status ?? 200,
+      statusText: mocked.statusText,
+      headers: mocked.headers,
+    })
+  })
   return fn().finally(() => {
     global.fetch = originalFetch
   })
 }
 
-/**
- * Every `logger.error(...)` argument list recorded by the `OAuth` logger instance
- * created in `lib/oauth/oauth.ts`.
- */
-function oauthLoggerErrorCalls(): unknown[][] {
-  const createLogger = vi.mocked(loggerMock.createLogger)
-  return createLogger.mock.calls.flatMap((call, index) =>
-    call[0] === 'OAuth'
-      ? (createLogger.mock.results[index]?.value as { error: { mock: { calls: unknown[][] } } })
-          .error.mock.calls
-      : []
-  )
+function getMondayConnector() {
+  const connector = buildConnectorProviders().find((candidate) => candidate.providerId === 'monday')
+  if (!connector) throw new Error('Monday OAuth connector is not configured in this test')
+  return connector
 }
+
+describe('Monday OAuth connector', () => {
+  it('rejects GraphQL errors returned with HTTP 200 during user-info lookup', async () => {
+    const getUserInfo = getMondayConnector().getUserInfo
+    if (!getUserInfo) throw new Error('Monday OAuth connector must define getUserInfo')
+
+    const userInfo = await withMockFetch(
+      createMockFetch({
+        json: {
+          data: { me: { id: 'user-1', name: 'Person', email: 'person@example.com' } },
+          errors: [{ message: 'Permission denied' }],
+        },
+      }),
+      () => getUserInfo({ accessToken: 'access-token' })
+    )
+
+    expect(userInfo).toBeNull()
+  })
+})
+
+describe('Power BI OAuth callback scope compatibility', () => {
+  it('preserves identity while making bare Power BI grants usable by the block', async () => {
+    const connector = buildConnectorProviders().find(
+      (item) => item.providerId === 'microsoft-powerbi'
+    )
+    if (!connector?.getUserInfo) throw new Error('Power BI OAuth connector is not configured')
+    const tokens = {
+      accessToken: 'powerbi-access',
+      idToken: oauthTestJwt({ sub: 'fixture-subject', email: 'fixture@example.invalid' }),
+      scopes: ['Workspace.Read.All', 'Report.Read.All', 'Dataset.ReadWrite.All'],
+    }
+    const requiredScopes = PowerBIBlock.subBlocks.find(
+      (subBlock) => subBlock.id === 'credential'
+    )?.requiredScopes
+    if (!requiredScopes) throw new Error('Power BI credential requirements are missing')
+    const profile = await connector.getUserInfo(tokens)
+    expect(profile).toMatchObject({ email: 'fixture@example.invalid' })
+    expect(getMissingRequiredScopes(tokens, requiredScopes)).toEqual([])
+    expect(
+      getMissingRequiredScopes(
+        { scopes: tokens.scopes?.filter((scope) => !scope.endsWith('/Dataset.ReadWrite.All')) },
+        requiredScopes
+      )
+    ).toEqual(['https://analysis.windows.net/powerbi/api/Dataset.ReadWrite.All'])
+  })
+
+  it('does not promote a Graph-qualified lookalike into a Power BI grant', async () => {
+    const connector = buildConnectorProviders().find(
+      (item) => item.providerId === 'microsoft-powerbi'
+    )
+    if (!connector?.getUserInfo) throw new Error('Power BI OAuth connector is not configured')
+    const tokens = {
+      accessToken: 'powerbi-access',
+      idToken: oauthTestJwt({ sub: 'fixture-subject', email: 'fixture@example.invalid' }),
+      scopes: ['https://graph.microsoft.com/Report.Read.All'],
+    }
+    await connector.getUserInfo(tokens)
+    expect(
+      getMissingRequiredScopes(tokens, ['https://analysis.windows.net/powerbi/api/Report.Read.All'])
+    ).toEqual(['https://analysis.windows.net/powerbi/api/Report.Read.All'])
+    expect(tokens.scopes).toEqual(['https://graph.microsoft.com/Report.Read.All'])
+  })
+})
+
+describe('Microsoft Dataverse OAuth connector', () => {
+  it('keeps static connector scopes empty and supplies the canonical legacy grant per request', () => {
+    const connector = buildConnectorProviders().find(
+      (candidate) => candidate.providerId === 'microsoft-dataverse'
+    )
+    if (!connector) throw new Error('Microsoft Dataverse OAuth connector is not configured')
+
+    expect(connector.scopes).toEqual([])
+    expect(getPerRequestOAuthLinkScopes('microsoft-dataverse')).toEqual(
+      OAUTH_PROVIDERS.microsoft.services['microsoft-dataverse'].scopes
+    )
+    expect(getPerRequestOAuthLinkScopes('microsoft-excel')).toBeUndefined()
+  })
+})
+
+function getBitbucketConnector() {
+  const connector = buildConnectorProviders().find(
+    (candidate) => candidate.providerId === 'bitbucket'
+  )
+  if (!connector) throw new Error('Bitbucket OAuth connector is not configured in this test')
+  return connector
+}
+
+describe('Bitbucket OAuth Connector', () => {
+  it('exchanges the authorization code with Basic auth and normalizes plural scopes', async () => {
+    const connector = getBitbucketConnector()
+    const getToken = connector.getToken
+    if (!getToken) throw new Error('Bitbucket connector must define getToken')
+
+    const scopes = [
+      'account',
+      'repository',
+      'repository:write',
+      'pullrequest',
+      'pullrequest:write',
+      'pipeline',
+      'pipeline:write',
+      'webhook',
+    ]
+    const mockFetch = createMockFetch({
+      json: {
+        access_token: 'bitbucket_access_token',
+        expires_in: 3600,
+        refresh_token: 'bitbucket_refresh_token',
+        scopes: scopes.join(' '),
+        token_type: 'bearer',
+      },
+    })
+
+    const tokens = await withMockFetch(mockFetch, () =>
+      getToken({
+        code: 'authorization_code',
+        redirectURI: 'http://localhost:3000/api/auth/oauth2/callback/bitbucket',
+      })
+    )
+
+    expect(tokens.accessToken).toBe('bitbucket_access_token')
+    expect(tokens.refreshToken).toBe('bitbucket_refresh_token')
+    expect(tokens.scopes).toEqual(scopes)
+    expect(tokens.accessTokenExpiresAt).toBeInstanceOf(Date)
+
+    const [endpoint, requestOptions] = mockFetch.mock.calls[0] as [
+      string,
+      { headers: Record<string, string>; body: string },
+    ]
+    expect(endpoint).toBe('https://bitbucket.org/site/oauth2/access_token')
+    expect(requestOptions.headers.Authorization).toBe(
+      `Basic ${Buffer.from('bitbucket_client_id:bitbucket_client_secret').toString('base64')}`
+    )
+    expect(Object.fromEntries(new URLSearchParams(requestOptions.body))).toEqual({
+      code: 'authorization_code',
+      grant_type: 'authorization_code',
+      redirect_uri: 'http://localhost:3000/api/auth/oauth2/callback/bitbucket',
+    })
+  })
+
+  it('uses account_id before uuid and always synthesizes an internal email', async () => {
+    const connector = getBitbucketConnector()
+    const getUserInfo = connector.getUserInfo
+    if (!getUserInfo) throw new Error('Bitbucket connector must define getUserInfo')
+    const tokens = getOAuth2Tokens({ access_token: 'bitbucket_access_token' })
+
+    const accountIdentity = await withMockFetch(
+      createMockFetch({
+        json: {
+          account_id: 'account-123',
+          uuid: '{uuid-ignored}',
+          display_name: 'Ada Lovelace',
+          links: { avatar: { href: 'https://example.invalid/avatar.png' } },
+        },
+      }),
+      () => getUserInfo(tokens)
+    )
+    expect(accountIdentity?.id).toMatch(/^account-123-/)
+    expect(accountIdentity?.email).toBe('bitbucket-account-123@connectors.sim.invalid')
+    expect(accountIdentity?.name).toBe('Ada Lovelace')
+    expect(accountIdentity?.image).toBe('https://example.invalid/avatar.png')
+
+    const uuidIdentity = await withMockFetch(
+      createMockFetch({ json: { uuid: '{uuid-456}', nickname: 'grace' } }),
+      () => getUserInfo(tokens)
+    )
+    expect(uuidIdentity?.id).toMatch(/^\{uuid-456\}-/)
+    expect(uuidIdentity?.email).toBe('bitbucket-uuid-456@connectors.sim.invalid')
+    expect(uuidIdentity?.name).toBe('grace')
+  })
+
+  it('bounds Bitbucket user-info responses and supplies a provider deadline', async () => {
+    const getUserInfo = getBitbucketConnector().getUserInfo
+    if (!getUserInfo) throw new Error('Bitbucket connector must define getUserInfo')
+    const mockFetch = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect(init?.signal).toBeInstanceOf(AbortSignal)
+      return new Response('{}', {
+        headers: {
+          'content-length': String(1024 * 1024 + 1),
+          'content-type': 'application/json',
+        },
+      })
+    })
+
+    await expect(
+      withMockFetch(mockFetch, () =>
+        getUserInfo(getOAuth2Tokens({ access_token: 'bitbucket_access_token' }))
+      )
+    ).resolves.toBeNull()
+    expect(mockFetch).toHaveBeenCalledOnce()
+  })
+})
 
 describe('OAuth Token Refresh', () => {
   describe('Basic Auth Providers', () => {
-    const basicAuthProviders = [
-      {
-        name: 'Airtable',
-        providerId: 'airtable',
-        endpoint: 'https://airtable.com/oauth2/v1/token',
-      },
-      { name: 'X (Twitter)', providerId: 'x', endpoint: 'https://api.x.com/2/oauth2/token' },
-      {
-        name: 'Confluence',
-        providerId: 'confluence',
-        endpoint: 'https://auth.atlassian.com/oauth/token',
-      },
-      { name: 'Jira', providerId: 'jira', endpoint: 'https://auth.atlassian.com/oauth/token' },
-      { name: 'Linear', providerId: 'linear', endpoint: 'https://api.linear.app/oauth/token' },
-      {
-        name: 'Reddit',
-        providerId: 'reddit',
-        endpoint: 'https://www.reddit.com/api/v1/access_token',
-      },
-      {
-        name: 'QuickBooks',
-        providerId: 'quickbooks',
-        endpoint: 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer',
-      },
-      {
-        name: 'Asana',
-        providerId: 'asana',
-        endpoint: 'https://app.asana.com/-/oauth_token',
-      },
-      {
-        name: 'Zoom',
-        providerId: 'zoom',
-        endpoint: 'https://zoom.us/oauth/token',
-      },
-      {
-        name: 'Spotify',
-        providerId: 'spotify',
-        endpoint: 'https://accounts.spotify.com/api/token',
-      },
-    ]
+    it.concurrent('sends Basic Auth credentials and keeps them out of the body', async () => {
+      const mockFetch = createMockFetch(defaultOAuthResponse)
+      const refreshToken = 'test_refresh_token'
 
-    basicAuthProviders.forEach(({ name, providerId, endpoint }) => {
-      it.concurrent(
-        `should send ${name} request with Basic Auth header and no credentials in body`,
-        async () => {
-          const mockFetch = createMockFetch(defaultOAuthResponse)
-          const refreshToken = 'test_refresh_token'
+      await withMockFetch(mockFetch, () => refreshOAuthToken('airtable', refreshToken))
 
-          await withMockFetch(mockFetch, () => refreshOAuthToken(providerId, refreshToken))
-
-          expect(mockFetch).toHaveBeenCalledWith(
-            endpoint,
-            expect.objectContaining({
-              method: 'POST',
-              headers: expect.objectContaining({
-                'Content-Type': 'application/x-www-form-urlencoded',
-                Authorization: expect.stringMatching(/^Basic /),
-              }),
-              body: expect.any(String),
-            })
-          )
-
-          const [, requestOptions] = mockFetch.mock.calls[0] as [
-            string,
-            { headers: Record<string, string>; body: string },
-          ]
-
-          const authHeader = requestOptions.headers.Authorization
-          expect(authHeader).toMatch(/^Basic /)
-
-          const base64Credentials = authHeader.replace('Basic ', '')
-          const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8')
-          const [clientId, clientSecret] = credentials.split(':')
-
-          expect(clientId).toBe(`${providerId}_client_id`)
-          expect(clientSecret).toBe(`${providerId}_client_secret`)
-
-          const bodyParams = new URLSearchParams(requestOptions.body)
-          const bodyKeys = Array.from(bodyParams.keys())
-
-          expect(bodyKeys).toEqual(['grant_type', 'refresh_token'])
-          expect(bodyParams.get('grant_type')).toBe('refresh_token')
-          expect(bodyParams.get('refresh_token')).toBe(refreshToken)
-
-          expect(bodyParams.get('client_id')).toBeNull()
-          expect(bodyParams.get('client_secret')).toBeNull()
-        }
+      const [endpoint, requestOptions] = mockFetch.mock.calls[0] as [
+        string,
+        { headers: Record<string, string>; body: string },
+      ]
+      expect(endpoint).toBe('https://airtable.com/oauth2/v1/token')
+      expect(requestOptions.headers.Authorization).toBe(
+        `Basic ${Buffer.from('airtable_client_id:airtable_client_secret').toString('base64')}`
       )
+
+      const bodyParams = new URLSearchParams(requestOptions.body)
+      expect(Array.from(bodyParams.keys())).toEqual(['grant_type', 'refresh_token'])
+      expect(bodyParams.get('refresh_token')).toBe(refreshToken)
+    })
+
+    it.each(['jira'] as const)(
+      'refreshes %s with Atlassian JSON credentials',
+      async (providerId) => {
+        const mockFetch = createMockFetch(defaultOAuthResponse)
+        await withMockFetch(mockFetch, () => refreshOAuthToken(providerId, 'test_refresh_token'))
+
+        const [endpoint, request] = mockFetch.mock.calls[0] as [string, RequestInit]
+        expect(endpoint).toBe('https://auth.atlassian.com/oauth/token')
+        expect(request.headers).toMatchObject({ 'Content-Type': 'application/json' })
+        expect(JSON.parse(request.body as string)).toEqual({
+          grant_type: 'refresh_token',
+          refresh_token: 'test_refresh_token',
+          client_id: `${providerId}_client_id`,
+          client_secret: `${providerId}_client_secret`,
+        })
+      }
+    )
+
+    it('preserves Intuit refresh-token lifetime metadata', async () => {
+      const mockFetch = createMockFetch({
+        ok: true,
+        json: {
+          access_token: 'new-access-token',
+          expires_in: 3600,
+          refresh_token: 'new-refresh-token',
+          x_refresh_token_expires_in: 8_726_400,
+        },
+      })
+
+      const result = await withMockFetch(mockFetch, () =>
+        refreshOAuthToken('quickbooks', 'old-refresh-token', {
+          clientId: 'quickbooks-client-id',
+          clientSecret: 'quickbooks-client-secret',
+          environment: 'sandbox',
+        })
+      )
+
+      expect(result).toEqual({
+        ok: true,
+        accessToken: 'new-access-token',
+        expiresIn: 3600,
+        refreshToken: 'new-refresh-token',
+        refreshTokenExpiresIn: 8_726_400,
+      })
+    })
+
+    it('rejects a QuickBooks refresh response that omits its rotated refresh token', async () => {
+      const mockFetch = createMockFetch({
+        ok: true,
+        json: {
+          access_token: 'new-access-token',
+          expires_in: 3600,
+          x_refresh_token_expires_in: 8_726_400,
+        },
+      })
+
+      await expect(
+        withMockFetch(mockFetch, () =>
+          refreshOAuthToken('quickbooks', 'old-refresh-token', {
+            clientId: 'quickbooks-client-id',
+            clientSecret: 'quickbooks-client-secret',
+            environment: 'sandbox',
+          })
+        )
+      ).resolves.toEqual({
+        ok: false,
+        message: 'Invalid QuickBooks token refresh response',
+      })
     })
   })
 
   describe('Body Credential Providers', () => {
-    const bodyCredentialProviders = [
-      { name: 'Google', providerId: 'google', endpoint: 'https://oauth2.googleapis.com/token' },
+    /**
+     * `salesforce-sandbox` borrows Salesforce's OAuth client but must post to the sandbox
+     * authorization server that issued the refresh token.
+     */
+    it.each([
       {
-        name: 'Microsoft',
-        providerId: 'microsoft',
-        endpoint: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+        providerId: 'google',
+        endpoint: 'https://oauth2.googleapis.com/token',
+        clientPrefix: 'google',
       },
       {
-        name: 'Outlook',
-        providerId: 'outlook',
-        endpoint: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+        providerId: 'salesforce-sandbox',
+        endpoint: 'https://test.salesforce.com/services/oauth2/token',
+        clientPrefix: 'salesforce',
       },
-      { name: 'Slack', providerId: 'slack', endpoint: 'https://slack.com/api/oauth.v2.access' },
-      {
-        name: 'Dropbox',
-        providerId: 'dropbox',
-        endpoint: 'https://api.dropboxapi.com/oauth2/token',
-      },
-      {
-        name: 'Wealthbox',
-        providerId: 'wealthbox',
-        endpoint: 'https://app.crmworkspace.com/oauth/token',
-      },
-      {
-        name: 'Webflow',
-        providerId: 'webflow',
-        endpoint: 'https://api.webflow.com/oauth/access_token',
-      },
-      {
-        name: 'Pipedrive',
-        providerId: 'pipedrive',
-        endpoint: 'https://oauth.pipedrive.com/oauth/token',
-      },
-      {
-        name: 'HubSpot',
-        providerId: 'hubspot',
-        endpoint: 'https://api.hubapi.com/oauth/v1/token',
-      },
-      {
-        name: 'LinkedIn',
-        providerId: 'linkedin',
-        endpoint: 'https://www.linkedin.com/oauth/v2/accessToken',
-      },
-      {
-        name: 'Salesforce',
-        providerId: 'salesforce',
-        endpoint: 'https://login.salesforce.com/services/oauth2/token',
-      },
-      {
-        name: 'Shopify',
-        providerId: 'shopify',
-        endpoint: 'https://accounts.shopify.com/oauth/token',
-      },
-      {
-        name: 'WordPress',
-        providerId: 'wordpress',
-        endpoint: 'https://public-api.wordpress.com/oauth2/token',
-      },
-    ]
+    ])(
+      'sends $providerId credentials in the body without Basic Auth',
+      async ({ providerId, endpoint, clientPrefix }) => {
+        const mockFetch = createMockFetch(defaultOAuthResponse)
+        const refreshToken = 'test_refresh_token'
 
-    bodyCredentialProviders.forEach(({ name, providerId, endpoint }) => {
-      it.concurrent(
-        `should send ${name} request with credentials in body and no Basic Auth`,
-        async () => {
-          const mockFetch = createMockFetch(defaultOAuthResponse)
-          const refreshToken = 'test_refresh_token'
+        await withMockFetch(mockFetch, () => refreshOAuthToken(providerId, refreshToken))
 
-          await withMockFetch(mockFetch, () => refreshOAuthToken(providerId, refreshToken))
+        const [calledEndpoint, requestOptions] = mockFetch.mock.calls[0] as [
+          string,
+          { headers: Record<string, string>; body: string },
+        ]
+        expect(calledEndpoint).toBe(endpoint)
+        expect(requestOptions.headers.Authorization).toBeUndefined()
 
-          expect(mockFetch).toHaveBeenCalledWith(
-            endpoint,
-            expect.objectContaining({
-              method: 'POST',
-              headers: expect.objectContaining({
-                'Content-Type': 'application/x-www-form-urlencoded',
-              }),
-              body: expect.any(String),
-            })
-          )
-
-          const [, requestOptions] = mockFetch.mock.calls[0] as [
-            string,
-            { headers: Record<string, string>; body: string },
-          ]
-
-          expect(requestOptions.headers.Authorization).toBeUndefined()
-
-          const bodyParams = new URLSearchParams(requestOptions.body)
-          const bodyKeys = Array.from(bodyParams.keys()).sort()
-
-          expect(bodyKeys).toEqual(['client_id', 'client_secret', 'grant_type', 'refresh_token'])
-          expect(bodyParams.get('grant_type')).toBe('refresh_token')
-          expect(bodyParams.get('refresh_token')).toBe(refreshToken)
-
-          const expectedClientId =
-            providerId === 'outlook' ? 'microsoft_client_id' : `${providerId}_client_id`
-          const expectedClientSecret =
-            providerId === 'outlook' ? 'microsoft_client_secret' : `${providerId}_client_secret`
-
-          expect(bodyParams.get('client_id')).toBe(expectedClientId)
-          expect(bodyParams.get('client_secret')).toBe(expectedClientSecret)
-        }
-      )
-    })
+        const bodyParams = new URLSearchParams(requestOptions.body)
+        expect(Object.fromEntries(bodyParams)).toEqual({
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+          client_id: `${clientPrefix}_client_id`,
+          client_secret: `${clientPrefix}_client_secret`,
+        })
+      }
+    )
 
     it.concurrent('should refresh TikTok with client_key instead of client_id', async () => {
       const mockFetch = createMockFetch(defaultOAuthResponse)
@@ -315,6 +432,26 @@ describe('OAuth Token Refresh', () => {
       expect(bodyParams.get('client_secret')).toBe('tiktok_client_secret')
       expect(bodyParams.get('refresh_token')).toBe(refreshToken)
       expect(bodyParams.get('client_id')).toBeNull()
+    })
+
+    it.concurrent('should preserve Cal.com bearer refresh authentication', async () => {
+      const mockFetch = createMockFetch(defaultOAuthResponse)
+      const refreshToken = 'test_refresh_token'
+
+      await withMockFetch(mockFetch, () => refreshOAuthToken('calcom', refreshToken))
+
+      const [endpoint, requestOptions] = mockFetch.mock.calls[0] as [
+        string,
+        { headers: Record<string, string>; body: string },
+      ]
+      const bodyParams = new URLSearchParams(requestOptions.body)
+
+      expect(endpoint).toBe('https://app.cal.com/api/auth/oauth/refreshToken')
+      expect(requestOptions.headers.Authorization).toBe(`Bearer ${refreshToken}`)
+      expect(bodyParams.get('grant_type')).toBe('refresh_token')
+      expect(bodyParams.get('client_id')).toBe('calcom_client_id')
+      expect(bodyParams.get('client_secret')).toBeNull()
+      expect(bodyParams.get('refresh_token')).toBeNull()
     })
 
     it.concurrent('should send Notion request with Basic Auth header and JSON body', async () => {
@@ -354,35 +491,23 @@ describe('OAuth Token Refresh', () => {
         refresh_token: refreshToken,
       })
     })
-
-    it.concurrent('should include User-Agent header for Reddit requests', async () => {
-      const mockFetch = createMockFetch(defaultOAuthResponse)
-      const refreshToken = 'test_refresh_token'
-
-      await withMockFetch(mockFetch, () => refreshOAuthToken('reddit', refreshToken))
-
-      const [, requestOptions] = mockFetch.mock.calls[0] as [
-        string,
-        { headers: Record<string, string>; body: string },
-      ]
-      expect(requestOptions.headers['User-Agent']).toBe(
-        'sim-studio/1.0 (https://github.com/simstudioai/sim)'
-      )
-    })
   })
 
   describe('Error Handling', () => {
-    it.concurrent('should return failure for unsupported provider', async () => {
+    it.concurrent('should return the canonical error for partial OAuth configuration', async () => {
       const mockFetch = createMockFetch(defaultOAuthResponse)
-      const refreshToken = 'test_refresh_token'
 
       const result = await withMockFetch(mockFetch, () =>
-        refreshOAuthToken('unsupported', refreshToken)
+        refreshOAuthToken('zoho-desk', 'test_refresh_token')
       )
 
-      expect(result.ok).toBe(false)
+      expect(result).toEqual({
+        ok: false,
+        message:
+          'OAuth client zoho-desk is partially configured — missing ZOHO_CLIENT_SECRET. Run npx sim-setup add integration zoho-desk.',
+      })
+      expect(mockFetch).not.toHaveBeenCalled()
     })
-
     it.concurrent('should return failure with errorCode for HTTP error responses', async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: false,
@@ -403,91 +528,13 @@ describe('OAuth Token Refresh', () => {
       }
     })
 
-    it.concurrent('should not expose provider error details or refresh tokens', async () => {
-      const sensitiveDetail = 'provider-secret-account-detail'
-      const refreshToken = 'sensitive-refresh-token'
-      const mockFetch = vi.fn().mockResolvedValue(
-        Response.json(
-          {
-            error: 'invalid_grant',
-            error_description: sensitiveDetail,
-          },
-          { status: 400 }
-        )
-      )
-
-      const result = await withMockFetch(mockFetch, () =>
-        refreshOAuthToken('quickbooks', refreshToken)
-      )
-
-      expect(result).toEqual({
-        ok: false,
-        errorCode: 'invalid_grant',
-        message: 'Failed to refresh token: 400 (invalid_grant)',
-      })
-      expect(JSON.stringify(result)).not.toContain(sensitiveDetail)
-      expect(JSON.stringify(result)).not.toContain(refreshToken)
-    })
-
-    it.concurrent(
-      'should log the provider error body without leaking it to the caller',
-      async () => {
-        const errorBody = 'Token has been expired or revoked.'
-        const refreshToken = 'sensitive-refresh-token'
-        const mockFetch = vi
-          .fn()
-          .mockResolvedValue(new Response(errorBody, { status: 400, statusText: 'Bad Request' }))
-
-        const result = await withMockFetch(mockFetch, () =>
-          refreshOAuthToken('google', refreshToken)
-        )
-
-        expect(result).toEqual({ ok: false, message: 'Failed to refresh token: 400' })
-        expect(JSON.stringify(result)).not.toContain(errorBody)
-
-        const loggedBodies = oauthLoggerErrorCalls().map(
-          (call) => (call[1] as { errorBody?: string } | undefined)?.errorBody
-        )
-        expect(loggedBodies).toContain(errorBody)
-      }
-    )
-
-    it.concurrent('should not fail a successful refresh with an oversized body', async () => {
-      const mockFetch = vi.fn().mockResolvedValue(
-        Response.json({
-          access_token: 'new_access_token',
-          expires_in: 3600,
-          padding: 'x'.repeat(DEFAULT_MAX_ERROR_BODY_BYTES),
-        })
-      )
-
-      const result = await withMockFetch(mockFetch, () =>
-        refreshOAuthToken('quickbooks', 'old_refresh_token')
-      )
-
-      expect(result).toMatchObject({ ok: true, accessToken: 'new_access_token', expiresIn: 3600 })
-    })
-
-    it.concurrent('should redact credentials echoed back in a provider error body', async () => {
-      const mockFetch = vi.fn().mockResolvedValue(
-        new Response(`{"error":"invalid_grant","refresh_token":"leaked-refresh-token"}`, {
-          status: 400,
-        })
-      )
-
-      await withMockFetch(mockFetch, () => refreshOAuthToken('google', 'leaked-refresh-token'))
-
-      const loggedBodies = oauthLoggerErrorCalls().map(
-        (call) => (call[1] as { errorBody?: string } | undefined)?.errorBody ?? ''
-      )
-      expect(loggedBodies.some((body) => body.includes('invalid_grant'))).toBe(true)
-      expect(loggedBodies.some((body) => body.includes('leaked-refresh-token'))).toBe(false)
-    })
-
     it.concurrent('should return failure for Slack-style body errors', async () => {
-      const mockFetch = vi
-        .fn()
-        .mockResolvedValue(Response.json({ ok: false, error: 'invalid_refresh_token' }))
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => ({ ok: false, error: 'invalid_refresh_token' }),
+      })
       const refreshToken = 'test_refresh_token'
 
       const result = await withMockFetch(mockFetch, () => refreshOAuthToken('slack', refreshToken))
@@ -498,155 +545,184 @@ describe('OAuth Token Refresh', () => {
       }
     })
 
-    it.concurrent('should return failure for network errors', async () => {
-      const mockFetch = vi.fn().mockRejectedValue(new Error('Network error'))
-      const refreshToken = 'test_refresh_token'
-
-      const result = await withMockFetch(mockFetch, () => refreshOAuthToken('google', refreshToken))
-
-      expect(result.ok).toBe(false)
-    })
-  })
-
-  describe('Token Response Handling', () => {
     it.concurrent(
-      'should preserve QuickBooks one-hour expiry and rotating refresh token',
+      'should redact literal and encoded credentials echoed by a provider',
       async () => {
-        const mockFetch = vi.fn().mockResolvedValue(
-          Response.json({
-            access_token: 'new_quickbooks_access_token',
-            expires_in: 3600,
-            refresh_token: 'rotated_quickbooks_refresh_token',
-          })
-        )
-
-        const result = await withMockFetch(mockFetch, () =>
-          refreshOAuthToken('quickbooks', 'old_quickbooks_refresh_token')
-        )
-
-        expect(result).toEqual({
-          ok: true,
-          accessToken: 'new_quickbooks_access_token',
-          expiresIn: 3600,
-          refreshToken: 'rotated_quickbooks_refresh_token',
-        })
-      }
-    )
-
-    it.concurrent('should preserve numeric string token expiry values', async () => {
-      const mockFetch = vi.fn().mockResolvedValue(
-        Response.json({
-          access_token: 'new_access_token',
-          expires_in: '7200',
-        })
-      )
-
-      const result = await withMockFetch(mockFetch, () =>
-        refreshOAuthToken('google', 'old_refresh_token')
-      )
-
-      expect(result).toEqual({
-        ok: true,
-        accessToken: 'new_access_token',
-        expiresIn: 7200,
-        refreshToken: 'old_refresh_token',
-      })
-    })
-
-    it.concurrent.each([0, -1, '0', '-1'])(
-      'should fall back when token expiry is not positive: %s',
-      async (expiresIn) => {
-        const mockFetch = vi.fn().mockResolvedValue(
-          Response.json({
-            access_token: 'new_access_token',
-            expires_in: expiresIn,
-          })
-        )
-
-        const result = await withMockFetch(mockFetch, () =>
-          refreshOAuthToken('google', 'old_refresh_token')
-        )
-
-        expect(result).toMatchObject({
-          ok: true,
-          expiresIn: 3600,
-        })
-      }
-    )
-
-    it.concurrent('should handle providers that return new refresh tokens', async () => {
-      const refreshToken = 'old_refresh_token'
-      const newRefreshToken = 'new_refresh_token'
-
-      const mockFetch = vi.fn().mockResolvedValue(
-        Response.json({
-          access_token: 'new_access_token',
-          expires_in: 3600,
-          refresh_token: newRefreshToken,
-        })
-      )
-
-      const result = await withMockFetch(mockFetch, () =>
-        refreshOAuthToken('airtable', refreshToken)
-      )
-
-      expect(result).toEqual({
-        ok: true,
-        accessToken: 'new_access_token',
-        expiresIn: 3600,
-        refreshToken: newRefreshToken,
-      })
-    })
-
-    it.concurrent(
-      'should rotate refresh token for Microsoft providers (microsoft, outlook, onedrive, sharepoint)',
-      async () => {
-        const microsoftProviders = [
-          'microsoft',
-          'outlook',
-          'onedrive',
-          'sharepoint',
-          'microsoft-excel',
-          'microsoft-teams',
-          'microsoft-planner',
-          'microsoft-ad',
-          'microsoft-dataverse',
-        ]
-        const oldRefreshToken = 'old_microsoft_refresh_token'
-        const rotatedRefreshToken = 'rotated_microsoft_refresh_token'
-
-        for (const providerId of microsoftProviders) {
-          const mockFetch = vi.fn().mockResolvedValue(
-            Response.json({
-              access_token: 'new_access_token',
-              expires_in: 3600,
-              refresh_token: rotatedRefreshToken,
-            })
+        const refreshToken = 'refresh/with space'
+        const formEncodedRefreshToken = new URLSearchParams({ value: refreshToken })
+          .toString()
+          .slice('value='.length)
+        const mockFetch = vi
+          .fn()
+          .mockResolvedValue(
+            new Response(
+              `provider echo: ${refreshToken}, ${encodeURIComponent(refreshToken)}, ${formEncodedRefreshToken}, and google_client_secret`,
+              { status: 400 }
+            )
           )
 
-          const result = await withMockFetch(mockFetch, () =>
-            refreshOAuthToken(providerId, oldRefreshToken)
-          )
+        const result = await withMockFetch(mockFetch, () =>
+          refreshOAuthToken('google', refreshToken)
+        )
 
-          expect(result).toEqual({
-            ok: true,
-            accessToken: 'new_access_token',
-            expiresIn: 3600,
-            refreshToken: rotatedRefreshToken,
-          })
+        expect(result.ok).toBe(false)
+        if (!result.ok) {
+          expect(result.message).not.toContain(refreshToken)
+          expect(result.message).not.toContain(encodeURIComponent(refreshToken))
+          expect(result.message).not.toContain(formEncodedRefreshToken)
+          expect(result.message).not.toContain('google_client_secret')
         }
       }
     )
 
+    it.concurrent('should redact a secret from a successful HTTP body error', async () => {
+      const refreshToken = 'slack-refresh-secret'
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValue(Response.json({ ok: false, error: `invalid_${refreshToken}` }))
+
+      const result = await withMockFetch(mockFetch, () => refreshOAuthToken('slack', refreshToken))
+
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.message).not.toContain(refreshToken)
+        expect(result.errorCode).toBeUndefined()
+      }
+    })
+
+    it.concurrent('uses canonical endpoints without following credential redirects', async () => {
+      const mockFetch = createMockFetch(defaultOAuthResponse)
+
+      await withMockFetch(mockFetch, () => refreshOAuthToken('google', 'test_refresh_token'))
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ redirect: 'error' })
+      )
+    })
+
+    it.concurrent(
+      'should reject oversized OAuth error responses without materializing them',
+      async () => {
+        const mockFetch = vi
+          .fn()
+          .mockResolvedValue(
+            new Response('x'.repeat(DEFAULT_MAX_ERROR_BODY_BYTES + 1), { status: 400 })
+          )
+
+        const result = await withMockFetch(mockFetch, () =>
+          refreshOAuthToken('google', 'test_refresh_token')
+        )
+
+        expect(result.ok).toBe(false)
+        if (!result.ok) expect(result.message).toContain('exceeds maximum size')
+      }
+    )
+  })
+
+  describe('Token Response Handling', () => {
+    it('refreshes Power BI with resource-qualified scopes before identity scopes', async () => {
+      const mockFetch = vi.fn(async (_url: string, init: RequestInit) => {
+        const scope = new URLSearchParams(init.body as string).get('scope')?.split(' ')
+        if (
+          scope?.[0] !== 'https://analysis.windows.net/powerbi/api/Workspace.Read.All' ||
+          !scope.includes('https://analysis.windows.net/powerbi/api/Report.Read.All') ||
+          !scope.includes('https://analysis.windows.net/powerbi/api/Dataset.ReadWrite.All') ||
+          !scope.includes('offline_access')
+        ) {
+          return Response.json({ error: 'invalid_scope' }, { status: 400 })
+        }
+        return Response.json({ access_token: 'powerbi-access', expires_in: 3600 })
+      })
+
+      const result = await withMockFetch(mockFetch, () =>
+        refreshOAuthToken('microsoft-powerbi', 'powerbi-refresh')
+      )
+
+      expect(result).toEqual({
+        ok: true,
+        accessToken: 'powerbi-access',
+        refreshToken: 'powerbi-refresh',
+        expiresIn: 3600,
+      })
+    })
+
+    it.concurrent('should bound successful token responses before parsing them', async () => {
+      const mockFetch = vi
+        .fn()
+        .mockResolvedValue(new Response('x'.repeat(DEFAULT_MAX_ERROR_BODY_BYTES + 1)))
+
+      const result = await withMockFetch(mockFetch, () =>
+        refreshOAuthToken('google', 'test_refresh_token')
+      )
+
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.message).toContain('exceeds maximum size')
+    })
+
+    it.concurrent('refreshes Monday with JSON body credentials and rotates its token', async () => {
+      const expiresAtSeconds = Math.floor(Date.now() / 1000) + 2700
+      const mockFetch = createMockFetch({
+        json: {
+          access_token: oauthTestJwt({ exp: expiresAtSeconds }),
+          refresh_token: 'rotated-monday-refresh-token',
+          token_type: 'Bearer',
+          scope: 'boards:read me:read',
+        },
+      })
+
+      const result = await withMockFetch(mockFetch, () =>
+        refreshOAuthToken('monday', 'old-monday-refresh-token')
+      )
+
+      expect(result).toMatchObject({
+        ok: true,
+        refreshToken: 'rotated-monday-refresh-token',
+      })
+      if (result.ok) {
+        expect(result.expiresIn).toBeGreaterThanOrEqual(2699)
+        expect(result.expiresIn).toBeLessThanOrEqual(2700)
+      }
+
+      const [endpoint, request] = mockFetch.mock.calls[0] as [string, RequestInit]
+      expect(endpoint).toBe('https://auth.monday.com/oauth_ms/oauth/token')
+      expect(request.headers).toMatchObject({ 'Content-Type': 'application/json' })
+      expect(JSON.parse(request.body as string)).toEqual({
+        grant_type: 'refresh_token',
+        refresh_token: 'old-monday-refresh-token',
+        client_id: 'monday_client_id',
+        client_secret: 'monday_client_secret',
+      })
+    })
+
+    it.concurrent('rejects a Monday refresh response that omits token rotation', async () => {
+      const mockFetch = createMockFetch({
+        json: {
+          access_token: oauthTestJwt({ exp: Math.floor(Date.now() / 1000) + 3600 }),
+          token_type: 'Bearer',
+        },
+      })
+
+      const result = await withMockFetch(mockFetch, () =>
+        refreshOAuthToken('monday', 'old-monday-refresh-token')
+      )
+
+      expect(result).toEqual({
+        ok: false,
+        message: 'Invalid Monday token refresh response',
+      })
+    })
+
     it.concurrent('should use original refresh token when new one is not provided', async () => {
       const refreshToken = 'original_refresh_token'
 
-      const mockFetch = vi.fn().mockResolvedValue(
-        Response.json({
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
           access_token: 'new_access_token',
           expires_in: 3600,
-        })
-      )
+        }),
+      })
 
       const result = await withMockFetch(mockFetch, () => refreshOAuthToken('google', refreshToken))
 
@@ -661,32 +737,16 @@ describe('OAuth Token Refresh', () => {
     it.concurrent('should return failure when access token is missing', async () => {
       const refreshToken = 'test_refresh_token'
 
-      const mockFetch = vi.fn().mockResolvedValue(
-        Response.json({
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
           expires_in: 3600,
-        })
-      )
+        }),
+      })
 
       const result = await withMockFetch(mockFetch, () => refreshOAuthToken('google', refreshToken))
 
       expect(result.ok).toBe(false)
-    })
-
-    it.concurrent('should use default expiration when not provided', async () => {
-      const refreshToken = 'test_refresh_token'
-
-      const mockFetch = vi
-        .fn()
-        .mockResolvedValue(Response.json({ access_token: 'new_access_token' }))
-
-      const result = await withMockFetch(mockFetch, () => refreshOAuthToken('google', refreshToken))
-
-      expect(result).toEqual({
-        ok: true,
-        accessToken: 'new_access_token',
-        expiresIn: 3600,
-        refreshToken: refreshToken,
-      })
     })
   })
 
@@ -750,19 +810,6 @@ describe('OAuth Token Refresh', () => {
 
       expect(result.ok).toBe(false)
       if (!result.ok) expect(result.errorCode).toBe('190')
-    })
-
-    it.concurrent('rejects oversized token responses before materializing them', async () => {
-      const mockFetch = vi
-        .fn()
-        .mockResolvedValue(new Response('x'.repeat(DEFAULT_MAX_ERROR_BODY_BYTES + 1)))
-
-      const result = await withMockFetch(mockFetch, () =>
-        refreshOAuthToken('instagram', 'old_instagram_access_token')
-      )
-
-      expect(result.ok).toBe(false)
-      if (!result.ok) expect(result.message).toContain('exceeds maximum size')
     })
   })
 })

@@ -1,3 +1,4 @@
+import { REDDIT_USER_AGENT } from '@/tools/reddit/constants'
 import type { RedditSubmitParams, RedditWriteResponse } from '@/tools/reddit/types'
 import { normalizeSubreddit } from '@/tools/reddit/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -94,7 +95,7 @@ export const submitPostTool: ToolConfig<RedditSubmitParams, RedditWriteResponse>
 
       return {
         Authorization: `Bearer ${params.accessToken}`,
-        'User-Agent': 'sim-studio/1.0 (https://github.com/simstudioai/sim)',
+        'User-Agent': REDDIT_USER_AGENT,
         'Content-Type': 'application/x-www-form-urlencoded',
       }
     },

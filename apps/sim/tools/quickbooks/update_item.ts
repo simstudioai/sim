@@ -1,34 +1,21 @@
-import { filterUndefined } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type {
   QuickBooksItem,
   QuickBooksMutationResponse,
   QuickBooksUpdateItemParams,
 } from '@/tools/quickbooks/types'
 import { QUICKBOOKS_ITEM_PROPERTIES, QUICKBOOKS_MUTATION_OUTPUTS } from '@/tools/quickbooks/types'
-import {
-  buildQuickBooksEntityUrl,
-  getQuickBooksToolHeaders,
-  transformQuickBooksMutationResponse,
-} from '@/tools/quickbooks/utils'
-import {
-  assertQuickBooksSparseUpdate,
-  optionalQuickBooksString,
-  quickBooksActiveValue,
-  quickBooksReference,
-  requiredQuickBooksString,
-  validateQuickBooksOptionalNumber,
-} from '@/tools/quickbooks/values'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const quickbooksUpdateItemTool: ToolConfig<
+export const quickbooksUpdateItemTool: InternalToolConfig<
   QuickBooksUpdateItemParams,
   QuickBooksMutationResponse<QuickBooksItem>
 > = {
   id: 'quickbooks_update_item',
   name: 'QuickBooks Update Item',
-  description: 'Sparse-update supported fields on an item without changing its type',
+  description:
+    'Read, merge, and full-update a Service or Non-inventory item without changing its type',
   version: '1.0.0',
   params: {
     accessToken: {
@@ -42,6 +29,12 @@ export const quickbooksUpdateItemTool: ToolConfig<
       required: true,
       visibility: 'hidden',
       description: 'QuickBooks company ID derived from the connected credential',
+    },
+    quickBooksEnvironment: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'QuickBooks API environment derived from the connected credential',
     },
     itemId: {
       type: 'string',
@@ -59,7 +52,8 @@ export const quickbooksUpdateItemTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Replacement item name',
+      description:
+        'Replacement item name, up to 100 characters, without tabs, new lines, or colons',
     },
     incomeAccountId: {
       type: 'string',
@@ -108,46 +102,20 @@ export const quickbooksUpdateItemTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       default: 'unchanged',
-      description: 'Item status change: unchanged, active, or inactive',
+      description:
+        'Item status change: unchanged, active, or inactive. Not valid for Category item types',
     },
   },
   oauth: {
     required: true,
     provider: 'quickbooks',
+    authoritativeParams: ['realmId', 'quickBooksEnvironment'],
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
-  request: {
-    url: (params) => buildQuickBooksEntityUrl(params.realmId, 'item').toString(),
-    method: 'POST',
-    headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
-    body: (params) => {
-      const body = filterUndefined({
-        Id: requiredQuickBooksString(params.itemId, 'itemId'),
-        SyncToken: requiredQuickBooksString(params.syncToken, 'syncToken'),
-        sparse: true,
-        Name: optionalQuickBooksString(params.name),
-        IncomeAccountRef: params.incomeAccountId
-          ? quickBooksReference(params.incomeAccountId, 'incomeAccountId')
-          : undefined,
-        Description: optionalQuickBooksString(params.description),
-        UnitPrice: validateQuickBooksOptionalNumber(params.unitPrice, 'unitPrice'),
-        PurchaseDesc: optionalQuickBooksString(params.purchaseDescription),
-        PurchaseCost: validateQuickBooksOptionalNumber(params.purchaseCost, 'purchaseCost'),
-        ExpenseAccountRef: params.expenseAccountId
-          ? quickBooksReference(params.expenseAccountId, 'expenseAccountId')
-          : undefined,
-        Taxable: params.taxable,
-        Active: quickBooksActiveValue(params.activeStatus),
-      }) as Record<string, unknown>
-      assertQuickBooksSparseUpdate(body)
-      return body
-    },
-    retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
+  operation: {
+    input: createInternalToolOperationInput,
   },
-  transformResponse: (response) =>
-    transformQuickBooksMutationResponse<QuickBooksItem>(response, 'Item'),
   outputs: {
     record: {
       type: 'json',

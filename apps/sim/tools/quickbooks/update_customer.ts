@@ -1,6 +1,5 @@
 import { filterUndefined } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import type {
   QuickBooksCustomer,
   QuickBooksMutationResponse,
@@ -47,6 +46,12 @@ export const quickbooksUpdateCustomerTool: ToolConfig<
       required: true,
       visibility: 'hidden',
       description: 'QuickBooks company ID derived from the connected credential',
+    },
+    quickBooksEnvironment: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'QuickBooks API environment derived from the connected credential',
     },
     customerId: {
       type: 'string',
@@ -125,11 +130,12 @@ export const quickbooksUpdateCustomerTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'quickbooks',
+    authoritativeParams: ['realmId', 'quickBooksEnvironment'],
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
   request: {
-    url: (params) => buildQuickBooksEntityUrl(params.realmId, 'customer').toString(),
+    url: (params) => buildQuickBooksEntityUrl(params, 'customer').toString(),
     method: 'POST',
     headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
     body: (params) => {
@@ -152,7 +158,6 @@ export const quickbooksUpdateCustomerTool: ToolConfig<
       return body
     },
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: (response) =>
     transformQuickBooksMutationResponse<QuickBooksCustomer>(

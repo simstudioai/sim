@@ -6,12 +6,12 @@
  */
 import '@/lib/core/utils/browser-polyfills'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { bindPreviewWheelZoom } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { pdfjs, Document as ReactPdfDocument, Page as ReactPdfPage } from 'react-pdf'
-import 'react-pdf/dist/Page/TextLayer.css'
 import { PREVIEW_LOADING_OVERLAY } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-shared'
 import { PreviewToolbar } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-toolbar'
-import { bindPreviewWheelZoom } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-wheel-zoom'
+import 'react-pdf/dist/Page/TextLayer.css'
 
 /**
  * The worker runs in its own context that browser-polyfills cannot reach, so
@@ -43,8 +43,8 @@ interface PdfViewerCoreProps {
 function PdfError({ error }: { error: string }) {
   return (
     <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
-      <p className='font-medium text-[14px] text-[var(--text-body)]'>Failed to preview PDF</p>
-      <p className='text-[13px] text-[var(--text-muted)]'>{error}</p>
+      <p className='text-[14px] text-[var(--text-body)]'>Failed to preview PDF</p>
+      <p className='text-[var(--text-muted)] text-small'>{error}</p>
     </div>
   )
 }
@@ -271,7 +271,7 @@ export const PdfViewerCore = memo(function PdfViewerCore({ source, filename }: P
                   <ReactPdfPage
                     pageNumber={i + 1}
                     width={pageWidth}
-                    className='!overflow-clip [&_.textLayer]:!overflow-clip'
+                    className='overflow-clip! [&_.textLayer]:overflow-clip!'
                     renderTextLayer
                     renderAnnotationLayer={false}
                     aria-label={`${filename} page ${i + 1}`}

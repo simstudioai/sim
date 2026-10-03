@@ -53,7 +53,7 @@ export function useWorkflowResourceReplacementOptions({
       ...environmentOptions,
       ...flattenWorkflowSearchReplacementOptions(oauthOptions),
       ...flattenWorkflowSearchReplacementOptions(knowledgeOptions),
-      ...flattenWorkflowSearchReplacementOptions(selectorOptions),
+      ...selectorOptions.flatMap((group) => group.data?.items ?? []),
       ...flattenWorkflowSearchReplacementOptions(tableOptions),
       ...flattenWorkflowSearchReplacementOptions(fileOptions),
       ...flattenWorkflowSearchReplacementOptions(mcpServerOptions),

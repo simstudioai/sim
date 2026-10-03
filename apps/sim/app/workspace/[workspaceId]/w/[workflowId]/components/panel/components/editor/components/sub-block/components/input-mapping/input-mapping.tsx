@@ -24,8 +24,8 @@ interface InputMappingFieldProps {
   disabled: boolean
   accessiblePrefixes: Set<string> | undefined
   inputController: ReturnType<typeof useSubBlockInput>
-  inputRefs: React.RefObject<Map<string, HTMLInputElement>>
-  overlayRefs: React.RefObject<Map<string, HTMLDivElement>>
+  inputRefs: Map<string, HTMLInputElement>
+  overlayRefs: Map<string, HTMLDivElement>
   collapsed: boolean
   onToggleCollapse: () => void
   workflowSearchHighlight?: ReturnType<typeof getActiveWorkflowSearchHighlight>
@@ -80,8 +80,10 @@ export function InputMapping({
   })
 
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
-  const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
-  const overlayRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const inputElementsRef = useRef<Map<string, HTMLInputElement> | null>(null)
+  const inputRefs = (inputElementsRef.current ??= new Map())
+  const overlayElementsRef = useRef<Map<string, HTMLDivElement> | null>(null)
+  const overlayRefs = (overlayElementsRef.current ??= new Map())
 
   const workflowId = typeof selectedWorkflowId === 'string' ? selectedWorkflowId : undefined
   const { data: workflowState, isLoading } = useWorkflowState(workflowId)
@@ -132,7 +134,7 @@ export function InputMapping({
     return (
       <div className='flex h-32 items-center justify-center rounded-sm border border-[var(--border-1)] border-dashed bg-[var(--surface-3)] dark:bg-[var(--code-bg)]'>
         <div className='text-center'>
-          <p className='font-medium text-[var(--text-secondary)] text-sm'>No workflow selected</p>
+          <p className='text-[var(--text-secondary)] text-sm'>No workflow selected</p>
           <p className='mt-1 text-[var(--text-muted)] text-xs'>
             Select a workflow above to configure inputs
           </p>
@@ -220,18 +222,14 @@ function InputMappingField({
   const fieldId = fieldName
   const fieldState = inputController.fieldHelpers.getFieldState(fieldId)
   const handlers = inputController.fieldHelpers.createFieldHandlers(fieldId, value, onChange)
-  const tagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(
-    fieldId,
-    value,
-    onChange
-  )
+  const tagSelectHandler = inputController.fieldHelpers.createTagSelectHandler(fieldId, onChange)
 
   /**
    * Synchronizes scroll position between input and overlay
    * @param e - The scroll event
    */
   const handleScroll = (e: React.UIEvent<HTMLInputElement>) => {
-    const overlay = overlayRefs.current.get(fieldId)
+    const overlay = overlayRefs.get(fieldId)
     if (overlay) {
       overlay.scrollLeft = e.currentTarget.scrollLeft
     }
@@ -255,7 +253,7 @@ function InputMappingField({
         <div className='relative'>
           <Input
             ref={(el) => {
-              if (el) inputRefs.current.set(fieldId, el)
+              if (el) inputRefs.set(fieldId, el)
             }}
             name='value'
             value={value}
@@ -267,22 +265,24 @@ function InputMappingField({
             onScroll={(e) => handleScroll(e)}
             onPaste={() =>
               setTimeout(() => {
-                const input = inputRefs.current.get(fieldId)
+                const input = inputRefs.get(fieldId)
                 input && handleScroll({ currentTarget: input } as any)
               }, 0)
             }
             placeholder='Enter value or reference'
             disabled={disabled}
             autoComplete='off'
-            className={cn('allow-scroll w-full overflow-auto text-transparent caret-foreground')}
+            className={cn(
+              'allow-scroll w-full overflow-auto text-transparent caret-foreground [letter-spacing:inherit]'
+            )}
             style={{ overflowX: 'auto' }}
           />
           <div
             ref={(el) => {
-              if (el) overlayRefs.current.set(fieldId, el)
+              if (el) overlayRefs.set(fieldId, el)
             }}
             className={cn(
-              'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-medium font-sans text-sm',
+              'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
               !disabled && 'pointer-events-none'
             )}
             style={{ overflowX: 'auto' }}
@@ -310,7 +310,7 @@ function InputMappingField({
               onClose={() => inputController.fieldHelpers.hideFieldDropdowns(fieldId)}
               inputRef={
                 {
-                  current: inputRefs.current.get(fieldId) || null,
+                  current: inputRefs.get(fieldId) || null,
                 } as React.RefObject<HTMLInputElement>
               }
             />

@@ -1,38 +1,21 @@
-/**
- * @vitest-environment node
- */
+import { openaiMock, openaiMockFns } from '@sim/testing/mocks/openai.mock'
+import { providersMock } from '@sim/testing/mocks/providers.mock'
+import { providersAttachmentsMock } from '@sim/testing/mocks/providers-attachments.mock'
+import { providersModelsMock } from '@sim/testing/mocks/providers-models.mock'
+import { providersTraceEnrichmentMock } from '@sim/testing/mocks/providers-trace-enrichment.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createOpenAICompatStreamingToolLoopStream } from '@/providers/openai-compat/streaming-tool-loop'
 import type { ProviderRequest } from '@/providers/types'
 
-const { mockCreate, mockExecuteTool, mockPrepareToolsWithUsageControl } = vi.hoisted(() => ({
-  mockCreate: vi.fn(),
-  mockExecuteTool: vi.fn(),
-  mockPrepareToolsWithUsageControl: vi.fn(),
-}))
+vi.mock('openai', () => openaiMock)
 
-vi.mock('openai', () => ({
-  default: vi.fn().mockImplementation(
-    class {
-      chat = { completions: { create: mockCreate } }
-    }
-  ),
-}))
+vi.mock('@/providers', () => providersMock)
 
-vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 5 }))
+vi.mock('@/providers/models', () => providersModelsMock)
 
-vi.mock('@/providers/models', () => ({
-  getProviderModels: vi.fn(() => ['deepseek-chat']),
-  getProviderDefaultModel: vi.fn(() => 'deepseek-chat'),
-}))
-
-vi.mock('@/providers/attachments', () => ({
-  formatMessagesForProvider: vi.fn((messages) => messages),
-}))
-
-vi.mock('@/providers/deepseek/utils', () => ({
-  createReadableStreamFromDeepseekStream: vi.fn(),
-}))
+vi.mock('@/providers/attachments', () => providersAttachmentsMock)
 
 vi.mock('@/providers/openai-compat/streaming-tool-loop', () => ({
   createOpenAICompatStreamingToolLoopStream: vi.fn(),
@@ -42,21 +25,19 @@ vi.mock('@/providers/streaming-execution', () => ({
   createStreamingExecution: vi.fn((args) => args),
 }))
 
-vi.mock('@/providers/trace-enrichment', () => ({
-  enrichLastModelSegmentFromChatCompletions: vi.fn(),
-}))
+vi.mock('@/providers/trace-enrichment', () => providersTraceEnrichmentMock)
 
-vi.mock('@/providers/utils', () => ({
-  calculateCost: vi.fn(() => ({ input: 0, output: 0, total: 0 })),
-  prepareToolExecution: vi.fn((_tool, args) => ({ toolParams: args, executionParams: args })),
-  prepareToolsWithUsageControl: mockPrepareToolsWithUsageControl,
-  sumToolCosts: vi.fn(() => 0),
-  trackForcedToolUsage: vi.fn(() => ({ hasUsedForcedTool: false, usedForcedTools: [] })),
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
-vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
+vi.mock('@/tools', () => toolsMock)
 
 import { deepseekProvider } from '@/providers/deepseek/index'
+
+providersMock.MAX_TOOL_ITERATIONS = 5
+
+const mockCreate = openaiMockFns.mockChatCompletionsCreate
+const mockPrepareToolsWithUsageControl = providersUtilsMockFns.mockPrepareToolsWithUsageControl
+const mockExecuteTool = toolsMockFns.mockExecuteTool
 
 function request(overrides: Partial<ProviderRequest> = {}): ProviderRequest {
   return {
@@ -101,6 +82,20 @@ describe('deepseekProvider thinking payload', () => {
     await deepseekProvider.executeRequest(request())
     const payload = mockCreate.mock.calls[0][0]
     expect(payload.thinking).toBeUndefined()
+  })
+
+  it.each([
+    ['low', 'low'],
+    ['minimal', 'low'],
+    ['medium', 'high'],
+    ['xhigh', 'high'],
+    ['max', 'max'],
+  ] as const)('maps Flash reasoning effort %s to %s', async (reasoningEffort, expected) => {
+    await deepseekProvider.executeRequest(request({ model: 'deepseek-flash', reasoningEffort }))
+    expect(mockCreate.mock.calls[0][0]).toMatchObject({
+      model: 'deepseek-flash',
+      reasoning_effort: expected,
+    })
   })
 
   it('selects the live tool loop without a caller flag', async () => {

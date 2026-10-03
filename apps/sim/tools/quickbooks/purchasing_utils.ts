@@ -21,6 +21,8 @@ import type {
 import {
   assertQuickBooksSparseUpdate,
   optionalQuickBooksString,
+  quickBooksCurrencyRef,
+  quickBooksGlobalTaxCalculation,
   quickBooksReference,
   requiredQuickBooksString,
   validateQuickBooksDate,
@@ -188,7 +190,7 @@ function parseQuickBooksPurchasingLinesInternal(
       parsedLine = {
         lineType: 'item',
         amount,
-        itemId: requiredStringValue(line.itemId, `${itemName}.itemId`),
+        itemId: optionalStringValue(line.itemId, `${itemName}.itemId`),
         description: optionalStringValue(line.description, `${itemName}.description`),
         quantity,
         unitPrice,
@@ -262,7 +264,7 @@ function buildQuickBooksPurchasingLine(
     Description: line.description,
     DetailType: 'ItemBasedExpenseLineDetail',
     ItemBasedExpenseLineDetail: filterUndefined({
-      ItemRef: quickBooksReference(line.itemId!, 'itemId'),
+      ItemRef: line.itemId ? quickBooksReference(line.itemId, 'itemId') : undefined,
       Qty: line.quantity,
       UnitPrice: line.unitPrice,
     }),
@@ -304,7 +306,6 @@ export function parseQuickBooksBillAllocations(
 ): QuickBooksBillAllocationInput[] | undefined {
   const parsed = parseJsonArray(value, fieldName)
   if (!parsed) return undefined
-  if (parsed.length === 0) throw new Error(`${fieldName} must contain at least one allocation`)
   if (parsed.length > MAX_BILL_ALLOCATIONS) {
     throw new Error(`${fieldName} cannot contain more than ${MAX_BILL_ALLOCATIONS} allocations`)
   }
@@ -323,18 +324,30 @@ export function parseQuickBooksBillAllocations(
   })
 }
 
+/**
+ * Builds the BillPayment `Line` collection, emitting `[]` when no allocation is
+ * supplied so the unallocated total becomes vendor credit.
+ *
+ * Whether Intuit actually accepts an empty `Line` is UNVERIFIED. Intuit's own
+ * model contradicts itself: the property is keyed `Line [0..n]`, carries
+ * requiredFlag `Required`, and is described as "Individual line items
+ * representing zero or more Bill, VendorCredit, and JournalEntry objects linked
+ * to this BillPayment object". `[0..n]` and "zero or more" say empty is legal;
+ * `Required` says it is not. This has not been settled against a live company,
+ * so the behavior is left as-is rather than hardened on a guess.
+ */
 function buildBillPaymentLines(
-  allocations: QuickBooksBillAllocationInput[],
+  allocations: QuickBooksBillAllocationInput[] | undefined,
   totalAmount: number
 ): unknown[] {
   const validated = parseQuickBooksBillAllocations(allocations)
-  if (!validated) throw new Error('billAllocations are required')
+  if (!validated) return []
   const allocationTotal = validated.reduce(
     (sum, allocation) => sum.plus(allocation.amount),
     new Decimal(0)
   )
-  if (!allocationTotal.equals(new Decimal(totalAmount))) {
-    throw new Error('Bill allocation amounts must equal totalAmount')
+  if (allocationTotal.greaterThan(new Decimal(totalAmount))) {
+    throw new Error('Bill allocation amounts cannot exceed totalAmount')
   }
   return validated.map((allocation) => ({
     Amount: allocation.amount,
@@ -345,6 +358,8 @@ function buildBillPaymentLines(
 function purchasingHeader(params: {
   vendorId?: string
   apAccountId?: string
+  currencyCode?: string
+  globalTaxCalculation?: string
   transactionDate?: string
   dueDate?: string
   documentNumber?: string
@@ -355,6 +370,8 @@ function purchasingHeader(params: {
     APAccountRef: params.apAccountId
       ? quickBooksReference(params.apAccountId, 'apAccountId')
       : undefined,
+    CurrencyRef: quickBooksCurrencyRef(params.currencyCode),
+    GlobalTaxCalculation: quickBooksGlobalTaxCalculation(params.globalTaxCalculation),
     TxnDate: validateQuickBooksDate(params.transactionDate, 'transactionDate'),
     DueDate: validateQuickBooksDate(params.dueDate, 'dueDate'),
     DocNumber: optionalQuickBooksString(params.documentNumber),
@@ -391,10 +408,21 @@ export function buildQuickBooksCreateBillBody(
 ): Record<string, unknown> {
   const lines = parseQuickBooksBillLines(params.lines)
   if (!lines) throw new Error('lines are required')
+  const purchaseOrderIds = [
+    ...new Set(lines.flatMap((line) => (line.purchaseOrderId ? [line.purchaseOrderId] : []))),
+  ]
   return {
     ...purchasingHeader(params),
     VendorRef: quickBooksReference(params.vendorId, 'vendorId'),
     Line: buildValidatedQuickBooksBillLines(lines),
+    ...(purchaseOrderIds.length > 0
+      ? {
+          LinkedTxn: purchaseOrderIds.map((TxnId) => ({
+            TxnId,
+            TxnType: 'PurchaseOrder',
+          })),
+        }
+      : {}),
   }
 }
 
@@ -479,9 +507,8 @@ export function buildQuickBooksUpdateBillBody(
     SyncToken: requiredQuickBooksString(params.syncToken, 'syncToken'),
     sparse: true,
     ...purchasingHeader(params),
-    VendorRef: quickBooksReference(params.vendorId, 'vendorId'),
   }
-  assertQuickBooksSparseUpdate(body, 4)
+  assertQuickBooksSparseUpdate(body)
   return body
 }
 
@@ -503,13 +530,19 @@ export function buildQuickBooksCreateBillPaymentBody(
               `Unsupported QuickBooks BillPayment type: ${String(params.paymentType)}`
             )
           })()
+  const lines = buildBillPaymentLines(params.billAllocations, totalAmount)
   return {
     VendorRef: quickBooksReference(params.vendorId, 'vendorId'),
     TotalAmt: totalAmount,
     ...paymentDetails,
-    Line: buildBillPaymentLines(params.billAllocations, totalAmount),
+    Line: lines,
     ...filterUndefined({
+      APAccountRef: params.apAccountId
+        ? quickBooksReference(params.apAccountId, 'apAccountId')
+        : undefined,
+      CurrencyRef: quickBooksCurrencyRef(params.currencyCode),
       TxnDate: validateQuickBooksDate(params.transactionDate, 'transactionDate'),
+      DocNumber: optionalQuickBooksString(params.documentNumber),
       PrivateNote: optionalQuickBooksString(params.privateNote),
     }),
   }
@@ -522,11 +555,11 @@ export function buildQuickBooksUpdateBillPaymentBody(
     Id: requiredQuickBooksString(params.billPaymentId, 'billPaymentId'),
     SyncToken: requiredQuickBooksString(params.syncToken, 'syncToken'),
     sparse: true,
-    VendorRef: quickBooksReference(params.vendorId, 'vendorId'),
+    VendorRef: params.vendorId ? quickBooksReference(params.vendorId, 'vendorId') : undefined,
     TxnDate: validateQuickBooksDate(params.transactionDate, 'transactionDate'),
     PrivateNote: optionalQuickBooksString(params.privateNote),
   }) as Record<string, unknown>
-  assertQuickBooksSparseUpdate(body, 4)
+  assertQuickBooksSparseUpdate(body)
   return body
 }
 
@@ -548,9 +581,8 @@ export function buildQuickBooksUpdateVendorCreditBody(
     SyncToken: requiredQuickBooksString(params.syncToken, 'syncToken'),
     sparse: true,
     ...purchasingHeader(params),
-    VendorRef: quickBooksReference(params.vendorId, 'vendorId'),
   }
-  assertQuickBooksSparseUpdate(body, 4)
+  assertQuickBooksSparseUpdate(body)
   return body
 }
 
@@ -570,6 +602,8 @@ export function buildQuickBooksCreatePurchaseBody(
     EntityRef: params.vendorId
       ? { ...quickBooksReference(params.vendorId, 'vendorId'), type: 'Vendor' }
       : undefined,
+    CurrencyRef: quickBooksCurrencyRef(params.currencyCode),
+    GlobalTaxCalculation: quickBooksGlobalTaxCalculation(params.globalTaxCalculation),
     Line: buildQuickBooksPurchasingLines(params.lines),
     TxnDate: validateQuickBooksDate(params.transactionDate, 'transactionDate'),
     DocNumber: optionalQuickBooksString(params.paymentReference),
@@ -584,7 +618,6 @@ export function buildQuickBooksUpdatePurchaseBody(
     Id: requiredQuickBooksString(params.purchaseId, 'purchaseId'),
     SyncToken: requiredQuickBooksString(params.syncToken, 'syncToken'),
     sparse: true,
-    PaymentType: quickBooksPurchasePaymentType(params.currentPaymentType),
     EntityRef: params.vendorId
       ? { ...quickBooksReference(params.vendorId, 'vendorId'), type: 'Vendor' }
       : undefined,
@@ -592,6 +625,6 @@ export function buildQuickBooksUpdatePurchaseBody(
     DocNumber: optionalQuickBooksString(params.paymentReference),
     PrivateNote: optionalQuickBooksString(params.privateNote),
   }) as Record<string, unknown>
-  assertQuickBooksSparseUpdate(body, 4)
+  assertQuickBooksSparseUpdate(body)
   return body
 }

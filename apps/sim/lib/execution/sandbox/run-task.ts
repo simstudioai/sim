@@ -18,6 +18,8 @@ export interface RunSandboxTaskOptions {
   ownerKey?: string
   /** Optional AbortSignal to cancel the execution early. */
   signal?: AbortSignal
+  /** Records canonical workspace files whose bytes were successfully read by a task broker. */
+  onWorkspaceFileAccess?: SandboxBrokerContext['onWorkspaceFileAccess']
 }
 
 /**
@@ -54,6 +56,7 @@ export async function runSandboxTask<TInput extends SandboxTaskInput>(
   const brokerContext: SandboxBrokerContext = {
     workspaceId: input.workspaceId,
     requestId,
+    onWorkspaceFileAccess: options.onWorkspaceFileAccess,
   }
   const brokers: Record<string, IsolatedVMBrokerHandler> = {}
   for (const broker of task.brokers) {

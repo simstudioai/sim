@@ -1,7 +1,8 @@
+import { tableSuccess } from '@/tools/table/response'
 import type { TableCreateParams, TableCreateResponse } from '@/tools/table/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const tableCreateTool: ToolConfig<TableCreateParams, TableCreateResponse> = {
+export const tableCreateTool: InternalToolConfig<TableCreateParams, TableCreateResponse> = {
   id: 'table_create',
   name: 'Create Table',
   description: 'Create a new user-defined table with schema',
@@ -28,13 +29,8 @@ export const tableCreateTool: ToolConfig<TableCreateParams, TableCreateResponse>
     },
   },
 
-  request: {
-    url: '/api/table',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
         throw new Error('Workspace ID is required in execution context')
@@ -53,13 +49,10 @@ export const tableCreateTool: ToolConfig<TableCreateParams, TableCreateResponse>
     const result = await response.json()
     const data = result.data || result
 
-    return {
-      success: true,
-      output: {
-        table: data.table,
-        message: data.message || 'Table created successfully',
-      },
-    }
+    return tableSuccess({
+      table: data.table,
+      message: data.message || 'Table created successfully',
+    })
   },
 
   outputs: {

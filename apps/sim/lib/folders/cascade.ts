@@ -3,6 +3,7 @@ import { folder as folderTable } from '@sim/db/schema'
 import { and, eq, inArray, isNull, or, type SQL } from 'drizzle-orm'
 import type { FolderCascadeCountsApi, FolderResourceType } from '@/lib/api/contracts/folders'
 import type { FolderResourceConfig } from '@/lib/folders/config'
+import { FolderCollectionLimitExceededError } from '@/lib/folders/errors'
 import { collectDescendantFolderIds } from '@/lib/folders/subtree'
 
 /** Narrow enough for both `db` and an open transaction handle. */
@@ -32,9 +33,10 @@ export async function collectCascadeSubtreeIds(
   workspaceId: string,
   resourceType: FolderResourceType,
   folderId: string,
-  timestamp: Date
+  timestamp: Date,
+  maxRows?: number
 ): Promise<string[]> {
-  const cascadeFolders = await tx
+  const query = tx
     .select({ id: folderTable.id, parentId: folderTable.parentId })
     .from(folderTable)
     .where(
@@ -44,6 +46,10 @@ export async function collectCascadeSubtreeIds(
         or(isNull(folderTable.deletedAt), eq(folderTable.deletedAt, timestamp))
       )
     )
+  const cascadeFolders = maxRows === undefined ? await query : await query.limit(maxRows + 1)
+  if (maxRows !== undefined && cascadeFolders.length > maxRows) {
+    throw new FolderCollectionLimitExceededError('cascade', maxRows)
+  }
 
   return [folderId, ...collectDescendantFolderIds(cascadeFolders, folderId)]
 }
@@ -204,27 +210,6 @@ export async function restoreFolderChildren(
   }
 
   return childIds.length
-}
-
-/**
- * Restores a folder subtree and the resources inside it, via the default row-update path.
- *
- * Only valid for resources without a {@link FolderResourceConfig.restoreChildren} hook —
- * those hooks call canonical single-resource restores that open their own transactions and
- * therefore must not run nested inside this one. `restoreFolder` sequences that case itself.
- */
-export async function restoreFolderCascade(
-  tx: DbOrTx,
-  config: FolderResourceConfig,
-  workspaceId: string,
-  folderIds: string[],
-  timestamp: Date,
-  now: Date
-): Promise<FolderCascadeCounts> {
-  const folders = await restoreFolderRows(tx, config, workspaceId, folderIds, timestamp, now)
-  const children = await restoreFolderChildren(tx, config, workspaceId, folderIds, timestamp, now)
-
-  return { folders, children }
 }
 
 /**

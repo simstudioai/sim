@@ -1,13 +1,23 @@
+import {
+  BLOCK_RETRY_MAX_TRIES,
+  BLOCK_RETRY_MAX_WAIT_MS,
+  BLOCK_RETRY_MIN_TRIES,
+  BLOCK_RETRY_MIN_WAIT_MS,
+} from '@sim/workflow-types/workflow'
 import { z } from 'zod'
 import {
+  privateSecretProvenanceBundleSchema,
   requiredFieldSchema,
   workflowIdSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS } from '@/lib/billing/execution-timeout-defaults'
+import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 
 const subBlockValuesSchema = z.record(z.string(), z.record(z.string(), z.unknown()))
 export const WORKFLOW_EXECUTION_ID_HEADER = 'X-Execution-Id'
+export const WORKFLOW_EXECUTION_TIMEOUT_SECONDS_HEADER = 'X-Execution-Timeout-Seconds'
 
 export const executionIdSchema = z
   .string()
@@ -51,6 +61,20 @@ const workflowEdgeHandleSchema = z
   .nullish()
   .transform((value) => value ?? undefined)
 
+const workflowBlockRetrySchema = z.object({
+  enabled: z.boolean(),
+  maxTries: z
+    .number()
+    .int()
+    .min(BLOCK_RETRY_MIN_TRIES, `maxTries must be at least ${BLOCK_RETRY_MIN_TRIES}`)
+    .max(BLOCK_RETRY_MAX_TRIES, `maxTries cannot exceed ${BLOCK_RETRY_MAX_TRIES}`),
+  waitBetweenTriesMs: z
+    .number()
+    .int()
+    .min(BLOCK_RETRY_MIN_WAIT_MS, 'waitBetweenTriesMs cannot be negative')
+    .max(BLOCK_RETRY_MAX_WAIT_MS, `waitBetweenTriesMs cannot exceed ${BLOCK_RETRY_MAX_WAIT_MS}ms`),
+})
+
 const workflowBlockStateSchema = z.object({
   id: z.string(),
   type: z.string(),
@@ -62,6 +86,8 @@ const workflowBlockStateSchema = z.object({
   horizontalHandles: z.boolean().optional(),
   height: z.number().optional(),
   advancedMode: z.boolean().optional(),
+  errorEnabled: z.boolean().optional(),
+  retry: workflowBlockRetrySchema.optional(),
   triggerMode: z.boolean().optional(),
   data: workflowBlockDataSchema.optional(),
   locked: z.boolean().optional(),
@@ -307,6 +333,13 @@ export type ReorderWorkflowsBody = z.input<typeof reorderWorkflowsBodySchema>
 
 export const executeWorkflowRunFromBlockSchema = z.object({
   startBlockId: requiredFieldSchema('Start block ID is required'),
+  /**
+   * Mocked upstream outputs keyed by block name or id: each entry becomes that
+   * block's state (marked executed) so the start block runs in isolation
+   * without a prior execution — and overlays the resolved snapshot when one
+   * exists. Names resolve server-side with the executor's own normalization.
+   */
+  variableInputs: z.record(z.string(), z.unknown()).optional(),
   sourceSnapshot: z
     .object({
       blockStates: z.record(z.string(), z.any()),
@@ -340,9 +373,19 @@ export const executeWorkflowTriggerTypeSchema = z.enum([
 
 export const executeWorkflowHeadersSchema = z.object({
   [WORKFLOW_EXECUTION_ID_HEADER]: executionIdSchema.optional(),
+  [WORKFLOW_EXECUTION_TIMEOUT_SECONDS_HEADER]: z.coerce
+    .number()
+    .int('Execution timeout must be a whole number of seconds')
+    .positive('Execution timeout must be positive')
+    .max(
+      MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS,
+      `Execution timeout cannot exceed ${MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS} seconds`
+    )
+    .optional(),
 })
 
 export const executeWorkflowBodySchema = z.object({
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
   selectedOutputs: z.array(z.string()).optional().default([]),
   triggerType: executeWorkflowTriggerTypeSchema.optional(),
   stream: z.boolean().optional(),
@@ -473,13 +516,6 @@ export const importWorkflowAsSuperuserBodySchema = z.object({
 
 export type ImportWorkflowAsSuperuserBody = z.input<typeof importWorkflowAsSuperuserBodySchema>
 
-export const importWorkflowAsSuperuserPermissiveBodySchema = z
-  .object({
-    workflowId: z.string().optional(),
-    targetWorkspaceId: z.string().optional(),
-  })
-  .passthrough()
-
 export const importWorkflowAsSuperuserResponseSchema = z.object({
   success: z.literal(true),
   newWorkflowId: z.string(),
@@ -546,6 +582,7 @@ const pausedWorkflowExecutionDetailSchema = pausedWorkflowExecutionSummarySchema
 })
 
 const workflowExecutionStatusEnum = z.enum([
+  'queued',
   'pending',
   'running',
   'paused',
@@ -554,15 +591,39 @@ const workflowExecutionStatusEnum = z.enum([
   'cancelled',
 ])
 
-const workflowExecutionPausedDetailSchema = z.object({
-  pausedAt: z.string(),
-  resumeAt: z.string().nullable(),
-  pauseKind: z.enum(['time', 'human']).nullable(),
-  blockedOnBlockId: z.string().nullable(),
-  automaticResumeWaitingReason: z.string().nullable(),
-  pausedExecutionId: z.string(),
-  pausePointCount: z.number(),
-  resumedCount: z.number(),
+export const workflowExecutionPausedDetailSchema = z.object({
+  contextId: z
+    .string()
+    .nullable()
+    .describe('Resume context identifier, or null while every pause point is mid-resume.'),
+  pausedAt: z
+    .string()
+    .datetime()
+    .meta({ format: 'date-time' })
+    .describe('ISO 8601 timestamp when the execution entered the paused state.'),
+  resumeAt: z
+    .string()
+    .datetime()
+    .meta({ format: 'date-time' })
+    .nullable()
+    .describe('ISO 8601 scheduled automatic-resume timestamp, or null when no resume time is set.'),
+  pauseKind: z
+    .enum(['time', 'human'])
+    .nullable()
+    .describe('Whether the pause waits for time or human input, or null when unspecified.'),
+  blockedOnBlockId: z
+    .string()
+    .nullable()
+    .describe('Workflow block awaiting resume, or null when no block is identified.'),
+  automaticResumeWaitingReason: z
+    .string()
+    .nullable()
+    .describe(
+      'Why automatic resume is waiting, or null when it is not — on a paused run, null means it is waiting on human input. Recorded whenever a resume attempt fails and cleared once one succeeds. A non-retryable or exhausted failure is prefixed `Automatic resume requires manual intervention: `.'
+    ),
+  pausedExecutionId: z.string().describe('Persistent paused-execution record identifier.'),
+  pausePointCount: z.number().describe('Number of pause points tracked for the execution.'),
+  resumedCount: z.number().describe('Number of pause points that have resumed.'),
 })
 
 const workflowExecutionStatusResponseSchema = z.object({
@@ -583,7 +644,7 @@ const workflowExecutionStatusResponseSchema = z.object({
 
 export type WorkflowExecutionStatusResponse = z.output<typeof workflowExecutionStatusResponseSchema>
 
-const workflowExecutionStatusQuerySchema = z.object({
+export const workflowExecutionStatusQuerySchema = z.object({
   includeOutput: z
     .enum(['true', 'false'])
     .optional()
@@ -601,6 +662,21 @@ const workflowExecutionStatusQuerySchema = z.object({
     ),
 })
 
+/** Mirrors the surface-neutral cancellation service's complete outcome vocabulary. */
+export const cancelWorkflowExecutionReasonSchema = z.enum([
+  'recorded',
+  'already_cancelled',
+  'already_completed',
+  'already_failed',
+  'redis_unavailable',
+  'redis_write_failed',
+  'paused_event_publish_failed',
+  'paused_database_cancel_failed',
+  'queue_cancelled',
+  'active_resume_signal_failed',
+  'cancellation_not_finalized',
+])
+
 const cancelWorkflowExecutionResponseSchema = z.object({
   success: z.boolean(),
   executionId: z.string(),
@@ -608,8 +684,10 @@ const cancelWorkflowExecutionResponseSchema = z.object({
   durablyRecorded: z.boolean(),
   locallyAborted: z.boolean(),
   pausedCancelled: z.boolean(),
-  reason: z.string().optional(),
+  reason: cancelWorkflowExecutionReasonSchema.optional(),
 })
+
+export type CancelWorkflowExecutionResponse = z.output<typeof cancelWorkflowExecutionResponseSchema>
 
 const resumeWorkflowExecutionContextResponseSchema = z
   .object({
@@ -669,6 +747,7 @@ export const getWorkflowResponseDataSchema = z.object({
   deployedAt: z.coerce.date().nullable(),
   isPublicApi: z.boolean(),
   locked: z.boolean(),
+  forkSyncExcluded: z.boolean().default(false),
   runCount: z.number(),
   lastRunAt: z.coerce.date().nullable(),
   archivedAt: z.coerce.date().nullable(),

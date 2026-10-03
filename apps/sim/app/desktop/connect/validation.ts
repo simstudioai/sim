@@ -1,3 +1,5 @@
+import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/draft-constants'
+
 /**
  * OAuth providerIds are kebab-case service slugs (e.g. "google-email"). The
  * value is only used to start a better-auth oauth2.link flow, which validates
@@ -34,8 +36,10 @@ export function isValidOpaqueId(value: unknown): value is string {
 
 /** Optional connect scope forwarded from the desktop app's credential chips. */
 export interface ConnectScope {
+  sourceRequestId?: string
   workspaceId?: string
   credentialId?: string
+  draftId?: string
   /** The account the desktop app is signed in as; the flow is pinned to it. */
   user?: string
 }
@@ -51,8 +55,10 @@ export function buildDesktopConnectPath(
   scope: ConnectScope = {}
 ): string {
   const params = new URLSearchParams({ provider: providerId, state, port: String(port) })
+  if (scope.sourceRequestId) params.set('sourceRequestId', scope.sourceRequestId)
   if (scope.workspaceId) params.set('workspaceId', scope.workspaceId)
   if (scope.credentialId) params.set('credentialId', scope.credentialId)
+  if (scope.draftId) params.set('draftId', scope.draftId)
   if (scope.user) params.set('user', scope.user)
   return `/desktop/connect?${params.toString()}`
 }
@@ -61,8 +67,9 @@ export function buildDesktopConnectPath(
  * The same-origin path better-auth redirects the browser to after the OAuth
  * callback — the complete page then bounces to the desktop app's loopback.
  */
-export function buildConnectCompletePath(state: string, port: number): string {
+export function buildConnectCompletePath(state: string, port: number, draftId?: string): string {
   const params = new URLSearchParams({ state, port: String(port) })
+  if (draftId) params.set(OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM, draftId)
   return `/desktop/connect/complete?${params.toString()}`
 }
 
@@ -71,8 +78,14 @@ export function buildConnectCompletePath(state: string, port: number): string {
  * §7.3 — the `127.0.0.1` IP literal, mirroring the login handoff). A present
  * `error` marks the flow failed; the app surfaces it as a toast.
  */
-export function buildConnectLoopbackUrl(state: string, port: number, error?: string): string {
+export function buildConnectLoopbackUrl(
+  state: string,
+  port: number,
+  error?: string,
+  credentialId?: string
+): string {
   const params = new URLSearchParams({ state })
+  if (credentialId) params.set('credentialId', credentialId)
   if (error) {
     params.set('error', error)
   }

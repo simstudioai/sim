@@ -2,7 +2,6 @@ import { S3Icon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { S3Response } from '@/tools/s3/types'
 
 /**
  * Normalize the batch-delete keys input into a string array. Accepts an array,
@@ -30,7 +29,10 @@ function parseObjectKeys(value: unknown): string[] {
     .filter(Boolean)
 }
 
-export const S3Block: BlockConfig<S3Response> = {
+/** Upload payload: an uploaded file, a referenced file, or inline text. */
+const UPLOAD_SOURCE_FIELD = ['uploadFile', 'fileReference', 'content'] as const
+
+export const S3Block: BlockConfig = {
   type: 's3',
   name: 'S3',
   description: 'Upload, download, list, and manage S3 files and buckets',
@@ -42,6 +44,56 @@ export const S3Block: BlockConfig<S3Response> = {
   integrationType: IntegrationType.Documents,
   bgColor: 'linear-gradient(45deg, #1B660F 0%, #6CAE3E 100%)',
   icon: S3Icon,
+  canvasPresentation: {
+    defaultTitle: 'S3',
+    sentences: {
+      byOperation: {
+        get_object: [{ text: 'Download the object at', field: 's3Uri', core: true }],
+        put_object: [
+          { text: 'Upload', field: UPLOAD_SOURCE_FIELD, core: true },
+          { text: 'to', field: 'bucketName', core: true },
+          { text: 'as', field: 'objectKey' },
+        ],
+        list_objects: [
+          { text: 'List objects in', field: 'bucketName', core: true },
+          { text: ', under', field: 'prefix' },
+          { text: ', up to', field: 'maxKeys' },
+        ],
+        delete_object: [
+          { text: 'Delete object', field: 'objectKey', core: true },
+          { text: 'from', field: 'bucketName' },
+        ],
+        delete_objects: [
+          { text: 'Delete objects', field: 'objectKeys', core: true },
+          { text: 'from', field: 'bucketName' },
+        ],
+        copy_object: [
+          { text: 'Copy', field: 'sourceKey', core: true },
+          { text: 'to', field: 'destinationBucket' },
+          { text: 'as', field: 'destinationKey' },
+        ],
+        head_object: [
+          { text: 'Read metadata of', field: 'objectKey', core: true },
+          { text: 'in', field: 'bucketName' },
+        ],
+        presigned_url: [
+          { text: 'Generate a presigned URL for', field: 'objectKey', core: true },
+          { text: 'in', field: 'bucketName' },
+          { text: ', valid for', field: 'expiresIn', after: 'seconds' },
+        ],
+        list_buckets: [
+          'List buckets',
+          { text: ', starting with', field: 'bucketPrefix' },
+          { text: ', up to', field: 'maxBuckets' },
+        ],
+        create_bucket: [
+          { text: 'Create bucket', field: 'bucketName', core: true },
+          { text: 'in', field: 'region' },
+        ],
+        delete_bucket: [{ text: 'Delete bucket', field: 'bucketName', core: true }],
+      },
+    },
+  },
   subBlocks: [
     // Operation selector
     {
@@ -133,7 +185,6 @@ export const S3Block: BlockConfig<S3Response> = {
       required: true,
     },
 
-    // ===== UPLOAD (PUT OBJECT) FIELDS =====
     {
       id: 'objectKey',
       title: 'Object Key/Path',
@@ -145,6 +196,7 @@ export const S3Block: BlockConfig<S3Response> = {
     {
       id: 'uploadFile',
       title: 'File to Upload',
+      canvasNoun: 'a file',
       type: 'file-upload',
       canonicalParamId: 'file',
       placeholder: 'Upload a file',
@@ -191,7 +243,6 @@ export const S3Block: BlockConfig<S3Response> = {
       mode: 'advanced',
     },
 
-    // ===== DOWNLOAD (GET OBJECT) FIELDS =====
     {
       id: 's3Uri',
       title: 'S3 Object URL',
@@ -201,7 +252,6 @@ export const S3Block: BlockConfig<S3Response> = {
       required: true,
     },
 
-    // ===== LIST OBJECTS FIELDS =====
     {
       id: 'prefix',
       title: 'Prefix/Folder',
@@ -238,7 +288,6 @@ export const S3Block: BlockConfig<S3Response> = {
       required: true,
     },
 
-    // ===== COPY OBJECT FIELDS =====
     {
       id: 'sourceBucket',
       title: 'Source Bucket',

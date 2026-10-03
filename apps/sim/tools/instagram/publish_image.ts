@@ -4,16 +4,16 @@ import {
   PUBLISH_OUTPUTS,
 } from '@/tools/instagram/types'
 import { createPublishTransform } from '@/tools/instagram/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const instagramPublishImageTool: ToolConfig<
+export const instagramPublishImageTool: InternalToolConfig<
   InstagramPublishImageParams,
   InstagramPublishResponse
 > = {
   id: 'instagram_publish_image',
   name: 'Instagram Publish Image',
   description:
-    'Create and publish a single JPEG image post from an uploaded file or public HTTPS URL (polls until the container is ready)',
+    'Create and publish a single JPEG image post from a Sim file (polls until the container is ready)',
   version: '1.0.0',
 
   oauth: {
@@ -38,7 +38,7 @@ export const instagramPublishImageTool: ToolConfig<
       type: 'file',
       required: true,
       visibility: 'user-or-llm',
-      description: 'JPEG image file or public HTTPS URL (Meta will download it)',
+      description: 'JPEG image uploaded to Sim or referenced from a previous block',
     },
     caption: {
       type: 'string',
@@ -60,13 +60,8 @@ export const instagramPublishImageTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/instagram/publish-image',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: InstagramPublishImageParams) => ({
+  operation: {
+    input: (params: InstagramPublishImageParams) => ({
       accessToken: params.accessToken,
       igUserId: params.igUserId,
       image: params.image,

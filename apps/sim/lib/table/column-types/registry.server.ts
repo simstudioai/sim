@@ -12,7 +12,7 @@
  */
 
 import { userTableRows } from '@sim/db/schema'
-import { sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { COLUMN_TYPE_REGISTRY } from '@/lib/table/column-types/registry'
 import type { ColumnType } from '@/lib/table/column-types/types'
 import type {
@@ -20,6 +20,7 @@ import type {
   ColumnTypeServerEntry,
 } from '@/lib/table/column-types/types.server'
 import type { DbTransaction } from '@/lib/table/planner'
+import { updateTableRowsWithDerivedSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import type { JsonValue, SelectOption } from '@/lib/table/types'
 
 /**
@@ -38,27 +39,42 @@ import type { JsonValue, SelectOption } from '@/lib/table/types'
 async function migrateSelectCellsToNames(
   trx: DbTransaction,
   tableId: string,
+  workspaceId: string,
   columnKey: string,
   options: SelectOption[]
 ): Promise<void> {
   const nameById = JSON.stringify(Object.fromEntries(options.map((o) => [o.id, o.name])))
-  await trx.execute(
-    sql`UPDATE ${userTableRows}
-        SET data = jsonb_set(data, ARRAY[${columnKey}::text],
-          COALESCE(${nameById}::jsonb -> (data->>${columnKey}::text), 'null'::jsonb))
-        WHERE table_id = ${tableId}
-          AND jsonb_typeof(data->${columnKey}::text) = 'string'`
-  )
-  await trx.execute(
-    sql`UPDATE ${userTableRows}
-        SET data = jsonb_set(data, ARRAY[${columnKey}::text], COALESCE(to_jsonb((
-              SELECT string_agg(${nameById}::jsonb ->> e.v, ', ' ORDER BY e.ord)
-              FROM jsonb_array_elements_text(data->${columnKey}::text) WITH ORDINALITY AS e(v, ord)
-              WHERE ${nameById}::jsonb ? e.v
-            )), 'null'::jsonb))
-        WHERE table_id = ${tableId}
-          AND jsonb_typeof(data->${columnKey}::text) = 'array'`
-  )
+  await updateTableRowsWithDerivedSecretProvenance(trx, {
+    rowWhere: and(
+      eq(userTableRows.tableId, tableId),
+      eq(userTableRows.workspaceId, workspaceId),
+      sql`jsonb_typeof(${userTableRows.data}->${columnKey}::text) = 'string'`
+    )!,
+    transformation: {
+      mode: 'preserve',
+      dataExpression: sql`jsonb_set(${userTableRows.data}, ARRAY[${columnKey}::text],
+        COALESCE(
+          ${nameById}::jsonb -> (${userTableRows.data}->>${columnKey}::text),
+          'null'::jsonb
+        ))`,
+    },
+  })
+  await updateTableRowsWithDerivedSecretProvenance(trx, {
+    rowWhere: and(
+      eq(userTableRows.tableId, tableId),
+      eq(userTableRows.workspaceId, workspaceId),
+      sql`jsonb_typeof(${userTableRows.data}->${columnKey}::text) = 'array'`
+    )!,
+    transformation: {
+      mode: 'preserve',
+      dataExpression: sql`jsonb_set(${userTableRows.data}, ARRAY[${columnKey}::text], COALESCE(to_jsonb((
+        SELECT string_agg(${nameById}::jsonb ->> e.v, ', ' ORDER BY e.ord)
+        FROM jsonb_array_elements_text(${userTableRows.data}->${columnKey}::text)
+          WITH ORDINALITY AS e(v, ord)
+        WHERE ${nameById}::jsonb ? e.v
+      )), 'null'::jsonb))`,
+    },
+  })
 }
 
 /** Rows rewritten per statement, bounding the size of the jsonb map parameter. */
@@ -68,11 +84,9 @@ const COERCED_WRITE_BACK_BATCH_SIZE = 5000
  * Writes back the values a conversion's coercion produced.
  *
  * A retype is allowed exactly when the target type's `coerce` accepts the
- * value, and `coerce` frequently *transforms* it — an epoch number becomes an
- * ISO date, `$1,234.56` becomes `1234.56`. Without this, the cell keeps its old
- * bytes under the new type, and since filters and sorts apply the type's
- * `jsonbCast` to whatever is stored, an epoch left in a `date` column makes
- * `::timestamptz` fail on EVERY query against that column.
+ * value, and `coerce` frequently transforms it — `$1,234.56` becomes `1234.56`.
+ * Without this, the cell keeps its old bytes under the new type, and the
+ * type's `jsonbCast` can fail on every filter or sort against that column.
  *
  * The values arrive already computed (the compatibility scan derived them), so
  * this is purely the write. It cannot be expressed set-based — the coercions
@@ -82,6 +96,7 @@ const COERCED_WRITE_BACK_BATCH_SIZE = 5000
 export async function writeBackCoercedCells(
   trx: DbTransaction,
   tableId: string,
+  workspaceId: string,
   columnKey: string,
   valueByRowId: ReadonlyMap<string, JsonValue>
 ): Promise<void> {
@@ -92,12 +107,21 @@ export async function writeBackCoercedCells(
     const batch = JSON.stringify(
       Object.fromEntries(entries.slice(start, start + COERCED_WRITE_BACK_BATCH_SIZE))
     )
-    await trx.execute(
-      sql`UPDATE ${userTableRows} AS r
-          SET data = jsonb_set(r.data, ARRAY[${columnKey}::text], m.value)
-          FROM jsonb_each(${batch}::jsonb) AS m(key, value)
-          WHERE r.table_id = ${tableId} AND r.id = m.key`
-    )
+    await updateTableRowsWithDerivedSecretProvenance(trx, {
+      rowWhere: and(
+        eq(userTableRows.tableId, tableId),
+        eq(userTableRows.workspaceId, workspaceId),
+        sql`${batch}::jsonb ? ${userTableRows.id}`
+      )!,
+      transformation: {
+        mode: 'preserve',
+        dataExpression: sql`jsonb_set(
+          ${userTableRows.data},
+          ARRAY[${columnKey}::text],
+          ${batch}::jsonb -> ${userTableRows.id}
+        )`,
+      },
+    })
   }
 }
 
@@ -127,6 +151,7 @@ export async function writeBackCoercedCells(
 async function migrateCellsToSelectIds(
   trx: DbTransaction,
   tableId: string,
+  workspaceId: string,
   columnKey: string,
   options: SelectOption[],
   multiple: boolean
@@ -153,57 +178,87 @@ async function migrateCellsToSelectIds(
     // first so an option whose own name contains a comma still wins, then split
     // — mirroring `splitMultiSelectInput` on the write path, including its
     // first-occurrence dedup.
-    await trx.execute(
-      sql`UPDATE ${userTableRows}
-          SET data = jsonb_set(data, ARRAY[${columnKey}::text],
-            CASE WHEN data->>${columnKey}::text = '' THEN '[]'::jsonb
-                 WHEN COALESCE(${idByRef}::jsonb -> (data->>${columnKey}::text), ${idByRef}::jsonb -> lower(data->>${columnKey}::text)) IS NOT NULL
-                   THEN jsonb_build_array(COALESCE(${idByRef}::jsonb -> (data->>${columnKey}::text), ${idByRef}::jsonb -> lower(data->>${columnKey}::text)))
-                 ELSE COALESCE((
-                   SELECT jsonb_agg(v ORDER BY ord) FROM (
-                     SELECT COALESCE(${idByRef}::jsonb -> btrim(part), ${idByRef}::jsonb -> lower(btrim(part)), to_jsonb(btrim(part))) AS v,
-                            min(o) AS ord
-                     FROM unnest(string_to_array(data->>${columnKey}::text, ',')) WITH ORDINALITY AS u(part, o)
-                     WHERE btrim(part) <> ''
-                     GROUP BY 1
-                   ) d), '[]'::jsonb)
-            END)
-          WHERE table_id = ${tableId}
-            AND jsonb_typeof(data->${columnKey}::text) IN ('string', 'number', 'boolean')`
-    )
-    await trx.execute(
-      sql`UPDATE ${userTableRows}
-          SET data = jsonb_set(data, ARRAY[${columnKey}::text], COALESCE((
-                SELECT jsonb_agg(COALESCE(${idByRef}::jsonb -> e.v, ${idByRef}::jsonb -> lower(e.v), to_jsonb(e.v)) ORDER BY e.ord)
-                FROM jsonb_array_elements_text(data->${columnKey}::text) WITH ORDINALITY AS e(v, ord)
-              ), '[]'::jsonb))
-          WHERE table_id = ${tableId}
-            AND jsonb_typeof(data->${columnKey}::text) = 'array'`
-    )
+    await updateTableRowsWithDerivedSecretProvenance(trx, {
+      rowWhere: and(
+        eq(userTableRows.tableId, tableId),
+        eq(userTableRows.workspaceId, workspaceId),
+        sql`jsonb_typeof(${userTableRows.data}->${columnKey}::text) IN ('string', 'number', 'boolean')`
+      )!,
+      transformation: {
+        mode: 'preserve',
+        dataExpression: sql`jsonb_set(${userTableRows.data}, ARRAY[${columnKey}::text],
+          CASE WHEN ${userTableRows.data}->>${columnKey}::text = '' THEN '[]'::jsonb
+               WHEN COALESCE(${idByRef}::jsonb -> (${userTableRows.data}->>${columnKey}::text), ${idByRef}::jsonb -> lower(${userTableRows.data}->>${columnKey}::text)) IS NOT NULL
+                 THEN jsonb_build_array(COALESCE(${idByRef}::jsonb -> (${userTableRows.data}->>${columnKey}::text), ${idByRef}::jsonb -> lower(${userTableRows.data}->>${columnKey}::text)))
+               ELSE COALESCE((
+                 SELECT jsonb_agg(v ORDER BY ord) FROM (
+                   SELECT COALESCE(${idByRef}::jsonb -> btrim(part), ${idByRef}::jsonb -> lower(btrim(part)), to_jsonb(btrim(part))) AS v,
+                          min(o) AS ord
+                   FROM unnest(string_to_array(${userTableRows.data}->>${columnKey}::text, ',')) WITH ORDINALITY AS u(part, o)
+                   WHERE btrim(part) <> ''
+                   GROUP BY 1
+                 ) d), '[]'::jsonb)
+          END)`,
+      },
+    })
+    await updateTableRowsWithDerivedSecretProvenance(trx, {
+      rowWhere: and(
+        eq(userTableRows.tableId, tableId),
+        eq(userTableRows.workspaceId, workspaceId),
+        sql`jsonb_typeof(${userTableRows.data}->${columnKey}::text) = 'array'`
+      )!,
+      transformation: {
+        mode: 'preserve',
+        dataExpression: sql`jsonb_set(${userTableRows.data}, ARRAY[${columnKey}::text], COALESCE((
+          SELECT jsonb_agg(COALESCE(${idByRef}::jsonb -> e.v, ${idByRef}::jsonb -> lower(e.v), to_jsonb(e.v)) ORDER BY e.ord)
+          FROM jsonb_array_elements_text(${userTableRows.data}->${columnKey}::text)
+            WITH ORDINALITY AS e(v, ord)
+        ), '[]'::jsonb))`,
+      },
+    })
     return
   }
 
   // A cleared cell is stored as '' — compatibility lets it through, so it has
   // to land as null rather than an '' that fails option membership on the next
   // write.
-  await trx.execute(
-    sql`UPDATE ${userTableRows}
-        SET data = jsonb_set(data, ARRAY[${columnKey}::text],
-          CASE WHEN data->>${columnKey}::text = '' THEN 'null'::jsonb
-               ELSE COALESCE(${idByRef}::jsonb -> (data->>${columnKey}::text), ${idByRef}::jsonb -> lower(data->>${columnKey}::text), data->${columnKey}::text)
-          END)
-        WHERE table_id = ${tableId}
-          AND jsonb_typeof(data->${columnKey}::text) IN ('string', 'number', 'boolean')`
-  )
+  await updateTableRowsWithDerivedSecretProvenance(trx, {
+    rowWhere: and(
+      eq(userTableRows.tableId, tableId),
+      eq(userTableRows.workspaceId, workspaceId),
+      sql`jsonb_typeof(${userTableRows.data}->${columnKey}::text) IN ('string', 'number', 'boolean')`
+    )!,
+    transformation: {
+      mode: 'preserve',
+      dataExpression: sql`jsonb_set(${userTableRows.data}, ARRAY[${columnKey}::text],
+        CASE WHEN ${userTableRows.data}->>${columnKey}::text = '' THEN 'null'::jsonb
+             ELSE COALESCE(
+               ${idByRef}::jsonb -> (${userTableRows.data}->>${columnKey}::text),
+               ${idByRef}::jsonb -> lower(${userTableRows.data}->>${columnKey}::text),
+               ${userTableRows.data}->${columnKey}::text
+             )
+        END)`,
+    },
+  })
   // Compatibility already rejected multi-valued cells for a single target, so
   // any array here holds at most one option.
-  await trx.execute(
-    sql`UPDATE ${userTableRows}
-        SET data = jsonb_set(data, ARRAY[${columnKey}::text],
-          COALESCE(${idByRef}::jsonb -> (data->${columnKey}::text->>0), ${idByRef}::jsonb -> lower(data->${columnKey}::text->>0), data->${columnKey}::text->0, 'null'::jsonb))
-        WHERE table_id = ${tableId}
-          AND jsonb_typeof(data->${columnKey}::text) = 'array'`
-  )
+  await updateTableRowsWithDerivedSecretProvenance(trx, {
+    rowWhere: and(
+      eq(userTableRows.tableId, tableId),
+      eq(userTableRows.workspaceId, workspaceId),
+      sql`jsonb_typeof(${userTableRows.data}->${columnKey}::text) = 'array'`
+    )!,
+    transformation: {
+      mode: 'preserve',
+      dataExpression: sql`jsonb_set(${userTableRows.data}, ARRAY[${columnKey}::text],
+        COALESCE(
+          ${idByRef}::jsonb -> (${userTableRows.data}->${columnKey}::text->>0),
+          ${idByRef}::jsonb -> lower(${userTableRows.data}->${columnKey}::text->>0),
+          ${userTableRows.data}->${columnKey}::text->0,
+          'null'::jsonb
+        ))`,
+    },
+  })
 }
 
 /**
@@ -216,13 +271,21 @@ export const COLUMN_TYPE_SERVER_REGISTRY: Record<ColumnType, ColumnTypeServerEnt
   number: COLUMN_TYPE_REGISTRY.number,
   boolean: COLUMN_TYPE_REGISTRY.boolean,
   date: COLUMN_TYPE_REGISTRY.date,
+  ttl: COLUMN_TYPE_REGISTRY.ttl,
   json: COLUMN_TYPE_REGISTRY.json,
   select: {
     ...COLUMN_TYPE_REGISTRY.select,
-    migrateCellsTo: ({ trx, tableId, columnKey, target }) =>
-      migrateCellsToSelectIds(trx, tableId, columnKey, target.options ?? [], !!target.multiple),
-    migrateCellsFrom: ({ trx, tableId, columnKey, previous }) =>
-      migrateSelectCellsToNames(trx, tableId, columnKey, previous.options ?? []),
+    migrateCellsTo: ({ trx, tableId, workspaceId, columnKey, target }) =>
+      migrateCellsToSelectIds(
+        trx,
+        tableId,
+        workspaceId,
+        columnKey,
+        target.options ?? [],
+        !!target.multiple
+      ),
+    migrateCellsFrom: ({ trx, tableId, workspaceId, columnKey, previous }) =>
+      migrateSelectCellsToNames(trx, tableId, workspaceId, columnKey, previous.options ?? []),
   },
   currency: COLUMN_TYPE_REGISTRY.currency,
 }

@@ -8,11 +8,41 @@ export const SimilarwebBlock: BlockConfig = {
   description: 'Website traffic and analytics data',
   longDescription:
     'Access comprehensive website analytics including traffic estimates, engagement metrics, rankings, and traffic sources using the Similarweb API.',
-  docsLink: 'https://developers.similarweb.com/docs/similarweb-web-traffic-api',
+  docsLink: 'https://docs.sim.ai/integrations/similarweb',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
   bgColor: '#000922',
   icon: SimilarwebIcon,
+  canvasPresentation: {
+    defaultTitle: 'Similarweb',
+    sentences: {
+      byOperation: {
+        similarweb_website_overview: [
+          { text: 'Read the analytics overview for', field: 'domain', core: true },
+        ],
+        similarweb_traffic_visits: [
+          { text: 'Read total visits for', field: 'domain', core: true },
+          { text: ', scoped to', field: 'country' },
+        ],
+        similarweb_bounce_rate: [
+          { text: 'Read bounce rate for', field: 'domain', core: true },
+          { text: ', scoped to', field: 'country' },
+        ],
+        similarweb_pages_per_visit: [
+          { text: 'Read pages per visit for', field: 'domain', core: true },
+          { text: ', scoped to', field: 'country' },
+        ],
+        similarweb_visit_duration: [
+          { text: 'Read desktop visit duration for', field: 'domain', core: true },
+          { text: ', scoped to', field: 'country' },
+        ],
+        similarweb_page_views: [
+          { text: 'Read total page views for', field: 'domain', core: true },
+          { text: ', scoped to', field: 'country' },
+        ],
+      },
+    },
+  },
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

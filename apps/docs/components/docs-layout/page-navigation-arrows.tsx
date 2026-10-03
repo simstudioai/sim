@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from '@sim/emcn/icons'
 import Link from 'next/link'
 
 interface PageNavigationArrowsProps {

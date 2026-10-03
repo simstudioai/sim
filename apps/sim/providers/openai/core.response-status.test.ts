@@ -1,0 +1,343 @@
+/**
+ * Pins the non-streaming status/error gate, and pins its `incomplete` policy to the one
+ * `streamResponsesTurn` applies so the two paths cannot silently diverge.
+ */
+
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { providersMock } from '@sim/testing/mocks/providers.mock'
+import {
+  providersConversationHistoryMock,
+  providersConversationHistoryMockFns,
+} from '@sim/testing/mocks/providers-conversation-history.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { executeResponsesProviderRequest } from '@/providers/openai/core'
+import type { ProviderRequest, ProviderResponse } from '@/providers/types'
+
+providersMock.MAX_TOOL_ITERATIONS = 5
+const mockCaptureStep = providersConversationHistoryMockFns.mockCaptureProviderConversationStep
+const mockRecordToolError =
+  providersConversationHistoryMockFns.mockRecordProviderConversationToolError
+const mockConversationContext =
+  providersConversationHistoryMockFns.mockGetConversationRequestContext
+
+providersUtilsMockFns.mockIsFunctionToolCall.mockReturnValue(false)
+providersUtilsMockFns.mockPrepareToolExecution.mockReturnValue({
+  toolParams: {},
+  executionParams: {},
+})
+providersUtilsMockFns.mockPrepareToolsWithUsageControl.mockImplementation((tools) => ({
+  tools,
+  toolChoice: undefined,
+  forcedTools: [],
+  hasFilteredTools: false,
+}))
+
+vi.mock('@/providers', () => providersMock)
+
+vi.mock('@/providers/utils', () => providersUtilsMock)
+
+const { mockExecuteProviderTool } = vi.hoisted(() => ({
+  mockExecuteProviderTool: vi.fn(),
+}))
+
+vi.mock('@/providers/conversation-history', () => providersConversationHistoryMock)
+
+vi.mock('@/providers/runtime-context', () => ({
+  executeProviderTool: mockExecuteProviderTool,
+}))
+
+const USAGE = { input_tokens: 1, output_tokens: 1, total_tokens: 2 }
+
+function message(text: string) {
+  return {
+    type: 'message',
+    role: 'assistant',
+    content: [{ type: 'output_text', text }],
+  }
+}
+
+function functionCall(args: string) {
+  return { type: 'function_call', call_id: 'call_1', name: 'exa_search', arguments: args }
+}
+
+const COMPLETED_RESPONSE = {
+  id: 'resp_1',
+  status: 'completed',
+  error: null,
+  incomplete_details: null,
+  output: [message('hello')],
+  usage: USAGE,
+}
+
+describe('OpenAI non-streaming response status handling', () => {
+  const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as any
+
+  beforeEach(() => {
+    mockCaptureStep.mockReset()
+    mockRecordToolError.mockReset()
+    mockConversationContext.mockReset()
+    const response = { success: true, output: { results: [] } }
+    mockExecuteProviderTool.mockResolvedValue({ rawResponse: response, modelResponse: response })
+  })
+
+  function run(fetchMock: unknown, request: Partial<ProviderRequest> = {}) {
+    return executeResponsesProviderRequest(
+      { apiKey: 'k', model: 'gpt-5.5', messages: [{ role: 'user', content: 'hi' }], ...request },
+      {
+        providerId: 'openai',
+        providerLabel: 'OpenAI',
+        modelName: 'gpt-5.5',
+        endpoint: 'https://api.openai.com/v1/responses',
+        headers: { Authorization: 'Bearer k' },
+        logger,
+        fetch: fetchMock as typeof fetch,
+      }
+    )
+  }
+
+  const TOOL_REQUEST: Partial<ProviderRequest> = {
+    tools: [{ id: 'exa_search', name: 'exa_search', description: 'search', params: {} }],
+  }
+
+  it('refuses invalid context configuration before sending and preserves its nonretryable classification', async () => {
+    mockConversationContext.mockReturnValue({
+      agentConversation: {},
+      agentMemoryContext: { historyTokens: Number.NaN },
+    })
+    const fetchMock = vi.fn()
+    await expect(run(fetchMock)).rejects.toMatchObject({
+      name: 'AgentContextLimitError',
+      retryable: false,
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('lets an estimated oversized request reach the provider and propagates its actual context rejection', async () => {
+    mockConversationContext.mockReturnValue({ agentConversation: {} })
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      headers: new Headers(),
+      text: async () =>
+        JSON.stringify({
+          error: { message: 'Provider context window exceeded', code: 'context_length_exceeded' },
+        }),
+    })
+    await expect(run(fetchMock, { maxTokens: 10_000_000 })).rejects.toThrow(
+      'Provider context window exceeded'
+    )
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('awaits assistant capture before dispatching tools and captures the final response', async () => {
+    const order: string[] = []
+    mockCaptureStep.mockImplementation(async (_request, _protocol, output) => {
+      await Promise.resolve()
+      order.push(
+        output.some((item: { type: string }) => item.type === 'function_call')
+          ? 'capture-call'
+          : 'capture-final'
+      )
+    })
+    mockExecuteProviderTool.mockImplementation(async () => {
+      order.push('tool')
+      const result = { success: true, output: { found: true } }
+      return { rawResponse: result, modelResponse: result }
+    })
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          ...COMPLETED_RESPONSE,
+          output: [functionCall('{}')],
+          usage: {
+            input_tokens: 100,
+            output_tokens: 20,
+            input_tokens_details: { cached_tokens: 30, cache_write_tokens: 10 },
+          },
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse(COMPLETED_RESPONSE))
+    await run(fetchMock, TOOL_REQUEST)
+    expect(order).toEqual(['capture-call', 'tool', 'capture-final'])
+    expect(mockCaptureStep.mock.calls.every(([, protocol]) => protocol === 'responses')).toBe(true)
+    expect(mockCaptureStep.mock.calls.map((call) => call[3])).toEqual([
+      {
+        input: 60,
+        output: 20,
+        cacheRead: 30,
+        cacheWrites: [{ tokens: 10, inputRateMultiplier: 1.25 }],
+      },
+      {
+        input: 1,
+        output: 1,
+        cacheRead: 0,
+        cacheWrites: [{ tokens: 0, inputRateMultiplier: 1.25 }],
+      },
+    ])
+  })
+
+  it('records a malformed call error without dispatching it', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({ ...COMPLETED_RESPONSE, output: [functionCall('{broken')] })
+      )
+      .mockResolvedValueOnce(jsonResponse(COMPLETED_RESPONSE))
+    await run(fetchMock, TOOL_REQUEST)
+    expect(mockExecuteProviderTool).not.toHaveBeenCalled()
+    expect(mockRecordToolError).toHaveBeenCalledWith(
+      expect.anything(),
+      'call_1',
+      'exa_search',
+      expect.stringContaining('Invalid JSON')
+    )
+  })
+
+  it('fails the block on a 200 carrying status "failed", surfacing the API error message', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        id: 'resp_1',
+        status: 'failed',
+        error: { code: 'server_error', message: 'The model produced an invalid response.' },
+        incomplete_details: null,
+        output: [],
+        usage: USAGE,
+      })
+    )
+
+    await expect(run(fetchMock)).rejects.toThrow('The model produced an invalid response.')
+  })
+
+  it('fails the block when error is populated but status is absent', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        id: 'resp_1',
+        error: { code: null, message: 'Upstream provider rejected the request.' },
+        incomplete_details: null,
+        output: [],
+        usage: USAGE,
+      })
+    )
+
+    await expect(run(fetchMock)).rejects.toThrow('Upstream provider rejected the request.')
+  })
+
+  /** Policy is shared with `streamResponsesTurn` — keep both in step. */
+  it('returns the partial content of a max_output_tokens incomplete response instead of failing', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        id: 'resp_1',
+        status: 'incomplete',
+        error: null,
+        incomplete_details: { reason: 'max_output_tokens' },
+        output: [message('a truncated but usable answer')],
+        usage: USAGE,
+      })
+    )
+
+    const result = (await run(fetchMock)) as ProviderResponse
+    expect(result.content).toBe('a truncated but usable answer')
+  })
+
+  it('fails the block on an incomplete response whose reason is not max_output_tokens', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        id: 'resp_1',
+        status: 'incomplete',
+        error: null,
+        incomplete_details: { reason: 'content_filter' },
+        output: [message('partial')],
+        usage: USAGE,
+      })
+    )
+
+    await expect(run(fetchMock)).rejects.toThrow(/content_filter/)
+  })
+
+  /**
+   * The confusing-failure case: a truncated `function_call` holds half-written JSON.
+   * Executing it made `parseToolArguments` throw, reporting a tool bug rather than the
+   * truncation that actually happened.
+   */
+  it('does not execute a tool call from a non-completed response', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        id: 'resp_1',
+        status: 'incomplete',
+        error: null,
+        incomplete_details: { reason: 'max_output_tokens' },
+        output: [functionCall('{"query": "half writ')],
+        usage: USAGE,
+      })
+    )
+
+    await expect(run(fetchMock, TOOL_REQUEST)).rejects.toThrow(/max_output_tokens/)
+    expect(mockExecuteProviderTool).not.toHaveBeenCalled()
+  })
+
+  it('leaves a healthy completed response entirely unaffected', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(COMPLETED_RESPONSE))
+
+    const result = (await run(fetchMock)) as ProviderResponse
+    expect(result.content).toBe('hello')
+    expect(result.toolCalls).toBeUndefined()
+    expect(result.tokens?.total).toBe(2)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('still runs the multi-turn tool loop end to end', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: 'resp_tool',
+          status: 'completed',
+          error: null,
+          incomplete_details: null,
+          output: [functionCall('{"query":"sim"}')],
+          usage: USAGE,
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse(COMPLETED_RESPONSE))
+
+    const result = (await run(fetchMock, TOOL_REQUEST)) as ProviderResponse
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(mockExecuteProviderTool).toHaveBeenCalledTimes(1)
+    expect(result.toolCalls).toHaveLength(1)
+    expect(result.toolCalls?.[0].success).toBe(true)
+    expect(result.content).toBe('hello')
+    expect(result.tokens?.total).toBe(4)
+  })
+
+  /** The gate lives in `postResponses`, so continuation turns are covered too. */
+  it('fails the block when a later tool-loop turn comes back failed', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: 'resp_tool',
+          status: 'completed',
+          error: null,
+          incomplete_details: null,
+          output: [functionCall('{"query":"sim"}')],
+          usage: USAGE,
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: 'resp_2',
+          status: 'failed',
+          error: { code: 'server_error', message: 'Second turn blew up.' },
+          incomplete_details: null,
+          output: [],
+          usage: USAGE,
+        })
+      )
+
+    await expect(run(fetchMock, TOOL_REQUEST)).rejects.toThrow('Second turn blew up.')
+    expect(mockExecuteProviderTool).toHaveBeenCalledTimes(1)
+  })
+})

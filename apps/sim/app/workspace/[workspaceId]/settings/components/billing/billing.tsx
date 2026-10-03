@@ -8,6 +8,7 @@ import {
   chipVariants,
   cn,
   Label,
+  OverflowText,
   Switch,
   Tooltip,
   toast,
@@ -19,7 +20,7 @@ import { formatDate } from '@sim/utils/formatting'
 import { useRouter } from 'next/navigation'
 import { useSession, useSubscription } from '@/lib/auth/auth-client'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
-import { CREDIT_MULTIPLIER } from '@/lib/billing/credits/conversion'
+import { CREDIT_MULTIPLIER, formatCreditCost } from '@/lib/billing/credits/conversion'
 import {
   getCoveredUsage,
   getIsOnDemandActive,
@@ -30,6 +31,7 @@ import {
   getDisplayPlanName,
   getPlanTierCredits,
   getPlanTierDollars,
+  getPlanWeeklyRefreshDollars,
   isEnterprise,
   isFree,
   isPaid,
@@ -46,6 +48,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { CreditUsageSection } from '@/app/workspace/[workspaceId]/settings/components/billing/components/credit-usage-section/credit-usage-section'
 import { UsageLimitField } from '@/app/workspace/[workspaceId]/settings/components/billing/components/usage-limit-field/usage-limit-field'
 import { getSubscriptionPermissions } from '@/app/workspace/[workspaceId]/settings/components/billing/subscription-permissions'
+import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { RESOURCE_ROW_ARROW_CLASSES } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -53,10 +56,8 @@ import {
   useBillingUsageNotifications,
   useUpdateGeneralSetting,
 } from '@/hooks/queries/general-settings'
-import {
-  useOrganizationBilling,
-  useUpdateOrganizationUsageLimit,
-} from '@/hooks/queries/organization'
+import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
+import { useOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
 import {
   useInvoices,
   useOpenBillingPortal,
@@ -66,7 +67,10 @@ import {
 
 const logger = createLogger('Billing')
 
-type InvoiceStatusBadge = { variant: 'green' | 'amber' | 'red' | 'gray'; label: string }
+type InvoiceStatusBadge = {
+  variant: 'green' | 'amber' | 'red' | 'gray'
+  label: string
+}
 
 const INVOICE_STATUS_BADGES: Record<string, InvoiceStatusBadge> = {
   paid: { variant: 'green', label: 'Paid' },
@@ -77,7 +81,12 @@ const INVOICE_STATUS_BADGES: Record<string, InvoiceStatusBadge> = {
 
 /** Resolve a Stripe invoice status to its badge presentation. */
 function getInvoiceStatusBadge(status: string | null): InvoiceStatusBadge {
-  return INVOICE_STATUS_BADGES[status ?? ''] ?? { variant: 'gray', label: status ?? 'Unknown' }
+  return (
+    INVOICE_STATUS_BADGES[status ?? ''] ?? {
+      variant: 'gray',
+      label: status ?? 'Unknown',
+    }
+  )
 }
 
 /** Cached currency formatters, keyed by upper-cased ISO currency code. */
@@ -88,7 +97,10 @@ function getInvoiceAmountFormatter(currency: string): Intl.NumberFormat {
   const code = currency.toUpperCase()
   let formatter = invoiceAmountFormatters.get(code)
   if (!formatter) {
-    formatter = new Intl.NumberFormat(undefined, { style: 'currency', currency: code })
+    formatter = new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: code,
+    })
     invoiceAmountFormatters.set(code, formatter)
   }
   return formatter
@@ -103,20 +115,17 @@ interface BillingProps {
   scope: 'account' | 'organization'
   organizationId?: string
   creditUsageHref?: string
-  governingWorkspaceName?: string
 }
 
-export function Billing({
-  scope,
-  organizationId,
-  creditUsageHref,
-  governingWorkspaceName,
-}: BillingProps) {
+export function Billing({ scope, organizationId, creditUsageHref }: BillingProps) {
   const router = useRouter()
   const isOrganizationScope = scope === 'organization'
 
   const {
     data: subscriptionData,
+    error: subscriptionError,
+    isFetchedAfterMount: isSubscriptionFetchedAfterMount,
+    isFetching: isSubscriptionFetching,
     isLoading: isSubscriptionLoading,
     refetch: refetchSubscription,
   } = useSubscriptionData({
@@ -127,9 +136,14 @@ export function Billing({
 
   const {
     data: organizationBillingData,
+    error: organizationBillingError,
+    isFetchedAfterMount: isOrganizationBillingFetchedAfterMount,
+    isFetching: isOrganizationBillingFetching,
     isLoading: isOrgBillingLoading,
     refetch: refetchOrganizationBilling,
-  } = useOrganizationBilling(billingOrganizationId || '', { enabled: isOrganizationScope })
+  } = useOrganizationBillingSummary(billingOrganizationId || '', {
+    enabled: isOrganizationScope,
+  })
 
   const updateUserLimit = useUpdateUsageLimit()
   const updateOrgLimit = useUpdateOrganizationUsageLimit()
@@ -157,6 +171,11 @@ export function Billing({
     ? (organizationBilling?.subscriptionStatus ?? 'inactive')
     : (subscriptionData?.data?.status ?? 'inactive')
   const isLoading = isOrganizationScope ? isOrgBillingLoading : isSubscriptionLoading
+  const isFetchedAfterMount = isOrganizationScope
+    ? isOrganizationBillingFetchedAfterMount
+    : isSubscriptionFetchedAfterMount
+  const isFetching = isOrganizationScope ? isOrganizationBillingFetching : isSubscriptionFetching
+  const billingError = isOrganizationScope ? organizationBillingError : subscriptionError
 
   const subscription = {
     isFree: isFree(plan),
@@ -195,16 +214,20 @@ export function Billing({
     ? Boolean(organizationBilling?.billingBlocked)
     : Boolean(subscriptionData?.data?.billingBlocked)
 
-  const userRole = isOrganizationScope ? (organizationBillingData?.userRole ?? 'member') : 'owner'
+  const userRole = isOrganizationScope ? (organizationBilling?.userRole ?? 'member') : 'owner'
   const isTeamAdmin = isOrgAdminRole(userRole)
   const shouldUseOrganizationBillingContext = isOrganizationScope
 
+  /**
+   * Invoice lookup is safe to start with the payer query: the endpoint returns an empty list
+   * when the payer has no Stripe customer. Waiting to derive `isFree` serialized two independent
+   * requests for every paid account and organization.
+   */
   const { data: invoicesData } = useInvoices({
     context: shouldUseOrganizationBillingContext ? 'organization' : 'user',
     organizationId: shouldUseOrganizationBillingContext
       ? (billingOrganizationId ?? undefined)
       : undefined,
-    enabled: !subscription.isFree,
   })
 
   const planIncludedAmount =
@@ -363,7 +386,10 @@ export function Billing({
       }
       const referenceId = subscription.isOrgScoped ? billingOrganizationId : session?.user?.id
       const returnUrl = getBaseUrl() + window.location.pathname
-      await betterAuthSubscription.cancel({ returnUrl, referenceId: referenceId || '' })
+      await betterAuthSubscription.cancel({
+        returnUrl,
+        referenceId: referenceId || '',
+      })
     } catch (error) {
       logger.error('Failed to cancel subscription', { error })
       toast.error("Couldn't cancel subscription", {
@@ -398,8 +424,22 @@ export function Billing({
     }
   }
 
-  if (isLoading) return null
-  if (isOrganizationScope ? !organizationBilling : !subscriptionData?.data) return null
+  if (isLoading && !isFetchedAfterMount) return null
+  if (isOrganizationScope ? !organizationBilling : !subscriptionData?.data) {
+    return (
+      <SettingsPanel>
+        <SettingsQueryErrorState
+          error={billingError}
+          fallback='Failed to load billing information'
+          isRetrying={isFetching}
+          onRetry={() => {
+            if (isOrganizationScope) void refetchOrganizationBilling()
+            else void refetchSubscription()
+          }}
+        />
+      </SettingsPanel>
+    )
+  }
 
   const planName = getDisplayPlanName(subscription.plan)
   const billingInterval = isOrganizationScope
@@ -428,6 +468,10 @@ export function Billing({
     ? organizationBilling?.cancelAtPeriodEnd === true
     : subscriptionData?.data?.cancelAtPeriodEnd === true
 
+  const weeklyRefreshDollars =
+    getPlanWeeklyRefreshDollars(subscription.plan) *
+    (isOrganizationScope ? subscription.seats || 1 : 1)
+
   const invoices = (invoicesData?.invoices ?? []).map((invoice) => ({
     id: invoice.id,
     date: formatDate(new Date(invoice.created * 1000)),
@@ -454,26 +498,19 @@ export function Billing({
   const explorePlansLabel = isOrganizationScope
     ? 'Explore organization plans'
     : 'Explore personal plans'
-  const subscriptionOwner = isOrganizationScope
-    ? `${organizationBilling?.organizationName ?? 'The organization'}’s subscription`
-    : 'Your personal subscription'
-  const settingsDescription =
-    governingWorkspaceName && subscription.isPaid
-      ? `${subscriptionOwner} governs ${governingWorkspaceName}.`
-      : undefined
 
   return (
-    <SettingsPanel description={settingsDescription}>
+    <SettingsPanel>
       <div className='flex items-center justify-between gap-3'>
         <div className='flex items-center gap-2.5'>
-          <div className='size-9 flex-shrink-0'>
+          <div className='size-9 shrink-0'>
             <div className='flex size-full items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
               <Credit className='size-5 text-[var(--text-icon)]' />
             </div>
           </div>
           <div className='flex min-w-0 flex-col'>
-            <span className='truncate text-[var(--text-body)] text-sm'>{planTitle}</span>
-            <span className='truncate text-[var(--text-muted)] text-caption'>{priceText}</span>
+            <OverflowText label={planTitle} className='text-[var(--text-body)] text-sm' />
+            <OverflowText label={priceText} className='text-[var(--text-muted)] text-caption' />
           </div>
         </div>
         {!subscription.isEnterprise &&
@@ -481,14 +518,13 @@ export function Billing({
             <ChipLink
               href={upgradeHref}
               variant='border-shadow'
-              flush
               onMouseEnter={prefetchUpgrade}
               onFocus={prefetchUpgrade}
             >
               {explorePlansLabel}
             </ChipLink>
           ) : (
-            <Chip variant='border-shadow' flush disabled>
+            <Chip variant='border-shadow' disabled>
               {explorePlansLabel}
             </Chip>
           ))}
@@ -577,10 +613,18 @@ export function Billing({
               </div>
             )}
 
+            {subscription.isPaid && weeklyRefreshDollars > 0 && (
+              <div className='flex items-center justify-between'>
+                <span className='text-[var(--text-body)] text-small'>Weekly refresh</span>
+                <span className='text-[var(--text-muted)] text-small'>
+                  +{formatCreditCost(weeklyRefreshDollars)}
+                </span>
+              </div>
+            )}
+
             <div className='flex items-center justify-between'>
               <span className='text-[var(--text-body)] text-small'>Payment method</span>
               <Chip
-                flush
                 disabled={!canManageBilling || openBillingPortal.isPending}
                 onClick={handleOpenBillingPortal}
               >
@@ -596,7 +640,6 @@ export function Billing({
                 {isCancelledAtPeriodEnd ? (
                   <Chip
                     variant='primary'
-                    flush
                     disabled={!canManageBilling}
                     onClick={handleRestoreSubscription}
                   >
@@ -605,7 +648,6 @@ export function Billing({
                 ) : (
                   <Chip
                     variant='destructive'
-                    flush
                     disabled={!canManageBilling}
                     onClick={handleCancelSubscription}
                   >
@@ -626,13 +668,11 @@ export function Billing({
                 'flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors'
               const rowContent = (
                 <>
-                  <span className='flex-shrink-0 text-[var(--text-body)] text-sm'>
-                    {invoice.date}
-                  </span>
+                  <span className='shrink-0 text-[var(--text-body)] text-sm'>{invoice.date}</span>
                   <Badge variant={invoice.badge.variant} size='sm'>
                     {invoice.badge.label}
                   </Badge>
-                  <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>
+                  <span className='shrink-0 text-[var(--text-muted)] text-caption'>
                     {invoice.amount}
                   </span>
                   <span className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-caption'>

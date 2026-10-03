@@ -67,9 +67,10 @@ export const useExecutionStore = create<ExecutionState & ExecutionActions>()((se
   },
 
   setActiveBlocks: (workflowId, blockIds) => {
+    const activeBlockIds = new Set(blockIds)
     set({
       workflowExecutions: updatedMap(get().workflowExecutions, workflowId, {
-        activeBlockIds: new Set(blockIds),
+        activeBlockIds,
       }),
     })
   },
@@ -211,6 +212,15 @@ export function useIsCurrentWorkflowExecuting(): boolean {
     if (!activeWorkflowId) return false
     return state.workflowExecutions.get(activeWorkflowId)?.isExecuting ?? false
   })
+}
+
+/**
+ * Returns the latest execution snapshot for a workflow and updates when that snapshot changes.
+ */
+export function useLastExecutionSnapshot(workflowId?: string | null) {
+  return useExecutionStore((state) =>
+    workflowId ? state.lastExecutionSnapshots.get(workflowId) : undefined
+  )
 }
 
 /**

@@ -3,7 +3,7 @@ import { envMockFns, mockEnvObject } from './env.mock'
 import { envFlagsMock } from './env-flags.mock'
 
 /** Mirrors the real `LOCALHOST_HOSTNAMES` from `@/lib/core/utils/urls`. */
-export const LOCALHOST_HOSTNAMES_MOCK: ReadonlySet<string> = new Set([
+const LOCALHOST_HOSTNAMES_MOCK: ReadonlySet<string> = new Set([
   'localhost',
   '127.0.0.1',
   '[::1]',
@@ -11,7 +11,7 @@ export const LOCALHOST_HOSTNAMES_MOCK: ReadonlySet<string> = new Set([
 ])
 
 /** Mirrors the real `CANONICAL_SITE_HOST` from `@/lib/core/utils/urls`. */
-export const CANONICAL_SITE_HOST_MOCK = 'www.sim.ai'
+const CANONICAL_SITE_HOST_MOCK = 'www.sim.ai'
 
 const DEFAULT_SOCKET_URL = 'http://localhost:3002'
 const DEFAULT_OLLAMA_URL = 'http://localhost:11434'
@@ -24,6 +24,17 @@ function hasHttpProtocol(url: string): boolean {
   return /^https?:\/\//i.test(url)
 }
 
+/**
+ * Mirrors the real module's `normalizeBaseUrl`: protocol-less values get
+ * https:// under isProd, then trailing slashes are stripped so `${base}/path`
+ * stays single-slashed at every call site.
+ */
+function normalizeBaseUrl(url: string): string {
+  const protocol = envFlagsMock.isProd ? 'https://' : 'http://'
+  const withProtocol = hasHttpProtocol(url) ? url : `${protocol}${url}`
+  return withProtocol.replace(/\/+$/, '')
+}
+
 function getBaseUrlImpl(): string {
   const baseUrl = readEnv('NEXT_PUBLIC_APP_URL')?.trim()
   if (!baseUrl) {
@@ -31,20 +42,21 @@ function getBaseUrlImpl(): string {
       'NEXT_PUBLIC_APP_URL must be configured for webhooks and callbacks to work correctly'
     )
   }
-  // Mirrors the real module: protocol-less values get https:// under isProd.
-  const protocol = envFlagsMock.isProd ? 'https://' : 'http://'
-  return hasHttpProtocol(baseUrl) ? baseUrl : `${protocol}${baseUrl}`
+  return normalizeBaseUrl(baseUrl)
 }
 
 function getInternalApiBaseUrlImpl(): string {
   const internalBaseUrl = readEnv('INTERNAL_API_BASE_URL')?.trim()
-  if (!internalBaseUrl) return getBaseUrlImpl()
+  // Mirrors the real module: the internal URL names a route that resolves only
+  // from inside the app container, so a Trigger.dev worker must ignore it.
+  // `DB_APP_NAME='sim-trigger'` is the worker-only marker trigger.config.ts syncs.
+  if (!internalBaseUrl || readEnv('DB_APP_NAME') === 'sim-trigger') return getBaseUrlImpl()
   if (!hasHttpProtocol(internalBaseUrl)) {
     throw new Error(
       'INTERNAL_API_BASE_URL must include protocol (http:// or https://), e.g. http://sim-app.default.svc.cluster.local:3000'
     )
   }
-  return internalBaseUrl
+  return normalizeBaseUrl(internalBaseUrl)
 }
 
 function ensureAbsoluteUrlImpl(pathOrUrl: string): string {
@@ -151,6 +163,10 @@ function getOllamaUrlImpl(): string {
   return (typeof value === 'string' && value) || DEFAULT_OLLAMA_URL
 }
 
+function isOllamaUrlConfiguredImpl(): boolean {
+  return Boolean(mockEnvObject.OLLAMA_URL)
+}
+
 /**
  * Controllable mock functions for `@/lib/core/utils/urls`. Each defaults to a
  * faithful implementation of the real module that reads through the shared env
@@ -179,6 +195,7 @@ export const urlsMockFns = {
   mockGetSocketServerUrl: vi.fn(getSocketServerUrlImpl),
   mockGetSocketUrl: vi.fn(getSocketUrlImpl),
   mockGetOllamaUrl: vi.fn(getOllamaUrlImpl),
+  mockIsOllamaUrlConfigured: vi.fn(isOllamaUrlConfiguredImpl),
 }
 
 /**
@@ -200,6 +217,7 @@ export function resetUrlsMock(): void {
   urlsMockFns.mockGetSocketServerUrl.mockReset().mockImplementation(getSocketServerUrlImpl)
   urlsMockFns.mockGetSocketUrl.mockReset().mockImplementation(getSocketUrlImpl)
   urlsMockFns.mockGetOllamaUrl.mockReset().mockImplementation(getOllamaUrlImpl)
+  urlsMockFns.mockIsOllamaUrlConfigured.mockReset().mockImplementation(isOllamaUrlConfiguredImpl)
 }
 
 /**
@@ -229,4 +247,5 @@ export const urlsMock = {
   getSocketServerUrl: urlsMockFns.mockGetSocketServerUrl,
   getSocketUrl: urlsMockFns.mockGetSocketUrl,
   getOllamaUrl: urlsMockFns.mockGetOllamaUrl,
+  isOllamaUrlConfigured: urlsMockFns.mockIsOllamaUrlConfigured,
 }

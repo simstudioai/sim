@@ -1,13 +1,12 @@
-import type { SapConcurProxyResponse, UpdateListItemParams } from '@/tools/sap_concur/types'
+import type { SapConcurResponse, UpdateListItemParams } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const updateListItemTool: ToolConfig<UpdateListItemParams, SapConcurProxyResponse> = {
+export const updateListItemTool: InternalToolConfig<UpdateListItemParams, SapConcurResponse> = {
   id: 'sap_concur_update_list_item',
   name: 'SAP Concur Update List Item',
   description: 'Update a list item (PUT /list/v4/items/{itemId}).',
@@ -69,21 +68,18 @@ export const updateListItemTool: ToolConfig<UpdateListItemParams, SapConcurProxy
         'List item payload. Required: shortCode, value. Other fields in the body are ignored.',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const itemId = trimRequired(params.itemId, 'itemId')
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/list/v4/items/${encodeURIComponent(itemId)}`,
         method: 'PUT',
         body: params.body,
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {
@@ -91,6 +87,11 @@ export const updateListItemTool: ToolConfig<UpdateListItemParams, SapConcurProxy
       description: 'Updated list item',
       properties: {
         id: { type: 'string', description: 'List item UUID', optional: true },
+        listId: {
+          type: 'string',
+          description: 'UUID of the list that contains the list item',
+          optional: true,
+        },
         code: { type: 'string', description: 'Long code format for the item', optional: true },
         shortCode: { type: 'string', description: 'Short code identifier', optional: true },
         value: { type: 'string', description: 'Display value of the item', optional: true },

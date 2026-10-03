@@ -18,7 +18,7 @@ const TEXT_INPUT_SELECTOR = [
   '[contenteditable=""]:not([tabindex="-1"])',
 ].join(',')
 
-function isVisible(el: HTMLElement): boolean {
+export function isElementVisible(el: HTMLElement): boolean {
   return el.offsetParent !== null || el.getClientRects().length > 0
 }
 
@@ -28,7 +28,9 @@ function isVisible(el: HTMLElement): boolean {
  */
 export function focusFirstTextInputIn(root: HTMLElement | null): boolean {
   if (!root) return false
-  const target = Array.from(root.querySelectorAll<HTMLElement>(TEXT_INPUT_SELECTOR)).find(isVisible)
+  const target = Array.from(root.querySelectorAll<HTMLElement>(TEXT_INPUT_SELECTOR)).find(
+    isElementVisible
+  )
   if (!target) return false
 
   target.focus({ preventScroll: false })

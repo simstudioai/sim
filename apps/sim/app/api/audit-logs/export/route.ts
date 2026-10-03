@@ -3,17 +3,17 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { exportAuditLogsContract } from '@/lib/api/contracts/audit-logs'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
-import { getSession } from '@/lib/auth'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { formatCsvValue, toCsvRow } from '@/lib/table/export-format'
-import { validateEnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
-import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 import {
   buildFilterConditions,
   buildOrgScopeCondition,
   getOrgWorkspaceIds,
   queryAuditLogs,
-} from '@/app/api/v1/audit-logs/query'
+} from '@/lib/audit-logs/query'
+import { getSession } from '@/lib/auth'
+import { formatCsvValue, toCsvRow } from '@/lib/core/utils/csv'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { validateEnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
+import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 
 const logger = createLogger('AuditLogsExportAPI')
 
@@ -66,8 +66,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const { organizationId, orgMemberIds } = authResult.context
-    const { search, action, resourceType, actorId, startDate, endDate, includeDeparted } =
-      parsed.data.query
+    const { actorId, workspaceId, includeDeparted } = parsed.data.query
 
     if (actorId && !orgMemberIds.includes(actorId)) {
       return NextResponse.json(
@@ -77,20 +76,34 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const orgWorkspaceIds = await getOrgWorkspaceIds(organizationId)
+    /**
+     * The same refusal `listAuditLogs` gives. The scope predicate already makes an
+     * out-of-organization id return nothing, but an empty CSV and a 400 that names the
+     * problem are very different answers to the same bad request, and the two paths
+     * disagreeing about which one you get is what an audit trail cannot afford.
+     */
+    if (workspaceId && !orgWorkspaceIds.includes(workspaceId)) {
+      return NextResponse.json(
+        { error: 'workspaceId does not belong to your organization' },
+        { status: 400 }
+      )
+    }
     const scopeCondition = buildOrgScopeCondition({
       organizationId,
       orgWorkspaceIds,
       orgMemberIds,
       includeDeparted,
     })
-    const filterConditions = buildFilterConditions({
-      action,
-      resourceType,
-      actorId,
-      search,
-      startDate,
-      endDate,
-    })
+    /**
+     * The whole parsed query, not a hand-listed subset.
+     *
+     * Every field of `AuditLogFilterParams` is optional, so dropping one type-checks
+     * silently — which is how `workspaceId` came to be accepted by the contract,
+     * honoured by the list route, and ignored here: an admin looking at one
+     * workspace's feed downloaded the entire organization's, under a truncation
+     * warning that blamed the date range.
+     */
+    const filterConditions = buildFilterConditions(parsed.data.query)
     const conditions = [scopeCondition, ...filterConditions]
 
     const rows: ReturnType<typeof formatAuditLogEntry>[] = []

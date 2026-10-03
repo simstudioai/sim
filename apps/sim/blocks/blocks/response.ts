@@ -1,8 +1,7 @@
 import { ResponseIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import type { ResponseBlockOutput } from '@/tools/response/types'
 
-export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
+export const ResponseBlock: BlockConfig = {
   type: 'response',
   name: 'Response',
   description: 'Send structured API response',
@@ -19,6 +18,15 @@ export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
   category: 'blocks',
   bgColor: '#2F55FF',
   icon: ResponseIcon,
+  canvasPresentation: {
+    defaultTitle: 'Response',
+    sentences: {
+      default: [
+        { text: 'Return', field: ['builderData', 'data'], core: true },
+        { text: 'with status', field: 'status' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'dataMode',

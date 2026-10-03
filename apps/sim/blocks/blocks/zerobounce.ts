@@ -1,8 +1,7 @@
 import { ZeroBounceIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { ZeroBounceResponse } from '@/tools/zerobounce/types'
 
-export const ZeroBounceBlock: BlockConfig<ZeroBounceResponse> = {
+export const ZeroBounceBlock: BlockConfig = {
   type: 'zerobounce',
   name: 'ZeroBounce',
   description: 'Validate email deliverability and check account credits',
@@ -14,6 +13,17 @@ export const ZeroBounceBlock: BlockConfig<ZeroBounceResponse> = {
   integrationType: IntegrationType.Sales,
   bgColor: '#FFFFFF',
   icon: ZeroBounceIcon,
+  canvasPresentation: {
+    defaultTitle: 'ZeroBounce',
+    sentences: {
+      byOperation: {
+        zerobounce_verify_email: [
+          { text: 'Validate deliverability of', field: 've_email', core: true },
+        ],
+        zerobounce_get_credits: ['Read remaining validation credits'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

@@ -1,19 +1,38 @@
 import type { QueuedMessage } from '@/app/workspace/[workspaceId]/home/types'
 
-// Volatile — lets the dispatcher claim an in-flight stream's slot. Not persisted.
+/** Durable predecessor and request identity for an outgoing message. */
 export interface QueuedSendHandoffSeed {
   id: string
   chatId?: string
   supersededStreamId: string | null
   userMessageId?: string
+  stopRequired?: boolean
 }
 
 export type QueuedMothershipMessage = QueuedMessage & {
   queuedSendHandoff?: QueuedSendHandoffSeed
+  /** A failed dispatch remains queued until the user retries or edits it. */
+  retryRequired?: boolean
+  /**
+   * Message id of a prior attempt at this send that an unmount cleanup
+   * withdrew. Reused when the entry is dispatched so the server deduplicates
+   * against that attempt — it never sees the client's abort, so a request it
+   * had already accepted still opened the chat and billed the turn. Persisted,
+   * so a retry after a reload deduplicates too.
+   */
+  resumeUserMessageId?: string
 }
 
 // Mutable fields an in-place edit overwrites; id and index are preserved by `replaceAt`.
-export type QueuedMessageEditPatch = Pick<QueuedMessage, 'content' | 'fileAttachments' | 'contexts'>
+export type QueuedMessageEditPatch = Pick<
+  QueuedMessage,
+  | 'content'
+  | 'fileAttachments'
+  | 'contexts'
+  | 'requestMode'
+  | 'assistantSearch'
+  | 'assistantSearchLevel'
+>
 
 export interface MothershipQueueState {
   queues: Record<string, QueuedMothershipMessage[]>

@@ -1,5 +1,4 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import { buildQuickBooksCreateSalesDocumentBody } from '@/tools/quickbooks/sales_utils'
 import type {
   QuickBooksCreateEstimateParams,
@@ -38,6 +37,12 @@ export const quickbooksCreateEstimateTool: ToolConfig<
       required: true,
       visibility: 'hidden',
       description: 'QuickBooks company ID derived from the connected credential',
+    },
+    quickBooksEnvironment: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'QuickBooks API environment derived from the connected credential',
     },
     customerId: {
       type: 'string',
@@ -91,20 +96,20 @@ export const quickbooksCreateEstimateTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'quickbooks',
+    authoritativeParams: ['realmId', 'quickBooksEnvironment'],
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
   request: {
     url: (params) =>
       addQuickBooksRequestId(
-        buildQuickBooksEntityUrl(params.realmId, 'estimate'),
+        buildQuickBooksEntityUrl(params, 'estimate'),
         params.requestId
       ).toString(),
     method: 'POST',
     headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
     body: (params) => buildQuickBooksCreateSalesDocumentBody(params),
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: (response) =>
     transformQuickBooksMutationResponse<QuickBooksSalesTransaction>(response, 'Estimate'),

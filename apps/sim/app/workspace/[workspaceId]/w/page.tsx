@@ -3,8 +3,8 @@
 import { useEffect } from 'react'
 import { Chip } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
+import { ReactFlowProvider } from '@xyflow/react'
 import { useParams, useRouter } from 'next/navigation'
-import { ReactFlowProvider } from 'reactflow'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { Panel, Terminal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components'
 import { useWorkflowOperations } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
@@ -65,15 +65,15 @@ export default function WorkflowsPage() {
   const canCreate = !permissionsLoading && canEdit
 
   return (
-    <div className='flex h-full w-full flex-col overflow-hidden bg-[var(--bg)]'>
-      <div className='relative h-full w-full flex-1 bg-[var(--bg)]'>
+    <div className='flex size-full flex-col overflow-hidden bg-[var(--bg)]'>
+      <div className='relative size-full flex-1 bg-[var(--bg)]'>
         <div className='workflow-container flex h-full items-center justify-center bg-[var(--bg)]'>
           {isError ? (
             // This is the landing route now, so a failed list fetch would
             // otherwise spin forever with nothing but a log line.
             <div className='flex flex-col items-center gap-3 text-center text-[var(--text-secondary)]'>
               <div>
-                <p className='font-medium text-small'>Couldn't load workflows</p>
+                <p className='text-small'>Couldn't load workflows</p>
                 <p className='mt-1 text-caption'>Check your connection and try again.</p>
               </div>
               <Chip variant='primary' onClick={() => router.refresh()}>
@@ -83,7 +83,7 @@ export default function WorkflowsPage() {
           ) : isEmpty ? (
             <div className='flex flex-col items-center gap-3 text-center text-[var(--text-secondary)]'>
               <div>
-                <p className='font-medium text-small'>No workflows yet</p>
+                <p className='text-small'>No workflows yet</p>
                 <p className='mt-1 text-caption'>
                   {canCreate
                     ? 'Create one to start building.'

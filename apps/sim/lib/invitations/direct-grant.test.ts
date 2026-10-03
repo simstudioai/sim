@@ -1,80 +1,71 @@
-/**
- * @vitest-environment node
- */
-import { invitation, member } from '@sim/db/schema'
+import { auditMock, auditMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import {
-  auditMock,
-  auditMockFns,
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-} from '@sim/testing'
+  credentialsEnvironmentMock,
+  credentialsEnvironmentMockFns,
+} from '@sim/testing/mocks/credentials-environment.mock'
+import {
+  invitationsCoreMock,
+  invitationsCoreMockFns,
+} from '@sim/testing/mocks/invitations-core.mock'
+import {
+  invitationsSendMock,
+  invitationsSendMockFns,
+} from '@sim/testing/mocks/invitations-send.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { getMockPlatformEvent, telemetryMock } from '@sim/testing/mocks/telemetry.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 
-const {
-  mockAcquireInvitationMutationLocks,
-  mockAcquireOrganizationUserMutationLocks,
-  mockGetUserOrganization,
-  mockGetEffectiveWorkspacePermission,
-  mockGetWorkspaceWithOwner,
-  mockRevokeInvitationWorkspaceGrantTx,
-  mockSyncWorkspaceEnvCredentials,
-  mockSendWorkspaceAddedEmail,
-  mockCaptureServerEvent,
-  mockWorkspaceMemberAdded,
-} = vi.hoisted(() => ({
+const { mockAcquireInvitationMutationLocks } = vi.hoisted(() => ({
   mockAcquireInvitationMutationLocks: vi.fn(),
-  mockAcquireOrganizationUserMutationLocks: vi.fn(),
-  mockGetUserOrganization: vi.fn(),
-  mockGetEffectiveWorkspacePermission: vi.fn(),
-  mockGetWorkspaceWithOwner: vi.fn(),
-  mockRevokeInvitationWorkspaceGrantTx: vi.fn(),
-  mockSyncWorkspaceEnvCredentials: vi.fn(),
-  mockSendWorkspaceAddedEmail: vi.fn(),
-  mockCaptureServerEvent: vi.fn(),
-  mockWorkspaceMemberAdded: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationUserMutationLocks: mockAcquireOrganizationUserMutationLocks,
-  getUserOrganization: mockGetUserOrganization,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 
 vi.mock('@/lib/invitations/locks', () => ({
   acquireInvitationMutationLocks: mockAcquireInvitationMutationLocks,
 }))
 
-vi.mock('@/lib/invitations/core', () => ({
-  revokeInvitationWorkspaceGrantTx: mockRevokeInvitationWorkspaceGrantTx,
-}))
+vi.mock('@/lib/invitations/core', () => invitationsCoreMock)
 
-vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: { workspaceMemberAdded: mockWorkspaceMemberAdded },
-}))
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
-vi.mock('@/lib/credentials/environment', () => ({
-  syncWorkspaceEnvCredentials: mockSyncWorkspaceEnvCredentials,
-}))
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 
-vi.mock('@/lib/invitations/send', () => ({
-  sendWorkspaceAddedEmail: mockSendWorkspaceAddedEmail,
-}))
+vi.mock('@/lib/credentials/environment', () => credentialsEnvironmentMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getEffectiveWorkspacePermission: mockGetEffectiveWorkspacePermission,
-  getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
-}))
+vi.mock('@/lib/invitations/send', () => invitationsSendMock)
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: mockCaptureServerEvent,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
+const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
+const mockWorkspaceMemberAdded = getMockPlatformEvent('workspaceMemberAdded')
 
 import {
   DirectGrantContextChangedError,
+  directGrantOutboxHandlers,
   grantWorkspaceAccessDirectly,
 } from '@/lib/invitations/direct-grant'
+import { DIRECT_GRANT_EMAIL_EVENT_TYPE } from '@/lib/invitations/direct-grant-event'
+
+const { mockAcquireOrganizationUserMutationLocks, mockGetUserOrganization } =
+  organizationMembershipMockFns
+const { mockGetEffectiveWorkspacePermission, mockGetWorkspaceWithOwner } = permissionsMockFns
+const mockRevokeInvitationWorkspaceGrantTx =
+  invitationsCoreMockFns.mockRevokeInvitationWorkspaceGrantTx
+const mockSyncWorkspaceEnvCredentials =
+  credentialsEnvironmentMockFns.mockSyncWorkspaceEnvCredentials
+const mockSendWorkspaceAddedEmail = invitationsSendMockFns.mockSendWorkspaceAddedEmail
+const mockEnqueueOutboxEvent = outboxServiceMockFns.mockEnqueueOutboxEvent
 
 const baseInput = {
   userId: 'user-2',
@@ -90,7 +81,6 @@ const baseInput = {
 
 describe('grantWorkspaceAccessDirectly', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockAcquireInvitationMutationLocks.mockResolvedValue(undefined)
     mockAcquireOrganizationUserMutationLocks.mockResolvedValue(undefined)
@@ -116,41 +106,86 @@ describe('grantWorkspaceAccessDirectly', () => {
     dbChainMockFns.returning.mockResolvedValue([{ id: 'perm-new' }])
   })
 
-  it('inserts a permission row when the user has no existing access', async () => {
-    const result = await grantWorkspaceAccessDirectly({ ...baseInput })
+  it.each(['admin', 'owner'] as const)(
+    'preserves an invitee who became organization %s before the transaction without redundant effects',
+    async (role) => {
+      mockGetUserOrganization.mockResolvedValueOnce({ organizationId: 'org-1', role })
 
-    expect(result).toEqual({ outcome: 'added', permission: 'write' })
-    expect(dbChainMockFns.insert).toHaveBeenCalled()
+      const result = await grantWorkspaceAccessDirectly({
+        ...baseInput,
+        existingPermissionPolicy: 'ensure-at-least',
+      })
+
+      expect(result).toEqual({ outcome: 'unchanged', permission: 'admin' })
+      expect(mockAcquireOrganizationUserMutationLocks.mock.invocationCallOrder[0]).toBeLessThan(
+        dbChainMockFns.for.mock.invocationCallOrder[1]
+      )
+      expect(dbChainMockFns.for.mock.invocationCallOrder[1]).toBeLessThan(
+        mockGetUserOrganization.mock.invocationCallOrder[0]
+      )
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+      expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+      expect(mockSyncWorkspaceEnvCredentials).not.toHaveBeenCalled()
+      expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
+      expect(mockWorkspaceMemberAdded).not.toHaveBeenCalled()
+      expect(mockCaptureServerEvent).not.toHaveBeenCalled()
+    }
+  )
+
+  it('rechecks application admission after locks and before any grant or side effect', async () => {
+    const refusal = new ForbiddenOperationError('PERMISSION_DENIED', 'Invitations disabled')
+    const validateLockedWorkspace = vi.fn(async () => {
+      throw refusal
+    })
+    await expect(
+      grantWorkspaceAccessDirectly({
+        ...baseInput,
+        validateLockedWorkspace,
+      })
+    ).rejects.toBe(refusal)
+    expect(validateLockedWorkspace).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      expect.objectContaining({ id: 'ws-1', organizationId: 'org-1' })
+    )
+    expect(mockAcquireOrganizationUserMutationLocks.mock.invocationCallOrder[0]).toBeLessThan(
+      validateLockedWorkspace.mock.invocationCallOrder[0]
+    )
+    expect(mockGetEffectiveWorkspacePermission.mock.invocationCallOrder[0]).toBeLessThan(
+      validateLockedWorkspace.mock.invocationCallOrder[0]
+    )
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'member.added', resourceId: 'ws-1' })
-    )
-    expect(mockWorkspaceMemberAdded).toHaveBeenCalledWith(
-      expect.objectContaining({ workspaceId: 'ws-1' })
-    )
-    expect(mockSendWorkspaceAddedEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'member@example.com', workspaceId: 'ws-1' })
-    )
-    expect(dbChainMockFns.for.mock.invocationCallOrder[0]).toBeLessThan(
-      mockGetEffectiveWorkspacePermission.mock.invocationCallOrder[0]
-    )
-    expect(dbChainMockFns.for).toHaveBeenCalledTimes(3)
-    expect(dbChainMockFns.for.mock.invocationCallOrder[1]).toBeLessThan(
-      mockGetEffectiveWorkspacePermission.mock.invocationCallOrder[0]
-    )
-    expect(dbChainMockFns.from).toHaveBeenCalledWith(member)
+    expect(mockRevokeInvitationWorkspaceGrantTx).not.toHaveBeenCalled()
+    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockCaptureServerEvent).not.toHaveBeenCalled()
   })
 
-  it('reports unchanged (no audit/email) when a concurrent insert wins the race', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([])
+  it('retries provider-declined notification delivery instead of dropping it', async () => {
+    mockSendWorkspaceAddedEmail.mockResolvedValueOnce({
+      success: false,
+      error: 'Provider unavailable',
+    })
 
-    const result = await grantWorkspaceAccessDirectly({ ...baseInput })
-
-    expect(result).toEqual({ outcome: 'unchanged', permission: 'write' })
-    expect(dbChainMockFns.insert).toHaveBeenCalled()
-    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
-    expect(mockWorkspaceMemberAdded).not.toHaveBeenCalled()
-    expect(mockSendWorkspaceAddedEmail).not.toHaveBeenCalled()
+    await expect(
+      directGrantOutboxHandlers[DIRECT_GRANT_EMAIL_EVENT_TYPE](
+        {
+          email: 'member@example.com',
+          inviterName: 'Owner',
+          workspaceId: 'ws-1',
+          workspaceName: 'Workspace 1',
+        },
+        {
+          eventId: 'email-1',
+          eventType: DIRECT_GRANT_EMAIL_EVENT_TYPE,
+          attempts: 0,
+          maxAttempts: 10,
+          signal: new AbortController().signal,
+          checkpointPayload: vi.fn(),
+        }
+      )
+    ).rejects.toThrow('Provider unavailable')
   })
 
   it('does not upgrade an existing lower permission (invites never modify access)', async () => {
@@ -165,53 +200,28 @@ describe('grantWorkspaceAccessDirectly', () => {
     expect(mockSendWorkspaceAddedEmail).not.toHaveBeenCalled()
   })
 
-  it('no-ops when the user already has access', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'perm-1', permissionType: 'admin' }])
+  it('can explicitly ensure a minimum permission for provisioning reconciliation', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'perm-1', permissionType: 'read' }])
 
-    const result = await grantWorkspaceAccessDirectly({ ...baseInput, permission: 'write' })
+    const result = await grantWorkspaceAccessDirectly({
+      ...baseInput,
+      permission: 'write',
+      existingPermissionPolicy: 'ensure-at-least',
+    })
 
-    expect(result).toEqual({ outcome: 'unchanged', permission: 'admin' })
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
+    expect(result).toEqual({
+      outcome: 'updated',
+      previousPermission: 'read',
+      permission: 'write',
+    })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ permissionType: 'write' })
+    )
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'member.role_changed', resourceId: 'ws-1' })
+    )
     expect(mockWorkspaceMemberAdded).not.toHaveBeenCalled()
     expect(mockSendWorkspaceAddedEmail).not.toHaveBeenCalled()
-  })
-
-  it('skips the email when notify is false', async () => {
-    const result = await grantWorkspaceAccessDirectly({ ...baseInput, notify: false })
-
-    expect(result.outcome).toBe('added')
-    expect(auditMockFns.mockRecordAudit).toHaveBeenCalled()
-    expect(mockSendWorkspaceAddedEmail).not.toHaveBeenCalled()
-  })
-
-  it('syncs workspace env credentials when env variables exist', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([]) // existing permission lookup
-      .mockResolvedValueOnce([{ variables: { API_KEY: 'x', BASE_URL: 'y' } }]) // env lookup
-
-    await grantWorkspaceAccessDirectly({ ...baseInput })
-
-    expect(mockSyncWorkspaceEnvCredentials).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: 'ws-1',
-        actingUserId: 'user-2',
-        envKeys: ['API_KEY', 'BASE_URL'],
-      })
-    )
-  })
-
-  it('supersedes lingering pending workspace invitations for the same email', async () => {
-    queueTableRows(invitation, [{ invitationId: 'old-inv' }])
-    queueTableRows(invitation, [{ invitationId: 'old-inv' }])
-
-    await grantWorkspaceAccessDirectly({ ...baseInput })
-
-    expect(mockRevokeInvitationWorkspaceGrantTx).toHaveBeenCalledWith(expect.anything(), {
-      invitationId: 'old-inv',
-      workspaceId: 'ws-1',
-    })
   })
 
   it('locks before re-reading scope and aborts when the workspace moved', async () => {

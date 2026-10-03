@@ -77,7 +77,10 @@ export const GET = withRouteHandler(
       })
     } catch (error) {
       logger.error('Failed to list outbox events', { error: toError(error).message })
-      return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })
+      return NextResponse.json(
+        { success: false, error: 'Failed to list outbox events' },
+        { status: 500 }
+      )
     }
   })
 )

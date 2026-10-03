@@ -44,7 +44,7 @@ export function timeCursorPredicate(
   cursor: TimeCursor | null
 ): SQL | undefined {
   if (!cursor) return undefined
-  return sql`(date_trunc('milliseconds', ${timestampCol}), ${idCol}) > (${new Date(cursor.ts)}, ${cursor.id})`
+  return sql`(date_trunc('milliseconds', ${timestampCol}), ${idCol}) > (${sql.param(new Date(cursor.ts), timestampCol)}, ${cursor.id})`
 }
 
 /**

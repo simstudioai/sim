@@ -1,0 +1,260 @@
+import { createDelegatedPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  blockVisibilityMock,
+  blockVisibilityMockFns,
+} from '@sim/testing/mocks/block-visibility.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const hoisted = vi.hoisted(() => ({
+  listCatalog: vi.fn(),
+  resolveTarget: vi.fn(),
+  personalCredentials: vi.fn(),
+  personalTokens: vi.fn(),
+  credentialVisible: vi.fn(),
+  allowedIntegrations: vi.fn(),
+}))
+
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/credentials/application/provider-catalog', () => ({
+  listCredentialProviderCatalog: hoisted.listCatalog,
+}))
+vi.mock('@/lib/credentials/application/connection-target', () => ({
+  resolveCredentialConnectionTarget: hoisted.resolveTarget,
+}))
+vi.mock('@/lib/credentials/personal', () => ({
+  getPersonalOAuthCredentials: hoisted.personalCredentials,
+}))
+
+vi.mock('@/lib/credentials/personal-tokens', () => ({
+  getPersonalTokenCredentials: hoisted.personalTokens,
+}))
+vi.mock('@/lib/core/config/block-visibility', () => blockVisibilityMock)
+vi.mock('@/lib/integrations/principal-scope.server', () => ({
+  allowedIntegrationTypes: hoisted.allowedIntegrations,
+}))
+vi.mock('@/lib/integrations/credential-visibility.server', () => ({
+  createIntegrationCredentialVisibility: () => ({ isCredentialVisible: hoisted.credentialVisible }),
+}))
+
+import { prepareCredentialConnection } from '@/lib/credentials/application/prepare-credential-connection'
+
+const mocks = {
+  ...hoisted,
+  blockVisibility: blockVisibilityMockFns.mockGetBlockVisibility,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+}
+
+const workspace = {
+  workspaceId: 'workspace-1',
+  workspaceOrganizationId: null,
+  allowPersonalApiKeys: true,
+  billedAccountUserId: 'billing-owner-1',
+}
+const principal = createDelegatedPrincipal({ audience: 'sim:credentials' })
+const gmailProvider = {
+  type: 'oauth' as const,
+  serviceId: 'gmail',
+  name: 'Gmail',
+  description: 'Gmail OAuth',
+  providerFamily: 'google',
+  available: true,
+  supportsReconnect: true,
+  authorizationOptions: [{ providerId: 'google-email', label: 'Gmail' }],
+}
+
+describe('prepareCredentialConnection', () => {
+  beforeEach(() => {
+    mocks.loadWorkspace.mockResolvedValue(workspace)
+    mocks.resolvePermission.mockResolvedValue('write')
+    mocks.listCatalog.mockResolvedValue([gmailProvider])
+    mocks.personalCredentials.mockResolvedValue([])
+    mocks.personalTokens.mockResolvedValue([])
+    mocks.credentialVisible.mockReturnValue(true)
+    mocks.allowedIntegrations.mockResolvedValue(null)
+    mocks.blockVisibility.mockResolvedValue({
+      revealed: new Set(),
+      disabled: new Set(),
+      previewTagged: new Set(),
+    })
+  })
+
+  it('prepares personal GitLab setup without inventing an OAuth provider', async () => {
+    const result = await prepareCredentialConnection.execute({
+      principal,
+      input: { workspaceId: 'workspace-1', providerName: ' GitLab ', personalOnly: true },
+    })
+    expect(result).toEqual({ kind: 'personal_token', providerId: 'gitlab', serviceName: 'GitLab' })
+    expect(mocks.listCatalog).not.toHaveBeenCalled()
+  })
+
+  it('rejects unavailable personal GitLab connections', async () => {
+    mocks.credentialVisible.mockReturnValue(false)
+    await expect(
+      prepareCredentialConnection.execute({
+        principal,
+        input: { workspaceId: 'workspace-1', providerName: 'gitlab', personalOnly: true },
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
+  })
+
+  it('cannot reconnect someone else’s GitLab token even as workspace admin', async () => {
+    mocks.resolvePermission.mockResolvedValue('admin')
+    mocks.personalTokens.mockResolvedValue([{ id: 'mine', providerId: 'gitlab' }])
+    await expect(
+      prepareCredentialConnection.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace-1',
+          providerName: 'gitlab',
+          credentialId: 'other-person',
+          personalOnly: true,
+        },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.personalTokens).toHaveBeenCalledWith('workspace-1', 'user-1', 'other-person')
+    expect(mocks.resolveTarget).not.toHaveBeenCalled()
+  })
+
+  it('uses the credential target as the reconnect authority', async () => {
+    mocks.resolveTarget.mockResolvedValue({
+      providerId: 'google-email',
+      credentialId: 'credential-1',
+    })
+
+    const result = await prepareCredentialConnection.execute({
+      principal,
+      input: {
+        workspaceId: 'workspace-1',
+        providerName: 'gmail',
+        credentialId: 'credential-1',
+      },
+    })
+
+    expect(result).toEqual({
+      kind: 'oauth',
+      providerId: 'google-email',
+      serviceName: 'Gmail',
+      credentialId: 'credential-1',
+    })
+  })
+
+  it('rejects a reconnect whose requested provider does not match the credential', async () => {
+    mocks.resolveTarget.mockResolvedValue({
+      providerId: 'slack',
+      credentialId: 'credential-1',
+    })
+
+    await expect(
+      prepareCredentialConnection.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace-1',
+          providerName: 'gmail',
+          credentialId: 'credential-1',
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+  })
+
+  it('rejects another person’s account before shared-credential reconnect authorization', async () => {
+    mocks.resolvePermission.mockResolvedValue('admin')
+    await expect(
+      prepareCredentialConnection.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace-1',
+          providerName: 'gmail',
+          credentialId: 'shared-account',
+          personalOnly: true,
+        },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.personalCredentials).toHaveBeenCalledWith(
+      'workspace-1',
+      'user-1',
+      'shared-account'
+    )
+    expect(mocks.resolveTarget).not.toHaveBeenCalled()
+  })
+
+  it('connects an ordinary personal account through canonical enrollment in Assistant', async () => {
+    mocks.personalCredentials.mockResolvedValue([
+      { id: 'own-account', providerId: 'google-email', type: 'oauth' },
+    ])
+    mocks.resolveTarget.mockResolvedValue({
+      providerId: 'google-email',
+      credentialId: 'own-account',
+    })
+    const result = await prepareCredentialConnection.execute({
+      principal,
+      input: {
+        workspaceId: 'workspace-1',
+        providerName: 'gmail',
+        credentialId: 'own-account',
+        personalOnly: true,
+      },
+    })
+    expect(result).toEqual({
+      kind: 'managed_oauth',
+      providerId: 'google-email',
+      serviceName: 'Gmail',
+    })
+    expect(mocks.resolveTarget).not.toHaveBeenCalled()
+  })
+
+  it('does not offer Slack bot OAuth when connecting a personal Slack account', async () => {
+    mocks.listCatalog.mockResolvedValue([
+      {
+        ...gmailProvider,
+        serviceId: 'slack',
+        name: 'Slack',
+        authorizationOptions: [{ providerId: 'slack', label: 'Slack' }],
+      },
+    ])
+    const result = await prepareCredentialConnection.execute({
+      principal,
+      input: { workspaceId: 'workspace-1', providerName: 'slack', personalOnly: true },
+    })
+    expect(result).toEqual({ kind: 'managed_oauth', providerId: 'slack', serviceName: 'Slack' })
+    expect(mocks.resolveTarget).not.toHaveBeenCalled()
+  })
+
+  it('rejects personal credentials from a different provider', async () => {
+    mocks.personalCredentials.mockResolvedValue([
+      { id: 'own-account', providerId: 'slack', type: 'managed_oauth' },
+    ])
+    await expect(
+      prepareCredentialConnection.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace-1',
+          providerName: 'gmail',
+          credentialId: 'own-account',
+          personalOnly: true,
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(mocks.resolveTarget).not.toHaveBeenCalled()
+  })
+
+  it('rejects service-account aliases before fuzzy provider matching in personal mode', async () => {
+    await expect(
+      prepareCredentialConnection.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace-1',
+          providerName: 'google service account',
+          personalOnly: true,
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(mocks.listCatalog).not.toHaveBeenCalled()
+  })
+})

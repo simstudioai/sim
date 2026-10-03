@@ -1,7 +1,7 @@
 import type { Neo4jExecuteParams, Neo4jResponse } from '@/tools/neo4j/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const executeTool: ToolConfig<Neo4jExecuteParams, Neo4jResponse> = {
+export const executeTool: InternalToolConfig<Neo4jExecuteParams, Neo4jResponse> = {
   id: 'neo4j_execute',
   name: 'Neo4j Execute',
   description: 'Execute arbitrary Cypher queries on Neo4j graph database for complex operations',
@@ -60,13 +60,8 @@ export const executeTool: ToolConfig<Neo4jExecuteParams, Neo4jResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/neo4j/execute',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

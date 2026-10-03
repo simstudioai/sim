@@ -3,9 +3,10 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { DocuSignResponse } from '@/tools/docusign/types'
 
-export const DocuSignBlock: BlockConfig<DocuSignResponse> = {
+const DOCUMENT_FIELD = ['uploadDocument', 'documentRef'] as const
+
+export const DocuSignBlock: BlockConfig = {
   type: 'docusign',
   name: 'DocuSign',
   description: 'Send documents for e-signature via DocuSign',
@@ -17,6 +18,39 @@ export const DocuSignBlock: BlockConfig<DocuSignResponse> = {
   bgColor: '#FFFFFF',
   icon: DocuSignIcon,
   authMode: AuthMode.OAuth,
+  canvasPresentation: {
+    defaultTitle: 'DocuSign',
+    sentences: {
+      byOperation: {
+        send_envelope: [
+          { text: 'Send', field: DOCUMENT_FIELD, core: true },
+          { text: 'for signature to', field: 'signerEmail', core: true },
+        ],
+        create_from_template: [
+          { text: 'Send an envelope from template', field: 'templateId', core: true },
+          { text: ', titled', field: 'emailSubject' },
+        ],
+        get_envelope: [{ text: 'Fetch the status of envelope', field: 'envelopeId', core: true }],
+        list_envelopes: [
+          'List envelopes',
+          { text: ', with status', field: 'listEnvelopeStatus' },
+          { text: ', matching', field: 'searchText' },
+          { text: ', sent since', field: 'fromDate' },
+        ],
+        void_envelope: [
+          { text: 'Void envelope', field: 'envelopeId', core: true },
+          { text: ', citing', field: 'voidedReason' },
+        ],
+        download_document: [
+          'Download the signed document',
+          { text: 'from envelope', field: 'envelopeId', core: true },
+          { text: ', document', field: 'documentId' },
+        ],
+        list_templates: ['List templates', { text: ', matching', field: 'searchText' }],
+        list_recipients: [{ text: 'List recipients of envelope', field: 'envelopeId', core: true }],
+      },
+    },
+  },
 
   subBlocks: [
     {

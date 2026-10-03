@@ -1,8 +1,8 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { permissions, type WorkspaceMode, workflow, workspace } from '@sim/db/schema'
+import { type WorkspaceMode, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { generateId } from '@sim/utils/id'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { listWorkspacesQuerySchema } from '@/lib/api/contracts'
@@ -10,20 +10,16 @@ import { createWorkspaceContract } from '@/lib/api/contracts/workspaces'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
-import { PlatformEvents } from '@/lib/core/telemetry'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
-import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { getRandomWorkspaceColor } from '@/lib/workspaces/colors'
+import { createWorkspace } from '@/lib/workspaces/create'
 import { listWorkspacesForViewer } from '@/lib/workspaces/list'
 import {
   getWorkspaceCreationPolicy,
-  getWorkspaceInvitePolicy,
-  lockWorkspaceCreationContext,
-  resolveInviteFlags,
-  WORKSPACE_MODE,
+  WorkspaceCreationCapabilityWithheldError,
   WorkspaceCreationContextChangedError,
+  WorkspaceOwnerMissingError,
 } from '@/lib/workspaces/policy'
 
 const logger = createLogger('Workspaces')
@@ -53,11 +49,16 @@ export const GET = withRouteHandler(async (request: Request) => {
     activeOrganizationId,
     scope,
   })
-  const { lastActiveWorkspaceId, creationPolicy } = payload
+  const { lastActiveWorkspaceId, pinnedWorkspaceIds, creationPolicy } = payload
 
   if (scope === 'active' && payload.workspaces.length === 0) {
     if (!creationPolicy.canCreate) {
-      return NextResponse.json({ workspaces: [], lastActiveWorkspaceId, creationPolicy })
+      return NextResponse.json({
+        workspaces: [],
+        lastActiveWorkspaceId,
+        pinnedWorkspaceIds,
+        creationPolicy,
+      })
     }
 
     let defaultWorkspace: Awaited<ReturnType<typeof createDefaultWorkspace>>
@@ -87,6 +88,10 @@ export const GET = withRouteHandler(async (request: Request) => {
         })
         return NextResponse.json(refreshedPayload)
       }
+      /** A cached session cookie outlived the account it belongs to. */
+      if (error instanceof WorkspaceOwnerMissingError) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
       throw error
     }
 
@@ -100,6 +105,7 @@ export const GET = withRouteHandler(async (request: Request) => {
     return NextResponse.json({
       workspaces: [defaultWorkspace],
       lastActiveWorkspaceId,
+      pinnedWorkspaceIds,
       creationPolicy: refreshedCreationPolicy,
     })
   }
@@ -122,7 +128,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   try {
     const parsed = await parseRequest(createWorkspaceContract, req, {})
     if (!parsed.success) return parsed.response
-    const { name, color, skipDefaultWorkflow } = parsed.data.body
+    const { name, skipDefaultWorkflow } = parsed.data.body
     const activeOrganizationId = getActiveOrganizationId(session)
     const creationPolicy = await getWorkspaceCreationPolicy({
       userId: session.user.id,
@@ -130,6 +136,18 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     })
 
     if (!creationPolicy.canCreate) {
+      /**
+       * The preflight refusal and the revocation-race refusal are the same
+       * decision reached at two moments, so they must be the same body. Without
+       * this branch the common path — the group already denied `workspace.create`
+       * when the policy was read — answered a bare `{ error }`, while only the
+       * race the `catch` below handles carried
+       * `details.code: PERMISSION_GROUP_CAPABILITY_BLOCKED`. A client that keys
+       * off the code then saw the capability refusal in the rarer case only.
+       */
+      if (creationPolicy.blockedReasonCode === 'permission-group-denied') {
+        return capabilityRefusalResponse('workspace.create')
+      }
       return NextResponse.json(
         { error: creationPolicy.reason || 'Workspace creation is not available.' },
         { status: creationPolicy.status }
@@ -140,11 +158,11 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       userId: session.user.id,
       name,
       skipDefaultWorkflow,
-      explicitColor: color,
       organizationId: creationPolicy.organizationId,
       workspaceMode: creationPolicy.workspaceMode,
       billedAccountUserId: creationPolicy.billedAccountUserId,
       observedOrganizationId: creationPolicy.observedOrganizationId,
+      governingPermissionGroupOrganizationId: creationPolicy.governingPermissionGroupOrganizationId,
     })
 
     captureServerEvent(
@@ -174,7 +192,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       description: `Created workspace "${newWorkspace.name}"`,
       metadata: {
         name: newWorkspace.name,
-        color: newWorkspace.color,
         workspaceMode: newWorkspace.workspaceMode,
         organizationId: newWorkspace.organizationId,
       },
@@ -183,6 +200,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     return NextResponse.json({ workspace: newWorkspace })
   } catch (error) {
+    if (error instanceof WorkspaceCreationCapabilityWithheldError) {
+      return capabilityRefusalResponse('workspace.create')
+    }
     if (error instanceof WorkspaceCreationContextChangedError) {
       return NextResponse.json(
         {
@@ -190,6 +210,24 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
             'Your organization membership changed while this workspace was being created. Please try again.',
         },
         { status: 409 }
+      )
+    }
+    /** A cached session cookie outlived the account it belongs to. */
+    if (error instanceof WorkspaceOwnerMissingError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    /**
+     * A lock timeout is contention, not a fault: creation serializes on the
+     * organization's mutation locks and now also on `permission_group:<org>`,
+     * so a concurrent create or a permission-group admin write can exhaust the
+     * `lock_timeout` and abort this transaction. Answer 503 like the
+     * permission-group routes do, rather than letting it reach the generic 500
+     * below — the caller should retry, and a 500 tells them the opposite.
+     */
+    if (getPostgresErrorCode(error) === '55P03') {
+      return NextResponse.json(
+        { error: 'This organization is being updated by another request. Please try again.' },
+        { status: 503 }
       )
     }
     logger.error('Error creating workspace:', error)
@@ -205,6 +243,7 @@ async function createDefaultWorkspace(
     workspaceMode: WorkspaceMode
     billedAccountUserId: string
     observedOrganizationId: string | null
+    governingPermissionGroupOrganizationId: string | null
   }
 ) {
   const firstName = userName?.split(' ')[0] || null
@@ -216,163 +255,8 @@ async function createDefaultWorkspace(
     workspaceMode: creationPolicy.workspaceMode,
     billedAccountUserId: creationPolicy.billedAccountUserId,
     observedOrganizationId: creationPolicy.observedOrganizationId,
+    governingPermissionGroupOrganizationId: creationPolicy.governingPermissionGroupOrganizationId,
   })
-}
-
-interface CreateWorkspaceParams {
-  userId: string
-  /** Membership the creation policy observed; see WorkspaceCreationPolicy. */
-  observedOrganizationId: string | null
-  name: string
-  skipDefaultWorkflow?: boolean
-  explicitColor?: string
-  organizationId: string | null
-  workspaceMode: WorkspaceMode
-  billedAccountUserId: string
-}
-
-async function createWorkspace({
-  userId,
-  observedOrganizationId,
-  name,
-  skipDefaultWorkflow = false,
-  explicitColor,
-  organizationId,
-  workspaceMode,
-  billedAccountUserId,
-}: CreateWorkspaceParams) {
-  const workspaceId = generateId()
-  const workflowId = generateId()
-  const now = new Date()
-  const color = explicitColor || getRandomWorkspaceColor()
-  let committedBilledAccountUserId = billedAccountUserId
-
-  try {
-    await db.transaction(async (tx) => {
-      /**
-       * Creation takes the same organization → user → membership fence as
-       * source access removal and transfer. If creation commits first, their
-       * post-lock workspace-set re-read sees this row and cleans it up. If the
-       * membership mutation commits first, this re-read rejects the stale
-       * creation policy before inserting anything.
-       */
-      const lockedCreationContext = await lockWorkspaceCreationContext(tx, {
-        userId,
-        organizationId,
-        observedOrganizationId,
-      })
-      const currentBilledAccountUserId =
-        workspaceMode === WORKSPACE_MODE.ORGANIZATION
-          ? lockedCreationContext.billedAccountUserId
-          : billedAccountUserId
-      committedBilledAccountUserId = currentBilledAccountUserId
-
-      await tx.insert(workspace).values({
-        id: workspaceId,
-        name,
-        color,
-        ownerId: userId,
-        organizationId,
-        workspaceMode,
-        billedAccountUserId: currentBilledAccountUserId,
-        allowPersonalApiKeys: true,
-        createdAt: now,
-        updatedAt: now,
-      })
-
-      const permissionRows = [
-        {
-          id: generateId(),
-          entityType: 'workspace' as const,
-          entityId: workspaceId,
-          userId,
-          permissionType: 'admin' as const,
-          createdAt: now,
-          updatedAt: now,
-        },
-      ]
-
-      if (
-        workspaceMode === WORKSPACE_MODE.ORGANIZATION &&
-        currentBilledAccountUserId &&
-        currentBilledAccountUserId !== userId
-      ) {
-        permissionRows.push({
-          id: generateId(),
-          entityType: 'workspace' as const,
-          entityId: workspaceId,
-          userId: currentBilledAccountUserId,
-          permissionType: 'admin' as const,
-          createdAt: now,
-          updatedAt: now,
-        })
-      }
-
-      await tx.insert(permissions).values(permissionRows)
-
-      if (!skipDefaultWorkflow) {
-        await tx.insert(workflow).values({
-          id: workflowId,
-          userId,
-          workspaceId,
-          folderId: null,
-          name: 'default-agent',
-          description: 'Your first workflow - start building here!',
-          lastSynced: now,
-          createdAt: now,
-          updatedAt: now,
-          isDeployed: false,
-          runCount: 0,
-          variables: {},
-        })
-
-        const { workflowState } = buildDefaultWorkflowArtifacts()
-        await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
-      }
-
-      logger.info(
-        skipDefaultWorkflow
-          ? `Created ${workspaceMode} workspace ${workspaceId} for user ${userId}`
-          : `Created ${workspaceMode} workspace ${workspaceId} with initial workflow ${workflowId} for user ${userId}`
-      )
-    })
-  } catch (error) {
-    logger.error(`Failed to create workspace ${workspaceId}:`, error)
-    throw error
-  }
-
-  try {
-    PlatformEvents.workspaceCreated({
-      workspaceId,
-      userId,
-      name,
-    })
-  } catch {
-    // Telemetry should not fail the operation
-  }
-
-  const invitePolicy = await getWorkspaceInvitePolicy({
-    organizationId,
-    workspaceMode,
-    billedAccountUserId: committedBilledAccountUserId,
-    ownerId: userId,
-  })
-
-  return {
-    id: workspaceId,
-    name,
-    color,
-    ownerId: userId,
-    organizationId,
-    workspaceMode,
-    billedAccountUserId: committedBilledAccountUserId,
-    allowPersonalApiKeys: true,
-    createdAt: now,
-    updatedAt: now,
-    role: 'owner',
-    permissions: 'admin',
-    ...resolveInviteFlags(invitePolicy, committedBilledAccountUserId === userId),
-  }
 }
 
 async function migrateExistingWorkflows(userId: string, workspaceId: string) {

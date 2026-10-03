@@ -1,8 +1,7 @@
 import { GammaIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { GammaResponse } from '@/tools/gamma/types'
 
-export const GammaBlock: BlockConfig<GammaResponse> = {
+export const GammaBlock: BlockConfig = {
   type: 'gamma',
   name: 'Gamma',
   description: 'Generate presentations, documents, and webpages with AI',
@@ -14,6 +13,27 @@ export const GammaBlock: BlockConfig<GammaResponse> = {
   bgColor: '#002253',
   icon: GammaIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Gamma',
+    sentences: {
+      byOperation: {
+        generate: [
+          { text: 'Generate', field: 'format', core: true },
+          { text: 'from', field: 'inputText', core: true },
+          { text: ', across', field: 'numCards', after: 'cards' },
+        ],
+        generate_from_template: [
+          { text: 'Adapt template', field: 'gammaId', core: true },
+          { text: 'using', field: 'prompt' },
+        ],
+        check_status: [
+          { text: 'Check the status of generation', field: 'generationId', core: true },
+        ],
+        list_themes: ['List available themes'],
+        list_folders: ['List available folders'],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

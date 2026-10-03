@@ -15,6 +15,7 @@ import {
 import type {
   QuickBooksAccountingTransactionType,
   QuickBooksAddress,
+  QuickBooksAuthParams,
   QuickBooksCustomer,
   QuickBooksEmployee,
   QuickBooksListResponse,
@@ -36,6 +37,7 @@ import type {
   QuickBooksVendor,
 } from '@/tools/quickbooks/types'
 import {
+  assertQuickBooksItemUpdatable,
   optionalQuickBooksString,
   requiredQuickBooksString,
   validateQuickBooksDate,
@@ -99,7 +101,11 @@ export const QUICKBOOKS_MASTER_DATA_ENTITIES = {
 
 export function buildQuickBooksReportUrl(params: QuickBooksRunFinancialReportParams): URL {
   const { endpoint, dateParams } = resolveQuickBooksReportEndpoint(params)
-  const url = buildQuickBooksCompanyUrl(params.realmId, `reports/${endpoint}`)
+  const url = buildQuickBooksCompanyUrl(
+    params.realmId,
+    `reports/${endpoint}`,
+    params.quickBooksEnvironment
+  )
   for (const [key, value] of dateParams) url.searchParams.set(key, value)
   applyQuickBooksReportParams(url, params)
   return url
@@ -163,14 +169,14 @@ export const QUICKBOOKS_PURCHASING_ENTITIES = {
 >
 
 export function buildQuickBooksQueryUrl(
-  realmId: string,
+  auth: QuickBooksAuthParams,
   entity: QuickBooksQueryEntity,
   startPosition: number,
   maxResults: number,
   filters: readonly QuickBooksQueryFilter[] = []
 ): URL {
   const pagination = validateQuickBooksPagination(startPosition, maxResults)
-  const url = buildQuickBooksCompanyUrl(realmId, 'query')
+  const url = buildQuickBooksCompanyUrl(auth.realmId, 'query', auth.quickBooksEnvironment)
   const where =
     filters.length > 0
       ? ` WHERE ${filters.map((filter) => buildQuickBooksQueryFilter(filter)).join(' AND ')}`
@@ -179,6 +185,15 @@ export function buildQuickBooksQueryUrl(
     'query',
     `SELECT * FROM ${entity}${where} STARTPOSITION ${pagination.startPosition} MAXRESULTS ${pagination.maxResults}`
   )
+  /**
+   * `URLSearchParams` serializes a space as `+`, a convention defined only for
+   * `application/x-www-form-urlencoded` bodies. Intuit's documented query
+   * example percent-encodes spaces instead
+   * (`query=SELECT%20FROM%20Customer%20WHERE...`), so they are rewritten to the
+   * unambiguous `%20`. A literal `+` inside a value is already `%2B` by this
+   * point, so only encoded spaces are affected.
+   */
+  url.search = url.searchParams.toString().replace(/\+/g, '%20')
   return url
 }
 
@@ -225,7 +240,7 @@ export function buildQuickBooksMasterDataQueryUrl(params: QuickBooksReadMasterDa
       ? []
       : [{ field: 'Active', operator: '=', value: activeStatus === 'active' }]
   return buildQuickBooksQueryUrl(
-    params.realmId,
+    params,
     config.entity,
     params.startPosition ?? 1,
     params.maxResults ?? 25,
@@ -239,7 +254,7 @@ export function buildQuickBooksSalesQueryUrl(params: QuickBooksReadSalesTransact
   const customerId = optionalQuickBooksString(params.customerId)
   if (customerId) filters.push({ field: 'CustomerRef', operator: '=', value: customerId })
   return buildQuickBooksQueryUrl(
-    params.realmId,
+    params,
     config.entity,
     params.startPosition ?? 1,
     params.maxResults ?? 25,
@@ -267,7 +282,7 @@ export function buildQuickBooksPurchasingQueryUrl(
     filters.push({ field: 'VendorRef', operator: '=', value: vendorId })
   }
   return buildQuickBooksQueryUrl(
-    params.realmId,
+    params,
     config.entity,
     params.startPosition ?? 1,
     params.maxResults ?? 25,
@@ -280,7 +295,7 @@ export function buildQuickBooksAccountingQueryUrl(
 ): URL {
   const config = getQuickBooksAccountingEntity(params.transactionType)
   return buildQuickBooksQueryUrl(
-    params.realmId,
+    params,
     config.entity,
     params.startPosition ?? 1,
     params.maxResults ?? 25,
@@ -338,7 +353,7 @@ export function getQuickBooksAccountingEntity(
 }
 
 export function buildQuickBooksEntityUrl(
-  realmId: string,
+  auth: QuickBooksAuthParams,
   resource: string,
   recordId?: string
 ): URL {
@@ -349,10 +364,11 @@ export function buildQuickBooksEntityUrl(
     throw new Error('QuickBooks record ID is required')
   }
   return buildQuickBooksCompanyUrl(
-    realmId,
+    auth.realmId,
     normalizedRecordId
       ? `${encodeURIComponent(normalizedResource)}/${encodeURIComponent(normalizedRecordId)}`
-      : encodeURIComponent(normalizedResource)
+      : encodeURIComponent(normalizedResource),
+    auth.quickBooksEnvironment
   )
 }
 
@@ -381,7 +397,7 @@ function findQuickBooksFault(data: unknown): SanitizedQuickBooksFault | null {
 }
 
 /**
- * Builds the error a `directExecution` tool throws for a failed QuickBooks
+ * Builds the error an internal operation throws for a failed QuickBooks
  * response.
  *
  * `parseQuickBooksJson` cannot be reused here: it rejects on a non-OK status
@@ -389,7 +405,7 @@ function findQuickBooksFault(data: unknown): SanitizedQuickBooksFault | null {
  * failed would be discarded. `entity` names the QuickBooks entity the call
  * targeted and only shapes the read label used for diagnostics.
  */
-export async function getQuickBooksDirectExecutionError(
+export async function getQuickBooksOperationError(
   response: Response,
   entity: QuickBooksQueryEntity,
   signal?: AbortSignal
@@ -408,12 +424,121 @@ export async function getQuickBooksDirectExecutionError(
   const errorInfo = {
     status: response.status,
     statusText: response.statusText,
-    data: sanitizeQuickBooksFaultData(data),
+    data: findQuickBooksFault(data),
     headers: response.headers,
   }
   return Object.assign(
     new Error(extractErrorMessage(errorInfo, ErrorExtractorId.QUICKBOOKS_FAULT)),
     errorInfo
+  )
+}
+
+interface QuickBooksFullUpdateOptions<
+  P extends QuickBooksAuthParams,
+  T extends { Id: string; SyncToken?: string },
+> {
+  params: P
+  signal?: AbortSignal
+  entity: QuickBooksQueryEntity
+  resource: string
+  recordId: string
+  syncToken: string
+  buildPatch: (params: P) => Record<string, unknown>
+  sanitize?: (record: T) => T
+}
+
+export function buildQuickBooksFullUpdateBody(
+  current: Record<string, unknown>,
+  patch: Record<string, unknown>,
+  recordId: string,
+  syncToken: string
+): Record<string, unknown> {
+  const currentFields = omit(current, [
+    'HeaderFull',
+    'HeaderLite',
+    'MetaData',
+    'NameAndId',
+    'Overview',
+    'domain',
+    'sparse',
+    'status',
+  ])
+  const patchFields = omit(patch, ['sparse'])
+  return {
+    ...currentFields,
+    ...patchFields,
+    Id: recordId,
+    SyncToken: syncToken,
+  }
+}
+
+/**
+ * Implements Intuit's documented full-update sequence: read the complete live
+ * entity, reject stale caller state, apply only the requested patch, and post
+ * the resulting entity back without the sparse marker or response metadata.
+ */
+export async function executeQuickBooksFullUpdate<
+  P extends QuickBooksAuthParams,
+  T extends { Id: string; SyncToken?: string },
+>(options: QuickBooksFullUpdateOptions<P, T>): Promise<QuickBooksMutationResponse<T>> {
+  const recordId = requiredQuickBooksString(options.recordId, 'recordId')
+  const syncToken = requiredQuickBooksString(options.syncToken, 'syncToken')
+  const patch = options.buildPatch(options.params)
+  const readResponse = await fetch(
+    buildQuickBooksEntityUrl(options.params, options.resource, recordId),
+    {
+      method: 'GET',
+      headers: getQuickBooksToolHeaders(options.params.accessToken),
+      signal: options.signal,
+    }
+  )
+  if (!readResponse.ok) {
+    throw await getQuickBooksOperationError(readResponse, options.entity, options.signal)
+  }
+  const { item } = await transformQuickBooksEntityResponse<T>(
+    readResponse,
+    options.entity,
+    options.signal
+  )
+  const current = item as T & Record<string, unknown>
+  const currentId = typeof current.Id === 'string' ? current.Id.trim() : ''
+  const currentSyncToken = typeof current.SyncToken === 'string' ? current.SyncToken.trim() : ''
+  if (currentId !== recordId) {
+    throw new Error(`QuickBooks ${options.entity} read returned an unexpected record ID`)
+  }
+  if (currentSyncToken !== syncToken) {
+    throw new Error(
+      `QuickBooks ${options.entity} ${recordId} changed since sync token ${syncToken} was read (current sync token ${currentSyncToken}). Re-read the record and retry.`
+    )
+  }
+  if (options.entity === 'Item') assertQuickBooksItemUpdatable(current, patch)
+  options.signal?.throwIfAborted()
+
+  const fullBody = buildQuickBooksFullUpdateBody(current, patch, recordId, syncToken)
+  const updateUrl = buildQuickBooksEntityUrl(options.params, options.resource)
+  /**
+   * Intuit documents this query parameter on the Item full update alone: "Add
+   * the query parameter, include=donotupdateaccountontxns, to the endpoint to
+   * supress updating the income or expense account on any existing transactions
+   * associated with this Item object." Without it, changing an item's income or
+   * expense account rewrites the account on every historical transaction that
+   * references the item.
+   */
+  if (options.entity === 'Item') updateUrl.searchParams.set('include', 'donotupdateaccountontxns')
+  const updateResponse = await fetch(updateUrl, {
+    method: 'POST',
+    headers: getQuickBooksToolHeaders(options.params.accessToken, 'application/json'),
+    body: JSON.stringify(fullBody),
+    signal: options.signal,
+  })
+  if (!updateResponse.ok) {
+    throw await getQuickBooksOperationError(updateResponse, options.entity, options.signal)
+  }
+  return transformQuickBooksMutationResponse<T>(
+    updateResponse,
+    options.entity,
+    options.sanitize,
+    options.signal
   )
 }
 
@@ -508,6 +633,11 @@ export async function transformQuickBooksEntityResponse<
   }
 }
 
+export function getQuickBooksRecordVersion(record: { SyncToken?: string }): string | undefined {
+  const recordVersion = typeof record.SyncToken === 'string' ? record.SyncToken.trim() : ''
+  return recordVersion || undefined
+}
+
 export async function transformQuickBooksMutationResponse<
   T extends { Id: string; SyncToken?: string },
 >(
@@ -519,13 +649,13 @@ export async function transformQuickBooksMutationResponse<
   const parsed = await transformQuickBooksEntityResponse<T>(response, entity, signal)
   const item = sanitize(parsed.item)
   const recordId = typeof item.Id === 'string' ? item.Id.trim() : ''
-  const syncToken = typeof item.SyncToken === 'string' ? item.SyncToken.trim() : ''
+  const syncToken = getQuickBooksRecordVersion(item) ?? ''
   if (!recordId || !syncToken) {
     throw new Error(`QuickBooks ${entity} response is missing Id or SyncToken`)
   }
   return {
     success: true,
-    output: { record: item, recordId, syncToken, time: parsed.time },
+    output: { record: item, recordId, syncToken, recordVersion: syncToken, time: parsed.time },
   }
 }
 

@@ -1,5 +1,14 @@
-import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/references'
 import { REFERENCE } from '@/executor/constants'
+
+/**
+ * Body of an `{{ENV_VAR}}` reference. Excludes both braces for the same reason
+ * `createReferencePattern` excludes both angle brackets: a class that admits its
+ * own opening delimiter lets every offset in a run of `{` restart a full
+ * backtracking scan, which is quadratic in the length of the run. Env var names
+ * are `PATTERNS.ENV_VAR_NAME` (`[A-Za-z_][A-Za-z0-9_]*`), so no representable
+ * name is excluded by this.
+ */
+const ENV_VAR_BODY = '[^{}]+'
 
 /**
  * Creates a regex pattern for matching variable references.
@@ -16,7 +25,7 @@ export function createReferencePattern(): RegExp {
  * Creates a regex pattern for matching environment variables {{variable}}
  */
 export function createEnvVarPattern(): RegExp {
-  return new RegExp(`\\${REFERENCE.ENV_VAR_START}([^}]+)\\${REFERENCE.ENV_VAR_END}`, 'g')
+  return new RegExp(`\\${REFERENCE.ENV_VAR_START}(${ENV_VAR_BODY})\\${REFERENCE.ENV_VAR_END}`, 'g')
 }
 
 export interface EnvVarResolveOptions {
@@ -67,7 +76,7 @@ export function resolveEnvVarReferences(
   if (typeof value === 'string') {
     if (resolveExactMatch) {
       const exactMatchPattern = new RegExp(
-        `^\\${REFERENCE.ENV_VAR_START}([^}]+)\\${REFERENCE.ENV_VAR_END}$`
+        `^\\${REFERENCE.ENV_VAR_START}(${ENV_VAR_BODY})\\${REFERENCE.ENV_VAR_END}$`
       )
       const exactMatch = exactMatchPattern.exec(value)
       if (exactMatch) {
@@ -136,30 +145,12 @@ export function createWorkflowVariablePattern(): RegExp {
 }
 
 /**
- * Combined pattern matching both <reference> and {{env_var}}
+ * Collects every string leaf in a nested value — the shared walk for reference/env-token
+ * audits over block inputs (lint, deps, and the agent-cli mirrors each carried a copy).
  */
-export function createCombinedPattern(): RegExp {
-  return new RegExp(
-    `${REFERENCE.START}[^${REFERENCE.START}${REFERENCE.END}]+${REFERENCE.END}|` +
-      `\\${REFERENCE.ENV_VAR_START}[^}]+\\${REFERENCE.ENV_VAR_END}`,
-    'g'
-  )
-}
-
-/**
- * Replaces variable references with smart validation.
- * Distinguishes < operator from < bracket using isLikelyReferenceSegment.
- */
-export function replaceValidReferences(
-  template: string,
-  replacer: (match: string, index: number, template: string) => string
-): string {
-  const pattern = createReferencePattern()
-
-  return template.replace(pattern, (match, _content, index) => {
-    if (!isLikelyReferenceSegment(match)) {
-      return match
-    }
-    return replacer(match, index, template)
-  })
+export function collectStringLeaves(value: unknown, out: string[]): void {
+  if (typeof value === 'string') out.push(value)
+  else if (Array.isArray(value)) for (const item of value) collectStringLeaves(item, out)
+  else if (typeof value === 'object' && value !== null)
+    for (const item of Object.values(value)) collectStringLeaves(item, out)
 }

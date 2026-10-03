@@ -15,6 +15,7 @@ import { useParams } from 'next/navigation'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import type { SandboxDependencyIssue } from '@/lib/api/contracts/sandboxes'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { ManagedCliSelect } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/components/managed-cli-select'
 import {
   DEPENDENCY_PLACEHOLDERS,
   emptyDraft,
@@ -24,6 +25,7 @@ import {
   SANDBOX_UPGRADE_TITLE,
   type SandboxDraft,
   type SandboxLanguage,
+  SYSTEM_PACKAGE_PLACEHOLDER,
   toSubmittedLines,
 } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/utils'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
@@ -71,7 +73,8 @@ export function SandboxCreateModal({
   const createSandbox = useCreateSandbox()
 
   const [draft, setDraft] = useState<SandboxDraft>(emptyDraft)
-  const [issues, setIssues] = useState<SandboxDependencyIssue[]>([])
+  const [dependencyIssues, setDependencyIssues] = useState<SandboxDependencyIssue[]>([])
+  const [systemPackageIssues, setSystemPackageIssues] = useState<SandboxDependencyIssue[]>([])
   const [error, setError] = useState<string | null>(null)
 
   // The modal stays mounted for its exit animation, so each opening has to clear
@@ -81,7 +84,8 @@ export function SandboxCreateModal({
     setWasOpen(open)
     if (open) {
       setDraft({ ...emptyDraft(), ...(defaultLanguage ? { language: defaultLanguage } : {}) })
-      setIssues([])
+      setDependencyIssues([])
+      setSystemPackageIssues([])
       setError(null)
     }
   }
@@ -92,7 +96,8 @@ export function SandboxCreateModal({
   const saving = createSandbox.isPending
 
   const handleCreate = async () => {
-    setIssues([])
+    setDependencyIssues([])
+    setSystemPackageIssues([])
     setError(null)
     try {
       const { sandbox } = await createSandbox.mutateAsync({
@@ -100,13 +105,16 @@ export function SandboxCreateModal({
         name: draft.name.trim(),
         language: draft.language,
         dependencies: toSubmittedLines(draft.dependencies),
+        systemPackages: toSubmittedLines(draft.systemPackages),
+        cliTools: draft.cliTools,
       })
       onCreated?.(sandbox)
       onOpenChange(false)
     } catch (caught) {
       const lineIssues = extractIssues(caught)
-      if (lineIssues.length > 0) {
-        setIssues(lineIssues)
+      if (lineIssues) {
+        setDependencyIssues(lineIssues.field === 'dependencies' ? lineIssues.issues : [])
+        setSystemPackageIssues(lineIssues.field === 'systemPackages' ? lineIssues.issues : [])
         return
       }
       setError(getErrorMessage(caught, 'Failed to create sandbox'))
@@ -168,9 +176,39 @@ export function SandboxCreateModal({
               disabled={saving}
               hint='One per line. Version pins are optional.'
               error={
-                issues.length > 0 ? (
+                dependencyIssues.length > 0 ? (
                   <>
-                    {issues.map((issue) => (
+                    {dependencyIssues.map((issue) => (
+                      <span key={issue.line} className='block'>
+                        Line {issue.line}: {issue.reason}
+                      </span>
+                    ))}
+                  </>
+                ) : undefined
+              }
+            />
+
+            <ChipModalField type='custom' title='Managed CLI tools'>
+              <ManagedCliSelect
+                value={draft.cliTools}
+                onChange={(cliTools) => setDraft((prev) => ({ ...prev, cliTools }))}
+                disabled={saving}
+              />
+            </ChipModalField>
+
+            <ChipModalField
+              type='textarea'
+              title='System packages'
+              value={draft.systemPackages}
+              onChange={(systemPackages) => setDraft((prev) => ({ ...prev, systemPackages }))}
+              placeholder={SYSTEM_PACKAGE_PLACEHOLDER}
+              rows={6}
+              disabled={saving}
+              hint='One Debian/APT package per line. Version pins are optional.'
+              error={
+                systemPackageIssues.length > 0 ? (
+                  <>
+                    {systemPackageIssues.map((issue) => (
                       <span key={issue.line} className='block'>
                         Line {issue.line}: {issue.reason}
                       </span>

@@ -1,8 +1,14 @@
 import { HunterIOIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { HunterResponse } from '@/tools/hunter/types'
 
-export const HunterBlock: BlockConfig<HunterResponse> = {
+/**
+ * The company a lookup targets, for the two operations that accept either a
+ * domain or a company name. Not a canonical pair — Hunter resolves one or the
+ * other, so the first configured field is the real target.
+ */
+const DOMAIN_OR_COMPANY_FIELD = ['domain', 'company'] as const
+
+export const HunterBlock: BlockConfig = {
   type: 'hunter',
   name: 'Hunter.io',
   description: 'Find and verify professional email addresses',
@@ -14,6 +20,33 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
   integrationType: IntegrationType.Sales,
   bgColor: '#FFFFFF',
   icon: HunterIOIcon,
+  canvasPresentation: {
+    defaultTitle: 'Hunter.io',
+    sentences: {
+      byOperation: {
+        hunter_domain_search: [
+          { text: 'Find email addresses at', field: 'domain', core: true },
+          { text: ', in', field: 'department' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        hunter_email_finder: [
+          { text: 'Find the email address for', field: 'first_name', core: true },
+          { field: 'last_name' },
+          { text: 'at', field: DOMAIN_OR_COMPANY_FIELD },
+        ],
+        hunter_email_verifier: [{ text: 'Verify deliverability of', field: 'email', core: true }],
+        hunter_discover: [
+          { text: 'Discover companies matching', field: 'query', core: true },
+          { text: ', with', field: 'headcount', after: 'employees' },
+          { text: ', using', field: 'technology' },
+        ],
+        hunter_companies_find: [{ text: 'Enrich company data for', field: 'domain', core: true }],
+        hunter_email_count: [
+          { text: 'Count email addresses at', field: DOMAIN_OR_COMPANY_FIELD, core: true },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

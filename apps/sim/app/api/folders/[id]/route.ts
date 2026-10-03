@@ -9,9 +9,9 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { folderResourceConfig } from '@/lib/folders/config'
-import { deleteFolder, updateFolder } from '@/lib/folders/lifecycle'
+import { deleteFolder, updateFolder } from '@/lib/folders/orchestration'
 import { toFolderApi } from '@/lib/folders/queries'
+import { folderResourceSupportsLocking } from '@/lib/folders/resource-traits'
 import { folderMutationStatus } from '@/lib/folders/status'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -85,7 +85,7 @@ export const PUT = withRouteHandler(
       // dropping it silently, and keep the admin gate and the lock checks behind the same
       // capability so a non-workflow folder can neither be 403'd by a field that has no
       // meaning for it nor persist a `locked` value nothing will ever read.
-      const supportsLocking = Boolean(folderResourceConfig(resourceType).supportsLocking)
+      const supportsLocking = folderResourceSupportsLocking(resourceType)
 
       if (locked !== undefined && !supportsLocking) {
         return NextResponse.json(
@@ -184,7 +184,7 @@ export const DELETE = withRouteHandler(
         )
       }
 
-      if (folderResourceConfig(resourceType).supportsLocking) {
+      if (folderResourceSupportsLocking(resourceType)) {
         await assertFolderMutable(id)
       }
 

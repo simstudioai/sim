@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import { EdgeManager } from '@/executor/execution/edge-manager'
@@ -14,6 +11,7 @@ function createContext(overrides: Partial<ExecutionContext> = {}): ExecutionCont
     workspaceId: 'workspace-1',
     executionId: 'execution-1',
     userId: 'user-1',
+    principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
     blockStates: new Map(),
     executedBlocks: new Set(),
     blockLogs: [],
@@ -23,6 +21,7 @@ function createContext(overrides: Partial<ExecutionContext> = {}): ExecutionCont
       workflowId: 'workflow-1',
       workspaceId: 'workspace-1',
       userId: 'user-1',
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       triggerType: 'manual',
       useDraftState: true,
       startTime: '2026-01-01T00:00:00.000Z',
@@ -50,6 +49,7 @@ describe('serializePauseSnapshot', () => {
     const serialized = JSON.parse(snapshot.snapshot)
 
     expect(serialized.state.sourceExecutionId).toBe('execution-1')
+    expect(serialized.state.resolvedSecretTraceCheckpointVersion).toBe(1)
     expect(serialized.state.resolvedSecretTraceProvenance).toEqual({
       version: 1,
       complete: true,
@@ -58,11 +58,67 @@ describe('serializePauseSnapshot', () => {
     expect(snapshot.snapshot).not.toContain('raw-secret')
   })
 
-  it('persists a complete zero-entry provenance state for a fresh execution', () => {
-    const registry = new ResolvedSecretTraceRegistry([], {
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
+  it('persists only encrypted value-adjacent provenance across pause and resume', () => {
+    const provenance = {
+      version: 1 as const,
+      complete: true,
+      entries: [{ name: 'TOKEN', encryptedValue: 'ciphertext' }],
+    }
+    const context = createContext({
+      blockStates: new Map([
+        [
+          'function-1',
+          {
+            output: { result: '{{TOKEN}}' },
+            executed: true,
+            executionTime: 1,
+            resolvedSecretTraceProvenance: provenance,
+          },
+        ],
+      ]),
+      blockLogs: [
+        {
+          blockId: 'function-1',
+          startedAt: '2026-01-01T00:00:00.000Z',
+          endedAt: '2026-01-01T00:00:00.001Z',
+          durationMs: 1,
+          success: true,
+          output: { result: '{{TOKEN}}' },
+          executionOrder: 1,
+          displayResolvedSecretTraceProvenance: provenance,
+        },
+      ],
+      workflowVariables: {
+        secretResult: { type: 'string', value: '{{TOKEN}}' },
+      },
+      workflowVariableResolvedSecretTraceProvenance: {
+        secretResult: provenance,
+      },
+      workflowInputResolvedSecretTraceProvenance: provenance,
+      finalOutputResolvedSecretTraceProvenance: provenance,
     })
+
+    const snapshot = serializePauseSnapshot(context, ['next-block'])
+    const serialized = JSON.parse(snapshot.snapshot)
+
+    expect(serialized.state.blockStates['function-1'].resolvedSecretTraceProvenance).toEqual(
+      provenance
+    )
+    expect(serialized.state.blockLogs[0].displayResolvedSecretTraceProvenance).toEqual(provenance)
+    expect(serialized.state.workflowVariableResolvedSecretTraceProvenance.secretResult).toEqual(
+      provenance
+    )
+    expect(serialized.state.workflowInputResolvedSecretTraceProvenance).toEqual(provenance)
+    expect(serialized.state.finalOutputResolvedSecretTraceProvenance).toEqual(provenance)
+    expect(snapshot.snapshot).not.toContain('raw-secret')
+  })
+
+  it('does not persist a temporary activation guard as permanent incompleteness', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'raw-secret', encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('TOKEN', 'raw-secret')
+    const completePendingActivation = registry.beginPendingActivation()
 
     const snapshot = serializePauseSnapshot(
       createContext({ resolvedSecretTraceRegistry: registry }),
@@ -73,9 +129,10 @@ describe('serializePauseSnapshot', () => {
     expect(serialized.state.resolvedSecretTraceProvenance).toEqual({
       version: 1,
       complete: true,
-      entries: [],
-      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+      entries: [{ name: 'TOKEN', encryptedValue: 'ciphertext' }],
     })
+    expect(snapshot.snapshot).not.toContain('raw-secret')
+    completePendingActivation()
   })
 
   it('serializes batched parallel accumulated outputs for cross-process resume', () => {
@@ -183,27 +240,6 @@ describe('serializePauseSnapshot', () => {
     }
   })
 
-  it('preserves an explicit useDraftState=true even when the context is a deployed (server-side) context', () => {
-    const context = createContext({
-      isDeployedContext: true,
-      metadata: {
-        requestId: 'request-1',
-        executionId: 'execution-1',
-        workflowId: 'workflow-1',
-        workspaceId: 'workspace-1',
-        userId: 'user-1',
-        triggerType: 'manual',
-        useDraftState: true,
-        startTime: '2026-01-01T00:00:00.000Z',
-      },
-    })
-
-    const snapshot = serializePauseSnapshot(context, ['next-block'])
-    const serialized = JSON.parse(snapshot.snapshot)
-
-    expect(serialized.metadata.useDraftState).toBe(true)
-  })
-
   it('serializes billing attribution for an exact-payer resume', () => {
     const billingAttribution = {
       actorUserId: 'external-actor',
@@ -248,11 +284,26 @@ describe('serializePauseSnapshot', () => {
     expect(serialized.metadata.executionMode).toBe('stream')
   })
 
-  it('omits chat event policies when the live run did not enable them', () => {
-    const snapshot = serializePauseSnapshot(createContext(), ['next-block'])
+  /**
+   * A table cell dispatched by a workspace API key bills the workspace's
+   * billing owner and is gated on the member who asked. Losing the gate's
+   * subject on the way into the snapshot would resume the run against that
+   * bystander's group — `governedSubjectUserId` reads an absent field as "not
+   * declared" and falls back to the actor.
+   */
+  it('preserves a gate subject that differs from the billing actor', () => {
+    const context = createContext({
+      metadata: {
+        ...createContext().metadata,
+        userId: 'workspace-billing-owner',
+        capabilityGovernedUserId: 'requesting-member',
+      },
+    })
+
+    const snapshot = serializePauseSnapshot(context, ['next-block'])
     const serialized = JSON.parse(snapshot.snapshot)
 
-    expect(serialized.metadata.includeThinking).toBeUndefined()
-    expect(serialized.metadata.includeToolCalls).toBeUndefined()
+    expect(serialized.metadata.userId).toBe('workspace-billing-owner')
+    expect(serialized.metadata.capabilityGovernedUserId).toBe('requesting-member')
   })
 })

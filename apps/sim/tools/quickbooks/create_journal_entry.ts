@@ -1,6 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import { buildQuickBooksCreateJournalEntryBody } from '@/tools/quickbooks/accounting_utils'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import type {
   QuickBooksAccountingTransaction,
   QuickBooksCreateJournalEntryParams,
@@ -39,6 +38,12 @@ export const quickbooksCreateJournalEntryTool: ToolConfig<
       visibility: 'hidden',
       description: 'QuickBooks company ID derived from the connected credential',
     },
+    quickBooksEnvironment: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'QuickBooks API environment derived from the connected credential',
+    },
     lines: {
       type: 'json',
       required: true,
@@ -69,6 +74,19 @@ export const quickbooksCreateJournalEntryTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Internal journal-entry note',
     },
+    currencyCode: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Three-letter ISO 4217 currency code, required when multicurrency is enabled for the company',
+    },
+    globalTaxCalculation: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Tax treatment required for non-US companies: TaxExcluded or TaxInclusive',
+    },
     requestId: {
       type: 'string',
       required: false,
@@ -79,20 +97,17 @@ export const quickbooksCreateJournalEntryTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'quickbooks',
+    authoritativeParams: ['realmId', 'quickBooksEnvironment'],
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
   request: {
     url: (p) =>
-      addQuickBooksRequestId(
-        buildQuickBooksEntityUrl(p.realmId, 'journalentry'),
-        p.requestId
-      ).toString(),
+      addQuickBooksRequestId(buildQuickBooksEntityUrl(p, 'journalentry'), p.requestId).toString(),
     method: 'POST',
     headers: (p) => getQuickBooksToolHeaders(p.accessToken, 'application/json'),
     body: buildQuickBooksCreateJournalEntryBody,
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: (r) =>
     transformQuickBooksMutationResponse<QuickBooksAccountingTransaction>(r, 'JournalEntry'),

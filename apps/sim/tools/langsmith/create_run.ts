@@ -1,6 +1,10 @@
 import { filterUndefined } from '@sim/utils/object'
 import type { LangsmithCreateRunParams, LangsmithCreateRunResponse } from '@/tools/langsmith/types'
-import { normalizeLangsmithRunPayload } from '@/tools/langsmith/utils'
+import {
+  LANGSMITH_API_BASE,
+  normalizeLangsmithRunPayload,
+  truncateLangsmithErrorText,
+} from '@/tools/langsmith/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const langsmithCreateRunTool: ToolConfig<
@@ -122,7 +126,7 @@ export const langsmithCreateRunTool: ToolConfig<
     },
   },
   request: {
-    url: () => 'https://api.smith.langchain.com/runs',
+    url: () => `${LANGSMITH_API_BASE}/runs`,
     method: 'POST',
     headers: (params) => ({
       'X-Api-Key': params.apiKey,
@@ -133,19 +137,20 @@ export const langsmithCreateRunTool: ToolConfig<
       const normalizedPayload: Record<string, unknown> = {
         ...payload,
         name: payload.name?.trim(),
-        inputs: params.inputs,
         outputs: params.run_outputs,
-        extra: params.extra,
-        tags: params.tags,
-        status: params.status,
-        error: params.error,
-        events: params.events,
       }
 
       return filterUndefined(normalizedPayload)
     },
   },
   transformResponse: async (response, params) => {
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(
+        `LangSmith create run failed (${response.status}): ${truncateLangsmithErrorText(errorText)}`
+      )
+    }
+
     const runId = params ? normalizeLangsmithRunPayload(params).runId : null
     const data = (await response.json()) as Record<string, unknown>
     const directMessage =

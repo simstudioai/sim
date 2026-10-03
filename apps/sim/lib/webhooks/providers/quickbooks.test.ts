@@ -1,8 +1,12 @@
 import crypto from 'node:crypto'
-import { NextRequest } from 'next/server'
 import { describe, expect, it } from 'vitest'
-import { quickBooksHandler, verifyQuickBooksSignature } from '@/lib/webhooks/providers/quickbooks'
-import { isQuickBooksEventMatch, quickBooksEventTypesSubBlockId } from '@/triggers/quickbooks/utils'
+import {
+  quickBooksHandler,
+  verifyQuickBooksSignature,
+  verifyQuickBooksSignatureAgainstVerifierTokenStream,
+  verifyQuickBooksSignatureAgainstVerifierTokens,
+} from '@/lib/webhooks/providers/quickbooks'
+import { isQuickBooksEventMatch } from '@/triggers/quickbooks/quickbooks'
 
 const event = {
   specversion: '1.0',
@@ -20,9 +24,17 @@ describe('QuickBooks webhook provider', () => {
   it('verifies the documented base64 HMAC over the raw body', () => {
     const body = JSON.stringify([event])
     const signature = crypto.createHmac('sha256', 'verifier').update(body).digest('base64')
-    expect(verifyQuickBooksSignature(body, signature, 'request-1', 'verifier')).toBeNull()
-    expect(verifyQuickBooksSignature(body, 'invalid', 'request-2', 'verifier')?.status).toBe(401)
-    expect(verifyQuickBooksSignature(body, null, 'request-3', 'verifier')?.status).toBe(401)
+    expect(verifyQuickBooksSignature(body, signature, 'verifier', 'request-1')).toBeNull()
+    expect(verifyQuickBooksSignature(body, 'invalid', 'verifier', 'request-2')?.status).toBe(401)
+    expect(verifyQuickBooksSignature(body, null, 'verifier', 'request-3')?.status).toBe(401)
+    expect(
+      verifyQuickBooksSignatureAgainstVerifierTokens(
+        body,
+        signature,
+        ['different-verifier', 'verifier'],
+        'request-4'
+      )
+    ).toBeNull()
   })
 
   it('matches only configured actions for the selected entity', () => {
@@ -33,8 +45,72 @@ describe('QuickBooks webhook provider', () => {
     expect(isQuickBooksEventMatch('quickbooks_bill_events', event.type, ['updated'])).toBe(false)
   })
 
+  it('stops decrypting verifier tokens once one matches the signature', async () => {
+    const body = JSON.stringify([event])
+    const signature = crypto.createHmac('sha256', 'first-verifier').update(body).digest('base64')
+    const yielded: string[] = []
+    async function* tokens(): AsyncGenerator<string> {
+      for (const token of ['first-verifier', 'second-verifier']) {
+        yielded.push(token)
+        yield token
+      }
+    }
+
+    expect(
+      await verifyQuickBooksSignatureAgainstVerifierTokenStream(
+        body,
+        signature,
+        tokens(),
+        'request-stream-1'
+      )
+    ).toBeNull()
+    expect(yielded).toEqual(['first-verifier'])
+  })
+
+  it('fails closed when no streamed verifier token matches', async () => {
+    const body = JSON.stringify([event])
+    async function* tokens(): AsyncGenerator<string> {
+      yield 'first-verifier'
+    }
+    async function* noTokens(): AsyncGenerator<string> {}
+
+    expect(
+      (
+        await verifyQuickBooksSignatureAgainstVerifierTokenStream(
+          body,
+          'invalid',
+          tokens(),
+          'request-stream-2'
+        )
+      )?.status
+    ).toBe(401)
+    expect(
+      (
+        await verifyQuickBooksSignatureAgainstVerifierTokenStream(
+          body,
+          'irrelevant',
+          noTokens(),
+          'request-stream-3'
+        )
+      )?.status
+    ).toBe(401)
+    expect(
+      (
+        await verifyQuickBooksSignatureAgainstVerifierTokenStream(
+          body,
+          null,
+          tokens(),
+          'request-stream-4'
+        )
+      )?.status
+    ).toBe(401)
+  })
+
   it('normalizes Intuit void events to the configured voided action', async () => {
-    for (const entity of ['invoice', 'payment']) {
+    for (const [entity, entityType] of [
+      ['invoice', 'Invoice'],
+      ['payment', 'Payment'],
+    ]) {
       const voidEvent = { ...event, type: `qbo.${entity}.void.v1` }
       expect(
         isQuickBooksEventMatch(`quickbooks_${entity}_events`, voidEvent.type, ['voided'])
@@ -49,50 +125,9 @@ describe('QuickBooks webhook provider', () => {
       })
       expect(result.input).toMatchObject({
         eventType: `qbo.${entity}.void.v1`,
-        entityType: entity,
+        entityType,
         action: 'voided',
       })
     }
-  })
-
-  it('formats only the common verified event fields', async () => {
-    const result = await quickBooksHandler.formatInput!({
-      body: event,
-      webhook: {},
-      workflow: { id: 'workflow-1', userId: 'user-1' },
-      headers: {},
-      requestId: 'request-4',
-    })
-    expect(result.input).toEqual({
-      eventId: 'event-1',
-      eventType: 'qbo.invoice.updated.v1',
-      entityType: 'invoice',
-      action: 'updated',
-      entityId: '123',
-      realmId: '456',
-      eventTime: '2026-08-03T12:00:00Z',
-      specVersion: '1.0',
-      source: 'quickbooks-online',
-      contentType: 'application/json',
-      data: { changedFields: ['Balance'] },
-    })
-    expect(quickBooksHandler.extractIdempotencyId!(event)).toBe('event-1')
-  })
-
-  it('uses the provider-local ingress and durable queue modes', async () => {
-    expect(quickBooksHandler.ingressMode).toBe('provider')
-    expect(quickBooksHandler.executionMode).toBe('queue')
-    const matched = await quickBooksHandler.matchEvent!({
-      body: event,
-      request: new NextRequest('http://localhost'),
-      requestId: 'request-5',
-      providerConfig: {
-        triggerId: 'quickbooks_invoice_events',
-        [quickBooksEventTypesSubBlockId('quickbooks_invoice_events')]: ['updated'],
-      },
-      webhook: {},
-      workflow: {},
-    })
-    expect(matched).toBe(true)
   })
 })

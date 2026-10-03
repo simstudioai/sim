@@ -1,8 +1,6 @@
-/**
- * @vitest-environment node
- */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  getDesktopChatCapabilities,
   hasBrowserAgent,
   hasTerminal,
   isBrowserAgentEnabled,
@@ -29,28 +27,6 @@ describe('desktop surface availability', () => {
     setDesktopPreferencesSnapshot(ENABLED_PREFERENCES)
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('ships every surface with the desktop bridge', () => {
-    installBridge({ browserAgent: {}, terminal: {} })
-
-    expect(hasBrowserAgent()).toBe(true)
-    expect(hasTerminal()).toBe(true)
-    expect(isBrowserAgentEnabled()).toBe(true)
-    expect(isTerminalEnabled()).toBe(true)
-  })
-
-  it('reports no surfaces outside the desktop app', () => {
-    vi.stubGlobal('window', {})
-
-    expect(hasBrowserAgent()).toBe(false)
-    expect(hasTerminal()).toBe(false)
-    expect(isBrowserAgentEnabled()).toBe(false)
-    expect(isTerminalEnabled()).toBe(false)
-  })
-
   it('honors the per-device browser and terminal switches', () => {
     installBridge({ browserAgent: {}, terminal: {} })
     setDesktopPreferencesSnapshot({
@@ -63,5 +39,58 @@ describe('desktop surface availability', () => {
     expect(hasTerminal()).toBe(true)
     expect(isBrowserAgentEnabled()).toBe(false)
     expect(isTerminalEnabled()).toBe(false)
+  })
+
+  it('exposes native file tools without browser, terminal, or folder permissions', async () => {
+    installBridge({ localFiles: vi.fn() })
+    setDesktopPreferencesSnapshot({
+      ...ENABLED_PREFERENCES,
+      browserEnabled: false,
+      terminalEnabled: false,
+    })
+    expect(await getDesktopChatCapabilities('org-chat')).toMatchObject({
+      desktopCapabilities: { localFiles: true },
+    })
+    installBridge({})
+    expect(
+      (await getDesktopChatCapabilities('org-chat')).desktopCapabilities?.localFiles
+    ).toBeUndefined()
+  })
+
+  it('bounds terminal hints before adding them to a chat request', async () => {
+    const oversizedValue = 'x'.repeat(1100)
+    installBridge({
+      terminal: {
+        getTabs: vi.fn(async () => ({
+          scopeId: 'chat-1',
+          activeTerminalId: '1',
+          tabs: [
+            {
+              terminalId: '1',
+              title: 'Terminal',
+              cwd: oversizedValue,
+              running: oversizedValue,
+              interactive: false,
+              active: true,
+            },
+          ],
+        })),
+      },
+    })
+    setDesktopPreferencesSnapshot({
+      ...ENABLED_PREFERENCES,
+      browserEnabled: false,
+    })
+
+    const capabilities = await getDesktopChatCapabilities('chat-1')
+
+    expect(capabilities.desktopCapabilities?.terminals).toEqual([
+      {
+        id: '1',
+        cwd: 'x'.repeat(1024),
+        running: 'x'.repeat(1024),
+        active: true,
+      },
+    ])
   })
 })

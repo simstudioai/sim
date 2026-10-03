@@ -1,13 +1,15 @@
-import type { ToolConfig, ToolResponse, WorkflowToolExecutionContext } from '@/tools/types'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 interface FileAppendParams {
   fileName: string
+  folderPath?: string
+  folderPaths?: string[]
+  includeSubfolders?: boolean
   content: string
   workspaceId?: string
-  _context?: WorkflowToolExecutionContext
 }
 
-export const fileAppendTool: ToolConfig<FileAppendParams, ToolResponse> = {
+export const fileAppendTool: InternalToolConfig<FileAppendParams, ToolResponse> = {
   id: 'file_append',
   name: 'File Append',
   description:
@@ -21,6 +23,28 @@ export const fileAppendTool: ToolConfig<FileAppendParams, ToolResponse> = {
       visibility: 'user-or-llm',
       description: 'Name of an existing workspace file to append to.',
     },
+    folderPath: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: `Single folder in which to resolve the file name. Canonical folder path, percent-encoded, e.g. "/Reports/Q3%20Results". The workspace root is "/". Use folderPaths for multiple folders; do not provide both fields.`,
+    },
+    folderPaths: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      maxItems: 64,
+      items: { type: 'string' },
+      description:
+        'Folders to search for the named file. The name must resolve to exactly one file across the selected scopes. Do not provide folderPath as well.',
+    },
+    includeSubfolders: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Whether the folder scope includes nested folders. Defaults to true; set false to target only files directly in the folder.',
+    },
     content: {
       type: 'string',
       required: true,
@@ -29,16 +53,19 @@ export const fileAppendTool: ToolConfig<FileAppendParams, ToolResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/file/manage',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       operation: 'append',
       fileName: params.fileName,
+      folderPath: params.folderPath?.trim() || undefined,
+      folderPaths: params.folderPaths,
+      includeSubfolders: params.includeSubfolders,
       content: params.content,
-      workspaceId: params.workspaceId || params._context?.workspaceId,
+      workspaceId: params.workspaceId,
     }),
+    secretProvenance: {
+      request: () => [{ key: 'content', inputPaths: [['content']] }],
+    },
   },
 
   transformResponse: async (response) => {
@@ -54,5 +81,11 @@ export const fileAppendTool: ToolConfig<FileAppendParams, ToolResponse> = {
     name: { type: 'string', description: 'File name' },
     size: { type: 'number', description: 'File size in bytes' },
     url: { type: 'string', description: 'URL to access the file', optional: true },
+    version: { type: 'number', description: 'Version number of the content this write recorded' },
+    revision: {
+      type: 'string',
+      description:
+        'Opaque token for the content this write produced. Pass it back as expectedRevision to make a later write conditional on nothing having changed since.',
+    },
   },
 }

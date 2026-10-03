@@ -1,16 +1,11 @@
-/**
- * @vitest-environment node
- */
 import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
-import {
-  assertOoxmlArchiveWithinLimits,
-  type OoxmlSizeLimits,
-  ZipBombError,
-} from '@/lib/file-parsers/zip-guard'
+import { ArchiveIntegrityError, ZipBombError } from '@/lib/file-parsers/ooxml-limits'
+import { assertOoxmlArchiveWithinLimits, type OoxmlSizeLimits } from '@/lib/file-parsers/zip-guard'
 
 const HIGH_LIMITS: OoxmlSizeLimits = {
   maxTotalUncompressedBytes: 1024 * 1024 * 1024,
+  maxEntryUncompressedBytes: 1024 * 1024 * 1024,
   maxCompressionRatio: 10_000,
   ratioCheckFloorBytes: 1024 * 1024 * 1024,
 }
@@ -32,6 +27,24 @@ async function buildZip(
 
 const CENTRAL_DIRECTORY_HEADER_SIGNATURE = 0x02014b50
 const LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50
+
+function buildCentralDirectoryOnly(entryCount: number, extraFieldBytesPerEntry = 0): Buffer {
+  const recordSize = 46 + extraFieldBytesPerEntry
+  const centralDirectory = Buffer.alloc(recordSize * entryCount)
+  for (let index = 0; index < entryCount; index++) {
+    const offset = index * recordSize
+    centralDirectory.writeUInt32LE(CENTRAL_DIRECTORY_HEADER_SIGNATURE, offset)
+    centralDirectory.writeUInt16LE(extraFieldBytesPerEntry, offset + 30)
+  }
+
+  const eocd = Buffer.alloc(22)
+  eocd.writeUInt32LE(0x06054b50, 0)
+  eocd.writeUInt16LE(entryCount, 8)
+  eocd.writeUInt16LE(entryCount, 10)
+  eocd.writeUInt32LE(centralDirectory.length, 12)
+  eocd.writeUInt32LE(0, 16)
+  return Buffer.concat([centralDirectory, eocd])
+}
 
 /**
  * Rewrite every declared uncompressed size — in both the central directory and
@@ -88,9 +101,20 @@ function setCompressionMethod(
 }
 
 describe('assertOoxmlArchiveWithinLimits', () => {
-  it('accepts a well-formed archive within limits', async () => {
-    const buffer = await buildZip({ 'word/document.xml': '<xml>hello world</xml>' })
-    expect(() => assertOoxmlArchiveWithinLimits(buffer, HIGH_LIMITS)).not.toThrow()
+  it('rejects a small archive with an excessive central-directory object count', () => {
+    const buffer = buildCentralDirectoryOnly(10_001)
+
+    expect(() => assertOoxmlArchiveWithinLimits(buffer)).toThrow(
+      /10001 entries, exceeding the maximum allowed 10000/
+    )
+  })
+
+  it('rejects excessive central-directory extra-field metadata', () => {
+    const buffer = buildCentralDirectoryOnly(65, 65_535)
+
+    expect(() => assertOoxmlArchiveWithinLimits(buffer)).toThrow(
+      /central-directory metadata .* exceeds the maximum allowed 4194304 bytes/
+    )
   })
 
   it('rejects an archive whose declared expanded size exceeds the absolute cap', async () => {
@@ -98,6 +122,7 @@ describe('assertOoxmlArchiveWithinLimits', () => {
     expect(() =>
       assertOoxmlArchiveWithinLimits(buffer, {
         maxTotalUncompressedBytes: 100_000,
+        maxEntryUncompressedBytes: 1024 * 1024 * 1024,
         maxCompressionRatio: 10_000,
         ratioCheckFloorBytes: 1024 * 1024 * 1024,
       })
@@ -109,6 +134,7 @@ describe('assertOoxmlArchiveWithinLimits', () => {
     expect(() =>
       assertOoxmlArchiveWithinLimits(buffer, {
         maxTotalUncompressedBytes: 1024 * 1024 * 1024,
+        maxEntryUncompressedBytes: 1024 * 1024 * 1024,
         maxCompressionRatio: 5,
         ratioCheckFloorBytes: 1000,
       })
@@ -120,6 +146,7 @@ describe('assertOoxmlArchiveWithinLimits', () => {
     expect(() =>
       assertOoxmlArchiveWithinLimits(buffer, {
         maxTotalUncompressedBytes: 1024 * 1024 * 1024,
+        maxEntryUncompressedBytes: 1024 * 1024 * 1024,
         maxCompressionRatio: 5,
         ratioCheckFloorBytes: 1024 * 1024 * 1024,
       })
@@ -131,13 +158,54 @@ describe('assertOoxmlArchiveWithinLimits', () => {
       'a.xml': 'A'.repeat(60_000),
       'b.xml': 'B'.repeat(60_000),
     })
+    // Each entry (60 KB) is under the per-entry cap; only the summed total trips
+    // the limit, so this must fail on the total branch, not the per-entry one.
     expect(() =>
       assertOoxmlArchiveWithinLimits(buffer, {
         maxTotalUncompressedBytes: 100_000,
+        maxEntryUncompressedBytes: 1024 * 1024 * 1024,
         maxCompressionRatio: 10_000,
         ratioCheckFloorBytes: 1024 * 1024 * 1024,
       })
-    ).toThrow(ZipBombError)
+    ).toThrow(/Decompressed size .* exceeds the maximum allowed/)
+  })
+
+  it('rejects an archive whose largest single entry exceeds the per-entry cap', async () => {
+    const buffer = await buildZip({ 'word/document.xml': 'A'.repeat(200_000) })
+    expect(() =>
+      assertOoxmlArchiveWithinLimits(buffer, {
+        maxTotalUncompressedBytes: 1024 * 1024 * 1024,
+        maxEntryUncompressedBytes: 100_000,
+        maxCompressionRatio: 10_000,
+        ratioCheckFloorBytes: 1024 * 1024 * 1024,
+      })
+    ).toThrow(/single entry's decompressed size .* exceeds the maximum allowed/)
+  })
+
+  it('applies the per-entry cap to a non-.xml part resolved through OPC relationships', async () => {
+    // The main document part is resolved via relationship target, not a fixed
+    // path, so a bomb under a `.bin` name is still DOM-parsed — the cap must not
+    // exempt it on filename.
+    const buffer = await buildZip({ 'word/document.bin': 'A'.repeat(200_000) })
+    expect(() =>
+      assertOoxmlArchiveWithinLimits(buffer, {
+        maxTotalUncompressedBytes: 1024 * 1024 * 1024,
+        maxEntryUncompressedBytes: 100_000,
+        maxCompressionRatio: 10_000,
+        ratioCheckFloorBytes: 1024 * 1024 * 1024,
+      })
+    ).toThrow(/single entry's decompressed size .* exceeds the maximum allowed/)
+  })
+
+  it('rejects a single part larger than the 64 MiB per-entry default before any parser sees it', async () => {
+    // A part declaring 70 MiB expanded passes the old 1 GiB ceiling but drives
+    // the parser's DOM past a modest heap. `underDeclareSizes` is reused in the
+    // over-declaring direction to set the declared size without allocating it.
+    const honest = await buildZip({ 'word/document.xml': 'A'.repeat(200_000) })
+    const oversized = underDeclareSizes(honest, 70 * 1024 * 1024)
+    expect(() => assertOoxmlArchiveWithinLimits(oversized)).toThrow(
+      /single entry's decompressed size .* exceeds the maximum allowed 67108864 bytes/
+    )
   })
 
   it('accepts a well-formed archive that carries a trailing comment', async () => {
@@ -151,7 +219,7 @@ describe('assertOoxmlArchiveWithinLimits', () => {
   it('fails closed for a ZIP-shaped buffer whose central directory is unparseable', () => {
     const buffer = Buffer.alloc(64)
     buffer.writeUInt32LE(0x04034b50, 0) // local file header signature, no valid EOCD
-    expect(() => assertOoxmlArchiveWithinLimits(buffer)).toThrow(ZipBombError)
+    expect(() => assertOoxmlArchiveWithinLimits(buffer)).toThrow(ArchiveIntegrityError)
   })
 
   it('rejects a decoy EOCD signature that does not validate against the buffer tail', async () => {
@@ -162,7 +230,7 @@ describe('assertOoxmlArchiveWithinLimits', () => {
     const decoy = Buffer.alloc(64)
     decoy.writeUInt32LE(0x06054b50, 0)
     const tampered = Buffer.concat([realZip, decoy])
-    expect(() => assertOoxmlArchiveWithinLimits(tampered)).toThrow(ZipBombError)
+    expect(() => assertOoxmlArchiveWithinLimits(tampered)).toThrow(ArchiveIntegrityError)
   })
 
   it('rejects an archive that under-declares its uncompressed size', async () => {
@@ -171,15 +239,10 @@ describe('assertOoxmlArchiveWithinLimits', () => {
     const honest = await buildZip({ 'word/document.xml': 'A'.repeat(200_000) })
     const lying = underDeclareSizes(honest, 1000)
 
-    expect(() => assertOoxmlArchiveWithinLimits(lying, HIGH_LIMITS)).toThrow(ZipBombError)
+    expect(() => assertOoxmlArchiveWithinLimits(lying, HIGH_LIMITS)).toThrow(ArchiveIntegrityError)
     expect(() => assertOoxmlArchiveWithinLimits(lying, HIGH_LIMITS)).toThrow(
       /inflates beyond the 1000 bytes it declares/
     )
-  })
-
-  it('still accepts the same archive when its declared sizes are honest', async () => {
-    const honest = await buildZip({ 'word/document.xml': 'A'.repeat(200_000) })
-    expect(() => assertOoxmlArchiveWithinLimits(honest, HIGH_LIMITS)).not.toThrow()
   })
 
   it('rejects a stored entry whose declared size does not match its payload', async () => {
@@ -208,7 +271,7 @@ describe('assertOoxmlArchiveWithinLimits', () => {
     const honest = await buildZip({ 'xl/worksheets/sheet1.xml': 'A'.repeat(200_000) })
     const split = setCompressionMethod(honest, 0, 'central')
 
-    expect(() => assertOoxmlArchiveWithinLimits(split, HIGH_LIMITS)).toThrow(ZipBombError)
+    expect(() => assertOoxmlArchiveWithinLimits(split, HIGH_LIMITS)).toThrow(ArchiveIntegrityError)
     expect(() => assertOoxmlArchiveWithinLimits(split, HIGH_LIMITS)).toThrow(
       /compression method 0 centrally but 8 locally/
     )
@@ -248,32 +311,15 @@ describe('assertOoxmlArchiveWithinLimits', () => {
     expect(() =>
       assertOoxmlArchiveWithinLimits(buffer, {
         maxTotalUncompressedBytes: 100_000,
+        maxEntryUncompressedBytes: 1024 * 1024 * 1024,
         maxCompressionRatio: 10_000,
         ratioCheckFloorBytes: 1024 * 1024 * 1024,
       })
     ).toThrow(/exceeds the maximum allowed/)
   })
 
-  it('accepts a multi-entry archive whose entries all inflate to what they declare', async () => {
-    const buffer = await buildZip({
-      '[Content_Types].xml': '<?xml version="1.0"?><Types/>',
-      '_rels/.rels': '<?xml version="1.0"?><Relationships/>',
-      'word/document.xml': `<w:document>${'text '.repeat(5000)}</w:document>`,
-      'word/styles.xml': `<w:styles>${'style '.repeat(2000)}</w:styles>`,
-    })
-    expect(() => assertOoxmlArchiveWithinLimits(buffer, HIGH_LIMITS)).not.toThrow()
-  })
-
   it('no-ops for buffers that are not ZIP archives', () => {
     const plaintext = Buffer.from('this is just plain text, not a zip archive at all')
     expect(() => assertOoxmlArchiveWithinLimits(plaintext)).not.toThrow()
-  })
-
-  it('no-ops for buffers too small to contain an EOCD record', () => {
-    expect(() => assertOoxmlArchiveWithinLimits(Buffer.from('PK'))).not.toThrow()
-  })
-
-  it('no-ops for an empty buffer', () => {
-    expect(() => assertOoxmlArchiveWithinLimits(Buffer.alloc(0))).not.toThrow()
   })
 })

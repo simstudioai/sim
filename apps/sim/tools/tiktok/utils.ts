@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { toRecordOrNull } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import type { ZodType } from 'zod'
 import { isPayloadSizeLimitError, readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
@@ -79,16 +80,8 @@ interface ReadTikTokApiResponseOptions {
   signal?: AbortSignal
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return isRecord(value) ? value : null
-}
-
 function parseTikTokError(value: unknown): TikTokApiError | null {
-  const error = asRecord(value)
+  const error = toRecordOrNull(value)
   if (!error) return null
 
   const code = typeof error.code === 'string' ? error.code : null
@@ -149,7 +142,7 @@ async function readJsonObject(
     }
   }
 
-  const body = asRecord(parsed)
+  const body = toRecordOrNull(parsed)
   if (!body) {
     return {
       body: null,
@@ -246,7 +239,7 @@ export async function readTikTokDraftInitResponse(
       }
     }
 
-    const output = asRecord(parsed.body.output)
+    const output = toRecordOrNull(parsed.body.output)
     const publishId = typeof output?.publishId === 'string' ? output.publishId : ''
     return publishId
       ? { success: true, publishId }

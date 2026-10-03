@@ -87,12 +87,22 @@ export const escalationsCreateTool: ToolConfig<
   outputs: {
     escalation: {
       type: 'object',
-      description: 'The created escalation policy',
+      description: 'The created escalation',
       properties: {
-        id: { type: 'string', description: 'The escalation policy ID' },
-        name: { type: 'string', description: 'The escalation policy name' },
-        created_at: { type: 'string', description: 'When the escalation policy was created' },
-        updated_at: { type: 'string', description: 'When the escalation policy was last updated' },
+        id: { type: 'string', description: 'The escalation ID' },
+        title: { type: 'string', description: 'The escalation title' },
+        status: { type: 'string', description: 'The current escalation status' },
+        description: {
+          type: 'string',
+          description: 'Additional detail provided with this escalation',
+        },
+        priority: {
+          type: 'object',
+          description: 'The escalation priority',
+          properties: { name: { type: 'string', description: 'Priority name' } },
+        },
+        created_at: { type: 'string', description: 'When the escalation was created' },
+        updated_at: { type: 'string', description: 'When the escalation was last updated' },
       },
     },
   },

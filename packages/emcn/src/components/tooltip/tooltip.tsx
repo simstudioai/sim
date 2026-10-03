@@ -4,11 +4,15 @@ import * as React from 'react'
 import { Slot } from '@radix-ui/react-slot'
 import { createPortal } from 'react-dom'
 import { cn } from '../../lib/cn'
+import { TOOLTIP_SURFACE_CLASS } from './tooltip-styles'
 
 const TOOLTIP_OFFSET = 16
 const EDGE_GUTTER = 16
 const EDGE_THRESHOLD = 360
 const MIN_FRAME_MS = 16
+
+/** How often a visible tooltip re-verifies that its trigger is still visibly rendered, in ms. */
+const TRIGGER_VISIBILITY_INTERVAL_MS = 150
 
 /**
  * Exponential time constant for smoothing the pointer velocity that drives the
@@ -79,76 +83,104 @@ const HIDDEN_STATE: FloatingTooltipState = {
 }
 
 /**
- * Drives a pointer-reactive floating tooltip. `canShow` is queried on every
- * gesture with the event target, letting the caller gate the tooltip on its own
- * overflow measurement. Returns the current {@link FloatingTooltipState} to feed
- * a {@link FloatingTooltip} and a stable set of {@link FloatingTooltipHandlers}
- * to spread onto the trigger element.
+ * Drives a pointer-reactive floating tooltip. `canShow` is checked on each
+ * gesture and while visible, allowing callers to dismiss the tooltip when its
+ * eligibility changes. Returns the current state and stable pointer/focus
+ * handlers; `getFocusTarget` may supply a separate keyboard-focus trigger.
  */
-export function useFloatingTooltip(canShow: (target: HTMLElement) => boolean): {
+export interface UseFloatingTooltipOptions {
+  /**
+   * Prefer placing the bubble above the cursor. Still flips below when the
+   * pointer is too close to the top of the viewport.
+   */
+  preferAbove?: boolean
+  /** Resolves an external control whose keyboard focus should reveal this tooltip. */
+  getFocusTarget?: () => HTMLElement | null
+  /** Semantic value whose changes should revalidate a visible tooltip. */
+  revalidateKey?: unknown
+}
+
+export function useFloatingTooltip(
+  canShow: (target: HTMLElement) => boolean,
+  options: UseFloatingTooltipOptions = {}
+): {
   state: FloatingTooltipState
   handlers: FloatingTooltipHandlers
 } {
   const canShowRef = React.useRef(canShow)
   canShowRef.current = canShow
+  const preferAboveRef = React.useRef(options.preferAbove === true)
+  preferAboveRef.current = options.preferAbove === true
 
   const lastPointerRef = React.useRef<PointerSnapshot | null>(null)
   const velocityRef = React.useRef({ x: 0, magnitude: 0 })
+  const triggerRef = React.useRef<HTMLElement | null>(null)
   const [state, setState] = React.useState<FloatingTooltipState>(HIDDEN_STATE)
 
-  const handlers = React.useMemo<FloatingTooltipHandlers>(() => {
-    const reset = () => {
-      lastPointerRef.current = null
-      velocityRef.current.x = 0
-      velocityRef.current.magnitude = 0
-    }
+  const reset = React.useCallback(() => {
+    lastPointerRef.current = null
+    velocityRef.current.x = 0
+    velocityRef.current.magnitude = 0
+  }, [])
 
-    const hide = () => {
-      reset()
-      setState((current) => (current.visible ? HIDDEN_STATE : current))
-    }
+  const hide = React.useCallback(() => {
+    reset()
+    triggerRef.current = null
+    setState((current) => (current.visible ? HIDDEN_STATE : current))
+  }, [reset])
 
-    const apply = (clientX: number, clientY: number, motion: TooltipMotion) => {
-      const next = { ...getTooltipPosition(clientX, clientY), ...motion }
-      setState((current) =>
-        current.visible &&
-        current.x === next.x &&
-        current.y === next.y &&
-        current.alignX === next.alignX &&
-        current.alignY === next.alignY &&
-        current.skew === next.skew &&
-        current.scaleX === next.scaleX &&
-        current.scaleY === next.scaleY
-          ? current
-          : { visible: true, ...next }
-      )
-    }
+  const apply = React.useCallback((clientX: number, clientY: number, motion: TooltipMotion) => {
+    const next = { ...getTooltipPosition(clientX, clientY, preferAboveRef.current), ...motion }
+    setState((current) =>
+      current.visible &&
+      current.x === next.x &&
+      current.y === next.y &&
+      current.alignX === next.alignX &&
+      current.alignY === next.alignY &&
+      current.skew === next.skew &&
+      current.scaleX === next.scaleX &&
+      current.scaleY === next.scaleY
+        ? current
+        : { visible: true, ...next }
+    )
+  }, [])
 
-    /** Reveals the tooltip at the pointer, seeding velocity tracking from it. */
-    const showFromPointer = (clientX: number, clientY: number) => {
+  const showFromPointer = React.useCallback(
+    (clientX: number, clientY: number) => {
       reset()
       lastPointerRef.current = { x: clientX, y: clientY, time: performance.now() }
       apply(clientX, clientY, NEUTRAL_MOTION)
-    }
+    },
+    [apply, reset]
+  )
 
-    /**
-     * Reveals the tooltip anchored to an element's box rather than the pointer.
-     * Velocity tracking stays cleared: seeding it from the box would make the next
-     * `pointermove` read the box-to-cursor delta as velocity and spike the flourish
-     * when the pointer already happens to be over the trigger.
-     */
-    const showFromElement = (clientX: number, clientY: number) => {
+  /**
+   * Anchors the tooltip to an element without seeding pointer velocity; using the
+   * box position would make the next pointer move produce a false motion spike.
+   */
+  const showFromElement = React.useCallback(
+    (target: HTMLElement) => {
       reset()
-      apply(clientX, clientY, NEUTRAL_MOTION)
-    }
+      const rect = target.getBoundingClientRect()
+      apply(
+        rect.left + rect.width / 2,
+        preferAboveRef.current ? rect.top : rect.bottom,
+        NEUTRAL_MOTION
+      )
+    },
+    [apply, reset]
+  )
 
+  const handlers = React.useMemo<FloatingTooltipHandlers>(() => {
     return {
       onPointerEnter: (event) => {
         if (!canShowRef.current(event.currentTarget)) return
+        triggerRef.current = event.currentTarget
         showFromPointer(event.clientX, event.clientY)
       },
       onPointerMove: (event) => {
         if (!canShowRef.current(event.currentTarget)) return
+        triggerRef.current = event.currentTarget
         const now = performance.now()
         const previous = lastPointerRef.current
         const delta = previous ? Math.max(now - previous.time, 1) : MIN_FRAME_MS
@@ -178,33 +210,123 @@ export function useFloatingTooltip(canShow: (target: HTMLElement) => boolean): {
         const target = event.currentTarget
         if (!canShowRef.current(target)) return
         if (!isFocusVisible(target)) return
-        const rect = target.getBoundingClientRect()
-        showFromElement(rect.left + rect.width / 2, rect.bottom)
+        triggerRef.current = target
+        showFromElement(target)
       },
       onBlur: hide,
     }
-  }, [])
+  }, [apply, hide, showFromElement, showFromPointer])
+
+  React.useEffect(() => {
+    const target = options.getFocusTarget?.()
+    if (!target) return undefined
+    const show = () => {
+      if (!canShowRef.current(target) || !isFocusVisible(target)) return
+      triggerRef.current = target
+      showFromElement(target)
+    }
+    target.addEventListener('focus', show)
+    target.addEventListener('blur', hide)
+    return () => {
+      target.removeEventListener('focus', show)
+      target.removeEventListener('blur', hide)
+    }
+  }, [hide, options.getFocusTarget, showFromElement])
+
+  React.useEffect(() => {
+    const trigger = triggerRef.current
+    if (state.visible && (!trigger || !canShowRef.current(trigger))) hide()
+  }, [hide, options.revalidateKey, state.visible])
+
+  /**
+   * A keyboard- or script-driven UI change can hide the trigger with no pointer or focus event —
+   * browsers don't re-dispatch boundary events until the pointer next moves (e.g. an editor bubble
+   * menu set to `visibility: hidden` by Cmd+A while a toolbar tooltip is open) — so while visible,
+   * the tooltip re-verifies its trigger and dismisses itself once the trigger is gone or hidden.
+   */
+  React.useEffect(() => {
+    if (!state.visible) return undefined
+    const intervalId = window.setInterval(() => {
+      const trigger = triggerRef.current
+      if (!trigger || !isVisiblyRendered(trigger)) hide()
+    }, TRIGGER_VISIBILITY_INTERVAL_MS)
+    return () => window.clearInterval(intervalId)
+  }, [state.visible, hide])
 
   return { state, handlers }
 }
 
+const overflowMeasureByElement = new WeakMap<Element, () => void>()
+const observedOverflowElements = new Set<Element>()
+let sharedOverflowObserver: ResizeObserver | null = null
+let sharedOverflowFontSet: FontFaceSet | null = null
+
+function measureObservedOverflow() {
+  for (const element of observedOverflowElements) overflowMeasureByElement.get(element)?.()
+}
+
+function observeOverflowFontChanges() {
+  if (typeof document === 'undefined' || !document.fonts || sharedOverflowFontSet) return
+  const fontSet = document.fonts
+  sharedOverflowFontSet = fontSet
+  fontSet.addEventListener('loadingdone', measureObservedOverflow)
+  fontSet.addEventListener('loadingerror', measureObservedOverflow)
+  void fontSet.ready.then(() => {
+    if (sharedOverflowFontSet === fontSet) measureObservedOverflow()
+  })
+}
+
+function unobserveOverflowFontChanges() {
+  sharedOverflowFontSet?.removeEventListener('loadingdone', measureObservedOverflow)
+  sharedOverflowFontSet?.removeEventListener('loadingerror', measureObservedOverflow)
+  sharedOverflowFontSet = null
+}
+
+function observeOverflow(element: Element, measure: () => void): boolean {
+  overflowMeasureByElement.set(element, measure)
+  observedOverflowElements.add(element)
+  observeOverflowFontChanges()
+  if (typeof ResizeObserver === 'undefined') return false
+  sharedOverflowObserver ??= new ResizeObserver((entries) => {
+    for (const entry of entries) overflowMeasureByElement.get(entry.target)?.()
+  })
+  sharedOverflowObserver.observe(element)
+  return true
+}
+
+function unobserveOverflow(element: Element | null) {
+  if (!element) return
+  sharedOverflowObserver?.unobserve(element)
+  overflowMeasureByElement.delete(element)
+  observedOverflowElements.delete(element)
+  if (observedOverflowElements.size === 0) {
+    sharedOverflowObserver?.disconnect()
+    sharedOverflowObserver = null
+    unobserveOverflowFontChanges()
+  }
+}
+
 /**
- * Tracks whether an element's text is horizontally clipped, re-measuring via a
- * `ResizeObserver` and window resizes.
+ * Tracks whether an element's text is horizontally clipped, re-measuring when
+ * `measurementKey` or loaded fonts change and via a shared `ResizeObserver` (or
+ * window resizes when the API is unavailable).
  *
  * Returns a callback `ref` to attach to the element — the observer follows the
  * element across mount, unmount, and reassignment, so it is safe to use on
  * conditionally rendered children. `node` is a stable ref for reading the
  * current element (e.g. for live measurements in event handlers).
+ *
+ * @param measurementKey - Value whose changes may alter the element's rendered width.
  */
-export function useIsOverflowing<T extends HTMLElement = HTMLElement>(): {
+export function useIsOverflowing<T extends HTMLElement = HTMLElement>(
+  measurementKey?: unknown
+): {
   ref: (node: T | null) => void
   node: React.RefObject<T | null>
   isOverflowing: boolean
 } {
   const [isOverflowing, setIsOverflowing] = React.useState(false)
   const nodeRef = React.useRef<T | null>(null)
-  const observerRef = React.useRef<ResizeObserver | null>(null)
 
   const measure = React.useCallback(() => {
     const element = nodeRef.current
@@ -213,26 +335,30 @@ export function useIsOverflowing<T extends HTMLElement = HTMLElement>(): {
 
   const ref = React.useCallback(
     (node: T | null) => {
-      observerRef.current?.disconnect()
-      observerRef.current = null
+      unobserveOverflow(nodeRef.current)
       nodeRef.current = node
       if (!node) return
 
       measure()
-      const observer = new ResizeObserver(measure)
-      observer.observe(node)
-      observerRef.current = observer
+      observeOverflow(node, measure)
     },
     [measure]
   )
 
   React.useEffect(() => {
-    window.addEventListener('resize', measure)
+    const element = nodeRef.current
+    if (!element) return undefined
+    const usesResizeObserver = observeOverflow(element, measure)
+    if (!usesResizeObserver) window.addEventListener('resize', measure)
     return () => {
-      window.removeEventListener('resize', measure)
-      observerRef.current?.disconnect()
+      if (!usesResizeObserver) window.removeEventListener('resize', measure)
+      unobserveOverflow(element)
     }
   }, [measure])
+
+  React.useLayoutEffect(() => {
+    measure()
+  }, [measure, measurementKey])
 
   return { ref, node: nodeRef, isOverflowing }
 }
@@ -240,6 +366,26 @@ export function useIsOverflowing<T extends HTMLElement = HTMLElement>(): {
 /** Whether an element's content is wider than its visible box. */
 export function isTextClipped(element: HTMLElement): boolean {
   return element.scrollWidth > element.clientWidth + 1
+}
+
+/**
+ * Whether a tooltip trigger is still visibly rendered. `checkVisibility` (where available) catches
+ * `display: none` and an inherited `visibility: hidden` anywhere up the tree. The fallback for
+ * engines without it (Safari < 17.4, jsdom) reads the element's computed `visibility` — which
+ * inherits from hidden ancestors — and then walks the ancestor chain for `display: none`, which
+ * does not inherit. Computed styles, not layout (`getClientRects`/`offsetParent`), on purpose:
+ * jsdom does no layout, so a layout-based check would misread every trigger as hidden in tests.
+ */
+function isVisiblyRendered(element: HTMLElement): boolean {
+  if (!element.isConnected) return false
+  if (typeof element.checkVisibility === 'function') {
+    return element.checkVisibility({ checkVisibilityCSS: true, visibilityProperty: true })
+  }
+  if (getComputedStyle(element).visibility === 'hidden') return false
+  for (let node: HTMLElement | null = element; node; node = node.parentElement) {
+    if (getComputedStyle(node).display === 'none') return false
+  }
+  return true
 }
 
 /** Clamps `value` to the inclusive `[min, max]` range. */
@@ -307,7 +453,8 @@ export const FloatingTooltip = React.memo(function FloatingTooltip({
       aria-hidden={role ? undefined : 'true'}
       data-native-surface-overlay=''
       className={cn(
-        'pointer-events-none fixed top-0 left-0 z-[var(--z-tooltip)] w-fit max-w-[min(16rem,calc(100vw-2rem))] rounded-lg border border-[var(--border)] bg-[var(--bg)] px-2 py-1.5 text-[var(--text-body)] text-caption opacity-100 shadow-sm transition-[opacity,translate] duration-150 ease-out',
+        TOOLTIP_SURFACE_CLASS,
+        'pointer-events-none fixed top-0 left-0 z-[var(--z-tooltip)] px-2 py-1.5 opacity-100 transition-[opacity,translate] duration-150 ease-out',
         'motion-reduce:transition-none',
         className
       )}
@@ -326,14 +473,22 @@ export const FloatingTooltip = React.memo(function FloatingTooltip({
 
 function getTooltipPosition(
   clientX: number,
-  clientY: number
+  clientY: number,
+  preferAbove = false
 ): Pick<FloatingTooltipState, 'x' | 'y' | 'alignX' | 'alignY'> {
   if (typeof window === 'undefined') {
-    return { x: Math.round(clientX), y: Math.round(clientY), alignX: 'left', alignY: 'below' }
+    return {
+      x: Math.round(clientX),
+      y: Math.round(clientY),
+      alignX: 'left',
+      alignY: preferAbove ? 'above' : 'below',
+    }
   }
 
   const alignX = window.innerWidth - clientX < EDGE_THRESHOLD ? 'right' : 'left'
-  const alignY = window.innerHeight - clientY < EDGE_THRESHOLD / 2 ? 'above' : 'below'
+  const nearTop = clientY < EDGE_THRESHOLD / 2
+  const nearBottom = window.innerHeight - clientY < EDGE_THRESHOLD / 2
+  const alignY = preferAbove ? (nearTop ? 'below' : 'above') : nearBottom ? 'above' : 'below'
 
   return {
     x: Math.round(clamp(clientX, EDGE_GUTTER, window.innerWidth - EDGE_GUTTER)),
@@ -353,7 +508,12 @@ function getTooltipTranslate(state: FloatingTooltipState, offset: number): strin
   const y =
     state.alignY === 'below' ? `${state.y + offset}px` : `calc(${state.y - offset}px - 100%)`
 
-  return `${x} ${y}`
+  return `${containTooltipAxis(x, '100vw')} ${containTooltipAxis(y, '100vh')}`
+}
+
+/** Self-relative percentages contain the whole bubble, shrinking its gutter in small windows. */
+function containTooltipAxis(position: string, viewport: string): string {
+  return `clamp(0px, clamp(${EDGE_GUTTER}px, ${position}, calc(${viewport} - 100% - ${EDGE_GUTTER}px)), max(0px, calc(${viewport} - 100%)))`
 }
 
 /**
@@ -392,6 +552,8 @@ interface RootProps {
   children: React.ReactNode
   /** Accepted for API compatibility; the floating tooltip has no hover delay. */
   delayDuration?: number
+  /** Prefer placing the bubble above the trigger; flips near the viewport top. */
+  preferAbove?: boolean
 }
 
 /**
@@ -408,9 +570,9 @@ interface RootProps {
  * </Tooltip.Root>
  * ```
  */
-function Root({ children }: RootProps) {
+function Root({ children, preferAbove = false }: RootProps) {
   const contentId = React.useId()
-  const { state, handlers } = useFloatingTooltip(ALWAYS_SHOW)
+  const { state, handlers } = useFloatingTooltip(ALWAYS_SHOW, { preferAbove })
   const value = React.useMemo<TooltipContextValue>(
     () => ({ state, handlers, contentId }),
     [state, handlers, contentId]

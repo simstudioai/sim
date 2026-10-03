@@ -1,6 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import { buildQuickBooksCreateDepositBody } from '@/tools/quickbooks/accounting_utils'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import type {
   QuickBooksAccountingTransaction,
   QuickBooksCreateDepositParams,
@@ -39,6 +38,12 @@ export const quickbooksCreateDepositTool: ToolConfig<
       visibility: 'hidden',
       description: 'QuickBooks company ID derived from the connected credential',
     },
+    quickBooksEnvironment: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'QuickBooks API environment derived from the connected credential',
+    },
     depositAccountId: {
       type: 'string',
       required: true,
@@ -63,6 +68,20 @@ export const quickbooksCreateDepositTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Internal deposit note',
     },
+    currencyCode: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Three-letter ISO 4217 currency code, required when multicurrency is enabled for the company',
+    },
+    globalTaxCalculation: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Tax treatment required for non-US companies: TaxExcluded, TaxInclusive, or NotApplicable',
+    },
     requestId: {
       type: 'string',
       required: false,
@@ -73,20 +92,17 @@ export const quickbooksCreateDepositTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'quickbooks',
+    authoritativeParams: ['realmId', 'quickBooksEnvironment'],
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
   request: {
     url: (p) =>
-      addQuickBooksRequestId(
-        buildQuickBooksEntityUrl(p.realmId, 'deposit'),
-        p.requestId
-      ).toString(),
+      addQuickBooksRequestId(buildQuickBooksEntityUrl(p, 'deposit'), p.requestId).toString(),
     method: 'POST',
     headers: (p) => getQuickBooksToolHeaders(p.accessToken, 'application/json'),
     body: buildQuickBooksCreateDepositBody,
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: (r) =>
     transformQuickBooksMutationResponse<QuickBooksAccountingTransaction>(r, 'Deposit'),

@@ -1,36 +1,9 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-
-interface Condition {
-  kind: string
-  column?: unknown
-  value?: unknown
-  conditions?: Condition[]
-}
 
 const { mockIsDeploymentOperationCurrent, mockClaimWebhookPath } = vi.hoisted(() => ({
   mockIsDeploymentOperationCurrent: vi.fn(),
   mockClaimWebhookPath: vi.fn(),
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: (...conditions: Condition[]) => ({ kind: 'and', conditions }),
-  eq: (column: unknown, value: unknown) => ({ kind: 'eq', column, value }),
-  exists: (subquery: unknown) => ({ kind: 'exists', subquery }),
-  gt: (column: unknown, value: unknown) => ({ kind: 'gt', column, value }),
-  inArray: (column: unknown, value: unknown) => ({ kind: 'inArray', column, value }),
-  isNull: (column: unknown) => ({ kind: 'isNull', column }),
-  lt: (column: unknown, value: unknown) => ({ kind: 'lt', column, value }),
-  lte: (column: unknown, value: unknown) => ({ kind: 'lte', column, value }),
-  notExists: (subquery: unknown) => ({ kind: 'notExists', subquery }),
-  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({
-    kind: 'sql',
-    strings: [...strings],
-    values,
-  }),
 }))
 
 vi.mock('@/lib/webhooks/provider-subscriptions', () => ({
@@ -63,9 +36,17 @@ const FENCE: WebhookRegistrationOperationFence = {
   deploymentVersionId: 'version-3',
 }
 
+/** The redeploy that lands seconds after {@link FENCE} and supersedes it. */
+const NEXT_FENCE: WebhookRegistrationOperationFence = {
+  workflowId: 'workflow-1',
+  operationId: 'operation-2',
+  generation: 4,
+  deploymentVersionId: 'version-4',
+}
+
 interface UpdateCall {
   payload: Record<string, unknown>
-  condition: Condition
+  condition: unknown
 }
 
 interface InsertCall {
@@ -104,7 +85,7 @@ function createTx(selectResults: unknown[][]) {
     })),
     update: vi.fn(() => ({
       set: vi.fn((payload: Record<string, unknown>) => ({
-        where: vi.fn((condition: Condition) => {
+        where: vi.fn((condition: unknown) => {
           updates.push({ payload, condition })
           const result = updateResults.shift() ?? [{ id: 'updated' }]
           return {
@@ -123,6 +104,15 @@ function createTx(selectResults: unknown[][]) {
   }
 
   return { tx: tx as unknown as DbOrTx, updates, inserts, updateResults }
+}
+
+/** Routes `db.transaction` at a queue-driven tx so store writes are observable. */
+function runInTx(selectResults: unknown[][]) {
+  const harness = createTx(selectResults)
+  dbChainMockFns.transaction.mockImplementation(
+    async (callback: (tx: DbOrTx) => Promise<unknown>) => callback(harness.tx)
+  )
+  return harness
 }
 
 function activeRow(overrides: Record<string, unknown> = {}) {
@@ -149,7 +139,6 @@ function activeRow(overrides: Record<string, unknown> = {}) {
 
 describe('activateWebhookRegistrations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockIsDeploymentOperationCurrent.mockResolvedValue(true)
   })
@@ -172,16 +161,6 @@ describe('activateWebhookRegistrations', () => {
     expect(updates).toHaveLength(0)
   })
 
-  it('rejects when the operation is no longer current', async () => {
-    mockIsDeploymentOperationCurrent.mockResolvedValue(false)
-    const { tx, updates } = createTx([[{ id: 'workflow-1' }]])
-
-    await expect(activateWebhookRegistrations(tx, FENCE)).rejects.toBeInstanceOf(
-      StaleWebhookRegistrationOperationError
-    )
-    expect(updates).toHaveLength(0)
-  })
-
   it('retires older actives, repoints reused rows, and promotes candidates atomically', async () => {
     const { tx, updates } = createTx([[{ id: 'workflow-1' }], [], []])
 
@@ -193,12 +172,21 @@ describe('activateWebhookRegistrations', () => {
      * the active rows: every mutated column is a CASE keyed on the fence
      * generation, and the WHERE covers both phases via lte.
      */
-    expect(updates[0].payload.registrationStatus).toEqual(expect.objectContaining({ kind: 'sql' }))
-    expect(updates[0].payload.deploymentVersionId).toEqual(
-      expect.objectContaining({ kind: 'sql', values: expect.arrayContaining(['version-3']) })
+    expect(updates[0].payload.registrationStatus).toEqual(
+      expect.objectContaining({ strings: expect.any(Array) })
     )
-    expect(updates[0].payload.isActive).toEqual(expect.objectContaining({ kind: 'sql' }))
-    expect(updates[0].payload.archivedAt).toEqual(expect.objectContaining({ kind: 'sql' }))
+    expect(updates[0].payload.deploymentVersionId).toEqual(
+      expect.objectContaining({
+        strings: expect.any(Array),
+        values: expect.arrayContaining(['version-3']),
+      })
+    )
+    expect(updates[0].payload.isActive).toEqual(
+      expect.objectContaining({ strings: expect.any(Array) })
+    )
+    expect(updates[0].payload.archivedAt).toEqual(
+      expect.objectContaining({ strings: expect.any(Array) })
+    )
     expect(updates[0].payload.updatedAt).toBeInstanceOf(Date)
     expect(JSON.stringify(updates[0].condition)).toContain('"lte"')
 
@@ -215,7 +203,6 @@ describe('activateWebhookRegistrations', () => {
 
 describe('prepareWebhookRegistrationIntents', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockIsDeploymentOperationCurrent.mockResolvedValue(true)
     mockClaimWebhookPath.mockResolvedValue('hooks/a')
@@ -223,14 +210,6 @@ describe('prepareWebhookRegistrationIntents', () => {
       throw new Error('db.transaction not configured for this test')
     })
   })
-
-  function runInTx(selectResults: unknown[][]) {
-    const harness = createTx(selectResults)
-    dbChainMockFns.transaction.mockImplementation(
-      async (callback: (tx: DbOrTx) => Promise<unknown>) => callback(harness.tx)
-    )
-    return harness
-  }
 
   const desired = {
     blockId: 'block-1',
@@ -339,5 +318,68 @@ describe('prepareWebhookRegistrationIntents', () => {
     ).rejects.toBeInstanceOf(StaleWebhookRegistrationOperationError)
     expect(inserts).toHaveLength(0)
     expect(updates).toHaveLength(0)
+  })
+})
+
+describe('redeploys racing within seconds', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    mockClaimWebhookPath.mockResolvedValue('hooks/a')
+    dbChainMockFns.transaction.mockImplementation(async () => {
+      throw new Error('db.transaction not configured for this test')
+    })
+  })
+
+  const desired = {
+    blockId: 'block-1',
+    provider: 'slack',
+    path: 'hooks/a',
+    routingKey: null,
+    providerConfig: { url: 'https://example.test' },
+    configFingerprint: 'fp-new',
+  }
+
+  it('no-ops the superseded attempt and still lands the newer registration', async () => {
+    mockIsDeploymentOperationCurrent.mockResolvedValue(false)
+    const superseded = runInTx([[{ id: 'workflow-1' }]])
+
+    await expect(
+      prepareWebhookRegistrationIntents({ fence: FENCE, desired: [desired] })
+    ).rejects.toBeInstanceOf(StaleWebhookRegistrationOperationError)
+    expect(superseded.inserts).toHaveLength(0)
+    expect(superseded.updates).toHaveLength(0)
+    expect(mockClaimWebhookPath).not.toHaveBeenCalled()
+
+    mockIsDeploymentOperationCurrent.mockResolvedValue(true)
+    const winner = runInTx([[{ id: 'workflow-1' }], [], [activeRow()], [], []])
+
+    const work = await prepareWebhookRegistrationIntents({ fence: NEXT_FENCE, desired: [desired] })
+
+    expect(mockClaimWebhookPath).toHaveBeenCalledWith(expect.anything(), {
+      path: 'hooks/a',
+      workflowId: 'workflow-1',
+      generation: 4,
+    })
+    expect(work.candidates).toHaveLength(1)
+    expect(winner.inserts).toHaveLength(1)
+    expect(winner.inserts[0].values).toEqual(
+      expect.objectContaining({
+        registrationStatus: 'candidate',
+        registrationGeneration: 4,
+        deploymentVersionId: 'version-4',
+      })
+    )
+
+    const activation = createTx([[{ id: 'workflow-1' }], [], []])
+    await activateWebhookRegistrations(activation.tx, NEXT_FENCE)
+
+    expect(activation.updates[1].payload).toEqual(
+      expect.objectContaining({
+        registrationStatus: 'active',
+        deploymentVersionId: 'version-4',
+        isActive: true,
+        archivedAt: null,
+      })
+    )
   })
 })

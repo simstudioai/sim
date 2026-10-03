@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Button, ChipInput, Loader, Tooltip, useCopyToClipboard } from '@sim/emcn'
-import { Check, Clipboard, Eye, EyeOff, RefreshCw } from 'lucide-react'
+import { Check, Clipboard, Eye, EyeOff, RefreshCw } from '@sim/emcn/icons'
 import { generatePassword } from '@/lib/core/security/encryption'
 
 const MASKED_PASSWORD = '••••••••'
@@ -106,7 +106,7 @@ export function GeneratedPasswordInput({
                   onClick={handleGeneratePassword}
                   disabled={disabled}
                   aria-label='Generate password'
-                  className='!p-1.5'
+                  iconPadding='md'
                 >
                   <RefreshCw className='size-3' />
                 </Button>
@@ -124,7 +124,7 @@ export function GeneratedPasswordInput({
                 onClick={() => copy(displayValue)}
                 disabled={!displayValue || disabled}
                 aria-label='Copy password'
-                className='!p-1.5'
+                iconPadding='md'
               >
                 {copied ? <Check className='size-3' /> : <Clipboard className='size-3' />}
               </Button>
@@ -141,7 +141,7 @@ export function GeneratedPasswordInput({
                 onClick={toggleShowPassword}
                 disabled={disabled || isFetchingCurrent}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
-                className='!p-1.5'
+                iconPadding='md'
               >
                 {isFetchingCurrent ? (
                   <Loader className='size-3' animate />

@@ -1,5 +1,4 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import type {
   QuickBooksPurchasingTransaction,
   QuickBooksReadPurchasingTransactionsParams,
@@ -10,6 +9,7 @@ import {
   buildQuickBooksEntityUrl,
   buildQuickBooksPurchasingQueryUrl,
   getQuickBooksPurchasingEntity,
+  getQuickBooksRecordVersion,
   getQuickBooksToolHeaders,
   transformQuickBooksEntityResponse,
   transformQuickBooksListResponse,
@@ -37,6 +37,12 @@ export const quickbooksReadPurchasingTransactionsTool: ToolConfig<
       required: true,
       visibility: 'hidden',
       description: 'QuickBooks company ID derived from the connected credential',
+    },
+    quickBooksEnvironment: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'QuickBooks API environment derived from the connected credential',
     },
     transactionType: {
       type: 'string',
@@ -68,7 +74,7 @@ export const quickbooksReadPurchasingTransactionsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       default: 25,
-      description: 'Number of list records to request (1–100)',
+      description: 'Number of list records to request (1–1000)',
     },
     startDate: {
       type: 'string',
@@ -92,6 +98,7 @@ export const quickbooksReadPurchasingTransactionsTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'quickbooks',
+    authoritativeParams: ['realmId', 'quickBooksEnvironment'],
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
@@ -109,18 +116,13 @@ export const quickbooksReadPurchasingTransactionsTool: ToolConfig<
         })
         if (!params.transactionId?.trim())
           throw new Error('QuickBooks transaction ID is required for by-ID reads')
-        return buildQuickBooksEntityUrl(
-          params.realmId,
-          config.resource,
-          params.transactionId
-        ).toString()
+        return buildQuickBooksEntityUrl(params, config.resource, params.transactionId).toString()
       }
       throw new Error(`Unsupported QuickBooks purchasing read mode: ${String(params.readMode)}`)
     },
     method: 'GET',
     headers: (params) => getQuickBooksToolHeaders(params.accessToken),
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: async (response, params) => {
     if (!params) throw new Error('QuickBooks purchasing transaction parameters are required')
@@ -147,7 +149,12 @@ export const quickbooksReadPurchasingTransactionsTool: ToolConfig<
       )
       return {
         success: true,
-        output: { transactionType: params.transactionType, item: result.item, time: result.time },
+        output: {
+          transactionType: params.transactionType,
+          item: result.item,
+          recordVersion: getQuickBooksRecordVersion(result.item),
+          time: result.time,
+        },
       }
     }
     throw new Error(`Unsupported QuickBooks purchasing read mode: ${String(params.readMode)}`)
@@ -165,6 +172,11 @@ export const quickbooksReadPurchasingTransactionsTool: ToolConfig<
       description: 'Native QuickBooks purchasing transactions',
       optional: true,
       items: { type: 'json', properties: QUICKBOOKS_PURCHASING_TRANSACTION_PROPERTIES },
+    },
+    recordVersion: {
+      type: 'string',
+      description: 'Display-safe alias for the native SyncToken on a by-ID transaction',
+      optional: true,
     },
     startPosition: {
       type: 'number',

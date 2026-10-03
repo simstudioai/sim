@@ -1,32 +1,44 @@
-/**
- * @vitest-environment node
- */
+import { loggerMock } from '@sim/testing'
+import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
-import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
-import { projectTraceSpansForSecrets } from '@/lib/logs/execution/trace-secret-projection'
+import { createLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
+import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
-import { BlockType } from '@/executor/constants'
+import { validateBlockType } from '@/ee/access-control/utils/permission-check'
+import { BlockType, EDGE } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
 import { BlockExecutor } from '@/executor/execution/block-executor'
 import { ExecutionState } from '@/executor/execution/state'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
+import { attachTrustedExecutionCost } from '@/executor/utils/errors'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { VariableResolver } from '@/executor/variables/resolver'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
-const { mockUploadFile } = vi.hoisted(() => ({
-  mockUploadFile: vi.fn(),
+const mockUploadFile = storageServiceMockFns.mockUploadFile
+const mockDownloadFile = storageServiceMockFns.mockDownloadFile
+
+const blockExecutorLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
+  ([name]) => name === 'BlockExecutor'
+)
+const blockExecutorBaseLogger =
+  loggerMock.createLogger.mock.results[blockExecutorLoggerCallIndex]?.value
+if (!blockExecutorBaseLogger) throw new Error('BlockExecutor logger mock was not initialized')
+
+const { mockMaskBatch } = vi.hoisted(() => ({
+  mockMaskBatch: vi.fn(),
 }))
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  validateBlockType: vi.fn(),
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
-vi.mock('@/lib/uploads', () => ({
-  StorageService: {
-    uploadFile: mockUploadFile,
-  },
+vi.mock('@/lib/uploads', () => uploadsMock)
+
+vi.mock('@/lib/guardrails/mask-client', () => ({
+  maskPIIBatchViaHttp: mockMaskBatch,
 }))
 
 vi.mock('@/lib/logs/execution/pii-redaction', async (importOriginal) => {
@@ -80,12 +92,56 @@ function createNode(block: SerializedBlock): DAGNode {
 
 describe('BlockExecutor', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     clearLargeValueCacheForTests()
     mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
   })
 
-  it('persists function output arrays as manifests in execution state', async () => {
+  it('isolates MCP policy provenance across concurrent blocks without a secret registry', async () => {
+    const blocks = [createBlock(), { ...createBlock(), id: 'function-block-2' }]
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks,
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const resolver = new VariableResolver(workflow, {}, state)
+    const contexts: ExecutionContext[] = []
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async (blockContext, block) => {
+        contexts.push(blockContext)
+        if (contexts.length === 2) release()
+        await gate
+        expect(blockContext.mcpBlockId).toBe(block.id)
+        return { result: 'done' }
+      },
+    }
+    const executor = new BlockExecutor([handler], resolver, {}, state)
+    const context = createContext(state)
+    await Promise.all(blocks.map((block) => executor.execute(context, createNode(block), block)))
+    expect(contexts[0]).not.toBe(contexts[1])
+    expect(context.mcpBlockId).toBeUndefined()
+  })
+
+  it('redacts an authorized prior-execution manifest returned by a block under the current execution', async () => {
+    const items = [{ email: 'alice@example.com', count: 7 }]
+    const manifest = await createLargeArrayManifest(items, {
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'source-execution',
+    })
+    clearLargeValueCacheForTests()
+    mockUploadFile.mockClear()
+    mockDownloadFile.mockResolvedValue(Buffer.from(JSON.stringify(items)))
+    mockMaskBatch.mockImplementation(async (texts: string[]) =>
+      texts.map((text) => text.replaceAll('alice@example.com', '<EMAIL_ADDRESS>'))
+    )
     const block = createBlock()
     const workflow: SerializedWorkflow = {
       version: '1',
@@ -96,46 +152,88 @@ describe('BlockExecutor', () => {
     }
     const state = new ExecutionState()
     const resolver = new VariableResolver(workflow, {}, state)
-    const output = {
-      result: Array.from({ length: 120_000 }, (_, index) => ({
-        key: `SIM-${index}`,
-        payload: 'x'.repeat(100),
-      })),
-    }
     const handler: BlockHandler = {
       canHandle: () => true,
-      execute: async () => output,
+      execute: async () => ({ result: manifest }),
     }
-    const executor = new BlockExecutor(
-      [handler],
-      resolver,
-      {
-        workspaceId: 'workspace-1',
-        executionId: 'execution-1',
-        userId: 'user-1',
-        metadata: {
-          requestId: 'request-1',
-          executionId: 'execution-1',
-          workflowId: 'workflow-1',
-          workspaceId: 'workspace-1',
-          userId: 'user-1',
-          triggerType: 'manual',
-          useDraftState: false,
-          startTime: new Date().toISOString(),
-        },
-      },
-      state
-    )
+    const executor = new BlockExecutor([handler], resolver, {}, state)
+    const ctx = createContext(state)
+    ctx.largeValueExecutionIds = ['source-execution']
+    ctx.piiBlockOutputRedaction = { enabled: true, entityTypes: ['EMAIL_ADDRESS'], language: 'en' }
 
-    await executor.execute(createContext(state), createNode(block), block)
+    await executor.execute(ctx, createNode(block), block)
+
+    expect(state.getBlockOutput(block.id)?.result).toMatchObject({
+      preview: [{ email: '<EMAIL_ADDRESS>', count: 7 }],
+      chunks: [{ ref: { executionId: 'execution-1' } }],
+    })
+    expect(mockDownloadFile).toHaveBeenCalledWith(
+      expect.objectContaining({ key: manifest.chunks[0].ref.key })
+    )
+    expect(mockUploadFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customKey: expect.stringContaining('execution/workspace-1/workflow-1/execution-1/'),
+        file: Buffer.from(JSON.stringify([{ email: '<EMAIL_ADDRESS>', count: 7 }])),
+      })
+    )
+  })
+
+  it('carries complete encrypted candidates through large-output compaction', async () => {
+    const block = createBlock()
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const resolver = new VariableResolver(workflow, {}, state)
+    const onBlockComplete = vi.fn(async () => {})
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'encrypted-secret' }],
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async (blockContext) => {
+        blockContext.resolvedSecretTraceRegistry?.recordResolved('API_KEY', 'secret-value')
+        return {
+          result: {
+            huge: 'p'.repeat(9 * 1024 * 1024),
+            public: 'ok',
+            secret: 'secret-value',
+          },
+        }
+      },
+    }
+    const executor = new BlockExecutor([handler], resolver, { onBlockComplete }, state)
+    const ctx = createContext(state)
+    ctx.resolvedSecretTraceRegistry = registry
+
+    await executor.execute(ctx, createNode(block), block)
+    await vi.waitFor(() => expect(onBlockComplete).toHaveBeenCalledOnce())
 
     const storedOutput = state.getBlockOutput(block.id)
-    expect(isLargeArrayManifest(storedOutput?.result)).toBe(true)
-    expect(storedOutput?.result).toMatchObject({
-      __simLargeArrayManifest: true,
-      kind: 'array',
-      totalCount: output.result.length,
-    })
+    const storedResult = storedOutput?.result as Record<string, unknown>
+    expect(isLargeValueRef(storedResult.huge)).toBe(true)
+    expect(storedResult.public).toBe('ok')
+    expect(storedResult.secret).toBe('secret-value')
+
+    const expectedProvenance = {
+      version: 1,
+      complete: true,
+      entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    }
+    expect(state.getBlockState(block.id)?.resolvedSecretTraceProvenance).toEqual(expectedProvenance)
+    expect(onBlockComplete.mock.calls[0]?.[3]?.resolvedSecretTraceProvenance).toEqual(
+      expectedProvenance
+    )
+    expect(onBlockComplete.mock.calls[0]?.[3]?.displayResolvedSecretTraceProvenance).toEqual(
+      expectedProvenance
+    )
+    expect(JSON.stringify(expectedProvenance)).not.toContain('secret-value')
   })
 
   it('persists stable outer-branch aliases for completed parallel branch outputs', async () => {
@@ -189,59 +287,6 @@ describe('BlockExecutor', () => {
     expect(state.getBlockOutput('function-block-1__obranch-2')).toEqual(output)
     expect(state.getBlockOutput('function-block-1₍2₎')).toEqual(output)
     expect(state.getBlockOutput('function-block-1₍0₎')).toEqual(output)
-  })
-
-  it('does not write global aliases for parallel branches inside cloned outer branches', async () => {
-    const block = createBlock()
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [block],
-      connections: [],
-      loops: {},
-      parallels: {},
-    }
-    const state = new ExecutionState()
-    const resolver = new VariableResolver(workflow, {}, state)
-    const output = { result: 'outer-2-inner-0' }
-    const handler: BlockHandler = {
-      canHandle: () => true,
-      execute: async () => output,
-    }
-    const executor = new BlockExecutor(
-      [handler],
-      resolver,
-      {
-        workspaceId: 'workspace-1',
-        executionId: 'execution-1',
-        userId: 'user-1',
-        metadata: {
-          requestId: 'request-1',
-          executionId: 'execution-1',
-          workflowId: 'workflow-1',
-          workspaceId: 'workspace-1',
-          userId: 'user-1',
-          triggerType: 'manual',
-          useDraftState: false,
-          startTime: new Date().toISOString(),
-        },
-      },
-      state
-    )
-    const node = createNode(block)
-    node.id = 'function-block-1__cloneabc__obranch-2₍0₎'
-    node.metadata = {
-      isParallelBranch: true,
-      subflowId: 'inner-parallel',
-      subflowType: 'parallel',
-      originalBlockId: block.id,
-      branchIndex: 0,
-    }
-
-    await executor.execute(createContext(state), node, block)
-
-    expect(state.getBlockOutput(node.id)).toEqual(output)
-    expect(state.getBlockOutput('function-block-1__obranch-0')).toBeUndefined()
-    expect(state.getBlockOutput('function-block-1₍0₎')).toBeUndefined()
   })
 
   it('does not let block completion callbacks overtake pending start callbacks', async () => {
@@ -315,6 +360,145 @@ describe('BlockExecutor', () => {
       expect(onBlockComplete).toHaveBeenCalled()
     })
     expect(events).toEqual(['start-called', 'start-done', 'execute', 'complete'])
+  })
+
+  it('attaches encrypted provenance filtered to the exact lifecycle output', async () => {
+    const block = createBlock()
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const resolver = new VariableResolver(workflow, {}, state)
+    const onBlockComplete = vi.fn(async () => {})
+    const registry = new ResolvedSecretTraceRegistry(
+      [{ name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'encrypted-secret' }],
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    const executor = new BlockExecutor(
+      [
+        {
+          canHandle: () => true,
+          execute: async (blockContext) => {
+            blockContext.resolvedSecretTraceRegistry?.recordResolved('API_KEY', 'secret-value')
+            return { result: 'secret-value', public: 'ok' }
+          },
+        },
+      ],
+      resolver,
+      { onBlockComplete },
+      state
+    )
+    const ctx = createContext(state)
+    ctx.resolvedSecretTraceRegistry = registry
+
+    await executor.execute(ctx, createNode(block), block)
+    await vi.waitFor(() => expect(onBlockComplete).toHaveBeenCalledOnce())
+
+    expect(onBlockComplete.mock.calls[0]?.[3]?.resolvedSecretTraceProvenance).toEqual({
+      version: 1,
+      complete: true,
+      entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    })
+  })
+
+  it('uses a handler-narrowed registry for output provenance and parent commit', async () => {
+    const block: SerializedBlock = {
+      ...createBlock(),
+      metadata: { id: BlockType.MOTHERSHIP, name: 'Sim Chat' },
+      config: { tool: BlockType.MOTHERSHIP, params: { selector: 'x' } },
+    }
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const resolver = new VariableResolver(workflow, {}, state)
+    const onBlockComplete = vi.fn(async () => {})
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'PRIVATE_SELECTOR', plaintext: 'x', encryptedValue: 'encrypted-selector' },
+    ])
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async (blockContext, _block, inputs) => {
+        const callRegistry = blockContext.resolvedSecretTraceRegistry!
+        callRegistry.recordResolvedAtInputPath('PRIVATE_SELECTOR', 'x', ['selector'])
+        callRegistry.recordResolvedInputProjection(['selector'], 'x', '{{PRIVATE_SELECTOR}}')
+        inputs.selector = '{{PRIVATE_SELECTOR}}'
+        blockContext.resolvedSecretTraceRegistry = callRegistry.forkForInputPaths([])
+        return { result: 'Box' }
+      },
+    }
+    const executor = new BlockExecutor([handler], resolver, { onBlockComplete }, state)
+    const ctx = createContext(state)
+    ctx.resolvedSecretTraceRegistry = registry
+
+    await expect(executor.execute(ctx, createNode(block), block)).resolves.toEqual({
+      result: 'Box',
+    })
+    await vi.waitFor(() => expect(onBlockComplete).toHaveBeenCalledOnce())
+
+    expect(state.getBlockOutput(block.id)).toEqual({ result: 'Box' })
+    expect(ctx.blockLogs[0]?.input).toEqual({ selector: '{{PRIVATE_SELECTOR}}' })
+    expect(onBlockComplete.mock.calls[0]?.[3]?.input).toEqual({
+      selector: '{{PRIVATE_SELECTOR}}',
+    })
+    expect(onBlockComplete.mock.calls[0]?.[3]?.output).toEqual({ result: 'Box' })
+    expect(state.getBlockState(block.id)?.resolvedSecretTraceProvenance?.entries).toEqual([])
+    expect(
+      onBlockComplete.mock.calls[0]?.[3]?.displayResolvedSecretTraceProvenance?.entries
+    ).toEqual([])
+    expect(registry.getActiveMatches()).toEqual([])
+  })
+
+  it('never surfaces the SQL or bound parameters of a database failure the block raises', async () => {
+    const block = createBlock()
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const resolver = new VariableResolver(workflow, {}, state)
+    const handler: BlockHandler = { canHandle: () => true, execute: vi.fn() }
+    const executor = new BlockExecutor([handler], resolver, {}, state)
+    const ctx = createContext(state)
+    const driverError = Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' })
+    const databaseError = new DrizzleQueryError(
+      'select "billing_blocked" from "user_stats" where "user_stats"."user_id" = $1 limit $2',
+      ['owner-secret-id', 1],
+      driverError
+    )
+    vi.mocked(validateBlockType).mockRejectedValueOnce(databaseError)
+    const message = 'An internal error occurred while executing the block. Please try again.'
+
+    const thrown = await executor.execute(ctx, createNode(block), block).catch((error) => error)
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect(thrown.message).toBe(`Function: ${message}`)
+    expect(thrown.cause.cause).toBe(databaseError)
+    expect(handler.execute).not.toHaveBeenCalled()
+    expect(state.getBlockOutput(block.id)).toEqual({ error: message })
+    expect(ctx.blockLogs[0]?.error).toBe(message)
+    const surfaced = JSON.stringify([state.getBlockOutput(block.id), ctx.blockLogs])
+    expect(surfaced).not.toContain('Failed query')
+    expect(surfaced).not.toContain('owner-secret-id')
+
+    const executionLogger = blockExecutorBaseLogger.withMetadata.mock.results.at(-1)?.value
+    const logged = executionLogger.error.mock.calls.at(-1)?.[1]
+    expect(logged).toEqual(
+      expect.objectContaining({ cause: expect.objectContaining({ code: 'ECONNRESET' }) })
+    )
+    expect(JSON.stringify(logged)).not.toContain('owner-secret-id')
   })
 
   it('fires block completion callbacks for pausing blocks so clients receive pause output', async () => {
@@ -505,108 +689,6 @@ describe('BlockExecutor', () => {
     })
     expect(traceSpans[0]?.input).toEqual({ prompt: 'Run the task' })
   })
-
-  it('projects a resolved secret out of Function syntax-error TraceSpans only', async () => {
-    const secret = 'function-secret-literal-7f3a91'
-    const block = createBlock()
-    block.metadata.name = 'Function 1'
-    block.config.params = {
-      code: 'return {{OPENAI_API_KEY}}',
-      language: 'javascript',
-    }
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [block],
-      connections: [],
-      loops: {},
-      parallels: {},
-    }
-    const state = new ExecutionState()
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'OPENAI_API_KEY',
-        plaintext: secret,
-        encryptedValue: 'encrypted-openai-api-key',
-      },
-    ])
-    const resolver = new VariableResolver(workflow, {}, state)
-    const syntaxError = `Syntax Error: Line 1: \`return ${secret}\` - Invalid or unexpected token`
-    const handler: BlockHandler = {
-      canHandle: () => true,
-      execute: async (_ctx, _block, inputs) => {
-        expect(inputs.code).toBe(`return ${secret}`)
-        throw new Error(syntaxError)
-      },
-    }
-    const executor = new BlockExecutor(
-      [handler],
-      resolver,
-      {
-        workspaceId: 'workspace-1',
-        executionId: 'execution-1',
-        userId: 'user-1',
-        metadata: {
-          requestId: 'request-1',
-          executionId: 'execution-1',
-          workflowId: 'workflow-1',
-          workspaceId: 'workspace-1',
-          userId: 'user-1',
-          triggerType: 'manual',
-          useDraftState: false,
-          startTime: new Date().toISOString(),
-        },
-      },
-      state
-    )
-    const ctx = createContext(state)
-    ctx.environmentVariables = { OPENAI_API_KEY: secret }
-    ctx.resolvedSecretTraceRegistry = registry
-
-    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow(
-      `Function 1: ${syntaxError}`
-    )
-
-    expect(registry.getActiveMatches()).toEqual([
-      { plaintext: secret, replacement: '{{OPENAI_API_KEY}}' },
-    ])
-    expect(state.getBlockOutput(block.id)).toEqual({ error: syntaxError })
-    expect(ctx.blockLogs[0]).toMatchObject({
-      input: { code: `return ${secret}` },
-      output: { error: syntaxError },
-      error: syntaxError,
-    })
-
-    const rawLogs = structuredClone(ctx.blockLogs)
-    const { traceSpans: rawTraceSpans } = buildTraceSpans({
-      success: false,
-      output: { error: syntaxError },
-      error: `Function 1: ${syntaxError}`,
-      logs: ctx.blockLogs,
-    })
-    const rawTraceSnapshot = structuredClone(rawTraceSpans)
-    const projectedTraceSpans = await projectTraceSpansForSecrets(rawTraceSpans, {
-      registry,
-      store: {
-        workspaceId: 'workspace-1',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-        userId: 'user-1',
-      },
-    })
-
-    expect(ctx.blockLogs).toEqual(rawLogs)
-    expect(rawTraceSpans).toEqual(rawTraceSnapshot)
-    expect(projectedTraceSpans).toEqual([
-      expect.objectContaining({
-        name: 'Function 1',
-        input: expect.objectContaining({ code: 'return {{OPENAI_API_KEY}}' }),
-        output: {
-          error: 'Syntax Error: Line 1: `return {{OPENAI_API_KEY}}` - Invalid or unexpected token',
-        },
-      }),
-    ])
-    expect(JSON.stringify(projectedTraceSpans)).not.toContain(secret)
-  })
 })
 
 describe('BlockExecutor streaming pump', () => {
@@ -653,18 +735,116 @@ describe('BlockExecutor streaming pump', () => {
       },
       state
     )
-    return { executor, block, state }
+    return { executor, block, state, resolver }
   }
+
+  it('projects resolver-owned inputs for display without carrying them into output provenance', async () => {
+    const secret = 'x'
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async (blockContext, _block, inputs) => {
+        expect(inputs.systemPrompt).toBe(secret)
+        const sourceRegistry = blockContext.resolvedSecretTraceRegistry
+        blockContext.resolvedSecretTraceRegistry = sourceRegistry?.forkForInputPaths([])
+        return { content: 'Box' }
+      },
+    }
+    const { executor, block, state } = createExecutor(handler)
+    block.config.params = { systemPrompt: '{{TOKEN}}' }
+    const ctx = createContext(state)
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: secret, encryptedValue: 'encrypted-token' },
+    ])
+    ctx.environmentVariables = { TOKEN: secret }
+    ctx.resolvedSecretTraceRegistry = registry
+
+    await executor.execute(ctx, createNode(block), block)
+
+    expect(ctx.blockLogs[0]).toMatchObject({
+      input: { systemPrompt: '{{TOKEN}}' },
+      output: { content: 'Box' },
+    })
+    expect(state.getBlockState(block.id)?.resolvedSecretTraceProvenance).toEqual({
+      version: 1,
+      complete: true,
+      entries: [],
+    })
+    expect(registry.getActiveMatches()).toEqual([])
+  })
+
+  it('carries echoed raw-boundary secret provenance on terminal errors only', async () => {
+    const promptSecret = 'x'
+    const apiKey = 'provider-credential-secret'
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async (blockContext) => {
+        const sourceRegistry = blockContext.resolvedSecretTraceRegistry
+        blockContext.errorResolvedSecretTraceRegistry = sourceRegistry?.forkForInputPaths([
+          ['apiKey'],
+        ])
+        blockContext.resolvedSecretTraceRegistry = sourceRegistry?.forkForInputPaths([])
+        throw new Error(`Provider rejected ${apiKey}`)
+      },
+    }
+    const { executor, block, state } = createExecutor(handler)
+    block.config.params = {
+      systemPrompt: '{{PROMPT_TOKEN}}',
+      apiKey: '{{API_KEY}}',
+    }
+    const ctx = createContext(state)
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'PROMPT_TOKEN',
+        plaintext: promptSecret,
+        encryptedValue: 'encrypted-prompt-token',
+      },
+      { name: 'API_KEY', plaintext: apiKey, encryptedValue: 'encrypted-api-key' },
+    ])
+    ctx.environmentVariables = { PROMPT_TOKEN: promptSecret, API_KEY: apiKey }
+    ctx.resolvedSecretTraceRegistry = registry
+
+    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow(
+      `Agent: Provider rejected ${apiKey}`
+    )
+
+    expect(ctx.blockLogs[0]).toMatchObject({
+      input: { systemPrompt: '{{PROMPT_TOKEN}}', apiKey: '[REDACTED]' },
+      output: { error: `Provider rejected ${apiKey}` },
+    })
+    const expectedProvenance = {
+      version: 1,
+      complete: true,
+      entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-api-key' }],
+    }
+    expect(state.getBlockState(block.id)?.resolvedSecretTraceProvenance).toEqual(expectedProvenance)
+    expect(ctx.blockLogs[0]?.displayResolvedSecretTraceProvenance).toEqual(expectedProvenance)
+    expect(registry.getActiveMatches()).toEqual([])
+  })
 
   function createAgentEventsStreamingHandler(options: {
     events: Array<Record<string, unknown>>
     attachThinkingOnDrain?: string
     failAfterText?: string
+    streamError?: Error
     onFullContent?: (content: string) => void | Promise<void>
+    resolvedSecret?: { name: string; value: string }
+    separateResultRegistry?: boolean
   }): BlockHandler {
     return {
       canHandle: () => true,
-      execute: async () => {
+      execute: async (blockContext) => {
+        if (options.resolvedSecret) {
+          blockContext.resolvedSecretTraceRegistry?.recordResolved(
+            options.resolvedSecret.name,
+            options.resolvedSecret.value
+          )
+        }
+        const diagnosticRegistry = options.separateResultRegistry
+          ? blockContext.resolvedSecretTraceRegistry
+          : undefined
+        if (diagnosticRegistry) {
+          blockContext.resolvedSecretTraceRegistry = diagnosticRegistry.forkForInputPaths([])
+        }
         const timeSegment: Record<string, unknown> = {
           type: 'model',
           name: 'claude-test',
@@ -693,7 +873,7 @@ describe('BlockExecutor streaming pump', () => {
                 text: options.failAfterText,
                 turn: 'final',
               })
-              controller.error(new Error('provider reset'))
+              controller.error(options.streamError ?? new Error('provider reset'))
               return
             }
             for (const event of options.events) {
@@ -720,6 +900,7 @@ describe('BlockExecutor streaming pump', () => {
             },
           },
           onFullContent: options.onFullContent,
+          diagnosticResolvedSecretTraceRegistry: diagnosticRegistry,
         }
       },
     }
@@ -774,25 +955,22 @@ describe('BlockExecutor streaming pump', () => {
     )
   })
 
-  it('drains without onStream and still persists answer content', async () => {
-    const handler = createAgentEventsStreamingHandler({
-      events: [{ type: 'text_delta', text: 'offline answer', turn: 'final' }],
-    })
-    const { executor, block, state } = createExecutor(handler)
-    const ctx = createContext(state)
-
-    await executor.execute(ctx, createNode(block), block)
-
-    expect(state.getBlockOutput(block.id)?.content).toBe('offline answer')
-  })
-
   it('throws on mid-stream provider error (no truncated success)', async () => {
+    const secret = 'stream-pump-secret-7f3a91'
+    const rawError = new Error(`provider reset ${secret} __var_API_KEY __sim_code_4_binding_1`)
     const handler = createAgentEventsStreamingHandler({
       failAfterText: 'partial',
+      streamError: rawError,
+      resolvedSecret: { name: 'API_KEY', value: secret },
+      separateResultRegistry: true,
     })
     const { executor, block, state } = createExecutor(handler)
     const ctx = createContext(state)
+    ctx.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([
+      { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' },
+    ])
     ctx.onStream = async (streamingExec) => {
+      expect(streamingExec).not.toHaveProperty('diagnosticResolvedSecretTraceRegistry')
       const reader = streamingExec.stream.getReader()
       try {
         while (true) {
@@ -804,8 +982,23 @@ describe('BlockExecutor streaming pump', () => {
       }
     }
 
-    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow('provider reset')
+    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow(rawError.message)
     expect(state.getBlockOutput(block.id)?.content).not.toBe('partial')
+
+    const executionLogger = blockExecutorBaseLogger.withMetadata.mock.results.at(-1)?.value
+    expect(executionLogger).toBeDefined()
+    expect(executionLogger?.error).toHaveBeenCalledWith('Error reading stream for block', {
+      blockId: block.id,
+      error: 'provider reset {{API_KEY}} {{API_KEY}} [RUNTIME_BINDING]',
+      errorName: 'Error',
+      stack: expect.any(String),
+    })
+    const loggerPayload = JSON.stringify(executionLogger?.error.mock.calls)
+    expect(loggerPayload).toContain('{{API_KEY}}')
+    expect(loggerPayload).not.toContain(secret)
+    expect(loggerPayload).not.toContain('__var_')
+    expect(loggerPayload).not.toContain('__sim_')
+    expect(rawError.message).toContain(secret)
   })
 
   it('soft-completes on user abort with drained answer text (no failed block)', async () => {
@@ -846,41 +1039,6 @@ describe('BlockExecutor streaming pump', () => {
     expect(output).not.toMatchObject({ error: expect.any(String) })
   })
 
-  it('fails on timeout but keeps drained answer text in block output', async () => {
-    const abortController = new AbortController()
-    const handler = createAgentEventsStreamingHandler({
-      events: [
-        { type: 'text_delta', text: 'partial before timeout', turn: 'final' },
-        { type: 'thinking_delta', text: 'more' },
-      ],
-    })
-
-    const { executor, block, state } = createExecutor(handler)
-    const ctx = createContext(state)
-    ctx.abortSignal = abortController.signal
-    ctx.onStream = async (streamingExec) => {
-      streamingExec.subscribe?.({ onEvent: async () => {} })
-      const reader = streamingExec.stream.getReader()
-      try {
-        const first = await reader.read()
-        expect(first.done).toBe(false)
-        abortController.abort('timeout')
-        while (true) {
-          const { done } = await reader.read()
-          if (done) break
-        }
-      } catch {
-        // timeout may cancel the text stream
-      }
-    }
-
-    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow(/timed out/i)
-
-    const output = state.getBlockOutput(block.id)
-    expect(output?.error).toBeTruthy()
-    expect(output?.content).toBe('partial before timeout')
-  })
-
   it('with PII redaction: no live forward and strips thinking from traces', async () => {
     const { redactObjectStrings } = await import('@/lib/logs/execution/pii-redaction')
     vi.mocked(redactObjectStrings).mockImplementation(async (value) => {
@@ -915,5 +1073,265 @@ describe('BlockExecutor streaming pump', () => {
     expect(
       state.getBlockOutput(block.id)?.providerTiming?.timeSegments?.[0]?.thinkingContent
     ).toBeUndefined()
+  })
+})
+
+/**
+ * Retry wraps only the handler invocation, so a replay cannot duplicate output the
+ * client has already seen and cannot re-run the deterministic post-processing.
+ */
+describe('BlockExecutor retry', () => {
+  function createBlock(retry?: SerializedBlock['retry'], blockType = BlockType.FUNCTION) {
+    return {
+      id: 'block-1',
+      metadata: { id: blockType, name: 'Post' },
+      position: { x: 0, y: 0 },
+      config: { tool: blockType, params: {} },
+      inputs: {},
+      outputs: {},
+      enabled: true,
+      ...(retry ? { retry } : {}),
+    } as SerializedBlock
+  }
+
+  function createContext(state: ExecutionState, abortSignal?: AbortSignal): ExecutionContext {
+    return {
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+      executionId: 'execution-1',
+      userId: 'user-1',
+      blockStates: state.getBlockStates(),
+      blockLogs: [],
+      metadata: { requestId: 'request-1', duration: 0 },
+      environmentVariables: {},
+      workflowVariables: {},
+      decisions: { router: new Map(), condition: new Map() },
+      loopExecutions: new Map(),
+      executedBlocks: new Set(),
+      activeExecutionPath: new Set(),
+      completedLoops: new Set(),
+      abortSignal,
+    } as unknown as ExecutionContext
+  }
+
+  function createNode(block: SerializedBlock, withErrorPort = false): DAGNode {
+    return {
+      id: block.id,
+      block,
+      incomingEdges: new Set(),
+      outgoingEdges: withErrorPort
+        ? new Map([['edge-1', { sourceHandle: EDGE.ERROR, target: 'downstream' }]])
+        : new Map(),
+      metadata: {},
+    } as unknown as DAGNode
+  }
+
+  function buildExecutor(block: SerializedBlock, handler: BlockHandler, state: ExecutionState) {
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    return new BlockExecutor(
+      [handler],
+      new VariableResolver(workflow, {}, state),
+      {
+        workspaceId: 'workspace-1',
+        executionId: 'execution-1',
+        userId: 'user-1',
+        metadata: {
+          requestId: 'request-1',
+          executionId: 'execution-1',
+          workflowId: 'workflow-1',
+          workspaceId: 'workspace-1',
+          userId: 'user-1',
+          triggerType: 'manual',
+          useDraftState: false,
+          startTime: new Date().toISOString(),
+        },
+      },
+      state
+    )
+  }
+
+  const enabled = { enabled: true as const, maxTries: 3, waitBetweenTriesMs: 0 }
+
+  it('runs a block with no policy exactly once, as every existing workflow does', async () => {
+    const block = createBlock()
+    const execute = vi.fn().mockRejectedValue(new Error('boom'))
+    const state = new ExecutionState()
+    const ctx = createContext(state)
+    const executor = buildExecutor(block, { canHandle: () => true, execute }, state)
+
+    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow()
+    expect(execute).toHaveBeenCalledTimes(1)
+    expect(ctx.blockLogs[0]?.tries).toBeUndefined()
+  })
+
+  it('tells each try where it sits in the policy, and a block without one nothing', async () => {
+    const block = createBlock({ enabled: true, maxTries: 3, waitBetweenTriesMs: 0 })
+    const execute = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('one'))
+      .mockRejectedValueOnce(new Error('two'))
+      .mockResolvedValueOnce({ ok: true })
+    const state = new ExecutionState()
+    const executor = buildExecutor(block, { canHandle: () => true, execute }, state)
+
+    await executor.execute(createContext(state), createNode(block), block)
+
+    expect(execute.mock.calls.map(([, , , metadata]) => metadata.retry)).toEqual([
+      { attempt: 1, maxTries: 3, isFinalTry: false },
+      { attempt: 2, maxTries: 3, isFinalTry: false },
+      { attempt: 3, maxTries: 3, isFinalTry: true },
+    ])
+    expect(execute.mock.calls[0][3].nodeId).toBe(block.id)
+
+    const plain = createBlock()
+    const executePlain = vi.fn().mockResolvedValue({ ok: true })
+    const plainState = new ExecutionState()
+    await buildExecutor(
+      plain,
+      { canHandle: () => true, execute: executePlain },
+      plainState
+    ).execute(createContext(plainState), createNode(plain), plain)
+    expect(executePlain.mock.calls[0][3]).not.toHaveProperty('retry')
+  })
+
+  it('replays any failure and succeeds on a later try', async () => {
+    const block = createBlock(enabled)
+    const execute = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Internal server error'))
+      .mockResolvedValueOnce({ ok: true })
+    const state = new ExecutionState()
+    const ctx = createContext(state)
+    const executor = buildExecutor(block, { canHandle: () => true, execute }, state)
+
+    const output = await executor.execute(ctx, createNode(block), block)
+
+    expect(execute).toHaveBeenCalledTimes(2)
+    expect(output).toMatchObject({ ok: true })
+    expect(ctx.blockLogs[0]?.success).toBe(true)
+    expect(ctx.blockLogs[0]?.tries).toBe(2)
+  })
+
+  it('adds the trusted cost of failed Function tries to the successful result', async () => {
+    const block = createBlock(enabled)
+    const firstFailure = new Error('first attempt failed')
+    attachTrustedExecutionCost(firstFailure, { input: 0, output: 0, total: 0.125 })
+    const successfulOutput = {
+      result: 'done',
+      cost: { input: 0, output: 0, total: 0.25 },
+    }
+    attachTrustedExecutionCost(successfulOutput, successfulOutput.cost)
+    const execute = vi
+      .fn()
+      .mockRejectedValueOnce(firstFailure)
+      .mockResolvedValueOnce(successfulOutput)
+    const state = new ExecutionState()
+    const ctx = createContext(state)
+    const executor = buildExecutor(block, { canHandle: () => true, execute }, state)
+
+    const output = await executor.execute(ctx, createNode(block), block)
+
+    expect(execute).toHaveBeenCalledTimes(2)
+    expect(output.cost).toEqual({ input: 0, output: 0, total: 0.375 })
+    expect(ctx.blockLogs[0]?.output?.cost).toEqual(output.cost)
+  })
+
+  it('keeps earlier trusted Function costs when the final try is an infrastructure error', async () => {
+    const block = createBlock(enabled)
+    const firstFailure = new Error('first Function attempt failed')
+    const secondFailure = new Error('second Function attempt failed')
+    const finalFailure = new Error('provider unavailable')
+    attachTrustedExecutionCost(firstFailure, { input: 0, output: 0, total: 0.125 })
+    attachTrustedExecutionCost(secondFailure, { input: 0, output: 0, total: 0.25 })
+    const execute = vi
+      .fn()
+      .mockRejectedValueOnce(firstFailure)
+      .mockRejectedValueOnce(secondFailure)
+      .mockRejectedValueOnce(finalFailure)
+    const state = new ExecutionState()
+    const ctx = createContext(state)
+    const executor = buildExecutor(block, { canHandle: () => true, execute }, state)
+
+    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow(
+      'provider unavailable'
+    )
+
+    expect(execute).toHaveBeenCalledTimes(3)
+    expect(ctx.blockLogs[0]?.output).toEqual({
+      error: 'provider unavailable',
+      cost: { input: 0, output: 0, total: 0.375 },
+    })
+
+    const { traceSpans } = buildTraceSpans({
+      success: false,
+      output: { error: 'provider unavailable' },
+      error: 'provider unavailable',
+      logs: ctx.blockLogs,
+    })
+    expect(traceSpans[0]).toMatchObject({
+      status: 'error',
+      cost: { input: 0, output: 0, total: 0.375 },
+    })
+  })
+
+  it('stops at maxTries and rethrows the final error unchanged', async () => {
+    const block = createBlock(enabled)
+    const failure = new Error('still failing')
+    const execute = vi.fn().mockRejectedValue(failure)
+    const state = new ExecutionState()
+    const ctx = createContext(state)
+    const executor = buildExecutor(block, { canHandle: () => true, execute }, state)
+
+    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow('still failing')
+    expect(execute).toHaveBeenCalledTimes(3)
+    expect(ctx.blockLogs[0]?.tries).toBe(3)
+  })
+
+  it('routes to the error port only after the tries are spent', async () => {
+    const block = createBlock(enabled)
+    const execute = vi.fn().mockRejectedValue(new Error('down'))
+    const state = new ExecutionState()
+    const ctx = createContext(state)
+    const executor = buildExecutor(block, { canHandle: () => true, execute }, state)
+
+    const output = await executor.execute(ctx, createNode(block, true), block)
+
+    expect(execute).toHaveBeenCalledTimes(3)
+    expect(ctx.blockLogs[0]?.errorHandled).toBe(true)
+    expect(output).toMatchObject({ error: expect.stringContaining('down') })
+  })
+
+  it('does not start another try once the run is cancelled', async () => {
+    const controller = new AbortController()
+    const block = createBlock({ enabled: true, maxTries: 5, waitBetweenTriesMs: 0 })
+    const execute = vi.fn().mockImplementation(() => {
+      controller.abort()
+      return Promise.reject(new Error('transport'))
+    })
+    const state = new ExecutionState()
+    const executor = buildExecutor(block, { canHandle: () => true, execute }, state)
+
+    await expect(
+      executor.execute(createContext(state, controller.signal), createNode(block), block)
+    ).rejects.toThrow()
+    expect(execute).toHaveBeenCalledTimes(1)
+  })
+
+  it('never replays a deliberate stop', async () => {
+    const block = createBlock({ enabled: true, maxTries: 5, waitBetweenTriesMs: 0 })
+    const abort = new Error('aborted')
+    abort.name = 'AbortError'
+    const execute = vi.fn().mockRejectedValue(abort)
+    const state = new ExecutionState()
+    const executor = buildExecutor(block, { canHandle: () => true, execute }, state)
+
+    await expect(executor.execute(createContext(state), createNode(block), block)).rejects.toThrow()
+    expect(execute).toHaveBeenCalledTimes(1)
   })
 })

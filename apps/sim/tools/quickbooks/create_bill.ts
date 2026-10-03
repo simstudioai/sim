@@ -1,5 +1,4 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import {
   buildQuickBooksCreateBillBody,
   verifyQuickBooksBillLinks,
@@ -42,6 +41,12 @@ export const quickbooksCreateBillTool: ToolConfig<
       required: true,
       visibility: 'hidden',
       description: 'QuickBooks company ID derived from the connected credential',
+    },
+    quickBooksEnvironment: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'QuickBooks API environment derived from the connected credential',
     },
     vendorId: {
       type: 'string',
@@ -86,6 +91,20 @@ export const quickbooksCreateBillTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Internal bill note',
     },
+    currencyCode: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Three-letter ISO 4217 currency code, required when multicurrency is enabled for the company',
+    },
+    globalTaxCalculation: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Tax treatment required for non-US companies: TaxExcluded, TaxInclusive, or NotApplicable',
+    },
     requestId: {
       type: 'string',
       required: false,
@@ -96,17 +115,16 @@ export const quickbooksCreateBillTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'quickbooks',
+    authoritativeParams: ['realmId', 'quickBooksEnvironment'],
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
   request: {
-    url: (p) =>
-      addQuickBooksRequestId(buildQuickBooksEntityUrl(p.realmId, 'bill'), p.requestId).toString(),
+    url: (p) => addQuickBooksRequestId(buildQuickBooksEntityUrl(p, 'bill'), p.requestId).toString(),
     method: 'POST',
     headers: (p) => getQuickBooksToolHeaders(p.accessToken, 'application/json'),
     body: buildQuickBooksCreateBillBody,
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: async (response, params) => {
     if (!params) throw new Error('QuickBooks Create Bill parameters are required')

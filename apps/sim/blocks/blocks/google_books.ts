@@ -14,6 +14,19 @@ export const GoogleBooksBlock: BlockConfig = {
   integrationType: IntegrationType.Search,
   bgColor: '#FFFFFF',
   icon: GoogleBooksIcon,
+  canvasPresentation: {
+    defaultTitle: 'Google Books',
+    sentences: {
+      byOperation: {
+        volume_search: [
+          { text: 'Search books matching', field: 'query', core: true },
+          { text: ', restricted to', field: 'filter' },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        volume_details: [{ text: 'Fetch details for volume', field: 'volumeId', core: true }],
+      },
+    },
+  },
 
   subBlocks: [
     {

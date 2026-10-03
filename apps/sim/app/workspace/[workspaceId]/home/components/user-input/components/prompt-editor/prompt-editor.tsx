@@ -1,13 +1,14 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
+import { PASTE_LIMITS, PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import {
   OVERLAY_CLASSES,
   SCROLLER_CLASSES,
-  TEXTAREA_BASE_CLASSES,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
+import { GrowingTextarea } from '@/app/workspace/[workspaceId]/home/components/user-input/components/growing-textarea'
 import { PlusMenuDropdown } from '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/plus-menu-dropdown'
 import type {
   PromptEditorInstance,
@@ -17,6 +18,7 @@ import { SkillsMenuDropdown } from '@/app/workspace/[workspaceId]/home/component
 import {
   computeMentionHighlightRanges,
   extractContextTokens,
+  SKILL_CHIP_TRIGGER,
   stripMentionTrigger,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 
@@ -31,8 +33,8 @@ export interface PromptEditorProps extends PromptEditorKeyPolicy {
    * Renders the editor as a non-editable display surface: the textarea becomes
    * `readOnly` (so the chip overlay still paints `@`-mention / `/`-skill chips
    * and the text stays selectable/copyable) and the caret-anchored resource and
-   * skill menus are not mounted. Use for read-only records — e.g. a finished
-   * scheduled task — where the prompt should render with chips but not be edited.
+   * skill menus are not mounted. Use for records where the prompt should render
+   * with chips but not be edited.
    */
   readOnly?: boolean
   /**
@@ -78,25 +80,9 @@ export function PromptEditor({
    * Un-warming on blur would just re-open the race on the next focus.
    */
   const [hasFocused, setHasFocused] = useState(false)
-
-  /**
-   * Autosize: grow the textarea to its full content height; the scroller caps
-   * the visible height and scrolls textarea + overlay together natively. The
-   * scroller's box is locked while the textarea collapses to `auto` for
-   * measurement — the scrollHeight read forces a layout at the collapsed
-   * height, and without the lock that transient layout grows the chat scroll
-   * container, letting the browser clamp a bottom-pinned transcript upward by
-   * the input's grown height on every multi-line edit.
-   */
-  useLayoutEffect(() => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-    const scroller = scrollerRef.current
-    if (scroller) scroller.style.height = `${scroller.offsetHeight}px`
-    textarea.style.height = 'auto'
-    textarea.style.height = `${textarea.scrollHeight}px`
-    if (scroller) scroller.style.height = ''
-  }, [value, textareaRef])
+  const usePlainTextMode =
+    value.length > PASTE_RENDER_THRESHOLDS.ENHANCED_TEXT_CHARACTERS &&
+    !value.includes(SKILL_CHIP_TRIGGER)
 
   useEffect(() => {
     if (autoFocus && !readOnly) editor.focusAtEnd()
@@ -120,6 +106,7 @@ export function PromptEditor({
   )
 
   const overlayContent = useMemo(() => {
+    if (usePlainTextMode) return null
     const contexts = editor.contexts
 
     if (!value) {
@@ -185,7 +172,7 @@ export function PromptEditor({
     }
 
     return elements.length > 0 ? elements : <span>{'\u00A0'}</span>
-  }, [value, editor.contexts])
+  }, [value, editor.contexts, usePlainTextMode])
 
   return (
     <div
@@ -197,12 +184,16 @@ export function PromptEditor({
           height and the overlay fills it via `inset-0`, so both are flow
           children of the same scroller and co-scroll natively. */}
       <div className='relative'>
-        <div className={OVERLAY_CLASSES} aria-hidden='true'>
-          {overlayContent}
-        </div>
+        {!usePlainTextMode && (
+          <div className={OVERLAY_CLASSES} aria-hidden='true'>
+            {overlayContent}
+          </div>
+        )}
 
-        <textarea
-          ref={textareaRef}
+        <GrowingTextarea
+          inputRef={textareaRef}
+          scrollerRef={scrollerRef}
+          maxHeight={usePlainTextMode ? 240 : undefined}
           value={value}
           readOnly={readOnly}
           onChange={readOnly ? undefined : editor.handleInputChange}
@@ -211,24 +202,31 @@ export function PromptEditor({
           }
           onFocus={readOnly ? undefined : () => setHasFocused(true)}
           onPaste={readOnly ? undefined : editor.handlePaste}
+          data-paste-max-bytes={PASTE_LIMITS.CHAT_BYTES}
+          data-paste-max-characters={PASTE_LIMITS.CHAT_CHARACTERS}
+          data-paste-selection-context={editor.workspaceId}
           onCopy={editor.handleCopy}
           onCut={readOnly ? undefined : editor.handleCut}
           onSelect={readOnly ? undefined : editor.handleSelectAdjust}
           onMouseUp={readOnly ? undefined : editor.handleSelectAdjust}
           placeholder={placeholder}
           aria-label={ariaLabel}
-          rows={1}
-          className={cn(TEXTAREA_BASE_CLASSES, readOnly && 'cursor-default caret-transparent')}
+          className={cn(
+            !usePlainTextMode && 'text-transparent',
+            readOnly && 'cursor-default caret-transparent'
+          )}
         />
       </div>
 
-      {!readOnly && (
+      {!readOnly && editor.contextsEnabled && (
         <>
           <PlusMenuDropdown
             ref={editor.plusMenuRef}
             workspaceId={editor.workspaceId}
+            organizationId={editor.organizationId}
             warm={hasFocused}
             onResourceSelect={editor.insertResource}
+            onWorkspaceSelect={editor.insertWorkspace}
             onClose={editor.handlePlusMenuClose}
             textareaRef={editor.textareaRef}
             pendingCursorRef={editor.pendingCursorRef}

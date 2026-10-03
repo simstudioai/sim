@@ -1,4 +1,8 @@
 export {
+  applyMcpServerMutationEffects,
+  createMcpServer,
+  deleteMcpServer,
+  type McpServerMutationAction,
   type McpServerOrchestrationErrorCode,
   type PerformCreateMcpServerParams,
   type PerformDeleteMcpServerParams,
@@ -7,6 +11,7 @@ export {
   performCreateMcpServer,
   performDeleteMcpServer,
   performUpdateMcpServer,
+  updateMcpServer,
 } from './server-lifecycle'
 export {
   type PerformCreateWorkflowMcpServerParams,

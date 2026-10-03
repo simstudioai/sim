@@ -1,9 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import {
-  buildQuickBooksCompanyUrl,
-  buildQuickBooksHeaders,
-  QUICKBOOKS_MAX_RESPONSE_BYTES,
-} from '@/tools/quickbooks/client'
+import { buildQuickBooksCompanyUrl, buildQuickBooksHeaders } from '@/tools/quickbooks/client'
 import {
   getQuickBooksDocumentTransaction,
   validateQuickBooksRecipient,
@@ -40,6 +36,12 @@ export const quickbooksEmailTransactionTool: ToolConfig<
       visibility: 'hidden',
       description: 'QuickBooks company ID derived from the connected credential',
     },
+    quickBooksEnvironment: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'QuickBooks API environment derived from the connected credential',
+    },
     transactionType: {
       type: 'string',
       required: true,
@@ -69,6 +71,7 @@ export const quickbooksEmailTransactionTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'quickbooks',
+    authoritativeParams: ['realmId', 'quickBooksEnvironment'],
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
@@ -78,14 +81,15 @@ export const quickbooksEmailTransactionTool: ToolConfig<
         throw new Error('Confirm sending before emailing a QuickBooks transaction')
       const { resource } = getQuickBooksDocumentTransaction(params.transactionType)
       const id = requiredQuickBooksString(params.transactionId, 'transactionId')
-      const url = buildQuickBooksCompanyUrl(
-        params.realmId,
-        `${resource}/${encodeURIComponent(id)}/send`
-      )
       const recipient = validateQuickBooksRecipient(params.recipient)
       if (params.transactionType === 'payment' && !recipient) {
         throw new Error('recipient is required when emailing a QuickBooks Customer Payment')
       }
+      const url = buildQuickBooksCompanyUrl(
+        params.realmId,
+        `${resource}/${encodeURIComponent(id)}/send`,
+        params.quickBooksEnvironment
+      )
       if (recipient) url.searchParams.set('sendTo', recipient)
       return url.toString()
     },
@@ -95,7 +99,6 @@ export const quickbooksEmailTransactionTool: ToolConfig<
       'Content-Type': 'application/octet-stream',
     }),
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: async (response, params) => {
     if (!params) throw new Error('QuickBooks Email Transaction parameters are required')
@@ -105,16 +108,20 @@ export const quickbooksEmailTransactionTool: ToolConfig<
       `QuickBooks ${entity} email response`
     )
     const record = data[entity]
-    if (record !== undefined && (!record || typeof record !== 'object' || Array.isArray(record))) {
-      throw new Error(`QuickBooks ${entity} email response contains a malformed ${entity}`)
+    if (!record || typeof record !== 'object' || Array.isArray(record)) {
+      throw new Error(`QuickBooks ${entity} email response is missing a valid ${entity}`)
+    }
+    const transactionId = requiredQuickBooksString(params.transactionId, 'transactionId')
+    if ((record as { Id?: unknown }).Id !== transactionId) {
+      throw new Error(`QuickBooks ${entity} email response returned an unexpected transaction ID`)
     }
     return {
       success: true,
       output: {
         transactionType: params.transactionType,
-        transactionId: requiredQuickBooksString(params.transactionId, 'transactionId'),
+        transactionId,
         sent: true,
-        record: record as QuickBooksTransaction | undefined,
+        record: record as QuickBooksTransaction,
         time: typeof data.time === 'string' ? data.time : null,
       },
     }

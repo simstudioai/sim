@@ -2,7 +2,11 @@
 
 import { memo, type SVGProps } from 'react'
 import { cn } from '@sim/emcn'
-import { Box } from 'lucide-react'
+import { Box } from '@sim/emcn/icons'
+import {
+  CUSTOM_BLOCK_IMAGE_TILE_COLOR,
+  CUSTOM_BLOCK_TILE_COLOR,
+} from '@/blocks/custom/build-config'
 import type { BlockIcon } from '@/blocks/types'
 
 const cache = new Map<string, BlockIcon>()
@@ -41,17 +45,27 @@ export function makeImageIcon(url: string): BlockIcon {
 }
 
 /** Fallback icon for custom blocks published without an uploaded image. */
-// double-cast-allowed: a lucide icon component fills the SVG-typed BlockIcon slot
-export const DefaultCustomBlockIcon: BlockIcon = Box as unknown as BlockIcon
+export const DefaultCustomBlockIcon: BlockIcon = Box
 
 /**
- * Resolve a custom block's icon: the uploaded image, else the org's whitelabel logo
- * (`fallbackUrl`), else the default glyph.
+ * Resolve a custom block's icon and the tile it sits on: the uploaded image, else
+ * the org's whitelabel logo (`fallbackUrl`), else the default glyph. Both fall out
+ * of the same precedence, so a block can never paint a tile its icon disagrees with.
  */
+export function getCustomBlockTile(
+  iconUrl: string | null | undefined,
+  fallbackUrl?: string | null
+): { icon: BlockIcon; bgColor: string } {
+  const url = iconUrl || fallbackUrl
+  return url
+    ? { icon: makeImageIcon(url), bgColor: CUSTOM_BLOCK_IMAGE_TILE_COLOR }
+    : { icon: DefaultCustomBlockIcon, bgColor: CUSTOM_BLOCK_TILE_COLOR }
+}
+
+/** The icon half of {@link getCustomBlockTile}, for surfaces that paint no tile. */
 export function getCustomBlockIcon(
   iconUrl: string | null | undefined,
   fallbackUrl?: string | null
 ): BlockIcon {
-  const url = iconUrl || fallbackUrl
-  return url ? makeImageIcon(url) : DefaultCustomBlockIcon
+  return getCustomBlockTile(iconUrl, fallbackUrl).icon
 }

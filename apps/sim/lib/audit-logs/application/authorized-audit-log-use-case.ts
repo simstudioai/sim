@@ -1,0 +1,165 @@
+import { isUserCredentialPrincipal, type Principal } from '@sim/auth/principal'
+import type { AuditLogOperation, AuditLogPrincipal } from '@/lib/audit-logs/application/operations'
+import { copilotAuditLogOperations } from '@/lib/audit-logs/application/operations'
+import {
+  resolveDefaultAuditOrganization,
+  resolveEnterpriseAuditAccess,
+} from '@/lib/audit-logs/authorization'
+import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
+import {
+  authorizeWorkspaceOperation,
+  ForbiddenOperationError,
+  type OperationUseCase,
+  PersonalApiKeysDisabledError,
+} from '@/lib/core/application'
+import { isCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
+import { requireOAuthOperationScope } from '@/lib/core/application/oauth-authorization'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { refuseCapability } from '@/lib/permission-groups/capabilities'
+import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+
+export interface AuthorizedAuditLogContext {
+  organizationId: string
+  workspaceId?: string
+  orgMemberIds: string[]
+  actorUserId: string
+}
+
+interface AuthorizedAuditLogDefinition<O extends AuditLogOperation, I, R> {
+  operation: O
+  organizationId(input: I): string | undefined
+  execute(args: {
+    principal: AuditLogPrincipal
+    input: I
+    context: AuthorizedAuditLogContext
+  }): Promise<R>
+}
+
+function requireAuditLogPrincipal(
+  principal: Principal,
+  operation: AuditLogOperation
+): asserts principal is AuditLogPrincipal {
+  if (!operation.principalKinds.some((kind) => kind === principal.kind)) {
+    throw new ForbiddenOperationError(
+      'PRINCIPAL_KIND_NOT_PERMITTED',
+      `Principal kind ${principal.kind} cannot perform operation ${operation.id}`
+    )
+  }
+}
+
+function auditActorUserId(principal: AuditLogPrincipal): string {
+  if (principal.kind === 'delegated') {
+    if (!principal.subjectUserId)
+      throw new ForbiddenOperationError(
+        'PRINCIPAL_KIND_NOT_PERMITTED',
+        'An acting user is required'
+      )
+    return principal.subjectUserId
+  }
+  return principal.userId
+}
+
+/**
+ * The organization the read applies to: the one the caller named, or its single
+ * membership when it named none.
+ *
+ * The derivation has no ambiguous case to refuse. `member` carries
+ * `uniqueIndex('member_user_id_unique').on(member.userId)`, so an actor holds
+ * at most one membership row; the caller either has one organization or none.
+ * The lookup is keyed on the caller's own user id, so it can only ever resolve
+ * an organization the caller is already a member of.
+ */
+async function resolveOperationOrganizationId(
+  actorUserId: string,
+  requestedOrganizationId: string | undefined
+): Promise<string> {
+  if (requestedOrganizationId) return requestedOrganizationId
+
+  const resolved = await resolveDefaultAuditOrganization(actorUserId)
+  if (resolved.kind === 'none') {
+    throw new ForbiddenOperationError(
+      'ORGANIZATION_MEMBERSHIP_REQUIRED',
+      'Not a member of any organization'
+    )
+  }
+  return resolved.organizationId
+}
+
+export function defineAuthorizedAuditLogUseCase<const O extends AuditLogOperation, I, R>(
+  definition: AuthorizedAuditLogDefinition<O, I, R>
+): OperationUseCase<O, I, R> {
+  return {
+    operation: definition.operation,
+    delegationAudience: 'sim:audit-logs',
+    async execute({ principal, input }) {
+      requireAuditLogPrincipal(principal, definition.operation)
+      requireOAuthOperationScope(principal, definition.operation)
+      const actorUserId = auditActorUserId(principal)
+      let workspaceId: string | undefined
+      let targetOrganizationId: string | undefined
+      if (principal.kind === 'delegated') {
+        if (!isCopilotWorkspaceInvocation(principal))
+          throw new OrchestrationError('forbidden', 'Private Copilot invocation required')
+        const workspaceOperation = Object.values(copilotAuditLogOperations).find(
+          (candidate) => candidate.id === definition.operation.id
+        )
+        if (!workspaceOperation) throw new Error('Missing private workspace read policy')
+        const workspace = await resolveActiveWorkspaceApplicationContext(principal.workspaceId)
+        await authorizeWorkspaceOperation(principal, workspaceOperation, workspace, {
+          delegation: {
+            audience: 'sim:audit-logs',
+            isWithinScope: (actor, target) => actor.workspaceId === target.workspaceId,
+          },
+        })
+        if (
+          !workspace.workspaceOrganizationId ||
+          (definition.organizationId(input) &&
+            definition.organizationId(input) !== workspace.workspaceOrganizationId)
+        )
+          throw new OrchestrationError(
+            'not_found',
+            'Organization not found in the selected workspace'
+          )
+        workspaceId = workspace.workspaceId
+        targetOrganizationId = workspace.workspaceOrganizationId
+      }
+      if (
+        isUserCredentialPrincipal(principal) &&
+        (await isCapabilityWithheldForUser(actorUserId, 'personal_api_key.use'))
+      ) {
+        throw new PersonalApiKeysDisabledError()
+      }
+      /**
+       * permission-group-enforced: personal_api_key.use, cli.use, oauth_apps.use — this path
+       * authorizes against an organization rather than a workspace, so the
+       * workspace-keyed funnel never runs. The user-global form is the policy
+       * that applies when there is no workspace key.
+       */
+      if (
+        principal.kind === 'oauth_access_token' &&
+        (await isCapabilityWithheldForUser(actorUserId, 'oauth_apps.use'))
+      ) {
+        refuseCapability('oauth_apps.use')
+      }
+      if (
+        principal.kind === 'oauth_access_token' &&
+        principal.clientId === SIM_CLI_CLIENT_ID &&
+        (await isCapabilityWithheldForUser(actorUserId, 'cli.use'))
+      ) {
+        refuseCapability('cli.use')
+      }
+      const organizationId = await resolveOperationOrganizationId(
+        actorUserId,
+        targetOrganizationId ?? definition.organizationId(input)
+      )
+      const access = await resolveEnterpriseAuditAccess(actorUserId, organizationId)
+      if (!access.success) throw new ForbiddenOperationError(access.code, access.message)
+      return definition.execute({
+        principal,
+        input,
+        context: { ...access.context, actorUserId, ...(workspaceId ? { workspaceId } : {}) },
+      })
+    },
+  }
+}

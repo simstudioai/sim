@@ -3,7 +3,7 @@ import type { BlockConfig } from '@/blocks/types'
 /**
  * Props for the WorkflowBlock component
  */
-export interface WorkflowBlockProps {
+export interface WorkflowBlockProps extends Record<string, unknown> {
   type: string
   config: BlockConfig
   name: string
@@ -18,6 +18,10 @@ export interface WorkflowBlockProps {
   isWorkflowLocked?: boolean
   subBlockValues?: Record<string, any>
   blockState?: any
+  /** Persists and broadcasts the Error output toggle. */
+  onSetErrorOutputEnabled?: (blockId: string, enabled: boolean) => void
+  /** Persists and broadcasts edge removals caused by disabling Error output. */
+  onRemoveEdges?: (edgeIds: string[]) => void
 }
 
 /**

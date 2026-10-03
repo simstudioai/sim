@@ -8,10 +8,14 @@ import {
 } from '@/lib/credentials/atlassian-service-account'
 import {
   CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE,
+  type ClientCredentialAccountFieldId,
   getClientCredentialAccountDescriptor,
   isClientCredentialAccountProviderId,
+  partitionClientCredentialFields,
+  resolveClientCredentialAuthMethod,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import {
+  type ClientCredentialAccountFields,
   type ClientCredentialAccountSecretBlob,
   getClientCredentialAccountMinter,
 } from '@/lib/credentials/client-credential-accounts/server'
@@ -20,6 +24,7 @@ import {
   type ServiceAccountPrincipal,
   serviceAccountPrincipalMetadata,
 } from '@/lib/credentials/principal'
+import type { AtlassianProduct } from '@/lib/credentials/service-account-fields'
 import {
   getTokenServiceAccountDescriptor,
   isTokenServiceAccountProviderId,
@@ -29,6 +34,7 @@ import {
   getTokenServiceAccountValidator,
   type TokenServiceAccountSecretBlob,
 } from '@/lib/credentials/token-service-accounts/server'
+import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
@@ -44,11 +50,16 @@ export interface ServiceAccountSecretFields {
   botToken?: string
   apiToken?: string
   domain?: string
+  atlassianProduct?: AtlassianProduct
   serviceAccountJson?: string
   clientId?: string
   clientSecret?: string
+  certificateId?: string
   orgId?: string
   dataCenter?: string
+  authMethod?: string
+  privateKey?: string
+  username?: string
 }
 
 export interface ServiceAccountSecretResult {
@@ -88,19 +99,21 @@ async function buildAtlassianServiceAccountSecret(
     )
   }
   const normalizedDomain = normalizeAtlassianDomain(domain)
-  const validation = await validateAtlassianServiceAccount(apiToken, normalizedDomain)
+  const product = fields.atlassianProduct ?? 'jira'
+  const validation = await validateAtlassianServiceAccount(apiToken, normalizedDomain, product)
   const principal: ServiceAccountPrincipal = {
     kind: 'user',
     id: validation.accountId,
     ...(validation.emailAddress ? { label: validation.emailAddress } : {}),
   }
   // `atlassianAccountId` stays at the blob's top level: `getAtlassianServiceAccountSecret`
-  // in `app/api/auth/oauth/utils.ts` reads it there on every existing credential.
+  // in `lib/oauth/credential-service.ts` reads it there on every existing credential.
   const blob = JSON.stringify({
     type: ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
     apiToken,
     domain: normalizedDomain,
     cloudId: validation.cloudId,
+    atlassianProduct: product,
     atlassianAccountId: validation.accountId,
     metadata: serviceAccountPrincipalMetadata(principal),
   })
@@ -255,12 +268,11 @@ async function buildTokenServiceAccountSecret(
 }
 
 /**
- * Builds a client-credential service-account secret (OAuth client id/secret +
- * provider org identifier) for any provider registered in
- * `CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS`: verifies the triple by minting a
- * real access token via the provider's registered minter (also capturing the
- * derived identity for the display name and audit log), then persists the raw
- * fields in the encrypted blob so execution-time resolution can re-mint.
+ * Builds a client-credential service-account secret for any provider registered
+ * in `CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS`: verifies the provider-specific
+ * descriptor fields by minting a real access token (also capturing the derived
+ * identity for the display name and audit log), then persists those fields in
+ * the encrypted blob so execution-time resolution can re-mint.
  */
 async function buildClientCredentialAccountSecret(
   providerId: string,
@@ -273,20 +285,43 @@ async function buildClientCredentialAccountSecret(
       `No minter registered for service-account provider ${providerId}`
     )
   }
-  const clientId = fields.clientId?.trim()
-  const clientSecret = fields.clientSecret?.trim()
-  const orgId = fields.orgId?.trim()
-  const dataCenter = fields.dataCenter?.trim()
-  if (!clientId || !clientSecret || !orgId) {
-    const required = descriptor.fields
-      .filter((field) => !field.optional)
-      .map((field) => field.id)
-      .join(', ')
+  // The resolved (never the raw) method drives both validation and what gets
+  // persisted, so a credential's stored grant can't drift if the descriptor's
+  // default ever changes.
+  const resolvedAuthMethod = resolveClientCredentialAuthMethod(
+    descriptor,
+    fields.authMethod?.trim()
+  )
+  const { visible, required } = partitionClientCredentialFields(descriptor, resolvedAuthMethod)
+  const usesField = (id: ClientCredentialAccountFieldId) => visible.some((field) => field.id === id)
+
+  // A field the resolved grant does not use is dropped rather than stored, so
+  // a request carrying both a consumer secret and a private key cannot leave
+  // the unused one encrypted at rest on the credential.
+  const submitted: ClientCredentialAccountFields = {
+    clientId: fields.clientId?.trim() ?? '',
+    certificateId: usesField('certificateId')
+      ? fields.certificateId?.trim() || undefined
+      : undefined,
+    orgId: fields.orgId?.trim() ?? '',
+    dataCenter: fields.dataCenter?.trim() || undefined,
+    authMethod: resolvedAuthMethod,
+    clientSecret: usesField('clientSecret') ? fields.clientSecret?.trim() || undefined : undefined,
+    privateKey: usesField('privateKey') ? fields.privateKey?.trim() || undefined : undefined,
+    username: usesField('username') ? fields.username?.trim() || undefined : undefined,
+  }
+
+  // Requirements are per-auth-method, not per-provider: Salesforce's JWT
+  // branch needs a private key and username where its client-credentials
+  // branch needs a consumer secret. The contract schema validates the
+  // union-of-both shape, so the branch-specific check has to happen here.
+  const missing = required.filter((field) => !submitted[field.id])
+  if (missing.length > 0) {
     throw new ServiceAccountSecretError(
-      `${required} are required for ${descriptor.serviceLabel} service account credentials`
+      `${missing.map((field) => field.label).join(', ')} ${missing.length > 1 ? 'are' : 'is'} required for ${descriptor.serviceLabel} service account credentials`
     )
   }
-  const mint = await minter({ clientId, clientSecret, orgId, dataCenter })
+  const mint = await minter(submitted)
   // `identity` is absent only on the `skipIdentity` execution-time path, which
   // never reaches this builder; treat it as "no principal captured".
   const principal = mint.identity?.principal ?? null
@@ -294,17 +329,14 @@ async function buildClientCredentialAccountSecret(
   const blob: ClientCredentialAccountSecretBlob = {
     type: CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE,
     providerId,
-    clientId,
-    clientSecret,
-    orgId,
-    ...(dataCenter ? { dataCenter } : {}),
+    ...submitted,
     metadata: { ...mint.identity?.storedMetadata, ...principalMetadata },
   }
   const { encrypted } = await encryptSecret(JSON.stringify(blob))
   return {
     providerId,
     encryptedServiceAccountKey: encrypted,
-    displayName: mint.identity?.displayName ?? `${descriptor.serviceLabel} ${orgId}`,
+    displayName: mint.identity?.displayName ?? `${descriptor.serviceLabel} ${submitted.orgId}`,
     auditMetadata: { ...mint.identity?.auditMetadata, ...principalMetadata },
     principal,
   }
@@ -340,6 +372,11 @@ export async function verifyAndBuildServiceAccountSecret(
   providerId: string,
   fields: ServiceAccountSecretFields
 ): Promise<ServiceAccountSecretResult> {
+  if (providerId === GITHUB_INSTALLATION_PROVIDER_ID) {
+    throw new ServiceAccountSecretError(
+      'Connect a GitHub App installation through your organization’s Search integrations'
+    )
+  }
   const builder = Object.hasOwn(SERVICE_ACCOUNT_SECRET_BUILDERS, providerId)
     ? SERVICE_ACCOUNT_SECRET_BUILDERS[providerId]
     : undefined

@@ -1,5 +1,10 @@
 import { createHash } from 'node:crypto'
 import { CodeLanguage } from '@/lib/execution/languages'
+import {
+  canonicalizeSandboxCliTools,
+  type SandboxCliToolId,
+} from '@/lib/execution/remote-sandbox/cli-tools'
+import { sandboxCliToolRecipes } from '@/lib/execution/remote-sandbox/cli-tools.server'
 
 /**
  * The languages a sandbox can carry dependencies for. Shell is excluded: a shell
@@ -7,8 +12,6 @@ import { CodeLanguage } from '@/lib/execution/languages'
  * `code` kind resolved.
  */
 export type SandboxLanguage = `${CodeLanguage.JavaScript}` | `${CodeLanguage.Python}`
-
-export const SANDBOX_LANGUAGES = [CodeLanguage.JavaScript, CodeLanguage.Python] as const
 
 export function isSandboxLanguage(value: string): value is SandboxLanguage {
   return value === CodeLanguage.JavaScript || value === CodeLanguage.Python
@@ -31,6 +34,8 @@ export function registryFor(language: SandboxLanguage): string {
 export interface SandboxSpec {
   language: SandboxLanguage
   dependencies: string[]
+  cliTools: SandboxCliToolId[]
+  systemPackages: string[]
 }
 
 /** Upper bound on how many packages one sandbox may declare. */
@@ -38,6 +43,15 @@ export const MAX_SANDBOX_DEPENDENCIES = 50
 
 /** Upper bound on the length of a single dependency entry. */
 export const MAX_DEPENDENCY_LENGTH = 200
+
+/** Upper bound on Debian packages installed into one sandbox image. */
+export const MAX_SANDBOX_SYSTEM_PACKAGES = 50
+
+/** Upper bound on one Debian package coordinate. */
+export const MAX_SYSTEM_PACKAGE_LENGTH = 200
+
+/** Bump when apt provisioning semantics change so affected images rebuild. */
+export const SANDBOX_SYSTEM_PACKAGE_RECIPE_REVISION = 2
 
 /**
  * Where the installed JavaScript packages live inside a sandbox, for both the
@@ -74,6 +88,13 @@ export type DependencyValidation =
   | { ok: true; dependencies: string[] }
   | { ok: false; issues: DependencyIssue[] }
 
+/** A rejected Debian package coordinate, addressed to its submitted row. */
+export type SystemPackageIssue = DependencyIssue
+
+export type SystemPackageValidation =
+  | { ok: true; systemPackages: string[] }
+  | { ok: false; issues: SystemPackageIssue[] }
+
 /**
  * PEP 508 distribution name followed by optional extras and an optional PEP 440
  * version specifier set. Deliberately whitespace-free — see
@@ -89,6 +110,37 @@ const PYTHON_DEPENDENCY_PATTERN = new RegExp(
 /** An npm package name, optionally scoped, with an optional `@range` suffix. */
 const JS_DEPENDENCY_PATTERN =
   /^(@[a-z0-9][a-z0-9._-]*\/)?[a-zA-Z0-9][a-zA-Z0-9._-]*(@[\^~<>=]{0,2}[A-Za-z0-9*][A-Za-z0-9.*+-]*)?$/
+
+/**
+ * A Debian package coordinate accepted by `apt-get install`:
+ * `package[:architecture][=version]`.
+ *
+ * Debian package names are lowercase and at least two characters. Architecture
+ * names are likewise lowercase. Versions retain their case because dpkg
+ * versions are case-sensitive, but use only Debian version characters.
+ */
+const SYSTEM_PACKAGE_PATTERN =
+  /^([a-z0-9][a-z0-9+.-]+)(?::([a-z0-9](?:[a-z0-9-]*[a-z0-9])?))?(?:=((?:[0-9]+:)?[0-9][A-Za-z0-9.+:~-]*))?$/
+
+interface SystemPackageCoordinate {
+  name: string
+  architecture?: string
+  version?: string
+}
+
+function parseSystemPackageCoordinate(value: string): SystemPackageCoordinate | null {
+  const match = value.match(SYSTEM_PACKAGE_PATTERN)
+  if (!match) return null
+  return {
+    name: match[1],
+    ...(match[2] ? { architecture: match[2] } : {}),
+    ...(match[3] ? { version: match[3] } : {}),
+  }
+}
+
+function hasAptPackageActionSuffix(name: string): boolean {
+  return name.endsWith('-') || (name.endsWith('+') && !name.endsWith('++'))
+}
 
 /**
  * Prefixes and substrings rejected ahead of the shape check purely so the error
@@ -231,15 +283,123 @@ export function validateDependencies(
   }
 }
 
+/** Returns a stable representation for hashing and provider installation. */
+export function canonicalizeSystemPackages(systemPackages: readonly string[]): string[] {
+  return [...new Set(systemPackages.map((systemPackage) => systemPackage.trim()))].sort()
+}
+
+/**
+ * Validates free-form Debian package coordinates without accepting arbitrary apt
+ * arguments. URLs, paths, flags, whitespace, globs, and shell syntax cannot
+ * match the allowlist grammar above.
+ */
+export function validateSystemPackages(input: string | readonly string[]): SystemPackageValidation {
+  const entries = readDependencyLines(input)
+  const issues: SystemPackageIssue[] = []
+  const overflow = entries[MAX_SANDBOX_SYSTEM_PACKAGES]
+  if (overflow) {
+    issues.push({
+      line: overflow.line,
+      value: overflow.value,
+      reason: `a sandbox can declare at most ${MAX_SANDBOX_SYSTEM_PACKAGES} system packages (this list has ${entries.length})`,
+    })
+  }
+
+  for (const entry of entries.slice(0, MAX_SANDBOX_SYSTEM_PACKAGES)) {
+    if (entry.value.length > MAX_SYSTEM_PACKAGE_LENGTH) {
+      issues.push({
+        line: entry.line,
+        value: entry.value,
+        reason: `a system package cannot be longer than ${MAX_SYSTEM_PACKAGE_LENGTH} characters`,
+      })
+      continue
+    }
+    if (entry.value.startsWith('-')) {
+      issues.push({
+        line: entry.line,
+        value: entry.value,
+        reason: 'apt flags are not allowed (remove the leading dash)',
+      })
+      continue
+    }
+    if (/\s/.test(entry.value)) {
+      issues.push({
+        line: entry.line,
+        value: entry.value,
+        reason: 'a system package cannot contain spaces',
+      })
+      continue
+    }
+    if (/:\/\/|^(?:file|https?|ftp):/i.test(entry.value)) {
+      issues.push({
+        line: entry.line,
+        value: entry.value,
+        reason: 'URLs are not allowed; use a Debian package coordinate',
+      })
+      continue
+    }
+    if (/[/\\]|^[.~]/.test(entry.value)) {
+      issues.push({
+        line: entry.line,
+        value: entry.value,
+        reason: 'paths are not allowed; use a Debian package coordinate',
+      })
+      continue
+    }
+    const coordinate = parseSystemPackageCoordinate(entry.value)
+    if (!coordinate) {
+      issues.push({
+        line: entry.line,
+        value: entry.value,
+        reason: 'not a valid Debian package coordinate (expected package[:architecture][=version])',
+      })
+      continue
+    }
+    if (hasAptPackageActionSuffix(coordinate.name)) {
+      issues.push({
+        line: entry.line,
+        value: entry.value,
+        reason: 'APT package action suffixes are not allowed',
+      })
+    }
+  }
+
+  if (issues.length > 0) return { ok: false, issues }
+  return {
+    ok: true,
+    systemPackages: canonicalizeSystemPackages(entries.map((entry) => entry.value)),
+  }
+}
+
 /**
  * Content address for a canonical spec. Keyed on language as well as
  * dependencies so the same package list under Python and JavaScript never
  * collides onto one build.
  */
 export function hashSandboxSpec(spec: SandboxSpec): string {
-  const canonical = JSON.stringify({
+  const base = {
     language: spec.language,
     dependencies: canonicalizeDependencies(spec.language, spec.dependencies),
+  }
+  const cliTools = canonicalizeSandboxCliTools(spec.cliTools)
+  const systemPackages = canonicalizeSystemPackages(spec.systemPackages ?? [])
+  const canonical = JSON.stringify({
+    ...base,
+    ...(systemPackages.length > 0
+      ? {
+          systemPackages,
+          systemPackageRecipeRevision: SANDBOX_SYSTEM_PACKAGE_RECIPE_REVISION,
+        }
+      : {}),
+    ...(cliTools.length > 0
+      ? {
+          cliTools: sandboxCliToolRecipes(cliTools).map((recipe) => ({
+            id: recipe.id,
+            revision: recipe.revision,
+            sha256: recipe.sha256,
+          })),
+        }
+      : {}),
   })
   return createHash('sha256').update(canonical, 'utf-8').digest('hex')
 }
@@ -262,6 +422,49 @@ export function quoteDependency(dependency: string): string {
     throw new Error(`Refusing to shell-quote an unvalidated dependency: ${dependency}`)
   }
   return `'${dependency}'`
+}
+
+/** Quotes one revalidated Debian package coordinate for an apt argv slot. */
+export function quoteSystemPackage(systemPackage: string): string {
+  const canonical = systemPackage.trim()
+  const validation = validateSystemPackages([systemPackage])
+  if (
+    !validation.ok ||
+    validation.systemPackages.length !== 1 ||
+    validation.systemPackages[0] !== canonical
+  ) {
+    throw new Error(`Refusing to shell-quote an unvalidated system package: ${systemPackage}`)
+  }
+  return `'${canonical}'`
+}
+
+/** Renders a non-interactive apt install from revalidated argv coordinates. */
+export function systemPackageInstallCommand(systemPackages: readonly string[]): string {
+  const canonical = canonicalizeSystemPackages(systemPackages)
+  if (canonical.length === 0) {
+    throw new Error('Cannot render an apt install command without system packages')
+  }
+  const packages = canonical.map(quoteSystemPackage).join(' ')
+  const names = [
+    ...new Set(
+      canonical.map((systemPackage) => {
+        const coordinate = parseSystemPackageCoordinate(systemPackage)
+        if (!coordinate) {
+          throw new Error(`Refusing to resolve an invalid system package: ${systemPackage}`)
+        }
+        return coordinate.name
+      })
+    ),
+  ]
+    .sort()
+    .map(quoteSystemPackage)
+    .join(' ')
+  const exactNameCheck =
+    `for package in ${names}; do ` +
+    'if ! apt-cache pkgnames "$package" | grep -Fqx -- "$package"; then ' +
+    'printf \'System package not found in configured APT repositories: %s\\n\' "$package" >&2; exit 100; ' +
+    'fi; done'
+  return `apt-get update && ${exactNameCheck} && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --no-remove -- ${packages} && rm -rf /var/lib/apt/lists/*`
 }
 
 /**

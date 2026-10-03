@@ -16,18 +16,18 @@ Because enrichments run on Sim's hosted keys by default, **every provider tool y
 |------|------|-------|
 | 1 | Pick the data-source tool(s) for each output | `tools/{service}/` + `tools/registry.ts` |
 | 2 | **Verify each tool has `hosting`; if not, run `/add-hosted-key`** | `tools/{service}/{action}.ts` |
-| 3 | Write the enrichment definition | `enrichments/{name}/{name}.ts` + `index.ts` |
+| 3 | Write the enrichment definition | `enrichments/{id}/{id}.ts` + `index.ts` |
 | 4 | Register it | `enrichments/registry.ts` |
 | 5 | Verify | tsc / biome / manual run |
 
 ## Architecture (what you're plugging into)
 
-- **`enrichments/types.ts`** — `EnrichmentConfig { id, name, description, icon, inputs, outputs, providers }` and `EnrichmentProvider { id, label, toolId, buildParams, mapOutput }`. Providers are **plain data** (no `@/tools` import) so the catalog stays client-safe.
-- **`enrichments/providers.ts`** — `toolProvider(...)` (typed passthrough) plus shared input helpers: `str(v)`, `normalizeDomain(v)`, `firstNonEmpty(arr)`, `splitName(fullName)`.
-- **`enrichments/run.ts`** — the server-only cascade runner. Calls `executeTool(provider.toolId, { ...params, _context: { workspaceId } })`, accumulates hosted-key cost, returns the first non-empty mapped result. **You do not edit this** — it works for any registry entry.
+- **`enrichments/types.ts`** — `EnrichmentConfig { id, name, description, icon, inputs, outputs, providers }` and `EnrichmentProvider { id, label, toolId, buildParams, projectFailure, mapOutput }` — `toolProvider` fills `projectFailure` with the standard HTTP projection; override it only for a provider whose failure shape is nonstandard (see `enrichments/provider-failures/`). Providers are **plain data** (no `@/tools` import) so the catalog stays client-safe.
+- **`enrichments/providers.ts`** — `toolProvider(...)` (typed passthrough) plus shared input helpers: `str(v)`, `normalizeDomain(v)`, `firstNonEmpty(arr)`, `splitName(fullName)`, and `projectEnrichmentProviderFailure`.
+- **`enrichments/run.ts`** — the server-only cascade runner. Calls `executeTool(provider.toolId, { ...params, _context: { workspaceId, userId } })`, accumulates hosted-key cost, returns the first non-empty mapped result. **You do not edit this** — it works for any registry entry.
 - **`enrichments/registry.ts`** — `ENRICHMENT_REGISTRY` / `ALL_ENRICHMENTS` / `getEnrichment`. Register new entries here.
 
-Outputs automatically become table columns; billing, the catalog/sidebar UI, the column meta-header icon, and per-row execution all work with no extra wiring.
+Outputs automatically become table columns; billing, the catalog/sidebar UI, and per-row execution work with no extra wiring.
 
 ## Step 1: Pick the data-source tool(s)
 
@@ -60,10 +60,10 @@ Why it matters: the cascade runner only bills (and only reads `output.cost.total
 
 ## Step 3: Write the enrichment definition
 
-Create `apps/sim/enrichments/{name}/{name}.ts` and a barrel `index.ts`. Mirror the existing entries (`work-email`, `phone-number`, `company-domain`, `company-info`).
+Create `apps/sim/enrichments/{id}/{id}.ts` and a barrel `index.ts`. Mirror the entries registered in `enrichments/registry.ts`.
 
 ```typescript
-import { SomeIcon } from 'lucide-react'
+import { SomeIcon } from '@sim/emcn/icons'
 import { filterUndefined } from '@sim/utils/object'
 import { normalizeDomain, splitName, str, toolProvider } from '@/enrichments/providers'
 import type { EnrichmentConfig } from '@/enrichments/types'
@@ -104,12 +104,12 @@ export const myEnrichment: EnrichmentConfig = {
 ```
 
 ```typescript
-// apps/sim/enrichments/{name}/index.ts
+// apps/sim/enrichments/{id}/index.ts
 export { myEnrichment } from './my-enrichment'
 ```
 
 Rules:
-- Keep the file **client-safe**: import only `lucide-react`, `@sim/utils/*`, `@/enrichments/providers`, and the types. **Never import `@/tools`** here — the runner does the tool call.
+- Keep the file **client-safe**: import only `@sim/emcn/icons`, `@sim/utils/*`, `@/enrichments/providers`, and the types. **Never import `@/tools`** here — the runner does the tool call.
 - `buildParams` returns `null` when inputs are insufficient (provider skipped). `mapOutput` returns `null`/empty for a miss (falls through). Use `filterUndefined` when assembling optional tool params; coerce numbers explicitly (don't pass `''` to number outputs).
 - Output `id`s are the keys `mapOutput` returns; output `name`s are the default column names (the user can rename them in the config).
 
@@ -118,7 +118,7 @@ Rules:
 In `apps/sim/enrichments/registry.ts`, import and add the entry (catalog order is registration order):
 
 ```typescript
-import { myEnrichment } from '@/enrichments/my-enrichment'
+import { myEnrichment } from '@/enrichments/{id}'
 
 export const ENRICHMENT_REGISTRY: EnrichmentRegistry = {
   // ...existing
@@ -128,7 +128,7 @@ export const ENRICHMENT_REGISTRY: EnrichmentRegistry = {
 
 ## Step 5: Verify
 
-1. `bunx tsc --noEmit` (from `apps/sim`, `NODE_OPTIONS=--max-old-space-size=8192`) and `bunx biome check` on the changed files.
+1. `bun run type-check` (from `apps/sim`) and `bunx biome check` on the changed files.
 2. In a table → **+ New column → Enrichments** → pick the new enrichment, map its inputs to columns, name the output column(s), Save. Confirm it appears in the catalog with its icon/description.
 3. With hosted keys (or a workspace BYOK key) configured for each provider's service, run a row and confirm the cell fills; the dev-server log shows `Enrichment hit { provider }`. A row whose providers all miss completes blank; a row where every provider errored shows an error cell.
 

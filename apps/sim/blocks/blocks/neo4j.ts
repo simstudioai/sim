@@ -2,9 +2,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { Neo4jIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { Neo4jIntrospectResponse, Neo4jResponse } from '@/tools/neo4j/types'
 
-export const Neo4jBlock: BlockConfig<Neo4jResponse | Neo4jIntrospectResponse> = {
+export const Neo4jBlock: BlockConfig = {
   type: 'neo4j',
   name: 'Neo4j',
   description: 'Connect to Neo4j graph database',
@@ -15,6 +14,20 @@ export const Neo4jBlock: BlockConfig<Neo4jResponse | Neo4jIntrospectResponse> = 
   integrationType: IntegrationType.Databases,
   bgColor: '#FFFFFF',
   icon: Neo4jIcon,
+  canvasPresentation: {
+    defaultTitle: 'Neo4j',
+    sentences: {
+      byOperation: {
+        query: [{ text: 'Read nodes and relationships with', field: 'cypherQuery', core: true }],
+        create: [{ text: 'Create nodes and relationships with', field: 'cypherQuery', core: true }],
+        merge: [{ text: 'Find or create nodes with', field: 'cypherQuery', core: true }],
+        update: [{ text: 'Set properties with', field: 'cypherQuery', core: true }],
+        delete: [{ text: 'Delete nodes and relationships with', field: 'cypherQuery', core: true }],
+        execute: [{ text: 'Run Cypher', field: 'cypherQuery', core: true }],
+        introspect: ['Read the graph schema', { text: 'of database', field: 'database' }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

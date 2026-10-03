@@ -1,0 +1,51 @@
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  extract: vi.fn(),
+}))
+
+vi.mock('@/lib/workspace-files/application/extract-workspace-file', () => ({
+  extractWorkspaceFile: {
+    operation: { id: 'files.extract_archive', minimumRole: 'write', workspaceApiKey: 'deny' },
+    execute: mocks.extract,
+  },
+}))
+
+import { ArchiveError } from '@/lib/uploads/archive'
+import { POST } from '@/app/api/workspaces/[id]/files/[fileId]/extract/route'
+
+const WORKSPACE_ID = 'workspace-1'
+const FILE_ID = 'wf_1'
+const context = createRouteContext({ id: WORKSPACE_ID, fileId: FILE_ID })
+
+function callExtract() {
+  return POST(
+    createMockRequest({
+      method: 'POST',
+      url: `http://localhost:3000/api/workspaces/${WORKSPACE_ID}/files/${FILE_ID}/extract`,
+    }),
+    context
+  )
+}
+
+describe('POST /api/workspaces/[id]/files/[fileId]/extract', () => {
+  beforeEach(() => {
+    authMockFns.mockGetSession.mockResolvedValue({
+      user: { id: 'user-1' },
+      session: { id: 'session-1' },
+    })
+    mocks.extract.mockResolvedValue({ folderName: 'bundle', extractedCount: 2, skippedCount: 0 })
+  })
+
+  it('returns a caller-safe error for an invalid zip', async () => {
+    mocks.extract.mockRejectedValue(new ArchiveError('invalid', 'Not a valid .zip archive.'))
+
+    const response = await callExtract()
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({ error: 'Not a valid .zip archive.' })
+  })
+})

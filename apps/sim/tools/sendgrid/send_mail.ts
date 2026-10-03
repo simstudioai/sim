@@ -1,7 +1,8 @@
+import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
 import type { SendMailParams, SendMailResult } from '@/tools/sendgrid/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const sendGridSendMailTool: ToolConfig<SendMailParams, SendMailResult> = {
+export const sendGridSendMailTool: InternalToolConfig<SendMailParams, SendMailResult> = {
   id: 'sendgrid_send_mail',
   name: 'SendGrid Send Mail',
   description: 'Send an email using SendGrid API',
@@ -100,13 +101,15 @@ export const sendGridSendMailTool: ToolConfig<SendMailParams, SendMailResult> = 
     },
   },
 
-  request: {
-    url: '/api/tools/sendgrid/send-mail',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    modelInput: {
+      mode: 'private-provenance',
+      inputPaths: (params) =>
+        selectModelBoundFileInputPaths(params.attachments, ['attachments'], {
+          parseSerializedFile: true,
+        }),
+    },
+    input: (params) => ({
       apiKey: params.apiKey,
       from: params.from,
       fromName: params.fromName,

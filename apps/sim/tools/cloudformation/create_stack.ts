@@ -2,9 +2,9 @@ import type {
   CloudFormationCreateStackParams,
   CloudFormationCreateStackResponse,
 } from '@/tools/cloudformation/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createStackTool: ToolConfig<
+export const createStackTool: InternalToolConfig<
   CloudFormationCreateStackParams,
   CloudFormationCreateStackResponse
 > = {
@@ -79,13 +79,8 @@ export const createStackTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/cloudformation/create-stack',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

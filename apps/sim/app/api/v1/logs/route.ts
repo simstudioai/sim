@@ -1,17 +1,23 @@
-import { db } from '@sim/db'
-import { workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1ListLogsContract } from '@/lib/api/contracts/v1/logs'
 import { parseRequest } from '@/lib/api/server'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
-import { buildLogFilters, getOrderBy } from '@/app/api/v1/logs/filters'
-import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import {
+  assertLogCostQueryAllowed,
+  projectCostTotal,
+  projectExecutionData,
+  resolveLogFieldProjection,
+} from '@/lib/logs/log-projection'
+import { decodePublicLogCursor, listPublicWorkflowLogs } from '@/lib/logs/public-queries'
+import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
+import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
+import { createApiResponse, getUserLimits, projectUserLimits } from '@/app/api/v1/logs/meta'
+import {
+  capabilityGovernedUserId,
   checkRateLimit,
   createRateLimitResponse,
   v1ValidationErrorResponse,
@@ -22,23 +28,6 @@ const logger = createLogger('V1LogsAPI')
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-interface CursorData {
-  startedAt: string
-  id: string
-}
-
-function encodeCursor(data: CursorData): string {
-  return Buffer.from(JSON.stringify(data)).toString('base64')
-}
-
-function decodeCursor(cursor: string): CursorData | null {
-  try {
-    return JSON.parse(Buffer.from(cursor, 'base64').toString())
-  } catch {
-    return null
-  }
-}
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
@@ -62,8 +51,45 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const params = parsed.data.query
 
-    const accessError = await validateWorkspaceAccess(rateLimit, userId, params.workspaceId, 'read')
+    const accessError = await validateWorkspaceAccess(
+      rateLimit,
+      userId,
+      params.workspaceId,
+      'none',
+      'read'
+    )
     if (accessError) return accessError
+
+    /** `logs.trace_spans` and `logs.cost` are projections, not gates — see {@link resolveLogFieldProjection}. */
+    const projection = await resolveLogFieldProjection(
+      capabilityGovernedUserId(rateLimit),
+      params.workspaceId
+    )
+
+    /**
+     * Project the value, then refuse the query that selects on it. `minCost` and
+     * `maxCost` bisect the very total `projectCostTotal` blanks below, so
+     * withholding one while answering the other is incoherent. This surface
+     * orders by `startedAt` alone — it publishes no `sortBy` — so the ordering
+     * half of the oracle is not reachable here.
+     *
+     * It runs after the workspace access check above, so the caller is a member
+     * being told about their own group rather than an outsider handed an
+     * organization-configuration oracle.
+     *
+     * The assertion throws so every surface refuses in the same words, and this
+     * route builds its own responses rather than running inside a JSON route
+     * builder, so the throw is caught here instead of by a shared error
+     * projection. Caught narrowly on purpose — the handler's outer `catch`
+     * renders a 500, and letting a 403 fall into it would report an
+     * organization's policy as a Sim fault.
+     */
+    try {
+      assertLogCostQueryAllowed({ minCost: params.minCost, maxCost: params.maxCost }, projection)
+    } catch (error) {
+      if (!(error instanceof PermissionGroupCapabilityError)) throw error
+      return capabilityRefusalResponse(error.capability)
+    }
 
     logger.info(`[${requestId}] Fetching logs for workspace ${params.workspaceId}`, {
       userId,
@@ -73,6 +99,14 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         level: params.level,
       },
     })
+
+    const decodedCursor = params.cursor
+      ? decodePublicLogCursor(params.cursor, params.order ?? 'desc')
+      : null
+    if (params.cursor && !decodedCursor) {
+      return NextResponse.json({ error: 'Invalid cursor' }, { status: 400 })
+    }
+    const cursor = decodedCursor ?? undefined
 
     const filters = {
       workspaceId: params.workspaceId,
@@ -88,53 +122,27 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       minCost: params.minCost,
       maxCost: params.maxCost,
       model: params.model,
-      cursor: params.cursor ? decodeCursor(params.cursor) || undefined : undefined,
+      cursor,
       order: params.order,
     }
 
-    const conditions = buildLogFilters(filters)
-    const orderBy = getOrderBy(params.order)
-
-    const baseQuery = db
-      .select({
-        id: workflowExecutionLogs.id,
-        workflowId: workflowExecutionLogs.workflowId,
-        workspaceId: workflowExecutionLogs.workspaceId,
-        executionId: workflowExecutionLogs.executionId,
-        deploymentVersionId: workflowExecutionLogs.deploymentVersionId,
-        level: workflowExecutionLogs.level,
-        trigger: workflowExecutionLogs.trigger,
-        startedAt: workflowExecutionLogs.startedAt,
-        endedAt: workflowExecutionLogs.endedAt,
-        totalDurationMs: workflowExecutionLogs.totalDurationMs,
-        costTotal: workflowExecutionLogs.costTotal,
-        files: workflowExecutionLogs.files,
-        executionData: params.details === 'full' ? workflowExecutionLogs.executionData : sql`null`,
-        workflowName: workflow.name,
-        workflowDescription: workflow.description,
-      })
-      .from(workflowExecutionLogs)
-      .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
-
-    const logs = await baseQuery
-      .where(conditions)
-      .orderBy(orderBy)
-      .limit(params.limit + 1)
-
-    const hasMore = logs.length > params.limit
-    const data = logs.slice(0, params.limit)
-
-    let nextCursor: string | undefined
-    if (hasMore && data.length > 0) {
-      const lastLog = data[data.length - 1]
-      nextCursor = encodeCursor({
-        startedAt: lastLog.startedAt.toISOString(),
-        id: lastLog.id,
-      })
-    }
-
+    /**
+     * `withheldExecutionData` strips `traceSpans` AND `finalOutput`, so under
+     * `hideTraceSpans` both opt-in payload fields project to nothing. Reading
+     * the projection here rather than after the fetch keeps the surface from
+     * selecting every row's execution blob out of the trace store and
+     * materializing it only to delete it.
+     */
     const needsMaterialize =
-      params.details === 'full' && (params.includeFinalOutput || params.includeTraceSpans)
+      params.details === 'full' &&
+      (params.includeFinalOutput || params.includeTraceSpans) &&
+      !projection.hideTraceSpans
+
+    const { data, nextCursor } = await listPublicWorkflowLogs({
+      filters,
+      limit: params.limit,
+      includeExecutionData: needsMaterialize,
+    })
 
     const buildBase = (log: (typeof data)[number]) => {
       const result: any = {
@@ -147,7 +155,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         startedAt: log.startedAt.toISOString(),
         endedAt: log.endedAt?.toISOString() || null,
         totalDurationMs: log.totalDurationMs,
-        cost: log.costTotal != null ? { total: Number(log.costTotal) } : null,
+        cost: projectCostTotal(log.costTotal, projection),
         files: log.files || null,
       }
 
@@ -167,7 +175,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       ? await mapWithConcurrency(data, MATERIALIZE_CONCURRENCY, async (log) => {
           const result = buildBase(log)
           if (log.executionData) {
-            const execData = (await materializeExecutionDataForDisplay(
+            const materialized = (await materializeExecutionDataForDisplay(
               log.executionData as Record<string, unknown> | null,
               {
                 workspaceId: log.workspaceId,
@@ -175,11 +183,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
                 executionId: log.executionId,
                 userId,
               }
-            )) as any
-            if (params.includeFinalOutput && execData.finalOutput) {
+            )) as Record<string, unknown> | null
+            const execData = projectExecutionData(materialized, projection) as any
+            if (params.includeFinalOutput && execData?.finalOutput) {
               result.finalOutput = execData.finalOutput
             }
-            if (params.includeTraceSpans && execData.traceSpans) {
+            if (params.includeTraceSpans && execData?.traceSpans) {
               result.traceSpans = execData.traceSpans
             }
           }
@@ -187,12 +196,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         })
       : data.map(buildBase)
 
-    const limits = await getUserLimits(userId)
+    const limits = projectUserLimits(await getUserLimits(userId), projection)
 
     const response = createApiResponse(
       {
         data: formattedLogs,
-        nextCursor,
+        nextCursor: nextCursor ?? undefined,
       },
       limits,
       rateLimit // This is the API endpoint rate limit, not workflow execution limits

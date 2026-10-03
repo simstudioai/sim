@@ -1,82 +1,36 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  Button,
-  ChipCombobox,
-  ChipCopyInput,
-  ChipInput,
-  ChipSelect,
-  ChipTextarea,
-  cn,
-  Expandable,
-  ExpandableContent,
-  Switch,
-  toast,
-} from '@sim/emcn'
-import { createLogger } from '@sim/logger'
+import { ChipConfirmModal, ChipModalTabs, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ChevronDown, Eye, EyeOff } from 'lucide-react'
-import { saveDiscardActions } from '@/components/settings/save-discard-actions'
-import type { SettingsAction } from '@/components/settings/settings-header'
-import type { SsoRegistrationBody } from '@/lib/api/contracts/auth'
-import { useSession } from '@/lib/auth/auth-client'
+import { useQueryStates } from 'nuqs'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import { getBaseUrl } from '@/lib/core/utils/urls'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
-import { SettingRow } from '@/ee/components/setting-row'
+import { ScimSection } from '@/ee/scim/components/scim-section'
+import { RequireSsoSection } from '@/ee/sso/components/require-sso-section'
+import { SsoProviderList } from '@/ee/sso/components/sso-provider-list'
+import { SsoProviderSettings } from '@/ee/sso/components/sso-provider-settings'
 import { VerifiedDomainsSection } from '@/ee/sso/components/verified-domains-section'
-import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
-import { useConfigureSSO, useSSOProviders } from '@/ee/sso/hooks/sso'
+import { useDeleteSSOProvider, useSetPrimarySSOProvider, useSSOProviders } from '@/ee/sso/hooks/sso'
+import { ssoSettingsParsers, ssoSettingsUrlKeys } from '@/ee/sso/search-params'
 import { useOrganizationBilling } from '@/hooks/queries/organization'
 
-const logger = createLogger('SSO')
+const SETTINGS_TABS = [
+  { value: 'sign-in', label: 'Sign-in' },
+  { value: 'domains', label: 'Domains' },
+  { value: 'provisioning', label: 'Provisioning' },
+] as const
 
-interface SSOProvider {
-  id: string
-  providerId: string
-  domain: string
-  issuer: string
-  organizationId: string
-  userId?: string
-  oidcConfig?: string
-  samlConfig?: string
-  providerType: 'oidc' | 'saml'
-}
-
-const DEFAULT_FORM_DATA = {
-  providerType: 'oidc' as 'oidc' | 'saml',
-  providerId: '',
-  issuerUrl: '',
-  domain: '',
-  clientId: '',
-  clientSecret: '',
-  scopes: 'openid,profile,email',
-  entryPoint: '',
-  cert: '',
-  callbackUrl: '',
-  audience: '',
-  wantAssertionsSigned: true,
-  idpMetadata: '',
-}
-
-const DEFAULT_ERRORS = {
-  providerType: [],
-  providerId: [],
-  issuerUrl: [],
-  domain: [],
-  clientId: [],
-  clientSecret: [],
-  entryPoint: [],
-  cert: [],
-  scopes: [],
-  callbackUrl: [],
-  audience: [],
-}
+const DOCS_LINKS = {
+  'sign-in': 'https://docs.sim.ai/platform/enterprise/sso',
+  domains: 'https://docs.sim.ai/platform/enterprise/verified-domains',
+  provisioning: 'https://docs.sim.ai/platform/enterprise/scim',
+} as const
 
 interface SSOProps {
   organizationId: string
@@ -87,693 +41,216 @@ export function SSO({ organizationId }: SSOProps) {
 }
 
 function OrganizationSsoSettings({ organizationId }: SSOProps) {
-  const { data: session } = useSession()
-  const { data: organizationBillingData, isLoading: isLoadingOrganizationBilling } =
-    useOrganizationBilling(organizationId)
+  const [{ tab: requestedTab, provider: requestedProvider, createProvider }, setParams] =
+    useQueryStates(ssoSettingsParsers, ssoSettingsUrlKeys)
+  const { billingEnabled, features } = useDeploymentShape()
+  const billing = useOrganizationBilling(organizationId)
+  const providers = useSSOProviders({ organizationId })
+  const provisioningAvailable = features.scim
+  const tab = requestedTab === 'provisioning' && !provisioningAvailable ? 'sign-in' : requestedTab
+  const providerList = providers.data?.providers ?? []
+  const selectedProvider =
+    requestedProvider && !createProvider
+      ? providerList.find((entry) => entry.providerId === requestedProvider)
+      : undefined
+  const signInView: 'create' | 'detail' | 'list' =
+    providerList.length === 0 || createProvider ? 'create' : selectedProvider ? 'detail' : 'list'
+  /** Opening pushed a history entry; closing must not push another. */
+  const showList = () =>
+    void setParams({ provider: null, createProvider: null }, { history: 'replace' })
+  const deleteProvider = useDeleteSSOProvider()
+  const setPrimaryProvider = useSetPrimarySSOProvider()
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [pendingPrimaryId, setPendingPrimaryId] = useState<string | null>(null)
+  const pendingDelete = providerList.find((entry) => entry.providerId === pendingDeleteId)
+  const pendingPrimary = providerList.find((entry) => entry.providerId === pendingPrimaryId)
+  /**
+   * Who signs in the domain once the provider is deleted: the first other
+   * verified provider by id when deleting the primary, otherwise the domain's
+   * current primary. The list arrives ordered by provider id, so this is the
+   * provider the server uses.
+   */
+  const deleteSignInProvider = pendingDelete
+    ? pendingDelete.isPrimary
+      ? providerList.find(
+          (entry) =>
+            entry.domainKey === pendingDelete.domainKey &&
+            entry.providerId !== pendingDelete.providerId &&
+            entry.domainVerified
+        )
+      : providerList.find((entry) => entry.domainKey === pendingDelete.domainKey && entry.isPrimary)
+    : undefined
+  const deleteDomain = pendingDelete?.domain ?? 'its domain'
+  const canMakeSelectedPrimary =
+    selectedProvider !== undefined &&
+    selectedProvider.domainVerified === true &&
+    !selectedProvider.isPrimary &&
+    providerList.some((entry) => entry.domainKey === selectedProvider.domainKey && entry.isPrimary)
 
-  const { data: providersData, isLoading: isLoadingProviders } = useSSOProviders({
-    organizationId,
-  })
-
-  const providers = providersData?.providers || []
-  const existingProvider = providers[0] as SSOProvider | undefined
-
-  const userId = session?.user?.id
-  const hasEnterprisePlan = isEnterprise(organizationBillingData?.data?.subscriptionPlan)
-
-  const isSSOProviderOwner =
-    !isBillingEnabled && userId ? providers.some((p) => p.userId === userId) : null
-
-  const configureSSOMutation = useConfigureSSO()
-
-  const [showClientSecret, setShowClientSecret] = useState(false)
-  const [isEditing, setIsEditing] = useState(false)
-  const [showAdvanced, setShowAdvanced] = useState(false)
-
-  const [formData, setFormData] = useState(DEFAULT_FORM_DATA)
-  const [originalFormData, setOriginalFormData] = useState(DEFAULT_FORM_DATA)
-  const [errors, setErrors] = useState<Record<string, string[]>>(DEFAULT_ERRORS)
-  const [showErrors, setShowErrors] = useState(false)
-
-  const hasChanges = (Object.keys(formData) as (keyof typeof formData)[]).some(
-    (k) => formData[k] !== originalFormData[k]
-  )
-
-  useSettingsUnsavedGuard({ isDirty: hasChanges })
-
-  if (isLoadingProviders || (isBillingEnabled && isLoadingOrganizationBilling)) {
-    return null
-  }
-
-  if (isBillingEnabled) {
-    if (!hasEnterprisePlan) {
-      return (
-        <SettingsEmptyState>
-          Single Sign-On is available on Enterprise plans only.
-        </SettingsEmptyState>
-      )
-    }
-  } else {
-    if (!isLoadingProviders && isSSOProviderOwner === false && providers.length > 0) {
-      return (
-        <SettingsEmptyState>
-          Only the user who configured SSO can manage these settings.
-        </SettingsEmptyState>
-      )
-    }
-  }
-
-  const validateProviderId = (value: string): string[] => {
-    if (!value || !value.trim()) return ['Provider ID is required.']
-    if (!/^[-a-z0-9]+$/i.test(value.trim())) return ['Use letters, numbers, and dashes only.']
-    return []
-  }
-
-  const validateIssuerUrl = (value: string): string[] => {
-    const out: string[] = []
-    if (!value || !value.trim()) return ['Issuer URL is required.']
+  const handleConfirmPrimary = async () => {
+    if (!pendingPrimary?.providerId) return
     try {
-      const url = new URL(value.trim())
-      const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1'
-      if (url.protocol !== 'https:' && !isLocalhost) {
-        out.push('Issuer URL must use HTTPS.')
-      }
-    } catch {
-      out.push('Enter a valid issuer URL like https://your-identity-provider.com/oauth2/default')
+      await setPrimaryProvider.mutateAsync(pendingPrimary.providerId)
+      toast.success(`${pendingPrimary.providerId} is now the primary provider`)
+      setPendingPrimaryId(null)
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to change the primary provider'))
     }
-    return out
   }
 
-  const validateDomain = (value: string): string[] => {
-    const out: string[] = []
-    if (!value || !value.trim()) return ['Domain is required.']
-    if (/^https?:\/\//i.test(value.trim())) out.push('Do not include protocol (https://).')
-    if (!/^[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(value.trim()))
-      out.push('Enter a valid domain like company.com')
-    return out
-  }
-
-  const validateRequired = (label: string, value: string): string[] => {
-    const out: string[] = []
-    if (!value || !value.trim()) out.push(`${label} is required.`)
-    return out
-  }
-
-  const validateAll = (data: typeof formData) => {
-    const newErrors: Record<string, string[]> = {
-      providerType: [],
-      providerId: validateProviderId(data.providerId),
-      issuerUrl: validateIssuerUrl(data.issuerUrl),
-      domain: validateDomain(data.domain),
-      clientId: [],
-      clientSecret: [],
-      entryPoint: [],
-      cert: [],
-      scopes: [],
-      callbackUrl: [],
-      audience: [],
-    }
-
-    const providerType = data.providerType || 'oidc'
-
-    if (providerType === 'oidc') {
-      newErrors.clientId = validateRequired('Client ID', data.clientId)
-      newErrors.clientSecret = validateRequired('Client Secret', data.clientSecret)
-      if (!data.scopes || !data.scopes.trim()) {
-        newErrors.scopes = ['Scopes are required for OIDC providers']
-      }
-    } else if (providerType === 'saml') {
-      newErrors.entryPoint = validateIssuerUrl(data.entryPoint || '')
-      if (!newErrors.entryPoint.length && !data.entryPoint) {
-        newErrors.entryPoint = ['Entry Point URL is required for SAML providers']
-      }
-      newErrors.cert = validateRequired('Certificate', data.cert)
-    }
-
-    setErrors(newErrors)
-    return newErrors
-  }
-
-  const hasAnyErrors = (errs: Record<string, string[]>) =>
-    Object.values(errs).some((l) => l.length > 0)
-
-  const handleDiscard = () => {
-    setIsEditing(false)
-    setFormData(DEFAULT_FORM_DATA)
-    setOriginalFormData(DEFAULT_FORM_DATA)
-    setErrors(DEFAULT_ERRORS)
-    setShowErrors(false)
-    setShowAdvanced(false)
-  }
-
-  const isFormValid = () => {
-    const requiredFields = ['providerId', 'issuerUrl', 'domain']
-    const hasRequiredFields = requiredFields.every((field) => {
-      const value = formData[field as keyof typeof formData]
-      return typeof value === 'string' && value.trim() !== ''
-    })
-
-    const providerType = formData.providerType || 'oidc'
-
-    if (providerType === 'oidc') {
-      return (
-        hasRequiredFields &&
-        formData.clientId.trim() !== '' &&
-        formData.clientSecret.trim() !== '' &&
-        formData.scopes.trim() !== ''
-      )
-    }
-    if (providerType === 'saml') {
-      return hasRequiredFields && formData.entryPoint.trim() !== '' && formData.cert.trim() !== ''
-    }
-
-    return false
-  }
-
-  const handleSubmit = async (e?: React.FormEvent) => {
-    e?.preventDefault()
-
-    setShowErrors(true)
-    const validation = validateAll(formData)
-    if (hasAnyErrors(validation)) {
-      return
-    }
-
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete?.providerId) return
     try {
-      const providerType = formData.providerType || 'oidc'
-
-      const requestBody: SsoRegistrationBody =
-        providerType === 'oidc'
-          ? {
-              providerType: 'oidc',
-              providerId: formData.providerId,
-              issuer: formData.issuerUrl,
-              domain: formData.domain,
-              orgId: organizationId,
-              mapping: {
-                id: 'sub',
-                email: 'email',
-                name: 'name',
-                image: 'picture',
-              },
-              clientId: formData.clientId,
-              clientSecret: formData.clientSecret,
-              scopes: formData.scopes.split(',').map((s) => s.trim()),
-            }
-          : {
-              providerType: 'saml',
-              providerId: formData.providerId,
-              issuer: formData.issuerUrl,
-              domain: formData.domain,
-              orgId: organizationId,
-              mapping: {
-                id: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier',
-                email: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
-                name: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',
-              },
-              entryPoint: formData.entryPoint,
-              cert: formData.cert,
-              wantAssertionsSigned: formData.wantAssertionsSigned,
-              ...(formData.callbackUrl ? { callbackUrl: formData.callbackUrl } : {}),
-              ...(formData.audience ? { audience: formData.audience } : {}),
-              ...(formData.idpMetadata ? { idpMetadata: formData.idpMetadata } : {}),
-            }
-
-      await configureSSOMutation.mutateAsync(requestBody)
-
-      logger.info('SSO provider configured', { providerId: formData.providerId })
-      toast.success(isEditing ? 'SSO provider updated' : 'SSO provider configured')
-      setFormData(DEFAULT_FORM_DATA)
-      setOriginalFormData(DEFAULT_FORM_DATA)
-      setErrors(DEFAULT_ERRORS)
-      setShowErrors(false)
-      setIsEditing(false)
-      setShowAdvanced(false)
-    } catch (err) {
-      const message = getErrorMessage(err, 'Unknown error occurred')
-      toast.error(message)
-      logger.error('Failed to configure SSO provider', { error: err })
+      await deleteProvider.mutateAsync(pendingDelete.providerId)
+      toast.success('Identity provider deleted')
+      setPendingDeleteId(null)
+      if (selectedProvider?.providerId === pendingDelete.providerId) showList()
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to delete identity provider'))
     }
   }
 
-  const handleInputChange = (field: keyof typeof formData, value: string | boolean) => {
-    const next = { ...formData, [field]: value }
-
-    if (field === 'providerType') {
-      setShowErrors(false)
-    }
-
-    setFormData(next)
-    validateAll(next)
+  if (billingEnabled && billing.isLoading) {
+    return <SettingsEmptyState variant='inline'>Loading sign-in settings...</SettingsEmptyState>
   }
 
-  const isSaml = formData.providerType === 'saml'
-  const callbackUrl = `${getBaseUrl()}/api/auth/${isSaml ? 'sso/saml2/callback' : 'sso/callback'}/${formData.providerId || existingProvider?.providerId || 'provider-id'}`
-
-  const handleEdit = () => {
-    if (!existingProvider) return
-
-    try {
-      let clientId = ''
-      let clientSecret = ''
-      let scopes = 'openid,profile,email'
-      let entryPoint = ''
-      let cert = ''
-      let callbackUrl = ''
-      let audience = ''
-      let wantAssertionsSigned = true
-      let idpMetadata = ''
-
-      if (existingProvider.providerType === 'oidc' && existingProvider.oidcConfig) {
-        const config = JSON.parse(existingProvider.oidcConfig)
-        clientId = config.clientId || ''
-        clientSecret = config.clientSecret || ''
-        scopes = config.scopes?.join(',') || 'openid,profile,email'
-      } else if (existingProvider.providerType === 'saml' && existingProvider.samlConfig) {
-        const config = JSON.parse(existingProvider.samlConfig)
-        entryPoint = config.entryPoint || ''
-        cert = config.cert || ''
-        callbackUrl = config.callbackUrl || ''
-        audience = config.audience || ''
-        wantAssertionsSigned = config.wantAssertionsSigned ?? true
-        idpMetadata = config.idpMetadata?.metadata || config.idpMetadata || ''
-      }
-
-      const snapshot = {
-        providerType: existingProvider.providerType,
-        providerId: existingProvider.providerId,
-        issuerUrl: existingProvider.issuer,
-        domain: existingProvider.domain,
-        clientId,
-        clientSecret,
-        scopes,
-        entryPoint,
-        cert,
-        callbackUrl,
-        audience,
-        wantAssertionsSigned,
-        idpMetadata,
-      }
-      setFormData(snapshot)
-      setOriginalFormData(snapshot)
-      setIsEditing(true)
-      setShowErrors(false)
-      setShowAdvanced(false)
-    } catch (err) {
-      logger.error('Failed to parse provider config', { error: err })
-      toast.error('Failed to load provider configuration')
-    }
-  }
-
-  if (existingProvider && !isEditing) {
-    const providerCallbackUrl = `${getBaseUrl()}/api/auth/${existingProvider.providerType === 'saml' ? 'sso/saml2/callback' : 'sso/callback'}/${existingProvider.providerId}`
-
+  if (billingEnabled && billing.data === undefined && billing.error) {
     return (
-      <SettingsPanel actions={[{ text: 'Edit', variant: 'primary', onSelect: handleEdit }]}>
-        <VerifiedDomainsSection organizationId={organizationId} />
+      <SettingsQueryErrorState
+        error={billing.error}
+        fallback='Failed to load organization billing'
+        isRetrying={billing.isFetching}
+        onRetry={() => void billing.refetch()}
+      />
+    )
+  }
 
-        <SettingsSection label='Identity provider'>
-          <div className='flex flex-col gap-4.5'>
-            <SettingRow label='Provider ID'>
-              <p className='text-[var(--text-primary)] text-small'>{existingProvider.providerId}</p>
-            </SettingRow>
-
-            <SettingRow label='Provider Type'>
-              <p className='text-[var(--text-primary)] text-small'>
-                {existingProvider.providerType.toUpperCase()}
-              </p>
-            </SettingRow>
-
-            <SettingRow label='Domain'>
-              <p className='text-[var(--text-primary)] text-small'>{existingProvider.domain}</p>
-            </SettingRow>
-
-            <SettingRow label='Issuer URL'>
-              <p className='break-all text-[var(--text-primary)] text-small'>
-                {existingProvider.issuer}
-              </p>
-            </SettingRow>
-
-            <SettingRow label='Callback URL'>
-              <ChipCopyInput value={providerCallbackUrl} copyLabel='Copy callback URL' />
-              <p className='text-[var(--text-muted)] text-small'>
-                Configure this in your identity provider
-              </p>
-            </SettingRow>
-          </div>
-        </SettingsSection>
-      </SettingsPanel>
+  if (billingEnabled && !isEnterprise(billing.data?.data?.subscriptionPlan)) {
+    return (
+      <SettingsEmptyState>Single Sign-On is available on Enterprise plans only.</SettingsEmptyState>
     )
   }
 
   return (
-    <form onSubmit={handleSubmit} autoComplete='off'>
-      <input
-        type='text'
-        name='fakeusernameremembered'
-        autoComplete='username'
-        className='-left-[9999px] pointer-events-none absolute opacity-0'
-        tabIndex={-1}
-        readOnly
+    <div className='flex flex-col gap-7'>
+      <ChipModalTabs
+        tabs={SETTINGS_TABS.filter(
+          (entry) => entry.value !== 'provisioning' || provisioningAvailable
+        )}
+        value={tab}
+        onChange={(value) => {
+          const next = SETTINGS_TABS.find((entry) => entry.value === value)
+          if (next) void setParams({ tab: next.value })
+        }}
+        aria-label='Single sign-on settings'
       />
-      <input
-        type='password'
-        name='fakepasswordremembered'
-        autoComplete='current-password'
-        className='-left-[9999px] pointer-events-none absolute opacity-0'
-        tabIndex={-1}
-        readOnly
-      />
-      <input
-        type='email'
-        name='fakeemailremembered'
-        autoComplete='email'
-        className='-left-[9999px] pointer-events-none absolute opacity-0'
-        tabIndex={-1}
-        readOnly
-      />
-      <input type='text' name='hidden' className='hidden' autoComplete='off' />
 
-      <SettingsPanel
-        actions={[
-          ...(isEditing && !hasChanges
-            ? [
-                {
-                  text: 'Cancel',
-                  onSelect: handleDiscard,
-                  disabled: configureSSOMutation.isPending,
-                } satisfies SettingsAction,
-              ]
-            : []),
-          ...saveDiscardActions({
-            dirty: hasChanges,
-            saving: configureSSOMutation.isPending,
-            saveDisabled: hasAnyErrors(errors) || !isFormValid(),
-            saveLabel: isEditing ? 'Update' : 'Save',
-            savingLabel: isEditing ? 'Updating...' : 'Saving...',
-            onSave: () => void handleSubmit(),
-            onDiscard: handleDiscard,
-          }),
-        ]}
-      >
-        <VerifiedDomainsSection organizationId={organizationId} />
-
-        <SettingsSection label='Identity provider'>
-          <div className='flex flex-col gap-4.5'>
-            <SettingRow label='Provider Type'>
-              <ChipSelect
-                align='start'
-                value={formData.providerType}
-                onChange={(value: string) =>
-                  handleInputChange('providerType', value as 'oidc' | 'saml')
-                }
-                options={[
-                  { label: 'OIDC', value: 'oidc' },
-                  { label: 'SAML', value: 'saml' },
-                ]}
-                placeholder='Select provider type'
-              />
-              <p className='text-[var(--text-muted)] text-small'>
-                {formData.providerType === 'oidc'
-                  ? 'OpenID Connect (Okta, Azure AD, Auth0, etc.)'
-                  : 'Security Assertion Markup Language (ADFS, Shibboleth, etc.)'}
-              </p>
-            </SettingRow>
-
-            <SettingRow
-              label='Provider ID'
-              error={
-                showErrors && errors.providerId.length > 0 ? errors.providerId.join(' ') : undefined
+      <div hidden={tab !== 'sign-in'}>
+        {providers.isLoading ? (
+          <SettingsEmptyState variant='inline'>Loading identity providers...</SettingsEmptyState>
+        ) : providers.data === undefined && providers.error ? (
+          <SettingsQueryErrorState
+            error={providers.error}
+            fallback='Failed to load Single Sign-On settings'
+            isRetrying={providers.isFetching}
+            onRetry={() => void providers.refetch()}
+          />
+        ) : signInView === 'list' ? (
+          <div className='flex flex-col gap-7'>
+            <SsoProviderList
+              providers={providerList}
+              active={tab === 'sign-in'}
+              docsLink={DOCS_LINKS['sign-in']}
+              onAdd={() => void setParams({ provider: null, createProvider: true })}
+              onOpen={(providerId) =>
+                void setParams({ provider: providerId, createProvider: null })
               }
-            >
-              <ChipCombobox
-                value={formData.providerId}
-                onChange={(value: string) => handleInputChange('providerId', value)}
-                options={SSO_TRUSTED_PROVIDERS.map((id) => ({
-                  label: id,
-                  value: id,
-                }))}
-                placeholder='Select or enter a provider ID'
-                editable
-              />
-            </SettingRow>
-
-            <SettingRow
-              label='Issuer URL'
-              error={
-                showErrors && errors.issuerUrl.length > 0 ? errors.issuerUrl.join(' ') : undefined
-              }
-            >
-              <ChipInput
-                id='sso-issuer'
-                type='url'
-                placeholder='https://your-identity-provider.com/oauth2/default'
-                value={formData.issuerUrl}
-                name='sso_issuer_endpoint'
-                autoComplete='off'
-                autoCapitalize='none'
-                spellCheck={false}
-                readOnly
-                onFocus={(e) => e.target.removeAttribute('readOnly')}
-                onChange={(e) => handleInputChange('issuerUrl', e.target.value)}
-                error={showErrors && errors.issuerUrl.length > 0}
-              />
-            </SettingRow>
-
-            <SettingRow
-              label='Domain'
-              error={showErrors && errors.domain.length > 0 ? errors.domain.join(' ') : undefined}
-            >
-              <ChipInput
-                id='sso-domain'
-                type='text'
-                placeholder='company.com'
-                value={formData.domain}
-                name='sso_identity_domain'
-                autoComplete='off'
-                autoCapitalize='none'
-                spellCheck={false}
-                readOnly
-                onFocus={(e) => e.target.removeAttribute('readOnly')}
-                onChange={(e) => handleInputChange('domain', e.target.value)}
-                error={showErrors && errors.domain.length > 0}
-              />
-              <p className='text-[var(--text-muted)] text-small'>
-                The email domain users sign in with (e.g. company.com)
-              </p>
-            </SettingRow>
-
-            {formData.providerType === 'oidc' ? (
-              <>
-                <SettingRow
-                  label='Client ID'
-                  error={
-                    showErrors && errors.clientId.length > 0 ? errors.clientId.join(' ') : undefined
-                  }
-                >
-                  <ChipInput
-                    id='sso-client-id'
-                    type='text'
-                    placeholder='Enter Client ID'
-                    value={formData.clientId}
-                    name='sso_client_identifier'
-                    autoComplete='off'
-                    autoCapitalize='none'
-                    spellCheck={false}
-                    readOnly
-                    onFocus={(e) => e.target.removeAttribute('readOnly')}
-                    onChange={(e) => handleInputChange('clientId', e.target.value)}
-                    error={showErrors && errors.clientId.length > 0}
-                  />
-                </SettingRow>
-
-                <SettingRow
-                  label='Client Secret'
-                  error={
-                    showErrors && errors.clientSecret.length > 0
-                      ? errors.clientSecret.join(' ')
-                      : undefined
-                  }
-                >
-                  <ChipInput
-                    id='sso-client-secret'
-                    type='text'
-                    placeholder='Enter Client Secret'
-                    value={formData.clientSecret}
-                    name='sso_client_key'
-                    autoComplete='off'
-                    autoCapitalize='none'
-                    spellCheck={false}
-                    readOnly
-                    onFocus={(e) => {
-                      e.target.removeAttribute('readOnly')
-                      setShowClientSecret(true)
-                    }}
-                    onBlurCapture={() => setShowClientSecret(false)}
-                    onChange={(e) => handleInputChange('clientSecret', e.target.value)}
-                    inputClassName={!showClientSecret ? '[-webkit-text-security:disc]' : undefined}
-                    error={showErrors && errors.clientSecret.length > 0}
-                    endAdornment={
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        onClick={() => setShowClientSecret((s) => !s)}
-                        className='size-6 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                        aria-label={showClientSecret ? 'Hide client secret' : 'Show client secret'}
-                      >
-                        {showClientSecret ? (
-                          <EyeOff className='size-[14px]' />
-                        ) : (
-                          <Eye className='size-[14px]' />
-                        )}
-                      </Button>
-                    }
-                  />
-                </SettingRow>
-
-                <SettingRow
-                  label='Scopes'
-                  error={
-                    showErrors && errors.scopes.length > 0 ? errors.scopes.join(' ') : undefined
-                  }
-                >
-                  <ChipInput
-                    id='sso-scopes'
-                    type='text'
-                    placeholder='openid,profile,email'
-                    value={formData.scopes}
-                    autoComplete='off'
-                    autoCapitalize='none'
-                    spellCheck={false}
-                    onChange={(e) => handleInputChange('scopes', e.target.value)}
-                    error={showErrors && errors.scopes.length > 0}
-                  />
-                  <p className='text-[var(--text-muted)] text-small'>
-                    Comma-separated list of OIDC scopes to request
-                  </p>
-                </SettingRow>
-              </>
-            ) : (
-              <>
-                <SettingRow
-                  label='Entry Point URL'
-                  error={
-                    showErrors && errors.entryPoint.length > 0
-                      ? errors.entryPoint.join(' ')
-                      : undefined
-                  }
-                >
-                  <ChipInput
-                    id='sso-entry-point'
-                    type='url'
-                    placeholder='https://idp.example.com/sso/saml'
-                    value={formData.entryPoint}
-                    autoComplete='off'
-                    autoCapitalize='none'
-                    spellCheck={false}
-                    onChange={(e) => handleInputChange('entryPoint', e.target.value)}
-                    error={showErrors && errors.entryPoint.length > 0}
-                  />
-                </SettingRow>
-
-                <SettingRow
-                  label='Identity Provider Certificate'
-                  error={showErrors && errors.cert.length > 0 ? errors.cert.join(' ') : undefined}
-                >
-                  <ChipTextarea
-                    id='sso-cert'
-                    placeholder={'-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'}
-                    value={formData.cert}
-                    autoComplete='off'
-                    autoCapitalize='none'
-                    spellCheck={false}
-                    onChange={(e) => handleInputChange('cert', e.target.value)}
-                    className='min-h-[80px] font-mono'
-                    error={showErrors && errors.cert.length > 0}
-                    rows={3}
-                  />
-                </SettingRow>
-
-                <div className='flex flex-col gap-2'>
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    onClick={() => setShowAdvanced((v) => !v)}
-                    className='w-fit gap-1.5 px-0 text-[var(--text-muted)] hover:bg-transparent hover:text-[var(--text-primary)]'
-                  >
-                    <ChevronDown
-                      className={cn(
-                        'size-[14px] transition-transform',
-                        showAdvanced && 'rotate-180'
-                      )}
-                    />
-                    Advanced Options
-                  </Button>
-
-                  <Expandable expanded={showAdvanced}>
-                    <ExpandableContent>
-                      <div className='flex flex-col gap-4.5 pt-2'>
-                        <SettingRow label='Audience (Entity ID)' optional>
-                          <ChipInput
-                            type='text'
-                            placeholder='Enter Audience'
-                            value={formData.audience}
-                            autoComplete='off'
-                            autoCapitalize='none'
-                            spellCheck={false}
-                            onChange={(e) => handleInputChange('audience', e.target.value)}
-                          />
-                        </SettingRow>
-
-                        <SettingRow label='Callback URL Override' optional>
-                          <ChipInput
-                            type='url'
-                            placeholder={`${getBaseUrl()}/api/auth/sso/saml2/callback/provider-id`}
-                            value={formData.callbackUrl}
-                            autoComplete='off'
-                            autoCapitalize='none'
-                            spellCheck={false}
-                            onChange={(e) => handleInputChange('callbackUrl', e.target.value)}
-                          />
-                        </SettingRow>
-
-                        <SettingRow label='Require signed SAML assertions'>
-                          <Switch
-                            checked={formData.wantAssertionsSigned}
-                            onCheckedChange={(checked) =>
-                              handleInputChange('wantAssertionsSigned', checked)
-                            }
-                          />
-                        </SettingRow>
-
-                        <SettingRow label='IDP Metadata XML' optional>
-                          <ChipTextarea
-                            placeholder='Paste IDP metadata XML here'
-                            value={formData.idpMetadata}
-                            autoComplete='off'
-                            autoCapitalize='none'
-                            spellCheck={false}
-                            onChange={(e) => handleInputChange('idpMetadata', e.target.value)}
-                            className='min-h-[60px] font-mono'
-                            rows={2}
-                          />
-                        </SettingRow>
-                      </div>
-                    </ExpandableContent>
-                  </Expandable>
-                </div>
-              </>
-            )}
-
-            <SettingRow label='Callback URL'>
-              <ChipCopyInput value={callbackUrl} copyLabel='Copy callback URL' />
-              <p className='text-[var(--text-muted)] text-small'>
-                Configure this in your identity provider
-              </p>
-            </SettingRow>
+            />
+            <RequireSsoSection organizationId={organizationId} />
           </div>
-        </SettingsSection>
-      </SettingsPanel>
-    </form>
+        ) : (
+          <SsoProviderSettings
+            key={selectedProvider ? `provider:${selectedProvider.providerId}` : 'create'}
+            organizationId={organizationId}
+            existingProvider={selectedProvider}
+            active={tab === 'sign-in'}
+            onOpenDomains={() => void setParams({ tab: 'domains' })}
+            onSaved={(providerId) =>
+              void setParams({ provider: providerId, createProvider: null }, { history: 'replace' })
+            }
+            onBack={providerList.length > 0 ? showList : undefined}
+            onDelete={
+              selectedProvider
+                ? () => setPendingDeleteId(selectedProvider.providerId ?? null)
+                : undefined
+            }
+            onMakePrimary={
+              canMakeSelectedPrimary
+                ? () => setPendingPrimaryId(selectedProvider.providerId ?? null)
+                : undefined
+            }
+          />
+        )}
+
+        <ChipConfirmModal
+          open={tab === 'sign-in' && pendingPrimary !== undefined}
+          onOpenChange={(open) => !open && setPendingPrimaryId(null)}
+          title='Make primary provider'
+          text={[
+            'Make ',
+            { text: pendingPrimary?.providerId ?? 'this provider', bold: true },
+            ` the primary provider for ${pendingPrimary?.domain ?? 'its domain'}? Everyone there signs in through it from their next sign-in. People already signed in stay signed in, and the current primary stays configured so you can switch back.`,
+          ]}
+          confirm={{
+            label: 'Make primary',
+            variant: 'primary',
+            onClick: () => void handleConfirmPrimary(),
+            pending: setPrimaryProvider.isPending,
+            pendingLabel: 'Switching...',
+          }}
+        />
+
+        <ChipConfirmModal
+          open={tab === 'sign-in' && pendingDelete !== undefined}
+          onOpenChange={(open) => !open && setPendingDeleteId(null)}
+          title='Delete identity provider'
+          text={[
+            'Delete ',
+            { text: pendingDelete?.providerId ?? 'this provider', bold: true },
+            '? ',
+            deleteSignInProvider
+              ? `People at ${deleteDomain} ${pendingDelete?.isPrimary ? 'will sign in through' : 'keep signing in through'} ${deleteSignInProvider.providerId}.`
+              : {
+                  text: `People at ${deleteDomain} can no longer sign in through it.`,
+                  error: true,
+                },
+            ' Their accounts and memberships stay.',
+          ]}
+          confirm={{
+            label: 'Delete',
+            onClick: () => void handleConfirmDelete(),
+            pending: deleteProvider.isPending,
+            pendingLabel: 'Deleting...',
+          }}
+        />
+      </div>
+
+      {tab === 'domains' && (
+        <SettingsPanel docsLink={DOCS_LINKS.domains}>
+          <VerifiedDomainsSection organizationId={organizationId} />
+        </SettingsPanel>
+      )}
+
+      {provisioningAvailable && (
+        <div hidden={tab !== 'provisioning'}>
+          {tab === 'provisioning' && <SettingsPanel docsLink={DOCS_LINKS.provisioning} />}
+          <ScimSection
+            active={tab === 'provisioning'}
+            organizationId={organizationId}
+            onOpenDomains={() => void setParams({ tab: 'domains' })}
+          />
+        </div>
+      )}
+    </div>
   )
 }

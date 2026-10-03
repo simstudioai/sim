@@ -55,7 +55,7 @@ export async function verifyTurnstileToken({
   const body = new URLSearchParams()
   body.set('secret', secret)
   body.set('response', token)
-  if (remoteIp && remoteIp !== 'unknown') body.set('remoteip', remoteIp)
+  if (remoteIp) body.set('remoteip', remoteIp)
   if (idempotencyKey) body.set('idempotency_key', idempotencyKey)
 
   const controller = new AbortController()

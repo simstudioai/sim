@@ -16,8 +16,8 @@ import {
   Tooltip,
   useCopyToClipboard,
 } from '@sim/emcn'
+import { Check, Clipboard, Pencil, Plus, Trash } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Check, Clipboard, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
@@ -35,7 +35,7 @@ const SECRET_SCOPE_OPTIONS = [
   { value: 'selected', label: 'Selected secrets' },
 ]
 
-const DROPDOWN_TRIGGER_CLASS = 'w-[240px] flex-shrink-0'
+const DROPDOWN_TRIGGER_CLASS = 'w-[240px] shrink-0'
 
 export function InboxSettingsTab() {
   const params = useParams()
@@ -207,8 +207,7 @@ export function InboxSettingsTab() {
                         )}
                       </div>
                       <Chip
-                        flush
-                        leftIcon={Trash2}
+                        leftIcon={Trash}
                         aria-label='Remove sender'
                         onClick={() => handleRemoveSender(sender.id)}
                       />
@@ -297,6 +296,11 @@ export function InboxSettingsTab() {
                 </div>
               </div>
             )}
+            {updateSecretPolicy.error && (
+              <p role='alert' className='text-[var(--text-error)] text-caption'>
+                {getErrorMessage(updateSecretPolicy.error, 'Failed to update secret access')}
+              </p>
+            )}
           </div>
         </SettingsSection>
       </div>
@@ -351,7 +355,7 @@ export function InboxSettingsTab() {
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             Changing your email address will create a new inbox.{' '}
-            <span className='font-medium text-[var(--text-primary)]'>
+            <span className='text-[var(--text-primary)]'>
               The old address will stop receiving emails immediately.
             </span>
           </p>
@@ -363,7 +367,6 @@ export function InboxSettingsTab() {
               setNewUsername(value)
               if (editAddressError) setEditAddressError(null)
             }}
-            onSubmit={handleEditAddress}
             placeholder='e.g., new-acme'
             error={editAddressError}
           />
@@ -371,6 +374,7 @@ export function InboxSettingsTab() {
         <ChipModalFooter
           onCancel={() => setIsEditAddressOpen(false)}
           cancelDisabled={updateAddress.isPending}
+          defaultAction='none'
           primaryAction={{
             label: updateAddress.isPending ? 'Updating...' : 'Change address',
             onClick: handleEditAddress,

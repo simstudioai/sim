@@ -1,13 +1,22 @@
+import { omit } from '@sim/utils/object'
 import { DropboxIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { DropboxResponse } from '@/tools/dropbox/types'
 
-export const DropboxBlock: BlockConfig<DropboxResponse> = {
+/*
+ * Canonical basic/advanced pair for the upload source, shared by the card
+ * sentence below. Listing both members is what keeps the sentence working for
+ * an advanced-mode user, who has only the file reference filled.
+ */
+const UPLOAD_FILE_FIELD = ['uploadFile', 'fileRef'] as const
+
+export const DropboxBlock = {
   type: 'dropbox',
-  name: 'Dropbox',
+  name: 'Dropbox (Legacy)',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'dropbox_v2' },
   description: 'Upload, download, share, and manage files in Dropbox',
   authMode: AuthMode.OAuth,
   longDescription:
@@ -18,6 +27,52 @@ export const DropboxBlock: BlockConfig<DropboxResponse> = {
   icon: DropboxIcon,
   bgColor: '#0061FF',
   iconColor: '#0061FF',
+  canvasPresentation: {
+    defaultTitle: 'Dropbox',
+    sentences: {
+      byOperation: {
+        dropbox_upload: [
+          { text: 'Upload', field: UPLOAD_FILE_FIELD, core: true },
+          { text: 'to', field: 'path', core: true },
+        ],
+        dropbox_download: [{ text: 'Download', field: 'path', core: true }],
+        dropbox_list_folder: [
+          { text: 'List the contents of folder', field: 'path', core: true },
+          { text: ', up to', field: 'limit', after: 'entries' },
+        ],
+        dropbox_create_folder: [{ text: 'Create folder', field: 'path', core: true }],
+        dropbox_delete: [{ text: 'Move', field: 'path', core: true, after: 'to the trash' }],
+        dropbox_copy: [
+          { text: 'Copy', field: 'fromPath', core: true },
+          { text: 'to', field: 'toPath' },
+        ],
+        dropbox_move: [
+          { text: 'Move', field: 'fromPath', core: true },
+          { text: 'to', field: 'toPath' },
+        ],
+        dropbox_get_metadata: [{ text: 'Read metadata of', field: 'path', core: true }],
+        dropbox_create_shared_link: [
+          { text: 'Create a shared link to', field: 'path', core: true },
+          { text: ', visible to', field: 'requestedVisibility' },
+          { text: ', expiring', field: 'expires' },
+        ],
+        dropbox_list_shared_links: ['List shared links', { text: 'under', field: 'path' }],
+        dropbox_search: [
+          { text: 'Search for', field: 'query', core: true },
+          { text: 'under', field: 'path' },
+          { text: ', limited to', field: 'fileExtensions' },
+        ],
+        dropbox_list_revisions: [
+          { text: 'List revisions of', field: 'path', core: true },
+          { text: ', up to', field: 'limit', after: 'revisions' },
+        ],
+        dropbox_restore: [
+          { text: 'Restore', field: 'path', core: true },
+          { text: 'to revision', field: 'rev' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -60,7 +115,6 @@ export const DropboxBlock: BlockConfig<DropboxResponse> = {
       placeholder: 'Enter credential ID',
       required: true,
     },
-    // Upload operation inputs
     {
       id: 'path',
       title: 'Destination Path',
@@ -107,7 +161,6 @@ export const DropboxBlock: BlockConfig<DropboxResponse> = {
       type: 'switch',
       condition: { field: 'operation', value: 'dropbox_upload' },
     },
-    // Download operation inputs
     {
       id: 'path',
       title: 'File Path',
@@ -116,7 +169,6 @@ export const DropboxBlock: BlockConfig<DropboxResponse> = {
       condition: { field: 'operation', value: 'dropbox_download' },
       required: true,
     },
-    // List folder operation inputs
     {
       id: 'path',
       title: 'Folder Path',
@@ -138,7 +190,6 @@ export const DropboxBlock: BlockConfig<DropboxResponse> = {
       placeholder: '500',
       condition: { field: 'operation', value: 'dropbox_list_folder' },
     },
-    // Create folder operation inputs
     {
       id: 'path',
       title: 'Folder Path',
@@ -153,7 +204,6 @@ export const DropboxBlock: BlockConfig<DropboxResponse> = {
       type: 'switch',
       condition: { field: 'operation', value: 'dropbox_create_folder' },
     },
-    // Delete operation inputs
     {
       id: 'path',
       title: 'Path to Delete',
@@ -162,7 +212,6 @@ export const DropboxBlock: BlockConfig<DropboxResponse> = {
       condition: { field: 'operation', value: 'dropbox_delete' },
       required: true,
     },
-    // Copy operation inputs
     {
       id: 'fromPath',
       title: 'Source Path',
@@ -185,7 +234,6 @@ export const DropboxBlock: BlockConfig<DropboxResponse> = {
       type: 'switch',
       condition: { field: 'operation', value: 'dropbox_copy' },
     },
-    // Move operation inputs
     {
       id: 'fromPath',
       title: 'Source Path',
@@ -208,7 +256,6 @@ export const DropboxBlock: BlockConfig<DropboxResponse> = {
       type: 'switch',
       condition: { field: 'operation', value: 'dropbox_move' },
     },
-    // Get metadata operation inputs
     {
       id: 'path',
       title: 'File/Folder Path',
@@ -223,7 +270,6 @@ export const DropboxBlock: BlockConfig<DropboxResponse> = {
       type: 'switch',
       condition: { field: 'operation', value: 'dropbox_get_metadata' },
     },
-    // Create shared link operation inputs
     {
       id: 'path',
       title: 'File/Folder Path',
@@ -272,7 +318,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         generationType: 'timestamp',
       },
     },
-    // Search operation inputs
     {
       id: 'query',
       title: 'Search Query',
@@ -302,7 +347,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       placeholder: '100',
       condition: { field: 'operation', value: 'dropbox_search' },
     },
-    // List shared links operation inputs
     {
       id: 'path',
       title: 'Path',
@@ -325,7 +369,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'dropbox_list_shared_links' },
       mode: 'advanced',
     },
-    // List revisions operation inputs
     {
       id: 'path',
       title: 'File Path',
@@ -350,7 +393,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'dropbox_list_revisions' },
       mode: 'advanced',
     },
-    // Restore operation inputs
     {
       id: 'path',
       title: 'File Path',
@@ -432,65 +474,69 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     oauthCredential: { type: 'string', description: 'Dropbox OAuth credential' },
-    // Common inputs
     path: { type: 'string', description: 'Path in Dropbox' },
     autorename: { type: 'boolean', description: 'Auto-rename on conflict' },
-    // Upload inputs
     file: { type: 'json', description: 'File to upload (canonical param)' },
     fileName: { type: 'string', description: 'Optional filename' },
     mode: { type: 'string', description: 'Write mode: add or overwrite' },
     mute: { type: 'boolean', description: 'Mute notifications' },
-    // List folder inputs
     recursive: { type: 'boolean', description: 'List recursively' },
     includeDeleted: { type: 'boolean', description: 'Include deleted files' },
     includeMediaInfo: { type: 'boolean', description: 'Include media info' },
     limit: { type: 'number', description: 'Maximum results' },
-    // Copy/Move inputs
     fromPath: { type: 'string', description: 'Source path' },
     toPath: { type: 'string', description: 'Destination path' },
-    // Shared link inputs
     requestedVisibility: { type: 'string', description: 'Link visibility' },
     linkPassword: { type: 'string', description: 'Password for the link' },
     expires: { type: 'string', description: 'Expiration date (ISO 8601)' },
-    // Search inputs
     query: { type: 'string', description: 'Search query' },
     fileExtensions: { type: 'string', description: 'File extensions filter' },
     maxResults: { type: 'number', description: 'Maximum search results' },
-    // List shared links inputs
     directOnly: { type: 'boolean', description: 'Only return direct links, not parent folders' },
     cursor: { type: 'string', description: 'Fetch the next page of shared links (pagination)' },
-    // List revisions input
     beforeRev: { type: 'string', description: 'Fetch revisions before this one (pagination)' },
-    // Restore input
     rev: { type: 'string', description: 'Revision identifier to restore' },
   },
   outputs: {
-    // Upload/Download outputs
     file: { type: 'file', description: 'Downloaded file stored in execution files' },
     content: { type: 'string', description: 'File content (base64)' },
     temporaryLink: { type: 'string', description: 'Temporary download link' },
-    // List folder / List revisions outputs
     entries: {
       type: 'json',
       description: 'List of files and folders (List Folder), or file revisions (List Revisions)',
     },
     cursor: { type: 'string', description: 'Pagination cursor' },
     hasMore: { type: 'boolean', description: 'Whether more results exist' },
-    // Create folder output
     folder: { type: 'json', description: 'Created folder metadata' },
-    // Delete output
     deleted: { type: 'boolean', description: 'Whether deletion was successful' },
-    // Copy/Move/Get metadata output
     metadata: { type: 'json', description: 'Item metadata' },
-    // Shared link output
     sharedLink: { type: 'json', description: 'Shared link details' },
-    // Search outputs
     matches: { type: 'json', description: 'Search results' },
-    // List shared links outputs
     links: { type: 'json', description: 'List of shared links (url, name, path_lower, expires)' },
-    // List revisions output
     isDeleted: { type: 'boolean', description: 'Whether the latest revision is deleted or moved' },
   },
+} satisfies BlockConfig
+
+export const DropboxV2Block: BlockConfig = {
+  ...DropboxBlock,
+  type: 'dropbox_v2',
+  name: 'Dropbox',
+  hideFromToolbar: false,
+  sunset: undefined,
+  tools: {
+    ...DropboxBlock.tools,
+    access: DropboxBlock.tools.access.map((toolId) =>
+      toolId === 'dropbox_download' ? 'dropbox_download_v2' : toolId
+    ),
+    config: {
+      ...DropboxBlock.tools.config,
+      tool: (params) => {
+        const toolId = DropboxBlock.tools.config.tool(params)
+        return toolId === 'dropbox_download' ? 'dropbox_download_v2' : toolId
+      },
+    },
+  },
+  outputs: omit(DropboxBlock.outputs, ['content']),
 }
 
 export const DropboxBlockMeta = {

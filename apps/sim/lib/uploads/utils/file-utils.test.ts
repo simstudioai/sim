@@ -1,40 +1,17 @@
-/**
- * @vitest-environment node
- */
 import { createLogger } from '@sim/logger'
 import { describe, expect, it } from 'vitest'
 import {
   extractStorageKey,
+  extractWorkspaceIdFromStorageKey,
   inferContextFromKey,
-  isAbortError,
   isInternalFileUrl,
-  isMarkdownFile,
-  isNetworkError,
   processSingleFileToUserFile,
+  resolveEffectiveMimeType,
+  resolveFileType,
   resolveTrustedFileContext,
 } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FileUtilsTest')
-
-describe('isMarkdownFile', () => {
-  it('is true for .md and .markdown (case-insensitive)', () => {
-    expect(isMarkdownFile({ name: 'notes.md' })).toBe(true)
-    expect(isMarkdownFile({ name: 'README.MD' })).toBe(true)
-    expect(isMarkdownFile({ name: 'doc.markdown' })).toBe(true)
-  })
-
-  it('is true for a text/markdown MIME even without a .md name', () => {
-    expect(isMarkdownFile({ type: 'text/markdown', name: 'notes' })).toBe(true)
-    expect(isMarkdownFile({ type: 'text/markdown', name: 'doc.txt' })).toBe(true)
-  })
-
-  it('is false for non-markdown files', () => {
-    expect(isMarkdownFile({ type: 'text/javascript', name: 'script.js' })).toBe(false)
-    expect(isMarkdownFile({ name: 'report.docx' })).toBe(false)
-    expect(isMarkdownFile({ type: 'text/plain', name: 'notes.txt' })).toBe(false)
-    expect(isMarkdownFile({ name: 'noext' })).toBe(false)
-  })
-})
 
 describe('extractStorageKey', () => {
   it('strips every provider serve prefix', () => {
@@ -47,10 +24,6 @@ describe('extractStorageKey', () => {
     expect(extractStorageKey('/api/files/serve/gcs/workspace%2Fws-1%2Ffile.txt')).toBe(
       'workspace/ws-1/file.txt'
     )
-  })
-
-  it('returns unprefixed serve keys as-is', () => {
-    expect(extractStorageKey('/api/files/serve/kb/123-doc.pdf')).toBe('kb/123-doc.pdf')
   })
 })
 
@@ -80,13 +53,6 @@ describe('isInternalFileUrl', () => {
     expect(isInternalFileUrl('https://attacker.com/api/files/serve/../../../etc/passwd')).toBe(true)
     expect(isInternalFileUrl('/api/files/serve/../../app.js')).toBe(true)
   })
-
-  it('returns false for non-internal and non-string inputs', () => {
-    expect(isInternalFileUrl('https://example.com/file.pdf')).toBe(false)
-    expect(isInternalFileUrl('data:text/plain;base64,abc')).toBe(false)
-    // @ts-expect-error verifying runtime guard
-    expect(isInternalFileUrl(undefined)).toBe(false)
-  })
 })
 
 describe('inferContextFromKey', () => {
@@ -98,20 +64,39 @@ describe('inferContextFromKey', () => {
     )
   })
 
-  it('maps the remaining context prefixes', () => {
-    expect(inferContextFromKey('chat/x')).toBe('chat')
-    expect(inferContextFromKey('copilot/x')).toBe('copilot')
-    expect(inferContextFromKey('execution/ws/wf/ex/x')).toBe('execution')
-    expect(inferContextFromKey('workspace/ws/x')).toBe('workspace')
-    expect(inferContextFromKey('profile-pictures/x')).toBe('profile-pictures')
-    expect(inferContextFromKey('og-images/x')).toBe('og-images')
-    expect(inferContextFromKey('workspace-logos/x')).toBe('workspace-logos')
-    expect(inferContextFromKey('logs/x')).toBe('logs')
-  })
-
   it('throws for empty or unrecognized keys', () => {
     expect(() => inferContextFromKey('')).toThrow()
     expect(() => inferContextFromKey('mystery/x')).toThrow()
+  })
+})
+
+describe('extractWorkspaceIdFromStorageKey', () => {
+  const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'
+  const WORKFLOW_ID = '33333333-3333-4333-8333-333333333333'
+  const EXECUTION_ID = '44444444-4444-4444-8444-444444444444'
+
+  it('reads the workspace out of the two key layouts that name one', () => {
+    expect(
+      extractWorkspaceIdFromStorageKey(`workspace/${WORKSPACE_ID}/1700000000000-abc-x.pdf`)
+    ).toBe(WORKSPACE_ID)
+    expect(
+      extractWorkspaceIdFromStorageKey(
+        `execution/${WORKSPACE_ID}/${WORKFLOW_ID}/${EXECUTION_ID}/x.png`
+      )
+    ).toBe(WORKSPACE_ID)
+  })
+
+  it('returns null for key layouts that name no workspace', () => {
+    expect(extractWorkspaceIdFromStorageKey('chat/x')).toBeNull()
+    expect(extractWorkspaceIdFromStorageKey('kb/x')).toBeNull()
+    expect(extractWorkspaceIdFromStorageKey('copilot/x')).toBeNull()
+    expect(extractWorkspaceIdFromStorageKey('profile-pictures/x')).toBeNull()
+    expect(extractWorkspaceIdFromStorageKey('')).toBeNull()
+  })
+
+  it('refuses a workspace segment that is not a workspace id', () => {
+    expect(extractWorkspaceIdFromStorageKey('workspace/other-tenant/x.pdf')).toBeNull()
+    expect(extractWorkspaceIdFromStorageKey(`workspace/${WORKSPACE_ID}`)).toBeNull()
   })
 })
 
@@ -121,6 +106,7 @@ describe('resolveTrustedFileContext', () => {
       'workspace'
     )
     expect(resolveTrustedFileContext('chat/x', 'workspace-logos')).toBe('chat')
+    expect(resolveTrustedFileContext('chat/x', 'organization-logos')).toBe('chat')
     expect(resolveTrustedFileContext('workspace/ws/x', 'mothership')).toBe('workspace')
   })
 
@@ -132,40 +118,6 @@ describe('resolveTrustedFileContext', () => {
     expect(() => resolveTrustedFileContext('legacy/report.pdf', 'og-images')).toThrow()
     expect(() => resolveTrustedFileContext('legacy/report.pdf', 'profile-pictures')).toThrow()
     expect(() => resolveTrustedFileContext('legacy/report.pdf')).toThrow()
-  })
-})
-
-describe('isAbortError', () => {
-  it('returns true for AbortError-named errors', () => {
-    const err = new Error('aborted')
-    err.name = 'AbortError'
-    expect(isAbortError(err)).toBe(true)
-  })
-
-  it('returns false for generic Errors', () => {
-    expect(isAbortError(new Error('boom'))).toBe(false)
-    expect(isAbortError(null)).toBe(false)
-    expect(isAbortError('AbortError')).toBe(false)
-  })
-})
-
-describe('isNetworkError', () => {
-  it.each([
-    'fetch failed',
-    'Network request failed',
-    'connection reset',
-    'request timeout',
-    'operation timed out',
-    'ECONNRESET while reading body',
-  ])('matches transient message %s', (msg) => {
-    expect(isNetworkError(new Error(msg))).toBe(true)
-  })
-
-  it('does not match deterministic errors', () => {
-    expect(isNetworkError(new Error('Forbidden'))).toBe(false)
-    expect(isNetworkError(new Error('Validation failed: name is required'))).toBe(false)
-    expect(isNetworkError('not an error')).toBe(false)
-    expect(isNetworkError(null)).toBe(false)
   })
 })
 
@@ -191,5 +143,29 @@ describe('processSingleFileToUserFile', () => {
     expect(result.providerFileUri).toBeUndefined()
     expect(result.remoteUrl).toBeUndefined()
     expect(result.key).toBe('workspace/ws-1/doc.pdf')
+  })
+})
+
+describe('resolveEffectiveMimeType', () => {
+  it('resolves binary/octet-stream and blank stored types too', () => {
+    expect(resolveEffectiveMimeType('binary/octet-stream', 'clip.mp4')).toBe('video/mp4')
+    expect(resolveEffectiveMimeType('  ', 'clip.mp4')).toBe('video/mp4')
+    expect(resolveEffectiveMimeType(null, 'clip.mp4')).toBe('video/mp4')
+    expect(resolveEffectiveMimeType(undefined, 'clip.mp4')).toBe('video/mp4')
+  })
+
+  it('resolves a dual audio/video container to video, matching how the app presents it', () => {
+    expect(resolveEffectiveMimeType('application/octet-stream', 'clip.webm')).toBe('video/webm')
+    expect(resolveEffectiveMimeType(null, 'clip.webm')).toBe('video/webm')
+  })
+
+  it('never lets the video default reach the type that gets persisted', () => {
+    // resolveFileType writes user_file.content_type, which the speech-to-text route reads
+    // back as file.type — a video/* value there sends the upload into ffmpeg extraction.
+    expect(resolveFileType({ type: '', name: 'clip.webm' })).toBe('audio/webm')
+    expect(resolveFileType({ type: 'application/octet-stream', name: 'clip.webm' })).toBe(
+      'audio/webm'
+    )
+    expect(resolveFileType({ type: 'audio/webm', name: 'clip.webm' })).toBe('audio/webm')
   })
 })

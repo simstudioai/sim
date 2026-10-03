@@ -54,6 +54,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         description: workflowMcpServer.description,
         workspaceId: workflowMcpServer.workspaceId,
         workspaceName: workspace.name,
+        isPublic: workflowMcpServer.isPublic,
+        workspaceAllowsPersonalApiKeys: workspace.allowPersonalApiKeys,
         createdAt: workflowMcpServer.createdAt,
         toolCount: sql<number>`(
           SELECT COUNT(*)::int 
@@ -75,7 +77,17 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const baseUrl = getBaseUrl()
 
-    const formattedServers = servers.map((server) => ({
+    /**
+     * `/api/mcp/serve/[serverId]` rejects a personal key on a workspace that
+     * disabled them, so listing those servers would advertise unusable
+     * endpoints. Public servers skip that check entirely, so they stay listed.
+     */
+    const visibleServers =
+      auth.apiKeyType === 'personal'
+        ? servers.filter((server) => server.isPublic || server.workspaceAllowsPersonalApiKeys)
+        : servers
+
+    const formattedServers = visibleServers.map((server) => ({
       id: server.id,
       name: server.name,
       description: server.description,

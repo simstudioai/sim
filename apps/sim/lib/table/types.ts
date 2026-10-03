@@ -3,6 +3,7 @@
  */
 
 import type { COLUMN_TYPES, FILTER_OPS } from '@/lib/table/constants'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 
 export type ColumnValue = string | number | boolean | null | Date
 export type JsonValue = ColumnValue | JsonValue[] | { [key: string]: JsonValue }
@@ -14,6 +15,12 @@ export type JsonValue = ColumnValue | JsonValue[] | { [key: string]: JsonValue }
  * storage key with `getColumnId` from `./column-keys`.
  */
 export type RowData = Record<string, JsonValue>
+
+/** Exact encrypted provenance for each touched storage column in one row write. */
+export interface TableRowSecretProvenanceWrite {
+  complete: boolean
+  columns: Record<string, ResolvedSecretTraceProvenanceV1>
+}
 
 export type SortDirection = 'asc' | 'desc'
 
@@ -145,9 +152,11 @@ export interface WorkflowGroup {
    */
   inputMappings?: WorkflowGroupInputMapping[]
   /**
-   * Which workflow state per-cell runs execute against. Defaults to `'live'`
-   * (editable draft) when absent. `'deployed'` runs the workflow's latest
-   * active deployment. Only meaningful for `manual` groups.
+   * Which workflow state per-cell runs execute against. Defaults to
+   * `'deployed'` (the workflow's latest active deployment) when absent —
+   * resolve it through `resolveWorkflowGroupDeploymentMode`, never by reading
+   * the raw field. `'live'` runs the editable draft. Only meaningful for
+   * `manual` groups.
    */
   deploymentMode?: WorkflowGroupDeploymentMode
   /**
@@ -242,6 +251,14 @@ export interface RowExecutionMetadata {
    *  mid-dispatch must not be overridden by `isManualRun`. */
   cancelledAt?: string
   /**
+   * Person whose permission group gates this cell's tools, written with the
+   * dispatcher's `pending` pre-stamp so the worker that eventually drains the
+   * marker runs it under the subject that requested it rather than its own.
+   * Persisted on `tableRowExecutions` but NOT hydrated by `loadExecutionsByRow`
+   * — it is read on demand, only while the marker is still unclaimed.
+   */
+  capabilityGovernedUserId?: string | null
+  /**
    * Enrichment cascade breakdown for `enrichment`-type groups, written on the
    * terminal cell write. Persisted on `tableRowExecutions` but NOT hydrated by
    * `loadExecutionsByRow` (kept off the hot grid read) — read it on demand via
@@ -330,23 +347,7 @@ export interface TableDeleteJobPayload {
   maxRows?: number
 }
 
-/**
- * Persisted scope of a running bulk-update job (`table_jobs.payload`): the same `data` patch is
- * merged into every row matching `filter` with `created_at <= cutoff` (so mid-job inserts are
- * spared, matching the delete job's snapshot semantics). `affectedCount` is the kickoff estimate,
- * display-only. Unlike delete, reads are not masked — updated rows still exist, so a background
- * update is eventually consistent (readers may see a mix of patched/unpatched rows mid-job).
- */
-export interface TableUpdateJobPayload {
-  filter: Filter
-  /** Column-id-keyed partial patch applied to every matched row (JSONB merge). */
-  data: RowData
-  /** ISO timestamp; rows created after it are not patched. */
-  cutoff: string
-  affectedCount?: number
-  /** Stop after updating this many rows (an explicit caller-supplied limit). Omitted = every match. */
-  maxRows?: number
-}
+export type TableExportFormat = 'csv' | 'json'
 
 /**
  * Persisted scope of an export job (`table_jobs.payload`). `resultKey` is merged in by the worker
@@ -354,8 +355,21 @@ export interface TableUpdateJobPayload {
  * and deleted by the janitor when the terminal job is pruned.
  */
 export interface TableExportJobPayload {
-  format: 'csv' | 'json'
+  format: TableExportFormat
   resultKey?: string
+}
+
+/** Durable import descriptor stored on the existing `table_jobs` row. */
+export interface TableImportJobPayload {
+  kind: 'table_import'
+  userId: string
+  source: unknown
+  target: unknown
+  options: {
+    mapping?: unknown
+    createColumns?: string[]
+    timezone?: string
+  }
 }
 
 /**
@@ -448,7 +462,12 @@ export type TableInfo = Pick<TableDefinition, 'id' | 'name' | 'schema'>
 /** Simplified table summary for LLM enrichment and display contexts. */
 export interface TableSummary {
   name: string
-  columns: Array<Pick<ColumnDefinition, 'name' | 'type'>>
+  /**
+   * `multiple` is carried because a select column's allowed filter operators
+   * depend on it — LLM enrichment has to name the right subset or the model
+   * writes a predicate the query layer rejects.
+   */
+  columns: Array<Pick<ColumnDefinition, 'name' | 'type' | 'multiple'>>
 }
 
 export interface TableRow {
@@ -538,6 +557,8 @@ export interface Predicate {
  */
 export type PredicateNode = Predicate | TablePredicate
 export type TablePredicate = { all: PredicateNode[] } | { any: PredicateNode[] }
+/** Accepted v2 filter input: either one bare condition or an explicit logical group. */
+export type TablePredicateInput = PredicateNode
 
 /** v2 sort specification: an ordered list of `{ field, direction }`. */
 export type SortSpec = Array<{ field: string; direction: SortDirection }>
@@ -601,6 +622,19 @@ export interface QueryOptions {
    * (the public v1 route does not expose executions).
    */
   withExecutions?: boolean
+  /**
+   * Byte ceiling for the run-state sidecar, spent during the read.
+   *
+   * Omitted means unbounded, which is what every first-party caller wants: only
+   * the public reads publish a `413` for this, so only they impose it.
+   */
+  runStateBudgetBytes?: number
+  /**
+   * Stable column ids to keep in each returned row's `data`; omitted = every
+   * column. Applied inside the drain before byte accounting, so the response
+   * budget and page cut measure the projected payload the caller receives.
+   */
+  columnIds?: ReadonlySet<string>
 }
 
 export interface QueryResult {
@@ -644,6 +678,8 @@ export interface CreateTableData {
   jobType?: TableJobType
   /** Async job id stamped on the table when `jobStatus` is set. */
   jobId?: string
+  /** Type-specific payload stored on the initial async job. */
+  jobPayload?: unknown
 }
 
 export interface InsertRowData {
@@ -657,6 +693,33 @@ export interface InsertRowData {
   afterRowId?: string
   /** Insert directly before this row (fractional ordering). Takes precedence over `position`. */
   beforeRowId?: string
+  /**
+   * Encrypted provenance for the values in `data`. Required, and explicitly
+   * `undefined` when the write carries none, so that adding a new call site
+   * without deciding on provenance is a compile error rather than a silent
+   * unstamped write.
+   */
+  secretProvenance: TableRowSecretProvenanceWrite | undefined
+  /**
+   * The person whose permission group gates any enrichment this write
+   * auto-fires; `null` when the write has no acting person (workspace API key,
+   * schedule, internal state patch).
+   *
+   * THE statement of the rule for every table payload that carries this field.
+   * It is deliberately not the attribution field beside it, which names the
+   * workspace billed account when the credential names no human and would run
+   * that bystander's tool denylist against an actorless run. Which principals
+   * a group governs at all is `capabilityGovernedPrincipalUserId` in
+   * `@/lib/core/application`; every surface resolves the subject there and
+   * threads it down rather than re-deriving it.
+   *
+   * Required with an explicit `null` rather than optional: the only way to get
+   * this wrong is to not think about it, and an optional field with a fallback
+   * let every producer that had not been taught the distinction silently
+   * inherit the attribution. Making omission a compile error is what stops the
+   * next producer from re-introducing that bystander substitution.
+   */
+  capabilityGovernedUserId: string | null
 }
 
 export interface BatchInsertData {
@@ -669,6 +732,11 @@ export interface BatchInsertData {
    * Length must equal `rows.length`.
    */
   orderKeys?: string[]
+  /** Encrypted provenance for the values in `rows`, positionally aligned. Required; see {@link InsertRowData.secretProvenance}. */
+  secretProvenance: Array<TableRowSecretProvenanceWrite | undefined> | undefined
+  /** The person whose permission group gates any enrichment this write
+   *  auto-fires. Required; see {@link InsertRowData.capabilityGovernedUserId}. */
+  capabilityGovernedUserId: string | null
 }
 
 export interface UpsertRowData {
@@ -678,10 +746,19 @@ export interface UpsertRowData {
   userId?: string
   /** Which unique column to match on. Required when multiple unique columns exist. */
   conflictTarget?: string
+  /** Encrypted provenance for the values in `data`. Required; see {@link InsertRowData.secretProvenance}. */
+  secretProvenance: TableRowSecretProvenanceWrite | undefined
+  /** The person whose permission group gates any enrichment this write
+   *  auto-fires. Required; see {@link InsertRowData.capabilityGovernedUserId}. */
+  capabilityGovernedUserId: string | null
 }
 
 export interface UpsertResult {
-  row: TableRow
+  /**
+   * Without the executions sidecar: no upsert surface puts one on the wire, and
+   * loading it would hold the write transaction open for a discarded result.
+   */
+  row: Omit<TableRow, 'executions'>
   operation: 'insert' | 'update'
   previousData?: RowData
 }
@@ -720,6 +797,11 @@ export interface UpdateRowData {
    * account. Omitted only for internal `executionsPatch`-only writes.
    */
   actorUserId?: string | null
+  /** Encrypted provenance for the values in this partial patch. Required; see {@link InsertRowData.secretProvenance}. */
+  secretProvenance: TableRowSecretProvenanceWrite | undefined
+  /** The person whose permission group gates any enrichment this write
+   *  auto-fires. Required; see {@link InsertRowData.capabilityGovernedUserId}. */
+  capabilityGovernedUserId: string | null
 }
 
 export interface BulkUpdateData {
@@ -728,6 +810,11 @@ export interface BulkUpdateData {
   limit?: number
   /** The member who performed this write — billed/gated for triggered enrichment. */
   actorUserId?: string | null
+  /** Encrypted provenance for the values in this partial patch. Required; see {@link InsertRowData.secretProvenance}. */
+  secretProvenance: TableRowSecretProvenanceWrite | undefined
+  /** The person whose permission group gates any enrichment this write
+   *  auto-fires. Required; see {@link InsertRowData.capabilityGovernedUserId}. */
+  capabilityGovernedUserId: string | null
 }
 
 export interface BatchUpdateByIdData {
@@ -740,6 +827,11 @@ export interface BatchUpdateByIdData {
   workspaceId: string
   /** The member who performed this write — billed/gated for triggered enrichment. */
   actorUserId?: string | null
+  /** Encrypted provenance for the values in all partial patches; omitted by legacy callers. */
+  secretProvenanceByRowId?: Record<string, TableRowSecretProvenanceWrite>
+  /** The person whose permission group gates any enrichment this write
+   *  auto-fires. Required; see {@link InsertRowData.capabilityGovernedUserId}. */
+  capabilityGovernedUserId: string | null
 }
 
 export interface BulkDeleteData {
@@ -765,6 +857,8 @@ export interface ReplaceRowsData {
   rows: RowData[]
   workspaceId: string
   userId?: string
+  /** Encrypted provenance for the values in `rows`, positionally aligned. Required; see {@link InsertRowData.secretProvenance}. */
+  secretProvenance: Array<TableRowSecretProvenanceWrite | undefined> | undefined
 }
 
 export interface ReplaceRowsResult {
@@ -865,19 +959,31 @@ export interface DeleteColumnData {
 /** Payload for `addWorkflowGroup` — atomic insert of a group + its outputs. */
 export interface AddWorkflowGroupData {
   tableId: string
+  /** Canonical workspace derived from the table by an authorized caller. */
+  workspaceId?: string
   group: WorkflowGroup
   outputColumns: ColumnDefinition[]
   /** When `false`, the post-add row-scheduling pass is skipped. Defaults to
    *  `true` (UI behavior). Mothership passes `false` so groups can be staged
    *  without firing every dep-satisfied row. */
   autoRun?: boolean
-  /** The member adding the group — billed/gated for the auto-run enrichment pass. */
+  /** Persist auto-run state without dispatching through the primitive. */
+  suppressAutoRunDispatch?: boolean
+  /** The member adding the group — billed for the auto-run enrichment pass. */
   actorUserId?: string | null
+  /** The person whose permission group gates the auto-run pass this write can
+   *  start; `null` when the write has no acting person (workspace key, system).
+   *  Required with an explicit `null` — deliberately not `actorUserId`, which
+   *  is an attribution and names the workspace billed account when the
+   *  credential names no human. */
+  capabilityGovernedUserId: string | null
 }
 
 /** Payload for `updateWorkflowGroup` — diffs outputs and writes columns. */
 export interface UpdateWorkflowGroupData {
   tableId: string
+  /** Canonical workspace derived from the table by an authorized caller. */
+  workspaceId?: string
   groupId: string
   workflowId?: string
   name?: string
@@ -893,6 +999,11 @@ export interface UpdateWorkflowGroupData {
    * source.
    */
   mappingUpdates?: Array<{ columnName: string; blockId: string; path: string }>
+  /** Workflow-authorized column types for mapping updates. */
+  resolvedMappingTypes?: {
+    workflowId: string
+    columns: Array<{ columnName: string; type: ColumnDefinition['type'] }>
+  }
   /** Replace the group's input mappings. Omit to leave them unchanged. */
   inputMappings?: WorkflowGroupInputMapping[]
   /** Change which workflow state the group runs against. Omit to leave unchanged. */
@@ -901,11 +1012,18 @@ export interface UpdateWorkflowGroupData {
   type?: WorkflowGroupType
   /** Toggle the group's auto-run flag. Omit to leave it unchanged. */
   autoRun?: boolean
-  /** The member updating the group — billed/gated for any triggered re-run. */
+  /** Skip primitive dispatch when an authorized caller will start the run itself. */
+  suppressAutoRunDispatch?: boolean
+  /** The member updating the group — billed for any triggered re-run. */
   actorUserId?: string | null
+  /** The person whose permission group gates the auto-run pass this write can
+   *  start. Required; see {@link InsertRowData.capabilityGovernedUserId}. */
+  capabilityGovernedUserId: string | null
 }
 
 export interface DeleteWorkflowGroupData {
   tableId: string
+  /** Canonical workspace derived from the table by an authorized caller. */
+  workspaceId?: string
   groupId: string
 }

@@ -1,0 +1,176 @@
+---
+title: White-labeling
+description: Replace Sim branding with your own logo, colors, and links
+---
+
+import { FAQ } from '@/components/ui/faq'
+import { Image } from '@/components/ui/image'
+
+White-labeling lets you replace Sim's default branding — logo, colors, and support links — with your own. Members of your organization see your brand instead of Sim's throughout the workspace.
+
+---
+
+## Setup
+
+### 1. Open White-labeling settings
+
+Go to **Settings → Organization → White-labeling** in your workspace.
+
+<Image src="/static/enterprise/whitelabeling.png" alt="Whitelabeling settings showing brand identity fields (Logo, Wordmark, Brand name), color pickers for primary and accent colors, and link fields for support email and documentation URL" width={900} height={884} className="mx-auto h-auto w-full max-w-xl" />
+
+### 2. Configure brand identity
+
+| Field | Description |
+|-------|-------------|
+| **Logo** | Shown in the collapsed sidebar. Square image (PNG, JPEG, SVG, or WebP). Max 5 MB. |
+| **Wordmark** | Shown in the expanded sidebar. Wide image (PNG, JPEG, SVG, or WebP). Max 5 MB. |
+| **Brand name** | Replaces "Sim" in the sidebar and select UI elements. Max 64 characters. |
+
+
+### 3. Configure colors
+
+All colors must be valid hex values (e.g. `#701ffc`).
+
+| Field | Description |
+|-------|-------------|
+| **Primary color** | Main accent color used for buttons and active states. |
+| **Primary hover color** | Color shown when hovering over primary elements. |
+| **Accent color** | Secondary accent for highlights and secondary interactive elements. |
+| **Accent hover color** | Color shown when hovering over accent elements. |
+
+### 4. Configure links
+
+Replace Sim's default support and legal links with your own.
+
+| Field | Description |
+|-------|-------------|
+| **Support email** | Shown in help prompts. Must be a valid email address. |
+| **Documentation URL** | Link to your internal documentation. Must be a valid URL. |
+| **Terms of service URL** | Link to your terms page. Must be a valid URL. |
+| **Privacy policy URL** | Link to your privacy page. Must be a valid URL. |
+
+### 5. Save
+
+Click **Save changes**. The new branding is applied immediately for all members of your organization.
+
+---
+
+## What gets replaced
+
+Organization white-labeling replaces the following visual elements:
+
+- **Sidebar logo and wordmark** — your uploaded images replace the Sim logo
+- **Brand name** — appears in the sidebar and select UI labels
+- **Primary and accent colors** — applied to buttons, active states, and highlights
+- **Support and legal links** — help prompts and footer links point to your URLs
+
+Organization white-labeling applies only to members of your organization. Public-facing surfaces — the login modal, the PWA manifest, and public file-share pages — read the **instance-wide** branding described below instead, and are unaffected by organization settings.
+
+---
+
+<FAQ items={[
+  {
+    question: "Who can configure white-labeling?",
+    answer: "Organization owners and admins can configure white-labeling. On Sim Cloud, you must be on the Enterprise plan."
+  },
+  {
+    question: "What image formats are supported?",
+    answer: "PNG, JPEG, SVG, and WebP. Maximum file size is 5 MB for both the logo and wordmark."
+  },
+  {
+    question: "What is the difference between the logo and the wordmark?",
+    answer: "The logo is a square image shown in the collapsed sidebar. The wordmark is a wide image shown in the expanded sidebar alongside member names and navigation items."
+  },
+  {
+    question: "Do members outside my organization see the custom branding?",
+    answer: "Organization white-labeling is scoped to your organization — members see it when signed in to your organization's workspace. Instance-wide branding is different: it needs no organization and applies to the whole deployment, including signed-out pages."
+  }
+]} />
+
+---
+
+## Self-hosted setup
+
+Self-hosted deployments use environment variables instead of the billing/plan check, and white-labeling is **already enabled** on one: it defaults on wherever billing is disabled. Configure branding through **Settings → Organization → White-labeling** the same way.
+
+### Environment variables
+
+To turn it off:
+
+```bash
+WHITELABELING_ENABLED=false
+NEXT_PUBLIC_WHITELABELING_ENABLED=false
+```
+
+---
+
+## Instance-wide branding
+
+Instance-wide branding is a separate mechanism from the organization settings above. It is read from environment variables at every render, needs **no organization** and **no** `WHITELABELING_ENABLED`, and applies across the deployment, including surfaces organization settings never reach — though not uniformly. The PWA manifest keeps the built-in icons, and public file-share pages only hide the Sim wordmark rather than rendering yours. It covers the surfaces organization white-labeling never reaches: the login modal, the PWA manifest, and public file-share pages.
+
+Where both are set, an organization's saved settings take precedence for members of that organization; the instance-wide values are the deployment's baseline.
+
+### Identity
+
+```bash
+NEXT_PUBLIC_BRAND_NAME=Acme
+NEXT_PUBLIC_BRAND_LOGO_URL=/branding/logo.png
+NEXT_PUBLIC_BRAND_WORDMARK_URL=/branding/wordmark.svg
+NEXT_PUBLIC_BRAND_FAVICON_URL=/branding/favicon.ico
+# The CSP's style-src allows only 'self' and fonts.googleapis.com, and takes
+# no configured hosts — in practice this means same-origin.
+NEXT_PUBLIC_CUSTOM_CSS_URL=/branding/custom.css
+```
+
+`NEXT_PUBLIC_BRAND_FAVICON_URL` and `NEXT_PUBLIC_CUSTOM_CSS_URL` have no organization-level equivalent — these variables are the only way to set a favicon or inject custom CSS.
+
+### Colors
+
+All colors must be valid hex values.
+
+```bash
+NEXT_PUBLIC_BRAND_PRIMARY_COLOR=#701ffc
+NEXT_PUBLIC_BRAND_PRIMARY_HOVER_COLOR=#6518e6
+NEXT_PUBLIC_BRAND_ACCENT_COLOR=#9d54ff
+NEXT_PUBLIC_BRAND_ACCENT_HOVER_COLOR=#8c3dff
+# Not a background: this only tells Sim whether your brand ground is dark,
+# which it uses to pick contrasting text.
+NEXT_PUBLIC_BRAND_BACKGROUND_COLOR=#0c0c0c
+```
+
+`NEXT_PUBLIC_BRAND_BACKGROUND_COLOR` likewise has no organization-level equivalent.
+
+### Links
+
+```bash
+NEXT_PUBLIC_SUPPORT_EMAIL=support@acme.com
+NEXT_PUBLIC_DOCUMENTATION_URL=https://docs.acme.com
+NEXT_PUBLIC_TERMS_URL=https://acme.com/terms
+NEXT_PUBLIC_PRIVACY_URL=https://acme.com/privacy
+```
+
+Setting `NEXT_PUBLIC_BRAND_NAME`, `NEXT_PUBLIC_BRAND_LOGO_URL`, `NEXT_PUBLIC_BRAND_WORDMARK_URL`, or `NEXT_PUBLIC_BRAND_PRIMARY_COLOR` marks the deployment as branded; the remaining variables refine it.
+
+### Serving the assets on Kubernetes
+
+The `NEXT_PUBLIC_BRAND_*_URL` variables point at files the app serves — they do not upload anything. On the Helm chart, supply those files through the branding ConfigMap, which is mounted into the app container:
+
+```yaml
+branding:
+  enabled: true
+  # Serving path for the mounted files
+  mountPath: /app/apps/sim/public/branding
+  # Text files (CSS, JSON, SVG) as plain text
+  files:
+    custom.css: |
+      .sidebar { background-color: #0c0c0c; }
+    wordmark.svg: |
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 24"><text y="18">Acme</text></svg>
+  # Binary files (PNG, JPG, ICO) base64-encoded
+  # base64 -i logo.png | tr -d '\n'
+  binaryFiles:
+    logo.png: "iVBORw0KGgoAAAANSUhEUgAA..."
+    favicon.ico: "AAABAAEAEBAAAAEAIABoBAAA..."
+```
+
+With the default `mountPath`, a file named `logo.png` is served at `/branding/logo.png` — the value to give `NEXT_PUBLIC_BRAND_LOGO_URL`. Outside Helm, host the logo, wordmark, and favicon anywhere the browser can reach and point those variables at absolute URLs. `NEXT_PUBLIC_CUSTOM_CSS_URL` is the exception — the CSP's `style-src` takes no configured hosts, so in practice it must be same-origin.

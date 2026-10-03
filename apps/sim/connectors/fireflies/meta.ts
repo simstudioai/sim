@@ -14,6 +14,12 @@ export const firefliesConnectorMeta: ConnectorMeta = {
     placeholder: 'Enter your Fireflies API key',
   },
 
+  /**
+   * Fireflies exposes no transcript modification timestamp, so an explicit
+   * full resync must rehydrate content even when list metadata is unchanged.
+   */
+  rehydrateOnFullSync: true,
+
   configFields: [
     {
       id: 'hostEmail',
@@ -35,7 +41,7 @@ export const firefliesConnectorMeta: ConnectorMeta = {
   tagDefinitions: [
     { id: 'hostEmail', displayName: 'Host Email', fieldType: 'text' },
     { id: 'speakers', displayName: 'Speakers', fieldType: 'text' },
-    { id: 'duration', displayName: 'Duration (seconds)', fieldType: 'number' },
+    { id: 'duration', displayName: 'Duration (minutes)', fieldType: 'number' },
     { id: 'meetingDate', displayName: 'Meeting Date', fieldType: 'date' },
   ],
 }

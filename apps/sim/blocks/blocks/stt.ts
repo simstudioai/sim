@@ -1,9 +1,13 @@
+import { omit } from '@sim/utils/object'
 import { STTIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
-import type { SttBlockResponse } from '@/tools/stt/types'
 
-export const SttBlock: BlockConfig<SttBlockResponse> = {
+const AUDIO_FIELD = ['audioFile', 'audioFileReference', 'audioUrl'] as const
+/* v2 drops the URL input, keeping only the upload/reference pair. */
+const AUDIO_V2_FIELD = ['audioFile', 'audioFileReference'] as const
+
+export const SttBlock: BlockConfig = {
   type: 'stt',
   name: 'Speech-to-Text',
   description: 'Convert speech to text using AI',
@@ -17,6 +21,15 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
   integrationType: IntegrationType.AI,
   bgColor: '#181C1E',
   icon: STTIcon,
+  canvasPresentation: {
+    defaultTitle: 'Speech-to-Text',
+    sentences: {
+      default: [
+        { text: 'Transcribe', field: AUDIO_FIELD, core: true },
+        { text: 'with', field: 'provider' },
+      ],
+    },
+  },
 
   subBlocks: [
     // Provider selection
@@ -355,17 +368,24 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
   },
 }
 
-const sttV2Inputs = SttBlock.inputs
-  ? Object.fromEntries(Object.entries(SttBlock.inputs).filter(([key]) => key !== 'audioUrl'))
-  : {}
+const sttV2Inputs = SttBlock.inputs ? omit(SttBlock.inputs, ['audioUrl']) : {}
 const sttV2SubBlocks = (SttBlock.subBlocks || []).filter((subBlock) => subBlock.id !== 'audioUrl')
 
-export const SttV2Block: BlockConfig<SttBlockResponse> = {
+export const SttV2Block: BlockConfig = {
   ...SttBlock,
   sunset: undefined,
   type: 'stt_v2',
   name: 'Speech-to-Text',
   hideFromToolbar: false,
+  canvasPresentation: {
+    defaultTitle: 'Speech-to-Text',
+    sentences: {
+      default: [
+        { text: 'Transcribe', field: AUDIO_V2_FIELD, core: true },
+        { text: 'with', field: 'provider' },
+      ],
+    },
+  },
   subBlocks: sttV2SubBlocks,
   tools: {
     access: [

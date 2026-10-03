@@ -1,11 +1,19 @@
 import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
 import type { UserFile } from '@/executor/types'
+import type { QuickBooksEnvironment } from '@/tools/quickbooks/client'
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 export interface QuickBooksReference {
   value?: string
   name?: string
 }
+
+/**
+ * Intuit: "Method in which tax is applied. Allowed values are: TaxExcluded,
+ * TaxInclusive, and NotApplicable. Not applicable to US companies; required for
+ * non-US companies."
+ */
+export type QuickBooksGlobalTaxCalculation = 'TaxExcluded' | 'TaxInclusive' | 'NotApplicable'
 
 export interface QuickBooksAddress {
   Id?: string
@@ -279,6 +287,7 @@ export type QuickBooksAccountingTransaction = QuickBooksTransaction
 export interface QuickBooksAuthParams {
   accessToken: string
   realmId: string
+  quickBooksEnvironment: QuickBooksEnvironment
 }
 
 export type QuickBooksMasterDataRecordType =
@@ -364,25 +373,79 @@ export interface QuickBooksReadAccountingTransactionsParams extends QuickBooksAu
   endDate?: string
 }
 
+/**
+ * Every report Sim exposes, one per documented `GET /v3/company/<realmID>/reports/<name>`
+ * operation in Intuit's report catalog. `trial_balance_fr` is the France-locale sibling of
+ * `trial_balance`: Intuit documents the operation as "FR locale - .../reports/TrialBalanceFR,
+ * non-FR locales - .../reports/TrialBalance", so the endpoint is a caller choice rather than
+ * something Sim can derive from the realm ID.
+ */
 export type QuickBooksReportType =
+  | 'account_list_detail'
   | 'balance_sheet'
   | 'profit_and_loss'
   | 'profit_and_loss_detail'
   | 'trial_balance'
+  | 'trial_balance_fr'
   | 'cash_flow'
   | 'ap_aging_summary'
   | 'ap_aging_detail'
   | 'ar_aging_summary'
   | 'ar_aging_detail'
   | 'vendor_balance'
+  | 'vendor_balance_detail'
   | 'customer_balance'
+  | 'customer_balance_detail'
+  | 'customer_income'
   | 'sales_by_customer'
   | 'sales_by_item'
+  | 'sales_by_class'
+  | 'sales_by_department'
   | 'expenses_by_vendor'
+  | 'general_ledger_detail'
+  | 'inventory_valuation_summary'
+  | 'inventory_valuation_detail'
+  | 'tax_summary'
   | 'transaction_list'
 
 export type QuickBooksAccountingMethod = 'default' | 'cash' | 'accrual'
 
+/**
+ * Predefined report date ranges. These 23 values are the set every date-macro-capable report
+ * model in Intuit's report catalog documents. The Transaction List family additionally accepts
+ * ten calendar-based macros ("This Calendar Year", ...); Sim sends only the shared set so one
+ * value is valid on every report that advertises `date_macro`.
+ */
+export type QuickBooksReportDateMacro =
+  | 'default'
+  | 'today'
+  | 'yesterday'
+  | 'this_week'
+  | 'last_week'
+  | 'this_week_to_date'
+  | 'last_week_to_date'
+  | 'next_week'
+  | 'next_4_weeks'
+  | 'this_month'
+  | 'last_month'
+  | 'this_month_to_date'
+  | 'last_month_to_date'
+  | 'next_month'
+  | 'this_fiscal_quarter'
+  | 'last_fiscal_quarter'
+  | 'this_fiscal_quarter_to_date'
+  | 'last_fiscal_quarter_to_date'
+  | 'next_fiscal_quarter'
+  | 'this_fiscal_year'
+  | 'last_fiscal_year'
+  | 'this_fiscal_year_to_date'
+  | 'last_fiscal_year_to_date'
+  | 'next_fiscal_year'
+
+/**
+ * Intuit documents the same twelve `summarize_column_by` values on every report model that
+ * advertises the control, `Employees` included.
+ */
 export type QuickBooksReportSummarizeBy =
   | 'default'
   | 'total'
@@ -393,6 +456,7 @@ export type QuickBooksReportSummarizeBy =
   | 'year'
   | 'customer'
   | 'vendor'
+  | 'employee'
   | 'item'
   | 'class'
   | 'department'
@@ -466,11 +530,14 @@ export interface QuickBooksRunFinancialReportParams extends QuickBooksAuthParams
   reportType: QuickBooksReportType
   startDate?: string
   endDate?: string
+  dateMacro?: QuickBooksReportDateMacro
   accountingMethod?: QuickBooksAccountingMethod
   summarizeBy?: QuickBooksReportSummarizeBy
+  quickZoomUrl?: boolean
   customerId?: string
   vendorId?: string
   accountId?: string
+  employeeId?: string
   itemId?: string
   classId?: string
   departmentId?: string
@@ -545,11 +612,6 @@ export interface QuickBooksDownloadTransactionPdfParams extends QuickBooksAuthPa
   transactionType: QuickBooksDocumentTransactionType
   transactionId: string
   fileName?: string
-  _context?: {
-    workspaceId?: string
-    workflowId?: string
-    executionId?: string
-  }
 }
 
 export interface QuickBooksReadAttachmentsParams extends QuickBooksAuthParams {
@@ -575,11 +637,6 @@ export interface QuickBooksAddAttachmentParams extends QuickBooksAuthParams {
 export interface QuickBooksDownloadAttachmentParams extends QuickBooksAuthParams {
   attachmentId: string
   fileName?: string
-  _context?: {
-    workspaceId?: string
-    workflowId?: string
-    executionId?: string
-  }
 }
 
 export interface QuickBooksReportOption {
@@ -600,6 +657,7 @@ export interface QuickBooksReportHeader {
   Customer?: string
   Vendor?: string
   Account?: string
+  Employee?: string
   Item?: string
   Class?: string
   Department?: string
@@ -678,6 +736,8 @@ export interface QuickBooksDepositLineInput {
 export interface QuickBooksCreateJournalEntryParams extends QuickBooksAuthParams {
   lines: QuickBooksJournalLineInput[]
   confirmPosting: boolean
+  currencyCode?: string
+  globalTaxCalculation?: QuickBooksGlobalTaxCalculation
   transactionDate?: string
   documentNumber?: string
   privateNote?: string
@@ -696,6 +756,8 @@ export interface QuickBooksUpdateJournalEntryParams extends QuickBooksAuthParams
 export interface QuickBooksCreateDepositParams extends QuickBooksAuthParams {
   depositAccountId: string
   lines: QuickBooksDepositLineInput[]
+  currencyCode?: string
+  globalTaxCalculation?: QuickBooksGlobalTaxCalculation
   transactionDate?: string
   privateNote?: string
   requestId?: string
@@ -704,7 +766,7 @@ export interface QuickBooksCreateDepositParams extends QuickBooksAuthParams {
 export interface QuickBooksUpdateDepositParams extends QuickBooksAuthParams {
   depositId: string
   syncToken: string
-  depositAccountId: string
+  depositAccountId?: string
   transactionDate?: string
   privateNote?: string
 }
@@ -744,7 +806,10 @@ export interface QuickBooksCreatePurchaseOrderParams extends QuickBooksAuthParam
   vendorId: string
   apAccountId: string
   lines: QuickBooksPurchasingLineInput[]
+  currencyCode?: string
+  globalTaxCalculation?: QuickBooksGlobalTaxCalculation
   transactionDate?: string
+  dueDate?: string
   documentNumber?: string
   privateNote?: string
   requestId?: string
@@ -756,6 +821,7 @@ export interface QuickBooksUpdatePurchaseOrderParams extends QuickBooksAuthParam
   vendorId?: string
   apAccountId?: string
   transactionDate?: string
+  dueDate?: string
   documentNumber?: string
   privateNote?: string
 }
@@ -764,6 +830,8 @@ export interface QuickBooksCreateBillParams extends QuickBooksAuthParams {
   vendorId: string
   lines: QuickBooksBillLineInput[]
   apAccountId?: string
+  currencyCode?: string
+  globalTaxCalculation?: QuickBooksGlobalTaxCalculation
   transactionDate?: string
   dueDate?: string
   documentNumber?: string
@@ -774,7 +842,7 @@ export interface QuickBooksCreateBillParams extends QuickBooksAuthParams {
 export interface QuickBooksUpdateBillParams extends QuickBooksAuthParams {
   billId: string
   syncToken: string
-  vendorId: string
+  vendorId?: string
   apAccountId?: string
   transactionDate?: string
   dueDate?: string
@@ -789,8 +857,11 @@ export interface QuickBooksCreateBillPaymentParams extends QuickBooksAuthParams 
   totalAmount: number
   paymentType: QuickBooksBillPaymentType
   paymentAccountId: string
-  billAllocations: QuickBooksBillAllocationInput[]
+  billAllocations?: QuickBooksBillAllocationInput[]
+  apAccountId?: string
+  currencyCode?: string
   transactionDate?: string
+  documentNumber?: string
   privateNote?: string
   requestId?: string
 }
@@ -798,7 +869,7 @@ export interface QuickBooksCreateBillPaymentParams extends QuickBooksAuthParams 
 export interface QuickBooksUpdateBillPaymentParams extends QuickBooksAuthParams {
   billPaymentId: string
   syncToken: string
-  vendorId: string
+  vendorId?: string
   transactionDate?: string
   privateNote?: string
 }
@@ -807,6 +878,8 @@ export interface QuickBooksCreateVendorCreditParams extends QuickBooksAuthParams
   vendorId: string
   lines: QuickBooksPurchasingLineInput[]
   apAccountId?: string
+  currencyCode?: string
+  globalTaxCalculation?: QuickBooksGlobalTaxCalculation
   transactionDate?: string
   documentNumber?: string
   privateNote?: string
@@ -816,7 +889,7 @@ export interface QuickBooksCreateVendorCreditParams extends QuickBooksAuthParams
 export interface QuickBooksUpdateVendorCreditParams extends QuickBooksAuthParams {
   vendorCreditId: string
   syncToken: string
-  vendorId: string
+  vendorId?: string
   apAccountId?: string
   transactionDate?: string
   documentNumber?: string
@@ -830,6 +903,8 @@ export interface QuickBooksCreatePurchaseParams extends QuickBooksAuthParams {
   paymentAccountId: string
   lines: QuickBooksPurchasingLineInput[]
   vendorId?: string
+  currencyCode?: string
+  globalTaxCalculation?: QuickBooksGlobalTaxCalculation
   transactionDate?: string
   paymentReference?: string
   privateNote?: string
@@ -839,7 +914,6 @@ export interface QuickBooksCreatePurchaseParams extends QuickBooksAuthParams {
 export interface QuickBooksUpdatePurchaseParams extends QuickBooksAuthParams {
   purchaseId: string
   syncToken: string
-  currentPaymentType: QuickBooksPurchasePaymentType
   vendorId?: string
   transactionDate?: string
   paymentReference?: string
@@ -894,10 +968,14 @@ export type QuickBooksCreateEstimateParams = Omit<QuickBooksNonReceiptCreatePara
 export type QuickBooksUpdateEstimateParams = Omit<QuickBooksNonReceiptUpdateParams, 'dueDate'>
 export type QuickBooksCreateInvoiceParams = Omit<QuickBooksNonReceiptCreateParams, 'expirationDate'>
 export type QuickBooksUpdateInvoiceParams = Omit<QuickBooksNonReceiptUpdateParams, 'expirationDate'>
+/**
+ * Intuit's `salesreceiptrequest` requires only `Line`; `CustomerRef` is absent
+ * from its required set, so an anonymous counter sale is a valid sales receipt.
+ */
 export type QuickBooksCreateSalesReceiptParams = Omit<
   QuickBooksCreateSalesDocumentParams,
-  'dueDate' | 'expirationDate'
->
+  'dueDate' | 'expirationDate' | 'customerId'
+> & { customerId?: string }
 export type QuickBooksUpdateSalesReceiptParams = Omit<
   QuickBooksUpdateSalesDocumentParams,
   'dueDate' | 'expirationDate'
@@ -957,7 +1035,7 @@ export type QuickBooksActiveStatus = 'unchanged' | 'active' | 'inactive'
 export type QuickBooksReadActiveStatus = 'default' | 'active' | 'inactive'
 
 export interface QuickBooksCreateCustomerParams extends QuickBooksAuthParams {
-  displayName: string
+  displayName?: string
   requestId?: string
   companyName?: string
   givenName?: string
@@ -998,7 +1076,7 @@ export interface QuickBooksUpdateEmployeeParams
 }
 
 export interface QuickBooksCreateVendorParams extends QuickBooksAuthParams {
-  displayName: string
+  displayName?: string
   requestId?: string
   companyName?: string
   givenName?: string
@@ -1024,7 +1102,7 @@ export type QuickBooksWritableItemType = 'service' | 'non_inventory'
 export interface QuickBooksCreateItemParams extends QuickBooksAuthParams {
   name: string
   itemType: QuickBooksWritableItemType
-  expenseAccountId: string
+  expenseAccountId?: string
   incomeAccountId?: string
   requestId?: string
   description?: string
@@ -1035,11 +1113,10 @@ export interface QuickBooksCreateItemParams extends QuickBooksAuthParams {
 }
 
 export interface QuickBooksUpdateItemParams
-  extends Omit<QuickBooksCreateItemParams, 'name' | 'itemType' | 'expenseAccountId'> {
+  extends Omit<QuickBooksCreateItemParams, 'name' | 'itemType'> {
   itemId: string
   syncToken: string
   name?: string
-  expenseAccountId?: string
   activeStatus?: QuickBooksActiveStatus
 }
 
@@ -1065,6 +1142,7 @@ export interface QuickBooksReadMasterDataResponse extends ToolResponse {
   output: {
     recordType: QuickBooksMasterDataRecordType
     item?: QuickBooksMasterDataRecord
+    recordVersion?: string
     items?: QuickBooksMasterDataRecord[]
     startPosition?: number
     maxResults?: number
@@ -1078,6 +1156,7 @@ export interface QuickBooksReadSalesTransactionsResponse extends ToolResponse {
   output: {
     transactionType: QuickBooksSalesTransactionType
     item?: QuickBooksSalesTransaction
+    recordVersion?: string
     items?: QuickBooksSalesTransaction[]
     startPosition?: number
     maxResults?: number
@@ -1091,6 +1170,7 @@ export interface QuickBooksReadPurchasingTransactionsResponse extends ToolRespon
   output: {
     transactionType: QuickBooksPurchasingTransactionType
     item?: QuickBooksPurchasingTransaction
+    recordVersion?: string
     items?: QuickBooksPurchasingTransaction[]
     startPosition?: number
     maxResults?: number
@@ -1104,6 +1184,7 @@ export interface QuickBooksReadAccountingTransactionsResponse extends ToolRespon
   output: {
     transactionType: QuickBooksAccountingTransactionType
     item?: QuickBooksAccountingTransaction
+    recordVersion?: string
     items?: QuickBooksAccountingTransaction[]
     startPosition?: number
     maxResults?: number
@@ -1174,6 +1255,7 @@ export interface QuickBooksMutationResponse<T extends { Id: string; SyncToken?: 
     record: T
     recordId: string
     syncToken: string
+    recordVersion: string
     time: string | null
   }
 }
@@ -1266,11 +1348,6 @@ export const QUICKBOOKS_COMPANY_INFO_PROPERTIES: Record<string, OutputProperty> 
   SupportedLanguages: {
     type: 'string',
     description: 'Comma-separated list of languages supported by the company',
-    optional: true,
-  },
-  EmployerId: {
-    type: 'string',
-    description: 'Employer Identification Number, when defined in company settings',
     optional: true,
   },
   domain: { type: 'string', description: 'Originating Intuit domain', optional: true },
@@ -1667,6 +1744,7 @@ export const QUICKBOOKS_REPORT_HEADER_PROPERTIES: Record<string, OutputProperty>
   Customer: { type: 'string', description: 'Applied customer filter', optional: true },
   Vendor: { type: 'string', description: 'Applied vendor filter', optional: true },
   Account: { type: 'string', description: 'Applied account filter', optional: true },
+  Employee: { type: 'string', description: 'Applied employee filter', optional: true },
   Item: { type: 'string', description: 'Applied item filter', optional: true },
   Class: { type: 'string', description: 'Applied class filter', optional: true },
   Department: { type: 'string', description: 'Applied department filter', optional: true },
@@ -1830,7 +1908,12 @@ export const QUICKBOOKS_PURCHASING_TRANSACTION_PROPERTIES: Record<string, Output
   SyncToken: { type: 'string', description: 'Current transaction sync token', optional: true },
   DocNumber: { type: 'string', description: 'Transaction document number', optional: true },
   TxnDate: { type: 'string', description: 'Transaction date', optional: true },
-  DueDate: { type: 'string', description: 'Bill due date', optional: true },
+  DueDate: { type: 'string', description: 'Bill or purchase-order due date', optional: true },
+  POStatus: {
+    type: 'string',
+    description: 'Purchase order status: Open or Closed',
+    optional: true,
+  },
   VendorRef: {
     type: 'json',
     description: 'Vendor reference',
@@ -1978,7 +2061,12 @@ export const QUICKBOOKS_MUTATION_OUTPUTS: Record<string, OutputProperty> = {
   recordId: { type: 'string', description: 'ID of the created or updated QuickBooks entity' },
   syncToken: {
     type: 'string',
-    description: 'Latest sync token required for a subsequent update',
+    description: 'Native QuickBooks SyncToken returned by the mutation',
+  },
+  recordVersion: {
+    type: 'string',
+    description:
+      'Latest QuickBooks record version required for a subsequent update; this is the native SyncToken under a display-safe name',
   },
   time: {
     type: 'string',

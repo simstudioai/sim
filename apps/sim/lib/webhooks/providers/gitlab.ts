@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
@@ -18,10 +19,6 @@ import { getGitLabApiBase, UnsafeGitLabHostError } from '@/tools/gitlab/utils'
 
 const logger = createLogger('WebhookProvider:GitLab')
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return (value as Record<string, unknown>) || {}
-}
-
 function gitlabProjectHooksUrl(projectId: string, host: unknown): string {
   return `${getGitLabApiBase(host)}/projects/${encodeURIComponent(projectId)}/hooks`
 }
@@ -37,6 +34,7 @@ async function cleanupGitLabHookByUrl(
   host: unknown
 ): Promise<void> {
   const res = await secureFetchWithValidation(gitlabProjectHooksUrl(projectId, host), {
+    profile: 'configuredEndpoint',
     headers: { 'PRIVATE-TOKEN': accessToken },
   }).catch(() => null)
   if (!res || !res.ok) return
@@ -49,6 +47,7 @@ async function cleanupGitLabHookByUrl(
       .filter((hook) => hook.url === url && hook.id != null)
       .map((hook) =>
         secureFetchWithValidation(`${gitlabProjectHooksUrl(projectId, host)}/${hook.id}`, {
+          profile: 'configuredEndpoint',
           method: 'DELETE',
           headers: { 'PRIVATE-TOKEN': accessToken },
         }).catch(() => null)
@@ -87,7 +86,7 @@ export const gitlabHandler: WebhookProviderHandler = {
     const triggerId = providerConfig.triggerId as string | undefined
     if (!triggerId || triggerId === 'gitlab_webhook') return true
 
-    const objectKind = asRecord(body).object_kind as string | undefined
+    const objectKind = toRecord(body).object_kind as string | undefined
 
     const { isGitLabEventMatch } = await import('@/triggers/gitlab/utils')
     if (!isGitLabEventMatch(triggerId, objectKind || '')) {
@@ -109,17 +108,13 @@ export const gitlabHandler: WebhookProviderHandler = {
    * referencing the undocumented raw path keeps working.
    */
   async formatInput({ body, headers }: FormatInputContext): Promise<FormatInputResult> {
-    const b = asRecord(body)
+    const b = toRecord(body)
     const eventType = headers['x-gitlab-event'] || ''
-    const ref = (b.ref as string) || ''
+    const ref = typeof b.ref === 'string' ? b.ref : ''
     const branch = ref.replace('refs/heads/', '')
     const objectAttributes = b.object_attributes
     let input: Record<string, unknown> = { ...b, event_type: eventType, branch }
-    if (
-      objectAttributes &&
-      typeof objectAttributes === 'object' &&
-      !Array.isArray(objectAttributes)
-    ) {
+    if (isRecordLike(objectAttributes)) {
       const workItemType = (objectAttributes as Record<string, unknown>).type
       if (workItemType !== undefined) {
         input = {
@@ -151,9 +146,9 @@ export const gitlabHandler: WebhookProviderHandler = {
    * (pending/running/success/failed) from colliding onto the same key.
    */
   extractIdempotencyId(body: unknown): string | null {
-    const b = asRecord(body)
+    const b = toRecord(body)
     const objectKind = (b.object_kind as string) || ''
-    const project = asRecord(b.project)
+    const project = toRecord(b.project)
     const projectId = project.id != null ? String(project.id) : ''
 
     if (objectKind === 'push' || objectKind === 'tag_push') {
@@ -163,7 +158,7 @@ export const gitlabHandler: WebhookProviderHandler = {
       return `gitlab:${objectKind}:${projectId}:${ref}:${checkoutSha}`
     }
 
-    const objectAttributes = asRecord(b.object_attributes)
+    const objectAttributes = toRecord(b.object_attributes)
     const id = objectAttributes.id != null ? String(objectAttributes.id) : ''
     if (!id) return null
     const version =
@@ -205,6 +200,7 @@ export const gitlabHandler: WebhookProviderHandler = {
     const { getGitLabEventFlags } = await import('@/triggers/gitlab/utils')
     const secretToken = generateId()
     const res = await secureFetchWithValidation(gitlabProjectHooksUrl(projectId, host), {
+      profile: 'configuredEndpoint',
       method: 'POST',
       headers: { 'PRIVATE-TOKEN': accessToken, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -276,10 +272,7 @@ export const gitlabHandler: WebhookProviderHandler = {
 
     const res = await secureFetchWithValidation(
       `${gitlabProjectHooksUrl(projectId, host)}/${externalId}`,
-      {
-        method: 'DELETE',
-        headers: { 'PRIVATE-TOKEN': accessToken },
-      }
+      { profile: 'configuredEndpoint', method: 'DELETE', headers: { 'PRIVATE-TOKEN': accessToken } }
     )
 
     if (!res.ok && res.status !== 404) {

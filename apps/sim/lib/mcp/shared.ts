@@ -3,7 +3,50 @@
  * No server-side dependencies (database, fs, etc.) should be imported here.
  */
 
+import { normalizeMcpOperationPolicy } from '@/lib/mcp/operation-policy'
 import { isMcpTool, MCP } from '@/executor/constants'
+
+export const MCP_SERVER_ADVANCED_TOOL_TYPE = 'mcp-server-advanced' as const
+
+/** Rejects ambiguous server-wide bindings while leaving legacy MCP entries untouched. */
+export function assertValidMcpServerToolBindings(value: unknown): void {
+  if (!Array.isArray(value)) return
+  const advancedServerIds = new Set<string>()
+  const individualServerIds = new Set<string>()
+  for (const candidate of value) {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) continue
+    const tool = candidate as {
+      type?: unknown
+      usageControl?: unknown
+      params?: { serverId?: unknown }
+    }
+    if (tool.usageControl === 'none') continue
+    if (tool.type === 'mcp') {
+      if (typeof tool.params?.serverId === 'string' && tool.params.serverId) {
+        individualServerIds.add(tool.params.serverId)
+      }
+      continue
+    }
+    if (tool.type !== MCP_SERVER_ADVANCED_TOOL_TYPE) continue
+    normalizeMcpOperationPolicy((candidate as { operationPolicy?: unknown }).operationPolicy)
+    const serverId = tool.params?.serverId
+    if (typeof serverId !== 'string') {
+      throw new Error('MCP Server (Advanced) requires params.serverId')
+    }
+    if (!serverId.trim()) throw new Error('MCP Server (Advanced) requires params.serverId')
+    if (advancedServerIds.has(serverId)) {
+      throw new Error(`Duplicate MCP Server (Advanced) binding for ${serverId}`)
+    }
+    advancedServerIds.add(serverId)
+  }
+  for (const serverId of advancedServerIds) {
+    if (individualServerIds.has(serverId)) {
+      throw new Error(
+        `MCP server ${serverId} cannot be attached as both an advanced server and individual tools`
+      )
+    }
+  }
+}
 
 /**
  * Sanitizes a string by removing invisible Unicode characters that cause HTTP header errors.

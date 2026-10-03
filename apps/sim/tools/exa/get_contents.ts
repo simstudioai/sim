@@ -119,6 +119,10 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ summaryQuery: params.summaryQuery }),
+    },
     url: 'https://api.exa.ai/contents',
     method: 'POST',
     headers: (params) => ({

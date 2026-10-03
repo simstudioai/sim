@@ -1,145 +1,68 @@
-/**
- * Enterprise audit log authorization.
- *
- * Validates that the authenticated user is an admin/owner of an enterprise organization
- * and returns the organization context needed for scoped queries.
- */
-
-import { db } from '@sim/db'
-import { member, subscription } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { and, eq, inArray } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
-import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
-import { USABLE_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
-import { isAuditLogsEnabled, isBillingEnabled } from '@/lib/core/config/env-flags'
-
-const logger = createLogger('V1AuditLogsAuth')
-
-interface EnterpriseAuditContext {
-  organizationId: string
-  orgMemberIds: string[]
-}
+import {
+  type EnterpriseAuditContext,
+  resolveEnterpriseAuditAccess,
+} from '@/lib/audit-logs/authorization'
+import {
+  capabilityGovernedUserId,
+  checkOrganizationPersonalKeyRefusal,
+  type RateLimitResult,
+} from '@/app/api/v1/middleware'
 
 type AuthResult =
   | { success: true; context: EnterpriseAuditContext }
   | { success: false; response: NextResponse }
 
+type V1AuthResult =
+  | { success: true; userId: string; context: EnterpriseAuditContext }
+  | { success: false; response: NextResponse }
+
 /**
- * Validates enterprise audit log access for the given user.
- *
- * Checks:
- * 1. User belongs to an organization
- * 2. User has admin or owner role
- * 3. The organization is entitled to audit logs — an active enterprise
- *    subscription when billing runs, otherwise the deployment's audit-logs
- *    entitlement
- *
- * The subscription query is skipped entirely with billing off. Requiring it
- * there made audit logs unreachable on every self-hosted deployment, since no
- * subscription row is ever written without billing.
- *
- * Returns the organization ID and all member user IDs on success,
- * or an error response on failure.
+ * v1 wrapper: renders {@link resolveEnterpriseAuditAccess} as the v1 `{ error }`
+ * response body.
  */
 export async function validateEnterpriseAuditAccess(
   userId: string,
   targetOrganizationId?: string
 ): Promise<AuthResult> {
-  const [membership] = await db
-    .select({ organizationId: member.organizationId, role: member.role })
-    .from(member)
-    .where(
-      targetOrganizationId
-        ? and(eq(member.userId, userId), eq(member.organizationId, targetOrganizationId))
-        : eq(member.userId, userId)
-    )
-    .limit(1)
-
-  if (!membership) {
-    return {
-      success: false,
-      response: NextResponse.json({ error: 'Not a member of any organization' }, { status: 403 }),
-    }
-  }
-
-  if (membership.role !== 'admin' && membership.role !== 'owner') {
-    return {
-      success: false,
-      response: NextResponse.json(
-        { error: 'Organization admin or owner role required' },
-        { status: 403 }
-      ),
-    }
-  }
-
-  if (isBillingEnabled) {
-    const billingBlocked = await isOrganizationBillingBlocked(membership.organizationId)
-    if (billingBlocked) {
-      return {
-        success: false,
-        response: NextResponse.json(
-          { error: 'Active enterprise subscription required' },
-          { status: 403 }
-        ),
-      }
-    }
-  } else if (!isAuditLogsEnabled) {
-    return {
-      success: false,
-      response: NextResponse.json(
-        {
-          error:
-            'Audit logs are disabled. Set ENTERPRISE_ENABLED or AUDIT_LOGS_ENABLED to enable them.',
-        },
-        { status: 403 }
-      ),
-    }
-  }
-
-  const [orgSub, orgMembers] = await Promise.all([
-    isBillingEnabled
-      ? db
-          .select({ id: subscription.id })
-          .from(subscription)
-          .where(
-            and(
-              eq(subscription.referenceId, membership.organizationId),
-              eq(subscription.plan, 'enterprise'),
-              inArray(subscription.status, USABLE_SUBSCRIPTION_STATUSES)
-            )
-          )
-          .limit(1)
-      : Promise.resolve([]),
-    db
-      .select({ userId: member.userId })
-      .from(member)
-      .where(eq(member.organizationId, membership.organizationId)),
-  ])
-
-  if (isBillingEnabled && orgSub.length === 0) {
-    return {
-      success: false,
-      response: NextResponse.json(
-        { error: 'Active enterprise subscription required' },
-        { status: 403 }
-      ),
-    }
-  }
-
-  const orgMemberIds = orgMembers.map((m) => m.userId)
-
-  logger.info('Enterprise audit access validated', {
-    userId,
-    organizationId: membership.organizationId,
-    memberCount: orgMemberIds.length,
-  })
-
+  const result = await resolveEnterpriseAuditAccess(userId, targetOrganizationId)
+  if (result.success) return { success: true, context: result.context }
   return {
-    success: true,
-    context: {
-      organizationId: membership.organizationId,
-      orgMemberIds,
-    },
+    success: false,
+    response: NextResponse.json({ error: result.message }, { status: result.status }),
   }
+}
+
+/**
+ * Authorizes a v1 API-key read of the organization audit trail with the same
+ * policy as `auditLogOperations`, which v1 does not route through.
+ *
+ * Workspace keys are refused (`workspaceApiKey: 'deny'`): their `userId` is the
+ * key's creator, so authorizing it would let a credential scoped to one
+ * workspace read every workspace in the organization whenever its creator is an
+ * organization admin. A personal key is then held to the user-global
+ * `personal_api_key.use` group decision, checked after the admin role so the
+ * refusal never describes an organization's configuration to a non-admin.
+ */
+export async function validateV1EnterpriseAuditAccess(
+  rateLimit: RateLimitResult
+): Promise<V1AuthResult> {
+  const userId = capabilityGovernedUserId(rateLimit)
+  if (!userId) {
+    return {
+      success: false,
+      response: NextResponse.json(
+        { error: 'Audit logs require a personal API key' },
+        { status: 403 }
+      ),
+    }
+  }
+
+  const access = await validateEnterpriseAuditAccess(userId)
+  if (!access.success) return access
+
+  const personalKeyRefusal = await checkOrganizationPersonalKeyRefusal(rateLimit)
+  if (personalKeyRefusal) return { success: false, response: personalKeyRefusal }
+
+  return { success: true, userId, context: access.context }
 }

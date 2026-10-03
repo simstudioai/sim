@@ -1,9 +1,14 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Combobox, type ComboboxOption, cn } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
-import { useReactFlow } from 'reactflow'
+import { useReactFlow } from '@xyflow/react'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import type { SelectorKey } from '@/lib/selectors/manifest'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
+import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
 import { SandboxCreateModal } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/components/sandbox-create-modal'
 import type { SandboxLanguage } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/utils'
+import { shouldClearMissingOption } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/combobox/missing-option'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
@@ -12,19 +17,22 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
-import { getDependsOnFields } from '@/blocks/utils'
+import { useDebounce } from '@/hooks/use-debounce'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
-import { getProviderFromModel } from '@/providers/utils'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 /**
  * Constants for ComboBox component behavior
  */
-const DEFAULT_MODEL = 'claude-sonnet-5'
+const DEFAULT_MODEL = 'claude-sonnet-5-5'
 const ZOOM_FACTOR_BASE = 0.96
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 1
 const ZOOM_DURATION = 0
+
+/** Shared empty list, so a selector-backed field with no static options keeps a stable identity. */
+const EMPTY_OPTIONS: ComboBoxOption[] = []
 
 const CREATE_ACTION_LABEL: Record<NonNullable<SubBlockConfig['createAction']>, string> = {
   sandbox: 'Create Sandbox',
@@ -48,8 +56,12 @@ type ComboBoxOption =
  * Props for the ComboBox component
  */
 interface ComboBoxProps {
-  /** Available options for selection - can be static array or function that returns options */
-  options: ComboBoxOption[] | (() => ComboBoxOption[])
+  /**
+   * Static options, or a function deriving them from the block's own values. Absent on a
+   * selector-backed field, whose list comes from `selectorKey` instead — so this must never
+   * be read without a default.
+   */
+  options?: ComboBoxOption[] | ((params?: { values: Record<string, unknown> }) => ComboBoxOption[])
   /** Default value to use when no value is set */
   defaultValue?: string
   /** ID of the parent block */
@@ -68,13 +80,10 @@ interface ComboBoxProps {
   placeholder?: string
   /** Configuration for the sub-block */
   config: SubBlockConfig
-  /** Async function to fetch options dynamically */
-  fetchOptions?: (blockId: string) => Promise<Array<{ label: string; id: string }>>
-  /** Async function to fetch a single option's label by ID (for hydration) */
-  fetchOptionById?: (
-    blockId: string,
-    optionId: string
-  ) => Promise<{ label: string; id: string } | null>
+  /** Registered selector supplying the options. The canonical source for a remote list. */
+  selectorKey?: SelectorKey
+  /** Drop the hosting workflow from a `sim.workflows` list. */
+  selectorExcludeSelf?: boolean
   /** Field dependencies that trigger option refetch when changed */
   dependsOn?: SubBlockConfig['dependsOn']
 }
@@ -90,8 +99,8 @@ export const ComboBox = memo(function ComboBox({
   disabled,
   placeholder = 'Type or select an option...',
   config,
-  fetchOptions,
-  fetchOptionById,
+  selectorKey,
+  selectorExcludeSelf,
   dependsOn,
 }: ComboBoxProps) {
   const activeSearchTarget = useActiveSearchTarget()
@@ -107,44 +116,65 @@ export const ComboBox = memo(function ComboBox({
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
   // Permission-based filtering for model dropdowns
-  const {
-    isProviderAllowed,
-    isModelAllowed,
-    isLoading: isPermissionLoading,
-  } = usePermissionConfig()
+  const { isModelUsable, isLoading: isPermissionLoading } = usePermissionConfig()
 
   // Evaluate static options if provided as a function
+  // Derived option lists read the block's own values (a model's valid reasoning efforts);
+  // `dependsOn` already re-renders this control when one of those siblings changes.
+  const activeWorkflowIdForValues = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const blockValues = useSubBlockStore((state) =>
+    activeWorkflowIdForValues
+      ? state.workflowValues[activeWorkflowIdForValues]?.[blockId]
+      : undefined
+  )
+
+  /**
+   * Option builders such as the model list and the Function block's languages read the
+   * deployment shape outside React, so the list is keyed on the subscribed shape as well:
+   * a host context that lands after mount (an app version rolling out the field) must
+   * re-evaluate them rather than leave the env fallback's list in place.
+   */
+  const deploymentShape = useDeploymentShape()
   const staticOptions = useMemo(() => {
-    const opts = typeof options === 'function' ? options() : options
+    const opts =
+      typeof options === 'function'
+        ? options({ values: blockValues ?? {} })
+        : (options ?? EMPTY_OPTIONS)
 
     if (subBlockId === 'model') {
-      return opts.filter((opt) => {
-        const modelId = typeof opt === 'string' ? opt : opt.id
-        if (!isModelAllowed(modelId)) return false
-        try {
-          return isProviderAllowed(getProviderFromModel(modelId))
-        } catch {
-          return true
-        }
-      })
+      return opts.filter((opt) => isModelUsable(typeof opt === 'string' ? opt : opt.id))
     }
 
     return opts
-  }, [options, subBlockId, isProviderAllowed, isModelAllowed])
+  }, [options, blockValues, subBlockId, isModelUsable, deploymentShape])
+
+  const [selectorSearch, setSelectorSearch] = useState('')
+  const debouncedSelectorSearch = useDebounce(selectorSearch.trim(), SEARCH_DEBOUNCE_MS)
+  const activeSelectorSearch = selectorSearch.trim() === '' ? '' : debouncedSelectorSearch
 
   const {
     fetchedOptions,
     isLoadingOptions,
+    isFetchingMore,
+    isLoadingAll,
+    hasMore,
+    truncated,
     fetchError,
     hydratedOption,
+    missingOptionId,
+    isDynamic,
+    loadMore,
+    loadAll,
     refetch: refetchOptions,
   } = useFetchedOptions({
     blockId,
+    subBlockId,
     dependsOnFields,
-    fetchOptions,
-    fetchOptionById,
+    selectorKey,
+    selectorExcludeSelf,
     isPreview: Boolean(isPreview),
     disabled: Boolean(disabled),
+    search: activeSelectorSearch,
     valueToHydrate: value as string | null | undefined,
     localOptions: staticOptions,
   })
@@ -152,6 +182,30 @@ export const ComboBox = memo(function ComboBox({
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [createLanguage, setCreateLanguage] = useState<SandboxLanguage | undefined>(undefined)
   const [createdOption, setCreatedOption] = useState<{ label: string; id: string } | null>(null)
+
+  useEffect(() => {
+    const currentValue = useSubBlockStore.getState().getValue(blockId, subBlockId)
+    if (
+      !shouldClearMissingOption({
+        clearOnMissingOption: Boolean(config.clearOnMissingOption),
+        missingOptionId,
+        currentValue,
+        isPreview: Boolean(isPreview),
+        disabled: Boolean(disabled),
+      })
+    ) {
+      return
+    }
+    setStoreValue('')
+  }, [
+    blockId,
+    config.clearOnMissingOption,
+    disabled,
+    isPreview,
+    missingOptionId,
+    setStoreValue,
+    subBlockId,
+  ])
 
   /**
    * The pinned "create a new one" row, when the field declares one. Seeded from
@@ -181,18 +235,10 @@ export const ComboBox = memo(function ComboBox({
   // Merge static and fetched options - fetched options take priority when available
   const evaluatedOptions = useMemo((): ComboBoxOption[] => {
     let opts: ComboBoxOption[] =
-      fetchOptions && normalizedFetchedOptions.length > 0 ? normalizedFetchedOptions : staticOptions
+      isDynamic && normalizedFetchedOptions.length > 0 ? normalizedFetchedOptions : staticOptions
 
-    if (subBlockId === 'model' && fetchOptions && normalizedFetchedOptions.length > 0) {
-      opts = opts.filter((opt) => {
-        const modelId = typeof opt === 'string' ? opt : opt.id
-        if (!isModelAllowed(modelId)) return false
-        try {
-          return isProviderAllowed(getProviderFromModel(modelId))
-        } catch {
-          return true
-        }
-      })
+    if (subBlockId === 'model' && isDynamic && normalizedFetchedOptions.length > 0) {
+      opts = opts.filter((opt) => isModelUsable(typeof opt === 'string' ? opt : opt.id))
     }
 
     // Merge hydrated option if not already present
@@ -219,14 +265,13 @@ export const ComboBox = memo(function ComboBox({
 
     return opts
   }, [
-    fetchOptions,
+    isDynamic,
     normalizedFetchedOptions,
     staticOptions,
     hydratedOption,
     createdOption,
     subBlockId,
-    isProviderAllowed,
-    isModelAllowed,
+    isModelUsable,
   ])
 
   // Convert options to Combobox format
@@ -251,7 +296,7 @@ export const ComboBox = memo(function ComboBox({
 
   /**
    * Determines the default option value to use.
-   * Priority: explicit defaultValue > claude-sonnet-5 for model field > first option
+   * Priority: explicit defaultValue > DEFAULT_MODEL for model field > first option
    */
   const defaultOptionValue = useMemo(() => {
     if (defaultValue !== undefined) {
@@ -263,7 +308,6 @@ export const ComboBox = memo(function ComboBox({
       // Default not available (e.g. provider disabled) — fall through to other fallbacks
     }
 
-    // For model field, default to claude-sonnet-5 if available
     if (subBlockId === 'model') {
       const defaultModelOption = evaluatedOptions.find(
         (opt) => getOptionValue(opt) === DEFAULT_MODEL
@@ -399,7 +443,7 @@ export const ComboBox = memo(function ComboBox({
     })
     return (
       <div className='flex w-full items-center truncate [scrollbar-width:none]'>
-        {SelectedIcon && <SelectedIcon className='mr-2 size-3 flex-shrink-0' />}
+        {SelectedIcon && <SelectedIcon className='mr-2 size-3 shrink-0' />}
         <div className='truncate'>
           {formatDisplayText(displayLabel, {
             accessiblePrefixes,
@@ -427,8 +471,10 @@ export const ComboBox = memo(function ComboBox({
       const matchedComboboxOption = comboboxOptions.find((option) => option.value === newValue)
       if (matchedComboboxOption) {
         setInputValue(matchedComboboxOption.label)
+        setSelectorSearch('')
       } else {
         setInputValue(newValue)
+        setSelectorSearch(newValue)
       }
 
       // Use controller's handler so env vars, tags, and DnD still work
@@ -518,8 +564,16 @@ export const ComboBox = memo(function ComboBox({
               className={cn('allow-scroll overflow-x-auto', selectedOptionIcon && 'pl-7')}
               inputProps={comboboxInputProps}
               isLoading={isLoadingOptions}
+              isLoadingMore={isFetchingMore}
+              isLoadingAll={isLoadingAll}
+              hasMore={hasMore}
+              truncated={truncated}
+              searchActive={Boolean(debouncedSelectorSearch)}
+              onLoadMore={loadMore}
+              onLoadAll={loadAll}
               error={fetchError}
               onOpenChange={handleOpenChange}
+              onSearchChange={setSelectorSearch}
             />
           )
         }}

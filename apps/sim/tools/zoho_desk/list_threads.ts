@@ -55,6 +55,13 @@ export const zohoDeskListThreadsTool: ToolConfig<ZohoDeskListThreadsParams, Zoho
       visibility: 'user-or-llm',
       description: 'Number of threads to return (1-200, default 100)',
     },
+    sortBy: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Sort by sendDateTime. Zoho sorts descending (newest first) when unset; pass sendDateTime for oldest first.',
+    },
   },
 
   request: {
@@ -62,6 +69,7 @@ export const zohoDeskListThreadsTool: ToolConfig<ZohoDeskListThreadsParams, Zoho
       const query = new URLSearchParams()
       if (params.from !== undefined) query.set('from', String(params.from))
       if (params.limit !== undefined) query.set('limit', String(params.limit))
+      if (params.sortBy) query.set('sortBy', params.sortBy)
       const qs = query.toString()
       return `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(requireZohoDeskId(params.ticketId, 'Ticket ID'))}/threads${qs ? `?${qs}` : ''}`
     },

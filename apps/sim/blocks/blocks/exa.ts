@@ -1,7 +1,6 @@
 import { ExaAIIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { ExaResponse } from '@/tools/exa/types'
 
 /** Categories Exa currently supports. Shared by Search and Find Similar Links. */
 const CATEGORY_OPTIONS = [
@@ -35,7 +34,7 @@ const RESEARCH_MODEL_TO_EFFORT: Record<string, string> = {
   'exa-research-pro': 'high',
 }
 
-export const ExaBlock: BlockConfig<ExaResponse> = {
+export const ExaBlock: BlockConfig = {
   type: 'exa',
   name: 'Exa',
   description: 'Search with Exa AI',
@@ -48,6 +47,28 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
   bgColor: '#1F40ED',
   iconColor: '#1F40ED',
   icon: ExaAIIcon,
+  canvasPresentation: {
+    defaultTitle: 'Exa',
+    sentences: {
+      byOperation: {
+        exa_search: [
+          { text: 'Search the web for', field: 'query', core: true },
+          { text: ', within', field: 'includeDomains' },
+          { text: ', returning', field: 'numResults', after: 'results' },
+        ],
+        exa_get_contents: [
+          { text: 'Read page contents from', field: 'urls', core: true },
+          { text: ', summarized for', field: 'summaryQuery' },
+        ],
+        exa_answer: [{ text: 'Answer', field: 'query', after: 'with cited sources', core: true }],
+        exa_agent: [{ text: 'Run deep research on', field: 'query', core: true }],
+        exa_find_similar_links: [
+          { text: 'Find pages similar to', field: 'url', core: true },
+          { text: ', returning', field: 'numResults', after: 'results' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

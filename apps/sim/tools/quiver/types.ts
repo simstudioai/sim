@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 export interface QuiverTextToSvgParams {
@@ -44,12 +45,18 @@ export interface QuiverSvgResponse extends ToolResponse {
       size: number
     }>
     svgContent: string
-    id: string
+    id: string | null
     usage: {
       totalTokens: number
       inputTokens: number
       outputTokens: number
     } | null
+  }
+}
+
+export interface QuiverSvgV2Response extends ToolResponse {
+  output: Omit<QuiverSvgResponse['output'], 'file' | 'files' | 'svgContent'> & {
+    files: UserFile[]
   }
 }
 

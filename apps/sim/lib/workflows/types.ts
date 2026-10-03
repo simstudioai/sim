@@ -12,6 +12,17 @@ export const USER_FILE_ACCESSIBLE_PROPERTIES = [
   'size',
   'type',
   'base64',
+  /**
+   * Path to the file on the sandbox filesystem, mounted on demand.
+   *
+   * The counterpart to `base64`: that one inlines the bytes and is JavaScript-
+   * only, while this one hands any language a real path to open — which is what
+   * a CLI or a library like pandas or ffmpeg actually needs. Referencing it runs
+   * the block in the remote sandbox, since the isolated VM has no filesystem.
+   */
+  'path',
+  /** Version number of a workspace file's content; absent for files with no version history. */
+  'version',
 ] as const
 
 export type UserFileAccessibleProperty = (typeof USER_FILE_ACCESSIBLE_PROPERTIES)[number]
@@ -23,6 +34,8 @@ export const USER_FILE_PROPERTY_TYPES: Record<UserFileAccessibleProperty, string
   size: 'number',
   type: 'string',
   base64: 'string',
+  path: 'string',
+  version: 'number',
 } as const
 
 export const START_BLOCK_RESERVED_FIELDS = ['input', 'conversationId', 'files'] as const

@@ -1,7 +1,7 @@
 import { Text } from '@react-email/components'
 import { format } from 'date-fns'
 import { baseStyles } from '@/components/emails/_styles'
-import { EmailLayout } from '@/components/emails/components'
+import { EmailLayout, EmailStrong } from '@/components/emails/components'
 
 interface HelpConfirmationEmailProps {
   type?: 'bug' | 'feedback' | 'feature_request' | 'other'
@@ -36,10 +36,10 @@ export function HelpConfirmationEmail({
       preview={`Your ${typeLabel.toLowerCase()} has been received`}
       showUnsubscribe={false}
     >
-      <Text style={baseStyles.paragraph}>Hello,</Text>
+      <Text style={baseStyles.greeting}>Hello,</Text>
       <Text style={baseStyles.paragraph}>
-        We've received your <strong>{typeLabel.toLowerCase()}</strong> and will get back to you
-        shortly.
+        We've received your <EmailStrong>{typeLabel.toLowerCase()}</EmailStrong> and will get back
+        to you shortly.
       </Text>
 
       {attachmentCount > 0 && (
@@ -48,10 +48,9 @@ export function HelpConfirmationEmail({
         </Text>
       )}
 
-      {/* Divider */}
       <div style={baseStyles.divider} />
 
-      <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+      <Text style={baseStyles.footnote}>
         Submitted on {format(submittedDate, 'MMMM do, yyyy')}.
       </Text>
     </EmailLayout>

@@ -1,7 +1,6 @@
 import { RB2BIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { Rb2bResponse } from '@/tools/rb2b/types'
 
 const EMAIL_OPERATIONS = [
   'hem_to_business_profile',
@@ -20,7 +19,7 @@ const LINKEDIN_OPERATIONS = [
 
 const IP_OPERATIONS = ['ip_to_hem', 'ip_to_maid', 'ip_to_company']
 
-export const RB2BBlock: BlockConfig<Rb2bResponse> = {
+export const RB2BBlock: BlockConfig = {
   type: 'rb2b',
   name: 'RB2B',
   description: 'Identify and enrich website visitors',
@@ -32,6 +31,60 @@ export const RB2BBlock: BlockConfig<Rb2bResponse> = {
   docsLink: 'https://docs.sim.ai/integrations/rb2b',
   bgColor: '#51FF00',
   icon: RB2BIcon,
+  canvasPresentation: {
+    defaultTitle: 'RB2B',
+    sentences: {
+      byOperation: {
+        credit_check: ['Check remaining API credits'],
+        ip_to_hem: [
+          { text: 'Resolve', field: 'ip_address', after: 'to hashed emails', core: true },
+        ],
+        ip_to_maid: [
+          {
+            text: 'Resolve',
+            field: 'ip_address',
+            after: 'to mobile advertising IDs',
+            core: true,
+          },
+        ],
+        ip_to_company: [{ text: 'Identify the company behind', field: 'ip_address', core: true }],
+        hem_to_business_profile: [
+          { text: 'Read the business profile for', field: 'email', core: true },
+        ],
+        hem_to_best_linkedin: [
+          { text: 'Find the most active LinkedIn URL for', field: 'email', core: true },
+        ],
+        hem_to_linkedin: [{ text: 'Find the LinkedIn slug for', field: 'email', core: true }],
+        hem_to_maid: [{ text: 'Find mobile advertising IDs for', field: 'email', core: true }],
+        email_to_activity: [
+          { text: 'Read the last active date for', field: 'emailAddress', core: true },
+        ],
+        linkedin_to_business_profile: [
+          { text: 'Read the business profile behind', field: 'linkedin_slug', core: true },
+        ],
+        linkedin_to_best_personal_email: [
+          {
+            text: 'Find the most recently active personal email for',
+            field: 'linkedin_slug',
+            core: true,
+          },
+        ],
+        linkedin_to_personal_email: [
+          { text: 'Find personal emails for', field: 'linkedin_slug', core: true },
+        ],
+        linkedin_to_hashed_emails: [
+          { text: 'Find hashed emails for', field: 'linkedin_slug', core: true },
+        ],
+        linkedin_to_mobile_phone: [
+          { text: 'Find the mobile phone number for', field: 'linkedin_slug', core: true },
+        ],
+        linkedin_slug_search: [
+          { text: 'Find the LinkedIn profile for', field: 'first_name', core: true },
+          { text: 'at', field: 'company_domain' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

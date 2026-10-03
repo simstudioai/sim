@@ -57,6 +57,10 @@ export const agentTool: ToolConfig<AgentParams, AgentResponse> = {
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ prompt: params.prompt, schema: params.schema }),
+    },
     method: 'POST',
     url: 'https://api.firecrawl.dev/v2/agent',
     headers: (params) => ({

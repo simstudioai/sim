@@ -1,62 +1,13 @@
-/**
- * @vitest-environment node
- */
-
 import { jobExecutionLogs, workflowExecutionLogs } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-
-// Local drizzle-orm mock: the global mock's `sql` lacks `.as()`. We only need
-// condition/sql builders to produce truthy stubs (the mocked db ignores them).
-vi.mock('drizzle-orm', () => {
-  const make = (): Record<string, unknown> => {
-    const o: Record<string, unknown> = {}
-    o.as = () => o
-    o.mapWith = () => o
-    return o
-  }
-  const sql = Object.assign((..._args: unknown[]) => make(), {
-    raw: (..._args: unknown[]) => make(),
-    join: (..._args: unknown[]) => make(),
-  })
-  const op =
-    (type: string) =>
-    (...args: unknown[]) => ({ type, args })
-  return {
-    sql,
-    and: op('and'),
-    or: op('or'),
-    eq: op('eq'),
-    ne: op('ne'),
-    gt: op('gt'),
-    gte: op('gte'),
-    lt: op('lt'),
-    lte: op('lte'),
-    inArray: op('inArray'),
-    isNull: op('isNull'),
-    isNotNull: op('isNotNull'),
-    asc: op('asc'),
-    desc: op('desc'),
-  }
-})
 
 vi.mock('@/lib/logs/folder-expansion', () => ({
   expandFolderIdsWithDescendants: vi.fn(async (_ws: string, ids: string | undefined) => ids),
 }))
 
-// listLogs gates workspace access at entry; the resolver is tested separately.
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: vi.fn(async () => ({
-    exists: true,
-    hasAccess: true,
-    canWrite: true,
-    canAdmin: true,
-    workspace: { id: 'ws-1', name: 'Test', ownerId: 'user-1', organizationId: null },
-  })),
-}))
-
-import type { ListLogsParams } from './list-logs'
-import { decodeCursor, listLogs } from './list-logs'
+import { type ReadLogsParams, readLogs } from '@/lib/logs/list-logs'
+import { decodeLogSortCursor } from '@/lib/logs/sort-cursor'
 
 afterAll(resetDbChainMock)
 
@@ -109,19 +60,19 @@ function jobRow(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function baseParams(overrides: Partial<ListLogsParams> = {}): ListLogsParams {
+function baseParams(overrides: Partial<ReadLogsParams> = {}): ReadLogsParams {
   return {
     workspaceId: 'ws-1',
     limit: 100,
     sortBy: 'date',
     sortOrder: 'desc',
+    hideCostInfo: false,
     ...overrides,
-  } as ListLogsParams
+  }
 }
 
-describe('listLogs', () => {
+describe('readLogs', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -129,13 +80,14 @@ describe('listLogs', () => {
     queueTableRows(workflowExecutionLogs, [workflowRow()])
     queueTableRows(jobExecutionLogs, [jobRow()])
 
-    const result = await listLogs(baseParams(), 'user-1')
+    const result = await readLogs(baseParams())
 
     expect(result.data).toHaveLength(2)
     const wf = result.data.find((r) => r.id === 'log-1')!
     expect(wf).toMatchObject({
       executionId: 'exec-1',
       workflowId: 'wf-1',
+      executionOrigin: null,
       cost: { total: 0.1 },
       duration: '1000ms',
       jobTitle: null,
@@ -144,6 +96,7 @@ describe('listLogs', () => {
     expect(job).toMatchObject({
       executionId: 'job-exec-1',
       workflowId: null,
+      executionOrigin: null,
       jobTitle: 'Nightly report',
     })
     expect(result.nextCursor).toBeNull()
@@ -157,22 +110,110 @@ describe('listLogs', () => {
     ])
     queueTableRows(jobExecutionLogs, [])
 
-    const result = await listLogs(baseParams({ limit: 1 }), 'user-1')
+    const result = await readLogs(baseParams({ limit: 1 }))
 
     expect(result.data).toHaveLength(1)
     expect(result.nextCursor).not.toBeNull()
-    const decoded = decodeCursor(result.nextCursor!)
+    const decoded = decodeLogSortCursor(result.nextCursor!)
     expect(decoded?.id).toBe('log-a')
   })
 
   it('excludes job logs when a workflow-specific filter is present', async () => {
     queueTableRows(workflowExecutionLogs, [workflowRow()])
 
-    const result = await listLogs(baseParams({ workflowIds: 'wf-1' }), 'user-1')
+    const result = await readLogs(baseParams({ workflowIds: 'wf-1' }))
 
     // Only the workflow query runs; the job query is Promise.resolve([]).
     expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
     expect(result.data).toHaveLength(1)
     expect(result.data[0].workflowId).toBe('wf-1')
+  })
+
+  it('resolves the snapshot on the server and applies its upper bound to both run sources', async () => {
+    const now = '2026-09-24T15:45:00.000Z'
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(now))
+    try {
+      const result = await readLogs(baseParams({ snapshotAt: 'now' }))
+      expect(result.snapshotAt).toBe(now)
+      for (const table of [workflowExecutionLogs, jobExecutionLogs]) {
+        expect(dbChainMockFns.where).toHaveBeenCalledWith(
+          expect.objectContaining({
+            conditions: expect.arrayContaining([
+              { type: 'lte', left: table.startedAt, right: new Date(now) },
+            ]),
+          })
+        )
+      }
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('counts new workflow and job runs with the same exclusive lower bound as the row query', async () => {
+    const startedAfter = '2026-09-24T15:45:00.000Z'
+    queueTableRows(workflowExecutionLogs, [])
+    queueTableRows(jobExecutionLogs, [])
+    queueTableRows(workflowExecutionLogs, [{ count: 3 }])
+    queueTableRows(jobExecutionLogs, [{ count: 2 }])
+
+    const result = await readLogs(baseParams({ startedAfter, includeTotal: true, limit: 1 }))
+    expect(result.total).toBe(5)
+    for (const table of [workflowExecutionLogs, jobExecutionLogs]) {
+      const matchingCalls = dbChainMockFns.where.mock.calls.filter(([condition]) =>
+        condition.conditions.some(
+          (item: { type: string; left: unknown; right: unknown }) =>
+            item.type === 'gt' &&
+            item.left === table.startedAt &&
+            item.right instanceof Date &&
+            item.right.toISOString() === startedAfter
+        )
+      )
+      expect(matchingCalls).toHaveLength(2)
+    }
+  })
+
+  it('captures rows and the membership revision in one repeatable-read snapshot', async () => {
+    queueTableRows(workflowExecutionLogs, [workflowRow()])
+    queueTableRows(jobExecutionLogs, [])
+    queueTableRows(workflowExecutionLogs, [{ count: 1, revision: '1234567890123456789' }])
+    queueTableRows(jobExecutionLogs, [{ count: 0, revision: '0' }])
+
+    const result = await readLogs(baseParams({ includeRevision: true, snapshotAt: 'now' }))
+
+    expect(dbChainMockFns.transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: 'repeatable read',
+      accessMode: 'read only',
+    })
+    expect(result.data).toHaveLength(1)
+    expect(result.revision).toBe('1:1234567890123456789:0:0')
+    expect(result.total).toBeUndefined()
+  })
+})
+
+describe('readLogs cost projection', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  /**
+   * The list carries the same run total the detail does, so a group that
+   * withholds spend on one and not the other has withheld nothing.
+   */
+  it('blanks the run total on workflow and job summaries alike', async () => {
+    queueTableRows(workflowExecutionLogs, [workflowRow()])
+    queueTableRows(jobExecutionLogs, [jobRow()])
+
+    const result = await readLogs(baseParams({ hideCostInfo: true }))
+
+    expect(result.data).toHaveLength(2)
+    for (const summary of result.data) {
+      expect(summary.cost).toBeNull()
+    }
+    // Nothing else about the row is withheld.
+    expect(result.data.find((row) => row.id === 'log-1')).toMatchObject({
+      executionId: 'exec-1',
+      duration: '1000ms',
+    })
   })
 })

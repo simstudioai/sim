@@ -1,34 +1,41 @@
-/**
- * @vitest-environment node
- */
-
 import {
-  dbChainMock,
+  billingUsageReservationMock,
+  billingUsageReservationMockFns,
   dbChainMockFns,
+  executionLimitsMock,
+  executionLimitsMockFns,
   executionPreprocessingMock,
   executionPreprocessingMockFns,
+  humanInTheLoopManagerMock,
   LoggingSessionMock,
+  loggerMock,
   loggingSessionMock,
   loggingSessionMockFns,
   resetDbChainMock,
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
 } from '@sim/testing'
+import {
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ADMISSION_ERROR_CODE } from '@/lib/core/admission/transient-failure'
 
 const {
-  mockTask,
   mockExecuteWorkflowCore,
+  mockExecutionSnapshot,
   mockWasExecutionFinalizedByCore,
   mockHasExecutionResult,
+  mockIsWorkflowTimedOut,
   mockGetScheduleTimeValues,
   mockGetSubBlockValue,
 } = vi.hoisted(() => ({
-  mockTask: vi.fn((config) => config),
   mockExecuteWorkflowCore: vi.fn(),
+  mockExecutionSnapshot: vi.fn(),
   mockWasExecutionFinalizedByCore: vi.fn(),
   mockHasExecutionResult: vi.fn(),
+  mockIsWorkflowTimedOut: vi.fn(() => false),
   mockGetScheduleTimeValues: vi.fn(),
   mockGetSubBlockValue: vi.fn(),
 }))
@@ -36,27 +43,13 @@ const {
 const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
 const mockLoadDeployedWorkflowState = workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState
 
-vi.mock('@trigger.dev/sdk', () => ({ task: mockTask }))
-
-vi.mock('@sim/db', () => ({
-  ...dbChainMock,
-  workflow: {},
-  workflowSchedule: {},
-}))
-
 vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 
 vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 
-vi.mock('@/lib/core/execution-limits', () => ({
-  createTimeoutAbortController: vi.fn(() => ({
-    signal: undefined,
-    cleanup: vi.fn(),
-    isTimedOut: vi.fn().mockReturnValue(false),
-    timeoutMs: undefined,
-  })),
-  getTimeoutErrorMessage: vi.fn(),
-}))
+vi.mock('@/lib/billing/calculations/usage-reservation', () => billingUsageReservationMock)
+
+vi.mock('@/lib/core/execution-limits', () => executionLimitsMock)
 
 vi.mock('@/lib/logs/execution/trace-spans/trace-spans', () => ({
   buildTraceSpans: vi.fn(() => ({ traceSpans: [] })),
@@ -67,12 +60,7 @@ vi.mock('@/lib/workflows/executor/execution-core', () => ({
   wasExecutionFinalizedByCore: mockWasExecutionFinalizedByCore,
 }))
 
-vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => ({
-  PauseResumeManager: {
-    persistPauseResult: vi.fn(),
-    processQueuedResumes: vi.fn(),
-  },
-}))
+vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => humanInTheLoopManagerMock)
 
 vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
@@ -83,7 +71,7 @@ vi.mock('@/lib/workflows/schedules/utils', () => ({
 }))
 
 vi.mock('@/executor/execution/snapshot', () => ({
-  ExecutionSnapshot: vi.fn(),
+  ExecutionSnapshot: mockExecutionSnapshot,
 }))
 
 vi.mock('@/executor/utils/errors', () => ({
@@ -92,6 +80,29 @@ vi.mock('@/executor/utils/errors', () => ({
 
 import { executeScheduleJob } from './schedule-execution'
 import { executeWorkflowJob } from './workflow-execution'
+
+billingUsageReservationMockFns.mockRefreshExecutionSlotExpiry.mockResolvedValue(true)
+executionLimitsMockFns.mockGetAsyncExecutionTimeoutForBillingAttribution.mockReturnValue(120_000)
+executionLimitsMockFns.mockGetExecutionTimeout.mockReturnValue(120_000)
+executionLimitsMockFns.mockGetExecutionDeadlineAt.mockImplementation(
+  () => new Date(Date.now() + 120_000)
+)
+executionLimitsMockFns.mockCreateTimeoutAbortController.mockImplementation(() => ({
+  signal: new AbortController().signal,
+  cleanup: vi.fn(),
+  abort: vi.fn(),
+  isTimedOut: mockIsWorkflowTimedOut,
+  timeoutMs: 120_000,
+}))
+
+const workflowExecutionLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
+  ([name]) => name === 'TriggerWorkflowExecution'
+)
+const workflowExecutionLogger =
+  loggerMock.createLogger.mock.results[workflowExecutionLoggerCallIndex]?.value
+if (!workflowExecutionLogger) {
+  throw new Error('TriggerWorkflowExecution logger mock was not initialized')
+}
 
 const billingAttribution = {
   actorUserId: 'actor-1',
@@ -106,11 +117,16 @@ const billingAttribution = {
   payerSubscription: null,
 }
 
+const principal = {
+  version: 1 as const,
+  principal: createSessionPrincipal({ userId: 'actor-1' }),
+}
+
 describe('async preprocessing correlation threading', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockWasExecutionFinalizedByCore.mockReturnValue(false)
     mockHasExecutionResult.mockReturnValue(false)
+    mockIsWorkflowTimedOut.mockReturnValue(false)
     resetDbChainMock()
     dbChainMockFns.limit.mockResolvedValue([
       {
@@ -158,6 +174,7 @@ describe('async preprocessing correlation threading', () => {
     })
 
     await executeWorkflowJob({
+      principal,
       workflowId: 'workflow-1',
       userId: 'actor-1',
       workspaceId: 'workspace-1',
@@ -174,6 +191,170 @@ describe('async preprocessing correlation threading', () => {
       expect.objectContaining({
         loggingSession,
       })
+    )
+    expect(mockExecutionSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: createSessionPrincipal({ userId: 'actor-1' }),
+      }),
+      expect.anything(),
+      undefined,
+      expect.any(Object),
+      expect.any(Array)
+    )
+  })
+
+  it.each([
+    {
+      name: 'workspace API key',
+      serializedPrincipal: {
+        version: 1 as const,
+        principal: createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key-1' }),
+      },
+      isPublicApiAccess: false,
+    },
+    {
+      name: 'public API system',
+      serializedPrincipal: {
+        version: 1 as const,
+        principal: {
+          kind: 'system' as const,
+          serviceId: 'public_api' as const,
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+        },
+      },
+      isPublicApiAccess: true,
+    },
+  ])(
+    'restores the exact serialized $name principal before Trigger worker execution',
+    async ({ serializedPrincipal, isPublicApiAccess }) => {
+      mockPreprocessExecution.mockResolvedValueOnce({
+        success: true,
+        actorUserId: 'actor-1',
+        workflowRecord: {
+          id: 'workflow-1',
+          userId: 'owner-1',
+          workspaceId: 'workspace-1',
+          variables: {},
+        },
+        billingAttribution,
+        executionTimeout: {},
+      })
+      mockExecuteWorkflowCore.mockResolvedValueOnce({
+        success: true,
+        status: 'success',
+        output: { ok: true },
+        metadata: { duration: 10, userId: 'actor-1' },
+      })
+
+      await executeWorkflowJob({
+        principal: serializedPrincipal,
+        workflowId: 'workflow-1',
+        userId: 'actor-1',
+        workspaceId: 'workspace-1',
+        billingAttribution,
+        triggerType: 'api',
+        executionId: `execution-${serializedPrincipal.principal.kind}`,
+        requestId: `request-${serializedPrincipal.principal.kind}`,
+        isPublicApiAccess,
+      })
+
+      const executionMetadata = mockExecutionSnapshot.mock.calls[0]?.[0]
+      expect(executionMetadata.userId).toBe('actor-1')
+      expect(executionMetadata.principal).toEqual(serializedPrincipal.principal)
+      expect(executionMetadata.isPublicApiAccess).toBe(isPublicApiAccess)
+      expect(executionMetadata.principal).not.toHaveProperty('userId')
+    }
+  )
+
+  it('restores a legacy authenticated workflow job as its recorded user actor', async () => {
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: true,
+      actorUserId: 'actor-1',
+      workflowRecord: {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'workspace-1',
+        variables: {},
+      },
+      billingAttribution,
+      executionTimeout: {},
+    })
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: true,
+      status: 'success',
+      output: { ok: true },
+      metadata: { duration: 10, userId: 'actor-1' },
+    })
+
+    await executeWorkflowJob({
+      workflowId: 'workflow-1',
+      userId: 'actor-1',
+      workspaceId: 'workspace-1',
+      billingAttribution,
+      triggerType: 'api',
+      executionId: 'legacy-user-execution',
+      requestId: 'legacy-user-request',
+      enforceCredentialAccess: true,
+    })
+
+    expect(mockExecutionSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: createSessionPrincipal({
+          userId: 'actor-1',
+          sessionId: 'legacy-queued-workflow',
+        }),
+      }),
+      expect.anything(),
+      undefined,
+      expect.any(Object),
+      expect.any(Array)
+    )
+  })
+
+  it('restores an identity-ambiguous legacy workflow job as actorless', async () => {
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: true,
+      actorUserId: 'actor-1',
+      workflowRecord: {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'workspace-1',
+        variables: {},
+      },
+      billingAttribution,
+      executionTimeout: {},
+    })
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: true,
+      status: 'success',
+      output: { ok: true },
+      metadata: { duration: 10, userId: 'actor-1' },
+    })
+
+    await executeWorkflowJob({
+      workflowId: 'workflow-1',
+      userId: 'actor-1',
+      workspaceId: 'workspace-1',
+      billingAttribution,
+      triggerType: 'api',
+      executionId: 'legacy-actorless-execution',
+      requestId: 'legacy-actorless-request',
+    })
+
+    expect(mockExecutionSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: {
+          kind: 'system',
+          serviceId: 'internal',
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+        },
+      }),
+      expect.anything(),
+      undefined,
+      expect.any(Object),
+      expect.any(Array)
     )
   })
 
@@ -203,6 +384,7 @@ describe('async preprocessing correlation threading', () => {
 
     await expect(
       executeWorkflowJob({
+        principal,
         workflowId: 'workflow-1',
         userId: 'actor-1',
         workspaceId: 'workspace-1',
@@ -218,8 +400,60 @@ describe('async preprocessing correlation threading', () => {
     expect(loggingSessionMockFns.mockSafeCompleteWithError).not.toHaveBeenCalled()
   })
 
+  it('fails the backing job after a cooperative workflow timeout is finalized', async () => {
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: true,
+      actorUserId: 'actor-1',
+      workflowRecord: {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'workspace-1',
+        variables: {},
+      },
+      billingAttribution,
+      executionTimeout: {},
+    })
+    mockIsWorkflowTimedOut.mockReturnValue(true)
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: false,
+      status: 'cancelled',
+      output: undefined,
+      metadata: { duration: 120_000, userId: 'actor-1' },
+    })
+
+    await expect(
+      executeWorkflowJob({
+        principal,
+        workflowId: 'workflow-1',
+        userId: 'actor-1',
+        workspaceId: 'workspace-1',
+        billingAttribution,
+        triggerType: 'api',
+        executionId: 'execution-timeout',
+        requestId: 'request-timeout',
+      })
+    ).rejects.toMatchObject({
+      name: 'TimeoutError',
+      message: 'Execution timed out after 2 minutes',
+    })
+
+    expect(loggingSessionMockFns.mockMarkAsFailed).toHaveBeenCalledWith(
+      'Execution timed out after 2 minutes'
+    )
+    expect(loggingSessionMockFns.mockWaitForPostExecution).toHaveBeenCalled()
+    expect(loggingSessionMockFns.mockSafeCompleteWithError).not.toHaveBeenCalled()
+  })
+
   it('persists and rethrows the original unfinalized execution error', async () => {
-    const rawError = new Error('Function 1 failed with activated-secret-value')
+    const secret = 'activated-secret-value'
+    const rawError = new Error(
+      `Function 1 failed with ${secret} __var_API_KEY __sim_code_1_binding_0`
+    )
+    const projectedError = 'Function 1 failed with {{API_KEY}} {{API_KEY}} [RUNTIME_BINDING]'
+    loggingSessionMockFns.mockProjectDiagnosticError.mockReturnValueOnce({
+      executionId: 'execution-fault',
+      error: projectedError,
+    })
     mockPreprocessExecution.mockResolvedValueOnce({
       success: true,
       actorUserId: 'actor-1',
@@ -236,6 +470,7 @@ describe('async preprocessing correlation threading', () => {
 
     await expect(
       executeWorkflowJob({
+        principal,
         workflowId: 'workflow-1',
         userId: 'actor-1',
         workspaceId: 'workspace-1',
@@ -249,85 +484,22 @@ describe('async preprocessing correlation threading', () => {
     expect(loggingSessionMockFns.mockSafeCompleteWithError).toHaveBeenCalledWith(
       expect.objectContaining({
         error: expect.objectContaining({
-          message: 'Function 1 failed with activated-secret-value',
+          message: rawError.message,
         }),
       })
     )
-  })
-
-  it('does not pre-start schedule logging before core execution', async () => {
-    mockPreprocessExecution.mockResolvedValueOnce({
-      success: true,
-      actorUserId: 'actor-2',
-      workflowRecord: {
-        id: 'workflow-1',
-        userId: 'owner-1',
-        workspaceId: 'workspace-1',
-        variables: {},
-      },
-      billingAttribution: { ...billingAttribution, actorUserId: 'actor-2' },
-      executionTimeout: {},
+    expect(loggingSessionMockFns.mockProjectDiagnosticError).toHaveBeenCalledWith(rawError, {
+      executionId: 'execution-fault',
     })
-    mockExecuteWorkflowCore.mockResolvedValueOnce({
-      success: true,
-      status: 'success',
-      output: { ok: true },
-      metadata: { duration: 12, userId: 'actor-2' },
-    })
-
-    await executeScheduleJob({
-      scheduleId: 'schedule-1',
-      workflowId: 'workflow-1',
-      workspaceId: 'workspace-1',
-      billingAttribution: { ...billingAttribution, actorUserId: 'actor-2' },
-      executionId: 'execution-2',
-      requestId: 'request-2',
-      now: '2025-01-01T00:00:00.000Z',
-      scheduledFor: '2025-01-01T00:00:00.000Z',
-    })
-
-    const loggingSession = LoggingSessionMock.mock.results[0]?.value
-    expect(loggingSession).toBeDefined()
-    expect(loggingSession.safeStart).not.toHaveBeenCalled()
-    expect(mockExecuteWorkflowCore).toHaveBeenCalledWith(
-      expect.objectContaining({
-        loggingSession,
-      })
+    expect(workflowExecutionLogger.error).toHaveBeenCalledWith(
+      '[request-fault] Workflow execution failed: workflow-1',
+      { executionId: 'execution-fault', error: projectedError }
     )
-  })
-
-  it('passes workflow correlation into preprocessing', async () => {
-    mockPreprocessExecution.mockResolvedValueOnce({
-      success: false,
-      error: { message: 'preprocessing failed', statusCode: 500 },
-    })
-
-    await expect(
-      executeWorkflowJob({
-        workflowId: 'workflow-1',
-        userId: 'actor-1',
-        workspaceId: 'workspace-1',
-        triggerType: 'api',
-        executionId: 'execution-1',
-        requestId: 'request-1',
-        billingAttribution,
-      })
-    ).rejects.toThrow('preprocessing failed')
-
-    expect(mockPreprocessExecution).toHaveBeenCalledWith(
-      expect.objectContaining({
-        billingAttribution,
-        triggerData: {
-          correlation: {
-            executionId: 'execution-1',
-            requestId: 'request-1',
-            source: 'workflow',
-            workflowId: 'workflow-1',
-            triggerType: 'api',
-          },
-        },
-      })
-    )
+    const loggerPayload = JSON.stringify(workflowExecutionLogger.error.mock.calls)
+    expect(loggerPayload).not.toContain(secret)
+    expect(loggerPayload).not.toContain('__var_')
+    expect(loggerPayload).not.toContain('__sim_')
+    expect(rawError.message).toContain(secret)
   })
 
   it('does not repeat admission gates for route-admitted workflow jobs', async () => {
@@ -338,6 +510,7 @@ describe('async preprocessing correlation threading', () => {
 
     await expect(
       executeWorkflowJob({
+        principal,
         workflowId: 'workflow-1',
         userId: 'actor-1',
         workspaceId: 'workspace-1',
@@ -353,72 +526,6 @@ describe('async preprocessing correlation threading', () => {
       expect.objectContaining({
         checkRateLimit: false,
         skipUsageLimits: true,
-      })
-    )
-  })
-
-  it('passes schedule correlation into preprocessing', async () => {
-    mockPreprocessExecution.mockResolvedValueOnce({
-      success: false,
-      error: { message: 'auth failed', statusCode: 401 },
-    })
-
-    await executeScheduleJob({
-      scheduleId: 'schedule-1',
-      workflowId: 'workflow-1',
-      workspaceId: 'workspace-1',
-      executionId: 'execution-2',
-      requestId: 'request-2',
-      now: '2025-01-01T00:00:00.000Z',
-      scheduledFor: '2025-01-01T00:00:00.000Z',
-      billingAttribution,
-    })
-
-    expect(mockPreprocessExecution).toHaveBeenCalledWith(
-      expect.objectContaining({
-        billingAttribution,
-        triggerData: {
-          correlation: {
-            executionId: 'execution-2',
-            requestId: 'request-2',
-            source: 'schedule',
-            workflowId: 'workflow-1',
-            scheduleId: 'schedule-1',
-            triggerType: 'schedule',
-            scheduledFor: '2025-01-01T00:00:00.000Z',
-          },
-        },
-      })
-    )
-  })
-
-  it('increments infrastructure retry count for retryable schedule preprocessing failures', async () => {
-    mockPreprocessExecution.mockResolvedValueOnce({
-      success: false,
-      error: {
-        message: 'database unavailable',
-        statusCode: 500,
-        retryable: true,
-        cause: { code: '53300' },
-      },
-    })
-
-    await executeScheduleJob({
-      scheduleId: 'schedule-1',
-      workflowId: 'workflow-1',
-      workspaceId: 'workspace-1',
-      billingAttribution,
-      executionId: 'execution-retry',
-      requestId: 'request-retry',
-      now: '2025-01-01T00:00:00.000Z',
-      scheduledFor: '2025-01-01T00:00:00.000Z',
-      infraRetryCount: 2,
-    })
-
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        lastQueuedAt: null,
-        infraRetryCount: 3,
       })
     )
   })

@@ -1,7 +1,7 @@
 import type { StagehandExtractParams, StagehandExtractResponse } from '@/tools/stagehand/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const extractTool: ToolConfig<StagehandExtractParams, StagehandExtractResponse> = {
+export const extractTool: InternalToolConfig<StagehandExtractParams, StagehandExtractResponse> = {
   id: 'stagehand_extract',
   name: 'Stagehand Extract',
   description: 'Extract structured data from a webpage using Stagehand',
@@ -40,13 +40,15 @@ export const extractTool: ToolConfig<StagehandExtractParams, StagehandExtractRes
     },
   },
 
-  request: {
-    url: '/api/tools/stagehand/extract',
-    method: 'POST',
-    headers: (params) => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        instruction: params.instruction,
+        schema: params.schema,
+      }),
+    },
+    input: (params) => ({
       instruction: params.instruction,
       schema: params.schema,
       provider: params.provider || 'openai',

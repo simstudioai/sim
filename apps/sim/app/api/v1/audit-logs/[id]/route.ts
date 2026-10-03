@@ -20,10 +20,10 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1GetAuditLogContract } from '@/lib/api/contracts/v1/audit-logs'
 import { parseRequest } from '@/lib/api/server'
+import { buildOrgScopeCondition, getOrgWorkspaceIds } from '@/lib/audit-logs/query'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { validateEnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
+import { validateV1EnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
 import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
-import { buildOrgScopeCondition, getOrgWorkspaceIds } from '@/app/api/v1/audit-logs/query'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
 
@@ -31,6 +31,14 @@ const logger = createLogger('V1AuditLogDetailAPI')
 
 export const revalidate = 0
 
+/**
+ * GET /api/v1/audit-logs/[id] — Read one audit log entry.
+ *
+ * permission-group-exempt: none — same as the list. `audit_logs.read_detail` is
+ * an organization-admin operation that carries an explicit `capability: 'none'`
+ * declaration, which is the reviewed answer; an operation that names none at all
+ * is what the operation validator rejects.
+ */
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateId().slice(0, 8)
@@ -41,7 +49,6 @@ export const GET = withRouteHandler(
         return createRateLimitResponse(rateLimit)
       }
 
-      const userId = rateLimit.userId!
       const parsed = await parseRequest(v1GetAuditLogContract, request, context, {
         validationErrorResponse: () =>
           NextResponse.json({ error: 'Invalid audit log ID' }, { status: 400 }),
@@ -50,11 +57,12 @@ export const GET = withRouteHandler(
 
       const { id } = parsed.data.params
 
-      const authResult = await validateEnterpriseAuditAccess(userId)
+      const authResult = await validateV1EnterpriseAuditAccess(rateLimit)
       if (!authResult.success) {
         return authResult.response
       }
 
+      const { userId } = authResult
       const { organizationId, orgMemberIds } = authResult.context
 
       const orgWorkspaceIds = await getOrgWorkspaceIds(organizationId)

@@ -2,6 +2,7 @@ import type {
   CalendlyListWebhooksParams,
   CalendlyListWebhooksResponse,
 } from '@/tools/calendly/types'
+import { toResourceUri } from '@/tools/calendly/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listWebhooksTool: ToolConfig<
@@ -42,9 +43,9 @@ export const listWebhooksTool: ToolConfig<
     },
     scope: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
-      description: 'Filter by scope. Format: "organization" or "user"',
+      description: 'Scope of the webhooks to list. Format: "organization", "user", or "group"',
     },
     user: {
       type: 'string',
@@ -60,7 +61,9 @@ export const listWebhooksTool: ToolConfig<
       const url = 'https://api.calendly.com/webhook_subscriptions'
       const queryParams = []
 
-      queryParams.push(`organization=${encodeURIComponent(params.organization)}`)
+      queryParams.push(
+        `organization=${encodeURIComponent(toResourceUri(params.organization, 'organizations'))}`
+      )
 
       if (params.count) {
         queryParams.push(`count=${Number(params.count)}`)
@@ -70,12 +73,10 @@ export const listWebhooksTool: ToolConfig<
         queryParams.push(`page_token=${encodeURIComponent(params.pageToken)}`)
       }
 
-      if (params.scope) {
-        queryParams.push(`scope=${encodeURIComponent(params.scope)}`)
-      }
+      queryParams.push(`scope=${encodeURIComponent(params.scope)}`)
 
       if (params.user) {
-        queryParams.push(`user=${encodeURIComponent(params.user)}`)
+        queryParams.push(`user=${encodeURIComponent(toResourceUri(params.user, 'users'))}`)
       }
 
       return `${url}?${queryParams.join('&')}`

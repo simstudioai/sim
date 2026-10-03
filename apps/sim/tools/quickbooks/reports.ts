@@ -1,268 +1,16 @@
+import {
+  QUICKBOOKS_REPORTS,
+  type QuickBooksReportDefinition,
+  type QuickBooksReportFilter,
+} from '@/tools/quickbooks/report-metadata'
 import type {
   QuickBooksAccountingMethod,
   QuickBooksAgingMethod,
+  QuickBooksReportDateMacro,
   QuickBooksReportSummarizeBy,
-  QuickBooksReportType,
   QuickBooksRunFinancialReportParams,
 } from '@/tools/quickbooks/types'
 import { optionalQuickBooksString, validateQuickBooksDate } from '@/tools/quickbooks/values'
-
-/**
- * The QuickBooks reporting capability table and everything derived from it.
- *
- * This module is runtime-free — it validates and shapes report query
- * parameters but never builds a request or touches the API client — so the
- * block definition can read the same capability table the tool executes
- * against without pulling the QuickBooks HTTP client into the client bundle.
- */
-
-type QuickBooksReportFilter =
-  | 'customerId'
-  | 'vendorId'
-  | 'accountId'
-  | 'itemId'
-  | 'classId'
-  | 'departmentId'
-
-type QuickBooksReportDateMode = 'range' | 'as_of'
-
-/**
- * Capabilities of a single QuickBooks report endpoint, mirroring the query
- * parameters Intuit documents for it. This table is the only source of truth:
- * both URL construction and the block's control visibility derive from it, so
- * a capability must never be restated anywhere else.
- *
- * `agingMethod` and `agingPeriod` are tracked separately because no aging
- * report supports both: the summary endpoints document `aging_method` only,
- * `AgedPayableDetail` documents `aging_period` only, and `AgedReceivableDetail`
- * is the sole endpoint documenting both.
- */
-interface QuickBooksReportDefinition {
-  endpoint: string
-  dateMode: QuickBooksReportDateMode
-  accountingMethod: boolean
-  summarizeBy: readonly Exclude<QuickBooksReportSummarizeBy, 'default'>[]
-  filters: readonly QuickBooksReportFilter[]
-  agingMethod: boolean
-  agingPeriod: boolean
-}
-
-const TIME_SUMMARIES = ['total', 'day', 'week', 'month', 'quarter', 'year'] as const
-const ALL_SUMMARIES = [
-  ...TIME_SUMMARIES,
-  'customer',
-  'vendor',
-  'item',
-  'class',
-  'department',
-] as const
-const CUSTOMER_SALES_SUMMARIES = [
-  ...TIME_SUMMARIES,
-  'customer',
-  'item',
-  'class',
-  'department',
-] as const
-const VENDOR_EXPENSE_SUMMARIES = [
-  ...TIME_SUMMARIES,
-  'customer',
-  'vendor',
-  'class',
-  'department',
-] as const
-
-export const QUICKBOOKS_REPORT_TYPES_WITH_ALL_SUMMARIES = [
-  'balance_sheet',
-  'cash_flow',
-  'customer_balance',
-  'profit_and_loss',
-  'vendor_balance',
-] as const satisfies readonly QuickBooksReportType[]
-
-export const QUICKBOOKS_REPORT_TYPES_WITH_CUSTOMER_SALES_SUMMARIES = [
-  'sales_by_customer',
-  'sales_by_item',
-] as const satisfies readonly QuickBooksReportType[]
-
-export const QUICKBOOKS_REPORT_TYPES_WITH_VENDOR_EXPENSE_SUMMARIES = [
-  'expenses_by_vendor',
-] as const satisfies readonly QuickBooksReportType[]
-
-export const QUICKBOOKS_REPORT_TYPES_WITH_TIME_SUMMARIES = [
-  'trial_balance',
-] as const satisfies readonly QuickBooksReportType[]
-
-export const QUICKBOOKS_REPORTS = {
-  ap_aging_detail: {
-    endpoint: 'AgedPayableDetail',
-    dateMode: 'as_of',
-    accountingMethod: false,
-    summarizeBy: [],
-    filters: ['vendorId'],
-    agingMethod: false,
-    agingPeriod: true,
-  },
-  ap_aging_summary: {
-    endpoint: 'AgedPayables',
-    dateMode: 'as_of',
-    accountingMethod: false,
-    summarizeBy: [],
-    filters: ['vendorId', 'departmentId'],
-    agingMethod: true,
-    agingPeriod: false,
-  },
-  ar_aging_detail: {
-    endpoint: 'AgedReceivableDetail',
-    dateMode: 'as_of',
-    accountingMethod: false,
-    summarizeBy: [],
-    filters: ['customerId'],
-    agingMethod: true,
-    agingPeriod: true,
-  },
-  ar_aging_summary: {
-    endpoint: 'AgedReceivables',
-    dateMode: 'as_of',
-    accountingMethod: false,
-    summarizeBy: [],
-    filters: ['customerId', 'departmentId'],
-    agingMethod: true,
-    agingPeriod: false,
-  },
-  balance_sheet: {
-    endpoint: 'BalanceSheet',
-    dateMode: 'range',
-    accountingMethod: true,
-    summarizeBy: ALL_SUMMARIES,
-    filters: ['customerId', 'vendorId', 'itemId', 'classId', 'departmentId'],
-    agingMethod: false,
-    agingPeriod: false,
-  },
-  cash_flow: {
-    endpoint: 'CashFlow',
-    dateMode: 'range',
-    accountingMethod: false,
-    summarizeBy: ALL_SUMMARIES,
-    filters: ['customerId', 'vendorId', 'itemId', 'classId', 'departmentId'],
-    agingMethod: false,
-    agingPeriod: false,
-  },
-  customer_balance: {
-    endpoint: 'CustomerBalance',
-    dateMode: 'as_of',
-    accountingMethod: true,
-    summarizeBy: ALL_SUMMARIES,
-    filters: ['customerId', 'departmentId'],
-    agingMethod: false,
-    agingPeriod: false,
-  },
-  expenses_by_vendor: {
-    endpoint: 'VendorExpenses',
-    dateMode: 'range',
-    accountingMethod: true,
-    summarizeBy: VENDOR_EXPENSE_SUMMARIES,
-    filters: ['customerId', 'vendorId', 'classId', 'departmentId'],
-    agingMethod: false,
-    agingPeriod: false,
-  },
-  profit_and_loss: {
-    endpoint: 'ProfitAndLoss',
-    dateMode: 'range',
-    accountingMethod: true,
-    summarizeBy: ALL_SUMMARIES,
-    filters: ['customerId', 'vendorId', 'itemId', 'classId', 'departmentId'],
-    agingMethod: false,
-    agingPeriod: false,
-  },
-  profit_and_loss_detail: {
-    endpoint: 'ProfitAndLossDetail',
-    dateMode: 'range',
-    accountingMethod: true,
-    summarizeBy: [],
-    filters: ['customerId', 'vendorId', 'accountId', 'classId', 'departmentId'],
-    agingMethod: false,
-    agingPeriod: false,
-  },
-  sales_by_customer: {
-    endpoint: 'CustomerSales',
-    dateMode: 'range',
-    accountingMethod: true,
-    summarizeBy: CUSTOMER_SALES_SUMMARIES,
-    filters: ['customerId', 'itemId', 'classId', 'departmentId'],
-    agingMethod: false,
-    agingPeriod: false,
-  },
-  sales_by_item: {
-    endpoint: 'ItemSales',
-    dateMode: 'range',
-    accountingMethod: true,
-    summarizeBy: CUSTOMER_SALES_SUMMARIES,
-    filters: ['customerId', 'itemId', 'classId', 'departmentId'],
-    agingMethod: false,
-    agingPeriod: false,
-  },
-  trial_balance: {
-    endpoint: 'TrialBalance',
-    dateMode: 'range',
-    accountingMethod: true,
-    summarizeBy: TIME_SUMMARIES,
-    filters: [],
-    agingMethod: false,
-    agingPeriod: false,
-  },
-  transaction_list: {
-    endpoint: 'TransactionList',
-    dateMode: 'range',
-    accountingMethod: false,
-    summarizeBy: [],
-    filters: ['customerId', 'vendorId', 'departmentId'],
-    agingMethod: false,
-    agingPeriod: false,
-  },
-  vendor_balance: {
-    endpoint: 'VendorBalance',
-    dateMode: 'as_of',
-    accountingMethod: true,
-    summarizeBy: ALL_SUMMARIES,
-    filters: ['vendorId', 'departmentId'],
-    agingMethod: false,
-    agingPeriod: false,
-  },
-} as const satisfies Record<QuickBooksReportType, QuickBooksReportDefinition>
-
-/**
- * A user-facing report control. `agingMethod` and `agingPeriod` correspond
- * one-to-one with Intuit's `aging_method` and `aging_period` query parameters
- * and must stay distinct: the detail and summary aging reports each support one
- * and reject the other, so a control matching either would surface an input the
- * report refuses at execution time.
- */
-export type QuickBooksReportControl =
-  | 'startDate'
-  | 'endDate'
-  | 'accountingMethod'
-  | 'summarizeBy'
-  | QuickBooksReportFilter
-  | 'agingMethod'
-  | 'agingPeriod'
-
-export function getQuickBooksReportTypesSupporting(
-  control: QuickBooksReportControl
-): QuickBooksReportType[] {
-  return (
-    Object.entries(QUICKBOOKS_REPORTS) as Array<[QuickBooksReportType, QuickBooksReportDefinition]>
-  )
-    .filter(([, definition]) => {
-      if (control === 'startDate') return definition.dateMode === 'range'
-      if (control === 'endDate') return true
-      if (control === 'accountingMethod') return definition.accountingMethod
-      if (control === 'summarizeBy') return definition.summarizeBy.length > 0
-      if (control === 'agingMethod') return definition.agingMethod
-      if (control === 'agingPeriod') return definition.agingPeriod
-      return definition.filters.includes(control)
-    })
-    .map(([reportType]) => reportType)
-}
 
 const QUICKBOOKS_REPORT_SUMMARIZE_VALUES: Record<
   Exclude<QuickBooksReportSummarizeBy, 'default'>,
@@ -276,6 +24,7 @@ const QUICKBOOKS_REPORT_SUMMARIZE_VALUES: Record<
   year: 'Year',
   customer: 'Customers',
   vendor: 'Vendors',
+  employee: 'Employees',
   item: 'ProductsAndServices',
   class: 'Classes',
   department: 'Departments',
@@ -294,10 +43,43 @@ const QUICKBOOKS_AGING_METHOD_VALUES: Record<Exclude<QuickBooksAgingMethod, 'def
   current: 'Current',
 }
 
+/**
+ * Intuit's `date_macro` values, spelled exactly as the report query models document them.
+ */
+const QUICKBOOKS_REPORT_DATE_MACRO_VALUES: Record<
+  Exclude<QuickBooksReportDateMacro, 'default'>,
+  string
+> = {
+  today: 'Today',
+  yesterday: 'Yesterday',
+  this_week: 'This Week',
+  last_week: 'Last Week',
+  this_week_to_date: 'This Week-to-date',
+  last_week_to_date: 'Last Week-to-date',
+  next_week: 'Next Week',
+  next_4_weeks: 'Next 4 Weeks',
+  this_month: 'This Month',
+  last_month: 'Last Month',
+  this_month_to_date: 'This Month-to-date',
+  last_month_to_date: 'Last Month-to-date',
+  next_month: 'Next Month',
+  this_fiscal_quarter: 'This Fiscal Quarter',
+  last_fiscal_quarter: 'Last Fiscal Quarter',
+  this_fiscal_quarter_to_date: 'This Fiscal Quarter-to-date',
+  last_fiscal_quarter_to_date: 'Last Fiscal Quarter-to-date',
+  next_fiscal_quarter: 'Next Fiscal Quarter',
+  this_fiscal_year: 'This Fiscal Year',
+  last_fiscal_year: 'Last Fiscal Year',
+  this_fiscal_year_to_date: 'This Fiscal Year-to-date',
+  last_fiscal_year_to_date: 'Last Fiscal Year-to-date',
+  next_fiscal_year: 'Next Fiscal Year',
+}
+
 const QUICKBOOKS_REPORT_FILTER_PARAMS: Record<QuickBooksReportFilter, string> = {
   customerId: 'customer',
   vendorId: 'vendor',
   accountId: 'account',
+  employeeId: 'employee',
   itemId: 'item',
   classId: 'class',
   departmentId: 'department',
@@ -416,28 +198,41 @@ function addQuickBooksTransactionListFilters(
     QUICKBOOKS_TRANSACTION_LIST_VALUES.sourceAccountType,
     'sourceAccountType'
   )
-  const controls = {
+  const definition = QUICKBOOKS_REPORTS[params.reportType]
+  const documentNumber = optionalQuickBooksString(params.documentNumber)
+
+  /**
+   * `group_by`, `appaid`, and `arpaid` are documented beyond Transaction List — by
+   * `inventoryvaluationdetailquery` and by the customer and vendor balance models respectively —
+   * so each is gated on the requesting report's own definition. The remaining four controls are
+   * documented only by `transactionlistquery`.
+   */
+  const perReportControls: Array<[string, string | undefined, boolean]> = [
+    ['group_by', groupBy, definition.groupBy],
+    ['appaid', accountsPayablePaid, definition.accountsPayablePaid],
+    ['arpaid', accountsReceivablePaid, definition.accountsReceivablePaid],
+  ]
+  for (const [param, value, supported] of perReportControls) {
+    if (value === undefined) continue
+    if (!supported) throw new Error(`${params.reportType} does not support ${param}`)
+    url.searchParams.set(param, value)
+  }
+
+  const transactionListControls = {
     transaction_type: transactionType,
-    group_by: groupBy,
-    appaid: accountsPayablePaid,
-    arpaid: accountsReceivablePaid,
     cleared: clearedStatus,
-    docnum: optionalQuickBooksString(params.documentNumber),
+    docnum: documentNumber,
     source_account_type: sourceAccountType,
   }
-  const supplied = Object.entries(controls).find(([, value]) => value !== undefined)
+  const supplied = Object.entries(transactionListControls).find(([, value]) => value !== undefined)
   if (params.reportType !== 'transaction_list') {
     if (supplied) throw new Error(`${params.reportType} does not support ${supplied[0]}`)
     return
   }
 
-  if (transactionType) url.searchParams.set('transaction_type', transactionType)
-  if (groupBy) url.searchParams.set('group_by', groupBy)
-  if (accountsPayablePaid) url.searchParams.set('appaid', accountsPayablePaid)
-  if (accountsReceivablePaid) url.searchParams.set('arpaid', accountsReceivablePaid)
-  if (clearedStatus) url.searchParams.set('cleared', clearedStatus)
-  if (controls.docnum) url.searchParams.set('docnum', controls.docnum)
-  if (sourceAccountType) url.searchParams.set('source_account_type', sourceAccountType)
+  for (const [param, value] of Object.entries(transactionListControls)) {
+    if (value) url.searchParams.set(param, value)
+  }
 }
 
 /**
@@ -466,6 +261,20 @@ export function resolveQuickBooksReportEndpoint(params: QuickBooksRunFinancialRe
   }
 
   const dateParams: Array<[string, string]> = []
+
+  const dateMacro = params.dateMacro ?? 'default'
+  if (dateMacro !== 'default') {
+    if (!definition.dateMacro) {
+      throw new Error(`${params.reportType} does not support dateMacro`)
+    }
+    if (startDate || endDate) {
+      throw new Error('dateMacro cannot be combined with startDate or endDate')
+    }
+    const value = QUICKBOOKS_REPORT_DATE_MACRO_VALUES[dateMacro]
+    if (!value) throw new Error(`Unsupported QuickBooks date macro: ${String(dateMacro)}`)
+    dateParams.push(['date_macro', value])
+  }
+
   if (startDate) dateParams.push(['start_date', startDate])
   if (endDate) {
     dateParams.push([definition.dateMode === 'as_of' ? 'report_date' : 'end_date', endDate])
@@ -501,6 +310,18 @@ export function applyQuickBooksReportParams(
     const value = QUICKBOOKS_REPORT_SUMMARIZE_VALUES[summarizeBy]
     if (!value) throw new Error(`Unsupported QuickBooks report summarization: ${summarizeBy}`)
     url.searchParams.set('summarize_column_by', value)
+  }
+
+  if (params.quickZoomUrl !== undefined) {
+    if (typeof params.quickZoomUrl !== 'boolean') {
+      throw new Error('quickZoomUrl must be a boolean')
+    }
+    if (params.quickZoomUrl) {
+      if (!definition.quickZoomUrl) {
+        throw new Error(`${params.reportType} does not support quickZoomUrl`)
+      }
+      url.searchParams.set('qzurl', 'true')
+    }
   }
 
   for (const filter of Object.keys(QUICKBOOKS_REPORT_FILTER_PARAMS) as QuickBooksReportFilter[]) {

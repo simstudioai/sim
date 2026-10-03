@@ -1,9 +1,9 @@
+import { omit } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import {
   assertQuickBooksCompanyInfo,
   buildQuickBooksCompanyUrl,
   normalizeQuickBooksRealmId,
-  QUICKBOOKS_MAX_RESPONSE_BYTES,
 } from '@/tools/quickbooks/client'
 import type {
   QuickBooksAuthParams,
@@ -40,10 +40,17 @@ export const quickbooksGetCompanyInfoTool: ToolConfig<
       visibility: 'hidden',
       description: 'QuickBooks company ID derived from the connected credential',
     },
+    quickBooksEnvironment: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'QuickBooks API environment derived from the connected credential',
+    },
   },
   oauth: {
     required: true,
     provider: 'quickbooks',
+    authoritativeParams: ['realmId', 'quickBooksEnvironment'],
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
@@ -52,13 +59,13 @@ export const quickbooksGetCompanyInfoTool: ToolConfig<
       const realmId = normalizeQuickBooksRealmId(params.realmId)
       return buildQuickBooksCompanyUrl(
         realmId,
-        `companyinfo/${encodeURIComponent(realmId)}`
+        `companyinfo/${encodeURIComponent(realmId)}`,
+        params.quickBooksEnvironment
       ).toString()
     },
     method: 'GET',
     headers: (params) => getQuickBooksToolHeaders(params.accessToken),
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: async (response, params) => {
     normalizeQuickBooksRealmId(params?.realmId ?? '')
@@ -67,10 +74,11 @@ export const quickbooksGetCompanyInfoTool: ToolConfig<
       'QuickBooks CompanyInfo response'
     )
     const company = assertQuickBooksCompanyInfo<QuickBooksCompanyInfo>(data.CompanyInfo)
+    const sanitizedCompany = omit(company, ['EmployerId']) as QuickBooksCompanyInfo
     return {
       success: true,
       output: {
-        company,
+        company: sanitizedCompany,
         time: typeof data.time === 'string' ? data.time : null,
       },
     }
@@ -78,8 +86,7 @@ export const quickbooksGetCompanyInfoTool: ToolConfig<
   outputs: {
     company: {
       type: 'json',
-      description:
-        'Verified QuickBooks CompanyInfo object, including Id, CompanyName, LegalName, addresses, contact details, NameValue settings, and MetaData when populated',
+      description: 'Verified QuickBooks CompanyInfo object with tax identifiers removed',
       properties: QUICKBOOKS_COMPANY_INFO_PROPERTIES,
     },
     time: {

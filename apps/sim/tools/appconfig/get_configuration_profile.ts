@@ -2,9 +2,9 @@ import type {
   AppConfigGetConfigurationProfileParams,
   AppConfigGetConfigurationProfileResponse,
 } from '@/tools/appconfig/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getConfigurationProfileTool: ToolConfig<
+export const getConfigurationProfileTool: InternalToolConfig<
   AppConfigGetConfigurationProfileParams,
   AppConfigGetConfigurationProfileResponse
 > = {
@@ -46,11 +46,8 @@ export const getConfigurationProfileTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/appconfig/get-configuration-profile',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

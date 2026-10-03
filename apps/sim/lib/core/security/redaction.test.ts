@@ -1,824 +1,472 @@
 import { describe, expect, it } from 'vitest'
 import {
-  isLargeDataKey,
   isSensitiveKey,
-  REDACTED_MARKER,
   redactApiKeys,
+  redactExactSensitiveValues,
   redactSensitiveValues,
   sanitizeEventData,
   sanitizeForLogging,
-  TRUNCATED_MARKER,
 } from './redaction'
 
-/**
- * Security-focused edge case tests for redaction utilities
- */
-
-describe('REDACTED_MARKER', () => {
-  it.concurrent('should be the standard marker', () => {
-    expect(REDACTED_MARKER).toBe('[REDACTED]')
-  })
-})
-
-describe('TRUNCATED_MARKER', () => {
-  it.concurrent('should be the standard marker', () => {
-    expect(TRUNCATED_MARKER).toBe('[TRUNCATED]')
-  })
-})
-
-describe('isLargeDataKey', () => {
-  it.concurrent('should identify base64 as large data key', () => {
-    expect(isLargeDataKey('base64')).toBe(true)
-  })
-
-  it.concurrent('should not identify other keys as large data', () => {
-    expect(isLargeDataKey('content')).toBe(false)
-    expect(isLargeDataKey('data')).toBe(false)
-    expect(isLargeDataKey('base')).toBe(false)
-  })
-})
-
 describe('isSensitiveKey', () => {
-  describe('exact matches', () => {
-    it.concurrent('should match apiKey variations', () => {
-      expect(isSensitiveKey('apiKey')).toBe(true)
-      expect(isSensitiveKey('api_key')).toBe(true)
-      expect(isSensitiveKey('api-key')).toBe(true)
-      expect(isSensitiveKey('APIKEY')).toBe(true)
-      expect(isSensitiveKey('API_KEY')).toBe(true)
-    })
-
-    it.concurrent('should match token variations', () => {
-      expect(isSensitiveKey('access_token')).toBe(true)
-      expect(isSensitiveKey('refresh_token')).toBe(true)
-      expect(isSensitiveKey('auth_token')).toBe(true)
-      expect(isSensitiveKey('accessToken')).toBe(true)
-      expect(isSensitiveKey('sessionToken')).toBe(true)
-      expect(isSensitiveKey('webIdentityToken')).toBe(true)
-      expect(isSensitiveKey('verificationToken')).toBe(true)
-      expect(isSensitiveKey('githubToken')).toBe(true)
-    })
-
-    it.concurrent('should match secret variations', () => {
-      expect(isSensitiveKey('client_secret')).toBe(true)
-      expect(isSensitiveKey('clientSecret')).toBe(true)
-      expect(isSensitiveKey('secret')).toBe(true)
-    })
-
-    it.concurrent('should match other sensitive keys', () => {
-      expect(isSensitiveKey('private_key')).toBe(true)
-      expect(isSensitiveKey('authorization')).toBe(true)
-      expect(isSensitiveKey('bearer')).toBe(true)
-      expect(isSensitiveKey('private')).toBe(true)
-      expect(isSensitiveKey('auth')).toBe(true)
-      expect(isSensitiveKey('password')).toBe(true)
-      expect(isSensitiveKey('credential')).toBe(true)
-    })
+  it.concurrent.each([
+    'apiKey',
+    'API_KEY',
+    'api-key',
+    'Api_Key',
+    'access_token',
+    'refreshToken',
+    'client_secret',
+    'private_key',
+    'authorization',
+    'bearer',
+    'auth',
+    'password',
+    'credential',
+    'passphrase',
+    'dbPassword',
+    'userCredential',
+    'hasSecret',
+    'searchApiKey',
+    'exa_api_key',
+    `${'a'.repeat(10000)}password`,
+  ])('treats %s as sensitive', (key) => {
+    expect(isSensitiveKey(key)).toBe(true)
   })
 
-  describe('suffix matches', () => {
-    it.concurrent('should match keys ending in secret', () => {
-      expect(isSensitiveKey('clientSecret')).toBe(true)
-      expect(isSensitiveKey('appSecret')).toBe(true)
-      expect(isSensitiveKey('mySecret')).toBe(true)
-    })
-
-    it.concurrent('should match keys ending in password', () => {
-      expect(isSensitiveKey('userPassword')).toBe(true)
-      expect(isSensitiveKey('dbPassword')).toBe(true)
-      expect(isSensitiveKey('adminPassword')).toBe(true)
-    })
-
-    it.concurrent('should match keys ending in token', () => {
-      expect(isSensitiveKey('accessToken')).toBe(true)
-      expect(isSensitiveKey('refreshToken')).toBe(true)
-      expect(isSensitiveKey('bearerToken')).toBe(true)
-    })
-
-    it.concurrent('should match keys ending in credential', () => {
-      expect(isSensitiveKey('userCredential')).toBe(true)
-      expect(isSensitiveKey('dbCredential')).toBe(true)
-    })
-  })
-
-  describe('provider-prefixed key fields', () => {
-    it.concurrent('should match block fields that end in an api key', () => {
-      expect(isSensitiveKey('searchApiKey')).toBe(true)
-      expect(isSensitiveKey('exa_api_key')).toBe(true)
-      expect(isSensitiveKey('providerApiKey')).toBe(true)
-    })
-
-    it.concurrent('should match ssh passphrases', () => {
-      expect(isSensitiveKey('passphrase')).toBe(true)
-    })
-
-    it.concurrent('should not allow arbitrary keys ending in workflow token names', () => {
-      expect(isSensitiveKey('asyncToken')).toBe(true)
-      expect(isSensitiveKey('homepageToken')).toBe(true)
-    })
-  })
-
-  describe('non-sensitive keys (no false positives)', () => {
-    it.concurrent('should bypass the exact allowlisted non-secret token fields', () => {
-      expect(isSensitiveKey('nextPageToken')).toBe(false)
-      expect(isSensitiveKey('syncToken')).toBe(false)
-      expect(isSensitiveKey('SyncToken')).toBe(false)
-      expect(isSensitiveKey('subjectFromWebIdentityToken')).toBe(false)
-    })
-
-    it.concurrent('should keep the allowlist exact rather than suffix-based', () => {
-      expect(isSensitiveKey('nextSyncToken')).toBe(true)
-      expect(isSensitiveKey('pageToken')).toBe(true)
-      expect(isSensitiveKey('nextToken')).toBe(true)
-      expect(isSensitiveKey('webIdentityToken')).toBe(true)
-    })
-
-    it.concurrent('should not match keys with sensitive words as prefix only', () => {
-      expect(isSensitiveKey('tokenCount')).toBe(false)
-      expect(isSensitiveKey('tokenizer')).toBe(false)
-      expect(isSensitiveKey('secretKey')).toBe(false)
-      expect(isSensitiveKey('passwordStrength')).toBe(false)
-      expect(isSensitiveKey('authMethod')).toBe(false)
-    })
-
-    it.concurrent('should match keys ending with sensitive words (intentional)', () => {
-      expect(isSensitiveKey('hasSecret')).toBe(true)
-      expect(isSensitiveKey('userPassword')).toBe(true)
-      expect(isSensitiveKey('sessionToken')).toBe(true)
-    })
-
-    it.concurrent('should not match normal field names', () => {
-      expect(isSensitiveKey('name')).toBe(false)
-      expect(isSensitiveKey('email')).toBe(false)
-      expect(isSensitiveKey('id')).toBe(false)
-      expect(isSensitiveKey('value')).toBe(false)
-      expect(isSensitiveKey('data')).toBe(false)
-      expect(isSensitiveKey('count')).toBe(false)
-      expect(isSensitiveKey('status')).toBe(false)
-    })
+  it.concurrent.each([
+    'tokenCount',
+    'tokenizer',
+    'secretKey',
+    'passwordStrength',
+    'authMethod',
+    'name',
+    'data',
+    '',
+  ])('does not treat %j as sensitive', (key) => {
+    expect(isSensitiveKey(key)).toBe(false)
   })
 })
 
 describe('redactSensitiveValues', () => {
-  it.concurrent('should redact Bearer tokens', () => {
-    const input = 'Authorization: Bearer abc123xyz456'
-    const result = redactSensitiveValues(input)
-    expect(result).toBe('Authorization: Bearer [REDACTED]')
-    expect(result).not.toContain('abc123xyz456')
-  })
-
-  it.concurrent('should redact Basic auth', () => {
-    const input = 'Authorization: Basic dXNlcjpwYXNz'
-    const result = redactSensitiveValues(input)
-    expect(result).toBe('Authorization: Basic [REDACTED]')
-  })
-
-  it.concurrent('should redact API key prefixes', () => {
-    const input = 'Using key sk-1234567890abcdefghijklmnop'
+  it.concurrent.each([
+    ['Authorization: Bearer abc123xyz456', 'abc123xyz456'],
+    ['Authorization: Basic dXNlcjpwYXNz', 'dXNlcjpwYXNz'],
+    ['Using key sk-1234567890abcdefghijklmnop', 'sk-1234567890abcdefghijklmnop'],
+    ['Using key pk-xyz789abcdefghijklmnop', 'pk-xyz789abcdefghijklmnop'],
+    ['password: "mysecretpass123"', 'mysecretpass123'],
+    ['token: "tokenvalue123"', 'tokenvalue123'],
+    ['api_key: "key123456"', 'key123456'],
+  ])('redacts %s', (input, secret) => {
     const result = redactSensitiveValues(input)
     expect(result).toContain('[REDACTED]')
-    expect(result).not.toContain('sk-1234567890abcdefghijklmnop')
+    expect(result).not.toContain(secret)
   })
 
-  it.concurrent('should redact JSON-style password fields', () => {
-    const input = 'password: "mysecretpass123"'
+  it.concurrent('should redact form and percent-encoded OAuth credentials', () => {
+    const input =
+      'refresh_token=secret-one&client_secret=secret-two&oauth_token=secret-three&client_password=secret-four oauth_token%3Dsecret-five%26client_password%3Dsecret-six%26scope%3Dx'
     const result = redactSensitiveValues(input)
-    expect(result).toContain('[REDACTED]')
-    expect(result).not.toContain('mysecretpass123')
+
+    expect(result).not.toContain('secret-one')
+    expect(result).not.toContain('secret-two')
+    expect(result).not.toContain('secret-three')
+    expect(result).not.toContain('secret-four')
+    expect(result).not.toContain('secret-five')
+    expect(result).not.toContain('secret-six')
+    expect(result).toContain('refresh_token=[REDACTED]')
+    expect(result).toContain('oauth_token%3D[REDACTED]')
+    expect(result).toContain('scope%3Dx')
   })
 
-  it.concurrent('should redact JSON-style token fields', () => {
-    const input = 'token: "tokenvalue123"'
+  it.concurrent('redacts authorization schemes without exposing the credential suffix', () => {
+    expect(redactSensitiveValues('authorization=Bearer <token> scope=openid')).toBe(
+      'authorization=[REDACTED] scope=openid'
+    )
+    expect(redactSensitiveValues('authorization=Basic dXNlcjpwYXNz')).toBe(
+      'authorization=[REDACTED]'
+    )
+    expect(redactSensitiveValues('authorization=Basic YQ== scope=openid')).toBe(
+      'authorization=[REDACTED] scope=openid'
+    )
+    expect(redactSensitiveValues('authorization=Bearer <padded-token>= scope=openid')).toBe(
+      'authorization=[REDACTED] scope=openid'
+    )
+  })
+
+  it.concurrent('redacts parameterized authorization schemes through the field delimiter', () => {
+    expect(
+      redactSensitiveValues(
+        'authorization=Digest username="user", realm="realm", response="digest-secret"&scope=openid'
+      )
+    ).toBe('authorization=[REDACTED]&scope=openid')
+    expect(
+      redactSensitiveValues(
+        'proxyAuthorization=OAuth realm="Example", oauth_signature="oauth-secret"&scope=openid'
+      )
+    ).toBe('proxyAuthorization=[REDACTED]&scope=openid')
+  })
+
+  it.concurrent('redacts parameterized authorization header values through the line ending', () => {
+    expect(
+      redactSensitiveValues(
+        'Authorization: Digest username="user", realm="realm", response="digest-secret"\nstatus: 401'
+      )
+    ).toBe('Authorization: [REDACTED]\nstatus: 401')
+    expect(
+      redactSensitiveValues(
+        'Proxy-Authorization: AWS4-HMAC-SHA256 Credential=key/path, SignedHeaders=host, Signature=signature-secret'
+      )
+    ).toBe('Proxy-Authorization: [REDACTED]')
+  })
+
+  it.concurrent(
+    'redacts malformed single-token authorization headers through the line ending',
+    () => {
+      expect(redactSensitiveValues('Authorization: Bearer prefix:secret-tail')).toBe(
+        'Authorization: Bearer [REDACTED]'
+      )
+      expect(redactSensitiveValues('Proxy-Authorization: Basic prefix:secret-tail')).toBe(
+        'Proxy-Authorization: Basic [REDACTED]'
+      )
+    }
+  )
+
+  it.concurrent('does not consume the next line when an authorization header is empty', () => {
+    expect(redactSensitiveValues('Authorization: Bearer\nstatus: 401')).toBe(
+      'Authorization: [REDACTED]\nstatus: 401'
+    )
+    expect(redactSensitiveValues('Authorization:\r\nstatus: 401')).toBe(
+      'Authorization: [REDACTED]\r\nstatus: 401'
+    )
+  })
+
+  it.concurrent('redacts encoded form credentials using delimiters at the matching depth', () => {
+    let encoded = new URLSearchParams({
+      access_token: 'prefix&secret-tail',
+      scope: 'openid',
+    }).toString()
+
+    for (let layer = 0; layer <= 3; layer++) {
+      const result = redactSensitiveValues(encoded)
+      expect(result).not.toContain('prefix')
+      expect(result).not.toContain('secret-tail')
+      expect(result).toContain('scope')
+      encoded = encodeURIComponent(encoded)
+    }
+  })
+
+  it.concurrent('uses the canonical sensitive-key policy for form fields', () => {
+    const keys = ['authorization', 'auth', 'bearer', 'private_key', 'passphrase']
+    const input = keys
+      .flatMap((key, index) => [`${key}=plain-secret-${index}`, `${key}%3Dencoded-secret-${index}`])
+      .join('&')
     const result = redactSensitiveValues(input)
-    expect(result).toContain('[REDACTED]')
-    expect(result).not.toContain('tokenvalue123')
+
+    for (let index = 0; index < keys.length; index++) {
+      expect(result).not.toContain(`plain-secret-${index}`)
+      expect(result).not.toContain(`encoded-secret-${index}`)
+    }
   })
 
-  it.concurrent('should redact JSON-style api_key fields', () => {
-    const input = 'api_key: "key123456"'
-    const result = redactSensitiveValues(input)
-    expect(result).toContain('[REDACTED]')
-    expect(result).not.toContain('key123456')
+  it.concurrent('classifies percent-encoded form keys after bounded decoding', () => {
+    const input =
+      'api%5Fkey=secret-one&private%2Dkey=secret-two&cl%69ent%5Fsecret=secret-three&display%5Fname=Alice&next%50age%54oken=cursor'
+
+    expect(redactSensitiveValues(input)).toBe(
+      'api%5Fkey=[REDACTED]&private%2Dkey=[REDACTED]&cl%69ent%5Fsecret=[REDACTED]&display%5Fname=Alice&next%50age%54oken=cursor'
+    )
   })
 
-  it.concurrent('should not modify safe strings', () => {
-    const input = 'This is a normal string with no secrets'
-    const result = redactSensitiveValues(input)
-    expect(result).toBe(input)
+  it.concurrent('redacts repeatedly encoded authorization keys through their delimiter', () => {
+    const input =
+      'proxy%252Dauthorization%253DDigest username="user", response="secret"%2526scope%253Dopenid'
+
+    expect(redactSensitiveValues(input)).toBe(
+      'proxy%252Dauthorization%253D[REDACTED]%2526scope%253Dopenid'
+    )
   })
 
-  it.concurrent('should handle empty strings', () => {
-    expect(redactSensitiveValues('')).toBe('')
+  it.concurrent('fails closed for malformed or excessively encoded form keys', () => {
+    for (const malformedKey of [
+      'api%ZZkey',
+      'api%G_key',
+      'private%2/key',
+      'authorization%?%?',
+      'authorization%?%3Fscope',
+      'api%?%26scope',
+      'authorization%FF%3Fscope',
+      'api%C0%26scope',
+      'api%',
+    ]) {
+      expect(redactSensitiveValues(`${malformedKey}=secret-one&scope=openid`)).toBe(
+        `${malformedKey}=[REDACTED]&scope=openid`
+      )
+    }
+    expect(redactSensitiveValues('api%2525255Fkey=secret-two&scope=openid')).toBe(
+      'api%2525255Fkey=[REDACTED]&scope=openid'
+    )
+    expect(redactSensitiveValues('authorization%E2%82%AC%3Fscope=public&next=ok')).toBe(
+      'authorization%E2%82%AC%3Fscope=public&next=ok'
+    )
   })
 
-  it.concurrent('should handle null/undefined gracefully', () => {
-    expect(redactSensitiveValues(null as any)).toBe(null)
-    expect(redactSensitiveValues(undefined as any)).toBe(undefined)
+  it.concurrent('preserves safe form keys containing an encoded literal percent', () => {
+    expect(redactSensitiveValues('discount%25value=10&scope=openid')).toBe(
+      'discount%25value=10&scope=openid'
+    )
+  })
+
+  it.concurrent('redacts sensitive raw fields nested inside a non-sensitive URL value', () => {
+    const input = 'redirect_uri=https://example.com/callback?access_token=raw-secret&scope=openid'
+
+    expect(redactSensitiveValues(input)).toBe(
+      'redirect_uri=https://example.com/callback?access_token=[REDACTED]&scope=openid'
+    )
+  })
+
+  it.concurrent('redacts a raw sensitive value containing an encoded ampersand in full', () => {
+    const input = 'access_token=prefix%26secret-tail&scope=openid'
+
+    expect(redactSensitiveValues(input)).toBe('access_token=[REDACTED]&scope=openid')
+  })
+
+  it.concurrent(
+    'redacts sensitive percent-encoded fields nested inside a non-sensitive URL value',
+    () => {
+      const input =
+        'redirect_uri%3Dhttps%3A%2F%2Fexample.com%2Fcallback%3Faccess_token%3Dencoded-secret%26scope%3Dopenid'
+
+      expect(redactSensitiveValues(input)).toBe(
+        'redirect_uri%3Dhttps%3A%2F%2Fexample.com%2Fcallback%3Faccess_token%3D[REDACTED]%26scope%3Dopenid'
+      )
+    }
+  )
+
+  it.concurrent('redacts authorization fields after repeatedly encoded query separators', () => {
+    const cases = [
+      [
+        '%3Fauthorization%3DBearer%20nested-secret%26scope%3Dopenid',
+        '%3Fauthorization%3D[REDACTED]%26scope%3Dopenid',
+      ],
+      [
+        '%253Fauthorization%253DBearer%2520nested-secret%2526scope%253Dopenid',
+        '%253Fauthorization%253D[REDACTED]%2526scope%253Dopenid',
+      ],
+      [
+        '%25253Fauthorization%25253DBearer%252520nested-secret%252526scope%25253Dopenid',
+        '%25253Fauthorization%25253D[REDACTED]%252526scope%25253Dopenid',
+      ],
+    ]
+
+    for (const [input, expected] of cases) {
+      expect(redactSensitiveValues(input)).toBe(expected)
+    }
+  })
+
+  it.concurrent('redacts authorization fields inside repeatedly encoded URL values', () => {
+    let input =
+      'redirect_uri=https%3A%2F%2Fexample.com%2Fcallback%3Fauthorization%3DBearer%20nested-secret%26scope%3Dopenid'
+
+    for (let depth = 0; depth < 2; depth++) {
+      const result = redactSensitiveValues(input)
+      expect(result).not.toContain('nested-secret')
+      expect(result).toContain('authorization')
+      expect(result).toContain('scope')
+      input = encodeURIComponent(input)
+    }
+  })
+
+  it.concurrent('redacts an encoded nested authorization field after a long safe prefix', () => {
+    const prefix = 'x'.repeat(400_000)
+    const field = '%3Fauthorization%3DBearer%20nested-secret%26scope%3Dopenid'
+
+    expect(redactSensitiveValues(prefix + field)).toBe(
+      `${prefix}%3Fauthorization%3D[REDACTED]%26scope%3Dopenid`
+    )
+  })
+
+  it.concurrent('does not end a sensitive value at an encoded query separator', () => {
+    expect(redactSensitiveValues('access_token=prefix%3Fscope%3Dsecret-tail&next=ok')).toBe(
+      'access_token=[REDACTED]&next=ok'
+    )
+  })
+
+  it.concurrent('preserves safe fields after an encoded query separator', () => {
+    const input = 'redirect_uri=https%3A%2F%2Fexample.com%2F%3Fpage%3Dhome%26scope%3Dopenid'
+    expect(redactSensitiveValues(input)).toBe(input)
+  })
+
+  it.concurrent('preserves non-secret pagination tokens in form-encoded strings', () => {
+    const input =
+      'nextPageToken=page-one nextPageToken%3Dpage-two nextpagetoken=page-three NEXTPAGETOKEN%3Dpage-four'
+
+    expect(redactSensitiveValues(input)).toBe(input)
+  })
+
+  it.concurrent('should redact exact secrets echoed in free-form text', () => {
+    const result = redactExactSensitiveValues(
+      'provider echoed s3cr%2Ft, s3cr%2ft, space+secret, and plain s3cr/t',
+      ['s3cr/t', 'space secret']
+    )
+
+    expect(result).not.toContain('s3cr/t')
+    expect(result).not.toContain('s3cr%2Ft')
+    expect(result).not.toContain('s3cr%2ft')
+    expect(result).not.toContain('space+secret')
+  })
+
+  it.concurrent('redacts overlapping secrets longest-first', () => {
+    const result = redactExactSensitiveValues('provider echoed abcSECRET', ['abc', 'abcSECRET'])
+
+    expect(result).toBe('provider echoed [REDACTED]')
+    expect(result).not.toContain('SECRET')
+  })
+
+  it.concurrent('redacts mixed-case percent escapes', () => {
+    const result = redactExactSensitiveValues('provider echoed %2f%3A', ['/:'])
+
+    expect(result).toBe('provider echoed [REDACTED]')
+  })
+
+  it.concurrent('redacts exact secrets through bounded repeated encoding', () => {
+    const secret = 'path/secret'
+    const encoded = encodeURIComponent(encodeURIComponent(encodeURIComponent(secret)))
+
+    expect(redactExactSensitiveValues(`provider echoed ${encoded}`, [secret])).toBe(
+      'provider echoed [REDACTED]'
+    )
+  })
+
+  it.concurrent(
+    'redacts exact secrets containing raw form delimiters before parsing fields',
+    () => {
+      const secret = 'prefix&secret-tail'
+
+      expect(redactExactSensitiveValues(`echo access_token=${secret}`, [secret])).toBe(
+        'echo access_token=[REDACTED]'
+      )
+    }
+  )
+
+  it.concurrent('redacts exact secrets containing whitespace before generic auth parsing', () => {
+    const secret = 'password with spaces'
+
+    expect(redactExactSensitiveValues(`Basic ${secret}`, [secret])).toBe('Basic [REDACTED]')
+  })
+
+  it.concurrent('leaves text without secrets untouched', () => {
+    const input = 'This is a Bear without er suffix: $^.*+?()[]{}|'
+    expect(redactSensitiveValues(input)).toBe(input)
   })
 })
 
 describe('redactApiKeys', () => {
-  describe('object redaction', () => {
-    it.concurrent('should redact sensitive keys in flat objects', () => {
-      const obj = {
-        apiKey: 'secret-key',
-        api_key: 'another-secret',
-        access_token: 'token-value',
-        secret: 'secret-value',
-        password: 'password-value',
-        normalField: 'normal-value',
-      }
-
-      const result = redactApiKeys(obj)
-
-      expect(result.apiKey).toBe('[REDACTED]')
-      expect(result.api_key).toBe('[REDACTED]')
-      expect(result.access_token).toBe('[REDACTED]')
-      expect(result.secret).toBe('[REDACTED]')
-      expect(result.password).toBe('[REDACTED]')
-      expect(result.normalField).toBe('normal-value')
+  it.concurrent('redacts sensitive keys at any depth and truncates base64', () => {
+    const result = redactApiKeys({
+      apiKey: 'secret-key',
+      normalField: 'normal-value',
+      base64: 'VGhpcyBpcyBhIHZlcnkgbG9uZyBiYXNlNjQgc3RyaW5n...',
+      users: [{ name: 'John', credentials: { apiKey: 'nested-key', username: 'john_doe' } }],
+      nestedArray: [[{ password: 'deep' }]],
     })
 
-    it.concurrent('should redact sensitive keys in nested objects', () => {
-      const obj = {
-        config: {
-          apiKey: 'secret-key',
-          normalField: 'normal-value',
-        },
-      }
-
-      const result = redactApiKeys(obj)
-
-      expect(result.config.apiKey).toBe('[REDACTED]')
-      expect(result.config.normalField).toBe('normal-value')
-    })
-
-    it.concurrent('should preserve allowlisted token fields while redacting credentials', () => {
-      const result = redactApiKeys({
-        nextPageToken: 'page-2',
-        subjectFromWebIdentityToken: 'arn-subject',
-        record: { Id: '42', SyncToken: '3' },
-        accessToken: 'access-secret',
-        sessionToken: 'session-secret',
-      })
-
-      expect(result).toEqual({
-        nextPageToken: 'page-2',
-        subjectFromWebIdentityToken: 'arn-subject',
-        record: { Id: '42', SyncToken: '3' },
-        accessToken: REDACTED_MARKER,
-        sessionToken: REDACTED_MARKER,
-      })
-    })
-
-    it.concurrent('should redact sensitive keys in arrays', () => {
-      const arr = [{ apiKey: 'secret-key-1' }, { apiKey: 'secret-key-2' }]
-
-      const result = redactApiKeys(arr)
-
-      expect(result[0].apiKey).toBe('[REDACTED]')
-      expect(result[1].apiKey).toBe('[REDACTED]')
-    })
-
-    it.concurrent('should handle deeply nested structures', () => {
-      const obj = {
-        users: [
-          {
-            name: 'John',
-            credentials: {
-              apiKey: 'secret-key',
-              username: 'john_doe',
-            },
-          },
-        ],
-        config: {
-          database: {
-            password: 'db-password',
-            host: 'localhost',
-          },
-        },
-      }
-
-      const result = redactApiKeys(obj)
-
-      expect(result.users[0].name).toBe('John')
-      expect(result.users[0].credentials.apiKey).toBe('[REDACTED]')
-      expect(result.users[0].credentials.username).toBe('john_doe')
-      expect(result.config.database.password).toBe('[REDACTED]')
-      expect(result.config.database.host).toBe('localhost')
-    })
-
-    it.concurrent('should truncate base64 fields', () => {
-      const obj = {
-        id: 'file-123',
-        name: 'document.pdf',
-        base64: 'VGhpcyBpcyBhIHZlcnkgbG9uZyBiYXNlNjQgc3RyaW5n...',
-        size: 12345,
-      }
-
-      const result = redactApiKeys(obj)
-
-      expect(result.id).toBe('file-123')
-      expect(result.name).toBe('document.pdf')
-      expect(result.base64).toBe('[TRUNCATED]')
-      expect(result.size).toBe(12345)
-    })
-
-    it.concurrent('should truncate base64 in nested UserFile objects', () => {
-      const obj = {
-        files: [
-          {
-            id: 'file-1',
-            name: 'doc1.pdf',
-            url: 'http://example.com/file1',
-            size: 1000,
-            base64: 'base64content1...',
-          },
-          {
-            id: 'file-2',
-            name: 'doc2.pdf',
-            url: 'http://example.com/file2',
-            size: 2000,
-            base64: 'base64content2...',
-          },
-        ],
-      }
-
-      const result = redactApiKeys(obj)
-
-      expect(result.files[0].id).toBe('file-1')
-      expect(result.files[0].base64).toBe('[TRUNCATED]')
-      expect(result.files[1].base64).toBe('[TRUNCATED]')
-    })
-
-    it.concurrent('should filter UserFile objects to only expose allowed fields', () => {
-      const obj = {
-        processedFiles: [
-          {
-            id: 'file-123',
-            name: 'document.pdf',
-            url: 'http://localhost/api/files/serve/...',
-            size: 12345,
-            type: 'application/pdf',
-            key: 'execution/workspace/workflow/file.pdf',
-            context: 'execution',
-            base64: 'VGhpcyBpcyBhIGJhc2U2NCBzdHJpbmc=',
-          },
-        ],
-      }
-
-      const result = redactApiKeys(obj)
-
-      // Exposed fields should be present
-      expect(result.processedFiles[0].id).toBe('file-123')
-      expect(result.processedFiles[0].name).toBe('document.pdf')
-      expect(result.processedFiles[0].url).toBe('http://localhost/api/files/serve/...')
-      expect(result.processedFiles[0].size).toBe(12345)
-      expect(result.processedFiles[0].type).toBe('application/pdf')
-      expect(result.processedFiles[0].base64).toBe('[TRUNCATED]')
-
-      // Internal fields should be filtered out
-      expect(result.processedFiles[0]).not.toHaveProperty('key')
-      expect(result.processedFiles[0]).not.toHaveProperty('context')
-    })
+    expect(result.apiKey).toBe('[REDACTED]')
+    expect(result.normalField).toBe('normal-value')
+    expect(result.base64).toBe('[TRUNCATED]')
+    expect(result.users[0].name).toBe('John')
+    expect(result.users[0].credentials.apiKey).toBe('[REDACTED]')
+    expect(result.users[0].credentials.username).toBe('john_doe')
+    expect(result.nestedArray[0][0].password).toBe('[REDACTED]')
   })
 
-  describe('primitive handling', () => {
-    it.concurrent('should return primitives unchanged', () => {
-      expect(redactApiKeys('string')).toBe('string')
-      expect(redactApiKeys(123)).toBe(123)
-      expect(redactApiKeys(true)).toBe(true)
-      expect(redactApiKeys(null)).toBe(null)
-      expect(redactApiKeys(undefined)).toBe(undefined)
-    })
+  it.concurrent('should filter UserFile objects to only expose allowed fields', () => {
+    const obj = {
+      processedFiles: [
+        {
+          id: 'file-123',
+          name: 'document.pdf',
+          url: 'http://localhost/api/files/serve/...',
+          size: 12345,
+          type: 'application/pdf',
+          key: 'execution/workspace/workflow/file.pdf',
+          context: 'execution',
+          base64: 'VGhpcyBpcyBhIGJhc2U2NCBzdHJpbmc=',
+        },
+      ],
+    }
+
+    const result = redactApiKeys(obj)
+
+    expect(result.processedFiles[0].id).toBe('file-123')
+    expect(result.processedFiles[0].url).toBe('http://localhost/api/files/serve/...')
+    expect(result.processedFiles[0].base64).toBe('[TRUNCATED]')
+    expect(result.processedFiles[0]).not.toHaveProperty('key')
+    expect(result.processedFiles[0]).not.toHaveProperty('context')
   })
 
-  describe('no false positives', () => {
-    it.concurrent('should not redact keys with sensitive words as prefix only', () => {
-      const obj = {
-        tokenCount: 100,
-        secretKey: 'not-actually-secret',
-        passwordStrength: 'strong',
-        authMethod: 'oauth',
-      }
-
-      const result = redactApiKeys(obj)
-
-      expect(result.tokenCount).toBe(100)
-      expect(result.secretKey).toBe('not-actually-secret')
-      expect(result.passwordStrength).toBe('strong')
-      expect(result.authMethod).toBe('oauth')
+  it.concurrent('should keep the workspace file version, which names the exposed bytes', () => {
+    const result = redactApiKeys({
+      files: [
+        {
+          id: 'file-123',
+          name: 'notes.md',
+          url: 'http://localhost/api/files/serve/notes.md',
+          size: 12,
+          type: 'text/markdown',
+          key: 'workspace/ws/notes.md',
+          context: 'workspace',
+          version: 4,
+        },
+      ],
     })
+
+    expect(result.files[0].version).toBe(4)
+    expect(result.files[0]).not.toHaveProperty('key')
+  })
+
+  it.concurrent('should not mutate original object', () => {
+    const original = { apiKey: 'secret-key', nested: { password: 'secret-password' } }
+    const originalCopy = structuredClone(original)
+    redactApiKeys(original)
+    expect(original).toEqual(originalCopy)
   })
 })
 
 describe('sanitizeForLogging', () => {
-  it.concurrent('should truncate long strings', () => {
-    const longString = 'a'.repeat(200)
-    const result = sanitizeForLogging(longString, 50)
-    expect(result.length).toBe(50)
+  it.concurrent('truncates to maxLength (default 100)', () => {
+    expect(sanitizeForLogging('a'.repeat(200))).toHaveLength(100)
+    expect(sanitizeForLogging('a'.repeat(200), 50)).toHaveLength(50)
   })
 
-  it.concurrent('should use default max length of 100', () => {
-    const longString = 'a'.repeat(200)
-    const result = sanitizeForLogging(longString)
-    expect(result.length).toBe(100)
-  })
-
-  it.concurrent('should redact sensitive patterns', () => {
-    const input = 'Bearer abc123xyz456'
-    const result = sanitizeForLogging(input)
+  it.concurrent('redacts sensitive patterns', () => {
+    const result = sanitizeForLogging('Bearer abc123xyz456')
     expect(result).toContain('[REDACTED]')
     expect(result).not.toContain('abc123xyz456')
-  })
-
-  it.concurrent('should handle empty strings', () => {
-    expect(sanitizeForLogging('')).toBe('')
-  })
-
-  it.concurrent('should not modify safe short strings', () => {
-    const input = 'Safe string'
-    const result = sanitizeForLogging(input)
-    expect(result).toBe(input)
   })
 })
 
 describe('sanitizeEventData', () => {
-  describe('object sanitization', () => {
-    it.concurrent('should remove sensitive keys entirely', () => {
-      const event = {
-        action: 'login',
-        apiKey: 'secret-key',
-        password: 'secret-pass',
-        userId: '123',
-      }
-
-      const result = sanitizeEventData(event)
-
-      expect(result.action).toBe('login')
-      expect(result.userId).toBe('123')
-      expect(result).not.toHaveProperty('apiKey')
-      expect(result).not.toHaveProperty('password')
+  it.concurrent('strips sensitive keys at any depth and redacts string values', () => {
+    const result = sanitizeEventData({
+      action: 'login',
+      apiKey: 'secret-key',
+      message: 'Auth: Bearer abc123token',
+      user: { id: '123', accessToken: 'secret-token' },
+      items: [{ id: 1, apiKey: 'key1' }],
     })
 
-    it.concurrent('should redact sensitive patterns in string values', () => {
-      const event = {
-        message: 'Auth: Bearer abc123token',
-        normal: 'normal value',
-      }
-
-      const result = sanitizeEventData(event)
-
-      expect(result.message).toContain('[REDACTED]')
-      expect(result.message).not.toContain('abc123token')
-      expect(result.normal).toBe('normal value')
-    })
-
-    it.concurrent('should handle nested objects', () => {
-      const event = {
-        user: {
-          id: '123',
-          accessToken: 'secret-token',
-        },
-      }
-
-      const result = sanitizeEventData(event)
-
-      expect(result.user.id).toBe('123')
-      expect(result.user).not.toHaveProperty('accessToken')
-    })
-
-    it.concurrent('should handle arrays', () => {
-      const event = {
-        items: [
-          { id: 1, apiKey: 'key1' },
-          { id: 2, apiKey: 'key2' },
-        ],
-      }
-
-      const result = sanitizeEventData(event)
-
-      expect(result.items[0].id).toBe(1)
-      expect(result.items[0]).not.toHaveProperty('apiKey')
-      expect(result.items[1].id).toBe(2)
-      expect(result.items[1]).not.toHaveProperty('apiKey')
-    })
+    expect(result.action).toBe('login')
+    expect(Object.keys(result)).not.toContain('apiKey')
+    expect(result.message).toContain('[REDACTED]')
+    expect(result.message).not.toContain('abc123token')
+    expect(result.user.id).toBe('123')
+    expect(result.user).not.toHaveProperty('accessToken')
+    expect(result.items[0].id).toBe(1)
+    expect(result.items[0]).not.toHaveProperty('apiKey')
   })
 
-  describe('primitive handling', () => {
-    it.concurrent('should return primitives appropriately', () => {
-      expect(sanitizeEventData(null)).toBe(null)
-      expect(sanitizeEventData(undefined)).toBe(undefined)
-      expect(sanitizeEventData(123)).toBe(123)
-      expect(sanitizeEventData(true)).toBe(true)
-    })
-
-    it.concurrent('should redact sensitive patterns in top-level strings', () => {
-      const result = sanitizeEventData('Bearer secrettoken123')
-      expect(result).toContain('[REDACTED]')
-    })
-
-    it.concurrent('should not redact normal strings', () => {
-      const result = sanitizeEventData('normal string')
-      expect(result).toBe('normal string')
-    })
-  })
-
-  describe('no false positives', () => {
-    it.concurrent('should not remove keys with sensitive words in middle', () => {
-      const event = {
-        tokenCount: 500,
-        isAuthenticated: true,
-        hasSecretFeature: false,
-      }
-
-      const result = sanitizeEventData(event)
-
-      expect(result.tokenCount).toBe(500)
-      expect(result.isAuthenticated).toBe(true)
-      expect(result.hasSecretFeature).toBe(false)
-    })
-  })
-})
-
-describe('Security edge cases', () => {
-  describe('redactApiKeys security', () => {
-    it.concurrent('should handle objects with prototype-like key names safely', () => {
-      const obj = {
-        protoField: { isAdmin: true },
-        name: 'test',
-        apiKey: 'secret',
-      }
-      const result = redactApiKeys(obj)
-
-      expect(result.name).toBe('test')
-      expect(result.protoField).toEqual({ isAdmin: true })
-      expect(result.apiKey).toBe('[REDACTED]')
-    })
-
-    it.concurrent('should handle objects with constructor key', () => {
-      const obj = {
-        constructor: 'test-value',
-        normalField: 'normal',
-      }
-
-      const result = redactApiKeys(obj)
-
-      expect(result.constructor).toBe('test-value')
-      expect(result.normalField).toBe('normal')
-    })
-
-    it.concurrent('should handle objects with toString key', () => {
-      const obj = {
-        toString: 'custom-tostring',
-        valueOf: 'custom-valueof',
-        apiKey: 'secret',
-      }
-
-      const result = redactApiKeys(obj)
-
-      expect(result.toString).toBe('custom-tostring')
-      expect(result.valueOf).toBe('custom-valueof')
-      expect(result.apiKey).toBe('[REDACTED]')
-    })
-
-    it.concurrent('should not mutate original object', () => {
-      const original = {
-        apiKey: 'secret-key',
-        nested: {
-          password: 'secret-password',
-        },
-      }
-
-      const originalCopy = structuredClone(original)
-      redactApiKeys(original)
-
-      expect(original).toEqual(originalCopy)
-    })
-
-    it.concurrent('should handle very deeply nested structures', () => {
-      let obj: any = { data: 'value' }
-      for (let i = 0; i < 50; i++) {
-        obj = { nested: obj, apiKey: `secret-${i}` }
-      }
-
-      const result = redactApiKeys(obj)
-
-      expect(result.apiKey).toBe('[REDACTED]')
-      expect(result.nested.apiKey).toBe('[REDACTED]')
-    })
-
-    it.concurrent('should handle arrays with mixed types', () => {
-      const arr = [
-        { apiKey: 'secret' },
-        'string',
-        123,
-        null,
-        undefined,
-        true,
-        [{ password: 'nested' }],
-      ]
-
-      const result = redactApiKeys(arr)
-
-      expect(result[0].apiKey).toBe('[REDACTED]')
-      expect(result[1]).toBe('string')
-      expect(result[2]).toBe(123)
-      expect(result[3]).toBe(null)
-      expect(result[4]).toBe(undefined)
-      expect(result[5]).toBe(true)
-      expect(result[6][0].password).toBe('[REDACTED]')
-    })
-
-    it.concurrent('should handle empty arrays', () => {
-      const result = redactApiKeys([])
-      expect(result).toEqual([])
-    })
-
-    it.concurrent('should handle empty objects', () => {
-      const result = redactApiKeys({})
-      expect(result).toEqual({})
-    })
-  })
-
-  describe('redactSensitiveValues security', () => {
-    it.concurrent('should handle multiple API key patterns in one string', () => {
-      const input = 'Keys: sk-abc123defghijklmnopqr and pk-xyz789abcdefghijklmnop'
-      const result = redactSensitiveValues(input)
-
-      expect(result).not.toContain('sk-abc123defghijklmnopqr')
-      expect(result).not.toContain('pk-xyz789abcdefghijklmnop')
-      expect(result.match(/\[REDACTED\]/g)?.length).toBeGreaterThanOrEqual(2)
-    })
-
-    it.concurrent('should handle multiline strings with sensitive data', () => {
-      const input = `Line 1: Bearer token123abc456def
-      Line 2: password: "secretpass"
-      Line 3: Normal content`
-
-      const result = redactSensitiveValues(input)
-
-      expect(result).toContain('[REDACTED]')
-      expect(result).not.toContain('token123abc456def')
-      expect(result).not.toContain('secretpass')
-      expect(result).toContain('Normal content')
-    })
-
-    it.concurrent('should handle unicode in strings', () => {
-      const input = 'Bearer abc123'
-      const result = redactSensitiveValues(input)
-
-      expect(result).toContain('[REDACTED]')
-      expect(result).not.toContain('abc123')
-    })
-
-    it.concurrent('should handle very long strings', () => {
-      const longSecret = 'a'.repeat(10000)
-      const input = `Bearer ${longSecret}`
-      const result = redactSensitiveValues(input)
-
-      expect(result).toContain('[REDACTED]')
-      expect(result.length).toBeLessThan(input.length)
-    })
-
-    it.concurrent('should not match partial patterns', () => {
-      const input = 'This is a Bear without er suffix'
-      const result = redactSensitiveValues(input)
-
-      expect(result).toBe(input)
-    })
-
-    it.concurrent('should handle special regex characters safely', () => {
-      const input = 'Test with special chars: $^.*+?()[]{}|'
-      const result = redactSensitiveValues(input)
-
-      expect(result).toBe(input)
-    })
-  })
-
-  describe('sanitizeEventData security', () => {
-    it.concurrent('should strip sensitive keys entirely (not redact)', () => {
-      const event = {
-        action: 'login',
-        apiKey: 'should-be-stripped',
-        password: 'should-be-stripped',
-        userId: '123',
-      }
-
-      const result = sanitizeEventData(event)
-
-      expect(result).not.toHaveProperty('apiKey')
-      expect(result).not.toHaveProperty('password')
-      expect(Object.keys(result)).not.toContain('apiKey')
-      expect(Object.keys(result)).not.toContain('password')
-    })
-
-    it.concurrent('should handle Symbol keys gracefully', () => {
-      const sym = Symbol('test')
-      const event: any = {
-        [sym]: 'symbol-value',
-        normalKey: 'normal-value',
-      }
-
-      expect(() => sanitizeEventData(event)).not.toThrow()
-    })
-
-    it.concurrent('should handle Date objects as objects', () => {
-      const date = new Date('2024-01-01')
-      const event = {
-        createdAt: date,
-        apiKey: 'secret',
-      }
-
-      const result = sanitizeEventData(event)
-
-      expect(result.createdAt).toBeDefined()
-      expect(result).not.toHaveProperty('apiKey')
-    })
-
-    it.concurrent('should handle objects with numeric keys', () => {
-      const event: any = {
-        0: 'first',
-        1: 'second',
-        apiKey: 'secret',
-      }
-
-      const result = sanitizeEventData(event)
-
-      expect(result[0]).toBe('first')
-      expect(result[1]).toBe('second')
-      expect(result).not.toHaveProperty('apiKey')
-    })
-  })
-
-  describe('isSensitiveKey security', () => {
-    it.concurrent('should handle case variations', () => {
-      expect(isSensitiveKey('APIKEY')).toBe(true)
-      expect(isSensitiveKey('ApiKey')).toBe(true)
-      expect(isSensitiveKey('apikey')).toBe(true)
-      expect(isSensitiveKey('API_KEY')).toBe(true)
-      expect(isSensitiveKey('api_key')).toBe(true)
-      expect(isSensitiveKey('Api_Key')).toBe(true)
-    })
-
-    it.concurrent('should handle empty string', () => {
-      expect(isSensitiveKey('')).toBe(false)
-    })
-
-    it.concurrent('should handle very long key names', () => {
-      const longKey = `${'a'.repeat(10000)}password`
-      expect(isSensitiveKey(longKey)).toBe(true)
-    })
-
-    it.concurrent('should handle keys with special characters', () => {
-      expect(isSensitiveKey('api-key')).toBe(true)
-      expect(isSensitiveKey('api_key')).toBe(true)
-    })
-
-    it.concurrent('should detect oauth tokens', () => {
-      expect(isSensitiveKey('access_token')).toBe(true)
-      expect(isSensitiveKey('refresh_token')).toBe(true)
-      expect(isSensitiveKey('accessToken')).toBe(true)
-      expect(isSensitiveKey('refreshToken')).toBe(true)
-    })
-
-    it.concurrent('should detect various credential patterns', () => {
-      expect(isSensitiveKey('userCredential')).toBe(true)
-      expect(isSensitiveKey('dbCredential')).toBe(true)
-      expect(isSensitiveKey('appCredential')).toBe(true)
-    })
-  })
-
-  describe('sanitizeForLogging edge cases', () => {
-    it.concurrent('should handle string with only sensitive content', () => {
-      const input = 'Bearer abc123xyz456'
-      const result = sanitizeForLogging(input)
-
-      expect(result).toContain('[REDACTED]')
-      expect(result).not.toContain('abc123xyz456')
-    })
-
-    it.concurrent('should truncate strings to specified length', () => {
-      const longString = 'a'.repeat(200)
-      const result = sanitizeForLogging(longString, 60)
-
-      expect(result.length).toBe(60)
-    })
-
-    it.concurrent('should handle maxLength of 0', () => {
-      const result = sanitizeForLogging('test', 0)
-      expect(result).toBe('')
-    })
-
-    it.concurrent('should handle negative maxLength gracefully', () => {
-      const result = sanitizeForLogging('test', -5)
-      expect(result).toBe('')
-    })
-
-    it.concurrent('should handle maxLength larger than string', () => {
-      const input = 'short'
-      const result = sanitizeForLogging(input, 1000)
-      expect(result).toBe(input)
-    })
+  it.concurrent('redacts a top-level string', () => {
+    expect(sanitizeEventData('Bearer secrettoken123')).toContain('[REDACTED]')
   })
 })

@@ -1,8 +1,27 @@
+import { readFileSync } from 'node:fs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { SimStudioClient, SimStudioError } from './index'
+import { SDK_VERSION, SimStudioClient } from './index'
 
 const mockFetch = vi.fn()
-vi.stubGlobal('fetch', mockFetch)
+
+beforeEach(() => {
+  vi.stubGlobal('fetch', mockFetch)
+})
+
+function v2ExecutionResponse(output: unknown = {}, status = 'completed') {
+  return {
+    data: {
+      runId: 'execution-123',
+      workflowId: 'workflow-id',
+      status,
+      output,
+      error: null,
+      startedAt: '2026-08-11T12:00:00.000Z',
+      endedAt: '2026-08-11T12:00:00.010Z',
+      durationMs: 10,
+    },
+  }
+}
 
 describe('SimStudioClient', () => {
   let client: SimStudioClient
@@ -15,240 +34,64 @@ describe('SimStudioClient', () => {
     vi.clearAllMocks()
   })
 
-  describe('constructor', () => {
-    it('should create a client with correct configuration', () => {
-      expect(client).toBeInstanceOf(SimStudioClient)
-    })
-
-    it('should use default base URL when not provided', () => {
-      const defaultClient = new SimStudioClient({
-        apiKey: 'test-api-key',
-      })
-      expect(defaultClient).toBeInstanceOf(SimStudioClient)
-    })
-  })
-
-  describe('setApiKey', () => {
-    it('should update the API key', () => {
-      const newApiKey = 'new-api-key'
-      client.setApiKey(newApiKey)
-
-      // Verify the method exists
-      expect(client.setApiKey).toBeDefined()
-      // Verify the API key was actually updated
-      expect((client as any).apiKey).toBe(newApiKey)
-    })
-  })
-
-  describe('setBaseUrl', () => {
-    it('should update the base URL', () => {
-      const newBaseUrl = 'https://new.sim.ai'
-      client.setBaseUrl(newBaseUrl)
-      expect((client as any).baseUrl).toBe(newBaseUrl)
-    })
-
-    it('should strip trailing slash from base URL', () => {
-      const urlWithSlash = 'https://test.sim.ai/'
-      client.setBaseUrl(urlWithSlash)
-      // Verify the trailing slash was actually stripped
-      expect((client as any).baseUrl).toBe('https://test.sim.ai')
-    })
-  })
-
-  describe('validateWorkflow', () => {
-    it('should return false when workflow status request fails', async () => {
-      vi.mocked(mockFetch).mockRejectedValue(new Error('Network error'))
-
-      const result = await client.validateWorkflow('test-workflow-id')
-      expect(result).toBe(false)
-    })
-
-    it('should return true when workflow is deployed', async () => {
-      const mockResponse = {
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          isDeployed: true,
-          deployedAt: '2023-01-01T00:00:00Z',
-          needsRedeployment: false,
-        }),
-      }
-      vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
-
-      const result = await client.validateWorkflow('test-workflow-id')
-      expect(result).toBe(true)
-    })
-
-    it('should return false when workflow is not deployed', async () => {
-      const mockResponse = {
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          isDeployed: false,
-          deployedAt: null,
-          needsRedeployment: true,
-        }),
-      }
-      vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
-
-      const result = await client.validateWorkflow('test-workflow-id')
-      expect(result).toBe(false)
-    })
-  })
-
   describe('executeWorkflow - async execution', () => {
-    it('should return AsyncExecutionResult when async is true', async () => {
-      const mockResponse = {
-        ok: true,
-        status: 202,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          jobId: 'job-123',
-          statusUrl: 'https://test.sim.ai/api/jobs/job-123',
-          message: 'Workflow execution queued',
-          async: true,
-        }),
-        headers: {
-          get: vi.fn().mockReturnValue(null),
-        },
+    it('throws when a sync workflow run completes with failed status', async () => {
+      const failed = v2ExecutionResponse({ partial: true })
+      failed.data.status = 'failed'
+      failed.data.error = {
+        code: 'BLOCK_EXECUTION_FAILED',
+        message: 'Invalid credentials',
       }
-      vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
+      vi.mocked(mockFetch).mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue(failed),
+        headers: { get: vi.fn().mockReturnValue(null) },
+      })
 
-      const result = await client.executeWorkflow(
-        'workflow-id',
-        { message: 'Hello' },
-        { async: true }
-      )
-
-      expect(result).toHaveProperty('jobId', 'job-123')
-      expect(result).toHaveProperty('statusUrl', 'https://test.sim.ai/api/jobs/job-123')
-      expect(result).toHaveProperty('async', true)
-
-      // Verify headers were set correctly
-      const calls = vi.mocked(mockFetch).mock.calls
-      expect(calls[0][1]?.headers).toMatchObject({
-        'X-Execution-Mode': 'async',
+      await expect(client.executeWorkflow('workflow-id', {})).rejects.toMatchObject({
+        name: 'SimStudioError',
+        code: 'BLOCK_EXECUTION_FAILED',
+        message: 'Invalid credentials',
       })
     })
 
-    it('should return WorkflowExecutionResult when async is false', async () => {
-      const mockResponse = {
+    it('reports a cancelled sync run as unsuccessful', async () => {
+      vi.mocked(mockFetch).mockResolvedValue({
         ok: true,
         status: 200,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          output: { result: 'completed' },
-          logs: [],
-        }),
-        headers: {
-          get: vi.fn().mockReturnValue(null),
-        },
-      }
-      vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
+        json: vi.fn().mockResolvedValue(v2ExecutionResponse({}, 'cancelled')),
+        headers: { get: vi.fn().mockReturnValue(null) },
+      })
 
-      const result = await client.executeWorkflow(
-        'workflow-id',
-        { message: 'Hello' },
-        { async: false }
-      )
+      const result = await client.executeWorkflow('workflow-id', {})
 
-      expect(result).toHaveProperty('success', true)
-      expect(result).toHaveProperty('output')
-      expect(result).not.toHaveProperty('jobId')
+      expect(result).toHaveProperty('success', false)
     })
 
-    it('should not set X-Execution-Mode header when async is undefined', async () => {
-      const mockResponse = {
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          output: {},
-        }),
-        headers: {
-          get: vi.fn().mockReturnValue(null),
-        },
-      }
-      vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
-
-      await client.executeWorkflow('workflow-id', { message: 'Hello' })
-
-      const calls = vi.mocked(mockFetch).mock.calls
-      expect(calls[0][1]?.headers).not.toHaveProperty('X-Execution-Mode')
-    })
-  })
-
-  describe('getJobStatus', () => {
-    it('should fetch job status with correct endpoint', async () => {
-      const mockResponse = {
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          taskId: 'task-123',
-          status: 'completed',
-          metadata: {
-            startedAt: '2024-01-01T00:00:00Z',
-            completedAt: '2024-01-01T00:01:00Z',
-            duration: 60000,
-          },
-          output: { result: 'done' },
-        }),
-        headers: {
-          get: vi.fn().mockReturnValue(null),
-        },
-      }
-      vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
-
-      const result = await client.getJobStatus('task-123')
-
-      expect(result).toHaveProperty('taskId', 'task-123')
-      expect(result).toHaveProperty('status', 'completed')
-      expect(result).toHaveProperty('output')
-
-      // Verify correct endpoint was called
-      const calls = vi.mocked(mockFetch).mock.calls
-      expect(calls[0][0]).toBe('https://test.sim.ai/api/jobs/task-123')
+    it('rejects a server-side timeout for sync execution', async () => {
+      await expect(
+        client.executeWorkflow('workflow-id', {}, { executionTimeoutSeconds: 90 })
+      ).rejects.toMatchObject({ code: 'INVALID_EXECUTION_TIMEOUT' })
+      expect(mockFetch).not.toHaveBeenCalled()
     })
 
-    it('should handle job not found error', async () => {
-      const mockResponse = {
-        ok: false,
-        status: 404,
-        statusText: 'Not Found',
-        json: vi.fn().mockResolvedValue({
-          error: 'Job not found',
-          code: 'JOB_NOT_FOUND',
-        }),
-        headers: {
-          get: vi.fn().mockReturnValue(null),
-        },
-      }
-      vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
-
-      await expect(client.getJobStatus('invalid-task')).rejects.toThrow(SimStudioError)
-      await expect(client.getJobStatus('invalid-task')).rejects.toThrow('Job not found')
+    it('rejects a server-side timeout above seven days', async () => {
+      await expect(
+        client.executeWorkflow(
+          'workflow-id',
+          {},
+          {
+            async: true,
+            executionTimeoutSeconds: 604_801,
+          }
+        )
+      ).rejects.toMatchObject({ code: 'INVALID_EXECUTION_TIMEOUT' })
+      expect(mockFetch).not.toHaveBeenCalled()
     })
   })
 
   describe('executeWithRetry', () => {
-    it('should succeed on first attempt when no rate limit', async () => {
-      const mockResponse = {
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          output: { result: 'success' },
-        }),
-        headers: {
-          get: vi.fn().mockReturnValue(null),
-        },
-      }
-      vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
-
-      const result = await client.executeWithRetry('workflow-id', { message: 'test' })
-
-      expect(result).toHaveProperty('success', true)
-      expect(vi.mocked(mockFetch)).toHaveBeenCalledTimes(1)
-    })
-
     it('should retry on rate limit error', async () => {
       // First call returns 429, second call succeeds
       const rateLimitResponse = {
@@ -273,10 +116,7 @@ describe('SimStudioClient', () => {
       const successResponse = {
         ok: true,
         status: 200,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          output: { result: 'success' },
-        }),
+        json: vi.fn().mockResolvedValue(v2ExecutionResponse({ result: 'success' })),
         headers: {
           get: vi.fn().mockReturnValue(null),
         },
@@ -334,8 +174,10 @@ describe('SimStudioClient', () => {
         status: 500,
         statusText: 'Internal Server Error',
         json: vi.fn().mockResolvedValue({
-          error: 'Server error',
-          code: 'INTERNAL_ERROR',
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'Server error',
+          },
         }),
         headers: {
           get: vi.fn().mockReturnValue(null),
@@ -353,21 +195,16 @@ describe('SimStudioClient', () => {
   })
 
   describe('getRateLimitInfo', () => {
-    it('should return null when no rate limit info available', () => {
-      const info = client.getRateLimitInfo()
-      expect(info).toBeNull()
-    })
-
-    it('should return rate limit info after API call', async () => {
+    it('parses an ISO x-ratelimit-reset, the format the v2 API sends', async () => {
       const mockResponse = {
         ok: true,
         status: 200,
-        json: vi.fn().mockResolvedValue({ success: true, output: {} }),
+        json: vi.fn().mockResolvedValue(v2ExecutionResponse()),
         headers: {
           get: vi.fn((header: string) => {
             if (header === 'x-ratelimit-limit') return '100'
-            if (header === 'x-ratelimit-remaining') return '95'
-            if (header === 'x-ratelimit-reset') return '1704067200'
+            if (header === 'x-ratelimit-remaining') return '99'
+            if (header === 'x-ratelimit-reset') return '2024-01-01T00:00:00.000Z'
             return null
           }),
         },
@@ -377,259 +214,47 @@ describe('SimStudioClient', () => {
 
       await client.executeWorkflow('workflow-id', {})
 
-      const info = client.getRateLimitInfo()
-      expect(info).not.toBeNull()
-      expect(info?.limit).toBe(100)
-      expect(info?.remaining).toBe(95)
-      expect(info?.reset).toBe(1704067200)
-    })
-  })
-
-  describe('getUsageLimits', () => {
-    it('should fetch usage limits with correct structure', async () => {
-      const mockResponse = {
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          rateLimit: {
-            sync: {
-              isLimited: false,
-              requestsPerMinute: 100,
-              maxBurst: 200,
-              remaining: 95,
-              resetAt: '2024-01-01T01:00:00Z',
-            },
-            async: {
-              isLimited: false,
-              requestsPerMinute: 50,
-              maxBurst: 100,
-              remaining: 48,
-              resetAt: '2024-01-01T01:00:00Z',
-            },
-            authType: 'api',
-          },
-          usage: {
-            currentPeriodCost: 1.23,
-            limit: 100.0,
-            plan: 'pro',
-          },
-          storage: {
-            usedBytes: 1024,
-            limitBytes: 10240,
-            percentUsed: 10,
-          },
-        }),
-        headers: {
-          get: vi.fn().mockReturnValue(null),
-        },
-      }
-
-      vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
-
-      const result = await client.getUsageLimits()
-
-      expect(result.success).toBe(true)
-      expect(result.rateLimit.sync.requestsPerMinute).toBe(100)
-      expect(result.rateLimit.sync.maxBurst).toBe(200)
-      expect(result.rateLimit.async.requestsPerMinute).toBe(50)
-      expect(result.usage.currentPeriodCost).toBe(1.23)
-      expect(result.usage.plan).toBe('pro')
-      expect(result.storage.usedBytes).toBe(1024)
-      expect(result.storage.percentUsed).toBe(10)
-
-      // Verify correct endpoint was called
-      const calls = vi.mocked(mockFetch).mock.calls
-      expect(calls[0][0]).toBe('https://test.sim.ai/api/users/me/usage-limits')
-    })
-
-    it('should handle unauthorized error', async () => {
-      const mockResponse = {
-        ok: false,
-        status: 401,
-        statusText: 'Unauthorized',
-        json: vi.fn().mockResolvedValue({
-          error: 'Invalid API key',
-          code: 'UNAUTHORIZED',
-        }),
-        headers: {
-          get: vi.fn().mockReturnValue(null),
-        },
-      }
-
-      vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
-
-      await expect(client.getUsageLimits()).rejects.toThrow(SimStudioError)
-      await expect(client.getUsageLimits()).rejects.toThrow('Invalid API key')
-    })
-  })
-
-  describe('executeWorkflow - streaming with selectedOutputs', () => {
-    it('should include stream and selectedOutputs in request body', async () => {
-      const mockResponse = {
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          output: {},
-        }),
-        headers: {
-          get: vi.fn().mockReturnValue(null),
-        },
-      }
-
-      vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
-
-      await client.executeWorkflow(
-        'workflow-id',
-        { message: 'test' },
-        { stream: true, selectedOutputs: ['agent1.content', 'agent2.content'] }
-      )
-
-      const calls = vi.mocked(mockFetch).mock.calls
-      const requestBody = JSON.parse(calls[0][1]?.body as string)
-
-      expect(requestBody).toHaveProperty('message', 'test')
-      expect(requestBody).toHaveProperty('stream', true)
-      expect(requestBody).toHaveProperty('selectedOutputs')
-      expect(requestBody.selectedOutputs).toEqual(['agent1.content', 'agent2.content'])
-    })
-  })
-
-  describe('executeWorkflow - primitive and array inputs', () => {
-    it('should wrap primitive string input in input field', async () => {
-      const mockResponse = {
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          output: {},
-        }),
-        headers: {
-          get: vi.fn().mockReturnValue(null),
-        },
-      }
-
-      vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
-
-      await client.executeWorkflow('workflow-id', 'NVDA')
-
-      const calls = vi.mocked(mockFetch).mock.calls
-      const requestBody = JSON.parse(calls[0][1]?.body as string)
-
-      expect(requestBody).toHaveProperty('input', 'NVDA')
-      expect(requestBody).not.toHaveProperty('0') // Should not spread string characters
-    })
-
-    it('should wrap primitive number input in input field', async () => {
-      const mockResponse = {
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          output: {},
-        }),
-        headers: {
-          get: vi.fn().mockReturnValue(null),
-        },
-      }
-
-      vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
-
-      await client.executeWorkflow('workflow-id', 42)
-
-      const calls = vi.mocked(mockFetch).mock.calls
-      const requestBody = JSON.parse(calls[0][1]?.body as string)
-
-      expect(requestBody).toHaveProperty('input', 42)
-    })
-
-    it('should wrap array input in input field', async () => {
-      const mockResponse = {
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          output: {},
-        }),
-        headers: {
-          get: vi.fn().mockReturnValue(null),
-        },
-      }
-
-      vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
-
-      await client.executeWorkflow('workflow-id', ['NVDA', 'AAPL', 'GOOG'])
-
-      const calls = vi.mocked(mockFetch).mock.calls
-      const requestBody = JSON.parse(calls[0][1]?.body as string)
-
-      expect(requestBody).toHaveProperty('input')
-      expect(requestBody.input).toEqual(['NVDA', 'AAPL', 'GOOG'])
-      expect(requestBody).not.toHaveProperty('0') // Should not spread array
-    })
-
-    it('should spread object input at root level', async () => {
-      const mockResponse = {
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          output: {},
-        }),
-        headers: {
-          get: vi.fn().mockReturnValue(null),
-        },
-      }
-
-      vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
-
-      await client.executeWorkflow('workflow-id', { ticker: 'NVDA', quantity: 100 })
-
-      const calls = vi.mocked(mockFetch).mock.calls
-      const requestBody = JSON.parse(calls[0][1]?.body as string)
-
-      expect(requestBody).toHaveProperty('ticker', 'NVDA')
-      expect(requestBody).toHaveProperty('quantity', 100)
-      expect(requestBody).not.toHaveProperty('input') // Should not wrap in input field
-    })
-
-    it('should handle null input as no input (empty body)', async () => {
-      const mockResponse = {
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({
-          success: true,
-          output: {},
-        }),
-        headers: {
-          get: vi.fn().mockReturnValue(null),
-        },
-      }
-
-      vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
-
-      await client.executeWorkflow('workflow-id', null)
-
-      const calls = vi.mocked(mockFetch).mock.calls
-      const requestBody = JSON.parse(calls[0][1]?.body as string)
-
-      // null treated as "no input" - sends empty body (consistent with Python SDK)
-      expect(requestBody).toEqual({})
+      expect(client.getRateLimitInfo()?.reset).toBe(1704067200000)
     })
   })
 })
 
-describe('SimStudioError', () => {
-  it('should create error with message', () => {
-    const error = new SimStudioError('Test error')
-    expect(error.message).toBe('Test error')
-    expect(error.name).toBe('SimStudioError')
+describe('client identity', () => {
+  it('keeps SDK_VERSION in step with package.json', () => {
+    const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+    expect(SDK_VERSION).toBe(manifest.version)
   })
 
-  it('should create error with code and status', () => {
-    const error = new SimStudioError('Test error', 'TEST_CODE', 400)
-    expect(error.message).toBe('Test error')
-    expect(error.code).toBe('TEST_CODE')
-    expect(error.status).toBe(400)
+  it('identifies the SDK on every request', async () => {
+    const client = new SimStudioClient({ apiKey: 'test-api-key', baseUrl: 'https://test.sim.ai' })
+    vi.mocked(mockFetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({ data: { isDeployed: true } }),
+    } as any)
+
+    await client.getWorkflowStatus('workflow-id')
+
+    const headers = vi.mocked(mockFetch).mock.calls[0][1]?.headers as Record<string, string>
+    expect(headers['X-Sim-Client-Info']).toBe(
+      `sdk-js/${SDK_VERSION}; node/${process.versions.node}`
+    )
+    expect(headers['User-Agent']).toBe(
+      `simstudio-ts-sdk/${SDK_VERSION} node/${process.versions.node}`
+    )
+    expect(headers['X-API-Key']).toBe('test-api-key')
+  })
+
+  it('sends requests to the canonical www host when no baseUrl is given', async () => {
+    const client = new SimStudioClient({ apiKey: 'test-api-key' })
+    vi.mocked(mockFetch).mockClear()
+    vi.mocked(mockFetch).mockResolvedValue(
+      new Response(JSON.stringify({ data: { isDeployed: true } }), { status: 200 })
+    )
+
+    await client.getWorkflowStatus('workflow-id')
+
+    expect(String(vi.mocked(mockFetch).mock.calls[0][0])).toMatch(/^https:\/\/www\.sim\.ai\//)
   })
 })

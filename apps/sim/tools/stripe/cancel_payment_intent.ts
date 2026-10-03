@@ -1,3 +1,8 @@
+import {
+  defineStripeKeyedSite,
+  type StripeDeliveryContextParams,
+  stripeIdempotencyHeader,
+} from '@/tools/stripe/idempotency'
 import type { CancelPaymentIntentParams, PaymentIntentResponse } from '@/tools/stripe/types'
 import {
   PAYMENT_INTENT_METADATA_OUTPUT_PROPERTIES,
@@ -5,8 +10,13 @@ import {
 } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
+const DELIVERY = defineStripeKeyedSite(
+  'stripe_cancel_payment_intent',
+  'the resend is rejected because the intent is already canceled, so a payment that was cancelled cleanly is reported back to the user as a failed run'
+)
+
 export const stripeCancelPaymentIntentTool: ToolConfig<
-  CancelPaymentIntentParams,
+  CancelPaymentIntentParams & StripeDeliveryContextParams,
   PaymentIntentResponse
 > = {
   id: 'stripe_cancel_payment_intent',
@@ -39,9 +49,18 @@ export const stripeCancelPaymentIntentTool: ToolConfig<
   request: {
     url: (params) => `https://api.stripe.com/v1/payment_intents/${params.id}/cancel`,
     method: 'POST',
+    /**
+     * The `Idempotency-Key` must be the *same* on every delivery of one
+     * instruction rather than fresh per attempt — it is what lets Stripe
+     * recognize a resend and replay its first answer instead of acting again. A
+     * value minted at request-build time is the inverse of the header's purpose:
+     * it is stable only inside the transport loop, and every retry layer above
+     * that re-enters tool preparation and looks to Stripe like a new write.
+     */
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/x-www-form-urlencoded',
+      ...stripeIdempotencyHeader(DELIVERY, params),
     }),
     body: (params) => {
       const formData = new URLSearchParams()

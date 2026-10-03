@@ -1,5 +1,4 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import { buildQuickBooksCreateSalesDocumentBody } from '@/tools/quickbooks/sales_utils'
 import type {
   QuickBooksCreateSalesReceiptParams,
@@ -39,11 +38,17 @@ export const quickbooksCreateSalesReceiptTool: ToolConfig<
       visibility: 'hidden',
       description: 'QuickBooks company ID derived from the connected credential',
     },
-    customerId: {
+    quickBooksEnvironment: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
+      description: 'QuickBooks API environment derived from the connected credential',
+    },
+    customerId: {
+      type: 'string',
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Customer for the sales receipt',
+      description: 'Customer for the sales receipt, omitted for an anonymous sale',
     },
     lines: {
       type: 'json',
@@ -103,20 +108,20 @@ export const quickbooksCreateSalesReceiptTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'quickbooks',
+    authoritativeParams: ['realmId', 'quickBooksEnvironment'],
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
   request: {
     url: (params) =>
       addQuickBooksRequestId(
-        buildQuickBooksEntityUrl(params.realmId, 'salesreceipt'),
+        buildQuickBooksEntityUrl(params, 'salesreceipt'),
         params.requestId
       ).toString(),
     method: 'POST',
     headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
-    body: (params) => buildQuickBooksCreateSalesDocumentBody(params),
+    body: (params) => buildQuickBooksCreateSalesDocumentBody(params, { customerOptional: true }),
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: (response) =>
     transformQuickBooksMutationResponse<QuickBooksSalesTransaction>(response, 'SalesReceipt'),

@@ -1,0 +1,66 @@
+import { createMockRequest } from '@sim/testing'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import {
+  invitationsCoreMock,
+  invitationsCoreMockFns,
+} from '@sim/testing/mocks/invitations-core.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/invitations/core', () => invitationsCoreMock)
+
+import { GET } from '@/app/api/invitations/route'
+
+const mockGetSession = authMockFns.mockGetSession
+const { mockGetInvitationJoinPreview, mockListPendingInvitationsForEmail } = invitationsCoreMockFns
+
+function invitation(id: string) {
+  return {
+    id,
+    kind: 'organization',
+    email: 'invitee@example.com',
+    organizationId: 'org-1',
+    organizationName: 'Org',
+    membershipIntent: 'member',
+    role: 'member',
+    status: 'pending',
+    expiresAt: new Date('2026-02-01T00:00:00.000Z'),
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    inviterName: 'Ada',
+    inviterEmail: 'ada@example.com',
+    grants: [
+      {
+        workspaceId: 'ws-1',
+        workspaceName: 'WS',
+        workspaceLogoUrl: 'https://example.com/workspace.png',
+        permission: 'read',
+      },
+    ],
+  }
+}
+
+describe('GET /api/invitations', () => {
+  beforeEach(() => {
+    mockGetSession.mockResolvedValue({
+      user: { id: 'user-1', email: 'invitee@example.com' },
+    })
+  })
+
+  /**
+   * The preview is disclosure-only, so one failing row degrades to `null` rather than hiding
+   * the invitation — which is what makes the bounded mapper safe, since it fails
+   * all-or-nothing on a throwing mapper.
+   */
+  it('degrades a failing preview to null without dropping the invitation', async () => {
+    mockListPendingInvitationsForEmail.mockResolvedValue(['a', 'b'].map(invitation))
+    mockGetInvitationJoinPreview.mockImplementation(async (_userId, inv) => {
+      if (inv.id === 'a') throw new Error('preview blew up')
+      return { for: inv.id }
+    })
+
+    const { invitations } = await (await GET(createMockRequest('GET'))).json()
+
+    expect(invitations).toHaveLength(2)
+    expect(invitations[0].joinPreview).toBeNull()
+    expect(invitations[1].joinPreview).toEqual({ for: 'b' })
+  })
+})

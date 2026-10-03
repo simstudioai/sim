@@ -1,0 +1,81 @@
+import { publicSharesMock, publicSharesMockFns } from '@sim/testing/mocks/public-shares.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+
+import { listWorkspaceFilesWithShares } from '@/lib/workspace-files/queries'
+
+const mockGetWorkspaceShares = publicSharesMockFns.mockGetWorkspaceShares
+
+const mockListWorkspaceFiles = workspaceFileManagerMockFns.mockListWorkspaceFiles
+
+const STORED_FILE = {
+  id: 'file-1',
+  workspaceId: 'ws-1',
+  name: 'notes.md',
+  key: 'ws-1/notes.md',
+  path: '/notes.md',
+  size: 12,
+  type: 'text/markdown',
+  uploadedBy: 'user-1',
+  folderId: null,
+  uploadedAt: new Date('2026-01-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+  contentUpdatedAt: new Date('2026-01-03T00:00:00.000Z'),
+  serverOnlyField: 'not part of the public contract',
+}
+
+describe('listWorkspaceFilesWithShares', () => {
+  beforeEach(() => {
+    mockListWorkspaceFiles.mockResolvedValue([STORED_FILE])
+    mockGetWorkspaceShares.mockResolvedValue(new Map())
+  })
+
+  /**
+   * The route and the server prefetch both cache this under one query key, and the client
+   * parses the response through the same contract. A field the contract does not declare
+   * would sit in a hydrated entry and vanish on the first refetch.
+   */
+  it('strips fields the response contract does not declare', async () => {
+    const [file] = await listWorkspaceFilesWithShares('ws-1', 'active')
+
+    expect(file).not.toHaveProperty('serverOnlyField')
+    expect(file.contentUpdatedAt).toEqual(STORED_FILE.contentUpdatedAt)
+    expect(file.id).toBe('file-1')
+    expect(file.uploadedAt).toEqual(new Date('2026-01-01T00:00:00.000Z'))
+  })
+
+  /**
+   * `maxRows` exists for a caller that will only use the list if the whole workspace fits
+   * its payload budget, so overflow must be reported as `null` — a prefix returned here
+   * would be presented as the workspace's complete file list. The share read still runs
+   * concurrently and is discarded: the under-budget workspaces are the common case, and
+   * serializing the two reads to save this one would tax every normal request.
+   */
+  it('returns null when the workspace exceeds maxRows', async () => {
+    mockListWorkspaceFiles.mockResolvedValue([STORED_FILE, STORED_FILE, STORED_FILE])
+
+    const result = await listWorkspaceFilesWithShares('ws-1', 'active', { maxRows: 2 })
+
+    expect(result).toBeNull()
+    expect(mockListWorkspaceFiles).toHaveBeenCalledWith('ws-1', { scope: 'active', limit: 3 })
+  })
+
+  /**
+   * The file read swallows errors and returns `[]` by default. A caller seeding a cache
+   * must not receive that: an empty list would be cached as "this workspace has no files".
+   */
+  it('propagates a failed read instead of degrading to an empty list', async () => {
+    await listWorkspaceFilesWithShares('ws-1', 'active', { throwOnError: true })
+
+    expect(mockListWorkspaceFiles).toHaveBeenCalledWith(
+      'ws-1',
+      expect.objectContaining({ throwOnError: true })
+    )
+  })
+})

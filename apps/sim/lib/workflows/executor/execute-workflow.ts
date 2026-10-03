@@ -1,3 +1,4 @@
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -5,22 +6,30 @@ import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
+import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
-import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
+import type {
+  BlockCompletionCallbackData,
+  ExecutionMetadata,
+  SerializableExecutionState,
+} from '@/executor/execution/types'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
+import { attachExecutionResult, hasExecutionResult } from '@/executor/utils/errors'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
+import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
 const logger = createLogger('WorkflowExecution')
 
 export interface ExecuteWorkflowOptions {
   enabled: boolean
+  principal: WorkflowExecutionPrincipal
   selectedOutputs?: string[]
   isSecureMode?: boolean
-  workflowTriggerType?: 'api' | 'chat' | 'copilot' | 'table'
+  workflowTriggerType?: CoreTriggerType | 'table'
   /**
    * If set, the executor enters the workflow at this block instead of resolving a Start block.
    * Use for trigger-originated runs (webhooks, table triggers, schedules) where the entry point
@@ -35,7 +44,8 @@ export interface ExecuteWorkflowOptions {
     blockType: string,
     executionOrder: number
   ) => Promise<void>
-  onBlockComplete?: (blockId: string, output: unknown) => Promise<void>
+  onBlockComplete?: (blockId: string, data: BlockCompletionCallbackData) => Promise<void>
+  /** Transfers post-execution logging ownership to the streaming caller after execution succeeds. */
   skipLoggingComplete?: boolean
   includeFileBase64?: boolean
   base64MaxBytes?: number
@@ -44,6 +54,8 @@ export interface ExecuteWorkflowOptions {
   abortSignal?: AbortSignal
   /** Use the live/draft workflow state instead of the deployed state. Used by copilot. */
   useDraftState?: boolean
+  /** Immutable workflow state selected by a trusted server-side trigger boundary. */
+  workflowStateOverride?: NonNullable<ExecutionMetadata['workflowStateOverride']>
   /** Stop execution after this block completes. Used for "run until block" feature. */
   stopAfterBlockId?: string
   /** Run-from-block configuration using a prior execution snapshot. */
@@ -51,12 +63,26 @@ export interface ExecuteWorkflowOptions {
     startBlockId: string
     sourceSnapshot: SerializableExecutionState
     sourceExecutionId?: string
+    /** Mocked upstream outputs (block name/id → output object) overlaid on the snapshot. */
+    variableInputs?: Record<string, unknown>
   }
   /** Trusted encrypted provenance supplied by a server-only caller before execution starts. */
   trustedInitialResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
   executionMode?: 'sync' | 'stream' | 'async'
+  /**
+   * Whether the run has an identifiable caller to authorize against, from
+   * `principal.kind !== 'workspace_api_key'` (see {@link ExecutionMetadata.enforceCredentialAccess}).
+   * Streaming runs reach the executor through here rather than through the route's
+   * own metadata, so callers must forward it or secrets resolve as the workflow
+   * owner on the streaming path and as the caller everywhere else.
+   */
+  enforceCredentialAccess?: boolean
+  /** Anonymous public-API run (see {@link ExecutionMetadata.isPublicApiAccess}). */
+  isPublicApiAccess?: boolean
   /** Immutable actor/payer decision captured by preprocessing. */
   billingAttribution?: BillingAttributionSnapshot
+  /** Server-issued run identity persisted with the execution log and snapshot. */
+  trustedExecutionCorrelation?: AsyncExecutionCorrelation
   /** Deployed-chat thinking policy; persisted on the snapshot for resume. */
   includeThinking?: boolean
   /** Deployed-chat tool lifecycle policy; persisted on the snapshot for resume. */
@@ -66,6 +92,12 @@ export interface ExecuteWorkflowOptions {
    * Callers set this only when the surface consumes thinking/tool events.
    */
   agentEvents?: boolean
+  /**
+   * Gate subject for this run, separate from the billing actor
+   * (see {@link ExecutionMetadata.capabilityGovernedUserId}). Omit unless the
+   * trigger genuinely has a person distinct from the one it bills.
+   */
+  capabilityGovernedUserId?: string | null
 }
 
 export interface WorkflowInfo {
@@ -93,6 +125,10 @@ export async function executeWorkflow(
   if (!streamConfig?.billingAttribution) {
     throw new Error('Billing attribution is required for workspace execution')
   }
+  if (!streamConfig.principal) {
+    throw new Error('Workflow execution principal is required')
+  }
+  const principal = streamConfig.principal
   const billingAttribution = assertBillingAttributionSnapshot(streamConfig.billingAttribution)
   if (
     billingAttribution.actorUserId !== actorUserId ||
@@ -104,6 +140,16 @@ export async function executeWorkflow(
   const executionId = providedExecutionId || generateId()
   const triggerType = streamConfig?.workflowTriggerType || 'api'
   const loggingSession = new LoggingSession(workflowId, executionId, triggerType, requestId)
+  if (streamConfig?.trustedExecutionCorrelation) {
+    loggingSession.setTrustedExecutionCorrelation(streamConfig.trustedExecutionCorrelation)
+  }
+  let postExecutionOwnershipTransferred = false
+  /**
+   * Held outside the `try` so the catch can carry it. The executor attaches its result when the
+   * run itself throws, but the post-execution work below can throw after a run has already
+   * produced one — and callers read a missing result as proof that no block ran.
+   */
+  let executionResult: ExecutionResult | undefined
 
   try {
     const metadata: ExecutionMetadata = {
@@ -112,13 +158,18 @@ export async function executeWorkflow(
       workflowId,
       workspaceId,
       userId: actorUserId,
+      capabilityGovernedUserId: streamConfig?.capabilityGovernedUserId,
+      principal,
       billingAttribution,
       workflowUserId: workflow.userId,
       triggerType,
       triggerBlockId: streamConfig?.triggerBlockId,
       useDraftState: streamConfig?.useDraftState ?? false,
+      workflowStateOverride: streamConfig?.workflowStateOverride,
       startTime: new Date().toISOString(),
       isClientSession: false,
+      enforceCredentialAccess: streamConfig?.enforceCredentialAccess ?? false,
+      isPublicApiAccess: streamConfig?.isPublicApiAccess ?? false,
       largeValueExecutionIds: Array.from(new Set([executionId])),
       largeValueKeys: streamConfig?.largeValueKeys,
       fileKeys: streamConfig?.fileKeys,
@@ -129,19 +180,20 @@ export async function executeWorkflow(
           ? streamConfig.includeToolCalls
           : undefined,
       agentEvents: streamConfig?.agentEvents === true ? true : undefined,
+      correlation: streamConfig?.trustedExecutionCorrelation,
     }
 
     const snapshot = new ExecutionSnapshot(
       metadata,
       workflow,
       input,
-      workflow.variables || {},
+      streamConfig?.workflowStateOverride?.variables ?? workflow.variables ?? {},
       streamConfig?.selectedOutputs || []
     )
 
     const executionStartMs = Date.now()
 
-    const result = await executeWorkflowCore({
+    const result = (executionResult = await executeWorkflowCore({
       snapshot,
       callbacks: {
         onStream: streamConfig?.onStream,
@@ -156,8 +208,13 @@ export async function executeWorkflow(
             }
           : undefined,
         onBlockComplete: streamConfig?.onBlockComplete
-          ? async (blockId: string, _blockName: string, _blockType: string, output: unknown) => {
-              await streamConfig.onBlockComplete!(blockId, output)
+          ? async (
+              blockId: string,
+              _blockName: string,
+              _blockType: string,
+              data: BlockCompletionCallbackData
+            ) => {
+              await streamConfig.onBlockComplete!(blockId, data)
             }
           : undefined,
       },
@@ -169,7 +226,7 @@ export async function executeWorkflow(
       trustedInitialResolvedSecretTraceProvenance:
         streamConfig?.trustedInitialResolvedSecretTraceProvenance,
       runFromBlock: streamConfig?.runFromBlock,
-    })
+    }))
 
     const blockTypes = [
       ...new Set(
@@ -201,6 +258,7 @@ export async function executeWorkflow(
     await handlePostExecutionPauseState({ result, workflowId, executionId, loggingSession })
 
     if (streamConfig?.skipLoggingComplete) {
+      postExecutionOwnershipTransferred = true
       return {
         ...result,
         _streamingMetadata: {
@@ -211,8 +269,24 @@ export async function executeWorkflow(
     }
 
     return result
-  } catch (error: unknown) {
-    logger.error(`[${requestId}] Workflow execution failed:`, error)
+  } catch (caught: unknown) {
+    /**
+     * Normalized before anything reads it, for the reason the executor normalizes its own throw:
+     * a value that cannot carry the result would otherwise reach callers bare, and they read a
+     * missing result as proof that no block ran. `toError` returns an `Error` unchanged, so a
+     * custom error class keeps its identity and every ordinary failure is untouched.
+     */
+    const error = toError(caught)
+    /**
+     * Carries the run's result on a failure raised after it produced one — the post-execution
+     * work below the executor call can throw, and the executor never saw it. Skipped when the
+     * executor already attached its own, which is the more specific record.
+     */
+    if (executionResult && !hasExecutionResult(error)) {
+      attachExecutionResult(error, executionResult)
+    }
+    const errorDiagnostic = loggingSession.projectDiagnosticError(error)
+    logger.error(`[${requestId}] Workflow execution failed`, errorDiagnostic)
 
     captureServerEvent(
       actorUserId,
@@ -221,11 +295,18 @@ export async function executeWorkflow(
         workflow_id: workflow.id,
         workspace_id: workspaceId,
         trigger_type: streamConfig?.workflowTriggerType || 'api',
-        error_message: toError(error).message,
+        error_message:
+          typeof errorDiagnostic.error === 'string'
+            ? errorDiagnostic.error
+            : 'Workflow execution failed',
       },
       { groups: { workspace: workspaceId } }
     )
 
     throw error
+  } finally {
+    if (!postExecutionOwnershipTransferred) {
+      await loggingSession.waitForPostExecution()
+    }
   }
 }

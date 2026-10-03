@@ -6,11 +6,13 @@ export {
   getStorageUsageForBillingContext,
   getUserStorageLimit,
   getUserStorageUsage,
+  StorageLimitExceededError,
 } from './limits'
 export {
   applyStorageUsageDeltasInTx,
   checkAndIncrementStorageUsageInTx,
   decrementStorageUsageForBillingContextInTx,
+  incrementAdmittedStorageUsageForBillingContextInTx,
   incrementStorageUsageForBillingContextInTx,
   type LegacyStorageUsageDelta,
   maybeNotifyStorageLimitForBillingContext,

@@ -1,7 +1,7 @@
 import type { SSHGetSystemInfoParams, SSHResponse } from '@/tools/ssh/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getSystemInfoTool: ToolConfig<SSHGetSystemInfoParams, SSHResponse> = {
+export const getSystemInfoTool: InternalToolConfig<SSHGetSystemInfoParams, SSHResponse> = {
   id: 'ssh_get_system_info',
   name: 'SSH Get System Info',
   description: 'Retrieve system information from the remote SSH server',
@@ -46,13 +46,8 @@ export const getSystemInfoTool: ToolConfig<SSHGetSystemInfoParams, SSHResponse> 
     },
   },
 
-  request: {
-    url: '/api/tools/ssh/get-system-info',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port) || 22,
       username: params.username,

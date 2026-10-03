@@ -127,7 +127,7 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
       if (shouldUseMarkdownUpload(params)) {
         const boundary = (params as GoogleDocsToolParams & { _boundary?: string })._boundary
         if (!boundary) {
-          // headers() runs before body() in formatRequestParams and stashes the boundary
+          // headers() runs before body() in prepareToolRequest and stashes the boundary
           // on the same params reference. Missing _boundary means that contract was broken,
           // which would silently produce a Content-Type / body boundary mismatch (HTTP 400).
           // Throw loudly instead of fabricating a mismatched boundary.

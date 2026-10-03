@@ -21,32 +21,33 @@ export const QUICKBOOKS_DOCUMENT_TRANSACTIONS = {
 } as const satisfies Record<QuickBooksDocumentTransactionType, { entity: string; resource: string }>
 
 export const QUICKBOOKS_ATTACHMENT_TARGETS = {
-  bill: { entityType: 'Bill' },
-  bill_payment: { entityType: 'BillPayment' },
-  credit_memo: { entityType: 'CreditMemo' },
-  deposit: { entityType: 'Deposit' },
-  estimate: { entityType: 'Estimate' },
-  invoice: { entityType: 'Invoice' },
-  item: { entityType: 'Item' },
-  journal_entry: { entityType: 'JournalEntry' },
-  payment: { entityType: 'Payment' },
-  purchase: { entityType: 'Purchase' },
-  purchase_order: { entityType: 'PurchaseOrder' },
-  refund_receipt: { entityType: 'RefundReceipt' },
-  sales_receipt: { entityType: 'SalesReceipt' },
-  vendor_credit: { entityType: 'VendorCredit' },
-} as const satisfies Record<QuickBooksAttachmentTargetType, { entityType: string }>
+  bill: { entityType: 'Bill', queryEntityType: 'bill' },
+  bill_payment: { entityType: 'BillPayment', queryEntityType: 'billpayment' },
+  credit_memo: { entityType: 'CreditMemo', queryEntityType: 'creditmemo' },
+  deposit: { entityType: 'Deposit', queryEntityType: 'deposit' },
+  estimate: { entityType: 'Estimate', queryEntityType: 'estimate' },
+  invoice: { entityType: 'Invoice', queryEntityType: 'invoice' },
+  item: { entityType: 'Item', queryEntityType: 'item' },
+  journal_entry: { entityType: 'JournalEntry', queryEntityType: 'journalentry' },
+  payment: { entityType: 'Payment', queryEntityType: 'payment' },
+  purchase: { entityType: 'Purchase', queryEntityType: 'purchase' },
+  purchase_order: { entityType: 'PurchaseOrder', queryEntityType: 'purchaseorder' },
+  refund_receipt: { entityType: 'RefundReceipt', queryEntityType: 'refundreceipt' },
+  sales_receipt: { entityType: 'SalesReceipt', queryEntityType: 'salesreceipt' },
+  vendor_credit: { entityType: 'VendorCredit', queryEntityType: 'vendorcredit' },
+} as const satisfies Record<
+  QuickBooksAttachmentTargetType,
+  { entityType: string; queryEntityType: string }
+>
 
 /**
- * QuickBooks Online caps a single attachment at 20 MB.
- * @see https://quickbooks.intuit.com/learn-support/en-us/help-article/invoicing/attachments-quickbooks-online/L8XvMBCgd_US_en_US
+ * Sim intentionally caps each attachment at 20 MB to bound memory use. This is
+ * below Intuit's documented 100 MB overall multipart request ceiling.
+ * @see https://developer.intuit.com/app/developer/qbo/docs/api/accounting/all-entities/attachable
  */
 export const QUICKBOOKS_MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024
 
-/** Wall-clock ceiling for Intuit document calls that move no file bytes. */
 export const QUICKBOOKS_DOCUMENT_METADATA_TIMEOUT_MS = 15_000
-
-/** Wall-clock ceiling for Intuit document calls that stream attachment bytes. */
 export const QUICKBOOKS_DOCUMENT_TRANSFER_TIMEOUT_MS = 60_000
 
 /**
@@ -67,15 +68,20 @@ interface QuickBooksFileType {
 }
 
 /**
- * Extension allowlist for QuickBooks attachments. Intuit publishes accepted
- * extensions but not MIME types, so each entry tolerates the common aliases a
- * browser or operating system may report and normalizes them to one canonical
- * content type before upload.
+ * Extension allowlist for QuickBooks attachments. Each entry follows Intuit's
+ * published extension/content-type table, tolerates common browser and OS MIME
+ * aliases, and normalizes them to one canonical content type before upload.
+ *
+ * Sending `image/jpeg` for a `.jpg` file is deliberate and must not be "fixed" back to
+ * `image/jpg`. Intuit's Attachable upload sample sends `image/jpg` while the read response for
+ * that same file returns `image/jpeg`, so QuickBooks normalizes on ingest; and the
+ * `attachablerequest` model has no `ContentType` property at all, which makes the multipart
+ * metadata content type advisory rather than contractual.
  */
 const QUICKBOOKS_FILE_TYPES: Record<string, QuickBooksFileType> = {
   ai: {
     canonical: 'application/postscript',
-    accepted: ['application/postscript', 'application/illustrator', QUICKBOOKS_OCTET_STREAM],
+    accepted: ['application/postscript', QUICKBOOKS_OCTET_STREAM],
   },
   csv: {
     canonical: 'text/csv',
@@ -100,13 +106,7 @@ const QUICKBOOKS_FILE_TYPES: Record<string, QuickBooksFileType> = {
   },
   eps: {
     canonical: 'application/postscript',
-    accepted: [
-      'application/postscript',
-      'application/eps',
-      'image/eps',
-      'image/x-eps',
-      QUICKBOOKS_OCTET_STREAM,
-    ],
+    accepted: ['application/postscript', QUICKBOOKS_OCTET_STREAM],
   },
   gif: { canonical: 'image/gif', accepted: ['image/gif'] },
   jpeg: { canonical: 'image/jpeg', accepted: ['image/jpeg', 'image/jpg', 'image/pjpeg'] },
@@ -122,22 +122,23 @@ const QUICKBOOKS_FILE_TYPES: Record<string, QuickBooksFileType> = {
   png: { canonical: 'image/png', accepted: ['image/png', 'image/x-png'] },
   rtf: {
     canonical: 'text/rtf',
-    accepted: ['text/rtf', 'application/rtf', 'text/richtext', QUICKBOOKS_OCTET_STREAM],
+    accepted: ['text/rtf', 'application/rtf', QUICKBOOKS_OCTET_STREAM],
   },
   tif: {
     canonical: 'image/tiff',
     accepted: ['image/tiff', 'image/tif', 'image/x-tiff', QUICKBOOKS_OCTET_STREAM],
   },
-  txt: { canonical: 'text/plain', accepted: ['text/plain'] },
+  tiff: {
+    canonical: 'image/tiff',
+    accepted: ['image/tiff', 'image/tif', 'image/x-tiff', QUICKBOOKS_OCTET_STREAM],
+  },
+  txt: {
+    canonical: 'text/plain',
+    accepted: ['text/plain', QUICKBOOKS_OCTET_STREAM],
+  },
   xls: {
     canonical: 'application/vnd.ms-excel',
-    accepted: [
-      'application/vnd.ms-excel',
-      'application/excel',
-      'application/x-excel',
-      'application/x-msexcel',
-      QUICKBOOKS_OCTET_STREAM,
-    ],
+    accepted: ['application/vnd.ms-excel', 'application/vnd/ms-excel', QUICKBOOKS_OCTET_STREAM],
   },
   xlsx: {
     canonical: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -175,7 +176,7 @@ export function validateQuickBooksRecipient(recipient?: string): string | undefi
   return normalized
 }
 
-const QUICKBOOKS_MAX_FILE_NAME_LENGTH = 180
+const QUICKBOOKS_MAX_FILE_NAME_LENGTH = 1000
 
 /**
  * Bounds a filename without destroying its extension. Truncating the whole
@@ -212,8 +213,14 @@ export function sanitizeQuickBooksFileName(value: string | undefined, fallback: 
   return (value ? sanitize(value) : undefined) ?? sanitize(fallback) ?? 'quickbooks-file'
 }
 
+/**
+ * Returns the lowercased extension, or an empty string when the name carries none. Splitting on
+ * `.` alone would report a dotless name as its own extension, so an unattachable `backup` file
+ * would be refused as "the backup file type" instead of as an extensionless one.
+ */
 function getQuickBooksFileExtension(fileName: string): string {
-  return fileName.split('.').pop()?.toLowerCase() ?? ''
+  const separator = fileName.lastIndexOf('.')
+  return separator > 0 ? fileName.slice(separator + 1).toLowerCase() : ''
 }
 
 /**
@@ -278,9 +285,17 @@ export function sanitizeQuickBooksAttachable(
   return safeAttachment as QuickBooksAttachable
 }
 
+/**
+ * Parses an Intuit Attachable envelope for any operation that returns one.
+ *
+ * `operationLabel` names the operation in the nested-fault error message. It defaults to the
+ * upload wording because the upload path is the older caller; every other caller passes its own
+ * label so a read failure is not reported as a failed upload.
+ */
 export async function parseQuickBooksAttachableResponse(
   response: Response,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  operationLabel = 'attachment upload'
 ): Promise<{ attachment: QuickBooksAttachable; time: string | null }> {
   const data = await parseQuickBooksJson<QuickBooksAttachableEnvelope>(
     response,
@@ -291,7 +306,7 @@ export async function parseQuickBooksAttachableResponse(
   const sanitizedFault = sanitizeQuickBooksFaultData({ Fault: nestedFault })
   if (sanitizedFault) {
     throw new Error(
-      `QuickBooks attachment upload failed: ${formatQuickBooksFaultDetail(sanitizedFault)}`
+      `QuickBooks ${operationLabel} failed: ${formatQuickBooksFaultDetail(sanitizedFault)}`
     )
   }
   const attachment = data.Attachable ?? data.AttachableResponse?.[0]?.Attachable
@@ -308,6 +323,12 @@ export async function parseQuickBooksAttachableResponse(
   }
 }
 
+/**
+ * Builds the `file_metadata_01` part of an Attachable multipart upload.
+ *
+ * Intuit's `attachablerequest` model has exactly one free-text field, `Note`, so `description`
+ * and `note` both land there and `note` wins when a caller supplies both.
+ */
 export function buildQuickBooksAttachableMetadata(
   targetType: QuickBooksAttachmentTargetType,
   targetId: string,
@@ -339,7 +360,6 @@ export function assertSingleQuickBooksFile(file: RawFileInput | undefined): RawF
 
 export const QUICKBOOKS_TEMP_URL_MAX_BYTES = 64 * 1024
 export const QUICKBOOKS_DOCUMENT_JSON_MAX_BYTES = QUICKBOOKS_MAX_RESPONSE_BYTES
-export const QUICKBOOKS_INTERNAL_FILE_RESPONSE_MAX_BYTES = 256 * 1024
 
 export async function getQuickBooksDocumentError(
   response: Response,
@@ -356,9 +376,7 @@ export async function getQuickBooksDocumentError(
       try {
         const fault = sanitizeQuickBooksFaultData(JSON.parse(text))
         if (fault) detail = formatQuickBooksFaultDetail(fault)
-      } catch {
-        // Empty, plain-text, and HTML gateway errors intentionally remain opaque.
-      }
+      } catch {}
     }
   } catch {
     detail = 'The error response exceeded the safe size limit.'

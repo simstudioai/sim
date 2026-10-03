@@ -1,7 +1,7 @@
 import type { MySQLQueryParams, MySQLResponse } from '@/tools/mysql/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const queryTool: ToolConfig<MySQLQueryParams, MySQLResponse> = {
+export const queryTool: InternalToolConfig<MySQLQueryParams, MySQLResponse> = {
   id: 'mysql_query',
   name: 'MySQL Query',
   description: 'Execute SELECT query on MySQL database',
@@ -52,13 +52,8 @@ export const queryTool: ToolConfig<MySQLQueryParams, MySQLResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/mysql/query',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

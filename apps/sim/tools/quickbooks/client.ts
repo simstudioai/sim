@@ -1,4 +1,3 @@
-import { env } from '@/lib/core/config/env'
 import {
   readResponseJsonWithLimit,
   readResponseTextWithLimit,
@@ -13,27 +12,14 @@ const QUICKBOOKS_MAX_VALIDATION_ERROR_BYTES = 64 * 1024
 
 export type QuickBooksEnvironment = 'sandbox' | 'production'
 
-export function getQuickBooksEnvironment(): QuickBooksEnvironment {
-  const value = env.QUICKBOOKS_ENV
-  if (!value) {
-    throw new Error(
-      'QUICKBOOKS_ENV must be explicitly configured as either "sandbox" or "production"'
-    )
-  }
-  if (value !== 'sandbox' && value !== 'production') {
-    throw new Error('QUICKBOOKS_ENV must be either "sandbox" or "production"')
-  }
-  return value
-}
-
-export function getQuickBooksApiBaseUrl(): string {
-  return getQuickBooksEnvironment() === 'sandbox'
+export function getQuickBooksApiBaseUrl(environment: QuickBooksEnvironment): string {
+  return environment === 'sandbox'
     ? 'https://sandbox-quickbooks.api.intuit.com'
     : 'https://quickbooks.api.intuit.com'
 }
 
-export function getQuickBooksUserInfoUrl(): string {
-  return getQuickBooksEnvironment() === 'sandbox'
+export function getQuickBooksUserInfoUrl(environment: QuickBooksEnvironment): string {
+  return environment === 'sandbox'
     ? 'https://sandbox-accounts.platform.intuit.com/v1/openid_connect/userinfo'
     : 'https://accounts.platform.intuit.com/v1/openid_connect/userinfo'
 }
@@ -46,11 +32,15 @@ export function normalizeQuickBooksRealmId(realmId: string): string {
   return normalized
 }
 
-export function buildQuickBooksCompanyUrl(realmId: string, resource: string): URL {
+export function buildQuickBooksCompanyUrl(
+  realmId: string,
+  resource: string,
+  environment: QuickBooksEnvironment
+): URL {
   const normalizedRealmId = normalizeQuickBooksRealmId(realmId)
   const url = new URL(
     `/v3/company/${encodeURIComponent(normalizedRealmId)}/${resource}`,
-    getQuickBooksApiBaseUrl()
+    getQuickBooksApiBaseUrl(environment)
   )
   url.searchParams.set('minorversion', QUICKBOOKS_MINOR_VERSION)
   return url
@@ -111,9 +101,7 @@ function createQuickBooksCompanyValidationError(response: Response, responseText
     try {
       const fault = sanitizeQuickBooksFaultData(JSON.parse(responseText))
       if (fault) faultDetail = formatQuickBooksFaultDetail(fault)
-    } catch {
-      // Intuit can return HTML or an empty response for gateway failures.
-    }
+    } catch {}
   }
 
   const trackingId = getQuickBooksTrackingId(response.headers)
@@ -133,13 +121,15 @@ function createQuickBooksCompanyValidationError(response: Response, responseText
 
 export async function fetchValidatedQuickBooksCompanyInfo(
   accessToken: string,
-  realmId: string
+  realmId: string,
+  environment: QuickBooksEnvironment
 ): Promise<QuickBooksCompanyInfoEnvelope> {
   const normalizedRealmId = normalizeQuickBooksRealmId(realmId)
   const response = await fetch(
     buildQuickBooksCompanyUrl(
       normalizedRealmId,
-      `companyinfo/${encodeURIComponent(normalizedRealmId)}`
+      `companyinfo/${encodeURIComponent(normalizedRealmId)}`,
+      environment
     ),
     {
       method: 'GET',

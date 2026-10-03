@@ -1,7 +1,7 @@
 'use client'
 
 import { ChipLink } from '@sim/emcn'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft } from '@sim/emcn/icons'
 import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
 
 interface IntegrationBlockDetailFallbackProps {
@@ -12,7 +12,7 @@ interface IntegrationBlockDetailFallbackProps {
  * Suspense fallback for the integration detail page — the back-link chrome
  * shown while {@link IntegrationBlockDetail} hydrates.
  *
- * This MUST be a client component. The lucide `ArrowLeft` passed as `ChipLink`'s
+ * This MUST be a client component. The `ArrowLeft` icon passed as `ChipLink`'s
  * `leftIcon` is a function, and functions cannot cross the server→client
  * boundary as props. Rendering the fallback from the server `page.tsx` directly
  * threw a React Server Components error ("Functions cannot be passed directly to

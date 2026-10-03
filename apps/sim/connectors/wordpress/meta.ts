@@ -7,7 +7,7 @@ export const wordpressConnectorMeta: ConnectorMeta = {
   id: 'wordpress',
   name: 'WordPress',
   description:
-    'Sync posts and pages from a WordPress.com site. OAuth tokens expire after ~2 weeks (no refresh token).',
+    'Sync published posts and pages from a WordPress.com site. OAuth tokens expire after ~2 weeks (no refresh token).',
   version: '1.0.0',
   icon: WordpressIcon,
 
@@ -20,7 +20,7 @@ export const wordpressConnectorMeta: ConnectorMeta = {
       type: 'short-input',
       placeholder: 'e.g. mysite.wordpress.com',
       required: true,
-      description: 'WordPress site domain',
+      description: 'WordPress.com site domain or site ID',
     },
     {
       id: 'postType',

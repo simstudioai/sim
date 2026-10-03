@@ -6,6 +6,7 @@ import { truncate } from '@sim/utils/string'
 import { eq } from 'drizzle-orm'
 import * as jose from 'jose'
 import { NextResponse } from 'next/server'
+import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { getCredentialOwner, getNotificationUrl } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
@@ -16,7 +17,6 @@ import type {
   SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { isZohoHost } from '@/tools/zoho_desk/host-allowlist'
 import { withDerivedContentText } from '@/tools/zoho_desk/utils'
 
@@ -244,7 +244,6 @@ export const zohoDeskHandler: WebhookProviderHandler = {
 
   async createSubscription({
     webhook: webhookRecord,
-    userId,
     requestId,
   }: SubscriptionContext): Promise<SubscriptionResult | undefined> {
     const config = ((webhookRecord as Record<string, unknown>).providerConfig ?? {}) as Record<

@@ -127,6 +127,15 @@ export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = 
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => {
+        const generatesAnswer =
+          Boolean(params.auto_parameters) ||
+          (Boolean(params.include_answer) && params.include_answer !== 'false')
+        return generatesAnswer ? { query: params.query } : {}
+      },
+    },
     url: 'https://api.tavily.com/search',
     method: 'POST',
     headers: (params) => ({

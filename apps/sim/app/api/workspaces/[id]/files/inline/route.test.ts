@@ -1,80 +1,61 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
-const { mockGetPerms, mockResolveImage, mockDownloadFile } = vi.hoisted(() => ({
-  mockGetPerms: vi.fn(),
-  mockResolveImage: vi.fn(),
-  mockDownloadFile: vi.fn(),
-}))
+const { mockReadInline } = vi.hoisted(() => ({ mockReadInline: vi.fn() }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({ getUserEntityPermissions: mockGetPerms }))
-vi.mock('@/lib/uploads/server/inline-image', () => ({
-  resolveWorkspaceInlineImage: mockResolveImage,
+vi.mock('@/lib/workspace-files/application/read-workspace-inline-file', () => ({
+  readWorkspaceInlineFile: {
+    operation: { id: 'files.read_content', minimumRole: 'read', workspaceApiKey: 'allow' },
+    execute: mockReadInline,
+  },
 }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({ downloadFile: mockDownloadFile }))
 
 import { GET } from '@/app/api/workspaces/[id]/files/inline/route'
 
 const mockGetSession = authMockFns.mockGetSession
-
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00])
 const params = { params: Promise.resolve({ id: 'ws-1' }) }
-const req = (q: string) => new NextRequest(`http://localhost/api/workspaces/ws-1/files/inline?${q}`)
+const req = (q: string) =>
+  new NextRequest(`http://localhost/api/workspaces/ws-1/files/inline${q ? `?${q}` : ''}`)
 
 describe('GET /api/workspaces/[id]/files/inline', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mockGetSession.mockResolvedValue({ user: { id: 'u1' } })
-    mockGetPerms.mockResolvedValue('read')
-    mockResolveImage.mockResolvedValue({
-      key: 'workspace/ws-1/x-photo.png',
-      contentType: 'image/png',
-      filename: 'photo.png',
+    mockGetSession.mockResolvedValue({ user: { id: 'u1' }, session: { id: 's1' } })
+    mockReadInline.mockResolvedValue({
+      file: { name: 'photo.png', type: 'image/png', size: PNG.length },
+      stream: new Blob([new Uint8Array(PNG)]).stream(),
+      contentAddressed: false,
     })
-    mockDownloadFile.mockResolvedValue(PNG)
   })
 
-  it('serves a workspace-scoped image by fileId, always revalidating', async () => {
-    const res = await GET(req('fileId=wf_abc'), params)
-    expect(res.status).toBe(200)
-    expect(mockResolveImage).toHaveBeenCalledWith('ws-1', { fileId: 'wf_abc' })
-    // Authenticated content: always revalidate so a deletion/revocation is enforced on the next request.
-    expect(res.headers.get('Cache-Control')).toBe('private, no-cache, must-revalidate')
+  /**
+   * A storage key names one object and a content write never rewrites one, so these bytes can never
+   * change. Revalidating them meant re-downloading every embedded image on every open — a document is
+   * rendered by two editors (the read-only placeholder, then the live one) and each renders the image
+   * twice, so the image was fetched again on every one of those passes.
+   */
+  it('lets the browser keep an image whose URL names the object that was streamed', async () => {
+    mockReadInline.mockResolvedValue({
+      file: { name: 'photo.png', type: 'image/png', size: PNG.length },
+      stream: new Blob([new Uint8Array(PNG)]).stream(),
+      contentAddressed: true,
+    })
+
+    const res = await GET(req('key=workspace%2Fws-1%2Fphoto.png'), params)
+
+    expect(res.headers.get('Cache-Control')).toBe('private, max-age=31536000, immutable')
   })
 
-  it('serves a workspace-scoped image by key, always revalidating', async () => {
-    const res = await GET(req(`key=${encodeURIComponent('workspace/ws-1/x-photo.png')}`), params)
-    expect(res.status).toBe(200)
-    // Same policy as fileId: authenticated content never cached past a revalidation, so a deleted or
-    // access-revoked image drops out immediately rather than lingering in a private browser cache.
-    expect(res.headers.get('Cache-Control')).toBe('private, no-cache, must-revalidate')
-  })
+  it('returns the concealed 404 response for an unauthorized or missing file', async () => {
+    mockReadInline.mockRejectedValue(
+      new OrchestrationError('forbidden', 'Insufficient permissions')
+    )
 
-  it('404s when the reference does not resolve in the workspace (cross-workspace)', async () => {
-    mockResolveImage.mockResolvedValue(null)
     const res = await GET(req('fileId=wf_other'), params)
+
     expect(res.status).toBe(404)
-  })
-
-  it('404s without workspace membership, before resolving the file', async () => {
-    mockGetPerms.mockResolvedValue(null)
-    const res = await GET(req('fileId=wf_abc'), params)
-    expect(res.status).toBe(404)
-    expect(mockResolveImage).not.toHaveBeenCalled()
-  })
-
-  it('401s without a session', async () => {
-    mockGetSession.mockResolvedValue(null)
-    const res = await GET(req('fileId=wf_abc'), params)
-    expect(res.status).toBe(401)
-  })
-
-  it('400s when neither key nor fileId is provided', async () => {
-    const res = await GET(req(''), params)
-    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'FileNotFoundError', message: 'Not found' })
   })
 })

@@ -2,19 +2,24 @@ import { db } from '@sim/db'
 import { account, credential, credentialMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
-import { and, eq, isNotNull } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { oauthCredentialsQuerySchema } from '@/lib/api/contracts/credentials'
 import { getValidationErrorMessage } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { AuthType, type AuthTypeValue, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getCredentialActorContext } from '@/lib/credentials/access'
+import { canUseCredential, getCredentialActorContext } from '@/lib/credentials/access'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
 import {
   getCanonicalScopesForProvider,
   getServiceAccountProviderForProviderId,
+  providerIdsForService,
 } from '@/lib/oauth/utils'
+import {
+  capabilityRefusal,
+  isWorkspaceCapabilityWithheld,
+} from '@/lib/permission-groups/capability-assertions'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 export const dynamic = 'force-dynamic'
@@ -30,13 +35,15 @@ function toCredentialResponse(
   credentialType: 'oauth' | 'service_account' = 'oauth'
 ) {
   const storedScope = scope?.trim()
-  // Some providers (e.g. Box) don't return scopes in their token response,
-  // so the DB column stays empty. Fall back to the configured scopes for
-  // the provider so the credential-selector doesn't show a false
-  // "Additional permissions required" banner.
+  /**
+   * Confluence reports granted scopes, so absent metadata must prompt reauthorization.
+   * Preserve the existing fallback for providers that omit scopes, such as Box.
+   */
   const scopes = storedScope
     ? storedScope.split(/[\s,]+/).filter(Boolean)
-    : getCanonicalScopesForProvider(providerId)
+    : providerId === 'confluence'
+      ? []
+      : getCanonicalScopesForProvider(providerId)
   const [_, featureType = 'default'] = providerId.split('-')
 
   return {
@@ -48,6 +55,29 @@ function toCredentialResponse(
     isDefault: featureType === 'default',
     scopes,
   }
+}
+
+/**
+ * Whether `integrations.manage` is withheld from the caller in `workspaceId`.
+ *
+ * Only a session is asked. This route authenticates through
+ * `checkSessionOrInternalAuth`, so the same handler answers both a person
+ * opening the credential selector and the executor resolving a credential for a
+ * running workflow. A permission group describes what a *person* may reach; the
+ * executor is not that person, and refusing it would stop a deployed workflow
+ * the group permits — a run failing hours after an admin ticked a box, with
+ * nothing on the surface connecting the two. So the arm that carries a human
+ * intent is gated and the machine arm is not, which is the same split
+ * `principalUserId` makes for a workspace API key.
+ */
+async function integrationsWithheldFromSession(
+  authType: AuthTypeValue | undefined,
+  userId: string,
+  workspaceId: string | null | undefined
+): Promise<boolean> {
+  if (authType !== AuthType.SESSION) return false
+  if (!workspaceId) return false
+  return isWorkspaceCapabilityWithheld(userId, workspaceId, 'integrations.manage')
 }
 
 /**
@@ -122,6 +152,20 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
       requesterCanAdmin = workspaceAccess.canAdmin
+
+      // permission-group-enforced: integrations.manage — raw handler with inline queries, which the authorization funnel never sees
+      if (
+        await integrationsWithheldFromSession(
+          authResult.authType,
+          requesterUserId,
+          effectiveWorkspaceId
+        )
+      ) {
+        return NextResponse.json(
+          { error: capabilityRefusal('integrations.manage') },
+          { status: 403 }
+        )
+      }
     }
 
     if (credentialId) {
@@ -144,6 +188,26 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         .limit(1)
 
       if (platformCredential) {
+        /**
+         * The credential names the workspace whose group governs it, and that is
+         * asked unconditionally — not only when the query named no workspace.
+         * The asserted `workspaceId` is the caller's to choose, so gating on it
+         * alone let a caller who reaches two workspaces pair the ungoverned one
+         * with a credential from the workspace whose group withholds
+         * Integrations, and read it. Both are checked; either withholding is a
+         * refusal, and the resolver memoizes the repeat when they are the same.
+         *
+         * Asked after each branch's own access check, never before: a caller who
+         * may not reach this credential at all must not learn from the refusal
+         * wording that the workspace it belongs to is one their group governs.
+         */
+        const credentialScopeWithheld = () =>
+          integrationsWithheldFromSession(
+            authResult.authType,
+            requesterUserId,
+            platformCredential.workspaceId
+          )
+
         if (platformCredential.type === 'service_account') {
           if (
             workflowId &&
@@ -154,9 +218,17 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
           if (!workflowId) {
             const access = await getCredentialActorContext(platformCredential.id, requesterUserId)
-            if (!access.hasWorkspaceAccess || (!access.member && !access.isAdmin)) {
+            if (!canUseCredential(access)) {
               return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
             }
+          }
+
+          // permission-group-enforced: integrations.manage — the credentialId path carries its own workspace scope
+          if (await credentialScopeWithheld()) {
+            return NextResponse.json(
+              { error: capabilityRefusal('integrations.manage') },
+              { status: 403 }
+            )
           }
 
           return NextResponse.json(
@@ -186,9 +258,17 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           }
         } else {
           const access = await getCredentialActorContext(platformCredential.id, requesterUserId)
-          if (!access.hasWorkspaceAccess || (!access.member && !access.isAdmin)) {
+          if (!canUseCredential(access)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
           }
+        }
+
+        // permission-group-enforced: integrations.manage — the credentialId path carries its own workspace scope
+        if (await credentialScopeWithheld()) {
+          return NextResponse.json(
+            { error: capabilityRefusal('integrations.manage') },
+            { status: 403 }
+          )
         }
 
         if (!platformCredential.accountProviderId || !platformCredential.accountUpdatedAt) {
@@ -241,7 +321,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           and(
             eq(credential.workspaceId, effectiveWorkspaceId),
             eq(credential.type, 'oauth'),
-            eq(account.providerId, providerParam),
+            inArray(account.providerId, providerIdsForService(providerParam)),
             requesterCanAdmin ? undefined : isNotNull(credentialMember.id)
           )
         )

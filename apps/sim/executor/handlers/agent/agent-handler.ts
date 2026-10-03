@@ -1,12 +1,27 @@
-import { db } from '@sim/db'
-import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
+import { getErrorMessage, toError } from '@sim/utils/errors'
+import { isPlainRecord, omit } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
+import {
+  projectModelSchemaAnnotations,
+  projectResolvedModelInput,
+  selectModelSchemaInputPaths,
+} from '@/lib/execution/model-input-provenance'
+import { readAvailableCustomToolByIdOrTitleAsExecutor } from '@/lib/internal/custom-tools/read-available-by-id-or-title'
+import { resolveExecutorFileMaterializationContext } from '@/lib/internal/file/materialization-context'
+import { discoverMcpServerToolsAsExecutor } from '@/lib/internal/mcp/discover-tools'
+import {
+  readWorkflowInputFieldsForTool,
+  readWorkflowMetadataForTool,
+} from '@/lib/internal/workflows/read-tool-enrichment'
+import { assertValidMcpServerToolBindings, MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
+import { resolveMcpToolBinding } from '@/lib/mcp/tool-binding'
+import type { McpToolSchema } from '@/lib/mcp/types'
 import { createMcpToolId } from '@/lib/mcp/utils'
+import { type AgentTurnSession, openAgentTurnSession } from '@/lib/memory/agent-turn-session'
+import { MEMORY } from '@/lib/memory/constants'
+import { createAgentMemoryRetrievalTool } from '@/lib/memory/retrieval-tool'
 import {
   type AutoMediaKind,
   type AutoRoutingResult,
@@ -14,26 +29,44 @@ import {
   resolveAutoModel,
   SIM_AUTO_SYSTEM_PREAMBLE,
 } from '@/lib/model-router/resolve'
+import { importWorkspaceFileSecretProvenanceForModelView } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
+  getFileExtension,
   MODEL_SUPPORTED_IMAGE_MIME_TYPES,
   processFilesToUserFiles,
   type RawFileInput,
+  tryInferContextFromKey,
 } from '@/lib/uploads/utils/file-utils'
+import {
+  appendUnavailableAttachmentNotice,
+  selectModelBoundFileInputPaths,
+} from '@/lib/uploads/utils/model-input'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
+import {
+  type FallbackModelCandidate,
+  resolveFallbackTuning,
+} from '@/lib/workflows/blocks/fallback-models'
 import { resolveCustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
-import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
-import { getAllBlocks } from '@/blocks'
+import {
+  getAgentToolUsageControlMode,
+  resolveAgentToolUsageControl,
+} from '@/lib/workflows/tool-input/usage-control'
+import { getAllBlocks, getBlock } from '@/blocks'
+import { assembleCustomBlockInputMapping, isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockOutput } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import {
+  assertPermissionsAllowed,
   validateBlockType,
-  validateCustomToolsAllowed,
-  validateMcpToolsAllowed,
   validateModelProvider,
-  validateSkillsAllowed,
 } from '@/ee/access-control/utils/permission-check'
 import { AGENT, BlockType, DEFAULTS, stripCustomToolPrefix } from '@/executor/constants'
-import { memoryService } from '@/executor/handlers/agent/memory'
+import { isRetryableBlockError } from '@/executor/execution/block-retry'
+import {
+  getMemoryMessageAppendKey,
+  getMemoryMessageTurnId,
+  memoryService,
+} from '@/executor/handlers/agent/memory'
 import {
   buildLoadSkillTool,
   buildSkillsSystemPromptSection,
@@ -41,30 +74,238 @@ import {
 } from '@/executor/handlers/agent/skills-resolver'
 import type {
   AgentInputs,
+  FileNameProjection,
   Message,
   StreamingConfig,
   ToolInput,
 } from '@/executor/handlers/agent/types'
 import { parseResponseFormat } from '@/executor/handlers/shared/response-format'
-import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/executor/types'
+import type {
+  BlockHandler,
+  BlockNodeMetadata,
+  ExecutionContext,
+  StreamingExecution,
+  UserFile,
+} from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
-import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
+import {
+  getModelFallbacks,
+  PROVIDER_FAMILY_CREDENTIAL_FIELDS,
+  recordModelFallbacks,
+  resolveFallbackApiKey,
+} from '@/executor/utils/model-fallbacks'
+import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
+import { prepareResolvedSecretProjectedInputs } from '@/executor/utils/resolved-secret-input-projection'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
+import type {
+  ResolvedSecretInputPath,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
+import { annotateDuplicateToolBindings } from '@/executor/utils/tool-binding-labels'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
 import {
-  INLINE_ATTACHMENT_THRESHOLD_BYTES,
+  formatAttachmentSizes,
+  getProviderFileStrategy,
+  isProviderAttachmentFilenameModelBound,
   shouldUseLargeFilePath,
   supportsFileAttachments,
 } from '@/providers/attachments'
-import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
-import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
+import {
+  copyNativeConversationMessage,
+  isConversationHistoryNotice,
+} from '@/providers/conversation-metadata'
+import {
+  canUseProviderLargeFilePath,
+  getInlineHydrationMaxBytes,
+} from '@/providers/file-attachments.server'
+import { isAutoModel, isEvaluationModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
+import {
+  type ProviderToolInputProvenance,
+  registerProviderToolInputProvenance,
+  registerProviderToolModelInputRegistry,
+} from '@/providers/tool-input-provenance'
+import type { ProviderToolConfig } from '@/providers/types'
+import { getProviderFromModel, isDeepResearchModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
-import { filterSchemaForLLM, type ToolSchema } from '@/tools/params'
+import { buildJsonSchemaParamShapes, decodeToolParams } from '@/tools/param-shape'
+import { filterSchemaForLLM, type ToolSchema, ToolSchemaEnrichmentError } from '@/tools/params'
 import { getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
 
 const logger = createLogger('AgentBlockHandler')
+const MODEL_SAFE_RESPONSE_FORMAT_NAME = 'response_schema'
+const AGENT_MODEL_INPUT_REFUSAL = 'Agent model input could not be safely projected'
+const AGENT_TOOL_INPUT_REFUSAL = 'Agent tool input could not be safely projected'
+const AGENT_PRIVATE_SELECTOR_REFUSAL = 'Agent private selector could not be safely projected'
+const toAgentToolInputSafetyError = (message: string) => new AgentToolInputSafetyError(message)
+
+const AGENT_RAW_PROVIDER_ERROR_INPUT_PATHS: readonly ResolvedSecretInputPath[] = [
+  ['model'],
+  ['temperature'],
+  ['maxTokens'],
+  ['apiKey'],
+  ['azureEndpoint'],
+  ['azureApiVersion'],
+  ['vertexProject'],
+  ['vertexLocation'],
+  ['vertexCredential'],
+  ['bedrockAccessKeyId'],
+  ['bedrockSecretKey'],
+  ['bedrockRegion'],
+  ['reasoningEffort'],
+  ['verbosity'],
+  ['thinkingLevel'],
+  ['promptCaching'],
+  ['previousInteractionId'],
+  ['fallbackModels'],
+]
+
+interface IndexedToolInput {
+  tool: ToolInput
+  toolIndex: number
+}
+
+/**
+ * Removes the sim-auto identity preamble from the system messages built for a
+ * routed primary. A fallback the builder named is not a pool model, so it must
+ * not be told to hide which model it is. Messages are built once per block run
+ * (building them appends to memory), which is why this strips rather than
+ * rebuilds.
+ */
+function stripAutoPreamble(messages: Message[] | undefined): Message[] | undefined {
+  if (!messages) return messages
+  const prefix = `${SIM_AUTO_SYSTEM_PREAMBLE}\n\n`
+  return messages.flatMap((message) => {
+    if (message.role !== 'system' || typeof message.content !== 'string') return [message]
+    if (message.content === SIM_AUTO_SYSTEM_PREAMBLE) return []
+    if (!message.content.startsWith(prefix)) return [message]
+    return [{ ...message, content: message.content.slice(prefix.length) }]
+  })
+}
+
+/** One model in the order the block tries them; the primary carries the block's own key. */
+interface ModelCandidate extends FallbackModelCandidate {
+  isPrimary: boolean
+  /**
+   * What the trace calls this model when it fails. A routed sim-auto primary
+   * shows as the auto identity, since naming the pool model is the leak that
+   * `applyAutoModelLabel` exists to close.
+   */
+  traceName?: string
+}
+
+interface ExecuteAcrossModelsConfig {
+  candidates: ModelCandidate[]
+  retryPrimaryOnStreamStart: boolean
+  primaryModel: string
+  /**
+   * The model the builder configured, which is what the editor showed the
+   * per-row tuning fields against. Under sim-auto that is the auto id, not the
+   * pool model routed for this run, so a row's value applies whatever was routed.
+   */
+  configuredModel: string
+  primaryProviderId: string
+  messages: Message[] | undefined
+  /** Provider id to hydrated messages; seeded with the primary, filled per fallback provider. */
+  hydratedByProvider: Map<string, Message[] | undefined>
+  fileProjection: ReturnType<AgentBlockHandler['projectFileNamesForModel']>
+  modelInputs: AgentInputs
+  /**
+   * The system prompt without the sim-auto identity preamble, present only when
+   * the primary was auto-routed: a fallback the builder named is not a pool
+   * model and must not be told to hide which model it is.
+   */
+  fallbackSystemPrompt?: string
+  formattedTools: ProviderToolConfig[]
+  responseFormat: any
+  streaming: boolean
+  settledInputRegistry: ResolvedSecretTraceRegistry | undefined
+  resultRegistry: ResolvedSecretTraceRegistry | undefined
+  providerErrorRegistry: ResolvedSecretTraceRegistry | undefined
+  agentConversation?: AgentTurnSession
+}
+
+interface FormattedAgentTools {
+  tools: ProviderToolConfig[]
+  inputProvenance: Map<ProviderToolConfig, Omit<ProviderToolInputProvenance, 'registry'>>
+}
+
+class AgentToolInputSafetyError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'AgentToolInputSafetyError'
+  }
+}
+
+function projectAgentDiagnosticMetadata(
+  ctx: ExecutionContext,
+  metadata: Record<string, unknown>,
+  fallback: Record<string, unknown>
+): Record<string, unknown> {
+  const projection = projectResolvedSecretDiagnosticContent(
+    metadata,
+    ctx.resolvedSecretTraceRegistry
+  )
+  return projection.safe && isPlainRecord(projection.value) ? projection.value : fallback
+}
+
+function getErrorDiagnosticMetadata(error: unknown): Record<string, unknown> {
+  const normalizedError = toError(error)
+  return {
+    errorName: normalizedError.name,
+    errorMessage: normalizedError.message,
+    ...(normalizedError.stack ? { errorStack: normalizedError.stack } : {}),
+  }
+}
+
+function getErrorDiagnosticFallback(error: unknown): Record<string, unknown> {
+  return {
+    errorType: error instanceof Error ? 'error' : typeof error,
+  }
+}
+
+function getToolDiagnosticMetadata(tool: ToolInput): Record<string, unknown> {
+  return {
+    toolType: tool.type,
+    customToolId: tool.customToolId,
+    title: tool.title,
+    operation: tool.operation,
+    usageControl: tool.usageControl,
+    toolName: tool.params?.toolName,
+    serverId: tool.params?.serverId,
+    hasSchema: tool.schema !== undefined,
+    hasParams: tool.params !== undefined,
+  }
+}
+
+function getToolDiagnosticFallback(tool: ToolInput): Record<string, unknown> {
+  return {
+    hasToolType: typeof tool.type === 'string',
+    hasCustomToolId: typeof tool.customToolId === 'string',
+    hasToolName: typeof tool.params?.toolName === 'string',
+    hasServerId: typeof tool.params?.serverId === 'string',
+    hasSchema: tool.schema !== undefined,
+    hasParams: tool.params !== undefined,
+  }
+}
+
+/**
+ * True when a failure originated from a transport deadline or abort, at any depth of the
+ * cause chain.
+ *
+ * Providers rewrap transport failures (`ProviderError` overwrites `name`), so a check on
+ * the top-level `name` alone misses every wrapped case. Bounded to a short walk so a
+ * self-referential cause cannot loop.
+ */
+function isTransportTimeout(error: unknown): boolean {
+  for (let current = error, depth = 0; current instanceof Error && depth < 5; depth++) {
+    if (current.name === 'AbortError' || current.name === 'TimeoutError') return true
+    current = current.cause
+  }
+  return false
+}
 
 /**
  * Handler for Agent blocks that process LLM requests with optional tools.
@@ -77,116 +318,369 @@ export class AgentBlockHandler implements BlockHandler {
   async execute(
     ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: AgentInputs
+    inputs: AgentInputs,
+    nodeMetadata?: BlockNodeMetadata
   ): Promise<BlockOutput | StreamingExecution> {
-    const toolIndexByRef = new Map<ToolInput, number>(
-      (inputs.tools || []).map((tool, index) => [tool, index] as const)
+    /** Inactive fields can remain saved when the builder switches model modalities. */
+    inputs = isEvaluationModel(inputs.model || AGENT.DEFAULT_MODEL)
+      ? {
+          model: inputs.model,
+          apiKey: inputs.apiKey,
+          evaluationState: inputs.evaluationState,
+          evaluationQuestions: inputs.evaluationQuestions,
+        }
+      : inputs
+    ctx.mcpBlockId = block.id
+    const providerErrorRegistry = ctx.resolvedSecretTraceRegistry?.forkForInputPaths(
+      AGENT_RAW_PROVIDER_ERROR_INPUT_PATHS
     )
-
-    const filteredTools = await this.filterUnavailableMcpTools(ctx, inputs.tools || [])
-    const filteredInputs = { ...inputs, tools: filteredTools }
-
-    await this.validateToolPermissions(ctx, filteredInputs.tools || [])
-
-    const responseFormat = parseResponseFormat(filteredInputs.responseFormat)
-    const configuredModel = filteredInputs.model || AGENT.DEFAULT_MODEL
-
-    let model = configuredModel
-    let autoRouting: AutoRoutingResult | null = null
-    if (isAutoModel(configuredModel)) {
-      autoRouting = await resolveAutoModel({
+    ctx.errorResolvedSecretTraceRegistry = providerErrorRegistry
+    const privateAgentSelectorInputPaths: ResolvedSecretInputPath[] = []
+    let responseFormatModelInputPaths: ResolvedSecretInputPath[] = []
+    let privateAgentSelectorsSettled = false
+    const settlePrivateAgentSelectors = (): void => {
+      if (privateAgentSelectorsSettled) return
+      privateAgentSelectorsSettled = true
+      this.settlePrivateAgentSelectors(
         ctx,
-        blockId: block.id,
-        signals: this.buildAutoRoutingSignals(filteredInputs, responseFormat),
-        fallbackModel: AGENT.DEFAULT_MODEL,
-      })
-      model = autoRouting.model
-      logger.info('Resolved sim-auto model', {
-        blockId: block.id,
-        model,
-        tier: autoRouting.tier,
-        decidedBy: autoRouting.decidedBy,
-      })
-      // Hidden identity preamble for every auto execution (fallback included):
-      // keeps pool models in English by default and off the topic of which
-      // underlying model they are. Applied after signal building so the
-      // preamble never influences classification.
-      filteredInputs.systemPrompt = [SIM_AUTO_SYSTEM_PREAMBLE, filteredInputs.systemPrompt]
-        .filter(Boolean)
-        .join('\n\n')
+        inputs,
+        privateAgentSelectorInputPaths,
+        responseFormatModelInputPaths
+      )
     }
 
-    await validateModelProvider(ctx.userId, ctx.workspaceId, model, ctx)
-
-    const providerId = getProviderFromModel(model)
-    const formattedTools = await this.formatTools(
-      ctx,
-      filteredInputs.tools || [],
-      block.canonicalModes,
-      toolIndexByRef
-    )
-
-    const skillInputs = filteredInputs.skills ?? []
-    let skillMetadata: Array<{ name: string; description: string }> = []
-    if (skillInputs.length > 0 && ctx.workspaceId) {
-      await validateSkillsAllowed(ctx.userId, ctx.workspaceId, ctx)
-      skillMetadata = await resolveSkillMetadata(skillInputs, ctx.workspaceId)
-      if (skillMetadata.length > 0) {
-        const skillNames = skillMetadata.map((s) => s.name)
-        formattedTools.push(buildLoadSkillTool(skillNames))
+    try {
+      const tools = this.resolveToolUsageControls(inputs.tools || [], block.canonicalModes)
+      const toolIndexByRef = new Map<ToolInput, number>(
+        tools.map((tool, index) => [tool, index] as const)
+      )
+      const privateAgentSelectors = this.getPrivateAgentSelectorInputPaths(ctx, inputs, [])
+      privateAgentSelectorInputPaths.push(...privateAgentSelectors.inputPaths)
+      if (!privateAgentSelectors.complete) {
+        refuseResolvedSecretProjection({
+          site: 'agent.privateSelectorProvenance',
+          message: AGENT_PRIVATE_SELECTOR_REFUSAL,
+          registry: ctx.resolvedSecretTraceRegistry,
+          inputPath: 'responseFormat,tools,skills',
+          createError: toAgentToolInputSafetyError,
+        })
       }
-    }
+      const responseFormatProjection = this.projectResponseFormatForModel(
+        ctx,
+        inputs,
+        (privateNameInputPaths) => {
+          privateAgentSelectorInputPaths.push(...privateNameInputPaths)
+        }
+      )
+      responseFormatModelInputPaths = responseFormatProjection.inputPaths
+      const filteredInputs = { ...inputs, tools }
+      this.assertInputPathsDoNotResolveSecrets(
+        ctx,
+        this.getMessageStructuralInputPaths(filteredInputs),
+        'Agent structural model inputs cannot contain secret references'
+      )
+      const fileProjection = this.projectFileNamesForModel(ctx, filteredInputs)
+      const coreModelInputPaths = this.getModelInputPaths(filteredInputs)
+      const modelInputProjection = projectResolvedModelInput(
+        ctx.resolvedSecretTraceRegistry,
+        {
+          systemPrompt: filteredInputs.systemPrompt,
+          userPrompt: filteredInputs.userPrompt,
+          messages: filteredInputs.messages,
+          memories: filteredInputs.memories,
+          ...(isEvaluationModel(filteredInputs.model || AGENT.DEFAULT_MODEL) && {
+            evaluationState: filteredInputs.evaluationState,
+            evaluationQuestions: filteredInputs.evaluationQuestions,
+          }),
+        },
+        coreModelInputPaths
+      )
+      if (!modelInputProjection.complete) {
+        refuseResolvedSecretProjection({
+          site: 'agent.coreModelInput',
+          message: AGENT_MODEL_INPUT_REFUSAL,
+          registry: ctx.resolvedSecretTraceRegistry,
+        })
+      }
+      const modelInputs: AgentInputs = {
+        ...filteredInputs,
+        ...modelInputProjection.value,
+        responseFormat: responseFormatProjection.value,
+      }
+      /** The system prompt as the model may see it, before any auto-routing preamble joins it. */
+      const projectedSystemPrompt = modelInputs.systemPrompt
+      const projectedToolInputs = this.projectToolInputsForProvenance(ctx, tools)
 
-    const streamingConfig = this.getStreamingConfig(ctx, block)
-    const messages = await this.buildMessages(ctx, filteredInputs, skillMetadata)
-    const messagesWithInputFiles = this.attachFilesToLastUserMessage(
-      ctx,
-      messages,
-      filteredInputs.files
-    )
-    const messagesWithFiles = await this.hydrateMessageFilesForProvider(
-      ctx,
-      messagesWithInputFiles,
-      providerId
-    )
+      await this.validateToolPermissions(ctx, filteredInputs.tools || [])
 
-    const providerRequest = this.buildProviderRequest({
-      ctx,
-      providerId,
-      model,
-      messages: messagesWithFiles,
-      inputs: filteredInputs,
-      formattedTools,
-      responseFormat,
-      streaming: streamingConfig.shouldUseStreaming ?? false,
-    })
+      const responseFormat = parseResponseFormat(modelInputs.responseFormat)
+      const configuredModel = filteredInputs.model || AGENT.DEFAULT_MODEL
 
-    const result = await this.executeProviderRequest(ctx, providerRequest, block, responseFormat)
+      let model = configuredModel
+      let autoRouting: AutoRoutingResult | null = null
+      if (isAutoModel(configuredModel)) {
+        autoRouting = await resolveAutoModel({
+          ctx,
+          blockId: block.id,
+          signals: this.buildAutoRoutingSignals(
+            {
+              ...modelInputs,
+              systemPrompt: filteredInputs.systemPrompt ? modelInputs.systemPrompt : undefined,
+              userPrompt: filteredInputs.userPrompt
+                ? modelInputs.userPrompt
+                : filteredInputs.userPrompt,
+            },
+            responseFormat
+          ),
+          fallbackModel: AGENT.DEFAULT_MODEL,
+        })
+        model = autoRouting.model
+        logger.info(
+          'Resolved sim-auto model',
+          projectAgentDiagnosticMetadata(
+            ctx,
+            {
+              blockId: block.id,
+              model,
+              tier: autoRouting.tier,
+              decidedBy: autoRouting.decidedBy,
+            },
+            {
+              blockId: block.id,
+              tier: autoRouting.tier,
+              decidedBy: autoRouting.decidedBy,
+            }
+          )
+        )
+        // Hidden identity preamble for every auto execution (fallback included):
+        // keeps pool models in English by default and off the topic of which
+        // underlying model they are. Applied after signal building so the
+        // preamble never influences classification.
+        modelInputs.systemPrompt = [SIM_AUTO_SYSTEM_PREAMBLE, modelInputs.systemPrompt]
+          .filter(Boolean)
+          .join('\n\n')
+      }
 
-    if (autoRouting && autoRouting.billableRoutingCost > 0) {
-      this.applyRoutingCost(result, autoRouting.billableRoutingCost)
-    }
+      await validateModelProvider(ctx.userId, ctx.workspaceId, model, ctx)
 
-    if (autoRouting) {
-      this.applyAutoModelLabel(result, model)
-    }
+      const providerId = getProviderFromModel(model)
+      const formatted = await this.formatTools(
+        ctx,
+        filteredInputs.tools || [],
+        block.canonicalModes,
+        toolIndexByRef,
+        projectedToolInputs
+      )
 
-    if (this.isStreamingExecution(result)) {
+      const skillInputs = filteredInputs.skills ?? []
+      let skillMetadata: Array<{ name: string; description: string }> = []
+      if (skillInputs.length > 0 && ctx.workspaceId) {
+        await assertPermissionsAllowed({
+          userId: ctx.userId,
+          workspaceId: ctx.workspaceId,
+          toolKind: 'skill',
+          ctx,
+        })
+        skillMetadata = await resolveSkillMetadata(skillInputs, ctx.workspaceId)
+        if (skillMetadata.length > 0) {
+          const skillNames = skillMetadata.map((s) => s.name)
+          formatted.tools.push(buildLoadSkillTool(skillNames))
+        }
+      }
+
+      const streamingConfig = this.getStreamingConfig(ctx, block)
+      const agentConversation =
+        filteredInputs.memoryType &&
+        filteredInputs.memoryType !== 'none' &&
+        filteredInputs.conversationId &&
+        nodeMetadata &&
+        nodeMetadata.executionOrder !== undefined &&
+        !modelInputs.previousInteractionId &&
+        !isDeepResearchModel(model)
+          ? await openAgentTurnSession({
+              ctx,
+              blockId: block.id,
+              nodeId: nodeMetadata.nodeId,
+              executionOrder: nodeMetadata.executionOrder,
+              conversationId: filteredInputs.conversationId,
+            })
+          : undefined
+      const messagesWithInputFiles = await this.buildMessages(
+        ctx,
+        filteredInputs,
+        modelInputs,
+        skillMetadata,
+        fileProjection,
+        agentConversation
+      )
+      /**
+       * The primary hydrates before the registries settle and fork, as it always
+       * has: hydration imports file provenance into the live registry, and the
+       * result fork below must carry it. Fallbacks on another provider hydrate
+       * inside the chain and re-fork there.
+       */
+      const hydratedByProvider = new Map<string, Message[] | undefined>([
+        [
+          providerId,
+          await this.hydrateMessageFilesForProvider(
+            ctx,
+            messagesWithInputFiles,
+            providerId,
+            fileProjection.projectedNameByFile,
+            fileProjection.modelBoundInputPaths
+          ),
+        ],
+      ])
+
+      settlePrivateAgentSelectors()
+
+      const settledInputRegistry = ctx.resolvedSecretTraceRegistry
+      const resultRegistry = settledInputRegistry?.forkForInputPaths([])
+      if (modelInputProjection.registry) {
+        for (const tool of formatted.tools) {
+          registerProviderToolModelInputRegistry(tool, modelInputProjection.registry)
+        }
+      }
+      if (resultRegistry && settledInputRegistry) {
+        for (const [tool, provenance] of formatted.inputProvenance) {
+          registerProviderToolInputProvenance(tool, {
+            ...provenance,
+            registry: settledInputRegistry,
+          })
+        }
+      }
+
+      /**
+       * Retry on fail retries the selected model; the fallbacks join only on the
+       * try after which the executor promises no other. Until then a failure of
+       * the primary is left to escape, so the executor's policy can replay it.
+       *
+       * A follow-up turn of a deep-research interaction lives on the primary's
+       * provider; another model has none of that conversation, so a green answer
+       * from it would be built on a fresh context. Such a request never falls back.
+       */
+      const configuredFallbacks = getModelFallbacks(
+        ctx,
+        block,
+        filteredInputs.fallbackModels,
+        logger
+      )
+      if (configuredFallbacks.some((candidate) => isEvaluationModel(candidate.model))) {
+        throw new Error('Evaluation models cannot serve as chat fallbacks')
+      }
+      const retry = nodeMetadata?.retry
+      const fallbacksHeld = retry !== undefined && !retry.isFinalTry
+      const fallbackCandidates =
+        modelInputs.previousInteractionId || fallbacksHeld
+          ? []
+          : configuredFallbacks.filter(
+              (candidate) => candidate.model.toLowerCase() !== model.toLowerCase()
+            )
+      if (configuredFallbacks.length > 0 && modelInputs.previousInteractionId) {
+        logger.info('Fallback models skipped for a deep-research follow-up turn', {
+          blockId: block.id,
+        })
+      } else if (configuredFallbacks.length > 0 && fallbacksHeld) {
+        logger.info('Fallback models held for the final try', {
+          blockId: block.id,
+          attempt: retry.attempt,
+          maxTries: retry.maxTries,
+        })
+      }
+      const candidates: ModelCandidate[] = [
+        {
+          model,
+          apiKey: modelInputs.apiKey,
+          isPrimary: true,
+          ...(autoRouting ? { traceName: SIM_AUTO_MODEL_ID } : {}),
+        },
+        ...fallbackCandidates.map((candidate) => ({ ...candidate, isPrimary: false })),
+      ]
+      const {
+        result,
+        servedModel,
+        resultRegistry: servedRegistry,
+      } = await this.executeAcrossModels(ctx, block, {
+        candidates,
+        retryPrimaryOnStreamStart:
+          fallbacksHeld && configuredFallbacks.length > 0 && !modelInputs.previousInteractionId,
+        primaryModel: model,
+        configuredModel: autoRouting ? SIM_AUTO_MODEL_ID : model,
+        primaryProviderId: providerId,
+        messages: messagesWithInputFiles,
+        hydratedByProvider,
+        fileProjection,
+        modelInputs,
+        fallbackSystemPrompt: autoRouting ? projectedSystemPrompt : undefined,
+        formattedTools: formatted.tools,
+        responseFormat,
+        streaming: streamingConfig.shouldUseStreaming ?? false,
+        settledInputRegistry,
+        resultRegistry,
+        providerErrorRegistry,
+        agentConversation,
+      })
+      if (servedRegistry) ctx.resolvedSecretTraceRegistry = servedRegistry
+
+      if (autoRouting && autoRouting.billableRoutingCost > 0) {
+        this.applyRoutingCost(result, autoRouting.billableRoutingCost)
+      }
+
+      /**
+       * A fallback the builder named explicitly is not a pool model, so it keeps
+       * its own name; only the routed pool model hides behind the auto label.
+       */
+      if (autoRouting && servedModel === model) {
+        this.applyAutoModelLabel(result, model)
+      }
+
+      if (this.isStreamingExecution(result)) {
+        const streamingResult = result as StreamingExecution
+        streamingResult.diagnosticResolvedSecretTraceRegistry = providerErrorRegistry
+        if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
+          return this.wrapStreamForMemoryPersistence(
+            ctx,
+            filteredInputs,
+            streamingResult,
+            servedModel,
+            agentConversation
+          )
+        }
+        return streamingResult
+      }
+
       if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
-        return this.wrapStreamForMemoryPersistence(
+        await this.persistResponseToMemory(
           ctx,
           filteredInputs,
-          result as StreamingExecution
+          result as BlockOutput,
+          servedModel,
+          agentConversation
         )
       }
+
       return result
+    } finally {
+      settlePrivateAgentSelectors()
     }
+  }
 
-    if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
-      await this.persistResponseToMemory(ctx, filteredInputs, result as BlockOutput)
-    }
+  private resolveToolUsageControls(
+    tools: ToolInput[],
+    canonicalModes?: Record<string, 'basic' | 'advanced'>
+  ): ToolInput[] {
+    return tools.map((tool, toolIndex) => {
+      if (getAgentToolUsageControlMode(toolIndex, canonicalModes) === 'basic') return tool
 
-    return result
+      const usageControl = resolveAgentToolUsageControl(tool, toolIndex, canonicalModes)
+      if (!usageControl) {
+        throw new Error(
+          `Tool ${toolIndex + 1} mode must resolve to Auto, Force, or None before the Agent can run.`
+        )
+      }
+
+      return { ...tool, usageControl }
+    })
   }
 
   /**
@@ -328,95 +822,130 @@ export class AgentBlockHandler implements BlockHandler {
   private async validateToolPermissions(ctx: ExecutionContext, tools: ToolInput[]): Promise<void> {
     if (!Array.isArray(tools) || tools.length === 0) return
 
-    const hasMcpTools = tools.some((t) => t.type === 'mcp')
+    const hasMcpTools = tools.some(
+      (t) => t.type === 'mcp' || t.type === MCP_SERVER_ADVANCED_TOOL_TYPE
+    )
     const hasCustomTools = tools.some((t) => t.type === 'custom-tool')
 
     if (hasMcpTools) {
-      await validateMcpToolsAllowed(ctx.userId, ctx.workspaceId, ctx)
+      await assertPermissionsAllowed({
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+        toolKind: 'mcp',
+        ctx,
+      })
     }
 
     if (hasCustomTools) {
-      await validateCustomToolsAllowed(ctx.userId, ctx.workspaceId, ctx)
+      await assertPermissionsAllowed({
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+        toolKind: 'custom',
+        ctx,
+      })
     }
   }
 
-  private async filterUnavailableMcpTools(
+  private projectToolInputsForProvenance(
     ctx: ExecutionContext,
-    tools: ToolInput[]
-  ): Promise<ToolInput[]> {
-    if (!Array.isArray(tools) || tools.length === 0) return tools
+    inputTools: ToolInput[]
+  ): ToolInput[] | undefined {
+    const registry = ctx.resolvedSecretTraceRegistry
+    if (!registry?.hasResolvedInputProjections() || inputTools.length === 0) return undefined
 
-    const mcpTools = tools.filter((t) => t.type === 'mcp')
-    if (mcpTools.length === 0) return tools
-
-    const serverIds = [...new Set(mcpTools.map((t) => t.params?.serverId).filter(Boolean))]
-    if (serverIds.length === 0) return tools
-
-    if (!ctx.workspaceId) {
-      logger.warn('Skipping MCP availability filtering without workspace scope')
-      return tools
+    const projection = registry.projectResolvedInputSelection({ tools: inputTools })
+    if (!projection.complete || !Array.isArray(projection.value.tools)) {
+      refuseResolvedSecretProjection({
+        site: 'agent.toolInputProvenanceProjection',
+        message: AGENT_TOOL_INPUT_REFUSAL,
+        registry,
+        inputPath: 'tools',
+      })
     }
-
-    const availableServerIds = new Set<string>()
-    if (serverIds.length > 0) {
-      try {
-        const servers = await db
-          .select({ id: mcpServers.id, connectionStatus: mcpServers.connectionStatus })
-          .from(mcpServers)
-          .where(
-            and(
-              eq(mcpServers.workspaceId, ctx.workspaceId),
-              inArray(mcpServers.id, serverIds),
-              isNull(mcpServers.deletedAt)
-            )
-          )
-
-        for (const server of servers) {
-          if (server.connectionStatus === 'connected') {
-            availableServerIds.add(server.id)
-          }
-        }
-      } catch (error) {
-        logger.warn('Failed to check MCP server availability, including all tools:', error)
-        for (const serverId of serverIds) {
-          availableServerIds.add(serverId)
-        }
-      }
-    }
-
-    return tools.filter((tool) => {
-      if (tool.type !== 'mcp') return true
-      const serverId = tool.params?.serverId
-      if (!serverId) return false
-      return availableServerIds.has(serverId)
-    })
+    return projection.value.tools as ToolInput[]
   }
 
   /**
-   * `canonicalModes` overrides are keyed by each tool's position in the ORIGINAL, unfiltered
-   * tools array (matching what the editor wrote), not by `tool.type` - so two tool entries of
-   * the same type (e.g. two Table tools) resolve independently. `toolIndexByRef` preserves that
-   * original position across the mcp-availability filter and the mcp/other split below, both of
-   * which would otherwise renumber tools by their post-filter position.
+   * Preserve original tool indexes through disabled-tool filtering and MCP grouping
+   * so canonical modes and secret provenance stay attached to the configured tool.
    */
   private async formatTools(
     ctx: ExecutionContext,
     inputTools: ToolInput[],
     canonicalModes?: Record<string, 'basic' | 'advanced'>,
-    toolIndexByRef?: Map<ToolInput, number>
-  ): Promise<any[]> {
-    if (!Array.isArray(inputTools)) return []
+    toolIndexByRef?: Map<ToolInput, number>,
+    projectedToolInputs?: ToolInput[]
+  ): Promise<FormattedAgentTools> {
+    if (!Array.isArray(inputTools)) {
+      return { tools: [], inputProvenance: new Map() }
+    }
 
     const filtered = inputTools
       .map((tool, localIndex) => ({ tool, toolIndex: toolIndexByRef?.get(tool) ?? localIndex }))
       .filter(({ tool }) => (tool.usageControl || 'auto') !== 'none')
 
-    const mcpTools: ToolInput[] = []
-    const otherTools: Array<{ tool: ToolInput; toolIndex: number }> = []
+    this.assertInputPathsDoNotResolveSecrets(
+      ctx,
+      filtered.flatMap(({ tool, toolIndex }) => {
+        const root = ['tools', String(toolIndex)] as const
+        const paths: ResolvedSecretInputPath[] = [[...root, 'type']]
+        if (tool.operation !== undefined) paths.push([...root, 'operation'])
+        if (tool.type === 'mcp' || tool.type === MCP_SERVER_ADVANCED_TOOL_TYPE) {
+          paths.push([...root, 'params', 'serverId'])
+        }
+        if (tool.type === 'mcp') {
+          paths.push([...root, 'params', 'toolName'])
+        }
+        if (tool.type === 'custom-tool' && !tool.customToolId) {
+          paths.push([...root, 'title'], [...root, 'schema', 'function', 'name'])
+        }
+        return paths
+      }),
+      'Agent structural model inputs cannot contain secret references'
+    )
 
+    const mcpTools: IndexedToolInput[] = []
+    const advancedMcpServers: IndexedToolInput[] = []
+    const otherTools: IndexedToolInput[] = []
+    const inputProvenance = new Map<
+      ProviderToolConfig,
+      Omit<ProviderToolInputProvenance, 'registry'>
+    >()
+
+    const trackInputProvenance = (
+      formattedTool: ProviderToolConfig | null,
+      entry: IndexedToolInput
+    ): ProviderToolConfig | null => {
+      if (!formattedTool) return null
+      const sourcePath = ['tools', String(entry.toolIndex), 'params']
+      const sourceProvenance =
+        ctx.resolvedSecretTraceRegistry?.exportCommittedProvenanceForInputPaths([sourcePath])
+      if (sourceProvenance && !sourceProvenance.complete) {
+        return null
+      }
+      if (!sourceProvenance || sourceProvenance.entries.length === 0) {
+        return formattedTool
+      }
+      const projectedInput = projectedToolInputs?.[entry.toolIndex]
+      inputProvenance.set(formattedTool, {
+        sourcePath,
+        projectedParams: this.getProjectedProviderToolParams(
+          entry.tool,
+          projectedInput,
+          formattedTool
+        ),
+      })
+      return formattedTool
+    }
+
+    assertValidMcpServerToolBindings(filtered.map(({ tool }) => tool))
     for (const entry of filtered) {
       if (entry.tool.type === 'mcp') {
-        mcpTools.push(entry.tool)
+        mcpTools.push(entry)
+      } else if (entry.tool.type === MCP_SERVER_ADVANCED_TOOL_TYPE) {
+        const serverId = entry.tool.params?.serverId
+        if (typeof serverId === 'string' && !serverId.trim()) continue
+        advancedMcpServers.push(entry)
       } else {
         otherTools.push(entry)
       }
@@ -429,57 +958,229 @@ export class AgentBlockHandler implements BlockHandler {
             await validateBlockType(ctx.userId, ctx.workspaceId, tool.type, ctx)
           }
           if (tool.type === 'custom-tool' && (tool.schema || tool.customToolId)) {
-            return await this.createCustomTool(ctx, tool)
+            return trackInputProvenance(
+              await this.createCustomTool(ctx, tool, projectedToolInputs?.[toolIndex], toolIndex),
+              {
+                tool,
+                toolIndex,
+              }
+            )
           }
-          return this.transformBlockTool(ctx, tool, canonicalModes, toolIndex)
+          return trackInputProvenance(
+            await this.transformBlockTool(ctx, tool, canonicalModes, toolIndex),
+            { tool, toolIndex }
+          )
         } catch (error) {
-          logger.error(`[AgentHandler] Error creating tool:`, { tool, error })
+          if (
+            error instanceof ToolSchemaEnrichmentError ||
+            error instanceof AgentToolInputSafetyError
+          ) {
+            throw error
+          }
+          logger.error(
+            '[AgentHandler] Error creating tool',
+            projectAgentDiagnosticMetadata(
+              ctx,
+              { ...getToolDiagnosticMetadata(tool), ...getErrorDiagnosticMetadata(error) },
+              { ...getToolDiagnosticFallback(tool), ...getErrorDiagnosticFallback(error) }
+            )
+          )
           return null
         }
       })
     )
 
-    const mcpResults = await this.processMcpToolsBatched(ctx, mcpTools)
-
-    const allTools = [...otherResults, ...mcpResults]
-    return allTools.filter(
-      (tool): tool is NonNullable<typeof tool> => tool !== null && tool !== undefined
+    const mcpResults = await this.processMcpToolsBatched(ctx, mcpTools, trackInputProvenance)
+    const advancedMcpResults = await this.processAdvancedMcpServers(
+      ctx,
+      advancedMcpServers,
+      trackInputProvenance
     )
+
+    const allTools = [...otherResults, ...mcpResults, ...advancedMcpResults]
+    const tools = allTools.filter(
+      (tool): tool is ProviderToolConfig => tool !== null && tool !== undefined
+    )
+    await annotateDuplicateToolBindings(ctx, tools)
+    return { tools, inputProvenance }
   }
 
-  private async createCustomTool(ctx: ExecutionContext, tool: ToolInput): Promise<any> {
-    const userProvidedParams = tool.params || {}
+  private assertInputPathsDoNotResolveSecrets(
+    ctx: ExecutionContext,
+    inputPaths: readonly ResolvedSecretInputPath[],
+    errorMessage: string
+  ): void {
+    const registry = ctx.resolvedSecretTraceRegistry
+    if (!registry) return
+
+    const provenance = registry.exportCommittedProvenanceForInputPaths(inputPaths)
+    if (!provenance.complete) {
+      refuseResolvedSecretProjection({
+        site: 'agent.structuralInputProvenance',
+        message: AGENT_TOOL_INPUT_REFUSAL,
+        registry,
+        createError: toAgentToolInputSafetyError,
+      })
+    }
+    if (provenance.entries.length > 0) {
+      throw new AgentToolInputSafetyError(errorMessage)
+    }
+  }
+
+  private getProjectedProviderToolParams(
+    tool: ToolInput,
+    projectedTool: ToolInput | undefined,
+    formattedTool: ProviderToolConfig
+  ): Record<string, unknown> {
+    const projectedParams = projectedTool?.params ?? tool.params ?? {}
+    const formattedParams = formattedTool.params ?? {}
+
+    if (isCustomBlockType(tool.type)) {
+      // Same sub-blocks the raw copy was assembled with, so both sides decode alike and
+      // the projection keeps the shape the provenance registry compares.
+      return {
+        ...formattedParams,
+        inputMapping: assembleCustomBlockInputMapping(
+          projectedParams,
+          formattedTool.customBlockInputFields
+        ),
+      }
+    }
+
+    const alignedParams = Object.fromEntries(
+      Object.keys(formattedParams).map((key) => [
+        key,
+        Object.hasOwn(projectedParams, key) ? projectedParams[key] : formattedParams[key],
+      ])
+    )
+    // An MCP tool has no block, so its only structured keys are the ones its own
+    // `paramsTransform` decodes. A custom tool has neither.
+    const blockInputs =
+      tool.type &&
+      tool.type !== 'mcp' &&
+      tool.type !== MCP_SERVER_ADVANCED_TOOL_TYPE &&
+      tool.type !== 'custom-tool'
+        ? getBlock(tool.type)?.inputs
+        : undefined
+    return prepareResolvedSecretProjectedInputs(alignedParams, blockInputs, formattedParams, {
+      additionalStructuredKeys: formattedTool.jsonShapedParamKeys,
+    })
+  }
+
+  private async createCustomTool(
+    ctx: ExecutionContext,
+    tool: ToolInput,
+    projectedTool?: ToolInput,
+    toolIndex?: number
+  ): Promise<any> {
+    const userProvidedParams = omit(tool.params || {}, [
+      'serverId',
+      'toolName',
+      'serverName',
+      'connectionId',
+    ])
 
     let schema = tool.schema
+    let modelSchema = projectedTool?.schema ?? schema
     let title = tool.title
+    let usesInlineDefinition = true
 
     if (tool.customToolId) {
       const resolved = await this.fetchCustomToolById(ctx, tool.customToolId)
       if (resolved) {
         schema = resolved.schema
+        modelSchema = resolved.schema
         title = resolved.title
+        usesInlineDefinition = false
       } else if (!schema) {
-        logger.error(`Custom tool not found: ${tool.customToolId}`)
+        logger.error(
+          'Custom tool not found',
+          projectAgentDiagnosticMetadata(
+            ctx,
+            getToolDiagnosticMetadata(tool),
+            getToolDiagnosticFallback(tool)
+          )
+        )
         return null
       }
     }
 
-    if (!schema?.function) {
-      logger.error('Custom tool missing schema:', { customToolId: tool.customToolId, title })
-      return null
+    if (usesInlineDefinition && toolIndex !== undefined) {
+      const functionRoot = ['tools', String(toolIndex), 'schema', 'function'] as const
+      const schemaPaths = selectModelSchemaInputPaths(tool.schema?.function?.parameters, [
+        ...functionRoot,
+        'parameters',
+      ])
+      this.assertInputPathsDoNotResolveSecrets(
+        ctx,
+        [
+          ['tools', String(toolIndex), 'title'],
+          [...functionRoot, 'name'],
+          ...schemaPaths.semanticInputPaths,
+        ],
+        'Agent structural model inputs cannot contain secret references'
+      )
     }
 
-    const filteredSchema = filterSchemaForLLM(schema.function.parameters, userProvidedParams)
+    if (!schema?.function) {
+      logger.error(
+        'Custom tool missing schema',
+        projectAgentDiagnosticMetadata(
+          ctx,
+          { customToolId: tool.customToolId, title },
+          { hasCustomToolId: typeof tool.customToolId === 'string', hasTitle: Boolean(title) }
+        )
+      )
+      return null
+    }
+    if (!modelSchema?.function) {
+      refuseResolvedSecretProjection({
+        site: 'agent.customToolModelSchemaMissing',
+        message: AGENT_TOOL_INPUT_REFUSAL,
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'tools',
+        createError: toAgentToolInputSafetyError,
+      })
+    }
+    const parametersProjection = projectModelSchemaAnnotations(
+      schema.function.parameters,
+      modelSchema.function.parameters
+    )
+    if (!parametersProjection.safe) {
+      refuseResolvedSecretProjection({
+        site: 'agent.customToolSchemaAnnotations',
+        message: AGENT_TOOL_INPUT_REFUSAL,
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'tools',
+        createError: toAgentToolInputSafetyError,
+      })
+    }
+    const rawDescription = schema.function.description
+    const projectedDescription = modelSchema.function.description
+    if (
+      (rawDescription === undefined && projectedDescription !== undefined) ||
+      (rawDescription !== undefined && projectedDescription === undefined)
+    ) {
+      refuseResolvedSecretProjection({
+        site: 'agent.customToolDescriptionArity',
+        message: AGENT_TOOL_INPUT_REFUSAL,
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'tools',
+        createError: toAgentToolInputSafetyError,
+      })
+    }
+
+    const modelParameters = parametersProjection.value as ToolSchema
+    const filteredSchema = filterSchemaForLLM(modelParameters, userProvidedParams)
 
     const toolId = `${AGENT.CUSTOM_TOOL_PREFIX}${title}`
     const base: any = {
       id: toolId,
-      name: schema.function.name,
-      description: schema.function.description || '',
+      description: projectedDescription || '',
       params: userProvidedParams,
       parameters: {
         ...filteredSchema,
-        type: schema.function.parameters.type,
+        type: modelParameters.type,
       },
       usageControl: tool.usageControl || 'auto',
     }
@@ -494,20 +1195,34 @@ export class AgentBlockHandler implements BlockHandler {
     ctx: ExecutionContext,
     customToolId: string
   ): Promise<{ schema: any; title: string } | null> {
-    if (!ctx.userId) {
-      logger.error('Cannot fetch custom tool without userId:', { customToolId })
+    if (!ctx.userId && !ctx.executorDelegationOrigin?.subjectUserId) {
+      logger.error(
+        'Cannot fetch custom tool without userId',
+        projectAgentDiagnosticMetadata(
+          ctx,
+          { customToolId },
+          { hasCustomToolId: customToolId.length > 0 }
+        )
+      )
       return null
     }
 
     try {
-      const tool = await getCustomToolById({
-        toolId: customToolId,
-        userId: ctx.userId,
-        workspaceId: ctx.workspaceId,
+      const tool = await readAvailableCustomToolByIdOrTitleAsExecutor({
+        context: ctx,
+        identifier: customToolId,
+        lookup: 'id',
       })
 
       if (!tool) {
-        logger.warn(`Custom tool not found by ID: ${customToolId}`)
+        logger.warn(
+          'Custom tool not found by ID',
+          projectAgentDiagnosticMetadata(
+            ctx,
+            { customToolId },
+            { hasCustomToolId: customToolId.length > 0 }
+          )
+        )
         return null
       }
 
@@ -516,209 +1231,115 @@ export class AgentBlockHandler implements BlockHandler {
         title: tool.title,
       }
     } catch (error) {
-      logger.error('Error fetching custom tool:', { customToolId, error })
+      logger.error(
+        'Error fetching custom tool',
+        projectAgentDiagnosticMetadata(
+          ctx,
+          { customToolId, ...getErrorDiagnosticMetadata(error) },
+          { hasCustomToolId: customToolId.length > 0, ...getErrorDiagnosticFallback(error) }
+        )
+      )
       return null
     }
   }
 
   /**
-   * Process MCP tools using cached schemas from build time.
-   * Note: Unavailable tools are already filtered by filterUnavailableMcpTools.
+   * Discovers authorized schemas once per selected server and rejects missing operations.
    */
   private async processMcpToolsBatched(
     ctx: ExecutionContext,
-    mcpTools: ToolInput[]
-  ): Promise<any[]> {
-    if (mcpTools.length === 0) return []
-
-    const results: any[] = []
-    const toolsWithSchema: ToolInput[] = []
-    const toolsNeedingDiscovery: ToolInput[] = []
-
-    for (const tool of mcpTools) {
-      const serverId = tool.params?.serverId
-      const toolName = tool.params?.toolName
-
-      if (!serverId || !toolName) {
-        logger.error('MCP tool missing serverId or toolName:', tool)
-        continue
+    mcpTools: IndexedToolInput[],
+    trackInputProvenance: (
+      formattedTool: ProviderToolConfig | null,
+      entry: IndexedToolInput
+    ) => ProviderToolConfig | null
+  ): Promise<Array<ProviderToolConfig | null>> {
+    const byServer = new Map<string, Awaited<ReturnType<typeof discoverMcpServerToolsAsExecutor>>>()
+    const results: Array<ProviderToolConfig | null> = []
+    for (const entry of mcpTools) {
+      const { serverId, toolName } = resolveMcpToolBinding(entry.tool)
+      let discovered = byServer.get(serverId)
+      if (!discovered) {
+        discovered = await this.discoverMcpToolsForServer(ctx, serverId)
+        byServer.set(serverId, discovered)
       }
-
-      if (tool.schema) {
-        toolsWithSchema.push(tool)
-      } else {
-        logger.warn(`MCP tool ${toolName} missing cached schema, will need discovery`)
-        toolsNeedingDiscovery.push(tool)
-      }
+      const tool = discovered.find((candidate) => candidate.name === toolName)
+      if (!tool) throw new Error(`MCP operation "${toolName}" is missing or not permitted`)
+      const created = await this.createMcpToolFromDiscoveredData(entry.tool, tool, serverId)
+      results.push(trackInputProvenance(created, entry))
     }
-
-    for (const tool of toolsWithSchema) {
-      try {
-        const created = await this.createMcpToolFromCachedSchema(ctx, tool)
-        if (created) results.push(created)
-      } catch (error) {
-        logger.error(`Error creating MCP tool from cached schema:`, { tool, error })
-      }
-    }
-
-    if (toolsNeedingDiscovery.length > 0) {
-      const discoveredResults = await this.processMcpToolsWithDiscovery(ctx, toolsNeedingDiscovery)
-      results.push(...discoveredResults)
-    }
-
     return results
   }
 
-  /**
-   * Create MCP tool from cached schema. No MCP server connection required.
-   */
-  private async createMcpToolFromCachedSchema(
+  private async processAdvancedMcpServers(
     ctx: ExecutionContext,
-    tool: ToolInput
-  ): Promise<any> {
-    const { serverId, toolName, serverName, ...userProvidedParams } = tool.params || {}
-    return this.buildMcpTool({
-      serverId,
-      toolName,
-      description:
-        tool.schema?.description || `MCP tool ${toolName} from ${serverName || serverId}`,
-      schema: tool.schema || { type: 'object', properties: {} },
-      userProvidedParams,
-      usageControl: tool.usageControl,
-    })
-  }
-
-  /**
-   * Fallback for legacy tools without cached schemas. Groups by server to minimize connections.
-   */
-  private async processMcpToolsWithDiscovery(
-    ctx: ExecutionContext,
-    mcpTools: ToolInput[]
-  ): Promise<any[]> {
-    const toolsByServer = new Map<string, ToolInput[]>()
-    for (const tool of mcpTools) {
-      const serverId = tool.params?.serverId
-      if (!toolsByServer.has(serverId)) {
-        toolsByServer.set(serverId, [])
-      }
-      toolsByServer.get(serverId)!.push(tool)
-    }
-
-    const serverDiscoveryResults = await Promise.all(
-      Array.from(toolsByServer.entries()).map(async ([serverId, tools]) => {
-        try {
-          const discoveredTools = await this.discoverMcpToolsForServer(ctx, serverId)
-          return { serverId, tools, discoveredTools, error: null as Error | null }
-        } catch (error) {
-          logger.error(`Failed to discover tools from server ${serverId}:`)
-          return { serverId, tools, discoveredTools: [] as any[], error: error as Error }
-        }
+    entries: IndexedToolInput[],
+    trackInputProvenance: (
+      formattedTool: ProviderToolConfig | null,
+      entry: IndexedToolInput
+    ) => ProviderToolConfig | null
+  ): Promise<Array<ProviderToolConfig | null>> {
+    const results = await Promise.all(
+      entries.map(async (entry) => {
+        const serverId = entry.tool.params?.serverId
+        if (!serverId) throw new Error('MCP Server (Advanced) requires params.serverId')
+        const tools = await this.discoverMcpToolsForServer(ctx, serverId)
+        if (!tools.length)
+          throw new Error(`No permitted MCP operations are available for ${serverId}`)
+        return Promise.all(
+          tools.map(async (tool) => {
+            const created = await this.buildMcpTool({
+              serverId: serverId,
+              toolName: tool.name,
+              description: tool.description || `MCP tool ${tool.name} from ${tool.serverName}`,
+              schema: tool.inputSchema,
+              userProvidedParams: {},
+              usageControl: entry.tool.usageControl,
+            })
+            return trackInputProvenance(created, entry)
+          })
+        )
       })
     )
-
-    const results: any[] = []
-    for (const { serverId, tools, discoveredTools, error } of serverDiscoveryResults) {
-      if (error) continue
-
-      for (const tool of tools) {
-        try {
-          const toolName = tool.params?.toolName
-          const mcpTool = discoveredTools.find((t: any) => t.name === toolName)
-
-          if (!mcpTool) {
-            logger.error(`MCP tool ${toolName} not found on server ${serverId}`)
-            continue
-          }
-
-          const created = await this.createMcpToolFromDiscoveredData(ctx, tool, mcpTool, serverId)
-          if (created) results.push(created)
-        } catch (error) {
-          logger.error(`Error creating MCP tool:`, { tool, error })
-        }
-      }
-    }
-
-    return results
+    return results.flat()
   }
 
-  /**
-   * Discover tools from a single MCP server with retry logic.
-   */
-  private async discoverMcpToolsForServer(ctx: ExecutionContext, serverId: string): Promise<any[]> {
+  /** Discovers one server's tools through the authorized MCP operation. */
+  private async discoverMcpToolsForServer(ctx: ExecutionContext, serverId: string) {
     if (!ctx.workspaceId) {
       throw new Error('workspaceId is required for MCP tool discovery')
     }
     if (!ctx.workflowId) {
-      throw new Error('workflowId is required for internal JWT authentication')
+      throw new Error('workflowId is required for MCP tool discovery')
     }
 
-    const headers = await buildAuthHeaders(ctx.userId)
-    const url = buildAPIUrl('/api/mcp/tools/discover', {
-      serverId,
+    return discoverMcpServerToolsAsExecutor({
       workspaceId: ctx.workspaceId,
-      workflowId: ctx.workflowId,
-      ...(ctx.userId ? { userId: ctx.userId } : {}),
+      context: {
+        workflowId: ctx.workflowId,
+        workspaceId: ctx.workspaceId,
+        executionId: ctx.executionId,
+        userId: ctx.userId,
+        executorDelegationOrigin: ctx.executorDelegationOrigin,
+        mcpBlockId: ctx.mcpBlockId,
+      },
+      serverId,
+      signal: ctx.abortSignal,
     })
-
-    const maxAttempts = 2
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      try {
-        const response = await fetch(url.toString(), { method: 'GET', headers })
-
-        if (!response.ok) {
-          const errorText = await response.text()
-          if (this.isRetryableError(errorText) && attempt < maxAttempts - 1) {
-            logger.warn(
-              `[AgentHandler] Session error discovering tools from ${serverId}, retrying (attempt ${attempt + 1})`
-            )
-            await sleep(100)
-            continue
-          }
-          throw new Error(`Failed to discover tools: ${response.status} ${errorText}`)
-        }
-
-        const data = await response.json()
-        if (!data.success) {
-          throw new Error(data.error || 'Failed to discover MCP tools')
-        }
-
-        return data.data.tools
-      } catch (error) {
-        const errorMsg = toError(error).message
-        if (this.isRetryableError(errorMsg) && attempt < maxAttempts - 1) {
-          logger.warn(
-            `[AgentHandler] Retryable error discovering tools from ${serverId} (attempt ${attempt + 1}):`,
-            error
-          )
-          await sleep(100)
-          continue
-        }
-        throw error
-      }
-    }
-
-    throw new Error(
-      `Failed to discover tools from server ${serverId} after ${maxAttempts} attempts`
-    )
-  }
-
-  private isRetryableError(errorMsg: string): boolean {
-    const lowerMsg = errorMsg.toLowerCase()
-    return lowerMsg.includes('session') || lowerMsg.includes('400') || lowerMsg.includes('404')
   }
 
   private async createMcpToolFromDiscoveredData(
-    ctx: ExecutionContext,
     tool: ToolInput,
-    mcpTool: any,
+    mcpTool: Awaited<ReturnType<typeof discoverMcpServerToolsAsExecutor>>[number],
     serverId: string
-  ): Promise<any> {
-    const { toolName, ...userProvidedParams } = tool.params || {}
+  ): Promise<ProviderToolConfig> {
+    const { toolName } = resolveMcpToolBinding(tool)
+    const userProvidedParams = tool.params || {}
     return this.buildMcpTool({
       serverId,
       toolName,
       description: mcpTool.description || `MCP tool ${toolName} from ${mcpTool.serverName}`,
-      schema: mcpTool.inputSchema || { type: 'object', properties: {} },
+      schema: mcpTool.inputSchema,
       userProvidedParams,
       usageControl: tool.usageControl,
     })
@@ -728,20 +1349,35 @@ export class AgentBlockHandler implements BlockHandler {
     serverId: string
     toolName: string
     description: string
-    schema: ToolSchema
+    schema: McpToolSchema
     userProvidedParams: Record<string, unknown>
     usageControl?: 'auto' | 'force' | 'none'
-  }) {
+  }): Promise<ProviderToolConfig> {
     const filteredSchema = filterSchemaForLLM(config.schema, config.userProvidedParams)
     const toolId = createMcpToolId(config.serverId, config.toolName)
 
+    // An MCP tool row renders its arguments through the same sub-block controls a block
+    // tool uses, so its stored values are stringified the same way and need the same
+    // decode. The shapes come from the tool's own JSON Schema, which is what chose the
+    // controls in the first place.
+    const paramShapes = buildJsonSchemaParamShapes(config.schema)
+    const jsonShapedParamKeys = [...paramShapes]
+      .filter(([, shape]) => shape === 'json')
+      .map(([paramId]) => paramId)
+
     return {
       id: toolId,
-      name: config.toolName,
       description: config.description,
-      parameters: filteredSchema,
+      parameters: {
+        ...filteredSchema,
+        type: filteredSchema.type,
+        properties: filteredSchema.properties ?? {},
+        required: filteredSchema.required ?? [],
+      },
       params: config.userProvidedParams,
       usageControl: config.usageControl || 'auto',
+      paramsTransform: (params: Record<string, unknown>) => decodeToolParams(params, paramShapes),
+      ...(jsonShapedParamKeys.length > 0 && { jsonShapedParamKeys }),
     }
   }
 
@@ -756,15 +1392,22 @@ export class AgentBlockHandler implements BlockHandler {
       getAllBlocks,
       getToolAsync: (toolId: string) =>
         getToolAsync(toolId, {
-          workflowId: ctx.workflowId,
-          userId: ctx.userId,
-          workspaceId: ctx.workspaceId,
+          executionContext: ctx,
         }),
       getTool,
       canonicalModes,
+      enrichmentContext: {
+        workflowId: ctx.workflowId,
+        workspaceId: ctx.workspaceId,
+        executionId: ctx.executionId,
+        userId: ctx.userId,
+        executorDelegationOrigin: ctx.executorDelegationOrigin,
+      },
       toolIndex,
       resolveCustomBlockBinding: (blockType: string) =>
         resolveCustomBlockToolBinding(blockType, ctx.workspaceId),
+      readWorkflowInputFields: readWorkflowInputFieldsForTool,
+      readWorkflowMetadata: readWorkflowMetadataForTool,
     })
 
     if (transformedTool) {
@@ -792,40 +1435,95 @@ export class AgentBlockHandler implements BlockHandler {
   private async buildMessages(
     ctx: ExecutionContext,
     inputs: AgentInputs,
-    skillMetadata: Array<{ name: string; description: string }> = []
+    modelInputs: AgentInputs,
+    skillMetadata: Array<{ name: string; description: string }>,
+    fileProjection: ReturnType<AgentBlockHandler['projectFileNamesForModel']>,
+    agentConversation?: AgentTurnSession
   ): Promise<Message[] | undefined> {
     const messages: Message[] = []
     const memoryEnabled = inputs.memoryType && inputs.memoryType !== 'none'
+    const pendingMemoryMessages: Array<{ raw: Message; model: Message; appendKey: string }> = []
+    let persistedUserPrompt = false
+    let seedMessageCount = 0
 
     // 1. Extract and validate messages from messages-input subblock
     const inputMessages = this.extractValidMessages(inputs.messages)
-    const systemMessages = inputMessages.filter((m) => m.role === 'system')
-    const conversationMessages = inputMessages.filter((m) => m.role !== 'system')
+    const projectedInputMessages = this.extractValidMessages(modelInputs.messages)
+    const systemMessages = projectedInputMessages.filter((m) => m.role === 'system')
+    const conversationMessages = projectedInputMessages.filter((m) => m.role !== 'system')
+    const rawConversationMessages = inputMessages.filter((m) => m.role !== 'system')
 
     // 2. Handle native memory: seed on first run, then fetch and append new user input
     if (memoryEnabled && ctx.workspaceId) {
-      const memoryMessages = await memoryService.fetchMemoryMessages(ctx, inputs)
+      const memoryMessages = await memoryService.fetchMemoryMessages(
+        ctx,
+        inputs,
+        fileProjection.projectedNameByFile,
+        {
+          richHistory: Boolean(agentConversation),
+          excludeTurnId: agentConversation?.turnId,
+          memoryId: agentConversation?.memoryId,
+        }
+      )
       const hasExisting = memoryMessages.length > 0
+      persistedUserPrompt = Boolean(
+        agentConversation &&
+          memoryMessages.some(
+            (message) =>
+              getMemoryMessageTurnId(message) === agentConversation.turnId &&
+              getMemoryMessageAppendKey(message) === 'user-prompt'
+          )
+      )
 
       if (!hasExisting && conversationMessages.length > 0) {
         const taggedMessages = conversationMessages.map((m) =>
           m.role === 'user' ? { ...m, executionId: ctx.executionId } : m
         )
-        await memoryService.seedMemory(ctx, inputs, taggedMessages)
+        const rawTaggedMessages = rawConversationMessages.map((m) =>
+          m.role === 'user' ? { ...m, executionId: ctx.executionId } : m
+        )
+        for (let index = 0; index < taggedMessages.length; index++) {
+          pendingMemoryMessages.push({
+            raw: rawTaggedMessages[index],
+            model: taggedMessages[index],
+            appendKey: `seed:${index}`,
+          })
+        }
+        seedMessageCount = taggedMessages.length
         messages.push(...taggedMessages)
       } else {
         messages.push(...memoryMessages)
 
         if (hasExisting && conversationMessages.length > 0) {
           const latestUserFromInput = conversationMessages.filter((m) => m.role === 'user').pop()
+          const latestRawUserFromInput = rawConversationMessages
+            .filter((m) => m.role === 'user')
+            .pop()
           if (latestUserFromInput) {
+            if (!latestRawUserFromInput) {
+              refuseResolvedSecretProjection({
+                site: 'agent.memoryUserMessageArity',
+                message: AGENT_MODEL_INPUT_REFUSAL,
+                registry: ctx.resolvedSecretTraceRegistry,
+                inputPath: 'messages',
+              })
+            }
             const userMessageInThisRun = memoryMessages.some(
-              (m) => m.role === 'user' && m.executionId === ctx.executionId
+              (m) =>
+                m.role === 'user' &&
+                (agentConversation
+                  ? getMemoryMessageTurnId(m) === agentConversation.turnId &&
+                    getMemoryMessageAppendKey(m) !== 'user-prompt'
+                  : m.executionId === ctx.executionId)
             )
             if (!userMessageInThisRun) {
               const taggedMessage = { ...latestUserFromInput, executionId: ctx.executionId }
               messages.push(taggedMessage)
-              await memoryService.appendToMemory(ctx, inputs, taggedMessage)
+              pendingMemoryMessages.push({
+                raw: { ...latestRawUserFromInput, executionId: ctx.executionId },
+                model: taggedMessage,
+                appendKey: 'input',
+              })
             }
           }
         }
@@ -835,7 +1533,7 @@ export class AgentBlockHandler implements BlockHandler {
     // 3. Process legacy memories (backward compatibility - from Memory block)
     // These may include system messages which are preserved in their position
     if (inputs.memories) {
-      messages.push(...this.processMemories(inputs.memories))
+      messages.push(...this.processMemories(modelInputs.memories))
     }
 
     // 4. Add conversation messages from inputs.messages (if not using native memory)
@@ -849,19 +1547,23 @@ export class AgentBlockHandler implements BlockHandler {
     if (inputs.systemPrompt) {
       const hasSystem = systemMessages.length > 0 || messages.some((m) => m.role === 'system')
       if (!hasSystem) {
-        this.addSystemPrompt(messages, inputs.systemPrompt)
+        this.addSystemPrompt(messages, modelInputs.systemPrompt)
       }
     }
 
     // 6. Handle legacy userPrompt - this is NEW input each run
-    if (inputs.userPrompt) {
-      this.addUserPrompt(messages, inputs.userPrompt)
+    if (inputs.userPrompt && !persistedUserPrompt) {
+      this.addUserPrompt(messages, modelInputs.userPrompt)
 
       if (memoryEnabled) {
         const userMessages = messages.filter((m) => m.role === 'user')
         const lastUserMessage = userMessages[userMessages.length - 1]
         if (lastUserMessage) {
-          await memoryService.appendToMemory(ctx, inputs, lastUserMessage)
+          pendingMemoryMessages.push({
+            raw: { ...lastUserMessage, content: this.formatUserPrompt(inputs.userPrompt) },
+            model: lastUserMessage,
+            appendKey: 'user-prompt',
+          })
         }
       }
     }
@@ -886,17 +1588,67 @@ export class AgentBlockHandler implements BlockHandler {
       }
     }
 
-    return messages.length > 0 ? messages : undefined
+    const messagesWithFiles = this.attachFilesToLastUserMessage(
+      ctx,
+      messages.length > 0 ? messages : undefined,
+      inputs.files,
+      fileProjection.projectedFiles,
+      fileProjection.projectedNameByFile,
+      fileProjection.directNameInputPaths
+    )
+
+    /** Persist the complete turn before provider hydration adds bytes or transient handles. */
+    const lastUserMessage = messages
+      .filter((message) => message.role === 'user' && !isConversationHistoryNotice(message))
+      .at(-1)
+    const attachedUserMessage = messagesWithFiles
+      ?.filter((message) => message.role === 'user' && !isConversationHistoryNotice(message))
+      .at(-1)
+    const messagesToStore = pendingMemoryMessages.map(({ raw, model }) =>
+      model === lastUserMessage && attachedUserMessage?.files
+        ? { ...raw, files: attachedUserMessage.files }
+        : raw
+    )
+    if (agentConversation?.memoryId) {
+      for (let index = 0; index < messagesToStore.length; index++) {
+        await memoryService.appendToMemory(ctx, inputs, messagesToStore[index], {
+          memoryId: agentConversation.memoryId,
+          turnId: agentConversation.turnId,
+          appendKey: pendingMemoryMessages[index].appendKey,
+        })
+      }
+    } else if (seedMessageCount > 0) {
+      await memoryService.seedMemory(ctx, inputs, messagesToStore.slice(0, seedMessageCount))
+    }
+    if (!agentConversation?.memoryId) {
+      for (const message of messagesToStore.slice(seedMessageCount)) {
+        await memoryService.appendToMemory(ctx, inputs, message)
+      }
+    }
+
+    return messagesWithFiles
   }
 
   private attachFilesToLastUserMessage(
     ctx: ExecutionContext,
     messages: Message[] | undefined,
-    filesInput: unknown
+    filesInput: unknown,
+    projectedFilesInput: unknown,
+    projectedNameByFile: WeakMap<object, FileNameProjection>,
+    directNameInputPaths: readonly ResolvedSecretInputPath[]
   ): Message[] | undefined {
     const normalizedFiles = normalizeFileInput(filesInput)
     if (!normalizedFiles || normalizedFiles.length === 0) {
       return messages
+    }
+    const projectedFiles = normalizeFileInput(projectedFilesInput)
+    if (!projectedFiles || projectedFiles.length !== normalizedFiles.length) {
+      refuseResolvedSecretProjection({
+        site: 'agent.fileInputArity',
+        message: AGENT_MODEL_INPUT_REFUSAL,
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'files',
+      })
     }
 
     if (!messages || messages.length === 0) {
@@ -905,7 +1657,7 @@ export class AgentBlockHandler implements BlockHandler {
 
     let lastUserMessageIndex = -1
     for (let index = messages.length - 1; index >= 0; index--) {
-      if (messages[index].role === 'user') {
+      if (messages[index].role === 'user' && !isConversationHistoryNotice(messages[index])) {
         lastUserMessageIndex = index
         break
       }
@@ -915,17 +1667,43 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     const requestId = ctx.executionId || ctx.workflowId || 'agent-files'
-    const userFiles = processFilesToUserFiles(normalizedFiles as RawFileInput[], requestId, logger)
+    const userFiles = normalizedFiles.flatMap((file, index) => {
+      const converted = processFilesToUserFiles([file] as RawFileInput[], requestId, logger)
+      const userFile = converted[0]
+      if (!userFile) return []
+
+      const projectedFile = projectedFiles[index]
+      if (!isPlainRecord(projectedFile) || typeof projectedFile.name !== 'string') {
+        refuseResolvedSecretProjection({
+          site: 'agent.fileInputShape',
+          message: AGENT_MODEL_INPUT_REFUSAL,
+          registry: ctx.resolvedSecretTraceRegistry,
+          inputPath: 'files',
+        })
+      }
+      const rawName = isPlainRecord(file) ? file.name : undefined
+      if (typeof rawName === 'string' && projectedFile.name !== rawName) {
+        projectedNameByFile.set(userFile, {
+          name: projectedFile.name,
+          inputPath: directNameInputPaths[index] ?? ['files', String(index), 'name'],
+        })
+      }
+      return [userFile]
+    })
     if (userFiles.length === 0) {
       throw new Error('Files must include at least one valid file object')
     }
 
     const lastUserMessage = messages[lastUserMessageIndex]
+    const filesByKey = new Map(
+      [...(lastUserMessage.files ?? []), ...userFiles].map((file) => [file.key || file.id, file])
+    )
     const nextMessages = [...messages]
     nextMessages[lastUserMessageIndex] = {
       ...lastUserMessage,
-      files: [...(lastUserMessage.files ?? []), ...userFiles],
+      files: Array.from(filesByKey.values()),
     }
+    copyNativeConversationMessage(lastUserMessage, nextMessages[lastUserMessageIndex])
 
     return nextMessages
   }
@@ -933,7 +1711,9 @@ export class AgentBlockHandler implements BlockHandler {
   private async hydrateMessageFilesForProvider(
     ctx: ExecutionContext,
     messages: Message[] | undefined,
-    providerId: string
+    providerId: string,
+    projectedNameByFile: WeakMap<object, FileNameProjection>,
+    modelBoundInputPaths: ResolvedSecretInputPath[]
   ): Promise<Message[] | undefined> {
     if (!messages?.some((message) => message.files?.length)) {
       return messages
@@ -943,8 +1723,9 @@ export class AgentBlockHandler implements BlockHandler {
       throw new Error(`File attachments are not supported for provider "${providerId}"`)
     }
 
-    const requestId = ctx.executionId || ctx.workflowId || 'agent-files'
     const nextMessages = [...messages]
+
+    const inlineMaxBytes = getInlineHydrationMaxBytes(providerId)
 
     for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
       const message = messages[messageIndex]
@@ -952,33 +1733,125 @@ export class AgentBlockHandler implements BlockHandler {
         continue
       }
 
-      const hydratedFiles = await hydrateUserFilesWithBase64(message.files, {
-        requestId,
-        workspaceId: ctx.workspaceId,
-        workflowId: ctx.workflowId,
-        executionId: ctx.executionId,
-        largeValueExecutionIds: ctx.largeValueExecutionIds,
-        largeValueKeys: ctx.largeValueKeys,
-        fileKeys: ctx.fileKeys,
-        allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
-        userId: ctx.userId,
-        logger,
-        maxBytes: INLINE_ATTACHMENT_THRESHOLD_BYTES,
+      const unsafeGeneratedDocumentFiles = new Set<string>()
+      const groups = new Map<boolean, Array<{ file: UserFile; index: number }>>()
+      message.files.forEach((file, index) => {
+        const workspaceFile =
+          ctx.principal?.kind === 'system' && tryInferContextFromKey(file.key) === 'workspace'
+        const group = groups.get(workspaceFile) ?? []
+        group.push({ file, index })
+        groups.set(workspaceFile, group)
       })
+      const hydratedFiles = [...message.files]
+      await Promise.all(
+        [...groups.values()].map(async (group) => {
+          const hydrated = await hydrateUserFilesWithBase64(
+            group.map(({ file }) => file),
+            {
+              ...(await resolveExecutorFileMaterializationContext(ctx, group[0].file)),
+              logger,
+              maxBytes: inlineMaxBytes,
+              onServableFileContributors: async (file, contributors) => {
+                if (!ctx.workspaceId) return
+                for (const identity of contributors) {
+                  const safe = await importWorkspaceFileSecretProvenanceForModelView({
+                    workspaceId: ctx.workspaceId,
+                    identity,
+                    registry: ctx.resolvedSecretTraceRegistry,
+                    view: 'opaque',
+                    ...(ctx.userId ? { actorUserId: ctx.userId } : {}),
+                  })
+                  if (!safe) {
+                    unsafeGeneratedDocumentFiles.add(`${file.key}:${file.id}`)
+                    return
+                  }
+                }
+              },
+            }
+          )
+          group.forEach(({ index }, fileIndex) => {
+            hydratedFiles[index] = hydrated[fileIndex]
+          })
+        })
+      )
 
-      const missingFile = hydratedFiles.find(
-        (file) => !file.base64 && !shouldUseLargeFilePath(file, providerId)
+      const modelSafeHydratedFiles = hydratedFiles.flatMap((file, fileIndex) => {
+        if (unsafeGeneratedDocumentFiles.has(`${file.key}:${file.id}`)) return []
+
+        const sourceFile = message.files?.[fileIndex]
+        const nameProjection = sourceFile ? projectedNameByFile.get(sourceFile) : undefined
+        if (
+          !nameProjection ||
+          !isProviderAttachmentFilenameModelBound(file, providerId, {
+            largeFilePathAvailable: canUseProviderLargeFilePath(providerId),
+          })
+        ) {
+          return [file]
+        }
+
+        if (nameProjection.inputPath) modelBoundInputPaths.push(nameProjection.inputPath)
+        const extension = getFileExtension(file.name)
+        const suffix = extension ? `.${extension}` : ''
+        const keepsSuffix =
+          suffix !== '' && nameProjection.name.toLowerCase().endsWith(suffix.toLowerCase())
+        return [
+          {
+            ...file,
+            name:
+              suffix !== '' && !keepsSuffix
+                ? `${nameProjection.name}${suffix}`
+                : nameProjection.name,
+          },
+        ]
+      })
+      if (modelSafeHydratedFiles.length !== hydratedFiles.length) {
+        logger.warn('Omitting generated document attachments with unsafe contributor provenance', {
+          omittedCount: hydratedFiles.length - modelSafeHydratedFiles.length,
+          attachmentCount: hydratedFiles.length,
+        })
+      }
+
+      const missingFile = modelSafeHydratedFiles.find(
+        (file) =>
+          !file.base64 &&
+          !(canUseProviderLargeFilePath(providerId) && shouldUseLargeFilePath(file, providerId))
       )
       if (missingFile) {
+        const { size: sizeMB, limit: inlineMB } = formatAttachmentSizes(
+          missingFile.size,
+          inlineMaxBytes
+        )
+        const oversized = Number.isFinite(missingFile.size) && missingFile.size > inlineMaxBytes
+        /**
+         * Ordered by how general the cause is. A provider with no upload path at all cannot be
+         * helped by changing the file, and a deployment with no object storage cannot reach any
+         * upload path whatever the file is — so both outrank the format-specific case. Leading
+         * with the generated-document arm blamed the document on providers that have no upload
+         * path for anything, and on hosts whose only real problem was unconfigured storage.
+         */
+        const reason =
+          getProviderFileStrategy(providerId) === 'inline'
+            ? `provider "${providerId}" has no large-file upload path`
+            : !canUseProviderLargeFilePath(providerId)
+              ? 'this deployment has no cloud file storage for the large-file upload path'
+              : `a generated document cannot use the large-file path for provider "${providerId}", because a signed URL points at the generation source rather than the rendered file`
         throw new Error(
-          `File "${missingFile.name}" could not be read for provider "${providerId}". The file may exceed the attachment size limit or may no longer be accessible.`
+          oversized
+            ? `File "${missingFile.name}" (${sizeMB}MB) exceeds the ${inlineMB}MB inline attachment limit, and ${reason}.`
+            : `File "${missingFile.name}" could not be read for provider "${providerId}". The file may no longer be accessible.`
         )
       }
 
+      const omittedCount = hydratedFiles.length - modelSafeHydratedFiles.length
       nextMessages[messageIndex] = {
         ...message,
-        files: hydratedFiles,
+        content:
+          omittedCount > 0
+            ? appendUnavailableAttachmentNotice(message.content ?? '', omittedCount)
+            : message.content,
+        files: modelSafeHydratedFiles,
       }
+      copyNativeConversationMessage(message, nextMessages[messageIndex])
     }
 
     return nextMessages
@@ -1045,7 +1918,7 @@ export class AgentBlockHandler implements BlockHandler {
     } else {
       try {
         content = JSON.stringify(systemPrompt, null, 2)
-      } catch (error) {
+      } catch {
         content = String(systemPrompt)
       }
     }
@@ -1072,16 +1945,898 @@ export class AgentBlockHandler implements BlockHandler {
   }
 
   private addUserPrompt(messages: Message[], userPrompt: any) {
-    let content: string
+    messages.push({ role: 'user', content: this.formatUserPrompt(userPrompt) })
+  }
+
+  private formatUserPrompt(userPrompt: any): string {
     if (typeof userPrompt === 'object' && userPrompt.input) {
-      content = String(userPrompt.input)
-    } else if (typeof userPrompt === 'object') {
-      content = JSON.stringify(userPrompt)
-    } else {
-      content = String(userPrompt)
+      return String(userPrompt.input)
+    }
+    return typeof userPrompt === 'object' ? JSON.stringify(userPrompt) : String(userPrompt)
+  }
+
+  private getPrivateAgentSelectorInputPaths(
+    ctx: ExecutionContext,
+    inputs: AgentInputs,
+    responseFormatNameInputPaths: readonly ResolvedSecretInputPath[]
+  ): { complete: boolean; inputPaths: ResolvedSecretInputPath[] } {
+    const registry = ctx.resolvedSecretTraceRegistry
+    if (!registry) return { complete: true, inputPaths: [] }
+
+    const candidatePaths: ResolvedSecretInputPath[] = [...responseFormatNameInputPaths]
+    for (let toolIndex = 0; toolIndex < (inputs.tools?.length ?? 0); toolIndex++) {
+      if (inputs.tools?.[toolIndex]?.customToolId) {
+        candidatePaths.push(['tools', String(toolIndex), 'customToolId'])
+      }
+      if (inputs.tools?.[toolIndex]?.usageControlExpression) {
+        candidatePaths.push(['tools', String(toolIndex), 'usageControlExpression'])
+      }
+    }
+    for (let skillIndex = 0; skillIndex < (inputs.skills?.length ?? 0); skillIndex++) {
+      if (inputs.skills?.[skillIndex]?.skillId) {
+        candidatePaths.push(['skills', String(skillIndex), 'skillId'])
+      }
     }
 
-    messages.push({ role: 'user', content })
+    const privatePaths: ResolvedSecretInputPath[] = []
+    let complete = true
+    for (const path of candidatePaths) {
+      const provenance = registry.exportCommittedProvenanceForInputPaths([path])
+      if (!provenance.complete) {
+        complete = false
+        continue
+      }
+      if (provenance.entries.length > 0) privatePaths.push(path)
+    }
+    return { complete, inputPaths: privatePaths }
+  }
+
+  private settlePrivateAgentSelectors(
+    ctx: ExecutionContext,
+    inputs: AgentInputs,
+    privateInputPaths: readonly ResolvedSecretInputPath[],
+    responseFormatModelInputPaths: readonly ResolvedSecretInputPath[]
+  ): void {
+    const sourceRegistry = ctx.resolvedSecretTraceRegistry
+    if (!sourceRegistry || privateInputPaths.length === 0) return
+
+    const privateRoots = new Set(privateInputPaths.map((path) => path[0]))
+    const displayInputPaths = privateRoots.has('responseFormat')
+      ? [...privateInputPaths, ['responseFormat']]
+      : privateInputPaths
+    const displayRegistry = sourceRegistry.forkForInputPaths(displayInputPaths)
+    const displayProjection = displayRegistry.projectResolvedInputSelection({
+      responseFormat: inputs.responseFormat,
+      tools: inputs.tools,
+      skills: inputs.skills,
+    })
+    if (!displayProjection.complete) {
+      refuseResolvedSecretProjection({
+        site: 'agent.privateSelectorDisplayProjection',
+        message: AGENT_PRIVATE_SELECTOR_REFUSAL,
+        registry: displayRegistry,
+        inputPath: 'responseFormat,tools,skills',
+        createError: toAgentToolInputSafetyError,
+      })
+    }
+    if (privateRoots.has('responseFormat')) {
+      inputs.responseFormat = displayProjection.value
+        .responseFormat as AgentInputs['responseFormat']
+    }
+    if (privateRoots.has('tools')) {
+      if (!Array.isArray(displayProjection.value.tools)) {
+        refuseResolvedSecretProjection({
+          site: 'agent.privateSelectorToolsShape',
+          message: AGENT_PRIVATE_SELECTOR_REFUSAL,
+          registry: displayRegistry,
+          inputPath: 'tools',
+          createError: toAgentToolInputSafetyError,
+        })
+      }
+      inputs.tools = displayProjection.value.tools as ToolInput[]
+    }
+    if (privateRoots.has('skills')) {
+      if (!Array.isArray(displayProjection.value.skills)) {
+        refuseResolvedSecretProjection({
+          site: 'agent.privateSelectorSkillsShape',
+          message: AGENT_PRIVATE_SELECTOR_REFUSAL,
+          registry: displayRegistry,
+          inputPath: 'skills',
+          createError: toAgentToolInputSafetyError,
+        })
+      }
+      inputs.skills = displayProjection.value.skills as AgentInputs['skills']
+    }
+
+    const excludedPaths = new Set(privateInputPaths.map((path) => JSON.stringify(path)))
+    const retainedInputPaths: ResolvedSecretInputPath[] = []
+    for (const [key, value] of Object.entries(inputs)) {
+      if (!privateRoots.has(key)) {
+        retainedInputPaths.push([key])
+        continue
+      }
+      if (key === 'responseFormat') {
+        retainedInputPaths.push(...responseFormatModelInputPaths)
+        continue
+      }
+      if (!Array.isArray(value)) continue
+      for (const [inputIndex, candidate] of value.entries()) {
+        if (!isPlainRecord(candidate)) continue
+        for (const candidateKey of Object.keys(candidate)) {
+          const path = [key, String(inputIndex), candidateKey]
+          if (!excludedPaths.has(JSON.stringify(path))) retainedInputPaths.push(path)
+        }
+      }
+    }
+    ctx.resolvedSecretTraceRegistry = sourceRegistry.forkForInputPaths(retainedInputPaths)
+  }
+
+  private projectResponseFormatForModel(
+    ctx: ExecutionContext,
+    inputs: AgentInputs,
+    onPrivateNameInputPaths: (paths: readonly ResolvedSecretInputPath[]) => void
+  ): {
+    value: AgentInputs['responseFormat']
+    inputPaths: ResolvedSecretInputPath[]
+  } {
+    const responseFormat = inputs.responseFormat
+    if (responseFormat === undefined) {
+      return { value: undefined, inputPaths: [] }
+    }
+
+    let annotationInputPaths: ResolvedSecretInputPath[] = []
+    let structuralInputPaths: ResolvedSecretInputPath[] = []
+    const isWrapper =
+      isPlainRecord(responseFormat) &&
+      (Object.hasOwn(responseFormat, 'schema') || Object.hasOwn(responseFormat, 'name'))
+
+    if (isPlainRecord(responseFormat)) {
+      const schema = isWrapper ? responseFormat.schema : responseFormat
+      const schemaRoot = isWrapper ? ['responseFormat', 'schema'] : ['responseFormat']
+      const schemaPaths = selectModelSchemaInputPaths(schema, schemaRoot)
+      annotationInputPaths = schemaPaths.annotationInputPaths
+      structuralInputPaths = schemaPaths.semanticInputPaths
+      if (isWrapper) {
+        structuralInputPaths.push(
+          ...Object.keys(responseFormat)
+            .filter((key) => key !== 'schema' && key !== 'name')
+            .map((key) => ['responseFormat', key])
+        )
+      }
+    }
+
+    const registry = ctx.resolvedSecretTraceRegistry
+    if (!registry) {
+      this.assertInputPathsDoNotResolveSecrets(
+        ctx,
+        structuralInputPaths,
+        'Agent structural model inputs cannot contain secret references'
+      )
+      return { value: responseFormat, inputPaths: annotationInputPaths }
+    }
+    const projection = registry.projectResolvedInputSelection({ responseFormat })
+    if (!projection.complete) {
+      refuseResolvedSecretProjection({
+        site: 'agent.responseFormatProjection',
+        message: AGENT_MODEL_INPUT_REFUSAL,
+        registry,
+        inputPath: 'responseFormat',
+        createError: toAgentToolInputSafetyError,
+      })
+    }
+    const projectedResponseFormat = projection.value.responseFormat
+
+    if (typeof responseFormat === 'string') {
+      if (Object.is(responseFormat, projectedResponseFormat)) {
+        return { value: responseFormat, inputPaths: annotationInputPaths }
+      }
+      if (typeof projectedResponseFormat !== 'string') {
+        refuseResolvedSecretProjection({
+          site: 'agent.responseFormatStringType',
+          message: AGENT_MODEL_INPUT_REFUSAL,
+          registry,
+          inputPath: 'responseFormat',
+          createError: toAgentToolInputSafetyError,
+        })
+      }
+      try {
+        const rawParsed = JSON.parse(responseFormat)
+        const projectedParsed = JSON.parse(projectedResponseFormat)
+        if (!isPlainRecord(rawParsed) || !isPlainRecord(projectedParsed)) {
+          refuseResolvedSecretProjection({
+            site: 'agent.responseFormatJsonShape',
+            message: AGENT_MODEL_INPUT_REFUSAL,
+            registry,
+            inputPath: 'responseFormat',
+            createError: toAgentToolInputSafetyError,
+          })
+        }
+        const privateNameInputPaths =
+          Object.hasOwn(rawParsed, 'name') && !Object.is(rawParsed.name, projectedParsed.name)
+            ? ([['responseFormat']] as const)
+            : []
+        onPrivateNameInputPaths(privateNameInputPaths)
+        const modelSafeResponseFormat = this.projectResponseFormatObject(
+          rawParsed,
+          projectedParsed,
+          registry
+        )
+        const parsedIsWrapper =
+          Object.hasOwn(rawParsed, 'schema') || Object.hasOwn(rawParsed, 'name')
+        const parsedSchema = parsedIsWrapper ? rawParsed.schema : rawParsed
+        const parsedSchemaRoot = parsedIsWrapper ? ['responseFormat', 'schema'] : ['responseFormat']
+        const parsedAnnotationInputPaths = selectModelSchemaInputPaths(
+          parsedSchema,
+          parsedSchemaRoot
+        ).annotationInputPaths
+        registry.recordTransformedInputProjection(
+          { responseFormat: rawParsed },
+          { responseFormat: projectedParsed },
+          { targetPaths: parsedAnnotationInputPaths }
+        )
+        return {
+          value: modelSafeResponseFormat,
+          inputPaths: parsedAnnotationInputPaths,
+        }
+      } catch (error) {
+        if (error instanceof AgentToolInputSafetyError) throw error
+        refuseResolvedSecretProjection({
+          site: 'agent.responseFormatJsonParse',
+          message: AGENT_MODEL_INPUT_REFUSAL,
+          registry,
+          inputPath: 'responseFormat',
+          createError: toAgentToolInputSafetyError,
+        })
+      }
+    }
+
+    if (!isPlainRecord(responseFormat)) {
+      if (!Object.is(responseFormat, projectedResponseFormat)) {
+        refuseResolvedSecretProjection({
+          site: 'agent.responseFormatScalarIdentity',
+          message: AGENT_MODEL_INPUT_REFUSAL,
+          registry,
+          inputPath: 'responseFormat',
+          createError: toAgentToolInputSafetyError,
+        })
+      }
+      return {
+        value: responseFormat,
+        inputPaths: annotationInputPaths,
+      }
+    }
+    const privateNameInputPaths =
+      Object.hasOwn(responseFormat, 'name') &&
+      isPlainRecord(projectedResponseFormat) &&
+      !Object.is(responseFormat.name, projectedResponseFormat.name)
+        ? [['responseFormat', 'name']]
+        : []
+    onPrivateNameInputPaths(privateNameInputPaths)
+    this.assertInputPathsDoNotResolveSecrets(
+      ctx,
+      structuralInputPaths,
+      'Agent structural model inputs cannot contain secret references'
+    )
+    return {
+      value: this.projectResponseFormatObject(responseFormat, projectedResponseFormat, registry),
+      inputPaths: annotationInputPaths,
+    }
+  }
+
+  /**
+   * Takes the registry from its caller so a refusal here reports the run that failed; without it
+   * the refusal would deduplicate process-wide and name no cause.
+   */
+  private projectResponseFormatObject(
+    rawValue: Record<string, unknown>,
+    projectedValue: unknown,
+    registry: ResolvedSecretTraceRegistry
+  ): Record<string, unknown> {
+    if (!isPlainRecord(projectedValue)) {
+      refuseResolvedSecretProjection({
+        site: 'agent.responseFormatObjectShape',
+        message: AGENT_MODEL_INPUT_REFUSAL,
+        registry,
+        inputPath: 'responseFormat',
+        createError: toAgentToolInputSafetyError,
+      })
+    }
+    const isWrapper = Object.hasOwn(rawValue, 'schema') || Object.hasOwn(rawValue, 'name')
+    if (!isWrapper) {
+      const schemaProjection = projectModelSchemaAnnotations(rawValue, projectedValue)
+      if (!schemaProjection.safe || !isPlainRecord(schemaProjection.value)) {
+        refuseResolvedSecretProjection({
+          site: 'agent.responseFormatSchemaAnnotations',
+          message: AGENT_MODEL_INPUT_REFUSAL,
+          registry,
+          inputPath: 'responseFormat',
+          createError: toAgentToolInputSafetyError,
+        })
+      }
+      return schemaProjection.value
+    }
+
+    const rawKeys = Object.keys(rawValue)
+    if (
+      rawKeys.length !== Object.keys(projectedValue).length ||
+      rawKeys.some((key) => !Object.hasOwn(projectedValue, key))
+    ) {
+      refuseResolvedSecretProjection({
+        site: 'agent.responseFormatWrapperKeys',
+        message: AGENT_MODEL_INPUT_REFUSAL,
+        registry,
+        inputPath: 'responseFormat',
+        createError: toAgentToolInputSafetyError,
+      })
+    }
+    for (const key of rawKeys) {
+      if (key !== 'schema' && key !== 'name' && !Object.is(rawValue[key], projectedValue[key])) {
+        refuseResolvedSecretProjection({
+          site: 'agent.responseFormatWrapperValues',
+          message: AGENT_MODEL_INPUT_REFUSAL,
+          registry,
+          inputPath: 'responseFormat',
+          createError: toAgentToolInputSafetyError,
+        })
+      }
+    }
+    const schemaProjection = projectModelSchemaAnnotations(rawValue.schema, projectedValue.schema)
+    if (!schemaProjection.safe) {
+      refuseResolvedSecretProjection({
+        site: 'agent.responseFormatWrapperSchemaAnnotations',
+        message: AGENT_MODEL_INPUT_REFUSAL,
+        registry,
+        inputPath: 'responseFormat',
+        createError: toAgentToolInputSafetyError,
+      })
+    }
+    return {
+      ...rawValue,
+      ...(Object.hasOwn(rawValue, 'name') && !Object.is(rawValue.name, projectedValue.name)
+        ? { name: MODEL_SAFE_RESPONSE_FORMAT_NAME }
+        : {}),
+      ...(Object.hasOwn(rawValue, 'schema') ? { schema: schemaProjection.value } : {}),
+    }
+  }
+
+  private getFileInputPaths(
+    inputs: AgentInputs,
+    field: 'base64' | 'name'
+  ): ResolvedSecretInputPath[] {
+    const paths = selectModelBoundFileInputPaths(inputs.files, ['files'], {
+      includeInlineBase64: true,
+      includeName: true,
+    })
+    for (let messageIndex = 0; messageIndex < (inputs.messages?.length ?? 0); messageIndex++) {
+      paths.push(
+        ...selectModelBoundFileInputPaths(
+          inputs.messages?.[messageIndex]?.files,
+          ['messages', String(messageIndex), 'files'],
+          { includeInlineBase64: true, includeName: true }
+        )
+      )
+    }
+    return paths.filter((path) => path.at(-1) === field)
+  }
+
+  private projectFileNamesForModel(
+    ctx: ExecutionContext,
+    inputs: AgentInputs
+  ): {
+    projectedFiles: unknown
+    projectedNameByFile: WeakMap<object, FileNameProjection>
+    directNameInputPaths: ResolvedSecretInputPath[]
+    modelBoundInputPaths: ResolvedSecretInputPath[]
+  } {
+    const inputPaths = this.getFileInputPaths(inputs, 'name')
+    this.assertInputPathsDoNotResolveSecrets(
+      ctx,
+      this.getFileInputPaths(inputs, 'base64'),
+      'Agent inline file content cannot contain secret references'
+    )
+    const projection = projectResolvedModelInput(
+      ctx.resolvedSecretTraceRegistry,
+      { files: inputs.files, messages: inputs.messages },
+      inputPaths
+    )
+    if (!projection.complete) {
+      refuseResolvedSecretProjection({
+        site: 'agent.fileNameProjection',
+        message: AGENT_MODEL_INPUT_REFUSAL,
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'files,messages',
+        createError: toAgentToolInputSafetyError,
+      })
+    }
+
+    let projectedFiles = projection.value.files
+    let directNameInputPaths: ResolvedSecretInputPath[] = Array.isArray(inputs.files)
+      ? inputs.files.map((_, index) => ['files', String(index), 'name'])
+      : isPlainRecord(inputs.files)
+        ? [['files', 'name']]
+        : []
+
+    if (typeof inputs.files === 'string' && ctx.resolvedSecretTraceRegistry) {
+      const serializedProjection = ctx.resolvedSecretTraceRegistry.projectResolvedInputSelection({
+        files: inputs.files,
+      })
+      if (!serializedProjection.complete) {
+        refuseResolvedSecretProjection({
+          site: 'agent.serializedFilesProjection',
+          message: AGENT_MODEL_INPUT_REFUSAL,
+          registry: ctx.resolvedSecretTraceRegistry,
+          inputPath: 'files',
+          createError: toAgentToolInputSafetyError,
+        })
+      }
+      const projectedSerializedFiles = serializedProjection.value.files
+      if (!Object.is(inputs.files, projectedSerializedFiles)) {
+        if (typeof projectedSerializedFiles !== 'string') {
+          refuseResolvedSecretProjection({
+            site: 'agent.serializedFilesType',
+            message: AGENT_MODEL_INPUT_REFUSAL,
+            registry: ctx.resolvedSecretTraceRegistry,
+            inputPath: 'files',
+            createError: toAgentToolInputSafetyError,
+          })
+        }
+        const rawFiles = normalizeFileInput(inputs.files)
+        const projectedFileRecords = normalizeFileInput(projectedSerializedFiles)
+        if (!rawFiles || !projectedFileRecords || rawFiles.length !== projectedFileRecords.length) {
+          refuseResolvedSecretProjection({
+            site: 'agent.serializedFilesArity',
+            message: AGENT_MODEL_INPUT_REFUSAL,
+            registry: ctx.resolvedSecretTraceRegistry,
+            inputPath: 'files',
+            createError: toAgentToolInputSafetyError,
+          })
+        }
+
+        projectedFiles = rawFiles.map((rawFile, index) => {
+          const projectedFile = projectedFileRecords[index]
+          if (!isPlainRecord(rawFile) || !isPlainRecord(projectedFile)) {
+            refuseResolvedSecretProjection({
+              site: 'agent.serializedFileShape',
+              message: AGENT_MODEL_INPUT_REFUSAL,
+              registry: ctx.resolvedSecretTraceRegistry,
+              inputPath: 'files',
+              createError: toAgentToolInputSafetyError,
+            })
+          }
+          if (!Object.is(rawFile.base64, projectedFile.base64)) {
+            throw new AgentToolInputSafetyError(
+              'Agent inline file content cannot contain secret references'
+            )
+          }
+          if (rawFile.name === undefined) return rawFile
+          if (typeof projectedFile.name !== 'string') {
+            refuseResolvedSecretProjection({
+              site: 'agent.serializedFileName',
+              message: AGENT_MODEL_INPUT_REFUSAL,
+              registry: ctx.resolvedSecretTraceRegistry,
+              inputPath: 'files,name',
+              createError: toAgentToolInputSafetyError,
+            })
+          }
+          return { ...rawFile, name: projectedFile.name }
+        })
+        directNameInputPaths = rawFiles.map(() => ['files'])
+      }
+    }
+
+    const projectedNameByFile = new WeakMap<object, FileNameProjection>()
+    const projectedMessages = Array.isArray(projection.value.messages)
+      ? projection.value.messages
+      : []
+    for (let messageIndex = 0; messageIndex < (inputs.messages?.length ?? 0); messageIndex++) {
+      const rawFiles = inputs.messages?.[messageIndex]?.files
+      const projectedMessage = projectedMessages[messageIndex]
+      const projectedFiles = isPlainRecord(projectedMessage) ? projectedMessage.files : undefined
+      if (!Array.isArray(rawFiles) || !Array.isArray(projectedFiles)) continue
+      if (rawFiles.length !== projectedFiles.length) {
+        refuseResolvedSecretProjection({
+          site: 'agent.messageFilesArity',
+          message: AGENT_MODEL_INPUT_REFUSAL,
+          registry: ctx.resolvedSecretTraceRegistry,
+          inputPath: 'messages,files',
+          createError: toAgentToolInputSafetyError,
+        })
+      }
+      for (let fileIndex = 0; fileIndex < rawFiles.length; fileIndex++) {
+        const rawFile = rawFiles[fileIndex]
+        const projectedFile = projectedFiles[fileIndex]
+        if (!isPlainRecord(rawFile) || !isPlainRecord(projectedFile)) continue
+        if (rawFile.name === undefined) continue
+        if (typeof projectedFile.name !== 'string') {
+          refuseResolvedSecretProjection({
+            site: 'agent.messageFileName',
+            message: AGENT_MODEL_INPUT_REFUSAL,
+            registry: ctx.resolvedSecretTraceRegistry,
+            inputPath: 'messages,files,name',
+            createError: toAgentToolInputSafetyError,
+          })
+        }
+        if (Object.is(rawFile.name, projectedFile.name)) continue
+        projectedNameByFile.set(rawFile, {
+          name: projectedFile.name,
+          inputPath: ['messages', String(messageIndex), 'files', String(fileIndex), 'name'],
+        })
+      }
+    }
+
+    return {
+      projectedFiles,
+      projectedNameByFile,
+      directNameInputPaths,
+      modelBoundInputPaths: [],
+    }
+  }
+
+  private getMessageStructuralInputPaths(inputs: AgentInputs): ResolvedSecretInputPath[] {
+    const paths: ResolvedSecretInputPath[] = []
+    for (let messageIndex = 0; messageIndex < (inputs.messages?.length ?? 0); messageIndex++) {
+      const message = inputs.messages?.[messageIndex]
+      if (!isPlainRecord(message)) continue
+      const messageRoot = ['messages', String(messageIndex)] as const
+      paths.push([...messageRoot, 'role'])
+      if (message.name !== undefined) paths.push([...messageRoot, 'name'])
+      if (message.tool_call_id !== undefined) paths.push([...messageRoot, 'tool_call_id'])
+
+      if (isPlainRecord(message.function_call) && message.function_call.name !== undefined) {
+        paths.push([...messageRoot, 'function_call', 'name'])
+      }
+      if (!Array.isArray(message.tool_calls)) continue
+      for (let toolIndex = 0; toolIndex < message.tool_calls.length; toolIndex++) {
+        const toolCall = message.tool_calls[toolIndex]
+        if (!isPlainRecord(toolCall)) continue
+        const toolRoot = [...messageRoot, 'tool_calls', String(toolIndex)]
+        if (toolCall.id !== undefined) paths.push([...toolRoot, 'id'])
+        if (toolCall.type !== undefined) paths.push([...toolRoot, 'type'])
+        if (!isPlainRecord(toolCall.function)) continue
+        if (toolCall.function.name !== undefined) {
+          paths.push([...toolRoot, 'function', 'name'])
+        }
+      }
+    }
+    return paths
+  }
+
+  private getModelInputPaths(inputs: AgentInputs): ResolvedSecretInputPath[] {
+    const paths: ResolvedSecretInputPath[] = [['systemPrompt'], ['userPrompt']]
+    if (isEvaluationModel(inputs.model || AGENT.DEFAULT_MODEL)) {
+      paths.push(['evaluationState'], ['evaluationQuestions'])
+    }
+    for (let index = 0; index < (inputs.messages?.length ?? 0); index++) {
+      const message = inputs.messages?.[index]
+      const messageRoot = ['messages', String(index)] as const
+      paths.push([...messageRoot, 'content'])
+      if (isPlainRecord(message?.function_call) && message.function_call.arguments !== undefined) {
+        paths.push([...messageRoot, 'function_call', 'arguments'])
+      }
+      if (!Array.isArray(message?.tool_calls)) continue
+      for (let toolIndex = 0; toolIndex < message.tool_calls.length; toolIndex++) {
+        const toolCall = message.tool_calls[toolIndex]
+        if (!isPlainRecord(toolCall) || !isPlainRecord(toolCall.function)) continue
+        if (toolCall.function.arguments !== undefined) {
+          paths.push([...messageRoot, 'tool_calls', String(toolIndex), 'function', 'arguments'])
+        }
+      }
+    }
+
+    const memories = inputs.memories
+    const memoryArray = Array.isArray(memories)
+      ? memories
+      : Array.isArray(memories?.memories)
+        ? memories.memories
+        : []
+    const memoryRoot = Array.isArray(memories) ? ['memories'] : ['memories', 'memories']
+    for (let memoryIndex = 0; memoryIndex < memoryArray.length; memoryIndex++) {
+      const memory = memoryArray[memoryIndex]
+      if (Array.isArray(memory?.data)) {
+        for (let messageIndex = 0; messageIndex < memory.data.length; messageIndex++) {
+          paths.push([...memoryRoot, String(memoryIndex), 'data', String(messageIndex), 'content'])
+        }
+      } else {
+        paths.push([...memoryRoot, String(memoryIndex), 'content'])
+      }
+    }
+    return paths
+  }
+
+  /**
+   * Runs the provider request against each candidate in order until one answers.
+   *
+   * Which model serves the request is decided here, inside one handler
+   * invocation. How many invocations the block gets is the executor's retry
+   * policy, and the caller keeps the fallbacks out of the candidate list until
+   * the final try, so with retry on the block runs the primary alone on every
+   * earlier try and walks the whole chain once.
+   *
+   * Falling through is deliberately as indiscriminate as block retry
+   * (`isRetryableBlockError`): a provider error carries no status, so an
+   * overloaded upstream cannot be told from any other failure, and a builder who
+   * lists fallbacks wants the block to answer. Only a stop and an explicitly
+   * non-retryable failure end the chain early. The abort signal is checked
+   * before the error itself because `handleExecutionError` rewrites a timeout
+   * into a plain `Error` without a cause, which the predicate would then treat
+   * as replayable.
+   *
+   * Messages are built once by the caller, since building them appends to
+   * memory. Hydration runs per provider, because attachment support and the
+   * inline budget differ, and is cached so two candidates on one provider do
+   * not download the same files twice. A fallback whose provider is
+   * blacklisted, not permitted, or cannot take the attachments is skipped
+   * rather than counted as a failed try.
+   *
+   * A streaming candidate is accepted only once its first chunk has arrived
+   * (`primeStreamingExecution`), so a startup failure inside the stream still
+   * falls through; that wait is skipped when no candidate follows, which keeps
+   * blocks without fallbacks on today's path.
+   *
+   * When every candidate fails, the last attempted candidate's error is thrown
+   * exactly as it escaped `executeProviderRequest`, with the registries that
+   * call installed for its projection, so error ports and the block-level
+   * error handling see the shapes they see today. The models that failed are
+   * written to the block log on every exit, cleared as well as set, because
+   * block retry reuses one log entry across tries.
+   */
+  private async executeAcrossModels(
+    ctx: ExecutionContext,
+    block: SerializedBlock,
+    config: ExecuteAcrossModelsConfig
+  ): Promise<{
+    result: BlockOutput | StreamingExecution
+    servedModel: string
+    resultRegistry: ResolvedSecretTraceRegistry | undefined
+  }> {
+    const { hydratedByProvider } = config
+    let resultRegistry = config.resultRegistry
+    const failedModels: string[] = []
+    let lastError: unknown
+    let lastErrorRegistries:
+      | {
+          error: ResolvedSecretTraceRegistry | undefined
+          resolved: ResolvedSecretTraceRegistry | undefined
+        }
+      | undefined
+
+    for (let index = 0; index < config.candidates.length; index++) {
+      const candidate = config.candidates[index]
+      const hasNext = index < config.candidates.length - 1
+
+      /** A run stopped while a candidate was being skipped must not start another. */
+      if (!candidate.isPrimary && ctx.abortSignal?.aborted) break
+
+      let candidateProviderId: string
+      if (candidate.isPrimary) {
+        candidateProviderId = config.primaryProviderId
+      } else {
+        try {
+          candidateProviderId = getProviderFromModel(candidate.model)
+          await validateModelProvider(ctx.userId, ctx.workspaceId, candidate.model, ctx)
+        } catch (error) {
+          this.warnFallbackSkipped(ctx, block, candidate.model, 'unusable', error)
+          continue
+        }
+      }
+
+      let messages: Message[] | undefined
+      if (hydratedByProvider.has(candidateProviderId)) {
+        messages = hydratedByProvider.get(candidateProviderId)
+      } else {
+        try {
+          messages = await this.hydrateMessageFilesForProvider(
+            ctx,
+            config.messages,
+            candidateProviderId,
+            config.fileProjection.projectedNameByFile,
+            config.fileProjection.modelBoundInputPaths
+          )
+        } catch (error) {
+          if (candidate.isPrimary) throw error
+          this.warnFallbackSkipped(
+            ctx,
+            block,
+            candidate.model,
+            'cannot take the attached files',
+            error
+          )
+          continue
+        }
+        hydratedByProvider.set(candidateProviderId, messages)
+        /** Hydration imported this provider's file provenance; the result fork must carry it. */
+        resultRegistry = config.settledInputRegistry?.forkForInputPaths([])
+      }
+
+      /**
+       * A fallback's own key applies only while its key field is visible. On the
+       * primary's provider it reuses the block's key; otherwise the provider layer resolves BYOK or
+       * the platform key, or reports that a key is required, which counts as
+       * this candidate failing. A previous interaction id belongs to the primary's
+       * provider alone. Tuning is re-resolved against the fallback's own
+       * capabilities so the request is one its provider accepts.
+       */
+      let inputs: AgentInputs = config.modelInputs
+      if (!candidate.isPrimary) {
+        const { adjustments, ...tuning } = resolveFallbackTuning(
+          candidate,
+          config.configuredModel,
+          config.modelInputs
+        )
+        const sameProvider = candidateProviderId === config.primaryProviderId
+        inputs = {
+          ...(sameProvider
+            ? config.modelInputs
+            : omit(config.modelInputs, [...PROVIDER_FAMILY_CREDENTIAL_FIELDS, 'vertexCredential'])),
+          apiKey: resolveFallbackApiKey({
+            candidate,
+            configuredModel: config.configuredModel,
+            sameProvider,
+            primaryApiKey: config.modelInputs.apiKey,
+            blockId: block.id,
+            logger,
+          }),
+          previousInteractionId: undefined,
+          ...(config.fallbackSystemPrompt !== undefined
+            ? { systemPrompt: config.fallbackSystemPrompt }
+            : {}),
+          ...tuning,
+        }
+        if (adjustments.length > 0) {
+          logger.info(
+            'Fallback model tuning adjusted',
+            projectAgentDiagnosticMetadata(
+              ctx,
+              { blockId: block.id, model: candidate.model, adjustments },
+              { blockId: block.id, adjustmentCount: adjustments.length }
+            )
+          )
+        }
+      }
+
+      const providerRequest = this.buildProviderRequest({
+        ctx,
+        providerId: candidateProviderId,
+        model: candidate.model,
+        messages:
+          !candidate.isPrimary && config.fallbackSystemPrompt !== undefined
+            ? stripAutoPreamble(messages)
+            : messages,
+        inputs,
+        formattedTools: config.formattedTools,
+        responseFormat: config.responseFormat,
+        streaming: config.streaming,
+      })
+
+      try {
+        let result = await this.executeProviderRequest(
+          ctx,
+          providerRequest,
+          block,
+          config.responseFormat,
+          resultRegistry,
+          config.providerErrorRegistry,
+          config.agentConversation
+        )
+        if ((hasNext || config.retryPrimaryOnStreamStart) && this.isStreamingExecution(result)) {
+          result = await this.primeStreamingExecution(result as StreamingExecution)
+        }
+        recordModelFallbacks(ctx, block, failedModels)
+        return {
+          result,
+          servedModel: config.agentConversation?.getFinalResponse()?.model ?? candidate.model,
+          resultRegistry,
+        }
+      } catch (error) {
+        lastError = error
+        failedModels.push(candidate.traceName ?? candidate.model)
+        if (!hasNext || ctx.abortSignal?.aborted || !isRetryableBlockError(error)) {
+          recordModelFallbacks(ctx, block, failedModels.slice(0, -1))
+          throw error
+        }
+
+        /**
+         * `executeProviderRequest` installed the failed attempt's error
+         * registry, which is the only one that knows secrets a tool call
+         * activated; the warn is projected against it before the next candidate
+         * starts from the settled inputs again. The pair is kept so a rethrow
+         * after every remaining candidate was skipped projects the same way.
+         */
+        const errorRegistry = ctx.errorResolvedSecretTraceRegistry
+        const diagnosticCtx = errorRegistry
+          ? { ...ctx, resolvedSecretTraceRegistry: errorRegistry }
+          : ctx
+        logger.warn(
+          'Agent model failed; trying fallback',
+          projectAgentDiagnosticMetadata(
+            diagnosticCtx,
+            {
+              blockId: block.id,
+              failedModel: candidate.model,
+              nextModel: config.candidates[index + 1].model,
+              candidate: index + 1,
+              error: getErrorMessage(error),
+            },
+            { blockId: block.id, candidate: index + 1 }
+          )
+        )
+        lastErrorRegistries = { error: errorRegistry, resolved: ctx.resolvedSecretTraceRegistry }
+        ctx.errorResolvedSecretTraceRegistry = config.providerErrorRegistry
+        ctx.resolvedSecretTraceRegistry = config.settledInputRegistry
+      }
+    }
+
+    /** Reached only when every candidate after the last failure was skipped. */
+    if (lastErrorRegistries) {
+      ctx.errorResolvedSecretTraceRegistry = lastErrorRegistries.error
+      ctx.resolvedSecretTraceRegistry = lastErrorRegistries.resolved
+    }
+    recordModelFallbacks(ctx, block, failedModels.slice(0, -1))
+    throw lastError
+  }
+
+  /**
+   * Warns that a fallback candidate was passed over, projected like every other
+   * diagnostic so a model id resolved from a reference never reaches the log.
+   * A skipped candidate is not a failed try: it never appears in `modelFallbacks`.
+   */
+  private warnFallbackSkipped(
+    ctx: ExecutionContext,
+    block: SerializedBlock,
+    model: string,
+    reason: 'unusable' | 'cannot take the attached files',
+    error: unknown
+  ): void {
+    logger.warn(
+      `Fallback model ${reason}; skipping`,
+      projectAgentDiagnosticMetadata(
+        ctx,
+        { blockId: block.id, model, error: getErrorMessage(error) },
+        { blockId: block.id }
+      )
+    )
+  }
+
+  /**
+   * Waits for a streaming candidate's first chunk before accepting it.
+   *
+   * With tools attached, providers open the stream first and issue the initial
+   * upstream request inside it, so a 429 at startup would otherwise surface
+   * only when the executor drains the stream, past every fallback. Reading one
+   * chunk moves that failure back inside the candidate loop; the chunk is
+   * re-emitted at the head of the returned stream, and nothing has reached the
+   * client yet, so the next candidate cannot duplicate output. A stream that
+   * fails after its first chunk stays a stream failure, as it is today.
+   */
+  private async primeStreamingExecution(result: StreamingExecution): Promise<StreamingExecution> {
+    const reader = result.stream.getReader()
+    const first = await reader.read()
+    /**
+     * A stream that closes before its first chunk answered nothing; with another
+     * candidate waiting that is a startup failure to fall through from, not an
+     * empty answer to return. The last candidate is never primed, so a block
+     * without fallbacks still returns such a stream as it always has.
+     */
+    if (first.done) {
+      throw new Error('Provider stream closed before its first chunk')
+    }
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(first.value)
+      },
+      async pull(controller) {
+        const next = await reader.read()
+        if (next.done) {
+          controller.close()
+          return
+        }
+        controller.enqueue(next.value)
+      },
+      cancel(reason) {
+        return reader.cancel(reason)
+      },
+    })
+    return { ...result, stream }
   }
 
   private buildProviderRequest(config: {
@@ -1098,14 +2853,18 @@ export class AgentBlockHandler implements BlockHandler {
       config
 
     const validMessages = this.validateMessages(messages)
+    const configuredHistoryTokens = Number(inputs.slidingWindowTokens)
 
     const { blockData, blockNameMapping } = collectBlockData(ctx)
 
     return {
       provider: providerId,
       model,
+      evaluation: isEvaluationModel(model)
+        ? { state: inputs.evaluationState, questions: inputs.evaluationQuestions }
+        : undefined,
       systemPrompt: validMessages ? undefined : inputs.systemPrompt,
-      context: validMessages ? undefined : stringifyJSON(messages),
+      context: validMessages || isEvaluationModel(model) ? undefined : stringifyJSON(messages),
       tools: formattedTools,
       temperature:
         inputs.temperature != null && inputs.temperature !== ''
@@ -1128,7 +2887,17 @@ export class AgentBlockHandler implements BlockHandler {
       userId: ctx.userId,
       executionId: ctx.executionId,
       stream: streaming,
-      messages: messages?.map(({ executionId, ...msg }) => msg),
+      memoryHistoryTokens:
+        inputs.memoryType === 'sliding_window_tokens'
+          ? Number.isFinite(configuredHistoryTokens) && configuredHistoryTokens > 0
+            ? Math.floor(configuredHistoryTokens)
+            : MEMORY.DEFAULT_SLIDING_WINDOW_TOKENS
+          : undefined,
+      messages: messages?.map((message) => {
+        const { executionId, ...providerMessage } = message
+        copyNativeConversationMessage(message, providerMessage)
+        return providerMessage
+      }),
       environmentVariables: normalizeStringRecord(ctx.environmentVariables),
       workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
       blockData,
@@ -1163,7 +2932,10 @@ export class AgentBlockHandler implements BlockHandler {
     ctx: ExecutionContext,
     providerRequest: any,
     block: SerializedBlock,
-    responseFormat: any
+    responseFormat: any,
+    modelRuntimeRegistry: ResolvedSecretTraceRegistry | undefined,
+    providerErrorRegistry: ResolvedSecretTraceRegistry | undefined,
+    agentConversation?: AgentTurnSession
   ): Promise<BlockOutput | StreamingExecution> {
     const providerId = providerRequest.provider
     const model = providerRequest.model
@@ -1177,20 +2949,30 @@ export class AgentBlockHandler implements BlockHandler {
           credentialId: providerRequest.vertexCredential,
           actingUserId: ctx.userId,
           workspaceId: ctx.workspaceId,
+          workflowId: ctx.workflowId,
           callerLabel: 'vertex-agent',
         })
       }
 
       const { blockData, blockNameMapping } = collectBlockData(ctx)
+      const agentMemoryRetrieval = agentConversation?.memoryId
+        ? createAgentMemoryRetrievalTool({
+            executionContext: ctx,
+            memoryId: agentConversation.memoryId,
+          })
+        : undefined
 
       const response = await executeProviderRequest(
         providerId,
         {
           model,
+          evaluation: providerRequest.evaluation,
           systemPrompt:
             'systemPrompt' in providerRequest ? providerRequest.systemPrompt : undefined,
           context: 'context' in providerRequest ? providerRequest.context : undefined,
-          tools: providerRequest.tools,
+          tools: agentMemoryRetrieval
+            ? [...(providerRequest.tools ?? []), agentMemoryRetrieval.tool]
+            : providerRequest.tools,
           temperature: providerRequest.temperature,
           maxTokens: providerRequest.maxTokens,
           apiKey: finalApiKey,
@@ -1229,15 +3011,43 @@ export class AgentBlockHandler implements BlockHandler {
           abortSignal: ctx.abortSignal,
         },
         {
-          resolvedSecretTraceRegistry: ctx.resolvedSecretTraceRegistry,
+          resolvedSecretTraceRegistry: modelRuntimeRegistry,
+          executionContext: ctx,
+          agentConversation,
+          agentMemoryRetrieval,
+          agentMemoryContext: agentConversation
+            ? { historyTokens: providerRequest.memoryHistoryTokens }
+            : undefined,
         }
       )
 
-      return this.processProviderResponse(response, block, responseFormat)
+      return this.processProviderResponse(response, block, responseFormat, ctx)
     } catch (error) {
-      this.handleExecutionError(error, providerStartTime, providerId, model, ctx, block)
+      const errorRegistry = this.createErrorRegistry(providerErrorRegistry, modelRuntimeRegistry)
+      ctx.errorResolvedSecretTraceRegistry = errorRegistry
+      const diagnosticCtx = errorRegistry
+        ? { ...ctx, resolvedSecretTraceRegistry: errorRegistry }
+        : ctx
+      try {
+        this.handleExecutionError(error, providerStartTime, providerId, model, diagnosticCtx, block)
+      } finally {
+        if (modelRuntimeRegistry) {
+          ctx.resolvedSecretTraceRegistry = modelRuntimeRegistry.forkForPropagatedEntries()
+        }
+      }
       throw error
     }
+  }
+
+  private createErrorRegistry(
+    inputRegistry: ResolvedSecretTraceRegistry | undefined,
+    resultRegistry: ResolvedSecretTraceRegistry | undefined
+  ): ResolvedSecretTraceRegistry | undefined {
+    const errorRegistry = inputRegistry?.forkForToolCall() ?? resultRegistry?.forkForToolCall()
+    if (errorRegistry && resultRegistry && resultRegistry !== inputRegistry) {
+      errorRegistry.mergeToolCallRegistry(resultRegistry)
+    }
+    return errorRegistry
   }
 
   private handleExecutionError(
@@ -1250,28 +3060,38 @@ export class AgentBlockHandler implements BlockHandler {
   ) {
     const executionTime = Date.now() - startTime
 
-    logger.error('Error executing provider request:', {
-      error,
-      executionTime,
-      provider,
-      model,
-      workflowId: ctx.workflowId,
-      blockId: block.id,
-    })
+    logger.error(
+      'Error executing provider request',
+      projectAgentDiagnosticMetadata(
+        ctx,
+        {
+          executionTime,
+          provider,
+          model,
+          workflowId: ctx.workflowId,
+          blockId: block.id,
+          ...getErrorDiagnosticMetadata(error),
+        },
+        {
+          executionTime,
+          workflowId: ctx.workflowId,
+          blockId: block.id,
+          ...getErrorDiagnosticFallback(error),
+        }
+      )
+    )
 
     if (!(error instanceof Error)) return
 
-    logger.error('Provider request error details', {
-      workflowId: ctx.workflowId,
-      blockId: block.id,
-      errorName: error.name,
-      errorMessage: error.message,
-      errorStack: error.stack,
-      timestamp: new Date().toISOString(),
-    })
-
-    if (error.name === 'AbortError') {
-      throw new Error('Provider request timed out - the API took too long to respond')
+    /**
+     * The original message is appended rather than replaced: providers annotate it with
+     * the request phase they died in, which is the only thing separating a request that
+     * was never answered from one whose body stalled.
+     */
+    if (isTransportTimeout(error)) {
+      throw new Error(
+        `Provider request timed out - the API took too long to respond (${error.message})`
+      )
     }
     if (error.name === 'TypeError' && error.message.includes('fetch')) {
       throw new Error(
@@ -1286,16 +3106,40 @@ export class AgentBlockHandler implements BlockHandler {
   private wrapStreamForMemoryPersistence(
     ctx: ExecutionContext,
     inputs: AgentInputs,
-    streamingExec: StreamingExecution
+    streamingExec: StreamingExecution,
+    servedModel: string,
+    agentConversation?: AgentTurnSession
   ): StreamingExecution {
     return {
       ...streamingExec,
       onFullContent: async (content: string) => {
-        if (!content.trim()) return
         try {
-          await memoryService.appendToMemory(ctx, inputs, { role: 'assistant', content })
+          await streamingExec.onFullContent?.(content)
         } catch (error) {
-          logger.error('Failed to persist streaming response:', error)
+          logger.error(
+            'Streaming completion callback failed',
+            projectAgentDiagnosticMetadata(
+              ctx,
+              getErrorDiagnosticMetadata(error),
+              getErrorDiagnosticFallback(error)
+            )
+          )
+        }
+        if (!content.trim()) {
+          await agentConversation?.finalize('', servedModel)
+          return
+        }
+        try {
+          await this.appendFinalMemory(ctx, inputs, content, servedModel, agentConversation)
+        } catch (error) {
+          logger.error(
+            'Failed to persist streaming response',
+            projectAgentDiagnosticMetadata(
+              ctx,
+              getErrorDiagnosticMetadata(error),
+              getErrorDiagnosticFallback(error)
+            )
+          )
         }
       },
     }
@@ -1304,28 +3148,52 @@ export class AgentBlockHandler implements BlockHandler {
   private async persistResponseToMemory(
     ctx: ExecutionContext,
     inputs: AgentInputs,
-    result: BlockOutput
+    result: BlockOutput,
+    servedModel: string,
+    agentConversation?: AgentTurnSession
   ): Promise<void> {
-    const content = (result as any)?.content
+    const content =
+      agentConversation?.getFinalAssistantContent() ??
+      (isPlainRecord(result) ? result.content : undefined)
     if (!content || typeof content !== 'string') {
+      await agentConversation?.finalize('', servedModel)
       return
     }
 
     try {
-      await memoryService.appendToMemory(ctx, inputs, { role: 'assistant', content })
-      logger.debug('Persisted assistant response to memory', {
-        workflowId: ctx.workflowId,
-        conversationId: inputs.conversationId,
-      })
+      await this.appendFinalMemory(ctx, inputs, content, servedModel, agentConversation)
     } catch (error) {
-      logger.error('Failed to persist response to memory:', error)
+      logger.error(
+        'Failed to persist response to memory',
+        projectAgentDiagnosticMetadata(
+          ctx,
+          getErrorDiagnosticMetadata(error),
+          getErrorDiagnosticFallback(error)
+        )
+      )
     }
+  }
+
+  private async appendFinalMemory(
+    ctx: ExecutionContext,
+    inputs: AgentInputs,
+    content: string,
+    model: string,
+    agentConversation?: AgentTurnSession
+  ): Promise<void> {
+    if (agentConversation?.memoryId) {
+      await agentConversation.finalize(content, model)
+      return
+    }
+    await memoryService.appendToMemory(ctx, inputs, { role: 'assistant', content })
+    await agentConversation?.finalize(content, model)
   }
 
   private processProviderResponse(
     response: any,
     block: SerializedBlock,
-    responseFormat: any
+    responseFormat: any,
+    ctx: ExecutionContext
   ): BlockOutput | StreamingExecution {
     if (this.isStreamingExecution(response)) {
       return this.processStreamingExecution(response, block)
@@ -1335,7 +3203,7 @@ export class AgentBlockHandler implements BlockHandler {
       return this.createMinimalStreamingExecution(response)
     }
 
-    return this.processRegularResponse(response, responseFormat)
+    return this.processRegularResponse(response, responseFormat, ctx)
   }
 
   private isStreamingExecution(response: any): boolean {
@@ -1376,15 +3244,23 @@ export class AgentBlockHandler implements BlockHandler {
     }
   }
 
-  private processRegularResponse(result: any, responseFormat: any): BlockOutput {
+  private processRegularResponse(
+    result: any,
+    responseFormat: any,
+    ctx: ExecutionContext
+  ): BlockOutput {
     if (responseFormat) {
-      return this.processStructuredResponse(result, responseFormat)
+      return this.processStructuredResponse(result, responseFormat, ctx)
     }
 
     return this.processStandardResponse(result)
   }
 
-  private processStructuredResponse(result: any, responseFormat: any): BlockOutput {
+  private processStructuredResponse(
+    result: any,
+    responseFormat: any,
+    ctx: ExecutionContext
+  ): BlockOutput {
     const content = result.content
 
     try {
@@ -1393,11 +3269,21 @@ export class AgentBlockHandler implements BlockHandler {
         ...extractedJson,
         ...this.createResponseMetadata(result),
       }
-    } catch (error) {
-      logger.error('LLM did not adhere to structured response format:', {
-        content: truncate(content, 200),
-        responseFormat: responseFormat,
-      })
+    } catch {
+      logger.error(
+        'LLM did not adhere to structured response format',
+        projectAgentDiagnosticMetadata(
+          ctx,
+          {
+            content: truncate(content, 200),
+            responseFormat,
+          },
+          {
+            contentLength: typeof content === 'string' ? content.length : undefined,
+            hasResponseFormat: responseFormat !== undefined && responseFormat !== null,
+          }
+        )
+      )
 
       const standardResponse = this.processStandardResponse(result)
       return Object.assign(standardResponse, {
@@ -1410,6 +3296,7 @@ export class AgentBlockHandler implements BlockHandler {
   private processStandardResponse(result: any): BlockOutput {
     return {
       content: result.content,
+      ...(result.answers && { answers: result.answers }),
       ...this.createResponseMetadata(result),
       ...(result.interactionId && { interactionId: result.interactionId }),
     }

@@ -1,8 +1,7 @@
 import { BrainIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
-import type { ThinkingToolResponse } from '@/tools/thinking/types'
 
-export const ThinkingBlock: BlockConfig<ThinkingToolResponse> = {
+export const ThinkingBlock: BlockConfig = {
   type: 'thinking',
   name: 'Thinking',
   description: 'Forces model to outline its thought process.',
@@ -12,6 +11,10 @@ export const ThinkingBlock: BlockConfig<ThinkingToolResponse> = {
   category: 'blocks',
   bgColor: '#181C1E',
   icon: BrainIcon,
+  canvasPresentation: {
+    defaultTitle: 'Thinking',
+    sentences: { default: ['Outline a step-by-step thought process'] },
+  },
   hideFromToolbar: true,
 
   subBlocks: [

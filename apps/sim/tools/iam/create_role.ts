@@ -1,7 +1,7 @@
 import type { IAMCreateRoleParams, IAMCreateRoleResponse } from '@/tools/iam/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createRoleTool: ToolConfig<IAMCreateRoleParams, IAMCreateRoleResponse> = {
+export const createRoleTool: InternalToolConfig<IAMCreateRoleParams, IAMCreateRoleResponse> = {
   id: 'iam_create_role',
   name: 'IAM Create Role',
   description: 'Create a new IAM role with a trust policy',
@@ -58,11 +58,8 @@ export const createRoleTool: ToolConfig<IAMCreateRoleParams, IAMCreateRoleRespon
     },
   },
 
-  request: {
-    url: '/api/tools/iam/create-role',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

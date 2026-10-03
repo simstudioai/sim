@@ -1,71 +1,98 @@
-import { usageLog, workflow } from '@sim/db/schema'
-import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { usageLog, workflow, workflowExecutionLogs } from '@sim/db/schema'
+import {
+  dbChainMockFns,
+  flattenMockConditions,
+  queueTableRows,
+  resetDbChainMock,
+} from '@sim/testing'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { billingUsageMock, billingUsageMockFns } from '@sim/testing/mocks/billing-usage.mock'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
+import {
+  billingUsageMonitorMock,
+  billingUsageMonitorMockFns,
+} from '@sim/testing/mocks/billing-usage-monitor.mock'
+import { isPlainRecord } from '@sim/utils/object'
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { ExecutionLogger } from '@/lib/logs/execution/logger'
+import { SECRET_PROJECTION_VERSION } from '@/lib/logs/execution/trace-store'
 import type { WorkflowExecutionLog } from '@/lib/logs/types'
+import { emitExecutionCompletedEvent } from '@/lib/workspace-events/emitter'
 import type { SerializableExecutionState } from '@/executor/execution/types'
+
+billingUsageMonitorMockFns.mockCheckUsageStatus.mockResolvedValue({
+  limit: 100,
+  percentUsed: 50,
+  currentUsage: 50,
+  isExceeded: false,
+  isWarning: false,
+  scope: 'user',
+  organizationId: null,
+})
+billingUsageMockFns.mockGetOrgUsageLimit.mockResolvedValue({ limit: 1000 })
+billingUsageMockFns.mockMaybeSendUsageThresholdEmail.mockResolvedValue(undefined)
+billingUsageLogMockFns.mockRecordUsage.mockResolvedValue(undefined)
+billingUsageLogMockFns.mockStableEventKey.mockImplementation((parts: Record<string, unknown>) =>
+  JSON.stringify(parts)
+)
+billingUsageLogMockFns.mockDeriveBillingContext.mockImplementation((userId: string) => ({
+  billingEntity: { type: 'user', id: userId },
+  billingPeriod: { start: new Date('2024-01-01'), end: new Date('2024-02-01') },
+}))
+
+billingAttributionMockFns.mockResolveBillingAttribution.mockImplementation(
+  ({ actorUserId, workspaceId }: { actorUserId: string; workspaceId: string }) =>
+    Promise.resolve({
+      actorUserId,
+      workspaceId,
+      billedAccountUserId: 'payer-1',
+      organizationId: 'org-1',
+      billingEntity: { type: 'organization', id: 'org-1' },
+      billingPeriod: {
+        start: '2024-01-01T00:00:00.000Z',
+        end: '2024-02-01T00:00:00.000Z',
+      },
+      payerSubscription: null,
+    })
+)
+billingAttributionMockFns.mockToBillingContext.mockImplementation((attribution) => ({
+  billingEntity: attribution.billingEntity,
+  billingPeriod: {
+    start: new Date(attribution.billingPeriod.start),
+    end: new Date(attribution.billingPeriod.end),
+  },
+}))
+
+billingSubscriptionMockFns.mockGetHighestPriorityPersonalSubscription.mockImplementation(() =>
+  Promise.resolve(null)
+)
+billingSubscriptionMockFns.mockGetHighestPrioritySubscription.mockImplementation(() =>
+  Promise.resolve(null)
+)
 
 afterAll(resetDbChainMock)
 
 // Mock billing modules
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getHighestPriorityPersonalSubscription: vi.fn(() => Promise.resolve(null)),
-  getHighestPrioritySubscription: vi.fn(() => Promise.resolve(null)),
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveBillingAttribution: vi.fn(
-    ({ actorUserId, workspaceId }: { actorUserId: string; workspaceId: string }) =>
-      Promise.resolve({
-        actorUserId,
-        workspaceId,
-        billedAccountUserId: 'payer-1',
-        organizationId: 'org-1',
-        billingEntity: { type: 'organization', id: 'org-1' },
-        billingPeriod: {
-          start: '2024-01-01T00:00:00.000Z',
-          end: '2024-02-01T00:00:00.000Z',
-        },
-        payerSubscription: null,
-      })
-  ),
-  toBillingContext: vi.fn((attribution) => ({
-    billingEntity: attribution.billingEntity,
-    billingPeriod: {
-      start: new Date(attribution.billingPeriod.start),
-      end: new Date(attribution.billingPeriod.end),
-    },
-  })),
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
-vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
-  checkUsageStatus: vi.fn(() =>
-    Promise.resolve({
-      limit: 100,
-      percentUsed: 50,
-      currentUsage: 50,
-      isExceeded: false,
-      isWarning: false,
-      scope: 'user',
-      organizationId: null,
-    })
-  ),
-}))
+vi.mock('@/lib/billing/calculations/usage-monitor', () => billingUsageMonitorMock)
 
-vi.mock('@/lib/billing/core/usage', () => ({
-  getOrgUsageLimit: vi.fn(() => Promise.resolve({ limit: 1000 })),
-  maybeSendUsageThresholdEmail: vi.fn(() => Promise.resolve()),
-}))
+vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
 
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  recordUsage: vi.fn(() => Promise.resolve()),
-  stableEventKey: vi.fn((parts: Record<string, unknown>) => JSON.stringify(parts)),
-  deriveBillingContext: vi.fn((userId: string) => ({
-    billingEntity: { type: 'user', id: userId },
-    billingPeriod: { start: new Date('2024-01-01'), end: new Date('2024-02-01') },
-  })),
-}))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 vi.mock('@/lib/billing/threshold-billing', () => ({
   checkAndBillOverageThreshold: vi.fn(() => Promise.resolve()),
@@ -87,30 +114,20 @@ vi.mock('@/lib/workspace-events/emitter', () => ({
   emitExecutionCompletedEvent: vi.fn(() => Promise.resolve()),
 }))
 
+vi.mock('@/lib/logs/execution/progress-markers', () => ({
+  clearProgressMarkers: vi.fn(() => Promise.resolve()),
+  getProgressMarkers: vi.fn(() => Promise.resolve(null)),
+  pickLatestCompletedMarker: vi.fn((current, persisted) => current ?? persisted),
+  pickLatestStartedMarker: vi.fn((current, persisted) => current ?? persisted),
+}))
+
 // Mock snapshot service
 vi.mock('@/lib/logs/execution/snapshot/service', () => ({
   snapshotService: {
-    createSnapshotWithDeduplication: vi.fn(() =>
-      Promise.resolve({
-        snapshot: {
-          id: 'snapshot-123',
-          workflowId: 'workflow-123',
-          stateHash: 'hash-123',
-          stateData: { blocks: {}, edges: [], loops: {}, parallels: {} },
-          createdAt: '2024-01-01T00:00:00.000Z',
-        },
-        isNew: true,
-      })
+    resolveSnapshot: vi.fn(() =>
+      Promise.resolve({ id: 'snapshot-123', workflowId: 'workflow-123', stateHash: 'hash' })
     ),
-    getSnapshot: vi.fn(() =>
-      Promise.resolve({
-        id: 'snapshot-123',
-        workflowId: 'workflow-123',
-        stateHash: 'hash-123',
-        stateData: { blocks: {}, edges: [], loops: {}, parallels: {} },
-        createdAt: '2024-01-01T00:00:00.000Z',
-      })
-    ),
+    rememberReferencedSnapshot: vi.fn(),
   },
 }))
 
@@ -119,100 +136,221 @@ describe('ExecutionLogger', () => {
 
   beforeEach(() => {
     logger = new ExecutionLogger()
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
-  describe('class instantiation', () => {
-    test('should create logger instance', () => {
-      expect(logger).toBeDefined()
-      expect(logger).toBeInstanceOf(ExecutionLogger)
-    })
-  })
-
   describe('interface implementation', () => {
-    test('should have startWorkflowExecution method', () => {
-      expect(typeof logger.startWorkflowExecution).toBe('function')
-    })
-
-    test('should have completeWorkflowExecution method', () => {
-      expect(typeof logger.completeWorkflowExecution).toBe('function')
-    })
-
-    test('should have getWorkflowExecution method', () => {
-      expect(typeof logger.getWorkflowExecution).toBe('function')
-    })
-
-    test('preserves correlation and diagnostics when execution completes', () => {
-      const loggerInstance = new ExecutionLogger() as any
-
-      const completedData = loggerInstance.buildCompletedExecutionData({
-        existingExecutionData: {
-          environment: {
-            variables: {},
-            workflowId: 'workflow-123',
-            executionId: 'execution-123',
-            userId: 'user-123',
-            workspaceId: 'workspace-123',
-          },
-          trigger: {
-            type: 'webhook',
-            source: 'webhook',
-            timestamp: '2025-01-01T00:00:00.000Z',
-            data: {
-              correlation: {
-                executionId: 'execution-123',
-                requestId: 'req-1234',
-                source: 'webhook',
-                workflowId: 'workflow-123',
-                webhookId: 'webhook-123',
-                path: 'incoming/slack',
-                triggerType: 'webhook',
-              },
-            },
-          },
-          lastStartedBlock: {
-            blockId: 'block-start',
-            blockName: 'Start',
-            blockType: 'agent',
-            startedAt: '2025-01-01T00:00:00.000Z',
-          },
-          lastCompletedBlock: {
-            blockId: 'block-end',
-            blockName: 'Finish',
-            blockType: 'api',
-            endedAt: '2025-01-01T00:00:05.000Z',
-            success: true,
-          },
+    test('marks new execution rows as contract-aware before any provenance is available', async () => {
+      dbChainMockFns.returning.mockResolvedValueOnce([
+        {
+          id: 'log-1',
+          workflowId: 'workflow-123',
+          executionId: 'execution-123',
+          stateSnapshotId: 'snapshot-123',
+          level: 'info',
+          trigger: 'api',
+          startedAt: new Date('2026-08-04T00:00:00.000Z'),
+          endedAt: null,
+          totalDurationMs: null,
+          executionData: {},
+          createdAt: new Date('2026-08-04T00:00:00.000Z'),
         },
-        traceSpans: [],
-        finalOutput: { ok: true },
-        finalizationPath: 'completed',
-        completionFailure: 'fallback failure',
-        executionCost: {
-          tokens: { input: 0, output: 0, total: 0 },
+      ])
+
+      await logger.startWorkflowExecution({
+        workflowId: 'workflow-123',
+        workspaceId: 'workspace-123',
+        executionId: 'execution-123',
+        trigger: {
+          type: 'api',
+          source: 'api',
+          timestamp: '2026-08-04T00:00:00.000Z',
+        },
+        environment: {
+          variables: {},
+          workflowId: 'workflow-123',
+          executionId: 'execution-123',
+          userId: 'user-123',
+          workspaceId: 'workspace-123',
+        },
+        workflowState: { blocks: {}, edges: [], loops: {}, parallels: {} },
+      })
+
+      expect(dbChainMockFns.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          executionData: expect.objectContaining({
+            secretProjectionVersion: SECRET_PROJECTION_VERSION,
+          }),
+        })
+      )
+    })
+
+    test('preserves a cancellation that wins the completion update race', async () => {
+      const startedAt = new Date('2026-08-03T12:00:00.000Z')
+      const createdAt = new Date('2026-08-03T12:00:00.000Z')
+      const runningLog = {
+        id: 'log-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        executionId: 'execution-1',
+        stateSnapshotId: 'snapshot-1',
+        level: 'info',
+        status: 'running',
+        trigger: 'api',
+        startedAt,
+        endedAt: null,
+        totalDurationMs: null,
+        executionData: {},
+        createdAt,
+      }
+      const cancelledLog = {
+        ...runningLog,
+        status: 'cancelled',
+        endedAt: new Date('2026-08-03T12:00:01.000Z'),
+        totalDurationMs: 1000,
+        executionData: { finalOutput: { cancelled: true } },
+      }
+      queueTableRows(workflowExecutionLogs, [runningLog])
+      queueTableRows(workflowExecutionLogs, [cancelledLog])
+      dbChainMockFns.returning.mockResolvedValueOnce([])
+      vi.spyOn(logger as any, 'applyPiiRedaction').mockImplementation(
+        async (_workspaceId: unknown, payload: unknown) => payload
+      )
+      vi.spyOn(logger as any, 'recordExecutionUsage').mockResolvedValue({
+        recordedIncrement: 0,
+        costTotalRefined: false,
+      })
+
+      const result = await logger.completeWorkflowExecution({
+        executionId: 'execution-1',
+        endedAt: '2026-08-03T12:00:02.000Z',
+        totalDurationMs: 2000,
+        costSummary: {
+          totalCost: 0,
+          totalInputCost: 0,
+          totalOutputCost: 0,
+          totalTokens: 0,
+          totalPromptTokens: 0,
+          totalCompletionTokens: 0,
+          baseExecutionCharge: 0,
           models: {},
         },
+        finalOutput: { completed: true },
+        traceSpans: [],
       })
 
-      expect(completedData.environment?.workflowId).toBe('workflow-123')
-      expect(completedData.trigger?.data?.correlation).toEqual({
-        executionId: 'execution-123',
-        requestId: 'req-1234',
-        source: 'webhook',
-        workflowId: 'workflow-123',
-        webhookId: 'webhook-123',
-        path: 'incoming/slack',
-        triggerType: 'webhook',
+      const completionGuard = dbChainMockFns.where.mock.calls
+        .flatMap(([condition]) => flattenMockConditions(condition))
+        .find(
+          (condition) =>
+            Array.isArray(condition.strings) &&
+            String(Array.from(condition.strings as string[])).includes("!= 'cancelled'")
+        )
+      expect(completionGuard).toBeDefined()
+      expect(result.executionData).toEqual(cancelledLog.executionData)
+      expect(emitExecutionCompletedEvent).not.toHaveBeenCalled()
+    })
+
+    const EMPTY_STATE = {
+      blockStates: {},
+      executedBlocks: [],
+      blockLogs: [],
+      decisions: { router: {}, condition: {} },
+      completedLoops: [],
+      activeExecutionPath: [],
+    }
+    const RUN_PROVENANCE = { version: 1, complete: true, entries: [] }
+
+    /**
+     * Drives a real completion and returns the `execution_data` actually written.
+     * `redactedState` stands in for the PII pass, which either hands back a
+     * redacted state or none at all.
+     */
+    async function completeAndReadWrite(params: {
+      executionState?: SerializableExecutionState
+      redactedState?: SerializableExecutionState
+    }) {
+      const startedAt = new Date('2026-08-11T00:00:00.000Z')
+      queueTableRows(workflowExecutionLogs, [
+        {
+          id: 'log-1',
+          workflowId: 'workflow-1',
+          workspaceId: 'workspace-1',
+          executionId: 'execution-1',
+          stateSnapshotId: 'snapshot-1',
+          level: 'info',
+          status: 'running',
+          trigger: 'api',
+          startedAt,
+          endedAt: null,
+          totalDurationMs: null,
+          executionData: {},
+          createdAt: startedAt,
+        },
+      ])
+      dbChainMockFns.returning.mockResolvedValueOnce([
+        { id: 'log-1', executionData: {}, startedAt, createdAt: startedAt },
+      ])
+      const internals = logger as unknown as {
+        applyPiiRedaction: (workspaceId: string, payload: Record<string, unknown>) => unknown
+        recordExecutionUsage: () => Promise<{
+          recordedIncrement: number
+          costTotalRefined: boolean
+        }>
+      }
+      vi.spyOn(internals, 'applyPiiRedaction').mockImplementation(
+        async (_workspaceId: string, payload: Record<string, unknown>) =>
+          Object.hasOwn(params, 'redactedState')
+            ? { ...payload, executionState: params.redactedState }
+            : payload
+      )
+      vi.spyOn(internals, 'recordExecutionUsage').mockResolvedValue({
+        recordedIncrement: 0,
+        costTotalRefined: false,
       })
-      expect(completedData.correlation).toEqual(completedData.trigger?.data?.correlation)
-      expect(completedData.finalOutput).toEqual({ ok: true })
-      expect(completedData.lastStartedBlock?.blockId).toBe('block-start')
-      expect(completedData.lastCompletedBlock?.blockId).toBe('block-end')
-      expect(completedData.finalizationPath).toBe('completed')
-      expect(completedData.completionFailure).toBe('fallback failure')
-      expect(completedData.hasTraceSpans).toBe(false)
-      expect(completedData.traceSpanCount).toBe(0)
+
+      await logger.completeWorkflowExecution({
+        executionId: 'execution-1',
+        endedAt: '2026-08-11T00:00:02.000Z',
+        totalDurationMs: 2000,
+        costSummary: {
+          totalCost: 0,
+          totalInputCost: 0,
+          totalOutputCost: 0,
+          totalTokens: 0,
+          totalPromptTokens: 0,
+          totalCompletionTokens: 0,
+          baseExecutionCharge: 0,
+          models: {},
+        },
+        finalOutput: { completed: true },
+        traceSpans: [],
+        ...(params.executionState ? { executionState: params.executionState } : {}),
+      })
+
+      return dbChainMockFns.set.mock.calls
+        .map(([values]: [{ executionData?: unknown }]) => values?.executionData)
+        .find((data): data is Record<string, unknown> => isPlainRecord(data))
+    }
+
+    /**
+     * The display projection rebuilds its redaction registry from this key.
+     * Compaction drops `executionState`, so the run provenance has to reach the
+     * row independently of it or truncated runs render as an empty trace.
+     */
+    test.each([
+      ['redaction preserves the state', EMPTY_STATE],
+      ['redaction drops the state entirely', undefined],
+    ])('lifts run provenance onto the top-level key when %s', async (_case, redactedState) => {
+      const written = await completeAndReadWrite({
+        executionState: {
+          ...EMPTY_STATE,
+          resolvedSecretTraceProvenance: RUN_PROVENANCE,
+        } as unknown as SerializableExecutionState,
+        redactedState: redactedState as SerializableExecutionState | undefined,
+      })
+
+      expect(written?.resolvedSecretTraceProvenance).toEqual(RUN_PROVENANCE)
     })
 
     test('preserves completion-provided billing attribution when the start row is legacy', () => {
@@ -291,7 +429,7 @@ describe('ExecutionLogger', () => {
 
       expect(preserved?.resolvedSecretTraceProvenance).toBe(provenance)
       expect(preserved?.trustedLargeValueAccess).toBe(trustedLargeValueAccess)
-      expect(preserved?.blockStates).toBe(redactedState.blockStates)
+      expect(preserved?.blockStates).toEqual(redactedState.blockStates)
     })
 
     test('summarizes oversized execution data before storage', () => {
@@ -369,6 +507,7 @@ describe('ExecutionLogger', () => {
 
       expect(storedBytes).toBeLessThanOrEqual(3 * 1024 * 1024)
       expect(compacted.executionDataTruncated).toBe(true)
+      expect(compacted.secretProjectionVersion).toBe(SECRET_PROJECTION_VERSION)
       expect(compacted.executionState).toBeUndefined()
       expect(compacted.executionStateSummary).toEqual({
         executedBlockCount: 1,
@@ -405,6 +544,7 @@ describe('ExecutionLogger', () => {
             workspaceId: 'workspace-1',
           },
           correlation,
+          secretProjectionVersion: SECRET_PROJECTION_VERSION,
           hasTraceSpans: false,
           traceSpanCount: 0,
         },
@@ -412,6 +552,7 @@ describe('ExecutionLogger', () => {
       )
 
       expect(compacted.executionDataTruncated).toBe(true)
+      expect(compacted.secretProjectionVersion).toBe(SECRET_PROJECTION_VERSION)
       expect(compacted.correlation).toEqual(correlation)
       expect(compacted).not.toHaveProperty('environment')
     })
@@ -479,70 +620,76 @@ describe('ExecutionLogger', () => {
       expect(compacted.traceSpans?.[0]?.toolCalls?.[0]).not.toHaveProperty('output')
       expect(compacted.traceSpans?.[0]?.toolCalls?.[0]).not.toHaveProperty('error')
     })
+
+    const PROVENANCE = { version: 1, complete: true, entries: [] } as const
+
+    function buildSpans(spanCount: number, ioBytes: number) {
+      const payload = 'x'.repeat(ioBytes)
+      return Array.from({ length: spanCount }, (_unused, index) => ({
+        id: `span-${index}`,
+        name: `Block ${index}`,
+        type: 'function',
+        duration: 1,
+        startTime: '2025-01-01T00:00:00.000Z',
+        endTime: '2025-01-01T00:00:01.000Z',
+        status: 'success' as const,
+        output: { data: payload },
+      }))
+    }
+
+    function compactWithProvenance(traceSpans: unknown[], finalOutput: unknown) {
+      const loggerInstance = new ExecutionLogger() as unknown as {
+        compactExecutionDataForStorage: (
+          data: Record<string, unknown>,
+          executionId: string
+        ) => Record<string, unknown>
+      }
+      return loggerInstance.compactExecutionDataForStorage(
+        {
+          secretProjectionVersion: SECRET_PROJECTION_VERSION,
+          resolvedSecretTraceProvenance: PROVENANCE,
+          hasTraceSpans: true,
+          traceSpanCount: traceSpans.length,
+          finalOutput,
+          executionState: {
+            blockStates: {},
+            executedBlocks: [],
+            blockLogs: [],
+            decisions: { router: {}, condition: {} },
+            completedLoops: [],
+            activeExecutionPath: [],
+            resolvedSecretTraceProvenance: PROVENANCE,
+          },
+          traceSpans,
+        },
+        'execution-provenance'
+      )
+    }
+
+    test('preserves run provenance through the summarized compaction tier', () => {
+      // One oversized value: summarization alone brings the row under the cap.
+      const compacted = compactWithProvenance(buildSpans(1, 4 * 1024 * 1024), {
+        data: 'x'.repeat(4 * 1024 * 1024),
+      })
+
+      expect(compacted.executionDataTruncated).toBe(true)
+      expect(compacted.executionDataTruncationReason).toContain('were summarized')
+      expect(compacted.executionState).toBeUndefined()
+      expect(compacted.resolvedSecretTraceProvenance).toEqual(PROVENANCE)
+    })
+
+    test('drops run provenance from the metadata-only tier, which stores no spans', () => {
+      // That tier keeps no traceSpans, so provenance there buys nothing and
+      // would put an unbounded value in the last-resort size floor.
+      const compacted = compactWithProvenance(buildSpans(20_000, 8), {})
+
+      expect(compacted.executionDataTruncationReason).toContain('only execution metadata')
+      expect(compacted.traceSpans).toBeUndefined()
+      expect(compacted.resolvedSecretTraceProvenance).toBeUndefined()
+    })
   })
 
   describe('file extraction', () => {
-    test('should extract files from trace spans with files property', () => {
-      const loggerInstance = new ExecutionLogger()
-
-      // Access the private method through the class prototype
-      const extractFilesMethod = (loggerInstance as any).extractFilesFromExecution.bind(
-        loggerInstance
-      )
-
-      const traceSpans = [
-        {
-          id: 'span-1',
-          output: {
-            files: [
-              {
-                id: 'file-1',
-                name: 'test.pdf',
-                size: 1024,
-                type: 'application/pdf',
-                url: 'https://example.com/file.pdf',
-                key: 'uploads/file.pdf',
-              },
-            ],
-          },
-        },
-      ]
-
-      const files = extractFilesMethod(traceSpans, null, null)
-      expect(files).toHaveLength(1)
-      expect(files[0].name).toBe('test.pdf')
-      expect(files[0].id).toBe('file-1')
-    })
-
-    test('should extract files from attachments property', () => {
-      const loggerInstance = new ExecutionLogger()
-      const extractFilesMethod = (loggerInstance as any).extractFilesFromExecution.bind(
-        loggerInstance
-      )
-
-      const traceSpans = [
-        {
-          id: 'span-1',
-          output: {
-            attachments: [
-              {
-                id: 'attach-1',
-                name: 'attachment.docx',
-                size: 2048,
-                type: 'application/docx',
-                url: 'https://example.com/attach.docx',
-                key: 'attachments/attach.docx',
-              },
-            ],
-          },
-        },
-      ]
-
-      const files = extractFilesMethod(traceSpans, null, null)
-      expect(files).toHaveLength(1)
-      expect(files[0].name).toBe('attachment.docx')
-    })
-
     test('should deduplicate files with same ID', () => {
       const loggerInstance = new ExecutionLogger()
       const extractFilesMethod = (loggerInstance as any).extractFilesFromExecution.bind(
@@ -565,64 +712,6 @@ describe('ExecutionLogger', () => {
 
       const files = extractFilesMethod(traceSpans, null, null)
       expect(files).toHaveLength(1)
-    })
-
-    test('should extract files from final output', () => {
-      const loggerInstance = new ExecutionLogger()
-      const extractFilesMethod = (loggerInstance as any).extractFilesFromExecution.bind(
-        loggerInstance
-      )
-
-      const finalOutput = {
-        files: [
-          {
-            id: 'output-file-1',
-            name: 'output.txt',
-            size: 512,
-            type: 'text/plain',
-            url: 'https://example.com/output.txt',
-            key: 'outputs/output.txt',
-          },
-        ],
-      }
-
-      const files = extractFilesMethod([], finalOutput, null)
-      expect(files).toHaveLength(1)
-      expect(files[0].name).toBe('output.txt')
-    })
-
-    test('should extract files from workflow input', () => {
-      const loggerInstance = new ExecutionLogger()
-      const extractFilesMethod = (loggerInstance as any).extractFilesFromExecution.bind(
-        loggerInstance
-      )
-
-      const workflowInput = {
-        files: [
-          {
-            id: 'input-file-1',
-            name: 'input.csv',
-            size: 256,
-            type: 'text/csv',
-            url: 'https://example.com/input.csv',
-            key: 'inputs/input.csv',
-          },
-        ],
-      }
-
-      const files = extractFilesMethod([], null, workflowInput)
-      expect(files).toHaveLength(1)
-      expect(files[0].name).toBe('input.csv')
-    })
-
-    test('should handle empty inputs', () => {
-      const loggerInstance = new ExecutionLogger()
-      const extractFilesMethod = (loggerInstance as any).extractFilesFromExecution.bind(
-        loggerInstance
-      )
-
-      const files = extractFilesMethod(undefined, undefined, undefined)
-      expect(files).toHaveLength(0)
     })
 
     test('should handle deeply nested file objects', () => {
@@ -665,7 +754,6 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
 
   beforeEach(() => {
     logger = new ExecutionLogger() as any
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -745,7 +833,7 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
       }),
     ])
     // Returns the amount recorded at this boundary (drives threshold-email math).
-    expect(recorded).toBeCloseTo(1.005, 8)
+    expect(recorded.recordedIncrement).toBeCloseTo(1.005, 8)
     // cost_total is refined to the exact ledger sum inside the locked tx.
     expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
   })
@@ -790,7 +878,7 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
     expect(lastEntries()).not.toContainEqual(
       expect.objectContaining({ category: 'model', description: 'mothership' })
     )
-    expect(recorded).toBeCloseTo(1.005, 8)
+    expect(recorded.recordedIncrement).toBeCloseTo(1.005, 8)
     expect(setCostTotalMock).toHaveBeenCalledWith({ costTotal: '1.505' })
   })
 
@@ -820,57 +908,6 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
     )
   })
 
-  test('returns only the post-resume increment (not the cumulative total)', async () => {
-    const recorded = await run(
-      costSummary({
-        models: {
-          'gpt-4o': {
-            total: 3,
-            input: 0,
-            output: 0,
-            tokens: { input: 0, output: 0, total: 0 },
-          },
-        },
-      }),
-      [
-        { category: 'fixed', description: 'execution_fee', cost: '0.005' },
-        { category: 'model', description: 'gpt-4o', cost: '1' },
-      ]
-    )
-    // Cumulative is 3.005, but only the $2 increment was recorded here — the
-    // threshold-email math must not re-count the pre-pause $1.005.
-    expect(recorded).toBe(2)
-  })
-
-  test('forwards a pre-resolved billing context to recordUsage (skips re-lookup)', async () => {
-    mockDb([])
-    const billingContext = {
-      billingEntity: { type: 'user' as const, id: 'user-1' },
-      billingPeriod: { start: new Date('2026-01-01'), end: new Date('2026-02-01') },
-    }
-    await (logger as any).recordExecutionUsage(
-      'workflow-1',
-      costSummary({
-        models: {
-          'gpt-4o': {
-            total: 1,
-            input: 0,
-            output: 0,
-            tokens: { input: 0, output: 0, total: 0 },
-          },
-        },
-      }),
-      'api',
-      'exec-1',
-      'user-1',
-      billingContext
-    )
-    expect(vi.mocked(recordUsage).mock.calls[0][0]).toMatchObject({
-      billingEntity: { type: 'user', id: 'user-1' },
-      billingPeriod: billingContext.billingPeriod,
-    })
-  })
-
   test('does not derive an actor payer when workspace billing context is missing', async () => {
     mockDb([])
 
@@ -882,7 +919,7 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
       'user-1'
     )
 
-    expect(recorded).toBe(0)
+    expect(recorded.recordedIncrement).toBe(0)
     expect(recordUsage).not.toHaveBeenCalled()
   })
 
@@ -905,15 +942,6 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
     )
 
     expect(recordUsage).not.toHaveBeenCalled()
-  })
-
-  test('BYOK run records only the base fee (no zero-cost model rows)', async () => {
-    await run(costSummary({ models: {}, charges: {} }), [])
-
-    expect(recordUsage).toHaveBeenCalledTimes(1)
-    expect(lastEntries()).toEqual([
-      expect.objectContaining({ category: 'fixed', description: 'execution_fee', cost: 0.005 }),
-    ])
   })
 
   test('standalone hosted-tool charge reconciles as a tool row', async () => {

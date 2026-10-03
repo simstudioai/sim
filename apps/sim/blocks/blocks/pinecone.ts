@@ -1,9 +1,8 @@
 import { PineconeIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { PineconeResponse } from '@/tools/pinecone/types'
 
-export const PineconeBlock: BlockConfig<PineconeResponse> = {
+export const PineconeBlock: BlockConfig = {
   type: 'pinecone',
   name: 'Pinecone',
   description: 'Use Pinecone vector database',
@@ -15,6 +14,55 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
   integrationType: IntegrationType.Databases,
   bgColor: '#0D1117',
   icon: PineconeIcon,
+  canvasPresentation: {
+    defaultTitle: 'Pinecone',
+    sentences: {
+      byOperation: {
+        generate: [
+          { text: 'Generate embeddings for', field: 'inputs', core: true },
+          { text: 'with', field: 'model' },
+        ],
+        upsert_text: [
+          { text: 'Upsert', field: 'records', core: true },
+          { text: 'into namespace', field: 'namespace' },
+        ],
+        update_vector: [
+          { text: 'Update vector', field: 'id', core: true },
+          { text: 'in namespace', field: 'namespace' },
+        ],
+        delete_vectors: [
+          'Delete vectors',
+          { text: 'matching', field: ['ids', 'filter'] },
+          { text: 'from namespace', field: 'namespace' },
+        ],
+        search_text: [
+          { text: 'Search for', field: 'searchQuery', core: true },
+          { text: 'in namespace', field: 'namespace' },
+          { text: ', returning top', field: 'topK' },
+        ],
+        search_vector: [
+          'Search by vector',
+          { text: 'in namespace', field: 'namespace' },
+          { text: ', returning top', field: 'topK' },
+        ],
+        fetch: [
+          { text: 'Fetch vectors', field: 'ids', core: true },
+          { text: 'from namespace', field: 'namespace' },
+        ],
+        list_vector_ids: [
+          'List vector IDs',
+          { text: 'in namespace', field: 'namespace' },
+          { text: ', starting with', field: 'prefix' },
+          { text: ', up to', field: 'limit', after: 'IDs' },
+        ],
+        describe_index_stats: ['Read index statistics'],
+        list_indexes: ['List all indexes'],
+        describe_index: [
+          { text: 'Read the configuration of index', field: 'indexName', core: true },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {
@@ -256,8 +304,8 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
       title: 'Options',
       type: 'checkbox-list',
       options: [
-        { id: 'includeValues', label: 'Include Values' },
-        { id: 'includeMetadata', label: 'Include Metadata' },
+        { id: 'includeValues', label: 'Include Values', defaultChecked: true },
+        { id: 'includeMetadata', label: 'Include Metadata', defaultChecked: true },
       ],
       condition: { field: 'operation', value: 'search_vector' },
     },
@@ -592,7 +640,7 @@ export const PineconeBlockMeta = {
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'sync'],
-      alsoIntegrations: ['openai'],
+      alsoIntegrations: ['embeddings'],
     },
     {
       icon: PineconeIcon,
@@ -602,7 +650,7 @@ export const PineconeBlockMeta = {
       modules: ['agent', 'workflows'],
       category: 'productivity',
       tags: ['research', 'enterprise'],
-      alsoIntegrations: ['openai'],
+      alsoIntegrations: ['embeddings'],
     },
     {
       icon: PineconeIcon,
@@ -622,7 +670,7 @@ export const PineconeBlockMeta = {
       modules: ['tables', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'analysis'],
-      alsoIntegrations: ['openai'],
+      alsoIntegrations: ['embeddings'],
     },
     {
       icon: PineconeIcon,
@@ -641,7 +689,7 @@ export const PineconeBlockMeta = {
       modules: ['agent', 'workflows'],
       category: 'support',
       tags: ['support', 'automation'],
-      alsoIntegrations: ['openai'],
+      alsoIntegrations: ['embeddings'],
     },
     {
       icon: PineconeIcon,
@@ -651,7 +699,7 @@ export const PineconeBlockMeta = {
       modules: ['agent', 'workflows'],
       category: 'support',
       tags: ['support', 'vector-search', 'automation'],
-      alsoIntegrations: ['openai', 'zendesk'],
+      alsoIntegrations: ['embeddings', 'zendesk'],
     },
   ],
   skills: [

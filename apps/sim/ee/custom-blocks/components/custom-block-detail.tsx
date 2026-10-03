@@ -14,12 +14,12 @@ import {
   Expandable,
   ExpandableContent,
   Label,
-  Loader,
   Switch,
   toast,
+  UploadPreviewButton,
 } from '@sim/emcn'
+import { ArrowLeft, ChevronDown, X } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ArrowLeft, ChevronDown, Image as ImageIcon, X } from 'lucide-react'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import {
   type FlattenOutputsBlockInput,
@@ -85,9 +85,9 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
     [blocks, blockId]
   )
 
-  const publish = usePublishCustomBlock(workspaceId)
-  const update = useUpdateCustomBlock(workspaceId)
-  const remove = useDeleteCustomBlock(workspaceId)
+  const publish = usePublishCustomBlock()
+  const update = useUpdateCustomBlock()
+  const remove = useDeleteCustomBlock()
 
   // Needed in both modes: the source picker (create) and the manage gate (edit).
   const { data: workspaces = [] } = useWorkspacesQuery()
@@ -142,6 +142,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
     toCustomBlockInputs(existing?.inputFields)
   )
   const [outputs, setOutputs] = useState<CustomBlockOutput[]>(() => existing?.exposedOutputs ?? [])
+  const [traceChildRuns, setTraceChildRuns] = useState(existing?.traceChildRuns ?? false)
   const [error, setError] = useState<string | null>(null)
   const [showDelete, setShowDelete] = useState(false)
 
@@ -169,6 +170,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
     setDescription(existing.description ?? '')
     setInputs(toCustomBlockInputs(existing.inputFields))
     setOutputs(existing.exposedOutputs ?? [])
+    setTraceChildRuns(existing.traceChildRuns)
   }
 
   const iconUpload = useProfilePictureUpload({
@@ -277,6 +279,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
     ? name.trim() !== existing.name ||
       description.trim() !== (existing.description ?? '') ||
       (iconUrl || null) !== (existing.iconUrl ?? null) ||
+      traceChildRuns !== existing.traceChildRuns ||
       JSON.stringify(visibleOutputs) !== JSON.stringify(existing.exposedOutputs) ||
       JSON.stringify(normalizeInputsForCompare(visibleInputs)) !==
         JSON.stringify(normalizeInputsForCompare(existing.inputFields))
@@ -286,6 +289,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
           selectedWorkflowId ||
           selectedWorkspaceId !== eligibleDefaultWorkspaceId ||
           iconUrl ||
+          traceChildRuns ||
           visibleOutputs.length > 0 ||
           visibleInputs.some((i) => i.placeholder?.trim())
       )
@@ -343,6 +347,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
     }
     setName(existing?.name ?? '')
     setDescription(existing?.description ?? '')
+    setTraceChildRuns(existing?.traceChildRuns ?? false)
     setInputs(toCustomBlockInputs(existing?.inputFields))
     setOutputs(existing?.exposedOutputs ?? [])
     iconUpload.reset()
@@ -388,6 +393,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
           description: description.trim(),
           inputs: inputPlaceholders,
           exposedOutputs,
+          traceChildRuns,
           ...(iconChanged ? { iconUrl: iconUrl || null } : {}),
         })
         toast.success('Block updated')
@@ -399,6 +405,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
           description: description.trim(),
           inputs: inputPlaceholders,
           exposedOutputs,
+          traceChildRuns,
           ...(iconUrl ? { iconUrl } : {}),
         })
         toast.success('Block created')
@@ -515,20 +522,16 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
           <SettingRow label='Icon' labelTooltip='Square image (PNG, JPEG, or SVG). Optional.'>
             <div className='flex items-center gap-4'>
               <DropZone onDrop={canManageBlock ? iconUpload.handleFileDrop : () => {}}>
-                <button
-                  type='button'
+                <UploadPreviewButton
+                  aria-label={iconUrl ? 'Change icon' : 'Upload icon'}
                   onClick={iconUpload.handleThumbnailClick}
-                  disabled={iconUpload.isUploading || !canManageBlock}
-                  className='group relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
+                  loading={iconUpload.isUploading}
+                  disabled={!canManageBlock}
                 >
-                  {iconUpload.isUploading ? (
-                    <Loader className='size-5 text-[var(--text-muted)]' animate />
-                  ) : iconUrl ? (
+                  {iconUrl ? (
                     <img src={iconUrl} alt='' className='size-full object-contain p-1.5' />
-                  ) : (
-                    <ImageIcon className='size-5 text-[var(--text-muted)]' />
-                  )}
-                </button>
+                  ) : null}
+                </UploadPreviewButton>
               </DropZone>
               <div className='flex gap-2'>
                 <Button
@@ -618,7 +621,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
                         }}
                       >
                         <div className='flex min-w-0 flex-1 items-center gap-2'>
-                          <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
+                          <span className='block truncate text-[var(--text-tertiary)] text-sm'>
                             {i.name}
                           </span>
                           <Badge variant='type' size='sm'>
@@ -727,6 +730,19 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
               </div>
             )}
           </SettingRow>
+
+          <SettingRow
+            label='Trace runs in consumer logs'
+            htmlFor='custom-block-trace-child-runs'
+            description='Shows this block’s steps inside the trace of every workflow that runs it, org-wide. Anyone who can read those logs sees the source workflow’s block names, inputs, outputs, and prompts — including people with no access to this workspace.'
+          >
+            <Switch
+              id='custom-block-trace-child-runs'
+              checked={traceChildRuns}
+              onCheckedChange={setTraceChildRuns}
+              disabled={!canManageBlock}
+            />
+          </SettingRow>
         </div>
       </SettingsPanel>
 
@@ -735,6 +751,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
         onOpenChange={() => setShowDelete(false)}
         srTitle='Delete custom block'
         title='Delete custom block'
+        defaultAction='none'
         text={[
           'Delete ',
           { text: existing?.name ?? 'this block', bold: true },
@@ -764,7 +781,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
           title={
             <span>
               Type&nbsp;
-              <span className='font-medium text-[var(--text-primary)]'>{existing?.name}</span>
+              <span className='text-[var(--text-primary)]'>{existing?.name}</span>
               &nbsp;to confirm
             </span>
           }

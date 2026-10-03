@@ -1,14 +1,9 @@
 import { createLogger } from '@sim/logger'
-import {
-  type BillingAttributionSnapshot,
-  checkAttributedUsageLimits,
-} from '@/lib/billing/core/billing-attribution'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
+import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
-import {
-  getCancellationChannel,
-  isExecutionCancelled,
-  isRedisCancellationEnabled,
-} from '@/lib/execution/cancellation'
+import { combineExecutionAbortSignals } from '@/lib/core/execution-limits'
+import { subscribeToExecutionCancellation } from '@/lib/execution/cancellation'
 import { BoundarySafeError } from '@/executor/errors/boundary'
 
 const logger = createLogger('CustomBlockChildExecution')
@@ -48,7 +43,7 @@ const GENERIC_USAGE_LIMIT_MESSAGE =
 export async function admitCustomBlockChildExecution(
   attribution: BillingAttributionSnapshot
 ): Promise<void> {
-  const usage = await checkAttributedUsageLimits(attribution)
+  const usage = await checkExecutionUsageLimits(attribution)
   if (!usage.isExceeded) return
 
   // Only the payer-scoped denial describes the shared organization ("Organization
@@ -106,41 +101,24 @@ export async function createChildCancellationSignal(params: {
   parentExecutionId?: string
 }): Promise<{ signal: AbortSignal; dispose: () => void }> {
   const controller = new AbortController()
+  const signal = params.parentSignal
+    ? combineExecutionAbortSignals([params.parentSignal, controller.signal])
+    : controller.signal
 
-  if (params.parentSignal?.aborted) {
-    controller.abort(params.parentSignal.reason)
-    return { signal: controller.signal, dispose: () => {} }
+  if (signal.aborted) {
+    return { signal, dispose: () => {} }
   }
 
-  const onParentAbort = () => controller.abort(params.parentSignal?.reason)
-  params.parentSignal?.addEventListener('abort', onParentAbort, { once: true })
+  const abort = () => controller.abort(new DOMException('user', 'AbortError'))
 
   let unsubscribe: (() => void) | undefined
   if (params.parentExecutionId) {
-    const parentExecutionId = params.parentExecutionId
-    // Subscribe BEFORE the durable read, mirroring `markExecutionCancelled`'s
-    // write-durable-then-publish order: a cancel published during the read is
-    // caught by the subscription, and one published earlier — while the child's
-    // session and admission were still being set up — by the read itself. The
-    // child's own engine backstop cannot cover this, since it checks the CHILD's
-    // execution id, which is never the one marked cancelled.
-    unsubscribe = getCancellationChannel().subscribe((event) => {
-      if (event.executionId === parentExecutionId) controller.abort()
-    })
-    if (isRedisCancellationEnabled()) {
-      try {
-        if (await isExecutionCancelled(parentExecutionId)) controller.abort()
-      } catch {
-        // Fail open, matching the engine's own backstop: a failed read must not
-        // stop a child whose parent was never actually cancelled.
-      }
-    }
+    unsubscribe = await subscribeToExecutionCancellation(params.parentExecutionId, abort)
   }
 
   return {
-    signal: controller.signal,
+    signal,
     dispose: () => {
-      params.parentSignal?.removeEventListener('abort', onParentAbort)
       unsubscribe?.()
     },
   }

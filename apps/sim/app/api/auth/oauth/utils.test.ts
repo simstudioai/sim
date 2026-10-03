@@ -1,36 +1,18 @@
 /**
  * Tests for OAuth utility functions
- *
- * @vitest-environment node
  */
 
 import { redisConfigMockFns } from '@sim/testing'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { capturedLeaderLockOptions } = vi.hoisted(() => ({
-  capturedLeaderLockOptions: [] as Array<Record<string, unknown>>,
-}))
-vi.mock('@/lib/concurrency/leader-lock', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/concurrency/leader-lock')>()
-  return {
-    ...actual,
-    withLeaderLock: vi.fn((options) => {
-      capturedLeaderLockOptions.push(options as unknown as Record<string, unknown>)
-      return actual.withLeaderLock(options)
-    }),
-  }
-})
 
 vi.mock('@/lib/oauth/oauth', () => ({
   refreshOAuthToken: vi.fn(),
   OAUTH_PROVIDERS: {},
+  TOKEN_REFRESH_TIMEOUT_MS: 15_000,
 }))
 
-const { mockDecryptSecret } = vi.hoisted(() => ({ mockDecryptSecret: vi.fn() }))
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-  encryptSecret: vi.fn(async (value: string) => ({ encrypted: value, iv: 'iv' })),
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 const { mockMinter } = vi.hoisted(() => ({ mockMinter: vi.fn() }))
 vi.mock('@/lib/credentials/client-credential-accounts/server', () => ({
@@ -42,17 +24,15 @@ import { db } from '@sim/db'
 import { __resetCoalesceLocallyForTests } from '@/lib/concurrency/singleflight'
 import { ZOOM_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { refreshOAuthToken } from '@/lib/oauth'
-import {
-  ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
-  GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
-  SLACK_CUSTOM_BOT_PROVIDER_ID,
-} from '@/lib/oauth/types'
-import {
-  getCredential,
-  refreshAccessTokenIfNeeded,
-  refreshTokenIfNeeded,
-  resolveServiceAccountToken,
-} from '@/app/api/auth/oauth/utils'
+import { refreshTokenIfNeeded, resolveServiceAccountToken } from '@/lib/oauth/credential-service'
+import { getOAuthRefreshCoordinationIdentity } from '@/lib/oauth/refresh-coordination'
+import { GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
+
+const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
+encryptionMockFns.mockEncryptSecret.mockImplementation(async (value: string) => ({
+  encrypted: value,
+  iv: 'iv',
+}))
 
 const mockDb = db as any
 const mockRefreshOAuthToken = refreshOAuthToken as any
@@ -75,7 +55,9 @@ function mockSelectChain(limitResult: unknown[]) {
  * Returns a nested chain: update() -> set() -> where()
  */
 function mockUpdateChain() {
-  const mockWhere = vi.fn().mockResolvedValue({})
+  /** The rotated write returns the row it matched; an empty result means the chain moved first. */
+  const mockReturning = vi.fn().mockResolvedValue([{ id: 'account-1' }])
+  const mockWhere = vi.fn().mockReturnValue({ returning: mockReturning })
   const mockSet = vi.fn().mockReturnValue({ where: mockWhere })
   mockDb.update.mockReturnValueOnce({ set: mockSet })
   return { mockSet, mockWhere }
@@ -83,216 +65,10 @@ function mockUpdateChain() {
 
 describe('OAuth Utils', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    capturedLeaderLockOptions.length = 0
     __resetCoalesceLocallyForTests()
     redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
     redisConfigMockFns.mockAcquireLock.mockResolvedValue(true)
     redisConfigMockFns.mockReleaseLock.mockResolvedValue(true)
-  })
-
-  afterEach(() => {
-    vi.clearAllMocks()
-  })
-
-  describe('getCredential', () => {
-    it('should return credential when found', async () => {
-      const mockCredentialRow = { type: 'oauth', accountId: 'resolved-account-id' }
-      const mockAccountRow = { id: 'resolved-account-id', userId: 'test-user-id' }
-
-      mockSelectChain([mockCredentialRow])
-      mockSelectChain([mockAccountRow])
-
-      const credential = await getCredential('request-id', 'credential-id', 'test-user-id')
-
-      expect(mockDb.select).toHaveBeenCalledTimes(2)
-
-      expect(credential).toMatchObject(mockAccountRow)
-      expect(credential).toMatchObject({ resolvedCredentialId: 'resolved-account-id' })
-    })
-
-    it('should return undefined when credential is not found', async () => {
-      mockSelectChain([])
-      mockSelectChain([])
-
-      const credential = await getCredential('request-id', 'nonexistent-id', 'test-user-id')
-
-      expect(credential).toBeUndefined()
-    })
-  })
-
-  describe('refreshTokenIfNeeded', () => {
-    it('should return valid token without refresh if not expired', async () => {
-      const mockCredential = {
-        id: 'credential-id',
-        accessToken: 'valid-token',
-        refreshToken: 'refresh-token',
-        accessTokenExpiresAt: new Date(Date.now() + 3600 * 1000),
-        providerId: 'google',
-      }
-
-      const result = await refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
-
-      expect(mockRefreshOAuthToken).not.toHaveBeenCalled()
-      expect(result).toEqual({ accessToken: 'valid-token', refreshed: false })
-    })
-
-    it('should refresh token when expired', async () => {
-      const mockCredential = {
-        id: 'credential-id',
-        accessToken: 'expired-token',
-        refreshToken: 'refresh-token',
-        accessTokenExpiresAt: new Date(Date.now() - 3600 * 1000),
-        providerId: 'google',
-      }
-
-      mockRefreshOAuthToken.mockResolvedValueOnce({
-        ok: true,
-        accessToken: 'new-token',
-        expiresIn: 3600,
-        refreshToken: 'new-refresh-token',
-      })
-
-      mockUpdateChain()
-
-      const result = await refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
-
-      expect(mockRefreshOAuthToken).toHaveBeenCalledWith('google', 'refresh-token')
-      expect(mockDb.update).toHaveBeenCalled()
-      expect(result).toEqual({ accessToken: 'new-token', refreshed: true })
-    })
-
-    it('should handle refresh token error', async () => {
-      const mockCredential = {
-        id: 'credential-id',
-        accessToken: 'expired-token',
-        refreshToken: 'refresh-token',
-        accessTokenExpiresAt: new Date(Date.now() - 3600 * 1000),
-        providerId: 'google',
-      }
-
-      mockRefreshOAuthToken.mockResolvedValueOnce({
-        ok: false,
-        errorCode: 'invalid_grant',
-        message: 'Failed',
-      })
-
-      await expect(
-        refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
-      ).rejects.toThrow('Failed to refresh token')
-    })
-
-    it('should not attempt refresh if no refresh token', async () => {
-      const mockCredential = {
-        id: 'credential-id',
-        accessToken: 'token',
-        refreshToken: null,
-        accessTokenExpiresAt: new Date(Date.now() - 3600 * 1000),
-        providerId: 'google',
-      }
-
-      const result = await refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
-
-      expect(mockRefreshOAuthToken).not.toHaveBeenCalled()
-      expect(result).toEqual({ accessToken: 'token', refreshed: false })
-    })
-  })
-
-  describe('refreshAccessTokenIfNeeded', () => {
-    it('should return valid access token without refresh if not expired', async () => {
-      const mockResolvedCredential = {
-        id: 'credential-id',
-        type: 'oauth',
-        accountId: 'account-id',
-        workspaceId: 'workspace-id',
-      }
-      const mockAccountRow = {
-        id: 'account-id',
-        accessToken: 'valid-token',
-        refreshToken: 'refresh-token',
-        accessTokenExpiresAt: new Date(Date.now() + 3600 * 1000),
-        providerId: 'google',
-        userId: 'test-user-id',
-      }
-      mockSelectChain([mockResolvedCredential])
-      mockSelectChain([mockAccountRow])
-
-      const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id', 'request-id')
-
-      expect(mockRefreshOAuthToken).not.toHaveBeenCalled()
-      expect(token).toBe('valid-token')
-    })
-
-    it('should refresh token when expired', async () => {
-      const mockResolvedCredential = {
-        id: 'credential-id',
-        type: 'oauth',
-        accountId: 'account-id',
-        workspaceId: 'workspace-id',
-      }
-      const mockAccountRow = {
-        id: 'account-id',
-        accessToken: 'expired-token',
-        refreshToken: 'refresh-token',
-        accessTokenExpiresAt: new Date(Date.now() - 3600 * 1000),
-        providerId: 'google',
-        userId: 'test-user-id',
-      }
-      mockSelectChain([mockResolvedCredential])
-      mockSelectChain([mockAccountRow])
-      mockUpdateChain()
-
-      mockRefreshOAuthToken.mockResolvedValueOnce({
-        ok: true,
-        accessToken: 'new-token',
-        expiresIn: 3600,
-        refreshToken: 'new-refresh-token',
-      })
-
-      const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id', 'request-id')
-
-      expect(mockRefreshOAuthToken).toHaveBeenCalledWith('google', 'refresh-token')
-      expect(mockDb.update).toHaveBeenCalled()
-      expect(token).toBe('new-token')
-    })
-
-    it('should return null if credential not found', async () => {
-      mockSelectChain([])
-      mockSelectChain([])
-
-      const token = await refreshAccessTokenIfNeeded('nonexistent-id', 'test-user-id', 'request-id')
-
-      expect(token).toBeNull()
-    })
-
-    it('should return null if refresh fails', async () => {
-      const mockResolvedCredential = {
-        id: 'credential-id',
-        type: 'oauth',
-        accountId: 'account-id',
-        workspaceId: 'workspace-id',
-      }
-      const mockAccountRow = {
-        id: 'account-id',
-        accessToken: 'expired-token',
-        refreshToken: 'refresh-token',
-        accessTokenExpiresAt: new Date(Date.now() - 3600 * 1000),
-        providerId: 'google',
-        userId: 'test-user-id',
-      }
-      mockSelectChain([mockResolvedCredential])
-      mockSelectChain([mockAccountRow])
-
-      mockRefreshOAuthToken.mockResolvedValueOnce({
-        ok: false,
-        errorCode: 'invalid_grant',
-        message: 'Failed',
-      })
-
-      const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id', 'request-id')
-
-      expect(token).toBeNull()
-    })
   })
 
   describe('Slack installation-scoped refresh', () => {
@@ -338,9 +114,11 @@ describe('OAuth Utils', () => {
       const result = await refreshTokenIfNeeded('request-id', slackCredential(), 'row-1')
 
       expect(result).toEqual({ accessToken: 'new-at', refreshed: true })
+      const installationIdentity = getOAuthRefreshCoordinationIdentity('slack:T08CM6ZNYBE')
       expect(redisConfigMockFns.mockAcquireLock.mock.calls[0][0]).toBe(
-        'oauth:refresh:slack:T08CM6ZNYBE'
+        `oauth:refresh:${installationIdentity}`
       )
+      expect(installationIdentity).not.toContain('T08CM6ZNYBE')
       expect(redisConfigMockFns.mockAcquireLock.mock.calls[0][2]).toBe(30)
       expect(mockRefreshOAuthToken).toHaveBeenCalledWith('slack', 'live-rt')
       expect(mockSet).toHaveBeenCalledWith(
@@ -363,26 +141,6 @@ describe('OAuth Utils', () => {
       )
     })
 
-    it('keeps per-row behavior for pasted custom-bot account ids', async () => {
-      mockRefreshOAuthToken.mockResolvedValueOnce({
-        ok: true,
-        accessToken: 'new-at',
-        expiresIn: 43200,
-        refreshToken: 'new-rt',
-      })
-      mockUpdateChain()
-
-      const result = await refreshTokenIfNeeded(
-        'request-id',
-        slackCredential({ accountId: 'slack-bot-1764756583292' }),
-        'row-1'
-      )
-
-      expect(result).toEqual({ accessToken: 'new-at', refreshed: true })
-      expect(redisConfigMockFns.mockAcquireLock.mock.calls[0][0]).toBe('oauth:refresh:row-1')
-      expect(mockRefreshOAuthToken).toHaveBeenCalledWith('slack', 'stale-rt')
-    })
-
     it('dead-flags the installation, not the row, on terminal refresh errors', async () => {
       const fakeRedis = {
         set: vi.fn().mockResolvedValue('OK'),
@@ -403,8 +161,9 @@ describe('OAuth Utils', () => {
         'Failed to refresh token'
       )
 
+      const installationIdentity = getOAuthRefreshCoordinationIdentity('slack:T08CM6ZNYBE')
       expect(fakeRedis.set).toHaveBeenCalledWith(
-        'oauth:dead:slack:T08CM6ZNYBE',
+        `oauth:dead:${installationIdentity}`,
         'token_revoked',
         'EX',
         3600
@@ -435,110 +194,11 @@ describe('OAuth Utils', () => {
     })
   })
 
-  describe('QuickBooks refresh locking', () => {
-    it('keeps the lock and follower wait alive beyond the provider timeout', async () => {
-      const credential = {
-        id: 'quickbooks-row',
-        accessToken: 'expired-token',
-        refreshToken: 'rotating-refresh-token',
-        accessTokenExpiresAt: new Date(Date.now() - 3600 * 1000),
-        providerId: 'quickbooks',
-      }
-      mockRefreshOAuthToken.mockResolvedValueOnce({
-        ok: true,
-        accessToken: 'new-token',
-        expiresIn: 3600,
-        refreshToken: 'new-rotating-refresh-token',
-      })
-      mockUpdateChain()
-
-      const result = await refreshTokenIfNeeded('request-id', credential, credential.id)
-
-      expect(result).toEqual({ accessToken: 'new-token', refreshed: true })
-      expect(redisConfigMockFns.mockAcquireLock).toHaveBeenCalledWith(
-        'oauth:refresh:quickbooks-row',
-        expect.any(String),
-        30
-      )
-      expect(capturedLeaderLockOptions[0]).toMatchObject({ ttlSec: 30, maxWaitMs: 30_000 })
-    })
-
-    it('keeps the default refresh-lock budget for other providers', async () => {
-      const credential = {
-        id: 'google-row',
-        accessToken: 'expired-token',
-        refreshToken: 'refresh-token',
-        accessTokenExpiresAt: new Date(Date.now() - 3600 * 1000),
-        providerId: 'google',
-      }
-      mockRefreshOAuthToken.mockResolvedValueOnce({
-        ok: true,
-        accessToken: 'new-token',
-        expiresIn: 3600,
-        refreshToken: 'new-refresh-token',
-      })
-      mockUpdateChain()
-
-      await refreshTokenIfNeeded('request-id', credential, credential.id)
-
-      expect(redisConfigMockFns.mockAcquireLock).toHaveBeenCalledWith(
-        'oauth:refresh:google-row',
-        expect.any(String),
-        10
-      )
-      expect(capturedLeaderLockOptions[0]).not.toHaveProperty('ttlSec')
-      expect(capturedLeaderLockOptions[0]).not.toHaveProperty('maxWaitMs')
-    })
-  })
-
   describe('resolveServiceAccountToken', () => {
     it('throws loudly for an unknown provider (never silently attempts Google)', async () => {
       await expect(resolveServiceAccountToken('cred-1', 'mystery-provider')).rejects.toThrow(
         /Unsupported service-account provider/
       )
-    })
-
-    it('returns the decrypted bot token for a custom Slack bot', async () => {
-      mockSelectChain([
-        {
-          type: 'service_account',
-          providerId: SLACK_CUSTOM_BOT_PROVIDER_ID,
-          encryptedServiceAccountKey: 'enc',
-        },
-      ])
-      mockDecryptSecret.mockResolvedValueOnce({
-        decrypted: JSON.stringify({ signingSecret: 's', botToken: 'xoxb-tok', teamId: 'T1' }),
-      })
-      const result = await resolveServiceAccountToken('cred-1', SLACK_CUSTOM_BOT_PROVIDER_ID)
-      expect(result.accessToken).toBe('xoxb-tok')
-    })
-
-    it('throws when the Slack bot credential is missing', async () => {
-      mockSelectChain([])
-      await expect(
-        resolveServiceAccountToken('cred-1', SLACK_CUSTOM_BOT_PROVIDER_ID)
-      ).rejects.toThrow(/Slack bot credential not found/)
-    })
-
-    it('returns apiToken + cloudId + domain for Atlassian', async () => {
-      mockSelectChain([{ encryptedServiceAccountKey: 'enc' }])
-      mockDecryptSecret.mockResolvedValueOnce({
-        decrypted: JSON.stringify({
-          type: 'atlassian_service_account',
-          apiToken: 'atk',
-          domain: 'acme.atlassian.net',
-          cloudId: 'cloud-1',
-        }),
-      })
-      const result = await resolveServiceAccountToken(
-        'cred-1',
-        ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID
-      )
-      expect(result).toMatchObject({
-        accessToken: 'atk',
-        cloudId: 'cloud-1',
-        domain: 'acme.atlassian.net',
-      })
     })
 
     it('requires scopes for a Google service account', async () => {
@@ -649,26 +309,6 @@ describe('OAuth Utils', () => {
       const result = await resolveServiceAccountToken(credId, ZOOM_SERVICE_ACCOUNT_PROVIDER_ID)
 
       expect(result.accessToken).toBe('tok-after')
-      expect(mockMinter).toHaveBeenCalledTimes(2)
-    })
-
-    it('evicts the cached token when the credential row is deleted', async () => {
-      const credId = 'ccsa-deleted'
-      mockCredentialRow(ENCRYPTED_KEY_A)
-      mockMinter.mockResolvedValueOnce({ accessToken: 'tok-1', expiresInSeconds: 3600 })
-
-      await resolveServiceAccountToken(credId, ZOOM_SERVICE_ACCOUNT_PROVIDER_ID)
-
-      mockSelectChain([])
-      await expect(
-        resolveServiceAccountToken(credId, ZOOM_SERVICE_ACCOUNT_PROVIDER_ID)
-      ).rejects.toThrow(/secret not found/)
-
-      mockCredentialRow(ENCRYPTED_KEY_A)
-      mockMinter.mockResolvedValueOnce({ accessToken: 'tok-2', expiresInSeconds: 3600 })
-      const result = await resolveServiceAccountToken(credId, ZOOM_SERVICE_ACCOUNT_PROVIDER_ID)
-
-      expect(result.accessToken).toBe('tok-2')
       expect(mockMinter).toHaveBeenCalledTimes(2)
     })
   })

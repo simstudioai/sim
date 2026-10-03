@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { cn } from '@sim/emcn'
-import { SendIcon, XIcon } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Chip, cn } from '@sim/emcn'
+import { Send, X } from '@sim/emcn/icons'
 
 interface WandPromptBarProps {
   isVisible: boolean
@@ -80,7 +79,7 @@ export function WandPromptBar({
       className={cn(
         '-translate-y-3 absolute right-0 bottom-full left-0 gap-2',
         'rounded-lg border bg-background shadow-lg',
-        'z-9999999 transition-all duration-150',
+        'transition-all duration-150',
         isExiting ? 'opacity-0' : 'opacity-100',
         className
       )}
@@ -99,7 +98,7 @@ export function WandPromptBar({
             autoCapitalize='off'
             spellCheck='false'
             className={cn(
-              'flex h-10 w-full rounded-xl bg-input-background px-3 py-2 text-foreground text-sm outline-none placeholder:text-muted-foreground/50 disabled:cursor-not-allowed disabled:opacity-50',
+              'flex h-10 w-full rounded-xl bg-input-background px-3 py-2 text-foreground text-sm outline-hidden placeholder:text-muted-foreground/50 disabled:cursor-not-allowed disabled:opacity-50',
               isStreaming && 'text-foreground/70',
               (isLoading || isStreaming) && 'loading-placeholder'
             )}
@@ -114,25 +113,16 @@ export function WandPromptBar({
           />
         </div>
 
-        <Button
-          variant='ghost'
-          size='icon'
-          onClick={handleCancel}
-          className='size-8 rounded-full text-muted-foreground hover-hover:bg-accent/50 hover-hover:text-foreground'
-        >
-          <XIcon className='size-4' />
-        </Button>
+        <Chip shape='round' leftIcon={X} onClick={handleCancel} aria-label='Close AI prompt' />
 
         {!isStreaming && (
-          <Button
-            variant='ghost'
-            size='icon'
+          <Chip
+            shape='round'
+            leftIcon={Send}
             onClick={() => onSubmit(promptValue)}
-            className='size-8 rounded-full text-muted-foreground hover-hover:bg-primary/10 hover-hover:text-foreground'
             disabled={isLoading || isStreaming || !promptValue.trim()}
-          >
-            <SendIcon className='size-4' />
-          </Button>
+            aria-label='Generate content'
+          />
         )}
       </div>
     </div>

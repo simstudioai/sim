@@ -1,5 +1,8 @@
+import { createLogger } from '@sim/logger'
 import { source } from '@/lib/source'
 import { DOCS_BASE_URL } from '@/lib/urls'
+
+const logger = createLogger('DocsLlmsManifest')
 
 export const revalidate = false
 
@@ -7,23 +10,12 @@ export async function GET() {
   const baseUrl = DOCS_BASE_URL
 
   try {
-    const pages = source.getPages().filter((page) => {
-      if (!page || !page.data || !page.url) return false
-
-      const pathParts = page.url.split('/').filter(Boolean)
-      const hasLangPrefix = pathParts[0] && ['es', 'fr', 'de', 'ja', 'zh'].includes(pathParts[0])
-
-      return !hasLangPrefix
-    })
+    const pages = source.getPages().filter((page) => Boolean(page?.data && page.url))
 
     const sections: Record<string, Array<{ title: string; url: string; description?: string }>> = {}
 
     pages.forEach((page) => {
-      const pathParts = page.url.split('/').filter(Boolean)
-      const section =
-        pathParts[0] && ['en', 'es', 'fr', 'de', 'ja', 'zh'].includes(pathParts[0])
-          ? pathParts[1] || 'root'
-          : pathParts[0] || 'root'
+      const section = page.url.split('/').filter(Boolean)[0] || 'root'
 
       if (!sections[section]) {
         sections[section] = []
@@ -62,13 +54,12 @@ ${Object.entries(sections)
 
 - [Full documentation content](${baseUrl}/llms-full.txt)
 - Individual page content: ${baseUrl}/llms.mdx/[page-path]
-- [API documentation](${baseUrl}/api-reference/)
-- [Tool integrations](${baseUrl}/tools/)
+- [API documentation](${baseUrl}/api-reference/getting-started)
+- [Integrations](${baseUrl}/integrations)
 
 ## Statistics
 
-- Total pages: ${pages.length} (English only)
-- Other languages available at: ${baseUrl}/[lang]/ (es, fr, de, ja, zh)
+- Total pages: ${pages.length}
 
 ---
 
@@ -82,7 +73,7 @@ See: https://llmstxt.org for specification`
       },
     })
   } catch (error) {
-    console.error('Error generating LLM manifest:', error)
+    logger.error('Error generating LLM manifest:', error)
     return new Response('Error generating documentation manifest', { status: 500 })
   }
 }

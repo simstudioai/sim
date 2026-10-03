@@ -1,6 +1,5 @@
-import { filterUndefined } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
 import type {
   QuickBooksEmployee,
   QuickBooksMutationResponse,
@@ -10,31 +9,15 @@ import {
   QUICKBOOKS_EMPLOYEE_PROPERTIES,
   QUICKBOOKS_MUTATION_OUTPUTS,
 } from '@/tools/quickbooks/types'
-import {
-  buildQuickBooksEntityUrl,
-  getQuickBooksToolHeaders,
-  sanitizeQuickBooksEmployee,
-  transformQuickBooksMutationResponse,
-} from '@/tools/quickbooks/utils'
-import {
-  assertQuickBooksSparseUpdate,
-  optionalQuickBooksString,
-  parseQuickBooksAddress,
-  quickBooksActiveValue,
-  quickBooksEmailAddress,
-  quickBooksPhoneNumber,
-  requiredQuickBooksString,
-} from '@/tools/quickbooks/values'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const quickbooksUpdateEmployeeTool: ToolConfig<
+export const quickbooksUpdateEmployeeTool: InternalToolConfig<
   QuickBooksUpdateEmployeeParams,
   QuickBooksMutationResponse<QuickBooksEmployee>
 > = {
   id: 'quickbooks_update_employee',
   name: 'QuickBooks Update Employee',
-  description:
-    'Sparse-update a non-payroll employee profile in the connected QuickBooks Online company',
+  description: 'Read, merge, and full-update a non-payroll employee profile',
   version: '1.0.0',
   params: {
     accessToken: {
@@ -48,6 +31,12 @@ export const quickbooksUpdateEmployeeTool: ToolConfig<
       required: true,
       visibility: 'hidden',
       description: 'QuickBooks company ID derived from the connected credential',
+    },
+    quickBooksEnvironment: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'QuickBooks API environment derived from the connected credential',
     },
     employeeId: {
       type: 'string',
@@ -65,7 +54,8 @@ export const quickbooksUpdateEmployeeTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Replacement employee display name',
+      description:
+        'Replacement employee display name. Read-only when QuickBooks Payroll is enabled, where QuickBooks derives it from the name components',
     },
     givenName: {
       type: 'string',
@@ -120,40 +110,13 @@ export const quickbooksUpdateEmployeeTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'quickbooks',
+    authoritativeParams: ['realmId', 'quickBooksEnvironment'],
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
-  request: {
-    url: (params) => buildQuickBooksEntityUrl(params.realmId, 'employee').toString(),
-    method: 'POST',
-    headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
-    body: (params) => {
-      const body = filterUndefined({
-        Id: requiredQuickBooksString(params.employeeId, 'employeeId'),
-        SyncToken: requiredQuickBooksString(params.syncToken, 'syncToken'),
-        sparse: true,
-        DisplayName: optionalQuickBooksString(params.displayName),
-        GivenName: optionalQuickBooksString(params.givenName),
-        FamilyName: optionalQuickBooksString(params.familyName),
-        PrimaryEmailAddr: quickBooksEmailAddress(params.primaryEmail),
-        PrimaryPhone: quickBooksPhoneNumber(params.primaryPhone),
-        PrimaryAddr: parseQuickBooksAddress(params.primaryAddress, 'primaryAddress'),
-        PrintOnCheckName: optionalQuickBooksString(params.printOnCheckName),
-        BillableTime: params.billableTime,
-        Active: quickBooksActiveValue(params.activeStatus),
-      }) as Record<string, unknown>
-      assertQuickBooksSparseUpdate(body)
-      return body
-    },
-    retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
+  operation: {
+    input: createInternalToolOperationInput,
   },
-  transformResponse: (response) =>
-    transformQuickBooksMutationResponse<QuickBooksEmployee>(
-      response,
-      'Employee',
-      sanitizeQuickBooksEmployee
-    ),
   outputs: {
     record: {
       type: 'json',

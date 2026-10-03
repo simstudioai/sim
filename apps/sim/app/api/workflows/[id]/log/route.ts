@@ -142,9 +142,12 @@ export const POST = withRouteHandler(
             : undefined
         const trustedProvenance = trustedExecutionState?.resolvedSecretTraceProvenance
         if (trustedProvenance === undefined) {
-          resolvedSecretTraceRegistry.markIncomplete()
+          resolvedSecretTraceRegistry.markIncomplete('restored-provenance-untrusted')
         } else {
-          await resolvedSecretTraceRegistry.importProvenance(trustedProvenance, { trusted: true })
+          await resolvedSecretTraceRegistry.importProvenance(trustedProvenance, {
+            trusted: true,
+            origin: 'workflowLogRoute.trustedProvenance',
+          })
         }
         loggingSession.setResolvedSecretTraceRegistry(resolvedSecretTraceRegistry)
 

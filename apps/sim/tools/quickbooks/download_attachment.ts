@@ -1,18 +1,17 @@
-import { QUICKBOOKS_INTERNAL_FILE_RESPONSE_MAX_BYTES } from '@/tools/quickbooks/documents_utils'
 import type {
   QuickBooksDownloadAttachmentParams,
   QuickBooksFileResponse,
 } from '@/tools/quickbooks/types'
 import { QUICKBOOKS_FILE_OUTPUTS } from '@/tools/quickbooks/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const quickbooksDownloadAttachmentTool: ToolConfig<
+export const quickbooksDownloadAttachmentTool: InternalToolConfig<
   QuickBooksDownloadAttachmentParams,
   QuickBooksFileResponse
 > = {
   id: 'quickbooks_download_attachment',
   name: 'QuickBooks Download Attachment',
-  description: 'Download a QuickBooks file attachment through its short-lived URL',
+  description: 'Download a QuickBooks file attachment as a stored Sim file',
   version: '1.0.0',
   params: {
     accessToken: {
@@ -26,6 +25,12 @@ export const quickbooksDownloadAttachmentTool: ToolConfig<
       required: true,
       visibility: 'hidden',
       description: 'QuickBooks company ID derived from the connected credential',
+    },
+    quickBooksEnvironment: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'QuickBooks API environment derived from the connected credential',
     },
     attachmentId: {
       type: 'string',
@@ -43,26 +48,24 @@ export const quickbooksDownloadAttachmentTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'quickbooks',
+    authoritativeParams: ['realmId', 'quickBooksEnvironment'],
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
-  request: {
-    url: '/api/tools/quickbooks/download-document',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      documentKind: 'attachment',
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       realmId: params.realmId,
+      quickBooksEnvironment: params.quickBooksEnvironment,
       attachmentId: params.attachmentId,
       fileName: params.fileName,
-      workspaceId:
-        typeof params._context?.workspaceId === 'string' ? params._context.workspaceId : undefined,
-      workflowId:
-        typeof params._context?.workflowId === 'string' ? params._context.workflowId : undefined,
-      executionId:
-        typeof params._context?.executionId === 'string' ? params._context.executionId : undefined,
     }),
-    maxResponseBytes: QUICKBOOKS_INTERNAL_FILE_RESPONSE_MAX_BYTES,
+  },
+  transformResponse: async (response) => {
+    const data = (await response.json()) as QuickBooksFileResponse & { error?: string }
+    if (!response.ok || data.success === false) {
+      throw new Error(data.error || 'Failed to download QuickBooks attachment')
+    }
+    return data
   },
   outputs: {
     ...QUICKBOOKS_FILE_OUTPUTS,

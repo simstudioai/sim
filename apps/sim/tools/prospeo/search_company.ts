@@ -1,3 +1,4 @@
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import { prospeoHosting } from '@/tools/prospeo/hosting'
 import {
   extractProspeoError,
@@ -16,6 +17,7 @@ export const searchCompanyTool: ToolConfig<
   name: 'Prospeo Search Company',
   description: 'Search for companies using 20+ filters to build account lists.',
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.PROSPEO_ERRORS,
 
   hosting: prospeoHosting<ProspeoSearchCompanyParams>((_params, output) => {
     // 1 credit per page that returns at least one result; free on 30-day dedup.

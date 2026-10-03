@@ -1,5 +1,4 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import { buildQuickBooksCreateSalesDocumentBody } from '@/tools/quickbooks/sales_utils'
 import type {
   QuickBooksCreateRefundReceiptParams,
@@ -39,11 +38,17 @@ export const quickbooksCreateRefundReceiptTool: ToolConfig<
       visibility: 'hidden',
       description: 'QuickBooks company ID derived from the connected credential',
     },
-    customerId: {
+    quickBooksEnvironment: {
       type: 'string',
       required: true,
+      visibility: 'hidden',
+      description: 'QuickBooks API environment derived from the connected credential',
+    },
+    customerId: {
+      type: 'string',
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Customer receiving the refund',
+      description: 'Customer receiving the refund, omitted for an anonymous refund',
     },
     lines: {
       type: 'json',
@@ -103,21 +108,24 @@ export const quickbooksCreateRefundReceiptTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'quickbooks',
+    authoritativeParams: ['realmId', 'quickBooksEnvironment'],
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
   request: {
     url: (params) =>
       addQuickBooksRequestId(
-        buildQuickBooksEntityUrl(params.realmId, 'refundreceipt'),
+        buildQuickBooksEntityUrl(params, 'refundreceipt'),
         params.requestId
       ).toString(),
     method: 'POST',
     headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
     body: (params) =>
-      buildQuickBooksCreateSalesDocumentBody(params, { requireDepositAccount: true }),
+      buildQuickBooksCreateSalesDocumentBody(params, {
+        requireDepositAccount: true,
+        customerOptional: true,
+      }),
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: (response) =>
     transformQuickBooksMutationResponse<QuickBooksSalesTransaction>(response, 'RefundReceipt'),

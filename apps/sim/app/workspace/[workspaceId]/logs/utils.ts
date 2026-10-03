@@ -1,6 +1,6 @@
 import React from 'react'
-import { Badge } from '@sim/emcn'
-import { formatDuration, formatRelativeTime } from '@sim/utils/formatting'
+import { Badge, formatChartLatency } from '@sim/emcn'
+import { formatRelativeTime } from '@sim/utils/formatting'
 import { format } from 'date-fns'
 import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { getBlock } from '@/blocks/registry'
@@ -15,7 +15,28 @@ export const LOG_COLUMNS = {
   duration: { width: 'w-[20%]', minWidth: 'min-w-[100px]', label: 'Duration' },
 } as const
 
-export const DELETED_WORKFLOW_LABEL = 'Deleted Workflow'
+/**
+ * Resolves the workflow a log row points at, or null when there is nowhere to
+ * navigate. Sim agent jobs have no workflow of their own, and a deleted
+ * workflow leaves both id fields empty.
+ *
+ * Single source of truth for "is this log's workflow reachable" — the list row,
+ * its context menu, and the details panel must agree, or a row can render as
+ * "Deleted Workflow" while still linking somewhere.
+ */
+export function resolveLogWorkflowId(log: {
+  trigger?: string | null
+  workflowId?: string | null
+  workflow?: { id?: string } | null
+}): string | null {
+  if (log.trigger === 'mothership') return null
+  return log.workflow?.id || log.workflowId || null
+}
+
+/** Path to a workflow in the editor. */
+export function workflowEditorPath(workspaceId: string, workflowId: string): string {
+  return `/workspace/${workspaceId}/w/${workflowId}`
+}
 
 export type LogStatus =
   | 'error'
@@ -178,13 +199,16 @@ export function parseDuration(log: LogWithDuration): number | null {
 }
 
 /**
- * Format latency value for display in dashboard UI
+ * Format latency value for display in dashboard UI.
+ *
+ * Delegates so the axis ticks and the surrounding table can never disagree about
+ * what a duration reads as.
+ *
  * @param ms - Latency in milliseconds (number)
  * @returns Formatted latency string
  */
 export function formatLatency(ms: number): string {
-  if (!Number.isFinite(ms) || ms <= 0) return '—'
-  return formatDuration(ms, { precision: 2 }) ?? '—'
+  return formatChartLatency(ms)
 }
 
 export const formatDate = (dateString: string) => {

@@ -13,6 +13,7 @@ export const microsoftTeamsWebhookTrigger: TriggerConfig = {
     {
       id: 'selectedTriggerId',
       title: 'Trigger Type',
+      canvasNoun: 'an event',
       type: 'dropdown',
       mode: 'trigger',
       options: [

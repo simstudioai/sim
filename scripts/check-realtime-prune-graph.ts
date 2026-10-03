@@ -3,6 +3,7 @@ import { mkdtemp, readdir, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { $ } from 'bun'
+import { localBin } from './local-bin'
 
 const MAX_PRUNED_PACKAGE_COUNT = 25
 
@@ -27,7 +28,7 @@ async function main() {
   const scratch = await mkdtemp(path.join(tmpdir(), 'sim-realtime-prune-'))
   try {
     console.log(`Pruning @sim/realtime into ${scratch}`)
-    await $`bunx turbo prune @sim/realtime --docker --out-dir=${scratch}`.quiet()
+    await $`${localBin('turbo')} prune @sim/realtime --docker --out-dir=${scratch}`.quiet()
 
     const apps = await listPackages(path.join(scratch, 'json', 'apps'))
     const packages = await listPackages(path.join(scratch, 'json', 'packages'))

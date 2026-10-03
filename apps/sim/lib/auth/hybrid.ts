@@ -1,8 +1,10 @@
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
+import { API_KEY_HEADER, BEARER_PREFIX } from '@/lib/api/server/credential-headers'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { getSession } from '@/lib/auth'
-import { verifyInternalToken } from '@/lib/auth/internal'
+import { type InternalSandboxProfile, verifyInternalToken } from '@/lib/auth/internal'
 
 const logger = createLogger('HybridAuth')
 
@@ -14,20 +16,6 @@ export const AuthType = {
 
 export type AuthTypeValue = (typeof AuthType)[keyof typeof AuthType]
 
-const API_KEY_HEADER = 'x-api-key'
-const BEARER_PREFIX = 'Bearer '
-
-/**
- * Lightweight header-only check for whether a request carries external API credentials.
- * Does NOT validate the credentials — only inspects headers to classify the request
- * as programmatic API traffic vs interactive session traffic.
- */
-export function hasExternalApiCredentials(headers: Headers): boolean {
-  if (headers.has(API_KEY_HEADER)) return true
-  const auth = headers.get('authorization')
-  return auth?.startsWith(BEARER_PREFIX) ?? false
-}
-
 export interface AuthResult {
   success: boolean
   userId?: string
@@ -36,7 +24,26 @@ export interface AuthResult {
   userEmail?: string | null
   authType?: AuthTypeValue
   apiKeyType?: 'personal' | 'workspace'
+  sandboxProfile?: InternalSandboxProfile
+  principal?: WorkflowExecutionPrincipal
   error?: string
+}
+
+/**
+ * The id whose permission group governs a request authenticated by
+ * `checkSessionOrInternalAuth`, or `null` when none does.
+ *
+ * An internal JWT's `auth.userId` is the subject the executor embedded, so
+ * keying on its presence would hand the run's actor's capabilities to a caller
+ * the executor exemption deliberately passes ungated. `authType` is the
+ * authoritative signal, and `apiKeyType` covers the personal-key case. The
+ * principal rules live on `capabilityGovernedPrincipalUserId` in
+ * `@/lib/core/application`; this reads the same decision off an `AuthResult`.
+ */
+export function capabilityGovernedAuthUserId(auth: AuthResult | undefined): string | null {
+  if (!auth?.userId) return null
+  if (auth.authType === AuthType.SESSION) return auth.userId
+  return auth.authType === AuthType.API_KEY && auth.apiKeyType === 'personal' ? auth.userId : null
 }
 
 /**
@@ -44,18 +51,27 @@ export interface AuthResult {
  * Only trusts the userId embedded in the JWT payload — never from user-controlled sources.
  */
 function resolveUserFromJwt(
-  verificationUserId: string | null,
+  verification: { userId?: string; sandboxProfile?: InternalSandboxProfile },
   options: { requireWorkflowId?: boolean }
 ): AuthResult {
-  if (verificationUserId) {
-    return { success: true, userId: verificationUserId, authType: AuthType.INTERNAL_JWT }
+  if (verification.userId) {
+    return {
+      success: true,
+      userId: verification.userId,
+      authType: AuthType.INTERNAL_JWT,
+      ...(verification.sandboxProfile ? { sandboxProfile: verification.sandboxProfile } : {}),
+    }
   }
 
   if (options.requireWorkflowId !== false) {
     return { success: false, error: 'userId required but not present in JWT' }
   }
 
-  return { success: true, authType: AuthType.INTERNAL_JWT }
+  return {
+    success: true,
+    authType: AuthType.INTERNAL_JWT,
+    ...(verification.sandboxProfile ? { sandboxProfile: verification.sandboxProfile } : {}),
+  }
 }
 
 /**
@@ -74,7 +90,7 @@ export async function checkInternalAuth(
   try {
     const authHeader = request.headers.get('authorization')
 
-    const apiKeyHeader = request.headers.get('x-api-key')
+    const apiKeyHeader = request.headers.get(API_KEY_HEADER)
     if (apiKeyHeader) {
       return {
         success: false,
@@ -82,7 +98,7 @@ export async function checkInternalAuth(
       }
     }
 
-    if (!authHeader?.startsWith('Bearer ')) {
+    if (!authHeader?.startsWith(BEARER_PREFIX)) {
       return {
         success: false,
         error: 'Internal authentication required',
@@ -96,7 +112,7 @@ export async function checkInternalAuth(
       return { success: false, error: 'Invalid internal token' }
     }
 
-    return resolveUserFromJwt(verification.userId || null, options)
+    return resolveUserFromJwt(verification, options)
   } catch (error) {
     logger.error('Error in internal authentication:', error)
     return {
@@ -121,7 +137,7 @@ export async function checkSessionOrInternalAuth(
 ): Promise<AuthResult> {
   try {
     // 1. Reject API keys first
-    const apiKeyHeader = request.headers.get('x-api-key')
+    const apiKeyHeader = request.headers.get(API_KEY_HEADER)
     if (apiKeyHeader) {
       return {
         success: false,
@@ -131,24 +147,30 @@ export async function checkSessionOrInternalAuth(
 
     // 2. Check for internal JWT token
     const authHeader = request.headers.get('authorization')
-    if (authHeader?.startsWith('Bearer ')) {
+    if (authHeader?.startsWith(BEARER_PREFIX)) {
       const token = authHeader.split(' ')[1]
       const verification = await verifyInternalToken(token)
 
       if (verification.valid) {
-        return resolveUserFromJwt(verification.userId || null, options)
+        return resolveUserFromJwt(verification, options)
       }
     }
 
     // 3. Try session auth (for web UI)
     const session = await getSession()
     if (session?.user?.id) {
+      if (!session.session?.id) throw new Error('Authenticated session is missing its session ID')
       return {
         success: true,
         userId: session.user.id,
         userName: session.user.name,
         userEmail: session.user.email,
         authType: AuthType.SESSION,
+        principal: {
+          kind: 'session',
+          userId: session.user.id,
+          sessionId: session.session.id,
+        },
       }
     }
 
@@ -179,12 +201,12 @@ export async function checkHybridAuth(
 ): Promise<AuthResult> {
   try {
     const authHeader = request.headers.get('authorization')
-    if (authHeader?.startsWith('Bearer ')) {
+    if (authHeader?.startsWith(BEARER_PREFIX)) {
       const token = authHeader.split(' ')[1]
       const verification = await verifyInternalToken(token)
 
       if (verification.valid) {
-        return resolveUserFromJwt(verification.userId || null, options)
+        return resolveUserFromJwt(verification, options)
       }
     }
 
@@ -192,13 +214,30 @@ export async function checkHybridAuth(
       const apiKeyHeader = request.headers.get(API_KEY_HEADER) ?? ''
       const result = await authenticateApiKeyFromHeader(apiKeyHeader)
       if (result.success) {
-        await updateApiKeyLastUsed(result.keyId!)
+        if (!result.keyId || !result.keyType || !result.userId) {
+          throw new Error('API key authentication returned incomplete identity')
+        }
+        let principal: WorkflowExecutionPrincipal
+        if (result.keyType === 'personal') {
+          principal = { kind: 'personal_api_key', userId: result.userId, keyId: result.keyId }
+        } else {
+          if (!result.workspaceId) {
+            throw new Error('Workspace API key authentication returned no workspace scope')
+          }
+          principal = {
+            kind: 'workspace_api_key',
+            workspaceId: result.workspaceId,
+            keyId: result.keyId,
+          }
+        }
+        await updateApiKeyLastUsed(result.keyId)
         return {
           success: true,
-          userId: result.userId!,
+          userId: result.userId,
           workspaceId: result.workspaceId,
           authType: AuthType.API_KEY,
           apiKeyType: result.keyType,
+          principal,
         }
       }
 
@@ -210,12 +249,18 @@ export async function checkHybridAuth(
 
     const session = await getSession()
     if (session?.user?.id) {
+      if (!session.session?.id) throw new Error('Authenticated session is missing its session ID')
       return {
         success: true,
         userId: session.user.id,
         userName: session.user.name,
         userEmail: session.user.email,
         authType: AuthType.SESSION,
+        principal: {
+          kind: 'session',
+          userId: session.user.id,
+          sessionId: session.session.id,
+        },
       }
     }
 

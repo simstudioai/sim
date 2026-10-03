@@ -1,9 +1,8 @@
 import { HuggingFaceIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { HuggingFaceChatResponse } from '@/tools/huggingface/types'
 
-export const HuggingFaceBlock: BlockConfig<HuggingFaceChatResponse> = {
+export const HuggingFaceBlock: BlockConfig = {
   type: 'huggingface',
   name: 'Hugging Face',
   description: 'Use Hugging Face Inference API',
@@ -15,6 +14,16 @@ export const HuggingFaceBlock: BlockConfig<HuggingFaceChatResponse> = {
   integrationType: IntegrationType.AI,
   bgColor: '#0B0F19',
   icon: HuggingFaceIcon,
+  canvasPresentation: {
+    defaultTitle: 'Hugging Face',
+    sentences: {
+      default: [
+        { text: 'Prompt', field: 'model', core: true },
+        { text: 'with', field: 'content' },
+        { text: ', via', field: 'provider' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'systemPrompt',

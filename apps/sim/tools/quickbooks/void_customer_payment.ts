@@ -1,5 +1,4 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import type {
   QuickBooksSalesTransaction,
   QuickBooksVoidResponse,
@@ -38,6 +37,12 @@ export const quickbooksVoidCustomerPaymentTool: ToolConfig<
       visibility: 'hidden',
       description: 'QuickBooks company ID derived from the connected credential',
     },
+    quickBooksEnvironment: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'QuickBooks API environment derived from the connected credential',
+    },
     transactionId: {
       type: 'string',
       required: true,
@@ -60,12 +65,13 @@ export const quickbooksVoidCustomerPaymentTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'quickbooks',
+    authoritativeParams: ['realmId', 'quickBooksEnvironment'],
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
   request: {
     url: (params) => {
-      const url = buildQuickBooksEntityUrl(params.realmId, 'payment')
+      const url = buildQuickBooksEntityUrl(params, 'payment')
       url.searchParams.set('operation', 'update')
       url.searchParams.set('include', 'void')
       return url.toString()
@@ -83,7 +89,6 @@ export const quickbooksVoidCustomerPaymentTool: ToolConfig<
       return body
     },
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: async (response) => {
     const result = await transformQuickBooksMutationResponse<QuickBooksSalesTransaction>(

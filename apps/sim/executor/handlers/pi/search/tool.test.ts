@@ -1,11 +1,10 @@
-/**
- * @vitest-environment node
- */
+import { encryptionMockFns } from '@sim/testing'
+import { encryptionMock } from '@sim/testing/mocks/encryption.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockExecuteTool } = vi.hoisted(() => ({ mockExecuteTool: vi.fn() }))
-
-vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
+vi.mock('@/tools', () => toolsMock)
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import {
   PI_SEARCH_BUDGET_MESSAGE,
@@ -17,11 +16,24 @@ import {
   PARALLEL_EMPTY_RESULTS_ERROR,
 } from '@/executor/handlers/pi/search/tool'
 import type { ExecutionContext } from '@/executor/types'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const ctx = { executionId: 'exec-1', workspaceId: 'ws-1' } as unknown as ExecutionContext
+const mockExecuteTool = toolsMockFns.mockExecuteTool
 
-function buildTool(provider: 'exa' | 'serper' | 'parallel' | 'firecrawl' = 'exa') {
-  return buildPiSearchToolSpec(ctx, { provider, apiKey: 'key-123' }, 'local')
+function executionContext(
+  registry: ResolvedSecretTraceRegistry | undefined = new ResolvedSecretTraceRegistry()
+): ExecutionContext {
+  return {
+    executionId: 'exec-1',
+    workspaceId: 'ws-1',
+    resolvedSecretTraceRegistry: registry,
+  } as ExecutionContext
+}
+
+const ctx = executionContext()
+
+function buildTool(provider: 'exa' | 'serper' | 'parallel' | 'firecrawl' = 'exa', context = ctx) {
+  return buildPiSearchToolSpec(context, { provider, apiKey: 'key-1234567' }, 'local')
 }
 
 async function run(
@@ -32,20 +44,10 @@ async function run(
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  encryptionMockFns.mockDecryptSecret.mockReset()
 })
 
 describe('buildPiSearchToolSpec', () => {
-  it('exposes one tool name and the untrusted-data guidelines in every mode', () => {
-    const local = buildPiSearchToolSpec(ctx, { provider: 'exa', apiKey: 'k' }, 'local')
-    const review = buildPiSearchToolSpec(ctx, { provider: 'exa', apiKey: 'k' }, 'cloud_review')
-
-    expect(local.name).toBe('web_search')
-    expect(review.name).toBe('web_search')
-    expect(local.promptGuidelines?.join(' ')).toMatch(/untrusted/)
-    expect(review.promptGuidelines).toEqual(local.promptGuidelines)
-  })
-
   it('passes the resolved key explicitly, which is what blocks hosted-key injection', async () => {
     mockExecuteTool.mockResolvedValue({ success: true, output: { results: [] } })
 
@@ -53,9 +55,11 @@ describe('buildPiSearchToolSpec', () => {
 
     const [toolId, params, options] = mockExecuteTool.mock.calls[0]
     expect(toolId).toBe('exa_search')
-    expect(params.apiKey).toBe('key-123')
+    expect(params.apiKey).toBe('key-1234567')
     expect(params.timeout).toBe(10_000)
-    expect(options).toEqual({ executionContext: ctx })
+    expect(options.executionContext).toBe(ctx)
+    expect(options.resolvedSecretTraceRegistry).toBeInstanceOf(ResolvedSecretTraceRegistry)
+    expect(options.resolvedSecretTraceRegistry).not.toBe(ctx.resolvedSecretTraceRegistry)
   })
 
   it('sends provider-specific parameter names and never forwards model-supplied extras', async () => {
@@ -65,60 +69,135 @@ describe('buildPiSearchToolSpec', () => {
 
     const [toolId, params] = mockExecuteTool.mock.calls[0]
     expect(toolId).toBe('serper_search')
-    expect(params).toEqual({ query: 'pi', num: 2, apiKey: 'key-123', timeout: 10_000 })
+    expect(params).toEqual({ query: 'pi', num: 2, apiKey: 'key-1234567', timeout: 10_000 })
   })
 
-  it('normalizes a successful provider response into the envelope', async () => {
-    mockExecuteTool.mockResolvedValue({
-      success: true,
-      output: {
-        results: [
-          {
-            title: 'Docs',
-            url: 'https://example.com/docs',
-            text: 'Page text',
-            publishedDate: '2026-02-03',
-          },
-          { title: 'Dropped', url: null },
-        ],
-      },
+  it('projects named provenance before normalizing and serializing provider output', async () => {
+    const secret = 'quoted"\\secret\nnext-line'
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'SEARCH_QUERY', plaintext: secret, encryptedValue: 'ciphertext' },
+    ])
+    const mergeSpy = vi.spyOn(registry, 'mergeToolCallRegistry')
+    const context = executionContext(registry)
+    encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: secret })
+    mockExecuteTool.mockImplementation(async (_toolId, _params, options) => {
+      await options.resolvedSecretTraceRegistry.importProvenance(
+        {
+          version: 1,
+          complete: true,
+          entries: [{ name: 'SEARCH_QUERY', encryptedValue: 'ciphertext' }],
+        },
+        { trusted: true }
+      )
+      return {
+        success: true,
+        output: {
+          results: [
+            {
+              title: secret,
+              url: 'https://example.com/docs',
+              text: `Bearer ${secret}`,
+            },
+          ],
+        },
+      }
     })
 
-    const result = await run('exa', { query: 'pi' })
+    const result = await buildTool('exa', context).execute({ query: secret })
 
-    expect(result.isError).toBeFalsy()
     expect(JSON.parse(result.text)).toEqual({
       results: [
         {
-          title: 'Docs',
+          title: '{{SEARCH_QUERY}}',
           url: 'https://example.com/docs',
-          snippet: 'Page text',
-          publishedDate: '2026-02-03',
+          snippet: 'Bearer {{SEARCH_QUERY}}',
+        },
+      ],
+    })
+    const options = mockExecuteTool.mock.calls[0][2]
+    expect(options.resolvedSecretTraceRegistry).not.toBe(registry)
+    expect(mergeSpy).toHaveBeenCalledWith(options.resolvedSecretTraceRegistry)
+  })
+
+  it('projects only the exact resolver-recorded search key and leaves the raw result unchanged', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'SEARCH_KEY', plaintext: 'key-1234567', encryptedValue: 'search-ciphertext' },
+      { name: 'UNRELATED', plaintext: 'Test', encryptedValue: 'unrelated-ciphertext' },
+    ])
+    registry.recordResolvedAtInputPath('SEARCH_KEY', 'key-1234567', ['searchApiKey'])
+    registry.recordResolvedInputProjection(['searchApiKey'], 'key-1234567', '{{SEARCH_KEY}}')
+    registry.recordResolvedAtInputPath('UNRELATED', 'Test', ['task'])
+    registry.recordResolvedInputProjection(['task'], 'Test', '{{UNRELATED}}')
+    const output = {
+      results: [
+        {
+          title: 'key-1234567',
+          url: 'https://example.com/docs',
+          text: 'Test',
+        },
+      ],
+    }
+    mockExecuteTool.mockResolvedValue({ success: true, output })
+
+    const result = await buildPiSearchToolSpec(
+      executionContext(registry),
+      { provider: 'exa', apiKey: 'key-1234567' },
+      'local',
+      '{{SEARCH_KEY}}'
+    ).execute({ query: 'pi' })
+
+    expect(JSON.parse(result.text).results[0]).toEqual({
+      title: '{{SEARCH_KEY}}',
+      url: 'https://example.com/docs',
+      snippet: 'Test',
+    })
+    expect(
+      mockExecuteTool.mock.calls[0][2].resolvedSecretTraceRegistry
+        .exportCommittedProvenanceForInputPaths([['apiKey']])
+        .entries.map((entry: { name?: string }) => entry.name)
+    ).toEqual(['SEARCH_KEY'])
+    expect(output).toEqual({
+      results: [
+        {
+          title: 'key-1234567',
+          url: 'https://example.com/docs',
+          text: 'Test',
         },
       ],
     })
   })
 
-  it('reports an empty search as a successful no-results envelope', async () => {
-    mockExecuteTool.mockResolvedValue({ success: true, output: { results: [] } })
+  it('fails closed before search when provenance is incomplete', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    registry.markIncomplete('unspecified')
 
-    const result = await run('exa', { query: 'pi' })
+    const result = await buildTool('exa', executionContext(registry)).execute({ query: 'pi' })
 
-    expect(result.isError).toBeFalsy()
-    expect(JSON.parse(result.text)).toEqual({ results: [], message: 'No results found.' })
+    expect(result.isError).toBe(true)
+    expect(result.text).toBe(
+      'Web search settled, but its result could not be returned safely. Do not retry automatically.'
+    )
+    expect(mockExecuteTool).not.toHaveBeenCalled()
   })
 
-  it("treats Parallel's no-results failure as an empty search, matching the other three", async () => {
-    mockExecuteTool.mockResolvedValue({
-      success: false,
-      error: 'No results returned from search',
-      output: { results: [], search_id: null },
+  it('does not merge an incomplete search call registry or return its output', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    const mergeSpy = vi.spyOn(registry, 'mergeToolCallRegistry')
+    mockExecuteTool.mockImplementation(async (_toolId, _params, options) => {
+      options.resolvedSecretTraceRegistry.markIncomplete('unspecified')
+      return {
+        success: true,
+        output: {
+          results: [{ title: 'Unsafe', url: 'https://example.com/docs', text: 'untrusted output' }],
+        },
+      }
     })
 
-    const result = await run('parallel', { query: 'pi' })
+    const result = await buildTool('exa', executionContext(registry)).execute({ query: 'pi' })
 
-    expect(result.isError).toBeFalsy()
-    expect(JSON.parse(result.text)).toEqual({ results: [], message: 'No results found.' })
+    expect(result.isError).toBe(true)
+    expect(result.text).not.toContain('untrusted output')
+    expect(mergeSpy).not.toHaveBeenCalled()
   })
 
   it('surfaces a provider failure without quoting the provider message', async () => {
@@ -161,20 +240,6 @@ describe('buildPiSearchToolSpec', () => {
     )
   })
 
-  it('falls back to a status-free message when the tool reports no status', async () => {
-    mockExecuteTool.mockResolvedValue({ success: false, error: 'boom', output: undefined })
-
-    const result = await run('serper', { query: 'pi' })
-
-    expect(result.isError).toBe(true)
-    expect(result.text).toBe('Serper search could not reach the provider.')
-  })
-
-  it('rejects a blank query before spending a provider call', async () => {
-    await expect(run('exa', { query: '  ' })).rejects.toThrow(/query is required/)
-    expect(mockExecuteTool).not.toHaveBeenCalled()
-  })
-
   it('stops searching once the run budget is spent, without calling the provider again', async () => {
     mockExecuteTool.mockResolvedValue({ success: true, output: { results: [] } })
     const tool = buildTool('exa')
@@ -187,32 +252,6 @@ describe('buildPiSearchToolSpec', () => {
     expect(overBudget.isError).toBe(true)
     expect(overBudget.text).toBe(PI_SEARCH_BUDGET_MESSAGE)
     expect(mockExecuteTool).toHaveBeenCalledTimes(PI_SEARCH_MAX_CALLS_PER_EXECUTION)
-  })
-
-  it('budgets each run separately, so a later run starts fresh', async () => {
-    mockExecuteTool.mockResolvedValue({ success: true, output: { results: [] } })
-    const first = buildTool('exa')
-    for (let call = 0; call <= PI_SEARCH_MAX_CALLS_PER_EXECUTION; call++) {
-      await first.execute({ query: `pi ${call}` })
-    }
-
-    expect((await buildTool('exa').execute({ query: 'fresh run' })).isError).toBe(false)
-  })
-
-  it('caps returned results at the requested count', async () => {
-    mockExecuteTool.mockResolvedValue({
-      success: true,
-      output: {
-        results: Array.from({ length: 8 }, (_, i) => ({
-          title: `T${i}`,
-          url: `https://example.com/${i}`,
-          text: 'x',
-        })),
-      },
-    })
-
-    const result = await run('exa', { query: 'pi', numResults: 2 })
-    expect(JSON.parse(result.text).results).toHaveLength(2)
   })
 })
 

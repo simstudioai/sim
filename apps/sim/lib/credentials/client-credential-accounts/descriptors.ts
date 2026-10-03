@@ -2,20 +2,39 @@
  * Client-safe descriptors for client-credentials service-account providers.
  *
  * A client-credential account is a `service_account`-type credential where a
- * workspace admin pastes an OAuth client id + client secret + provider org
- * identifier instead of a long-lived token. Unlike the token-paste family
+ * workspace admin supplies an OAuth client identity plus a shared secret or
+ * signing key and provider account identifier. Unlike the token-paste family
  * (whose stored secret IS the access token), these credentials mint a
- * short-lived access token on demand via the provider's client-credentials
- * grant (Zoom Server-to-Server OAuth, Box CCG). This module holds only
- * UI/contract metadata (field lists, labels, docs links); the server-side
- * minting registry lives in `@/lib/credentials/client-credential-accounts/server`.
+ * short-lived access token on demand. This module holds only UI/contract
+ * metadata (field lists, labels, docs links); the server-side minting registry
+ * lives in `@/lib/credentials/client-credential-accounts/server`.
  */
 
 /** Discriminator stored inside every encrypted client-credential secret blob. */
 export const CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE = 'client_credential_account' as const
 
 /** Contract field ids a client-credential connect modal collects. */
-export type ClientCredentialAccountFieldId = 'clientId' | 'clientSecret' | 'orgId' | 'dataCenter'
+export type ClientCredentialAccountFieldId =
+  | 'clientId'
+  | 'clientSecret'
+  | 'certificateId'
+  | 'orgId'
+  | 'dataCenter'
+  | 'authMethod'
+  | 'privateKey'
+  | 'username'
+
+/**
+ * The field id that selects between a descriptor's auth methods. A descriptor
+ * declaring it must also set `defaultAuthMethod`, or every branch-specific
+ * field resolves to hidden.
+ */
+export const AUTH_METHOD_FIELD_ID = 'authMethod' as const satisfies ClientCredentialAccountFieldId
+
+export interface ClientCredentialAccountOption {
+  value: string
+  label: string
+}
 
 export interface ClientCredentialAccountField {
   id: ClientCredentialAccountFieldId
@@ -24,11 +43,36 @@ export interface ClientCredentialAccountField {
   /** Rendered with SecretInput and never echoed back. */
   secret: boolean
   /**
+   * Renders a multi-line control instead of a single-line one. Required for
+   * PEM-encoded material (a private key spans ~28 newline-separated lines and
+   * is unreadable — and unverifiable by eye — in a single-line input). A
+   * `secret` field that is also `multiline` renders as a plain textarea rather
+   * than a masked input; the modal never prefills a secret, so masking would
+   * only hide the user's own paste from them.
+   */
+  multiline?: boolean
+  /**
+   * Auth methods this field belongs to, for descriptors offering more than one
+   * (Salesforce: client credentials vs JWT bearer). The field is hidden, and
+   * skipped by validation, unless the selected method appears in this list.
+   * Absent means the field belongs to every branch.
+   */
+  requiredForAuthMethods?: readonly string[]
+  /**
    * Field the connect modal may submit empty; excluded from
    * {@link CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS} so create/reconnect
    * validation never demands it. Omitted (default) means required.
    */
   optional?: boolean
+  /**
+   * Fixed value set, rendered by the connect modal as a dropdown — which removes
+   * the need for a format hint on the field. Required on `dataCenter`: the modal
+   * renders that field only when it carries options, so a region selector added
+   * without them would silently not appear.
+   */
+  options?: ReadonlyArray<ClientCredentialAccountOption>
+  /** Always-visible guidance, for a field whose value is not self-explanatory. */
+  hint?: string
   /** Soft-format hint shown while the current value doesn't match `hintPattern`. */
   hintPattern?: RegExp
   hintMessage?: string
@@ -51,6 +95,11 @@ export interface ClientCredentialAccountDescriptor {
    */
   connectNoun: string
   fields: ClientCredentialAccountField[]
+  /**
+   * Grant used when no `authMethod` is submitted or stored. Required on any
+   * descriptor carrying an `authMethod` field; meaningless without one.
+   */
+  defaultAuthMethod?: string
   /** Sim setup guide, docked bottom-left of the connect modal. */
   docsUrl: string
   /** Optional one-line caveat rendered in the connect modal. */
@@ -61,12 +110,49 @@ export const ZOOM_SERVICE_ACCOUNT_PROVIDER_ID = 'zoom-service-account' as const
 export const BOX_SERVICE_ACCOUNT_PROVIDER_ID = 'box-service-account' as const
 export const SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID = 'salesforce-service-account' as const
 export const ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID = 'zoho-desk-service-account' as const
+export const NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID = 'netsuite-service-account' as const
 
 export type ClientCredentialAccountProviderId =
   | typeof ZOOM_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof BOX_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID
+
+/**
+ * Exact account-specific SuiteTalk origin accepted by NetSuite's OAuth and
+ * REST endpoints. The account label may include a sandbox suffix such as
+ * `-sb1`; paths, ports, credentials, query strings, and fragments are never
+ * accepted because the stored origin later receives a bearer token.
+ */
+export const NETSUITE_SUITETALK_ORIGIN_REGEX =
+  /^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.suitetalk\.api\.netsuite\.com$/
+
+/**
+ * Normalizes an account-specific SuiteTalk URL to its HTTPS origin. Returns
+ * `undefined` rather than throwing so the client-side format hint and the
+ * server-side minter can share the exact same admission rule.
+ */
+export function normalizeNetSuiteSuiteTalkOrigin(rawUrl: string): string | undefined {
+  try {
+    const parsed = new URL(rawUrl.trim())
+    if (
+      parsed.protocol !== 'https:' ||
+      parsed.port ||
+      parsed.username ||
+      parsed.password ||
+      parsed.search ||
+      parsed.hash ||
+      (parsed.pathname !== '' && parsed.pathname !== '/') ||
+      !NETSUITE_SUITETALK_ORIGIN_REGEX.test(parsed.origin)
+    ) {
+      return undefined
+    }
+    return parsed.origin
+  } catch {
+    return undefined
+  }
+}
 
 /**
  * Allowed My Domain host shapes: one org label (optionally with a
@@ -78,6 +164,37 @@ export type ClientCredentialAccountProviderId =
  */
 export const SALESFORCE_MY_DOMAIN_HOST_REGEX =
   /^[a-z0-9][a-z0-9-]*(--[a-z0-9]+)?(\.(sandbox|develop|scratch|demo|patch|trailblaze|free))?\.my\.salesforce\.com$/
+
+/**
+ * Server-to-server grants a Salesforce integration app can authenticate with.
+ * `client_credentials` posts a consumer key + secret; `jwt_bearer` posts an
+ * RS256-signed assertion and names the user to run as, so it needs no shared
+ * secret at all. This list is the only allowlist — every consumer resolves
+ * against it through {@link resolveSalesforceAuthMethod}.
+ * @see https://help.salesforce.com/s/articleView?id=sf.remoteaccess_oauth_jwt_flow.htm&type=5
+ */
+const SALESFORCE_AUTH_METHOD_OPTIONS: ReadonlyArray<ClientCredentialAccountOption> = [
+  { value: 'client_credentials', label: 'Client credentials (consumer secret)' },
+  { value: 'jwt_bearer', label: 'JWT bearer (private key)' },
+]
+
+/**
+ * Client-credentials stays the default so credentials created before the JWT
+ * branch existed — whose stored blob carries no `authMethod` — keep minting
+ * exactly as they did.
+ */
+export const SALESFORCE_DEFAULT_AUTH_METHOD = 'client_credentials'
+
+/** A Salesforce username is an email-shaped login, not necessarily a real mailbox. */
+export const SALESFORCE_USERNAME_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/**
+ * A PEM private key header, in either container `crypto.createPrivateKey`
+ * accepts. Catches the common mix-up of pasting `server.crt` (the certificate
+ * that belongs in Salesforce) instead of `server.key`, which would otherwise
+ * only surface as an opaque failed mint.
+ */
+export const SALESFORCE_PRIVATE_KEY_REGEX = /-----BEGIN (RSA )?PRIVATE KEY-----/
 
 /**
  * Normalizes a pasted My Domain value to a bare host: strips the protocol,
@@ -152,6 +269,26 @@ export const ZOHO_DESK_DATA_CENTER_IDS = Object.keys(
   ZOHO_DESK_DATA_CENTERS
 ) as ZohoDeskDataCenterId[]
 
+/** Region names, paired with the ids so a label can never name the wrong host. */
+const ZOHO_DESK_DATA_CENTER_LABELS: Record<ZohoDeskDataCenterId, string> = {
+  us: 'United States',
+  eu: 'Europe',
+  in: 'India',
+  au: 'Australia',
+}
+
+/**
+ * Connect-modal dropdown options, derived from {@link ZOHO_DESK_DATA_CENTERS} so
+ * adding a region cannot leave the picker behind. Each label carries the accounts
+ * host the region mints against, which is what an admin recognizes from the URL
+ * they sign in to Zoho with.
+ */
+export const ZOHO_DESK_DATA_CENTER_OPTIONS: ReadonlyArray<ClientCredentialAccountOption> =
+  ZOHO_DESK_DATA_CENTER_IDS.map((id) => ({
+    value: id,
+    label: `${ZOHO_DESK_DATA_CENTER_LABELS[id]} (${ZOHO_DESK_DATA_CENTERS[id].accountsBase.replace('https://', '')})`,
+  }))
+
 /** Accepts exactly the supported region codes, case-insensitively after normalization. */
 export const ZOHO_DESK_DATA_CENTER_REGEX = new RegExp(`^(${ZOHO_DESK_DATA_CENTER_IDS.join('|')})$`)
 
@@ -194,7 +331,7 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'clientId',
         label: 'Client ID',
-        placeholder: 'Client ID from the App Credentials page',
+        placeholder: 'Paste the client ID',
         secret: false,
       },
       {
@@ -206,13 +343,13 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'orgId',
         label: 'Account ID',
-        placeholder: 'Account ID from the App Credentials page',
+        placeholder: 'Paste the account ID',
         secret: false,
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/zoom-service-account',
     helpText:
-      "Copy all three values from the Server-to-Server OAuth app's App Credentials page — the Account ID there is not the account number shown in the Zoom web portal. The app must be activated before tokens can be issued.",
+      'The Account ID on the App Credentials page is not the account number shown in the Zoom web portal. The app must be activated before tokens can be issued.',
   },
   [BOX_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: BOX_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -222,7 +359,7 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'clientId',
         label: 'Client ID',
-        placeholder: 'Client ID from Configuration > OAuth 2.0 Credentials',
+        placeholder: 'Paste the client ID',
         secret: false,
       },
       {
@@ -250,9 +387,17 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
     connectNoun: 'integration user app',
     fields: [
       {
+        id: 'authMethod',
+        label: 'Authentication method',
+        placeholder: 'Select a method',
+        secret: false,
+        optional: true,
+        options: SALESFORCE_AUTH_METHOD_OPTIONS,
+      },
+      {
         id: 'clientId',
         label: 'Consumer key',
-        placeholder: "Consumer Key from the Connected App's Manage Consumer Details page",
+        placeholder: 'Paste the consumer key',
         secret: false,
       },
       {
@@ -260,6 +405,30 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
         label: 'Consumer secret',
         placeholder: 'Paste the consumer secret',
         secret: true,
+        optional: true,
+        requiredForAuthMethods: ['client_credentials'],
+      },
+      {
+        id: 'privateKey',
+        label: 'Private key',
+        placeholder: '-----BEGIN PRIVATE KEY-----',
+        secret: true,
+        multiline: true,
+        optional: true,
+        requiredForAuthMethods: ['jwt_bearer'],
+        hintPattern: SALESFORCE_PRIVATE_KEY_REGEX,
+        hintMessage: 'Expected a PEM private key (server.key), not the certificate.',
+        hint: 'Must match the certificate uploaded to the app.',
+      },
+      {
+        id: 'username',
+        label: 'Run as username',
+        placeholder: 'integration.user@yourorg.com',
+        secret: false,
+        optional: true,
+        requiredForAuthMethods: ['jwt_bearer'],
+        hintPattern: SALESFORCE_USERNAME_REGEX,
+        hintMessage: 'Expected a Salesforce username, which is email-shaped (user@example.com).',
       },
       {
         id: 'orgId',
@@ -269,12 +438,13 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
         hintPattern: SALESFORCE_MY_DOMAIN_HOST_REGEX,
         hintNormalize: normalizeSalesforceMyDomainHost,
         hintMessage:
-          'Expected a My Domain host like yourorg.my.salesforce.com, yourorg--sbx.sandbox.my.salesforce.com, or yourorg-dev-ed.develop.my.salesforce.com.',
+          'Expected a My Domain host like yourorg.my.salesforce.com, yourorg--sbx.sandbox.my.salesforce.com, or yourorg-dev-ed.develop.my.salesforce.com — not the my.salesforce-setup.com or lightning.force.com host.',
       },
     ],
+    defaultAuthMethod: SALESFORCE_DEFAULT_AUTH_METHOD,
     docsUrl: 'https://docs.sim.ai/integrations/salesforce-service-account',
     helpText:
-      'The Connected App must have "Enable Client Credentials Flow" checked with a "Run As" integration user set under Edit Policies — every call executes with that user\'s permissions, and deactivating or freezing the user stops all runs. Selecting the "openid" scope lets Sim record which run-as user the credential authenticates as; without it the connection still works but the identity is not captured.',
+      'Every call runs as one integration user, so deactivating or freezing that user stops all runs. Without the "openid" scope the connection still works, but Sim cannot record which user it authenticates as.',
   },
   [ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -284,7 +454,7 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'clientId',
         label: 'Client ID',
-        placeholder: "Client ID from the Self Client's Client Secret tab",
+        placeholder: 'Paste the client ID',
         secret: false,
       },
       {
@@ -301,22 +471,65 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
         hintPattern: ZOHO_DESK_SOID_REGEX,
         hintNormalize: normalizeZohoDeskSoid,
         hintMessage:
-          'Paste the numeric Zoho Desk organization ID from Setup → Developer Space → API, or the full ZohoDesk.<orgId> value.',
+          'Expected a numeric organization ID like 600123456, or a full ZohoDesk.600123456 value.',
       },
       {
         id: 'dataCenter',
         label: 'Data center',
-        placeholder: 'us',
+        // Deliberately region-neutral: on a reconnect an unset value keeps the
+        // credential's stored region, so naming a region here would be wrong.
+        placeholder: 'Select a data center',
         secret: false,
         optional: true,
-        hintPattern: ZOHO_DESK_DATA_CENTER_REGEX,
-        hintNormalize: normalizeZohoDeskDataCenter,
-        hintMessage: `Enter one of ${ZOHO_DESK_DATA_CENTER_IDS.join(', ')}. Leave blank for us (accounts.zoho.com).`,
+        options: ZOHO_DESK_DATA_CENTER_OPTIONS,
+        hint: 'The region your Zoho account signs in to. New credentials default to the United States.',
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/zoho-desk-service-account',
+    helpText: 'Zoho Desk triggers still require an OAuth connection, which is US-only.',
+  },
+  [NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: NETSUITE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Oracle NetSuite',
+    connectNoun: 'OAuth certificate',
+    fields: [
+      {
+        id: 'orgId',
+        label: 'SuiteTalk URL',
+        placeholder: 'https://1234567-sb1.suitetalk.api.netsuite.com',
+        secret: false,
+        hintPattern: NETSUITE_SUITETALK_ORIGIN_REGEX,
+        hintNormalize: (value) =>
+          normalizeNetSuiteSuiteTalkOrigin(value) ?? value.trim().toLowerCase(),
+        hintMessage:
+          'Expected the HTTPS SuiteTalk Company URL with no path, port, query, or fragment.',
+      },
+      {
+        id: 'clientId',
+        label: 'Client ID',
+        placeholder: 'Paste the integration record client ID',
+        secret: false,
+      },
+      {
+        id: 'certificateId',
+        label: 'Certificate ID',
+        placeholder: 'Paste the certificate mapping ID',
+        secret: false,
+      },
+      {
+        id: 'privateKey',
+        label: 'Private key',
+        placeholder: '-----BEGIN PRIVATE KEY-----',
+        secret: true,
+        multiline: true,
+        hintPattern: /-----BEGIN (?:EC |RSA )?PRIVATE KEY-----/,
+        hintMessage: 'Expected the PEM private key paired with the uploaded certificate.',
+        hint: 'Must match the certificate mapping in this NetSuite account and environment.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/netsuite-service-account',
     helpText:
-      'Create the Self Client in the Zoho API Console, add the Zoho Desk scopes, and use the organization ID from Setup → Developer Space → API. Self Clients work with the US, EU, IN, and AU data centers — leave the data center blank for US. Zoho Desk triggers still require an OAuth connection, which is US-only.',
+      'Use the account-specific SuiteTalk URL and the client ID, certificate ID, and private key from one OAuth 2.0 client-credentials mapping.',
   },
 }
 
@@ -335,6 +548,73 @@ export const CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS: Record<
     descriptor.fields.filter((field) => !field.optional).map((field) => field.id),
   ])
 )
+
+/**
+ * Resolves a submitted or stored `authMethod` to one the descriptor actually
+ * offers, falling back to its `defaultAuthMethod`. Returns `undefined` for
+ * single-grant providers, whose fields are never method-conditional.
+ *
+ * Resolving (rather than reading the raw value) is what makes credentials
+ * created before the field existed keep working: their blob carries no
+ * `authMethod`, and the default is the grant they were created with.
+ */
+export function resolveClientCredentialAuthMethod(
+  descriptor: ClientCredentialAccountDescriptor,
+  authMethod: string | undefined
+): string | undefined {
+  const options = descriptor.fields.find((field) => field.id === AUTH_METHOD_FIELD_ID)?.options
+  if (!options) return undefined
+  const trimmed = authMethod?.trim()
+  return options.some((option) => option.value === trimmed) ? trimmed : descriptor.defaultAuthMethod
+}
+
+/**
+ * Splits a descriptor's fields for one auth method: `visible` is what the
+ * connect modal renders, `required` is what must be non-empty to submit.
+ *
+ * A field with no `requiredForAuthMethods` belongs to every branch and is
+ * required unless marked `optional`; a branch-specific field is both hidden
+ * and skipped by validation on the other branches. Resolves the method once,
+ * so callers never re-resolve per field.
+ *
+ * The static {@link CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS} map above
+ * cannot express this — it feeds a contract schema that validates one shape
+ * per provider — so the branch-specific requirement is enforced by the
+ * server-side secret builder and mirrored by the connect modal's submit gate.
+ */
+export function partitionClientCredentialFields(
+  descriptor: ClientCredentialAccountDescriptor,
+  authMethod: string | undefined
+): { visible: ClientCredentialAccountField[]; required: ClientCredentialAccountField[] } {
+  const resolved = resolveClientCredentialAuthMethod(descriptor, authMethod)
+  const visible: ClientCredentialAccountField[] = []
+  const required: ClientCredentialAccountField[] = []
+  for (const field of descriptor.fields) {
+    if (field.requiredForAuthMethods) {
+      if (resolved === undefined || !field.requiredForAuthMethods.includes(resolved)) continue
+      visible.push(field)
+      required.push(field)
+      continue
+    }
+    visible.push(field)
+    if (!field.optional) required.push(field)
+  }
+  return { visible, required }
+}
+
+/**
+ * Resolves an auth method against the Salesforce descriptor's own option list,
+ * for the minter — which holds only the raw stored value and must agree with
+ * the validation that gated the credential at create time.
+ */
+export function resolveSalesforceAuthMethod(authMethod: string | undefined): string {
+  return (
+    resolveClientCredentialAuthMethod(
+      CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS[SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID],
+      authMethod
+    ) ?? SALESFORCE_DEFAULT_AUTH_METHOD
+  )
+}
 
 export function isClientCredentialAccountProviderId(
   value: string | null | undefined

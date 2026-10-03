@@ -41,7 +41,7 @@ export const discordLeaveThreadTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async () => {
     return {
       success: true,
       output: {

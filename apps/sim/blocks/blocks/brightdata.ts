@@ -1,9 +1,8 @@
 import { BrightDataIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { BrightDataResponse } from '@/tools/brightdata/types'
 
-export const BrightDataBlock: BlockConfig<BrightDataResponse> = {
+export const BrightDataBlock: BlockConfig = {
   type: 'brightdata',
   name: 'Bright Data',
   description: 'Scrape websites, search engines, and extract structured data',
@@ -15,6 +14,45 @@ export const BrightDataBlock: BlockConfig<BrightDataResponse> = {
   integrationType: IntegrationType.Search,
   bgColor: '#FFFFFF',
   icon: BrightDataIcon,
+  canvasPresentation: {
+    defaultTitle: 'Bright Data',
+    sentences: {
+      byOperation: {
+        scrape_url: [
+          { text: 'Scrape', field: 'url', core: true },
+          { text: 'as', field: 'dataFormat' },
+          { text: ', from', field: 'country' },
+        ],
+        serp_search: [
+          { text: 'Search', field: 'searchEngine', core: true },
+          { text: 'for', field: 'query', core: true },
+          { text: ', returning', field: 'numResults', after: 'results' },
+        ],
+        discover: [
+          { text: 'Discover and rank pages for', field: 'discoverQuery', core: true },
+          { text: ', in', field: 'mode', after: 'mode' },
+          { text: ', returning', field: 'numResults', after: 'results' },
+        ],
+        sync_scrape: [
+          { text: 'Scrape', field: 'syncUrls', core: true },
+          { text: 'with scraper', field: 'syncDatasetId', core: true },
+          'and wait for results',
+        ],
+        scrape_dataset: [
+          { text: 'Queue a scraping job for', field: 'urls', core: true },
+          { text: 'with scraper', field: 'datasetId', core: true },
+        ],
+        snapshot_status: [
+          { text: 'Check the progress of snapshot', field: 'snapshotId', core: true },
+        ],
+        download_snapshot: [
+          { text: 'Download snapshot', field: 'snapshotId', core: true },
+          { text: 'as', field: 'downloadFormat' },
+        ],
+        cancel_snapshot: [{ text: 'Cancel snapshot', field: 'snapshotId', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

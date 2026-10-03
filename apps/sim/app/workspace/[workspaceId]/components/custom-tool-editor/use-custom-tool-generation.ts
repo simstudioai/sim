@@ -85,7 +85,7 @@ ${schemaContext}
 Current code: {context}
 
 IMPORTANT FORMATTING RULES:
-1. Reference Environment Variables: Use the exact syntax {{VARIABLE_NAME}}. Do NOT wrap it in quotes (e.g., use 'const apiKey = {{SERVICE_API_KEY}};' not 'const apiKey = "{{SERVICE_API_KEY}}";'). Our system replaces these placeholders before execution.
+1. Reference Environment Variables: Use the exact syntax {{VARIABLE_NAME}}. When the placeholder is the complete expression, prefer the unquoted form (for example, 'const apiKey = {{SERVICE_API_KEY}};'). Quoted and embedded string forms such as '"Bearer {{SERVICE_API_KEY}}"', template literals, and JavaScript regex literals are also supported. Sim binds the resolved value separately from the source at execution time, preserving its exact string contents.
 2. Reference Input Parameters/Workflow Variables: Reference them directly by name (e.g., 'const city = cityName;' or use directly in template strings like \`\${cityName}\`). Do NOT wrap in quotes or angle brackets.
 3. Function Body ONLY: Do NOT include the function signature (e.g., 'async function myFunction() {' or the surrounding '}').
 4. Imports: Do NOT include import/require statements unless they are standard Node.js built-in modules (e.g., 'crypto', 'fs'). External libraries are not supported in this context.

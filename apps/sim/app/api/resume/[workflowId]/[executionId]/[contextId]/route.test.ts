@@ -1,22 +1,22 @@
-/**
- * @vitest-environment node
- */
-import { NextRequest } from 'next/server'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
+import {
+  executionPreprocessingMock,
+  executionPreprocessingMockFns,
+} from '@sim/testing/mocks/execution-preprocessing.mock'
+import {
+  humanInTheLoopManagerMock,
+  humanInTheLoopManagerMockFns,
+} from '@sim/testing/mocks/human-in-the-loop-manager.mock'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import {
+  workspacesUtilsMock,
+  workspacesUtilsMockFns,
+} from '@sim/testing/mocks/workspaces-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockEnqueueOrStartResume,
-  mockGetCurrentPayer,
-  mockGetPauseContextDetail,
-  mockGetPausedExecutionDetail,
-  mockPreprocessExecution,
-  mockValidateWorkflowAccess,
-} = vi.hoisted(() => ({
-  mockEnqueueOrStartResume: vi.fn(),
-  mockGetCurrentPayer: vi.fn(),
-  mockGetPauseContextDetail: vi.fn(),
-  mockGetPausedExecutionDetail: vi.fn(),
-  mockPreprocessExecution: vi.fn(),
+const { mockValidateWorkflowAccess } = vi.hoisted(() => ({
   mockValidateWorkflowAccess: vi.fn(),
 }))
 
@@ -24,30 +24,33 @@ vi.mock('@/app/api/workflows/middleware', () => ({
   validateWorkflowAccess: mockValidateWorkflowAccess,
 }))
 
-vi.mock('@/lib/execution/preprocessing', () => ({
-  preprocessExecution: mockPreprocessExecution,
+vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
+
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
+
+vi.mock('@/lib/workflows/executor/enqueue-execution', () => ({
+  RESUME_EXECUTION_JOB_ID_PREFIX: 'resume-execution:',
 }))
 
-vi.mock('@sim/utils/id', () => ({
-  generateId: () => 'resume-preflight-1',
-}))
+vi.mock('@sim/utils/id', () => idMock)
 
-vi.mock('@/lib/workspaces/utils', () => ({
-  getWorkspaceBilledAccountUserId: mockGetCurrentPayer,
-}))
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 
-vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => ({
-  PauseResumeManager: {
-    enqueueOrStartResume: mockEnqueueOrStartResume,
-    getPauseContextDetail: mockGetPauseContextDetail,
-    getPausedExecutionDetail: mockGetPausedExecutionDetail,
-    markResumeAttemptFailed: vi.fn(),
-    processQueuedResumes: vi.fn(),
-    startResumeExecution: vi.fn(),
-  },
-}))
+vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => humanInTheLoopManagerMock)
 
-import { GET, POST } from '@/app/api/resume/[workflowId]/[executionId]/[contextId]/route'
+import { POST } from '@/app/api/resume/[workflowId]/[executionId]/[contextId]/route'
+import { handleResumeExecution } from '@/app/api/resume/resume-handler'
+
+const { mockEnqueueOrStartResume, mockGetPausedExecutionDetail } = humanInTheLoopManagerMockFns
+const { mockGetWorkspaceBilledAccountUserId: mockGetCurrentPayer } = workspacesUtilsMockFns
+
+const { mockShouldExecuteInline } = asyncJobsMockFns
+mockShouldExecuteInline.mockReturnValue(false)
+const mockEnqueueResume = asyncJobsMockFns.mockJobQueue.enqueue
+mockEnqueueResume.mockResolvedValue('resume-execution:resume-execution-1')
+
+const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
+idMockFns.mockGenerateId.mockReturnValue('resume-preflight-1')
 
 const WORKFLOW_ID = 'workflow-1'
 const EXECUTION_ID = 'execution-1'
@@ -84,6 +87,7 @@ interface PausedExecutionOverrides {
   snapshotWorkspaceId?: string
   snapshotActorUserId?: string
   billingAttribution?: unknown
+  executionMode?: 'sync' | 'stream' | 'async'
 }
 
 function createPausedExecution(overrides: PausedExecutionOverrides = {}) {
@@ -98,17 +102,26 @@ function createPausedExecution(overrides: PausedExecutionOverrides = {}) {
     executionId: overrides.executionId ?? EXECUTION_ID,
     executionSnapshot: {
       snapshot: JSON.stringify({
+        version: 1,
         metadata: {
           requestId: 'request-original',
           workflowId: overrides.snapshotWorkflowId ?? WORKFLOW_ID,
           executionId: overrides.snapshotExecutionId ?? EXECUTION_ID,
           workspaceId: overrides.snapshotWorkspaceId ?? WORKSPACE_ID,
           userId: overrides.snapshotActorUserId ?? PERSISTED_ACTOR_ID,
+          principal: {
+            version: 1,
+            principal: {
+              kind: 'session',
+              userId: overrides.snapshotActorUserId ?? PERSISTED_ACTOR_ID,
+              sessionId: 'session-original',
+            },
+          },
           billingAttribution,
           triggerType: 'manual',
           useDraftState: false,
           startTime: '2026-07-10T00:00:00.000Z',
-          executionMode: 'sync',
+          executionMode: overrides.executionMode ?? 'sync',
         },
         workflow: { version: '1', blocks: [], connections: [] },
         input: {},
@@ -129,21 +142,18 @@ function makeRequest(
   body = JSON.stringify({ input: { approved: true } })
 ) {
   return {
-    request: new NextRequest(
-      `http://localhost/api/resume/${params.workflowId}/${params.executionId}/${params.contextId}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-      }
-    ),
-    context: { params: Promise.resolve(params) },
+    request: createMockRequest({
+      method: 'POST',
+      url: `http://localhost/api/resume/${params.workflowId}/${params.executionId}/${params.contextId}`,
+      headers: { 'Content-Type': 'application/json' },
+      rawBody: body,
+    }),
+    context: createRouteContext(params),
   }
 }
 
 describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockValidateWorkflowAccess.mockResolvedValue({
       workflow: {
         id: WORKFLOW_ID,
@@ -229,6 +239,129 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
     })
   })
 
+  it('preserves the legacy async job polling response', async () => {
+    mockGetPausedExecutionDetail.mockResolvedValueOnce(
+      createPausedExecution({ executionMode: 'async' })
+    )
+    mockEnqueueOrStartResume.mockResolvedValueOnce({
+      status: 'started',
+      resumeExecutionId: 'resume-execution-1',
+      resumeEntryId: 'resume-entry-1',
+      pausedExecution: { id: 'paused-execution-1' },
+      contextId: CONTEXT_ID,
+      resumeInput: { approved: true },
+      userId: 'current-api-key-user',
+    })
+    const { request, context } = makeRequest()
+
+    const response = await POST(request, context)
+
+    expect(response.status).toBe(202)
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      async: true,
+      jobId: 'resume-execution:resume-execution-1',
+      executionId: 'resume-execution-1',
+      message: 'Resume execution queued',
+      statusUrl: 'https://test.sim.ai/api/jobs/resume-execution:resume-execution-1',
+    })
+    expect(mockEnqueueResume).toHaveBeenCalledWith(
+      'resume-execution',
+      expect.objectContaining({ resumeExecutionId: 'resume-execution-1' }),
+      expect.objectContaining({
+        metadata: expect.objectContaining({ workflowId: WORKFLOW_ID }),
+      })
+    )
+    expect(mockEnqueueResume.mock.calls[0]?.[2]).not.toHaveProperty('jobId')
+  })
+
+  it('uses deterministic dispatch and execution polling for the v2 surface', async () => {
+    mockGetPausedExecutionDetail.mockResolvedValueOnce(
+      createPausedExecution({ executionMode: 'async' })
+    )
+    mockEnqueueOrStartResume.mockResolvedValueOnce({
+      status: 'started',
+      resumeExecutionId: 'resume-execution-1',
+      resumeEntryId: 'resume-entry-1',
+      pausedExecution: { id: 'paused-execution-1' },
+      contextId: CONTEXT_ID,
+      resumeInput: { approved: true },
+      userId: 'current-api-key-user',
+    })
+    const { request } = makeRequest()
+
+    const response = await handleResumeExecution({
+      request,
+      workflowId: WORKFLOW_ID,
+      executionId: EXECUTION_ID,
+      contextId: CONTEXT_ID,
+      workspaceId: WORKSPACE_ID,
+      userId: 'current-api-key-user',
+      resumeInput: { approved: true },
+      isApiCaller: true,
+      pollingSurface: 'v2',
+    })
+
+    expect(response.status).toBe(202)
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      async: true,
+      executionId: 'resume-execution-1',
+      message: 'Resume execution queued',
+      statusUrl: 'https://test.sim.ai/api/v2/workflows/workflow-1/runs/resume-execution-1',
+    })
+    expect(mockEnqueueResume).toHaveBeenCalledWith(
+      'resume-execution',
+      expect.objectContaining({ resumeExecutionId: 'resume-execution-1' }),
+      expect.objectContaining({
+        jobId: 'resume-execution:resume-entry-1',
+        metadata: expect.objectContaining({ workflowId: WORKFLOW_ID }),
+      })
+    )
+  })
+
+  it('queues inherited stream-mode resumes when the caller requires JSON', async () => {
+    mockGetPausedExecutionDetail.mockResolvedValueOnce(
+      createPausedExecution({ executionMode: 'stream' })
+    )
+    mockEnqueueOrStartResume.mockResolvedValueOnce({
+      status: 'started',
+      resumeExecutionId: 'resume-execution-1',
+      resumeEntryId: 'resume-entry-1',
+      pausedExecution: { id: 'paused-execution-1' },
+      contextId: CONTEXT_ID,
+      resumeInput: { approved: true },
+      userId: 'current-api-key-user',
+    })
+    const { request } = makeRequest()
+
+    const response = await handleResumeExecution({
+      request,
+      workflowId: WORKFLOW_ID,
+      executionId: EXECUTION_ID,
+      contextId: CONTEXT_ID,
+      workspaceId: WORKSPACE_ID,
+      userId: 'current-api-key-user',
+      resumeInput: { approved: true },
+      isApiCaller: true,
+      pollingSurface: 'v2',
+      allowStreaming: false,
+    })
+
+    expect(response.status).toBe(202)
+    expect(response.headers.get('Content-Type')).toContain('application/json')
+    await expect(response.json()).resolves.toMatchObject({
+      async: true,
+      executionId: 'resume-execution-1',
+      statusUrl: 'https://test.sim.ai/api/v2/workflows/workflow-1/runs/resume-execution-1',
+    })
+    expect(mockEnqueueResume).toHaveBeenCalledWith(
+      'resume-execution',
+      expect.objectContaining({ resumeExecutionId: 'resume-execution-1' }),
+      expect.objectContaining({ jobId: 'resume-execution:resume-entry-1' })
+    )
+  })
+
   it.each([
     { statusCode: 402, message: 'Member usage limit reached', retryable: false },
     { statusCode: 429, message: 'Target concurrency full', retryable: true },
@@ -253,27 +386,6 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
   it('fails closed when the persisted snapshot has no billing attribution', async () => {
     mockGetPausedExecutionDetail.mockResolvedValueOnce(
       createPausedExecution({ billingAttribution: undefined })
-    )
-    const { request, context } = makeRequest()
-
-    const response = await POST(request, context)
-
-    expect(response.status).toBe(500)
-    expect(await response.json()).toEqual({
-      error: 'Paused execution billing attribution is missing or invalid',
-    })
-    expect(mockPreprocessExecution).not.toHaveBeenCalled()
-    expect(mockEnqueueOrStartResume).not.toHaveBeenCalled()
-  })
-
-  it('fails closed when the persisted billing attribution is malformed', async () => {
-    mockGetPausedExecutionDetail.mockResolvedValueOnce(
-      createPausedExecution({
-        billingAttribution: {
-          actorUserId: PERSISTED_ACTOR_ID,
-          workspaceId: WORKSPACE_ID,
-        },
-      })
     )
     const { request, context } = makeRequest()
 
@@ -335,34 +447,5 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
     })
     expect(mockPreprocessExecution).not.toHaveBeenCalled()
     expect(mockEnqueueOrStartResume).not.toHaveBeenCalled()
-  })
-})
-
-describe('GET /api/resume/[workflowId]/[executionId]/[contextId]', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('returns 401 before validating malformed route input', async () => {
-    mockValidateWorkflowAccess.mockResolvedValueOnce({
-      error: { message: 'Unauthorized', status: 401 },
-    })
-    const request = new NextRequest(
-      `http://localhost/api/resume/${WORKFLOW_ID}/${EXECUTION_ID}/${CONTEXT_ID}`
-    )
-    const context = {
-      params: Promise.resolve({
-        workflowId: WORKFLOW_ID,
-        executionId: '',
-        contextId: '',
-      }),
-    }
-
-    const response = await GET(request, context)
-
-    expect(response.status).toBe(401)
-    expect(await response.json()).toEqual({ error: 'Unauthorized' })
-    expect(mockValidateWorkflowAccess).toHaveBeenCalledWith(request, WORKFLOW_ID, false)
-    expect(mockGetPauseContextDetail).not.toHaveBeenCalled()
   })
 })

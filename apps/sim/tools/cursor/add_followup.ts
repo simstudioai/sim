@@ -1,3 +1,7 @@
+import {
+  applyProjectedCursorPromptModelInput,
+  selectCursorPromptModelInput,
+} from '@/tools/cursor/model-input'
 import type { AddFollowupParams, AddFollowupResponse } from '@/tools/cursor/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -29,6 +33,17 @@ const addFollowupBase = {
     },
   },
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params: AddFollowupParams) =>
+        selectCursorPromptModelInput(params, 'followupPromptText'),
+      applyProjected: (selectedParams, projectedSelection) =>
+        applyProjectedCursorPromptModelInput(
+          selectedParams,
+          projectedSelection,
+          'followupPromptText'
+        ),
+    },
     url: (params: AddFollowupParams) =>
       `https://api.cursor.com/v0/agents/${params.agentId.trim()}/followup`,
     method: 'POST',

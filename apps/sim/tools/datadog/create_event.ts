@@ -1,4 +1,10 @@
-import type { CreateEventParams, CreateEventResponse } from '@/tools/datadog/types'
+import type {
+  CreateEventParams,
+  CreateEventResponse,
+  EventAlertType,
+  EventPriority,
+} from '@/tools/datadog/types'
+import { datadogErrorMessage, resolveDatadogSite } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const createEventTool: ToolConfig<CreateEventParams, CreateEventResponse> = {
@@ -64,7 +70,7 @@ export const createEventTool: ToolConfig<CreateEventParams, CreateEventResponse>
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Unix timestamp in seconds when the event occurred (e.g., 1705320000, defaults to now)',
+        'Unix timestamp in seconds when the event occurred (e.g., 1705320000, defaults to now). Datadog limits this to events no older than 18 hours.',
     },
     apiKey: {
       type: 'string',
@@ -82,7 +88,7 @@ export const createEventTool: ToolConfig<CreateEventParams, CreateEventResponse>
 
   request: {
     url: (params) => {
-      const site = params.site || 'datadoghq.com'
+      const site = resolveDatadogSite(params.site)
       return `https://api.${site}/api/v1/events`
     },
     method: 'POST',
@@ -91,7 +97,17 @@ export const createEventTool: ToolConfig<CreateEventParams, CreateEventResponse>
       'DD-API-KEY': params.apiKey,
     }),
     body: (params) => {
-      const body: Record<string, any> = {
+      const body: {
+        title: string
+        text: string
+        alert_type?: EventAlertType
+        priority?: EventPriority
+        host?: string
+        aggregation_key?: string
+        source_type_name?: string
+        date_happened?: number
+        tags?: string[]
+      } = {
         title: params.title,
         text: params.text,
       }
@@ -116,13 +132,13 @@ export const createEventTool: ToolConfig<CreateEventParams, CreateEventResponse>
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const message = await datadogErrorMessage(response)
       return {
         success: false,
         output: {
-          event: {} as any,
+          event: {},
         },
-        error: errorData.errors?.[0] || `HTTP ${response.status}: ${response.statusText}`,
+        error: message,
       }
     }
 

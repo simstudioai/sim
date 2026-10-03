@@ -1,10 +1,10 @@
 import { createHash } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { fetchGo } from '@/lib/copilot/request/go/fetch'
-import { getMothershipBaseURL } from '@/lib/copilot/server/agent-url'
 import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isHosted } from '@/lib/core/config/env-flags'
+import { fetchGo } from '@/lib/mothership/request/go/fetch'
+import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 import { validateModelProvider } from '@/ee/access-control/utils/permission-check'
 import type { ExecutionContext } from '@/executor/types'
 import type { ModelCost } from '@/providers/cost-policy'
@@ -261,7 +261,8 @@ async function callModelRouter(
  * Resolves the sim-auto pseudo-model to a concrete model for one block
  * execution. Never throws and never fails the workflow: any error, timeout,
  * non-hosted deployment, or fully unavailable pool column falls back to
- * `fallbackModel` (the block's standard default).
+ * `fallbackModel` (the block's standard default). Callers must supply the same already-projected
+ * model-facing signals they pass to their provider boundary; this router never rescans them.
  */
 export async function resolveAutoModel(args: {
   ctx: ExecutionContext

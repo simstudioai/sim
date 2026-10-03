@@ -1,9 +1,8 @@
 import { ZoomInfoIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { ZoomInfoResponse } from '@/tools/zoominfo/types'
 
-export const ZoomInfoBlock: BlockConfig<ZoomInfoResponse> = {
+export const ZoomInfoBlock: BlockConfig = {
   type: 'zoominfo',
   name: 'ZoomInfo',
   description: 'Search and enrich B2B company and contact data with ZoomInfo.',
@@ -15,6 +14,40 @@ export const ZoomInfoBlock: BlockConfig<ZoomInfoResponse> = {
   integrationType: IntegrationType.Sales,
   bgColor: '#EA1B15',
   icon: ZoomInfoIcon,
+  canvasPresentation: {
+    defaultTitle: 'ZoomInfo',
+    sentences: {
+      byOperation: {
+        search_companies: [
+          'Search companies',
+          { text: 'named', field: 'companyName' },
+          { text: 'in', field: 'country' },
+        ],
+        search_contacts: [
+          'Search contacts',
+          { text: 'titled', field: 'jobTitle' },
+          { text: 'at', field: 'companyName' },
+        ],
+        enrich_companies: [
+          'Enrich companies with firmographics',
+          { text: ', returning', field: 'outputFields' },
+        ],
+        enrich_contacts: [
+          'Enrich contacts with emails and phone numbers',
+          { text: ', returning', field: 'outputFields' },
+        ],
+        search_intent: [
+          { text: 'Find companies with intent on', field: 'topics', core: true },
+          { text: ', in', field: 'country' },
+        ],
+        search_news: [
+          'Search news articles',
+          { text: 'in', field: 'categories' },
+          { text: ', published since', field: 'pageDateMin' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

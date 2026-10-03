@@ -11,7 +11,7 @@ import {
   ChipModalHeader,
   toast,
 } from '@sim/emcn'
-import { AlertTriangle } from 'lucide-react'
+import { TriangleAlert } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import type { GetForkResourcesResponse } from '@/lib/api/contracts/workspace-fork'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -179,12 +179,6 @@ export function ForkWorkspaceModal({
             <ChipInput
               value={name}
               onChange={(event) => setName(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
-                  event.preventDefault()
-                  handleSubmit()
-                }
-              }}
               placeholder='Workspace name'
               maxLength={100}
               autoComplete='off'
@@ -261,7 +255,7 @@ export function ForkWorkspaceModal({
                 )}
                 {hasDeselection ? (
                   <div className='flex items-start gap-1.5 text-[var(--text-secondary)] text-caption'>
-                    <AlertTriangle className='mt-[1px] size-[14px] shrink-0' />
+                    <TriangleAlert className='mt-[1px] size-[14px] shrink-0' />
                     <span>
                       Some resources are not selected — references to them in your workflows will be
                       cleared in the fork.

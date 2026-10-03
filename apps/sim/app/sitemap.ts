@@ -3,6 +3,7 @@ import { getAllPostMeta as getAllBlogPostMeta } from '@/lib/blog/registry'
 import type { ContentMeta } from '@/lib/content/schema'
 import { latestModified } from '@/lib/content/utils'
 import { SITE_URL } from '@/lib/core/utils/urls'
+import { getAllCustomerStoryMeta } from '@/lib/customers/registry'
 import { INTEGRATIONS, INTEGRATIONS_UPDATED_AT } from '@/lib/integrations'
 import { getAllPostMeta as getAllLibraryPostMeta } from '@/lib/library/registry'
 import {
@@ -32,15 +33,20 @@ function buildAuthorPages(posts: ContentMeta[], basePath: string): MetadataRoute
 
 /**
  * Generate the public sitemap by composing static landing pages with the
- * dynamic catalogs (blog posts, library posts, authors, integrations, model
- * providers, and individual models). Per-integration entries are emitted
+ * dynamic catalogs (blog posts, library posts, published customer stories,
+ * authors, integrations, model providers, and individual models).
+ * Per-integration entries are emitted
  * under `/integrations/{slug}` to match the landing route at
  * `app/(landing)/integrations/[slug]`; slugs are guaranteed unique
  * by the catalog generator in `scripts/generate-docs.ts`.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = SITE_URL
-  const [posts, libraryPosts] = await Promise.all([getAllBlogPostMeta(), getAllLibraryPostMeta()])
+  const [posts, libraryPosts, customerStories] = await Promise.all([
+    getAllBlogPostMeta(),
+    getAllLibraryPostMeta(),
+    getAllCustomerStoryMeta(),
+  ])
 
   const latestPostDateValue = latestModified(posts)
   const latestLibraryPostDate = latestModified(libraryPosts)
@@ -57,6 +63,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: baseUrl,
     },
     {
+      url: `${baseUrl}/platform`,
+    },
+    {
       url: `${baseUrl}/workflows`,
     },
     {
@@ -70,9 +79,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     {
       url: `${baseUrl}/logs`,
-    },
-    {
-      url: `${baseUrl}/scheduled-tasks`,
     },
     {
       url: `${baseUrl}/pricing`,
@@ -125,7 +131,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     {
       url: `${baseUrl}/changelog`,
-      lastModified: latestPostDateValue,
     },
     {
       url: `${baseUrl}/integrations`,
@@ -141,7 +146,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     {
       url: `${baseUrl}/privacy`,
-      lastModified: new Date('2024-10-14'),
+      lastModified: new Date('2026-08-18'),
+    },
+    {
+      url: `${baseUrl}/cookie-policy`,
+      lastModified: new Date('2026-08-18'),
     },
   ]
 
@@ -156,6 +165,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: new Date(p.updated ?? p.date),
   }))
   const libraryAuthorPages = buildAuthorPages(libraryPosts, '/library')
+
+  const customerPages: MetadataRoute.Sitemap =
+    customerStories.length > 0
+      ? [
+          {
+            url: `${baseUrl}/customers`,
+            lastModified: latestModified(customerStories),
+          },
+          ...customerStories.map((story) => ({
+            url: `${baseUrl}/customers/${story.slug}`,
+            lastModified: new Date(story.updated ?? story.date),
+          })),
+        ]
+      : []
 
   const integrationPages: MetadataRoute.Sitemap = INTEGRATIONS.map((integration) => ({
     url: `${baseUrl}/integrations/${integration.slug}`,
@@ -197,15 +220,29 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })),
   ]
 
-  return [
+  const pages: MetadataRoute.Sitemap = [
     ...staticPages,
     ...blogPages,
     ...authorPages,
     ...libraryPages,
     ...libraryAuthorPages,
+    ...customerPages,
     ...integrationPages,
     ...providerPages,
     ...modelEntries,
     ...comparisonPages,
   ]
+
+  const canonicalPages = new Map<string, MetadataRoute.Sitemap[number]>()
+  for (const page of pages) {
+    const existing = canonicalPages.get(page.url)
+    if (
+      !existing ||
+      (page.lastModified &&
+        (!existing.lastModified || new Date(page.lastModified) > new Date(existing.lastModified)))
+    ) {
+      canonicalPages.set(page.url, page)
+    }
+  }
+  return [...canonicalPages.values()]
 }

@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import { cn, Input, Label } from '@sim/emcn'
+import { Eye, EyeOff } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { Eye, EyeOff } from 'lucide-react'
 import { AuthSubmitButton } from '@/app/(auth)/components'
 import { useChatPasswordAuth } from '@/hooks/queries/chats'
 
@@ -91,7 +91,11 @@ export default function PasswordAuth({ identifier }: PasswordAuthProps) {
                     className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]'
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    {showPassword ? (
+                      <EyeOff className='size-[18px]' />
+                    ) : (
+                      <Eye className='size-[18px]' />
+                    )}
                   </button>
                 </div>
                 <div

@@ -118,7 +118,7 @@ export const searchVectorTool: ToolConfig<QdrantSearchParams, QdrantResponse> = 
     return {
       success: true,
       output: {
-        data: data.result,
+        data: data.result?.points ?? [],
         status: data.status,
       },
     }

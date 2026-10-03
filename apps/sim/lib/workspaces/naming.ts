@@ -2,66 +2,13 @@
  * Utility functions for generating names for workspaces and folders
  */
 
-import { randomItem } from '@sim/utils/random'
+import { escapeRegExp } from '@sim/utils/string'
 import { requestJson } from '@/lib/api/client/request'
 import { type FolderApi, listFoldersContract } from '@/lib/api/contracts/folders'
 
 interface NameableEntity {
   name: string
 }
-
-const WORKSPACE_NOUNS = [
-  'Pulsar',
-  'Quasar',
-  'Nebula',
-  'Nova',
-  'Cosmos',
-  'Orion',
-  'Vega',
-  'Zenith',
-  'Horizon',
-  'Eclipse',
-  'Aurora',
-  'Photon',
-  'Vertex',
-  'Nexus',
-  'Solaris',
-  'Andromeda',
-  'Phoenix',
-  'Polaris',
-  'Sirius',
-  'Altair',
-  'Meridian',
-  'Titan',
-  'Apex',
-  'Aether',
-  'Voyager',
-  'Beacon',
-  'Sentinel',
-  'Pioneer',
-  'Equinox',
-  'Solstice',
-  'Corona',
-  'Stellar',
-  'Helix',
-  'Prism',
-  'Axiom',
-  'Boson',
-  'Cygnus',
-  'Draco',
-  'Lyra',
-  'Aquila',
-  'Perseus',
-  'Pegasus',
-  'Triton',
-  'Callisto',
-  'Europa',
-  'Oberon',
-  'Tachyon',
-  'Neutron',
-  'Graviton',
-  'Parallax',
-] as const
 
 /**
  * Generates the next incremental name for entities following pattern: "{prefix} {number}"
@@ -74,7 +21,7 @@ export function generateIncrementalName<T extends NameableEntity>(
   existingEntities: T[],
   prefix: string
 ): string {
-  const pattern = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} (\\d+)$`)
+  const pattern = new RegExp(`^${escapeRegExp(prefix)} (\\d+)$`)
 
   const existingNumbers = existingEntities
     .map((entity) => entity.name.match(pattern))
@@ -84,13 +31,6 @@ export function generateIncrementalName<T extends NameableEntity>(
   const nextNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1
 
   return `${prefix} ${nextNumber}`
-}
-
-/**
- * Generates a random cosmos-themed workspace name
- */
-export function generateWorkspaceName(): string {
-  return randomItem(WORKSPACE_NOUNS)
 }
 
 async function fetchWorkspaceFolders(workspaceId: string): Promise<FolderApi[]> {

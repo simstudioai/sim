@@ -8,9 +8,12 @@ import {
   type SubBlockType,
 } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
-import type { ReductoParserOutput } from '@/tools/reducto/types'
 
-export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
+const DOCUMENT_FIELD = ['fileUpload', 'filePath'] as const
+/* v2 swaps the advanced URL input for a file reference, so the pair differs. */
+const DOCUMENT_V2_FIELD = ['fileUpload', 'fileReference'] as const
+
+export const ReductoBlock: BlockConfig = {
   type: 'reducto',
   name: 'Reducto',
   description: 'Extract text from PDF documents',
@@ -23,6 +26,16 @@ export const ReductoBlock: BlockConfig<ReductoParserOutput> = {
   integrationType: IntegrationType.AI,
   bgColor: '#5c0c5c',
   icon: ReductoIcon,
+  canvasPresentation: {
+    defaultTitle: 'Reducto',
+    sentences: {
+      default: [
+        { text: 'Parse text from', field: DOCUMENT_FIELD, core: true },
+        { text: ', pages', field: 'pages' },
+        { text: ', with tables as', field: 'tableOutputFormat' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'fileUpload',
@@ -167,13 +180,23 @@ const reductoV2SubBlocks = (ReductoBlock.subBlocks || []).flatMap((subBlock) => 
   return [subBlock]
 })
 
-export const ReductoV2Block: BlockConfig<ReductoParserOutput> = {
+export const ReductoV2Block: BlockConfig = {
   ...ReductoBlock,
   sunset: undefined,
   type: 'reducto_v2',
   name: 'Reducto',
   hideFromToolbar: false,
   longDescription: `Integrate Reducto Parse into the workflow. Can extract text from uploaded PDF documents or file references.`,
+  canvasPresentation: {
+    defaultTitle: 'Reducto',
+    sentences: {
+      default: [
+        { text: 'Parse text from', field: DOCUMENT_V2_FIELD, core: true },
+        { text: ', pages', field: 'pages' },
+        { text: ', with tables as', field: 'tableOutputFormat' },
+      ],
+    },
+  },
   subBlocks: reductoV2SubBlocks,
   tools: {
     access: ['reducto_parser_v2'],

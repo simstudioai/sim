@@ -1,5 +1,4 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import type {
   QuickBooksCustomer,
   QuickBooksEmployee,
@@ -13,6 +12,7 @@ import {
   buildQuickBooksEntityUrl,
   buildQuickBooksMasterDataQueryUrl,
   getQuickBooksMasterDataEntity,
+  getQuickBooksRecordVersion,
   getQuickBooksToolHeaders,
   sanitizeQuickBooksCustomer,
   sanitizeQuickBooksEmployee,
@@ -56,6 +56,12 @@ export const quickbooksReadMasterDataTool: ToolConfig<
       visibility: 'hidden',
       description: 'QuickBooks company ID derived from the connected credential',
     },
+    quickBooksEnvironment: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'QuickBooks API environment derived from the connected credential',
+    },
     recordType: {
       type: 'string',
       required: true,
@@ -87,7 +93,7 @@ export const quickbooksReadMasterDataTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       default: 25,
-      description: 'Number of list records to request (1–100)',
+      description: 'Number of list records to request (1–1000)',
     },
     activeStatus: {
       type: 'string',
@@ -100,6 +106,7 @@ export const quickbooksReadMasterDataTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'quickbooks',
+    authoritativeParams: ['realmId', 'quickBooksEnvironment'],
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
@@ -114,14 +121,13 @@ export const quickbooksReadMasterDataTool: ToolConfig<
         if (!params.recordId?.trim()) {
           throw new Error('QuickBooks record ID is required for by-ID reads')
         }
-        return buildQuickBooksEntityUrl(params.realmId, config.resource, params.recordId).toString()
+        return buildQuickBooksEntityUrl(params, config.resource, params.recordId).toString()
       }
       throw new Error(`Unsupported QuickBooks master data read mode: ${String(params.readMode)}`)
     },
     method: 'GET',
     headers: (params) => getQuickBooksToolHeaders(params.accessToken),
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: async (response, params) => {
     if (!params) throw new Error('QuickBooks master data parameters are required')
@@ -157,6 +163,7 @@ export const quickbooksReadMasterDataTool: ToolConfig<
         output: {
           recordType: params.recordType,
           item: sanitizeMasterDataRecord(params.recordType, result.item),
+          recordVersion: getQuickBooksRecordVersion(result.item),
           time: result.time,
         },
       }
@@ -182,6 +189,11 @@ export const quickbooksReadMasterDataTool: ToolConfig<
         type: 'json',
         properties: QUICKBOOKS_MASTER_DATA_PROPERTIES,
       },
+    },
+    recordVersion: {
+      type: 'string',
+      description: 'Display-safe alias for the native SyncToken on a by-ID record',
+      optional: true,
     },
     startPosition: {
       type: 'number',

@@ -7,11 +7,26 @@ import { truncate } from '@sim/utils/string'
  */
 const QUICKBOOKS_MAX_FAULT_ERRORS = 5
 
-/** Maximum retained length of any single sanitized fault field. */
 const QUICKBOOKS_MAX_FAULT_FIELD_CHARS = 500
 
 /** Documented Intuit fault fields retained during sanitization. */
 const QUICKBOOKS_FAULT_FIELDS = ['code', 'Message', 'Detail', 'element'] as const
+
+/**
+ * Documented `Fault.type` classifications, which separate a rejected payload
+ * from an expired or unauthorized token. Intuit's own pages render these both
+ * with and without the `Fault` suffix — `type="ValidationFault"` in one sample,
+ * `type="Validation"` in another — so they are matched by prefix and reported
+ * under a single spelling.
+ */
+const QUICKBOOKS_FAULT_TYPES = ['Authentication', 'Authorization', 'Validation', 'System'] as const
+
+function normalizeQuickBooksFaultType(value: unknown): string | undefined {
+  const type = typeof value === 'string' ? value.trim() : ''
+  if (!type) return undefined
+  const known = QUICKBOOKS_FAULT_TYPES.find((candidate) => type.startsWith(candidate))
+  return known ? `${known}Fault` : truncate(type, QUICKBOOKS_MAX_FAULT_FIELD_CHARS, '')
+}
 
 /**
  * Intuit error code and message for an outdated `SyncToken`.
@@ -26,6 +41,8 @@ const QUICKBOOKS_STALE_OBJECT_GUIDANCE =
 export interface SanitizedQuickBooksFault {
   Fault: {
     Error: Array<Record<string, string>>
+    /** Documented Intuit fault classification, normalized by prefix. */
+    type?: string
     /**
      * Count of `Error` entries dropped by {@link QUICKBOOKS_MAX_FAULT_ERRORS}.
      * Preserved across repeated sanitization so a value that round-trips
@@ -50,33 +67,40 @@ export function sanitizeQuickBooksFaultData(data: unknown): SanitizedQuickBooksF
   const errors = (fault as Record<string, unknown>).Error
   if (!Array.isArray(errors)) return null
 
-  const sanitizedErrors = errors.flatMap((entry) => {
-    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return []
+  const sanitizedErrors: Array<Record<string, string>> = []
+  let usableErrorCount = 0
+  for (const entry of errors) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue
     const value = entry as Record<string, unknown>
     const sanitized = Object.fromEntries(
       QUICKBOOKS_FAULT_FIELDS.flatMap((key) => {
         const field = typeof value[key] === 'string' ? value[key].trim() : ''
-        return field ? [[key, truncate(field, QUICKBOOKS_MAX_FAULT_FIELD_CHARS)]] : []
+        return field ? [[key, truncate(field, QUICKBOOKS_MAX_FAULT_FIELD_CHARS, '')]] : []
       })
     )
-    return Object.keys(sanitized).length > 0 ? [sanitized] : []
-  })
-  if (sanitizedErrors.length === 0) return null
+    if (Object.keys(sanitized).length === 0) continue
+    usableErrorCount += 1
+    if (sanitizedErrors.length < QUICKBOOKS_MAX_FAULT_ERRORS) {
+      sanitizedErrors.push(sanitized)
+    }
+  }
+  if (usableErrorCount === 0) return null
 
   const priorOmitted = (fault as Record<string, unknown>).omittedErrorCount
   const carriedOmitted = typeof priorOmitted === 'number' && priorOmitted > 0 ? priorOmitted : 0
-  const omittedErrorCount =
-    carriedOmitted + Math.max(0, sanitizedErrors.length - QUICKBOOKS_MAX_FAULT_ERRORS)
+  const omittedErrorCount = carriedOmitted + Math.max(0, usableErrorCount - sanitizedErrors.length)
+
+  const type = normalizeQuickBooksFaultType((fault as Record<string, unknown>).type)
 
   return {
     Fault: {
-      Error: sanitizedErrors.slice(0, QUICKBOOKS_MAX_FAULT_ERRORS),
+      Error: sanitizedErrors,
+      ...(type ? { type } : {}),
       ...(omittedErrorCount > 0 ? { omittedErrorCount } : {}),
     },
   }
 }
 
-/** Reports whether any retained fault entry is Intuit's stale-`SyncToken` error. */
 function hasQuickBooksStaleObjectError(fault: SanitizedQuickBooksFault): boolean {
   return fault.Fault.Error.some(
     (error) =>
@@ -88,7 +112,8 @@ function hasQuickBooksStaleObjectError(fault: SanitizedQuickBooksFault): boolean
 /**
  * Renders a sanitized fault as a single human-readable detail string.
  *
- * Each entry becomes `code: Message: Detail (element)`. Entries dropped by the
+ * The documented fault classification leads, then each entry becomes
+ * `code: Message: Detail (element)`. Entries dropped by the
  * sanitizer are reported as a trailing count, and a stale-`SyncToken` fault
  * gains explicit remediation guidance because retrying is never correct.
  */
@@ -99,13 +124,15 @@ export function formatQuickBooksFaultDetail(fault: SanitizedQuickBooksFault): st
     const detail = error.Detail?.trim() ?? ''
     const element = error.element?.trim() ?? ''
     const text = [message, detail].filter(Boolean).join(': ')
-    if (!text) return ''
-    const prefixed = code ? `${code}: ${text}` : text
-    return element ? `${prefixed} (element: ${element})` : prefixed
+    const prefixed = code && text ? `${code}: ${text}` : code || text
+    if (!prefixed && !element) return ''
+    if (!element) return prefixed
+    return prefixed ? `${prefixed} (element: ${element})` : `element: ${element}`
   }).filter(Boolean)
 
   const omitted = fault.Fault.omittedErrorCount ?? 0
   return [
+    details.length > 0 && fault.Fault.type ? `${fault.Fault.type}:` : '',
     details.join('; '),
     omitted > 0
       ? `(${omitted} additional QuickBooks error${omitted === 1 ? '' : 's'} omitted)`

@@ -3,9 +3,9 @@ import type {
   QuickBooksAddAttachmentResponse,
 } from '@/tools/quickbooks/types'
 import { QUICKBOOKS_ATTACHABLE_PROPERTIES } from '@/tools/quickbooks/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const quickbooksAddAttachmentTool: ToolConfig<
+export const quickbooksAddAttachmentTool: InternalToolConfig<
   QuickBooksAddAttachmentParams,
   QuickBooksAddAttachmentResponse
 > = {
@@ -25,6 +25,12 @@ export const quickbooksAddAttachmentTool: ToolConfig<
       required: true,
       visibility: 'hidden',
       description: 'QuickBooks company ID derived from the connected credential',
+    },
+    quickBooksEnvironment: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'QuickBooks API environment derived from the connected credential',
     },
     attachmentKind: {
       type: 'string',
@@ -78,13 +84,32 @@ export const quickbooksAddAttachmentTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'quickbooks',
+    authoritativeParams: ['realmId', 'quickBooksEnvironment'],
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
-  request: {
-    url: '/api/tools/quickbooks/add-attachment',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => params,
+  operation: {
+    input: (params) => ({
+      accessToken: params.accessToken,
+      realmId: params.realmId,
+      quickBooksEnvironment: params.quickBooksEnvironment,
+      attachmentKind: params.attachmentKind,
+      targetType: params.targetType,
+      targetId: params.targetId,
+      file: params.file,
+      fileName: params.fileName,
+      contentType: params.contentType,
+      description: params.description,
+      note: params.note,
+    }),
+  },
+  transformResponse: async (response) => {
+    const data = (await response.json()) as QuickBooksAddAttachmentResponse & {
+      error?: string
+    }
+    if (!response.ok || data.success === false) {
+      throw new Error(data.error || 'Failed to add QuickBooks attachment')
+    }
+    return data
   },
   outputs: {
     attachment: {

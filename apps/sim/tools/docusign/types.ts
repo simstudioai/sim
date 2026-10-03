@@ -52,12 +52,6 @@ export const TEMPLATE_OUTPUT_PROPERTIES = {
   lastModified: { type: 'string', description: 'ISO 8601 last modified date' },
 } as const satisfies Record<string, OutputProperty>
 
-export const ENVELOPE_OBJECT_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'DocuSign envelope',
-  properties: ENVELOPE_OUTPUT_PROPERTIES,
-}
-
 export const ENVELOPES_ARRAY_OUTPUT: OutputProperty = {
   type: 'array',
   description: 'Array of DocuSign envelopes',
@@ -65,12 +59,6 @@ export const ENVELOPES_ARRAY_OUTPUT: OutputProperty = {
     type: 'object',
     properties: ENVELOPE_OUTPUT_PROPERTIES,
   },
-}
-
-export const RECIPIENT_OBJECT_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'DocuSign recipient',
-  properties: RECIPIENT_OUTPUT_PROPERTIES,
 }
 
 export const RECIPIENTS_ARRAY_OUTPUT: OutputProperty = {
@@ -137,7 +125,6 @@ export interface DocuSignDownloadDocumentParams {
   accessToken: string
   envelopeId: string
   documentId?: string
-  _context?: Record<string, unknown>
 }
 
 export interface DocuSignListTemplatesParams {

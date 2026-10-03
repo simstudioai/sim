@@ -5,6 +5,7 @@ import {
   buildZohoDeskHeaders,
   getZohoDeskApiBase,
   getZohoDeskErrorMessage,
+  normalizeZohoDeskCommaList,
   requireZohoDeskId,
   withDerivedContentText,
 } from '@/tools/zoho_desk/utils'
@@ -48,11 +49,23 @@ export const zohoDeskGetThreadTool: ToolConfig<ZohoDeskGetThreadParams, ZohoDesk
       visibility: 'user-or-llm',
       description: 'Thread ID',
     },
+    include: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        "Related data to embed. Allowed: plainText — Zoho's own plain-text rendering of the thread",
+    },
   },
 
   request: {
-    url: (params) =>
-      `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(requireZohoDeskId(params.ticketId, 'Ticket ID'))}/threads/${encodeURIComponent(requireZohoDeskId(params.threadId, 'Thread ID'))}`,
+    url: (params) => {
+      const query = new URLSearchParams()
+      const include = normalizeZohoDeskCommaList(params.include)
+      if (include) query.set('include', include)
+      const qs = query.toString()
+      return `${getZohoDeskApiBase(params)}/tickets/${encodeURIComponent(requireZohoDeskId(params.ticketId, 'Ticket ID'))}/threads/${encodeURIComponent(requireZohoDeskId(params.threadId, 'Thread ID'))}${qs ? `?${qs}` : ''}`
+    },
     method: 'GET',
     headers: (params) => buildZohoDeskHeaders(params),
   },

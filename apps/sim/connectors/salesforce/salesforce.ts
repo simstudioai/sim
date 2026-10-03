@@ -1,9 +1,16 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { SALESFORCE_LOGIN_HOSTS } from '@/lib/oauth/salesforce'
 import { salesforceConnectorMeta } from '@/connectors/salesforce/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import {
+  htmlToPlainText,
+  isListingScopeUnavailableError,
+  listingRequestError,
+  parseTagDate,
+} from '@/connectors/utils'
 
 const logger = createLogger('SalesforceConnector')
 
@@ -11,11 +18,41 @@ const logger = createLogger('SalesforceConnector')
  * Salesforce serves the userinfo endpoint at the org's authentication host.
  * Tokens issued at test.salesforce.com (sandbox) are rejected at login.salesforce.com,
  * so we try each host in order and cache the working one in syncContext.
+ *
+ * Derived from the shared connector host map so a new authorization server
+ * reaches this probe automatically. The connector receives only an access
+ * token — not the credential's provider id — so it cannot pick the host
+ * up front the way the OAuth token route can.
  */
-const USERINFO_HOSTS = ['https://login.salesforce.com', 'https://test.salesforce.com'] as const
+const USERINFO_HOSTS = Object.values(SALESFORCE_LOGIN_HOSTS).map((host) => `https://${host}`)
 const USERINFO_PATH = '/services/oauth2/userinfo'
-const API_VERSION = 'v62.0'
-const PAGE_SIZE = 200
+
+/**
+ * REST API version, bare (no `v` prefix). The identity/userinfo payload returns
+ * `urls.rest` as `https://host/services/data/v{version}/`, so the placeholder is
+ * substituted with the bare number — prefixing it here would yield `vv62.0/`.
+ */
+const API_VERSION = '62.0'
+
+/** Matches an ISO language / locale code (`en`, `en_US`). */
+const LANGUAGE_CODE_REGEX = /^[a-z]{2}(_[A-Z]{2})?$/
+
+const DEFAULT_ARTICLE_LANGUAGE = 'en_US'
+
+/**
+ * Reads the Knowledge article language from config, rejecting anything that is
+ * not a plain locale code. The value is interpolated into SOQL, so validating
+ * against this allowlist — rather than escaping — keeps the query injection-free.
+ */
+function resolveArticleLanguage(sourceConfig: Record<string, unknown>): string {
+  const raw = typeof sourceConfig.articleLanguage === 'string' ? sourceConfig.articleLanguage : ''
+  const trimmed = raw.trim()
+  if (!trimmed) return DEFAULT_ARTICLE_LANGUAGE
+  if (!LANGUAGE_CODE_REGEX.test(trimmed)) {
+    throw new Error(`Invalid Salesforce article language: ${trimmed}`)
+  }
+  return trimmed
+}
 
 /** SOQL field lists per object type. */
 const OBJECT_FIELDS: Record<string, string[]> = {
@@ -40,11 +77,66 @@ const OBJECT_FIELDS: Record<string, string[]> = {
   ],
 } as const
 
-/** SOQL WHERE clause additions per object type. */
-const OBJECT_WHERE: Record<string, string> = {
-  KnowledgeArticleVersion:
-    " WHERE PublishStatus='Online' AND IsLatestVersion=true AND Language='en_US'",
-} as const
+/**
+ * SOQL WHERE clause additions per object type.
+ *
+ * KnowledgeArticleVersion is not freely queryable: Salesforce requires article
+ * queries to "specify either the PublishStatus or the Id field in the WHERE
+ * clause", so `PublishStatus='Online'` is mandatory rather than an optional
+ * narrowing, and the docs further advise filtering on a single PublishStatus
+ * value. `Language` is only conditionally required from API v47.0 onward
+ * ("you can filter queries on Knowledge article versions with or without
+ * Language depending on what you are querying"), so it is kept — pinned to one
+ * user-selectable locale — rather than relying on that hedge holding for the
+ * abstract KnowledgeArticleVersion view.
+ */
+function buildWhereClause(objectType: string, language: string, lastSyncAt?: Date): string {
+  const conditions: string[] = []
+  if (objectType === 'KnowledgeArticleVersion') {
+    conditions.push("PublishStatus='Online'", 'IsLatestVersion=true', `Language='${language}'`)
+  }
+  if (lastSyncAt) conditions.push(`LastModifiedDate >= ${toSoqlDateTime(lastSyncAt)}`)
+  return conditions.length > 0 ? ` WHERE ${conditions.join(' AND ')}` : ''
+}
+
+/**
+ * A SOQL dateTime literal: ISO 8601 in UTC, unquoted, and without the
+ * fractional seconds SOQL does not accept.
+ */
+function toSoqlDateTime(date: Date): string {
+  return date.toISOString().replace(/\.\d{3}Z$/, 'Z')
+}
+
+/** The `errorCode` values in a Salesforce REST error body (a JSON array of errors). */
+function parseSalesforceErrorCodes(errorText: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(errorText)
+    if (!Array.isArray(parsed)) return []
+    return parsed.flatMap((entry: unknown) =>
+      typeof entry === 'object' &&
+      entry !== null &&
+      typeof (entry as { errorCode?: unknown }).errorCode === 'string'
+        ? [(entry as { errorCode: string }).errorCode]
+        : []
+    )
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Whether a failed query means the caller cannot read the configured object at
+ * all. Salesforce hides an object from a user who may not read it, so the query
+ * fails with 400 `INVALID_TYPE` rather than returning nothing, and an explicit
+ * denial is 403 `INSUFFICIENT_ACCESS`; either is a complete listing of nothing
+ * for that caller, while anything else is a fault the sync engines retry.
+ */
+function isSalesforceAccessDenied(status: number, errorText: string): boolean {
+  if (status !== 400 && status !== 403) return false
+  return parseSalesforceErrorCodes(errorText).some(
+    (code) => code === 'INVALID_TYPE' || code.startsWith('INSUFFICIENT_ACCESS')
+  )
+}
 
 /**
  * Result of a userinfo lookup: either the parsed payload + the auth host that
@@ -112,6 +204,23 @@ async function fetchUserinfo(
 }
 
 /**
+ * Substitutes the `{version}` placeholder in the identity payload's `urls.rest`
+ * and guarantees a single trailing slash. Salesforce documents the value as
+ * `https://host/services/data/v{version}/`, so only the bare version number is
+ * substituted.
+ */
+function normalizeRestUrl(rawRestUrl: string | undefined): string | undefined {
+  if (!rawRestUrl) return undefined
+  const substituted = rawRestUrl.replace('{version}', API_VERSION)
+  return substituted.endsWith('/') ? substituted : `${substituted}/`
+}
+
+/** Org origin (`https://host`) for a resolved REST base URL. */
+function toOrigin(restUrl: string): string {
+  return new URL(restUrl).origin
+}
+
+/**
  * Resolves the Salesforce instance REST URL from the userinfo endpoint.
  * Caches the result in syncContext to avoid repeated calls.
  */
@@ -131,13 +240,11 @@ async function resolveInstanceUrl(
   }
 
   const urls = result.data.urls as Record<string, string> | undefined
-  let restUrl = urls?.rest
+  const restUrl = normalizeRestUrl(urls?.rest)
 
   if (!restUrl) {
     throw new Error('Salesforce userinfo response did not include a REST URL')
   }
-
-  restUrl = restUrl.replace('{version}', API_VERSION)
 
   if (syncContext) {
     syncContext.instanceUrl = restUrl
@@ -230,7 +337,7 @@ function recordToStub(
   const id = record.Id as string
   const title = buildRecordTitle(objectType, record)
   const lastModified = (record.LastModifiedDate as string) || ''
-  const baseUrl = instanceUrl.replace(`/services/data/${API_VERSION}/`, '')
+  const baseUrl = toOrigin(instanceUrl)
 
   return {
     externalId: id,
@@ -268,11 +375,14 @@ function recordToDocument(
 export const salesforceConnector: ConnectorConfig = {
   ...salesforceConnectorMeta,
 
+  isListingScopeUnavailableError,
+
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
     cursor?: string,
-    syncContext?: Record<string, unknown>
+    syncContext?: Record<string, unknown>,
+    lastSyncAt?: Date
   ): Promise<ExternalDocumentList> => {
     const objectType = sourceConfig.objectType as string
     const maxRecords = sourceConfig.maxRecords ? Number(sourceConfig.maxRecords) : 0
@@ -287,15 +397,28 @@ export const salesforceConnector: ConnectorConfig = {
     let url: string
 
     if (cursor) {
-      const baseUrl = instanceUrl.replace(`/services/data/${API_VERSION}/`, '')
-      url = `${baseUrl}${cursor}`
+      url = `${toOrigin(instanceUrl)}${cursor}`
     } else {
-      const whereClause = OBJECT_WHERE[objectType] || ''
-      const soql = `SELECT ${fields.join(',')} FROM ${objectType}${whereClause} ORDER BY LastModifiedDate DESC LIMIT ${PAGE_SIZE}`
+      const whereClause = buildWhereClause(
+        objectType,
+        resolveArticleLanguage(sourceConfig),
+        lastSyncAt
+      )
+      /**
+       * No SOQL `LIMIT`: it bounds the total result set rather than the batch,
+       * so it would end the sync after a single page. Paging is driven by
+       * `nextRecordsUrl` over Salesforce's default 2,000-record query batch,
+       * which is also the documented maximum, so `Sforce-Query-Options` would
+       * have nothing to raise.
+       */
+      const soql = `SELECT ${fields.join(',')} FROM ${objectType}${whereClause} ORDER BY LastModifiedDate DESC`
       url = `${instanceUrl}query?q=${encodeURIComponent(soql)}`
     }
 
-    logger.info(`Listing Salesforce ${objectType}`, { cursor: cursor || 'initial' })
+    logger.info(`Listing Salesforce ${objectType}`, {
+      cursor: cursor || 'initial',
+      incremental: Boolean(lastSyncAt),
+    })
 
     const response = await fetchWithRetry(url, {
       method: 'GET',
@@ -311,7 +434,11 @@ export const salesforceConnector: ConnectorConfig = {
         status: response.status,
         error: errorText,
       })
-      throw new Error(`Failed to query Salesforce ${objectType}: ${response.status}`)
+      throw listingRequestError(
+        `Failed to query Salesforce ${objectType}`,
+        response.status,
+        isSalesforceAccessDenied(response.status, errorText)
+      )
     }
 
     const data = await response.json()
@@ -323,10 +450,12 @@ export const salesforceConnector: ConnectorConfig = {
     )
 
     const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
+    let droppedByCap = false
     if (maxRecords > 0) {
-      const remaining = maxRecords - previouslyFetched
+      const remaining = Math.max(0, maxRecords - previouslyFetched)
       if (documents.length > remaining) {
         documents.splice(remaining)
+        droppedByCap = true
       }
     }
 
@@ -336,6 +465,15 @@ export const salesforceConnector: ConnectorConfig = {
     }
 
     const hasMore = Boolean(nextRecordsUrl) && (maxRecords <= 0 || totalFetched < maxRecords)
+
+    /**
+     * The listing stops short of the source while records remain, so deletion
+     * reconciliation must not run — it hard-deletes every stored document that
+     * the capped listing omitted.
+     */
+    if (syncContext && (droppedByCap || (Boolean(nextRecordsUrl) && !hasMore))) {
+      syncContext.listingCapped = true
+    }
 
     return {
       documents,
@@ -408,6 +546,16 @@ export const salesforceConnector: ConnectorConfig = {
       return { valid: false, error: 'Max records must be a positive number' }
     }
 
+    let language: string
+    try {
+      language = resolveArticleLanguage(sourceConfig)
+    } catch {
+      return {
+        valid: false,
+        error: 'Article language must be a locale code such as en_US',
+      }
+    }
+
     try {
       const userinfoResult = await fetchUserinfo(accessToken, VALIDATE_RETRY_OPTIONS)
 
@@ -419,15 +567,18 @@ export const salesforceConnector: ConnectorConfig = {
       }
 
       const urls = userinfoResult.data.urls as Record<string, string> | undefined
-      let restUrl = urls?.rest
+      const restUrl = normalizeRestUrl(urls?.rest)
 
       if (!restUrl) {
         return { valid: false, error: 'Could not resolve Salesforce instance URL' }
       }
 
-      restUrl = restUrl.replace('{version}', API_VERSION)
-
-      const soql = `SELECT Id FROM ${objectType} LIMIT 1`
+      /**
+       * The object's mandatory `PublishStatus` filter has to be present here too:
+       * an unfiltered `SELECT Id FROM KnowledgeArticleVersion` is rejected by
+       * Salesforce, which would fail validation for a correctly configured org.
+       */
+      const soql = `SELECT Id FROM ${objectType}${buildWhereClause(objectType, language)} LIMIT 1`
       const queryUrl = `${restUrl}query?q=${encodeURIComponent(soql)}`
 
       const queryResponse = await fetchWithRetry(

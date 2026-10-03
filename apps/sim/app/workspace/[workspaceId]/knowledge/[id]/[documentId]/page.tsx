@@ -1,6 +1,8 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { Document } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/document'
+import DocumentLoading from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/loading'
+import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 
 interface DocumentPageProps {
   params: Promise<{
@@ -24,13 +26,15 @@ export default async function DocumentChunksPage({ params, searchParams }: Docum
   const [{ id, documentId }, { kbName, docName }] = await Promise.all([params, searchParams])
 
   return (
-    <Suspense fallback={null}>
-      <Document
-        knowledgeBaseId={id}
-        documentId={documentId}
-        knowledgeBaseName={kbName || 'Knowledge Base'}
-        documentName={docName || 'Document'}
-      />
+    <Suspense fallback={<DocumentLoading />}>
+      <PermissionAccessBoundary configKey='hideKnowledgeBaseTab'>
+        <Document
+          knowledgeBaseId={id}
+          documentId={documentId}
+          knowledgeBaseName={kbName || 'Knowledge Base'}
+          documentName={docName || 'Document'}
+        />
+      </PermissionAccessBoundary>
     </Suspense>
   )
 }

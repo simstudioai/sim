@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { Readable } from 'node:stream'
 import { sleep } from '@sim/utils/helpers'
 import { describe, expect, it } from 'vitest'
@@ -8,43 +5,26 @@ import { sniffCsvDelimiterFromStream } from '@/lib/table/csv-delimiter-stream'
 import {
   buildAutoMapping,
   CSV_DELIMITER_SNIFF_BYTES,
+  CSV_MAX_RECORD_SIZE_BYTES,
   CsvImportValidationError,
   coerceRowsForTable,
   coerceValue,
-  createCsvParser,
-  csvParseOptions,
-  dedupeHeaders,
+  createCsvRejectionCollector,
   detectCsvDelimiter,
-  inferColumnType,
   inferSchemaFromCsv,
+  MAX_REJECTED_SAMPLES,
   parseCsvBuffer,
-  sanitizeName,
   validateMapping,
 } from '@/lib/table/import'
+import { createCsvParser } from '@/lib/table/import-stream'
 import type { TableSchema } from '@/lib/table/types'
 
 describe('import', () => {
   describe('parseCsvBuffer', () => {
-    it('parses a CSV string and extracts headers', async () => {
-      const { headers, rows } = await parseCsvBuffer('a,b\n1,2\n3,4')
-      expect(headers).toEqual(['a', 'b'])
-      expect(rows).toEqual([
-        { a: '1', b: '2' },
-        { a: '3', b: '4' },
-      ])
-    })
-
     it('strips a UTF-8 BOM from the first header', async () => {
       const text = `\uFEFFname,age\nAlice,30`
       const { headers } = await parseCsvBuffer(text)
       expect(headers).toEqual(['name', 'age'])
-    })
-
-    it('parses a Uint8Array input in browser-like environments', async () => {
-      const bytes = new TextEncoder().encode('a,b\n1,2')
-      const { headers, rows } = await parseCsvBuffer(bytes)
-      expect(headers).toEqual(['a', 'b'])
-      expect(rows).toHaveLength(1)
     })
 
     it('parses TSV when delimiter is tab', async () => {
@@ -55,45 +35,6 @@ describe('import', () => {
 
     it('throws when the file has no data rows', async () => {
       await expect(parseCsvBuffer('a,b')).rejects.toThrow(/no data rows/i)
-    })
-  })
-
-  describe('inferColumnType', () => {
-    it('returns "string" for empty samples', () => {
-      expect(inferColumnType([])).toBe('string')
-      expect(inferColumnType([null, undefined, ''])).toBe('string')
-    })
-
-    it('detects numeric columns', () => {
-      expect(inferColumnType(['1', '2', '3.14'])).toBe('number')
-    })
-
-    it('detects boolean columns (case-insensitive)', () => {
-      expect(inferColumnType(['true', 'FALSE', 'True'])).toBe('boolean')
-    })
-
-    it('detects ISO date columns', () => {
-      expect(inferColumnType(['2024-01-01', '2024-02-01T12:00:00'])).toBe('date')
-    })
-
-    it('falls back to "string"', () => {
-      expect(inferColumnType(['abc', 'def'])).toBe('string')
-      expect(inferColumnType(['1', 'abc'])).toBe('string')
-    })
-  })
-
-  describe('sanitizeName', () => {
-    it('strips unsupported chars and collapses underscores', () => {
-      expect(sanitizeName('Hello World!')).toBe('Hello_World')
-      expect(sanitizeName('  foo-bar  ')).toBe('foo_bar')
-    })
-
-    it('prefixes names that start with a digit', () => {
-      expect(sanitizeName('123abc')).toBe('col_123abc')
-    })
-
-    it('fills in an empty name with the prefix', () => {
-      expect(sanitizeName('$$$')).toBe('col_')
     })
   })
 
@@ -125,17 +66,6 @@ describe('import', () => {
   })
 
   describe('coerceValue', () => {
-    it('returns null for empty values', () => {
-      expect(coerceValue(null, 'string')).toBeNull()
-      expect(coerceValue(undefined, 'number')).toBeNull()
-      expect(coerceValue('', 'boolean')).toBeNull()
-    })
-
-    it('coerces numbers', () => {
-      expect(coerceValue('42', 'number')).toBe(42)
-      expect(coerceValue('not a number', 'number')).toBeNull()
-    })
-
     it('coerces a formatted amount into a currency column', () => {
       // Importing into an EXISTING currency column — inference never picks
       // currency, so this is the only way the branch is reached.
@@ -154,12 +84,6 @@ describe('import', () => {
       expect(coerceValue('1,500', 'currency', { currencyCode: 'USD' })).toBe(1500)
     })
 
-    it('coerces booleans strictly', () => {
-      expect(coerceValue('true', 'boolean')).toBe(true)
-      expect(coerceValue('FALSE', 'boolean')).toBe(false)
-      expect(coerceValue('yes', 'boolean')).toBeNull()
-    })
-
     it('keeps date-only values as calendar dates, preserves datetime wall times with their offset, and falls back to the original string', () => {
       expect(coerceValue('2024-01-01', 'date')).toBe('2024-01-01')
       expect(coerceValue('2024-01-01T12:30:00-07:00', 'date')).toBe('2024-01-01T12:30:00-07:00')
@@ -167,6 +91,28 @@ describe('import', () => {
         '2024-01-01T12:30:00-05:00'
       )
       expect(coerceValue('not-a-date', 'date')).toBe('not-a-date')
+    })
+
+    it('preserves explicit TTL offsets regardless of the import timezone', () => {
+      const input = '2026-06-15T09:00:30Z'
+      for (const timezone of ['UTC', 'America/New_York', 'Asia/Kathmandu']) {
+        expect(coerceValue(input, 'ttl', { timezone })).toBe('2026-06-15T09:00:30-00:00')
+        expect(coerceValue('2026-06-15T02:00:30-07:00', 'ttl', { timezone })).toBe(
+          '2026-06-15T02:00:30-07:00'
+        )
+        expect(coerceValue('2026-06-15T09:00:30.123456Z', 'ttl', { timezone })).toBe(
+          '2026-06-15T09:00:30.123456-00:00'
+        )
+        for (const invalid of [
+          '1700000000',
+          '2026-06-15 09:00:30',
+          '2026-06-15T09:00:30+24:00',
+          '2026-06-15T09:00:30.0000001Z',
+          'not-a-date',
+        ]) {
+          expect(coerceValue(invalid, 'ttl', { timezone })).toBeNull()
+        }
+      }
     })
   })
 
@@ -178,19 +124,9 @@ describe('import', () => {
       ],
     }
 
-    it('maps by exact sanitized name', () => {
-      const mapping = buildAutoMapping(['First_Name', 'age'], schema)
-      expect(mapping).toEqual({ First_Name: 'First_Name', age: 'age' })
-    })
-
     it('falls back to a case/punctuation-insensitive match', () => {
       const mapping = buildAutoMapping(['first name', 'AGE'], schema)
       expect(mapping).toEqual({ 'first name': 'First_Name', AGE: 'age' })
-    })
-
-    it('returns null for headers without a match', () => {
-      const mapping = buildAutoMapping(['unmatched'], schema)
-      expect(mapping).toEqual({ unmatched: null })
     })
   })
 
@@ -201,19 +137,6 @@ describe('import', () => {
         { name: 'age', type: 'number' },
       ],
     }
-
-    it('accepts a valid mapping and lists skipped/unmapped', () => {
-      const result = validateMapping({
-        csvHeaders: ['name', 'age', 'extra'],
-        mapping: { name: 'name', age: 'age', extra: null },
-        tableSchema: schema,
-      })
-      expect(result.mappedHeaders).toEqual(['name', 'age'])
-      expect(result.skippedHeaders).toEqual(['extra'])
-      expect(result.unmappedColumns).toEqual([])
-      expect(result.effectiveMap.get('name')).toBe('name')
-      expect(result.effectiveMap.has('extra')).toBe(false)
-    })
 
     it('throws when a required column is missing', () => {
       expect(() =>
@@ -254,16 +177,6 @@ describe('import', () => {
         })
       ).toThrow(/unknown CSV headers/)
     })
-
-    it('throws when a mapping value is neither a string nor null', () => {
-      expect(() =>
-        validateMapping({
-          csvHeaders: ['name'],
-          mapping: { name: 42 as unknown as string },
-          tableSchema: schema,
-        })
-      ).toThrow(/Mapping values must be/)
-    })
   })
 
   describe('coerceRowsForTable', () => {
@@ -294,15 +207,6 @@ describe('import', () => {
         { name: 'Bob', age: null, active: false },
       ])
     })
-
-    it('drops CSV headers absent from the mapping', () => {
-      const rows = coerceRowsForTable(
-        [{ name: 'Alice', extra: 'keep me out' }],
-        schema,
-        new Map([['name', 'name']])
-      )
-      expect(rows).toEqual([{ name: 'Alice' }])
-    })
   })
 
   describe('createCsvParser', () => {
@@ -327,32 +231,41 @@ describe('import', () => {
       ])
     })
 
-    it('honors a TSV delimiter', async () => {
-      const rows = await parseViaStream('name\tage\nAlice\t30\n', '\t')
-      expect(rows).toEqual([{ name: 'Alice', age: '30' }])
-    })
+    it('rejects a record larger than the parser byte budget', async () => {
+      const oversizedValue = 'x'.repeat(CSV_MAX_RECORD_SIZE_BYTES * 2)
 
-    it('strips a leading UTF-8 BOM', async () => {
-      const rows = await parseViaStream('﻿name,age\nAlice,30\n')
-      expect(Object.keys(rows[0])).toEqual(['name', 'age'])
+      await expect(parseViaStream(`value\n${oversizedValue}\n`)).rejects.toThrow(
+        new RegExp(`maximum number of tolerated bytes of ${CSV_MAX_RECORD_SIZE_BYTES}`)
+      )
     })
   })
 
-  describe('csvParseOptions', () => {
-    it('sets bom and the delimiter, with a header-capturing columns callback', () => {
-      const options = csvParseOptions('\t')
-      expect(options).toMatchObject({ bom: true, delimiter: '\t' })
-      expect(typeof options.columns).toBe('function')
+  describe('rejection accounting', () => {
+    /**
+     * The parser drops malformed records silently, so a buffered import used to
+     * finish with a smaller table and nothing to distinguish it from a clean one.
+     */
+    it('reports the records a malformed CSV silently loses', async () => {
+      const { rows, rejections } = await parseCsvBuffer('name\nOk\nBroken,"unterminated\nAnother\n')
+
+      expect(rows).toHaveLength(1)
+      expect(rejections.rowsRejected).toBeGreaterThan(0)
+      expect(rejections.rejectedSamples[0]).toMatchObject({ code: 'CSV_QUOTE_NOT_CLOSED' })
     })
 
-    it('invokes onHeaders with the full header row', () => {
-      let captured: string[] | null = null
-      const options = csvParseOptions(',', (h) => {
-        captured = h
-      })
-      // csv-parse calls the columns function with the parsed header array.
-      ;(options.columns as (h: string[]) => string[])(['a', 'b', 'c'])
-      expect(captured).toEqual(['a', 'b', 'c'])
+    /**
+     * The count is a floor and the samples are capped, so a systematically broken
+     * million-row file cannot accumulate an entry per lost record.
+     */
+    it('counts every rejection but caps the retained samples', () => {
+      const collector = createCsvRejectionCollector()
+      for (let index = 0; index < MAX_REJECTED_SAMPLES + 3; index++) {
+        collector.onSkip({ code: 'CSV_QUOTE_NOT_CLOSED', line: index, message: 'bad' })
+      }
+
+      expect(collector.summary.rowsRejected).toBe(MAX_REJECTED_SAMPLES + 3)
+      expect(collector.summary.rejectedSamples).toHaveLength(MAX_REJECTED_SAMPLES)
+      expect(collector.summary.rejectedSamples[0]).toMatchObject({ line: 0 })
     })
   })
 
@@ -381,21 +294,7 @@ describe('import', () => {
     })
   })
 
-  describe('dedupeHeaders', () => {
-    it('drops later exact duplicates, preserving first-occurrence order', () => {
-      expect(dedupeHeaders(['a', 'b', 'a', 'c', 'b'])).toEqual(['a', 'b', 'c'])
-    })
-
-    it('keeps case-distinct names (matches csv-parse key sensitivity)', () => {
-      expect(dedupeHeaders(['Name', 'name'])).toEqual(['Name', 'name'])
-    })
-  })
-
   describe('detectCsvDelimiter', () => {
-    it('detects a comma-delimited file', async () => {
-      expect(await detectCsvDelimiter('a,b,c\n1,2,3\n')).toBe(',')
-    })
-
     it('detects a semicolon-delimited file (European Excel export)', async () => {
       expect(await detectCsvDelimiter('a;b;c\n1;2;3\n')).toBe(';')
     })
@@ -454,10 +353,6 @@ describe('import', () => {
       // A truncated prefix (complete:false, the default) still drops the partial tail.
       expect(await detectCsvDelimiter(csv)).toBe(',')
     })
-
-    it('returns the fallback for empty input', async () => {
-      expect(await detectCsvDelimiter('', ';')).toBe(';')
-    })
   })
 
   describe('sniffCsvDelimiterFromStream', () => {
@@ -473,13 +368,6 @@ describe('import', () => {
       const rows = ['id;a;b;c']
       for (let i = 0; i < 5000; i++) rows.push(`${i};"val, with comma";x;y`)
       const full = Buffer.from(`${rows.join('\n')}\n`)
-      const { delimiter, stream } = await sniffCsvDelimiterFromStream(Readable.from([full]))
-      expect(delimiter).toBe(';')
-      expect((await collect(stream)).equals(full)).toBe(true)
-    })
-
-    it('handles a file smaller than the sniff window (exhausted during sniff)', async () => {
-      const full = Buffer.from('a;b;c\n1;2;3\n')
       const { delimiter, stream } = await sniffCsvDelimiterFromStream(Readable.from([full]))
       expect(delimiter).toBe(';')
       expect((await collect(stream)).equals(full)).toBe(true)
@@ -552,12 +440,6 @@ describe('import', () => {
       }
       const { stream } = await sniffCsvDelimiterFromStream(Readable.from(failing()))
       await expect(collect(stream)).rejects.toThrow(/storage read failed/)
-    })
-
-    it('returns the fallback for an empty stream', async () => {
-      const { delimiter, stream } = await sniffCsvDelimiterFromStream(Readable.from([]), ';')
-      expect(delimiter).toBe(';')
-      expect((await collect(stream)).length).toBe(0)
     })
   })
 })

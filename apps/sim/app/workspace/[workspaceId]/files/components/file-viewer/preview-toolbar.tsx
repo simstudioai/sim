@@ -1,5 +1,5 @@
 import { Chip, cn } from '@sim/emcn'
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from '@sim/emcn/icons'
 
 interface PreviewNavigationControls {
   current: number
@@ -30,14 +30,18 @@ export function PreviewToolbar({ navigation, zoom, className }: PreviewToolbarPr
   return (
     <div
       className={cn(
-        'flex shrink-0 items-center justify-between border-[var(--border)] border-b bg-[var(--surface-1)] px-2 py-1',
+        // Matches the resource tab strip stacked directly above it: a 40px
+        // content box over a 1px border. `py-1` around a 30px chip came to 39px,
+        // near enough to read as a mistake rather than as a different bar, and
+        // the chips themselves still sat taller than the 26px tabs.
+        'flex h-[41px] shrink-0 items-center justify-between border-[var(--border)] border-b bg-[var(--surface-1)] px-2',
         className
       )}
     >
-      <div className='flex items-center'>
+      <div className='flex items-center gap-1'>
         {navigation && <PreviewNavigationControls {...navigation} />}
       </div>
-      <div className='flex items-center'>{zoom && <PreviewZoomControls {...zoom} />}</div>
+      <div className='flex items-center gap-1'>{zoom && <PreviewZoomControls {...zoom} />}</div>
     </div>
   )
 }

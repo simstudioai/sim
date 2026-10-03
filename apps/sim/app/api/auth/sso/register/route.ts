@@ -1,14 +1,17 @@
 import { db, member, ssoDomain, ssoProvider } from '@sim/db'
+import { keepDomainSignInProvider, ssoProviderDomainKey } from '@sim/db/sso-primary-provider'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { normalizeSSODomain } from '@sim/utils/sso-domain'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { ssoRegistrationContract } from '@/lib/api/contracts/auth'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { auth, getSession } from '@/lib/auth'
+import { invalidateSsoPolicyCache } from '@/lib/auth/sso-policy'
 import { hasSSOAccess } from '@/lib/billing'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
+import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -40,6 +43,15 @@ function selectTokenEndpointAuthMethod(
   return 'client_secret_post'
 }
 
+/**
+ * Proposes a free provider ID by suffixing the domain's first label
+ * (`azure-ad` + `acme.com` -> `azure-ad-acme`). Callers pass a domain already
+ * through `normalizeSSODomain`, whose shape guarantees a non-empty first label.
+ */
+function suggestProviderId(providerId: string, domain: string): string {
+  return `${providerId}-${domain.split('.')[0]}`
+}
+
 type DiscoveryResult =
   | { ok: true; discovery: Record<string, unknown> }
   | { ok: false; error: string }
@@ -47,13 +59,18 @@ type DiscoveryResult =
 const OIDC_DISCOVERY_TIMEOUT_MS = 10000
 
 async function fetchOIDCDiscoveryDocument(discoveryUrl: string): Promise<DiscoveryResult> {
-  const urlValidation = await validateUrlWithDNS(discoveryUrl, 'OIDC discovery URL')
-  if (!urlValidation.isValid || !urlValidation.resolvedIP) {
-    return { ok: false, error: urlValidation.error ?? 'SSRF validation failed' }
+  const urlValidation = await validateUrlWithDNS(
+    discoveryUrl,
+    'OIDC discovery URL',
+    'configuredEndpoint'
+  )
+  if (!urlValidation.isValid) {
+    return { ok: false, error: urlValidation.error }
   }
 
   try {
     const response = await secureFetchWithPinnedIP(discoveryUrl, urlValidation.resolvedIP, {
+      profile: 'configuredEndpoint',
       headers: { Accept: 'application/json' },
       timeout: OIDC_DISCOVERY_TIMEOUT_MS,
     })
@@ -99,20 +116,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
 
     const body = parsed.data.body
-    const { providerId, issuer, providerType, mapping, orgId } = body
+    const { providerId, issuer, providerType, mapping, orgId, jitProvisioningEnabled } = body
 
-    if (orgId) {
-      const [membership] = await db
-        .select({ organizationId: member.organizationId, role: member.role })
-        .from(member)
-        .where(and(eq(member.userId, session.user.id), eq(member.organizationId, orgId)))
-        .limit(1)
-      if (!membership) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
-      if (membership.role !== 'owner' && membership.role !== 'admin') {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
+    /**
+     * Always org-scoped: an org-less provider has no `sso_domain` proof, so only
+     * operators create one, via `packages/db/scripts/register-sso-provider.ts`.
+     */
+    const [membership] = await db
+      .select({ organizationId: member.organizationId, role: member.role })
+      .from(member)
+      .where(and(eq(member.userId, session.user.id), eq(member.organizationId, orgId)))
+      .limit(1)
+    if (!membership) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    if (membership.role !== 'owner' && membership.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const domain = normalizeSSODomain(body.domain)
@@ -123,24 +142,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    // Security gate: configuring org SSO for a domain requires the org to have
-    // proven ownership of it (DNS TXT verification). Without this, the old
-    // first-come claim let any org wire another company's domain to their own
-    // IdP — an account-takeover primitive. Existing domains were grandfathered
-    // as verified by migration 0266, so live tenants are unaffected. Personal
-    // (org-less) SSO is not gated.
+    /**
+     * Configuring org SSO for a domain requires DNS-proven ownership; without it
+     * a first-come claim lets any org wire another company's domain to their own
+     * IdP. Migration 0266 grandfathered existing domains.
+     */
+    const verifiedDomainClause = and(
+      eq(ssoDomain.organizationId, orgId),
+      eq(ssoDomain.domain, domain),
+      eq(ssoDomain.status, 'verified')
+    )
+
     const isOrgDomainVerified = async (): Promise<boolean> => {
-      if (!orgId) return true
       const [verified] = await db
         .select({ id: ssoDomain.id })
         .from(ssoDomain)
-        .where(
-          and(
-            eq(ssoDomain.organizationId, orgId),
-            eq(ssoDomain.domain, domain),
-            eq(ssoDomain.status, 'verified')
-          )
-        )
+        .where(verifiedDomainClause)
         .limit(1)
       return Boolean(verified)
     }
@@ -154,47 +171,106 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         { status: 403 }
       )
 
-    // Fail fast before the expensive OIDC discovery. Re-checked immediately
-    // before the provider write below to close the TOCTOU window (the verified
-    // row could be removed while discovery is in flight).
+    // Fail fast before OIDC discovery; re-checked before the write to close the
+    // window where the proof is removed while discovery is in flight.
     if (!(await isOrgDomainVerified())) return domainNotVerifiedResponse()
 
+    /**
+     * An org-less provider the caller created counts as theirs, so its claim on
+     * a domain is not reported as another tenant's.
+     */
     const isOwnedByCaller = (provider: {
       userId: string | null
       organizationId: string | null
-    }): boolean => {
-      if (provider.userId === session.user.id && !provider.organizationId) return true
-      return orgId ? provider.organizationId === orgId : false
+    }): boolean =>
+      provider.organizationId === orgId ||
+      (provider.userId === session.user.id && !provider.organizationId)
+
+    const ownerClause = and(
+      eq(ssoProvider.providerId, providerId),
+      eq(ssoProvider.organizationId, orgId)
+    )
+
+    /**
+     * Refuses the domain when another tenant has claimed it, or when the caller's
+     * own personal provider signs it in. The caller's organization may add a
+     * provider to a domain it already signs in through: the new provider waits,
+     * reachable by test link, until an admin makes it the domain's primary.
+     */
+    const findDomainRefusal = async (): Promise<NextResponse | null> => {
+      const claims = await db
+        .select({
+          userId: ssoProvider.userId,
+          organizationId: ssoProvider.organizationId,
+          providerId: ssoProvider.providerId,
+        })
+        .from(ssoProvider)
+        .where(sql`${ssoProviderDomainKey} = ${domain}`)
+      if (claims.some((provider) => !isOwnedByCaller(provider))) {
+        logger.warn('Rejected SSO registration for domain owned by another tenant', {
+          domain,
+          orgId,
+          userId: session.user.id,
+        })
+        return NextResponse.json(
+          {
+            error: 'This domain is already registered for SSO by another organization.',
+            code: 'SSO_DOMAIN_ALREADY_REGISTERED',
+          },
+          { status: 409 }
+        )
+      }
+      const personal = claims.find(
+        (provider) =>
+          !provider.organizationId &&
+          typeof provider.providerId === 'string' &&
+          provider.providerId !== providerId
+      )
+      if (personal) {
+        return NextResponse.json(
+          {
+            error: `${domain} already signs in through the provider "${personal.providerId}". Edit that provider, or give this one a different verified domain.`,
+            code: 'SSO_DOMAIN_ALREADY_ROUTED',
+          },
+          { status: 409 }
+        )
+      }
+      return null
     }
 
-    const findDomainConflict = async () =>
+    /**
+     * Better Auth treats `providerId` as globally unique, not per-tenant, and
+     * resolves providers by that column alone. Catching the cross-tenant
+     * collision here turns its opaque 422 into a 409 naming a free id.
+     */
+    const findProviderIdConflict = async () =>
       (
         await db
-          .select({
-            userId: ssoProvider.userId,
-            organizationId: ssoProvider.organizationId,
-          })
+          .select({ userId: ssoProvider.userId, organizationId: ssoProvider.organizationId })
           .from(ssoProvider)
-          .where(sql`lower(${ssoProvider.domain}) = ${domain}`)
+          .where(eq(ssoProvider.providerId, providerId))
       ).find((provider) => !isOwnedByCaller(provider))
 
-    const domainConflictResponse = () =>
+    const providerIdConflictResponse = () =>
       NextResponse.json(
         {
-          error: 'This domain is already registered for SSO by another organization.',
-          code: 'SSO_DOMAIN_ALREADY_REGISTERED',
+          error: `The provider ID "${providerId}" is already taken by another organization. Provider IDs are global, so pick a unique one — for example "${suggestProviderId(providerId, domain)}". It appears in the redirect URL you register with your identity provider, so choose it before configuring the IdP.`,
+          code: 'SSO_PROVIDER_ID_TAKEN',
         },
         { status: 409 }
       )
 
-    if (await findDomainConflict()) {
-      logger.warn('Rejected SSO registration for domain owned by another tenant', {
-        domain,
+    if (await findProviderIdConflict()) {
+      logger.warn('Rejected SSO registration for providerId owned by another tenant', {
+        providerId,
         orgId,
         userId: session.user.id,
       })
-      return domainConflictResponse()
+      return providerIdConflictResponse()
     }
+
+    const domainRefusal = await findDomainRefusal()
+    if (domainRefusal) return domainRefusal
 
     const headers: Record<string, string> = {}
     request.headers.forEach((value, key) => {
@@ -205,7 +281,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       providerId,
       issuer,
       domain,
-      ...(orgId ? { organizationId: orgId } : {}),
+      organizationId: orgId,
     }
 
     if (providerType === 'oidc') {
@@ -223,13 +299,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       let clientSecret = rawClientSecret
       if (rawClientSecret === REDACTED_MARKER) {
-        const ownerClause = orgId
-          ? and(eq(ssoProvider.providerId, providerId), eq(ssoProvider.organizationId, orgId))
-          : and(
-              eq(ssoProvider.providerId, providerId),
-              eq(ssoProvider.userId, session.user.id),
-              isNull(ssoProvider.organizationId)
-            )
         const [existing] = await db
           .select({ oidcConfig: ssoProvider.oidcConfig })
           .from(ssoProvider)
@@ -276,7 +345,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       for (const [name, endpointUrl] of Object.entries(userProvidedEndpoints)) {
         if (endpointUrl) {
-          const endpointValidation = await validateUrlWithDNS(endpointUrl, `OIDC ${name}`)
+          const endpointValidation = await validateUrlWithDNS(
+            endpointUrl,
+            `OIDC ${name}`,
+            'configuredEndpoint'
+          )
           if (!endpointValidation.isValid) {
             logger.warn('Explicitly provided OIDC endpoint failed SSRF validation', {
               endpoint: name,
@@ -297,7 +370,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         !oidcConfig.authorizationEndpoint || !oidcConfig.tokenEndpoint || !oidcConfig.jwksEndpoint
 
       const discoveryUrl = `${issuer.replace(/\/$/, '')}/.well-known/openid-configuration`
-      const discoveryResult = await fetchOIDCDiscoveryDocument(discoveryUrl)
+      const discoveryResult = await runWithOutboundOrganization(membership.organizationId, () =>
+        fetchOIDCDiscoveryDocument(discoveryUrl)
+      )
 
       if (needsDiscovery) {
         logger.info('Fetching OIDC discovery document for missing endpoints', {
@@ -328,7 +403,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         for (const [key, value] of Object.entries(discoveredEndpoints)) {
           if (typeof value === 'string') {
-            const endpointValidation = await validateUrlWithDNS(value, `OIDC ${key}`)
+            const endpointValidation = await validateUrlWithDNS(
+              value,
+              `OIDC ${key}`,
+              'contentFetch'
+            )
             if (!endpointValidation.isValid) {
               logger.warn('OIDC discovered endpoint failed SSRF validation', {
                 endpoint: key,
@@ -465,28 +544,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   </md:SPSSODescriptor>
 </md:EntityDescriptor>`
 
-      const certBase64 = cert
-        .replace(/-----BEGIN CERTIFICATE-----/g, '')
-        .replace(/-----END CERTIFICATE-----/g, '')
-        .replace(/\s/g, '')
-
-      const computedIdpMetadataXml =
-        idpMetadata ||
-        `<?xml version="1.0"?>
-<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${escapeXml(issuer)}">
-  <IDPSSODescriptor WantAuthnRequestsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
-    <KeyDescriptor use="signing">
-      <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
-        <ds:X509Data>
-          <ds:X509Certificate>${certBase64}</ds:X509Certificate>
-        </ds:X509Data>
-      </ds:KeyInfo>
-    </KeyDescriptor>
-    <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${escapeXml(entryPoint)}"/>
-    <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="${escapeXml(entryPoint)}"/>
-  </IDPSSODescriptor>
-</EntityDescriptor>`
-
       const samlConfig: any = {
         entryPoint,
         cert,
@@ -494,16 +551,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         spMetadata: {
           metadata: spMetadataXml,
         },
-        idpMetadata: {
-          metadata: computedIdpMetadataXml,
-        },
       }
 
       if (audience) samlConfig.audience = audience
       if (wantAssertionsSigned !== undefined) samlConfig.wantAssertionsSigned = wantAssertionsSigned
       if (signatureAlgorithm) samlConfig.signatureAlgorithm = signatureAlgorithm
       if (digestAlgorithm) samlConfig.digestAlgorithm = digestAlgorithm
-      if (identifierFormat) samlConfig.identifierFormat = identifierFormat
+
+      /**
+       * Always written, empty when unset: Better Auth merges SAML config with
+       * `??`, so an omitted key keeps whatever was stored and clearing either
+       * field would never take effect. Both are falsy-guarded downstream.
+       *
+       * Metadata must not be generated here — a document built from cert +
+       * entryPoint outranks the certificate on re-save, silently defeating
+       * SAML cert rotation.
+       */
+      samlConfig.idpMetadata = { metadata: idpMetadata ?? '' }
+      samlConfig.identifierFormat = identifierFormat ?? ''
       // Better Auth reads the attribute mapping from samlConfig.mapping.
       if (mapping) samlConfig.mapping = mapping
 
@@ -537,14 +602,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       ),
     })
 
-    if (await findDomainConflict()) {
-      logger.warn('Rejected SSO registration: domain was claimed during registration', {
-        domain,
+    if (await findProviderIdConflict()) {
+      logger.warn('Rejected SSO registration: providerId was claimed during registration', {
+        providerId,
         orgId,
         userId: session.user.id,
       })
-      return domainConflictResponse()
+      return providerIdConflictResponse()
     }
+
+    const domainRefusalBeforeWrite = await findDomainRefusal()
+    if (domainRefusalBeforeWrite) return domainRefusalBeforeWrite
 
     // Authoritative verification re-check: the verified row could have been
     // removed during OIDC discovery. Re-checking here (not just at handler
@@ -566,25 +634,81 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     // edit through updateSSOProvider so re-saving an SSO config works instead of
     // failing. The verification gate above already ran against the target domain,
     // so an edit that moves SSO to an unverified domain is still blocked.
-    // The personal branch MUST require a null org: org providers store
-    // userId = their creator, so without it an org admin could send a
-    // personal-mode request (which skips the membership check and the
-    // verification gate) yet still match — and then update — their org's
-    // provider, moving it to an unverified domain. Mirrors isOwnedByCaller.
-    const ownerClause = orgId
-      ? and(eq(ssoProvider.providerId, providerId), eq(ssoProvider.organizationId, orgId))
-      : and(
-          eq(ssoProvider.providerId, providerId),
-          eq(ssoProvider.userId, session.user.id),
-          isNull(ssoProvider.organizationId)
-        )
+    // Config columns are captured, not just the id: an update whose trust grant is
+    // refused has to be undone, or the rejected config stays stored and goes live
+    // the moment the domain is verified again.
     const [existingOwnedProvider] = await db
-      .select({ id: ssoProvider.id })
+      .select({
+        id: ssoProvider.id,
+        issuer: ssoProvider.issuer,
+        domain: ssoProvider.domain,
+        domainVerified: ssoProvider.domainVerified,
+        oidcConfig: ssoProvider.oidcConfig,
+        samlConfig: ssoProvider.samlConfig,
+        jitProvisioningEnabled: ssoProvider.jitProvisioningEnabled,
+      })
       .from(ssoProvider)
       .where(ownerClause)
       .limit(1)
 
+    /**
+     * Grants domain trust only while the proof is held under a row lock.
+     *
+     * A WHERE-clause EXISTS test is not enough: under READ COMMITTED the subquery
+     * sees the statement's original snapshot, so a delete committing while the
+     * UPDATE waits can still grant trust after ownership is gone. The row lock
+     * orders the two — the delete blocks until this commits, and if it committed
+     * first the SELECT finds nothing.
+     *
+     * A provider joining a domain another provider already signs in does not
+     * take over by sorting first: unless the domain's named primary still signs
+     * it in, the provider signing it in until now is named, in the same
+     * transaction. The lock is `FOR UPDATE` so two providers joining at once
+     * settle it one after the other.
+     */
+    const grantProviderDomainTrust = (joinsDomain: boolean): Promise<boolean> =>
+      db.transaction(async (tx) => {
+        const [proof] = await tx
+          .select({ id: ssoDomain.id })
+          .from(ssoDomain)
+          .where(verifiedDomainClause)
+          .limit(1)
+          .for('update')
+        if (!proof) return false
+
+        const granted = await tx
+          .update(ssoProvider)
+          .set({ domainVerified: true, jitProvisioningEnabled })
+          .where(ownerClause)
+          .returning({ id: ssoProvider.id })
+        if (granted.length === 0) return false
+
+        if (joinsDomain) {
+          await keepDomainSignInProvider(tx, {
+            domainRecordId: proof.id,
+            organizationId: orgId,
+            domain,
+            joiningProviderId: providerId,
+          })
+        }
+        return true
+      })
+
     if (existingOwnedProvider) {
+      const revertProviderUpdate = async (): Promise<void> => {
+        await db
+          .update(ssoProvider)
+          .set({
+            issuer: existingOwnedProvider.issuer,
+            domain: existingOwnedProvider.domain,
+            oidcConfig: existingOwnedProvider.oidcConfig,
+            samlConfig: existingOwnedProvider.samlConfig,
+            domainVerified: false,
+            jitProvisioningEnabled: existingOwnedProvider.jitProvisioningEnabled,
+          })
+          .where(eq(ssoProvider.id, existingOwnedProvider.id))
+      }
+
       await auth.api.updateSSOProvider({
         body: {
           providerId,
@@ -595,6 +719,47 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         },
         headers,
       })
+
+      let domainTrustGranted: boolean
+      try {
+        /** An owned provider joins the domain when it moves to it or is not yet trusted on it. */
+        domainTrustGranted = await grantProviderDomainTrust(
+          !existingOwnedProvider.domainVerified ||
+            normalizeSSODomain(existingOwnedProvider.domain) !== domain
+        )
+      } catch (error) {
+        try {
+          await revertProviderUpdate()
+        } catch (rollbackError) {
+          logger.error('Failed to revert SSO provider after domain trust write failed', {
+            domain,
+            orgId,
+            providerId,
+            userId: session.user.id,
+            error,
+            rollbackError,
+          })
+        }
+        throw error
+      }
+
+      // Restore the pre-update config and clear the flag together. Clearing alone
+      // is not enough: re-verifying the domain now regrants trust automatically,
+      // which would activate the very config this request reported as rejected.
+      if (!domainTrustGranted) {
+        await revertProviderUpdate()
+        logger.warn('Reverted SSO update: domain verification was removed mid-write', {
+          domain,
+          orgId,
+          providerId,
+          userId: session.user.id,
+        })
+        return domainNotVerifiedResponse()
+      }
+
+      /** The edit may have changed whether this provider can satisfy the sign-in requirement. */
+      invalidateSsoPolicyCache(orgId)
+
       logger.info('SSO provider updated successfully', { providerId, providerType, domain })
       return NextResponse.json({
         success: true,
@@ -609,14 +774,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       headers,
     })
 
-    // Close the residual TOCTOU between the re-check above and Better Auth
-    // persisting the provider: the verified sso_domain row could be removed in
-    // that window. registerSSOProvider is create-only (it throws if the
-    // providerId already exists), so a successful call always created a brand-new
-    // row — we roll it back by its primary-key `id` (not the logical providerId,
-    // which a concurrent delete+recreate could point at a different row). Personal
-    // SSO is not gated, so this only runs for org-scoped registration.
-    if (orgId && !(await isOrgDomainVerified())) {
+    // A refused grant means the proof vanished mid-write, leaving a provider on a
+    // domain the org no longer proves — roll it back. Deleted by primary key, not
+    // providerId, which a concurrent delete+recreate could point at another row.
+    if (!(await grantProviderDomainTrust(true))) {
       // registerSSOProvider spreads the created row's `id` at runtime, but the
       // typed return omits it — read it defensively and only delete when it's a
       // real id, so a future shape change can't turn the rollback into a silent
@@ -643,6 +804,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
       return domainNotVerifiedResponse()
     }
+
+    /** A new provider can make an organization able to require single sign-on again. */
+    invalidateSsoPolicyCache(orgId)
 
     logger.info('SSO provider registered successfully', {
       providerId,

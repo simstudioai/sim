@@ -1,9 +1,8 @@
 import { InfisicalIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { InfisicalResponse } from '@/tools/infisical/types'
 
-export const InfisicalBlock: BlockConfig<InfisicalResponse> = {
+export const InfisicalBlock: BlockConfig = {
   type: 'infisical',
   name: 'Infisical',
   description: 'Manage secrets with Infisical',
@@ -15,6 +14,36 @@ export const InfisicalBlock: BlockConfig<InfisicalResponse> = {
   bgColor: '#F7FE62',
   icon: InfisicalIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Infisical',
+    sentences: {
+      byOperation: {
+        list_secrets: [
+          { text: 'List secrets in project', field: 'projectId', core: true },
+          { text: ', environment', field: 'environment' },
+          { text: ', under', field: 'secretPath' },
+        ],
+        get_secret: [
+          { text: 'Read secret', field: 'secretName', core: true },
+          { text: 'from environment', field: 'environment' },
+          { text: ', at version', field: 'secretVersion' },
+        ],
+        create_secret: [
+          { text: 'Create secret', field: 'secretName', core: true },
+          { text: 'in environment', field: 'environment' },
+        ],
+        update_secret: [
+          { text: 'Update secret', field: 'secretName', core: true },
+          { text: 'in environment', field: 'environment' },
+          { text: ', renaming it to', field: 'newSecretName' },
+        ],
+        delete_secret: [
+          { text: 'Delete secret', field: 'secretName', core: true },
+          { text: 'from environment', field: 'environment' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

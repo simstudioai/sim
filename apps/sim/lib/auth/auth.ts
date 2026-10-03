@@ -1,13 +1,20 @@
 import { cache } from 'react'
+import { oauthProvider } from '@better-auth/oauth-provider'
 import { sso } from '@better-auth/sso'
 import { stripe } from '@better-auth/stripe'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { createLogger, setRequestAuth } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { type BetterAuthOptions, betterAuth, type User } from 'better-auth'
-import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { APIError, createAuthMiddleware, getSessionFromCtx } from 'better-auth/api'
+import {
+  APIError,
+  createAuthMiddleware,
+  getOAuthState,
+  getSessionFromCtx,
+  setShouldSkipSessionRefresh,
+} from 'better-auth/api'
+import { deleteSessionCookie, setSessionCookie } from 'better-auth/cookies'
 import { nextCookies } from 'better-auth/next-js'
 import {
   admin,
@@ -28,19 +35,49 @@ import {
   renderPasswordResetEmail,
   renderWelcomeEmail,
 } from '@/components/emails'
+import { FREEBUFF_CLICK_ID_COOKIE } from '@/lib/analytics/freebuff'
+import { reportFreebuffConversion } from '@/lib/analytics/freebuff.server'
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
-import { getRequestedSignInProviderId, isSignInProviderAllowed } from '@/lib/auth/constants'
+import {
+  applyRegistrationGate,
+  getRequestedSignInProviderId,
+  isSignInProviderAllowed,
+} from '@/lib/auth/constants'
+import { getAuthDatabase } from '@/lib/auth/database-context'
+import { hashOAuthToken } from '@/lib/auth/oauth-access-token'
+import {
+  consentRequestNamesClient,
+  OAUTH_ACCESS_TOKEN_PREFIX,
+  OAUTH_ACCESS_TOKEN_TTL_SECONDS,
+  OAUTH_CODE_TTL_SECONDS,
+  OAUTH_PUBLIC_REGISTRATION_SCOPES,
+  OAUTH_REFRESH_TOKEN_PREFIX,
+  OAUTH_REFRESH_TOKEN_TTL_SECONDS,
+  OAUTH_SCOPES,
+  SIM_CLI_CLIENT_ID,
+} from '@/lib/auth/oauth-provider'
+import { bindOAuthIssuedResource, oauthResourcePlugin } from '@/lib/auth/oauth-resource'
 import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
+import { prepareSessionForCreation } from '@/lib/auth/session-hooks'
 import { clampExpiryForSession } from '@/lib/auth/session-policy'
-import { guardSubscriptionPlanWrites } from '@/lib/auth/stripe-adapter-guard'
+import { getActiveOrganizationId } from '@/lib/auth/session-response'
+import { createSimAuthAdapter } from '@/lib/auth/sim-auth-adapter'
+import { admitSsoUser } from '@/lib/auth/sso/application/admit-sso-user'
+import { resolveSsoCallbackProviderId } from '@/lib/auth/sso/callback-provider'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import {
   assertPersonalCheckoutAllowed,
   authorizeSubscriptionReference,
   isPersonalCheckoutRequest,
 } from '@/lib/billing/authorization'
+import {
+  type CheckoutAdmissionClaim,
+  claimCheckoutAdmission,
+  releaseCheckoutAdmission,
+  resolveCheckoutReferenceId,
+} from '@/lib/billing/checkout-admission'
 import {
   getOrganizationIdForSubscriptionReference,
   syncSubscriptionPlan,
@@ -59,7 +96,6 @@ import { handleAbandonedCheckout } from '@/lib/billing/webhooks/checkout'
 import { handleChargeDispute, handleDisputeClosed } from '@/lib/billing/webhooks/disputes'
 import { handleManualEnterpriseSubscription } from '@/lib/billing/webhooks/enterprise'
 import {
-  handleInvoiceFinalized,
   handleInvoicePaymentFailed,
   handleInvoicePaymentSucceeded,
 } from '@/lib/billing/webhooks/invoices'
@@ -67,6 +103,7 @@ import {
   handleSubscriptionCreated,
   handleSubscriptionDeleted,
 } from '@/lib/billing/webhooks/subscription'
+import { handleSubscriptionUsageUpdate } from '@/lib/billing/webhooks/subscription-usage'
 import { env } from '@/lib/core/config/env'
 import {
   isAuthDisabled,
@@ -83,37 +120,67 @@ import {
   isSignupMxValidationEnabled,
   isSsoEnabled,
 } from '@/lib/core/config/env-flags'
+import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { trustedProxies } from '@/lib/core/utils/request'
 import { getBaseUrl, isLocalhostUrl, parseOriginList } from '@/lib/core/utils/urls'
-import { processCredentialDraft } from '@/lib/credentials/draft-processor'
+import {
+  captureOAuthCredentialDraftBinding,
+  consumeOAuthCredentialDraftBinding,
+  processCredentialDraft,
+} from '@/lib/credentials/draft-processor'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { validateSignupEmailMx } from '@/lib/messaging/email/validation.server'
 import { isEmailVerificationEffectivelyEnabled } from '@/lib/messaging/email/verification'
 import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
-import { getMicrosoftRefreshTokenExpiry, isMicrosoftProvider } from '@/lib/oauth/microsoft'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+import {
+  getMicrosoftRefreshTokenExpiry,
+  isMicrosoftProvider,
+  mapMicrosoftProfileToUser,
+} from '@/lib/oauth/microsoft'
+import {
+  assertMicrosoftDataverseOAuthLinkRequest,
+  MICROSOFT_DATAVERSE_PROVIDER_ID,
+} from '@/lib/oauth/microsoft-dataverse'
+import { clearOAuthRefreshDeadFlag } from '@/lib/oauth/refresh-coordination'
+import {
+  isSalesforceLoginOrigin,
+  isSalesforceOAuthProviderId,
+  SALESFORCE_LOGIN_HOSTS,
+  withSalesforceInstanceScope,
+} from '@/lib/oauth/salesforce'
 import { extractSlackTeamId, fanOutSlackTokenChain } from '@/lib/oauth/slack'
-import { clearDeadFlag } from '@/lib/oauth/terminal-errors'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { joinInstanceOrganization } from '@/lib/organizations/instance-org'
+import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
+import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
 import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
 import { disableUserResources } from '@/lib/workflows/lifecycle'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 
 const logger = createLogger('Auth')
 
+function buildSsoAdmissionErrorUrl(code: string, callbackLocation?: string | null): string {
+  const callbackUrl =
+    callbackLocation && validateCallbackUrl(callbackLocation) ? callbackLocation : APP_ENTRY_PATH
+  const params = new URLSearchParams({ error: code, callbackUrl })
+  return `${getBaseUrl()}/sso?${params.toString()}`
+}
+
 const additionalTrustedOrigins = parseOriginList(env.TRUSTED_ORIGINS, (value) =>
   logger.warn('Ignoring invalid entry in TRUSTED_ORIGINS', { value })
 )
 
 /**
- * SSO provider IDs to trust for automatic account linking when an SSO sign-in
- * matches an existing account's email. Includes `SSO_PROVIDER_ID` when it is set
- * in the app environment, plus any IDs from `SSO_TRUSTED_PROVIDER_IDS`. Empty when
- * SSO is disabled, so `trustedProviders` is unchanged for non-SSO deployments.
- * Resolved once at startup; `trustEmailVerified` on the SSO plugin handles IdPs
- * that assert `email_verified` live, so this is only needed for IdPs that omit it.
+ * Extra provider IDs appended to `trustedProviders`, from `SSO_PROVIDER_ID` and
+ * `SSO_TRUSTED_PROVIDER_IDS`. Empty when SSO is disabled.
+ *
+ * These no longer affect SSO sign-in: the plugin passes `trustProviderByName:
+ * false`, disabling the name-based branch, so SSO trust comes only from
+ * `domainVerified`. Kept because non-SSO providers still link by name.
  */
 const additionalTrustedSsoProviders = isSsoEnabled
   ? [env.SSO_PROVIDER_ID, ...(env.SSO_TRUSTED_PROVIDER_IDS?.split(',') ?? [])]
@@ -141,15 +208,39 @@ if (validStripeKey) {
 }
 
 /**
- * Reverse-proxy hops trusted for forwarded-IP resolution. When configured,
- * Better Auth walks the x-forwarded-for chain right to left, skips these
- * hops, and records the first untrusted address as the session client IP —
- * preventing header spoofing behind multi-hop proxies.
+ * Resolves the org's API instance URL for a freshly linked Salesforce account.
+ *
+ * The token response never carries `instance_url`, but `/services/oauth2/userinfo`
+ * returns a `profile` URL rooted at the org's own host. A response still rooted
+ * at the login host means userinfo answered for the authorization server rather
+ * than an org, which is not an instance URL — hence the guard.
+ *
+ * @returns The instance URL origin, or undefined when it cannot be determined
+ * (the caller then leaves `scope` untouched rather than storing a wrong host).
  */
-const trustedProxies = (env.AUTH_TRUSTED_PROXIES ?? '')
-  .split(',')
-  .map((entry) => entry.trim())
-  .filter(Boolean)
+async function fetchSalesforceInstanceUrl(
+  providerId: string,
+  accessToken: string
+): Promise<string | undefined> {
+  const loginHost = SALESFORCE_LOGIN_HOSTS[providerId]
+  if (!loginHost) return undefined
+  try {
+    const response = await fetch(`https://${loginHost}/services/oauth2/userinfo`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!response.ok) return undefined
+    const data = await response.json()
+    if (typeof data.profile !== 'string') return undefined
+    const url = new URL(data.profile)
+    // The origin becomes a tool base URL that carries the bearer token, so the
+    // scheme is pinned rather than inherited from whatever userinfo returned.
+    if (url.protocol !== 'https:' || isSalesforceLoginOrigin(url.origin)) return undefined
+    return url.origin
+  } catch (error) {
+    logger.error('Failed to fetch Salesforce instance URL', { error, providerId })
+    return undefined
+  }
+}
 
 export const auth = betterAuth({
   baseURL: getBaseUrl(),
@@ -163,13 +254,7 @@ export const auth = betterAuth({
     ...(env.NEXT_PUBLIC_SOCKET_URL ? [env.NEXT_PUBLIC_SOCKET_URL] : []),
     ...additionalTrustedOrigins,
   ].filter(Boolean),
-  database: (options: BetterAuthOptions) =>
-    guardSubscriptionPlanWrites(
-      drizzleAdapter(db, {
-        provider: 'pg',
-        schema,
-      })(options)
-    ),
+  database: (options: BetterAuthOptions) => createSimAuthAdapter(options),
   session: {
     cookieCache: {
       enabled: true,
@@ -190,7 +275,7 @@ export const auth = betterAuth({
        * revocation latency becomes the policy cache TTL, not the full `maxAge`.
        */
       version: async (session) =>
-        getSessionCookieCacheVersion(session as { userId?: string | null }),
+        getSessionCookieCacheVersion(session as { userId?: string | null }, getAuthDatabase()),
     },
     expiresIn: 30 * 24 * 60 * 60, // 30 days (how long a session can last overall)
     updateAge: 24 * 60 * 60, // 24 hours (how often to refresh the expiry)
@@ -202,40 +287,18 @@ export const auth = betterAuth({
     },
   },
   user: {
+    /**
+     * Account deletion runs through `POST /api/users/me/deletion`, which owns the
+     * whole procedure — the blocker preflight, the storage purge, and the
+     * constraint-ordered teardown that a bare `DELETE FROM "user"` cannot
+     * express. Better Auth's endpoint stays off, and `beforeDelete` refuses
+     * unconditionally so that flipping `enabled` can never route a deletion
+     * around any of it.
+     */
     deleteUser: {
       enabled: false,
-      beforeDelete: async (deletingUser) => {
-        const { isSoleOwnerOfPaidOrganization } = await import(
-          '@/lib/billing/organizations/membership'
-        )
-        const check = await isSoleOwnerOfPaidOrganization(deletingUser.id)
-        if (check.isBlocker) {
-          throw new Error(
-            `You are the owner of ${check.organizationName ?? 'an active paid organization'}. Transfer ownership before deleting your account.`
-          )
-        }
-
-        const { reassignBilledAccountForUser, reassignOwnedWorkspacesForUser } = await import(
-          '@/lib/workspaces/utils'
-        )
-        const { unresolved } = await reassignBilledAccountForUser(deletingUser.id)
-        if (unresolved.length > 0) {
-          throw new Error(
-            `Your account is the billing account for ${unresolved.length} workspace${unresolved.length === 1 ? '' : 's'} with no other admin to take it over. Add another admin to ${unresolved.length === 1 ? 'that workspace' : 'those workspaces'} or delete ${unresolved.length === 1 ? 'it' : 'them'} before deleting your account.`
-          )
-        }
-
-        // Reassign workspace ownership BEFORE deletion so the `workspace.owner_id`
-        // ON DELETE CASCADE can never silently nuke workspaces this user owns
-        // (e.g. org workspaces they created but are billed to the org owner).
-        const { unresolved: ownedUnresolved } = await reassignOwnedWorkspacesForUser(
-          deletingUser.id
-        )
-        if (ownedUnresolved.length > 0) {
-          throw new Error(
-            `Your account owns ${ownedUnresolved.length} workspace${ownedUnresolved.length === 1 ? '' : 's'} with no other admin to take over ownership. Add another admin to ${ownedUnresolved.length === 1 ? 'that workspace' : 'those workspaces'} or delete ${ownedUnresolved.length === 1 ? 'it' : 'them'} before deleting your account.`
-          )
-        }
+      beforeDelete: async () => {
+        throw new Error('Account deletion runs through POST /api/users/me/deletion')
       },
     },
   },
@@ -249,10 +312,27 @@ export const auth = betterAuth({
           }
           return { data: user }
         },
-        after: async (user) => {
+        after: async (user, context) => {
           logger.info('[databaseHooks.user.create.after] User created, initializing stats', {
             userId: user.id,
           })
+
+          /**
+           * Only the marketing-consent-gated Freebuff tag writes the `bfcid`
+           * cookie, and `FreebuffClickIdGuard` deletes it once marketing consent
+           * is withdrawn or expires. Not awaited: the postback
+           * retries on its own and must never delay signup. The browser tag
+           * reports the same `eventId` on email signup and Freebuff dedupes.
+           */
+          const freebuffClickId = context?.getCookie(FREEBUFF_CLICK_ID_COOKIE)
+          if (freebuffClickId) {
+            void reportFreebuffConversion({
+              clickId: freebuffClickId,
+              eventType: 'signup_completed',
+              eventId: user.id,
+              occurredAt: user.createdAt,
+            })
+          }
 
           try {
             PlatformEvents.userSignedUp({
@@ -345,33 +425,29 @@ export const auth = betterAuth({
     },
     account: {
       create: {
-        before: async (account) => {
+        before: async (account, context) => {
           const modifiedAccount = { ...account }
 
-          if (account.providerId === 'salesforce' && account.accessToken) {
+          if (context?.path.startsWith('/oauth2/callback/')) {
             try {
-              const response = await fetch(
-                'https://login.salesforce.com/services/oauth2/userinfo',
-                {
-                  headers: {
-                    Authorization: `Bearer ${account.accessToken}`,
-                  },
-                }
-              )
-
-              if (response.ok) {
-                const data = await response.json()
-
-                if (data.profile) {
-                  const match = data.profile.match(/^(https:\/\/[^/]+)/)
-                  if (match && match[1] !== 'https://login.salesforce.com') {
-                    const instanceUrl = match[1]
-                    modifiedAccount.scope = `__sf_instance__:${instanceUrl} ${account.scope}`
-                  }
-                }
-              }
+              await captureOAuthCredentialDraftBinding(context, () => getOAuthState())
             } catch (error) {
-              logger.error('Failed to fetch Salesforce instance URL', { error })
+              logger.error('[account.create.before] Failed to read OAuth credential draft state', {
+                userId: account.userId,
+                providerId: account.providerId,
+                error,
+              })
+              throw error
+            }
+          }
+
+          if (account.accessToken && isSalesforceOAuthProviderId(account.providerId)) {
+            const instanceUrl = await fetchSalesforceInstanceUrl(
+              account.providerId,
+              account.accessToken
+            )
+            if (instanceUrl) {
+              modifiedAccount.scope = withSalesforceInstanceScope(instanceUrl, account.scope)
             }
           }
 
@@ -391,7 +467,7 @@ export const auth = betterAuth({
 
           return { data: modifiedAccount }
         },
-        after: async (account) => {
+        after: async (account, context) => {
           /**
            * Migrate credentials from stale account rows to the newly created one.
            *
@@ -463,7 +539,7 @@ export const auth = betterAuth({
                 // Clear the dead flag before fanning out: the connect itself
                 // proves the installation has live tokens, and a fan-out
                 // failure must not leave the hour-long flag blocking refreshes.
-                await clearDeadFlag(`slack:${teamId}`)
+                await clearOAuthRefreshDeadFlag(`slack:${teamId}`)
                 await fanOutSlackTokenChain(teamId, {
                   accessToken: account.accessToken,
                   refreshToken: account.refreshToken ?? null,
@@ -484,18 +560,33 @@ export const auth = betterAuth({
             }
           }
 
-          try {
-            await processCredentialDraft({
-              userId: account.userId,
-              providerId: account.providerId,
-              accountId: account.id,
-            })
-          } catch (error) {
-            logger.error('[account.create.after] Failed to process credential draft', {
-              userId: account.userId,
-              providerId: account.providerId,
-              error,
-            })
+          const isOAuth2Callback = context?.path.startsWith('/oauth2/callback/') === true
+          const credentialDraftBinding = context
+            ? consumeOAuthCredentialDraftBinding(context)
+            : undefined
+
+          if (isOAuth2Callback && !credentialDraftBinding) {
+            throw new Error(
+              'OAuth credential draft binding was not captured before account creation'
+            )
+          }
+
+          if (credentialDraftBinding) {
+            try {
+              await processCredentialDraft({
+                draftId: credentialDraftBinding.draftId,
+                userId: account.userId,
+                providerId: account.providerId,
+                accountId: account.id,
+              })
+            } catch (error) {
+              logger.error('[account.create.after] Failed to process credential draft', {
+                userId: account.userId,
+                providerId: account.providerId,
+                error,
+              })
+              if (credentialDraftBinding.draftId) throw error
+            }
           }
 
           try {
@@ -544,7 +635,7 @@ export const auth = betterAuth({
             )
           }
 
-          if (account.providerId === 'salesforce') {
+          if (isSalesforceOAuthProviderId(account.providerId)) {
             const updates: {
               accessTokenExpiresAt?: Date
               scope?: string
@@ -555,29 +646,12 @@ export const auth = betterAuth({
             }
 
             if (account.accessToken) {
-              try {
-                const response = await fetch(
-                  'https://login.salesforce.com/services/oauth2/userinfo',
-                  {
-                    headers: {
-                      Authorization: `Bearer ${account.accessToken}`,
-                    },
-                  }
-                )
-
-                if (response.ok) {
-                  const data = await response.json()
-
-                  if (data.profile) {
-                    const match = data.profile.match(/^(https:\/\/[^/]+)/)
-                    if (match && match[1] !== 'https://login.salesforce.com') {
-                      const instanceUrl = match[1]
-                      updates.scope = `__sf_instance__:${instanceUrl} ${account.scope}`
-                    }
-                  }
-                }
-              } catch (error) {
-                logger.error('Failed to fetch Salesforce instance URL', { error })
+              const instanceUrl = await fetchSalesforceInstanceUrl(
+                account.providerId,
+                account.accessToken
+              )
+              if (instanceUrl) {
+                updates.scope = withSalesforceInstanceScope(instanceUrl, account.scope)
               }
             }
 
@@ -606,66 +680,7 @@ export const auth = betterAuth({
     },
     session: {
       create: {
-        before: async (session) => {
-          // Blocked emails/domains must not establish sessions, regardless of
-          // provider (email/password, OAuth, SSO). Deliberately outside the
-          // try below — a thrown APIError must propagate, not be swallowed.
-          const accessControl = await getAccessControlConfig()
-          if (
-            accessControl.blockedSignupDomains.length > 0 ||
-            accessControl.blockedEmails.length > 0
-          ) {
-            const [sessionUser] = await db
-              .select({ email: schema.user.email })
-              .from(schema.user)
-              .where(eq(schema.user.id, session.userId))
-              .limit(1)
-            if (isEmailBlockedByAccessControl(sessionUser?.email, accessControl)) {
-              logger.warn('Blocking session creation for blocked account', {
-                userId: session.userId,
-              })
-              throw new APIError('FORBIDDEN', {
-                message: 'Access restricted. Please contact your administrator.',
-              })
-            }
-          }
-
-          try {
-            // Find the first organization this user is a member of
-            const members = await db
-              .select({ organizationId: schema.member.organizationId })
-              .from(schema.member)
-              .where(eq(schema.member.userId, session.userId))
-              .limit(1)
-
-            if (members.length > 0) {
-              logger.info('Found organization for user', {
-                userId: session.userId,
-                organizationId: members[0].organizationId,
-              })
-
-              const expiresAt = await clampExpiryForSession(session, members[0].organizationId)
-
-              return {
-                data: {
-                  ...session,
-                  expiresAt,
-                  activeOrganizationId: members[0].organizationId,
-                },
-              }
-            }
-            logger.info('No organizations found for user', {
-              userId: session.userId,
-            })
-            return { data: session }
-          } catch (error) {
-            logger.error('Error setting active organization', {
-              error,
-              userId: session.userId,
-            })
-            return { data: session }
-          }
-        },
+        before: prepareSessionForCreation,
       },
       update: {
         /**
@@ -680,10 +695,11 @@ export const auth = betterAuth({
           if (!data.expiresAt) return { data }
           const current = ctx?.context?.session?.session
           if (!current) return { data }
-          const expiresAt = await clampExpiryForSession({
-            ...current,
-            expiresAt: new Date(data.expiresAt),
-          })
+          const expiresAt = await clampExpiryForSession(
+            { ...current, expiresAt: new Date(data.expiresAt) },
+            undefined,
+            getAuthDatabase()
+          )
           return { data: { ...data, expiresAt } }
         },
       },
@@ -714,34 +730,49 @@ export const auth = betterAuth({
       ],
     },
   },
-  socialProviders: {
-    ...(!isGithubAuthDisabled && {
-      github: {
-        clientId: env.GITHUB_CLIENT_ID as string,
-        clientSecret: env.GITHUB_CLIENT_SECRET as string,
-        scope: ['user:email', 'repo'],
-      },
-    }),
-    ...(!isGoogleAuthDisabled && {
-      google: {
-        clientId: env.GOOGLE_CLIENT_ID as string,
-        clientSecret: env.GOOGLE_CLIENT_SECRET as string,
-        scope: [
-          'https://www.googleapis.com/auth/userinfo.email',
-          'https://www.googleapis.com/auth/userinfo.profile',
-        ],
-      },
-    }),
-    ...(!isMicrosoftAuthDisabled &&
-      env.MICROSOFT_CLIENT_ID &&
-      env.MICROSOFT_CLIENT_SECRET && {
-        microsoft: {
-          clientId: env.MICROSOFT_CLIENT_ID,
-          clientSecret: env.MICROSOFT_CLIENT_SECRET,
-          scope: ['openid', 'profile', 'email'],
+  /**
+   * SSO is deliberately outside the registration gate: it runs on
+   * `/sign-in/sso` against admin-configured, domain-verified providers, which
+   * is its own allowlist.
+   */
+  socialProviders: applyRegistrationGate(
+    {
+      ...(!isGithubAuthDisabled && {
+        github: {
+          clientId: env.GITHUB_CLIENT_ID as string,
+          clientSecret: env.GITHUB_CLIENT_SECRET as string,
+          scope: ['user:email', 'repo'],
         },
       }),
-  },
+      ...(!isGoogleAuthDisabled && {
+        google: {
+          clientId: env.GOOGLE_CLIENT_ID as string,
+          clientSecret: env.GOOGLE_CLIENT_SECRET as string,
+          scope: [
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile',
+          ],
+        },
+      }),
+      ...(!isMicrosoftAuthDisabled &&
+        env.MICROSOFT_CLIENT_ID &&
+        env.MICROSOFT_CLIENT_SECRET && {
+          microsoft: {
+            clientId: env.MICROSOFT_CLIENT_ID,
+            clientSecret: env.MICROSOFT_CLIENT_SECRET,
+            scope: ['openid', 'profile', 'email'],
+            /**
+             * `/common/` otherwise silently reuses whichever Microsoft session
+             * the browser holds, stranding the user on an orphan Sim account
+             * under their personal address.
+             */
+            prompt: 'select_account' as const,
+            mapProfileToUser: mapMicrosoftProfileToUser,
+          },
+        }),
+    },
+    isRegistrationDisabled
+  ),
   emailVerification: {
     autoSignInAfterVerification: true,
     afterEmailVerification: async (user) => {
@@ -852,7 +883,7 @@ export const auth = betterAuth({
       ...additionalFields,
       id,
     }),
-    sendResetPassword: async ({ user, url, token }, request) => {
+    sendResetPassword: async ({ user, url }) => {
       const username = user.name || ''
 
       const html = await renderPasswordResetEmail(username, url)
@@ -884,6 +915,25 @@ export const auth = betterAuth({
   },
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
+      /** Refuse provider calls when user authentication is disabled without blocking connector OAuth. */
+      if (
+        ((ctx.path.startsWith('/oauth2/') &&
+          ctx.path !== '/oauth2/link' &&
+          !ctx.path.startsWith('/oauth2/callback/')) ||
+          ctx.path === '/.well-known/oauth-authorization-server') &&
+        isAuthDisabled
+      ) {
+        throw new APIError('NOT_FOUND', { message: 'OAuth provider is not enabled' })
+      }
+
+      /**
+       * Better Auth 1.6.27 re-enters OAuth authorization when its own session
+       * refresh sets a cookie, issuing a second code that is never returned.
+       * Suppressing sliding renewal only for this request prevents the orphan;
+       * the next ordinary session request can still renew the same session.
+       */
+      if (ctx.path === '/oauth2/authorize') await setShouldSkipSessionRefresh(true)
+
       /**
        * Restrict the unauthenticated sign-in endpoints to first-party login
        * providers. Better Auth registers every generic-OAuth integration
@@ -899,6 +949,53 @@ export const auth = betterAuth({
           throw new APIError('FORBIDDEN', {
             message:
               'This provider can only be connected from a signed-in account and cannot be used to sign in.',
+          })
+        }
+      }
+
+      /**
+       * permission-group-enforced: oauth_apps.use, cli.use — account-level
+       * authorization uses the default group; token issuance rechecks it later.
+       * Explicit denial remains available even when access has been withheld.
+       */
+      if (
+        ctx.path === '/oauth2/authorize' ||
+        (ctx.path === '/oauth2/consent' && ctx.body?.accept === true)
+      ) {
+        const session = await getSessionFromCtx(ctx)
+        const userId = session?.user?.id
+        if (userId) {
+          if (await isCapabilityWithheldForUser(userId, 'oauth_apps.use')) {
+            throw new APIError('FORBIDDEN', {
+              message: capabilityRefusal('oauth_apps.use'),
+              error: 'access_denied',
+              error_description: capabilityRefusal('oauth_apps.use'),
+            })
+          }
+          const isCli =
+            ctx.path === '/oauth2/authorize'
+              ? ctx.query?.client_id === SIM_CLI_CLIENT_ID
+              : consentRequestNamesClient(ctx.body?.oauth_query, SIM_CLI_CLIENT_ID)
+          if (isCli && (await isCapabilityWithheldForUser(userId, 'cli.use'))) {
+            throw new APIError('FORBIDDEN', {
+              message: capabilityRefusal('cli.use'),
+              error: 'access_denied',
+              error_description: capabilityRefusal('cli.use'),
+            })
+          }
+        }
+      }
+
+      if (ctx.path === '/oauth2/link' && ctx.body?.providerId === MICROSOFT_DATAVERSE_PROVIDER_ID) {
+        try {
+          assertMicrosoftDataverseOAuthLinkRequest(
+            ctx.body.callbackURL,
+            ctx.body.scopes,
+            getCanonicalScopesForProvider(MICROSOFT_DATAVERSE_PROVIDER_ID)
+          )
+        } catch (error) {
+          throw new APIError('BAD_REQUEST', {
+            message: getErrorMessage(error, 'Invalid Dataverse OAuth request'),
           })
         }
       }
@@ -971,19 +1068,134 @@ export const auth = betterAuth({
       /**
        * Personal checkout guard. The Stripe plugin's `authorizeReference`
        * only runs for organization references (it skips references equal to
-       * the session user), so duplicate-coverage enforcement for personal
-       * checkouts lives here: a member of an org with an entitled paid
-       * subscription must not buy a personal plan on top of it.
+       * the session user), so personal checkout admission lives here. It
+       * prevents both a duplicate checkout while Stripe payment is pending
+       * and a personal plan for someone already covered by an organization.
        */
       if (isBillingEnabled && ctx.path === '/subscription/upgrade') {
         const session = await getSessionFromCtx(ctx)
         const sessionUserId = session?.user?.id
-        if (sessionUserId && isPersonalCheckoutRequest(ctx.body ?? {}, sessionUserId)) {
-          await assertPersonalCheckoutAllowed(sessionUserId)
+        if (sessionUserId) {
+          const requestBody = ctx.body ?? {}
+          const referenceId = resolveCheckoutReferenceId(
+            requestBody,
+            sessionUserId,
+            getActiveOrganizationId(session)
+          )
+          if (referenceId) {
+            const checkoutAdmissionClaim = await claimCheckoutAdmission(referenceId)
+            try {
+              if (isPersonalCheckoutRequest(requestBody, sessionUserId)) {
+                await assertPersonalCheckoutAllowed(sessionUserId)
+              }
+            } catch (error) {
+              await releaseCheckoutAdmission(checkoutAdmissionClaim)
+              throw error
+            }
+            return { context: { billingCheckoutAdmissionClaim: checkoutAdmissionClaim } }
+          }
         }
       }
 
       return
+    }),
+    after: createAuthMiddleware(async (ctx) => {
+      if (isBillingEnabled && ctx.path === '/subscription/upgrade') {
+        const checkoutContext = ctx as typeof ctx & {
+          billingCheckoutAdmissionClaim?: CheckoutAdmissionClaim
+        }
+        if (checkoutContext.billingCheckoutAdmissionClaim) {
+          await releaseCheckoutAdmission(checkoutContext.billingCheckoutAdmissionClaim)
+        }
+      }
+
+      if (!isSsoEnabled) return
+      const oauthState = ctx.path === '/sso/callback' ? await getOAuthState() : null
+      const providerId = resolveSsoCallbackProviderId({
+        path: ctx.path,
+        routeProviderId: ctx.params?.providerId,
+        stateProviderId: oauthState?.ssoProviderId,
+      })
+      if (!providerId) return
+
+      const newSession = ctx.context.newSession
+      if (!newSession?.session || !newSession.user) return
+
+      let admissionErrorCode: string | null = null
+      try {
+        const admission = await admitSsoUser.execute({
+          principal: {
+            kind: 'session',
+            userId: newSession.user.id,
+            sessionId: newSession.session.id,
+          },
+          input: { providerId },
+        })
+
+        if (admission.kind === 'denied') {
+          admissionErrorCode =
+            admission.reason === 'seats-unavailable'
+              ? 'sso_no_seats'
+              : admission.reason === 'organization-conflict'
+                ? 'sso_account_conflict'
+                : 'sso_provisioning_failed'
+          logger.warn('Rejected SSO organization admission', {
+            userId: newSession.user.id,
+            providerId,
+            reason: admission.reason,
+          })
+        } else if (admission.kind === 'provisioned' || admission.kind === 'already-member') {
+          const expiresAt = await clampExpiryForSession(
+            newSession.session,
+            admission.organizationId
+          )
+          const updatedSession = await ctx.context.internalAdapter.updateSession(
+            newSession.session.token,
+            {
+              activeOrganizationId: admission.organizationId,
+              ...(expiresAt ? { expiresAt } : {}),
+            }
+          )
+          if (!updatedSession) {
+            admissionErrorCode = 'sso_provisioning_failed'
+            logger.error('Failed to activate organization on the new SSO session', {
+              userId: newSession.user.id,
+              providerId,
+              organizationId: admission.organizationId,
+            })
+          } else {
+            deleteSessionCookie(ctx, true)
+            await setSessionCookie(ctx, {
+              session: updatedSession,
+              user: newSession.user,
+            })
+          }
+        }
+      } catch (error) {
+        admissionErrorCode = 'sso_provisioning_failed'
+        logger.error('SSO organization admission failed', {
+          userId: newSession.user.id,
+          providerId,
+          error,
+        })
+      }
+
+      if (!admissionErrorCode) return
+
+      try {
+        await ctx.context.internalAdapter.deleteSession(newSession.session.token)
+      } catch (error) {
+        logger.error('Failed to delete rejected SSO session', {
+          userId: newSession.user.id,
+          providerId,
+          sessionId: newSession.session.id,
+          error,
+        })
+      }
+      deleteSessionCookie(ctx)
+      throw ctx.redirect(
+        buildSsoAdmissionErrorUrl(admissionErrorCode, ctx.context.responseHeaders?.get('location'))
+      )
     }),
   },
   plugins: [
@@ -998,7 +1210,17 @@ export const auth = betterAuth({
       : []),
     admin(),
     oneTimeToken({
-      expiresIn: 24 * 60, // 24 hours in minutes (better-auth's expiresIn unit)
+      /**
+       * Minutes, and deliberately close to zero. A one-time token redeems through
+       * `/one-time-token/verify`, which answers with a session cookie for the session the
+       * token points at — so an unredeemed token is a bearer credential for that session
+       * until it expires, and its lifetime is the only thing bounding that. Nothing here
+       * needs a long one: the socket handshake mints a fresh token inside the Socket.IO
+       * `auth` callback and sends it in that same attempt, and the desktop handoff writes its
+       * own row with its own expiry, which `/one-time-token/verify` reads off the row rather
+       * than from this option (see lib/auth/desktop-handoff.ts).
+       */
+      expiresIn: 2,
     }),
     customSession(async ({ user, session }) => ({
       user,
@@ -1028,7 +1250,7 @@ export const auth = betterAuth({
             )
           }
 
-          const html = await renderOTPEmail(data.otp, data.email, data.type)
+          const html = await renderOTPEmail(data.otp, data.type)
 
           const result = await sendEmail({
             to: data.email,
@@ -1078,6 +1300,73 @@ export const auth = betterAuth({
       config: buildConnectorProviders(),
     }),
     /**
+     * Sim as an OAuth 2.0 authorization server (auth-code + PKCE, refresh
+     * rotation). Tokens are opaque and stored hashed, so revoking an app in
+     * settings takes effect on the next request. `sim logout` deletes the
+     * stable family for that login, including access tokens issued before an
+     * earlier rotation. This is an OAuth API-authorization surface, not an
+     * OpenID Connect identity provider; `disableJwtPlugin` keeps JWT/JWKS and
+     * ID-token semantics out of the advertised protocol. Public registration
+     * serves MCP clients: a registered client may request the Sim API and
+     * Search families, every grant is consented to, and a grant bound to an MCP
+     * resource is narrowed to the family that resource allows (see
+     * `oauth-resource.ts`). First-party clients are operator-created.
+     */
+    ...(!isAuthDisabled
+      ? [
+          oauthProvider({
+            loginPage: '/oauth/sign-in',
+            consentPage: '/oauth/consent',
+            scopes: [...OAUTH_SCOPES],
+            grantTypes: ['authorization_code', 'refresh_token'],
+            /**
+             * Lets the consent page resolve the display-safe client metadata
+             * through the plugin's signed-query endpoint. The endpoint remains
+             * unusable for handwritten or expired authorization URLs because
+             * Better Auth verifies `oauth_query` before reading the client.
+             */
+            allowPublicClientPrelogin: true,
+            allowDynamicClientRegistration: true,
+            allowUnauthenticatedClientRegistration: true,
+            clientRegistrationAllowedScopes: [...OAUTH_PUBLIC_REGISTRATION_SCOPES],
+            clientRegistrationDefaultScopes: [...OAUTH_PUBLIC_REGISTRATION_SCOPES],
+            customTokenResponseFields: bindOAuthIssuedResource,
+            /**
+             * Client-management endpoints remain operator-only. Public registration
+             * has its own bounded Search-only route and cannot inherit a browser
+             * session or request management privileges.
+             *
+             * The consent page's client lookup is unaffected:
+             * `public-client-prelogin` does not consult this hook and instead
+             * requires the signed authorization query.
+             */
+            clientPrivileges: () => false,
+            /**
+             * Opaque access tokens let Settings revoke every token for an app
+             * on the next request and let `sim logout` revoke one independent
+             * login family, including access tokens from earlier rotations. A
+             * JWT would remain valid until it lapsed regardless of the delete.
+             *
+             * Better Auth requires reversibly encrypted client secrets in its
+             * disabled-JWT mode; selecting `hashed` is refused at provider
+             * construction. `storeClientSecret` therefore stays at the
+             * plugin's `encrypted` default, under `BETTER_AUTH_SECRET`, and
+             * `create-oauth-client.ts` writes secrets the same way.
+             */
+            disableJwtPlugin: true,
+            storeTokens: { hash: hashOAuthToken },
+            prefix: {
+              opaqueAccessToken: OAUTH_ACCESS_TOKEN_PREFIX,
+              refreshToken: OAUTH_REFRESH_TOKEN_PREFIX,
+            },
+            accessTokenExpiresIn: OAUTH_ACCESS_TOKEN_TTL_SECONDS,
+            refreshTokenExpiresIn: OAUTH_REFRESH_TOKEN_TTL_SECONDS,
+            codeExpiresIn: OAUTH_CODE_TTL_SECONDS,
+          }),
+          oauthResourcePlugin(),
+        ]
+      : []),
+    /**
      * Include SSO plugin when enabled. Resolved through `isSsoEnabled` rather
      * than the raw env var so the `ENTERPRISE_ENABLED` suite switch registers
      * the plugin too — reading `env.SSO_ENABLED` here would leave the settings
@@ -1088,13 +1377,48 @@ export const auth = betterAuth({
       ? [
           sso({
             /**
-             * Honor the IdP's verified-email claim. Without this the SSO plugin
-             * forces `emailVerified: false`, blocking automatic linking of an SSO
-             * login to an existing same-email account (Better Auth "account not linked").
+             * MUST stay false. Better Auth's link gate is
+             * `!isTrustedProvider && !userInfo.emailVerified`, so a true
+             * `email_verified` claim substitutes for the domain binding
+             * entirely: an IdP could assert any address — including one from a
+             * domain it does not own — and auto-link into that user's existing
+             * account. Since a provider row can be registered by any
+             * organization owner or admin (or by an operator via the register
+             * script), trusting the claim makes every account reachable from
+             * any tenant's IdP.
+             *
+             * Turning it on only ever set `emailVerified` on the local row; it
+             * was never what made linking work. Entra omits the claim, and SAML
+             * ignores it without an explicit `mapping.emailVerified` that the
+             * register contract does not accept — so SSO users are created
+             * unverified either way, and `domainVerification` below is the sole
+             * linking trust source, which is what `trustProviderByName: false`
+             * already assumes.
              */
-            trustEmailVerified: true,
+            trustEmailVerified: false,
+            /**
+             * Marks a provider authoritative for its domain, which is what lets an
+             * SSO sign-in auto-link to an existing same-email account. Without it
+             * `isTrustedProvider` is always false and every user who already had a
+             * Sim account is stranded on "account not linked".
+             *
+             * Sim does not use Better Auth's DNS challenge endpoints: ownership is
+             * proven by the `sso_domain` flow before registration, and the register
+             * route mirrors that decision onto this flag.
+             *
+             * With `trustEmailVerified` off this is the only path to linking, and
+             * it is domain-scoped: `isTrustedProvider` additionally requires
+             * `validateEmailDomain(userInfo.email, provider.domain)`, so a
+             * provider can only ever claim identities inside the domain it proved.
+             */
+            domainVerification: { enabled: true },
             organizationProvisioning: {
-              disabled: false,
+              /**
+               * Better Auth writes member rows directly and bypasses Sim's seat,
+               * billing, session-policy, and audit invariants. Admission is owned
+               * by the application use case in the callback hook above.
+               */
+              disabled: true,
               defaultRole: 'member',
             },
           }),
@@ -1325,16 +1649,6 @@ export const auth = betterAuth({
                   throw orgError
                 }
 
-                try {
-                  await syncSubscriptionUsageLimits(resolvedSubscription)
-                } catch (error) {
-                  logger.error('[onSubscriptionUpdate] Failed to sync usage limits', {
-                    subscriptionId: resolvedSubscription.id,
-                    referenceId: resolvedSubscription.referenceId,
-                    error,
-                  })
-                }
-
                 if (isTeam(effectivePlanForTeamFeatures)) {
                   try {
                     const quantity = stripeSubscription.items?.data?.[0]?.quantity || 1
@@ -1410,13 +1724,10 @@ export const auth = betterAuth({
                     await handleInvoicePaymentFailed(event)
                     break
                   }
-                  case 'invoice.finalized': {
-                    await handleInvoiceFinalized(event)
-                    break
-                  }
                   case 'customer.subscription.created':
                   case 'customer.subscription.updated': {
                     await handleManualEnterpriseSubscription(event)
+                    await handleSubscriptionUsageUpdate(event)
                     break
                   }
                   case 'checkout.session.expired': {
@@ -1479,13 +1790,25 @@ export const auth = betterAuth({
 async function getSessionImpl() {
   if (isAuthDisabled) {
     await ensureAnonymousUserExists()
-    return createAnonymousSession()
+    return recordSessionAuth(createAnonymousSession())
   }
 
   const hdrs = await headers()
-  return await auth.api.getSession({
-    headers: hdrs,
-  })
+  return recordSessionAuth(
+    await auth.api.getSession({
+      headers: hdrs,
+    })
+  )
+}
+
+/**
+ * Records a resolved session as the request's auth kind. Stamped here, where
+ * every session is resolved, so the many routes that authenticate by calling
+ * `getSession` directly are attributed without each one remembering to.
+ */
+function recordSessionAuth<T extends { user?: { id?: string } } | null>(session: T): T {
+  if (session?.user?.id) setRequestAuth({ kind: 'session' }, { preserveExisting: true })
+  return session
 }
 
 export const getSession = cache(getSessionImpl)

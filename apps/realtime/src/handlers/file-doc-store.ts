@@ -18,10 +18,12 @@
  *   client receives each update exactly once, from its own task's local broadcast — no adapter
  *   amplification, and every task's doc stays converged. (Awareness/presence stay on the adapter: they
  *   are ephemeral and need no convergence or replay.)
- * - {@link attachRoom} does a synchronous catch-up read from the head of the stream when a task first
- *   opens a file, so a late-joining task (the normal case under autoscaling) loads the current shared
- *   state before its first client syncs. Catch-up + tail are seamless: the tailer resumes from the
- *   exact id catch-up stopped at.
+ * - {@link attachRoom} reads the stream from the head when a task first opens a file, and the relay
+ *   AWAITS it before attaching a client, so a late-joining task (the normal case under autoscaling)
+ *   holds the current shared state before its first client syncs — a client must never watch the
+ *   catch-up land entry by entry, which is the document's edit history replaying on screen. Catch-up +
+ *   tail are seamless: the tailer resumes from the exact id catch-up stopped at, and {@link catchUp}
+ *   can re-run at any time for a caller that must converge without waiting on the tailer.
  * - The one-time seed is written via the atomic {@link seedIfEmpty} (append-iff-empty in one Redis
  *   step), so exactly one task ever writes the seed cluster-wide (the fix for split-brain) — even if two
  *   tasks race. {@link shouldSeed} is a Redis lock + empty-stream check layered on top ONLY as an
@@ -32,8 +34,10 @@
  *
  * @module
  */
+
+import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
-import { FILE_DOC_SEED, FILE_DOC_TIMEOUTS } from '@sim/realtime-protocol/file-doc'
+import { FILE_DOC_LIMITS, FILE_DOC_SEED, FILE_DOC_TIMEOUTS } from '@sim/realtime-protocol/file-doc'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
@@ -59,7 +63,38 @@ const RELEASE_LOCK_SCRIPT =
  * Returns 1 if THIS call wrote the seed, 0 if the stream already had content.
  */
 const SEED_IF_EMPTY_SCRIPT =
-  "if redis.call('xlen', KEYS[1]) == 0 then redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2]); return 1 else return 0 end"
+  "local version = redis.call('get', KEYS[3]); if version and tonumber(version) > tonumber(ARGV[6]) then return 0 end; if redis.call('xlen', KEYS[1]) == 0 then redis.call('set', KEYS[2], ARGV[3], 'EX', ARGV[4]); if ARGV[6] ~= '0' then redis.call('set', KEYS[3], ARGV[6], 'EX', ARGV[4]) end; redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2], ARGV[5], ARGV[3]); redis.call('expire', KEYS[1], ARGV[4]); redis.call('expire', KEYS[4], ARGV[4]); return 1 else return 0 end"
+
+/** Orders a durable replacement with seeds and merges, and fences publishers in the same transaction. */
+const INVALIDATE_DOCUMENT_SCRIPT =
+  "local invalidated = redis.call('get', KEYS[6]); if invalidated and tonumber(invalidated) >= tonumber(ARGV[1]) then return false end; local version = redis.call('get', KEYS[3]); if version and tonumber(version) > tonumber(ARGV[1]) then return false end; local generation = redis.call('get', KEYS[2]) or ''; if version == ARGV[1] and generation == ARGV[3] then return false end; redis.call('set', KEYS[2], ARGV[3], 'EX', ARGV[2]); redis.call('set', KEYS[3], ARGV[1], 'EX', ARGV[2]); redis.call('set', KEYS[6], ARGV[1], 'EX', ARGV[2]); redis.call('del', KEYS[1], KEYS[4], KEYS[5]); return generation"
+
+/** Upgrades an existing pre-negotiation stream without ever resurrecting a missing stream. */
+const ADOPT_GENERATION_SCRIPT =
+  "local generation = redis.call('get', KEYS[2]); if generation then return generation end; if redis.call('xlen', KEYS[1]) == 0 then return false end; redis.call('set', KEYS[2], ARGV[1], 'EX', ARGV[2]); return ARGV[1]"
+
+/** Atomically fence XADD so stale rooms cannot recreate a replaced or expired stream. Returns false when fenced. */
+const APPEND_UPDATE_SCRIPT =
+  "local generation = redis.call('get', KEYS[2]) or ''; if generation ~= ARGV[4] or redis.call('exists', KEYS[1]) == 0 then return false end; for _, key in ipairs(KEYS) do redis.call('expire', key, ARGV[5]) end; if ARGV[3] ~= '' then return redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2], ARGV[3], '1') else return redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2]) end"
+
+/** Renew stream metadata atomically, so an invalidation watermark cannot expire ahead of its stream. */
+const REFRESH_DOCUMENT_TTLS_SCRIPT =
+  "for _, key in ipairs(KEYS) do redis.call('expire', key, ARGV[1]) end; return 1"
+
+/**
+ * Append and trim under one generation fence: invalidation can recreate the stream with lower IDs
+ * within the same millisecond, so a separate trim could delete the replacement's seed and edits.
+ * Carry the seed's generation forward and keep every entry at or beyond the captured prefix barrier.
+ */
+const APPEND_SNAPSHOT_SCRIPT =
+  "local generation = redis.call('get', KEYS[2]) or ''; if generation ~= ARGV[4] or redis.call('exists', KEYS[1]) == 0 then return false end; local id = redis.call('xadd', KEYS[1], '*', ARGV[1], ARGV[2], ARGV[3], '1', ARGV[5], ARGV[4], ARGV[7], '1'); redis.call('xtrim', KEYS[1], 'MINID', ARGV[6]); return id"
+
+/**
+ * Atomically deduplicate and append an acknowledged client update. Socket acknowledgements can be
+ * lost, so a retry with the same id must not inflate the stream or its compaction counters.
+ */
+const APPEND_CLIENT_UPDATE_SCRIPT =
+  "local generation = redis.call('get', KEYS[3]) or ''; if generation ~= ARGV[6] or redis.call('exists', KEYS[1]) == 0 then return -1 end; redis.call('expire', KEYS[4], ARGV[5]); if redis.call('zscore', KEYS[2], ARGV[1]) then redis.call('expire', KEYS[1], ARGV[5]); redis.call('expire', KEYS[3], ARGV[5]); return 0 end; local id = redis.call('xadd', KEYS[1], '*', ARGV[2], ARGV[3]); local score = string.match(id, '^(%d+)'); redis.call('zadd', KEYS[2], score, ARGV[1]); local excess = redis.call('zcard', KEYS[2]) - tonumber(ARGV[4]); if excess > 0 then redis.call('zpopmin', KEYS[2], excess) end; if redis.call('ttl', KEYS[2]) < 0 then redis.call('expire', KEYS[2], ARGV[5]) end; redis.call('expire', KEYS[1], ARGV[5]); redis.call('expire', KEYS[3], ARGV[5]); return 1"
 
 /**
  * Monotonic set of the synced-version token: overwrite ONLY when the new value is greater than the
@@ -71,7 +106,7 @@ const SEED_IF_EMPTY_SCRIPT =
  * comfortably within a Lua double, so the numeric compare is exact.
  */
 const SET_VERSION_IF_NEWER_SCRIPT =
-  "local c = redis.call('get', KEYS[1]); if c == false or tonumber(c) < tonumber(ARGV[1]) then redis.call('set', KEYS[1], ARGV[1], 'EX', ARGV[2]) else redis.call('expire', KEYS[1], ARGV[2]) end; return 1"
+  "local generation = redis.call('get', KEYS[2]) or ''; if generation ~= ARGV[3] then return 0 end; local c = redis.call('get', KEYS[1]); if c == false or tonumber(c) < tonumber(ARGV[1]) then redis.call('set', KEYS[1], ARGV[1], 'EX', ARGV[2]) else redis.call('expire', KEYS[1], ARGV[2]) end; return 1"
 
 /**
  * The transaction origin the store stamps on updates it applies from the stream. The relay's
@@ -101,6 +136,10 @@ export const REDIS_SNAPSHOT_ORIGIN = Symbol('file-doc-redis-snapshot')
 export const REDIS_AGENT_ORIGIN = Symbol('file-doc-redis-agent')
 
 const STREAM_PREFIX = 'filedoc:stream:'
+const CLIENT_UPDATE_PREFIX = 'filedoc:updates:'
+const GENERATION_PREFIX = 'filedoc:generation:'
+/** Retries must remain idempotent after a seed replaces the generation tombstone. */
+const INVALIDATION_VERSION_PREFIX = 'filedoc:invalidatedver:'
 /** Cluster-wide "durable version the live doc is synced to" (the persist If-Match token). */
 const SYNC_VERSION_PREFIX = 'filedoc:syncver:'
 const SEED_LOCK_PREFIX = 'filedoc:seedlock:'
@@ -121,6 +160,11 @@ const SNAPSHOT_FIELD = 's'
 /** Marks a stream entry as an AGENT-STREAMED preview frame, so the tailer applies it with
  * {@link REDIS_AGENT_ORIGIN} (never marks the doc edited). Present only on agent-frame entries. */
 const AGENT_FIELD = 'a'
+/** Distinguishes compacted agent snapshots from ordinary agent deltas, including older writers. */
+const COMPACTION_FIELD = 'c'
+/** Identifies a seed's document generation, allowing old rooms to reject every later update. */
+const GENERATION_FIELD = 'g'
+const INVALIDATED_GENERATION = '__invalidated__'
 
 /** Sentinel token a DISABLED store returns from a lock acquire, so single-replica callers proceed
  * without special-casing; {@link FileDocStore.releaseLock} treats it as a no-op. Not a real UUID, so it
@@ -134,8 +178,18 @@ const READ_BLOCK_MS = 1_000
 /** Idle poll cadence when NO room is open on this task, so a freshly-attached room is picked up fast
  * without busy-spinning an empty task. */
 const IDLE_POLL_MS = 250
-/** Max entries drained per stream per read. */
-const READ_COUNT = 200
+/** Max entries drained per stream per read, bounding one Redis response even for maximum-size edits. */
+const READ_COUNT = 1
+/** Maximum streams passed to one XREAD, bounding response memory independently of open-room count. */
+const READ_STREAM_BATCH_SIZE = 4
+/** Replay streams incrementally instead of materializing their complete history in one response. */
+const REPLAY_PAGE_COUNT = 4
+/** Compaction normally holds a stream near 400 entries; fail safely if that invariant is badly broken. */
+const REPLAY_MAX_ENTRIES = 2_000
+/** Base64 bytes accepted during one replay, including a full snapshot plus a bounded edit backlog. */
+const REPLAY_MAX_ENCODED_BYTES = FILE_DOC_LIMITS.updateBytes * 6
+/** Compact before a handful of individually valid large updates can exhaust the replay byte budget. */
+const COMPACT_ENCODED_BYTES = 8 * 1024 * 1024
 /** Compact a stream once it exceeds this many entries (snapshot + trim). */
 const COMPACT_THRESHOLD = 400
 /** Check whether compaction is due only every Nth local publish, to avoid an XLEN per keystroke. */
@@ -143,6 +197,8 @@ const COMPACT_CHECK_EVERY = 64
 /** Compaction critical section (snapshot + xAdd + xTrim) is fast; a generous TTL covers a slow Redis
  * round-trip without risking expiry mid-compact. Released via compare-and-delete regardless. */
 const COMPACT_LOCK_TTL_MS = 10_000
+/** Avoid repeated snapshot appends when a failed compaction leaves the byte trigger armed. */
+const COMPACT_RETRY_COOLDOWN_MS = 30_000
 /** Retry a failed stream append this many times before giving up, so a transient Redis blip doesn't
  * silently drop an edit from the shared log (which no peer would then ever see). */
 const PUBLISH_MAX_RETRIES = 3
@@ -158,8 +214,49 @@ const SEED_LOCK_TTL_MS = FILE_DOC_TIMEOUTS.seedRequestMs + 4_000
 const STREAM_TTL_SEC = 600
 /** Refresh every occupied stream's TTL on this cadence, so a live doc's stream never expires. */
 const HEARTBEAT_MS = 60_000
+/** Cap on the delay between reconnection attempts — the strategy retries indefinitely (see `init`). */
+const RECONNECT_MAX_DELAY_MS = 3_000
+/** Cap on the reader's own retry backoff after a failed read. */
+const READER_RETRY_MAX_MS = 10_000
+/** After the first failure of a streak, log one reader failure in this many. */
+const READER_ERROR_LOG_EVERY = 20
+const CLIENT_UPDATE_DEDUPE_CAPACITY = 16_384
 
 const streamKey = (name: string) => `${STREAM_PREFIX}${name}`
+const generationKey = (name: string) => `${GENERATION_PREFIX}${name}`
+const documentKeys = (name: string) => [
+  streamKey(name),
+  generationKey(name),
+  `${SYNC_VERSION_PREFIX}${name}`,
+  `${INVALIDATION_VERSION_PREFIX}${name}`,
+]
+
+export class FileDocInvalidatedError extends Error {
+  constructor() {
+    super('The live file document was replaced by a newer durable version')
+    this.name = 'FileDocInvalidatedError'
+  }
+}
+
+function assertUpdateWithinLimit(update: Uint8Array): void {
+  if (update.byteLength === 0 || update.byteLength > FILE_DOC_LIMITS.updateBytes) {
+    throw new Error(`File document update is outside the ${FILE_DOC_LIMITS.updateBytes}-byte limit`)
+  }
+}
+
+function generationOfSeed(update: Uint8Array): string {
+  const doc = new Y.Doc()
+  try {
+    Y.applyUpdate(doc, update)
+    const docId = doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.docIdKey)
+    if (typeof docId !== 'string' || docId.length === 0) {
+      throw new Error('File document seed is missing its accepted document identity')
+    }
+    return docId
+  } finally {
+    doc.destroy()
+  }
+}
 
 /**
  * Decode one stream entry's base64 Yjs update and apply it to `doc`. A malformed entry is logged and
@@ -185,6 +282,18 @@ function applyEntryToDoc(
   }
 }
 
+/**
+ * Whether stream id `id` sorts after `than`. A Redis stream id is `<ms>-<seq>`, so a lexicographic
+ * compare is wrong the moment the millisecond part changes digit length (`'9999-0' > '10000-0'`);
+ * compare the two parts numerically instead. The initial `'0'` (nothing applied) has no `-seq` part,
+ * which reads as sequence 0 — before every real entry.
+ */
+function isAfterStreamId(id: string, than: string): boolean {
+  const [ms, seq = '0'] = id.split('-')
+  const [thanMs, thanSeq = '0'] = than.split('-')
+  return Number(ms) === Number(thanMs) ? Number(seq) > Number(thanSeq) : Number(ms) > Number(thanMs)
+}
+
 /** Whether a doc carries the seed flag (mirrors the relay's `isDocSeeded`), so the store can tell the
  * one-time seed transition from a real post-seed edit without re-implementing the check divergently. */
 function isDocSeeded(doc: Y.Doc): boolean {
@@ -198,6 +307,16 @@ interface StoreRoom {
   lastId: string
   /** Local publish count, to pace compaction checks. */
   publishes: number
+  /** Non-snapshot bytes observed since this replica last compacted. */
+  uncompactedDeltaBytes: number
+  /** MINID retains the last applied entry; its bytes cannot trigger a fold until the cursor advances. */
+  lastDeltaBytes: number
+  compactRetryAfter: number
+  compacting: boolean
+  /** Document generation read from the seed entry; every later append is fenced against it. */
+  generation: string | null
+  /** A newer seed was observed; this old room must ignore all entries until the relay replaces it. */
+  generationInvalidated: boolean
   /** Set once the doc has been observed seeded, so the seed transition itself is never mistaken for an
    * edit (mirrors the relay's `seededObserved`). */
   seededObserved: boolean
@@ -219,6 +338,7 @@ export class FileDocStore {
   /** Dedicated connection for blocking XREAD (a blocking command monopolizes its connection). */
   private read: RedisClientType | null = null
   private readonly rooms = new Map<string, StoreRoom>()
+  private readonly localInvalidations = new Map<string, { version: number; expiresAt: number }>()
   private running = false
   private heartbeat: ReturnType<typeof setInterval> | null = null
 
@@ -232,10 +352,20 @@ export class FileDocStore {
     const options = {
       url: this.redisUrl,
       socket: {
-        reconnectStrategy: (retries: number) => {
-          if (retries > 10) return new Error('FileDocStore Redis reconnection failed')
-          return Math.min(retries * 100, 3000)
-        },
+        /**
+         * Never stop reconnecting. Returning an `Error` here tells node-redis to give up and CLOSE the
+         * client — and a closed client rejects every command with "The client is closed" for the rest of
+         * the process's life. So an outage longer than the retry budget does not degrade this task, it
+         * takes it out silently: its rooms stop receiving other tasks' updates, its own edits stop
+         * reaching the shared stream, seeds and locks fail, and the only symptom is a warning per retry.
+         * This process holds live documents whose sole convergence path is this connection, so a
+         * connection it can rebuild is always worth rebuilding.
+         */
+        reconnectStrategy: (retries: number) =>
+          backoffWithJitter(retries + 1, null, {
+            baseMs: 100,
+            maxMs: RECONNECT_MAX_DELAY_MS,
+          }),
       },
     }
     this.write = createClient(options)
@@ -257,37 +387,78 @@ export class FileDocStore {
     await Promise.all([this.write?.quit().catch(() => {}), this.read?.quit().catch(() => {})])
     this.write = null
     this.read = null
+    this.rooms.clear()
+    this.localInvalidations.clear()
   }
 
   /**
-   * Register a locally-opened room and load the shared state into its doc: read the whole stream from
-   * the head, apply every entry (origin {@link REDIS_ORIGIN}), and remember the last id so the tailer
-   * resumes exactly after it. A brand-new file has an empty stream and loads nothing (it is seeded
-   * shortly after, via {@link shouldSeed}). No-op when disabled.
+   * Register a locally-opened room and load the shared state into its doc ({@link catchUp}). A
+   * brand-new file has an empty stream and loads nothing (it is seeded shortly after, via
+   * {@link shouldSeed}). Single-replica rooms are tracked only for invalidation lifecycle.
    */
   async attachRoom(name: string, doc: Y.Doc): Promise<void> {
-    if (!this.enabled || !this.write) return
+    if (this.enabled && !this.write) throw new Error('FileDocStore is not initialized')
     // Register BEFORE the async read so a concurrent publish/tailer for this room can't be missed —
     // the tailer resumes from `lastId`, which the catch-up advances.
     const room: StoreRoom = {
       doc,
       lastId: '0',
       publishes: 0,
+      uncompactedDeltaBytes: 0,
+      lastDeltaBytes: 0,
+      compactRetryAfter: 0,
+      compacting: false,
+      generation: null,
+      generationInvalidated: false,
       seededObserved: false,
       realEdited: false,
     }
     this.rooms.set(name, room)
+    if (!this.enabled) return
     try {
-      const entries = await this.write.xRange(streamKey(name), '-', '+')
-      for (const entry of entries) {
-        // The room can be detached + its doc destroyed while catch-up is in flight (a fast open→close);
-        // stop touching it the moment that happens.
-        if (this.rooms.get(name) !== room) return
-        this.applyEntry(room, entry.id, entry.message)
-      }
-      await this.write.expire(streamKey(name), STREAM_TTL_SEC)
+      await this.catchUp(name)
     } catch (error) {
-      logger.warn(`FileDocStore catch-up failed for ${name}`, { error: getErrorMessage(error) })
+      if (this.rooms.get(name) === room) this.rooms.delete(name)
+      throw error
+    }
+  }
+
+  /**
+   * Completes shared replay before applying entries, so joins never receive a partial document.
+   * Repeated calls skip integrated entries; detached rooms and disabled stores are ignored.
+   */
+  async catchUp(name: string): Promise<void> {
+    if (!this.enabled) return
+    if (!this.write) throw new Error('FileDocStore is not initialized')
+    const room = this.rooms.get(name)
+    if (!room) return
+    try {
+      const entries: Array<{ id: string; message: Record<string, string> }> = []
+      await this.replayEntries(name, room.lastId, (entry) => {
+        // The room can be detached + its doc destroyed while the read is in flight (a fast
+        // open→close); stop touching it the moment that happens.
+        if (this.rooms.get(name) !== room) return false
+        entries.push(entry)
+        return true
+      })
+      if (this.rooms.get(name) !== room) return
+      for (const entry of entries) this.applyEntry(name, room, entry.id, entry.message)
+      if (room.generationInvalidated) throw new FileDocInvalidatedError()
+      const docId = room.doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.docIdKey)
+      if (room.generation === null && typeof docId === 'string') {
+        const adopted = await this.write.eval(ADOPT_GENERATION_SCRIPT, {
+          keys: [streamKey(name), generationKey(name)],
+          arguments: [docId, String(STREAM_TTL_SEC)],
+        })
+        if (adopted !== docId) throw new FileDocInvalidatedError()
+        room.generation = docId
+      }
+      await this.refreshDocumentTtls(name)
+    } catch (error) {
+      logger.warn(`FileDocStore catch-up failed for ${name}`, {
+        error: getErrorMessage(error),
+      })
+      throw error
     }
   }
 
@@ -299,11 +470,17 @@ export class FileDocStore {
   /**
    * Append a locally-applied update to the shared stream so every task converges, AWAITING the write
    * and retrying a transient failure ({@link PUBLISH_MAX_RETRIES}) so a Redis blip can't silently drop
-   * an edit from the shared log. Only the `xAdd` is retried; the TTL refresh + compaction check are
-   * post-write best-effort and never re-trigger the append. Throws if the append ultimately fails.
+   * an edit from the shared log. The append and metadata TTL renewal are atomic; post-write
+   * compaction never re-triggers the append. Throws if the append ultimately fails.
    */
-  private async appendUpdate(name: string, update: Uint8Array, agent = false): Promise<void> {
+  private async appendUpdate(
+    name: string,
+    update: Uint8Array,
+    agent = false,
+    expectedGeneration = this.rooms.get(name)?.generation ?? ''
+  ): Promise<void> {
     if (!this.write) return
+    assertUpdateWithinLimit(update)
     // Latch realEdited SYNCHRONOUSLY — before the first await — for a real (non-agent) publish. The edit
     // already sits in room.doc (applied in doc.on('update') before publish was called), so if this set
     // were deferred past the xAdd/expire awaits a CONCURRENT agent-frame-triggered maybeCompact could read
@@ -316,15 +493,21 @@ export class FileDocStore {
       if (editedRoom) editedRoom.realEdited = true
     }
     const encoded = Buffer.from(update).toString('base64')
-    const fields: Record<string, string> = { [UPDATE_FIELD]: encoded }
-    if (agent) fields[AGENT_FIELD] = '1'
+    const marker = agent ? AGENT_FIELD : ''
     for (let attempt = 0; attempt <= PUBLISH_MAX_RETRIES; attempt++) {
       try {
-        await this.write.xAdd(streamKey(name), '*', fields)
+        const id = await this.write.eval(APPEND_UPDATE_SCRIPT, {
+          keys: documentKeys(name),
+          arguments: [UPDATE_FIELD, encoded, marker, expectedGeneration, String(STREAM_TTL_SEC)],
+        })
+        if (id === null || id === false) throw new FileDocInvalidatedError()
         break
       } catch (error) {
+        if (error instanceof FileDocInvalidatedError) throw error
         if (attempt === PUBLISH_MAX_RETRIES) {
-          logger.error(`FileDocStore append failed for ${name}`, { error: getErrorMessage(error) })
+          logger.error(`FileDocStore append failed for ${name}`, {
+            error: getErrorMessage(error),
+          })
           throw error
         }
         // Snappy backoff — a stream append is a fast op; a transient blip clears in tens of ms.
@@ -332,9 +515,16 @@ export class FileDocStore {
         await sleep(backoffWithJitter(attempt + 1, null, { baseMs: 50, maxMs: 500 }))
       }
     }
-    await this.write.expire(streamKey(name), STREAM_TTL_SEC).catch(() => {})
     const room = this.rooms.get(name)
-    if (room && ++room.publishes % COMPACT_CHECK_EVERY === 0) void this.maybeCompact(name)
+    if (room) {
+      room.publishes += 1
+      if (
+        room.uncompactedDeltaBytes - room.lastDeltaBytes >= COMPACT_ENCODED_BYTES ||
+        room.publishes % COMPACT_CHECK_EVERY === 0
+      ) {
+        void this.maybeCompact(name)
+      }
+    }
   }
 
   /**
@@ -344,7 +534,11 @@ export class FileDocStore {
    */
   publish(name: string, update: Uint8Array, agent = false): void {
     if (!this.enabled || !this.write) return
-    void this.appendUpdate(name, update, agent).catch(() => {}) // already logged inside appendUpdate
+    void this.appendUpdate(name, update, agent).catch((error) => {
+      logger.warn(`FileDocStore rejected a non-durable legacy update for ${name}`, {
+        error: getErrorMessage(error),
+      })
+    })
   }
 
   /**
@@ -352,9 +546,80 @@ export class FileDocStore {
    * — the copilot merge, so the cross-task merge lock is not released before the diff is committed
    * (else the next task would diff a stale base). Throws on ultimate failure. No-op when disabled.
    */
-  async publishAndWait(name: string, update: Uint8Array): Promise<void> {
-    if (!this.enabled || !this.write) return
-    await this.appendUpdate(name, update)
+  async publishAndWait(
+    name: string,
+    update: Uint8Array,
+    expectedGeneration = this.rooms.get(name)?.generation ?? ''
+  ): Promise<void> {
+    if (!this.enabled) return
+    if (!this.write) throw new Error('FileDocStore is not initialized')
+    await this.appendUpdate(name, update, false, expectedGeneration)
+  }
+
+  /**
+   * Waits for Redis acceptance before the relay acknowledges the client. Retries are deduplicated
+   * within the bounded window; clients retain their journal until the acknowledgement arrives.
+   */
+  async publishClientUpdateAndWait(
+    name: string,
+    updateId: string,
+    update: Uint8Array,
+    expectedGeneration = this.rooms.get(name)?.generation ?? ''
+  ): Promise<void> {
+    if (!this.enabled) return
+    if (!this.write) throw new Error('FileDocStore is not initialized')
+    assertUpdateWithinLimit(update)
+    const encoded = Buffer.from(update).toString('base64')
+    const dedupeMember = createHash('sha256')
+      .update(String(Buffer.byteLength(updateId)))
+      .update(':')
+      .update(updateId)
+      .update(update)
+      .digest('hex')
+    const room = this.rooms.get(name)
+
+    for (let attempt = 0; attempt <= PUBLISH_MAX_RETRIES; attempt++) {
+      try {
+        const appended = await this.write.eval(APPEND_CLIENT_UPDATE_SCRIPT, {
+          keys: [
+            streamKey(name),
+            `${CLIENT_UPDATE_PREFIX}${name}`,
+            generationKey(name),
+            `${INVALIDATION_VERSION_PREFIX}${name}`,
+          ],
+          arguments: [
+            dedupeMember,
+            UPDATE_FIELD,
+            encoded,
+            String(CLIENT_UPDATE_DEDUPE_CAPACITY),
+            String(STREAM_TTL_SEC),
+            expectedGeneration,
+          ],
+        })
+        if (appended === -1) throw new FileDocInvalidatedError()
+        if (appended === 1 && room) {
+          room.realEdited = true
+          room.publishes += 1
+          if (
+            room.uncompactedDeltaBytes - room.lastDeltaBytes >= COMPACT_ENCODED_BYTES ||
+            room.publishes % COMPACT_CHECK_EVERY === 0
+          ) {
+            void this.maybeCompact(name)
+          }
+        }
+        return
+      } catch (error) {
+        if (error instanceof FileDocInvalidatedError) throw error
+        if (attempt === PUBLISH_MAX_RETRIES) {
+          logger.error(`FileDocStore acknowledged append failed for ${name}`, {
+            updateId,
+            error: getErrorMessage(error),
+          })
+          throw error
+        }
+        await sleep(backoffWithJitter(attempt + 1, null, { baseMs: 50, maxMs: 500 }))
+      }
+    }
   }
 
   /**
@@ -367,26 +632,105 @@ export class FileDocStore {
    * Retries a transient Redis error like {@link appendUpdate}; throws if it ultimately fails. Disabled →
    * true (single-replica: seed locally, no stream).
    */
-  async seedIfEmpty(name: string, update: Uint8Array): Promise<boolean> {
-    if (!this.enabled || !this.write) return true
+  async seedIfEmpty(name: string, update: Uint8Array, version = 0): Promise<boolean> {
+    assertUpdateWithinLimit(update)
+    const generation = generationOfSeed(update)
+    if (!this.enabled) {
+      const invalidation = this.localInvalidations.get(name)
+      if (invalidation && invalidation.expiresAt > Date.now() && invalidation.version > version)
+        return false
+      const room = this.rooms.get(name)
+      if (room) room.generationInvalidated = false
+      return true
+    }
+    if (!this.write) throw new Error('FileDocStore is not initialized')
     const encoded = Buffer.from(update).toString('base64')
     for (let attempt = 0; attempt <= PUBLISH_MAX_RETRIES; attempt++) {
       try {
         const wrote = await this.write.eval(SEED_IF_EMPTY_SCRIPT, {
-          keys: [streamKey(name)],
-          arguments: [UPDATE_FIELD, encoded],
+          keys: documentKeys(name),
+          arguments: [
+            UPDATE_FIELD,
+            encoded,
+            generation,
+            String(STREAM_TTL_SEC),
+            GENERATION_FIELD,
+            String(version),
+          ],
         })
-        await this.write.expire(streamKey(name), STREAM_TTL_SEC).catch(() => {})
+        await this.refreshDocumentTtls(name).catch(() => {})
+        const room = this.rooms.get(name)
+        if (wrote === 1 && room) room.generation = generation
         return wrote === 1
       } catch (error) {
         if (attempt === PUBLISH_MAX_RETRIES) {
-          logger.error(`FileDocStore seed failed for ${name}`, { error: getErrorMessage(error) })
+          logger.error(`FileDocStore seed failed for ${name}`, {
+            error: getErrorMessage(error),
+          })
           throw error
         }
         await sleep(backoffWithJitter(attempt + 1, null, { baseMs: 50, maxMs: 500 }))
       }
     }
     return false
+  }
+
+  /**
+   * Fences an unsupported durable replacement before deleting its stream. The next authoritative
+   * seed replaces the tombstone. A separate version watermark deduplicates retries across reseeds;
+   * both expire with the stream TTL once the document is idle.
+   */
+  async invalidateDocument(
+    name: string,
+    version: number
+  ): Promise<{ status: 'applied'; docId?: string } | { status: 'stale' }> {
+    if (!this.enabled) {
+      const now = Date.now()
+      const previous = this.localInvalidations.get(name)
+      if (previous && previous.expiresAt > now && previous.version >= version)
+        return { status: 'stale' }
+      this.localInvalidations.set(name, { version, expiresAt: now + STREAM_TTL_SEC * 1_000 })
+      const room = this.rooms.get(name)
+      const docId = room?.generationInvalidated
+        ? undefined
+        : room?.doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.docIdKey)
+      if (room) room.generationInvalidated = true
+      if (!this.heartbeat) {
+        this.heartbeat = setInterval(() => void this.refreshTtls(), HEARTBEAT_MS)
+        this.heartbeat.unref()
+      }
+      return { status: 'applied', ...(typeof docId === 'string' ? { docId } : {}) }
+    }
+    if (!this.write) throw new Error('FileDocStore is not initialized')
+    const generation = await this.write.eval(INVALIDATE_DOCUMENT_SCRIPT, {
+      keys: [
+        streamKey(name),
+        generationKey(name),
+        `${SYNC_VERSION_PREFIX}${name}`,
+        `${CLIENT_UPDATE_PREFIX}${name}`,
+        `${AGENT_STREAM_PREFIX}${name}`,
+        `${INVALIDATION_VERSION_PREFIX}${name}`,
+      ],
+      arguments: [String(version), String(STREAM_TTL_SEC), INVALIDATED_GENERATION],
+    })
+    if (typeof generation !== 'string') return { status: 'stale' }
+    return {
+      status: 'applied',
+      ...(generation && generation !== INVALIDATED_GENERATION ? { docId: generation } : {}),
+    }
+  }
+
+  async getDocumentGeneration(name: string): Promise<string> {
+    if (!this.enabled) return ''
+    if (!this.write) throw new Error('FileDocStore is not initialized')
+    return (await this.write.get(generationKey(name))) ?? ''
+  }
+
+  async isDocumentGenerationCurrent(name: string, generation?: string): Promise<boolean> {
+    if (!this.enabled) return !this.rooms.get(name)?.generationInvalidated
+    if (!this.write) throw new Error('FileDocStore is not initialized')
+    const current = await this.write.get(generationKey(name))
+    return current === null ? !generation : current === generation
   }
 
   /**
@@ -415,12 +759,15 @@ export class FileDocStore {
    * disabled store return a truthy token so callers proceed single-replica without special-casing.
    */
   private async acquireLock(key: string, ttlMs: number): Promise<string | null> {
-    if (!this.enabled || !this.write) return DISABLED_LOCK_TOKEN
+    if (!this.enabled) return DISABLED_LOCK_TOKEN
+    if (!this.write) return null
     const token = generateId()
     try {
       return (await this.write.set(key, token, { NX: true, PX: ttlMs })) === 'OK' ? token : null
     } catch (error) {
-      logger.warn(`FileDocStore lock ${key} failed`, { error: getErrorMessage(error) })
+      logger.warn(`FileDocStore lock ${key} failed`, {
+        error: getErrorMessage(error),
+      })
       return null
     }
   }
@@ -459,16 +806,75 @@ export class FileDocStore {
    * `null` when the stream is empty — i.e. no doc is (or was recently) live, so there is nothing to
    * merge into and the caller should fall back to a direct file write. Disabled → always null.
    */
-  async getStreamState(name: string): Promise<Uint8Array | null> {
-    if (!this.enabled || !this.write) return null
-    const entries = await this.write.xRange(streamKey(name), '-', '+')
-    if (entries.length === 0) return null
+  async getStreamState(name: string, expectedGeneration?: string): Promise<Uint8Array | null> {
+    if (!this.enabled) return null
+    if (!this.write) throw new Error('FileDocStore is not initialized')
     const doc = new Y.Doc()
     try {
-      for (const entry of entries) applyEntryToDoc(doc, entry.id, entry.message)
+      const generation = await this.getDocumentGeneration(name)
+      if (expectedGeneration !== undefined && generation !== expectedGeneration) {
+        throw new FileDocInvalidatedError()
+      }
+      const count = await this.replayEntries(name, '0', (entry) => {
+        if (entry.message[GENERATION_FIELD] && entry.message[GENERATION_FIELD] !== generation) {
+          throw new FileDocInvalidatedError()
+        }
+        applyEntryToDoc(doc, entry.id, entry.message)
+        return true
+      })
+      if ((await this.getDocumentGeneration(name)) !== generation) {
+        throw new FileDocInvalidatedError()
+      }
+      if (count === 0) return null
       return Y.encodeStateAsUpdate(doc)
     } finally {
       doc.destroy()
+    }
+  }
+
+  private async replayEntries(
+    name: string,
+    afterId: string,
+    visit: (entry: { id: string; message: Record<string, string> }) => boolean
+  ): Promise<number> {
+    if (!this.write) return 0
+    const key = streamKey(name)
+    let firstId = (await this.write.xRange(key, '-', '+', { COUNT: 1 }))[0]?.id
+    if (!firstId) return 0
+    const tail = await this.write.xRevRange(key, '+', '-', { COUNT: 1 })
+    if (tail.length === 0) throw new FileDocInvalidatedError()
+    let endId = tail[0].id
+    let cursor = afterId.includes('-') ? afterId : `${afterId}-0`
+    let entriesRead = 0
+    let encodedBytes = 0
+
+    while (true) {
+      while (isAfterStreamId(endId, cursor)) {
+        const page = await this.write.xRange(key, `(${cursor}`, '+', {
+          COUNT: REPLAY_PAGE_COUNT,
+        })
+        if (page.length === 0) {
+          throw new Error(`File document replay lost its completion barrier for ${name}`)
+        }
+        for (const entry of page) {
+          entriesRead += 1
+          encodedBytes += entry.message[UPDATE_FIELD]?.length ?? 0
+          if (entriesRead > REPLAY_MAX_ENTRIES || encodedBytes > REPLAY_MAX_ENCODED_BYTES) {
+            throw new Error(`File document replay exceeded its safety limit for ${name}`)
+          }
+          cursor = entry.id
+          if (!visit(entry)) return entriesRead
+        }
+      }
+
+      /** Compaction appends its snapshot before trimming; extend the barrier without rereading it. */
+      const currentFirstId = (await this.write.xRange(key, '-', '+', { COUNT: 1 }))[0]?.id
+      if (!currentFirstId) throw new FileDocInvalidatedError()
+      if (currentFirstId === firstId) return entriesRead
+      firstId = currentFirstId
+      const currentTail = await this.write.xRevRange(key, '+', '-', { COUNT: 1 })
+      if (currentTail.length === 0) throw new FileDocInvalidatedError()
+      endId = currentTail[0].id
     }
   }
 
@@ -535,7 +941,11 @@ export class FileDocStore {
    * new value exceeds the stored one ({@link SET_VERSION_IF_NEWER_SCRIPT}), so an out-of-order
    * fire-and-forget write can't regress the token. Best-effort; TTL-bounded like the stream so an idle
    * file's key can't outlive its room. No-op when disabled (single-pod fallback). */
-  async setSyncedVersion(name: string, version: number): Promise<void> {
+  async setSyncedVersion(
+    name: string,
+    version: number,
+    expectedGeneration = this.rooms.get(name)?.generation ?? ''
+  ): Promise<void> {
     if (!this.enabled || !this.write) return
     // Retry a transient failure (bounded) rather than swallow it: this token is the ONLY way a
     // peer-seeded task learns the durable version, so a dropped write would leave that peer's persists
@@ -544,8 +954,8 @@ export class FileDocStore {
     for (let attempt = 0; attempt <= PUBLISH_MAX_RETRIES; attempt++) {
       try {
         await this.write.eval(SET_VERSION_IF_NEWER_SCRIPT, {
-          keys: [`${SYNC_VERSION_PREFIX}${name}`],
-          arguments: [String(version), String(STREAM_TTL_SEC)],
+          keys: [`${SYNC_VERSION_PREFIX}${name}`, generationKey(name)],
+          arguments: [String(version), String(STREAM_TTL_SEC), expectedGeneration],
         })
         return
       } catch (error) {
@@ -592,8 +1002,35 @@ export class FileDocStore {
     await this.releaseLock(`${MERGE_LOCK_PREFIX}${name}`, token)
   }
 
-  private applyEntry(room: StoreRoom, id: string, message: Record<string, string>): void {
+  private applyEntry(
+    name: string,
+    room: StoreRoom,
+    id: string,
+    message: Record<string, string>
+  ): void {
+    if (!isAfterStreamId(id, room.lastId)) return
     room.lastId = id
+    const generation = message[GENERATION_FIELD]
+    if (generation) {
+      if (
+        room.generationInvalidated ||
+        (room.generation !== null && room.generation !== generation) ||
+        (room.generation === null &&
+          room.seededObserved &&
+          room.doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.docIdKey) !== generation)
+      ) {
+        room.generationInvalidated = true
+        return
+      }
+      room.generation = generation
+    }
+    if (room.generationInvalidated) return
+    const isSnapshot =
+      message[GENERATION_FIELD] !== undefined ||
+      message[SNAPSHOT_FIELD] !== undefined ||
+      message[COMPACTION_FIELD] !== undefined
+    room.lastDeltaBytes = isSnapshot ? 0 : (message[UPDATE_FIELD]?.length ?? 0)
+    room.uncompactedDeltaBytes += room.lastDeltaBytes
     // A compaction snapshot folds seed + edits into one frame; stamp it so the relay's edit-tracker
     // treats a fresh catch-up from it as edited (a snapshot only exists once real edits accumulated). An
     // agent-streamed preview frame is stamped separately so the tracker NEVER marks it edited.
@@ -612,6 +1049,9 @@ export class FileDocStore {
     if (origin === REDIS_SNAPSHOT_ORIGIN || (origin === REDIS_ORIGIN && seededBefore)) {
       room.realEdited = true
     }
+    if (room.uncompactedDeltaBytes - room.lastDeltaBytes >= COMPACT_ENCODED_BYTES) {
+      void this.maybeCompact(name)
+    }
   }
 
   /**
@@ -619,6 +1059,8 @@ export class FileDocStore {
    * apply new entries. One blocking connection for the whole process regardless of open-file count.
    */
   private async runReader(): Promise<void> {
+    let failures = 0
+    let blockingBatchIndex = 0
     while (this.running && this.read) {
       const snapshot = new Map(this.rooms)
       if (snapshot.size === 0) {
@@ -626,25 +1068,78 @@ export class FileDocStore {
         continue
       }
       try {
-        const res = await this.read.xRead(
-          [...snapshot].map(([name, room]) => ({ key: streamKey(name), id: room.lastId })),
-          { BLOCK: READ_BLOCK_MS, COUNT: READ_COUNT }
-        )
-        if (!res) continue
-        for (const stream of res) {
-          const name = stream.name.slice(STREAM_PREFIX.length)
-          const room = this.rooms.get(name)
-          // Skip if detached mid-read, OR replaced by a close→reopen (a DIFFERENT StoreRoom): applying
-          // entries read against the OLD room's lastId to the new one could regress its lastId (harmless
-          // but wasteful re-delivery). The new room caught itself up via xRange already.
-          if (!room || room !== snapshot.get(name)) continue
-          for (const entry of stream.messages) this.applyEntry(room, entry.id, entry.message)
+        const rooms = [...snapshot]
+        const batches: Array<typeof rooms> = []
+        for (let index = 0; index < rooms.length; index += READ_STREAM_BATCH_SIZE) {
+          batches.push(rooms.slice(index, index + READ_STREAM_BATCH_SIZE))
         }
+        const applyResults = (results: Awaited<ReturnType<RedisClientType['xRead']>>): boolean => {
+          if (!results) return false
+          for (const stream of results) {
+            const name = stream.name.slice(STREAM_PREFIX.length)
+            const room = this.rooms.get(name)
+            if (!room || room !== snapshot.get(name)) continue
+            for (const entry of stream.messages)
+              this.applyEntry(name, room, entry.id, entry.message)
+          }
+          return true
+        }
+        let received = false
+        for (const batch of batches) {
+          const streams = batch.map(([name, room]) => ({
+            key: streamKey(name),
+            id: room.lastId,
+          }))
+          received = applyResults(await this.read.xRead(streams, { COUNT: READ_COUNT })) || received
+        }
+        if (!received) {
+          const batch = batches[blockingBatchIndex % batches.length]
+          blockingBatchIndex = (blockingBatchIndex + 1) % batches.length
+          const streams = batch.map(([name, room]) => ({
+            key: streamKey(name),
+            id: room.lastId,
+          }))
+          applyResults(await this.read.xRead(streams, { BLOCK: READ_BLOCK_MS, COUNT: READ_COUNT }))
+        }
+        failures = 0
       } catch (error) {
         if (!this.running) break
-        logger.warn('FileDocStore reader error; retrying', { error: getErrorMessage(error) })
-        await sleep(500)
+        await this.recoverReader(++failures, error)
       }
+    }
+  }
+
+  /**
+   * A failed read is either a transient blip or a connection that is gone, and this loop cannot tell
+   * them apart — so it backs off instead of retrying at the read cadence. Without that, a connection
+   * that cannot serve reads spins this loop forever at two attempts a second, one warning each, which
+   * is how an outage turns into thousands of identical log lines that bury the reason for it.
+   *
+   * It also re-opens a CLOSED client. node-redis reconnects a client that merely dropped, but never one
+   * it has closed; the strategy above no longer closes one, so this covers a client closed some other
+   * way (an explicit disconnect, a shutdown that raced a read) rather than leaving the tailer dead.
+   *
+   * Logs the first failure of a streak and then one in every {@link READER_ERROR_LOG_EVERY}, carrying
+   * the streak length, so a real outage stays visible without filling the log.
+   */
+  private async recoverReader(failures: number, error: unknown): Promise<void> {
+    if (failures === 1 || failures % READER_ERROR_LOG_EVERY === 0) {
+      logger.warn(`FileDocStore reader failed ${failures}x in a row; retrying`, {
+        error: getErrorMessage(error),
+      })
+    }
+    await sleep(
+      backoffWithJitter(failures, null, {
+        baseMs: 500,
+        maxMs: READER_RETRY_MAX_MS,
+      })
+    )
+    if (this.running && this.read && !this.read.isOpen) {
+      await this.read.connect().catch((reconnectError) => {
+        logger.warn('FileDocStore could not re-open the reader connection', {
+          error: getErrorMessage(reconnectError),
+        })
+      })
     }
   }
 
@@ -657,13 +1152,23 @@ export class FileDocStore {
   private async maybeCompact(name: string): Promise<void> {
     if (!this.write) return
     const room = this.rooms.get(name)
-    if (!room) return
+    if (!room || room.compacting || Date.now() < room.compactRetryAfter) return
+    room.compacting = true
     try {
-      if ((await this.write.xLen(streamKey(name))) < COMPACT_THRESHOLD) return
+      const streamLength = await this.write.xLen(streamKey(name))
+      if (
+        streamLength < COMPACT_THRESHOLD &&
+        room.uncompactedDeltaBytes - room.lastDeltaBytes < COMPACT_ENCODED_BYTES
+      ) {
+        return
+      }
       const key = `${COMPACT_LOCK_PREFIX}${name}`
       const token = await this.acquireLock(key, COMPACT_LOCK_TTL_MS)
       if (!token) return
       try {
+        /** Integrate the completed stream prefix before capturing the snapshot and compaction barrier. */
+        await this.catchUp(name)
+        if (this.rooms.get(name) !== room) return
         // Capture the snapshot AND the id it covers in one synchronous step (no await between): the
         // snapshot is `room.doc`, which holds exactly what this task's tailer has integrated — every
         // entry up to `room.lastId`. Entries a peer task published AFTER that (id > lastId) are NOT in
@@ -671,34 +1176,64 @@ export class FileDocStore {
         // them — only entries the snapshot provably subsumes (id <= lastId). Trimming to the freshly
         // appended snapshot id instead would silently drop those un-integrated peer entries.
         const upTo = room.lastId
+        /** Ordered, deduplicated replay lets two counters represent the prefix without a per-entry map. */
+        const deltaBytesAtBarrier = room.uncompactedDeltaBytes - room.lastDeltaBytes
         const snapshot = Buffer.from(Y.encodeStateAsUpdate(room.doc)).toString('base64')
         // Stamp the snapshot by what it folds: a real edit → SNAPSHOT_FIELD (a fresh catch-up treats it
         // as edited content, not a bare seed). An agent-ONLY stream (no real edit yet) → AGENT_FIELD, so a
         // peer catching up applies it as REDIS_AGENT_ORIGIN and never marks the doc edited — preserving
         // the no-persist guarantee even when a long copilot stream alone crosses the compaction threshold.
         const marker = room.realEdited ? SNAPSHOT_FIELD : AGENT_FIELD
-        await this.write.xAdd(streamKey(name), '*', {
-          [UPDATE_FIELD]: snapshot,
-          [marker]: '1',
+        const snapshotId = await this.write.eval(APPEND_SNAPSHOT_SCRIPT, {
+          keys: [streamKey(name), generationKey(name)],
+          arguments: [
+            UPDATE_FIELD,
+            snapshot,
+            marker,
+            room.generation ?? '',
+            GENERATION_FIELD,
+            upTo,
+            COMPACTION_FIELD,
+          ],
         })
-        // MINID keeps entries with id >= upTo: the snapshot, any un-integrated peer entries, and
-        // `upTo` itself (redundant with the snapshot, harmless); it drops only the folded older deltas.
-        await this.write.xTrim(streamKey(name), 'MINID', upTo)
+        if (typeof snapshotId !== 'string') return
+        /** MINID retains the barrier entry and later deltas, including those observed during the await. */
+        room.uncompactedDeltaBytes = Math.max(0, room.uncompactedDeltaBytes - deltaBytesAtBarrier)
       } finally {
         await this.releaseLock(key, token)
       }
     } catch (error) {
-      logger.warn(`FileDocStore compaction failed for ${name}`, { error: getErrorMessage(error) })
+      room.compactRetryAfter = Date.now() + COMPACT_RETRY_COOLDOWN_MS
+      logger.warn(`FileDocStore compaction failed for ${name}`, {
+        error: getErrorMessage(error),
+      })
+    } finally {
+      room.compacting = false
     }
   }
 
+  private async refreshDocumentTtls(name: string): Promise<void> {
+    await this.write?.eval(REFRESH_DOCUMENT_TTLS_SCRIPT, {
+      keys: documentKeys(name),
+      arguments: [String(STREAM_TTL_SEC)],
+    })
+  }
+
   private async refreshTtls(): Promise<void> {
-    if (!this.write) return
+    if (!this.write) {
+      const now = Date.now()
+      for (const [name, invalidation] of this.localInvalidations) {
+        if (this.rooms.has(name)) invalidation.expiresAt = now + STREAM_TTL_SEC * 1_000
+        else if (invalidation.expiresAt <= now) this.localInvalidations.delete(name)
+      }
+      if (this.localInvalidations.size === 0 && this.heartbeat) {
+        clearInterval(this.heartbeat)
+        this.heartbeat = null
+      }
+      return
+    }
     for (const name of this.rooms.keys()) {
-      await this.write.expire(streamKey(name), STREAM_TTL_SEC).catch(() => {})
-      // Keep the synced-version key alive as long as its stream, so an open-but-idle doc's persist
-      // If-Match token can't expire out from under it (which would force a needless reconcile).
-      await this.write.expire(`${SYNC_VERSION_PREFIX}${name}`, STREAM_TTL_SEC).catch(() => {})
+      await this.refreshDocumentTtls(name).catch(() => {})
     }
   }
 }

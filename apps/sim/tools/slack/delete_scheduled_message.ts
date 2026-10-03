@@ -16,6 +16,7 @@ export const slackDeleteScheduledMessageTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'slack',
+    requiredScopes: ['chat:write'],
   },
 
   params: {

@@ -1,24 +1,23 @@
 import { createElement, Fragment } from 'react'
 import { loader, multiple } from 'fumadocs-core/source'
 import type { DocData, DocMethods } from 'fumadocs-mdx/runtime/types'
-import { openapiSource } from 'fumadocs-openapi/server'
+import { integrationNavigationPlugin } from '@/lib/integration-navigation'
+import { createApiReferenceSource } from '@/lib/openapi-source'
+import { cn } from '@/lib/utils'
 import { docs } from '@/.source/server'
-import { i18n } from './i18n'
-import { openapi } from './openapi'
 
 const METHOD_COLORS: Record<string, string> = {
-  GET: 'text-green-600 dark:text-green-400',
-  HEAD: 'text-green-600 dark:text-green-400',
-  OPTIONS: 'text-green-600 dark:text-green-400',
-  POST: 'text-blue-600 dark:text-blue-400',
-  PUT: 'text-yellow-600 dark:text-yellow-400',
-  PATCH: 'text-orange-600 dark:text-orange-400',
-  DELETE: 'text-red-600 dark:text-red-400',
+  GET: 'text-green-800 dark:text-green-400',
+  HEAD: 'text-green-800 dark:text-green-400',
+  OPTIONS: 'text-green-800 dark:text-green-400',
+  POST: 'text-blue-800 dark:text-blue-300',
+  PUT: 'text-yellow-800 dark:text-yellow-400',
+  PATCH: 'text-orange-800 dark:text-orange-300',
+  DELETE: 'text-red-800 dark:text-red-400',
 }
 
 /**
- * Custom openapi plugin that places method badges BEFORE the page name
- * in the sidebar (like Mintlify/Gumloop) instead of after.
+ * Places HTTP method badges before page names in the sidebar.
  */
 function openapiPluginBadgeLeft() {
   return {
@@ -63,7 +62,10 @@ function openapiPluginBadgeLeft() {
             createElement(
               'span',
               {
-                className: `font-mono font-medium me-1.5 text-[10px] text-nowrap ${colorClass}`,
+                className: cn(
+                  'inline-flex shrink-0 items-center justify-center rounded-md px-1 py-0.5 font-mono font-medium me-1.5 text-[10px] text-nowrap',
+                  colorClass
+                ),
                 'data-method': method.toLowerCase(),
               },
               method
@@ -80,20 +82,13 @@ function openapiPluginBadgeLeft() {
 export const source = loader(
   multiple({
     docs: docs.toFumadocsSource(),
-    openapi: await openapiSource(openapi, {
-      baseDir: 'en/api-reference/(generated)',
-      groupBy: 'tag',
-    }),
+    openapi: await createApiReferenceSource(),
   }),
   {
     baseUrl: '/',
-    i18n,
-    plugins: [openapiPluginBadgeLeft() as never],
+    plugins: [openapiPluginBadgeLeft() as never, integrationNavigationPlugin()],
   }
 )
-
-/** Diátaxis page type surfaced as a badge near the page title. */
-export type DocsPageType = 'tutorial' | 'guide' | 'reference' | 'concept'
 
 /** Full page data type including MDX content and metadata */
 export type PageData = DocData &
@@ -101,5 +96,4 @@ export type PageData = DocData &
     title: string
     description?: string
     full?: boolean
-    pageType?: DocsPageType
   }

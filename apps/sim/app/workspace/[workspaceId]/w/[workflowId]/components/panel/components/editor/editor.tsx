@@ -1,35 +1,44 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, cn, DashedDividerLine, FieldDivider, Loader, Tooltip } from '@sim/emcn'
-import { isEqual } from 'es-toolkit'
+import { Button, DashedDividerLine, FieldDivider, Loader, Tooltip } from '@sim/emcn'
 import {
   BookOpen,
   Check,
   ChevronDown,
   ChevronUp,
-  ExternalLink,
   Lock,
   Pencil,
+  SquareArrowUpRight,
   Unlock,
-} from 'lucide-react'
+} from '@sim/emcn/icons'
+import {
+  type BlockRetryConfig,
+  isWorkflowBlockAncestorLocked,
+  isWorkflowBlockProtected,
+} from '@sim/workflow-types/workflow'
+import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
+import { isMcpRuntimeReference } from '@/lib/mcp/operation-policy'
+import { resolveMcpBlockConfig } from '@/lib/mcp/workflow-config'
 import { captureEvent } from '@/lib/posthog/client'
+import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
 import {
   buildCanonicalIndex,
   evaluateSubBlockCondition,
+  getCanonicalSubBlocksForSurface,
   hasAdvancedValues,
   isCanonicalPair,
   isStandaloneAdvancedMode,
   resolveCanonicalMode,
-  shouldUseSubBlockForTriggerModeCanonicalIndex,
 } from '@/lib/workflows/subblocks/visibility'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   ConnectionBlocks,
+  RetrySettings,
   SubBlock,
   SubflowEditor,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
@@ -45,12 +54,8 @@ import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/component
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import { getSubBlockStableKey } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import {
-  isAncestorProtected,
-  isBlockProtected,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-protection-utils'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
-import { getTileIconColorClass } from '@/blocks/icon-color'
+import { BlockTile } from '@/blocks/block-tile'
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
@@ -65,33 +70,27 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 const EMPTY_SUBBLOCK_VALUES = {} as Record<string, any>
 
 /**
- * Icon component for rendering block icons.
- *
- * @param icon - The icon component to render
- * @param className - Optional CSS classes
- * @returns Rendered icon or null if no icon provided
- */
-const IconComponent = ({ icon: Icon, className }: { icon: any; className?: string }) => {
-  if (!Icon) return null
-  return <Icon className={className} />
-}
-
-/**
  * Editor panel component.
  * Provides editor configuration and customization options for the workflow.
  *
  * @returns Editor panel content
  */
 export function Editor() {
-  const { currentBlockId, connectionsHeight, toggleConnectionsCollapsed, registerRenameCallback } =
-    usePanelEditorStore(
-      useShallow((state) => ({
-        currentBlockId: state.currentBlockId,
-        connectionsHeight: state.connectionsHeight,
-        toggleConnectionsCollapsed: state.toggleConnectionsCollapsed,
-        registerRenameCallback: state.registerRenameCallback,
-      }))
-    )
+  const {
+    currentBlockId,
+    connectionsHeight,
+    toggleConnectionsCollapsed,
+    registerRenameCallback,
+    clearCurrentBlock,
+  } = usePanelEditorStore(
+    useShallow((state) => ({
+      currentBlockId: state.currentBlockId,
+      connectionsHeight: state.connectionsHeight,
+      toggleConnectionsCollapsed: state.toggleConnectionsCollapsed,
+      registerRenameCallback: state.registerRenameCallback,
+      clearCurrentBlock: state.clearCurrentBlock,
+    }))
+  )
   const activeSearchTarget = usePanelEditorSearchStore((state) => state.activeSearchTarget)
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentBlockId ? currentWorkflow.getBlockById(currentBlockId) : null
@@ -116,6 +115,11 @@ export function Editor() {
 
   const isWorkflowBlock =
     currentBlock && (currentBlock.type === 'workflow' || currentBlock.type === 'workflow_input')
+  const isNoteBlock = currentBlock?.type === 'note'
+
+  useEffect(() => {
+    if (isNoteBlock) clearCurrentBlock()
+  }, [clearCurrentBlock, isNoteBlock])
 
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -134,8 +138,10 @@ export function Editor() {
   // Check if block is locked (or inside a locked ancestor) and compute edit permission
   // Locked blocks cannot be edited by anyone (admins can only lock/unlock)
   const blocks = useWorkflowStore((state) => state.blocks)
-  const isLocked = currentBlockId ? isBlockProtected(currentBlockId, blocks) : false
-  const isAncestorLocked = currentBlockId ? isAncestorProtected(currentBlockId, blocks) : false
+  const isLocked = currentBlockId ? isWorkflowBlockProtected(currentBlockId, blocks) : false
+  const isAncestorLocked = currentBlockId
+    ? isWorkflowBlockAncestorLocked(currentBlockId, blocks)
+    : false
   const canEditBlock = userPermissions.canEdit && !workflowLocked && !isLocked
 
   const { advancedMode, triggerMode } = useEditorBlockProperties(
@@ -155,11 +161,10 @@ export function Editor() {
     isEqual
   )
 
-  const subBlocksForCanonical = useMemo(() => {
-    const subBlocks = blockConfig?.subBlocks || []
-    if (!triggerMode) return subBlocks
-    return subBlocks.filter(shouldUseSubBlockForTriggerModeCanonicalIndex)
-  }, [blockConfig?.subBlocks, triggerMode])
+  const subBlocksForCanonical = useMemo(
+    () => getCanonicalSubBlocksForSurface(blockConfig?.subBlocks || [], triggerMode),
+    [blockConfig?.subBlocks, triggerMode]
+  )
 
   const canonicalIndex = useMemo(
     () => buildCanonicalIndex(subBlocksForCanonical),
@@ -180,9 +185,24 @@ export function Editor() {
     () => hasAdvancedValues(subBlocksForCanonical, blockSubBlockValues, canonicalIndex),
     [subBlocksForCanonical, blockSubBlockValues, canonicalIndex]
   )
+  /**
+   * Whether the additional-fields disclosure is open, held as view state only.
+   *
+   * Deliberately not written back to `block.advancedMode`: that flag also decides
+   * which member of a canonical pair serializes, so driving it from this control
+   * would change the credential a block sends just because someone opened a
+   * disclosure. Seeded from the stored flag so a block saved while it was on
+   * still opens expanded.
+   */
+  const [additionalFieldsExpanded, setAdditionalFieldsExpanded] = useState(advancedMode)
+
+  useEffect(() => {
+    setAdditionalFieldsExpanded(advancedMode)
+  }, [advancedMode, currentBlockId])
+
   const displayAdvancedOptions = canEditBlock
-    ? advancedMode || activeSearchTargetNeedsAdvanced
-    : advancedMode || advancedValuesPresent || activeSearchTargetNeedsAdvanced
+    ? additionalFieldsExpanded || activeSearchTargetNeedsAdvanced
+    : additionalFieldsExpanded || advancedValuesPresent || activeSearchTargetNeedsAdvanced
 
   const hasAdvancedOnlyFields = useMemo(() => {
     for (const subBlock of subBlocksForCanonical) {
@@ -242,15 +262,34 @@ export function Editor() {
 
   const {
     collaborativeSetBlockCanonicalMode,
+    collaborativeSetSubblockValue,
     collaborativeUpdateBlockName,
-    collaborativeToggleBlockAdvancedMode,
+    collaborativeSetBlockRetry,
     collaborativeBatchToggleLocked,
   } = useCollaborativeWorkflow()
 
-  const handleToggleAdvancedMode = useCallback(() => {
-    if (!currentBlockId || !canEditBlock) return
-    collaborativeToggleBlockAdvancedMode(currentBlockId)
-  }, [currentBlockId, canEditBlock, collaborativeToggleBlockAdvancedMode])
+  const handleToggleAdditionalFields = useCallback(() => {
+    if (!canEditBlock) return
+    setAdditionalFieldsExpanded((expanded) => !expanded)
+  }, [canEditBlock])
+
+  const supportsRetry = isRetryEligibleBlock({
+    blockType: currentBlock?.type,
+    category: blockConfig?.category,
+    triggerMode,
+  })
+  const showRetrySettings = supportsRetry && displayAdvancedOptions
+
+  /** Retry lives in the additional-fields disclosure, which a block may otherwise have no reason to show. */
+  const hasAdditionalFields = hasAdvancedOnlyFields || supportsRetry
+
+  const handleChangeRetry = useCallback(
+    (retry: BlockRetryConfig) => {
+      if (!currentBlockId) return
+      collaborativeSetBlockRetry(currentBlockId, retry)
+    },
+    [currentBlockId, collaborativeSetBlockRetry]
+  )
 
   const [isRenaming, setIsRenaming] = useState(false)
   const [editedName, setEditedName] = useState('')
@@ -295,7 +334,8 @@ export function Editor() {
     const block = blocks[blockId]
     if (!block) return
 
-    if (!userPermissions.canEdit || workflowLocked || isBlockProtected(blockId, blocks)) return
+    if (!userPermissions.canEdit || workflowLocked || isWorkflowBlockProtected(blockId, blocks))
+      return
 
     renamingBlockIdRef.current = blockId
     setEditedName(block.name || '')
@@ -338,6 +378,22 @@ export function Editor() {
   }, [registerRenameCallback, handleStartRename])
 
   /**
+   * Drops a rename whose block the panel is no longer showing.
+   *
+   * `renamingBlockIdRef` decides what {@link handleSaveRename} writes, and the
+   * header keeps rendering the input regardless of which block is selected — so
+   * a rename left running across a selection change puts one block's name in
+   * front of another and saves it to the first. Nothing else ends a rename on
+   * selection: the input's blur only fires if it held focus.
+   */
+  useEffect(() => {
+    if (!renamingBlockIdRef.current || renamingBlockIdRef.current === currentBlockId) return
+    renamingBlockIdRef.current = null
+    setIsRenaming(false)
+    setEditedName('')
+  }, [currentBlockId])
+
+  /**
    * Handles opening documentation link in a new secure tab.
    */
   const handleOpenDocs = useCallback(() => {
@@ -365,25 +421,16 @@ export function Editor() {
 
   const isConnectionsAtMinHeight = connectionsHeight <= 35
 
+  if (isNoteBlock) return null
+
   return (
     <ActiveSearchTargetProvider value={activeSearchTargetForCurrentBlock}>
       <div className='flex h-full flex-col'>
         {/* Header */}
-        <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between rounded-none border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'>
+        <div className='mx-[-1px] flex shrink-0 items-center justify-between rounded-none border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'>
           <div className='flex min-w-0 flex-1 items-center gap-2'>
-            {(blockConfig || isSubflow) && currentBlock?.type !== 'note' && (
-              <div
-                className='flex size-[18px] items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
-                style={{ background: isSubflow ? subflowConfig?.bgColor : blockConfig?.bgColor }}
-              >
-                <IconComponent
-                  icon={isSubflow ? subflowConfig?.icon : blockConfig?.icon}
-                  className={cn(
-                    'size-[12px]',
-                    getTileIconColorClass(isSubflow ? subflowConfig?.bgColor : blockConfig?.bgColor)
-                  )}
-                />
-              </div>
+            {currentBlock && (blockConfig || isSubflow) && (
+              <BlockTile blockType={currentBlock.type} size='lg' />
             )}
             {isRenaming ? (
               <input
@@ -399,11 +446,11 @@ export function Editor() {
                     handleCancelRename()
                   }
                 }}
-                className='min-w-0 flex-1 truncate bg-transparent pr-2 font-medium text-[var(--text-primary)] text-sm outline-none'
+                className='min-w-0 flex-1 truncate bg-transparent pr-2 text-[var(--text-primary)] text-sm outline-hidden'
               />
             ) : (
               <h2
-                className='min-w-0 flex-1 cursor-pointer select-none text-ellipsis whitespace-nowrap pr-2 font-medium text-[var(--text-primary)] text-sm [overflow-clip-margin:3px] [overflow:clip]'
+                className='min-w-0 flex-1 cursor-pointer select-none text-ellipsis whitespace-nowrap pr-2 text-[var(--text-primary)] text-sm [overflow-clip-margin:3px] [overflow:clip]'
                 title={title}
                 onDoubleClick={handleStartRename}
                 onMouseDown={(e) => {
@@ -538,7 +585,7 @@ export function Editor() {
                 {isWorkflowBlock && childWorkflowId && (
                   <>
                     <div className='subblock-content flex flex-col gap-[9.5px]'>
-                      <div className='pl-0.5 font-medium text-[var(--text-primary)] text-small leading-none'>
+                      <div className='pl-0.5 text-[var(--text-primary)] text-small leading-none'>
                         Workflow Preview
                       </div>
                       <div className='relative h-[160px] overflow-hidden rounded-sm border border-[var(--border)]'>
@@ -548,7 +595,7 @@ export function Editor() {
                           </div>
                         ) : childWorkflowState ? (
                           <>
-                            <div className='[&_*:active]:!cursor-grabbing [&_*]:!cursor-grab [&_.react-flow__handle]:!hidden h-full w-full'>
+                            <div className='[&_.react-flow__handle]:hidden! size-full [&_*:active]:cursor-grabbing! [&_*]:cursor-grab!'>
                               <PreviewWorkflow
                                 workflowState={childWorkflowState}
                                 height={160}
@@ -563,12 +610,13 @@ export function Editor() {
                             <Tooltip.Root>
                               <Tooltip.Trigger asChild>
                                 <Button
+                                  aria-label='Open workflow'
                                   type='button'
                                   variant='ghost'
                                   onClick={handleOpenChildWorkflow}
                                   className='absolute right-[6px] bottom-1.5 z-10 size-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover-hover:bg-[var(--surface-4)]'
                                 >
-                                  <ExternalLink className='size-[12px]' />
+                                  <SquareArrowUpRight className='size-[12px]' />
                                 </Button>
                               </Tooltip.Trigger>
                               <Tooltip.Content side='top'>Open workflow</Tooltip.Content>
@@ -614,7 +662,7 @@ export function Editor() {
 
                       const showDivider =
                         index < regularSubBlocks.length - 1 ||
-                        (!hasAdvancedOnlyFields && index < subBlocks.length - 1)
+                        (!hasAdditionalFields && index < subBlocks.length - 1)
 
                       return (
                         <div key={stableKey} className='subblock-row'>
@@ -625,17 +673,20 @@ export function Editor() {
                             subBlockValues={subBlockState}
                             disabled={!canEditBlock}
                             allowExpandInPreview={false}
-                            isSearchHighlighted={
-                              activeSearchTarget?.blockId === currentBlockId &&
-                              (activeSearchTarget.subBlockId === subBlock.id ||
-                                activeSearchTarget.canonicalSubBlockId ===
-                                  (subBlock.canonicalParamId ?? subBlock.id))
-                            }
                             canonicalToggle={
                               isCanonicalSwap && canonicalMode && canonicalId
                                 ? {
                                     mode: canonicalMode,
-                                    disabled: !canEditBlock,
+                                    disabled:
+                                      !canEditBlock ||
+                                      (currentBlock?.type === 'mcp' &&
+                                        canonicalId === 'tool' &&
+                                        isMcpRuntimeReference(
+                                          resolveMcpBlockConfig(
+                                            blockSubBlockValues,
+                                            canonicalModeOverrides
+                                          ).server
+                                        )),
                                     onToggle: () => {
                                       if (!currentBlockId) return
                                       const nextMode =
@@ -645,6 +696,35 @@ export function Editor() {
                                         canonicalId,
                                         nextMode
                                       )
+                                      if (
+                                        currentBlock?.type === 'mcp' &&
+                                        canonicalId === 'server'
+                                      ) {
+                                        collaborativeSetSubblockValue(
+                                          currentBlockId,
+                                          '_toolSchema',
+                                          null
+                                        )
+                                        const next = resolveMcpBlockConfig(blockSubBlockValues, {
+                                          ...canonicalModeOverrides,
+                                          server: nextMode,
+                                        })
+                                        if (
+                                          isMcpRuntimeReference(next.server) &&
+                                          canonicalModeOverrides?.tool !== 'advanced'
+                                        ) {
+                                          collaborativeSetSubblockValue(
+                                            currentBlockId,
+                                            'toolReference',
+                                            blockSubBlockValues.toolSelector ?? ''
+                                          )
+                                          collaborativeSetBlockCanonicalMode(
+                                            currentBlockId,
+                                            'tool',
+                                            'advanced'
+                                          )
+                                        }
+                                      }
                                     },
                                   }
                                 : undefined
@@ -664,13 +744,13 @@ export function Editor() {
                       )
                     })}
 
-                    {hasAdvancedOnlyFields && canEditBlock && (
+                    {hasAdditionalFields && canEditBlock && (
                       <div className='flex items-center gap-2.5 px-0.5 pt-3.5 pb-3'>
                         <DashedDividerLine className='flex-1' />
                         <button
                           type='button'
-                          onClick={handleToggleAdvancedMode}
-                          className='flex items-center gap-1.5 whitespace-nowrap font-medium text-[var(--text-secondary)] text-small hover-hover:text-[var(--text-primary)]'
+                          onClick={handleToggleAdditionalFields}
+                          className='flex items-center gap-1.5 whitespace-nowrap text-[var(--text-secondary)] text-small hover-hover:text-[var(--text-primary)]'
                         >
                           {displayAdvancedOptions
                             ? 'Hide additional fields'
@@ -682,10 +762,10 @@ export function Editor() {
                         <DashedDividerLine className='flex-1' />
                       </div>
                     )}
-                    {hasAdvancedOnlyFields && !canEditBlock && displayAdvancedOptions && (
+                    {hasAdditionalFields && !canEditBlock && displayAdvancedOptions && (
                       <div className='flex items-center gap-2.5 px-0.5 pt-3.5 pb-3'>
                         <DashedDividerLine className='flex-1' />
-                        <span className='whitespace-nowrap font-medium text-[var(--text-secondary)] text-small'>
+                        <span className='whitespace-nowrap text-[var(--text-secondary)] text-small'>
                           Additional fields
                         </span>
                         <DashedDividerLine className='flex-1' />
@@ -708,14 +788,8 @@ export function Editor() {
                             subBlockValues={subBlockState}
                             disabled={!canEditBlock}
                             allowExpandInPreview={false}
-                            isSearchHighlighted={
-                              activeSearchTarget?.blockId === currentBlockId &&
-                              (activeSearchTarget.subBlockId === subBlock.id ||
-                                activeSearchTarget.canonicalSubBlockId ===
-                                  (subBlock.canonicalParamId ?? subBlock.id))
-                            }
                           />
-                          {index < advancedOnlySubBlocks.length - 1 && (
+                          {(index < advancedOnlySubBlocks.length - 1 || showRetrySettings) && (
                             <FieldDivider
                               subblockMarker
                               className={
@@ -728,6 +802,15 @@ export function Editor() {
                         </div>
                       )
                     })}
+
+                    {showRetrySettings && (
+                      <RetrySettings
+                        blockId={currentBlockId}
+                        retry={currentBlock?.retry}
+                        disabled={!canEditBlock}
+                        onChange={handleChangeRetry}
+                      />
+                    )}
                   </div>
                 )}
               </div>
@@ -737,7 +820,7 @@ export function Editor() {
             {hasIncomingConnections && (
               <div
                 className={
-                  'connections-section flex flex-shrink-0 flex-col overflow-hidden border-[var(--border)] border-t' +
+                  'connections-section flex shrink-0 flex-col overflow-hidden border-[var(--border)] border-t' +
                   (!isResizing ? ' transition-[height] duration-100 ease-out' : '')
                 }
                 style={{ height: `${connectionsHeight}px` }}
@@ -754,7 +837,7 @@ export function Editor() {
 
                 {/* Connections Header with Chevron */}
                 <div
-                  className='flex flex-shrink-0 cursor-pointer items-center gap-2 px-2.5 pt-[5px] pb-[5px]'
+                  className='flex shrink-0 cursor-pointer items-center gap-2 px-2.5 pt-[5px] pb-[5px]'
                   onClick={toggleConnectionsCollapsed}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
@@ -774,17 +857,12 @@ export function Editor() {
                       (!isConnectionsAtMinHeight ? ' rotate-180' : '')
                     }
                   />
-                  <div className='font-medium text-[var(--text-primary)] text-small'>
-                    Connections
-                  </div>
+                  <div className='text-[var(--text-primary)] text-small'>Connections</div>
                 </div>
 
                 {/* Connections Content - Always visible */}
                 <div className='flex-1 overflow-y-auto overflow-x-hidden px-1.5 pb-2'>
-                  <ConnectionBlocks
-                    connections={incomingConnections}
-                    currentBlockId={currentBlock.id}
-                  />
+                  <ConnectionBlocks connections={incomingConnections} />
                 </div>
               </div>
             )}

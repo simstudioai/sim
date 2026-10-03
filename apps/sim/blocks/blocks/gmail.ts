@@ -8,7 +8,6 @@ import {
   normalizeFileInput,
   SERVICE_ACCOUNT_SUBBLOCKS,
 } from '@/blocks/utils'
-import type { GmailToolResponse } from '@/tools/gmail/types'
 import { getTrigger } from '@/triggers'
 
 function selectGmailToolId(params: Record<string, any>): string {
@@ -44,7 +43,18 @@ function selectGmailToolId(params: Record<string, any>): string {
   }
 }
 
-export const GmailBlock: BlockConfig<GmailToolResponse> = {
+/**
+ * Canonical basic/advanced pairs, shared by the card sentences below. Listing
+ * both members is what keeps a sentence working for an advanced-mode user, who
+ * has only the manual field filled.
+ */
+const ATTACHMENTS_FIELD = ['attachmentFiles', 'attachments'] as const
+const FOLDER_FIELD = ['folder', 'manualFolder'] as const
+const DESTINATION_LABEL_FIELD = ['destinationLabel', 'manualDestinationLabel'] as const
+const SOURCE_LABEL_FIELD = ['sourceLabel', 'manualSourceLabel'] as const
+const MANAGE_LABEL_FIELD = ['labelSelector', 'manualLabelId'] as const
+
+export const GmailBlock: BlockConfig = {
   type: 'gmail',
   name: 'Gmail (Legacy)',
   description: 'Send, read, search, and move Gmail messages or trigger workflows from Gmail events',
@@ -56,6 +66,76 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
   integrationType: IntegrationType.Email,
   bgColor: '#FFFFFF',
   icon: GmailIcon,
+  canvasPresentation: {
+    typeLabel: 'Gmail',
+    defaultTitle: 'Send Email',
+    triggerSentences: {
+      byTrigger: {
+        gmail_poller: [
+          'Run on email',
+          { text: 'to', field: 'labelIds', core: true },
+          { text: 'matching', field: 'searchQuery' },
+        ],
+      },
+    },
+    operationSubBlockId: 'operation',
+    operationRowTitle: 'Action',
+    sentences: {
+      byOperation: {
+        send_gmail: [
+          { text: 'Send', field: 'subject', core: true },
+          { text: 'to', field: 'to', core: true },
+          { text: ', attaching', field: ATTACHMENTS_FIELD },
+        ],
+        draft_gmail: [
+          { text: 'Draft', field: 'subject', core: true },
+          { text: 'to', field: 'to', core: true },
+          { text: ', attaching', field: ATTACHMENTS_FIELD },
+        ],
+        edit_draft_gmail: [
+          { text: 'Update draft', field: 'draftId', core: true },
+          { text: ', addressed to', field: 'to' },
+        ],
+        read_gmail: [
+          {
+            text: 'Read up to',
+            field: 'maxResults',
+            after: 'messages',
+            core: true,
+          },
+          { text: 'in', field: FOLDER_FIELD, core: true },
+        ],
+        search_gmail: [
+          { text: 'Search messages matching', field: 'query', core: true },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        move_gmail: [
+          { text: 'Move message', field: 'moveMessageId', core: true },
+          { text: 'from', field: SOURCE_LABEL_FIELD },
+          { text: 'to', field: DESTINATION_LABEL_FIELD, core: true },
+        ],
+        mark_read_gmail: [
+          { text: 'Mark message', field: 'actionMessageId', core: true, after: 'as read' },
+        ],
+        mark_unread_gmail: [
+          { text: 'Mark message', field: 'actionMessageId', core: true, after: 'as unread' },
+        ],
+        archive_gmail: [{ text: 'Archive message', field: 'actionMessageId', core: true }],
+        unarchive_gmail: [{ text: 'Unarchive message', field: 'actionMessageId', core: true }],
+        delete_gmail: [
+          { text: 'Move message', field: 'actionMessageId', core: true, after: 'to trash' },
+        ],
+        add_label_gmail: [
+          { text: 'Add label', field: MANAGE_LABEL_FIELD, core: true },
+          { text: 'to message', field: 'labelActionMessageId' },
+        ],
+        remove_label_gmail: [
+          { text: 'Remove label', field: MANAGE_LABEL_FIELD, core: true },
+          { text: 'from message', field: 'labelActionMessageId' },
+        ],
+      },
+    },
+  },
   hideFromToolbar: true,
   sunset: { status: 'legacy', replacedBy: 'gmail_v2' },
   triggerAllowed: true,
@@ -117,6 +197,7 @@ export const GmailBlock: BlockConfig<GmailToolResponse> = {
     {
       id: 'to',
       title: 'To',
+      canvasNoun: 'a recipient',
       type: 'short-input',
       placeholder: 'Recipient email address',
       condition: { field: 'operation', value: ['send_gmail', 'draft_gmail', 'edit_draft_gmail'] },
@@ -574,7 +655,7 @@ Return ONLY the search query - no explanations, no extra text.`,
   },
 }
 
-export const GmailV2Block: BlockConfig<GmailToolResponse> = {
+export const GmailV2Block: BlockConfig = {
   ...GmailBlock,
   sunset: undefined,
   type: 'gmail_v2',

@@ -8,8 +8,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@sim/emcn'
-import { Blimp, Clipboard, Duplicate, Search, SelectAll } from '@sim/emcn/icons'
-import { Scissors } from 'lucide-react'
+import { Blimp, Clipboard, Duplicate, Scissors, Search, SelectAll } from '@sim/emcn/icons'
 
 interface EditorContextMenuProps {
   isOpen: boolean

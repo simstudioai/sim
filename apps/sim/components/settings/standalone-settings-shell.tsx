@@ -1,34 +1,37 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { ToastProvider } from '@sim/emcn'
+import { cn } from '@sim/emcn'
 import { usePathname } from 'next/navigation'
 import {
   ACCOUNT_SETTINGS_GROUPS,
   ACCOUNT_SETTINGS_ITEMS,
   ACCOUNT_SETTINGS_PATH_ALIASES,
   getAccountSettingsHref,
-  getOrganizationSettingsFeatures,
-  getOrganizationSettingsHref,
   getSelfHostSettingsHref,
-  isOrganizationSettingsSectionAvailable,
-  ORGANIZATION_SETTINGS_GROUPS,
-  ORGANIZATION_SETTINGS_ITEMS,
-  ORGANIZATION_SETTINGS_PATH_ALIASES,
+  getSettingsSectionMeta,
   parseSettingsPathSection,
-  resolveOrganizationSectionAccess,
   SELFHOST_SETTINGS_GROUPS,
   SELFHOST_SETTINGS_ITEMS,
   SETTINGS_PLANE_CHROME,
+  toSettingsHeaderMeta,
 } from '@/components/settings/navigation'
 import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
+import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
 import { SettingsSectionProvider } from '@/components/settings/settings-panel'
+import { SettingsPendingSection } from '@/components/settings/settings-pending-section'
 import { SettingsSidebar } from '@/components/settings/settings-sidebar'
 import { useSettingsBeforeUnload } from '@/components/settings/use-settings-before-unload'
-import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
+import type { DeploymentShape } from '@/lib/api/contracts/workspaces'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { SIDEBAR_NO_MOTION_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
+import { useSeedDeploymentShape } from '@/hooks/use-seed-deployment-shape'
+import { useSidebarWidth } from '@/hooks/use-sidebar-width'
 
 interface StandaloneSettingsShellBaseProps {
   children: ReactNode
+  /** The server-resolved deployment shape, seeded before the sidebar and sections read it. */
+  deployment: DeploymentShape
 }
 
 interface AccountSettingsShellProps extends StandaloneSettingsShellBaseProps {
@@ -40,46 +43,34 @@ interface SelfHostSettingsShellProps extends StandaloneSettingsShellBaseProps {
   plane: 'selfhost'
 }
 
-interface OrganizationSettingsShellProps extends StandaloneSettingsShellBaseProps {
-  plane: 'organization'
-  organizationId: string
-  hasEnterprisePlan: boolean
-  isOrganizationAdmin: boolean
-}
+type StandaloneSettingsShellProps = AccountSettingsShellProps | SelfHostSettingsShellProps
 
-type StandaloneSettingsShellProps =
-  | AccountSettingsShellProps
-  | OrganizationSettingsShellProps
-  | SelfHostSettingsShellProps
+function pendingSectionMeta(plane: 'account' | 'selfhost', section: string) {
+  const item = getSettingsSectionMeta(plane, section)
+  return item ? toSettingsHeaderMeta(item) : null
+}
 
 export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
   const { children, plane } = props
+  useSeedDeploymentShape(props.deployment)
   useSettingsBeforeUnload()
   const pathname = usePathname()
-  const hasEnterprisePlan = plane === 'organization' ? props.hasEnterprisePlan : false
-  const isOrganizationAdmin = plane === 'organization' ? props.isOrganizationAdmin : false
+  const { hosted, billingEnabled } = useDeploymentShape()
   const isSuperUser = plane === 'account' ? (props.isSuperUser ?? false) : false
 
-  const organizationFeatures = getOrganizationSettingsFeatures(hasEnterprisePlan)
+  useSidebarWidth()
+
   const accountItems = ACCOUNT_SETTINGS_ITEMS.filter((item) => {
-    if (item.id === 'billing' && !isBillingEnabled) return false
+    if (item.id === 'billing' && !billingEnabled) return false
     if ((item.id === 'admin' || item.id === 'mothership') && !isSuperUser) return false
     return true
   })
-  const organizationItems = ORGANIZATION_SETTINGS_ITEMS.filter(
-    (item) =>
-      resolveOrganizationSectionAccess({
-        section: item.id,
-        isTargetOrganizationMember: true,
-        isTargetOrganizationAdmin: isOrganizationAdmin,
-      }) !== 'unavailable' && isOrganizationSettingsSectionAvailable(item.id, organizationFeatures)
-  )
   const selfHostItems = SELFHOST_SETTINGS_ITEMS.filter((item) => {
-    if (item.id === 'billing' && !isBillingEnabled) return false
+    if (item.id === 'billing' && !billingEnabled) return false
     // Chat keys are issued by the managed service, so there are none to list on
-    // a self-hosted deployment — useCopilotKeys is `enabled: isHosted` for the
+    // a self-hosted deployment — useCopilotKeys is `enabled: hosted` for the
     // same reason. Self-hosters manage their keys on sim.ai.
-    if (item.id === 'chat-keys' && !isHosted) return false
+    if (item.id === 'chat-keys' && !hosted) return false
     return true
   })
   const selfHostSection = parseSettingsPathSection({
@@ -93,28 +84,9 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
     defaultSection: 'general',
     aliases: ACCOUNT_SETTINGS_PATH_ALIASES,
   })
-  const organizationSection = parseSettingsPathSection({
-    path: pathname,
-    items: ORGANIZATION_SETTINGS_ITEMS,
-    defaultSection: 'members',
-    aliases: ORGANIZATION_SETTINGS_PATH_ALIASES,
-  })
-  const activeSection =
-    plane === 'account'
-      ? accountSection
-      : plane === 'selfhost'
-        ? selfHostSection
-        : organizationSection
+  const activeSection = plane === 'account' ? accountSection : selfHostSection
   const sidebar =
-    plane === 'selfhost' ? (
-      <SettingsSidebar
-        activeSection={selfHostSection}
-        plane={plane}
-        groups={SELFHOST_SETTINGS_GROUPS}
-        hrefForSection={getSelfHostSettingsHref}
-        items={selfHostItems}
-      />
-    ) : plane === 'account' ? (
+    plane === 'account' ? (
       <SettingsSidebar
         activeSection={accountSection}
         plane={plane}
@@ -124,41 +96,46 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
       />
     ) : (
       <SettingsSidebar
-        activeSection={organizationSection}
+        activeSection={selfHostSection}
         plane={plane}
-        groups={ORGANIZATION_SETTINGS_GROUPS}
-        hrefForSection={(section) => getOrganizationSettingsHref(props.organizationId, section)}
-        items={organizationItems}
+        groups={SELFHOST_SETTINGS_GROUPS}
+        hrefForSection={getSelfHostSettingsHref}
+        items={selfHostItems}
       />
     )
 
   return (
-    <ToastProvider>
-      {/*
-        Mirrors the in-workspace chrome (WorkspaceChrome): a flush, borderless
-        sidebar column against the app surface, and only the content pane
-        carrying the rounded border. Keep the two in step — a settings page
-        should look the same whether it is reached inside a workspace or not.
-      */}
+    <SettingsNavigationProvider>
       <div className='flex h-screen w-full overflow-hidden bg-[var(--surface-1)]'>
+        {/*
+          Mirrors the in-workspace chrome (WorkspaceChrome): a flush, borderless
+          sidebar column against the app surface, meeting the content pane on a
+          single hairline divider with no gutter. Keep the two in step — a settings
+          page should look the same whether it is reached inside a workspace or not.
+        */}
         <aside
-          className='flex h-full w-[248px] flex-shrink-0 flex-col overflow-hidden bg-[var(--surface-1)] pt-3'
+          className={cn(
+            'flex h-full w-[var(--sidebar-expanded-width)] shrink-0 flex-col overflow-hidden bg-[var(--surface-1)] pt-3',
+            SIDEBAR_NO_MOTION_CLASS
+          )}
           aria-label={`${SETTINGS_PLANE_CHROME[plane].label} settings navigation`}
         >
           {sidebar}
         </aside>
-        <div className='flex min-w-0 flex-1 flex-col p-[8px] pl-0'>
-          <main className='flex-1 overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--bg)]'>
-            <SettingsHeaderProvider>
-              <SettingsHeaderShell>
-                <SettingsSectionProvider plane={plane} section={activeSection}>
-                  {children}
-                </SettingsSectionProvider>
-              </SettingsHeaderShell>
-            </SettingsHeaderProvider>
+        <div className='flex min-w-0 flex-1 flex-col'>
+          <main className='flex-1 overflow-hidden border-[var(--border)] border-l bg-[var(--bg)]'>
+            <SettingsPendingSection resolveMeta={(section) => pendingSectionMeta(plane, section)}>
+              <SettingsHeaderProvider>
+                <SettingsHeaderShell>
+                  <SettingsSectionProvider plane={plane} section={activeSection}>
+                    {children}
+                  </SettingsSectionProvider>
+                </SettingsHeaderShell>
+              </SettingsHeaderProvider>
+            </SettingsPendingSection>
           </main>
         </div>
       </div>
-    </ToastProvider>
+    </SettingsNavigationProvider>
   )
 }

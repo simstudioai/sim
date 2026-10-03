@@ -30,7 +30,6 @@ export function SSOLoginButton({
     <Chip
       variant={variant === 'primary' ? 'primary' : undefined}
       fullWidth
-      flush
       onClick={handleSSOClick}
       className={cn(
         AUTH_BUTTON_CLASS,

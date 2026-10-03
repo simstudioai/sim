@@ -54,15 +54,6 @@ export const GOOGLE_SEARCH_RESULT_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete search result item output definition
- */
-export const GOOGLE_SEARCH_RESULT_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'A single search result from Google Custom Search',
-  properties: GOOGLE_SEARCH_RESULT_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for search information metadata.
  * @see https://developers.google.com/custom-search/v1/reference/rest/v1/Search#SearchInformation
  */
@@ -75,15 +66,6 @@ export const GOOGLE_SEARCH_INFORMATION_OUTPUT_PROPERTIES = {
     description: 'Formatted total results count for display',
   },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete search information output definition
- */
-export const GOOGLE_SEARCH_INFORMATION_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Information about the search query and results',
-  properties: GOOGLE_SEARCH_INFORMATION_OUTPUT_PROPERTIES,
-}
 
 export interface GoogleSearchParams {
   query: string

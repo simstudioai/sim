@@ -1,26 +1,28 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import * as Y from 'yjs'
 import {
+  assertCollabDocStateSize,
+  type CachedCollabDocState,
+  CollabDocStateConflictError,
+  commitCollabDocState,
+  hashMarkdown,
+  loadCollabDocState,
+  type PreparedCollabDocState,
+} from '@/lib/collab-doc/collab-state'
+import { yDocToFileMarkdown } from '@/lib/collab-doc/converter'
+import {
   ContentVersionConflictError,
+  fetchWorkspaceFileBuffer,
   getWorkspaceFile,
   updateWorkspaceFileContent,
 } from '@/lib/uploads/contexts/workspace'
-import { hashMarkdown, saveCollabDocState } from './collab-state'
-import { yDocToFileMarkdown } from './converter'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
 const logger = createLogger('FileDocPersist')
+const MAX_PERSIST_ATTEMPTS = 2
 
-/**
- * Outcome of a persist attempt:
- * - `persisted` — the live doc was projected to markdown and written; `version` is the new durable
- *   CONTENT version (`content_updated_at`, epoch ms) the relay records as what its live doc is synced to.
- * - `missing` — the file is gone (deleted); nothing to write.
- * - `conflict` — the file changed out-of-band since the relay's live doc last synced, so writing the
- *   projection would clobber that change (RFC 7232 `If-Match` failure). NOT written; the relay leaves the
- *   durable content authoritative and does not advance its synced version (a later flush reconciles once
- *   the chokepoint merge lands). No `version` is returned — the relay never reads one on this path.
- */
+/** Only an accepted content/cache transaction advances the relay's durable content version. */
 export type PersistFileDocResult =
   | { status: 'persisted'; version: number }
   | { status: 'missing' }
@@ -28,20 +30,9 @@ export type PersistFileDocResult =
   | { status: 'deferred' }
 
 /**
- * Project a live collaborative document back to durable markdown and write it to the file. The realtime
- * relay owns the live Yjs doc but not the conversion engine or blob/DB access, so it ships the doc state
- * here and the app persists it — the server-authoritative durable path that replaces the editor's
- * client-side autosave.
- *
- * `expectedVersion` (the durable CONTENT version, `content_updated_at` epoch ms, the relay's live doc last
- * synced from) is the optimistic-concurrency guard: the write commits only if the file is still at that
- * content version — a rename/move that only bumps `updatedAt` won't trip it, so a
- * projection built from a stale live doc can never silently overwrite an out-of-band edit. On a version
- * mismatch this returns `conflict` (the current durable version) instead of writing — the relay adopts
- * it as its new If-Match and retries against the current live stream. Omit `expectedVersion` to write
- * unconditionally (e.g. the first persist, before any synced version exists).
- *
- * `userId` is attribution only (blob metadata); the caller is already trusted via the `x-api-key` gate.
+ * Persist the relay's snapshot and its Markdown projection together. Conversion and blob I/O stay
+ * outside the file-row transaction; content version and cached-state fences protect its commit.
+ * `userId` is attribution only: the internal surface authorizes the caller before this operation.
  */
 export async function persistFileDoc(
   workspaceId: string,
@@ -50,76 +41,123 @@ export async function persistFileDoc(
   docState: Uint8Array,
   expectedVersion?: number
 ): Promise<PersistFileDocResult> {
-  const record = await getWorkspaceFile(workspaceId, fileId, { throwOnError: true })
-  if (!record) return { status: 'missing' }
-
-  // Optimistic concurrency needs a version. If none was supplied — the relay's synced-version token was
-  // momentarily unavailable (a Redis blip on a peer-seeded task) — DEFER rather than write: an
-  // unconditional write could clobber an out-of-band edit, and a reconcile would wipe live edits even
-  // when nothing changed out-of-band (the version was merely missing). The edits stay in the stream; a
-  // later persist writes them once the version is re-established. There is deliberately NO empty-file
-  // unconditional-write carve-out: every existing file has a `content_updated_at`, so the relay always
-  // has a real version to send and a missing one is always transient — and `record.size` is read outside
-  // the write transaction, so trusting it (an empty file "has nothing to clobber") is a TOCTOU race a
-  // concurrent first content write would lose.
-  if (expectedVersion === undefined) {
-    return { status: 'deferred' }
-  }
-
-  const ydoc = new Y.Doc()
-  let markdownBuffer: Buffer
+  const initialRecord = await getWorkspaceFile(workspaceId, fileId, { throwOnError: true })
+  if (!initialRecord) return { status: 'missing' }
+  if (expectedVersion === undefined) return { status: 'deferred' }
+  assertCollabDocStateSize(docState)
+  const candidate = new Y.Doc()
+  let markdown: Buffer
   try {
-    Y.applyUpdate(ydoc, docState)
-    markdownBuffer = Buffer.from(yDocToFileMarkdown(ydoc), 'utf-8')
+    Y.applyUpdate(candidate, docState)
+    markdown = Buffer.from(yDocToFileMarkdown(candidate), 'utf-8')
   } finally {
-    ydoc.destroy()
+    candidate.destroy()
   }
 
-  try {
-    const updated = await updateWorkspaceFileContent(
-      workspaceId,
-      fileId,
-      userId,
-      markdownBuffer,
-      undefined,
-      {
-        // This write IS the projection of the live doc, so re-merging it into that same doc would loop.
-        syncLiveDoc: false,
-        // If-Match: only if the durable file is still at the version the live doc synced from.
-        expectedUpdatedAt: expectedVersion !== undefined ? new Date(expectedVersion) : undefined,
-      }
-    )
-
-    // Cache the Yjs binary (tagged with the exact markdown just written) so a later cold room open loads
-    // it directly instead of re-converting. Best-effort — the markdown is the durable source of truth.
-    try {
-      await saveCollabDocState(fileId, docState, hashMarkdown(markdownBuffer))
-    } catch (error) {
-      logger.warn(`Failed to cache collab doc state for file ${fileId}`, {
-        error: getErrorMessage(error),
+  for (let attempt = 0; attempt < MAX_PERSIST_ATTEMPTS; attempt++) {
+    const record =
+      attempt === 0
+        ? initialRecord
+        : await getWorkspaceFile(workspaceId, fileId, { throwOnError: true })
+    if (!record) return { status: 'missing' }
+    const version = (record.contentUpdatedAt ?? record.updatedAt).getTime()
+    const cached = await loadCollabDocState(fileId)
+    let durable: Buffer | null = null
+    if (record.size === markdown.length || version !== expectedVersion) {
+      durable = await fetchWorkspaceFileBuffer(record, {
+        maxBytes: version === expectedVersion ? markdown.length : MAX_BUFFERED_TRANSFER_BYTES,
       })
     }
+    const prepared = preparePersistedState(
+      docState,
+      cached,
+      markdown,
+      version !== expectedVersion && !durable?.equals(markdown)
+    )
+    if (!prepared) return { status: 'conflict' }
 
-    logger.info(
-      `Persisted live collaborative document to file ${fileId} (workspace ${workspaceId})`
-    )
-    // Return the CONTENT version (what the CAS/seed/merge all guard on), not `updatedAt` — the relay
-    // records this as its new If-Match token, so it must be the same field a later persist is checked
-    // against. (A content write sets both to the same instant; using the wrong one only bites once they
-    // diverge — e.g. a metadata write bumping `updatedAt` afterward.)
-    return {
-      status: 'persisted',
-      version: (updated.contentUpdatedAt ?? updated.updatedAt).getTime(),
+    try {
+      if (durable?.equals(markdown)) {
+        const result = await commitCollabDocState(workspaceId, fileId, version, prepared)
+        if (result.status === 'committed') {
+          return { status: 'persisted', version: result.version }
+        }
+        if (result.status === 'missing') return result
+        continue
+      }
+
+      /** A stale relay token may advance only if the cached history accounts for the durable bytes. */
+      if (
+        version !== expectedVersion &&
+        (!durable || cached?.sourceHash !== hashMarkdown(durable))
+      ) {
+        return { status: 'conflict' }
+      }
+
+      const updated = await updateWorkspaceFileContent(
+        workspaceId,
+        fileId,
+        userId,
+        markdown,
+        undefined,
+        {
+          version: { source: 'collab', authorUserId: userId },
+          syncLiveDoc: false,
+          expectedUpdatedAt: new Date(version),
+          secretProvenancePolicy: { mode: 'preserve' },
+          collabDocState: prepared,
+        }
+      )
+      logger.info(`Persisted collaborative document for file ${fileId}`)
+      return {
+        status: 'persisted',
+        version: (updated.contentUpdatedAt ?? updated.updatedAt).getTime(),
+      }
+    } catch (error) {
+      if (
+        !(error instanceof ContentVersionConflictError) &&
+        !(error instanceof CollabDocStateConflictError)
+      ) {
+        throw error
+      }
     }
-  } catch (error) {
-    if (!(error instanceof ContentVersionConflictError)) throw error
-    // Out-of-band content change since the live doc last synced — DON'T clobber. The relay leaves the
-    // durable content authoritative and does NOT re-persist or advance its synced version here (a later
-    // flush reconciles once the chokepoint merge lands), so it reads nothing off this result beyond the
-    // `conflict` status — no durable version re-read is needed.
-    logger.warn(
-      `Persist conflict for file ${fileId}; durable content changed out-of-band since sync`
-    )
-    return { status: 'conflict' }
+  }
+
+  logger.warn(`Persist conflict for file ${fileId}; the file or cached history changed during save`)
+  return { status: 'conflict' }
+}
+
+/**
+ * The relay owns the full snapshot. Legacy caches can contain detached normalization deletions
+ * never sent to that relay, so they cannot be merged into saved state. For stale content writes,
+ * use a throwaway merge only to prove the candidate does not omit durable content.
+ */
+function preparePersistedState(
+  docState: Uint8Array,
+  cached: CachedCollabDocState | null,
+  markdown: Buffer,
+  proveContentIncluded: boolean
+): PreparedCollabDocState | null {
+  if (!cached) return { docState, sourceHash: hashMarkdown(markdown), expectedState: null }
+  const candidate = new Y.Doc()
+  const persisted = new Y.Doc()
+  try {
+    Y.applyUpdate(candidate, docState)
+    Y.applyUpdate(persisted, cached.docState)
+    const generation = (doc: Y.Doc) =>
+      doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.docIdKey)
+    if (generation(candidate) !== generation(persisted)) return null
+    if (proveContentIncluded) {
+      Y.applyUpdate(candidate, cached.docState)
+      if (!Buffer.from(yDocToFileMarkdown(candidate), 'utf-8').equals(markdown)) return null
+    }
+    return {
+      docState,
+      sourceHash: hashMarkdown(markdown),
+      expectedState: { stateHash: cached.stateHash, sourceHash: cached.sourceHash },
+    }
+  } finally {
+    candidate.destroy()
+    persisted.destroy()
   }
 }

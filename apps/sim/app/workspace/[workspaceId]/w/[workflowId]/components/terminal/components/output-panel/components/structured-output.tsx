@@ -11,7 +11,14 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Badge, ChevronDown, cn } from '@sim/emcn'
+import {
+  Badge,
+  ChevronDown,
+  chipGeometryClass,
+  chipHoverSurfaceClass,
+  cn,
+  disclosureChevronClass,
+} from '@sim/emcn'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { isUserFileDisplayMetadata } from '@/lib/core/utils/user-file'
 import {
@@ -19,9 +26,12 @@ import {
   type LargeArrayManifest,
 } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { isLargeValueRef, type LargeValueRef } from '@/lib/execution/payloads/large-value-ref'
+import {
+  BADGE_STYLE,
+  ROW_STYLES,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
 
 type ValueType = 'null' | 'undefined' | 'array' | 'string' | 'number' | 'boolean' | 'object'
-type BadgeVariant = 'green' | 'blue' | 'orange' | 'purple' | 'gray' | 'red'
 
 interface NodeEntry {
   key: string
@@ -51,29 +61,33 @@ const CONFIG = {
   VIRTUALIZATION_THRESHOLD: 200,
 } as const
 
-const BADGE_VARIANTS: Record<ValueType, BadgeVariant> = {
-  string: 'green',
-  number: 'blue',
-  boolean: 'orange',
-  array: 'purple',
-  null: 'gray',
-  undefined: 'gray',
-  object: 'gray',
-} as const
+/**
+ * One neutral tag for every value type. Per-type hues re-encoded a fact the tag
+ * text and the value already state, and left red — the only signal that matters
+ * — competing with decoration. Red stays; nothing else is coloured.
+ */
+const VALUE_TYPE_BADGE_VARIANT = 'gray-secondary' as const
 
 /**
- * Styling constants matching the original non-virtualized implementation.
+ * Styling constants for the output tree — the same chip as a log row.
+ *
+ * `row` overrides the pill's fixed `h-[30px]` with `h-auto min-h-[30px]`: a
+ * wrapped value grows past one line.
  */
 const STYLES = {
-  row: 'group flex min-h-[30px] cursor-pointer items-center gap-2 rounded-lg px-2 -mx-2 hover-hover:bg-[var(--surface-active)]',
-  chevron:
-    'h-[7px] w-[9px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
-  keyName: 'text-sm text-[var(--text-primary)]',
-  badge: 'rounded-sm px-1 py-[0px] text-xs',
-  summary: 'text-sm text-[var(--text-secondary)]',
-  indent: 'mt-0.5 ml-[3px] flex min-w-0 flex-col gap-0.5 border-[var(--border)] border-l pl-[9px]',
-  value: 'min-w-0 py-0.5 text-sm text-[var(--text-primary)]',
-  emptyValue: 'py-0.5 text-sm text-[var(--text-secondary)]',
+  row: cn(
+    'group flex cursor-pointer transition-colors',
+    chipGeometryClass,
+    '-mx-2 h-auto min-h-[30px]',
+    chipHoverSurfaceClass
+  ),
+  chevron: disclosureChevronClass,
+  keyName: 'text-sm text-[var(--text-body)]',
+  badge: BADGE_STYLE,
+  summary: 'text-sm text-[var(--text-muted)]',
+  indent: ROW_STYLES.nested,
+  value: 'min-w-0 py-0.5 text-sm text-[var(--text-body)]',
+  emptyValue: 'py-0.5 text-sm text-[var(--text-muted)]',
   matchHighlight: 'bg-yellow-200/60 dark:bg-yellow-500/40',
   currentMatchHighlight: 'bg-orange-400',
 } as const
@@ -400,7 +414,7 @@ const StructuredNode = memo(function StructuredNode({
     [displayValue, isPrimitiveValue]
   )
 
-  const badgeVariant = isError ? 'red' : BADGE_VARIANTS[type]
+  const badgeVariant = isError ? 'red' : VALUE_TYPE_BADGE_VARIANT
   const valueText = isPrimitiveValue ? formatPrimitive(displayValue) : ''
   const matchIndices = searchContext?.pathToMatchIndices.get(path) ?? EMPTY_MATCH_INDICES
 
@@ -655,7 +669,7 @@ function VirtualizedRow({
   const paddingLeft = CONFIG.BASE_PADDING + row.depth * CONFIG.INDENT_PER_LEVEL
 
   if (row.type === 'header') {
-    const badgeVariant = row.isError ? 'red' : BADGE_VARIANTS[row.valueType]
+    const badgeVariant = row.isError ? 'red' : VALUE_TYPE_BADGE_VARIANT
 
     return (
       <div style={{ paddingLeft }} data-row-index={index}>

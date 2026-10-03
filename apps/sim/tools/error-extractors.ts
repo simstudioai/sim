@@ -26,7 +26,6 @@ export interface ErrorInfo {
   status?: number
   statusText?: string
   data?: any
-  headers?: { get(name: string): string | null }
 }
 
 export type ErrorExtractor = (errorInfo?: ErrorInfo) => string | null | undefined
@@ -38,20 +37,66 @@ interface ErrorExtractorConfig {
   description: string
   /** Example APIs that use this pattern */
   examples?: string[]
-  /**
-   * Whether this extractor may run in the provider-agnostic fallback chain that
-   * {@link extractErrorMessage} walks when a tool declares no `errorExtractor`.
-   *
-   * Defaults to `true`. Set it to `false` for any extractor that returns a
-   * non-empty string unconditionally — the fallback loop stops at the first
-   * non-empty result, so such an extractor hijacks the chain and relabels every
-   * other provider's errors. `quickbooks-fault` is exactly that shape: it always
-   * produces at least `"QuickBooks request failed."`. Do not delete this flag
-   * without first making the extractor return `null` for non-matching payloads.
-   */
-  useInFallback?: boolean
   /** The extraction function */
   extract: ErrorExtractor
+  /**
+   * Optional replacement for the raw error body.
+   *
+   * The executor attaches `errorInfo.data` to the thrown error and surfaces it on
+   * the failed tool's `output.data`, so an extractor that exists because a provider
+   * echoes a credential back must redact the body too — scrubbing only the message
+   * leaves the original reachable at `output.data`.
+   */
+  redactData?: (errorInfo?: ErrorInfo) => unknown
+}
+
+const CODA_MAX_VALIDATION_MESSAGES = 5
+
+/**
+ * Flattens Coda's validation detail (`validationErrors` or nested schema `issues`) into
+ * `path: message` strings. Only Coda's own path and message text is used, never the
+ * submitted values.
+ */
+function collectCodaValidationMessages(detail: unknown): string[] {
+  const messages = new Set<string>()
+  const visit = (issue: unknown) => {
+    if (messages.size >= CODA_MAX_VALIDATION_MESSAGES || !issue || typeof issue !== 'object') return
+    const record = issue as { path?: unknown; message?: unknown; errors?: unknown }
+    if (Array.isArray(record.errors) && record.errors.length > 0) {
+      for (const branch of record.errors) {
+        if (Array.isArray(branch)) branch.forEach(visit)
+        else visit(branch)
+      }
+      return
+    }
+    if (typeof record.message !== 'string' || !record.message) return
+    const path = Array.isArray(record.path)
+      ? record.path.filter((part) => typeof part === 'string' || typeof part === 'number').join('.')
+      : typeof record.path === 'string'
+        ? record.path
+        : ''
+    messages.add(path ? `${path}: ${record.message}` : record.message)
+  }
+  if (detail && typeof detail === 'object') {
+    const { validationErrors, issues } = detail as { validationErrors?: unknown; issues?: unknown }
+    if (Array.isArray(validationErrors)) validationErrors.forEach(visit)
+    if (Array.isArray(issues)) issues.forEach(visit)
+  }
+  return [...messages]
+}
+
+const PITCHBOOK_UNAUTHORIZED_MESSAGE =
+  'PitchBook rejected the API key. Check that the key is active and has API access.'
+
+/**
+ * PitchBook's unauthorized body echoes the submitted key back inside `message`,
+ * so both the message and the retained body have to be replaced.
+ */
+function isPitchbookUnauthorized(errorInfo?: ErrorInfo): boolean {
+  const data = errorInfo?.data
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return false
+  const reason = typeof data.reason === 'string' ? data.reason.trim() : ''
+  return errorInfo?.status === 401 || reason === 'UNAUTHORIZED'
 }
 
 const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
@@ -225,6 +270,105 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     extract: (errorInfo) => errorInfo?.data?.message,
   },
   {
+    id: 'coda-errors',
+    description:
+      'Coda (Superhuman Docs) API errors: the `message` field, or the field-level validation issues under `codaDetail` when the message is only the generic HTTP status text',
+    examples: ['Coda'],
+    extract: (errorInfo) => {
+      const data = errorInfo?.data
+      if (!data || typeof data !== 'object' || Array.isArray(data)) return undefined
+      const message = typeof data.message === 'string' ? data.message.trim() : ''
+      const generic = !message || message === data.statusMessage
+      if (!generic) return message
+      const details = collectCodaValidationMessages(data.codaDetail)
+      const status = message || (typeof data.statusMessage === 'string' ? data.statusMessage : '')
+      if (details.length > 0) return `${status || 'Invalid request'}: ${details.join('; ')}`
+      return status || undefined
+    },
+  },
+  {
+    id: 'harmonic-errors',
+    description:
+      'Harmonic API message errors, string and object FastAPI detail aborts including the enrichment URN, bulk email-enrichment error codes with their quota counters, and validation detail arrays without echoed request input',
+    examples: ['Harmonic'],
+    extract: (errorInfo) => {
+      const data = errorInfo?.data
+      if (!data || typeof data !== 'object' || Array.isArray(data)) return undefined
+
+      const message = typeof data.message === 'string' ? data.message.trim() : ''
+      if (message) return message
+
+      /**
+       * Harmonic's Kong edge answers with `message`, but the FastAPI application
+       * behind it renders every non-422 abort as a bare string `detail`. Without
+       * this branch those become `Request failed with status 403`, because a tool
+       * that names an extractor gets no fallback chain.
+       */
+      if (typeof data.detail === 'string') {
+        const detail = data.detail.trim()
+        return detail || undefined
+      }
+
+      /**
+       * `POST /persons` answers 404 with an object detail carrying the enrichment
+       * Harmonic just scheduled. The URN is the only handle on that job, so it is
+       * appended to the message rather than dropped with the rest of the envelope.
+       */
+      if (data.detail && typeof data.detail === 'object' && !Array.isArray(data.detail)) {
+        const detail = data.detail as {
+          message?: unknown
+          enrichment_urn?: unknown
+        }
+        const detailMessage = typeof detail.message === 'string' ? detail.message.trim() : ''
+        const enrichmentUrn =
+          typeof detail.enrichment_urn === 'string' ? detail.enrichment_urn.trim() : ''
+        if (!detailMessage) return enrichmentUrn || undefined
+        return enrichmentUrn ? `${detailMessage} (${enrichmentUrn})` : detailMessage
+      }
+
+      /**
+       * The bulk email-enrichment endpoint answers 422/429 with a code in `error`
+       * and no message anywhere — `{error: 'MONTHLY_QUOTA_INSUFFICIENT', needed,
+       * available, submitted}`. These are the most actionable failures on that path.
+       *
+       * Gated on one of the documented numeric counters being present. `error` alone
+       * is far too common a key to claim: `extractErrorMessage` without an explicit
+       * id walks every extractor in order, so a bare `error` check here would swallow
+       * OAuth's `{error, error_description}` and return the code instead of the text.
+       */
+      const emailJobCounters = (['needed', 'available', 'submitted'] as const).filter(
+        (key) => typeof data[key] === 'number'
+      )
+      if (typeof data.error === 'string' && data.error.trim() && emailJobCounters.length > 0) {
+        const code = data.error.trim()
+        return `${code} (${emailJobCounters.map((key) => `${key} ${data[key]}`).join(', ')})`
+      }
+
+      if (!Array.isArray(data.detail)) return undefined
+      const details = data.detail
+        .map((entry: unknown) => {
+          if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return ''
+          const validation = entry as { loc?: unknown; msg?: unknown }
+          const detail = typeof validation.msg === 'string' ? validation.msg.trim() : ''
+          if (!detail) return ''
+
+          const location = Array.isArray(validation.loc)
+            ? validation.loc
+                .filter(
+                  (segment): segment is string | number =>
+                    typeof segment === 'string' || typeof segment === 'number'
+                )
+                .map(String)
+            : []
+          const fieldPath = location[0] === 'body' ? location.slice(1) : location
+          return fieldPath.length > 0 ? `${fieldPath.join('.')}: ${detail}` : detail
+        })
+        .filter(Boolean)
+
+      return details.length > 0 ? details.join('; ') : undefined
+    },
+  },
+  {
     id: 'soap-fault',
     description: 'SOAP/XML fault string patterns',
     examples: ['SOAP APIs', 'Legacy XML services'],
@@ -258,6 +402,65 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     },
   },
   {
+    id: 'bitbucket-errors',
+    description:
+      'Bitbucket error envelope: {type:"error", error:{message, detail}}. `message` is the class of failure and `detail` names the offending branch, file, or property, which the bare message does not',
+    examples: ['Bitbucket Cloud REST API v2'],
+    extract: (errorInfo) => {
+      const error = errorInfo?.data?.error
+      if (!error || typeof error !== 'object') return undefined
+      const message = typeof error.message === 'string' ? error.message.trim() : ''
+      const detail = typeof error.detail === 'string' ? error.detail.trim() : ''
+      if (!message) return detail || undefined
+      if (!detail || detail === message) return message
+      return `${message}: ${detail}`
+    },
+  },
+  {
+    id: 'dynatrace-errors',
+    description:
+      'Dynatrace ErrorEnvelope: {error: {code, message, constraintViolations[]}}. The violations name the offending selector or parameter, which the bare message does not',
+    examples: ['Dynatrace Environment API v2'],
+    extract: (errorInfo) => {
+      const error = errorInfo?.data?.error
+      if (!error || typeof error !== 'object') return undefined
+
+      const message = typeof error.message === 'string' ? error.message.trim() : ''
+      const violations = Array.isArray(error.constraintViolations)
+        ? error.constraintViolations
+            .map((violation: { path?: unknown; message?: unknown }) => {
+              const detail = typeof violation?.message === 'string' ? violation.message.trim() : ''
+              if (!detail) return ''
+              const path = typeof violation?.path === 'string' ? violation.path.trim() : ''
+              return path ? `${path}: ${detail}` : detail
+            })
+            .filter(Boolean)
+        : []
+
+      if (!message && violations.length === 0) return undefined
+      if (violations.length === 0) return message
+      return message ? `${message} (${violations.join('; ')})` : violations.join('; ')
+    },
+  },
+  {
+    id: 'smartlead-errors',
+    description:
+      'Smartlead error formats: {error} for domain errors, {message} for auth failures, and Joi validation payloads where {error} is only "Bad Request" and {message} carries the detail',
+    examples: ['Smartlead API'],
+    extract: (errorInfo) => {
+      const data = errorInfo?.data
+      if (!data || typeof data !== 'object') return undefined
+
+      const message = typeof data.message === 'string' ? data.message.trim() : ''
+      const error = typeof data.error === 'string' ? data.error.trim() : ''
+
+      // Joi validation: `error` is the generic "Bad Request", `message` names the field.
+      if (message && data.validation) return message
+      if (error) return error
+      return message || undefined
+    },
+  },
+  {
     id: 'posthog-errors',
     description: 'PostHog API error format with type/code/detail/attr fields',
     examples: ['PostHog API'],
@@ -272,11 +475,15 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     id: 'quickbooks-fault',
     description: 'QuickBooks Online Fault.Error[] responses with authentication and rate guidance',
     examples: ['QuickBooks Online Accounting API'],
-    useInFallback: false,
     extract: (errorInfo) => {
       const status = errorInfo?.status
-      const fault = sanitizeQuickBooksFaultData(errorInfo?.data)
-      const faultMessage = fault ? formatQuickBooksFaultDetail(fault) : ''
+      const data = errorInfo?.data
+      const fault =
+        sanitizeQuickBooksFaultData(data) ??
+        (data && typeof data === 'object' && !Array.isArray(data)
+          ? sanitizeQuickBooksFaultData((data as Record<string, unknown>).QueryResponse)
+          : null)
+      if (!fault) return null
 
       const guidance =
         status === 401
@@ -286,24 +493,105 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
             : status === 429
               ? 'QuickBooks rate limit reached; retry after the indicated delay.'
               : ''
-      const trackingId =
-        errorInfo?.headers?.get('intuit_tid') ??
-        errorInfo?.headers?.get('x-request-id') ??
-        errorInfo?.headers?.get('request-id')
-      const retryAfter = status === 429 ? errorInfo?.headers?.get('retry-after') : null
-
-      const context = [
-        trackingId ? `Intuit tracking ID: ${trackingId}` : '',
-        retryAfter ? `Retry-After: ${retryAfter}` : '',
-      ]
-        .filter(Boolean)
-        .join('; ')
       const statusMessage =
         typeof status === 'number'
           ? `QuickBooks request failed with HTTP ${status}.`
           : 'QuickBooks request failed.'
-      const message = [statusMessage, guidance, faultMessage].filter(Boolean).join(' ')
-      return context ? `${message} (${context})` : message
+      return [statusMessage, guidance, formatQuickBooksFaultDetail(fault)].filter(Boolean).join(' ')
+    },
+  },
+  {
+    id: 'prospeo-errors',
+    description: 'Prospeo API error_code with optional filter_error and message details',
+    examples: ['Prospeo API'],
+    extract: (errorInfo) => {
+      const data = errorInfo?.data
+      if (!data || typeof data !== 'object') return undefined
+
+      const parts = [data.error_code, data.filter_error, data.message].filter(
+        (part): part is string => typeof part === 'string' && Boolean(part.trim())
+      )
+      return parts.length > 0 ? parts.join(': ') : undefined
+    },
+  },
+  {
+    id: 'wiza-errors',
+    description:
+      'Wiza API error envelope: {status: {code, message}}, plus plain-text bodies. The message is nested under status, so the generic extractors miss it',
+    examples: ['Wiza'],
+    extract: (errorInfo) => {
+      const data = errorInfo?.data
+      const candidates = [data, data?.status?.message, data?.message]
+      for (const candidate of candidates) {
+        if (typeof candidate === 'string' && candidate.trim()) return candidate.trim()
+      }
+      return undefined
+    },
+  },
+  {
+    id: 'crunchbase-errors',
+    description:
+      'Crunchbase Data API error envelope: a top-level JSON array of {status, code, message}. Nothing else in this registry reads a bare array, so without it a rejected key or malformed predicate reports only its HTTP status',
+    examples: ['Crunchbase'],
+    extract: (errorInfo) => {
+      const entries = Array.isArray(errorInfo?.data) ? errorInfo.data : undefined
+      if (!entries?.length) return undefined
+
+      const messages = entries
+        .map((entry: { message?: unknown }) =>
+          typeof entry?.message === 'string' ? entry.message.trim() : ''
+        )
+        .filter(Boolean)
+
+      return messages.length > 0 ? messages.join('; ') : undefined
+    },
+  },
+  {
+    id: 'pitchbook-errors',
+    description:
+      'PitchBook Public API error envelope: {reason, message}. An unauthorized response echoes the rejected key back inside `message` ("Active API key {KEY} not found"), so that case is replaced with a fixed string — the generic message fallback would otherwise put the credential in the block error, the run log, and any agent context reading the failure. Returns undefined unless the body carries a `message`, so that on the generic fallback chain — which every tool without an `errorExtractor` walks — a foreign 401 is never labelled a PitchBook auth failure',
+    examples: ['PitchBook'],
+    extract: (errorInfo) => {
+      const data = errorInfo?.data
+      if (!data || typeof data !== 'object' || Array.isArray(data)) return undefined
+
+      const reason = typeof data.reason === 'string' ? data.reason.trim() : ''
+      const message = typeof data.message === 'string' ? data.message.trim() : ''
+      if (!message) return undefined
+
+      if (isPitchbookUnauthorized(errorInfo)) return PITCHBOOK_UNAUTHORIZED_MESSAGE
+
+      return reason ? `${message} (${reason})` : message
+    },
+    redactData: (errorInfo) => {
+      if (!isPitchbookUnauthorized(errorInfo)) return errorInfo?.data
+      const reason = (errorInfo?.data as { reason?: unknown } | undefined)?.reason
+      return { reason, message: PITCHBOOK_UNAUTHORIZED_MESSAGE }
+    },
+  },
+  {
+    id: 'splunk-errors',
+    description:
+      'Splunk REST message envelope: {messages: [{type, text}]}. Under the output_mode=json every Splunk request pins, this is where a rejected SPL string explains itself — without it the failure reports only the HTTP status text',
+    examples: ['Splunk Enterprise', 'Splunk Cloud'],
+    extract: (errorInfo) => {
+      const messages = errorInfo?.data?.messages
+      if (!Array.isArray(messages) || messages.length === 0) return undefined
+
+      const texts = messages
+        .map((message: { type?: unknown; text?: unknown }) => ({
+          type: typeof message?.type === 'string' ? message.type.toUpperCase() : '',
+          text: typeof message?.text === 'string' ? message.text.trim() : '',
+        }))
+        .filter((message) => message.text)
+
+      if (texts.length === 0) return undefined
+
+      // A failing request carries the cause on the ERROR/FATAL entries; the rest
+      // are the INFO/WARN/DEBUG chatter Splunk attaches to every response.
+      const fatal = texts.filter((message) => message.type === 'ERROR' || message.type === 'FATAL')
+      const selected = fatal.length > 0 ? fatal : texts
+      return selected.map((message) => message.text).join('; ')
     },
   },
   {
@@ -343,9 +631,24 @@ export function extractErrorMessageWithId(
     if (message?.trim()) {
       return message
     }
-  } catch (error) {}
+  } catch {}
 
   return `Request failed with status ${errorInfo?.status || 'unknown'}`
+}
+
+/**
+ * Body to retain on a failed tool result, with any credential the provider echoed
+ * back replaced. Falls back to the original body when no extractor redacts it.
+ */
+export function redactErrorData(errorInfo?: ErrorInfo, extractorId?: string): unknown {
+  if (!extractorId) return errorInfo?.data
+  const extractor = ERROR_EXTRACTORS.find((candidate) => candidate.id === extractorId)
+  if (!extractor?.redactData) return errorInfo?.data
+  try {
+    return extractor.redactData(errorInfo)
+  } catch {
+    return errorInfo?.data
+  }
 }
 
 export function extractErrorMessage(errorInfo?: ErrorInfo, extractorId?: string): string {
@@ -355,13 +658,12 @@ export function extractErrorMessage(errorInfo?: ErrorInfo, extractorId?: string)
 
   // Backwards compatibility
   for (const extractor of ERROR_EXTRACTORS) {
-    if (extractor.useInFallback === false) continue
     try {
       const message = extractor.extract(errorInfo)
       if (message?.trim()) {
         return message
       }
-    } catch (error) {}
+    } catch {}
   }
 
   return `Request failed with status ${errorInfo?.status || 'unknown'}`
@@ -381,11 +683,21 @@ export const ErrorExtractorId = {
   ERRORS_ARRAY_STRING: 'errors-array-string',
   TELEGRAM_DESCRIPTION: 'telegram-description',
   STANDARD_MESSAGE: 'standard-message',
+  HARMONIC_ERRORS: 'harmonic-errors',
+  CODA_ERRORS: 'coda-errors',
   SOAP_FAULT: 'soap-fault',
   OAUTH_ERROR_DESCRIPTION: 'oauth-error-description',
   NESTED_ERROR_OBJECT: 'nested-error-object',
+  BITBUCKET_ERRORS: 'bitbucket-errors',
+  DYNATRACE_ERRORS: 'dynatrace-errors',
+  SMARTLEAD_ERRORS: 'smartlead-errors',
   POSTHOG_ERRORS: 'posthog-errors',
   QUICKBOOKS_FAULT: 'quickbooks-fault',
+  PROSPEO_ERRORS: 'prospeo-errors',
+  WIZA_ERRORS: 'wiza-errors',
+  CRUNCHBASE_ERRORS: 'crunchbase-errors',
+  PITCHBOOK_ERRORS: 'pitchbook-errors',
+  SPLUNK_ERRORS: 'splunk-errors',
   PLAIN_TEXT_DATA: 'plain-text-data',
   HTTP_STATUS_TEXT: 'http-status-text',
 } as const

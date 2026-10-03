@@ -1,21 +1,24 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1DeleteTableContract, v1GetTableContract } from '@/lib/api/contracts/v1/tables'
 import { parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { deleteTable, type TableSchema } from '@/lib/table'
+import type { TableSchema } from '@/lib/table'
+import { performDeleteTable } from '@/lib/table/orchestration'
+import { normalizeColumn } from '@/lib/table/wire'
 import {
   accessError,
   checkAccess,
-  normalizeColumn,
+  orchestrationOutcomeErrorResponse,
   tableLockErrorResponse,
 } from '@/app/api/table/utils'
 import {
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
+  requireWorkspaceRequestActor,
+  tableAccessPrincipal,
 } from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1TableDetailAPI')
@@ -37,7 +40,6 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
       return createRateLimitResponse(rateLimit)
     }
 
-    const userId = rateLimit.userId!
     const parsed = await parseRequest(v1GetTableContract, request, context, {
       validationErrorResponse: (error) => {
         const hasInvalidTableId = error.issues.some((issue) => issue.path.includes('tableId'))
@@ -59,7 +61,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
     const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
     if (scopeError) return scopeError
 
-    const result = await checkAccess(tableId, userId, 'read')
+    const result = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'read')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     const { table } = result
@@ -110,7 +112,6 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Tab
       return createRateLimitResponse(rateLimit)
     }
 
-    const userId = rateLimit.userId!
     const parsed = await parseRequest(v1DeleteTableContract, request, context, {
       validationErrorResponse: (error) => {
         const hasInvalidTableId = error.issues.some((issue) => issue.path.includes('tableId'))
@@ -129,28 +130,38 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Tab
     const { tableId } = parsed.data.params
     const { workspaceId } = parsed.data.query
 
-    const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, workspaceId, 'write')
     if (scopeError) return scopeError
 
-    const result = await checkAccess(tableId, userId, 'write')
+    /**
+     * A workspace key names no human, so its creator must not be attributed the
+     * deletion in audit and analytics. The shared resolver substitutes the
+     * explicit system actor for a workspace key and keeps the owner for a
+     * personal one, exactly as the row routes on this table already do. An
+     * archived or deleted workspace has no billed account to stand in, which is
+     * a controlled 400 rather than an uncaught throw the catch-all would report
+     * as a 500.
+     */
+    const actor = await requireWorkspaceRequestActor(rateLimit, workspaceId)
+    if (!actor.ok) return actor.response
+    const actorUserId = actor.actorUserId
+
+    const result = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     if (result.table.workspaceId !== workspaceId) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    await deleteTable(tableId, requestId)
-
-    recordAudit({
-      workspaceId,
-      actorId: userId,
-      action: AuditAction.TABLE_DELETED,
-      resourceType: AuditResourceType.TABLE,
-      resourceId: tableId,
-      resourceName: result.table.name,
-      description: `Archived table "${result.table.name}"`,
+    const outcome = await performDeleteTable({
+      table: result.table,
+      userId: actorUserId,
+      requestId,
       request,
     })
+    if (!outcome.success) {
+      return orchestrationOutcomeErrorResponse(outcome, 'Failed to delete table')
+    }
 
     return NextResponse.json({
       success: true,

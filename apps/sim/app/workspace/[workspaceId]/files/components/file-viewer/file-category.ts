@@ -8,6 +8,8 @@ const TEXT_EDITABLE_MIME_TYPES = new Set([
   'application/x-yaml',
   'text/csv',
   'text/html',
+  // Sim pages: internal record type; the file itself is .html.
+  'text/x-sim-page',
   'text/xml',
   'application/xml',
   'text/css',
@@ -20,6 +22,8 @@ const TEXT_EDITABLE_MIME_TYPES = new Set([
   'text/x-sql',
   'image/svg+xml',
   'text/x-mermaid',
+  // Chart documents: declarative ECharts specs rendered live (chart-preview.tsx).
+  'text/x-sim-chart',
 ])
 
 const TEXT_EDITABLE_EXTENSIONS = new Set([
@@ -43,8 +47,38 @@ const IFRAME_PREVIEWABLE_MIME_TYPES = new Set([
 ])
 const IFRAME_PREVIEWABLE_EXTENSIONS = new Set(['pdf'])
 
-const IMAGE_PREVIEWABLE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
-const IMAGE_PREVIEWABLE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp'])
+/**
+ * Formats the image viewer can show. Most are decoded by the browser directly;
+ * `.heic`/`.heif` are not — no browser outside Safari renders them — but the serve
+ * route transcodes them to JPEG, so an `<img>` pointed at it works.
+ *
+ * `.tif`/`.tiff` are accepted uploads and deliberately absent: nothing decodes them
+ * on either side, so they stay download-only rather than showing a broken image.
+ */
+const IMAGE_PREVIEWABLE_MIME_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+  'image/avif',
+  'image/bmp',
+  'image/x-icon',
+  'image/vnd.microsoft.icon',
+  'image/heic',
+  'image/heif',
+])
+const IMAGE_PREVIEWABLE_EXTENSIONS = new Set([
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'webp',
+  'avif',
+  'bmp',
+  'ico',
+  'heic',
+  'heif',
+])
 
 const AUDIO_PREVIEWABLE_MIME_TYPES = new Set([
   'audio/mpeg',

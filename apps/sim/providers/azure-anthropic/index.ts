@@ -6,6 +6,7 @@ import type { StreamingExecution } from '@/executor/types'
 import { executeAnthropicProviderRequest } from '@/providers/anthropic/core'
 import { getCachedProviderClient } from '@/providers/client-cache'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { PROVIDER_MAX_RETRIES } from '@/providers/transport'
 import type { ProviderConfig, ProviderRequest, ProviderResponse } from '@/providers/types'
 
 const logger = createLogger('AzureAnthropicProvider')
@@ -32,7 +33,11 @@ export const azureAnthropicProvider: ProviderConfig = {
     let pinnedFetch: typeof fetch | undefined
     let pinnedIP: string | undefined
     if (userProvidedEndpoint) {
-      const validation = await validateUrlWithDNS(userProvidedEndpoint, 'azureEndpoint')
+      const validation = await validateUrlWithDNS(
+        userProvidedEndpoint,
+        'azureEndpoint',
+        'configuredEndpoint'
+      )
       if (!validation.isValid) {
         logger.warn('Blocked SSRF attempt via azureEndpoint', {
           endpoint: userProvidedEndpoint,
@@ -40,11 +45,8 @@ export const azureAnthropicProvider: ProviderConfig = {
         })
         throw new Error(`Invalid Azure Anthropic endpoint: ${validation.error}`)
       }
-      if (!validation.resolvedIP) {
-        throw new Error('Invalid Azure Anthropic endpoint: could not resolve a pinnable IP address')
-      }
       pinnedIP = validation.resolvedIP
-      pinnedFetch = createPinnedFetch(pinnedIP)
+      pinnedFetch = createPinnedFetch(pinnedIP, { profile: 'configuredEndpoint' })
     }
 
     const apiKey = request.apiKey
@@ -63,7 +65,7 @@ export const azureAnthropicProvider: ProviderConfig = {
     return executeAnthropicProviderRequest(request, {
       providerId: 'azure-anthropic',
       providerLabel: 'Azure Anthropic',
-      resolveWireModel: ({ model }) => model.replace(/^azure-anthropic\//, ''),
+      resolveWireModel: ({ model }) => model.replace(/^azure-anthropic\//i, ''),
       createClient: (apiKey) => {
         const cacheKey = [
           'azure-anthropic',
@@ -78,6 +80,7 @@ export const azureAnthropicProvider: ProviderConfig = {
             new Anthropic({
               baseURL,
               apiKey,
+              maxRetries: PROVIDER_MAX_RETRIES,
               ...(pinnedFetch ? { fetch: pinnedFetch } : {}),
               defaultHeaders: {
                 'anthropic-version': anthropicVersion,

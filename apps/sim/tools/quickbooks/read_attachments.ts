@@ -1,5 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
-import { buildQuickBooksCompanyUrl, QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
+import { buildQuickBooksCompanyUrl } from '@/tools/quickbooks/client'
 import {
   escapeQuickBooksQueryLiteral,
   getQuickBooksAttachmentTarget,
@@ -51,6 +51,12 @@ export const quickbooksReadAttachmentsTool: ToolConfig<
       visibility: 'hidden',
       description: 'QuickBooks company ID derived from the connected credential',
     },
+    quickBooksEnvironment: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'QuickBooks API environment derived from the connected credential',
+    },
     readMode: {
       type: 'string',
       required: true,
@@ -91,6 +97,7 @@ export const quickbooksReadAttachmentsTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'quickbooks',
+    authoritativeParams: ['realmId', 'quickBooksEnvironment'],
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
@@ -98,7 +105,7 @@ export const quickbooksReadAttachmentsTool: ToolConfig<
     url: (params) => {
       if (params.readMode === 'by_id') {
         return buildQuickBooksEntityUrl(
-          params.realmId,
+          params,
           'attachable',
           requiredQuickBooksString(params.attachmentId ?? '', 'attachmentId')
         ).toString()
@@ -111,22 +118,21 @@ export const quickbooksReadAttachmentsTool: ToolConfig<
         params.startPosition ?? 1,
         params.maxResults ?? 25
       )
-      const url = buildQuickBooksCompanyUrl(params.realmId, 'query')
+      const url = buildQuickBooksCompanyUrl(params.realmId, 'query', params.quickBooksEnvironment)
       url.searchParams.set(
         'query',
-        `SELECT * FROM Attachable WHERE AttachableRef.EntityRef.Type = '${target.entityType}' AND AttachableRef.EntityRef.value = '${targetId}' STARTPOSITION ${pagination.startPosition} MAXRESULTS ${pagination.maxResults}`
+        `SELECT * FROM Attachable WHERE AttachableRef.EntityRef.Type = '${target.queryEntityType}' AND AttachableRef.EntityRef.value = '${targetId}' STARTPOSITION ${pagination.startPosition} MAXRESULTS ${pagination.maxResults}`
       )
       return url.toString()
     },
     method: 'GET',
     headers: (params) => getQuickBooksToolHeaders(params.accessToken),
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: async (response, params) => {
     if (!params) throw new Error('QuickBooks Read Attachments parameters are required')
     if (params.readMode === 'by_id') {
-      const parsed = await parseQuickBooksAttachableResponse(response)
+      const parsed = await parseQuickBooksAttachableResponse(response, undefined, 'attachment read')
       return { success: true, output: { item: parsed.attachment, time: parsed.time } }
     }
     const pagination = validateQuickBooksPagination(

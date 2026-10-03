@@ -1,7 +1,6 @@
 import type { UserFileLike } from '@/lib/core/utils/user-file'
+import type { UserFile } from '@/executor/types'
 import type { ToolFileData, ToolResponse } from '@/tools/types'
-
-// ===== Core Types =====
 
 interface DropboxFileMetadata {
   '.tag': 'file'
@@ -61,13 +60,9 @@ interface DropboxSearchMatch {
   }
 }
 
-// ===== Base Params =====
-
 interface DropboxBaseParams {
   accessToken?: string
 }
-
-// ===== Upload Params =====
 
 export interface DropboxUploadParams extends DropboxBaseParams {
   path: string
@@ -86,8 +81,6 @@ export interface DropboxUploadResponse extends ToolResponse {
   }
 }
 
-// ===== Download Params =====
-
 export interface DropboxDownloadParams extends DropboxBaseParams {
   path: string
 }
@@ -101,7 +94,11 @@ export interface DropboxDownloadResponse extends ToolResponse {
   }
 }
 
-// ===== List Folder Params =====
+export interface DropboxDownloadV2Response<File = UserFile> extends ToolResponse {
+  output: Omit<DropboxDownloadResponse['output'], 'file' | 'content'> & {
+    file?: File
+  }
+}
 
 export interface DropboxListFolderParams extends DropboxBaseParams {
   path: string
@@ -119,8 +116,6 @@ export interface DropboxListFolderResponse extends ToolResponse {
   }
 }
 
-// ===== Create Folder Params =====
-
 export interface DropboxCreateFolderParams extends DropboxBaseParams {
   path: string
   autorename?: boolean
@@ -132,8 +127,6 @@ export interface DropboxCreateFolderResponse extends ToolResponse {
   }
 }
 
-// ===== Delete Params =====
-
 export interface DropboxDeleteParams extends DropboxBaseParams {
   path: string
 }
@@ -144,8 +137,6 @@ export interface DropboxDeleteResponse extends ToolResponse {
     deleted?: boolean
   }
 }
-
-// ===== Copy Params =====
 
 export interface DropboxCopyParams extends DropboxBaseParams {
   fromPath: string
@@ -159,8 +150,6 @@ export interface DropboxCopyResponse extends ToolResponse {
   }
 }
 
-// ===== Move Params =====
-
 export interface DropboxMoveParams extends DropboxBaseParams {
   fromPath: string
   toPath: string
@@ -172,8 +161,6 @@ export interface DropboxMoveResponse extends ToolResponse {
     metadata?: DropboxMetadata
   }
 }
-
-// ===== Get Metadata Params =====
 
 export interface DropboxGetMetadataParams extends DropboxBaseParams {
   path: string
@@ -187,8 +174,6 @@ export interface DropboxGetMetadataResponse extends ToolResponse {
   }
 }
 
-// ===== Create Shared Link Params =====
-
 export interface DropboxCreateSharedLinkParams extends DropboxBaseParams {
   path: string
   requestedVisibility?: 'public' | 'team_only' | 'password'
@@ -201,8 +186,6 @@ export interface DropboxCreateSharedLinkResponse extends ToolResponse {
     sharedLink?: DropboxSharedLinkMetadata
   }
 }
-
-// ===== Search Params =====
 
 export interface DropboxSearchParams extends DropboxBaseParams {
   query: string
@@ -219,20 +202,12 @@ export interface DropboxSearchResponse extends ToolResponse {
   }
 }
 
-// ===== Get Temporary Link Params =====
-
-interface DropboxGetTemporaryLinkParams extends DropboxBaseParams {
-  path: string
-}
-
 interface DropboxGetTemporaryLinkResponse extends ToolResponse {
   output: {
     metadata?: DropboxFileMetadata
     link?: string
   }
 }
-
-// ===== List Shared Links Params =====
 
 export interface DropboxListSharedLinksParams extends DropboxBaseParams {
   path?: string
@@ -247,8 +222,6 @@ export interface DropboxListSharedLinksResponse extends ToolResponse {
     cursor?: string
   }
 }
-
-// ===== List Revisions Params =====
 
 interface DropboxFileRevision {
   '.tag': 'file'
@@ -275,8 +248,6 @@ export interface DropboxListRevisionsResponse extends ToolResponse {
   }
 }
 
-// ===== Restore Params =====
-
 export interface DropboxRestoreParams extends DropboxBaseParams {
   path: string
   rev: string
@@ -287,8 +258,6 @@ export interface DropboxRestoreResponse extends ToolResponse {
     metadata?: DropboxFileMetadata
   }
 }
-
-// ===== Combined Response Type =====
 
 export type DropboxResponse =
   | DropboxUploadResponse

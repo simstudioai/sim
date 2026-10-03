@@ -22,7 +22,7 @@ export interface UpgradePlanCardProps {
    */
   credits?: string
   /**
-   * Daily refresh allocation shown below the credit amount, e.g. `"+50/day refresh"`.
+   * Weekly refresh allocation shown below the credit amount, e.g. `"+2,000/week refresh"`.
    * Only rendered when {@link UpgradePlanCardProps.credits} is also set.
    */
   refresh?: string
@@ -78,15 +78,13 @@ export function UpgradePlanCard({
     >
       <div className='flex flex-col gap-4'>
         <div className='flex items-start justify-between gap-2'>
-          <h3 className='font-medium text-[24px] text-[var(--text-primary)]'>{name}</h3>
+          <h3 className='text-[24px] text-[var(--text-primary)]'>{name}</h3>
           {bannerText && <ChipTag variant='gray'>{bannerText}</ChipTag>}
         </div>
 
         <div className='flex flex-col'>
           <div className='flex items-center gap-2'>
-            <span className='font-medium text-[20px] text-[var(--text-primary)] tabular-nums'>
-              {price}
-            </span>
+            <span className='text-[20px] text-[var(--text-primary)] tabular-nums'>{price}</span>
             {discountLabel && <ChipTag variant='mono'>{discountLabel}</ChipTag>}
           </div>
           <p className='text-[var(--text-muted)] text-base'>{priceSubtext ?? '\u00A0'}</p>
@@ -100,7 +98,6 @@ export function UpgradePlanCard({
             chipVariants({
               variant: highlighted ? 'primary' : 'border-shadow',
               fullWidth: true,
-              flush: true,
             }),
             'w-full justify-center'
           )}
@@ -112,13 +109,13 @@ export function UpgradePlanCard({
         {credits && (
           <div className='flex flex-col gap-1.5'>
             <div className='flex items-center gap-1.5'>
-              <Credit className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+              <Credit className='size-[14px] shrink-0 text-[var(--text-icon)]' />
               <span className='text-[var(--text-body)] text-sm'>{credits}</span>
               <Info>1 workflow run = 1 credit. Inference usage consumes credits separately.</Info>
             </div>
             {refresh && (
               <div className='flex items-center gap-1.5'>
-                <RefreshCw className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                <RefreshCw className='size-[14px] shrink-0 text-[var(--text-icon)]' />
                 <span className='text-[var(--text-body)] text-sm'>{refresh}</span>
               </div>
             )}
@@ -130,7 +127,7 @@ export function UpgradePlanCard({
         <ul className='flex flex-col gap-2'>
           {features.map((feature) => (
             <li key={feature} className='flex items-center gap-2'>
-              <Check className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+              <Check className='size-[16px] shrink-0 text-[var(--text-icon)]' />
               <span className='text-[var(--text-body)] text-sm'>{feature}</span>
             </li>
           ))}

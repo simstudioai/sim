@@ -1,99 +1,97 @@
-/**
- * @vitest-environment node
- */
-import { createMockRequest } from '@sim/testing'
+import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { environmentUtilsMockFns } from '@sim/testing/mocks/environment-utils.mock'
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
+import { hybridAuthMockFns } from '@sim/testing/mocks/hybrid-auth.mock'
+import {
+  mothershipChatPayloadMock,
+  mothershipChatPayloadMockFns,
+} from '@sim/testing/mocks/mothership-chat-payload.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockAssertActiveWorkspaceAccess,
-  mockBuildIntegrationToolSchemas,
   mockBuildSelectedMcpToolSchemas,
   mockBuildTaggedMcpToolSchemas,
-  mockCheckInternalAuth,
   mockComputeWorkspaceEntitlements,
-  mockDecryptSecret,
-  mockGenerateWorkspaceContext,
-  mockGetPersonalAndWorkspaceEnv,
   mockProcessContextsServer,
   mockRequestExplicitStreamAbort,
-  mockRequireBillingAttributionHeader,
   mockRunHeadlessCopilotLifecycle,
 } = vi.hoisted(() => ({
-  mockAssertActiveWorkspaceAccess: vi.fn(),
-  mockBuildIntegrationToolSchemas: vi.fn(),
   mockBuildSelectedMcpToolSchemas: vi.fn(),
   mockBuildTaggedMcpToolSchemas: vi.fn(),
-  mockCheckInternalAuth: vi.fn(),
   mockComputeWorkspaceEntitlements: vi.fn(),
-  mockDecryptSecret: vi.fn(),
-  mockGenerateWorkspaceContext: vi.fn(),
-  mockGetPersonalAndWorkspaceEnv: vi.fn(),
   mockProcessContextsServer: vi.fn(),
   mockRequestExplicitStreamAbort: vi.fn(),
-  mockRequireBillingAttributionHeader: vi.fn(),
   mockRunHeadlessCopilotLifecycle: vi.fn(),
 }))
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-}))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 
-vi.mock('@/lib/auth/hybrid', () => ({
-  checkInternalAuth: mockCheckInternalAuth,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  requireBillingAttributionHeader: mockRequireBillingAttributionHeader,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
-vi.mock('@/lib/copilot/chat/payload', () => ({
-  buildIntegrationToolSchemas: mockBuildIntegrationToolSchemas,
-}))
+vi.mock('@/lib/mothership/chat/payload', () => mothershipChatPayloadMock)
 
-vi.mock('@/lib/copilot/chat/process-contents', () => ({
+vi.mock('@/lib/mothership/chat/process-contents', () => ({
   processContextsServer: mockProcessContextsServer,
 }))
 
-vi.mock('@/lib/copilot/chat/workspace-context', () => ({
-  generateWorkspaceContext: mockGenerateWorkspaceContext,
-}))
-
-vi.mock('@/lib/copilot/entitlements', () => ({
+vi.mock('@/lib/mothership/entitlements', () => ({
   computeWorkspaceEntitlements: mockComputeWorkspaceEntitlements,
 }))
 
-vi.mock('@/lib/copilot/mcp-tools', () => ({
+vi.mock('@/lib/mothership/mcp-tools', () => ({
   buildSelectedMcpToolSchemas: mockBuildSelectedMcpToolSchemas,
   buildTaggedMcpToolSchemas: mockBuildTaggedMcpToolSchemas,
 }))
 
-vi.mock('@/lib/copilot/request/lifecycle/headless', () => ({
+vi.mock('@/lib/mothership/request/lifecycle/headless', () => ({
   runHeadlessCopilotLifecycle: mockRunHeadlessCopilotLifecycle,
 }))
 
-vi.mock('@/lib/copilot/request/session/explicit-abort', () => ({
+vi.mock('@/lib/mothership/request/session/explicit-abort', () => ({
   requestExplicitStreamAbort: mockRequestExplicitStreamAbort,
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isDocSandboxEnabled: false,
+vi.mock('@/lib/mothership/transport/connection', () => ({
+  getSimConnection: () => ({ mode: 'checkpoint', channelId: 'f'.repeat(64) }),
 }))
 
-vi.mock('@/lib/environment/utils', () => ({
-  getPersonalAndWorkspaceEnv: mockGetPersonalAndWorkspaceEnv,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  assertActiveWorkspaceAccess: mockAssertActiveWorkspaceAccess,
-  isWorkspaceAccessDeniedError: vi.fn(() => false),
-}))
+import type { CopilotLifecycleOptions } from '@/lib/mothership/request/lifecycle/run'
+import { buildExecuteResponsePayload, POST } from '@/app/api/mothership/execute/route'
 
-import type { CopilotLifecycleOptions } from '@/lib/copilot/request/lifecycle/run'
-import {
-  buildExecuteResponsePayload,
-  CALLER_VISIBLE_SERVER_TOOLS,
-  POST,
-} from '@/app/api/mothership/execute/route'
+executorPrincipalMockFns.mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValue({
+  workspaceId: 'workspace-1',
+})
+
+authInternalMockFns.mockVerifyInternalDelegationToken.mockResolvedValue({
+  workflowId: 'workflow-1',
+  executionId: 'execution-1',
+  mcpBlockId: 'block-1',
+  subjectUserId: 'user-1',
+})
+
+const mockBuildIntegrationToolSchemas = mothershipChatPayloadMockFns.mockBuildIntegrationToolSchemas
+
+const mockAssertActiveWorkspaceAccess = permissionsMockFns.mockAssertActiveWorkspaceAccess
+const mockCheckInternalAuth = hybridAuthMockFns.mockCheckInternalAuth
+const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
+const mockGetPersonalAndWorkspaceEnv = environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
+const mockRequireBillingAttributionHeader =
+  billingAttributionMockFns.mockRequireBillingAttributionHeader
 
 type Payload = Parameters<typeof buildExecuteResponsePayload>[0]
 
@@ -102,46 +100,21 @@ function resultWithToolCalls(names: string[]): Payload {
 }
 
 describe('buildExecuteResponsePayload', () => {
-  // The scheduled-task runner branches on whether the agent called
-  // complete_scheduled_task (background/schedule-execution.ts reads
-  // responseBody.toolCalls). This filter used to admit only integration tools
-  // and mcp-*, so that check was permanently false: a job completed itself, the
-  // signal was dropped here, and the runner's post-run bookkeeping wrote
-  // status='active' with a fresh nextRunAt straight back over the completion —
-  // the job then reran forever, each time telling the model it was done.
-  it('keeps complete_scheduled_task so the schedule runner can see it', () => {
-    const payload = buildExecuteResponsePayload(
-      resultWithToolCalls(['complete_scheduled_task']),
-      'chat-1',
-      []
-    )
-
-    expect(payload.toolCalls.map((tc: { name: string }) => tc.name)).toContain(
-      'complete_scheduled_task'
-    )
-  })
-
   it('still admits integration and mcp tool calls, and still drops other server tools', () => {
     const payload = buildExecuteResponsePayload(
       resultWithToolCalls(['gmail_send', 'mcp-notion-create', 'read', 'edit_workflow']),
-      'chat-1',
-      [{ name: 'gmail_send' }]
+      'chat-1'
     )
 
     const names = payload.toolCalls.map((tc: { name: string }) => tc.name)
     expect(names).toEqual(['gmail_send', 'mcp-notion-create'])
   })
-
-  // Guards the cross-file contract: the literal the runner greps for must be in
-  // the allowlist above. These live in different files and nothing else ties
-  // them together.
-  it('exposes the exact tool name the schedule runner looks for', () => {
-    expect(CALLER_VISIBLE_SERVER_TOOLS.has('complete_scheduled_task')).toBe(true)
-  })
 })
 
 describe('mothership private trace provenance transport', () => {
   const requestBody = {
+    workflowId: 'workflow-1',
+    executionId: 'execution-1',
     messages: [{ role: 'user', content: 'hello' }],
     workspaceId: 'workspace-1',
     userId: 'user-1',
@@ -151,7 +124,6 @@ describe('mothership private trace provenance transport', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockCheckInternalAuth.mockResolvedValue({
       success: true,
       userId: 'user-1',
@@ -169,7 +141,6 @@ describe('mothership private trace provenance transport', () => {
       workspaceDecrypted: {},
       decryptionFailures: [],
     })
-    mockGenerateWorkspaceContext.mockResolvedValue({})
     mockBuildIntegrationToolSchemas.mockResolvedValue([])
     mockBuildSelectedMcpToolSchemas.mockResolvedValue([])
     mockBuildTaggedMcpToolSchemas.mockResolvedValue([])
@@ -195,7 +166,7 @@ describe('mothership private trace provenance transport', () => {
     registry?.recordResolved('API_KEY', 'secret-value')
   }
 
-  it('does not expose private provenance unless the internal caller requests it', async () => {
+  it('builds the model-egress catalog without exposing provenance unless requested', async () => {
     mockRunHeadlessCopilotLifecycle.mockImplementation(
       async (_payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
         activateSecret(options)
@@ -207,9 +178,14 @@ describe('mothership private trace provenance transport', () => {
       createMockRequest(
         'POST',
         requestBody,
-        { Authorization: 'Bearer internal', 'x-sim-billing-attribution': 'billing' },
+        {
+          'X-Sim-Mcp-Delegation': 'signed-block',
+          Authorization: 'Bearer internal',
+          'x-sim-billing-attribution': 'billing',
+        },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
     const body = await response.json()
 
@@ -217,11 +193,124 @@ describe('mothership private trace provenance transport', () => {
     expect(response.headers.get('x-sim-private-tool-metadata')).toBeNull()
     expect(body.content).toBe('secret-value')
     expect(body).not.toHaveProperty('__resolvedSecretTraceProvenance')
-    expect(mockGetPersonalAndWorkspaceEnv).not.toHaveBeenCalled()
+    expect(mockGetPersonalAndWorkspaceEnv).toHaveBeenCalledTimes(1)
     expect(mockRunHeadlessCopilotLifecycle).toHaveBeenCalledWith(
       expect.any(Object),
-      expect.objectContaining({ environmentContext: undefined })
+      expect.objectContaining({ environmentContext: expect.any(Object) })
     )
+  })
+
+  it('forwards closed model controls and an ordered deduplicated safe timeline', async () => {
+    mockRunHeadlessCopilotLifecycle.mockImplementation(
+      async (payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
+        expect(payload).toMatchObject({
+          modelSelection: { model: 'gpt-6-astra', fastMode: true },
+          effort: 'max',
+        })
+        const base = { v: 1 as const, ts: new Date().toISOString(), stream: { id: 'message-1' } }
+        const thinking = {
+          ...base,
+          seq: 1,
+          type: 'text' as const,
+          payload: { channel: 'thinking' as const, text: 'Considering' },
+        }
+        await options.onEvent?.({
+          ...base,
+          seq: 0,
+          type: 'text',
+          payload: { channel: 'assistant', text: 'I will check.' },
+        })
+        await options.onEvent?.(thinking)
+        await options.onEvent?.(thinking)
+        await options.onEvent?.({
+          ...base,
+          seq: 2,
+          type: 'tool',
+          payload: {
+            phase: 'call',
+            toolCallId: 'tool-1',
+            toolName: 'Lookup',
+            executor: 'go',
+            mode: 'sync',
+            partial: true,
+            arguments: { secret: 'private-args' },
+          },
+        })
+        await options.onEvent?.({
+          ...base,
+          seq: 3,
+          type: 'tool',
+          payload: {
+            phase: 'call',
+            toolCallId: 'tool-1',
+            toolName: 'Lookup',
+            executor: 'go',
+            mode: 'sync',
+          },
+        })
+        await options.onEvent?.({
+          ...base,
+          seq: 4,
+          type: 'tool',
+          payload: {
+            phase: 'result',
+            toolCallId: 'tool-1',
+            toolName: 'Lookup',
+            executor: 'go',
+            mode: 'sync',
+            success: true,
+            output: 'private-result',
+          },
+        })
+        await options.onEvent?.({
+          ...base,
+          seq: 5,
+          type: 'text',
+          payload: { channel: 'assistant', text: 'Answer' },
+        })
+        return { ...successResult(), content: 'Answer' }
+      }
+    )
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          ...requestBody,
+          modelSelection: { model: 'gpt-6-astra', fastMode: true },
+          effort: 'max',
+        },
+        {
+          'X-Sim-Mcp-Delegation': 'signed-block',
+          Authorization: 'Bearer internal',
+          'x-sim-billing-attribution': 'billing',
+          Accept: 'application/x-ndjson',
+        },
+        'http://localhost:3000/api/mothership/execute'
+      ),
+      undefined
+    )
+    const text = await response.text()
+    const events = text
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    expect(response.status).toBe(200)
+    expect(events.filter((event) => event.type === 'error')).toEqual([])
+    expect(events.filter((event) => event.type === 'agent_event')).toEqual(
+      [
+        { type: 'thinking_delta', text: 'Considering' },
+        { type: 'turn_end', turn: 'intermediate' },
+        { type: 'tool_call_start', id: 'tool-1', name: 'Lookup' },
+        { type: 'tool_call_end', id: 'tool-1', name: 'Lookup', status: 'success' },
+        { type: 'turn_end', turn: 'final' },
+      ].map((event) => ({ type: 'agent_event', v: 1, event }))
+    )
+    expect(events.filter((event) => event.type === 'chunk')).toEqual([
+      { type: 'chunk', v: 1, content: 'I will check.', turn: 'pending' },
+      { type: 'chunk', v: 1, content: 'Answer', turn: 'pending' },
+    ])
+    expect(text).not.toContain('private-args')
+    expect(text).not.toContain('private-result')
   })
 
   it('keeps headless secret policy server-only', async () => {
@@ -248,46 +337,70 @@ describe('mothership private trace provenance transport', () => {
           secretScope: 'selected',
           mountedSecrets: ['API_KEY'],
         },
-        { Authorization: 'Bearer internal', 'x-sim-billing-attribution': 'billing' },
+        {
+          'X-Sim-Mcp-Delegation': 'signed-block',
+          Authorization: 'Bearer internal',
+          'x-sim-billing-attribution': 'billing',
+        },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
 
     expect(response.status).toBe(200)
+    // The snapshot builder is gone (revamp): the mount policy stays server-only by riding
+    // the LIFECYCLE OPTIONS (sim-side tool execution), never the wire payload.
+    const [payload, options] = mockRunHeadlessCopilotLifecycle.mock.calls.at(-1)!
+    expect(options.secretMountPolicy).toEqual({
+      secretScope: 'selected',
+      mountedSecrets: ['API_KEY'],
+    })
+    expect(payload).not.toHaveProperty('secretMountPolicy')
+    expect(payload).not.toHaveProperty('workspaceContext')
   })
 
-  it('keeps execution functional and fails trace provenance closed when catalog setup fails', async () => {
+  it('fails model egress closed when catalog setup fails', async () => {
     mockGetPersonalAndWorkspaceEnv.mockRejectedValueOnce(new Error('catalog unavailable'))
-    mockRunHeadlessCopilotLifecycle.mockImplementation(
-      async (_payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
-        expect(options.resolvedSecretTraceRegistry?.isComplete()).toBe(false)
-        expect(options.environmentContext).toBeUndefined()
-        return successResult()
-      }
-    )
+    mockRunHeadlessCopilotLifecycle.mockResolvedValueOnce({
+      success: false,
+      error: 'Copilot model input could not be safely projected',
+      content: '',
+      contentBlocks: [],
+      toolCalls: [],
+      chatId: 'chat-1',
+    })
 
     const response = await POST(
       createMockRequest(
         'POST',
         requestBody,
         {
+          'X-Sim-Mcp-Delegation': 'signed-block',
           Authorization: 'Bearer internal',
           'x-sim-billing-attribution': 'billing',
           'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
         },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
     const body = await response.json()
 
-    expect(response.status).toBe(200)
-    expect(body.content).toBe('secret-value')
+    expect(response.status).toBe(500)
+    expect(body.error).toBe('Copilot model input could not be safely projected')
     expect(body.__resolvedSecretTraceProvenance).toEqual({
       version: 1,
       complete: false,
       entries: [],
       scope: { userId: 'user-1', workspaceId: 'workspace-1' },
     })
+    expect(mockRunHeadlessCopilotLifecycle).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        environmentContext: undefined,
+        resolvedSecretTraceRegistry: expect.any(Object),
+      })
+    )
   })
 
   it('fails provenance closed without changing a runtime value that rotated after catalog load', async () => {
@@ -306,12 +419,14 @@ describe('mothership private trace provenance transport', () => {
         'POST',
         requestBody,
         {
+          'X-Sim-Mcp-Delegation': 'signed-block',
           Authorization: 'Bearer internal',
           'x-sim-billing-attribution': 'billing',
           'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
         },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
     const body = await response.json()
 
@@ -325,7 +440,7 @@ describe('mothership private trace provenance transport', () => {
     })
   })
 
-  it('returns encrypted provenance on a marker-gated successful request', async () => {
+  it('returns exact-empty output provenance on a marker-gated successful request', async () => {
     mockRunHeadlessCopilotLifecycle.mockImplementation(
       async (_payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
         expect(options.environmentContext).not.toHaveProperty('decryptedEnvVars')
@@ -341,12 +456,14 @@ describe('mothership private trace provenance transport', () => {
         'POST',
         requestBody,
         {
+          'X-Sim-Mcp-Delegation': 'signed-block',
           Authorization: 'Bearer internal',
           'x-sim-billing-attribution': 'billing',
           'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
         },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
     const body = await response.json()
 
@@ -357,39 +474,43 @@ describe('mothership private trace provenance transport', () => {
     expect(body.__resolvedSecretTraceProvenance).toEqual({
       version: 1,
       complete: true,
-      entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
+      entries: [],
       scope: { userId: 'user-1', workspaceId: 'workspace-1' },
     })
     expect(JSON.stringify(body.__resolvedSecretTraceProvenance)).not.toContain('secret-value')
     expect(mockGetPersonalAndWorkspaceEnv).toHaveBeenCalledTimes(1)
   })
 
-  it('imports MCP schema-discovery provenance before starting the lifecycle', async () => {
-    const provenance = {
-      version: 1,
-      complete: true,
-      entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
-      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
-    }
-    mockBuildTaggedMcpToolSchemas.mockImplementationOnce(
-      async (
-        _userId: string,
-        _workspaceId: string,
-        _serverIds: string[],
-        report: (value: unknown) => void
-      ) => {
-        report(provenance)
-        return []
-      }
-    )
+  it('sends enabled MCP IDs without schemas or activating matching configured secrets', async () => {
+    mockBuildTaggedMcpToolSchemas.mockResolvedValueOnce([
+      { name: 'mcp-docs', description: 'Uses secret-value' },
+    ])
     mockRunHeadlessCopilotLifecycle.mockImplementation(
       async (payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
         const registry =
           options.environmentContext?.resolvedSecretTraceRegistry ??
           options.resolvedSecretTraceRegistry
-        expect(registry?.exportProvenance()).toEqual(provenance)
-        expect(JSON.stringify(payload)).not.toContain('encrypted-secret')
-        expect(JSON.stringify(payload)).not.toContain('__resolvedSecretTraceProvenance')
+        expect(registry?.exportProvenance()).toEqual({
+          version: 1,
+          complete: true,
+          entries: [],
+          scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+        })
+        expect(payload).not.toHaveProperty('mothershipTools')
+        expect(payload).not.toHaveProperty('integrationTools')
+        expect(payload.integrationCatalog).toEqual({
+          mcpServerIds: ['server-1'],
+          mcpToolIds: [],
+          mcpExecution: {
+            workflowId: 'workflow-1',
+            executionId: 'execution-1',
+            mcpBlockId: 'block-1',
+            subjectUserId: 'user-1',
+          },
+        })
+        expect(JSON.stringify(payload.messages)).toContain('search_integration_tools')
+        expect(JSON.stringify(payload.messages)).toContain('call_integration_tool')
+        expect(JSON.stringify(payload.messages)).not.toContain('callable directly')
         return successResult()
       }
     )
@@ -402,107 +523,30 @@ describe('mothership private trace provenance transport', () => {
           contexts: [{ kind: 'mcp', label: 'Docs', serverId: 'server-1' }],
         },
         {
+          'X-Sim-Mcp-Delegation': 'signed-block',
           Authorization: 'Bearer internal',
           'x-sim-billing-attribution': 'billing',
           'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
         },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
     const body = await response.json()
 
+    expect(body.error, JSON.stringify(body)).toBeUndefined()
     expect({ status: response.status, provenance: body.__resolvedSecretTraceProvenance }).toEqual({
       status: 200,
-      provenance,
+      provenance: {
+        version: 1,
+        complete: true,
+        entries: [],
+        scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+      },
     })
   })
 
-  it('marks the lifecycle registry incomplete for malformed MCP discovery provenance', async () => {
-    mockBuildTaggedMcpToolSchemas.mockImplementationOnce(
-      async (
-        _userId: string,
-        _workspaceId: string,
-        _serverIds: string[],
-        report: (value: unknown) => void
-      ) => {
-        report({ version: 1, complete: true, entries: 'invalid' })
-        return []
-      }
-    )
-    mockRunHeadlessCopilotLifecycle.mockImplementation(
-      async (_payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
-        const registry =
-          options.environmentContext?.resolvedSecretTraceRegistry ??
-          options.resolvedSecretTraceRegistry
-        expect(registry?.isComplete()).toBe(false)
-        return successResult()
-      }
-    )
-
-    const response = await POST(
-      createMockRequest(
-        'POST',
-        {
-          ...requestBody,
-          contexts: [{ kind: 'mcp', label: 'Docs', serverId: 'server-1' }],
-        },
-        {
-          Authorization: 'Bearer internal',
-          'x-sim-billing-attribution': 'billing',
-          'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
-        },
-        'http://localhost:3000/api/mothership/execute'
-      )
-    )
-    const body = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(body.__resolvedSecretTraceProvenance).toEqual({
-      version: 1,
-      complete: false,
-      entries: [],
-      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
-    })
-  })
-
-  it('returns encrypted provenance with marker-gated failures', async () => {
-    mockRunHeadlessCopilotLifecycle.mockImplementation(
-      async (_payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
-        activateSecret(options)
-        return {
-          ...successResult(),
-          success: false,
-          error: 'failed with secret-value',
-          content: 'secret-value',
-        }
-      }
-    )
-
-    const response = await POST(
-      createMockRequest(
-        'POST',
-        requestBody,
-        {
-          Authorization: 'Bearer internal',
-          'x-sim-billing-attribution': 'billing',
-          'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
-        },
-        'http://localhost:3000/api/mothership/execute'
-      )
-    )
-    const body = await response.json()
-
-    expect(response.status).toBe(500)
-    expect(response.headers.get('x-sim-private-tool-metadata')).toBe(
-      'resolved-secret-provenance-v1'
-    )
-    expect(body.content).toBe('secret-value')
-    expect(body.__resolvedSecretTraceProvenance.entries).toEqual([
-      { name: 'API_KEY', encryptedValue: 'encrypted-secret' },
-    ])
-  })
-
-  it('places encrypted provenance only on the terminal streamed event', async () => {
+  it('places exact-empty provenance only on the terminal streamed event', async () => {
     mockRunHeadlessCopilotLifecycle.mockImplementation(
       async (_payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
         activateSecret(options)
@@ -515,13 +559,15 @@ describe('mothership private trace provenance transport', () => {
         'POST',
         requestBody,
         {
+          'X-Sim-Mcp-Delegation': 'signed-block',
           Authorization: 'Bearer internal',
           'x-sim-billing-attribution': 'billing',
           'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
           'x-mothership-execute-stream': 'ndjson',
         },
         'http://localhost:3000/api/mothership/execute'
-      )
+      ),
+      undefined
     )
     const events = (await response.text())
       .trim()
@@ -538,7 +584,7 @@ describe('mothership private trace provenance transport', () => {
       data: {
         content: 'secret-value',
         __resolvedSecretTraceProvenance: {
-          entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
+          entries: [],
         },
       },
     })

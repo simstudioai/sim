@@ -1,0 +1,2 @@
+export const MAX_SELECTOR_OPTIONS = 10_000
+export const MAX_SELECTOR_PAGES = 200

@@ -1,10 +1,13 @@
-/**
- * @vitest-environment node
- */
-import { redisConfigMockFns, resetRedisConfigMock } from '@sim/testing'
-import { sleep } from '@sim/utils/helpers'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { redisConfigMockFns, resetEnvMock, resetRedisConfigMock, setEnv } from '@sim/testing'
+import {
+  largeValueMetadataMock,
+  largeValueMetadataMockFns,
+} from '@sim/testing/mocks/large-value-metadata.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionEventEntry } from '@/lib/execution/event-buffer'
+import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { LARGE_VALUE_REF_MARKER } from '@/lib/execution/payloads/large-value-ref'
 import type { ExecutionEvent } from '@/lib/workflows/executor/execution-events'
 
@@ -24,16 +27,35 @@ const { mockRedis, persistedEntries } = vi.hoisted(() => {
   return { mockRedis, persistedEntries }
 })
 
-const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
+vi.mock('@/lib/uploads', () => uploadsMock)
 
-afterAll(resetRedisConfigMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => largeValueMetadataMock)
+
+const { mockRegisterLargeValueOwner } = largeValueMetadataMockFns
+const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
+const { mockUploadFile } = storageServiceMockFns
+
+afterAll(() => {
+  resetEnvMock()
+  resetRedisConfigMock()
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 import {
   createExecutionEventWriter,
   flushExecutionStreamReplayBuffer,
   initializeExecutionStreamMeta,
+  markExecutionStreamTerminal,
   readExecutionEventsState,
+  readExecutionMetaState,
   resetExecutionStreamBuffer,
+  setExecutionActiveBlockStarts,
+  setExecutionMeta,
 } from '@/lib/execution/event-buffer'
 
 function makeEvent(blockId: string): ExecutionEvent {
@@ -76,13 +98,16 @@ function countOccurrences(haystack: string, needle: string): number {
 
 describe('execution event buffer', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    clearLargeValueCacheForTests()
+    setEnv({ REDIS_URL: 'redis://localhost:6379' })
     persistedEntries.length = 0
     mockGetRedisClient.mockReturnValue(mockRedis)
     mockRedis.get.mockResolvedValue(null)
     mockRedis.hgetall.mockResolvedValue({})
     mockRedis.zrangebyscore.mockResolvedValue([])
     mockRedis.zremrangebyrank.mockResolvedValue(0)
+    mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
+    mockRegisterLargeValueOwner.mockResolvedValue(true)
     mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
       if (isFlushScript(script)) {
         const { terminalStatus, zaddArgs } = parseFlushEvalArgs(args)
@@ -112,6 +137,136 @@ describe('execution event buffer', () => {
       zremrangebyrank: vi.fn(),
       exec: vi.fn().mockResolvedValue(undefined),
     }))
+  })
+
+  it('restores the bounded active block snapshot from stream metadata', async () => {
+    mockRedis.hgetall.mockResolvedValueOnce({
+      status: 'active',
+      workflowId: 'wf-1',
+      activeBlockStarts: JSON.stringify([
+        {
+          eventId: 7,
+          data: {
+            blockId: 'function-1',
+            blockName: 'Qualify',
+            blockType: 'function',
+            executionOrder: 2,
+          },
+        },
+      ]),
+    })
+
+    await expect(readExecutionMetaState('exec-1')).resolves.toMatchObject({
+      status: 'found',
+      meta: {
+        activeBlockStarts: [{ eventId: 7, data: { blockId: 'function-1' } }],
+      },
+    })
+  })
+
+  it('uses the configured in-memory provider when database cache mode is selected', async () => {
+    setEnv({ REDIS_URL: undefined })
+    mockGetRedisClient.mockReturnValue(null)
+    const executionId = 'exec-database-provider'
+
+    await expect(
+      initializeExecutionStreamMeta(executionId, {
+        workflowId: 'wf-1',
+        userId: 'user-1',
+      })
+    ).resolves.toBe(true)
+    const writer = createExecutionEventWriter(executionId)
+    const entry = await writer.write({
+      ...makeEvent('function-local'),
+      executionId,
+    })
+
+    await expect(readExecutionEventsState(executionId, 0)).resolves.toMatchObject({
+      status: 'ok',
+      events: [{ eventId: entry.eventId, event: { type: 'block:started' } }],
+    })
+    await expect(readExecutionMetaState(executionId)).resolves.toMatchObject({
+      status: 'found',
+      meta: { status: 'active', protocolVersion: 1 },
+    })
+  })
+
+  it('retains active runs through the execution ceiling but expires terminal streams after an hour', async () => {
+    await setExecutionMeta('exec-1', { status: 'active' })
+    await setExecutionMeta('exec-1', { status: 'complete' })
+
+    expect(mockRedis.expire.mock.calls[0]?.[1]).toBeGreaterThan(60 * 60)
+    expect(mockRedis.expire.mock.calls[1]?.[1]).toBe(60 * 60)
+  })
+
+  it('atomically marks a degraded terminal stream and wakes its observers', async () => {
+    await expect(markExecutionStreamTerminal('exec-1', 'error')).resolves.toBe(true)
+
+    const [script, keyCount, metaKey, signalChannel, status, , ttlSeconds] =
+      mockRedis.eval.mock.calls.at(-1) ?? []
+    expect(script).toContain("redis.call('HSET'")
+    expect(script).toContain("redis.call('PUBLISH'")
+    expect(keyCount).toBe(2)
+    expect(metaKey).toBe('execution:stream:exec-1:meta')
+    expect(signalChannel).toBe('execution:signal:exec-1')
+    expect(status).toBe('error')
+    expect(ttlSeconds).toBe(60 * 60)
+  })
+
+  it('atomically persists active block starts and wakes reconnecting observers', async () => {
+    const activeBlockStarts = [
+      {
+        eventId: 7,
+        data: {
+          blockId: 'function-1',
+          blockName: 'Qualify',
+          blockType: 'function',
+          executionOrder: 2,
+        },
+      },
+    ]
+
+    await expect(setExecutionActiveBlockStarts('exec-1', activeBlockStarts)).resolves.toBe(true)
+
+    const [script, keyCount, metaKey, signalChannel, snapshot, , ttlSeconds] =
+      mockRedis.eval.mock.calls.at(-1) ?? []
+    expect(script).toContain("redis.call('HSET'")
+    expect(script).toContain("redis.call('HGET'")
+    expect(script).toContain("status == 'complete'")
+    expect(script).toContain("status == 'error'")
+    expect(script).toContain("status == 'cancelled'")
+    expect(script).toContain("redis.call('PUBLISH'")
+    expect(keyCount).toBe(2)
+    expect(metaKey).toBe('execution:stream:exec-1:meta')
+    expect(signalChannel).toBe('execution:signal:exec-1')
+    expect(snapshot).toBe(JSON.stringify(activeBlockStarts))
+    expect(ttlSeconds).toBeGreaterThan(60 * 60)
+  })
+
+  it('does not replace a terminal process-local snapshot with a late block event', async () => {
+    setEnv({ REDIS_URL: undefined })
+    mockGetRedisClient.mockReturnValue(null)
+    const executionId = 'exec-terminal-snapshot'
+
+    await expect(markExecutionStreamTerminal(executionId, 'cancelled')).resolves.toBe(true)
+    await expect(
+      setExecutionActiveBlockStarts(executionId, [
+        {
+          eventId: 9,
+          data: {
+            blockId: 'function-late',
+            blockName: 'Late',
+            blockType: 'function',
+            executionOrder: 3,
+          },
+        },
+      ])
+    ).resolves.toBe(true)
+
+    await expect(readExecutionMetaState(executionId)).resolves.toMatchObject({
+      status: 'found',
+      meta: { status: 'cancelled', activeBlockStarts: [] },
+    })
   })
 
   it('serializes event id reservation so reconnect replay preserves write order', async () => {
@@ -177,7 +332,7 @@ describe('execution event buffer', () => {
       () => Promise.resolve(),
     ]
 
-    mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
+    mockRedis.eval.mockImplementation(async (_script: string, ...args: unknown[]) => {
       const batchEntries: ExecutionEventEntry[] = []
       const { zaddArgs } = parseFlushEvalArgs(args)
       for (let i = 0; i < zaddArgs.length; i += 2) {
@@ -262,7 +417,7 @@ describe('execution event buffer', () => {
   it('flushes replay events after a recovered final replay flush without terminal meta', async () => {
     mockRedis.incrby.mockResolvedValue(100)
     let flushAttempt = 0
-    mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
+    mockRedis.eval.mockImplementation(async (_script: string, ...args: unknown[]) => {
       const { zaddArgs } = parseFlushEvalArgs(args)
       if (flushAttempt > 0) {
         for (let i = 0; i < zaddArgs.length; i += 2) {
@@ -315,7 +470,7 @@ describe('execution event buffer', () => {
   it('budgets only net event bytes after pruning during flush', async () => {
     mockRedis.incrby.mockResolvedValue(100)
     let netBudgetBytes = 0
-    mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
+    mockRedis.eval.mockImplementation(async (_script: string, ...args: unknown[]) => {
       const keyCount = Number(args[0])
       netBudgetBytes = Number(args[keyCount + 5])
       const { zaddArgs } = parseFlushEvalArgs(args)
@@ -466,7 +621,7 @@ describe('execution event buffer', () => {
   /**
    * A timer-driven flush carries no terminal status of its own. If it is the
    * loop that drains the final chunk, the terminal event lands without a status
-   * and readers poll an `active` stream forever — while `writeTerminal` reports
+   * and readers wait on an `active` stream forever — while `writeTerminal` reports
    * success, so nothing degrades.
    */
   it('applies terminal status even when a concurrent scheduled flush drains the final chunk', async () => {
@@ -493,15 +648,18 @@ describe('execution event buffer', () => {
       })
     })
 
+    vi.useFakeTimers()
     const writer = createExecutionEventWriter('exec-1')
     await writer.write(makeEvent('first'))
+    // The write only arms the flush timer; fire it so the flush is in flight.
+    await vi.runOnlyPendingTimersAsync()
     await firstFlushStarted
 
     const terminalWrite = writer.writeTerminal(makeEvent('terminal'), 'complete')
     // Let writeTerminal's queued body actually enqueue its entry before the
     // in-flight flush resolves — otherwise the scheduled loop finds nothing left
     // to drain and the race under test never forms.
-    await sleep(5)
+    await vi.advanceTimersByTimeAsync(5)
     releaseFirstFlush?.()
     await terminalWrite
 
@@ -615,10 +773,12 @@ describe('execution event buffer', () => {
       return [1, 'ok', 0, 0]
     })
 
+    vi.useFakeTimers()
     const writer = createExecutionEventWriter('exec-1')
     await writer.write(makeEvent('a'))
 
-    await sleep(60)
+    // Fire the scheduled flush (and any backoff it arms) before the caller's own.
+    await vi.runAllTimersAsync()
 
     await expect(writer.flush()).resolves.toBeUndefined()
   })
@@ -869,8 +1029,8 @@ describe('execution event buffer', () => {
     await writer.writeTerminal(makeEvent('terminal'), 'complete')
 
     expect(flushScript).not.toBe('')
-    const userKeyExpires = countOccurrences(flushScript, "redis.call('EXPIRE', KEYS[5]")
-    const userKeyTtlGuards = countOccurrences(flushScript, "redis.call('TTL', KEYS[5]) < 0")
+    const userKeyExpires = countOccurrences(flushScript, "redis.call('EXPIRE', KEYS[6]")
+    const userKeyTtlGuards = countOccurrences(flushScript, "redis.call('TTL', KEYS[6]) < 0")
     expect(userKeyExpires).toBeGreaterThan(0)
     expect(userKeyTtlGuards).toBe(userKeyExpires)
   })
@@ -885,8 +1045,8 @@ describe('execution event buffer', () => {
     const writer = createExecutionEventWriter('exec-1', { userId: 'user-1' })
     await writer.writeTerminal(makeEvent('terminal'), 'complete')
 
-    expect(countOccurrences(flushScript, "redis.call('TTL', KEYS[4]) < 0")).toBe(0)
-    expect(countOccurrences(flushScript, "redis.call('EXPIRE', KEYS[4]")).toBeGreaterThan(0)
+    expect(countOccurrences(flushScript, "redis.call('TTL', KEYS[5]) < 0")).toBe(0)
+    expect(countOccurrences(flushScript, "redis.call('EXPIRE', KEYS[5]")).toBeGreaterThan(0)
   })
 
   it('reports pruned replay buffers before reading incomplete events', async () => {

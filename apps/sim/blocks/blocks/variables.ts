@@ -16,6 +16,12 @@ export const VariablesBlock: BlockConfig = {
   - Variables do not appear as block outputs - they're accessed via the <variable.> prefix
   `,
   icon: VariableIcon,
+  canvasPresentation: {
+    defaultTitle: 'Variables',
+    sentences: {
+      default: [{ text: 'Set', field: 'variables', core: true }],
+    },
+  },
   category: 'blocks',
   docsLink: 'https://docs.sim.ai/workflows/blocks/variables',
   subBlocks: [

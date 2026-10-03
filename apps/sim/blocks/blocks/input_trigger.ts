@@ -1,9 +1,5 @@
-import type { SVGProps } from 'react'
-import { createElement } from 'react'
-import { FormInput } from 'lucide-react'
+import { FormInput } from '@sim/emcn/icons'
 import type { BlockConfig } from '@/blocks/types'
-
-const InputTriggerIcon = (props: SVGProps<SVGSVGElement>) => createElement(FormInput, props)
 
 export const InputTriggerBlock: BlockConfig = {
   type: 'input_trigger',
@@ -21,7 +17,7 @@ export const InputTriggerBlock: BlockConfig = {
   hideFromToolbar: true,
   sunset: { status: 'legacy', replacedBy: 'start_trigger' },
   bgColor: '#3B82F6',
-  icon: InputTriggerIcon,
+  icon: FormInput,
   subBlocks: [
     {
       id: 'inputFormat',

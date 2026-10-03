@@ -16,7 +16,6 @@ import {
   isUpgradeReason,
   UPGRADE_REASON_PARAM,
 } from '@/lib/billing/upgrade-reasons'
-import { WorkspaceRecencyStorage } from '@/lib/core/utils/browser-storage'
 import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 import { useWorkspacesWithMetadata } from '@/hooks/queries/workspace'
 
@@ -57,7 +56,7 @@ function WorkspaceStatusCard({
           <CircleAlert className='size-[18px] text-[var(--text-icon)]' aria-hidden />
         </div>
         <div className='space-y-1'>
-          <h1 className='font-medium text-[var(--text-primary)] text-lg'>{title}</h1>
+          <h1 className='text-[var(--text-primary)] text-lg'>{title}</h1>
           <p className='text-[var(--text-muted)] text-sm'>{description}</p>
         </div>
         <div className='flex items-center gap-2'>
@@ -125,14 +124,13 @@ export default function WorkspacePage() {
     const redirectTarget = urlParams.get('redirect')
     const rawReason = urlParams.get(UPGRADE_REASON_PARAM)
 
-    // `?redirect=upgrade` is how a caller that cannot know a workspace id — a
-    // self-hosted deployment, an email — reaches the plan picker. It has to
-    // survive workspace creation too: a first-time visitor has no workspace to
-    // resolve, and dropping the intent lands them on home with no explanation.
+    /** Preserve settings and upgrade destinations when selecting or creating a workspace. */
     const destinationFor = (id: string) =>
       redirectTarget === 'upgrade'
         ? buildUpgradeHref(id, isUpgradeReason(rawReason) ? rawReason : undefined)
-        : `/workspace/${id}`
+        : redirectTarget === 'settings'
+          ? `/workspace/${id}/settings/general`
+          : `/workspace/${id}`
 
     const { workspaces, lastActiveWorkspaceId, creationPolicy } = data
 
@@ -160,12 +158,7 @@ export default function WorkspacePage() {
 
     hasRedirectedRef.current = true
 
-    const localRecentId = WorkspaceRecencyStorage.getMostRecent()
-    const findWorkspace = (id: string | null) =>
-      id ? workspaces.find((w) => w.id === id) : undefined
-
-    const targetWorkspace =
-      findWorkspace(localRecentId) ?? findWorkspace(lastActiveWorkspaceId) ?? workspaces[0]
+    const targetWorkspace = workspaces.find((w) => w.id === lastActiveWorkspaceId) ?? workspaces[0]
 
     if (redirectWorkflowId) {
       handleWorkflowRedirect(redirectWorkflowId, targetWorkspace.id, router)
@@ -192,9 +185,11 @@ export default function WorkspacePage() {
         description={
           blockedPolicy.blockedReasonCode === 'organization-subscription-inactive'
             ? "Your organization's subscription is inactive, so new workspaces can't be created. Ask an organization owner to reactivate it."
-            : blockedPolicy.workspaceMode === 'organization'
-              ? "Your account is linked to an organization, but you don't have access to any of its workspaces. Ask an organization admin for workspace access, then check again — or sign out and back in if you recently left the organization."
-              : 'Your plan has reached its workspace limit and none of your workspaces are active. Upgrade your plan to create another workspace, or contact support to restore an archived one.'
+            : blockedPolicy.blockedReasonCode === 'permission-group-denied'
+              ? "Your permission group doesn't allow creating workspaces, and you don't have access to an existing one. Ask an organization admin for workspace access."
+              : blockedPolicy.workspaceMode === 'organization'
+                ? "Your account is linked to an organization, but you don't have access to any of its workspaces. Ask an organization admin for workspace access, then check again — or sign out and back in if you recently left the organization."
+                : 'Your plan has reached its workspace limit and none of your workspaces are active. Upgrade your plan to create another workspace, or contact support to restore an archived one.'
         }
         primaryLabel='Check again'
         onPrimary={() => window.location.reload()}

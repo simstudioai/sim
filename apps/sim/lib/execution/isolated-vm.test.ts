@@ -1,9 +1,14 @@
-/**
- * @vitest-environment node
- */
 import { EventEmitter } from 'node:events'
-import { inputValidationMock, inputValidationMockFns, redisConfigMockFns } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  getMockLogger,
+  inputValidationMock,
+  inputValidationMockFns,
+  redisConfigMockFns,
+  setEnv,
+} from '@sim/testing'
+import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
+import { sleep } from '@sim/utils/helpers'
+import { describe, expect, it, vi } from 'vitest'
 
 type MockProc = EventEmitter & {
   connected: boolean
@@ -137,6 +142,7 @@ function createReadyFetchProxyProc(fetchMessage: { url: string; optionsJson?: st
       setImmediate(() => {
         proc.emit('message', {
           type: 'fetch',
+          executionId: currentExecutionId,
           fetchId: 1,
           requestId: msg.request?.requestId ?? 'fetch-test',
           url: fetchMessage.url,
@@ -165,40 +171,18 @@ function createReadyFetchProxyProc(fetchMessage: { url: string; optionsJson?: st
   return proc
 }
 
-const { mockSpawn, mockExecSync, mockSanitizeUrl, mockEnv } = vi.hoisted(() => ({
+const { mockSpawn, mockExecSync } = vi.hoisted(() => ({
   mockSpawn: vi.fn(),
   mockExecSync: vi.fn(() => Buffer.from('v23.11.0')),
-  mockSanitizeUrl: vi.fn((url: string) => url),
-  mockEnv: {
-    IVM_POOL_SIZE: '1',
-    IVM_MAX_CONCURRENT: '100',
-    IVM_MAX_PER_WORKER: '100',
-    IVM_WORKER_IDLE_TIMEOUT_MS: '60000',
-    IVM_MAX_QUEUE_SIZE: '10',
-    IVM_MAX_ACTIVE_PER_OWNER: '100',
-    IVM_MAX_QUEUED_PER_OWNER: '10',
-    IVM_MAX_OWNER_WEIGHT: '5',
-    IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER: '100',
-    IVM_DISTRIBUTED_LEASE_MIN_TTL_MS: '1000',
-    IVM_QUEUE_TIMEOUT_MS: '1000',
-    IVM_MAX_FETCH_RESPONSE_BYTES: '',
-    IVM_MAX_FETCH_RESPONSE_CHARS: '',
-    IVM_MAX_FETCH_URL_LENGTH: '',
-    IVM_MAX_FETCH_OPTIONS_JSON_CHARS: '',
-    REDIS_URL: '',
-  } as Record<string, string>,
 }))
 
 const mockSecureFetch = inputValidationMockFns.mockSecureFetchWithValidation
 const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
+const mockResolveOutboundRoute = networkConfigMockFns.mockResolveOutboundRoute
+networkConfigMockFns.mockIsOutboundRoutingEnabled.mockReturnValue(true)
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
-vi.mock('@/lib/core/utils/logging', () => ({
-  sanitizeUrlForLog: mockSanitizeUrl,
-}))
-vi.mock('@/lib/core/config/env', () => ({
-  env: mockEnv,
-}))
+vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
 vi.mock('node:child_process', () => ({
   execSync: mockExecSync,
   spawn: mockSpawn,
@@ -233,7 +217,7 @@ async function loadExecutionModule(options: {
     }))
   }
 
-  Object.assign(mockEnv, {
+  setEnv({
     IVM_POOL_SIZE: '1',
     IVM_MAX_CONCURRENT: '100',
     IVM_MAX_PER_WORKER: '100',
@@ -244,6 +228,7 @@ async function loadExecutionModule(options: {
     IVM_MAX_OWNER_WEIGHT: '5',
     IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER: '100',
     IVM_DISTRIBUTED_LEASE_MIN_TTL_MS: '1000',
+    IVM_LEASE_REDIS_DEADLINE_MS: '1000',
     IVM_QUEUE_TIMEOUT_MS: '1000',
     IVM_MAX_FETCH_RESPONSE_BYTES: '',
     IVM_MAX_FETCH_RESPONSE_CHARS: '',
@@ -269,14 +254,6 @@ async function loadExecutionModule(options: {
 }
 
 describe('isolated-vm scheduler', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('recovers from an initial spawn failure and drains queued work', async () => {
     const { executeInIsolatedVM, spawnMock } = await loadExecutionModule({
       spawns: [createStartupFailureProc, () => createReadyProc('ok')],
@@ -495,9 +472,10 @@ describe('isolated-vm scheduler', () => {
     })
 
     expect(result.error?.message).toContain('Too many concurrent')
+    expect(result.result).toBeNull()
   })
 
-  it('falls back to local execution when Redis is configured but unavailable', async () => {
+  it('falls back to local limits when no Redis client is available', async () => {
     const { executeInIsolatedVM } = await loadExecutionModule({
       envOverrides: {
         REDIS_URL: 'redis://localhost:6379',
@@ -519,7 +497,7 @@ describe('isolated-vm scheduler', () => {
     expect(result.result).toBe('ok')
   })
 
-  it('falls back to local execution when Redis lease evaluation errors', async () => {
+  it('falls back to local limits when the lease evaluation errors', async () => {
     const { executeInIsolatedVM } = await loadExecutionModule({
       envOverrides: {
         REDIS_URL: 'redis://localhost:6379',
@@ -546,6 +524,208 @@ describe('isolated-vm scheduler', () => {
 
     expect(result.error).toBeUndefined()
     expect(result.result).toBe('ok')
+  })
+
+  it('falls back to local limits when the lease round trip exceeds its deadline', async () => {
+    const { executeInIsolatedVM } = await loadExecutionModule({
+      envOverrides: {
+        REDIS_URL: 'redis://localhost:6379',
+        IVM_LEASE_REDIS_DEADLINE_MS: '5',
+      },
+      spawns: [() => createReadyProc('ok')],
+      redisEvalImpl: (...args: unknown[]) => {
+        const script = String(args[0] ?? '')
+        // Never settles, so only the deadline can decide the outcome.
+        if (script.includes('ZREMRANGEBYSCORE')) {
+          return new Promise<number>(() => {})
+        }
+        return 1
+      },
+    })
+
+    const result = await executeInIsolatedVM({
+      code: 'return "ok"',
+      params: {},
+      envVars: {},
+      contextVariables: {},
+      timeoutMs: 100,
+      requestId: 'req-9',
+      ownerKey: 'user:redis-slow',
+    })
+
+    expect(result.error).toBeUndefined()
+    expect(result.result).toBe('ok')
+  })
+
+  it('releases a lease that Redis registers after the local deadline', async () => {
+    const scripts: string[] = []
+    let completeAcquire!: (value: number) => void
+    const lateAcquire = new Promise<number>((resolve) => {
+      completeAcquire = resolve
+    })
+    const { executeInIsolatedVM } = await loadExecutionModule({
+      envOverrides: {
+        REDIS_URL: 'redis://localhost:6379',
+        IVM_LEASE_REDIS_DEADLINE_MS: '5',
+      },
+      spawns: [() => createReadyProc('ok')],
+      redisEvalImpl: (...args: unknown[]) => {
+        const script = String(args[0] ?? '')
+        scripts.push(script)
+        // Settles only once the test says so, standing in for a script the
+        // deadline abandoned locally but that Redis still runs to completion.
+        if (script.includes('ZREMRANGEBYSCORE')) return lateAcquire
+        return 1
+      },
+    })
+
+    const result = await executeInIsolatedVM({
+      code: 'return "ok"',
+      params: {},
+      envVars: {},
+      contextVariables: {},
+      timeoutMs: 100,
+      requestId: 'req-11',
+      ownerKey: 'user:redis-late',
+    })
+    completeAcquire(1)
+
+    expect(result.error).toBeUndefined()
+    expect(scripts.some((script) => script.includes("'ZREM'"))).toBe(true)
+  })
+
+  it('ignores a non-positive configured deadline instead of abandoning every lease', async () => {
+    const { executeInIsolatedVM } = await loadExecutionModule({
+      envOverrides: {
+        IVM_DISTRIBUTED_MAX_INFLIGHT_PER_OWNER: '1',
+        IVM_LEASE_REDIS_DEADLINE_MS: '-1',
+        REDIS_URL: 'redis://localhost:6379',
+      },
+      spawns: [() => createReadyProc('ok')],
+      redisEvalImpl: async (...args: unknown[]) => {
+        const script = String(args[0] ?? '')
+        if (script.includes('ZREMRANGEBYSCORE')) {
+          // Arrives after a non-positive timer would already have fired, so the
+          // answer only lands in time when the default deadline is restored.
+          await sleep(25)
+          return 0
+        }
+        return 1
+      },
+    })
+
+    const result = await executeInIsolatedVM({
+      code: 'return "ok"',
+      params: {},
+      envVars: {},
+      contextVariables: {},
+      timeoutMs: 100,
+      requestId: 'req-12',
+      ownerKey: 'user:negative-deadline',
+    })
+
+    expect(result.error?.message).toContain('Too many concurrent')
+  })
+
+  it('releases the lease when abort races an undetermined acquisition', async () => {
+    const scripts: string[] = []
+    let markLeaseRequested!: () => void
+    const leaseRequested = new Promise<void>((resolve) => {
+      markLeaseRequested = resolve
+    })
+    const { executeInIsolatedVM, spawnMock } = await loadExecutionModule({
+      envOverrides: {
+        REDIS_URL: 'redis://localhost:6379',
+        IVM_LEASE_REDIS_DEADLINE_MS: '5',
+      },
+      spawns: [() => createReadyProc('unused')],
+      redisEvalImpl: (...args: unknown[]) => {
+        const script = String(args[0] ?? '')
+        scripts.push(script)
+        // Never settles, so the deadline decides and Redis may still register
+        // the lease id afterwards.
+        if (script.includes('ZREMRANGEBYSCORE')) {
+          markLeaseRequested()
+          return new Promise<number>(() => {})
+        }
+        return 1
+      },
+    })
+    const controller = new AbortController()
+
+    const execution = executeInIsolatedVM(
+      {
+        code: 'return "unused"',
+        params: {},
+        envVars: {},
+        contextVariables: {},
+        timeoutMs: 100,
+        requestId: 'req-abort-undetermined',
+        ownerKey: 'user:cancelled-undetermined',
+      },
+      { signal: controller.signal }
+    )
+    await leaseRequested
+    controller.abort(new DOMException('user', 'AbortError'))
+
+    await expect(execution).resolves.toMatchObject({
+      termination: 'cancelled',
+      error: { name: 'AbortError' },
+    })
+    expect(scripts.some((script) => script.includes("'ZREM'"))).toBe(true)
+    expect(spawnMock).not.toHaveBeenCalled()
+  })
+
+  it('reports cancellation when abort races a rejected distributed lease', async () => {
+    const scripts: string[] = []
+    let resolveLease!: (value: number) => void
+    let markLeaseRequested!: () => void
+    const leaseResult = new Promise<number>((resolve) => {
+      resolveLease = resolve
+    })
+    const leaseRequested = new Promise<void>((resolve) => {
+      markLeaseRequested = resolve
+    })
+    const { executeInIsolatedVM, spawnMock } = await loadExecutionModule({
+      envOverrides: {
+        REDIS_URL: 'redis://localhost:6379',
+      },
+      spawns: [() => createReadyProc('unused')],
+      redisEvalImpl: (...args: unknown[]) => {
+        const script = String(args[0] ?? '')
+        scripts.push(script)
+        if (script.includes('ZREMRANGEBYSCORE')) {
+          markLeaseRequested()
+          return leaseResult
+        }
+        return 1
+      },
+    })
+    const controller = new AbortController()
+
+    const execution = executeInIsolatedVM(
+      {
+        code: 'return "unused"',
+        params: {},
+        envVars: {},
+        contextVariables: {},
+        timeoutMs: 100,
+        requestId: 'req-abort-lease',
+        ownerKey: 'user:cancelled',
+      },
+      { signal: controller.signal }
+    )
+    await leaseRequested
+    controller.abort(new DOMException('user', 'AbortError'))
+    resolveLease(0)
+
+    await expect(execution).resolves.toMatchObject({
+      termination: 'cancelled',
+      error: { name: 'AbortError' },
+    })
+    // Redis answered before its ZADD, so there is nothing to remove.
+    expect(scripts.some((script) => script.includes("'ZREM'"))).toBe(false)
+    expect(spawnMock).not.toHaveBeenCalled()
   })
 
   it('applies weighted owner scheduling when draining queued executions', async () => {
@@ -623,6 +803,77 @@ describe('isolated-vm scheduler', () => {
     expect(completionOrder).toEqual(['a-1', 'a-2', 'a-3', 'b-1', 'b-2'])
   })
 
+  it('restores each execution owner when a reused worker emits outside its scope', async () => {
+    const { executeInIsolatedVM, spawnMock } = await loadExecutionModule({
+      spawns: [
+        () => {
+          const proc = createReadyFetchProxyProc({ url: 'https://example.com' })
+          const emit = proc.emit.bind(proc)
+          proc.emit = (event, ...args: unknown[]) => {
+            const message = args[0] as { type?: string } | undefined
+            return event === 'message' && message?.type === 'fetch'
+              ? context.runWithOutboundOrganization('wrong-ambient', () => emit(event, ...args))
+              : emit(event, ...args)
+          }
+          return proc
+        },
+      ],
+      secureFetchImpl: async () => {
+        await context.resolveCurrentOutboundRoute()
+        return new Response('ok')
+      },
+    })
+    const context = await import('@/lib/core/network/context.server')
+
+    for (const organizationId of ['org_a', 'org_b']) {
+      const result = await context.runWithOutboundOrganization(organizationId, () =>
+        executeInIsolatedVM({
+          code: 'return "fetch"',
+          params: {},
+          envVars: {},
+          contextVariables: {},
+          timeoutMs: 1000,
+          requestId: organizationId,
+        })
+      )
+      expect(result.error).toBeUndefined()
+    }
+    expect(spawnMock).toHaveBeenCalledOnce()
+    expect(mockResolveOutboundRoute.mock.calls).toEqual([['org_a'], ['org_b']])
+  })
+
+  it.each([undefined, -1])(
+    'rejects fetch IPC with missing or inactive execution ID %s',
+    async (executionId) => {
+      const { executeInIsolatedVM, secureFetchMock } = await loadExecutionModule({
+        spawns: [
+          () => {
+            const proc = createReadyFetchProxyProc({ url: 'https://example.com' })
+            const emit = proc.emit.bind(proc)
+            proc.emit = (event, ...args: unknown[]) => {
+              const message = args[0] as { type?: string } | undefined
+              if (event === 'message' && message?.type === 'fetch') {
+                return emit(event, { ...message, executionId })
+              }
+              return emit(event, ...args)
+            }
+            return proc
+          },
+        ],
+      })
+      const result = await executeInIsolatedVM({
+        code: 'return "fetch"',
+        params: {},
+        envVars: {},
+        contextVariables: {},
+        timeoutMs: 1000,
+        requestId: 'inactive-fetch',
+      })
+      expect(JSON.parse(String(result.result))).toEqual({ error: 'Execution no longer active' })
+      expect(secureFetchMock).not.toHaveBeenCalled()
+    }
+  )
+
   it('rejects oversized fetch options payloads before outbound call', async () => {
     const { executeInIsolatedVM, secureFetchMock } = await loadExecutionModule({
       envOverrides: {
@@ -676,5 +927,32 @@ describe('isolated-vm scheduler', () => {
     const payload = JSON.parse(String(result.result))
     expect(payload.error).toContain('fetch URL exceeds maximum length')
     expect(secureFetchMock).not.toHaveBeenCalled()
+  })
+
+  it('does not log a resolved secret from a failed fetch URL or error', async () => {
+    const secret = 'fetch-path-secret-value'
+    const requestUrl = `https://example.com/${secret}`
+    const { executeInIsolatedVM } = await loadExecutionModule({
+      spawns: [() => createReadyFetchProxyProc({ url: requestUrl })],
+      secureFetchImpl: async () => {
+        throw new Error(`Request failed for ${requestUrl}`)
+      },
+    })
+    const mockLogger = getMockLogger('IsolatedVMExecution')
+
+    const result = await executeInIsolatedVM({
+      code: 'return "fetch-secret"',
+      params: {},
+      envVars: {},
+      contextVariables: {},
+      timeoutMs: 100,
+      requestId: 'req-fetch-secret',
+    })
+
+    expect(JSON.parse(String(result.result)).error).toContain(secret)
+    expect(JSON.stringify(mockLogger.warn.mock.calls)).not.toContain(secret)
+    expect(mockLogger.warn).toHaveBeenCalledWith('[req-fetch-secret] Isolated fetch failed', {
+      errorName: 'Error',
+    })
   })
 })

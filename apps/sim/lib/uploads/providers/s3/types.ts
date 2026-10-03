@@ -18,6 +18,8 @@ export interface S3MultipartUploadInit {
    * for backwards compatibility.
    */
   purpose?: string
+  /** Additional object metadata fixed when the multipart upload is initiated. */
+  metadata?: Record<string, string>
 }
 
 export interface S3PartUploadUrl {

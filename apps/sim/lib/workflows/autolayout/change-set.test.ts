@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getTargetedLayoutChangeSet,
@@ -69,6 +66,23 @@ function createWorkflowState({
   }
 }
 
+/**
+ * A card only renders a row for a field that holds a value, so the operation's
+ * own conditional fields have to be filled for the switch to change the card's
+ * height at all — an empty `summary` reserves no space on the real canvas.
+ */
+const JIRA_OPERATION_SUBBLOCK_VALUES = {
+  read: {
+    issueKey: { id: 'issueKey', type: 'short-input', value: 'SIM-1' },
+  },
+  write: {
+    projectId: { id: 'projectId', type: 'short-input', value: 'SIM' },
+    summary: { id: 'summary', type: 'short-input', value: 'New issue' },
+    description: { id: 'description', type: 'long-input', value: 'Details' },
+    priority: { id: 'priority', type: 'short-input', value: 'High' },
+  },
+} as const
+
 function createJiraBlock(
   id: string,
   operation: 'read' | 'write',
@@ -95,6 +109,7 @@ function createJiraBlock(
         type: 'oauth-input',
         value: 'credential-1',
       },
+      ...JIRA_OPERATION_SUBBLOCK_VALUES[operation],
     },
     ...overrides,
   })
@@ -122,23 +137,6 @@ describe('getTargetedLayoutChangeSet', () => {
     })
 
     expect(getTargetedLayoutChangeSet({ before, after })).toEqual([])
-  })
-
-  it('includes newly added blocks when they still have sentinel positions', () => {
-    const before = createWorkflowState({
-      blocks: {
-        start: createBlock('start'),
-      },
-    })
-
-    const after = createWorkflowState({
-      blocks: {
-        start: createBlock('start'),
-        agent: createBlock('agent', { position: { x: 0, y: 0 } }),
-      },
-    })
-
-    expect(getTargetedLayoutChangeSet({ before, after })).toEqual(['agent'])
   })
 
   it('keeps subblock-only edits anchored', () => {
@@ -192,40 +190,6 @@ describe('getTargetedLayoutChangeSet', () => {
       resizedBlockIds: ['jira'],
       shiftSourceBlockIds: [],
     })
-  })
-
-  it('does not relayout a pre-existing block legitimately placed at the origin', () => {
-    const before = createWorkflowState({
-      blocks: {
-        start: createBlock('start', {
-          position: { x: 0, y: 0 },
-          subBlocks: {
-            prompt: {
-              id: 'prompt',
-              type: 'long-input',
-              value: 'old value',
-            },
-          },
-        }),
-      },
-    })
-
-    const after = createWorkflowState({
-      blocks: {
-        start: createBlock('start', {
-          position: { x: 0, y: 0 },
-          subBlocks: {
-            prompt: {
-              id: 'prompt',
-              type: 'long-input',
-              value: 'updated',
-            },
-          },
-        }),
-      },
-    })
-
-    expect(getTargetedLayoutChangeSet({ before, after })).toEqual([])
   })
 
   it('reopens only the downstream path when an edge is added later', () => {

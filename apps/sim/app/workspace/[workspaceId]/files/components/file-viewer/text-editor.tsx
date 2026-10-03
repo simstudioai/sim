@@ -1,24 +1,84 @@
 'use client'
 
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import {
+  memo,
+  type ClipboardEvent as ReactClipboardEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  useCallback,
+  useEffect,
+  useId,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import type { OnMount } from '@monaco-editor/react'
-import { cn } from '@sim/emcn'
+import { cn, toast } from '@sim/emcn'
+import { formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import type { editor as MonacoEditorTypes } from 'monaco-editor'
 import dynamic from 'next/dynamic'
+import { readSeparatorKey } from '@/lib/core/utils/separator-keys'
 import {
   buildFileSelectionLabel,
   truncateSelectionText,
-} from '@/lib/copilot/chat/selection-context'
+} from '@/lib/mothership/chat/selection-context'
+import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { isSimPageSource, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
+import { EditorContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-viewer/editor-context-menu'
+import { FileSaveConflict } from '@/app/workspace/[workspaceId]/files/components/file-viewer/file-save-conflict'
+import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/file-viewer'
+import {
+  PreviewPanel,
+  resolvePreviewType,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-panel'
+import { PreviewLoadingFrame } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-shared'
+import { assessTextEditorPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/text-editor-paste'
+import { useEditableFileContent } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-editable-file-content'
+import { useSelectionCopyBridge } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-selection-copy-bridge'
 import { useAddToChat } from '@/hooks/use-add-to-chat'
+import { useFileViewerStore } from '@/stores/file-viewer/store'
 import type { ChatContext } from '@/stores/panel'
-import { EditorContextMenu } from './editor-context-menu'
-import type { PreviewMode } from './file-viewer'
-import { PreviewPanel, resolvePreviewType } from './preview-panel'
-import { PreviewLoadingFrame } from './preview-shared'
-import { useEditableFileContent } from './use-editable-file-content'
-import { useSelectionCopyBridge } from './use-selection-copy-bridge'
+
+const TEXT_EDITOR_OPTIONS = {
+  largeFileOptimizations: true,
+  maxTokenizationLineLength: 20_000,
+  minimap: { enabled: false },
+  scrollBeyondLastLine: false,
+  wordWrap: 'on',
+  fontSize: 13,
+  lineNumbers: 'on',
+  padding: { top: 24, bottom: 24 },
+  fontFamily:
+    'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
+  tabSize: 2,
+  automaticLayout: true,
+  renderLineHighlight: 'line',
+  occurrencesHighlight: 'singleFile',
+  overviewRulerLanes: 0,
+  hideCursorInOverviewRuler: true,
+  scrollbar: {
+    verticalScrollbarSize: 6,
+    horizontalScrollbarSize: 6,
+  },
+  quickSuggestions: false,
+  suggestOnTriggerCharacters: false,
+  wordBasedSuggestions: 'currentDocument',
+  parameterHints: { enabled: false },
+  codeLens: false,
+  lightbulb: {
+    enabled: 'off' as MonacoEditorTypes.ShowLightbulbIconMode,
+  },
+  inlayHints: { enabled: 'off' },
+  contextmenu: false,
+  fixedOverflowWidgets: true,
+  glyphMargin: false,
+  stickyScroll: { enabled: false },
+  bracketPairColorization: { enabled: false },
+  unicodeHighlight: { ambiguousCharacters: false },
+} satisfies MonacoEditorTypes.IStandaloneEditorConstructionOptions
 
 const SIM_DARK_RULES: MonacoEditorTypes.ITokenThemeRule[] = [
   { token: 'comment', foreground: '606060', fontStyle: 'italic' },
@@ -215,6 +275,7 @@ const MonacoEditor = dynamic(
 const SPLIT_MIN_PCT = 20
 const SPLIT_MAX_PCT = 80
 const SPLIT_DEFAULT_PCT = 50
+const SPLIT_KEYBOARD_STEP_PCT = 5
 
 /**
  * Monaco's find-widget button hover tooltips render above the button by default. Because the find
@@ -264,7 +325,12 @@ const MONACO_LANGUAGE_BY_EXTENSION: Partial<Record<string, string>> = {
   graphql: 'graphql',
   gql: 'graphql',
   json: 'json',
-  jsonl: 'json',
+  /**
+   * Not `json`: JSON Lines holds one value per line, which Monaco's
+   * single-document parser flags as invalid. Validation is global
+   * (`jsonDefaults`), so opting JSONL out is the only per-file lever.
+   */
+  jsonl: 'plaintext',
   yaml: 'yaml',
   yml: 'yaml',
   toml: 'toml',
@@ -340,6 +406,7 @@ interface TextEditorProps {
     retry?: () => Promise<void>
   ) => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
+  downloadSourceRef?: React.MutableRefObject<FileDownloadSource | null>
   discardRef?: React.MutableRefObject<(() => void) | null>
   streamingContent?: string
   isAgentEditing?: boolean
@@ -356,6 +423,7 @@ export const TextEditor = memo(function TextEditor({
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
+  downloadSourceRef,
   discardRef,
   streamingContent,
   isAgentEditing,
@@ -364,12 +432,14 @@ export const TextEditor = memo(function TextEditor({
 }: TextEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const monacoEditorRef = useRef<Parameters<OnMount>[0] | null>(null)
-  const lastSyncedContentRef = useRef('')
+  const lastEditorValueRef = useRef('')
   const hasAutoFocusedRef = useRef(false)
   const contentRef = useRef('')
   const textareaStuckRef = useRef(false)
   const suppressScrollListenerRef = useRef(false)
 
+  const [mountedEditor, setMountedEditor] = useState<Parameters<OnMount>[0] | null>(null)
+  const sourcePaneId = useId()
   const [splitPct, setSplitPct] = useState(SPLIT_DEFAULT_PCT)
   const [isResizing, setIsResizing] = useState(false)
   const [contextMenu, setContextMenu] = useState<{
@@ -420,6 +490,10 @@ export const TextEditor = memo(function TextEditor({
     isContentLoading,
     hasContentError,
     saveImmediately,
+    hasConflict,
+    isReloading,
+    reloadLatestContent,
+    downloadDraft,
   } = useEditableFileContent({
     file,
     workspaceId,
@@ -431,54 +505,69 @@ export const TextEditor = memo(function TextEditor({
     saveRef,
     discardRef,
   })
-  contentRef.current = content
+  useLayoutEffect(() => {
+    contentRef.current = content
+  }, [content])
+
+  useImperativeHandle<FileDownloadSource | null, FileDownloadSource | null>(
+    downloadSourceRef,
+    () =>
+      isContentLoading || hasContentError
+        ? null
+        : {
+            fileId: file.id,
+            workspaceId,
+            getContent: () => contentRef.current,
+          },
+    [file.id, workspaceId, isContentLoading, hasContentError]
+  )
 
   // Enable once content has loaded — the container (and Monaco) only mount after
   // the `isContentLoading` early return below, so the bridge must (re-)attach then.
-  useSelectionCopyBridge(containerRef, buildSelectionContext, !isContentLoading)
+  useSelectionCopyBridge(containerRef, buildSelectionContext, workspaceId, !isContentLoading)
 
   useEffect(() => {
+    if (lastEditorValueRef.current === content) return
+
     const editor = monacoEditorRef.current
     if (!editor) return
     const model = editor.getModel()
     if (!model) return
     const monacoValue = model.getValue()
+    lastEditorValueRef.current = monacoValue
     if (monacoValue === content) return
-
-    if (isStreamInteractionLocked || monacoValue === lastSyncedContentRef.current) {
-      if (isStreamInteractionLocked) {
-        const scrollTop = editor.getScrollTop()
-        const scrollHeight = editor.getScrollHeight()
-        const { height } = editor.getLayoutInfo()
-        if (scrollHeight - scrollTop - height < 80) {
-          textareaStuckRef.current = true
-        }
+    if (isStreamInteractionLocked) {
+      const scrollTop = editor.getScrollTop()
+      const scrollHeight = editor.getScrollHeight()
+      const { height } = editor.getLayoutInfo()
+      if (scrollHeight - scrollTop - height < 80) {
+        textareaStuckRef.current = true
       }
-      suppressScrollListenerRef.current = true
-      if (content.startsWith(monacoValue) && monacoValue.length < content.length) {
-        const lastLine = model.getLineCount()
-        const lastCol = model.getLineMaxColumn(lastLine)
-        model.applyEdits([
-          {
-            range: {
-              startLineNumber: lastLine,
-              startColumn: lastCol,
-              endLineNumber: lastLine,
-              endColumn: lastCol,
-            },
-            text: content.slice(monacoValue.length),
-          },
-        ])
-      } else {
-        model.applyEdits([{ range: model.getFullModelRange(), text: content }])
-      }
-      suppressScrollListenerRef.current = false
-      lastSyncedContentRef.current = content
     }
+    suppressScrollListenerRef.current = true
+    if (content.startsWith(monacoValue) && monacoValue.length < content.length) {
+      const lastLine = model.getLineCount()
+      const lastCol = model.getLineMaxColumn(lastLine)
+      model.applyEdits([
+        {
+          range: {
+            startLineNumber: lastLine,
+            startColumn: lastCol,
+            endLineNumber: lastLine,
+            endColumn: lastCol,
+          },
+          text: content.slice(monacoValue.length),
+        },
+      ])
+    } else {
+      model.applyEdits([{ range: model.getFullModelRange(), text: content }])
+    }
+    suppressScrollListenerRef.current = false
+    lastEditorValueRef.current = content
   }, [content, isStreamInteractionLocked])
 
   useEffect(() => {
-    const editor = monacoEditorRef.current
+    const editor = mountedEditor
     if (!editor || !isStreamInteractionLocked || disableStreamingAutoScroll) {
       textareaStuckRef.current = false
       return
@@ -497,7 +586,7 @@ export const TextEditor = memo(function TextEditor({
     return () => {
       disposable.dispose()
     }
-  }, [isStreamInteractionLocked, disableStreamingAutoScroll])
+  }, [mountedEditor, isStreamInteractionLocked, disableStreamingAutoScroll])
 
   useEffect(() => {
     if (!isStreamInteractionLocked || !textareaStuckRef.current || disableStreamingAutoScroll)
@@ -517,7 +606,9 @@ export const TextEditor = memo(function TextEditor({
       const container = containerRef.current
       if (!container) return
       const rect = container.getBoundingClientRect()
-      const pct = ((e.clientX - rect.left) / rect.width) * 100
+      const isRtl = getComputedStyle(container).direction === 'rtl'
+      const sourceWidth = isRtl ? rect.right - e.clientX : e.clientX - rect.left
+      const pct = (sourceWidth / rect.width) * 100
       setSplitPct(Math.min(SPLIT_MAX_PCT, Math.max(SPLIT_MIN_PCT, pct)))
     }
 
@@ -536,8 +627,24 @@ export const TextEditor = memo(function TextEditor({
     }
   }, [isResizing])
 
+  const handleSplitKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const key = readSeparatorKey(event)
+    if (!key) return
+    event.preventDefault()
+    event.stopPropagation()
+    if (key === 'min' || key === 'max') {
+      setSplitPct(key === 'min' ? SPLIT_MIN_PCT : SPLIT_MAX_PCT)
+      return
+    }
+    const container = containerRef.current
+    const isRtl = container !== null && getComputedStyle(container).direction === 'rtl'
+    const delta = (key === 'left' ? -1 : 1) * (isRtl ? -1 : 1) * SPLIT_KEYBOARD_STEP_PCT
+    setSplitPct((current) => Math.min(SPLIT_MAX_PCT, Math.max(SPLIT_MIN_PCT, current + delta)))
+  }
+
   const handleEditorMount: OnMount = (editor, monaco) => {
     monacoEditorRef.current = editor
+    setMountedEditor(editor)
 
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       saveImmediately()
@@ -545,9 +652,11 @@ export const TextEditor = memo(function TextEditor({
 
     const model = editor.getModel()
     const currentContent = contentRef.current
-    if (model && currentContent && model.getValue() !== currentContent) {
-      model.setValue(currentContent)
-      lastSyncedContentRef.current = currentContent
+    if (model) {
+      if (model.getValue() !== currentContent) {
+        model.setValue(currentContent)
+      }
+      lastEditorValueRef.current = currentContent
     }
 
     if (autoFocus && !hasAutoFocusedRef.current) {
@@ -569,17 +678,87 @@ export const TextEditor = memo(function TextEditor({
 
   const handleEditorChange = useCallback(
     (value: string | undefined) => {
-      setDraftContent(value ?? '')
+      const nextValue = value ?? ''
+      lastEditorValueRef.current = nextValue
+      contentRef.current = nextValue
+      setDraftContent(nextValue)
     },
     [setDraftContent]
   )
 
+  const handleEditorPasteCapture = (event: ReactClipboardEvent<HTMLDivElement>) => {
+    const pastedText = event.clipboardData.getData('text/plain')
+    if (!pastedText) return
+
+    const editor = monacoEditorRef.current
+    const model = editor?.getModel()
+    const selections = editor?.getSelections()
+    const currentText = contentRef.current
+    const selectionOffsets =
+      model && selections?.length
+        ? selections.map((selection) => ({
+            start: model.getOffsetAt({
+              lineNumber: selection.startLineNumber,
+              column: selection.startColumn,
+            }),
+            end: model.getOffsetAt({
+              lineNumber: selection.endLineNumber,
+              column: selection.endColumn,
+            }),
+          }))
+        : [{ start: currentText.length, end: currentText.length }]
+
+    const admission = assessTextEditorPaste({
+      pastedText,
+      currentText,
+      selections: selectionOffsets,
+      multiCursorPaste: editor?.getRawOptions().multiCursorPaste ?? 'spread',
+    })
+    if (admission.accepted) return
+
+    event.preventDefault()
+    event.stopPropagation()
+    toast.warning('Paste would make this file too large to edit', {
+      description: `Inline editing supports files up to ${formatPasteLimit(PASTE_LIMITS.TEXT_EDITOR_BYTES)}. Import or replace the file to keep larger content available without loading it into the editor.`,
+    })
+  }
+
   const isStreaming = isStreamInteractionLocked
   const isEditorReadOnly = isStreamInteractionLocked || !canEdit
+  const editorOptions = useMemo(
+    () => ({ ...TEXT_EDITOR_OPTIONS, readOnly: isEditorReadOnly }),
+    [isEditorReadOnly]
+  )
 
   const previewType = resolvePreviewType(file.type, file.name)
   const isIframeRendered = previewType === 'html' || previewType === 'svg'
-  const effectiveMode = isStreaming && isIframeRendered ? 'editor' : previewMode
+  // A Sim page NEVER shows its source here — the pdf model: the rendered
+  // document is the file's face on every surface, at every moment. The
+  // record's internal type decides instantly (stamped at write, known before
+  // content loads); content detection is the fallback for files written
+  // before the stamp existed. During the very first streamed chunk even the
+  // frontmatter is partial, so an html stream that has not yet contradicted
+  // the page shape (empty, or an opening '---') already counts — that kills
+  // the raw-header flash at stream start and the raw flips between an
+  // agent's tool calls. Bespoke raw HTML keeps the old behavior.
+  const trimmedContent = content.trimStart()
+  const detectedSimPage =
+    file.type === SIM_PAGE_CONTENT_TYPE ||
+    (previewType === 'html' &&
+      (isSimPageSource(content) ||
+        (isStreaming && (trimmedContent === '' || trimmedContent.startsWith('-')))))
+  const knownPage = useFileViewerStore((state) => state.pageFileIds.has(file.id))
+  const rememberPage = useFileViewerStore((state) => state.rememberPage)
+  /** Share only committed observations, before another viewer can paint partial page source. */
+  useLayoutEffect(() => {
+    if (detectedSimPage) rememberPage(file.id)
+  }, [detectedSimPage, file.id, rememberPage])
+  const isSimPageFile = detectedSimPage || knownPage
+  const effectiveMode = isSimPageFile
+    ? 'preview'
+    : isStreaming && isIframeRendered
+      ? 'editor'
+      : previewMode
   const showEditor = effectiveMode !== 'preview'
   const showPreviewPane = effectiveMode !== 'editor'
 
@@ -588,7 +767,7 @@ export const TextEditor = memo(function TextEditor({
   if (hasContentError) {
     return (
       <div className='flex flex-1 items-center justify-center'>
-        <p className='text-[13px] text-[var(--text-muted)]'>Failed to load file content</p>
+        <p className='text-[var(--text-muted)] text-small'>Failed to load file content</p>
       </div>
     )
   }
@@ -596,149 +775,144 @@ export const TextEditor = memo(function TextEditor({
   const closeContextMenu = () => setContextMenu(null)
 
   return (
-    <div ref={containerRef} data-find-tooltip-fix className='relative flex flex-1 overflow-hidden'>
-      <style>{FIND_TOOLTIP_FIX_CSS}</style>
-      {showEditor && (
-        <div
-          style={showPreviewPane ? { width: `${splitPct}%`, flexShrink: 0 } : undefined}
-          className={cn(
-            'min-w-0',
-            !showPreviewPane && 'w-full',
-            isResizing && 'pointer-events-none'
-          )}
-        >
-          <MonacoEditor
-            key={file.id}
-            defaultValue={content}
-            language={monacoLanguage}
-            theme={monacoTheme}
-            options={{
-              readOnly: isEditorReadOnly,
-              minimap: { enabled: false },
-              scrollBeyondLastLine: false,
-              wordWrap: 'on',
-              fontSize: 13,
-              lineNumbers: 'on',
-              padding: { top: 24, bottom: 24 },
-              fontFamily:
-                'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
-              tabSize: 2,
-              automaticLayout: true,
-              renderLineHighlight: 'line',
-              occurrencesHighlight: 'singleFile',
-              overviewRulerLanes: 0,
-              hideCursorInOverviewRuler: true,
-              scrollbar: {
-                verticalScrollbarSize: 6,
-                horizontalScrollbarSize: 6,
-              },
-              quickSuggestions: false,
-              suggestOnTriggerCharacters: false,
-              wordBasedSuggestions: 'currentDocument',
-              parameterHints: { enabled: false },
-              codeLens: false,
-              lightbulb: {
-                enabled: 'off' as MonacoEditorTypes.ShowLightbulbIconMode,
-              },
-              inlayHints: { enabled: 'off' },
-              contextmenu: false,
-              fixedOverflowWidgets: true,
-              glyphMargin: false,
-              stickyScroll: { enabled: false },
-              bracketPairColorization: { enabled: false },
-              unicodeHighlight: { ambiguousCharacters: false },
-            }}
-            onChange={handleEditorChange}
-            onMount={handleEditorMount}
-            className='h-full'
-          />
-        </div>
-      )}
-      {showPreviewPane && (
-        <>
-          {showEditor && (
-            <div className='relative shrink-0'>
-              <div className='h-full w-px bg-[var(--border)]' />
-              <div
-                className='-left-[3px] absolute top-0 z-10 h-full w-[6px] cursor-col-resize'
-                onMouseDown={() => setIsResizing(true)}
-                role='separator'
-                aria-orientation='vertical'
-                aria-label='Resize split'
-              />
-              {isResizing && (
-                <div className='-translate-x-[0.5px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]' />
-              )}
-            </div>
-          )}
-          <div
-            className={cn('min-w-0 flex-1 overflow-hidden', isResizing && 'pointer-events-none')}
-          >
-            <PreviewPanel
-              key={previewContextKey ? `${file.id}:${previewContextKey}` : file.id}
-              content={content}
-              mimeType={file.type}
-              filename={file.name}
-              workspaceId={workspaceId}
-              fileKey={file.key}
-              isStreaming={isStreaming}
-            />
-          </div>
-        </>
-      )}
-      {contextMenu && (
-        <EditorContextMenu
-          isOpen
-          position={contextMenu}
-          onClose={closeContextMenu}
-          hasSelection={contextMenu.hasSelection}
-          canEdit={!isEditorReadOnly}
-          onAddToChat={() => {
-            handleAddSelectionToChat()
-            closeContextMenu()
-          }}
-          onCut={() => {
-            monacoEditorRef.current?.focus()
-            monacoEditorRef.current?.trigger(
-              'contextmenu',
-              'editor.action.clipboardCutAction',
-              null
-            )
-            closeContextMenu()
-          }}
-          onCopy={() => {
-            monacoEditorRef.current?.focus()
-            monacoEditorRef.current?.trigger(
-              'contextmenu',
-              'editor.action.clipboardCopyAction',
-              null
-            )
-            closeContextMenu()
-          }}
-          onCopyAll={() => {
-            navigator.clipboard.writeText(monacoEditorRef.current?.getValue() ?? '').catch(() => {})
-            closeContextMenu()
-          }}
-          onPaste={() => {
-            monacoEditorRef.current?.focus()
-            monacoEditorRef.current?.trigger(
-              'contextmenu',
-              'editor.action.clipboardPasteAction',
-              null
-            )
-            closeContextMenu()
-          }}
-          onSelectAll={() => {
-            monacoEditorRef.current?.focus()
-            monacoEditorRef.current?.trigger('contextmenu', 'editor.action.selectAll', null)
-            closeContextMenu()
-          }}
-          onFind={() => {
-            monacoEditorRef.current?.getAction('actions.find')?.run()
-            closeContextMenu()
-          }}
+    <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>
+      {hasConflict && (
+        <FileSaveConflict
+          isReloading={isReloading}
+          reloadLatestContent={reloadLatestContent}
+          downloadDraft={downloadDraft}
         />
       )}
+      <div
+        ref={containerRef}
+        data-find-tooltip-fix
+        className='relative flex flex-1 overflow-hidden'
+      >
+        <style>{FIND_TOOLTIP_FIX_CSS}</style>
+        {showEditor && (
+          <div
+            id={sourcePaneId}
+            data-paste-max-bytes={PASTE_LIMITS.TEXT_EDITOR_BYTES}
+            data-paste-projects-text-result='true'
+            onPasteCapture={handleEditorPasteCapture}
+            style={showPreviewPane ? { width: `${splitPct}%`, flexShrink: 0 } : undefined}
+            className={cn(
+              'min-w-0',
+              !showPreviewPane && 'w-full',
+              isResizing && 'pointer-events-none'
+            )}
+          >
+            <MonacoEditor
+              key={file.id}
+              defaultValue={content}
+              language={monacoLanguage}
+              theme={monacoTheme}
+              options={editorOptions}
+              onChange={handleEditorChange}
+              onMount={handleEditorMount}
+              className='h-full'
+            />
+          </div>
+        )}
+        {showPreviewPane && (
+          <>
+            {showEditor && (
+              <div className='relative shrink-0'>
+                <div className='h-full w-px bg-[var(--border)]' />
+                <div
+                  className='-left-[3px] absolute top-0 z-10 h-full w-[6px] cursor-col-resize focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--selection)]'
+                  onMouseDown={() => setIsResizing(true)}
+                  onKeyDown={handleSplitKeyDown}
+                  tabIndex={0}
+                  role='separator'
+                  aria-orientation='vertical'
+                  aria-label='Resize split'
+                  aria-controls={sourcePaneId}
+                  aria-valuemin={SPLIT_MIN_PCT}
+                  aria-valuemax={SPLIT_MAX_PCT}
+                  aria-valuenow={splitPct}
+                  aria-valuetext={`${Math.round(splitPct)}% source, ${Math.round(100 - splitPct)}% preview`}
+                />
+                {isResizing && (
+                  <div className='-translate-x-[0.5px] pointer-events-none absolute top-0 z-20 h-full w-[2px] bg-[var(--selection)]' />
+                )}
+              </div>
+            )}
+            <div
+              className={cn(
+                'flex min-w-0 flex-1 flex-col overflow-hidden',
+                isResizing && 'pointer-events-none'
+              )}
+            >
+              <PreviewPanel
+                key={previewContextKey ? `${file.id}:${previewContextKey}` : file.id}
+                content={content}
+                mimeType={file.type}
+                filename={file.name}
+                workspaceId={workspaceId}
+                fileId={file.id}
+                fileKey={file.key}
+                isStreaming={isStreaming}
+              />
+            </div>
+          </>
+        )}
+        {contextMenu && (
+          <EditorContextMenu
+            isOpen
+            position={contextMenu}
+            onClose={closeContextMenu}
+            hasSelection={contextMenu.hasSelection}
+            canEdit={!isEditorReadOnly}
+            onAddToChat={() => {
+              handleAddSelectionToChat()
+              closeContextMenu()
+            }}
+            onCut={() => {
+              monacoEditorRef.current?.focus()
+              monacoEditorRef.current?.trigger(
+                'contextmenu',
+                'editor.action.clipboardCutAction',
+                null
+              )
+              closeContextMenu()
+            }}
+            onCopy={() => {
+              monacoEditorRef.current?.focus()
+              monacoEditorRef.current?.trigger(
+                'contextmenu',
+                'editor.action.clipboardCopyAction',
+                null
+              )
+              closeContextMenu()
+            }}
+            onCopyAll={() => {
+              navigator.clipboard
+                .writeText(monacoEditorRef.current?.getValue() ?? '')
+                .catch(() => {})
+              closeContextMenu()
+            }}
+            onPaste={() => {
+              monacoEditorRef.current?.focus()
+              monacoEditorRef.current?.trigger(
+                'contextmenu',
+                'editor.action.clipboardPasteAction',
+                null
+              )
+              closeContextMenu()
+            }}
+            onSelectAll={() => {
+              monacoEditorRef.current?.focus()
+              monacoEditorRef.current?.trigger('contextmenu', 'editor.action.selectAll', null)
+              closeContextMenu()
+            }}
+            onFind={() => {
+              monacoEditorRef.current?.getAction('actions.find')?.run()
+              closeContextMenu()
+            }}
+          />
+        )}
+      </div>
     </div>
   )
 })

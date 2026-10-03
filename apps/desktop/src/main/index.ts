@@ -2,11 +2,23 @@ import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { OpenDialogOptions, Session, WebContents } from 'electron'
-import { app, BrowserWindow, crashReporter, dialog, net, session } from 'electron'
+import { app, BrowserWindow, crashReporter, dialog, net, session, shell } from 'electron'
+import {
+  beginAccountDataTeardown,
+  completeDeploymentScopedTeardown,
+  getAccountDataTeardownKind,
+  getAccountDataTeardownOrigin,
+  initializeAccountDataRecovery,
+  isAccountDataTeardownRequired,
+  prepareAccountDataTeardownForQuit,
+  retryAccountDataTeardown,
+  waitForAccountDataMutations,
+} from '@/main/account-data-generation'
 import { newChatRoute, settingsRoute } from '@/main/app-routes'
 import {
   activateBrowserScope as activateAgentBrowserScope,
   clearBrowserProfile as clearAgentBrowserProfile,
+  closeBrowserSession as closeAgentBrowserSession,
   initDriver as initBrowserAgentDriver,
 } from '@/main/browser-agent/driver'
 import {
@@ -16,7 +28,6 @@ import {
   setPanelOccluded as setBrowserAgentPanelOccluded,
 } from '@/main/browser-agent/panel'
 import {
-  closeSession as closeAgentBrowserSession,
   handleFocusedShortcut as handleFocusedBrowserShortcut,
   isBrowserScopeSuspended,
   quiesceBrowserSessions,
@@ -24,6 +35,7 @@ import {
   setBrowserAppearanceTheme as setAgentBrowserTheme,
   setPanelFocused as setBrowserAgentPanelFocused,
 } from '@/main/browser-agent/session'
+import { attachClientInfo } from '@/main/client-info'
 import {
   APP_NAME_FOR_CHANNEL,
   channelForOrigin,
@@ -38,26 +50,40 @@ import { DesktopChatSessionStore } from '@/main/desktop-chat-session-store'
 import { createDesktopSettingsService } from '@/main/desktop-settings'
 import { attachDownloadHandling } from '@/main/downloads'
 import { createAuthFlow, createConnectFlow, createHandoffManager } from '@/main/handoff'
+import {
+  installDocumentationHelpSearch,
+  uninstallDocumentationHelpSearch,
+} from '@/main/help-search'
 import { registerIpcHandlers } from '@/main/ipc'
 import { attachLoadHealth, type LoadHealthHandle } from '@/main/load-health'
 import { LocalFilesystemService } from '@/main/local-filesystem'
 import { createEncryptedLocalFilesystemGrantStore } from '@/main/local-filesystem-grant-store'
+import {
+  attachLocalPageProtocol,
+  isLocalPageUrl,
+  localPageUrl,
+  registerLocalPageScheme,
+} from '@/main/local-pages'
 import { installApplicationMenu } from '@/main/menu'
 import { openExternalSafe } from '@/main/navigation'
-import { createEventLog } from '@/main/observability'
+import { createEventLog, installMainProcessFailureObservers } from '@/main/observability'
 import { ScopedEventRouter } from '@/main/scoped-event-router'
 import { installGlobalGuards } from '@/main/security-guards'
+import { createServerWindow, relaunchApp } from '@/main/server-window'
 import {
+  canRevokeIn,
   createSessionLifecycleCoordinator,
   decideStartRoute,
   handleConnectIntercept,
   readSessionUserId,
   resolveStartRoute,
 } from '@/main/session-lifecycle'
+import { setShellTheme } from '@/main/shell-theme'
 import { attachTelemetryPolicy } from '@/main/telemetry-policy'
 import { TerminalRegistry } from '@/main/terminal/registry'
 import { installTray, type TrayHandle } from '@/main/tray'
 import { checkForUpdatesInteractive, initUpdater, type UpdaterHandle } from '@/main/updater'
+import { installBrowserUserAgent } from '@/main/user-agent'
 import { createMainWindow, setupPermissionHandlers } from '@/main/window'
 import { attachWindowOpenPolicy, isPopupContents } from '@/main/windows'
 
@@ -67,13 +93,13 @@ const logger = createLogger('DesktopMain')
  * Backstop for the sign-in flows, which are dispatched fire-and-forget from a
  * loopback callback and a navigation guard. The flows record their own expected
  * failures; this catches anything they do not, so a rejection cannot surface as
- * an unhandled one — main registers no `unhandledRejection` handler.
+ * an unhandled one — the process-level observer is a last-resort restart path,
+ * not routine control flow.
  */
 function reportHandoffFailure(error: unknown): void {
   logger.error('Sign-in handoff failed', { error: getErrorMessage(error) })
 }
 
-const OFFLINE_PAGE = 'static/offline.html'
 const DOCK_ICON_FOR_CHANNEL = {
   prod: 'dock-icon.png',
   staging: 'dock-icon-staging.png',
@@ -84,20 +110,31 @@ const DOCK_ICON_FOR_CHANNEL = {
 function main(): void {
   app.enableSandbox()
 
-  const config = createConfigStore(join(app.getPath('userData'), 'settings.json'))
-  const events = createEventLog(join(app.getPath('userData'), 'logs'))
+  const userDataPath = app.getPath('userData')
+  const config = createConfigStore(join(userDataPath, 'settings.json'))
+  setShellTheme(config.get('themeBackground'))
+  initializeAccountDataRecovery(join(userDataPath, 'account-data-teardown-required.json'))
+  const recoveryOrigin = getAccountDataTeardownOrigin()
+  if (isAccountDataTeardownRequired() && recoveryOrigin && !config.isPersistenceAvailable()) {
+    const repaired = config.setOrigin(recoveryOrigin)
+    if (!repaired.ok) {
+      logger.error('Could not repair desktop settings for account-data recovery')
+    }
+  }
+  const accountDataAvailable = () =>
+    config.isPersistenceAvailable() && !isAccountDataTeardownRequired()
+  const events = createEventLog(join(userDataPath, 'logs'))
   const appOrigin = () => config.getOrigin()
+  /** Resource snapshots stay with the deployment that created this process. */
+  const processOrigin = appOrigin()
+  const recoveryPartition = `sim-settings-recovery-${process.pid}`
+  const appPartition = (origin = appOrigin()) =>
+    accountDataAvailable() ? partitionForOrigin(origin) : recoveryPartition
   const desktopChatSessions = new DesktopChatSessionStore(
-    join(app.getPath('userData'), 'desktop-chat-sessions.json')
+    join(userDataPath, 'desktop-chat-sessions.json')
   )
   const clearDesktopChatSessions = (): void => {
-    try {
-      desktopChatSessions.clear()
-    } catch (error) {
-      logger.error('Could not clear encrypted task resource state', {
-        error: getErrorMessage(error),
-      })
-    }
+    desktopChatSessions.clear()
   }
   const flushDesktopChatSessions = (phase: 'before-quit' | 'will-quit'): void => {
     if (!desktopChatSessions.flush()) {
@@ -106,17 +143,17 @@ function main(): void {
   }
   const localFilesystem = new LocalFilesystemService({
     grantStore: createEncryptedLocalFilesystemGrantStore(
-      join(app.getPath('userData'), 'local-filesystem-grants.json')
+      join(userDataPath, 'local-filesystem-grants.json')
     ),
   })
   const scopeEvents = new ScopedEventRouter()
   const terminal = new TerminalRegistry({
-    load: (scopeId) => desktopChatSessions.getTerminal(appOrigin(), scopeId) ?? undefined,
-    save: (scopeId, snapshot) => desktopChatSessions.setTerminal(appOrigin(), scopeId, snapshot),
+    load: (scopeId) => desktopChatSessions.getTerminal(processOrigin, scopeId) ?? undefined,
+    save: (scopeId, snapshot) => desktopChatSessions.setTerminal(processOrigin, scopeId, snapshot),
     migrate: (fromScopeId, toScopeId) =>
-      desktopChatSessions.migrateTerminal(appOrigin(), fromScopeId, toScopeId),
+      desktopChatSessions.migrateTerminal(processOrigin, fromScopeId, toScopeId),
     disposeScope: (scopeId) => {
-      desktopChatSessions.deleteScope(appOrigin(), scopeId)
+      desktopChatSessions.deleteScope(processOrigin, scopeId)
     },
   })
   const preloadPath = join(__dirname, 'preload.cjs')
@@ -127,8 +164,11 @@ function main(): void {
   let ensureWindowCreation: Promise<BrowserWindow> | null = null
   let appSession: Session | null = null
   let sessionLifecycle: ReturnType<typeof createSessionLifecycleCoordinator> | null = null
+  let resumingQuitAfterTeardown = false
+  let committedRelaunchPending = false
   let tray: TrayHandle | null = null
   let updater: UpdaterHandle | null = null
+  let startupReady: Promise<void> | null = null
   const configuredPartitions = new Set<string>()
 
   const allowHttpLocalhost = () => !app.isPackaged || appOrigin().startsWith('http://')
@@ -143,6 +183,7 @@ function main(): void {
     }
     return getWindows().at(-1) ?? null
   }
+  installMainProcessFailureObservers({ events, getWindow: getMainWindow })
   const windowForContents = (contents: WebContents) => {
     const win = BrowserWindow.fromWebContents(contents)
     return win && windows.has(win) && !win.isDestroyed() ? win : null
@@ -219,14 +260,16 @@ function main(): void {
   })
 
   function configureSessionForOrigin(origin: string) {
-    const partition = partitionForOrigin(origin)
+    const partition = appPartition(origin)
     const ses = session.fromPartition(partition)
     if (configuredPartitions.has(partition)) {
       return ses
     }
     configuredPartitions.add(partition)
     setupPermissionHandlers(ses, appOrigin)
+    attachLocalPageProtocol(ses)
     attachCspFallback(ses, appOrigin)
+    attachClientInfo(ses, appOrigin)
     attachDownloadHandling(ses, events)
     attachTelemetryPolicy(ses, config.get('blockThirdPartyAnalytics') ?? true)
     ses.setSpellCheckerLanguages(['en-US'])
@@ -243,41 +286,58 @@ function main(): void {
       events,
       getWindows,
       clearHandoffState: async () => {
-        try {
-          handoff.clear()
-        } catch (error) {
-          logger.error('Could not clear sign-in handoff state', { error: getErrorMessage(error) })
-        }
-        try {
-          tray?.clearRecentChats()
-        } catch (error) {
-          logger.error('Could not clear recent tasks', { error: getErrorMessage(error) })
-        }
-        // Shells are account-scoped runtime state. Leaving them alive across
-        // sign-out would stream the previous account's output into the next
-        // renderer and keep its local processes running invisibly.
-        try {
-          terminal.dispose()
-        } catch (error) {
-          logger.error('Could not stop account terminal sessions', {
-            error: getErrorMessage(error),
+        const stores = [
+          { label: 'sign-in handoff state', clear: () => handoff.clear() },
+          { label: 'recent tasks', clear: () => tray?.clearRecentChats() },
+          {
+            label: 'renderer session state',
+            clear: () =>
+              Promise.all(
+                getWindows()
+                  .filter((win) => canRevokeIn(win, appOrigin()))
+                  .map((win) =>
+                    win.webContents.executeJavaScript(
+                      `(() => { sessionStorage.clear(); window.name = '' })()`,
+                      true
+                    )
+                  )
+              ).then(() => undefined),
+          },
+          // Shells are account-scoped runtime state. Leaving them alive across
+          // sign-out would stream the previous account's output into the next
+          // renderer and keep its local processes running invisibly.
+          { label: 'terminal sessions', clear: () => terminal.dispose() },
+          { label: 'task resource state', clear: clearDesktopChatSessions },
+          { label: 'local filesystem grants', clear: () => localFilesystem.forgetAll() },
+        ]
+        const outcomes = await Promise.allSettled(
+          stores.map(({ clear }) => Promise.resolve().then(clear))
+        )
+        const failures = outcomes.flatMap((outcome, index) => {
+          if (outcome.status === 'fulfilled') return []
+          logger.error('Could not clear local account state', {
+            store: stores[index].label,
+            error: getErrorMessage(outcome.reason),
           })
-        }
-        clearDesktopChatSessions()
-        await localFilesystem.forgetAll().catch((error) => {
-          logger.error('Could not clear local filesystem grants', {
-            error: getErrorMessage(error),
-          })
+          return [outcome.reason]
         })
+        if (failures.length > 0) {
+          throw new AggregateError(failures, 'Local account state survived teardown.')
+        }
       },
       clearBrowserProfile: async () => {
+        // Browser profile teardown emits empty tab snapshots while closing its
+        // live views. Clear task descriptors afterward so those snapshots
+        // cannot recreate account-scoped state after sign-out.
+        const failures: unknown[] = []
+        await clearAgentBrowserProfile().catch((error) => failures.push(error))
         try {
-          await clearAgentBrowserProfile()
-        } finally {
-          // Browser profile teardown emits empty tab snapshots while closing
-          // its live views. Clear once more afterward so those cannot recreate
-          // account-scoped task descriptors after sign-out.
           clearDesktopChatSessions()
+        } catch (error) {
+          failures.push(error)
+        }
+        if (failures.length > 0) {
+          throw new AggregateError(failures, 'Browser account state survived teardown.')
         }
       },
     })
@@ -329,10 +389,11 @@ function main(): void {
       config,
       events,
       appOrigin,
-      partition: partitionForOrigin(origin),
+      partition: appPartition(origin),
       preloadPath,
       isPackaged: app.isPackaged,
       restorePosition,
+      isCommittedRelaunchPending: () => committedRelaunchPending,
       onFullScreenChange: (isFullScreen) => {
         if (!win.isDestroyed()) {
           win.webContents.send('desktop:window-state:changed', { isFullScreen })
@@ -367,13 +428,14 @@ function main(): void {
         }
       },
       allowHttpLocalhost: allowHttpLocalhost(),
+      isCommittedRelaunchPending: () => committedRelaunchPending,
     })
     attachContextMenu(win.webContents, {
       isDev: !app.isPackaged,
       allowHttpLocalhost: allowHttpLocalhost(),
     })
     const loadHealth = attachLoadHealth(win, {
-      offlinePagePath: OFFLINE_PAGE,
+      offlinePageUrl: (query) => localPageUrl('offline.html', query),
       getStartUrl: () => `${appOrigin()}${route}`,
       isOnline: () => net.isOnline(),
       events,
@@ -420,7 +482,7 @@ function main(): void {
     }
     if (!tray) {
       tray = installTray({
-        partition: () => partitionForOrigin(appOrigin()),
+        partition: appPartition,
         appOrigin,
         lastRoute: () => config.get('lastRoute'),
         openMainWindow: (route) => void openMainWindowAt(route),
@@ -469,6 +531,43 @@ function main(): void {
     },
   })
 
+  const serverWindow = createServerWindow({
+    config,
+    defaultOrigin: DEFAULT_ORIGIN,
+    preloadPath,
+    isPackaged: app.isPackaged,
+    getParentWindow: getMainWindow,
+    prepareDeploymentScopedStateChange: () => beginAccountDataTeardown('deployment', appOrigin()),
+    clearDeploymentScopedState: async () => {
+      await waitForAccountDataMutations()
+      // allSettled, not sequential awaits: these are independent stores, and a
+      // rejection from the first must not skip the second — leaving the store
+      // that would have cleared fine still holding the outgoing deployment's
+      // access. Each failure is named so the picker can say what survived.
+      const stores = [
+        { label: 'local file access', clear: () => localFilesystem.forgetAll() },
+        {
+          label: 'built-in browser sessions',
+          clear: () => clearAgentBrowserProfile({ settingsPersistence: 'server-repair' }),
+        },
+      ]
+      const outcomes = await Promise.allSettled(stores.map((store) => store.clear()))
+      return outcomes.flatMap((outcome, index) => {
+        if (outcome.status === 'fulfilled') return []
+        logger.error('Could not clear deployment-scoped state', {
+          store: stores[index].label,
+          error: getErrorMessage(outcome.reason),
+        })
+        return [stores[index].label]
+      })
+    },
+    completeDeploymentScopedStateChange: completeDeploymentScopedTeardown,
+    relaunch: () => {
+      committedRelaunchPending = true
+      relaunchApp()
+    },
+  })
+
   /**
    * Routes through the coordinator rather than tearing down directly: the
    * coordinator holds the in-progress guard, clears the same handoff and grant
@@ -478,11 +577,11 @@ function main(): void {
    */
   function signOutFromMenu(): void {
     ensureAppSession()
-    sessionLifecycle?.signOut()
+    void sessionLifecycle?.signOut()
   }
 
   app.on('second-instance', () => {
-    void app.whenReady().then(() => createAndLoadAppWindow())
+    void (startupReady ?? app.whenReady()).then(() => createAndLoadAppWindow())
   })
 
   app.on('window-all-closed', () => {
@@ -491,34 +590,59 @@ function main(): void {
     }
   })
 
-  app.on('before-quit', () => {
-    // Stops the tray's background chat refresh alongside the OS handles.
-    tray?.destroy()
-    tray = null
-    localFilesystem.close()
-    // Quiesce native pages before publishing the final encrypted descriptor
-    // set. This prevents a navigation event racing the synchronous quit flush.
-    quiesceBrowserSessions()
-    terminal.dispose()
-    flushDesktopChatSessions('before-quit')
-    // Settings writes coalesce, so a change made in the last moments before
-    // quit is still pending here.
-    config.flush()
-  })
-
-  app.on('will-quit', () => {
-    // Final backstop for any descriptor dirtied while Electron was closing
-    // windows after before-quit.
-    flushDesktopChatSessions('will-quit')
-  })
-
-  app.on('activate', () => {
-    if (app.isReady() && !getMainWindow()) {
-      void ensureMainWindow()
+  app.on('before-quit', (event) => {
+    if (!resumingQuitAfterTeardown && sessionLifecycle?.isTeardownActive()) {
+      event.preventDefault()
+      void sessionLifecycle.awaitTeardown().then((clean) => {
+        if (!clean && !committedRelaunchPending) {
+          logger.error('Quit cancelled because account teardown did not finish safely')
+          return
+        }
+        if (!committedRelaunchPending && !prepareAccountDataTeardownForQuit()) {
+          logger.error('Quit cancelled because account-data recovery could not be persisted')
+          return
+        }
+        if (!clean) {
+          logger.warn(
+            'Committed server relaunch is continuing with account-data recovery armed for startup'
+          )
+        }
+        resumingQuitAfterTeardown = true
+        app.quit()
+      })
+      return
+    }
+    // A committed relaunch is requested only after its prerequisite teardown has
+    // succeeded. The ordinary quit guard must not strand that committed process;
+    // any retained marker is startup retry metadata.
+    if (!committedRelaunchPending && !prepareAccountDataTeardownForQuit()) {
+      event.preventDefault()
+      logger.error('Quit cancelled because account-data recovery could not be persisted')
+      return
     }
   })
 
-  void app.whenReady().then(async () => {
+  app.on('will-quit', () => {
+    // Renderer unload guards have accepted the quit, so native resources can
+    // now be released without leaving a cancelled quit in a degraded state.
+    tray?.destroy()
+    tray = null
+    localFilesystem.close()
+    quiesceBrowserSessions()
+    terminal.dispose()
+    uninstallDocumentationHelpSearch()
+    flushDesktopChatSessions('will-quit')
+    config.flush()
+  })
+
+  app.on('activate', () => {
+    if (!app.isReady()) return
+    void (startupReady ?? app.whenReady()).then(() => {
+      if (!getMainWindow()) return ensureMainWindow()
+    })
+  })
+
+  startupReady = app.whenReady().then(async () => {
     // Packaged apps keep their native bundle icon so the Dock appearance does
     // not change when the process starts. Unpackaged runs have no branded
     // bundle, so they still need the channel-specific development icon.
@@ -530,7 +654,57 @@ function main(): void {
       version: app.getVersion(),
       electron: process.versions.electron ?? '',
     })
-    if (!desktopChatSessions.initialize()) {
+
+    if (isAccountDataTeardownRequired()) {
+      const kind = getAccountDataTeardownKind()
+      const origin = getAccountDataTeardownOrigin()
+      if (!origin) {
+        logger.error('Account-data recovery marker does not contain a trusted origin')
+      }
+      const stores = [
+        { label: 'built-in browser sessions', clear: () => clearAgentBrowserProfile() },
+        { label: 'local filesystem grants', clear: () => localFilesystem.forgetAll() },
+        {
+          label: 'browser site history',
+          clear: () => {
+            config.set('browserKnownSites', undefined)
+            if (!config.flush()) throw new Error('Browser site history could not be erased')
+          },
+        },
+        ...(kind === 'account' && origin
+          ? [
+              { label: 'sign-in handoff state', clear: () => handoff.clear() },
+              { label: 'terminal sessions', clear: () => terminal.dispose() },
+              { label: 'task resource state', clear: clearDesktopChatSessions },
+              {
+                label: 'app session storage',
+                clear: async () => {
+                  const persistedSession = session.fromPartition(partitionForOrigin(origin))
+                  await persistedSession.clearStorageData()
+                  await persistedSession.clearCache()
+                },
+              },
+            ]
+          : []),
+      ]
+      const failures = origin
+        ? await retryAccountDataTeardown(stores).catch((error) => {
+            logger.error('Could not finish interrupted account-data teardown', {
+              error: getErrorMessage(error),
+            })
+            return ['account-data recovery marker']
+          })
+        : ['account-data recovery marker']
+      if (failures.length > 0) {
+        logger.error('Account-data recovery remains incomplete', { stores: failures })
+      }
+    }
+
+    if (!accountDataAvailable()) {
+      logger.warn(
+        'Account-bearing browser, terminal, and local filesystem APIs are unavailable until local recovery succeeds'
+      )
+    } else if (!desktopChatSessions.initialize()) {
       logger.warn(
         'Encrypted task resource storage is unavailable; browser and terminal state will remain memory-only'
       )
@@ -559,19 +733,24 @@ function main(): void {
       getMainWindow,
       config,
       {
-        load: (scopeId) => desktopChatSessions.getBrowser(appOrigin(), scopeId),
-        save: (scopeId, snapshot) => desktopChatSessions.setBrowser(appOrigin(), scopeId, snapshot),
+        load: (scopeId) => desktopChatSessions.getBrowser(processOrigin, scopeId),
+        save: (scopeId, snapshot) =>
+          desktopChatSessions.setBrowser(processOrigin, scopeId, snapshot),
         migrateScope: (fromScopeId, toScopeId) =>
-          desktopChatSessions.migrateBrowser(appOrigin(), fromScopeId, toScopeId),
+          desktopChatSessions.migrateBrowser(processOrigin, fromScopeId, toScopeId),
         disposeScope: (scopeId) => {
-          desktopChatSessions.deleteScope(appOrigin(), scopeId)
+          desktopChatSessions.deleteScope(processOrigin, scopeId)
         },
       },
       {
         getDirectory: () => desktopSettings.getPreferences().browserDownloadDirectory,
-      }
+      },
+      { origin: processOrigin, session: ensureAppSession() },
+      localFilesystem
     )
-    await localFilesystem.initialize()
+    if (accountDataAvailable()) {
+      await localFilesystem.initialize()
+    }
     terminal.setSink({
       data: (scopeId, terminalId, data) =>
         scopeEvents.sendTerminal(scopeId, 'terminal:data', terminalId, data, scopeId),
@@ -583,6 +762,8 @@ function main(): void {
     registerIpcHandlers({
       appOrigin,
       allowHttpLocalhost,
+      accountDataAvailable,
+      isLocalPageUrl,
       scopeEvents,
       retryLoad: (sender) => {
         const win = windowForContents(sender)
@@ -649,34 +830,60 @@ function main(): void {
         },
       },
       beginOAuthConnect: (providerId, scope) => connectFlow.beginConnectHandoff(providerId, scope),
+      prepareSourceConnect: () => handoff.prepareSourceConnect(),
+      cancelSourceConnect: (requestId) => handoff.cancelSourceConnect(requestId),
       updates: {
         getState: () => updater?.getState() ?? { status: 'idle' },
         check: () => updater?.check(),
         install: () => updater?.install(),
+      },
+      server: {
+        open: () => serverWindow.open(),
+        getConfiguration: () => serverWindow.getConfiguration(),
+        setOrigin: (origin) => serverWindow.setOrigin(origin),
       },
     })
     await ensureMainWindow()
     installApplicationMenu({
       config,
       getMainWindow,
+      isMainWindow: (win) => windows.has(win) && !win.isDestroyed(),
       allowHttpLocalhost,
       openSettings,
+      openServerSettings: () => serverWindow.open(),
       newWindow: () => void createAndLoadAppWindow(),
       newChat: () => void openMainWindowAt(newChatRoute(config.get('lastRoute'))),
       handleFocusedResourceShortcut: (win, shortcut) =>
-        terminal.handleFocusedShortcut(win, shortcut) ||
-        handleFocusedBrowserShortcut(shortcut, win),
+        handleFocusedBrowserShortcut(shortcut, win) ||
+        terminal.handleFocusedShortcut(win, shortcut),
       toggleSidebar: () => getMainWindow()?.webContents.send('desktop:command', 'toggle-sidebar'),
+      openSearch: () => getMainWindow()?.webContents.send('desktop:command', 'open-search'),
       signOut: signOutFromMenu,
       checkForUpdates: () =>
         checkForUpdatesInteractive({ getWindow: getMainWindow, events, handle: updater }),
+      openDiagnostics: () => shell.showItemInFolder(events.filePath),
     })
+    installDocumentationHelpSearch()
     setTrayEnabled(config.get('trayEnabled') ?? true)
     updater = initUpdater({
       getWindow: getMainWindow,
       events,
+      installStatePath: join(userDataPath, 'update-install.json'),
       appOrigin,
       autoDownload: () => config.get('autoDownloadUpdates') ?? true,
+      setRelaunchPending: (pending) => {
+        committedRelaunchPending = pending
+      },
+      beforeInstall: async () => {
+        if (!prepareAccountDataTeardownForQuit()) {
+          throw new Error(
+            'Account-data recovery could not be persisted before update installation.'
+          )
+        }
+        if (sessionLifecycle && !(await sessionLifecycle.awaitTeardown())) {
+          throw new Error('Account teardown did not finish safely before update installation.')
+        }
+      },
       onStateChange: (state) => {
         broadcast('desktop:updates:state', state)
       },
@@ -698,6 +905,11 @@ app.setName(APP_NAME_FOR_CHANNEL[channelForOrigin(DEFAULT_ORIGIN)])
 if (process.env.SIM_DESKTOP_USER_DATA) {
   app.setPath('userData', process.env.SIM_DESKTOP_USER_DATA)
 }
+installBrowserUserAgent()
+
+// The scheme the offline page and server picker load from must be declared
+// before the app is ready; the per-session handlers attach later.
+registerLocalPageScheme()
 
 // Capture native minidumps for main/renderer/GPU crashes. Local-only: there is
 // no crash-ingest backend, so nothing is uploaded — the dumps land under

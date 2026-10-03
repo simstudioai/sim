@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
+import { EnvCapabilityConfigurationError } from '@sim/deployment-config/env-capabilities'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
@@ -7,7 +8,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { instagramCallbackContract } from '@/lib/api/contracts/oauth-connections'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { env } from '@/lib/core/config/env'
+import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import {
   DEFAULT_MAX_ERROR_BODY_BYTES,
   readResponseJsonWithLimit,
@@ -17,13 +18,14 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+import { safeAccountInsert } from '@/lib/oauth/credential-service'
 import {
   parseInstagramLongLivedToken,
   parseInstagramProfile,
   parseInstagramShortLivedToken,
 } from '@/lib/oauth/instagram'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
-import { safeAccountInsert } from '@/app/api/auth/oauth/utils'
 import { INSTAGRAM_GRAPH_BASE } from '@/tools/instagram/constants'
 
 const logger = createLogger('InstagramCallback')
@@ -32,11 +34,16 @@ export const dynamic = 'force-dynamic'
 
 const INSTAGRAM_STATE_COOKIE = 'instagram_oauth_state'
 const INSTAGRAM_RETURN_URL_COOKIE = 'instagram_return_url'
+const INSTAGRAM_CREDENTIAL_DRAFT_COOKIE = 'instagram_credential_draft_id'
 const INSTAGRAM_STATE_COOKIE_PATH = '/api/auth'
 
 function clearOAuthCookies(response: NextResponse) {
   response.cookies.delete({ name: INSTAGRAM_STATE_COOKIE, path: INSTAGRAM_STATE_COOKIE_PATH })
   response.cookies.delete({ name: INSTAGRAM_RETURN_URL_COOKIE, path: INSTAGRAM_STATE_COOKIE_PATH })
+  response.cookies.delete({
+    name: INSTAGRAM_CREDENTIAL_DRAFT_COOKIE,
+    path: INSTAGRAM_STATE_COOKIE_PATH,
+  })
   return response
 }
 
@@ -46,13 +53,16 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
-      return clearOAuthCookies(NextResponse.redirect(`${baseUrl}/workspace?error=unauthorized`))
+      return clearOAuthCookies(
+        NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=unauthorized`)
+      )
     }
 
     const parsed = await parseRequest(instagramCallbackContract, request, {})
     if (!parsed.success) return parsed.response
 
     const { code, state, error, error_reason, error_description } = parsed.data.query
+    const draftId = request.cookies.get(INSTAGRAM_CREDENTIAL_DRAFT_COOKIE)?.value
 
     if (error) {
       logger.warn('Instagram OAuth denied by user', {
@@ -61,7 +71,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         error_description,
       })
       return clearOAuthCookies(
-        NextResponse.redirect(`${baseUrl}/workspace?error=instagram_access_denied`)
+        NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=instagram_access_denied`)
       )
     }
 
@@ -72,23 +82,18 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         hasCookieState: Boolean(cookieState),
       })
       return clearOAuthCookies(
-        NextResponse.redirect(`${baseUrl}/workspace?error=instagram_state_mismatch`)
+        NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=instagram_state_mismatch`)
       )
     }
 
-    const clientId = env.INSTAGRAM_CLIENT_ID
-    const clientSecret = env.INSTAGRAM_CLIENT_SECRET
-    if (!clientId || !clientSecret) {
-      logger.error('Instagram credentials not configured')
-      return clearOAuthCookies(
-        NextResponse.redirect(`${baseUrl}/workspace?error=instagram_config_error`)
-      )
-    }
+    const {
+      values: { INSTAGRAM_CLIENT_ID: clientId, INSTAGRAM_CLIENT_SECRET: clientSecret },
+    } = requireConfiguredOAuthClient('instagram')
 
     if (!code) {
       logger.error('No authorization code received from Instagram')
       return clearOAuthCookies(
-        NextResponse.redirect(`${baseUrl}/workspace?error=instagram_no_code`)
+        NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=instagram_no_code`)
       )
     }
 
@@ -121,7 +126,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         error: errorText,
       })
       return clearOAuthCookies(
-        NextResponse.redirect(`${baseUrl}/workspace?error=instagram_token_error`)
+        NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=instagram_token_error`)
       )
     }
 
@@ -134,7 +139,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!shortLived) {
       logger.error('Instagram short-lived token response was invalid')
       return clearOAuthCookies(
-        NextResponse.redirect(`${baseUrl}/workspace?error=instagram_no_token`)
+        NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=instagram_no_token`)
       )
     }
 
@@ -158,7 +163,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         error: errorText,
       })
       return clearOAuthCookies(
-        NextResponse.redirect(`${baseUrl}/workspace?error=instagram_exchange_error`)
+        NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=instagram_exchange_error`)
       )
     }
 
@@ -172,7 +177,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!longLived) {
       logger.error('Instagram long-lived token response was invalid')
       return clearOAuthCookies(
-        NextResponse.redirect(`${baseUrl}/workspace?error=instagram_no_long_lived`)
+        NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=instagram_no_long_lived`)
       )
     }
 
@@ -197,7 +202,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         error: errorText,
       })
       return clearOAuthCookies(
-        NextResponse.redirect(`${baseUrl}/workspace?error=instagram_profile_error`)
+        NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=instagram_profile_error`)
       )
     }
 
@@ -210,7 +215,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!profile) {
       logger.error('Instagram profile response was invalid')
       return clearOAuthCookies(
-        NextResponse.redirect(`${baseUrl}/workspace?error=instagram_profile_error`)
+        NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=instagram_profile_error`)
       )
     }
 
@@ -220,7 +225,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!igUserId) {
       logger.error('Instagram profile response missing user_id', { profile })
       return clearOAuthCookies(
-        NextResponse.redirect(`${baseUrl}/workspace?error=instagram_no_user_id`)
+        NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=instagram_no_user_id`)
       )
     }
 
@@ -297,29 +302,33 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         ),
       }))
 
-    if (persisted) {
-      try {
-        await processCredentialDraft({
-          userId: session.user.id,
-          providerId: 'instagram',
-          accountId: persisted.id,
-        })
-      } catch (draftError) {
-        logger.error('Failed to process credential draft for Instagram', { error: draftError })
-      }
+    if (!persisted) {
+      throw new Error(`Instagram OAuth account ${igUserId} was not persisted`)
     }
+    await processCredentialDraft({
+      draftId,
+      userId: session.user.id,
+      providerId: 'instagram',
+      accountId: persisted.id,
+    })
 
     const returnUrlCookie = request.cookies.get(INSTAGRAM_RETURN_URL_COOKIE)?.value
     const redirectUrl =
-      returnUrlCookie && isSameOrigin(returnUrlCookie) ? returnUrlCookie : `${baseUrl}/workspace`
+      returnUrlCookie && isSameOrigin(returnUrlCookie)
+        ? returnUrlCookie
+        : `${baseUrl}${APP_ENTRY_PATH}`
     const finalUrl = new URL(redirectUrl)
     finalUrl.searchParams.set('instagram_connected', 'true')
 
     return clearOAuthCookies(NextResponse.redirect(finalUrl.toString()))
   } catch (error) {
     logger.error('Error in Instagram OAuth callback', { error })
+    const errorCode =
+      error instanceof EnvCapabilityConfigurationError && error.capabilityId === 'oauth'
+        ? 'instagram_config_error'
+        : 'instagram_callback_error'
     return clearOAuthCookies(
-      NextResponse.redirect(`${baseUrl}/workspace?error=instagram_callback_error`)
+      NextResponse.redirect(`${baseUrl}${APP_ENTRY_PATH}?error=${errorCode}`)
     )
   }
 })

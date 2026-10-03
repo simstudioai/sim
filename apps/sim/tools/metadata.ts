@@ -1,12 +1,13 @@
 import rawMetadata from '@/tools/generated/tool-metadata'
+import type { HostedApiKeySupport } from '@/tools/hosted-api-key'
 import { resolveToolId } from '@/tools/tool-ids'
-import type { OAuthConfig, ToolConfig } from '@/tools/types'
+import type { OAuthConfig, PersonalTokenConfig, ToolConfig } from '@/tools/types'
 
 /**
  * Serializable tool metadata, read without importing the executable registry.
  *
  * `@/tools/registry` is a barrel over 4,300+ tools whose `ToolConfig`s carry
- * closures (`request.headers`, `transformResponse`, `directExecution`), and
+ * closures (`request.headers`, `transformResponse`), and
  * those closures drag ~4,700 modules into any graph that reaches them. Callers
  * that only need to know a tool's shape — its params, its outputs, or whether it
  * exists — read it from here instead, and stay off the registry entirely.
@@ -28,6 +29,13 @@ export interface ToolMetadata {
   version?: string
   params: ToolConfig['params']
   oauth?: OAuthConfig
+  personalToken?: PersonalTokenConfig
+  /**
+   * Whether Sim supplies this tool's API key. Derived from the tool's `hosting`
+   * config, which is itself excluded from the artifact because it holds
+   * closures — see `@/tools/hosted-api-key`.
+   */
+  hostedApiKey?: HostedApiKeySupport
 }
 
 /**

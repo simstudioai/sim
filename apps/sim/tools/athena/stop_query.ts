@@ -1,7 +1,7 @@
 import type { AthenaStopQueryParams, AthenaStopQueryResponse } from '@/tools/athena/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const stopQueryTool: ToolConfig<AthenaStopQueryParams, AthenaStopQueryResponse> = {
+export const stopQueryTool: InternalToolConfig<AthenaStopQueryParams, AthenaStopQueryResponse> = {
   id: 'athena_stop_query',
   name: 'Athena Stop Query',
   description: 'Stop a running Athena query execution',
@@ -34,11 +34,8 @@ export const stopQueryTool: ToolConfig<AthenaStopQueryParams, AthenaStopQueryRes
     },
   },
 
-  request: {
-    url: '/api/tools/athena/stop-query',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

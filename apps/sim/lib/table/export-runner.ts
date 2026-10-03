@@ -1,21 +1,17 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { neutralizeCsvFormula, toCsvRow } from '@/lib/core/utils/csv'
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { getColumnId } from '@/lib/table/column-keys'
 import { appendTableEvent } from '@/lib/table/events'
+import { formatCsvCell, sanitizeExportFilename } from '@/lib/table/export-format'
 import {
-  formatCsvCell,
-  neutralizeCsvFormula,
-  sanitizeExportFilename,
-  toCsvRow,
-} from '@/lib/table/export-format'
-import {
-  markJobFailed,
-  markJobReady,
+  markJobFailedInWorkspace,
+  markJobReadyInWorkspace,
   selectExportRowPage,
-  setJobResultKey,
-  updateJobProgress,
+  setJobResultKeyInWorkspace,
+  updateJobProgressInWorkspace,
 } from '@/lib/table/jobs/service'
 import { getTableById } from '@/lib/table/service'
 import {
@@ -57,7 +53,9 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
 
   try {
     const table = await getTableById(tableId, { includeArchived: true })
-    if (!table) throw new Error(`Export target table ${tableId} not found`)
+    if (!table || table.workspaceId !== workspaceId) {
+      throw new Error(`Export target table ${tableId} not found in workspace ${workspaceId}`)
+    }
 
     const columns = table.schema.columns
     // Stored row data is id-keyed and select cells hold option ids; JSON keys are display
@@ -73,7 +71,12 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
 
     // Stream the serialized file straight into storage in bounded parts instead of buffering the
     // whole thing in heap — a 1M-row export no longer holds hundreds of MB resident.
-    handle = await createMultipartUpload({ key, context: 'workspace', contentType })
+    handle = await createMultipartUpload({
+      key,
+      context: 'workspace',
+      contentType,
+      completionPolicy: 'replace',
+    })
     await handle.write(
       format === 'csv' ? `${toCsvRow(columns.map((c) => neutralizeCsvFormula(c.name)))}\n` : '['
     )
@@ -85,7 +88,7 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
     let after: { orderKey: string | null; id: string } | null = null
     while (true) {
       // Ownership gate before every page: a canceled job stops within one batch.
-      const owns = await updateJobProgress(tableId, exported, jobId)
+      const owns = await updateJobProgressInWorkspace(tableId, workspaceId, exported, jobId)
       if (!owns) throw new JobSupersededError()
 
       const page = await selectExportRowPage(table, after, EXPORT_BATCH_SIZE)
@@ -112,16 +115,23 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
     }
     if (format === 'json') await handle.write(']')
 
-    const ownsFinalize = await updateJobProgress(tableId, exported, jobId)
+    const ownsFinalize = await updateJobProgressInWorkspace(tableId, workspaceId, exported, jobId)
     if (!ownsFinalize) throw new JobSupersededError()
 
     const uploaded = await handle.complete()
     uploadedKey = uploaded.key
-    await setJobResultKey(tableId, jobId, uploaded.key)
+    const storedResult = await setJobResultKeyInWorkspace(tableId, workspaceId, jobId, uploaded.key)
+    if (!storedResult) throw new JobSupersededError()
 
-    await updateJobProgress(tableId, exported, jobId)
+    const ownsReadyTransition = await updateJobProgressInWorkspace(
+      tableId,
+      workspaceId,
+      exported,
+      jobId
+    )
+    if (!ownsReadyTransition) throw new JobSupersededError()
     // Only announce success if we still won the transition (not canceled at the wire).
-    const becameReady = await markJobReady(tableId, jobId)
+    const becameReady = await markJobReadyInWorkspace(tableId, workspaceId, jobId)
     if (becameReady) {
       void appendTableEvent({
         kind: 'job',
@@ -135,7 +145,17 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
     } else {
       // Canceled at the very end — the file is orphaned; remove it (janitor would otherwise
       // only catch it via the pruned job's resultKey).
-      await deleteFile({ key: uploaded.key, context: 'workspace' }).catch(() => {})
+      try {
+        await deleteFile({ key: uploaded.key, context: 'workspace' })
+      } catch (cleanupError) {
+        logger.warn(`[${requestId}] Failed to delete superseded export`, {
+          tableId,
+          workspaceId,
+          jobId,
+          key: uploaded.key,
+          error: getErrorMessage(cleanupError, 'Unknown cleanup error'),
+        })
+      }
       logger.info(`[${requestId}] Export finished but no longer owns the run`, { tableId, jobId })
     }
   } catch (err) {
@@ -143,16 +163,44 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
     // in-flight multipart upload (not yet completed) is aborted so no staged parts linger; a
     // completed-but-unannounced upload is removed by key.
     if (uploadedKey) {
-      await deleteFile({ key: uploadedKey, context: 'workspace' }).catch(() => {})
+      try {
+        await deleteFile({ key: uploadedKey, context: 'workspace' })
+      } catch (cleanupError) {
+        logger.warn(`[${requestId}] Failed to delete incomplete export`, {
+          tableId,
+          workspaceId,
+          jobId,
+          key: uploadedKey,
+          error: getErrorMessage(cleanupError, 'Unknown cleanup error'),
+        })
+      }
     } else if (handle) {
-      await handle.abort().catch(() => {})
+      try {
+        await handle.abort()
+      } catch (cleanupError) {
+        logger.warn(`[${requestId}] Failed to abort incomplete export`, {
+          tableId,
+          workspaceId,
+          jobId,
+          error: getErrorMessage(cleanupError, 'Unknown cleanup error'),
+        })
+      }
     }
     if (err instanceof JobSupersededError) {
       logger.info(`[${requestId}] Export superseded/canceled; stopping`, { tableId, jobId })
     } else {
       const message = getErrorMessage(err, 'Export failed')
       logger.error(`[${requestId}] Export failed for table ${tableId}:`, err)
-      await markJobFailed(tableId, jobId, message).catch(() => {})
+      try {
+        await markJobFailedInWorkspace(tableId, workspaceId, jobId, message)
+      } catch (failureError) {
+        logger.error(`[${requestId}] Failed to mark export job failed`, {
+          tableId,
+          workspaceId,
+          jobId,
+          error: getErrorMessage(failureError, 'Unknown job transition error'),
+        })
+      }
       void appendTableEvent({
         kind: 'job',
         type: 'export',

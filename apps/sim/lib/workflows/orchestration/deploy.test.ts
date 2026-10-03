@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMock,
   dbChainMockFns,
@@ -9,37 +6,37 @@ import {
   schemaMock,
   workflowAuthzMockFns,
 } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockSaveWorkflowToNormalizedTables,
-  mockRecordAudit,
-  mockCaptureServerEvent,
   mockValidateWorkflowSchedules,
   mockValidateTriggerWebhookConfigForDeploy,
   mockEmitWorkflowDeployedEvent,
   mockPrepareWorkflowDeployment,
   mockPrepareWorkflowVersionActivation,
   mockGetWorkflowDeploymentStatus,
+  mockGetDeploymentOperation,
   mockEnqueueWorkflowDeploymentPreparation,
   mockProcessWorkflowDeploymentOutboxEvent,
   mockNotifySocketDeploymentChanged,
-  mockLoadWorkflowDeploymentSnapshot,
   mockTx,
 } = vi.hoisted(() => ({
-  mockSaveWorkflowToNormalizedTables: vi.fn(),
-  mockRecordAudit: vi.fn(),
-  mockCaptureServerEvent: vi.fn(),
   mockValidateWorkflowSchedules: vi.fn(),
   mockValidateTriggerWebhookConfigForDeploy: vi.fn(),
   mockEmitWorkflowDeployedEvent: vi.fn(),
   mockPrepareWorkflowDeployment: vi.fn(),
   mockPrepareWorkflowVersionActivation: vi.fn(),
   mockGetWorkflowDeploymentStatus: vi.fn(),
+  mockGetDeploymentOperation: vi.fn(),
   mockEnqueueWorkflowDeploymentPreparation: vi.fn(),
   mockProcessWorkflowDeploymentOutboxEvent: vi.fn(),
   mockNotifySocketDeploymentChanged: vi.fn(),
-  mockLoadWorkflowDeploymentSnapshot: vi.fn(),
   /**
    * Sentinel transaction handle the mocked prepare functions hand to the real
    * onPrepareTransaction callback, which only forwards it into the (mocked)
@@ -48,18 +45,7 @@ const {
   mockTx: { sentinel: 'tx' },
 }))
 
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    WORKFLOW_DEPLOYMENT_REVERTED: 'WORKFLOW_DEPLOYMENT_REVERTED',
-    WORKFLOW_DEPLOYED: 'WORKFLOW_DEPLOYED',
-    WORKFLOW_UNDEPLOYED: 'WORKFLOW_UNDEPLOYED',
-    WORKFLOW_DEPLOYMENT_ACTIVATED: 'WORKFLOW_DEPLOYMENT_ACTIVATED',
-  },
-  AuditResourceType: { WORKFLOW: 'WORKFLOW' },
-  recordAudit: mockRecordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/workflows/deployment-outbox', () => ({
   enqueueWorkflowDeploymentPreparation: mockEnqueueWorkflowDeploymentPreparation,
@@ -71,6 +57,7 @@ vi.mock('@/lib/workflows/deployment-outbox', () => ({
 
 vi.mock('@/lib/workflows/persistence/deployment-operations', () => ({
   getWorkflowDeploymentStatus: mockGetWorkflowDeploymentStatus,
+  getDeploymentOperation: mockGetDeploymentOperation,
   prepareWorkflowDeployment: mockPrepareWorkflowDeployment,
   prepareWorkflowVersionActivation: mockPrepareWorkflowVersionActivation,
 }))
@@ -80,15 +67,9 @@ vi.mock('@/lib/workspace-events/emitter', () => ({
   emitWorkflowUndeployedEvent: vi.fn(),
 }))
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: mockCaptureServerEvent,
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadWorkflowDeploymentSnapshot: mockLoadWorkflowDeploymentSnapshot,
-  saveWorkflowToNormalizedTables: mockSaveWorkflowToNormalizedTables,
-  undeployWorkflow: vi.fn(),
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 vi.mock('@/lib/webhooks/deploy', () => ({
   validateTriggerWebhookConfigForDeploy: mockValidateTriggerWebhookConfigForDeploy,
@@ -108,13 +89,21 @@ import {
   performRevertToVersion,
 } from '@/lib/workflows/orchestration/deploy'
 
+const mockRecordAudit = auditMockFns.mockRecordAudit
+
+const mockLoadWorkflowDeploymentSnapshot =
+  workflowsPersistenceUtilsMockFns.mockLoadWorkflowDeploymentSnapshot
+const mockSaveWorkflowToNormalizedTables =
+  workflowsPersistenceUtilsMockFns.mockSaveWorkflowToNormalizedTables
+const mockUpdateDeploymentVersionMetadata =
+  workflowsPersistenceUtilsMockFns.mockUpdateDeploymentVersionMetadata
+
 afterAll(() => {
   resetDbChainMock()
 })
 
 describe('performRevertToVersion', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
     mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
@@ -160,6 +149,8 @@ describe('performRevertToVersion', () => {
           },
         },
       }),
+      /** A revert restores a graph the workspace already deployed, so it writes as nobody. */
+      { workspaceId: null, subjectUserId: null },
       dbChainMock.db
     )
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
@@ -205,7 +196,6 @@ describe('performRevertToVersion', () => {
 
 describe('performFullDeploy workspace event emission', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
     const now = new Date('2026-07-14T08:00:00.000Z')
@@ -248,19 +238,22 @@ describe('performFullDeploy workspace event emission', () => {
     })
     mockValidateWorkflowSchedules.mockReturnValue({ isValid: true })
     mockValidateTriggerWebhookConfigForDeploy.mockResolvedValue({ success: true })
+    mockUpdateDeploymentVersionMetadata.mockResolvedValue({ name: null, description: null })
     mockEnqueueWorkflowDeploymentPreparation.mockResolvedValue('prepare-event-default')
     mockPrepareWorkflowDeployment.mockImplementation(async (input) => {
       await input.onPrepareTransaction?.(mockTx, operation)
       return { success: true, operation, reused: false }
     })
-    mockGetWorkflowDeploymentStatus.mockResolvedValue({
+    const deploymentStatus = {
       activeDeployment: {
         deploymentVersionId: 'dv-1',
         version: 4,
         deployedAt: now,
       },
       latestOperation: operation,
-    })
+    }
+    mockGetWorkflowDeploymentStatus.mockResolvedValue(deploymentStatus)
+    mockGetDeploymentOperation.mockResolvedValue(deploymentStatus.latestOperation)
   })
 
   it('marks the latest active operation historical when no matching version is live', async () => {
@@ -307,21 +300,6 @@ describe('performFullDeploy workspace event emission', () => {
     })
   })
 
-  it('always admits deploys through v2 without legacy immediate activation', async () => {
-    const result = await performFullDeploy({
-      workflowId: 'workflow-1',
-      userId: 'user-1',
-    })
-
-    expect(result.success).toBe(true)
-    expect(mockPrepareWorkflowDeployment).toHaveBeenCalledTimes(1)
-    expect(mockEnqueueWorkflowDeploymentPreparation).toHaveBeenCalledWith(
-      mockTx,
-      expect.objectContaining({ protocolVersion: 2 })
-    )
-    expect(mockEmitWorkflowDeployedEvent).not.toHaveBeenCalled()
-  })
-
   it('does not reuse a correlation request ID as an implicit idempotency key', async () => {
     queueTableRows(schemaMock.workflow, [
       { id: 'workflow-1', name: 'My Workflow', workspaceId: 'workspace-1' },
@@ -340,7 +318,7 @@ describe('performFullDeploy workspace event emission', () => {
     expect(firstKey).not.toBe(secondKey)
   })
 
-  it('keeps the request hash stable across snapshot timestamps and edge order', async () => {
+  it('keeps retry identity stable across snapshot timestamps, edge order, and label wording', async () => {
     queueTableRows(schemaMock.workflow, [
       { id: 'workflow-1', name: 'My Workflow', workspaceId: 'workspace-1' },
       { id: 'workflow-1', name: 'My Workflow', workspaceId: 'workspace-1' },
@@ -367,14 +345,23 @@ describe('performFullDeploy workspace event emission', () => {
       userId: 'user-1',
       idempotencyKey: 'copilot:execution-1:tool-call:call-1',
     }
-    await performFullDeploy(params)
-    await performFullDeploy(params)
+    await performFullDeploy({
+      ...params,
+      versionName: 'First wording',
+      versionDescription: 'First description',
+    })
+    await performFullDeploy({
+      ...params,
+      versionName: 'Retry wording',
+      versionDescription: 'Rephrased description',
+    })
 
     expect(mockPrepareWorkflowDeployment.mock.calls[0][0].requestHash).toBe(
       mockPrepareWorkflowDeployment.mock.calls[1][0].requestHash
     )
-    expect(mockPrepareWorkflowDeployment.mock.calls[0][0].idempotencyKey).toBe(
-      'copilot:execution-1:tool-call:call-1'
+    const firstRequest = mockPrepareWorkflowDeployment.mock.calls[0][0]
+    expect(firstRequest.idempotencyKey).toBe(
+      `copilot:execution-1:tool-call:call-1:request:${firstRequest.requestHash}`
     )
   })
 
@@ -420,10 +407,12 @@ describe('performFullDeploy workspace event emission', () => {
       return { success: true, operation, reused: false }
     })
     mockProcessWorkflowDeploymentOutboxEvent.mockResolvedValue('pending')
-    mockGetWorkflowDeploymentStatus.mockResolvedValue({
+    const deploymentStatus = {
       activeDeployment: null,
       latestOperation: operation,
-    })
+    }
+    mockGetWorkflowDeploymentStatus.mockResolvedValue(deploymentStatus)
+    mockGetDeploymentOperation.mockResolvedValue(deploymentStatus.latestOperation)
 
     const result = await performFullDeploy({
       workflowId: 'workflow-1',
@@ -486,14 +475,16 @@ describe('performFullDeploy workspace event emission', () => {
       return { success: true, operation, reused: false }
     })
     mockProcessWorkflowDeploymentOutboxEvent.mockResolvedValue('pending')
-    mockGetWorkflowDeploymentStatus.mockResolvedValue({
+    const deploymentStatus = {
       activeDeployment: {
         deploymentVersionId: 'dv-live',
         version: 4,
         deployedAt: now,
       },
       latestOperation: operation,
-    })
+    }
+    mockGetWorkflowDeploymentStatus.mockResolvedValue(deploymentStatus)
+    mockGetDeploymentOperation.mockResolvedValue(deploymentStatus.latestOperation)
 
     const result = await performFullDeploy({
       workflowId: 'workflow-1',
@@ -570,7 +561,7 @@ describe('performFullDeploy workspace event emission', () => {
       return { success: true, operation, reused: false }
     })
     mockProcessWorkflowDeploymentOutboxEvent.mockResolvedValue('completed')
-    mockGetWorkflowDeploymentStatus.mockResolvedValue({
+    const deploymentStatus = {
       activeDeployment: null,
       latestOperation: {
         ...operation,
@@ -579,7 +570,9 @@ describe('performFullDeploy workspace event emission', () => {
         errorMessage: 'Webhook path "/leads" is already in use. Choose a different path.',
         completedAt: now,
       },
-    })
+    }
+    mockGetWorkflowDeploymentStatus.mockResolvedValue(deploymentStatus)
+    mockGetDeploymentOperation.mockResolvedValue(deploymentStatus.latestOperation)
 
     const result = await performFullDeploy({
       workflowId: 'workflow-1',
@@ -597,7 +590,6 @@ describe('performFullDeploy workspace event emission', () => {
 
 describe('performActivateVersion workspace event emission', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })))
     const now = new Date('2026-07-14T08:00:00.000Z')
@@ -637,30 +629,112 @@ describe('performActivateVersion workspace event emission', () => {
       await input.onPrepareTransaction?.(mockTx, operation)
       return { success: true, operation, reused: false }
     })
-    mockGetWorkflowDeploymentStatus.mockResolvedValue({
+    const deploymentStatus = {
       activeDeployment: {
         deploymentVersionId: 'dv-2',
         version: 2,
         deployedAt: now,
       },
       latestOperation: operation,
-    })
+    }
+    mockGetWorkflowDeploymentStatus.mockResolvedValue(deploymentStatus)
+    mockGetDeploymentOperation.mockResolvedValue(deploymentStatus.latestOperation)
   })
 
-  it('always admits version activation through v2 without legacy activation', async () => {
+  it('commits optional metadata inside activation admission before enqueueing work', async () => {
+    mockUpdateDeploymentVersionMetadata.mockResolvedValue({
+      name: 'Release 2',
+      description: 'Ready for production',
+    })
+
     const result = await performActivateVersion({
       workflowId: 'workflow-1',
       version: 2,
       userId: 'user-1',
+      name: 'Release 2',
+      description: 'Ready for production',
     })
 
-    expect(result.success).toBe(true)
-    expect(mockPrepareWorkflowVersionActivation).toHaveBeenCalledTimes(1)
-    expect(mockEnqueueWorkflowDeploymentPreparation).toHaveBeenCalledWith(
-      mockTx,
-      expect.objectContaining({ protocolVersion: 2 })
+    expect(result).toMatchObject({
+      success: true,
+      name: 'Release 2',
+      description: 'Ready for production',
+    })
+    expect(mockUpdateDeploymentVersionMetadata).toHaveBeenCalledWith({
+      workflowId: 'workflow-1',
+      version: 2,
+      name: 'Release 2',
+      description: 'Ready for production',
+      tx: mockTx,
+    })
+    expect(mockUpdateDeploymentVersionMetadata).toHaveBeenCalledBefore(
+      mockEnqueueWorkflowDeploymentPreparation
     )
-    expect(mockEmitWorkflowDeployedEvent).not.toHaveBeenCalled()
+  })
+
+  it('does not enqueue activation when transactional metadata persistence fails', async () => {
+    mockUpdateDeploymentVersionMetadata.mockRejectedValueOnce(new Error('metadata write failed'))
+
+    const result = await performActivateVersion({
+      workflowId: 'workflow-1',
+      version: 2,
+      userId: 'user-1',
+      name: 'Release 2',
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'internal' })
+    expect(mockEnqueueWorkflowDeploymentPreparation).not.toHaveBeenCalled()
+  })
+
+  it('reports post-admission activation failure while preserving admitted metadata', async () => {
+    const failedAt = new Date('2026-07-14T08:01:00.000Z')
+    mockUpdateDeploymentVersionMetadata.mockResolvedValue({
+      name: 'Release 2',
+      description: null,
+    })
+    const deploymentStatus = {
+      activeDeployment: null,
+      latestOperation: {
+        id: 'operation-activate-default',
+        workflowId: 'workflow-1',
+        deploymentVersionId: 'dv-2',
+        version: 2,
+        previousActiveVersionId: 'dv-1',
+        action: 'activate',
+        protocolVersion: 2,
+        generation: 4,
+        status: 'failed',
+        componentReadiness: {},
+        errorCode: 'webhook_path_conflict',
+        errorMessage: 'Webhook path is already in use',
+        idempotencyKey: 'request-activate-default',
+        requestHash: 'hash',
+        actorId: 'user-1',
+        completedAt: failedAt,
+        createdAt: failedAt,
+        updatedAt: failedAt,
+      },
+    }
+    mockGetWorkflowDeploymentStatus.mockResolvedValue(deploymentStatus)
+    mockGetDeploymentOperation.mockResolvedValue(deploymentStatus.latestOperation)
+
+    const result = await performActivateVersion({
+      workflowId: 'workflow-1',
+      version: 2,
+      userId: 'user-1',
+      name: 'Release 2',
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: 'Webhook path is already in use',
+      errorCode: 'conflict',
+      name: 'Release 2',
+    })
+    expect(mockUpdateDeploymentVersionMetadata).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Release 2', tx: mockTx })
+    )
+    expect(mockEnqueueWorkflowDeploymentPreparation).toHaveBeenCalledOnce()
   })
 
   it('keeps the current version active while version activation prepares', async () => {
@@ -695,14 +769,16 @@ describe('performActivateVersion workspace event emission', () => {
       return { success: true, operation, reused: false }
     })
     mockProcessWorkflowDeploymentOutboxEvent.mockResolvedValue('pending')
-    mockGetWorkflowDeploymentStatus.mockResolvedValue({
+    const deploymentStatus = {
       activeDeployment: {
         deploymentVersionId: 'dv-1',
         version: 1,
         deployedAt: now,
       },
       latestOperation: operation,
-    })
+    }
+    mockGetWorkflowDeploymentStatus.mockResolvedValue(deploymentStatus)
+    mockGetDeploymentOperation.mockResolvedValue(deploymentStatus.latestOperation)
 
     const result = await performActivateVersion({
       workflowId: 'workflow-1',
@@ -746,31 +822,12 @@ describe('performActivateVersion workspace event emission', () => {
     expect(result.success).toBe(true)
     expect(mockEmitWorkflowDeployedEvent).not.toHaveBeenCalled()
   })
-
-  it('surfaces v2 activation admission failure without legacy fallback', async () => {
-    mockPrepareWorkflowVersionActivation.mockResolvedValueOnce({
-      success: false,
-      reason: 'invalid_request',
-      error: 'nope',
-    })
-
-    const result = await performActivateVersion({
-      workflowId: 'workflow-1',
-      version: 2,
-      userId: 'user-1',
-    })
-
-    expect(result.success).toBe(false)
-    expect(result.error).toBe('nope')
-    expect(mockEmitWorkflowDeployedEvent).not.toHaveBeenCalled()
-  })
 })
 
 describe('mutation lock on the orchestration entry points', () => {
   const mockAssertMutable = workflowAuthzMockFns.mockAssertWorkflowMutable
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockAssertMutable.mockRejectedValue(new WorkflowLockedError('Workflow is locked'))
   })
@@ -789,14 +846,7 @@ describe('mutation lock on the orchestration entry points', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('locked')
+    expect(result.errorCode).toBe('locked')
     expect(mockRecordAudit).not.toHaveBeenCalled()
-  })
-
-  it('proceeds past the gate when the workflow is mutable', async () => {
-    mockAssertMutable.mockResolvedValue(undefined)
-
-    await performFullUndeploy({ workflowId: 'wf-1', userId: 'user-1' })
-
-    expect(mockAssertMutable).toHaveBeenCalledWith('wf-1')
   })
 })

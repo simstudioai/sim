@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { ANONYMOUS_USER_ID } from '@sim/auth/principal'
 import {
   Button,
+  Chip,
   ChipCombobox,
   ChipModal,
   ChipModalBody,
@@ -10,23 +12,33 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipSelect,
+  cn,
   Input,
   Label,
   Switch,
   Tooltip,
 } from '@sim/emcn'
+import { Camera, Check, CircleInfo, Pencil } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { Camera, Check, Info, Pencil } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { requestJson } from '@/lib/api/client/request'
-import { telemetryContract } from '@/lib/api/contracts/telemetry'
-import { signOut, useSession } from '@/lib/auth/auth-client'
-import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
-import { isHosted } from '@/lib/core/config/env-flags'
+import { useQueryState } from 'nuqs'
+import { useSession } from '@/lib/auth/auth-client'
+import { signOutAndRedirect } from '@/lib/auth/sign-out'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getBrowserTimezone, getTimezoneOptions } from '@/lib/core/utils/timezone'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { DeleteAccountModal } from '@/app/workspace/[workspaceId]/settings/components/general/components/delete-account-modal'
+import { PrivacyView } from '@/app/workspace/[workspaceId]/settings/components/general/components/privacy-view'
+import {
+  generalViewParam,
+  generalViewUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/components/general/search-params'
+import {
+  getTimezonePickerPresentation,
+  timezonePreferenceFromPickerValue,
+} from '@/app/workspace/[workspaceId]/settings/components/general/timezone-picker'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -38,7 +50,15 @@ import {
   useUpdateUserProfile,
   useUserProfile,
 } from '@/hooks/queries/user-profile'
-import { clearUserData } from '@/stores'
+
+/** `loading` gives the view its own boundary; the section page has none to suspend into. */
+const AuthorizedApps = dynamic(
+  () =>
+    import(
+      '@/app/workspace/[workspaceId]/settings/components/authorized-apps/authorized-apps'
+    ).then((module) => module.AuthorizedApps),
+  { loading: () => null }
+)
 
 const logger = createLogger('General')
 
@@ -50,7 +70,7 @@ const TIMEZONE_OPTIONS = getTimezoneOptions()
  * to grid) so they line up as one column instead of three differently-sized
  * pills. Wide enough for the longest common timezone label.
  */
-const DROPDOWN_TRIGGER_CLASS = 'w-[240px] flex-shrink-0'
+const DROPDOWN_TRIGGER_CLASS = 'w-[240px] shrink-0'
 
 /**
  * Extracts initials from a user's name.
@@ -70,6 +90,7 @@ export function General() {
   const router = useRouter()
   const brandConfig = useBrandConfig()
   const { data: session } = useSession()
+  const { hosted } = useDeploymentShape()
 
   const { data: profile, isLoading: isProfileLoading } = useUserProfile()
   const updateProfile = useUpdateUserProfile()
@@ -79,7 +100,6 @@ export function General() {
 
   const isLoading = isProfileLoading || isSettingsLoading
 
-  const isTrainingEnabled = isTruthy(getEnv('NEXT_PUBLIC_COPILOT_TRAINING_ENABLED'))
   const isAuthDisabled = session?.user?.id === ANONYMOUS_USER_ID
 
   const [name, setName] = useState(profile?.name || '')
@@ -92,8 +112,14 @@ export function General() {
     setName(profile.name)
   }
 
+  const [view, setView] = useQueryState(generalViewParam.key, {
+    ...generalViewParam.parser,
+    ...generalViewUrlKeys,
+  })
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false)
   const resetPassword = useResetPassword()
+
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false)
 
   const [uploadError, setUploadError] = useState<string | null>(null)
 
@@ -172,16 +198,6 @@ export function General() {
     handleUpdateName()
   }
 
-  const handleSignOut = async () => {
-    try {
-      await Promise.all([signOut(), clearUserData()])
-      router.push('/login?fromLogout=true')
-    } catch (error) {
-      logger.error('Error signing out:', { error })
-      router.push('/login?fromLogout=true')
-    }
-  }
-
   const handleResetPasswordConfirm = async () => {
     if (!profile?.email) return
 
@@ -210,12 +226,23 @@ export function General() {
   }
 
   const handleTimezoneChange = async (value: string) => {
-    await updateSetting.mutateAsync({ key: 'timezone', value })
+    const timezone = timezonePreferenceFromPickerValue(value)
+    if (timezone === undefined) return
+    await updateSetting.mutateAsync({
+      key: 'timezone',
+      value: timezone,
+    })
   }
 
   const handleAutoConnectChange = async (checked: boolean) => {
     if (checked !== settings?.autoConnect && !updateSetting.isPending) {
       await updateSetting.mutateAsync({ key: 'autoConnect', value: checked })
+    }
+  }
+
+  const handleAutoFocusOnClickChange = async (checked: boolean) => {
+    if (checked !== settings?.autoFocusOnClick && !updateSetting.isPending) {
+      await updateSetting.mutateAsync({ key: 'autoFocusOnClick', value: checked })
     }
   }
 
@@ -232,58 +259,56 @@ export function General() {
     }
   }
 
-  const handleTrainingControlsChange = async (checked: boolean) => {
-    if (checked !== settings?.showTrainingControls && !updateSetting.isPending) {
-      await updateSetting.mutateAsync({ key: 'showTrainingControls', value: checked })
-    }
-  }
-
   const handleErrorNotificationsChange = async (checked: boolean) => {
     if (checked !== settings?.errorNotificationsEnabled && !updateSetting.isPending) {
       await updateSetting.mutateAsync({ key: 'errorNotificationsEnabled', value: checked })
     }
   }
 
-  const handleTelemetryToggle = async (checked: boolean) => {
-    if (checked !== settings?.telemetryEnabled && !updateSetting.isPending) {
-      await updateSetting.mutateAsync({ key: 'telemetryEnabled', value: checked })
-
-      if (checked) {
-        if (typeof window !== 'undefined') {
-          requestJson(telemetryContract, {
-            body: {
-              category: 'consent',
-              action: 'enable_from_settings',
-              timestamp: new Date().toISOString(),
-            },
-          }).catch(() => {})
-        }
-      }
-    }
-  }
-
   const imageUrl = profilePictureUrl || profile?.image || brandConfig.logoUrl
 
-  if (isLoading) {
-    return null
+  if (view === 'privacy') {
+    return <PrivacyView onBack={() => setView(null, { history: 'replace' })} />
+  }
+
+  if (view === 'authorized-apps' && !isAuthDisabled) {
+    return <AuthorizedApps onBack={() => setView(null, { history: 'replace' })} />
   }
 
   const actions: SettingsAction[] = [
-    ...(isHosted
+    ...(hosted
       ? [
           {
+            id: 'home-page',
             text: 'Home page',
             onSelect: () => window.open('/?home', '_blank', 'noopener,noreferrer'),
           },
         ]
       : []),
-    ...(!isAuthDisabled
+    ...(session?.user?.id && !isAuthDisabled
       ? [
-          { text: 'Sign out', onSelect: handleSignOut },
-          { text: 'Reset password', onSelect: () => setShowResetPasswordModal(true) },
+          { id: 'sign-out', text: 'Sign out', onSelect: () => signOutAndRedirect(router.push) },
+          {
+            id: 'reset-password',
+            text: 'Reset password',
+            onSelect: () => setShowResetPasswordModal(true),
+            disabled: !profile?.email,
+          },
         ]
       : []),
   ]
+
+  if (isLoading) {
+    return <SettingsPanel actions={actions} />
+  }
+
+  const browserTimezone = getBrowserTimezone()
+  const savedTimezone = settings?.timezone ?? null
+  const timezonePicker = getTimezonePickerPresentation(
+    savedTimezone,
+    browserTimezone,
+    TIMEZONE_OPTIONS
+  )
 
   return (
     <>
@@ -295,7 +320,10 @@ export function General() {
                 <button
                   type='button'
                   aria-label='Change profile picture'
-                  className={`group relative flex size-9 flex-shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full transition-all hover-hover:bg-[var(--bg)] ${!imageUrl ? 'border border-[var(--border)]' : ''}`}
+                  className={cn(
+                    'group relative flex size-9 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full transition-colors hover-hover:bg-[var(--bg)]',
+                    !imageUrl && 'border border-[var(--border)]'
+                  )}
                   onClick={handleProfilePictureClick}
                 >
                   {(() => {
@@ -307,14 +335,14 @@ export function General() {
                           width={36}
                           height={36}
                           unoptimized
-                          className={`h-full w-full object-cover transition-opacity duration-300 ${
+                          className={`size-full object-cover transition-opacity duration-300 ${
                             isUploadingProfilePicture ? 'opacity-50' : 'opacity-100'
                           }`}
                         />
                       )
                     }
                     return (
-                      <span className='font-medium text-[var(--text-primary)] text-base'>
+                      <span className='text-[var(--text-primary)] text-base'>
                         {getInitials(profile?.name) || ''}
                       </span>
                     )
@@ -347,10 +375,7 @@ export function General() {
                   {isEditingName ? (
                     <>
                       <div className='relative inline-flex'>
-                        <span
-                          className='invisible whitespace-pre font-medium text-base'
-                          aria-hidden='true'
-                        >
+                        <span className='invisible whitespace-pre text-base' aria-hidden='true'>
                           {name || ' '}
                         </span>
                         <input
@@ -360,7 +385,7 @@ export function General() {
                           onChange={(e) => setName(e.target.value)}
                           onKeyDown={handleKeyDown}
                           onBlur={handleInputBlur}
-                          className='absolute top-0 left-0 h-full w-full border-0 bg-transparent p-0 font-medium text-base outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+                          className='absolute top-0 left-0 size-full border-0 bg-transparent p-0 text-base outline-hidden focus:outline-hidden focus:ring-0 focus-visible:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0'
                           maxLength={100}
                           disabled={updateProfile.isPending}
                           autoComplete='off'
@@ -371,7 +396,7 @@ export function General() {
                       </div>
                       <Button
                         variant='ghost'
-                        className='size-[12px] flex-shrink-0 p-0'
+                        className='size-[12px] shrink-0 p-0'
                         onClick={handleUpdateName}
                         disabled={updateProfile.isPending}
                         aria-label='Save name'
@@ -381,10 +406,10 @@ export function General() {
                     </>
                   ) : (
                     <>
-                      <h3 className='font-medium text-base'>{profile?.name || ''}</h3>
+                      <h3 className='text-base'>{profile?.name || ''}</h3>
                       <Button
                         variant='ghost'
-                        className='size-[10.5px] flex-shrink-0 p-0'
+                        className='size-[10.5px] shrink-0 p-0'
                         onClick={() => setIsEditingName(true)}
                         aria-label='Edit name'
                       >
@@ -430,10 +455,10 @@ export function General() {
                   dropdownWidth={240}
                   searchable
                   searchPlaceholder='Search timezones'
-                  value={settings?.timezone ?? getBrowserTimezone()}
+                  value={timezonePicker.value}
                   onChange={handleTimezoneChange}
                   placeholder='Select timezone'
-                  options={TIMEZONE_OPTIONS}
+                  options={timezonePicker.options}
                 />
               </div>
             </div>
@@ -448,7 +473,7 @@ export function General() {
                       aria-label='About auto-connect on drop'
                       className='inline-flex cursor-default text-[var(--text-muted)]'
                     >
-                      <Info className='size-[14px]' />
+                      <CircleInfo className='size-[14px]' />
                     </button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='bottom' align='start'>
@@ -470,6 +495,36 @@ export function General() {
 
             <div className='flex items-center justify-between'>
               <div className='flex items-center gap-1.5'>
+                <Label htmlFor='auto-focus-on-click'>Auto-focus on click</Label>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <button
+                      type='button'
+                      aria-label='About auto-focus on click'
+                      className='inline-flex cursor-default text-[var(--text-muted)]'
+                    >
+                      <CircleInfo className='size-[14px]' />
+                    </button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content side='bottom' align='start'>
+                    <p>Center the canvas on a block when you click it</p>
+                    <Tooltip.Preview
+                      src='/tooltips/auto-focus-on-click.mp4'
+                      alt='Auto-focus on click example'
+                      loop={true}
+                    />
+                  </Tooltip.Content>
+                </Tooltip.Root>
+              </div>
+              <Switch
+                id='auto-focus-on-click'
+                checked={settings?.autoFocusOnClick ?? true}
+                onCheckedChange={handleAutoFocusOnClickChange}
+              />
+            </div>
+
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-1.5'>
                 <Label htmlFor='error-notifications'>Canvas error notifications</Label>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
@@ -478,7 +533,7 @@ export function General() {
                       aria-label='About canvas error notifications'
                       className='inline-flex cursor-default text-[var(--text-muted)]'
                     >
-                      <Info className='size-[14px]' />
+                      <CircleInfo className='size-[14px]' />
                     </button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='bottom' align='start'>
@@ -528,36 +583,30 @@ export function General() {
                 onCheckedChange={handleShowActionBarChange}
               />
             </div>
-
-            {isTrainingEnabled && (
-              <div className='flex items-center justify-between'>
-                <Label htmlFor='training-controls'>Training controls</Label>
-                <Switch
-                  id='training-controls'
-                  checked={settings?.showTrainingControls ?? false}
-                  onCheckedChange={handleTrainingControlsChange}
-                />
-              </div>
-            )}
           </div>
         </SettingsSection>
 
         <SettingsSection label='Privacy'>
-          <div className='flex flex-col gap-3'>
-            <div className='flex items-center justify-between'>
-              <Label htmlFor='telemetry'>Allow anonymous telemetry</Label>
-              <Switch
-                id='telemetry'
-                checked={settings?.telemetryEnabled ?? true}
-                onCheckedChange={handleTelemetryToggle}
-              />
-            </div>
-            <p className='text-[var(--text-muted)] text-small'>
-              We use OpenTelemetry to collect anonymous usage data to improve Sim. You can opt-out
-              at any time.
-            </p>
+          <div className='flex items-center justify-between'>
+            <Label>Privacy settings</Label>
+            <Chip onClick={() => setView('privacy')}>Manage</Chip>
           </div>
         </SettingsSection>
+
+        {!isAuthDisabled && (
+          <SettingsSection label='Account'>
+            <div className='flex flex-col gap-4'>
+              <div className='flex items-center justify-between'>
+                <Label>Authorized apps</Label>
+                <Chip onClick={() => setView('authorized-apps')}>Manage</Chip>
+              </div>
+              <div className='flex items-center justify-between'>
+                <Label>Delete account</Label>
+                <Chip onClick={() => setShowDeleteAccountModal(true)}>Delete</Chip>
+              </div>
+            </div>
+          </SettingsSection>
+        )}
       </SettingsPanel>
 
       <ChipModal
@@ -571,8 +620,8 @@ export function General() {
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
             A password reset link will be sent to{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{profile?.email}</span>. Click
-            the link in the email to create a new password.
+            <span className='text-[var(--text-primary)]'>{profile?.email}</span>. Click the link in
+            the email to create a new password.
           </p>
           <ChipModalError>{resetPassword.error?.message}</ChipModalError>
         </ChipModalBody>
@@ -590,6 +639,12 @@ export function General() {
           }}
         />
       </ChipModal>
+
+      <DeleteAccountModal
+        open={showDeleteAccountModal}
+        onOpenChange={setShowDeleteAccountModal}
+        email={profile?.email || ''}
+      />
     </>
   )
 }

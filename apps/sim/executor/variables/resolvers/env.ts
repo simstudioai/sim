@@ -1,8 +1,5 @@
-import { createLogger } from '@sim/logger'
 import { extractEnvVarName, isEnvVarReference } from '@/executor/constants'
 import type { ResolutionContext, Resolver } from '@/executor/variables/resolvers/reference'
-
-const logger = createLogger('EnvResolver')
 
 export class EnvResolver implements Resolver {
   canResolve(reference: string): boolean {
@@ -17,7 +14,11 @@ export class EnvResolver implements Resolver {
       return reference
     }
     if (Object.hasOwn(context.executionContext.environmentVariables, varName)) {
-      context.executionContext.resolvedSecretTraceRegistry?.recordResolved(varName, value)
+      context.executionContext.resolvedSecretTraceRegistry?.recordResolvedAtInputPath(
+        varName,
+        value,
+        context.inputPath
+      )
     }
     return value
   }

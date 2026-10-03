@@ -1,9 +1,18 @@
+import {
+  type WorkspaceSearchFilters,
+  workspaceSearchFiltersSchema,
+} from '@/lib/api/contracts/knowledge/search'
+import { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 /**
  * Safe localStorage utilities with SSR support
  * Provides clean error handling and type safety for browser storage operations
  */
 
 import { createLogger } from '@sim/logger'
+import type {
+  ChatRequestMode,
+  FileAttachmentForApi,
+} from '@/app/workspace/[workspaceId]/home/types'
 import type { ChatContext } from '@/stores/panel'
 
 const logger = createLogger('BrowserStorage')
@@ -103,69 +112,8 @@ export class BrowserStorage {
 export const STORAGE_KEYS = {
   LANDING_PAGE_PROMPT: 'sim_landing_page_prompt',
   LANDING_PAGE_WORKFLOW_SEED: 'sim_landing_page_workflow_seed',
-  WORKSPACE_RECENCY: 'sim_workspace_recency',
   MOTHERSHIP_HANDOFF: 'sim_mothership_handoff',
 } as const
-
-export class WorkspaceRecencyStorage {
-  private static readonly KEY = STORAGE_KEYS.WORKSPACE_RECENCY
-
-  static touch(workspaceId: string): void {
-    const map = WorkspaceRecencyStorage.getAll()
-    map[workspaceId] = Date.now()
-    BrowserStorage.setItem(WorkspaceRecencyStorage.KEY, map)
-  }
-
-  static getAll(): Record<string, number> {
-    return BrowserStorage.getItem<Record<string, number>>(WorkspaceRecencyStorage.KEY, {})
-  }
-
-  static getMostRecent(): string | null {
-    const map = WorkspaceRecencyStorage.getAll()
-    const entries = Object.entries(map)
-    if (entries.length === 0) return null
-    entries.sort((a, b) => b[1] - a[1])
-    return entries[0][0]
-  }
-
-  static remove(workspaceId: string): void {
-    const map = WorkspaceRecencyStorage.getAll()
-    delete map[workspaceId]
-    BrowserStorage.setItem(WorkspaceRecencyStorage.KEY, map)
-  }
-
-  /**
-   * Removes localStorage entries for workspace IDs not in the provided list.
-   * Call from effects or event handlers, not during render.
-   */
-  static prune(validIds: Set<string>): void {
-    const map = WorkspaceRecencyStorage.getAll()
-    let pruned = false
-    for (const id of Object.keys(map)) {
-      if (!validIds.has(id)) {
-        delete map[id]
-        pruned = true
-      }
-    }
-    if (pruned) {
-      BrowserStorage.setItem(WorkspaceRecencyStorage.KEY, map)
-    }
-  }
-
-  /**
-   * Sorts workspaces by recency (most recent first).
-   * Workspaces without a recorded timestamp are placed after tracked ones.
-   * Pure function safe for use in render-phase computations.
-   */
-  static sortByRecency<T extends { id: string }>(workspaces: T[]): T[] {
-    const map = WorkspaceRecencyStorage.getAll()
-    return [...workspaces].sort((a, b) => {
-      const aTime = map[a.id] ?? 0
-      const bTime = map[b.id] ?? 0
-      return bTime - aTime
-    })
-  }
-}
 
 /**
  * Specialized utility for managing the landing page prompt
@@ -307,10 +255,26 @@ export interface MothershipHandoff {
   message?: string
   /** Structured contexts to attach — e.g. a `logs` mention tagging a run. */
   contexts?: ChatContext[]
+  /** Already-uploaded attachment references riding along with the message. */
+  fileAttachments?: FileAttachmentForApi[]
+  /**
+   * Set only when this handoff is the recovery of a send an unmount cleanup
+   * withdrew: that attempt's message id. The consuming chat reuses it so the
+   * server deduplicates against the first attempt instead of opening a second
+   * chat and billing a second turn.
+   */
+  resumeUserMessageId?: string
+  /** The request mode the withdrawn send asked for, so a retry stays the same kind of turn. */
+  requestMode?: ChatRequestMode
+  assistantSearch?: WorkspaceSearchFilters
+  assistantSearchLevel?: AssistantSearchLevel
 }
+
+type MothershipHandoffOwner = string | { organizationId: string }
 
 interface StoredHandoff extends MothershipHandoff {
   workspaceId?: string
+  organizationId?: string
   timestamp?: number
 }
 
@@ -339,21 +303,36 @@ export class MothershipHandoffStorage {
    * accumulate — "Add to chat" can fire twice before the route swap completes,
    * and the second write must not drop the first.
    * @returns True if stored, false when the workspace is empty or the handoff
-   * carries neither a message nor a context.
+   * carries no message, context, or attachment.
    */
-  static store(handoff: MothershipHandoff, workspaceId: string): boolean {
+  static store(handoff: MothershipHandoff, owner: MothershipHandoffOwner): boolean {
+    const workspaceId = typeof owner === 'string' ? owner : undefined
+    const organizationId = typeof owner === 'string' ? undefined : owner.organizationId
     const message = handoff.message?.trim()
+    const hasAttachments = Boolean(handoff.fileAttachments?.length)
     const contexts = handoff.contexts ?? []
-    if (!workspaceId || (!message && contexts.length === 0)) {
+    if (
+      !(workspaceId || organizationId) ||
+      (!message && !hasAttachments && contexts.length === 0)
+    ) {
       return false
     }
 
     return BrowserStorage.setItem(MothershipHandoffStorage.KEY, {
-      ...(message ? { message } : {}),
-      contexts: message
-        ? contexts
-        : [...MothershipHandoffStorage.pendingContexts(workspaceId), ...contexts],
+      ...(message || hasAttachments ? { message: message ?? '' } : {}),
+      contexts:
+        message || hasAttachments
+          ? contexts
+          : [...MothershipHandoffStorage.pendingContexts(owner), ...contexts],
+      ...(handoff.fileAttachments?.length ? { fileAttachments: handoff.fileAttachments } : {}),
+      ...(handoff.resumeUserMessageId ? { resumeUserMessageId: handoff.resumeUserMessageId } : {}),
+      ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
+      ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
+      ...(handoff.assistantSearchLevel !== undefined
+        ? { assistantSearchLevel: handoff.assistantSearchLevel }
+        : {}),
       workspaceId,
+      organizationId,
       timestamp: Date.now(),
     })
   }
@@ -366,9 +345,15 @@ export class MothershipHandoffStorage {
    * abandoned handoff that had already aged out would ride along on the next
    * "Add to chat" and reappear as if it were current.
    */
-  private static pendingContexts(workspaceId: string): ChatContext[] {
+  private static pendingContexts(owner: MothershipHandoffOwner): ChatContext[] {
     const data = BrowserStorage.getItem<StoredHandoff | null>(MothershipHandoffStorage.KEY, null)
-    if (!data || data.message || data.workspaceId !== workspaceId) return []
+    if (
+      !data ||
+      data.message ||
+      data.fileAttachments?.length ||
+      !MothershipHandoffStorage.belongsTo(data, owner)
+    )
+      return []
     if (!data.timestamp || Date.now() - data.timestamp > MothershipHandoffStorage.MAX_AGE_MS) {
       return []
     }
@@ -384,8 +369,9 @@ export class MothershipHandoffStorage {
    * @param maxAge - Maximum age in milliseconds (default: {@link MAX_AGE_MS})
    */
   static consume(
-    workspaceId: string,
-    maxAge: number = MothershipHandoffStorage.MAX_AGE_MS
+    owner: MothershipHandoffOwner,
+    maxAge: number = MothershipHandoffStorage.MAX_AGE_MS,
+    requestMode?: ChatRequestMode
   ): MothershipHandoff | null {
     const data = BrowserStorage.getItem<StoredHandoff | null>(MothershipHandoffStorage.KEY, null)
 
@@ -393,23 +379,68 @@ export class MothershipHandoffStorage {
       return null
     }
 
-    if (data.workspaceId && data.workspaceId !== workspaceId) {
+    if (
+      (data.workspaceId || data.organizationId) &&
+      !MothershipHandoffStorage.belongsTo(data, owner)
+    ) {
       return null
     }
+
+    const storedMode = data.requestMode ?? (data.organizationId ? 'assistant' : 'agent')
+    if (requestMode && storedMode !== requestMode) return null
 
     MothershipHandoffStorage.clear()
 
     const contexts = Array.isArray(data.contexts) ? data.contexts : []
+    const hasAttachments = Array.isArray(data.fileAttachments) && data.fileAttachments.length > 0
     if (
-      !data.workspaceId ||
-      (!data.message && contexts.length === 0) ||
+      !(data.workspaceId || data.organizationId) ||
+      Boolean(data.workspaceId && data.organizationId) ||
+      (!data.message && !hasAttachments && contexts.length === 0) ||
       !data.timestamp ||
       Date.now() - data.timestamp > maxAge
     ) {
       return null
     }
 
-    return { ...(data.message ? { message: data.message } : {}), contexts }
+    const legacyFast = (data as { assistantFast?: unknown }).assistantFast
+    if (
+      data.assistantSearchLevel === undefined &&
+      legacyFast !== undefined &&
+      typeof legacyFast !== 'boolean'
+    )
+      return null
+    const rawLevel =
+      data.assistantSearchLevel ??
+      (legacyFast === true ? 'fast' : legacyFast === false ? 'adaptive' : undefined)
+    const searchLevel = AssistantSearchLevel.optional().safeParse(rawLevel)
+    if (!searchLevel.success) return null
+    const assistantSearch = workspaceSearchFiltersSchema.safeParse(data.assistantSearch ?? {})
+    if (!assistantSearch.success) return null
+
+    return {
+      ...(data.message || hasAttachments ? { message: data.message ?? '' } : {}),
+      contexts,
+      ...(data.requestMode === 'assistant' ||
+      data.requestMode === 'agent' ||
+      data.requestMode === 'plan'
+        ? { requestMode: data.requestMode }
+        : {}),
+      ...(data.assistantSearch ? { assistantSearch: assistantSearch.data } : {}),
+      ...(searchLevel.data !== undefined ? { assistantSearchLevel: searchLevel.data } : {}),
+      ...(Array.isArray(data.fileAttachments) && data.fileAttachments.length > 0
+        ? { fileAttachments: data.fileAttachments }
+        : {}),
+      ...(typeof data.resumeUserMessageId === 'string' && data.resumeUserMessageId
+        ? { resumeUserMessageId: data.resumeUserMessageId }
+        : {}),
+    }
+  }
+
+  private static belongsTo(data: StoredHandoff, owner: MothershipHandoffOwner): boolean {
+    return typeof owner === 'string'
+      ? data.workspaceId === owner && !data.organizationId
+      : data.organizationId === owner.organizationId && !data.workspaceId
   }
 
   static clear(): boolean {

@@ -4,7 +4,13 @@ import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {
+  canonicalizeSandboxCliTools,
+  SANDBOX_CLI_TOOLS,
+} from '@/lib/execution/remote-sandbox/cli-tools'
+import {
+  canonicalizeSystemPackages,
   MAX_SANDBOX_DEPENDENCIES,
+  MAX_SANDBOX_SYSTEM_PACKAGES,
   parseJsDependency,
   registryFor,
   type SandboxLanguage,
@@ -119,11 +125,11 @@ function describe(dependency: string, metadata: PackageMetadata | null): string 
 }
 
 /**
- * Wand enricher that tells the model which packages the block can actually
- * import. With no sandbox selected it returns null, leaving today's prompt
- * unchanged.
+ * Wand enricher that tells the model which packages and curated CLIs the block
+ * can actually use. With no sandbox selected it returns null, leaving today's
+ * prompt unchanged.
  */
-export async function enrichSandboxPackages(
+export async function enrichSandboxCapabilities(
   workspaceId: string | null,
   context: Record<string, unknown>
 ): Promise<string | null> {
@@ -135,6 +141,8 @@ export async function enrichSandboxPackages(
       name: workspaceSandbox.name,
       language: workspaceSandbox.language,
       dependencies: workspaceSandbox.dependencies,
+      cliTools: workspaceSandbox.cliTools,
+      systemPackages: workspaceSandbox.systemPackages,
     })
     .from(workspaceSandbox)
     .where(and(eq(workspaceSandbox.id, sandboxId), eq(workspaceSandbox.workspaceId, workspaceId)))
@@ -143,28 +151,55 @@ export async function enrichSandboxPackages(
   if (!sandbox) return null
   const language = sandbox.language as SandboxLanguage
   const dependencies = (sandbox.dependencies ?? []).slice(0, MAX_SANDBOX_DEPENDENCIES)
-  if (dependencies.length === 0) return null
-
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), REGISTRY_TIMEOUT_MS)
-  let metadata: (PackageMetadata | null)[]
-  try {
-    metadata = await Promise.all(
-      dependencies.map((dependency) =>
-        fetchPackageMetadata(language, bareName(language, dependency), controller.signal).catch(
-          () => null
-        )
-      )
-    )
-  } finally {
-    clearTimeout(timer)
+  const cliTools = canonicalizeSandboxCliTools(sandbox.cliTools ?? [])
+  const systemPackages = canonicalizeSystemPackages(
+    (sandbox.systemPackages ?? []).slice(0, MAX_SANDBOX_SYSTEM_PACKAGES)
+  )
+  if (dependencies.length === 0 && cliTools.length === 0 && systemPackages.length === 0) {
+    return null
   }
 
-  const registry = registryFor(language)
-  const lines = dependencies.map((dependency, index) => describe(dependency, metadata[index]))
-  return [
-    `This block runs in the "${sandbox.name}" sandbox, which has these ${registry} packages installed:`,
-    ...lines,
-    'You may import any of them. Do NOT import a package that is not on this list — it is not installed and the code will fail.',
-  ].join('\n')
+  let metadata: (PackageMetadata | null)[] = []
+  if (dependencies.length > 0) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), REGISTRY_TIMEOUT_MS)
+    try {
+      metadata = await Promise.all(
+        dependencies.map((dependency) =>
+          fetchPackageMetadata(language, bareName(language, dependency), controller.signal).catch(
+            () => null
+          )
+        )
+      )
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  const sections = [`This block runs in the "${sandbox.name}" sandbox.`]
+  if (dependencies.length > 0) {
+    sections.push(
+      `Installed ${registryFor(language)} packages:`,
+      ...dependencies.map((dependency, index) => describe(dependency, metadata[index])),
+      'You may import any of them. Do NOT import a package that is not on this list — it is not installed and the code will fail.'
+    )
+  }
+  if (cliTools.length > 0) {
+    sections.push(
+      'Installed command-line tools:',
+      ...cliTools.map((id) => {
+        const tool = SANDBOX_CLI_TOOLS[id]
+        return `- ${tool.label} — ${tool.description}`
+      }),
+      'You may invoke these commands directly. Do NOT assume other non-default CLIs are installed.'
+    )
+  }
+  if (systemPackages.length > 0) {
+    sections.push(
+      'Installed Debian system packages:',
+      ...systemPackages.map((systemPackage) => `- ${systemPackage}`),
+      'Executables provided by these packages are available on PATH. Use the executable names documented by each package.'
+    )
+  }
+  return sections.join('\n')
 }

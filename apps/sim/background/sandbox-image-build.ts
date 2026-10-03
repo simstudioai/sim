@@ -1,6 +1,7 @@
 import { task } from '@trigger.dev/sdk'
 import {
   runSandboxImageBuild,
+  SANDBOX_IMAGE_BUILD_TASK_ID,
   type SandboxImageBuildPayload,
 } from '@/lib/execution/remote-sandbox/image-registry'
 
@@ -14,7 +15,7 @@ import {
  * race the row it already marked `failed`; the user retries by saving again.
  */
 export const sandboxImageBuildTask = task({
-  id: 'sandbox-image-build',
+  id: SANDBOX_IMAGE_BUILD_TASK_ID,
   machine: 'small-1x',
   maxDuration: 1200,
   retry: { maxAttempts: 1 },

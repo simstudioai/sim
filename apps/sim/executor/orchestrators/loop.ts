@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
 import { compactSubflowResults } from '@/lib/execution/payloads/serializer'
 import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/references'
@@ -17,22 +16,21 @@ import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { LoopScope } from '@/executor/execution/state'
 import type { BlockStateController, ContextExtensions } from '@/executor/execution/types'
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
-import type { LoopConfigWithNodes } from '@/executor/types/loop'
 import { createReferencePattern } from '@/executor/utils/reference-validation'
+import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 import {
-  addSubflowErrorLog,
+  buildLoopSentinelEndId,
+  buildLoopSentinelStartId,
   buildParallelSentinelEndId,
   buildParallelSentinelStartId,
-  buildSentinelEndId,
-  buildSentinelStartId,
-  emitSubflowSuccessEvents,
   extractBaseBlockId,
   extractLoopIdFromSentinel,
   extractParallelIdFromSentinel,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
+import { mergeSubflowSecretProvenance } from '@/executor/utils/subflow-secret-provenance'
+import { addSubflowErrorLog, emitSubflowSuccessEvents } from '@/executor/utils/subflow-utils'
 import { resolveArrayInputAsync } from '@/executor/utils/subflow-utils.server'
 import type { VariableResolver } from '@/executor/variables/resolver'
-import type { SerializedLoop } from '@/serializer/types'
 
 const logger = createLogger('LoopOrchestrator')
 
@@ -75,7 +73,7 @@ export class LoopOrchestrator {
   ) {}
 
   async initializeLoopScope(ctx: ExecutionContext, loopId: string): Promise<LoopScope> {
-    const loopConfig = this.dag.loopConfigs.get(loopId) as SerializedLoop | undefined
+    const loopConfig = this.dag.loopConfigs.get(loopId)
     if (!loopConfig) {
       throw new Error(`Loop config not found: ${loopId}`)
     }
@@ -140,28 +138,52 @@ export class LoopOrchestrator {
           throw new Error(errorMessage)
         }
         let items: any[]
+        const parentRegistry = ctx.resolvedSecretTraceRegistry
+        const resolutionRegistry = parentRegistry?.forkForInputPaths([])
+        const resolutionCtx = resolutionRegistry
+          ? { ...ctx, resolvedSecretTraceRegistry: resolutionRegistry }
+          : ctx
         try {
           items = await resolveArrayInputAsync(
-            ctx,
+            resolutionCtx,
             loopConfig.forEachItems,
             this.resolver,
-            buildSentinelStartId(loopId)
+            buildLoopSentinelStartId(loopId)
           )
         } catch (error) {
           const errorMessage = `ForEach loop resolution failed: ${toError(error).message}`
-          logger.error(errorMessage, { loopId, forEachItems: loopConfig.forEachItems })
-          await this.addLoopErrorLog(ctx, loopId, loopType, errorMessage, {
-            forEachItems: loopConfig.forEachItems,
+          const errorDiagnostic = projectResolvedSecretDiagnosticError(
+            new Error(errorMessage),
+            resolutionCtx.resolvedSecretTraceRegistry,
+            { loopId }
+          )
+          const persistedErrorMessage = resolutionCtx.resolvedSecretTraceRegistry
+            ? typeof errorDiagnostic.error === 'string'
+              ? errorDiagnostic.error
+              : 'ForEach loop resolution failed'
+            : errorMessage
+          logger.error('ForEach loop resolution failed', errorDiagnostic)
+          await this.addLoopErrorLog(resolutionCtx, loopId, loopType, persistedErrorMessage, {
+            inputType: Array.isArray(loopConfig.forEachItems)
+              ? 'array'
+              : loopConfig.forEachItems === null
+                ? 'null'
+                : typeof loopConfig.forEachItems,
           })
           scope.items = []
           scope.maxIterations = 0
-          scope.validationError = errorMessage
+          scope.validationError = persistedErrorMessage
           scope.condition = buildLoopIndexCondition(0)
           ctx.loopExecutions?.set(loopId, scope)
-          throw new Error(errorMessage)
+          throw new Error(persistedErrorMessage)
         }
 
         scope.items = items
+        scope.inputResolvedSecretTraceProvenance =
+          resolutionRegistry?.exportCommittedProvenanceForValue(items)
+        if (parentRegistry && resolutionRegistry?.isComplete()) {
+          parentRegistry.mergeToolCallRegistry(resolutionRegistry)
+        }
         scope.maxIterations = items.length
         scope.item = items[0]
         scope.condition = buildLoopIndexCondition(scope.maxIterations)
@@ -227,6 +249,10 @@ export class LoopOrchestrator {
 
     const baseId = extractBaseBlockId(nodeId)
     scope.currentIterationOutputs.set(baseId, output)
+    scope.resolvedSecretTraceProvenance = mergeSubflowSecretProvenance(
+      scope.resolvedSecretTraceProvenance,
+      this.state.getBlockState(nodeId)?.resolvedSecretTraceProvenance
+    )
   }
 
   async evaluateLoopContinuation(
@@ -243,14 +269,11 @@ export class LoopOrchestrator {
       }
     }
 
-    const useRedis = isRedisCancellationEnabled() && !!ctx.executionId
-    let isCancelled = false
-    if (useRedis) {
-      isCancelled = await isExecutionCancelled(ctx.executionId!)
-    } else {
-      isCancelled = ctx.abortSignal?.aborted ?? false
-    }
-    if (isCancelled) {
+    // Exiting normally is safe only because the engine aborts this signal exclusively via
+    // `signalCancelled`, so the run is already flagged cancelled. Never read the durable
+    // cancellation flag here instead — the engine would not have seen it, and this clean exit
+    // would then complete the run successfully.
+    if (ctx.abortSignal?.aborted) {
       logger.info('Loop execution cancelled', { loopId, iteration: scope.iteration })
       return await this.createExitResult(ctx, loopId, scope)
     }
@@ -327,7 +350,16 @@ export class LoopOrchestrator {
       requireDurable: true,
     })
     const output = { results: compactedResults }
-    this.state.setBlockOutput(loopId, output, DEFAULTS.EXECUTION_TIME)
+    if (scope.resolvedSecretTraceProvenance) {
+      this.state.setBlockOutput(
+        loopId,
+        output,
+        DEFAULTS.EXECUTION_TIME,
+        scope.resolvedSecretTraceProvenance
+      )
+    } else {
+      this.state.setBlockOutput(loopId, output, DEFAULTS.EXECUTION_TIME)
+    }
     scope.allIterationOutputs = []
 
     await emitSubflowSuccessEvents(ctx, loopId, 'loop', output, this.contextExtensions)
@@ -381,7 +413,7 @@ export class LoopOrchestrator {
    * on the next outer iteration.
    */
   private resetNestedLoopScopes(loopId: string, ctx: ExecutionContext): void {
-    const loopConfig = this.dag.loopConfigs.get(loopId) as LoopConfigWithNodes | undefined
+    const loopConfig = this.dag.loopConfigs.get(loopId)
     if (!loopConfig) return
 
     for (const nodeId of loopConfig.nodes) {
@@ -410,7 +442,7 @@ export class LoopOrchestrator {
    * next outer loop iteration.
    */
   private resetNestedParallelScopes(loopId: string, ctx: ExecutionContext): void {
-    const loopConfig = this.dag.loopConfigs.get(loopId) as LoopConfigWithNodes | undefined
+    const loopConfig = this.dag.loopConfigs.get(loopId)
     if (!loopConfig) return
 
     for (const nodeId of loopConfig.nodes) {
@@ -472,11 +504,11 @@ export class LoopOrchestrator {
     if (visited.has(loopId)) return new Set()
     visited.add(loopId)
 
-    const loopConfig = this.dag.loopConfigs.get(loopId) as LoopConfigWithNodes | undefined
+    const loopConfig = this.dag.loopConfigs.get(loopId)
     if (!loopConfig) return new Set()
 
-    const sentinelStartId = buildSentinelStartId(loopId)
-    const sentinelEndId = buildSentinelEndId(loopId)
+    const sentinelStartId = buildLoopSentinelStartId(loopId)
+    const sentinelEndId = buildLoopSentinelEndId(loopId)
     const result = new Set([sentinelStartId, sentinelEndId])
 
     for (const nodeId of loopConfig.nodes) {
@@ -574,7 +606,7 @@ export class LoopOrchestrator {
   }
 
   restoreLoopEdges(loopId: string): void {
-    const loopConfig = this.dag.loopConfigs.get(loopId) as LoopConfigWithNodes | undefined
+    const loopConfig = this.dag.loopConfigs.get(loopId)
     if (!loopConfig) {
       logger.warn('Loop config not found for edge restoration', { loopId })
       return
@@ -617,8 +649,8 @@ export class LoopOrchestrator {
       const loopId = extractLoopIdFromSentinel(sourceId)
       return (
         !!loopId &&
-        sourceId === buildSentinelStartId(loopId) &&
-        targetId === buildSentinelEndId(loopId)
+        sourceId === buildLoopSentinelStartId(loopId) &&
+        targetId === buildLoopSentinelEndId(loopId)
       )
     }
 
@@ -686,7 +718,7 @@ export class LoopOrchestrator {
       const result = await this.evaluateWhileCondition(ctx, scope.condition, scope)
       logger.info('While loop initial condition evaluation', {
         loopId,
-        condition: scope.condition,
+        conditionLength: scope.condition.length,
         result,
       })
 
@@ -712,7 +744,7 @@ export class LoopOrchestrator {
 
     try {
       logger.info('Evaluating loop condition', {
-        originalCondition: condition,
+        conditionLength: condition.length,
         iteration: scope.iteration,
         workflowVariableCount: Object.keys(ctx.workflowVariables ?? {}).length,
       })
@@ -720,7 +752,7 @@ export class LoopOrchestrator {
       const evaluatedCondition = await replaceLoopConditionReferences(condition, async (match) => {
         const resolved = await this.resolver.resolveSingleReference(ctx, '', match, scope)
         logger.debug('Resolved variable reference in loop condition', {
-          reference: match,
+          referenceLength: match.length,
           resolvedType: resolved === null ? 'null' : typeof resolved,
         })
         if (resolved !== undefined) {
@@ -732,7 +764,7 @@ export class LoopOrchestrator {
             if (lower === 'true' || lower === 'false') {
               return lower
             }
-            return `"${resolved}"`
+            return JSON.stringify(resolved)
           }
           return JSON.stringify(resolved)
         }
@@ -757,10 +789,8 @@ export class LoopOrchestrator {
         const isSystemError = vmResult.error.isSystemError === true
         const logFn = isSystemError ? logger.error.bind(logger) : logger.warn.bind(logger)
         logFn('Failed to evaluate loop condition', {
-          condition,
-          evaluatedCondition,
-          error: vmResult.error,
           isSystemError,
+          ...projectResolvedSecretDiagnosticError(vmResult.error, ctx.resolvedSecretTraceRegistry),
         })
         return false
       }
@@ -768,14 +798,16 @@ export class LoopOrchestrator {
       const result = Boolean(vmResult.result)
 
       logger.info('Loop condition evaluation result', {
-        originalCondition: condition,
-        evaluatedCondition,
+        conditionLength: condition.length,
         result,
       })
 
       return result
     } catch (error) {
-      logger.error('Failed to evaluate loop condition', { condition, error })
+      logger.error('Failed to evaluate loop condition', {
+        conditionLength: condition.length,
+        ...projectResolvedSecretDiagnosticError(error, ctx.resolvedSecretTraceRegistry),
+      })
       return false
     }
   }

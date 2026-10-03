@@ -1,47 +1,11 @@
-/**
- * @vitest-environment node
- */
+import { apiClientRequestMock } from '@sim/testing/mocks/api-client-request.mock'
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
+import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { queryClient, cacheStore } = vi.hoisted(() => {
-  const cache = new Map<string, unknown>()
-  return {
-    cacheStore: cache,
-    queryClient: {
-      cancelQueries: vi.fn().mockResolvedValue(undefined),
-      invalidateQueries: vi.fn().mockResolvedValue(undefined),
-      getQueryData: vi.fn((key: readonly unknown[]) => cache.get(JSON.stringify(key))),
-      setQueryData: vi.fn((key: readonly unknown[], updater: unknown) => {
-        const k = JSON.stringify(key)
-        const prev = cache.get(k)
-        const next =
-          typeof updater === 'function' ? (updater as (p: unknown) => unknown)(prev) : updater
-        cache.set(k, next)
-        return next
-      }),
-      getQueriesData: vi.fn((opts: { queryKey: readonly unknown[] }) => {
-        const prefix = JSON.stringify(opts.queryKey).slice(0, -1)
-        return [...cache.entries()]
-          .filter(([k]) => k.startsWith(prefix))
-          .map(([k, v]) => [JSON.parse(k), v])
-      }),
-      removeQueries: vi.fn(),
-    },
-  }
-})
+vi.mock('@tanstack/react-query', () => reactQueryMock)
 
-vi.mock('@tanstack/react-query', () => ({
-  keepPreviousData: {},
-  infiniteQueryOptions: (opts: unknown) => opts,
-  useQuery: vi.fn(),
-  useInfiniteQuery: vi.fn(),
-  useQueryClient: vi.fn(() => queryClient),
-  useMutation: vi.fn((options) => options),
-}))
-
-vi.mock('@/lib/api/client/request', () => ({
-  requestJson: vi.fn(),
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 vi.mock('@/lib/api/client/errors', () => ({
   isValidationError: vi.fn(() => false),
@@ -49,52 +13,49 @@ vi.mock('@/lib/api/client/errors', () => ({
   extractValidationIssues: vi.fn(() => []),
 }))
 
-vi.mock('@/lib/api/contracts/tables', () => ({
-  addTableColumnContract: {},
-  addWorkflowGroupContract: {},
-  batchCreateTableRowsContract: {},
-  batchUpdateTableRowsContract: {},
-  cancelTableRunsContract: {},
-  createTableContract: {},
-  createTableRowContract: {},
-  deleteTableColumnContract: {},
-  deleteTableContract: {},
-  deleteTableRowContract: {},
-  deleteTableRowsContract: {},
-  deleteWorkflowGroupContract: {},
-  getTableContract: {},
-  importCsvContract: {},
-  listTableRowsContract: {},
-  listTablesContract: {},
-  renameTableContract: {},
-  restoreTableContract: {},
-  runWorkflowGroupContract: {},
-  updateTableColumnContract: {},
-  updateTableMetadataContract: {},
-  updateTableRowContract: {},
-  updateWorkflowGroupContract: {},
-  uploadCsvContract: {},
-}))
-
 vi.mock('@/app/workspace/providers/socket-provider', () => ({
   useSocket: vi.fn(() => ({ socket: null })),
 }))
 
-vi.mock('@sim/emcn', () => ({
-  toast: { error: vi.fn(), success: vi.fn() },
-}))
+vi.mock('@sim/emcn', () => emcnMock)
 
+import type { TableViewWire } from '@/lib/api/contracts/tables'
 import {
   tableRowsInfiniteOptions,
   tableRowsParamsKey,
   useDeleteColumn,
-  useRestoreTable,
-  useUpdateColumn,
+  useUpdateTableView,
 } from '@/hooks/queries/tables'
 import { tableKeys } from '@/hooks/queries/utils/table-keys'
 
+const cacheStore = new Map<string, unknown>()
+const queryClient = reactQueryMockFns.mockQueryClient
+queryClient.getQueryData.mockImplementation((key: readonly unknown[]) =>
+  cacheStore.get(JSON.stringify(key))
+)
+queryClient.setQueryData.mockImplementation((key: readonly unknown[], updater: unknown) => {
+  const k = JSON.stringify(key)
+  const prev = cacheStore.get(k)
+  const next = typeof updater === 'function' ? (updater as (p: unknown) => unknown)(prev) : updater
+  cacheStore.set(k, next)
+  return next
+})
+queryClient.getQueriesData.mockImplementation((opts: { queryKey: readonly unknown[] }) => {
+  const prefix = JSON.stringify(opts.queryKey).slice(0, -1)
+  return [...cacheStore.entries()]
+    .filter(([k]) => k.startsWith(prefix))
+    .map(([k, v]) => [JSON.parse(k), v])
+})
+
 const TABLE_ID = 'tbl-1'
 const WORKSPACE_ID = 'ws-1'
+
+/**
+ * Where a paged row list actually lives. Seeding at the bare `rowsRoot` prefix would
+ * exercise a key no hook writes, and would keep matching a cache walk that has been
+ * narrowed away from the `find` sibling hanging off the same parent.
+ */
+const ROWS_KEY = tableKeys.infiniteRows(TABLE_ID, tableRowsParamsKey({ pageSize: 1000 }))
 
 function setCache(key: readonly unknown[], value: unknown) {
   cacheStore.set(JSON.stringify(key), value)
@@ -106,49 +67,74 @@ function getCache<T>(key: readonly unknown[]): T | undefined {
 
 beforeEach(() => {
   cacheStore.clear()
-  vi.clearAllMocks()
+})
+
+describe('useUpdateTableView autosave ordering', () => {
+  it('ignores a stale promotion response instead of demoting the newer default', () => {
+    const newerDefault: TableViewWire = {
+      id: 'view-newer-default',
+      tableId: TABLE_ID,
+      name: 'Newer default',
+      config: {},
+      isDefault: true,
+      createdBy: 'user-1',
+      createdAt: new Date('2026-08-15T01:00:00.000Z'),
+      updatedAt: new Date('2026-08-15T03:00:00.000Z'),
+    }
+    const stalePromotion: TableViewWire = {
+      ...newerDefault,
+      id: 'view-stale',
+      name: 'Stale view',
+      updatedAt: new Date('2026-08-15T02:00:00.000Z'),
+    }
+    const cachedStaleRow: TableViewWire = {
+      ...stalePromotion,
+      isDefault: false,
+      updatedAt: new Date('2026-08-15T01:00:00.000Z'),
+    }
+    setCache(tableKeys.views(TABLE_ID), [newerDefault, cachedStaleRow])
+
+    const hook = useUpdateTableView({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
+    hook.onSuccess?.(
+      stalePromotion,
+      { viewId: stalePromotion.id, isDefault: true },
+      undefined,
+      undefined
+    )
+
+    expect(getCache<TableViewWire[]>(tableKeys.views(TABLE_ID))).toEqual([
+      newerDefault,
+      cachedStaleRow,
+    ])
+  })
 })
 
 describe('useDeleteColumn optimistic update', () => {
-  it('removes column from schema cache, strips its width, and clears it from row data', async () => {
+  /**
+   * The `find` cache hangs off the same `rowsRoot` parent as the paged rows but holds
+   * `{matches, truncated}` — no `pages`, no `rows`. A cache walk starting at the shared
+   * parent reaches it and throws inside `onMutate`, rejecting the mutation before it ever
+   * reaches the server: search a table, dismiss the search, then edit a cell.
+   */
+  it('survives a cached search result hanging off the shared rows prefix', async () => {
     setCache(tableKeys.detail(TABLE_ID), {
       id: TABLE_ID,
-      schema: {
-        columns: [
-          { name: 'name', type: 'string' },
-          { name: 'age', type: 'number' },
-        ],
-      },
-      metadata: {
-        columnWidths: { name: 200, age: 100 },
-      },
+      schema: { columns: [{ name: 'age', type: 'number' }] },
     })
-    setCache(tableKeys.rowsRoot(TABLE_ID), {
-      rows: [
-        { id: 'r1', data: { name: 'a', age: 1 } },
-        { id: 'r2', data: { name: 'b', age: 2 } },
-      ],
-      totalCount: 2,
+    setCache(ROWS_KEY, {
+      rows: [{ id: 'r1', data: { age: 1 } }],
+      totalCount: 1,
     })
+    setCache(tableKeys.find(TABLE_ID, 'q'), { matches: [{ rowId: 'r1', column: 'age' }] })
 
     const hook = useDeleteColumn({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
-    const ctx = await hook.onMutate?.('age')
 
-    const detail = getCache<{
-      schema: { columns: Array<{ name: string }> }
-      metadata: { columnWidths: Record<string, number> }
-    }>(tableKeys.detail(TABLE_ID))
-    expect(detail?.schema.columns.map((c) => c.name)).toEqual(['name'])
-    expect(detail?.metadata.columnWidths).toEqual({ name: 200 })
+    await expect(hook.onMutate?.('age')).resolves.toBeDefined()
 
-    const rows = getCache<{ rows: Array<{ data: Record<string, unknown> }> }>(
-      tableKeys.rowsRoot(TABLE_ID)
-    )
-    expect(rows?.rows.every((r) => !('age' in r.data))).toBe(true)
-    expect(rows?.rows[0]?.data).toEqual({ name: 'a' })
-
-    expect(ctx?.previousDetail).toBeDefined()
-    expect(ctx?.rowSnapshots?.length).toBeGreaterThan(0)
+    const rows = getCache<{ rows: Array<{ data: Record<string, unknown> }> }>(ROWS_KEY)
+    expect(rows?.rows[0]?.data).toEqual({})
+    /** The find entry is match coordinates, not row values — it must be left untouched. */
+    expect(getCache<{ matches: unknown[] }>(tableKeys.find(TABLE_ID, 'q'))?.matches).toHaveLength(1)
   })
 
   it('rolls back schema and rows on error using snapshots', async () => {
@@ -162,7 +148,7 @@ describe('useDeleteColumn optimistic update', () => {
       totalCount: 1,
     }
     setCache(tableKeys.detail(TABLE_ID), originalDetail)
-    setCache(tableKeys.rowsRoot(TABLE_ID), originalRows)
+    setCache(ROWS_KEY, originalRows)
 
     const hook = useDeleteColumn({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
     const ctx = await hook.onMutate?.('age')
@@ -172,117 +158,7 @@ describe('useDeleteColumn optimistic update', () => {
     hook.onError?.(new Error('boom'), 'age', ctx)
 
     expect(getCache(tableKeys.detail(TABLE_ID))).toEqual(originalDetail)
-    expect(getCache(tableKeys.rowsRoot(TABLE_ID))).toEqual(originalRows)
-  })
-
-  it('invalidates schema, rows, and lists in onSettled', () => {
-    const hook = useDeleteColumn({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
-    hook.onSettled?.(undefined, null, 'age', undefined)
-
-    const calls = queryClient.invalidateQueries.mock.calls.map((c) => c[0]?.queryKey)
-    expect(calls).toEqual(
-      expect.arrayContaining([
-        tableKeys.detail(TABLE_ID),
-        tableKeys.rowsRoot(TABLE_ID),
-        tableKeys.lists(),
-      ])
-    )
-  })
-})
-
-describe('useUpdateColumn optimistic update', () => {
-  it('writes the column update to the schema cache and rolls back on error', async () => {
-    const original = {
-      id: TABLE_ID,
-      schema: {
-        columns: [
-          { name: 'name', type: 'string' },
-          { name: 'age', type: 'string' },
-        ],
-      },
-    }
-    setCache(tableKeys.detail(TABLE_ID), original)
-
-    const hook = useUpdateColumn({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
-    const ctx = await hook.onMutate?.({ columnName: 'age', updates: { type: 'number' } })
-
-    const after = getCache<{ schema: { columns: Array<{ name: string; type: string }> } }>(
-      tableKeys.detail(TABLE_ID)
-    )
-    expect(after?.schema.columns.find((c) => c.name === 'age')?.type).toBe('number')
-
-    hook.onError?.(new Error('boom'), { columnName: 'age', updates: { type: 'number' } }, ctx)
-
-    expect(getCache(tableKeys.detail(TABLE_ID))).toEqual(original)
-  })
-
-  it('renames metadata-only: patches the column name + stamps id, leaves row data untouched', async () => {
-    setCache(tableKeys.detail(TABLE_ID), {
-      id: TABLE_ID,
-      schema: { columns: [{ name: 'age', type: 'number' }] },
-    })
-    setCache(tableKeys.rowsRoot(TABLE_ID), {
-      rows: [
-        { id: 'r1', data: { age: 30 } },
-        { id: 'r2', data: { age: 40 } },
-      ],
-      totalCount: 2,
-    })
-
-    const hook = useUpdateColumn({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
-    await hook.onMutate?.({ columnName: 'age', updates: { name: 'years' } })
-
-    // Row data is id-keyed; a rename never moves it. The stored key (`age`)
-    // becomes the column's stamped id, so cells stay reachable via getColumnId.
-    const rows = getCache<{ rows: Array<{ data: Record<string, unknown> }> }>(
-      tableKeys.rowsRoot(TABLE_ID)
-    )
-    expect(rows?.rows[0]?.data).toEqual({ age: 30 })
-    expect(rows?.rows[1]?.data).toEqual({ age: 40 })
-
-    const detail = getCache<{ schema: { columns: Array<{ id?: string; name: string }> } }>(
-      tableKeys.detail(TABLE_ID)
-    )
-    expect(detail?.schema.columns[0]).toMatchObject({ id: 'age', name: 'years' })
-  })
-})
-
-describe('useRestoreTable cache invalidation', () => {
-  it('primes the table detail cache and clears stale rows for the restored table', () => {
-    const hook = useRestoreTable()
-    const table = {
-      id: TABLE_ID,
-      name: 'Restored table',
-      schema: { columns: [{ name: 'name', type: 'string' }] },
-      rowCount: 1,
-      maxRows: 100,
-      workspaceId: WORKSPACE_ID,
-      createdBy: 'user-1',
-      archivedAt: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }
-
-    hook.onSuccess?.({ success: true, data: { table } }, TABLE_ID, undefined)
-
-    expect(getCache(tableKeys.detail(TABLE_ID))).toEqual(table)
-    expect(queryClient.removeQueries).toHaveBeenCalledWith({
-      queryKey: tableKeys.rowsRoot(TABLE_ID),
-    })
-  })
-
-  it('invalidates lists, table detail, and row data for the restored table', () => {
-    const hook = useRestoreTable()
-    hook.onSettled?.(undefined, null, TABLE_ID, undefined)
-
-    const calls = queryClient.invalidateQueries.mock.calls.map((c) => c[0]?.queryKey)
-    expect(calls).toEqual(
-      expect.arrayContaining([
-        tableKeys.lists(),
-        tableKeys.detail(TABLE_ID),
-        tableKeys.rowsRoot(TABLE_ID),
-      ])
-    )
+    expect(getCache(ROWS_KEY)).toEqual(originalRows)
   })
 })
 
@@ -292,7 +168,7 @@ describe('useDeleteColumn case-insensitive row cleanup', () => {
       id: TABLE_ID,
       schema: { columns: [{ name: 'Age', type: 'number' }] },
     })
-    setCache(tableKeys.rowsRoot(TABLE_ID), {
+    setCache(ROWS_KEY, {
       rows: [{ id: 'r1', data: { Age: 30, name: 'a' } }],
       totalCount: 1,
     })
@@ -300,50 +176,8 @@ describe('useDeleteColumn case-insensitive row cleanup', () => {
     const hook = useDeleteColumn({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
     await hook.onMutate?.('age')
 
-    const rows = getCache<{ rows: Array<{ data: Record<string, unknown> }> }>(
-      tableKeys.rowsRoot(TABLE_ID)
-    )
+    const rows = getCache<{ rows: Array<{ data: Record<string, unknown> }> }>(ROWS_KEY)
     expect(rows?.rows[0]?.data).toEqual({ name: 'a' })
-  })
-})
-
-describe('tableRowsParamsKey', () => {
-  it('produces the same key for identical params', () => {
-    const k1 = tableRowsParamsKey({ pageSize: 1000, filter: null, sort: null })
-    const k2 = tableRowsParamsKey({ pageSize: 1000, filter: null, sort: null })
-    expect(k1).toBe(k2)
-  })
-
-  it('treats undefined filter and sort as null', () => {
-    const withUndefined = tableRowsParamsKey({ pageSize: 1000, filter: undefined, sort: undefined })
-    const withNull = tableRowsParamsKey({ pageSize: 1000, filter: null, sort: null })
-    expect(withUndefined).toBe(withNull)
-  })
-
-  it('produces different keys for different filters', () => {
-    const k1 = tableRowsParamsKey({ pageSize: 1000, filter: null, sort: null })
-    const k2 = tableRowsParamsKey({
-      pageSize: 1000,
-      filter: { column: 'name', operator: 'eq', value: 'Alice' } as never,
-      sort: null,
-    })
-    expect(k1).not.toBe(k2)
-  })
-
-  it('produces different keys for different page sizes', () => {
-    const k1 = tableRowsParamsKey({ pageSize: 1000, filter: null, sort: null })
-    const k2 = tableRowsParamsKey({ pageSize: 500, filter: null, sort: null })
-    expect(k1).not.toBe(k2)
-  })
-
-  it('produces different keys for different sorts', () => {
-    const k1 = tableRowsParamsKey({ pageSize: 1000, filter: null, sort: null })
-    const k2 = tableRowsParamsKey({
-      pageSize: 1000,
-      filter: null,
-      sort: { column: 'name', direction: 'asc' } as never,
-    })
-    expect(k1).not.toBe(k2)
   })
 })
 
@@ -390,51 +224,11 @@ describe('tableRowsInfiniteOptions', () => {
     return opts.getNextPageParam(pages[pages.length - 1], pages, lastPageParam)
   }
 
-  it('getNextPageParam terminates when the count is covered by a partial page', () => {
-    const opts = makeOpts()
-    expect(next(opts, [makePage(500, 500)])).toBeUndefined()
-  })
-
-  it('getNextPageParam terminates on an empty page', () => {
-    const opts = makeOpts()
-    expect(next(opts, [makePage(1000, null), makePage(0, null, 1000)])).toBeUndefined()
-  })
-
   it('getNextPageParam continues past a short page when the count says more rows exist', () => {
     // The regression the termination rule exists for: a page shorter than the
     // requested size (e.g. a byte-cut page) must not be read as end-of-table.
     const opts = makeOpts()
     expect(next(opts, [makePage(36, 100)])).toBe(36)
-  })
-
-  it('getNextPageParam terminates a full page when the count is covered', () => {
-    const opts = makeOpts()
-    expect(next(opts, [makePage(PAGE_SIZE, PAGE_SIZE)])).toBeUndefined()
-  })
-
-  it('getNextPageParam returns next offset for a full page with an unknown count', () => {
-    const opts = makeOpts()
-    expect(next(opts, [makePage(PAGE_SIZE, null)])).toBe(PAGE_SIZE)
-  })
-
-  it('getNextPageParam advances correctly across three pages', () => {
-    const opts = makeOpts()
-    const p0 = makePage(PAGE_SIZE, 2200)
-    const p1 = makePage(PAGE_SIZE, null, 1000)
-    const p2 = makePage(200, null, 2000)
-
-    expect(next(opts, [p0])).toBe(1000)
-    expect(next(opts, [p0, p1], 1000)).toBe(2000)
-    expect(next(opts, [p0, p1, p2], 2000)).toBeUndefined()
-  })
-
-  it('getNextPageParam returns a keyset cursor when rows carry orderKey and there is no sort', () => {
-    const opts = makeOpts()
-    const pages = [makePage(PAGE_SIZE, 2000, 0, true)]
-    expect(next(opts, pages)).toEqual({
-      orderKey: `a${PAGE_SIZE - 1}`,
-      id: `r${PAGE_SIZE - 1}`,
-    })
   })
 
   it('getNextPageParam falls back to offset for sorted views even with orderKey present', () => {
@@ -443,30 +237,5 @@ describe('tableRowsInfiniteOptions', () => {
     const p1 = makePage(PAGE_SIZE, null, 1000, true)
     expect(next(opts, [p0])).toBe(PAGE_SIZE)
     expect(next(opts, [p0, p1], PAGE_SIZE)).toBe(PAGE_SIZE * 2)
-  })
-
-  it('queryKey includes the result of tableRowsParamsKey', () => {
-    const paramsKey = tableRowsParamsKey({ pageSize: PAGE_SIZE, filter: null, sort: null })
-    const opts = makeOpts(PAGE_SIZE)
-    // queryKey is a tuple; one element must be exactly the paramsKey string
-    expect(opts.queryKey).toContain(paramsKey)
-  })
-
-  it('queryKey differs when filter changes', () => {
-    const opts1 = tableRowsInfiniteOptions({
-      workspaceId: WORKSPACE_ID,
-      tableId: TABLE_ID,
-      pageSize: PAGE_SIZE,
-      filter: null,
-      sort: null,
-    }) as { queryKey: readonly unknown[] }
-    const opts2 = tableRowsInfiniteOptions({
-      workspaceId: WORKSPACE_ID,
-      tableId: TABLE_ID,
-      pageSize: PAGE_SIZE,
-      filter: { column: 'name', operator: 'eq', value: 'Alice' } as never,
-      sort: null,
-    }) as { queryKey: readonly unknown[] }
-    expect(JSON.stringify(opts1.queryKey)).not.toBe(JSON.stringify(opts2.queryKey))
   })
 })

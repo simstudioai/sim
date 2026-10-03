@@ -1,6 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import { buildQuickBooksUpdateDepositBody } from '@/tools/quickbooks/accounting_utils'
-import { QUICKBOOKS_MAX_RESPONSE_BYTES } from '@/tools/quickbooks/client'
 import type {
   QuickBooksAccountingTransaction,
   QuickBooksMutationResponse,
@@ -39,6 +38,12 @@ export const quickbooksUpdateDepositTool: ToolConfig<
       visibility: 'hidden',
       description: 'QuickBooks company ID derived from the connected credential',
     },
+    quickBooksEnvironment: {
+      type: 'string',
+      required: true,
+      visibility: 'hidden',
+      description: 'QuickBooks API environment derived from the connected credential',
+    },
     depositId: {
       type: 'string',
       required: true,
@@ -53,9 +58,9 @@ export const quickbooksUpdateDepositTool: ToolConfig<
     },
     depositAccountId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Current QuickBooks account receiving the deposit',
+      description: 'Replacement QuickBooks account receiving the deposit',
     },
     transactionDate: {
       type: 'string',
@@ -73,16 +78,16 @@ export const quickbooksUpdateDepositTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'quickbooks',
+    authoritativeParams: ['realmId', 'quickBooksEnvironment'],
     requiredScopes: ['com.intuit.quickbooks.accounting'],
   },
   errorExtractor: ErrorExtractorId.QUICKBOOKS_FAULT,
   request: {
-    url: (p) => buildQuickBooksEntityUrl(p.realmId, 'deposit').toString(),
+    url: (p) => buildQuickBooksEntityUrl(p, 'deposit').toString(),
     method: 'POST',
     headers: (p) => getQuickBooksToolHeaders(p.accessToken, 'application/json'),
     body: buildQuickBooksUpdateDepositBody,
     retry: { enabled: false },
-    maxResponseBytes: QUICKBOOKS_MAX_RESPONSE_BYTES,
   },
   transformResponse: (r) =>
     transformQuickBooksMutationResponse<QuickBooksAccountingTransaction>(r, 'Deposit'),

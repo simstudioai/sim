@@ -7,8 +7,6 @@
  * the guard that reads them live here rather than being restated per tool.
  */
 
-import type { ToolConfig } from '@/tools/types'
-
 /** Credential picker value; the executor swaps it for `accessToken` at run time. */
 export const CREDENTIAL_PARAM = {
   type: 'string',
@@ -31,17 +29,6 @@ export const SESSION_ID_PARAM = {
   visibility: 'user-or-llm',
   description: 'Anthropic session id (sesn_...) to act on.',
 } as const
-
-/**
- * `ToolConfig` requires a `request` shape even when `directExecution`
- * short-circuits the HTTP path, so every session-operation tool reuses this
- * inert stub instead of repeating it.
- */
-export const UNUSED_REQUEST: ToolConfig['request'] = {
-  url: () => '',
-  method: 'POST',
-  headers: () => ({}),
-}
 
 /** Params common to every session-operation tool. */
 export interface ManagedAgentSessionParams {
@@ -70,18 +57,4 @@ export function resolveSessionTarget(
     return { ok: false, error: 'A session id is required.' }
   }
   return { ok: true, apiKey, sessionId }
-}
-
-/** Validates the credential alone, for operations that do not target a session. */
-export function resolveApiKey(
-  params: Pick<ManagedAgentSessionParams, 'accessToken'>
-): { ok: true; apiKey: string } | { ok: false; error: string } {
-  const apiKey = params.accessToken
-  if (!apiKey) {
-    return {
-      ok: false,
-      error: 'No Claude Platform credential is selected, or it could not be resolved.',
-    }
-  }
-  return { ok: true, apiKey }
 }
