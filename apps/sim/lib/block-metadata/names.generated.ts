@@ -193,6 +193,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   okta: 'Okta',
   onedrive: 'OneDrive',
   onepassword: '1Password',
+  oracle_fusion_scm: 'Oracle Fusion Cloud SCM',
   otter: 'Otter.ai',
   outlook: 'Outlook',
   pagerduty: 'PagerDuty',

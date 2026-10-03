@@ -59,6 +59,7 @@ import type { EnvironmentResolutionSnapshot } from '@/lib/environment/utils'
 import { executeBitbucketTool } from '@/lib/internal/bitbucket/execute-tool'
 import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
+import { OracleFusionScmBlock } from '@/blocks/blocks/oracle_fusion_scm'
 import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
 import {
@@ -74,6 +75,11 @@ import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/
 import { searchIssuesV2Tool } from '@/tools/github/search_issues'
 import { memoryAddTool } from '@/tools/memory/add'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import {
+  oracleFusionScmGetItemTool,
+  oracleFusionScmListItemsTool,
+  oracleFusionScmListShipmentsTool,
+} from '@/tools/oracle_fusion_scm'
 import { slackListsItemsListTool } from '@/tools/slack_lists/items_list'
 import { stripeListSubscriptionsTool } from '@/tools/stripe/list_subscriptions'
 import { stripeSearchSubscriptionsTool } from '@/tools/stripe/search_subscriptions'
@@ -195,6 +201,9 @@ const mockRegistryTools: Record<string, any> = {
   file_fetch: fileFetchTool,
   file_get_content: fileGetContentTool,
   memory_add: memoryAddTool,
+  oracle_fusion_scm_get_item: oracleFusionScmGetItemTool,
+  oracle_fusion_scm_list_items: oracleFusionScmListItemsTool,
+  oracle_fusion_scm_list_shipments: oracleFusionScmListShipmentsTool,
   table_batch_insert_rows: tableBatchInsertRowsTool,
   sts_get_caller_identity: getCallerIdentityTool,
   http_request: {
@@ -5247,6 +5256,148 @@ describe('Copilot OAuth Credential Enforcement', () => {
 })
 
 describe('Managed OAuth Credential Delegation', () => {
+  it('executes real Oracle SCM block payloads after removing inactive canvas fields', async () => {
+    mockExecuteInternalToolOperation.mockClear()
+    mockResolveExecutorCredentialToken.mockResolvedValue({
+      accessToken: 'oracle-basic-token',
+      credentialType: 'service_account',
+      instanceUrl: 'https://example.fa.us6.oraclecloud.com',
+    })
+    mockExecuteInternalToolOperation.mockImplementation(async () =>
+      Response.json({ success: true, output: {} })
+    )
+    const context = createToolExecutionContext({
+      userId: 'current-user',
+      workflowId: 'current-workflow',
+    })
+    const mapParams = OracleFusionScmBlock.tools?.config?.params
+    if (!mapParams) throw new Error('Oracle Fusion SCM block params mapper is missing')
+
+    const detailBlockInputs = {
+      operation: 'oracle_fusion_scm_get_item',
+      advancedMode: true,
+      oauthCredential: 'oracle-credential-id',
+      itemKey: 'item:1',
+      shipmentKey: 'shipment:STALE',
+      q: 'ItemNumber=STALE',
+      finder: 'PrimaryKey;ItemId=2',
+      orderBy: 'ItemNumber:asc',
+      limit: '25',
+      offset: '50',
+      totalResults: 'true',
+    }
+    await expect(
+      executeTool(
+        detailBlockInputs.operation,
+        { ...detailBlockInputs, ...mapParams(detailBlockInputs) },
+        { executionContext: context }
+      )
+    ).resolves.toMatchObject({ success: true })
+
+    const blankListBlockInputs = {
+      operation: 'oracle_fusion_scm_list_shipments',
+      advancedMode: false,
+      oauthCredential: 'oracle-credential-id',
+      q: null,
+      finder: null,
+      orderBy: null,
+      limit: null,
+      offset: null,
+      totalResults: null,
+    }
+    await expect(
+      executeTool(
+        blankListBlockInputs.operation,
+        { ...blankListBlockInputs, ...mapParams(blankListBlockInputs) },
+        { executionContext: context }
+      )
+    ).resolves.toMatchObject({ success: true })
+
+    const listBlockInputs = {
+      operation: 'oracle_fusion_scm_list_shipments',
+      advancedMode: true,
+      oauthCredential: 'oracle-credential-id',
+      q: 'ShipmentStatusCode=OPEN',
+      finder: null,
+      orderBy: 'LastUpdateDate:desc',
+      limit: '25',
+      offset: '0',
+      totalResults: 'false',
+      itemKey: 'item:STALE',
+      shipmentLineKey: 'shipment-line:STALE',
+    }
+    await expect(
+      executeTool(
+        listBlockInputs.operation,
+        { ...listBlockInputs, ...mapParams(listBlockInputs) },
+        { executionContext: context }
+      )
+    ).resolves.toMatchObject({ success: true })
+
+    expect(mockExecuteInternalToolOperation.mock.calls.map(([request]) => request.input)).toEqual([
+      {
+        oauthCredential: 'oracle-credential-id',
+        itemKey: 'item:1',
+        accessToken: 'oracle-basic-token',
+        instanceUrl: 'https://example.fa.us6.oraclecloud.com',
+      },
+      {
+        oauthCredential: 'oracle-credential-id',
+        accessToken: 'oracle-basic-token',
+        instanceUrl: 'https://example.fa.us6.oraclecloud.com',
+      },
+      {
+        oauthCredential: 'oracle-credential-id',
+        q: 'ShipmentStatusCode=OPEN',
+        orderBy: 'LastUpdateDate:desc',
+        limit: 25,
+        offset: 0,
+        totalResults: false,
+        accessToken: 'oracle-basic-token',
+        instanceUrl: 'https://example.fa.us6.oraclecloud.com',
+      },
+    ])
+  })
+
+  it('projects executor bookkeeping out of strict Oracle SCM list and detail inputs', async () => {
+    mockExecuteInternalToolOperation.mockClear()
+    mockResolveExecutorCredentialToken.mockResolvedValue({
+      accessToken: 'oracle-basic-token',
+      credentialType: 'service_account',
+      instanceUrl: 'https://example.fa.us6.oraclecloud.com',
+    })
+    mockExecuteInternalToolOperation.mockResolvedValue(Response.json({ success: true, output: {} }))
+    const context = createToolExecutionContext({
+      userId: 'current-user',
+      workflowId: 'current-workflow',
+    })
+
+    await executeTool(
+      'oracle_fusion_scm_list_items',
+      { oauthCredential: 'oracle-credential-id' },
+      { executionContext: context }
+    )
+    await executeTool(
+      'oracle_fusion_scm_get_item',
+      { oauthCredential: 'oracle-credential-id', itemKey: 'item:1' },
+      { executionContext: context }
+    )
+
+    expect(mockExecuteInternalToolOperation.mock.calls.map(([request]) => request.input)).toEqual([
+      {
+        oauthCredential: 'oracle-credential-id',
+        accessToken: 'oracle-basic-token',
+        instanceUrl: 'https://example.fa.us6.oraclecloud.com',
+      },
+      {
+        oauthCredential: 'oracle-credential-id',
+        itemKey: 'item:1',
+        accessToken: 'oracle-basic-token',
+        instanceUrl: 'https://example.fa.us6.oraclecloud.com',
+      },
+    ])
+  })
+
   it('passes an opaque credential ID with trusted tool scope and origin-bound delegation', async () => {
     mockResolveExecutorCredentialToken.mockResolvedValueOnce({
       accessToken: 'managed-access-token',
