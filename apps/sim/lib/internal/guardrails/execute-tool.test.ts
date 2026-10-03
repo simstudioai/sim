@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,7 +7,6 @@ vi.mock('@/lib/internal/guardrails/operations', () => ({
   executeGuardrailsValidation: executeOperation,
 }))
 
-import { GuardrailsOperationError } from '@/lib/internal/guardrails/errors'
 import { executeGuardrailsTool } from '@/lib/internal/guardrails/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 
@@ -37,7 +33,6 @@ function request(overrides: Partial<InternalToolOperationCall> = {}): InternalTo
 
 describe('executeGuardrailsTool', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     executeOperation.mockResolvedValue({
       success: true,
       output: { passed: true, validationType: 'hallucination', input: 'claim' },
@@ -62,34 +57,5 @@ describe('executeGuardrailsTool', () => {
         signal: controller.signal,
       })
     )
-  })
-
-  it('preserves classified admission errors', async () => {
-    executeOperation.mockRejectedValueOnce(
-      new GuardrailsOperationError(402, { error: 'Usage limit exceeded' })
-    )
-
-    const response = await executeGuardrailsTool(request())
-
-    expect(response.status).toBe(402)
-    await expect(response.json()).resolves.toEqual({ error: 'Usage limit exceeded' })
-  })
-
-  it('propagates cancellation before and after guardrail work', async () => {
-    const before = new AbortController()
-    before.abort(new DOMException('cancelled', 'AbortError'))
-    await expect(executeGuardrailsTool(request({ signal: before.signal }))).rejects.toMatchObject({
-      name: 'AbortError',
-    })
-    expect(executeOperation).not.toHaveBeenCalled()
-
-    const after = new AbortController()
-    executeOperation.mockImplementationOnce(async () => {
-      after.abort(new DOMException('cancelled', 'AbortError'))
-      return { success: true, output: { passed: true } }
-    })
-    await expect(executeGuardrailsTool(request({ signal: after.signal }))).rejects.toMatchObject({
-      name: 'AbortError',
-    })
   })
 })

@@ -1,18 +1,12 @@
-/**
- * @vitest-environment node
- */
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDecryptSecret } = vi.hoisted(() => ({
-  mockDecryptSecret: vi.fn(),
-}))
-
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import { createBackfillExecutionSecretRegistry } from '@/lib/table/backfill-runner'
 import { createTableRowSecretProvenanceFromRegistry } from '@/lib/table/rows/secret-provenance'
+
+const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
 
 const SCOPE = { userId: 'user-1', workspaceId: 'workspace-1' }
 
@@ -31,7 +25,6 @@ function currentExecutionState(
 
 describe('table output backfill provenance', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
       decrypted: encryptedValue === 'encrypted-secret' ? 'secret-value' : encryptedValue,
     }))

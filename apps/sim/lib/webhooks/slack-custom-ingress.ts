@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toRecord } from '@sim/utils/object'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { cancelWorkflowExecution } from '@/lib/execution/cancel-workflow-execution'
@@ -46,12 +47,7 @@ interface DispatchSlackCustomBotOptions {
 export function getLegacySlackCustomBotCredentialId(
   foundWebhook: LegacySlackPathWebhook
 ): string | null {
-  const providerConfig =
-    foundWebhook.providerConfig !== null &&
-    typeof foundWebhook.providerConfig === 'object' &&
-    !Array.isArray(foundWebhook.providerConfig)
-      ? (foundWebhook.providerConfig as Record<string, unknown>)
-      : {}
+  const providerConfig = toRecord(foundWebhook.providerConfig)
 
   if (providerConfig.ingressMode !== LEGACY_SLACK_CUSTOM_BOT_INGRESS_MODE) {
     return null
@@ -87,6 +83,22 @@ export async function verifySlackCustomBotCredentialRequest({
   rawBody,
   requestId,
 }: SlackCustomBotRequestOptions): Promise<NextResponse | null> {
+  const result = await authenticateSlackCustomBotRequest({
+    credentialId,
+    request,
+    rawBody,
+    requestId,
+  })
+  return result instanceof Response ? result : null
+}
+
+/** Captures the exact credential version that authenticated this delivery. */
+export async function authenticateSlackCustomBotRequest({
+  credentialId,
+  request,
+  rawBody,
+  requestId,
+}: SlackCustomBotRequestOptions): Promise<NextResponse | { credentialVersion: string }> {
   const botCredential = await getSlackBotCredential(credentialId)
   if (!botCredential) {
     logger.warn(`[${requestId}] Unknown Slack bot credential ${credentialId}`)
@@ -97,7 +109,14 @@ export async function verifySlackCustomBotCredentialRequest({
     return new NextResponse(null, { status: 404 })
   }
 
-  return verifySlackRequestSignature(botCredential.signingSecret, request, rawBody, requestId)
+  const error = await verifySlackRequestSignature(
+    botCredential.signingSecret,
+    request,
+    rawBody,
+    requestId
+  )
+  if (error) return error
+  return { credentialVersion: botCredential.credentialVersion }
 }
 
 export async function dispatchSlackCustomBotCredential({

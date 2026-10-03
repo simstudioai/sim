@@ -7,7 +7,7 @@ import { Image } from '@/components/ui/image'
 import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Callout } from 'fumadocs-ui/components/callout'
 
-Every markdown file in your workspace opens in a **rich editor**. Type markdown and it renders as you go, or format visually with the toolbar and slash menu. What you see is exactly what gets saved — plain markdown underneath, no lock-in.
+Every markdown file in your workspace opens in a **rich editor**. Type markdown and it renders as you go, or format visually with the toolbar and slash menu. The file is saved as plain markdown.
 
 <div className="mx-auto w-full overflow-hidden rounded-lg my-6">
   <Image src="/static/files/editor/overview.png" alt="A markdown file rendered in the editor: headings, bold, italic, and a link, a nested bullet list, and a table" width={900} height={410} />
@@ -46,7 +46,7 @@ Type `/` anywhere to insert any block — heading, list, table, code block, imag
 The editor round-trips your markdown exactly — it saves what you wrote, with no reformatting churn.
 
 <Callout type="info">
-A few constructs can't be represented visually without losing information on save — footnotes, raw HTML, and HTML comments. When a file contains one of these, it opens **read-only** so the original source is preserved untouched. Everything is still rendered faithfully; you just can't edit that file inline.
+A few constructs still can't round-trip: a `<br>` inside a table cell, a hard line break inside a heading, and non-canonical HTML entities such as `&copy;`. Files over 256 KB also open read-only. Footnotes, HTML comments, and raw HTML are preserved byte-for-byte and stay editable.
 </Callout>
 
 <Cards>

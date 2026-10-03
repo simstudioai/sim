@@ -27,13 +27,13 @@ export function ConversationListItem({
       {showStatusDot && (
         <span
           aria-hidden='true'
-          className={cn('size-[6px] flex-shrink-0 rounded-full', statusIndicatorClassName)}
+          className={cn('size-[6px] shrink-0 rounded-full', statusIndicatorClassName)}
           style={{
             backgroundColor: isActive ? '#EAB308' : 'var(--brand-accent)',
           }}
         />
       )}
-      {actions && <div className='ml-auto flex flex-shrink-0 items-center'>{actions}</div>}
+      {actions && <div className='ml-auto flex shrink-0 items-center'>{actions}</div>}
     </div>
   )
 }

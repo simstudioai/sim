@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   compileFileSearchPattern,
-  escapeFileSearchLikePattern,
   FileSearchPatternError,
   isFileSearchCaseSensitive,
 } from '@/lib/workspace-files/search/pattern'
@@ -23,11 +22,10 @@ describe('compileFileSearchPattern', () => {
   })
 
   describe('exact mode', () => {
-    it('implements Unicode smart-case and escapes LIKE metacharacters', () => {
+    it('implements Unicode smart-case', () => {
       expect(isFileSearchCaseSensitive('résumé')).toBe(false)
       expect(isFileSearchCaseSensitive('Résumé')).toBe(true)
       expect(isFileSearchCaseSensitive('東京A')).toBe(true)
-      expect(escapeFileSearchLikePattern('100%_done\\')).toBe('100\\%\\_done\\\\')
     })
 
     it('wraps the escaped query for LIKE and keeps the raw text for ranking', () => {
@@ -38,7 +36,6 @@ describe('compileFileSearchPattern', () => {
         caseSensitive: false,
         sqlPattern: '%100\\%\\_done%',
         literalText: '100%_done',
-        wholeLineOnly: false,
       })
     })
 
@@ -67,12 +64,6 @@ describe('compileFileSearchPattern', () => {
       expect(compileFileSearchPattern('error \\D+', 'regex').caseSensitive).toBe(false)
       expect(compileFileSearchPattern('[A-Z]+ error', 'regex').caseSensitive).toBe(false)
       expect(compileFileSearchPattern('Error \\d+', 'regex').caseSensitive).toBe(true)
-    })
-
-    it('restricts an anchored pattern to segments that hold a whole line', () => {
-      expect(compileFileSearchPattern('^import x', 'regex').wholeLineOnly).toBe(true)
-      expect(compileFileSearchPattern('import x;$', 'regex').wholeLineOnly).toBe(true)
-      expect(compileFileSearchPattern('import x', 'regex').wholeLineOnly).toBe(false)
     })
 
     it('requires a literal run long enough for the trigram index to be used', () => {

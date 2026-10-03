@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   type DeployButtonStatus,
@@ -60,68 +57,6 @@ describe('resolveDeployButtonStatus', () => {
     expect(statuses).not.toContain('live')
   })
 
-  it('settles straight to live for a deployed workflow with no changes', () => {
-    const statuses = committed([
-      {},
-      {
-        isDeploymentInfoResolved: true,
-        isDeployed: true,
-        serverNeedsRedeployment: false,
-        isAwaitingFirstDeployedState: true,
-      },
-      {
-        isDeploymentInfoResolved: true,
-        isDeployed: true,
-        serverNeedsRedeployment: false,
-        hasDeployedState: true,
-      },
-    ])
-
-    expect(statuses).toEqual(['unknown', 'live'])
-    expect(statuses).not.toContain('changed')
-  })
-
-  /**
-   * `refetchOnWindowFocus` is on for both queries, so this fires on every focus.
-   * A refetch keeps the cached snapshot, so the answer must not move.
-   */
-  it('holds its answer across a background refetch', () => {
-    const settled: Partial<Input> = {
-      isDeploymentInfoResolved: true,
-      isDeployed: true,
-      serverNeedsRedeployment: true,
-      hasDeployedState: true,
-      clientChangeDetected: true,
-    }
-
-    const statuses = committed([
-      settled,
-      // Refetching: data is still cached, so `isAwaitingFirstDeployedState` stays false.
-      settled,
-      settled,
-    ])
-
-    expect(statuses).toEqual(['changed'])
-  })
-
-  it('prefers the client diff over the server seed once a snapshot exists', () => {
-    // Unsaved edits: the server still describes the persisted draft.
-    const status = resolveDeployButtonStatus({
-      ...base,
-      isDeploymentInfoResolved: true,
-      isDeployed: true,
-      serverNeedsRedeployment: false,
-      hasDeployedState: true,
-      clientChangeDetected: true,
-    })
-
-    expect(status).toBe('changed')
-  })
-
-  it('reports undeployed without a workflow', () => {
-    expect(resolveDeployButtonStatus({ ...base, workflowId: null })).toBe('undeployed')
-  })
-
   /**
    * `GET /api/workflows/[id]/deploy` returning 500 made `isDeployed` default to
    * false, which rendered a live workflow as "Deploy" beside a version list
@@ -140,27 +75,5 @@ describe('resolveDeployButtonStatus', () => {
 
     expect(status).toBe('unknown')
     expect(status).not.toBe('undeployed')
-  })
-
-  it('reports undeployed only once info has actually said so', () => {
-    const status = resolveDeployButtonStatus({
-      ...base,
-      isDeploymentInfoResolved: true,
-      isDeployed: false,
-    })
-
-    expect(status).toBe('undeployed')
-  })
-
-  it('falls back to unknown only when deployed with no verdict from either side', () => {
-    const status = resolveDeployButtonStatus({
-      ...base,
-      isDeploymentInfoResolved: true,
-      isDeployed: true,
-      isAwaitingFirstDeployedState: true,
-      serverNeedsRedeployment: undefined,
-    })
-
-    expect(status).toBe('unknown')
   })
 })

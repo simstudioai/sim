@@ -24,7 +24,7 @@ import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'
 import type { UpdateOrganizationDataRetentionBody } from '@/lib/api/contracts/organization'
 import type { RetentionOverride } from '@/lib/api/contracts/primitives'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
   type CustomPiiPattern,
   emptyPiiStages,
@@ -151,19 +151,29 @@ function overrideValueToHours(value: string): number | null | undefined {
   return toRetentionHours(value)
 }
 
-function buildRetentionOverride(workspaceId: string, draft: PolicyDraft): RetentionOverride | null {
-  const override: RetentionOverride = { workspaceId }
-  const log = overrideValueToHours(draft.logDays)
-  const soft = overrideValueToHours(draft.softDeleteDays)
-  const task = overrideValueToHours(draft.taskCleanupDays)
-  if (log !== undefined) override.logRetentionHours = log
-  if (soft !== undefined) override.softDeleteRetentionHours = soft
-  if (task !== undefined) override.taskCleanupHours = task
-  const hasField =
-    override.logRetentionHours !== undefined ||
-    override.softDeleteRetentionHours !== undefined ||
-    override.taskCleanupHours !== undefined
-  return hasField ? override : null
+/**
+ * Builds a workspace override from the editable fields, starting from the override being replaced so
+ * fields this form does not edit (such as the API-only `fileVersionRetentionHours`) survive a save.
+ */
+function buildRetentionOverride(
+  workspaceId: string,
+  draft: PolicyDraft,
+  existing: RetentionOverride | undefined
+): RetentionOverride | null {
+  const override: RetentionOverride = { ...existing, workspaceId }
+  const edited = {
+    logRetentionHours: overrideValueToHours(draft.logDays),
+    softDeleteRetentionHours: overrideValueToHours(draft.softDeleteDays),
+    taskCleanupHours: overrideValueToHours(draft.taskCleanupDays),
+  }
+  for (const [field, hours] of Object.entries(edited) as [
+    keyof typeof edited,
+    number | null | undefined,
+  ][]) {
+    if (hours === undefined) delete override[field]
+    else override[field] = hours
+  }
+  return Object.keys(override).length > 1 ? override : null
 }
 
 /** Stable serialization of a stage set for dirty-detection. */
@@ -528,7 +538,7 @@ function PolicyDetail({
                 value={draft.workspaceIds}
                 onChange={(workspaceIds) => onChange({ ...draft, workspaceIds })}
                 options={workspaceOptions}
-                className='flex-shrink-0'
+                className='shrink-0'
               />
             </div>
           </SettingsSection>
@@ -878,8 +888,17 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
       const clearIds = new Set([...editing.original.workspaceIds, ...ids])
       const nextOverrides = overrides.filter((o) => !clearIds.has(o.workspaceId))
       const nextPiiOverrides = piiOverrides.filter((p) => !clearIds.has(p.workspaceId))
+      /** An edited override moved to another workspace keeps what only the API can set. */
+      const replacedOverride =
+        editing.original.workspaceIds.length === 1
+          ? overrides.find((o) => o.workspaceId === editing.original.workspaceIds[0])
+          : undefined
       for (const workspaceId of ids) {
-        const ov = buildRetentionOverride(workspaceId, draft)
+        const ov = buildRetentionOverride(
+          workspaceId,
+          draft,
+          overrides.find((o) => o.workspaceId === workspaceId) ?? replacedOverride
+        )
         if (ov) nextOverrides.push(ov)
         if (draft.piiOverride) {
           const existing = piiOverrides.find((p) => p.workspaceId === workspaceId)
@@ -987,6 +1006,7 @@ function DataRetentionForm({ initialData: data, orgId, workspaces }: DataRetenti
 export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSettingsProps) {
   const { data, isLoading } = useOrganizationRetention(orgId)
   const { data: workspaces = [] } = useWorkspacesQuery(Boolean(orgId))
+  const { billingEnabled } = useDeploymentShape()
 
   if (isLoading) {
     return (
@@ -1009,7 +1029,7 @@ export function DataRetentionSettings({ organizationId: orgId }: DataRetentionSe
     return <SettingsEmptyState>Failed to load data retention settings.</SettingsEmptyState>
   }
 
-  if (isBillingEnabled && !data.isEnterprise) {
+  if (billingEnabled && !data.isEnterprise) {
     return (
       <SettingsEmptyState>Data retention is available on Enterprise plans only.</SettingsEmptyState>
     )

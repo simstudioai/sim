@@ -393,6 +393,24 @@ export function useWorkflowSearchFileDetails(matches: WorkflowSearchMatch[], wor
   )
 }
 
+/** Shared workspace MCP servers plus the managed catalog, as one list. */
+async function fetchWorkspaceMcpServers(workspaceId: string, signal: AbortSignal) {
+  const [shared, managed] = await Promise.all([
+    requestJson(listMcpServersContract, { query: { workspaceId }, signal }),
+    requestJson(listManagedMcpCatalogContract, { query: { workspaceId }, signal }),
+  ])
+  return [...shared.data.servers, ...managed.servers]
+}
+
+/** Discovered workspace MCP tools plus the managed catalog tools, as one list. */
+async function fetchWorkspaceMcpTools(workspaceId: string, signal: AbortSignal) {
+  const [shared, managed] = await Promise.all([
+    requestJson(discoverMcpToolsContract, { query: { workspaceId }, signal }),
+    requestJson(listManagedMcpCatalogContract, { query: { workspaceId }, signal }),
+  ])
+  return [...shared.data.tools, ...managed.tools]
+}
+
 export function useWorkflowSearchMcpServerDetails(
   matches: WorkflowSearchMatch[],
   workspaceId?: string
@@ -401,19 +419,7 @@ export function useWorkflowSearchMcpServerDetails(
 
   const serversQuery = useQuery({
     queryKey: workflowSearchReplaceKeys.mcpServerListDetails(workspaceId),
-    queryFn: async ({ signal }: { signal: AbortSignal }) => {
-      const [shared, managed] = await Promise.all([
-        requestJson(listMcpServersContract, {
-          query: { workspaceId: workspaceId as string },
-          signal,
-        }),
-        requestJson(listManagedMcpCatalogContract, {
-          query: { workspaceId: workspaceId as string },
-          signal,
-        }),
-      ])
-      return [...shared.data.servers, ...managed.servers]
-    },
+    queryFn: ({ signal }) => fetchWorkspaceMcpServers(workspaceId as string, signal),
     enabled: Boolean(workspaceId && serverMatches.length > 0),
     staleTime: WORKFLOW_SEARCH_MCP_SERVER_LIST_STALE_TIME,
   })
@@ -446,19 +452,7 @@ export function useWorkflowSearchMcpToolDetails(
 
   const toolsQuery = useQuery({
     queryKey: workflowSearchReplaceKeys.mcpToolListDetails(workspaceId),
-    queryFn: async ({ signal }: { signal: AbortSignal }) => {
-      const [shared, managed] = await Promise.all([
-        requestJson(discoverMcpToolsContract, {
-          query: { workspaceId: workspaceId as string },
-          signal,
-        }),
-        requestJson(listManagedMcpCatalogContract, {
-          query: { workspaceId: workspaceId as string },
-          signal,
-        }),
-      ])
-      return [...shared.data.tools, ...managed.tools]
-    },
+    queryFn: ({ signal }) => fetchWorkspaceMcpTools(workspaceId as string, signal),
     enabled: Boolean(workspaceId && toolMatches.length > 0),
     staleTime: WORKFLOW_SEARCH_MCP_TOOL_LIST_STALE_TIME,
   })
@@ -723,23 +717,12 @@ export function useWorkflowSearchMcpServerReplacementOptions(
     queries: [
       {
         queryKey: workflowSearchReplaceKeys.mcpServerReplacementOptions(workspaceId),
-        queryFn: async ({
+        queryFn: ({
           signal,
         }: {
           signal: AbortSignal
-        }): Promise<ListMcpServersResponse['data']['servers']> => {
-          const [shared, managed] = await Promise.all([
-            requestJson(listMcpServersContract, {
-              query: { workspaceId: workspaceId as string },
-              signal,
-            }),
-            requestJson(listManagedMcpCatalogContract, {
-              query: { workspaceId: workspaceId as string },
-              signal,
-            }),
-          ])
-          return [...shared.data.servers, ...managed.servers]
-        },
+        }): Promise<ListMcpServersResponse['data']['servers']> =>
+          fetchWorkspaceMcpServers(workspaceId as string, signal),
         enabled: Boolean(workspaceId && serverGroups.length > 0),
         staleTime: WORKFLOW_SEARCH_MCP_SERVER_REPLACEMENT_STALE_TIME,
         select: (
@@ -785,23 +768,12 @@ export function useWorkflowSearchMcpToolReplacementOptions(
     queries: [
       {
         queryKey: workflowSearchReplaceKeys.mcpToolReplacementOptions(workspaceId),
-        queryFn: async ({
+        queryFn: ({
           signal,
         }: {
           signal: AbortSignal
-        }): Promise<DiscoverMcpToolsResponse['data']['tools']> => {
-          const [shared, managed] = await Promise.all([
-            requestJson(discoverMcpToolsContract, {
-              query: { workspaceId: workspaceId as string },
-              signal,
-            }),
-            requestJson(listManagedMcpCatalogContract, {
-              query: { workspaceId: workspaceId as string },
-              signal,
-            }),
-          ])
-          return [...shared.data.tools, ...managed.tools]
-        },
+        }): Promise<DiscoverMcpToolsResponse['data']['tools']> =>
+          fetchWorkspaceMcpTools(workspaceId as string, signal),
         enabled: Boolean(workspaceId && toolGroups.length > 0),
         staleTime: WORKFLOW_SEARCH_MCP_TOOL_REPLACEMENT_STALE_TIME,
         select: (

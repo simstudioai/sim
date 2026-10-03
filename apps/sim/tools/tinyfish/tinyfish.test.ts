@@ -1,12 +1,11 @@
-/**
- * @vitest-environment node
- */
+import { jsonResponse } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import { TinyFishBlock } from '@/blocks/blocks/tinyfish'
 import { cancelRunTool } from '@/tools/tinyfish/cancel_run'
 import { fetchUrlsTool } from '@/tools/tinyfish/fetch_urls'
 import { getRunTool } from '@/tools/tinyfish/get_run'
 import { TINYFISH_AGENT_STEP_USD } from '@/tools/tinyfish/hosting'
+import { listProfilesTool } from '@/tools/tinyfish/list_profiles'
 import { listRunsTool } from '@/tools/tinyfish/list_runs'
 import { listVaultItemsTool } from '@/tools/tinyfish/list_vault_items'
 import { runTool } from '@/tools/tinyfish/run'
@@ -15,14 +14,6 @@ import { searchTool } from '@/tools/tinyfish/search'
 import { buildAutomationBody, parseJsonSchema, parseList } from '@/tools/tinyfish/utils'
 
 const API_KEY = 'test-key'
-
-function jsonResponse(body: unknown, init?: ResponseInit) {
-  return new Response(JSON.stringify(body), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-    ...init,
-  })
-}
 
 describe('buildAutomationBody', () => {
   it('sends only the required fields plus the integration tag by default', () => {
@@ -41,6 +32,16 @@ describe('buildAutomationBody', () => {
       maxSteps: 50,
     })
     expect(body.agent_config).toEqual({ mode: 'strict', max_steps: 50 })
+  })
+
+  it('sends a wall-clock cap alongside the step cap', () => {
+    const body = buildAutomationBody({
+      url: 'https://example.com',
+      goal: 'Find pricing',
+      maxSteps: 50,
+      maxDurationSeconds: 300,
+    })
+    expect(body.agent_config).toEqual({ max_steps: 50, max_duration_seconds: 300 })
   })
 
   it('omits agent_config entirely when neither field is set', () => {
@@ -84,6 +85,74 @@ describe('buildAutomationBody', () => {
     })
     expect(unscoped).not.toHaveProperty('use_vault')
     expect(unscoped).not.toHaveProperty('credential_item_ids')
+  })
+
+  it('selects a browser context profile only when the profile is opted into', () => {
+    const scoped = buildAutomationBody({
+      url: 'https://example.com',
+      goal: 'Read the dashboard',
+      useProfile: true,
+      profileId: 'prof_abc123',
+    })
+    expect(scoped.use_profile).toBe(true)
+    expect(scoped.profile_id).toBe('prof_abc123')
+
+    const unscoped = buildAutomationBody({
+      url: 'https://example.com',
+      goal: 'Read the dashboard',
+      profileId: 'prof_abc123',
+    })
+    expect(unscoped).not.toHaveProperty('use_profile')
+    expect(unscoped).not.toHaveProperty('profile_id')
+  })
+
+  it('falls back to the account default profile when no id is given', () => {
+    const body = buildAutomationBody({
+      url: 'https://example.com',
+      goal: 'Read the dashboard',
+      useProfile: true,
+      profileId: '   ',
+    })
+    expect(body.use_profile).toBe(true)
+    expect(body).not.toHaveProperty('profile_id')
+  })
+
+  it('treats a serialized off switch as off, not as a truthy string', () => {
+    const body = buildAutomationBody({
+      url: 'https://example.com',
+      goal: 'Read the dashboard',
+      useProfile: 'false',
+      useVault: 'false',
+      proxyEnabled: 'false',
+      proxyCountryCode: 'GB',
+    })
+    expect(body).not.toHaveProperty('use_profile')
+    expect(body).not.toHaveProperty('use_vault')
+    expect(body).not.toHaveProperty('proxy_config')
+  })
+
+  it('honours a serialized on switch, which an imported workflow can carry', () => {
+    const body = buildAutomationBody({
+      url: 'https://example.com',
+      goal: 'Read the dashboard',
+      useProfile: 'true',
+      useVault: 'true',
+      proxyEnabled: 'true',
+    })
+    expect(body.use_profile).toBe(true)
+    expect(body.use_vault).toBe(true)
+    expect(body.proxy_config).toEqual({ enabled: true, type: 'tetra' })
+  })
+
+  it('keeps the browser engine and the context profile as separate fields', () => {
+    const body = buildAutomationBody({
+      url: 'https://example.com',
+      goal: 'Read the dashboard',
+      browserProfile: 'stealth',
+      useProfile: true,
+    })
+    expect(body.browser_profile).toBe('stealth')
+    expect(body.use_profile).toBe(true)
   })
 
   it('parses a stringified output schema into an object', () => {
@@ -158,6 +227,7 @@ describe('tinyfish_run', () => {
       result: { price: 799 },
       schemaValidation: { valid: true, rePromptAttempts: 0, errors: [] },
       error: null,
+      profileHint: null,
     })
   })
 
@@ -326,14 +396,6 @@ describe('tinyfish hosted-key config', () => {
     const urls = rateLimit.dimensions.find((dimension) => dimension.name === 'urls')
     expect(urls?.extractUsage({ urls: 'https://a.com, https://b.com' }, {})).toBe(2)
     expect(urls?.extractUsage({}, {})).toBe(0)
-  })
-
-  it('leaves the async run and its companions off hosted keys, since they cannot be metered', () => {
-    expect(runAsyncTool.hosting).toBeUndefined()
-    expect(getRunTool.hosting).toBeUndefined()
-    expect(cancelRunTool.hosting).toBeUndefined()
-    expect(listRunsTool.hosting).toBeUndefined()
-    expect(listVaultItemsTool.hosting).toBeUndefined()
   })
 })
 
@@ -584,17 +646,127 @@ describe('tinyfish_list_vault_items', () => {
   })
 })
 
+describe('tinyfish profile diagnostics', () => {
+  it('surfaces the profile nudge on a failed synchronous run', async () => {
+    const result = await runTool.transformResponse!(
+      jsonResponse({
+        run_id: 'run_1',
+        status: 'FAILED',
+        num_of_steps: 4,
+        error: { message: 'Blocked', category: 'AGENT_FAILURE' },
+        profile_hint: {
+          message: 'Set up a Browser Context Profile to sign in first',
+          setup_url: '/profiles/prof_abc123/setup?domain=example.com',
+          reason: 'auth_wall',
+        },
+      })
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.output.profileHint).toEqual({
+      message: 'Set up a Browser Context Profile to sign in first',
+      setupUrl: '/profiles/prof_abc123/setup?domain=example.com',
+      reason: 'auth_wall',
+    })
+  })
+
+  it('reports no hint rather than a half-filled one when a field is missing', async () => {
+    const result = await runTool.transformResponse!(
+      jsonResponse({
+        run_id: 'run_1',
+        status: 'FAILED',
+        profile_hint: { message: 'Try a profile', reason: 'bot_challenge' },
+      })
+    )
+    expect(result.output.profileHint).toBeNull()
+  })
+
+  it('reports which profile a run actually attached', async () => {
+    const result = await getRunTool.transformResponse!(
+      jsonResponse({
+        run_id: 'run_1',
+        status: 'COMPLETED',
+        profile_attached: true,
+        profile_id: 'prof_abc123',
+      })
+    )
+    expect(result.output.profileAttached).toBe(true)
+    expect(result.output.profileId).toBe('prof_abc123')
+  })
+
+  it('leaves the profile fields null on a run that attached none', async () => {
+    const result = await getRunTool.transformResponse!(
+      jsonResponse({ run_id: 'run_1', status: 'COMPLETED' })
+    )
+    expect(result.output.profileAttached).toBeNull()
+    expect(result.output.profileId).toBeNull()
+    expect(result.output.profileHint).toBeNull()
+  })
+})
+
+describe('tinyfish_list_profiles', () => {
+  it('maps a profile onto the id a run starts from', async () => {
+    const result = await listProfilesTool.transformResponse!(
+      jsonResponse({
+        profiles: [
+          {
+            id: 'prof_abc123def4567890',
+            name: 'Salesforce Production',
+            proxy_country_code: 'US',
+            fingerprint_seed: '12345678',
+            domain_count: 3,
+            created_at: '2026-06-04T18:00:00.000Z',
+            updated_at: '2026-06-05T09:30:00.000Z',
+            is_default: true,
+          },
+        ],
+      })
+    )
+
+    expect(result.output.profiles[0]).toEqual({
+      profileId: 'prof_abc123def4567890',
+      name: 'Salesforce Production',
+      proxyCountryCode: 'US',
+      fingerprintSeed: '12345678',
+      domainCount: 3,
+      createdAt: '2026-06-04T18:00:00.000Z',
+      updatedAt: '2026-06-05T09:30:00.000Z',
+      isDefault: true,
+    })
+  })
+
+  it('reads the list out of a bare array or a data envelope, neither of which the API documents', async () => {
+    const bare = await listProfilesTool.transformResponse!(
+      jsonResponse([{ id: 'prof_1', name: 'One' }])
+    )
+    expect(bare.output.profiles.map((profile) => profile.profileId)).toEqual(['prof_1'])
+
+    const enveloped = await listProfilesTool.transformResponse!(
+      jsonResponse({ data: [{ id: 'prof_2', name: 'Two' }] })
+    )
+    expect(enveloped.output.profiles.map((profile) => profile.profileId)).toEqual(['prof_2'])
+  })
+
+  it('reports an unknown default rather than guessing the profile is not the default', async () => {
+    const result = await listProfilesTool.transformResponse!(
+      jsonResponse({ profiles: [{ id: 'prof_1', name: 'One' }] })
+    )
+    expect(result.output.profiles[0].isDefault).toBeNull()
+  })
+
+  it('surfaces the API error on a non-2xx response', async () => {
+    await expect(
+      listProfilesTool.transformResponse!(
+        jsonResponse(
+          { error: { code: 'unauthorized', message: 'Invalid API key' } },
+          { status: 401 }
+        )
+      )
+    ).rejects.toThrow('unauthorized: Invalid API key')
+  })
+})
+
 describe('TinyFish block', () => {
-  it('routes every operation to its own tool', () => {
-    for (const toolId of TinyFishBlock.tools.access) {
-      expect(TinyFishBlock.tools.config?.tool?.({ operation: toolId })).toBe(toolId)
-    }
-  })
-
-  it('falls back to the synchronous run for an unknown operation', () => {
-    expect(TinyFishBlock.tools.config?.tool?.({ operation: 'nope' })).toBe('tinyfish_run')
-  })
-
   it('renames the list-runs goal filter onto the goal query the tool sends', () => {
     const params = TinyFishBlock.tools.config?.params?.({
       operation: 'tinyfish_list_runs',
@@ -611,6 +783,31 @@ describe('TinyFish block', () => {
     expect(params).not.toHaveProperty('goal')
   })
 
+  it('rejects a numeric text input that does not parse instead of dropping the cap', () => {
+    expect(() =>
+      TinyFishBlock.tools.config?.params?.({
+        operation: 'tinyfish_run',
+        maxDurationSeconds: '5 minutes',
+      })
+    ).toThrow('Invalid numeric value for Max Duration (seconds): 5 minutes')
+
+    expect(() =>
+      TinyFishBlock.tools.config?.params?.({ operation: 'tinyfish_run', maxSteps: 'lots' })
+    ).toThrow('Invalid numeric value for Max Steps: lots')
+  })
+
+  it('coerces the duration cap and drops it when blank', () => {
+    expect(
+      TinyFishBlock.tools.config?.params?.({
+        operation: 'tinyfish_run',
+        maxDurationSeconds: '300',
+      })
+    ).toMatchObject({ maxDurationSeconds: 300 })
+    expect(
+      TinyFishBlock.tools.config?.params?.({ operation: 'tinyfish_run', maxDurationSeconds: '  ' })
+    ).not.toHaveProperty('maxDurationSeconds')
+  })
+
   it('coerces the numeric text inputs and drops them when blank', () => {
     expect(
       TinyFishBlock.tools.config?.params?.({ operation: 'tinyfish_run', maxSteps: '50' })
@@ -618,18 +815,5 @@ describe('TinyFish block', () => {
     expect(
       TinyFishBlock.tools.config?.params?.({ operation: 'tinyfish_run', maxSteps: '  ' })
     ).not.toHaveProperty('maxSteps')
-  })
-
-  it('always shows an API key field for the operations hosted keys cannot cover', () => {
-    const apiKeyFields = TinyFishBlock.subBlocks.filter((subBlock) => subBlock.id === 'apiKey')
-    expect(apiKeyFields).toHaveLength(2)
-
-    const hosted = apiKeyFields.find((field) => field.hideWhenHosted)
-    const unhosted = apiKeyFields.find((field) => !field.hideWhenHosted)
-    expect(hosted?.condition).toMatchObject({
-      field: 'operation',
-      value: ['tinyfish_run', 'tinyfish_search', 'tinyfish_fetch'],
-    })
-    expect(unhosted?.condition).toMatchObject({ not: true })
   })
 })

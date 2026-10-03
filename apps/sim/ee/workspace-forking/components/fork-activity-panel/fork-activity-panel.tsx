@@ -5,7 +5,7 @@ import { Badge, Button, Tooltip } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
 import { truncate } from '@sim/utils/string'
-import type { BackgroundWorkItem } from '@/lib/api/contracts/workspace-fork'
+import type { BackgroundWorkItem, BackgroundWorkMetadata } from '@/lib/api/contracts/workspace-fork'
 import {
   ActivityLog,
   type ActivityLogEntry,
@@ -29,6 +29,38 @@ function countList(pairs: Array<[number | undefined, string]>): string {
     .filter(([n]) => (n ?? 0) > 0)
     .map(([n, verb]) => `${n} ${verb}`)
     .join(' · ')
+}
+
+/**
+ * Per-kind counts of the heavy content a fork or sync fills in the background, as "N tables"
+ * segments. A sync's fill records counts only; a fork's row carries names as well.
+ */
+function contentFillCounts(m: NonNullable<BackgroundWorkMetadata>): string[] {
+  const kinds: Array<[number | undefined, string]> = [
+    [m.knowledgeBases, 'knowledge base'],
+    [m.documents, 'document'],
+    [m.tables, 'table'],
+    [m.files, 'file'],
+    [m.skills, 'skill'],
+  ]
+  return kinds.filter(([n]) => (n ?? 0) > 0).map(([n, noun]) => plural(n as number, noun))
+}
+
+/**
+ * Label for a sync's background content fill, by where the row is in it. A failed row keeps
+ * the counts it planned, so they must not read as copied: the fill was never scheduled, or
+ * died before finishing, and the row's error says which.
+ */
+function contentFillLabel(status: BackgroundWorkItem['status']): string {
+  switch (status) {
+    case 'pending':
+    case 'processing':
+      return 'Copying'
+    case 'failed':
+      return 'Copy failed'
+    default:
+      return 'Copied'
+  }
 }
 
 /** A named group (one resource kind or change action) of a job's report. */
@@ -66,8 +98,9 @@ function jobTitle(job: BackgroundWorkItem, view: ActivityView): string {
   const recordedHere = job.workspaceId === view.workspaceId
   switch (job.kind) {
     case 'fork_content_copy':
-      // A partner-recorded copy row is either this workspace's own creation (recorded
-      // on the parent, carrying our id as the child) or a sync's resource fill.
+      // A partner-recorded copy row is this workspace's own creation (recorded on the parent,
+      // carrying our id as the child). A row with no child is a sync's resource fill from
+      // before those were folded into the sync's own row, and reads by its message.
       if (!recordedHere && m?.childWorkspaceId === view.workspaceId) {
         return `Forked from "${partnerName(job, view)}"`
       }
@@ -160,11 +193,21 @@ function jobReport(job: BackgroundWorkItem): JobReport {
   const addGroup = (label: string, names: string[] | undefined) => {
     if (names && names.length > 0) groups.push({ label, names })
   }
+  const addContentFillWarnings = () => {
+    if (m.failed && m.failed > 0) {
+      notes.push({ value: `${plural(m.failed, 'resource')} failed to copy`, warning: true })
+    }
+    if (m.clearingFailed) {
+      notes.push({ value: 'Reference cleanup incomplete', warning: true })
+    }
+  }
 
   if (job.kind === 'fork_sync') {
     addGroup('Updated', m.updatedNames)
     addGroup('Created', m.createdNames)
     addGroup('Archived', m.archivedNames)
+    // Resources the sync copied have their content filled in the background on this same row.
+    addGroup(contentFillLabel(job.status), contentFillCounts(m))
     // Pre-names entries fall back to the count summary (redeployed mirrors updated).
     if (groups.length === 0) {
       const counts = countList([
@@ -192,6 +235,8 @@ function jobReport(job: BackgroundWorkItem): JobReport {
     if (m.deployFailed && m.deployFailed > 0) {
       notes.push({ value: `${plural(m.deployFailed, 'workflow')} failed to deploy`, warning: true })
     }
+    for (const warning of m.deployWarnings ?? []) notes.push({ value: warning, warning: true })
+    addContentFillWarnings()
     return { groups, notes }
   }
 
@@ -215,26 +260,16 @@ function jobReport(job: BackgroundWorkItem): JobReport {
   addGroup('Skills', m.skillNames)
   addGroup('MCP servers', m.mcpServerNames)
   addGroup('Workflow MCP servers', m.workflowMcpServerNames)
-  // Sync content-copy rows record per-kind COUNTS only (fork rows carry names), so fall back
-  // to the counts when no named group rendered.
+  // Sync fills recorded before they folded into the sync's own row carry per-kind COUNTS only
+  // (fork rows carry names), so fall back to the counts when no named group rendered.
   if (groups.length === 0) {
     const counts = [
-      [m.workflowsCopied, 'workflow'],
-      [m.knowledgeBases, 'knowledge base'],
-      [m.tables, 'table'],
-      [m.files, 'file'],
-    ]
-      .filter(([n]) => ((n as number | undefined) ?? 0) > 0)
-      .map(([n, noun]) => plural(n as number, noun as string))
-      .join(' · ')
+      ...(m.workflowsCopied ? [plural(m.workflowsCopied, 'workflow')] : []),
+      ...contentFillCounts(m),
+    ].join(' · ')
     if (counts) notes.push({ value: counts })
   }
-  if (m.failed && m.failed > 0) {
-    notes.push({ value: `${plural(m.failed, 'resource')} failed to copy`, warning: true })
-  }
-  if (m.clearingFailed) {
-    notes.push({ value: 'Reference cleanup incomplete', warning: true })
-  }
+  addContentFillWarnings()
   return { groups, notes }
 }
 
@@ -244,7 +279,7 @@ function jobDetails(job: BackgroundWorkItem, report: JobReport) {
     <>
       {report.groups.map((group) => (
         <div key={group.label} className='flex gap-2'>
-          <span className='w-[100px] flex-shrink-0 text-[var(--text-muted)]'>{group.label}</span>
+          <span className='w-[100px] shrink-0 text-[var(--text-muted)]'>{group.label}</span>
           <span className='min-w-0 flex-1 text-[var(--text-primary)]'>
             {group.names.join(', ')}
           </span>

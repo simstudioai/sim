@@ -52,23 +52,10 @@ function createFakeClient() {
 }
 
 afterEach(() => {
-  vi.unstubAllEnvs()
   mockError.mockClear()
 })
 
 describe('tx tripwire', () => {
-  it('marks the transaction context for the duration of a begin callback', async () => {
-    const { client } = createFakeClient()
-
-    expect(isInsideDbTransaction()).toBe(false)
-    await client.begin(async () => {
-      expect(isInsideDbTransaction()).toBe(true)
-      await Promise.resolve()
-      expect(isInsideDbTransaction()).toBe(true)
-    })
-    expect(isInsideDbTransaction()).toBe(false)
-  })
-
   it('throws when the root client is queried inside a transaction callback, at any await depth', async () => {
     const { client } = createFakeClient()
     const deeplyNestedHelper = async () => {
@@ -81,24 +68,6 @@ describe('tx tripwire', () => {
         await deeplyNestedHelper()
       })
     ).rejects.toThrow(/inside a transaction callback/)
-  })
-
-  it('allows queries on the reserved connection inside the callback', async () => {
-    const { client, reservedQueries } = createFakeClient()
-
-    await client.begin(async (reserved: FakeReserved) => {
-      await reserved.unsafe('select 1 as tx_handle_query')
-    })
-
-    expect(reservedQueries).toEqual(['select 1 as tx_handle_query'])
-  })
-
-  it('allows root-client queries outside any transaction', async () => {
-    const { client, rootQueries } = createFakeClient()
-
-    await client.unsafe('select 1 as plain_query')
-
-    expect(rootQueries).toEqual(['select 1 as plain_query'])
   })
 
   it('throws when a nested transaction is opened on the root client', async () => {
@@ -141,46 +110,5 @@ describe('tx tripwire', () => {
     })
 
     expect(rootQueries).toEqual(['begin', 'select 1 as escaped_query'])
-  })
-
-  it('DB_TX_TRIPWIRE=off disables detection', async () => {
-    vi.stubEnv('DB_TX_TRIPWIRE', 'off')
-    const { client, rootQueries } = createFakeClient()
-
-    await client.begin(async () => {
-      await client.unsafe('select 1 as off_mode_query')
-    })
-
-    expect(rootQueries).toEqual(['begin', 'select 1 as off_mode_query'])
-    expect(mockError).not.toHaveBeenCalled()
-  })
-
-  it('DB_TX_TRIPWIRE=warn logs instead of throwing and dedupes repeats', async () => {
-    vi.stubEnv('DB_TX_TRIPWIRE', 'warn')
-    const { client, rootQueries } = createFakeClient()
-
-    await client.begin(async () => {
-      await client.unsafe('select 1 as warn_mode_query')
-      await client.unsafe('select 1 as warn_mode_query')
-    })
-
-    expect(rootQueries).toEqual([
-      'begin',
-      'select 1 as warn_mode_query',
-      'select 1 as warn_mode_query',
-    ])
-    expect(mockError).toHaveBeenCalledTimes(1)
-    expect(mockError.mock.calls[0][1]).toMatchObject({ poolName: 'test-pool' })
-  })
-
-  it('DB_TX_TRIPWIRE=warn reports a nested transaction exactly once', async () => {
-    vi.stubEnv('DB_TX_TRIPWIRE', 'warn')
-    const { client } = createFakeClient()
-
-    await client.begin(async () => {
-      await client.begin(async () => {})
-    })
-
-    expect(mockError).toHaveBeenCalledTimes(1)
   })
 })

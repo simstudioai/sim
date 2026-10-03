@@ -3,9 +3,12 @@ title: Troubleshooting
 description: The failures whose cause is not obvious from the error message
 ---
 
-Errors print one line to stderr, prefixed `Error:`, and exit `1` — except
-`sim whoami`, which exits `2` when it could not reach the API to check at all.
-Most say what to do next; the cases below are the ones that do not.
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+Most command errors print to stderr and exit `1`. `sim whoami` and
+`sim workflows runs wait` use additional codes to distinguish outcomes; see
+[Exit codes](/cli/scripting#exit-codes). The cases below explain failures whose
+cause may not be obvious from the message.
 
 Start with `sim whoami`. It prints the resolved endpoint, workspace, and output
 format, **and where each came from** — which explains most surprises on its own —
@@ -22,9 +25,10 @@ workspace you configured.
 sim whoami
 ```
 
-Note that `sim login` sets the profile's default workspace to whichever one you
-picked on the approval page. It does **not** limit the key to that workspace —
-use `--workspace` to reach any other workspace the key can access.
+API-key pairing sets the default workspace selected on its approval page.
+After OAuth login, set one with `sim configure --set-workspace <id>`.
+The default target does not restrict your credential: use `--workspace` to reach
+another workspace that credential can access.
 
 ## An error ends in `— run: sim login --profile <name>`
 
@@ -66,7 +70,7 @@ switch to a machine format to see it in full:
 sim logs get 9c4f0b7e-2d81-4a35-b6e9-70f1c8a2d543 --output json
 ```
 
-## `sim files get` refuses to print to the terminal
+## In an interactive terminal, `sim files get` refuses to print to the terminal
 
 Writing arbitrary binary to an interactive terminal can corrupt it, so non-text
 content has to go to a file or a pipe:
@@ -83,6 +87,57 @@ editing the file by hand:
 
 ```bash
 sim --output table configure --set-output json
+```
+
+## A command is missing that the documentation describes
+
+The docs track the current release, so a command that exists here and not in
+`sim --help` usually means the installed CLI is older than the feature. Compare
+`sim --version` against the published version and upgrade:
+
+```bash
+sim --version
+```
+
+Run `sim update` to update the active global installation. If this older release
+does not yet have the `update` command, upgrade with the package manager you installed it with — using a different
+one installs a second copy instead of replacing the executable on your `PATH`:
+
+<Tabs items={['npm', 'pnpm', 'bun', 'Yarn Classic']}>
+  <Tab value="npm">
+    ```bash
+    npm install -g sim@latest
+    ```
+  </Tab>
+  <Tab value="pnpm">
+    ```bash
+    pnpm add -g sim@latest
+    ```
+  </Tab>
+  <Tab value="bun">
+    ```bash
+    bun add -g sim@latest
+    ```
+  </Tab>
+  <Tab value="Yarn Classic">
+    ```bash
+    yarn global add sim@latest
+    ```
+  </Tab>
+</Tabs>
+
+The CLI also shows an optional update notice through a cached daily check on
+eligible interactive invocations. Your command continues, and you choose when to
+run `sim update`. Checks stay quiet when stderr is redirected, in CI, and under
+`npm exec` or `npx`.
+
+## An update notice appears in output I am parsing
+
+It should not: the notice is written to stderr, never stdout, so `--output json`
+piped to `jq` is unaffected. If something merges the two streams, silence it:
+
+```bash
+export SIM_NO_UPDATE_CHECK=1
 ```
 
 ## Anything else

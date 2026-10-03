@@ -153,18 +153,12 @@ export const GET = withRouteHandler(
         }
       }
 
-      // Add cache headers to prevent frequent reloading
-      const variableHash = JSON.stringify(variables).length
-      const headers = new Headers({
-        'Cache-Control': 'max-age=30, stale-while-revalidate=300', // Cache for 30 seconds, stale for 5 min
-        ETag: `"variables-${workflowId}-${variableHash}"`,
-      })
-
       return NextResponse.json(
         { data: variables },
         {
           status: 200,
-          headers,
+          // Cookie-authenticated variables must not be stored or reused by HTTP caches.
+          headers: { 'Cache-Control': 'private, no-store' },
         }
       )
     } catch (error) {

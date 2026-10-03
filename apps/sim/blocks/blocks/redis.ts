@@ -1,54 +1,6 @@
 import { RedisIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type {
-  RedisCommandResponse,
-  RedisDeleteResponse,
-  RedisExistsResponse,
-  RedisExpireResponse,
-  RedisGetResponse,
-  RedisHDelResponse,
-  RedisHGetAllResponse,
-  RedisHGetResponse,
-  RedisHSetResponse,
-  RedisIncrbyResponse,
-  RedisIncrResponse,
-  RedisKeysResponse,
-  RedisLLenResponse,
-  RedisLPopResponse,
-  RedisLPushResponse,
-  RedisLRangeResponse,
-  RedisPersistResponse,
-  RedisRPopResponse,
-  RedisRPushResponse,
-  RedisSetnxResponse,
-  RedisSetResponse,
-  RedisTtlResponse,
-} from '@/tools/redis/types'
-
-type RedisResponse =
-  | RedisGetResponse
-  | RedisSetResponse
-  | RedisDeleteResponse
-  | RedisKeysResponse
-  | RedisCommandResponse
-  | RedisHSetResponse
-  | RedisHGetResponse
-  | RedisHGetAllResponse
-  | RedisHDelResponse
-  | RedisIncrResponse
-  | RedisIncrbyResponse
-  | RedisExpireResponse
-  | RedisTtlResponse
-  | RedisPersistResponse
-  | RedisLPushResponse
-  | RedisRPushResponse
-  | RedisLPopResponse
-  | RedisRPopResponse
-  | RedisLLenResponse
-  | RedisLRangeResponse
-  | RedisExistsResponse
-  | RedisSetnxResponse
 
 const KEY_OPERATIONS = [
   'get',
@@ -73,7 +25,7 @@ const KEY_OPERATIONS = [
   'ttl',
 ] as const
 
-export const RedisBlock: BlockConfig<RedisResponse> = {
+export const RedisBlock: BlockConfig = {
   type: 'redis',
   name: 'Redis',
   description: 'Key-value operations with Redis',

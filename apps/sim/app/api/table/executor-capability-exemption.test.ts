@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * The raw `/api/table/**` routes that authenticate with
  * `checkSessionOrInternalAuth` accept an internal executor JWT, whose `userId`
  * is the subject the executor embedded rather than a person asking for
@@ -15,52 +13,52 @@ import {
   permissionGroupScopeMockFns,
   resetPermissionGroupScopeMock,
 } from '@sim/testing'
+import { backgroundTaskMock, backgroundTaskMockFns } from '@sim/testing/mocks/background-task.mock'
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { tableMock, tableMockFns } from '@sim/testing/mocks/table.mock'
+import {
+  tableJobsServiceMock,
+  tableJobsServiceMockFns,
+} from '@sim/testing/mocks/table-jobs-service.mock'
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  listWorkspaceExportJobs: vi.fn(),
-  checkWorkspaceAccess: vi.fn(),
-  getUserEntityPermissions: vi.fn(),
-  createTable: vi.fn(),
-  listTables: vi.fn(),
-  getWorkspaceTableLimits: vi.fn(),
-  findActiveFolder: vi.fn(),
-  getUserSettings: vi.fn(),
-  runDetached: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   performCreateTableFromCsv: vi.fn(),
 }))
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
-vi.mock('@/lib/table/jobs/service', () => ({
-  listWorkspaceExportJobs: mocks.listWorkspaceExportJobs,
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mocks.checkWorkspaceAccess,
-  getUserEntityPermissions: mocks.getUserEntityPermissions,
-}))
-vi.mock('@/lib/table', () => ({
-  createTable: mocks.createTable,
-  deleteTable: vi.fn(),
-  getWorkspaceTableLimits: mocks.getWorkspaceTableLimits,
-  listTables: mocks.listTables,
-  releaseJobClaim: vi.fn(),
-  CSV_SYNC_MAX_FILE_SIZE_BYTES: 5 * 1024 * 1024,
-  sanitizeName: (name: string) => name,
-  TABLE_LIMITS: { MAX_TABLE_NAME_LENGTH: 64 },
-}))
+vi.mock('@/lib/table/jobs/service', () => tableJobsServiceMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/lib/table', () => tableMock)
 vi.mock('@/lib/table/orchestration', () => ({
-  performCreateTableFromCsv: mocks.performCreateTableFromCsv,
+  performCreateTableFromCsv: hoisted.performCreateTableFromCsv,
 }))
-vi.mock('@/lib/folders/queries', () => ({ findActiveFolder: mocks.findActiveFolder }))
-vi.mock('@/lib/users/queries', () => ({ getUserSettings: mocks.getUserSettings }))
-vi.mock('@/lib/core/utils/background', () => ({ runDetached: mocks.runDetached }))
-vi.mock('@/lib/core/config/env-flags', () => ({ isTriggerDevEnabled: false }))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
+vi.mock('@/lib/core/utils/background', () => backgroundTaskMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { POST as importCsv } from '@/app/api/table/import-csv/route'
 import { GET as listJobs } from '@/app/api/table/jobs/route'
+
+const mocks = {
+  getUserSettings: usersQueriesMockFns.mockGetUserSettings,
+  listWorkspaceExportJobs: tableJobsServiceMockFns.mockListWorkspaceExportJobs,
+  createTable: tableMockFns.mockCreateTable,
+  getWorkspaceTableLimits: tableMockFns.mockGetWorkspaceTableLimits,
+  listTables: tableMockFns.mockListTables,
+  findActiveFolder: folderQueriesMockFns.mockFindActiveFolder,
+  runDetached: backgroundTaskMockFns.mockRunDetached,
+  ...hoisted,
+  checkWorkspaceAccess: permissionsMockFns.mockCheckWorkspaceAccess,
+  getUserEntityPermissions: permissionsMockFns.mockGetUserEntityPermissions,
+}
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'
 const TABLE_ID = '22222222-2222-4222-8222-222222222222'
@@ -86,7 +84,9 @@ function authenticateAsSession() {
 
 function getExportJobs() {
   return listJobs(
-    new NextRequest(`http://localhost/api/table/jobs?workspaceId=${WORKSPACE_ID}&type=export`)
+    createMockRequest({
+      url: `http://localhost/api/table/jobs?workspaceId=${WORKSPACE_ID}&type=export`,
+    })
   )
 }
 
@@ -104,7 +104,6 @@ function startImport() {
 
 describe('the subject the raw table routes gate on', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetPermissionGroupScopeMock()
     mocks.checkWorkspaceAccess.mockResolvedValue({ hasAccess: true })
     mocks.getUserEntityPermissions.mockResolvedValue('admin')

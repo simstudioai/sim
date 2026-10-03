@@ -16,4 +16,17 @@ Connect Oracle Eloqua to list and manage contacts and accounts, inspect campaign
 
 
 
+## OAuth Scopes
+
+Sim requests these scopes when someone connects an Oracle Eloqua account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/eloqua` |
+| Environment variables | `ELOQUA_CLIENT_ID`, `ELOQUA_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `full` | Access Oracle Eloqua data and marketing assets |
+
 

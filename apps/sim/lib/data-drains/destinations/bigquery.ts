@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { JWT } from 'google-auth-library'
 import { z } from 'zod'
@@ -9,7 +10,6 @@ import {
   parseNdjsonObjects,
   parseServiceAccount,
   refineServiceAccountJson,
-  sleepUntilAborted,
 } from '@/lib/data-drains/destinations/utils'
 import type { DeliveryMetadata, DrainDestination } from '@/lib/data-drains/types'
 
@@ -222,7 +222,7 @@ async function insertAll(input: InsertAllInput): Promise<void> {
       })
       /** Drain the body so the keep-alive connection can be reused. */
       await response.text().catch(() => '')
-      await sleepUntilAborted(retryAfterMs, input.signal)
+      await interruptibleSleep(retryAfterMs, input.signal)
       if (input.signal.aborted) throw input.signal.reason ?? new Error('Aborted')
     } catch (error) {
       /**
@@ -238,7 +238,7 @@ async function insertAll(input: InsertAllInput): Promise<void> {
         retryAfterMs,
         error: toError(error).message,
       })
-      await sleepUntilAborted(retryAfterMs, input.signal)
+      await interruptibleSleep(retryAfterMs, input.signal)
       if (input.signal.aborted) throw input.signal.reason ?? new Error('Aborted')
     }
   }

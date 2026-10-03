@@ -244,7 +244,6 @@ export const zohoDeskHandler: WebhookProviderHandler = {
 
   async createSubscription({
     webhook: webhookRecord,
-    userId,
     requestId,
   }: SubscriptionContext): Promise<SubscriptionResult | undefined> {
     const config = ((webhookRecord as Record<string, unknown>).providerConfig ?? {}) as Record<

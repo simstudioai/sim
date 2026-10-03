@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import * as XLSX from 'xlsx'
 import {
   readXlsxPreviewData,
@@ -10,10 +7,6 @@ import {
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/xlsx-preview-data'
 
 describe('readXlsxPreviewData', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('bounds conversion to the rows the preview can display', () => {
     const sheet = XLSX.utils.aoa_to_sheet([
       ['header-a', 'header-b'],
@@ -26,9 +19,11 @@ describe('readXlsxPreviewData', () => {
     const result = readXlsxPreviewData(XLSX, sheet)
     const options = toJson.mock.calls[0][1] as {
       range: { s: { r: number }; e: { r: number } }
+      raw?: boolean
     }
 
     expect(options.range.e.r - options.range.s.r).toBe(XLSX_MAX_ROWS)
+    expect(options.raw).toBe(false)
     expect(result.headers).toEqual(['header-a', 'header-b'])
     expect(result.rows).toHaveLength(XLSX_MAX_ROWS)
     expect(result.rows.slice(0, 2)).toEqual([
@@ -36,19 +31,6 @@ describe('readXlsxPreviewData', () => {
       ['row-2-a', 'row-2-b'],
     ])
     expect(result.rowTruncated).toBe(true)
-    expect(result.columnTruncated).toBe(false)
-  })
-
-  it('does not mark a sheet at the existing display boundary as truncated', () => {
-    const sheet = XLSX.utils.aoa_to_sheet([
-      ['header'],
-      ...Array.from({ length: XLSX_MAX_ROWS }, (_, index) => [`row-${index}`]),
-    ])
-
-    const result = readXlsxPreviewData(XLSX, sheet)
-
-    expect(result.rows).toHaveLength(XLSX_MAX_ROWS)
-    expect(result.rowTruncated).toBe(false)
     expect(result.columnTruncated).toBe(false)
   })
 

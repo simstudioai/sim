@@ -52,6 +52,13 @@ export const sftpDownloadInputSchema = requireCredentials(
   })
 )
 
+export const sftpDownloadV2InputSchema = requireCredentials(
+  z.object({
+    ...connectionFields,
+    remotePath: z.string().min(1, 'Remote path is required'),
+  })
+)
+
 export const sftpUploadInputSchema = requireCredentials(
   z.object({
     ...connectionFields,
@@ -68,4 +75,5 @@ export type SftpListInput = z.output<typeof sftpListInputSchema>
 export type SftpDeleteInput = z.output<typeof sftpDeleteInputSchema>
 export type SftpMkdirInput = z.output<typeof sftpMkdirInputSchema>
 export type SftpDownloadInput = z.output<typeof sftpDownloadInputSchema>
+export type SftpDownloadV2Input = z.output<typeof sftpDownloadV2InputSchema>
 export type SftpUploadInput = z.output<typeof sftpUploadInputSchema>

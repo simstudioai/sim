@@ -11,18 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Google Tasks](https://support.google.com/tasks) is Google's lightweight task management service, integrated into Gmail, Google Calendar, and the standalone Google Tasks app. It provides a simple way to create, organize, and track to-do items with support for due dates, subtasks, and task lists.
-
-With the Google Tasks integration in Sim, you can:
-
-- **Create tasks**: Add new to-do items to any task list with titles, notes, and due dates
-- **List tasks**: Retrieve all tasks from a specific task list
-- **Get task details**: Fetch detailed information about a specific task by ID
-- **Update tasks**: Modify task titles, notes, due dates, or completion status
-- **Delete tasks**: Remove tasks from a task list
-- **List task lists**: Browse all available task lists in a Google account
-
-In Sim, the Google Tasks integration allows your agents to manage to-do items programmatically as part of automated workflows. This enables use cases such as automated task creation from incoming data, deadline monitoring, and workflow-triggered task management.
+Use [Google Tasks](https://support.google.com/tasks) to create, list, update, and delete tasks, or list the task lists in a Google account. Task inputs include titles, notes, due dates, and completion status.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -210,5 +199,20 @@ Retrieve all task lists for the authenticated user
 |   ↳ `updated` | string | Last modification time \(RFC 3339 timestamp\) |
 |   ↳ `selfLink` | string | URL pointing to this task list |
 | `nextPageToken` | string | Token for retrieving the next page of results |
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Google Tasks account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-tasks` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/tasks` | Create, read, update, and delete Google Tasks |
 
 

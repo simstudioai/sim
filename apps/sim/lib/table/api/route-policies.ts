@@ -7,8 +7,10 @@ import {
   internalOrchestrationErrorPolicy,
   type V2ErrorPolicy,
 } from '@/lib/api/server/routes'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { TABLE_DELEGATION_AUDIENCE } from '@/lib/table/application/authorization'
 import { TableOperationError } from '@/lib/table/application/errors'
+import { TableRowTtlDisabledError } from '@/lib/table/errors'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import {
   v2CaughtOrchestrationError,
@@ -25,6 +27,12 @@ export const internalTableSessionOrExecutorAuth = createInternalSessionOrExecuto
 })
 
 function renderTableError(error: unknown) {
+  const classified = asOrchestrationError(error)
+  if (classified instanceof TableRowTtlDisabledError) {
+    return v2Error('BAD_REQUEST', classified.message, {
+      details: { code: classified.detailCode },
+    })
+  }
   if (error instanceof TableOperationError) {
     return v2ErrorForOrchestration(
       error.code,

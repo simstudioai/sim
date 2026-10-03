@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { webhook } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import type {
   FormatInputContext,
@@ -37,7 +38,7 @@ export const rssHandler: WebhookProviderHandler = {
     logger.info(`[${requestId}] Setting up RSS polling for webhook ${webhookData.id}`)
 
     try {
-      const providerConfig = (webhookData.providerConfig as Record<string, unknown>) || {}
+      const providerConfig = toRecord(webhookData.providerConfig)
       const now = new Date()
 
       const configuredProviderConfig = {

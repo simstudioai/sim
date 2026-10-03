@@ -2,10 +2,13 @@ import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { toError } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
-import { getBaseUrl } from '@/lib/core/utils/urls'
-import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
-import { getCredentialOwner, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
+import {
+  getCredentialAccessToken,
+  getNotificationUrl,
+  getProviderConfig,
+} from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
   DeleteSubscriptionContext,
@@ -99,13 +102,11 @@ export const attioHandler: WebhookProviderHandler = {
 
   async createSubscription({
     webhook: webhookRecord,
-    workflow,
     userId,
     requestId,
   }: SubscriptionContext): Promise<SubscriptionResult | undefined> {
     try {
-      const { path, providerConfig } = webhookRecord as Record<string, unknown>
-      const config = (providerConfig as Record<string, unknown>) || {}
+      const config = getProviderConfig(webhookRecord)
       const { triggerId, credentialId } = config as {
         triggerId?: string
         credentialId?: string
@@ -120,14 +121,7 @@ export const attioHandler: WebhookProviderHandler = {
         )
       }
 
-      const credentialOwner = await getCredentialOwner(credentialId, requestId)
-      const accessToken = credentialOwner
-        ? await refreshAccessTokenIfNeeded(
-            credentialOwner.accountId,
-            credentialOwner.userId,
-            requestId
-          )
-        : null
+      const accessToken = await getCredentialAccessToken(credentialId, requestId)
 
       if (!accessToken) {
         logger.warn(
@@ -138,7 +132,7 @@ export const attioHandler: WebhookProviderHandler = {
         )
       }
 
-      const notificationUrl = `${getBaseUrl()}/api/webhooks/trigger/${path}`
+      const notificationUrl = getNotificationUrl(webhookRecord)
 
       const { TRIGGER_EVENT_MAP } = await import('@/triggers/attio/utils')
 
@@ -239,7 +233,6 @@ export const attioHandler: WebhookProviderHandler = {
 
   async deleteSubscription({
     webhook: webhookRecord,
-    workflow,
     requestId,
     strict,
   }: DeleteSubscriptionContext): Promise<void> {
@@ -264,14 +257,7 @@ export const attioHandler: WebhookProviderHandler = {
         return
       }
 
-      const credentialOwner = await getCredentialOwner(credentialId, requestId)
-      const accessToken = credentialOwner
-        ? await refreshAccessTokenIfNeeded(
-            credentialOwner.accountId,
-            credentialOwner.userId,
-            requestId
-          )
-        : null
+      const accessToken = await getCredentialAccessToken(credentialId, requestId)
 
       if (!accessToken) {
         const message = `[${requestId}] Could not retrieve Attio access token. Cannot delete webhook.`
@@ -319,7 +305,7 @@ export const attioHandler: WebhookProviderHandler = {
     } = await import('@/triggers/attio/utils')
 
     const b = body as Record<string, unknown>
-    const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
+    const providerConfig = toRecord(webhook.providerConfig)
     const triggerId = providerConfig.triggerId as string | undefined
 
     if (triggerId === 'attio_record_updated') {

@@ -18,10 +18,8 @@ function postToApp(path: string, payload: unknown, timeoutMs: number): Promise<R
 }
 
 /**
- * Ask the app to build a server-authoritative seed (markdown → Yjs) for a file's collaborative
- * document. Returns the Yjs update to apply, or `null` for a genuinely empty/missing file (an empty
- * document is correct). THROWS on a transport failure (non-2xx / network / timeout / malformed body)
- * so the caller can tell a real empty from a failure it should be allowed to retry.
+ * Existing empty files have named, versioned seeds; only missing files return null.
+ * Transport and malformed-response failures throw so callers retry instead of creating empty rooms.
  */
 export async function fetchFileDocSeed(
   workspaceId: string,

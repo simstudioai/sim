@@ -31,7 +31,7 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Actor input as JSON string. Example: {"startUrls": [{"url": "https://example.com"}], "maxPages": 10}',
+        'Actor input as JSON string. Example: { "startUrls": [ { "url": "https://example.com" } ], "maxPages": 10 }',
     },
     waitForFinish: {
       type: 'number',
@@ -101,7 +101,7 @@ export const apifyRunActorAsyncTool: ToolConfig<RunActorParams, RunActorResult> 
       if (params.input) {
         try {
           inputData = JSON.parse(params.input)
-        } catch (e) {
+        } catch {
           throw new Error('Invalid JSON in input parameter')
         }
       }

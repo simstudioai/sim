@@ -9,7 +9,8 @@ import { VideoChapters } from '@/components/ui/video-chapters'
 import { FAQ } from '@/components/ui/faq'
 import { WorkflowPreview, SUPPORT_KB_WORKFLOW } from '@/components/workflow-preview'
 
-<VideoPlaceholder eyebrow="Knowledge Bases" title="Knowledge Bases" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/knowledge-bases.mp4" className="mt-2" />
+<VideoPlaceholder eyebrow="Knowledge Bases" title="Knowledge Bases" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy/knowledge-bases.mp4"
+  captionsSrc="/captions/academy/knowledge-bases.en.vtt" className="mt-2" />
 
 <div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
 <div>
@@ -28,7 +29,7 @@ A **knowledge base** gives your workflows searchable memory. You put in large vo
     },
     {
       title: 'How it grounds an answer',
-      body: 'A search returns the most relevant chunks with similarity scores; feeding those into the model produces accurate, cited answers.',
+      body: 'A search returns relevant chunks with similarity scores. Pass them to the agent and ask it to support its answer with those sources.',
     },
   ]}
 />
@@ -75,9 +76,7 @@ Use a Knowledge block with a query and it returns the most relevant chunks, each
 
 ## Grounding an answer
 
-On its own, that's retrieval. The power comes one step later: feed those chunks into an [Agent](/academy/agents/intro) block's context, and the model answers from your actual documents, accurate, up to date, and able to **cite** where each fact came from. That's grounding plus retrieval.
-
-Knowledge bases power systems that need to give agents accurate, current context, and they're where you store what your systems learn over time.
+Pass the retrieved chunks into an [Agent](/academy/agents/intro) block and instruct it to answer from that material and cite its sources. Review the retrieved passages and final answer in the logs. The answer can only reflect documents that have been added or successfully synced.
 
 <FAQ items={[
   { question: "What is a knowledge base in Sim?", answer: "A workspace resource that holds your documents processed into searchable chunks, so agents and workflows can retrieve the most relevant passages instead of stuffing whole documents into context." },

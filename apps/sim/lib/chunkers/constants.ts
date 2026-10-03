@@ -15,3 +15,12 @@ export const MAX_CHUNKING_SEPARATORS = 32
 
 /** Max characters in a single chunking separator. Real delimiters are a few characters. */
 export const MAX_CHUNKING_SEPARATOR_LENGTH = 100
+
+/**
+ * Width of Sim's own documentation index (`docs_embeddings`), which is a single
+ * fixed-width pgvector column independent of the `EMBEDDING_OUTPUT_DIMS` a
+ * deployment chooses for its knowledge bases. Both the indexer and the docs
+ * search path pin this, so a deployment configured for another width cannot
+ * write vectors the docs column will not accept or query it at the wrong width.
+ */
+export const DOCS_EMBEDDING_DIMENSIONS = 1536 as const

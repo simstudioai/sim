@@ -1,3 +1,4 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import type {
   MintlifyDeslopRewrite,
   MintlifyDeslopWindow,
@@ -10,7 +11,6 @@ import {
   pathSegment,
   readMintlifyJson,
   toNullableNumber,
-  toNullableString,
 } from '@/tools/mintlify/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -19,8 +19,8 @@ function toRewrites(value: unknown): MintlifyDeslopRewrite[] {
   return value.map((entry) => {
     const rewrite = (entry ?? {}) as Record<string, unknown>
     return {
-      text: toNullableString(rewrite.text) ?? '',
-      rationale: toNullableString(rewrite.rationale) ?? '',
+      text: toStringOrNull(rewrite.text) ?? '',
+      rationale: toStringOrNull(rewrite.rationale) ?? '',
     }
   })
 }
@@ -31,8 +31,8 @@ function toWindows(value: unknown): MintlifyDeslopWindow[] {
     const window = (entry ?? {}) as Record<string, unknown>
     const confidence = window.confidence
     return {
-      text: toNullableString(window.text) ?? '',
-      label: toNullableString(window.label) ?? '',
+      text: toStringOrNull(window.text) ?? '',
+      label: toStringOrNull(window.label) ?? '',
       aiAssistanceScore: toNullableNumber(window.aiAssistanceScore),
       confidence:
         typeof confidence === 'string' || typeof confidence === 'number' ? confidence : null,
@@ -93,9 +93,9 @@ export const mintlifyDetectAiProseTool: ToolConfig<
     return {
       success: true,
       output: {
-        path: toNullableString(data.path),
-        skipped: toNullableString(data.skipped),
-        predictionShort: toNullableString(data.predictionShort),
+        path: toStringOrNull(data.path),
+        skipped: toStringOrNull(data.skipped),
+        predictionShort: toStringOrNull(data.predictionShort),
         fractionAi: toNullableNumber(data.fractionAi),
         fractionAiAssisted: toNullableNumber(data.fractionAiAssisted),
         fractionHuman: toNullableNumber(data.fractionHuman),

@@ -3,7 +3,9 @@ import {
   extractFieldsFromSchema,
   parseResponseFormatSafely,
 } from '@/lib/core/utils/response-format'
+import { getJevAnswerOutput } from '@/lib/workflows/blocks/jev-outputs'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
+import { containsReference } from '@/lib/workflows/sanitization/references'
 import {
   classifyStartBlockType,
   StartBlockPath,
@@ -23,6 +25,7 @@ import {
   type OutputFieldDefinition,
 } from '@/blocks/types'
 import { isHumanInTheLoopBlock } from '@/executor/constants'
+import { isEvaluationModel } from '@/providers/models'
 import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
 import { getTrigger, isTriggerValid } from '@/triggers'
 
@@ -61,15 +64,19 @@ function evaluateOutputCondition(
 
   const fieldValue = subBlocks[condition.field]?.value
 
+  const deferred =
+    condition.allowReference && typeof fieldValue === 'string' && containsReference(fieldValue)
   let matches: boolean
-  if (Array.isArray(condition.value)) {
+  if (deferred) {
+    matches = true
+  } else if (Array.isArray(condition.value)) {
     // For array conditions, check if fieldValue is a valid primitive and included
     matches = isConditionPrimitive(fieldValue) && condition.value.includes(fieldValue)
   } else {
     matches = fieldValue === condition.value
   }
 
-  if (condition.not) {
+  if (condition.not && !deferred) {
     matches = !matches
   }
 
@@ -428,6 +435,18 @@ export function getEffectiveBlockOutputs(
   const includeHidden = options?.includeHidden ?? false
 
   if (blockType === 'agent') {
+    const model = subBlocks?.model?.value
+    const mayEvaluate =
+      typeof model === 'string' && (isEvaluationModel(model) || containsReference(model))
+    if (mayEvaluate) {
+      const outputs = getBlockOutputs('agent', subBlocks, false, { includeHidden })
+      const answers = getJevAnswerOutput(subBlocks?.evaluationQuestions?.value)
+      return {
+        ...outputs,
+        ...(containsReference(model) ? getResponseFormatOutputs(subBlocks, 'agent') : undefined),
+        ...(answers ? { answers } : undefined),
+      }
+    }
     const responseFormatOutputs = getResponseFormatOutputs(subBlocks, 'agent')
     if (responseFormatOutputs) return responseFormatOutputs
   }
@@ -542,9 +561,7 @@ function traverseOutputPath(outputs: OutputDefinition, pathParts: string[]): unk
 
     const currentObj = current as Record<string, unknown>
 
-    if (part in currentObj) {
-      current = currentObj[part]
-    } else if (
+    if (
       'type' in currentObj &&
       (currentObj.type === 'object' || currentObj.type === 'json') &&
       'properties' in currentObj &&
@@ -575,6 +592,8 @@ function traverseOutputPath(outputs: OutputDefinition, pathParts: string[]): unk
       } else {
         return null
       }
+    } else if (part in currentObj) {
+      current = currentObj[part]
     } else {
       return null
     }
