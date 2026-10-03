@@ -19,7 +19,7 @@ export interface GuardrailsResponse extends ToolResponse {
   }
 }
 
-export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
+export const GuardrailsBlock: BlockConfig = {
   type: 'guardrails',
   name: 'Guardrails',
   description: 'Validate content with guardrails',

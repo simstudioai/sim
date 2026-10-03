@@ -80,6 +80,26 @@ export const quickbooksCreatePurchaseOrderTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Internal purchase-order note',
     },
+    currencyCode: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Three-letter ISO 4217 currency code, required when multicurrency is enabled for the company',
+    },
+    globalTaxCalculation: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Tax treatment required for non-US companies: TaxExcluded, TaxInclusive, or NotApplicable',
+    },
+    dueDate: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Date the payment is due in YYYY-MM-DD format',
+    },
     requestId: {
       type: 'string',
       required: false,

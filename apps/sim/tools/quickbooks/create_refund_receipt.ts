@@ -46,9 +46,9 @@ export const quickbooksCreateRefundReceiptTool: ToolConfig<
     },
     customerId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Customer receiving the refund',
+      description: 'Customer receiving the refund, omitted for an anonymous refund',
     },
     lines: {
       type: 'json',
@@ -121,7 +121,10 @@ export const quickbooksCreateRefundReceiptTool: ToolConfig<
     method: 'POST',
     headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
     body: (params) =>
-      buildQuickBooksCreateSalesDocumentBody(params, { requireDepositAccount: true }),
+      buildQuickBooksCreateSalesDocumentBody(params, {
+        requireDepositAccount: true,
+        customerOptional: true,
+      }),
     retry: { enabled: false },
   },
   transformResponse: (response) =>

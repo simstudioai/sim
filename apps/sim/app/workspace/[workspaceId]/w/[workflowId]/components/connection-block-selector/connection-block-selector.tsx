@@ -467,7 +467,6 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
         <div className='relative min-h-0 flex-1'>
           <CommandFadedList
             ref={listRef}
-            fade='canvas'
             className={cn(
               "nodrag nopan nowheel allow-scroll scrollbar-none h-full [clip-path:inset(3px_round_13px)] [&_[cmdk-item][aria-selected='true']]:border-transparent! [&_[cmdk-item][aria-selected='true']]:bg-[var(--surface-hover)]! [&_[cmdk-item]_svg]:scale-100! [&_[cmdk-item]_svg]:transition-none!",
               CMDK_ITEM_GAP_CLASS,

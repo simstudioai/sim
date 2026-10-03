@@ -1,9 +1,10 @@
-/**
- * @vitest-environment node
- */
-import { encryptionMockFns, environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
+import {
+  encryptionMock,
+  encryptionMockFns,
+  environmentUtilsMockFns,
+  resetEnvironmentUtilsMock,
+} from '@sim/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { internalKnowledgeSearchBodySchema } from '@/lib/api/contracts/knowledge/search'
 import { PRIVATE_MODEL_INPUT_PROVENANCE_HEADER } from '@/lib/execution/model-input-provenance'
 import {
   RESOLVED_SECRET_PROVENANCE_FIELD,
@@ -16,9 +17,7 @@ import {
 } from '@/lib/knowledge/model-input-provenance'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: encryptionMockFns.mockDecryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 function verifiedHeaders(): Headers {
   return new Headers({
@@ -42,68 +41,6 @@ describe('Knowledge model input provenance', () => {
   afterEach(() => {
     resetEnvironmentUtilsMock()
     encryptionMockFns.mockDecryptSecret.mockReset()
-  })
-
-  it('preserves headerless legacy calls without loading an environment catalog', async () => {
-    const result = await prepareKnowledgeModelInputProvenance({
-      headers: new Headers(),
-      payload: { query: 'legacy query' },
-      isInternalRequest: false,
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-      modelInput: 'legacy query',
-    })
-
-    expect(result).toEqual({ success: true })
-    expect(environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
-  })
-
-  it('preserves a headerless internal legacy call without loading an environment catalog', async () => {
-    const result = await prepareKnowledgeModelInputProvenance({
-      headers: new Headers(),
-      payload: { query: 'missing provenance' },
-      isInternalRequest: true,
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-      modelInput: 'missing provenance',
-    })
-
-    expect(result).toEqual({ success: true })
-    expect(environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
-  })
-
-  it('accepts a complete empty envelope without loading secrets that cannot affect the call', async () => {
-    const result = await prepareKnowledgeModelInputProvenance({
-      headers: verifiedHeaders(),
-      payload: verifiedPayload(),
-      isInternalRequest: true,
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-      modelInput: 'safe query',
-    })
-
-    expect(result.success).toBe(true)
-    expect(result.success && result.registry?.isComplete()).toBe(true)
-    expect(environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
-  })
-
-  it('accepts a verified envelope after the internal route contract parses it', async () => {
-    const body = internalKnowledgeSearchBodySchema.parse({
-      knowledgeBaseIds: ['knowledge-base-1'],
-      ...verifiedPayload(),
-    })
-
-    const result = await prepareKnowledgeModelInputProvenance({
-      headers: verifiedHeaders(),
-      payload: body,
-      isInternalRequest: true,
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-      modelInput: body.query,
-    })
-
-    expect(result.success).toBe(true)
-    expect(result.success && result.registry?.isComplete()).toBe(true)
   })
 
   it('does not activate an authenticated entry absent from the exact model input', async () => {

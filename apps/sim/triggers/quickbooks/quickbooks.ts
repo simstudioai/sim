@@ -276,6 +276,13 @@ export function getQuickBooksTriggerDefinition(
   return QUICKBOOKS_TRIGGER_DEFINITIONS.find((definition) => definition.id === triggerId)
 }
 
+/** Resolves the definition addressed by an event's lowercase wire entity token. */
+export function getQuickBooksTriggerDefinitionByEntity(
+  entity: string
+): QuickBooksTriggerDefinition | undefined {
+  return QUICKBOOKS_TRIGGER_DEFINITIONS.find((definition) => definition.entity === entity)
+}
+
 export function parseQuickBooksWebhookType(type: string): {
   action: string
   entity: string

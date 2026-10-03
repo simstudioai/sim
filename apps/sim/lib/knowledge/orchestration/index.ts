@@ -16,7 +16,6 @@ export {
   performDeleteKnowledgeDocument,
   performMarkKnowledgeDocumentTimedOut,
   performRetryKnowledgeDocumentProcessing,
-  performUpdateKnowledgeDocument,
   performUploadKnowledgeDocument,
   performUploadKnowledgeDocuments,
 } from './documents'

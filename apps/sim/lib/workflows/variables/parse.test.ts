@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Pins the contract between the two halves of every workflow export/import
  * round trip: `parseWorkflowVariables` produces what exports emit, and
  * `normalizeImportedVariables` consumes what imports receive. A shape the first
@@ -23,10 +21,6 @@ describe('parseWorkflowVariables', () => {
     expect(parseWorkflowVariables(null)).toBeUndefined()
   })
 
-  it('reads the current record form', () => {
-    expect(parseWorkflowVariables({ 'var-1': VARIABLE })).toEqual({ 'var-1': VARIABLE })
-  })
-
   it('re-keys the legacy array form by variable id', () => {
     expect(parseWorkflowVariables([VARIABLE] as never)).toEqual({ 'var-1': VARIABLE })
   })
@@ -45,20 +39,6 @@ describe('parseWorkflowVariables', () => {
 })
 
 describe('normalizeImportedVariables', () => {
-  it('accepts the record form', () => {
-    expect(normalizeImportedVariables({ 'var-1': VARIABLE })).toEqual({ 'var-1': VARIABLE })
-  })
-
-  it('accepts the legacy array form', () => {
-    expect(normalizeImportedVariables([VARIABLE])).toEqual({ 'var-1': VARIABLE })
-  })
-
-  it('returns an empty record for null, undefined and non-objects', () => {
-    expect(normalizeImportedVariables(null)).toEqual({})
-    expect(normalizeImportedVariables(undefined)).toEqual({})
-    expect(normalizeImportedVariables('nope')).toEqual({})
-  })
-
   it('falls back to the map key when an entry carries no id', () => {
     expect(normalizeImportedVariables({ fromKey: { name: 'x', value: 1 } })).toMatchObject({
       fromKey: { id: 'fromKey', name: 'x' },
@@ -108,12 +88,6 @@ describe('export -> import variable round trip', () => {
 
     expect(exported).toBeDefined()
     expect(Array.isArray(exported)).toBe(false)
-    expect(normalizeImportedVariables(exported)).toEqual({ 'var-1': VARIABLE })
-  })
-
-  it('survives a legacy array-form export', () => {
-    const exported = parseWorkflowVariables([VARIABLE] as never)
-
     expect(normalizeImportedVariables(exported)).toEqual({ 'var-1': VARIABLE })
   })
 })

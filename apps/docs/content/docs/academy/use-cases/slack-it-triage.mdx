@@ -3,41 +3,29 @@ title: Slack IT Triage Bot
 description: An agent that watches a Slack channel, classifies incoming IT requests, answers what it can from your docs, and routes the rest.
 ---
 
-import { VideoPlaceholder } from '@/components/ui/video-placeholder'
-import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
-import { VideoChapters } from '@/components/ui/video-chapters'
+Build an IT triage workflow that reads messages from a configured Slack channel, searches your support documentation, and either drafts a supported reply or sends the request for human review.
 
-<VideoPlaceholder eyebrow="Use case" title="Slack IT Triage Bot" className="mt-2" />
+## Prepare the sources
 
-<div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
-<div>
+Connect the [Slack integration](/integrations/slack) and choose a test channel. Create a [knowledge base](/knowledgebase) containing the IT procedures the workflow should use, such as password reset and device setup instructions.
 
-Build an agent that lives in a Slack channel: it reads each incoming IT request, decides what kind it is, answers the ones it can from your internal docs, and routes the rest to the right person.
+Define the outcomes before building: answer from a documented procedure, escalate to a person, or create a ticket. Choose the destination for each path.
 
-<WhatYouWillLearn
-  items={[
-    { title: 'Trigger on real events', body: 'Start a workflow from a Slack message and read its contents.' },
-    { title: 'Let an agent decide', body: 'Classify the request and route it, answer, escalate, or file a ticket.' },
-    { title: 'Ground the answer', body: 'Search a knowledge base of IT docs so replies are accurate and cited.' },
-  ]}
-/>
+## Build the workflow
 
-</div>
+1. Configure a Slack trigger for the channel and pass the message into the workflow. Exclude the bot's own replies so they do not trigger another reply.
+2. Use an [Agent](/academy/agents/intro) to classify the request and search the knowledge base. Ask it to return a structured decision, draft reply, source references, and an escalation reason when the documentation is insufficient.
+3. Use a [Condition or Router](/academy/workflows/branching) to choose the outcome. Send the supported reply to Slack, or route the request and context to the configured person or ticketing integration.
+4. Keep the incoming message reference with the outcome so reviewers can find the original request.
 
-<VideoChapters
-  chapters={[
-    { title: 'The problem', time: '0:00' },
-    { title: 'Slack trigger', time: '0:30' },
-    { title: 'Classify and route', time: '1:10' },
-    { title: 'Answer from the docs', time: '2:00' },
-    { title: 'Escalate the rest', time: '2:50' },
-  ]}
-/>
+## Check the result
 
-</div>
+In the test channel, try a question answered by the docs, an unfamiliar request, and a message sent by the bot itself. Check that the supported answer cites the relevant procedure, the unfamiliar request reaches the review path, and the bot's reply does not create a loop.
 
-## What you'll build
+Inspect the [logs](/logs-debugging) for the retrieved passages, classification, chosen branch, and delivery result before moving the workflow to the intended channel.
 
-A **Slack trigger** starts the workflow on each new message. An **Agent** block classifies the request and decides the path: a **knowledge-base search** drafts an answer for common questions, while anything it can't resolve is routed to a human or filed as a ticket. Every run is recorded in the [logs](/logs-debugging).
+## Continue learning
 
-This pulls together [workflows](/academy/workflows/intro), [agents](/academy/agents/intro), and [knowledge bases](/academy/knowledge-bases/intro) into one system: the foundations, composed.
+- [Knowledge Bases](/academy/knowledge-bases/intro)
+- [Branching](/academy/workflows/branching)
+- [Slack integration](/integrations/slack)

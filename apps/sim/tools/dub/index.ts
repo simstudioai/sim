@@ -8,7 +8,7 @@ import { getAnalyticsTool } from '@/tools/dub/get_analytics'
 import { getEventsTool } from '@/tools/dub/get_events'
 import { getLinkTool } from '@/tools/dub/get_link'
 import { getLinksCountTool } from '@/tools/dub/get_links_count'
-import { getQrCodeTool } from '@/tools/dub/get_qr_code'
+import { getQrCodeTool, getQrCodeV2Tool } from '@/tools/dub/get_qr_code'
 import { listDomainsTool } from '@/tools/dub/list_domains'
 import { listFoldersTool } from '@/tools/dub/list_folders'
 import { listLinksTool } from '@/tools/dub/list_links'
@@ -29,6 +29,7 @@ export const dubBulkCreateLinksTool = bulkCreateLinksTool
 export const dubBulkUpdateLinksTool = bulkUpdateLinksTool
 export const dubBulkDeleteLinksTool = bulkDeleteLinksTool
 export const dubGetQrCodeTool = getQrCodeTool
+export const dubGetQrCodeV2Tool = getQrCodeV2Tool
 export const dubListDomainsTool = listDomainsTool
 export const dubListTagsTool = listTagsTool
 export const dubCreateTagTool = createTagTool

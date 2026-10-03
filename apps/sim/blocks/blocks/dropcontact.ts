@@ -1,6 +1,5 @@
 import { DropcontactIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { DropcontactResponse } from '@/tools/dropcontact/types'
 
 /** Whichever identifier the user supplied for the person being enriched. */
 const CONTACT_IDENTITY_FIELD = ['email', 'linkedin', 'full_name', 'first_name'] as const
@@ -8,7 +7,7 @@ const CONTACT_IDENTITY_FIELD = ['email', 'linkedin', 'full_name', 'first_name'] 
 /** Whichever identifier the user supplied for the person's employer. */
 const CONTACT_COMPANY_FIELD = ['company', 'website'] as const
 
-export const DropcontactBlock: BlockConfig<DropcontactResponse> = {
+export const DropcontactBlock: BlockConfig = {
   type: 'dropcontact',
   name: 'Dropcontact',
   description: 'Enrich B2B contacts with verified email, phone, and company data',

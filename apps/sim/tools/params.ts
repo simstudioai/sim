@@ -91,11 +91,6 @@ export class ToolSchemaEnrichmentError extends Error {
   }
 }
 
-export interface ValidationResult {
-  valid: boolean
-  missingParams: string[]
-}
-
 let blockConfigCache: Record<string, ToolInputBlockConfig> | null = null
 
 function getBlockConfigurations(): Record<string, ToolInputBlockConfig> {
@@ -524,30 +519,6 @@ export function filterSchemaForLLM<T extends FilterableToolSchema>(
 }
 
 /**
- * Validates that all required parameters are provided
- */
-export function validateToolParameters(
-  toolConfig: ExecutableToolConfig,
-  finalParams: Record<string, unknown>
-): ValidationResult {
-  const requiredParams = Object.entries(toolConfig.params)
-    .filter(([_, param]) => param.required)
-    .map(([paramId]) => paramId)
-
-  const missingParams = requiredParams.filter(
-    (paramId) =>
-      finalParams[paramId] === undefined ||
-      finalParams[paramId] === null ||
-      finalParams[paramId] === ''
-  )
-
-  return {
-    valid: missingParams.length === 0,
-    missingParams,
-  }
-}
-
-/**
  * A tool param's effective visibility.
  *
  * An undeclared visibility means the param is the user's to fill when it is optional,
@@ -659,6 +630,7 @@ const EXCLUDED_SUBBLOCK_TYPES = new Set([
   'mcp-dynamic-args',
   'variables-input',
   'messages-input',
+  'model-fallback-list',
   'router-input',
   'text',
 ])

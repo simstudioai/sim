@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { readV2Tool } from '@/tools/google_sheets/read'
 import type { GoogleSheetsV2ToolParams } from '@/tools/google_sheets/types'

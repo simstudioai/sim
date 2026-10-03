@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Base64 } from '@sim/security/hmac'
+import { toStringOrNull } from '@sim/utils/coerce'
 import { toRecordOrNull } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import type {
@@ -55,10 +56,6 @@ function verifyIncidentioSignature(
     logger.error('Error verifying incident.io Svix signature:', error)
     return false
   }
-}
-
-function asString(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
 }
 
 /**
@@ -157,16 +154,16 @@ export const incidentioHandler: WebhookProviderHandler = {
         input: {
           event_type: eventType,
           alert,
-          alert_id: asString(alert?.id),
-          title: asString(alert?.title),
-          description: asString(alert?.description),
-          status: asString(alert?.status),
-          alert_source_id: asString(alert?.alert_source_id),
-          deduplication_key: asString(alert?.deduplication_key),
-          source_url: asString(alert?.source_url),
-          created_at: asString(alert?.created_at),
-          updated_at: asString(alert?.updated_at),
-          resolved_at: asString(alert?.resolved_at),
+          alert_id: toStringOrNull(alert?.id),
+          title: toStringOrNull(alert?.title),
+          description: toStringOrNull(alert?.description),
+          status: toStringOrNull(alert?.status),
+          alert_source_id: toStringOrNull(alert?.alert_source_id),
+          deduplication_key: toStringOrNull(alert?.deduplication_key),
+          source_url: toStringOrNull(alert?.source_url),
+          created_at: toStringOrNull(alert?.created_at),
+          updated_at: toStringOrNull(alert?.updated_at),
+          resolved_at: toStringOrNull(alert?.resolved_at),
           payload: b,
         },
       }
@@ -177,20 +174,20 @@ export const incidentioHandler: WebhookProviderHandler = {
       input: {
         event_type: eventType,
         incident,
-        incident_id: asString(incident?.id),
-        name: asString(incident?.name),
-        reference: asString(incident?.reference),
-        summary: asString(incident?.summary),
+        incident_id: toStringOrNull(incident?.id),
+        name: toStringOrNull(incident?.name),
+        reference: toStringOrNull(incident?.reference),
+        summary: toStringOrNull(incident?.summary),
         incident_status: toRecordOrNull(incident?.incident_status),
         severity: toRecordOrNull(incident?.severity),
-        mode: asString(incident?.mode),
-        visibility: asString(incident?.visibility),
-        permalink: asString(incident?.permalink),
-        created_at: asString(incident?.created_at),
-        updated_at: asString(incident?.updated_at),
+        mode: toStringOrNull(incident?.mode),
+        visibility: toStringOrNull(incident?.visibility),
+        permalink: toStringOrNull(incident?.permalink),
+        created_at: toStringOrNull(incident?.created_at),
+        updated_at: toStringOrNull(incident?.updated_at),
         new_status: toRecordOrNull(wrapper?.new_status),
         previous_status: toRecordOrNull(wrapper?.previous_status),
-        update_message: asString(wrapper?.message),
+        update_message: toStringOrNull(wrapper?.message),
         payload: b,
       },
     }

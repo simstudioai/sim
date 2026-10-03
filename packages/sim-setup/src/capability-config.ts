@@ -1045,6 +1045,10 @@ export const OAUTH_CLIENT_SETUP_FIELDS = {
     BITBUCKET_CLIENT_ID: { input: 'text' },
     BITBUCKET_CLIENT_SECRET: { input: 'secret' },
   },
+  'github-repositories': {
+    GITHUB_APP_CLIENT_ID: { input: 'text' },
+    GITHUB_APP_CLIENT_SECRET: { input: 'secret' },
+  },
   notion: {
     NOTION_CLIENT_ID: { input: 'text' },
     NOTION_CLIENT_SECRET: { input: 'secret' },
@@ -1104,6 +1108,14 @@ export const OAUTH_CLIENT_SETUP_FIELDS = {
   hubspot: {
     HUBSPOT_CLIENT_ID: { input: 'text' },
     HUBSPOT_CLIENT_SECRET: { input: 'secret' },
+  },
+  'zoom-mcp': {
+    ZOOM_MCP_CLIENT_ID: { input: 'text' },
+    ZOOM_MCP_CLIENT_SECRET: { input: 'secret' },
+  },
+  'hubspot-mcp': {
+    HUBSPOT_MCP_CLIENT_ID: { input: 'text' },
+    HUBSPOT_MCP_CLIENT_SECRET: { input: 'secret' },
   },
   linkedin: {
     LINKEDIN_CLIENT_ID: { input: 'text' },

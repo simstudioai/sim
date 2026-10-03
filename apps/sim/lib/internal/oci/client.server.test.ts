@@ -2,74 +2,42 @@
  * @vitest-environment node
  */
 import { createPublicKey, verify } from 'node:crypto'
+import { credential } from '@sim/db/schema'
+import {
+  dbChainMockFns,
+  flattenMockConditions,
+  resetDbChainMock,
+} from '@sim/testing/mocks/database.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import { oauthUtilsMock, oauthUtilsMockFns } from '@sim/testing/mocks/oauth-utils.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   backoff: vi.fn(),
-  decryptSecret: vi.fn(),
-  predicates: undefined as unknown,
   rows: [] as { encryptedServiceAccountKey: string | null }[],
-  secureFetch: vi.fn(),
-  validateUrl: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn((predicate: unknown) => {
-          mocks.predicates = predicate
-          return { limit: vi.fn(async () => mocks.rows) }
-        }),
-      })),
-    })),
-  },
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  credential: {
-    encryptedServiceAccountKey: 'credential.encryptedServiceAccountKey',
-    id: 'credential.id',
-    providerId: 'credential.providerId',
-    type: 'credential.type',
-    workspaceId: 'credential.workspaceId',
-  },
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...predicates: unknown[]) => predicates),
-  eq: vi.fn((field: unknown, value: unknown) => ({ field, value })),
-}))
-
-vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mocks.decryptSecret }))
-
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  DEFAULT_MAX_RESPONSE_BYTES: 100 * 1024 * 1024,
-  secureFetchWithPinnedIP: mocks.secureFetch,
-  validateUrlWithDNS: mocks.validateUrl,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 vi.mock('@sim/utils/retry', () => ({
-  backoffWithJitter: mocks.backoff,
+  backoffWithJitter: hoisted.backoff,
   parseRetryAfter: vi.fn(() => null),
 }))
 
-vi.mock('@/lib/oauth/utils', () => ({
-  getServiceConfigByServiceId: vi.fn((serviceId: string) =>
-    serviceId === 'oci'
-      ? { serviceAccountProviderId: 'oci-api-key-service-account' }
-      : serviceId === 'slack'
-        ? { serviceAccountProviderId: 'slack-custom-bot' }
-        : null
-  ),
-}))
+vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 
 import {
   createOciClient,
   type OciAuthenticatedResponse,
   type OciClient,
   type OciRequest,
+  type OciRequestMethod,
   verifyOciApiKeyCredentialForSetup,
 } from '@/lib/internal/oci/client.server'
 import {
@@ -78,6 +46,13 @@ import {
 } from '@/lib/internal/oci/endpoints'
 import { OciClientError } from '@/lib/internal/oci/errors'
 import { OCI_SERVICE_ID } from '@/lib/oauth/types'
+
+const mocks = {
+  ...hoisted,
+  decryptSecret: encryptionMockFns.mockDecryptSecret,
+  secureFetch: inputValidationMockFns.mockSecureFetchWithPinnedIP,
+  validateUrl: inputValidationMockFns.mockValidateUrlWithDNS,
+}
 
 // Fixed test material. The expected signatures were generated independently with
 // OpenSSL 3 against Oracle's Request Signatures specification (retrieved 2026-09-03):
@@ -185,7 +160,15 @@ function authorizationFromLastRequest(): string {
 
 describe('credential-bound OCI client', () => {
   beforeEach(() => {
-    mocks.predicates = undefined
+    resetDbChainMock()
+    dbChainMockFns.limit.mockImplementation(async () => mocks.rows)
+    oauthUtilsMockFns.mockGetServiceConfigByServiceId.mockImplementation((serviceId: string) =>
+      serviceId === 'oci'
+        ? { serviceAccountProviderId: 'oci-api-key-service-account' }
+        : serviceId === 'slack'
+          ? { serviceAccountProviderId: 'slack-custom-bot' }
+          : null
+    )
     mocks.rows = [{ encryptedServiceAccountKey: 'encrypted-secret' }]
     mocks.decryptSecret.mockReset().mockResolvedValue({ decrypted: SECRET })
     mocks.backoff.mockReset().mockReturnValue(0)
@@ -212,11 +195,11 @@ describe('credential-bound OCI client', () => {
       maxResponseBytes: 1024,
     })
 
-    expect(mocks.predicates).toEqual([
-      { field: 'credential.id', value: 'credential-authoritative' },
-      { field: 'credential.workspaceId', value: 'workspace-trusted' },
-      { field: 'credential.type', value: 'service_account' },
-      { field: 'credential.providerId', value: 'oci-api-key-service-account' },
+    expect(flattenMockConditions(dbChainMockFns.where.mock.calls[0][0])).toEqual([
+      { type: 'eq', left: credential.id, right: 'credential-authoritative' },
+      { type: 'eq', left: credential.workspaceId, right: 'workspace-trusted' },
+      { type: 'eq', left: credential.type, right: 'service_account' },
+      { type: 'eq', left: credential.providerId, right: 'oci-api-key-service-account' },
     ])
     expect(mocks.decryptSecret).toHaveBeenCalledOnce()
   })
@@ -306,7 +289,7 @@ describe('credential-bound OCI client', () => {
         'RSA-SHA256',
         'x-date: Thu, 03 Sep 2026 19:00:00 GMT\n(request-target): get /20160918/users?limit=10&name=Team%20X\nhost: identity.us-ashburn-1.oci.oraclecloud.com',
         createPublicKey(PRIVATE_KEY),
-        Buffer.from(signature!, 'base64')
+        Buffer.from(signature ?? '', 'base64')
       )
     ).toBe(true)
   })
@@ -441,7 +424,7 @@ describe('credential-bound OCI client', () => {
     ).rejects.toMatchObject({ code: 'invalid_request' })
   })
 
-  it.each(['GET', 'HEAD', 'DELETE'] as const)(
+  it.each(['GET', 'HEAD', 'DELETE'] as const satisfies readonly OciRequestMethod[])(
     'sends a bodyless %s without body signing headers',
     async (method) => {
       const { client, endpoint } = await createPreparedClient()

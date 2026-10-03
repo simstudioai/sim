@@ -1,3 +1,4 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import type {
   MintlifyGetSearchesParams,
   MintlifyGetSearchesResponse,
@@ -10,7 +11,6 @@ import {
   pathSegment,
   readMintlifyJson,
   toNullableNumber,
-  toNullableString,
 } from '@/tools/mintlify/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -19,11 +19,11 @@ function toSearchRows(value: unknown): MintlifySearchQueryRow[] {
   return value.map((item) => {
     const row = (item ?? {}) as Record<string, unknown>
     return {
-      searchQuery: toNullableString(row.searchQuery),
+      searchQuery: toStringOrNull(row.searchQuery),
       hits: toNullableNumber(row.hits),
       ctr: toNullableNumber(row.ctr),
-      topClickedPage: toNullableString(row.topClickedPage),
-      lastSearchedAt: toNullableString(row.lastSearchedAt),
+      topClickedPage: toStringOrNull(row.topClickedPage),
+      lastSearchedAt: toStringOrNull(row.lastSearchedAt),
     }
   })
 }
@@ -100,7 +100,7 @@ export const mintlifyGetSearchesTool: ToolConfig<
       output: {
         searches: toSearchRows(data.searches),
         totalSearches: toNullableNumber(data.totalSearches),
-        nextCursor: toNullableString(data.nextCursor),
+        nextCursor: toStringOrNull(data.nextCursor),
       },
     }
   },

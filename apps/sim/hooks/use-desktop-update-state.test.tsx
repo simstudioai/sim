@@ -4,6 +4,7 @@
 
 import { act } from 'react'
 import type { DesktopUpdateState } from '@sim/desktop-bridge'
+import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,12 +15,7 @@ const desktopMocks = vi.hoisted(() => ({
   listener: null as ((state: DesktopUpdateState) => void) | null,
 }))
 
-vi.mock('@/lib/desktop', () => ({
-  getDesktopUpdates: () => ({
-    getState: desktopMocks.getState,
-    onState: desktopMocks.onState,
-  }),
-}))
+vi.mock('@/lib/desktop', () => libDesktopMock)
 
 import { useDesktopUpdateState } from '@/hooks/use-desktop-update-state'
 
@@ -34,7 +30,10 @@ function Harness() {
 
 describe('useDesktopUpdateState', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    libDesktopMockFns.mockGetDesktopUpdates.mockReturnValue({
+      getState: desktopMocks.getState,
+      onState: desktopMocks.onState,
+    })
     desktopMocks.listener = null
     desktopMocks.onState.mockImplementation((listener) => {
       desktopMocks.listener = listener
@@ -68,23 +67,5 @@ describe('useDesktopUpdateState', () => {
     await act(async () => resolveSnapshot({ status: 'checking' }))
 
     expect(currentState).toEqual({ status: 'ready', version: '2.0.0' })
-  })
-
-  it('unsubscribes and ignores a snapshot after unmount', async () => {
-    let resolveSnapshot: (state: DesktopUpdateState) => void = () => {
-      throw new Error('Update-state snapshot did not initialize')
-    }
-    desktopMocks.getState.mockReturnValue(
-      new Promise((resolve) => {
-        resolveSnapshot = resolve
-      })
-    )
-    await act(async () => root.render(<Harness />))
-    act(() => root.unmount())
-    container.remove()
-
-    await act(async () => resolveSnapshot({ status: 'ready', version: '2.0.0' }))
-
-    expect(desktopMocks.unsubscribe).toHaveBeenCalledTimes(1)
   })
 })

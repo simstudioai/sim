@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
   permissionsMock,
@@ -23,7 +20,7 @@ vi.mock('@/lib/workflows/lifecycle', () => ({
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-import { archiveWorkspace } from './lifecycle'
+import { archiveWorkspace } from '@/lib/workspaces/lifecycle'
 
 function createUpdateChain() {
   return {
@@ -35,7 +32,6 @@ function createUpdateChain() {
 
 describe('workspace lifecycle', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -81,7 +77,7 @@ describe('workspace lifecycle', () => {
     expect(tx.delete).toHaveBeenCalledTimes(1)
   })
 
-  it('is idempotent for already archived workspaces', async () => {
+  it('retries child cleanup for already archived workspaces', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({
       id: 'workspace-1',
       name: 'Workspace 1',
@@ -98,6 +94,6 @@ describe('workspace lifecycle', () => {
     expect(mockArchiveWorkflowsForWorkspace).toHaveBeenCalledWith('workspace-1', {
       requestId: 'req-1',
     })
-    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
   })
 })

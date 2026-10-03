@@ -11,8 +11,10 @@ const VIEWER_MASK_LENGTH = 10
 
 type SecretValueFieldProps = Omit<
   ComponentProps<'input'>,
-  'type' | 'value' | 'onChange' | 'readOnly'
+  'type' | 'value' | 'onChange' | 'readOnly' | 'style'
 > & {
+  /** The chip owns field styling; callers use className for layout. */
+  style?: never
   value: string
   onChange?: (value: string) => void
   /**
@@ -47,7 +49,7 @@ export function SecretValueField({
   readOnly = false,
   onFocus,
   onBlur,
-  style,
+  style: _style,
   className,
   ...props
 }: SecretValueFieldProps) {
@@ -68,7 +70,6 @@ export function SecretValueField({
       type='text'
       value={displayValue}
       readOnly
-      style={style}
       inputClassName={visuallyMaskEditableValue ? '[-webkit-text-security:disc]' : undefined}
       onChange={(event) => {
         if (editable) onChange?.(event.target.value)

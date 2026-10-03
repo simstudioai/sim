@@ -12,7 +12,7 @@ import type {
   TablePredicateInput,
 } from '@/lib/table/types'
 import type { BlockConfig } from '@/blocks/types'
-import type { TableQueryV2Response } from '@/tools/table/types'
+import { TABLE_ID_PARAM } from '@/tools/table/params'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -221,7 +221,7 @@ const TABLE_FIELD = ['tableSelector', 'manualTableId'] as const
 const FILTER_FIELD = ['filterBuilder', 'filter'] as const
 const SORT_FIELD = ['sortBuilder', 'order'] as const
 
-export const TableV2Block: BlockConfig<TableQueryV2Response> = {
+export const TableV2Block: BlockConfig = {
   type: 'table_v2',
   name: 'Table',
   description: 'User-defined data tables',
@@ -370,6 +370,7 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
       id: 'data',
       title: 'Row Data (JSON)',
       type: 'code',
+      language: 'json',
       placeholder: '{"column_name": "value"}',
       condition: {
         field: 'operation',
@@ -426,6 +427,7 @@ Return ONLY the data JSON:`,
       id: 'rows',
       title: 'Rows Data (Array of JSON)',
       type: 'code',
+      language: 'json',
       placeholder: '[{"col1": "val1"}, {"col1": "val2"}]',
       condition: { field: 'operation', value: 'batch_insert_rows' },
       required: true,
@@ -467,6 +469,7 @@ Return ONLY the rows array:`,
       id: 'filter',
       title: 'Filter',
       type: 'code',
+      language: 'json',
       canonicalParamId: 'filterInput',
       mode: 'advanced',
       placeholder: '{"field":"wins","op":"gte","value":10}',
@@ -583,7 +586,7 @@ Return ONLY the JSON object:`,
 
   inputs: {
     operation: { type: 'string', description: 'Table operation to perform' },
-    tableId: { type: 'string', description: 'Table identifier' },
+    tableId: { type: 'string', description: TABLE_ID_PARAM.description },
     data: { type: 'json', description: 'Row data for insert/update' },
     rows: { type: 'array', description: 'Array of row data for batch insert' },
     rowId: { type: 'string', description: 'Row identifier for ID-based operations' },

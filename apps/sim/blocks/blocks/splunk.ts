@@ -1,7 +1,6 @@
 import { SplunkIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { SplunkResponse } from '@/tools/splunk/types'
 
 /**
  * Normalize a Splunk toggle. A dropdown supplies the strings `'true'`/`'false'`,
@@ -40,7 +39,7 @@ function assignSplunkNumber(target: Record<string, unknown>, key: string, value:
   target[key] = Number.isFinite(parsed) ? parsed : undefined
 }
 
-export const SplunkBlock: BlockConfig<SplunkResponse> = {
+export const SplunkBlock: BlockConfig = {
   type: 'splunk',
   name: 'Splunk',
   description: 'Run SPL searches and manage saved searches and alerts in Splunk',

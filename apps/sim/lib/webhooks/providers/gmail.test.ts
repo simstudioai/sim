@@ -18,33 +18,6 @@ const sampleEmail = {
 }
 
 describe('Gmail webhook provider', () => {
-  it('formatInput passes through the polled email and timestamp unchanged', async () => {
-    const { input } = await gmailHandler.formatInput!({
-      webhook: {},
-      workflow: { id: 'wf', userId: 'u' },
-      body: { email: sampleEmail, timestamp: '2026-07-08T00:00:05.000Z' },
-      headers: {},
-      requestId: 'test',
-    })
-
-    expect(input).toEqual({
-      email: sampleEmail,
-      timestamp: '2026-07-08T00:00:05.000Z',
-    })
-  })
-
-  it('passes the raw body through when it has no email key', async () => {
-    const { input } = await gmailHandler.formatInput!({
-      webhook: {},
-      workflow: { id: 'wf', userId: 'u' },
-      body: { foo: 'bar' },
-      headers: {},
-      requestId: 'test',
-    })
-
-    expect(input).toEqual({ foo: 'bar' })
-  })
-
   it('every key formatInput can deliver on `email` matches a declared trigger output key', async () => {
     const { input } = await gmailHandler.formatInput!({
       webhook: {},

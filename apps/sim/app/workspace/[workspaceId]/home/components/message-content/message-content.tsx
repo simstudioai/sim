@@ -11,30 +11,48 @@ import {
   useState,
 } from 'react'
 import { cn } from '@sim/emcn'
-import { PrepareFileEdit, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
-import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
-import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
-import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-call-state'
+import { CircleStop } from '@sim/emcn/icons'
+import { isPlainRecord } from '@sim/utils/object'
+import type { ToolActivity } from '@/lib/mothership/generated/protocol'
+import { PrepareFileEdit, Read as ReadTool } from '@/lib/mothership/generated/tool-catalog-v1'
+import type { TaskBlockInfo } from '@/lib/mothership/request/types'
+import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
+import { resolveToolDisplay } from '@/lib/mothership/tools/client/store-utils'
+import { ClientToolCallState } from '@/lib/mothership/tools/client/tool-call-state'
+import { readToolActivity } from '@/lib/mothership/tools/tool-activity'
 import {
   getToolDisplayTitle,
   getToolStatusDisplayTitle,
   humanizeToolName,
-} from '@/lib/copilot/tools/tool-display'
+  normalizeToolActivityDescription,
+} from '@/lib/mothership/tools/tool-display'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
-import type { CredentialSubmissionPayload } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
-import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
-import type { ContentBlock, OptionItem, ToolCallData } from '../../types'
-import { SUBAGENT_LABELS } from '../../types'
-import type { AgentGroupItem } from './components'
 import {
-  AgentGroup,
-  ChatContent,
-  CircleStop,
-  MessageSources,
-  Options,
-  PendingTagIndicator,
-} from './components'
-import { collectMessageSources, deriveMessagePhase, isToolDone, type MessagePhase } from './utils'
+  hasAgentGroupItemContent,
+  hasPendingAgentGroup,
+  isAgentGroupResolved,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-content'
+import {
+  getTurnLiveIndicators,
+  ownsTurnWait,
+  type TurnLiveIndicators,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/lane-activity'
+import type { CredentialSubmissionPayload } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { WatchActivity } from '@/app/workspace/[workspaceId]/home/components/message-content/components/watch-activity/watch-activity'
+import { collectMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
+import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
+import { indexSourcesByUrl } from '@/app/workspace/[workspaceId]/home/components/message-content/sources-by-url'
+import { useToolResourceTitles } from '@/app/workspace/[workspaceId]/home/hooks/use-tool-resource-titles'
+import type {
+  ContentBlock,
+  OptionItem,
+  ToolCallData,
+} from '@/app/workspace/[workspaceId]/home/types'
+import { SUBAGENT_LABELS } from '@/app/workspace/[workspaceId]/home/types'
+import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
+import type { AgentGroupItem } from './components'
+import { AgentGroup, ChatContent, MessageSources, Options, PendingTagIndicator } from './components'
+import { deriveMessagePhase, isToolDone, type MessagePhase } from './utils'
 
 const FILE_SUBAGENT_ID = 'file'
 /** Quiet period before the shimmer takes the slot back from streamed output. */
@@ -56,6 +74,8 @@ interface TextSegment {
 }
 
 interface AgentGroupSegment {
+  activity?: ToolActivity
+  error?: string
   type: 'agent_group'
   id: string
   agentName: string
@@ -74,7 +94,17 @@ interface StoppedSegment {
   type: 'stopped'
 }
 
-type MessageSegment = TextSegment | AgentGroupSegment | OptionsSegment | StoppedSegment
+interface TaskSegment {
+  type: 'task'
+  task: TaskBlockInfo
+}
+
+type MessageSegment =
+  | TextSegment
+  | AgentGroupSegment
+  | OptionsSegment
+  | StoppedSegment
+  | TaskSegment
 
 function getAgentGroupActivityKey(items: AgentGroupItem[]): string {
   return items
@@ -115,6 +145,9 @@ function getVisibleStreamActivityKey(segments: MessageSegment[]): string {
         return `options:${segment.items.map((item) => `${item.id}:${item.label.length}`).join(',')}`
       }
       if (segment.type === 'stopped') return 'stopped'
+      if (segment.type === 'task') {
+        return `task:${segment.task.taskId}:${segment.task.status ?? 'pending'}`
+      }
       return [
         'agent',
         segment.id,
@@ -136,6 +169,9 @@ const SUBAGENT_KEYS = new Set(Object.keys(SUBAGENT_LABELS))
  */
 const SUBAGENT_DISPATCH_TOOLS: Record<string, string> = {
   [FILE_SUBAGENT_ID]: PrepareFileEdit.id,
+  // The worker's general subagent: the `task` tool row is the dispatch; the lane
+  // (titled by the model) replaces it.
+  task: 'task',
 }
 
 function isToolResultRead(params?: Record<string, unknown>): boolean {
@@ -194,15 +230,22 @@ function getOverrideDisplayTitle(tc: NonNullable<ContentBlock['toolCall']>): str
 }
 
 function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
+  const activityDescription = normalizeToolActivityDescription(tc.activityDescription)
   const overrideDisplayTitle = getOverrideDisplayTitle(tc)
   const resolvedTitle =
     overrideDisplayTitle || tc.displayTitle || getToolDisplayTitle(tc.name, tc.params)
-  const displayTitle = getToolStatusDisplayTitle(resolvedTitle, tc.status, tc.name)
+  const displayTitle = getToolStatusDisplayTitle(
+    resolvedTitle,
+    tc.status,
+    tc.name,
+    activityDescription
+  )
 
   return {
     id: tc.id,
     toolName: tc.name,
     displayTitle,
+    activityDescription,
     status: tc.status,
     params: tc.params,
     result: tc.result,
@@ -277,12 +320,10 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
     return last?.type === 'agent_group' && last.agentName === 'mothership' ? last : null
   }
 
-  // Top-level (mothership) tool calls render in a collapsible group. Reuse that
-  // group only while it is still the most recent segment so consecutive tools
-  // stay together; once another visible segment (main text or a spawned
-  // subagent) breaks the run, the next tool opens a fresh group below it
-  // instead of jumping back up into the original one. This keeps the mothership's
-  // tools and prose interleaved in the order they actually happened.
+  /**
+   * Reuse only the latest main activity segment so tools remain interleaved
+   * with prose and subagents in stream order.
+   */
   const ensureMothership = (): AgentGroupSegment => {
     const existing = tailMothershipGroup()
     if (existing) return existing
@@ -294,12 +335,27 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
   // When a subagent spawns, drop the dispatch tool that triggered it (e.g.
   // workspace_file -> file) from whichever container it landed in so it does not
   // render as a separate entry beside the agent group.
-  const absorbDispatchTool = (toolName: string, parentSpanId: string | undefined): void => {
+  const absorbDispatchTool = (
+    toolName: string,
+    parentSpanId: string | undefined,
+    dispatchToolCallId?: string
+  ): void => {
     const container =
       parentSpanId && parentSpanId !== SPAN_ROOT
         ? groupsBySpanId.get(parentSpanId)
         : tailMothershipGroup()
     if (!container) return
+    // Prefer the precise id match anywhere in the container — parallel sibling
+    // tools can push the dispatch row off the tail position.
+    if (dispatchToolCallId) {
+      const idx = container.items.findIndex(
+        (it) => it.type === 'tool' && it.data.id === dispatchToolCallId
+      )
+      if (idx >= 0) {
+        container.items.splice(idx, 1)
+        return
+      }
+    }
     const last = container.items[container.items.length - 1]
     if (last?.type === 'tool' && last.data.toolName === toolName) {
       container.items.pop()
@@ -386,9 +442,12 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       // Absorb a trailing dispatch tool (e.g. workspace_file -> file) so it does
       // not render as a separate entry alongside the agent group.
       const dispatchToolName = SUBAGENT_DISPATCH_TOOLS[block.content]
-      if (dispatchToolName) absorbDispatchTool(dispatchToolName, block.parentSpanId)
+      if (dispatchToolName) {
+        absorbDispatchTool(dispatchToolName, block.parentSpanId, block.parentToolCallId)
+      }
       const g = ensureSpanGroup(block.content, block.spanId, block.parentSpanId)
       if (block.subagentName) g.agentLabel = block.subagentName
+      if (block.error) g.error = block.error
       if (block.endedAt !== undefined) {
         // Persisted backend path: the lane was stamped closed (endedAt) without
         // a separate subagent_end block (the Sim backend stamps endedAt only;
@@ -442,10 +501,17 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       continue
     }
 
+    if (block.type === 'task') {
+      if (!block.task) continue
+      segments.push({ type: 'task', task: block.task })
+      continue
+    }
+
     if (block.type === 'subagent_end') {
       if (block.spanId) {
         const g = groupsBySpanId.get(block.spanId)
         if (g) {
+          if (block.error) g.error = block.error
           g.isOpen = false
           g.isDelegating = false
         }
@@ -465,7 +531,12 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
     items.filter((item) => {
       if (item.type !== 'agent_group') return true
       item.group.items = pruneEmptyNested(item.group.items)
-      return item.group.items.length > 0 || item.group.isOpen || item.group.isDelegating
+      return (
+        item.group.items.length > 0 ||
+        item.group.isOpen ||
+        item.group.isDelegating ||
+        Boolean(item.group.error)
+      )
     })
   for (const segment of segments) {
     if (segment.type === 'agent_group') {
@@ -477,31 +548,91 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
     (segment) =>
       segment.type !== 'agent_group' ||
       segment.items.length > 0 ||
+      Boolean(segment.error) ||
       segment.isDelegating ||
       segment.isOpen
   )
 }
 
 /**
- * Groups content blocks into agent-scoped segments.
- * Dispatch tool_calls (name matches a subagent key, no calledBy) are absorbed
- * into the agent header. Inner tool_calls are nested underneath their agent.
- * Orphan tool_calls (no calledBy, not a dispatch) group under "Sim".
- *
- * New backends stamp every subagent block with deterministic span identity; in
- * that case {@link parseBlocksWithSpanTree} builds a real nested tree. The
- * legacy flat heuristics below are retained for transcripts persisted before
- * span identity existed.
+ * Activities follow transcript order; unfinished parallel calls share one
+ * active group. Each finished activity keeps its own header and summary.
  */
-export function parseBlocks(blocks: ContentBlock[]): MessageSegment[] {
-  if (blocks.some((block) => Boolean(block.spanId))) {
-    return parseBlocksWithSpanTree(blocks)
-  }
-  return parseBlocksLegacy(blocks)
+function groupByActivity(segments: MessageSegment[], isStreaming: boolean): MessageSegment[] {
+  const labels = new Map<string, ToolActivity>()
+  return segments.flatMap((segment, index): MessageSegment[] => {
+    if (segment.type !== 'agent_group' || segment.agentName !== 'mothership') return [segment]
+    const isOpen = isStreaming && index === segments.length - 1
+    const groups: AgentGroupSegment[] = []
+    let current: AgentGroupSegment | undefined
+    for (const item of segment.items) {
+      const activity =
+        item.type === 'tool'
+          ? readToolActivity(item.data.params, item.data.streamingArgs)
+          : undefined
+      if (activity) labels.set(activity.id, { ...labels.get(activity.id), ...activity })
+      if (!current || (activity && activity.id !== current.activity?.id)) {
+        current = {
+          ...segment,
+          isOpen: false,
+          activity: activity ? labels.get(activity.id) : undefined,
+          id:
+            groups.length === 0
+              ? segment.id
+              : `${segment.id}-${item.type === 'tool' ? item.data.id : groups.length}`,
+          items: [],
+        }
+        groups.push(current)
+      } else if (activity) {
+        current.activity = labels.get(activity.id)
+      }
+      current.items.push(item)
+    }
+    if (!current) return [segment]
+    current.isOpen = isOpen
+    const firstWorking = groups.findIndex((group) => !isAgentGroupResolved(group.items))
+    if (firstWorking >= 0 && firstWorking < groups.length - 1) {
+      const working = groups[firstWorking]
+      return [
+        ...groups.slice(0, firstWorking),
+        { ...working, isOpen, items: groups.slice(firstWorking).flatMap((group) => group.items) },
+      ]
+    }
+    return groups
+  })
 }
 
-function joinRenderableText(parts: string[]): string {
-  return parts.filter(Boolean).join('\n\n')
+export function parseBlocks(blocks: ContentBlock[], isStreaming = false): MessageSegment[] {
+  const watches = new Set(
+    blocks.flatMap((block) => (block.type === 'task' && block.task ? [block.task.taskId] : []))
+  )
+  /** The durable watch row replaces its registration receipt, not other calls or failed attempts. */
+  const visibleBlocks = blocks.filter((block) => {
+    const tool = block.toolCall
+    if (block.type !== 'tool_call' || tool?.name !== 'watch' || tool.status !== 'success')
+      return true
+    const output = tool.result?.output
+    return (
+      !isPlainRecord(output) || typeof output.taskId !== 'string' || !watches.has(output.taskId)
+    )
+  })
+  return groupByActivity(
+    blocks.some((block) => Boolean(block.spanId))
+      ? parseBlocksWithSpanTree(visibleBlocks)
+      : parseBlocksLegacy(visibleBlocks),
+    isStreaming
+  )
+}
+
+/** Returns independently rendered text segments, excluding agent groups and other UI segments. */
+export function getOrchestratorMessageTextSegments(
+  blocks: ContentBlock[],
+  fallbackContent: string
+): string[] {
+  const parsed = blocks.length > 0 ? parseBlocks(blocks) : []
+  if (parsed.length === 0) return [fallbackContent]
+
+  return parsed.map((segment) => (segment.type === 'text' ? segment.content : '')).filter(Boolean)
 }
 
 /** Returns only top-level orchestrator text, excluding agent groups and other UI segments. */
@@ -509,12 +640,7 @@ export function getOrchestratorMessageText(
   blocks: ContentBlock[],
   fallbackContent: string
 ): string {
-  const parsed = blocks.length > 0 ? parseBlocks(blocks) : []
-  if (parsed.length === 0) return fallbackContent
-
-  return joinRenderableText(
-    parsed.map((segment) => (segment.type === 'text' ? segment.content : ''))
-  )
+  return getOrchestratorMessageTextSegments(blocks, fallbackContent).join('\n\n')
 }
 
 function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
@@ -693,6 +819,13 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
       continue
     }
 
+    if (block.type === 'task') {
+      if (!block.task) continue
+      flushLanes()
+      segments.push({ type: 'task', task: block.task })
+      continue
+    }
+
     if (block.type === 'subagent_end') {
       if (block.parentToolCallId) {
         for (const [key, g] of groupsByKey) {
@@ -752,26 +885,23 @@ export function assistantMessageHasRenderableContent(
       : fallbackContent.trim()
         ? [{ type: 'text' as const, id: 'text-fallback', content: fallbackContent }]
         : []
-  return segments.length > 0
+  return segments.some(
+    (segment) =>
+      segment.type !== 'agent_group' ||
+      Boolean(segment.error) ||
+      segment.items.some(hasAgentGroupItemContent)
+  )
 }
 
-/** True when the transcript is already rendering an executing tool row. */
-export function assistantMessageHasVisibleExecutingTool(blocks: ContentBlock[]): boolean {
-  const subagentDispatchCallIds = new Set<string>()
-  for (const block of blocks) {
-    if (block.type === 'subagent' && block.parentToolCallId) {
-      subagentDispatchCallIds.add(block.parentToolCallId)
-    }
-  }
-
-  return blocks.some((block) => {
-    const toolCall = block.toolCall
-    if (!toolCall || toolCall.status !== 'executing') return false
-    if (isHiddenToolCall(toolCall.name)) return false
-    if (toolCall.name === ReadTool.id && isToolResultRead(toolCall.params)) return false
-    if (SUBAGENT_KEYS.has(toolCall.name)) return false
-    return !subagentDispatchCallIds.has(toolCall.id)
-  })
+/** The turn's live indicators, decided once by {@link getTurnLiveIndicators} for every lane. */
+function getMessageLiveIndicators(
+  segments: MessageSegment[],
+  isStreaming: boolean
+): TurnLiveIndicators {
+  return getTurnLiveIndicators(
+    segments.flatMap((segment) => (segment.type === 'agent_group' ? [segment] : [])),
+    isStreaming
+  )
 }
 
 export function shouldSmoothTextSegment({
@@ -794,23 +924,20 @@ const DISPATCH_TOOL_NAMES = new Set([...SUBAGENT_KEYS, ...Object.values(SUBAGENT
  * phrase describes the wait, not the output: a stall after streamed text is
  * the agent deciding what's next — Thinking — never "Generating" (while text
  * actually generates the shimmer is hidden). Dispatching covers only the
- * dispatch call itself (whose tool row the parser absorbs, so nothing else
- * shows); once the lane is open its own delegating shimmer owns the state and
- * the turn-level one stays hidden (`null`).
+ * dispatch call itself (whose tool row the parser absorbs). Empty agent lanes
+ * share this indicator until a visible activity row takes over.
  */
-export function deriveThinkingLabel(blocks: ContentBlock[]): string | null {
+export function deriveThinkingLabel(blocks: ContentBlock[]): string {
   const last = blocks[blocks.length - 1]
   switch (last?.type) {
-    case 'subagent':
-      return null
     case 'subagent_end':
-      return 'Returning…'
+      return 'Returning'
     case 'tool_call':
       return last.toolCall && DISPATCH_TOOL_NAMES.has(last.toolCall.name)
-        ? 'Dispatching…'
-        : 'Thinking…'
+        ? 'Dispatching'
+        : 'Thinking'
     default:
-      return 'Thinking…'
+      return 'Thinking'
   }
 }
 
@@ -818,6 +945,8 @@ interface MessageContentProps {
   blocks: ContentBlock[]
   fallbackContent: string
   messageId?: string
+  imageRequestId?: string
+  requestMode?: 'agent' | 'assistant' | 'plan'
   isStreaming: boolean
   /**
    * True for the last message in the transcript. The last turn keeps a
@@ -848,6 +977,8 @@ function MessageContentInner({
   blocks,
   fallbackContent,
   messageId,
+  imageRequestId,
+  requestMode,
   isStreaming = false,
   isLast = false,
   questionAnswers,
@@ -858,11 +989,17 @@ function MessageContentInner({
   onPhaseChange,
   actions,
 }: MessageContentProps) {
-  const { onWorkspaceResourceSelect } = useChatSurface()
+  const { onWorkspaceResourceSelect, onViewSources } = useChatSurface()
   const blockOverlayVersion = useCustomBlockOverlayVersion()
+  const cited = useMemo(
+    () => resolveMessageCitations(blocks, fallbackContent, requestMode === 'assistant'),
+    [blocks, fallbackContent, requestMode]
+  )
+  const titledBlocks = useToolResourceTitles(cited.blocks)
+  const linkSources = useMemo(() => indexSourcesByUrl(cited.sources), [cited.sources])
   const parsed = useMemo(
-    () => (blocks.length > 0 ? parseBlocks(blocks) : []),
-    [blocks, blockOverlayVersion]
+    () => (titledBlocks.length > 0 ? parseBlocks(titledBlocks, isStreaming) : []),
+    [titledBlocks, blockOverlayVersion, isStreaming]
   )
 
   const [trailingRevealing, setTrailingRevealing] = useState(false)
@@ -883,10 +1020,10 @@ function MessageContentInner({
     () =>
       parsed.length > 0
         ? parsed
-        : fallbackContent?.trim()
-          ? [{ type: 'text', id: 'text-fallback', content: fallbackContent }]
+        : cited.fallbackContent?.trim()
+          ? [{ type: 'text', id: 'text-fallback', content: cited.fallbackContent }]
           : [],
-    [parsed, fallbackContent]
+    [parsed, cited.fallbackContent]
   )
   /**
    * Collected from the segments that render, not the raw blocks: that is the
@@ -902,6 +1039,11 @@ function MessageContentInner({
     [segments]
   )
   const visibleStreamActivityKey = getVisibleStreamActivityKey(segments)
+  /** Decided once per parse, not on every idle-timer or text-reveal render. */
+  const liveIndicators = useMemo(
+    () => getMessageLiveIndicators(segments, isStreaming),
+    [segments, isStreaming]
+  )
 
   // Every visible stream update restarts the quiet-period clock. A layout
   // effect clears an already-visible shimmer before paint, so a chunk from any
@@ -945,29 +1087,44 @@ function MessageContentInner({
 
   if (segments.length === 0 && !isLast) return null
 
-  // A visible executing tool row already spins — the turn-level shimmer would
-  // double it. (A null label means a just-opened lane's shimmer owns the state.)
   // A mid-stream special tag renders nothing until complete, so its bytes are a
   // wait, not output — the shimmer bridges it without the quiet-period delay.
   const thinkingLabel = deriveThinkingLabel(blocks)
-  const hasExecutingTool = assistantMessageHasVisibleExecutingTool(blocks)
+  const hasActivityIndicator = ownsTurnWait(liveIndicators)
+  const hasPendingAgents =
+    isStreaming &&
+    segments.some((segment) => segment.type === 'agent_group' && hasPendingAgentGroup(segment))
   const showShimmer =
     thinkingExpanded &&
-    thinkingLabel !== null &&
     (segments.length === 0 ||
       trailingPendingTag ||
-      (isStreamIdle && !trailingStreamActivity && !hasExecutingTool))
+      (((hasPendingAgents && revealTailIndex < 0) || isStreamIdle) &&
+        !trailingStreamActivity &&
+        !hasActivityIndicator))
 
   const actionsRow = (
     <div className='flex items-center gap-0.5'>
       {actions}
-      {sources.length > 0 && <MessageSources sources={sources} />}
+      {sources.length > 0 && (
+        <MessageSources
+          sources={sources}
+          onViewAll={
+            messageId && onViewSources ? () => onViewSources(messageId, imageRequestId) : undefined
+          }
+        />
+      )}
     </div>
   )
 
   return (
     <div>
-      <div className='space-y-[10px]'>
+      <div
+        className={cn(
+          '[&>:empty]:hidden [&>:has(~:not(:empty))]:mb-4',
+          '[&>[data-chat-activity]:has(+[data-chat-activity],+:empty+[data-chat-activity])]:mb-2',
+          '[&>[data-agent-group]:has(>div:last-child>div:last-child>[data-interaction-card]:last-child):has(~:not(:empty))]:mb-4'
+        )}
+      >
         {segments.map((segment, i) => {
           switch (segment.type) {
             case 'text':
@@ -976,6 +1133,9 @@ function MessageContentInner({
                   key={segment.id}
                   content={segment.content}
                   messageId={messageId}
+                  imageRequestId={imageRequestId}
+                  requestMode={requestMode}
+                  linkSources={linkSources}
                   isStreaming={shouldSmoothTextSegment({
                     isStreaming,
                     segmentIndex: i,
@@ -999,20 +1159,25 @@ function MessageContentInner({
                 />
               )
             case 'agent_group': {
+              if (!segment.error && !segment.items.some(hasAgentGroupItemContent)) return null
               return (
                 <div
                   key={segment.id}
+                  data-agent-group
+                  data-chat-activity
                   className={isStreaming ? 'animate-stream-fade-in' : undefined}
                 >
                   <AgentGroup
+                    activity={segment.activity}
+                    liveIndicator={liveIndicators.byLane.get(segment.id) ?? null}
                     key={segment.id}
                     agentName={segment.agentName}
                     agentLabel={segment.agentLabel}
                     items={segment.items}
                     isDelegating={segment.isDelegating}
                     isStreaming={isStreaming}
-                    isCurrentSection={i === segments.length - 1}
                     isLaneOpen={segment.isOpen}
+                    error={segment.error}
                   />
                 </div>
               )
@@ -1026,6 +1191,8 @@ function MessageContentInner({
                   <Options items={segment.items} onSelect={onOptionSelect} />
                 </div>
               )
+            case 'task':
+              return <WatchActivity key={`task-${segment.task.taskId}`} task={segment.task} />
             // The stopped row renders in the tail region below, in the
             // shimmer's place — a stop while the shimmer is visible must read
             // as an in-place replacement, not the shimmer vanishing from the
@@ -1047,7 +1214,7 @@ function MessageContentInner({
               showShimmer ? 'opacity-100' : 'opacity-0'
             )}
           >
-            <PendingTagIndicator label={thinkingLabel ?? 'Thinking…'} />
+            <PendingTagIndicator label={thinkingLabel} />
           </div>
         </div>
       ) : // The settled tail takes the slot's place in the SAME render and at the

@@ -359,7 +359,13 @@ export const quickBooksWebhookEventSchema = z.object({
   data: z.unknown().optional(),
 })
 
-export const quickBooksWebhookEventsSchema = z.array(quickBooksWebhookEventSchema).min(1).max(1000)
+/** Maximum CloudEvents Intuit batches into a single webhook delivery. */
+export const QUICKBOOKS_WEBHOOK_MAX_EVENTS = 1000
+
+export const quickBooksWebhookEventsSchema = z
+  .array(quickBooksWebhookEventSchema)
+  .min(1)
+  .max(QUICKBOOKS_WEBHOOK_MAX_EVENTS)
 
 export type QuickBooksWebhookEvent = z.input<typeof quickBooksWebhookEventSchema>
 
