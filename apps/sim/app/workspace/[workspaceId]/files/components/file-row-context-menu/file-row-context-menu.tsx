@@ -72,7 +72,7 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
       <DropdownMenuTrigger asChild>
         <div
-          className='pointer-events-none fixed h-px w-px'
+          className='pointer-events-none fixed size-px'
           style={{ left: `${position.x}px`, top: `${position.y}px` }}
           tabIndex={-1}
           aria-hidden

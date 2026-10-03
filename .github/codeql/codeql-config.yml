@@ -16,6 +16,8 @@ paths-ignore:
   - '**/__tests__/**'
   - '**/__mocks__/**'
   - '**/__fixtures__/**'
+  - '**/__integration__/**'
+  - '**/*.integration.ts'
   - '**/e2e/**'
   # Deliberately no '**/test/**' or '**/tests/**'. A directory named `test` is a
   # routable Next.js path segment, not necessarily test code: those globs

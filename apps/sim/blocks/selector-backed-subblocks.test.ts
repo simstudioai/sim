@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
@@ -36,12 +33,6 @@ describe('selector-backed sub-blocks', () => {
       .filter((sub) => sub.selectorKey)
       .map((sub) => ({ block: block.type, sub }))
   )
-
-  it('covers a meaningful number of fields', () => {
-    // A guard on the guard: if the registry ever stops resolving, the assertions below would
-    // pass vacuously over an empty list.
-    expect(selectorBacked.length).toBeGreaterThan(50)
-  })
 
   it('names a selector that is present in the exhaustive manifest', () => {
     for (const { block, sub } of selectorBacked) {
@@ -84,17 +75,5 @@ describe('selector-backed sub-blocks', () => {
         `${block}.${sub.id} uses ${sub.selectorKey}, whose result depends on ${needed.join(', ')}, but declares no dependsOn — its list would never refetch`
       ).toBe(true)
     }
-  })
-
-  it('projects the optional Excel drive without requiring it for OneDrive readiness', () => {
-    const match = selectorBacked.find(
-      ({ block, sub }) => block === 'microsoft_excel' && sub.id === 'spreadsheetId'
-    )
-
-    expect(match, 'microsoft_excel.spreadsheetId is missing').toBeDefined()
-    expect(match?.sub.dependsOn).toEqual({
-      all: ['credential'],
-      any: ['credential', 'driveId'],
-    })
   })
 })

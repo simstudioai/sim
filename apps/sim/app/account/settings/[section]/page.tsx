@@ -1,4 +1,3 @@
-import { Suspense } from 'react'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
@@ -41,6 +40,9 @@ export default async function AccountSettingsSectionPage({
   if (!session?.user) redirect('/login')
 
   const { section } = await params
+  if (section === 'authorized-apps') {
+    redirect(`${getAccountSettingsHref('general')}?view=authorized-apps`)
+  }
   const parsed = parseSettingsPathSection({
     path: section,
     items: ACCOUNT_SETTINGS_ITEMS,
@@ -55,14 +57,10 @@ export default async function AccountSettingsSectionPage({
   }
 
   /**
-   * Sections read URL query params via nuqs, so the renderer must sit under a
-   * Suspense boundary. The null fallback preserves the existing chunk-loading UI.
+   * No Suspense boundary: a fallback mounted with the section puts React's 300ms reveal floor
+   * under every switch (see the workspace section layout).
    */
-  const content = (
-    <Suspense fallback={null}>
-      <AccountSettingsRenderer section={parsed} />
-    </Suspense>
-  )
+  const content = <AccountSettingsRenderer section={parsed} />
 
   if (parsed === 'general') {
     const queryClient = getQueryClient()

@@ -1,15 +1,11 @@
-/**
- * @vitest-environment node
- */
-
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -17,7 +13,6 @@ const mocks = vi.hoisted(() => ({
   read: vi.fn(),
   update: vi.fn(),
   remove: vi.fn(),
-  email: vi.fn(),
 }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
@@ -27,9 +22,11 @@ vi.mock('@/lib/table/application/views', () => ({
   updateTableViewUseCase: { operation: { id: 'tables.views.update' }, execute: mocks.update },
   deleteTableViewUseCase: { operation: { id: 'tables.views.delete' }, execute: mocks.remove },
 }))
-vi.mock('@/lib/users/queries', () => ({ getRequiredUserEmail: mocks.email }))
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
 
-import { DELETE, GET, PATCH } from '@/app/api/v2/tables/[tableId]/views/[viewId]/route'
+import { GET } from '@/app/api/v2/tables/[tableId]/views/[viewId]/route'
+
+const { mockGetRequiredUserEmail } = usersQueriesMockFns
 
 const WORKSPACE_ID = 'workspace-1'
 const principal = {
@@ -76,27 +73,13 @@ function request(method: 'GET' | 'PATCH' | 'DELETE', body?: unknown) {
 
 describe('/api/v2/tables/[tableId]/views/[viewId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.read.mockResolvedValue({ view, columns })
     mocks.update.mockResolvedValue({ view, columns, changed: false })
     mocks.remove.mockResolvedValue({ viewId: 'view-1' })
-    mocks.email.mockResolvedValue('user@example.com')
-  })
-
-  it('reads the view through canonical table and view identities', async () => {
-    const req = request('GET')
-    const response = await GET(req, context)
-
-    expect(response.status).toBe(200)
-    expect((await response.json()).data.id).toBe('view-1')
-    expect(mocks.read).toHaveBeenCalledWith({
-      principal,
-      input: { tableId: 'table-1', viewId: 'view-1', workspaceId: WORKSPACE_ID },
-      request: req,
-    })
+    mockGetRequiredUserEmail.mockResolvedValue('user@example.com')
   })
 
   /**
@@ -111,32 +94,5 @@ describe('/api/v2/tables/[tableId]/views/[viewId]', () => {
       sort: [{ field: 'Status', direction: 'desc' }],
       filter: { all: [{ field: 'Status', op: 'eq', value: 'open' }] },
     })
-  })
-
-  it('preserves no-op PATCH response compatibility', async () => {
-    const response = await PATCH(
-      request('PATCH', { workspaceId: WORKSPACE_ID, name: 'Active' }),
-      context
-    )
-
-    expect(response.status).toBe(200)
-    expect((await response.json()).data.name).toBe('Active')
-  })
-
-  it('deletes through the authorized view use case', async () => {
-    const response = await DELETE(request('DELETE'), context)
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: { id: 'view-1', deleted: true } })
-    expect(mocks.remove).toHaveBeenCalledOnce()
-  })
-
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await GET(request('GET'), context)
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
   })
 })

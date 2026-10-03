@@ -11,17 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-The [Salesforce](https://www.salesforce.com/) tool enables you to connect directly to your Salesforce CRM and perform a wide range of customer relationship management operations within your agentic workflows. With seamless and secure integration, you can efficiently access and automate key business processes across your sales, support, and marketing data.
-
-With the Salesforce tool, you can:
-
-- **Retrieve accounts**: Use the `salesforce_get_accounts` operation to fetch Accounts from Salesforce with custom filters, sorting, and field selection.
-- **Create accounts**: Automatically add new Accounts to Salesforce using the `salesforce_create_account` operation, specifying details like name, industry, and billing address.
-- **Manage contacts**: (If provided, similar tooling available for Contacts—add, update, or fetch contacts as needed.)
-- **Handle leads & opportunities**: Integrate lead and opportunity management into your workflow, letting your agents capture, qualify, and update sales pipeline data.
-- **Track cases & tasks**: Automate customer support and follow-up activities by interacting with Cases and Tasks within Salesforce.
-
-The Salesforce tool is ideal for workflows where your agents need to streamline sales, account management, lead generation, and support operations. Whether your agents are syncing data across platforms, providing real-time customer insights, or automating routine CRM updates, the Salesforce tool brings the full power and extensibility of Salesforce into your programmatic, agent-driven processes.
+Use [Salesforce](https://www.salesforce.com/) in Sim to manage accounts, contacts, leads, opportunities, cases, and tasks, run reports and SOQL queries, and create custom fields and objects through the Tooling API.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -1093,8 +1083,6 @@ Execute a SOQL query against the Tooling API to inspect metadata objects
 |     ↳ `hasMore` | boolean | Whether more records exist \(inverse of done\) |
 |   ↳ `success` | boolean | Salesforce operation success |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -1290,4 +1278,21 @@ Trigger workflow on any Salesforce webhook event
 | `timestamp` | string | When the event occurred \(ISO 8601\) |
 | `record` | json | Full record data |
 | `payload` | json | Full webhook payload |
+
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Salesforce account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | Production or Developer Edition: `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/salesforce`<br />Sandbox: `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/salesforce-sandbox` |
+| Environment variables | `SALESFORCE_CLIENT_ID`, `SALESFORCE_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `api` | Access Salesforce API |
+| `refresh_token` | Maintain long-term access to Salesforce account |
+| `openid` | Standard authentication |
+
 

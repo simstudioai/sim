@@ -1,7 +1,15 @@
-import type { ConverseStreamOutput } from '@aws-sdk/client-bedrock-runtime'
+import type {
+  Message as BedrockMessage,
+  ContentBlock,
+  ConverseStreamOutput,
+  TokenUsage,
+} from '@aws-sdk/client-bedrock-runtime'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { randomFloat } from '@sim/utils/random'
+import { toAnthropicModelUsage } from '@/providers/anthropic/usage'
+import { GEO_PROFILE_PREFIX_PATTERN, getBedrockBaseModelId } from '@/providers/bedrock/model-id'
+import type { ModelUsage } from '@/providers/cost-policy'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import { trackForcedToolUsage } from '@/providers/utils'
 
@@ -10,6 +18,47 @@ const logger = createLogger('BedrockUtils')
 export interface BedrockStreamUsage {
   inputTokens: number
   outputTokens: number
+  cacheReadInputTokens?: number
+  cacheWriteInputTokens?: number
+  cacheDetails?: TokenUsage['cacheDetails']
+}
+
+/** Converse reports uncached input separately from cache reads and writes. */
+export function toBedrockConversationUsage(
+  usage: Partial<BedrockStreamUsage> | undefined,
+  model: string
+): ModelUsage | undefined {
+  if (!usage) return undefined
+  if (getBedrockBaseModelId(model).startsWith('anthropic.')) {
+    return toAnthropicModelUsage({
+      input_tokens: usage.inputTokens,
+      output_tokens: usage.outputTokens,
+      cache_read_input_tokens: usage.cacheReadInputTokens,
+      cache_creation_input_tokens: usage.cacheWriteInputTokens,
+      ...(usage.cacheDetails
+        ? {
+            cache_creation: {
+              ephemeral_5m_input_tokens: usage.cacheDetails.reduce(
+                (total, detail) => total + (detail.ttl === '5m' ? (detail.inputTokens ?? 0) : 0),
+                0
+              ),
+              ephemeral_1h_input_tokens: usage.cacheDetails.reduce(
+                (total, detail) => total + (detail.ttl === '1h' ? (detail.inputTokens ?? 0) : 0),
+                0
+              ),
+            },
+          }
+        : {}),
+    })
+  }
+  return {
+    input: usage.inputTokens ?? 0,
+    output: usage.outputTokens ?? 0,
+    ...(usage.cacheReadInputTokens ? { cacheRead: usage.cacheReadInputTokens } : {}),
+    ...(usage.cacheWriteInputTokens
+      ? { cacheWrites: [{ tokens: usage.cacheWriteInputTokens, inputRateMultiplier: 1 }] }
+      : {}),
+  }
 }
 
 /**
@@ -37,17 +86,29 @@ export function getBedrockStreamError(event: ConverseStreamOutput): Error | unde
  */
 export function createReadableStreamFromBedrockStream(
   bedrockStream: AsyncIterable<ConverseStreamOutput>,
-  onComplete?: (content: string, usage: BedrockStreamUsage) => void
+  onComplete?: (
+    content: string,
+    usage: BedrockStreamUsage,
+    message: BedrockMessage
+  ) => void | Promise<void>
 ): ReadableStream<AgentStreamEvent> {
   let fullContent = ''
   let inputTokens = 0
   let outputTokens = 0
+  let cacheReadInputTokens: number | undefined
+  let cacheWriteInputTokens: number | undefined
+  let cacheDetails: TokenUsage['cacheDetails']
   let cancelled = false
   let streamIterator: AsyncIterator<ConverseStreamOutput> | undefined
 
   return new ReadableStream({
     async start(controller) {
       try {
+        const contentByIndex = new Map<number, ContentBlock>()
+        const reasoningByIndex = new Map<
+          number,
+          { text: string; signature: string; redacted: Uint8Array[] }
+        >()
         streamIterator = bedrockStream[Symbol.asyncIterator]()
         while (true) {
           const next = await streamIterator.next()
@@ -55,19 +116,72 @@ export function createReadableStreamFromBedrockStream(
           const event = next.value
           const streamError = getBedrockStreamError(event)
           if (streamError) throw streamError
+          const delta = event.contentBlockDelta?.delta
+          const index = event.contentBlockDelta?.contentBlockIndex ?? 0
+          if (delta?.reasoningContent) {
+            const reasoning = reasoningByIndex.get(index) ?? {
+              text: '',
+              signature: '',
+              redacted: [],
+            }
+            reasoning.text += delta.reasoningContent.text ?? ''
+            reasoning.signature += delta.reasoningContent.signature ?? ''
+            if (delta.reasoningContent.redactedContent)
+              reasoning.redacted.push(delta.reasoningContent.redactedContent)
+            reasoningByIndex.set(index, reasoning)
+          }
           if (event.contentBlockDelta?.delta?.text) {
             const text = event.contentBlockDelta.delta.text
             fullContent += text
+            const previous = contentByIndex.get(index)
+            contentByIndex.set(index, { text: (previous?.text ?? '') + text })
             controller.enqueue({ type: 'text_delta', text, turn: 'final' })
           } else if (event.metadata?.usage) {
             inputTokens = event.metadata.usage.inputTokens ?? 0
             outputTokens = event.metadata.usage.outputTokens ?? 0
+            cacheReadInputTokens = event.metadata.usage.cacheReadInputTokens
+            cacheWriteInputTokens = event.metadata.usage.cacheWriteInputTokens
+            cacheDetails = event.metadata.usage.cacheDetails
           }
         }
 
         if (cancelled) return
         if (onComplete) {
-          onComplete(fullContent, { inputTokens, outputTokens })
+          for (const [index, reasoning] of reasoningByIndex) {
+            if (reasoning.redacted.length > 0) {
+              const redactedContent = new Uint8Array(
+                reasoning.redacted.reduce((size, chunk) => size + chunk.length, 0)
+              )
+              let offset = 0
+              for (const chunk of reasoning.redacted) {
+                redactedContent.set(chunk, offset)
+                offset += chunk.length
+              }
+              contentByIndex.set(index, { reasoningContent: { redactedContent } })
+            } else {
+              contentByIndex.set(index, {
+                reasoningContent: {
+                  reasoningText: { text: reasoning.text, signature: reasoning.signature },
+                },
+              })
+            }
+          }
+          await onComplete(
+            fullContent,
+            {
+              inputTokens,
+              outputTokens,
+              ...(cacheReadInputTokens ? { cacheReadInputTokens } : {}),
+              ...(cacheWriteInputTokens ? { cacheWriteInputTokens } : {}),
+              ...(cacheDetails ? { cacheDetails } : {}),
+            },
+            {
+              role: 'assistant',
+              content: [...contentByIndex.entries()]
+                .sort(([left], [right]) => left - right)
+                .map(([, block]) => block),
+            }
+          )
         }
 
         controller.close()
@@ -122,35 +236,50 @@ export function generateToolUseId(toolName: string): string {
 }
 
 /**
- * Models whose AWS model cards state geo/cross-region inference profiles are
- * not supported ("Geo inference ID: Not supported"). These must be invoked
- * with the bare in-region model ID — prefixing them with a geo profile
- * (e.g. us.mistral...) produces an invalid model identifier.
+ * Catalog models with documented geographic inference profiles. Unknown model
+ * IDs and caller-supplied inference profile IDs/ARNs must pass through unchanged.
  */
-const GEO_PROFILE_UNSUPPORTED_MODEL_IDS = new Set([
-  'mistral.mistral-large-3-675b-instruct',
-  'mistral.mistral-large-2407-v1:0',
-  'mistral.magistral-small-2509',
-  'mistral.ministral-3-14b-instruct',
-  'mistral.ministral-3-8b-instruct',
-  'mistral.ministral-3-3b-instruct',
-  'mistral.mixtral-8x7b-instruct-v0:1',
-  'amazon.titan-text-premier-v1:0',
-  'cohere.command-r-v1:0',
-  'cohere.command-r-plus-v1:0',
+const GEO_PROFILE_MODEL_IDS = new Set([
+  'anthropic.claude-opus-4-5-20251101-v1:0',
+  'anthropic.claude-sonnet-4-5-20250929-v1:0',
+  'anthropic.claude-haiku-4-5-20251001-v1:0',
+  'anthropic.claude-opus-4-1-20250805-v1:0',
+  'amazon.nova-2-lite-v1:0',
+  'amazon.nova-premier-v1:0',
+  'amazon.nova-pro-v1:0',
+  'amazon.nova-lite-v1:0',
+  'amazon.nova-micro-v1:0',
+  'meta.llama4-maverick-17b-instruct-v1:0',
+  'meta.llama4-scout-17b-instruct-v1:0',
+  'meta.llama3-3-70b-instruct-v1:0',
+  'meta.llama3-2-90b-instruct-v1:0',
+  'meta.llama3-2-11b-instruct-v1:0',
+  'meta.llama3-2-3b-instruct-v1:0',
+  'meta.llama3-2-1b-instruct-v1:0',
+  'meta.llama3-1-405b-instruct-v1:0',
+  'meta.llama3-1-70b-instruct-v1:0',
+  'meta.llama3-1-8b-instruct-v1:0',
+  'mistral.pixtral-large-2502-v1:0',
 ])
 
-/** Cross-region inference profile prefixes Bedrock prepends to a base model ID. */
-const GEO_PROFILE_PREFIX_PATTERN = /^(us-gov|us|eu|apac|au|ca|jp|global)\./
+/** Current Claude profiles use AU rather than the older APAC geography. */
+const CLAUDE_GEO_PROFILE_MODEL_IDS = new Set([
+  'anthropic.claude-opus-5',
+  'anthropic.claude-sonnet-5',
+  'anthropic.claude-opus-4-8',
+  'anthropic.claude-opus-4-7',
+  'anthropic.claude-opus-4-6-v1',
+  'anthropic.claude-sonnet-4-6',
+])
 
-/**
- * Strips Sim's `bedrock/` namespace and any cross-region inference prefix,
- * leaving the bare `<vendor>.<model>` ID that capability checks key off.
- */
-function getBedrockBaseModelId(modelId: string): string {
-  const withoutNamespace = modelId.startsWith('bedrock/') ? modelId.slice(8) : modelId
-  return withoutNamespace.replace(GEO_PROFILE_PREFIX_PATTERN, '')
-}
+/** These models currently publish US and global inference profiles only. */
+const US_GEO_PROFILE_MODEL_IDS = new Set([
+  'anthropic.claude-fable-5',
+  'openai.gpt-6-astra',
+  'openai.gpt-5.6-sol',
+  'openai.gpt-5.6-terra',
+  'openai.gpt-5.6-luna',
+])
 
 /**
  * Whether the model accepts `status` on a `toolResult` content block.
@@ -177,13 +306,33 @@ export function supportsToolResultStatus(modelId: string): boolean {
  * @returns The inference profile ID (e.g., "us.anthropic.claude-sonnet-4-5-20250929-v1:0")
  */
 export function getBedrockInferenceProfileId(modelId: string, region: string): string {
-  const baseModelId = modelId.startsWith('bedrock/') ? modelId.slice(8) : modelId
+  const baseModelId = modelId.replace(/^bedrock\//i, '')
 
   if (GEO_PROFILE_PREFIX_PATTERN.test(baseModelId)) {
     return baseModelId
   }
 
-  if (GEO_PROFILE_UNSUPPORTED_MODEL_IDS.has(baseModelId)) {
+  if (CLAUDE_GEO_PROFILE_MODEL_IDS.has(baseModelId)) {
+    if ((region.startsWith('us-') && !region.startsWith('us-gov-')) || region.startsWith('ca-')) {
+      return `us.${baseModelId}`
+    }
+    if (region.startsWith('eu-')) return `eu.${baseModelId}`
+    if (region === 'ap-southeast-2' || region === 'ap-southeast-4') return `au.${baseModelId}`
+    throw new Error(
+      `No geographic inference profile is configured for ${baseModelId} in ${region}. ` +
+        'Supply an explicit bedrock/global. model ID or an inference profile ARN.'
+    )
+  }
+
+  if (US_GEO_PROFILE_MODEL_IDS.has(baseModelId)) {
+    if (region.startsWith('us-') && !region.startsWith('us-gov-')) return `us.${baseModelId}`
+    throw new Error(
+      `${baseModelId} only has a US geographic inference profile. ` +
+        'Supply an explicit bedrock/global. model ID to use global inference.'
+    )
+  }
+
+  if (!GEO_PROFILE_MODEL_IDS.has(baseModelId)) {
     return baseModelId
   }
 

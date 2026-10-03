@@ -4,7 +4,7 @@ import { File as FilesIcon, FolderPlus, Plus, Upload } from '@sim/emcn'
 import {
   type ChromeActionSpec,
   ResourceChromeFallback,
-} from '@/app/workspace/[workspaceId]/components'
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-chrome-fallback'
 
 const COLUMNS = [
   { id: 'name', header: 'Name', widthMultiplier: 1.15 },

@@ -1,0 +1,86 @@
+export type { ChatStreamLockOwnersResult } from './abort'
+export {
+  AbortReason,
+  type AbortReasonValue,
+  abortActiveStream,
+  acquirePendingChatStream,
+  cleanupAbortMarker,
+  getChatStreamLockOwners,
+  getPendingChatStreamId,
+  isExplicitStopReason,
+  registerActiveStream,
+  releasePendingChatStream,
+  startAbortPoller,
+  unregisterActiveStream,
+  waitForPendingChatStream,
+} from './abort'
+export {
+  appendEvents,
+  clearAbortMarker,
+  getLatestSeq,
+  getOldestSeq,
+  hasAbortMarker,
+  InvalidCursorError,
+  readEvents,
+  resetBuffer,
+  scheduleBufferCleanup,
+  writeAbortMarker,
+} from './buffer'
+export type {
+  ContractStreamEvent,
+  PersistedStreamEventEnvelope,
+  SessionStreamEvent,
+  StreamEvent,
+  SubagentSpanStreamEvent,
+  SyntheticFilePreviewEventEnvelope,
+  SyntheticFilePreviewPayload,
+  SyntheticStreamEvent,
+  ToolArgsDeltaStreamEvent,
+  ToolCallStreamEvent,
+  ToolResultStreamEvent,
+} from './contract'
+export {
+  isContractStreamEventEnvelope,
+  isSubagentSpanStreamEvent,
+  isSyntheticFilePreviewEventEnvelope,
+  isTerminalStreamStatus,
+  isToolArgsDeltaStreamEvent,
+  isToolCallStreamEvent,
+  isToolResultStreamEvent,
+  parsePersistedStreamEventEnvelope,
+  parsePersistedStreamEventEnvelopeJson,
+} from './contract'
+export { createEvent, eventToStreamEvent, isEventRecord, TOOL_CALL_STATUS } from './event'
+export {
+  clearFilePreviewSessions,
+  createFilePreviewSession,
+  readFilePreviewSessions,
+  scheduleFilePreviewSessionCleanup,
+  upsertFilePreviewSession,
+} from './file-preview-session'
+export type {
+  FilePreviewContentMode,
+  FilePreviewSession,
+  FilePreviewStatus,
+  FilePreviewTargetKind,
+} from './file-preview-session-contract'
+export {
+  FILE_PREVIEW_SESSION_SCHEMA_VERSION,
+  isFilePreviewSession,
+} from './file-preview-session-contract'
+export {
+  findReplayGap,
+  type RingPosition,
+  readRingPosition,
+  replayGapTerminal,
+  ringCanServe,
+} from './recovery'
+export {
+  forwardRunReplay,
+  openRunReplay,
+  type RunReplayEnd,
+  RunReplayUnavailableError,
+} from './run-replay'
+export { encodeSSEEnvelope, SSE_RESPONSE_HEADERS } from './sse'
+export type { StreamBatchEvent } from './types'
+export { StreamWriter, type StreamWriterOptions } from './writer'

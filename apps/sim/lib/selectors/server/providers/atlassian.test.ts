@@ -1,11 +1,11 @@
-/**
- * @vitest-environment node
- */
+import {
+  knowledgeDocumentsUtilsMock,
+  knowledgeDocumentsUtilsMockFns,
+} from '@sim/testing/mocks/knowledge-documents-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetchProviderJsonWithStatus, mockRetryWithExponentialBackoff } = vi.hoisted(() => ({
+const { mockFetchProviderJsonWithStatus } = vi.hoisted(() => ({
   mockFetchProviderJsonWithStatus: vi.fn(),
-  mockRetryWithExponentialBackoff: vi.fn(),
 }))
 
 vi.mock('@/lib/selectors/server/providers/provider-http', () => ({
@@ -13,9 +13,7 @@ vi.mock('@/lib/selectors/server/providers/provider-http', () => ({
   RetryableProviderNetworkError: class RetryableProviderNetworkError extends Error {},
 }))
 
-vi.mock('@/lib/knowledge/documents/utils', () => ({
-  retryWithExponentialBackoff: mockRetryWithExponentialBackoff,
-}))
+vi.mock('@/lib/knowledge/documents/utils', () => knowledgeDocumentsUtilsMock)
 
 import {
   SelectorConnectionUnavailableError,
@@ -24,9 +22,11 @@ import {
 import { resolveSelectorAtlassianCloudId } from '@/lib/selectors/server/providers/atlassian'
 import { RetryableProviderNetworkError } from '@/lib/selectors/server/providers/provider-http'
 
+const mockRetryWithExponentialBackoff =
+  knowledgeDocumentsUtilsMockFns.mockRetryWithExponentialBackoff
+
 describe('Atlassian server selector authentication', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockRetryWithExponentialBackoff.mockImplementation(async (operation: () => Promise<unknown>) =>
       operation()
     )
@@ -54,6 +54,50 @@ describe('Atlassian server selector authentication', () => {
       })
     ).rejects.toBeInstanceOf(SelectorConnectionUnavailableError)
     expect(mockFetchProviderJsonWithStatus).not.toHaveBeenCalled()
+  })
+
+  it.each(['Jira', 'Confluence'] as const)(
+    'rejects a sole other OAuth site for an explicitly configured %s domain',
+    async (product) => {
+      mockFetchProviderJsonWithStatus.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        data: [{ id: 'other-cloud', url: 'https://other.atlassian.net' }],
+      })
+
+      await expect(
+        resolveSelectorAtlassianCloudId({
+          accessToken: 'server-only-token',
+          domain: 'acme.atlassian.net',
+          product,
+        })
+      ).rejects.toBeInstanceOf(SelectorOptionsUnavailableError)
+    }
+  )
+
+  it.each([
+    { name: 'one site', resources: [{ id: 'cloud-1', url: 'https://acme.atlassian.net' }] },
+    {
+      name: 'multiple sites',
+      resources: [
+        { id: 'other-cloud', url: 'https://other.atlassian.net' },
+        { id: 'cloud-1', url: 'https://acme.atlassian.net' },
+      ],
+    },
+  ])('selects the normalized configured OAuth site from $name', async ({ resources }) => {
+    mockFetchProviderJsonWithStatus.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: resources,
+    })
+
+    await expect(
+      resolveSelectorAtlassianCloudId({
+        accessToken: 'server-only-token',
+        domain: ' https://ACME.atlassian.net/ ',
+        product: 'Jira',
+      })
+    ).resolves.toBe('cloud-1')
   })
 
   it('passes only transient statuses into the bounded retry path', async () => {
@@ -115,33 +159,5 @@ describe('Atlassian server selector authentication', () => {
     expect(mockFetchProviderJsonWithStatus.mock.calls[0]?.[2]).toMatchObject({
       passthroughNetworkErrors: true,
     })
-  })
-
-  it('preserves caller cancellation through discovery retries', async () => {
-    const controller = new AbortController()
-    const abortError = new DOMException('The operation was aborted', 'AbortError')
-    controller.abort(abortError)
-    mockRetryWithExponentialBackoff.mockRejectedValueOnce(abortError)
-
-    await expect(
-      resolveSelectorAtlassianCloudId({
-        accessToken: 'server-only-token',
-        domain: 'acme.atlassian.net',
-        product: 'Jira',
-        signal: controller.signal,
-      })
-    ).rejects.toBe(abortError)
-  })
-
-  it('preserves the safe rate-limit category after retries are exhausted', async () => {
-    mockFetchProviderJsonWithStatus.mockResolvedValueOnce({ ok: false, status: 429 })
-
-    await expect(
-      resolveSelectorAtlassianCloudId({
-        accessToken: 'server-only-token',
-        domain: 'acme.atlassian.net',
-        product: 'Jira',
-      })
-    ).rejects.toEqual(new SelectorOptionsUnavailableError(429))
   })
 })

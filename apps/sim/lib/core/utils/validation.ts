@@ -32,27 +32,6 @@ export function validateName(name: string): string {
 }
 
 /**
- * Checks if a name contains invalid characters
- *
- * @param name - The name to check
- * @returns True if the name is valid, false otherwise
- */
-export function isValidName(name: string): boolean {
-  return /^[a-zA-Z0-9_\s]*$/.test(name)
-}
-
-/**
- * Gets a list of invalid characters in a name
- *
- * @param name - The name to check
- * @returns Array of invalid characters found
- */
-export function getInvalidCharacters(name: string): string[] {
-  const invalidChars = name.match(/[^a-zA-Z0-9_\s]/g)
-  return invalidChars ? [...new Set(invalidChars)] : []
-}
-
-/**
  * Escapes non-ASCII characters in JSON string for HTTP header safety.
  * Dropbox API requires characters 0x7F and all non-ASCII to be escaped as \uXXXX.
  */

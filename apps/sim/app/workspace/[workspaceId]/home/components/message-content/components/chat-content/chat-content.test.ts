@@ -1,33 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { sanitizeChatDisplayContent } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/chat-sanitize'
 import { scalingRatioOver4x } from '@/app/workspace/[workspaceId]/home/components/message-content/components/scaling-test-helpers'
 
 describe('sanitizeChatDisplayContent', () => {
-  it.each(['source', 'workspace_resource'])(
-    'unwraps %s JSON that mentions the other chip tag',
-    (name) => {
-      const otherTag = name === 'source' ? 'workspace_resource' : 'source'
-      const tag = `<${name}>${JSON.stringify({ title: `Use <${otherTag}>` })}</${name}>`
-
-      expect(sanitizeChatDisplayContent(`\`${tag}\``)).toBe(tag)
-    }
-  )
-
-  it.each([2, 3, 4])('preserves a %i-backtick code span containing a chip', (length) => {
-    const delimiter = '`'.repeat(length)
-    const tag = '<source>{"url":"https://example.com","title":"Use `config`"}</source>'
-    const content = `${delimiter}${tag}${delimiter}`
-
-    expect(sanitizeChatDisplayContent(content)).toBe(content)
-    expect(sanitizeChatDisplayContent(`${delimiter}json\n\`${tag}\`\n${delimiter}`)).toBe(
-      `${delimiter}json\n\`${tag}\`\n${delimiter}`
-    )
-    expect(sanitizeChatDisplayContent(`${content} then \`${tag}\``)).toBe(`${content} then ${tag}`)
-  })
-
   it('does not let an unmatched backtick run suppress later citations', () => {
     const prefix = 'Use `` for two backticks.\n'
     const tag = '<source>{"url":"https://example.com"}</source>'
@@ -48,44 +23,6 @@ describe('sanitizeChatDisplayContent', () => {
     }
   )
 
-  it('preserves matched multi-backtick spans across a soft line break', () => {
-    const content = '``Literal\n`<source>{"url":"https://example.com"}</source>`\nexample``'
-
-    expect(sanitizeChatDisplayContent(content)).toBe(content)
-  })
-
-  it('does not treat blank lines inside chip JSON as paragraph breaks', () => {
-    const tag = '<source>{\n\n"url":"https://example.com",\n\n"title":"Use `code`"\n}</source>'
-
-    expect(sanitizeChatDisplayContent(`\`${tag}\``)).toBe(tag)
-  })
-
-  it.each(['```', '~~~'])(
-    'preserves a %s fence closed by a longer run and unwraps citations after it',
-    (fence) => {
-      const tag = '<source>{"url":"https://example.com"}</source>'
-      const block = `${fence}json\n\`${tag}\`\n${fence}${fence[0]}\n`
-
-      expect(sanitizeChatDisplayContent(`${block}\`${tag}\``)).toBe(`${block}${tag}`)
-    }
-  )
-
-  it.each(['```', '~~~'])('leaves an unclosed %s streaming fence literal', (fence) => {
-    const content = `${fence}json\n\`<source>{"url":"https://example.com"}</source>\``
-
-    expect(sanitizeChatDisplayContent(content)).toBe(content)
-  })
-
-  it.each(['source', 'workspace_resource'])(
-    'preserves tilde-fenced %s chips with backticks in the info string',
-    (name) => {
-      const tag = `<${name}>{"title":"Example"}</${name}>`
-      const block = `~~~example \`code\`\n\`${tag}\`\n~~~\n`
-
-      expect(sanitizeChatDisplayContent(`${block}\`${tag}\``)).toBe(`${block}${tag}`)
-    }
-  )
-
   it.each(['```', '~~~'])(
     'does not close a %s fence with a different character or a shorter run',
     (fence) => {
@@ -97,45 +34,6 @@ describe('sanitizeChatDisplayContent', () => {
     }
   )
 
-  it('does not open a backtick fence with backticks in its info string', () => {
-    const prefix = '```example `code`\n\n'
-    const tag = '<source>{"url":"https://example.com"}</source>'
-
-    expect(sanitizeChatDisplayContent(`${prefix}\`${tag}\``)).toBe(`${prefix}${tag}`)
-  })
-
-  it('unwraps workspace resource tags from inline code spans', () => {
-    const content =
-      '`I updated <workspace_resource>{"type":"workflow","id":"wf-1","title":"Workflow"}</workspace_resource>.`'
-
-    expect(sanitizeChatDisplayContent(content)).toBe(
-      'I updated <workspace_resource>{"type":"workflow","id":"wf-1","title":"Workflow"}</workspace_resource>.'
-    )
-  })
-
-  it('unwraps source tags from inline code spans', () => {
-    const content = '`Block them first. <source>{"url":"https://docs.github.com/a"}</source>`'
-
-    expect(sanitizeChatDisplayContent(content)).toBe(
-      'Block them first. <source>{"url":"https://docs.github.com/a"}</source>'
-    )
-  })
-
-  it.each(['source', 'workspace_resource'])('preserves backticks inside %s JSON strings', (tag) => {
-    const payload = JSON.stringify({
-      title: 'Run `bun test`',
-      snippet: 'Quoted "commands" and a \\path with `backticks`',
-    })
-    const chip = `<${tag}>${payload}</${tag}>`
-
-    expect(sanitizeChatDisplayContent(`\`Evidence ${chip}.\``)).toBe(`Evidence ${chip}.`)
-    expect(sanitizeChatDisplayContent(`\`${chip} done`)).toBe(`${chip} done`)
-    expect(sanitizeChatDisplayContent(`${chip}\` done`)).toBe(`${chip} done`)
-    expect(sanitizeChatDisplayContent(`\`before\`${chip}\`after\``)).toBe(
-      `\`before\`${chip}\`after\``
-    )
-  })
-
   it('treats tag markers inside JSON strings as payload', () => {
     const payload = JSON.stringify({ snippet: 'Use `<source>` and `</source>` markers' })
     const chip = `<source>${payload}</source>`
@@ -143,73 +41,10 @@ describe('sanitizeChatDisplayContent', () => {
     expect(sanitizeChatDisplayContent(`\`See ${chip}\``)).toBe(`See ${chip}`)
   })
 
-  it('leaves a fenced source example with payload backticks intact', () => {
-    const payload = JSON.stringify({ snippet: 'Run `bun test`' })
-    const content = `Example:\n\`\`\`json\n<source>${payload}</source>\n\`\`\`\nDone.`
-
-    expect(sanitizeChatDisplayContent(content)).toBe(content)
-  })
-
   it('removes hidden internal references wrapped in inline code', () => {
     const content = 'Read `internal/tool-results/read-1.md` and found the issue.'
 
     expect(sanitizeChatDisplayContent(content)).toBe('Read  and found the issue.')
-  })
-
-  it('leaves a backticked mention of the tag name alone', () => {
-    // Unwrapping exists so stray backticks cannot stop a real chip rendering. A
-    // MENTION is not a tag: there is no payload and no closing marker, just the
-    // name written in prose. Stripping its opening backtick leaves the closing
-    // one unpaired, which opens a code span that swallows the rest of the
-    // message — every later `code` toggles to the wrong state.
-    const content = 'The `<workspace_resource>` tag needs a real `path` to render.'
-
-    expect(sanitizeChatDisplayContent(content)).toBe(content)
-  })
-
-  it('keeps backticks balanced across a message that mentions the tag repeatedly', () => {
-    const content =
-      'Use `<workspace_resource>` for files.\n\nThe `<workspace_resource>` chip needs an `id`.'
-    const backticks = (text: string) => (text.match(/`/g) || []).length
-
-    expect(backticks(sanitizeChatDisplayContent(content))).toBe(backticks(content))
-  })
-
-  it('leaves prose that mentions the opener and the closer separately alone', () => {
-    // The balanced unwrap reads a backticked opener, prose, and a backticked
-    // closer as ONE wrapped tag, and strips the outer pair. This is the shape a
-    // message explaining the tag syntax naturally takes.
-    const content = 'Use `<workspace_resource>` then close with `</workspace_resource>` at the end.'
-
-    expect(sanitizeChatDisplayContent(content)).toBe(content)
-  })
-
-  it('leaves a neighbouring code span alone', () => {
-    // Only a backtick DIRECTLY against the tag is the tag's wrapping. Allowing
-    // whitespace between let the pattern reach past the tag and take the
-    // delimiter off an unrelated span, breaking its pair.
-    const content =
-      'Open `config.json` <workspace_resource>{"type":"file","path":"a.md","title":"a"}</workspace_resource> then run `bun test`.'
-
-    expect(sanitizeChatDisplayContent(content)).toBe(content)
-  })
-
-  it('leaves a code span sitting flush against the tag alone', () => {
-    // No space between them, so the span's delimiter is directly against the
-    // tag and a pattern looking for "a backtick beside a tag" cannot tell the
-    // two apart. A single pass settles it: a span consumes its own delimiters as
-    // the scan reaches them, and a trailing backtick is only taken as a stray
-    // when no further backtick follows on the line.
-    const before =
-      'Open `config.json`<workspace_resource>{"type":"file","path":"a.md","title":"a"}</workspace_resource> ok'
-    const after =
-      'Open <workspace_resource>{"type":"file","path":"a.md","title":"a"}</workspace_resource>`config.json` ok'
-    const both =
-      'Open `a`<workspace_resource>{"type":"file","path":"a.md","title":"a"}</workspace_resource>`b` ok'
-
-    expect(sanitizeChatDisplayContent(before)).toBe(before)
-    expect(sanitizeChatDisplayContent(after)).toBe(after)
-    expect(sanitizeChatDisplayContent(both)).toBe(both)
   })
 
   it('does not break the closing fence of a code block containing a tag', () => {

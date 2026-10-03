@@ -1,16 +1,15 @@
-/**
- * @vitest-environment node
- */
+import { fileParsersMock, fileParsersMockFns } from '@sim/testing/mocks/file-parsers.mock'
+import { describe, expect, it, vi } from 'vitest'
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockParseBuffer } = vi.hoisted(() => ({
-  mockParseBuffer: vi.fn(),
+vi.mock('@/lib/core/rate-limiter/provider-admission', () => ({
+  PROVIDER_QUOTA_COOLDOWN_MS: 300_000,
+  ProviderQuotaExhaustedError: class ProviderQuotaExhaustedError extends Error {},
+  isProviderQuotaExhausted: vi.fn().mockResolvedValue(false),
+  recordProviderCooldown: vi.fn().mockResolvedValue(undefined),
+  waitForProviderAdmission: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('@/lib/file-parsers', () => ({
-  parseBuffer: mockParseBuffer,
-}))
+vi.mock('@/lib/file-parsers', () => fileParsersMock)
 
 import { ChunkLimitExceededError } from '@/lib/chunkers/chunk-budget'
 import { TokenChunker } from '@/lib/chunkers/token-chunker'
@@ -20,15 +19,9 @@ import {
 } from '@/lib/knowledge/documents/document-processing-error'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 
+const mockParseBuffer = fileParsersMockFns.mockParseBuffer
+
 describe('document chunk production ceiling', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('translates the shared chunk limit once into a permanent complexity failure', async () => {
     mockParseBuffer.mockResolvedValue({
       content: Array.from({ length: MAX_DOCUMENT_CHUNKS + 1 }, () => 'word').join(' '),

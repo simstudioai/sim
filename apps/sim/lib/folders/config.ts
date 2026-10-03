@@ -235,6 +235,38 @@ async function guardLastWorkflows({
   return null
 }
 
+/** A shared search index must be deleted explicitly, never as an incidental folder child. */
+async function guardSearchIndex({
+  workspaceId,
+  folderIds,
+}: {
+  workspaceId: string
+  folderIds: string[]
+}): Promise<FolderDeleteRejection | null> {
+  const [{ db }, { and, inArray, isNull }] = await Promise.all([
+    import('@sim/db'),
+    import('drizzle-orm'),
+  ])
+  const [index] = await db
+    .select({ id: knowledgeBase.id })
+    .from(knowledgeBase)
+    .where(
+      and(
+        eq(knowledgeBase.workspaceId, workspaceId),
+        inArray(knowledgeBase.folderId, folderIds),
+        eq(knowledgeBase.isSearchIndex, true),
+        isNull(knowledgeBase.deletedAt)
+      )
+    )
+    .limit(1)
+  return index
+    ? {
+        error: 'Delete the search knowledge base before deleting this folder',
+        errorCode: 'conflict',
+      }
+    : null
+}
+
 /**
  * Selects the ids of resources inside a folder subtree whose soft-delete column is in the
  * requested state — active (`null`) when archiving, or stamped with the cascade timestamp
@@ -495,6 +527,7 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
       ({ deletedAt: timestamp, updatedAt: now }) satisfies Partial<
         typeof knowledgeBase.$inferInsert
       >,
+    guardDelete: guardSearchIndex,
     archiveChildren: archiveKnowledgeBaseChildren,
     restoreChildren: restoreKnowledgeBaseChildren,
   },

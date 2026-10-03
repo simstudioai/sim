@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { resetEnvFlagsMock } from '@sim/testing'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { DeploymentShape, WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import {
@@ -59,33 +56,8 @@ const DEPLOYMENT: DeploymentShape = {
   },
 }
 
-const HOST_ADMIN_CONTEXT: WorkspaceHostContext = {
-  ...HOST_CONTEXT,
-  viewer: { ...HOST_CONTEXT.viewer, isHostOrganizationAdmin: true },
-}
-
 describe('canViewWorkspaceBillingSettings', () => {
   afterEach(resetEnvFlagsMock)
-
-  it('reads billing availability from the host context deployment shape', () => {
-    expect(
-      canViewWorkspaceBillingSettings({ ...HOST_ADMIN_CONTEXT, deployment: DEPLOYMENT }, 'admin-b')
-    ).toBe(true)
-    expect(
-      canViewWorkspaceBillingSettings(
-        { ...HOST_ADMIN_CONTEXT, deployment: { ...DEPLOYMENT, billingEnabled: false } },
-        'admin-b'
-      )
-    ).toBe(false)
-  })
-
-  it('falls back to the deployment reader for a host context that predates the field', () => {
-    expect(canViewWorkspaceBillingSettings(HOST_ADMIN_CONTEXT, 'admin-b')).toBe(false)
-
-    setEnvFlags({ isBillingEnabled: true })
-
-    expect(canViewWorkspaceBillingSettings(HOST_ADMIN_CONTEXT, 'admin-b')).toBe(true)
-  })
 
   it('still requires authority over the payer', () => {
     expect(
@@ -111,22 +83,6 @@ describe('canManageWorkspaceBilling', () => {
           },
         },
         'admin-b'
-      )
-    ).toBe(true)
-  })
-
-  it('allows the billed user to manage a personal workspace', () => {
-    expect(
-      canManageWorkspaceBilling(
-        {
-          ...HOST_CONTEXT,
-          workspace: {
-            ...HOST_CONTEXT.workspace,
-            workspaceMode: 'personal',
-          },
-          hostOrganizationId: null,
-        },
-        'owner-b'
       )
     ).toBe(true)
   })

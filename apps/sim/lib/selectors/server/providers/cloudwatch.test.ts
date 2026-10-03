@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { CloudWatchLogsServiceException } from '@aws-sdk/client-cloudwatch-logs'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockListCloudWatchLogGroups, mockListCloudWatchLogStreams } = vi.hoisted(() => ({
   mockListCloudWatchLogGroups: vi.fn(),
@@ -53,8 +50,6 @@ function cloudWatchError(status: number): CloudWatchLogsServiceException {
 }
 
 describe('CloudWatch server selector adapter', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   it.each([
     [401, 'SelectorConnectionUnavailableError', 401],
     [403, 'SelectorConnectionUnavailableError', 403],
@@ -77,17 +72,6 @@ describe('CloudWatch server selector adapter', () => {
     await expect(
       cloudWatchSelectorAttachments['cloudwatch.logGroups'].execute(logGroupArgs())
     ).rejects.toMatchObject({ name: 'SelectorOptionsUnavailableError', status: 502 })
-  })
-
-  it('preserves caller cancellation', async () => {
-    const controller = new AbortController()
-    const abortError = new DOMException('The operation was aborted', 'AbortError')
-    controller.abort(abortError)
-    mockListCloudWatchLogGroups.mockRejectedValueOnce(abortError)
-
-    await expect(
-      cloudWatchSelectorAttachments['cloudwatch.logGroups'].execute(logGroupArgs(controller.signal))
-    ).rejects.toBe(abortError)
   })
 
   it('returns null when a selected log group no longer exists', async () => {

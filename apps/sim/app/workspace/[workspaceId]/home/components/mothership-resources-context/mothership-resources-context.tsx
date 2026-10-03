@@ -18,7 +18,11 @@ interface MothershipResourcesContextValue {
   /** Adds a resource to the panel and activates it. */
   addResource: (resource: MothershipResource) => void
   /** Removes a resource from the panel. */
-  removeResource: (resourceType: MothershipResourceType, resourceId: string) => void
+  removeResource: (
+    resourceType: MothershipResourceType,
+    resourceId: string,
+    workspaceId?: string
+  ) => void
   /** Replaces the resource list with a new ordering. */
   reorderResources: (resources: MothershipResource[]) => void
   /** Collapses the resource panel. */

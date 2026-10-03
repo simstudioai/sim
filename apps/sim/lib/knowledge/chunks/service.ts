@@ -3,7 +3,7 @@ import { document, embedding, knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
 import {
   type KeysetKey,
   keysetColumns,
@@ -14,6 +14,7 @@ import {
   searchFilter,
   textKey,
 } from '@/lib/api/list-query'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
@@ -25,9 +26,11 @@ import type {
   ChunkSortBy,
   CreateChunkData,
 } from '@/lib/knowledge/chunks/types'
-import { getEmbeddingModelInfo } from '@/lib/knowledge/embedding-models'
-import { generateEmbeddings } from '@/lib/knowledge/embeddings'
+import { getEmbeddingModelInfo, toKbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
+import { generateEmbeddings, type KbEmbeddingTarget } from '@/lib/knowledge/embeddings'
+import { workspaceSearchFilterConditions } from '@/lib/knowledge/search/filter-conditions'
 import { replaceKnowledgeEmbeddingSecretProvenanceInTx } from '@/lib/knowledge/secret-provenance'
+import { embeddingVectorValues } from '@/lib/knowledge/vector-columns'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 
 const logger = createLogger('ChunksService')
@@ -97,7 +100,13 @@ export async function queryChunks(
    * scope; the join repeats the check at the row so a revocation between the
    * two reads still hides the content.
    */
-  const conditions = [eq(embedding.documentId, documentId), knowledgeAccessCondition(access)]
+  const conditions = [
+    eq(embedding.documentId, documentId),
+    knowledgeAccessCondition(access),
+    ...workspaceSearchFilterConditions(filters.documentFilters),
+  ]
+
+  if (filters.requireEnabledDocument) conditions.push(eq(document.enabled, true))
 
   if (enabled === 'true') {
     conditions.push(eq(embedding.enabled, true))
@@ -115,7 +124,13 @@ export async function queryChunks(
    * keyset resume narrows the *page*, and folding it into the count would turn
    * a total into a remainder that shrinks with every page.
    */
-  const pageConditions = [...conditions, resumeKeyset(keys, cursorKeys, sortOrder)]
+  const pageConditions = [
+    ...conditions,
+    resumeKeyset(keys, cursorKeys, sortOrder),
+    filters.startChunkIndex === undefined
+      ? undefined
+      : gte(embedding.chunkIndex, filters.startChunkIndex),
+  ]
 
   const rows = await db
     .select({
@@ -196,19 +211,22 @@ export async function createChunk(
 ): Promise<ChunkData> {
   logger.info(`[${requestId}] Generating embedding for manual chunk`)
   const kbRow = await db
-    .select({ embeddingModel: knowledgeBase.embeddingModel })
+    .select({
+      embeddingModel: knowledgeBase.embeddingModel,
+      embeddingDimension: knowledgeBase.embeddingDimension,
+    })
     .from(knowledgeBase)
     .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
     .limit(1)
   if (kbRow.length === 0) {
     throw new Error('Knowledge base not found')
   }
-  const kbEmbeddingModel = kbRow[0].embeddingModel
-  const { embeddings } = await generateEmbeddings(
-    [chunkData.content],
-    kbEmbeddingModel,
-    workspaceId
-  )
+  const kbEmbedding: KbEmbeddingTarget = {
+    model: kbRow[0].embeddingModel,
+    dimensions: toKbEmbeddingDimensions(kbRow[0].embeddingDimension),
+  }
+  const kbEmbeddingModel = kbEmbedding.model
+  const { embeddings } = await generateEmbeddings([chunkData.content], kbEmbedding, workspaceId)
 
   const tokenCount = estimateTokenCount(
     chunkData.content,
@@ -222,9 +240,7 @@ export async function createChunk(
     await tx.execute(
       sql`select set_config('lock_timeout', ${`${KB_CHUNK_LOCK_TIMEOUT_MS}ms`}, true)`
     )
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${`kb_chunk_seq:${documentId}`}, 0))`
-    )
+    await acquireAdvisoryXactLock(tx, 'kb_chunk_seq', `kb_chunk_seq:${documentId}`)
 
     const activeDocument = await tx
       .select({ id: document.id })
@@ -264,7 +280,7 @@ export async function createChunk(
       secretProvenanceVersion: secretProvenance ? 1 : null,
       contentLength: chunkData.content.length,
       tokenCount: tokenCount.count,
-      embedding: embeddings[0],
+      ...embeddingVectorValues(kbEmbedding.dimensions, embeddings[0]),
       embeddingModel: kbEmbeddingModel,
       startOffset: 0, // Manual chunks don't have document offsets
       endOffset: chunkData.content.length,
@@ -458,26 +474,36 @@ export async function updateChunk(
 
       // The embedding is a function of the new content alone, so generating it
       // outside the transaction is always valid.
-      let regenerated: { embedding: number[]; tokenCount: number } | null = null
+      let regenerated: {
+        vectorValues: ReturnType<typeof embeddingVectorValues>
+        tokenCount: number
+      } | null = null
       if (content !== preRead.content) {
         const kbRow = await db
-          .select({ embeddingModel: knowledgeBase.embeddingModel })
+          .select({
+            embeddingModel: knowledgeBase.embeddingModel,
+            embeddingDimension: knowledgeBase.embeddingDimension,
+          })
           .from(knowledgeBase)
           .innerJoin(document, eq(document.knowledgeBaseId, knowledgeBase.id))
           .where(eq(document.id, preRead.documentId))
           .limit(1)
-        const chunkEmbeddingModel = kbRow[0]?.embeddingModel
-        if (!chunkEmbeddingModel) {
+        const kbEmbeddingRow = kbRow[0]
+        if (!kbEmbeddingRow) {
           throw new Error('Knowledge base for chunk not found')
+        }
+        const chunkEmbedding: KbEmbeddingTarget = {
+          model: kbEmbeddingRow.embeddingModel,
+          dimensions: toKbEmbeddingDimensions(kbEmbeddingRow.embeddingDimension),
         }
 
         logger.info(`[${requestId}] Content changed, regenerating embedding for chunk ${chunkId}`)
-        const { embeddings } = await generateEmbeddings([content], chunkEmbeddingModel, workspaceId)
+        const { embeddings } = await generateEmbeddings([content], chunkEmbedding, workspaceId)
         regenerated = {
-          embedding: embeddings[0],
+          vectorValues: embeddingVectorValues(chunkEmbedding.dimensions, embeddings[0]),
           tokenCount: estimateTokenCount(
             content,
-            getEmbeddingModelInfo(chunkEmbeddingModel).tokenizerProvider
+            getEmbeddingModelInfo(chunkEmbedding.model).tokenizerProvider
           ).count,
         }
       }
@@ -518,7 +544,7 @@ export async function updateChunk(
           chunkHash: sha256Hex(content),
           tokenCount: regenerated ? regenerated.tokenCount : oldTokenCount,
           secretProvenanceVersion: secretProvenance ? 1 : currentChunk[0].secretProvenanceVersion,
-          ...(regenerated ? { embedding: regenerated.embedding } : {}),
+          ...(regenerated ? regenerated.vectorValues : {}),
           ...(updateData.enabled !== undefined ? { enabled: updateData.enabled } : {}),
         }
 

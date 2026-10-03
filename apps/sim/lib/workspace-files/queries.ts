@@ -10,9 +10,8 @@ import {
  * `GET /api/workspaces/[id]/files` response contract so the workspace layout's server seed
  * caches exactly the shape that route returns.
  *
- * Parsing through the route contract's response schema strips the server-only fields
- * `requestJson` strips on the client (`contentUpdatedAt`), so a prefetched entry is identical
- * to a client fetch rather than carrying a field that vanishes on the next refetch.
+ * The shared response schema keeps server-prefetched and client-fetched entries identical,
+ * including the content version used for conditional saves.
  *
  * Callers authorize the viewer against `workspaceId` first.
  *

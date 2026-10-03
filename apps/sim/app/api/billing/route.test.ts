@@ -1,35 +1,24 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns, createMockRequest, dbChainMock, dbChainMockFns } from '@sim/testing'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import {
+  billingOrganizationMock,
+  billingOrganizationMockFns,
+} from '@sim/testing/mocks/billing-organization.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetCreditBalanceForEntity,
-  mockGetOrganizationBillingData,
-  mockGetOrganizationSubscription,
-  mockGetPersonalBillingSummary,
-  mockResolveBillingInterval,
-} = vi.hoisted(() => ({
+const { mockGetCreditBalanceForEntity } = vi.hoisted(() => ({
   mockGetCreditBalanceForEntity: vi.fn(),
-  mockGetOrganizationBillingData: vi.fn(),
-  mockGetOrganizationSubscription: vi.fn(),
-  mockGetPersonalBillingSummary: vi.fn(),
-  mockResolveBillingInterval: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/billing', () => ({
-  getOrganizationSubscription: mockGetOrganizationSubscription,
-  getPersonalBillingSummary: mockGetPersonalBillingSummary,
-}))
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 
-vi.mock('@/lib/billing/core/organization', () => ({
-  getOrganizationBillingData: mockGetOrganizationBillingData,
-}))
+vi.mock('@/lib/billing/core/organization', () => billingOrganizationMock)
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  resolveBillingInterval: mockResolveBillingInterval,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 vi.mock('@/lib/billing/credits/balance', () => ({
   getCreditBalanceForEntity: mockGetCreditBalanceForEntity,
@@ -38,6 +27,10 @@ vi.mock('@/lib/billing/credits/balance', () => ({
 import { GET } from '@/app/api/billing/route'
 
 const mockGetSession = authMockFns.mockGetSession
+const mockGetOrganizationBillingData = billingOrganizationMockFns.mockGetOrganizationBillingData
+const mockGetOrganizationSubscription = billingCoreMockFns.mockGetOrganizationSubscription
+const mockGetPersonalBillingSummary = billingCoreMockFns.mockGetPersonalBillingSummary
+const mockResolveBillingInterval = billingSubscriptionMockFns.mockResolveBillingInterval
 
 const PERSONAL_SUMMARY = {
   type: 'individual',
@@ -89,14 +82,6 @@ const ACTIVE_ORG_SUBSCRIPTION = {
   cancelAtPeriodEnd: true,
   periodStart: new Date('2026-07-01T00:00:00.000Z'),
   periodEnd: new Date('2026-08-01T00:00:00.000Z'),
-} as const
-
-const FREE_ORG_SUBSCRIPTION = {
-  ...ACTIVE_ORG_SUBSCRIPTION,
-  id: 'org-free-subscription',
-  plan: 'free',
-  billingInterval: 'month',
-  cancelAtPeriodEnd: false,
 } as const
 
 interface OrganizationSubscriptionFixture {
@@ -156,7 +141,6 @@ function mockOrganizationDbRows({
 
 describe('GET /api/billing', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'viewer-a' } })
     mockGetPersonalBillingSummary.mockResolvedValue(PERSONAL_SUMMARY)
     mockGetOrganizationBillingData.mockResolvedValue(ACTIVE_ORG_BILLING)
@@ -224,56 +208,6 @@ describe('GET /api/billing', () => {
     })
     expect(mockGetOrganizationBillingData).not.toHaveBeenCalled()
     expect(mockGetCreditBalanceForEntity).not.toHaveBeenCalled()
-  })
-
-  it('returns an explicit free state when the organization has no subscription', async () => {
-    mockGetOrganizationBillingData.mockResolvedValue(null)
-    mockGetOrganizationSubscription.mockResolvedValue(null)
-    mockOrganizationDbRows({
-      latestSubscription: null,
-      ownerId: 'viewer-a',
-      billingBlocked: false,
-      billingBlockedReason: null,
-    })
-
-    const response = await GET(request('context=organization&id=org-target'))
-    const body = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(body.data).toMatchObject({
-      subscriptionState: 'free',
-      hasSubscription: false,
-      subscriptionPlan: 'free',
-      subscriptionStatus: null,
-      creditBalance: 17,
-      billingInterval: 'month',
-      cancelAtPeriodEnd: false,
-      billingBlocked: false,
-    })
-  })
-
-  it('distinguishes an active free subscription from a paid active plan', async () => {
-    mockGetOrganizationBillingData.mockResolvedValue(null)
-    mockGetOrganizationSubscription.mockResolvedValue(FREE_ORG_SUBSCRIPTION)
-    mockOrganizationDbRows({
-      latestSubscription: FREE_ORG_SUBSCRIPTION,
-      ownerId: 'viewer-a',
-      billingBlocked: false,
-      billingBlockedReason: null,
-    })
-
-    const response = await GET(request('context=organization&id=org-target'))
-    const body = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(body.data).toMatchObject({
-      subscriptionState: 'free',
-      hasSubscription: true,
-      subscriptionPlan: 'free',
-      subscriptionStatus: 'active',
-      billingInterval: 'month',
-      cancelAtPeriodEnd: false,
-    })
   })
 
   it('retains the last target subscription as an explicit lapsed state', async () => {

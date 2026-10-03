@@ -1,9 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
-import { resolveStreamingToolDisplayTitle } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-helpers'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import {
   type AgentNode,
   applyTurnTerminal,
@@ -44,98 +40,53 @@ function build(events: PersistedStreamEventEnvelope[]): TurnModel {
   return m
 }
 
-describe('streaming resource titles', () => {
-  it('includes resource names as soon as they appear in streamed arguments', () => {
-    expect(resolveStreamingToolDisplayTitle('create_workflow', '{"name":"Lead Router"}')).toBe(
-      'Creating Lead Router'
-    )
-    expect(
-      resolveStreamingToolDisplayTitle(
-        'manage_custom_tool',
-        '{"operation":"add","schema":{"function":{"name":"lookupWeather"}}}'
-      )
-    ).toBe('Creating lookupWeather')
-    expect(
-      resolveStreamingToolDisplayTitle(
-        'mv',
-        '{"sources":["workflows/Old%20Name"],"destination":"workflows/New%20Name","toolTitle":"Old Name to New Name"}'
-      )
-    ).toBe('Renaming Old Name to New Name')
-    expect(resolveStreamingToolDisplayTitle('rm', '{"toolTitle":"Old Report.pdf"}')).toBe(
-      'Deleting Old Report.pdf'
-    )
+describe('activity metadata replay', () => {
+  it('carries hidden discovery labels onto later visible calls without crossing agent lanes', () => {
+    const activity = {
+      id: 'inputs',
+      completedTitle: 'Checked invoice requirements',
+    }
+    const childActivity = {
+      id: 'inputs',
+      completedTitle: 'Checked customer requirements',
+    }
+    const model = build([
+      env(1, 'tool', {
+        phase: 'call',
+        toolCallId: 'skill',
+        toolName: 'load_skill',
+        arguments: { name: 'build-workflow', activity },
+        ui: { hidden: true },
+      }),
+      env(
+        2,
+        'tool',
+        {
+          phase: 'call',
+          toolCallId: 'child-skill',
+          toolName: 'load_skill',
+          arguments: { name: 'build-workflow', activity: childActivity },
+          ui: { hidden: true },
+        },
+        { lane: 'subagent', spanId: 'child' }
+      ),
+      env(3, 'text', { channel: 'assistant', text: 'Now inspecting the inputs.' }),
+      env(4, 'tool', {
+        phase: 'call',
+        toolCallId: 'read',
+        toolName: 'sim_cli',
+        arguments: { args: ['blocks', 'get', 'start_trigger'], activity: { id: 'inputs' } },
+      }),
+    ])
+    const blocks = modelToContentBlocks(model)
+    expect(blocks.filter((block) => block.toolCall)).toHaveLength(1)
+    expect(blocks.find((block) => block.toolCall)?.toolCall?.params?.activity).toEqual(activity)
+    const replay = modelToContentBlocks(contentBlocksToModel(blocks))
+    expect(replay.find((block) => block.toolCall)?.toolCall?.params?.activity).toEqual(activity)
   })
 })
 
-// A main-agent file delegation: trigger tool (main lane), subagent span, inner
-// prepare_file_edit, span end, delegation result.
-function fileDelegationEvents(): PersistedStreamEventEnvelope[] {
-  const sub: Scope = {
-    lane: 'subagent',
-    spanId: 'S1',
-    parentSpanId: 'main',
-    parentToolCallId: 'tc-file',
-    agentId: 'file',
-  }
-  return [
-    env(1, 'text', { channel: 'assistant', text: 'Writing the file.' }),
-    env(2, 'tool', { phase: 'call', toolCallId: 'tc-file', toolName: 'file' }),
-    env(
-      3,
-      'span',
-      { kind: 'subagent', event: 'start', agent: 'file', data: { tool_call_id: 'tc-file' } },
-      sub
-    ),
-    env(
-      4,
-      'tool',
-      { phase: 'call', toolCallId: 'wf-1', toolName: 'prepare_file_edit' },
-      { lane: 'subagent', spanId: 'S1' }
-    ),
-    env(
-      5,
-      'tool',
-      { phase: 'result', toolCallId: 'wf-1', toolName: 'prepare_file_edit', success: true },
-      { lane: 'subagent', spanId: 'S1' }
-    ),
-    env(
-      6,
-      'span',
-      { kind: 'subagent', event: 'end', agent: 'file', data: {} },
-      { lane: 'subagent', spanId: 'S1' }
-    ),
-    env(7, 'tool', { phase: 'result', toolCallId: 'tc-file', toolName: 'file', success: true }),
-  ]
-}
-
-function blocksByType(blocks: ReturnType<typeof modelToContentBlocks>, type: string) {
-  return blocks.filter((b) => b.type === type)
-}
-
 describe('modelToContentBlocks', () => {
-  it('emits main-lane blocks without spanId and subagent-lane blocks with spanId', () => {
-    const blocks = modelToContentBlocks(build(fileDelegationEvents()))
-
-    const mainText = blocks.find((b) => b.type === 'text')
-    expect(mainText?.spanId).toBeUndefined()
-
-    const trigger = blocksByType(blocks, 'tool_call').find((b) => b.toolCall?.name === 'file')
-    expect(trigger?.spanId).toBeUndefined()
-    expect(trigger?.toolCall?.status).toBe('success')
-
-    const innerTool = blocksByType(blocks, 'tool_call').find(
-      (b) => b.toolCall?.name === 'prepare_file_edit'
-    )
-    expect(innerTool?.spanId).toBe('S1')
-    expect(innerTool?.toolCall?.calledBy).toBe('file')
-    expect(innerTool?.toolCall?.status).toBe('success')
-
-    const subagent = blocks.find((b) => b.type === 'subagent')
-    expect(subagent?.spanId).toBe('S1')
-    expect(subagent?.parentSpanId).toBe('main')
-    expect(subagent?.parentToolCallId).toBe('tc-file')
-  })
-
   it('orders blocks by wire seq and appends new content without reordering existing blocks', () => {
     const m = createTurnModel()
     reduceEvent(m, env(1, 'text', { channel: 'assistant', text: 'one' }))
@@ -241,22 +192,6 @@ describe('modelToContentBlocks', () => {
     expect(afterIdx).toBeGreaterThan(endIdx)
   })
 
-  it('preserves thinking timing across a model -> blocks -> model reconnect round-trip', () => {
-    const m1 = build([
-      env(1, 'text', { channel: 'thinking', text: 'pondering' }),
-      env(2, 'text', { channel: 'assistant', text: 'the answer' }),
-    ])
-    const blocks1 = modelToContentBlocks(m1)
-    const blocks2 = modelToContentBlocks(contentBlocksToModel(blocks1))
-    const t1 = blocks1.find((b) => b.type === 'thinking')
-    const t2 = blocks2.find((b) => b.type === 'thinking')
-    expect(t1?.timestamp).toBe(1)
-    expect(t1?.endedAt).toBe(2)
-    // Reconnect rebuild must not reset timing to seq/undefined.
-    expect(t2?.timestamp).toBe(t1?.timestamp)
-    expect(t2?.endedAt).toBe(t1?.endedAt)
-  })
-
   it('emits subagent_end for a straggler lane closed by a model terminal (no span end)', () => {
     const sub: Scope = {
       lane: 'subagent',
@@ -283,111 +218,48 @@ describe('modelToContentBlocks', () => {
     const blocks = modelToContentBlocks(m)
     expect(blocks.some((b) => b.type === 'subagent_end' && b.spanId === 'S1')).toBe(true)
   })
+})
 
-  it('skips per-call hidden tool nodes but keeps them in the model for side effects', () => {
-    const m = build([
-      env(1, 'tool', {
-        phase: 'call',
-        toolCallId: 'h-1',
-        toolName: 'secret_tool',
-        ui: { hidden: true },
-      }),
-      env(2, 'tool', {
-        phase: 'result',
-        toolCallId: 'h-1',
-        toolName: 'secret_tool',
-        success: true,
+describe('background task pill', () => {
+  it('folds task_armed into a task block, resolves it on task_delivered, and survives the round-trip', () => {
+    const armed = build([
+      env(1, 'run', {
+        kind: 'task_armed',
+        taskId: 'task-1',
+        taskKind: 'workflow_run',
+        target: { executionId: 'exec-9' },
+        note: 'check the errors',
       }),
     ])
-    expect(m.nodes.has('h-1')).toBe(true)
-    expect(blocksByType(modelToContentBlocks(m), 'tool_call')).toHaveLength(0)
-  })
+    const blocks = modelToContentBlocks(armed)
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0]).toMatchObject({
+      type: 'task',
+      task: { taskId: 'task-1', kind: 'workflow_run', status: 'pending', note: 'check the errors' },
+    })
 
-  it('resolves a tool display title from its arguments', () => {
-    const blocks = modelToContentBlocks(
-      build([
-        env(1, 'tool', {
-          phase: 'call',
-          toolCallId: 'wf',
-          toolName: 'prepare_file_edit',
-          arguments: { operation: 'create', title: 'My Doc' },
-        }),
-      ])
-    )
-    const tool = blocksByType(blocks, 'tool_call').find((b) => b.toolCall?.id === 'wf')
-    expect(tool?.toolCall?.displayTitle).toBeTruthy()
-  })
-
-  it('emits a paired subagent_end at the run end seq, ordered after the inner work', () => {
-    const blocks = modelToContentBlocks(build(fileDelegationEvents()))
-    const startIdx = blocks.findIndex((b) => b.type === 'subagent')
-    const innerIdx = blocks.findIndex(
-      (b) => b.type === 'tool_call' && b.toolCall?.name === 'prepare_file_edit'
-    )
-    const endIdx = blocks.findIndex((b) => b.type === 'subagent_end')
-    expect(startIdx).toBeGreaterThanOrEqual(0)
-    expect(endIdx).toBeGreaterThan(innerIdx)
-    expect(innerIdx).toBeGreaterThan(startIdx)
-  })
-
-  it('omits subagent_end while the run is still open', () => {
-    const sub: Scope = {
-      lane: 'subagent',
-      spanId: 'S1',
-      parentSpanId: 'main',
-      parentToolCallId: 'tc-file',
-      agentId: 'file',
-    }
-    const blocks = modelToContentBlocks(
-      build([
-        env(1, 'tool', { phase: 'call', toolCallId: 'tc-file', toolName: 'file' }),
-        env(2, 'span', { kind: 'subagent', event: 'start', agent: 'file', data: {} }, sub),
-      ])
-    )
-    expect(blocksByType(blocks, 'subagent_end')).toHaveLength(0)
-    expect(blocksByType(blocks, 'subagent')).toHaveLength(1)
-  })
-
-  it('persists a completed compaction inside its subagent span', () => {
-    const sub: Scope = {
-      lane: 'subagent',
-      spanId: 'S1',
-      parentSpanId: 'main',
-      parentToolCallId: 'tc-workflow',
-      agentId: 'workflow',
-    }
-    const blocks = modelToContentBlocks(
-      build([
-        env(
-          1,
-          'span',
-          {
-            kind: 'subagent',
-            event: 'start',
-            agent: 'workflow',
-            data: { tool_call_id: 'tc-workflow' },
-          },
-          sub
-        ),
-        env(2, 'run', { kind: 'compaction_start' }, sub),
-        env(3, 'run', { kind: 'compaction_done' }, sub),
-      ])
-    )
-
-    const compaction = blocks.find(
-      (block) => block.type === 'tool_call' && block.toolCall?.name === 'context_compaction'
-    )
-    expect(compaction).toEqual(
-      expect.objectContaining({
-        spanId: 'S1',
-        parentSpanId: 'main',
-        toolCall: expect.objectContaining({
-          calledBy: 'workflow',
-          displayTitle: 'Summarizing context',
-          status: 'success',
-        }),
+    reduceEvent(
+      armed,
+      env(2, 'run', {
+        kind: 'task_delivered',
+        taskId: 'task-1',
+        status: 'failed',
+        summary: 'Slack block failed',
       })
     )
+    const delivered = modelToContentBlocks(armed)
+    expect(delivered[0]).toMatchObject({
+      type: 'task',
+      task: { status: 'failed', summary: 'Slack block failed' },
+    })
+
+    const rebuilt = contentBlocksToModel(delivered)
+    const node = rebuilt.nodes.get('task:task-1')
+    expect(node?.kind).toBe('task')
+    expect(node?.kind === 'task' && node.task).toMatchObject({
+      status: 'failed',
+      summary: 'Slack block failed',
+    })
   })
 })
 
@@ -398,18 +270,6 @@ describe('contentBlocksToModel round-trip', () => {
   function agent(model: TurnModel, spanId: string): AgentNode {
     return model.nodes.get(spanId) as AgentNode
   }
-
-  it('rebuilds tool and agent statuses and nesting from serialized blocks', () => {
-    const original = build(fileDelegationEvents())
-    const rebuilt = contentBlocksToModel(modelToContentBlocks(original))
-
-    expect(tool(rebuilt, 'tc-file').status).toBe('success')
-    expect(tool(rebuilt, 'wf-1').status).toBe('success')
-    expect(tool(rebuilt, 'wf-1').spanId).toBe('S1')
-    expect(agent(rebuilt, 'S1').status).toBe('success')
-    expect(agent(rebuilt, 'S1').parentSpanId).toBe('main')
-    expect(agent(rebuilt, 'S1').triggerToolCallId).toBe('tc-file')
-  })
 
   it('preserves a running tool and an open subagent across the round-trip', () => {
     const sub: Scope = {

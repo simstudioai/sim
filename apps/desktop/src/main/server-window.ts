@@ -1,19 +1,21 @@
+import { dirname, join } from 'node:path'
 import type { DesktopServerChangeResult, DesktopServerConfiguration } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { app, BrowserWindow, nativeTheme, session } from 'electron'
 import type { ConfigStore, DesktopSettings } from '@/main/config'
 import { canonicalOrigin, isSimCloudOrigin, validateOriginInput } from '@/main/config'
-import {
-  backgroundColorFor,
-  createSecureWebPreferences,
-  setupPermissionHandlers,
-} from '@/main/window'
+import { showShellDialog } from '@/main/dialogs'
+import { attachLocalPageProtocol, localPageUrl } from '@/main/local-pages'
+import { attachShellTheme, backgroundColorFor, getShellTheme } from '@/main/shell-theme'
+import { attachShellWindowSizing } from '@/main/shell-window'
+import { setupPermissionHandlers } from '@/main/window'
+import { createSecureWebPreferences } from '@/main/window-preferences'
 
 const logger = createLogger('DesktopServerWindow')
 
-const WINDOW_WIDTH = 520
-const WINDOW_HEIGHT = 340
+const WINDOW_WIDTH = 500
+const WINDOW_HEIGHT = 300
 
 /**
  * The partition the server-selection window runs in.
@@ -21,8 +23,8 @@ const WINDOW_HEIGHT = 340
  * Deliberately NOT the app session's partition. This window exists to move the
  * shell between deployments, so binding it to the partition of the deployment
  * being left would tie the escape hatch to the state it is escaping — and the
- * page is a bundled `file:` document that stores nothing, so it has no reason
- * to touch a persistent jar at all.
+ * page ships with the shell and stores nothing, so it has no reason to touch a
+ * persistent jar at all.
  */
 const SERVER_WINDOW_PARTITION = 'server-selection'
 
@@ -48,8 +50,6 @@ const ORIGIN_SCOPED_SETTINGS: readonly (keyof DesktopSettings)[] = [
 export interface ServerWindowDeps {
   config: ConfigStore
   defaultOrigin: string
-  /** The bundled page to load, resolved by the caller like the offline page. */
-  pagePath: string
   preloadPath: string
   isPackaged: boolean
   getParentWindow: () => BrowserWindow | null
@@ -100,17 +100,11 @@ export interface ServerWindowHandle {
  * the origin being changed. Someone whose stored origin is unreachable — a
  * typo, a VPN-only host, an instance that moved — can never reach an in-app
  * settings route to fix it, which is exactly when they need this most. The
- * same reasoning gates its IPC channels to bundled `file:` senders.
+ * same reasoning gates its IPC channels to the bundled pages' own scheme.
  */
 export function createServerWindow(deps: ServerWindowDeps): ServerWindowHandle {
   let win: BrowserWindow | null = null
-  /**
-   * Serializes the destructive part of a change, the way the sign-out
-   * coordinator guards its own teardown. The picker re-enables its button
-   * while a request is pending, and the IPC boundary is reachable regardless
-   * of what the page does, so without this two changes could interleave their
-   * teardown and their write and let the later write pick the next server.
-   */
+  /** Prevents concurrent IPC requests from interleaving server teardown and persistence. */
   let changeInFlight = false
 
   const getConfiguration = (): DesktopServerConfiguration => {
@@ -136,41 +130,90 @@ export function createServerWindow(deps: ServerWindowDeps): ServerWindowHandle {
     // Electron decides for itself what a page may ask the OS for. The page here
     // asks for nothing, and a foreign origin can never load in this window, so
     // the shared handler resolves to a deny-all — which is the intent.
-    setupPermissionHandlers(session.fromPartition(SERVER_WINDOW_PARTITION), deps.config.getOrigin)
+    const ses = session.fromPartition(SERVER_WINDOW_PARTITION)
+    setupPermissionHandlers(ses, deps.config.getOrigin)
+    attachLocalPageProtocol(ses)
     win = new BrowserWindow({
       width: WINDOW_WIDTH,
       height: WINDOW_HEIGHT,
+      useContentSize: true,
       resizable: false,
       minimizable: false,
       maximizable: false,
       fullscreenable: false,
       title: 'Sim Server',
-      titleBarStyle: 'hiddenInset',
+      frame: false,
       show: false,
-      // System preference only, unlike the main window: that one pre-paints for
-      // the web app it is about to load, whose theme the user picked in Sim.
-      // This window loads a bundled page that follows `prefers-color-scheme`,
-      // so honouring the stored web-app theme here would pre-paint dark behind
-      // a page about to render light whenever the two disagree.
-      backgroundColor: backgroundColorFor(undefined, nativeTheme.shouldUseDarkColors),
+      backgroundColor: backgroundColorFor(getShellTheme(), nativeTheme.shouldUseDarkColors),
       // Modal only when there is a live parent to attach to. A shell whose
       // window is gone (or never opened, because the origin failed to load)
       // still has to be able to reach this.
       ...(parent && !parent.isDestroyed() ? { parent, modal: true } : {}),
       webPreferences: createSecureWebPreferences(
         SERVER_WINDOW_PARTITION,
-        deps.preloadPath,
+        join(dirname(deps.preloadPath), 'shell-preload.cjs'),
         deps.isPackaged
       ),
     })
-    win.once('ready-to-show', () => {
-      win?.show()
+    // A sheet has no title bar, and the page owns the only Cancel button. Both
+    // ways out must therefore work without the page: Escape is handled here,
+    // and a page that fails to load closes the window instead of leaving a
+    // blank sheet nothing can dismiss.
+    attachShellTheme(win)
+    const opened = win
+    let closed = false
+    const closeOpened = () => {
+      closed = true
+      clearTimeout(loadTimeout)
+      if (!opened.isDestroyed()) {
+        opened.destroy()
+      }
+      if (win === opened) {
+        win = null
+      }
+    }
+    const failed = () => {
+      if (closed || opened.isDestroyed()) return
+      closeOpened()
+      const options = {
+        type: 'error' as const,
+        message: 'Couldn’t open the server settings',
+        detail: 'Sim could not load its server settings page. Restart Sim and try again.',
+      }
+      void (parent && !parent.isDestroyed()
+        ? showShellDialog(parent, options)
+        : showShellDialog(options))
+    }
+    const loadTimeout = setTimeout(failed, 10_000)
+    opened.on('closed', () => {
+      closed = true
+      clearTimeout(loadTimeout)
+      if (win === opened) win = null
     })
-    win.on('closed', () => {
-      win = null
+    attachShellWindowSizing(opened, localPageUrl('server.html'), WINDOW_WIDTH, () => {
+      if (closed) return
+      clearTimeout(loadTimeout)
+      opened.show()
     })
-    void win.loadFile(deps.pagePath).catch((error) => {
+    opened.webContents.on('render-process-gone', failed)
+    opened.webContents.on('before-input-event', (event, input) => {
+      if (input.type === 'keyDown' && input.key === 'Escape') {
+        event.preventDefault()
+        closeOpened()
+      }
+    })
+    opened.webContents.on(
+      'did-fail-load',
+      (_event, errorCode, errorDescription, _validatedURL, isMainFrame) => {
+        // -3 is ERR_ABORTED: a load this window cancelled, not a page that failed.
+        if (!isMainFrame || errorCode === -3) return
+        logger.error('Server window page failed to load', { errorCode, errorDescription })
+        failed()
+      }
+    )
+    void opened.loadURL(localPageUrl('server.html')).catch((error) => {
       logger.error('Could not open the server window', { error: getErrorMessage(error) })
+      failed()
     })
   }
 

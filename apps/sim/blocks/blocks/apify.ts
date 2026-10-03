@@ -1,12 +1,11 @@
 import { ApifyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { RunActorResult } from '@/tools/apify/types'
 
 const RUN_OPERATIONS = ['apify_run_actor_sync', 'apify_run_actor_async']
 const RUN_OR_TASK_OPERATIONS = [...RUN_OPERATIONS, 'apify_run_task']
 
-export const ApifyBlock: BlockConfig<RunActorResult> = {
+export const ApifyBlock: BlockConfig = {
   type: 'apify',
   name: 'Apify',
   description: 'Run Apify actors and retrieve results',

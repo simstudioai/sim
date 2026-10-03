@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { executeManagedAgentListEventsOperation } from '@/lib/internal/managed-agent/operations/list-events'
 

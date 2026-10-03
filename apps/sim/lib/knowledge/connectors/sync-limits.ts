@@ -1,40 +1,11 @@
-/**
- * Wall-clock ceiling for a single connector sync run.
- *
- * Raised from the half hour this used to allow, which a large document library
- * exhausted mid-listing: the run was killed partway through pagination, leaving
- * its `syncing` lock set until the scheduler reclaimed it. Listing dominates a
- * large sync's wall clock, so the ceiling has to cover a full enumeration rather
- * than a typical one.
- */
+import { SOURCE_ACL_MAX_AGE_MS } from '@/lib/knowledge/access/freshness'
+
+/** Wall-clock ceiling for one worker; unfinished listings resume from their durable checkpoint. */
 export const CONNECTOR_SYNC_MAX_DURATION_SECONDS = 3600
 
 /**
- * How long a connector may sit in `syncing` before the scheduler reclaims its lock.
- *
- * MUST stay above {@link CONNECTOR_SYNC_MAX_DURATION_SECONDS}: reclaiming frees the
- * lock for another sync, so a TTL at or below the run ceiling would start a second
- * sync while the first is still writing, both racing the same documents.
- *
- * Measured against `COALESCE(syncLockLeaseAt, updatedAt)`, the lease a running
- * sync refreshes every {@link SYNC_LOCK_HEARTBEAT_INTERVAL_MS}. The lease is a
- * dedicated column precisely so an unrelated write to the row — a config edit on
- * a wedged connector — can no longer pass for a heartbeat; `updatedAt` remains
- * only as the fallback for a row locked before that column existed. That is what makes the TTL mean
- * "nobody is working on this" rather than "this started a long time ago" — the
- * distinction the in-process fallback path needs. A Trigger.dev run is killed at
- * {@link CONNECTOR_SYNC_MAX_DURATION_SECONDS} and so is provably dead well before
- * this; the fallback path has no duration cap, so without a heartbeat a large
- * self-hosted sync that legitimately runs past two hours would be reclaimed while
- * still working, counted as a failure, and — because its own terminal write is
- * then rejected as superseded — never able to reset that counter. Ten such syncs
- * would disable a connector whose every sync had actually succeeded.
- *
- * A run that stops heartbeating is genuinely gone: its process died, or it is
- * wedged, and either way reclaiming it is correct. The sweep's verdict stays
- * authoritative for those — `completeSyncLog` is guarded on `status = 'started'`
- * and terminal connector writes on the run's own `syncLockToken`, so a late
- * finisher loses the race by design rather than by accident.
+ * Reclaims a run that stopped refreshing its dedicated lease timestamp.
+ * Exceeds the worker ceiling; every write also verifies the current lease token.
  */
 export const CONNECTOR_SYNC_STALE_LOCK_TTL_MS = CONNECTOR_SYNC_MAX_DURATION_SECONDS * 2 * 1000
 
@@ -49,6 +20,17 @@ export const CONNECTOR_SYNC_STALE_LOCK_TTL_MS = CONNECTOR_SYNC_MAX_DURATION_SECO
  * which it cannot if the two disagree on what the threshold is.
  */
 export const MAX_CONSECUTIVE_FAILURES = 10
+
+/** The error a workspace connector carries once its credential is removed; cleared by reconnecting. */
+export const CREDENTIAL_REMOVED_SYNC_ERROR =
+  'Credential removed. Reconnect the connector to resume syncing.'
+
+/**
+ * The error a connector carries once the source rejects its credential outright (a revoked or
+ * expired grant, not a passing failure); cleared by reauthorizing that credential.
+ */
+export const CREDENTIAL_REVOKED_SYNC_ERROR =
+  'The source no longer accepts this credential. Reconnect it to resume syncing.'
 
 /**
  * The error a connector carries once {@link MAX_CONSECUTIVE_FAILURES} disables it.
@@ -82,15 +64,7 @@ export function connectorFailureBackoffMinutes(failures: number): number {
   )
 }
 
-/**
- * How often a running sync refreshes its connector's `updatedAt` to prove it is
- * still working.
- *
- * MUST stay well below {@link CONNECTOR_SYNC_STALE_LOCK_TTL_MS} so ordinary
- * jitter — a slow batch, a long upload — cannot let a live run drift past the
- * reclaim cutoff. The cost is one narrow UPDATE per interval per running sync,
- * negligible against the work a sync does between beats.
- */
+/** Interval between refreshes of the running connector's dedicated lease timestamp. */
 export const SYNC_LOCK_HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000
 
 /**
@@ -113,25 +87,28 @@ export const MEMBER_SYNC_SOFT_BUDGET_SECONDS = 2700
 export const MEMBER_SYNC_STALE_LOCK_TTL_MS = MEMBER_SYNC_MAX_DURATION_SECONDS * 2 * 1000
 
 /**
- * Pages one member's change-feed pass may consume in one run. The feed's
- * cursor is stored past every page read, so a pass the cap stops is recorded
- * as incomplete — additions are kept, removals are withheld — and the next
- * run continues from where it left off; a single huge feed can never
- * monopolise a run or lose a change.
- *
- * Deliberately not applied to a listing pass, which has no cursor to resume
- * from: capping it would relist the same first pages every run and never
- * grant access to the documents behind them. A listing is bounded by the run
- * deadline instead, and a member no run can finish alone backs off through
- * `exhaustedRunAlone`.
+ * Age at which a member's observations are renewed by access scope, for connectors that
+ * grant access per container: half the evidence window, so renewal lands well before
+ * evidence lapses while touching each observation at most twice a day.
  */
-export const MEMBER_SYNC_MAX_PAGES_PER_MEMBER = 200
+export const MEMBER_SCOPE_RENEW_AFTER_MS = SOURCE_ACL_MAX_AGE_MS / 2
+
+/** How much of a run one member's scope renewal may use before its listing starts. */
+export const MEMBER_SCOPE_RENEWAL_BUDGET_MS = 10 * 60 * 1000
 
 /**
- * How often each member gets a full (non-incremental) listing. Only a full
- * listing can grant access to a document newly shared with the member or
- * remove access to one unshared, because permission changes do not move the
- * source's modified timestamps.
+ * Container prefixes gathered from the source before one pass over the member's stale
+ * observations renews them, so that pass runs once per this many containers rather than
+ * once per source page.
+ */
+export const MEMBER_SCOPE_RENEWAL_PREFIX_BATCH = 5000
+
+/** Pages applied per member before its durable feed cursor is saved for continuation. */
+export const MEMBER_SYNC_MAX_PAGES_PER_MEMBER = 25
+
+/**
+ * Full-listing cadence for connectors without an authoritative change feed;
+ * modified timestamps do not capture permission-only changes.
  */
 export const MEMBER_FULL_RECRAWL_MINUTES = 720
 
@@ -163,3 +140,47 @@ export const MEMBER_TOMBSTONE_PURGE_DAYS = 7
 
 /** Hard deletes one members-mode run may perform; bounds the blast radius of a bad run. */
 export const MEMBER_PURGE_MAX_PER_RUN = 1000
+
+/**
+ * Pages of the connector's documents one members-mode run checks for a document nobody
+ * observes, beyond the ones whose observations the run itself removed. The check resumes
+ * where the previous run stopped, so a pass over a large connector spans several runs
+ * while each run's cost stays independent of the connector's size.
+ */
+export const MEMBER_TOMBSTONE_RECONCILE_PAGES_PER_RUN = 20
+
+export const SOURCE_PERMISSION_ERROR =
+  'Some document permissions could not be verified. Documents without verified access stay hidden from search.'
+
+/** Source downloads are retried by connector listing, never by parsing the retained file again. */
+export const SOURCE_CONTENT_ERROR =
+  'Source content could not be refreshed. The connector will retry at its next scheduled sync.'
+
+/**
+ * Documents whose permission evidence is refreshed per statement. Documents are
+ * grouped by identical ACL first — files under one folder overwhelmingly share
+ * theirs — so a crawl of thousands usually resolves to a handful of statements.
+ * A refresh never assigns `acl`, so it fires no projection fan-out.
+ */
+export const ACL_WRITE_BATCH_SIZE = 500
+
+/**
+ * How long a connector-lease ACL page waits on any lock before it fails. The
+ * connector row is locked last, so the wait is on document rows, which a
+ * processing commit may hold for its whole embedding write.
+ */
+export const LEASE_PAGE_LOCK_TIMEOUT_MS = 15_000
+
+/** The longest one statement of a connector-lease ACL page may run. */
+export const LEASE_PAGE_STATEMENT_TIMEOUT_MS = 30_000
+
+/**
+ * Documents whose ACL actually changes, per statement. Assigning `acl` fires the
+ * document trigger that copies it onto every chunk's search projection rows, and
+ * each of those rows is re-inserted into the vector index, so one statement costs
+ * the chunks of every document in it rather than the documents. Kept small so a
+ * page of changed documents cannot outrun the statement timeout. Also the page
+ * of the transactions that remove observations and rematerialise the ACLs they
+ * decide together, which must commit as one and so cannot be split by rows.
+ */
+export const ACL_CHANGE_BATCH_SIZE = 25

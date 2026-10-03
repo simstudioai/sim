@@ -1,25 +1,17 @@
+'use client'
+
 import type { ReactNode } from 'react'
 import { ChipLink, cn } from '@sim/emcn'
 import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
 
 interface IntegrationTabsHeaderProps {
-  active: 'integrations' | 'skills' | 'search'
+  active: 'integrations' | 'skills'
   workspaceId: string
   /** Trailing actions for the owning page (e.g. skills' "Add skill"). */
   rightSlot?: ReactNode
 }
 
-/**
- * Top-of-page tab header shared by the Integrations, Skills, and Search pages —
- * three views of one surface, so each highlights itself and links to its siblings.
- *
- * Lives in the shared workspace components rather than under `integrations/`
- * because every page owns it equally; its former home made Skills reach across
- * into a sibling feature for its own chrome.
- *
- * The `gap-1` is explicit because chips carry no outer margin — the parent owns the
- * space between them.
- */
+/** Shared navigation for workspace integrations and skills. */
 export function IntegrationTabsHeader({
   active,
   workspaceId,
@@ -32,9 +24,6 @@ export function IntegrationTabsHeader({
       </ChipLink>
       <ChipLink href={`/workspace/${workspaceId}/skills`} active={active === 'skills'}>
         Skills
-      </ChipLink>
-      <ChipLink href={`/workspace/${workspaceId}/search`} active={active === 'search'}>
-        Search
       </ChipLink>
       {rightSlot && <div className={cn('ml-auto', HEADER_ACTION_CLUSTER)}>{rightSlot}</div>}
     </div>

@@ -191,7 +191,7 @@ Add the storage variables to the `.env` file used by `docker-compose.prod.yml`, 
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-Because files now live in S3, nothing depends on the container's `/app/apps/sim/uploads` directory any more.
+New uploads now use S3. Preserve any existing local files until you have migrated them; changing the storage configuration does not copy their bytes.
 
   </Tab>
   <Tab value="Kubernetes (Helm)">
@@ -242,8 +242,7 @@ AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME=workspace-logos
 Direct browser uploads require a Blob service CORS rule on the storage account. Allow your exact
 Sim origin, `GET` and `PUT`, the `Content-Type` header, and the `x-ms-*` prefix used by signed blob
 and metadata headers. Small-file uploads also send `If-None-Match`; the signature itself is
-create-only, so a signed URL cannot overwrite an existing final object. Multipart uploads also read
-`ETag` from the browser response:
+create-only, so a signed URL cannot overwrite an existing final object. Multipart completion verifies uploaded parts on the server:
 
 ```bash
 az storage cors add \
@@ -326,7 +325,7 @@ done
 ```
 
 <Callout type="info">
-  Header names must be listed individually — GCS CORS matches `responseHeader` entries exactly and does not support wildcards like `x-goog-meta-*`. `ETag` is required because large-file multipart uploads read each part's `ETag` from the browser, and CORS hides the header otherwise. `x-goog-if-generation-match` is required by Sim's create-only signed uploads, which prevent a reused upload URL from replacing existing bytes.
+  Header names must be listed individually — GCS CORS matches `responseHeader` entries exactly and does not support wildcards like `x-goog-meta-*`. The example exposes `ETag`, although the current upload-session client does not need it: multipart completion reads provider-authoritative part state on the server. `x-goog-if-generation-match` is required by Sim's create-only signed uploads, which prevent a reused upload URL from replacing existing bytes.
 </Callout>
 
 </Step>
@@ -417,7 +416,8 @@ Sim works with any S3-compatible store by pointing the S3 client at a custom end
   **The endpoint must be reachable from your users' browsers, and the bucket needs CORS.** Uploads use presigned `PUT` requests sent **directly from the browser** to `S3_ENDPOINT` (downloads are proxied back through the app, so they only need server-side reachability). This means:
 
   - A purely internal endpoint (e.g. `https://minio.internal:9000` that only the app pods can resolve) will let the server start cleanly but **uploads will fail in the browser**. Use an endpoint your users can reach.
-  - Configure a **CORS policy** on the bucket that allows your Sim origin (`PUT`, `GET`, and the `Authorization` / `Content-Type` / `x-amz-*` headers). This applies to AWS S3 too — R2 and MinIO are no different.
+  - Configure a **CORS policy** on the bucket that allows your Sim origin with `PUT` and `GET`, and `AllowedHeaders: ["*"]`. With a custom endpoint, the browser sends the upload's metadata as signed `x-amz-meta-*` headers alongside `Content-Type` and `If-None-Match`, because many S3-compatible stores ignore metadata passed in the URL. If you list headers individually, include all of them. MinIO applies its own server-wide CORS and needs no bucket rule.
+  - Sim adds the `S3_ENDPOINT` origin (and its bucket subdomains, unless `S3_FORCE_PATH_STYLE` is set) to its Content Security Policy, so the browser may upload there.
 </Callout>
 
 <Tabs items={['Cloudflare R2', 'MinIO', 'RustFS']}>

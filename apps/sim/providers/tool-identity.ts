@@ -25,9 +25,9 @@ function buildProviderAlias(toolId: string, occurrence: number, attempt: number)
  * never enter the provider-visible name. Tool objects are updated in place so their instance-bound
  * params and secret provenance remain attached to the exact object selected by provider adapters.
  */
-export function assignProviderToolIdentities(
-  tools: ProviderToolConfig[] | undefined
-): ProviderToolIdentityMap {
+export function assignProviderToolIdentities<
+  T extends Pick<ProviderToolConfig, 'id' | 'canonicalId'>,
+>(tools: T[] | undefined): ProviderToolIdentityMap {
   if (!tools?.length) return { toolIdByWireId: new Map() }
 
   const distinctTools = [...new Set(tools)]
