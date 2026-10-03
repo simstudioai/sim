@@ -1,59 +1,51 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
+import { functionExecuteBodySchema } from '@/lib/api/contracts/hotspots'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import {
   MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY,
   PRIVATE_SECRET_PROVENANCE_FIELD,
 } from '@/lib/execution/private-tool-metadata'
+import { MAX_FUNCTION_CODE_LENGTH } from '@/lib/function-execution/limits'
 import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/execute'
+import { createLLMToolSchema, createUserToolSchema } from '@/tools/params'
 
 describe('Function Execute Tool', () => {
-  it('declares an in-process operation without HTTP-shaped configuration', () => {
-    expect(functionExecuteTool.operation).toBeDefined()
-    expect('request' in functionExecuteTool).toBe(false)
-  })
-
-  it('materializes the canonical operation input', () => {
-    expect(
-      functionExecuteTool.operation.input({
-        code: 'return 42',
-        timeout: 5000,
+  it.each(['default', 'copilot'] as const)(
+    'advertises secret-name arrays accepted by the Function boundary on %s',
+    (surface) => {
+      const schema = createUserToolSchema(functionExecuteTool, { surface })
+      expect(schema.properties.mountedSecrets).toMatchObject({
+        type: 'array',
+        items: { type: 'string' },
       })
-    ).toEqual({
-      code: 'return 42',
-      language: 'javascript',
-      timeout: 5000,
-      title: undefined,
-      outputPath: undefined,
-      outputFormat: undefined,
-      outputTable: undefined,
-      outputSandboxPath: undefined,
-      outputMimeType: undefined,
-      sandboxId: undefined,
-      secretScope: undefined,
-      mountedSecrets: undefined,
-      unredactedSecretNames: undefined,
-      overwriteFileId: undefined,
-      inputs: undefined,
-      outputs: undefined,
-      envVars: {},
-      workflowVariables: {},
-      blockData: {},
-      blockNameMapping: {},
-      blockOutputSchemas: {},
-      contextVariables: {},
-      workflowId: undefined,
-      executionId: undefined,
-      largeValueExecutionIds: undefined,
-      largeValueKeys: undefined,
-      fileKeys: undefined,
-      allowLargeValueWorkflowScope: undefined,
-      userId: undefined,
-      workspaceId: undefined,
-      isCustomTool: false,
+      expect(schema.required).not.toContain('mountedSecrets')
+
+      for (const mountedSecrets of [undefined, [], ['SERVICE_TOKEN']]) {
+        const body = functionExecuteTool.operation.input({
+          code: 'return 1',
+          secretScope: 'selected',
+          mountedSecrets,
+        })
+        const parsed = functionExecuteBodySchema.parse(body)
+        expect(parsed.secretScope).toBe('selected')
+        expect(parsed.mountedSecrets).toEqual(mountedSecrets)
+      }
+      for (const mountedSecrets of [{}, [1]]) {
+        expect(
+          functionExecuteBodySchema.safeParse({ code: 'return 1', mountedSecrets }).success
+        ).toBe(false)
+      }
+    }
+  )
+
+  it('keeps mounted secret names under author control for Agent tool calls', async () => {
+    const { schema, modelBlockedParams } = await createLLMToolSchema(functionExecuteTool, {
+      secretScope: 'selected',
+      mountedSecrets: ['SERVICE_TOKEN'],
     })
+    expect(schema.properties).not.toHaveProperty('mountedSecrets')
+    expect(schema.properties).not.toHaveProperty('secretScope')
+    expect(modelBlockedParams).toEqual(expect.arrayContaining(['secretScope', 'mountedSecrets']))
   })
 
   it('joins serialized code blocks and applies the default timeout', () => {
@@ -66,6 +58,24 @@ describe('Function Execute Tool', () => {
 
     expect(body.code).toBe('const x = 40;\nreturn x + 2;')
     expect(body.timeout).toBe(DEFAULT_EXECUTION_TIMEOUT_MS)
+  })
+
+  it('sends display code the route accepts when inlined references outgrow the source cap', () => {
+    const inlinedValue = 'x'.repeat(MAX_FUNCTION_CODE_LENGTH)
+    const body = buildFunctionExecuteBody({
+      code: 'return __blockRef_0.length',
+      sourceCode: `return "${inlinedValue}".length`,
+      contextVariables: { __blockRef_0: inlinedValue },
+    })
+
+    expect(functionExecuteBodySchema.safeParse(body).success).toBe(true)
+    expect(body.sourceCode).toBeUndefined()
+
+    const withinCap = buildFunctionExecuteBody({
+      code: 'return __blockRef_0',
+      sourceCode: 'return <api.data>',
+    })
+    expect(withinCap.sourceCode).toBe('return <api.data>')
   })
 
   it('preserves reference context and large-value authorization', () => {
@@ -137,6 +147,31 @@ describe('Function Execute Tool', () => {
     })
   })
 
+  it('preserves explicit workspace export receipts alongside the computed value', async () => {
+    const exported = {
+      message: 'Exported report.csv',
+      files: [
+        {
+          fileId: 'file-1',
+          fileName: 'report.csv',
+          vfsPath: 'files/report.csv',
+          size: 12,
+          sha256: 'digest',
+          unchanged: false,
+        },
+      ],
+    }
+    const result = await functionExecuteTool.transformResponse?.(
+      Response.json({
+        success: true,
+        output: { result: [{ count: 2 }], stdout: 'done', exported },
+      }),
+      { code: 'return [{ count: 2 }]' }
+    )
+    expect(result?.output).toMatchObject({ result: [{ count: 2 }], stdout: 'done', exported })
+    expect(result?.output.files).toEqual([])
+  })
+
   it('preserves sandbox cost in a failed Function result', async () => {
     const cost = { input: 0, output: 0, total: 0.00012345 }
     const result = await functionExecuteTool.transformResponse?.(
@@ -156,5 +191,31 @@ describe('Function Execute Tool', () => {
       output: { result: null, stdout: 'trace', cost },
       error: 'boom',
     })
+  })
+
+  it('preserves sandboxSession in successful and failed Function results', async () => {
+    const success = await functionExecuteTool.transformResponse?.(
+      Response.json({
+        success: true,
+        output: { result: 1, stdout: 'ok', sandboxSession: 'reused' },
+      }),
+      { code: 'return 1' }
+    )
+    expect(success?.output.sandboxSession).toBe('reused')
+
+    const failure = await functionExecuteTool.transformResponse?.(
+      Response.json(
+        { success: false, error: 'boom', output: { stdout: 'trace', sandboxSession: 'created' } },
+        { status: 422 }
+      ),
+      { code: 'throw new Error("boom")' }
+    )
+    expect(failure?.output.sandboxSession).toBe('created')
+
+    const oneShot = await functionExecuteTool.transformResponse?.(
+      Response.json({ success: true, output: { result: 1, stdout: 'ok' } }),
+      { code: 'return 1' }
+    )
+    expect(oneShot?.output.sandboxSession).toBeUndefined()
   })
 })

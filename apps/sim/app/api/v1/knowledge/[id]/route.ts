@@ -14,10 +14,12 @@ import {
   performDeleteKnowledgeBase,
   performUpdateKnowledgeBase,
 } from '@/lib/knowledge/orchestration'
+import { attachKnowledgeBaseConnectors } from '@/lib/knowledge/service'
 import {
   formatKnowledgeBase,
   handleError,
   resolveKnowledgeBase,
+  resolveV1KnowledgeReadAccess,
 } from '@/app/api/v1/knowledge/utils'
 import { authenticateRequest, v1ValidationErrorResponse } from '@/app/api/v1/middleware'
 
@@ -41,19 +43,18 @@ export const GET = withRouteHandler(async (request: NextRequest, context: Knowle
     if (!parsed.success) return parsed.response
 
     const { id } = parsed.data.params
-    const result = await resolveKnowledgeBase(
-      id,
-      parsed.data.query.workspaceId,
-      userId,
-      rateLimit,
-      'knowledge.use'
-    )
+    const { workspaceId } = parsed.data.query
+    const result = await resolveKnowledgeBase(id, workspaceId, userId, rateLimit, 'knowledge.use')
     if (result instanceof NextResponse) return result
 
+    const knowledgeBase = await attachKnowledgeBaseConnectors(
+      result.kb,
+      await resolveV1KnowledgeReadAccess(userId, rateLimit, workspaceId)
+    )
     return NextResponse.json({
       success: true,
       data: {
-        knowledgeBase: formatKnowledgeBase(result.kb),
+        knowledgeBase: formatKnowledgeBase(knowledgeBase),
       },
     })
   } catch (error) {
@@ -102,10 +103,14 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: Knowle
       )
     }
 
+    const knowledgeBase = await attachKnowledgeBaseConnectors(
+      outcome.knowledgeBase,
+      await resolveV1KnowledgeReadAccess(userId, rateLimit, workspaceId)
+    )
     return NextResponse.json({
       success: true,
       data: {
-        knowledgeBase: formatKnowledgeBase(outcome.knowledgeBase),
+        knowledgeBase: formatKnowledgeBase(knowledgeBase),
         message: 'Knowledge base updated successfully',
       },
     })

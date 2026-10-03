@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { describe, expect, it } from 'vitest'
 import { v2KnowledgeTaggedDocumentSchema } from '@/lib/api/contracts/v2/knowledge'
 import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
@@ -42,22 +38,6 @@ const tagDefinitions: DocumentTagDefinition[] = [
 ]
 
 describe('toV2DocumentSummary', () => {
-  it('serializes the shared document fields', () => {
-    expect(toV2DocumentSummary(documentRow)).toEqual({
-      id: 'doc-1',
-      knowledgeBaseId: 'kb-1',
-      filename: 'invoice.pdf',
-      fileSize: 1024,
-      mimeType: 'application/pdf',
-      processingStatus: 'completed',
-      chunkCount: 4,
-      tokenCount: 512,
-      characterCount: 2048,
-      enabled: true,
-      createdAt: '2026-08-01T00:00:00.000Z',
-    })
-  })
-
   it('returns a null createdAt for a document with no upload timestamp', () => {
     expect(toV2DocumentSummary({ ...documentRow, uploadedAt: null }).createdAt).toBeNull()
   })

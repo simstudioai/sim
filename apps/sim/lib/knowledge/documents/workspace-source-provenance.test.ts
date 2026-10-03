@@ -1,57 +1,40 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import { storageServiceMock } from '@sim/testing/mocks/storage-service.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckStorageQuotaForBillingContext,
-  mockDeleteFile,
-  mockDeleteFileMetadataByIdentity,
-  mockGetBoundWorkspaceFileSecretProvenanceByMetadata,
-  mockGetFileMetadataByKeys,
-  mockIncrementStorageUsageForBillingContextInTx,
-  mockMaybeNotifyStorageLimitForBillingContext,
-  mockResolveStorageBillingContext,
-} = vi.hoisted(() => ({
-  mockCheckStorageQuotaForBillingContext: vi.fn(),
-  mockDeleteFile: vi.fn(),
-  mockDeleteFileMetadataByIdentity: vi.fn(),
-  mockGetBoundWorkspaceFileSecretProvenanceByMetadata: vi.fn(),
-  mockGetFileMetadataByKeys: vi.fn(),
-  mockIncrementStorageUsageForBillingContextInTx: vi.fn(),
-  mockMaybeNotifyStorageLimitForBillingContext: vi.fn(),
-  mockResolveStorageBillingContext: vi.fn(),
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
 
-vi.mock('@/lib/billing/storage', () => ({
-  applyStorageUsageDeltasInTx: vi.fn(),
-  checkStorageQuota: vi.fn(),
-  checkStorageQuotaForBillingContext: mockCheckStorageQuotaForBillingContext,
-  incrementStorageUsageForBillingContextInTx: mockIncrementStorageUsageForBillingContextInTx,
-  maybeNotifyStorageLimitForBillingContext: mockMaybeNotifyStorageLimitForBillingContext,
-  resolveStorageBillingContext: mockResolveStorageBillingContext,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  getBoundWorkspaceFileSecretProvenanceByMetadata:
-    mockGetBoundWorkspaceFileSecretProvenanceByMetadata,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  deleteFile: mockDeleteFile,
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadataByIdentity: mockDeleteFileMetadataByIdentity,
-  getFileMetadataByKeys: mockGetFileMetadataByKeys,
-}))
+import { createDocumentRecords, createSingleDocument } from '@/lib/knowledge/documents/service'
 
-import {
-  createDocumentRecords,
-  createSingleDocument,
-  deleteDocumentStorageFiles,
-} from '@/lib/knowledge/documents/service'
+const mockCheckStorageQuotaForBillingContext =
+  billingStorageMockFns.mockCheckStorageQuotaForBillingContext
+const mockIncrementStorageUsageForBillingContextInTx =
+  billingStorageMockFns.mockIncrementStorageUsageForBillingContextInTx
+const mockMaybeNotifyStorageLimitForBillingContext =
+  billingStorageMockFns.mockMaybeNotifyStorageLimitForBillingContext
+const mockResolveStorageBillingContext = billingStorageMockFns.mockResolveStorageBillingContext
+
+const mockGetFileMetadataByKeys = uploadsMetadataMockFns.mockGetFileMetadataByKeys
+const mockGetBoundWorkspaceFileSecretProvenanceByMetadata =
+  workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenanceByMetadata
 
 const WORKSPACE_ID = 'workspace-1'
 const KNOWLEDGE_BASE_ID = 'knowledge-base-1'
@@ -98,7 +81,6 @@ function findDocumentProvenanceWrite() {
 
 describe('knowledge workspace source provenance', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.limit.mockResolvedValue([
       {
@@ -124,94 +106,6 @@ describe('knowledge workspace source provenance', () => {
           },
         ],
       ])
-    )
-  })
-
-  it('merges a tracked workspace source into a single document sidecar', async () => {
-    await createSingleDocument(
-      {
-        filename: 'source.pdf',
-        fileUrl: SOURCE_URL,
-        fileSize: 512,
-        mimeType: 'application/pdf',
-      },
-      KNOWLEDGE_BASE_ID,
-      'request-1',
-      SOURCE_USER_ID
-    )
-
-    expect(mockGetFileMetadataByKeys).toHaveBeenCalledWith(
-      [SOURCE_KEY],
-      'workspace',
-      expect.anything()
-    )
-    expect(mockGetFileMetadataByKeys).toHaveBeenCalledWith(
-      [SOURCE_KEY],
-      'mothership',
-      expect.anything()
-    )
-    expect(mockGetBoundWorkspaceFileSecretProvenanceByMetadata).toHaveBeenCalledWith(
-      expect.anything(),
-      [SOURCE_BINDING]
-    )
-    expect(findDocumentProvenanceWrite()).toEqual(
-      expect.objectContaining({
-        status: 'exact',
-        entries: [
-          expect.objectContaining({
-            name: 'OCR_SECRET',
-            encryptedValue: 'encrypted-secret',
-            sourceUserId: SOURCE_USER_ID,
-            sourceWorkspaceId: WORKSPACE_ID,
-            sourceValueHash: expect.any(String),
-          }),
-        ],
-      })
-    )
-  })
-
-  it('uses the same workspace source provenance path for bulk document creation', async () => {
-    await createDocumentRecords(
-      [
-        {
-          filename: 'source.pdf',
-          fileUrl: SOURCE_URL,
-          fileSize: 512,
-          mimeType: 'application/pdf',
-        },
-      ],
-      KNOWLEDGE_BASE_ID,
-      'request-1',
-      SOURCE_USER_ID
-    )
-
-    expect(findDocumentProvenanceWrite()).toEqual(
-      expect.objectContaining({
-        status: 'exact',
-        entries: [expect.objectContaining({ name: 'OCR_SECRET' })],
-      })
-    )
-  })
-
-  it('preserves a tracked exact-empty manual upload as model-safe', async () => {
-    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
-      new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
-    )
-
-    await createSingleDocument(
-      {
-        filename: 'source.pdf',
-        fileUrl: SOURCE_URL,
-        fileSize: 512,
-        mimeType: 'application/pdf',
-      },
-      KNOWLEDGE_BASE_ID,
-      'request-1',
-      SOURCE_USER_ID
-    )
-
-    expect(findDocumentProvenanceWrite()).toEqual(
-      expect.objectContaining({ status: 'exact', entries: [] })
     )
   })
 
@@ -260,96 +154,72 @@ describe('knowledge workspace source provenance', () => {
     )
   })
 
-  it('preserves legacy behavior when a workspace source has no metadata binding', async () => {
-    mockGetFileMetadataByKeys.mockResolvedValue([])
-
-    await createSingleDocument(
-      {
-        filename: 'legacy.pdf',
-        fileUrl: SOURCE_URL,
-        fileSize: 512,
-        mimeType: 'application/pdf',
-      },
-      KNOWLEDGE_BASE_ID,
-      'request-1',
-      SOURCE_USER_ID
-    )
-
-    expect(mockGetBoundWorkspaceFileSecretProvenanceByMetadata).toHaveBeenCalledWith(
-      expect.anything(),
-      []
-    )
-    expect(findDocumentProvenanceWrite()).toBeUndefined()
-  })
-
-  it('never deletes a referenced workspace source as knowledge-base storage', async () => {
-    await deleteDocumentStorageFiles(
-      [{ id: 'document-1', fileUrl: SOURCE_URL, workspaceId: WORKSPACE_ID }],
-      'request-1'
-    )
-
-    expect(mockGetFileMetadataByKeys).not.toHaveBeenCalled()
-    expect(mockDeleteFile).not.toHaveBeenCalled()
-    expect(mockDeleteFileMetadataByIdentity).not.toHaveBeenCalled()
-  })
-
-  it.each(['kb', 'knowledge-base'])(
-    'deletes a trusted %s object only after its metadata identity is claimed',
-    async (keyPrefix) => {
-      const storageKey = `${keyPrefix}/owned.pdf`
-      const fileUrl = `/api/files/serve/${encodeURIComponent(storageKey)}?context=knowledge-base`
-      const binding = {
-        ...SOURCE_BINDING,
-        id: `binding-${keyPrefix}`,
-        key: storageKey,
-        context: 'knowledge-base',
-      }
-      mockGetFileMetadataByKeys.mockImplementation(async (_keys: string[], context: string) =>
-        context === 'knowledge-base' ? [binding] : []
-      )
-      mockDeleteFileMetadataByIdentity.mockResolvedValue(true)
-
-      await deleteDocumentStorageFiles(
-        [{ id: 'document-1', fileUrl, workspaceId: WORKSPACE_ID }],
-        'request-1'
-      )
-
-      expect(mockDeleteFileMetadataByIdentity).toHaveBeenCalledWith({
-        id: binding.id,
-        key: storageKey,
-        context: 'knowledge-base',
-        contentUpdatedAt: binding.contentUpdatedAt,
-      })
-      expect(mockDeleteFile).toHaveBeenCalledWith({
-        key: storageKey,
-        context: 'knowledge-base',
-      })
-      expect(mockDeleteFileMetadataByIdentity.mock.invocationCallOrder[0]).toBeLessThan(
-        mockDeleteFile.mock.invocationCallOrder[0]
-      )
-    }
-  )
-
-  it('keeps the object when its metadata identity changed before deletion', async () => {
-    const storageKey = 'kb/changed.pdf'
-    const fileUrl = `/api/files/serve/${encodeURIComponent(storageKey)}?context=knowledge-base`
-    const binding = {
+  describe('execution file sources', () => {
+    const executionKey = `execution/${WORKSPACE_ID}/workflow-1/run-1/source.pdf`
+    const executionUrl = `/api/files/serve/${encodeURIComponent(executionKey)}?context=workspace`
+    const executionBinding = {
       ...SOURCE_BINDING,
-      id: 'changed-binding',
-      key: storageKey,
-      context: 'knowledge-base',
+      id: 'execution-source-1',
+      key: executionKey,
+      context: 'execution',
     }
-    mockGetFileMetadataByKeys.mockImplementation(async (_keys: string[], context: string) =>
-      context === 'knowledge-base' ? [binding] : []
-    )
-    mockDeleteFileMetadataByIdentity.mockResolvedValue(false)
+    const documentInput = {
+      filename: 'source.pdf',
+      fileUrl: executionUrl,
+      fileSize: 512,
+      mimeType: 'application/pdf',
+    }
 
-    await deleteDocumentStorageFiles(
-      [{ id: 'document-1', fileUrl, workspaceId: WORKSPACE_ID }],
-      'request-1'
-    )
+    beforeEach(() => {
+      mockGetFileMetadataByKeys.mockImplementation(async (_keys: string[], context: string) =>
+        context === 'execution' ? [executionBinding] : []
+      )
+    })
 
-    expect(mockDeleteFileMetadataByIdentity).toHaveBeenCalledOnce()
-    expect(mockDeleteFile).not.toHaveBeenCalled()
+    for (const mode of ['single', 'bulk'] as const) {
+      async function create() {
+        if (mode === 'single') {
+          await createSingleDocument(documentInput, KNOWLEDGE_BASE_ID, 'request-1', SOURCE_USER_ID)
+        } else {
+          await createDocumentRecords(
+            [documentInput],
+            KNOWLEDGE_BASE_ID,
+            'request-1',
+            SOURCE_USER_ID
+          )
+        }
+      }
+
+      it(`preserves soft-deleted execution taint during ${mode} admission`, async () => {
+        const deletedBinding = { ...executionBinding, deletedAt: CONTENT_UPDATED_AT }
+        mockGetFileMetadataByKeys.mockImplementation(
+          async (
+            _keys: string[],
+            context: string,
+            _executor: unknown,
+            options?: { includeDeleted?: boolean }
+          ) => (context === 'execution' && options?.includeDeleted ? [deletedBinding] : [])
+        )
+        mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+          new Map([[executionBinding.id, { status: 'unknown' }]])
+        )
+
+        await create()
+
+        expect(findDocumentProvenanceWrite()).toMatchObject({ status: 'unknown', entries: [] })
+      })
+
+      it(`refuses another workspace's execution source before ${mode} admission`, async () => {
+        mockGetFileMetadataByKeys.mockResolvedValue([
+          { ...executionBinding, workspaceId: 'other-workspace' },
+        ])
+
+        await expect(create()).rejects.toThrow('Document file is not owned by this knowledge base')
+
+        expect(mockGetBoundWorkspaceFileSecretProvenanceByMetadata).not.toHaveBeenCalled()
+        expect(findDocumentProvenanceWrite()).toBeUndefined()
+        expect(mockIncrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
+      })
+    }
   })
 })

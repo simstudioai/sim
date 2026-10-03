@@ -243,7 +243,6 @@ function renderSearchEntry(
           name={entry.item.name}
           isCurrent={entry.item.isCurrent}
           logoUrl={entry.item.logoUrl}
-          color={entry.item.color}
         />
       )
     case 'pages':

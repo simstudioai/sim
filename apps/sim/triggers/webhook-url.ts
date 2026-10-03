@@ -7,11 +7,6 @@ import { getBlock } from '@/blocks/registry'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { getTrigger, isTriggerValid } from '@/triggers'
 
-/** The public URL an external system POSTs to for a given webhook path. */
-export function buildWebhookTriggerUrl(path: string): string {
-  return `${getBaseUrl()}/api/webhooks/trigger/${path}`
-}
-
 /**
  * The Request URL a Slack custom-bot app posts events to. One URL per
  * credential (not per workflow): the endpoint verifies with the credential's

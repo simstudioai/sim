@@ -44,7 +44,7 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
   title: 'Cookie Policy',
   description:
     'What cookies Sim sets, why, how long they last, and how to change your choice at any time.',
-  lastUpdated: 'August 24, 2026',
+  lastUpdated: 'September 17, 2026',
   intro: [
     {
       kind: 'paragraph',
@@ -121,7 +121,9 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
             </>,
             <>
               <strong>Marketing</strong> — measuring which campaigns bring builders to Sim and
-              showing relevant ads on other sites.
+              showing relevant ads on other sites. Google Ads loads with ad storage denied and
+              cannot set conversion cookies until this category is allowed; before then, it may send
+              limited cookieless consent signals.
             </>,
           ],
         },
@@ -163,7 +165,7 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
           [
             '__cf_bm',
             'Cloudflare',
-            'Bot-management check on requests to providers we load, such as HubSpot and X.',
+            'Bot-management check on requests to providers we load, such as X.',
             '30 minutes',
           ],
         ]),
@@ -175,10 +177,6 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
             'Holds the session state for a specific Analytics property.',
             '13 months',
           ],
-          ['__hstc', 'HubSpot', 'Tracks visits across sessions for the main tracker.', '6 months'],
-          ['hubspotutk', 'HubSpot', 'Identifies a visitor across form submissions.', '6 months'],
-          ['__hssc', 'HubSpot', 'Tracks the current session.', '30 minutes'],
-          ['__hssrc', 'HubSpot', 'Detects whether the visitor restarted their browser.', 'Session'],
           [
             'ph_*_posthog',
             'PostHog',
@@ -199,6 +197,24 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
           ],
         ]),
         cookieTable('Marketing', [
+          [
+            '_gcl_au',
+            'Google Ads',
+            'Links a Google ad click to a later sign-up or demo booking on sim.ai.',
+            '90 days',
+          ],
+          [
+            '_gcl_aw / _gcl_gs',
+            'Google Ads',
+            'Stores the click identifier from a Google ad that brought you to sim.ai.',
+            '90 days',
+          ],
+          [
+            'IDE',
+            'Google (doubleclick.net)',
+            'Measures ad conversions and limits how often the same ad is shown.',
+            '13 months in the EEA and UK; 24 months elsewhere',
+          ],
           [
             'guest_id',
             'X (Twitter)',
@@ -248,9 +264,9 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
               <ProseLink href='https://tools.google.com/dlpage/gaoptout'>
                 Google Analytics
               </ProseLink>
-              , <ProseLink href='https://x.com/settings/privacy_and_safety'>X (Twitter)</ProseLink>,{' '}
-              <ProseLink href='https://legal.hubspot.com/privacy-policy'>HubSpot</ProseLink>, and{' '}
-              <ProseLink href='https://posthog.com/privacy'>PostHog</ProseLink>.
+              , <ProseLink href='https://adssettings.google.com'>Google Ads</ProseLink>,{' '}
+              <ProseLink href='https://x.com/settings/privacy_and_safety'>X (Twitter)</ProseLink>,
+              and <ProseLink href='https://posthog.com/privacy'>PostHog</ProseLink>.
             </>
           ),
         },
@@ -270,10 +286,9 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
             <>
               The providers currently in use are{' '}
               <ProseLink href='https://policies.google.com/technologies/cookies'>Google</ProseLink>{' '}
-              (Analytics),{' '}
-              <ProseLink href='https://legal.hubspot.com/privacy-policy'>HubSpot</ProseLink>,{' '}
+              (Analytics and Ads),{' '}
               <ProseLink href='https://x.com/en/privacy'>X (Twitter)</ProseLink>,{' '}
-              <ProseLink href='https://ahrefs.com/privacy'>Ahrefs</ProseLink>,{' '}
+              <ProseLink href='https://ahrefs.com/legal/privacy-policy'>Ahrefs</ProseLink>,{' '}
               <ProseLink href='https://posthog.com/privacy'>PostHog</ProseLink>, and{' '}
               <ProseLink href='https://www.cloudflare.com/privacypolicy/'>Cloudflare</ProseLink>.
             </>

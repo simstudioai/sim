@@ -1,0 +1,20 @@
+---
+title: Linear
+description: Search issues and their discussions using your own Linear account
+---
+
+Linear supports **Member accounts**. An administrator enables Linear under **Settings → Sources**, then each teammate connects their own Linear account under **Integrations**. The connection needs Linear's `read` permission. Search and reads use that member's current access; there is no background content index.
+
+## Search effectively
+
+Use a short issue description, distinctive phrase, or issue key such as `ENG-42`. Linear's native search combines full-text and vector retrieval. Sim includes **issue comments and archived issues** in searches, so a discussion can match even when the issue title does not contain your terms. GitHub qualifiers such as `repo:` and `is:pr` are not Linear query syntax.
+
+The assistant can narrow a native query to a **project UUID**. Use the project's ID, rather than its name or a team ID. Date bounds apply to the issue's modification time. Relevance is the default; newest and oldest sorting use modification time. Date-only requests list issues in the requested range. Continue a returned cursor with the same query and account.
+
+## Read results
+
+Opening a result retrieves the issue description, state, assignee, project, and up to **150 comments**, bounded to 120,000 discussion characters. Comments preserve author names, timestamps, direct source links, and reply relationships. If more comments exist or pagination cannot continue, the response explicitly says the discussion is incomplete.
+
+Search currently covers issues and their comments. It does not search standalone project documents or project updates. An empty result is not proof that no relevant work exists: try a shorter phrase, another issue key, or a different project scope.
+
+Linear currently limits its issue-search operation to 30 requests per minute. Sim reports quota or access failures rather than presenting them as empty results. See the [official GraphQL schema](https://github.com/linear/linear/blob/master/packages/sdk/src/schema.graphql), [filtering](https://linear.app/developers/filtering), and [pagination](https://linear.app/developers/pagination).

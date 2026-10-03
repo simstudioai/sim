@@ -1,4 +1,5 @@
-import { isRecordLike } from '@sim/utils/object'
+import { toBooleanOrNull, toStringOrNull } from '@sim/utils/coerce'
+import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import type {
   TrelloAction,
   TrelloActionBoardTarget,
@@ -22,14 +23,6 @@ function getRequiredString(value: unknown, field: string): string {
   }
 
   throw new Error(`Trello response is missing required field: ${field}`)
-}
-
-function getOptionalString(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
-}
-
-function getOptionalBoolean(value: unknown): boolean | null {
-  return typeof value === 'boolean' ? value : null
 }
 
 function getNumber(value: unknown): number {
@@ -81,7 +74,7 @@ function mapTrelloLabel(value: unknown): TrelloLabel | null {
   return {
     id: value.id,
     name: typeof value.name === 'string' ? value.name : '',
-    color: getOptionalString(value.color),
+    color: toStringOrNull(value.color),
   }
 }
 
@@ -92,8 +85,8 @@ export function mapTrelloMember(value: unknown): TrelloMember | null {
 
   return {
     id: value.id,
-    fullName: getOptionalString(value.fullName),
-    username: getOptionalString(value.username),
+    fullName: toStringOrNull(value.fullName),
+    username: toStringOrNull(value.username),
   }
 }
 
@@ -105,9 +98,9 @@ function mapActionCardTarget(value: unknown): TrelloActionCardTarget | null {
   return {
     id: value.id,
     name: value.name,
-    shortLink: getOptionalString(value.shortLink),
+    shortLink: toStringOrNull(value.shortLink),
     idShort: getOptionalNumber(value.idShort),
-    due: getOptionalString(value.due),
+    due: toStringOrNull(value.due),
   }
 }
 
@@ -119,7 +112,7 @@ function mapActionBoardTarget(value: unknown): TrelloActionBoardTarget | null {
   return {
     id: value.id,
     name: value.name,
-    shortLink: getOptionalString(value.shortLink),
+    shortLink: toStringOrNull(value.shortLink),
   }
 }
 
@@ -173,8 +166,8 @@ export function mapTrelloCard(value: unknown): TrelloCard {
     closed: typeof value.closed === 'boolean' ? value.closed : false,
     labelIds,
     labels,
-    due: getOptionalString(value.due),
-    dueComplete: getOptionalBoolean(value.dueComplete),
+    due: toStringOrNull(value.due),
+    dueComplete: toBooleanOrNull(value.dueComplete),
   }
 }
 
@@ -189,7 +182,7 @@ export function mapTrelloBoard(value: unknown): TrelloBoard {
     desc: typeof value.desc === 'string' ? value.desc : '',
     url: getRequiredString(value.url, 'url'),
     closed: typeof value.closed === 'boolean' ? value.closed : false,
-    idOrganization: getOptionalString(value.idOrganization),
+    idOrganization: toStringOrNull(value.idOrganization),
   }
 }
 
@@ -202,7 +195,7 @@ export function mapTrelloChecklist(value: unknown): TrelloChecklist {
     id: getRequiredString(value.id, 'id'),
     name: getRequiredString(value.name, 'name'),
     idCard: getRequiredString(value.idCard, 'idCard'),
-    idBoard: getOptionalString(value.idBoard),
+    idBoard: toStringOrNull(value.idBoard),
     pos: getNumber(value.pos),
   }
 }
@@ -217,7 +210,7 @@ export function mapTrelloChecklistItem(value: unknown): TrelloChecklistItem {
     name: getRequiredString(value.name, 'name'),
     state: getRequiredString(value.state, 'state'),
     pos: getNumber(value.pos),
-    idChecklist: getOptionalString(value.idChecklist),
+    idChecklist: toStringOrNull(value.idChecklist),
   }
 }
 
@@ -226,14 +219,14 @@ export function mapTrelloAction(value: unknown): TrelloAction {
     throw new Error('Trello returned an invalid action object')
   }
 
-  const data = isRecordLike(value.data) ? value.data : null
+  const data = toRecordOrNull(value.data)
 
   return {
     id: getRequiredString(value.id, 'id'),
     type: getRequiredString(value.type, 'type'),
     date: getRequiredString(value.date, 'date'),
     idMemberCreator: getRequiredString(value.idMemberCreator, 'idMemberCreator'),
-    text: data ? getOptionalString(data.text) : null,
+    text: data ? toStringOrNull(data.text) : null,
     memberCreator: mapTrelloMember(value.memberCreator),
     card: data ? mapActionCardTarget(data.card) : null,
     board: data ? mapActionBoardTarget(data.board) : null,

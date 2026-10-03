@@ -337,6 +337,7 @@ export function SelectorCombobox({
             />
             {showClearButton && (
               <Button
+                aria-label='Clear selection'
                 type='button'
                 variant='ghost'
                 className='-translate-y-1/2 absolute top-1/2 right-[28px] z-10 size-6 p-0'

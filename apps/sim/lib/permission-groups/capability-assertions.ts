@@ -1,3 +1,4 @@
+import type { DbOrTx } from '@/lib/db/types'
 import {
   CAPABILITY_RULES,
   refuseCapability,
@@ -5,7 +6,10 @@ import {
 } from '@/lib/permission-groups/capabilities'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
-import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
+import {
+  getEntitledOrganizationPermissionConfig,
+  getUserPermissionConfigForOrganization,
+} from '@/lib/permission-groups/resolve.server'
 
 /**
  * Re-exported so a caller that gates inline reaches the refusal sentence and the
@@ -40,16 +44,19 @@ export function capabilityDeniedBy(
  *
  * A no-op when no group governs the user, so a personal workspace or a
  * non-enterprise organization is unaffected. Pass `organizationId` when the
- * caller has already loaded the workspace; omitting it costs one lookup, and
- * both forms share the same per-request memo either way.
+ * caller has already loaded the workspace. An explicit executor reads current
+ * policy directly; otherwise both forms share the per-request memo.
  */
 export async function assertWorkspaceCapability(
   userId: string,
   workspaceId: string,
   capability: StaticPermissionGroupCapability,
-  organizationId?: string | null
+  organizationId?: string | null,
+  executor?: DbOrTx
 ): Promise<void> {
-  const config = await resolvePermissionGroupConfig(userId, workspaceId, organizationId)
+  const config = executor
+    ? await resolvePermissionGroupConfig(userId, workspaceId, organizationId, executor)
+    : await resolvePermissionGroupConfig(userId, workspaceId, organizationId)
   if (capabilityDeniedBy(capability, config)) refuseCapability(capability)
 }
 
@@ -88,5 +95,22 @@ export async function isOrganizationCapabilityWithheld(
   return capabilityDeniedBy(
     capability,
     await getUserPermissionConfigForOrganization(organizationId)
+  )
+}
+
+/**
+ * {@link isOrganizationCapabilityWithheld} for an organization whose regime the
+ * caller has ALREADY established, reading the group on the given executor. That
+ * establishment is the caller's obligation, not an optional one — see
+ * {@link getEntitledOrganizationPermissionConfig}.
+ */
+export async function isEntitledOrganizationCapabilityWithheld(
+  organizationId: string,
+  capability: StaticPermissionGroupCapability,
+  executor: DbOrTx
+): Promise<boolean> {
+  return capabilityDeniedBy(
+    capability,
+    await getEntitledOrganizationPermissionConfig(organizationId, executor)
   )
 }

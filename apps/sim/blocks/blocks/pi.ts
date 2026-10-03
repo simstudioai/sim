@@ -9,41 +9,6 @@ import {
   PROVIDER_CREDENTIAL_INPUTS,
 } from '@/blocks/utils'
 import { isPiByokOnlyMode } from '@/providers/pi-providers'
-import type { ToolResponse } from '@/tools/types'
-
-interface PiResponse extends ToolResponse {
-  output: {
-    content: string
-    model: string
-    changedFiles?: string[]
-    diff?: string
-    prUrl?: string
-    branch?: string
-    reviewUrl?: string
-    commentsPosted?: number
-    rounds?: number
-    threadsClean?: boolean
-    checksGreen?: boolean
-    threadsResolved?: number
-    commitsPushed?: number
-    stopReason?: string
-    tokens?: {
-      input?: number
-      output?: number
-      total?: number
-    }
-    cost?: {
-      input?: number
-      output?: number
-      total?: number
-    }
-    providerTiming?: {
-      startTime?: string
-      endTime?: string
-      duration?: number
-    }
-  }
-}
 
 const CLOUD: { field: 'mode'; value: 'cloud' } = { field: 'mode', value: 'cloud' }
 const CLOUD_REVIEW: { field: 'mode'; value: 'cloud_review' } = {
@@ -162,7 +127,7 @@ const hostedModelApiKeyCondition = getApiKeyCondition()
 const piApiKeyCondition = (values?: Record<string, unknown>) =>
   isPiByokOnlyMode(values?.mode) ? CLOUD_SANDBOX : hostedModelApiKeyCondition(values)
 
-export const PiBlock: BlockConfig<PiResponse> = {
+export const PiBlock: BlockConfig = {
   type: 'pi',
   name: 'Pi Coding Agent',
   description: 'Run an autonomous coding agent on a repo',

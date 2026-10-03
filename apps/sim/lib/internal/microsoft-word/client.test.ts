@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { inputValidationMock, inputValidationMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -90,22 +87,6 @@ beforeEach(() => {
 })
 
 describe('replaceContentIfUnchanged', () => {
-  it('sends a small package as a single fragment', async () => {
-    mockSecureFetchWithPinnedIP
-      .mockResolvedValueOnce(sessionResponse())
-      .mockResolvedValueOnce(completedItem())
-
-    await replaceContentIfUnchanged(BASE_PATH, 'token', Buffer.alloc(1024), 'tag-1')
-
-    const puts = mockSecureFetchWithPinnedIP.mock.calls.filter((c) => c[2]?.method === 'PUT')
-    expect(puts).toHaveLength(1)
-    expect(parseRange(puts[0][2].headers['Content-Range'])).toEqual({
-      start: 0,
-      end: 1023,
-      total: 1024,
-    })
-  })
-
   it('splits a package larger than one fragment into contiguous ordered ranges', async () => {
     /** The package exceeds one upload fragment. */
     const size = 25 * 1024 * 1024

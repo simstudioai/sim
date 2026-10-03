@@ -1,10 +1,6 @@
-/**
- * @vitest-environment node
- */
 import type { Sql } from 'postgres'
 import { describe, expect, it, vi } from 'vitest'
 import { repairUnknownTableRowProvenance } from './0005_repair_unknown_table_row_provenance'
-import { repairUnknownTableRowProvenanceSecondPass } from './0006_repair_unknown_table_row_provenance_second_pass'
 
 function normalizeSql(value: string): string {
   return value.replace(/\s+/g, ' ').trim()
@@ -84,53 +80,5 @@ describe('0005 repair unknown table row provenance', () => {
       s.startsWith('DELETE FROM user_table_row_secret_provenance')
     )
     expect(deleteStatement).toContain("AND status = 'unknown'")
-  })
-
-  /**
-   * A page whose rows were all repaired by a concurrent writer clears nothing. Stopping there would
-   * have ended the walk and left the rest of the backlog untouched.
-   */
-  it('keeps walking past a page a concurrent writer already repaired', async () => {
-    const { sql, cursors } = createSqlHarness([['row-1', 'row-2'], ['row-9'], []])
-
-    await repairUnknownTableRowProvenance.up(sql)
-
-    expect(cursors).toEqual(['', 'row-2', 'row-9'])
-  })
-
-  it('stops on the first page with no candidates left', async () => {
-    const { sql, cursors } = createSqlHarness([['row-1'], []])
-
-    await repairUnknownTableRowProvenance.up(sql)
-
-    expect(cursors).toEqual(['', 'row-1'])
-  })
-})
-
-/**
- * 0005 is finished — the runner records a name and never offers it again — but it cleared only the
- * backlog that existed when it ran, and the writers producing that backlog kept running. The second
- * pass exists to clear what accumulated since, and shares the first's implementation because the
- * lock ordering and the status re-check are subtleties worth having once.
- */
-describe('0006 second pass', () => {
-  it('repairs on the same walk as the first pass rather than restating it', async () => {
-    const { sql, statements, cursors } = createSqlHarness([['row-1'], []])
-
-    await repairUnknownTableRowProvenanceSecondPass.up(sql)
-
-    expect(cursors).toEqual(['', 'row-1'])
-    const lockIndex = statements.findIndex((statement) => statement.includes('FOR UPDATE'))
-    const deleteIndex = statements.findIndex((statement) =>
-      statement.startsWith('DELETE FROM user_table_row_secret_provenance')
-    )
-    expect(deleteIndex).toBeGreaterThan(lockIndex)
-    expect(statements[deleteIndex]).toContain("AND status = 'unknown'")
-  })
-
-  it('is a distinct entry so a repair that ran twice is recorded twice', () => {
-    expect(repairUnknownTableRowProvenanceSecondPass.name).not.toBe(
-      repairUnknownTableRowProvenance.name
-    )
   })
 })

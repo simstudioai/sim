@@ -1,0 +1,91 @@
+import {
+  SLACK_MANAGED_USER_CONFIGURATION_CALLBACK_PATH,
+  SLACK_MANAGED_USER_ENROLLMENT_CALLBACK_PATH,
+  SLACK_SEARCH_USER_SCOPES,
+} from '@/lib/credential-groups/slack-managed-user-scopes'
+import { SLACK_SHARED_SEARCH_BOT_SCOPES } from '@/lib/slack-search/constants'
+
+export const SLACK_SEARCH_CALLBACK_PATH = '/api/knowledge/slack/oauth/callback'
+export const SLACK_SEARCH_WEBHOOK_PATH = '/api/webhooks/slack'
+export const SLACK_SEARCH_DEFAULT_NAME = 'Sim Search'
+export const SLACK_SEARCH_DEFAULT_DESCRIPTION =
+  'Ask questions about your organization’s knowledge and get answers with sources.'
+
+/**
+ * Custom and shared apps declare the same permissions, including planned capabilities.
+ * Runtime OAuth validation requires only scopes used by implemented features.
+ */
+export function createSlackSearchManifest(
+  name: string,
+  description: string,
+  origin: string,
+  existingUserScopes: readonly string[] = []
+) {
+  const url = new URL(origin)
+  const webhookUrl = new URL(SLACK_SEARCH_WEBHOOK_PATH, url).href
+  return {
+    display_information: { name, description },
+    features: {
+      bot_user: { display_name: name, always_online: false },
+      app_home: {
+        home_tab_enabled: true,
+        messages_tab_enabled: true,
+        messages_tab_read_only_enabled: false,
+      },
+      agent_view: { agent_description: description },
+    },
+    oauth_config: {
+      redirect_urls: [
+        SLACK_SEARCH_CALLBACK_PATH,
+        SLACK_MANAGED_USER_CONFIGURATION_CALLBACK_PATH,
+        SLACK_MANAGED_USER_ENROLLMENT_CALLBACK_PATH,
+      ].map((path) => new URL(path, url).href),
+      scopes: {
+        bot: [
+          ...SLACK_SHARED_SEARCH_BOT_SCOPES,
+          'channels:history',
+          'channels:manage',
+          'channels:write.invites',
+          'chat:write.public',
+          'groups:history',
+          'groups:write',
+          'groups:write.invites',
+          'links:read',
+          'links:write',
+          'mpim:history',
+          'mpim:read',
+          'mpim:write',
+          'reactions:write',
+        ],
+        user: [
+          ...new Set([
+            ...SLACK_SEARCH_USER_SCOPES,
+            'canvases:read',
+            'canvases:write',
+            'chat:write',
+            'files:read',
+            'search:read.files',
+            'search:read.im',
+            'search:read.mpim',
+            'search:read.private',
+            'search:read.public',
+            'search:read.users',
+            'team:read',
+            'usergroups:read',
+            ...existingUserScopes,
+          ]),
+        ],
+      },
+    },
+    settings: {
+      event_subscriptions: {
+        request_url: webhookUrl,
+        bot_events: ['app_home_opened', 'message.im', 'app_mention', 'agent_session_stopped'],
+      },
+      interactivity: { is_enabled: true, request_url: webhookUrl },
+      org_deploy_enabled: false,
+      socket_mode_enabled: false,
+      token_rotation_enabled: false,
+    },
+  }
+}

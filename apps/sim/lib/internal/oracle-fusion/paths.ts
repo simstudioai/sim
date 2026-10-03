@@ -9,7 +9,7 @@ const UNSAFE_PATH_ENCODING = /%(?:2e|2f|5c|3f|23)/i
 const PATH_CONTROL = /[\u0000-\u001f\u007f]/
 const PATH_WHITESPACE = /\s/
 
-export type OracleFusionApiFamily = keyof typeof API_ROOTS
+type OracleFusionApiFamily = keyof typeof API_ROOTS
 
 export interface OracleFusionResourceAddress {
   family: OracleFusionApiFamily

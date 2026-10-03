@@ -4,32 +4,28 @@ import type { ElementType, ReactNode } from 'react'
 import { cn, OverflowText } from '@sim/emcn'
 import {
   Connections,
+  Dashboard,
   Database,
   File as FileIcon,
   Folder as FolderIcon,
   Globe,
   Library,
+  Search,
   Table as TableIcon,
   Task,
   TerminalWindow,
   Workflow,
 } from '@sim/emcn/icons'
-import type { QueryClient } from '@tanstack/react-query'
 import { getDocumentIcon } from '@/components/icons/document-icons'
+import { terminalIdFromResourceId } from '@/lib/terminal/resource-id'
+import { BrowserTabIcon } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry/browser-tab-icon'
+import { TerminalTabIcon } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry/terminal-tab-icon'
 import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { getDisplayStatus, STATUS_CONFIG } from '@/app/workspace/[workspaceId]/logs/utils'
 import { BrandIcon, type StyleableIcon } from '@/blocks/brand-icon'
-import { logKeys } from '@/hooks/queries/logs'
-import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
-import { folderKeys } from '@/hooks/queries/utils/folder-keys'
-import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
-import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
-import { tableKeys } from '@/hooks/queries/utils/table-keys'
-import { workspaceFileFolderKeys } from '@/hooks/queries/workspace-file-folders'
-import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 interface DropdownItemRenderProps {
   item: { id: string; name: string; [key: string]: unknown }
@@ -39,7 +35,12 @@ export interface ResourceTypeConfig {
   type: MothershipResourceType
   label: string
   icon: ElementType
-  renderTabIcon: (resource: MothershipResource, className: string) => ReactNode
+  /** `desktopScopeId` names the desktop browser scope a browser tab belongs to. */
+  renderTabIcon: (
+    resource: MothershipResource,
+    className: string,
+    desktopScopeId?: string
+  ) => ReactNode
   renderDropdownItem: (props: DropdownItemRenderProps) => ReactNode
   /**
    * How many of this family's candidates an unfiltered `@` list shows, overriding
@@ -53,7 +54,7 @@ export interface ResourceTypeConfig {
 function WorkflowDropdownItem({ item }: DropdownItemRenderProps) {
   return (
     <>
-      <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      <Workflow className='size-[14px] shrink-0 text-[var(--text-icon)]' />
       <OverflowText label={item.name} />
     </>
   )
@@ -67,7 +68,7 @@ function FileDropdownItem({ item }: DropdownItemRenderProps) {
   const DocIcon = getDocumentIcon('', item.name)
   return (
     <>
-      <DocIcon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      <DocIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
       <OverflowText label={item.name} />
     </>
   )
@@ -76,7 +77,7 @@ function FileDropdownItem({ item }: DropdownItemRenderProps) {
 function IconDropdownItem({ item, icon: Icon }: DropdownItemRenderProps & { icon: ElementType }) {
   return (
     <>
-      <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
       <OverflowText label={item.name} />
     </>
   )
@@ -93,7 +94,7 @@ function IntegrationDropdownItem({ item }: DropdownItemRenderProps) {
   if (!Icon) return <OverflowText label={item.name} />
   return (
     <>
-      <BrandIcon icon={Icon} className='size-[14px] flex-shrink-0' />
+      <BrandIcon icon={Icon} className='size-[14px] shrink-0' />
       <OverflowText label={item.name} />
     </>
   )
@@ -114,19 +115,19 @@ function LogDropdownItem({ item }: DropdownItemRenderProps) {
   const statusColor = status === 'info' ? null : STATUS_CONFIG[status].color
   return (
     <>
-      <Library className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      <Library className='size-[14px] shrink-0 text-[var(--text-icon)]' />
       <OverflowText label={workflowName} />
       {statusColor && (
         <div
           aria-hidden
-          className='ml-auto size-[5px] flex-shrink-0 rounded-xs'
+          className='ml-auto size-[5px] shrink-0 rounded-xs'
           style={{ backgroundColor: statusColor }}
         />
       )}
       {time && (
         <span
           className={cn(
-            'flex-shrink-0 text-[var(--text-tertiary)] text-caption',
+            'shrink-0 text-[var(--text-tertiary)] text-caption',
             !statusColor && 'ml-auto'
           )}
         >
@@ -138,6 +139,24 @@ function LogDropdownItem({ item }: DropdownItemRenderProps) {
 }
 
 export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfig> = {
+  sources: {
+    type: 'sources',
+    label: 'Sources',
+    icon: Search,
+    renderTabIcon: (_resource, className) => (
+      <Search className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <DefaultDropdownItem {...props} />,
+  },
+  search: {
+    type: 'search',
+    label: 'Search results',
+    icon: Search,
+    renderTabIcon: (_resource, className) => (
+      <Search className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <DefaultDropdownItem {...props} />,
+  },
   generic: {
     type: 'generic',
     label: 'Results',
@@ -164,6 +183,15 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
       <TableIcon className={cn(className, 'text-[var(--text-icon)]')} />
     ),
     renderDropdownItem: (props) => <IconDropdownItem {...props} icon={TableIcon} />,
+  },
+  dashboard: {
+    type: 'dashboard',
+    label: 'Dashboards',
+    icon: Dashboard,
+    renderTabIcon: (_resource, className) => (
+      <Dashboard className={cn(className, 'text-[var(--text-icon)]')} />
+    ),
+    renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Dashboard} />,
   },
   file: {
     type: 'file',
@@ -233,8 +261,8 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     type: 'browser',
     label: 'Browser',
     icon: Globe,
-    renderTabIcon: (_resource, className) => (
-      <Globe className={cn(className, 'text-[var(--text-icon)]')} />
+    renderTabIcon: (resource, className, desktopScopeId) => (
+      <BrowserTabIcon tabId={resource.id} scopeId={desktopScopeId} className={className} />
     ),
     renderDropdownItem: (props) => <IconDropdownItem {...props} icon={Globe} />,
   },
@@ -242,8 +270,12 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
     type: 'terminal',
     label: 'Terminal',
     icon: TerminalWindow,
-    renderTabIcon: (_resource, className) => (
-      <TerminalWindow className={cn(className, 'text-[var(--text-icon)]')} />
+    renderTabIcon: (resource, className, desktopScopeId) => (
+      <TerminalTabIcon
+        terminalId={terminalIdFromResourceId(resource.id)}
+        scopeId={desktopScopeId}
+        className={className}
+      />
     ),
     renderDropdownItem: (props) => <IconDropdownItem {...props} icon={TerminalWindow} />,
   },
@@ -257,16 +289,16 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
 export const MENTION_PREVIEW_DEFAULT_LIMIT = 5
 
 /**
- * Top-down order for every menu that lists resource families, mirroring the
- * workspace sidebar so a user reads the same sequence in both places. The two
- * desktop-only panels trail the workspace resources, matching where they surface
- * in the app. `folder`/`filefolder` never render as their own entry — they feed
+ * Top-down order for every menu that lists resource families (`+` attach, `@`
+ * mention, resource-tab `+`). It is its own product order, not a copy of the
+ * sidebar. The two desktop-only panels trail the workspace resources. `folder`/`filefolder` never render as their own entry — they feed
  * their family's folder tree — but are ordered beside it so a menu that ever does
  * surface them lands in the right place.
  */
 export const RESOURCE_MENU_ORDER: readonly MothershipResourceType[] = [
   'integration',
   'task',
+  'dashboard',
   'table',
   'file',
   'filefolder',
@@ -289,76 +321,4 @@ export function byResourceMenuOrder<T extends { type: MothershipResourceType }>(
 
 export function getResourceConfig(type: MothershipResourceType): ResourceTypeConfig {
   return RESOURCE_REGISTRY[type]
-}
-
-type CacheableResourceType = Exclude<MothershipResourceType, 'generic'>
-
-const RESOURCE_INVALIDATORS: Record<
-  CacheableResourceType,
-  (qc: QueryClient, workspaceId: string, resourceId: string) => void
-> = {
-  table: (qc, _wId, id) => {
-    qc.invalidateQueries({ queryKey: tableKeys.lists() })
-    qc.invalidateQueries({ queryKey: tableKeys.detail(id) })
-  },
-  file: (qc, wId, id) => {
-    qc.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
-    qc.invalidateQueries({ queryKey: workspaceFilesKeys.contentFile(wId, id) })
-    qc.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
-  },
-  workflow: (qc, wId) => {
-    void invalidateWorkflowLists(qc, wId)
-  },
-  knowledgebase: (qc, _wId, id) => {
-    qc.invalidateQueries({ queryKey: knowledgeKeys.lists() })
-    qc.invalidateQueries({ queryKey: knowledgeKeys.detail(id) })
-    qc.invalidateQueries({ queryKey: knowledgeKeys.tagDefinitions(id) })
-  },
-  folder: (qc) => {
-    qc.invalidateQueries({ queryKey: folderKeys.lists() })
-  },
-  filefolder: (qc, wId) => {
-    qc.invalidateQueries({ queryKey: workspaceFileFolderKeys.workspaceLists(wId) })
-    qc.invalidateQueries({ queryKey: workspaceFilesKeys.workspaceLists(wId) })
-    qc.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
-  },
-  task: (qc, wId) => {
-    qc.invalidateQueries({ queryKey: mothershipChatKeys.list(wId) })
-  },
-  log: (qc, wId, id) => {
-    qc.invalidateQueries({ queryKey: logKeys.details() })
-    qc.invalidateQueries({ queryKey: logKeys.detail(wId, id) })
-  },
-  /**
-   * Integrations are sourced from the static integration catalog
-   * (`listIntegrationsByPopularity()`), not a server-backed query, so there is nothing to
-   * invalidate when one is added.
-   */
-  integration: () => {},
-  /**
-   * The browser panel hosts the desktop app's natively embedded browser view
-   * (in-memory page state, no server-backed query), so there is nothing to
-   * invalidate.
-   */
-  browser: () => {},
-  /**
-   * The terminal panel is backed by a live PTY in the desktop app, not a
-   * server-backed query, so there is nothing to invalidate.
-   */
-  terminal: () => {},
-}
-
-/**
- * Invalidate list and detail queries for a specific resource.
- * Called when a `resource_added` event arrives so the embedded view refreshes
- * and the add-resource dropdown stays up to date.
- */
-export function invalidateResourceQueries(
-  queryClient: QueryClient,
-  workspaceId: string,
-  resourceType: MothershipResourceType,
-  resourceId: string
-): void {
-  if (resourceType === 'generic') return
-  RESOURCE_INVALIDATORS[resourceType](queryClient, workspaceId, resourceId)
 }

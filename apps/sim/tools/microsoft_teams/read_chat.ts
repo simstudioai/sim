@@ -1,3 +1,7 @@
+import {
+  AttachmentDownloadBudget,
+  rethrowAttachmentDownloadError,
+} from '@/lib/uploads/utils/attachment-download-budget'
 import type {
   MicrosoftTeamsReadResponse,
   MicrosoftTeamsToolParams,
@@ -7,7 +11,7 @@ import {
   extractMessageAttachments,
   fetchHostedContentsForChatMessage,
 } from '@/tools/microsoft_teams/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolFileData, ToolResponseContext } from '@/tools/types'
 
 export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsReadResponse> = {
   id: 'microsoft_teams_read_chat',
@@ -63,7 +67,13 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
     },
   },
 
-  transformResponse: async (response: Response, params?: MicrosoftTeamsToolParams) => {
+  transformResponse: async (
+    response: Response,
+    params?: MicrosoftTeamsToolParams,
+    context?: ToolResponseContext
+  ) => {
+    const budget = new AttachmentDownloadBudget(context)
+    context?.signal?.throwIfAborted()
     const data = await response.json()
 
     const messages = data.value || []
@@ -84,44 +94,49 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
       }
     }
 
-    const processedMessages = await Promise.all(
-      messages.map(async (message: any) => {
-        const content = message.body?.content || 'No content'
-        const messageId = message.id
+    const processedMessages: NonNullable<
+      MicrosoftTeamsReadResponse['output']['metadata']['messages']
+    > = []
+    for (const message of messages) {
+      context?.signal?.throwIfAborted()
+      const content = message.body?.content || 'No content'
+      const messageId = message.id
 
-        const attachments = extractMessageAttachments(message)
+      const attachments = extractMessageAttachments(message)
 
-        let uploaded: any[] = []
-        if (params?.includeAttachments && params.accessToken && params.chatId && messageId) {
-          try {
-            const hostedContents = await fetchHostedContentsForChatMessage({
-              accessToken: params.accessToken,
-              chatId: params.chatId,
-              messageId,
-            })
-            uploaded.push(...hostedContents)
+      let uploaded: ToolFileData[] = []
+      if (params?.includeAttachments && params.accessToken && params.chatId && messageId) {
+        try {
+          const hostedContents = await fetchHostedContentsForChatMessage({
+            accessToken: params.accessToken,
+            chatId: params.chatId,
+            messageId,
+            budget,
+          })
+          uploaded.push(...hostedContents)
 
-            const referenceFiles = await downloadAllReferenceAttachments({
-              accessToken: params.accessToken,
-              attachments,
-            })
-            uploaded.push(...referenceFiles)
-          } catch (_e) {
-            uploaded = []
-          }
+          const referenceFiles = await downloadAllReferenceAttachments({
+            accessToken: params.accessToken,
+            attachments,
+            budget,
+          })
+          uploaded.push(...referenceFiles)
+        } catch (_e) {
+          rethrowAttachmentDownloadError(_e, context?.signal)
+          uploaded = []
         }
+      }
 
-        return {
-          id: messageId,
-          content: content, // Keep original content without modification
-          sender: message.from?.user?.displayName || 'Unknown',
-          timestamp: message.createdDateTime,
-          messageType: message.messageType || 'message',
-          attachments, // Raw attachment metadata
-          uploadedFiles: uploaded, // Uploaded file infos (paths/keys)
-        }
+      processedMessages.push({
+        id: messageId,
+        content: content, // Keep original content without modification
+        sender: message.from?.user?.displayName || 'Unknown',
+        timestamp: message.createdDateTime,
+        messageType: message.messageType || 'message',
+        attachments, // Raw attachment metadata
+        uploadedFiles: uploaded, // Uploaded file infos (paths/keys)
       })
-    )
+    }
 
     // Format the messages into a readable text (no attachment info in content)
     const formattedMessages = processedMessages

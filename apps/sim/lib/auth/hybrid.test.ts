@@ -1,17 +1,12 @@
-/**
- * @vitest-environment node
- */
-
 import { authMockFns } from '@sim/testing'
+import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAuthenticateApiKeyFromHeader, mockUpdateApiKeyLastUsed, mockVerifyInternalToken } =
-  vi.hoisted(() => ({
-    mockAuthenticateApiKeyFromHeader: vi.fn(),
-    mockUpdateApiKeyLastUsed: vi.fn(),
-    mockVerifyInternalToken: vi.fn(),
-  }))
+const { mockAuthenticateApiKeyFromHeader, mockUpdateApiKeyLastUsed } = vi.hoisted(() => ({
+  mockAuthenticateApiKeyFromHeader: vi.fn(),
+  mockUpdateApiKeyLastUsed: vi.fn(),
+}))
 
 const mockGetSession = authMockFns.mockGetSession
 
@@ -26,11 +21,11 @@ vi.mock('@/lib/api-key/service', () => ({
   updateApiKeyLastUsed: mockUpdateApiKeyLastUsed,
 }))
 
-vi.mock('@/lib/auth/internal', () => ({
-  verifyInternalToken: mockVerifyInternalToken,
-}))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
 
 import { AuthType, checkHybridAuth, checkInternalAuth } from '@/lib/auth/hybrid'
+
+const { mockVerifyInternalToken } = authInternalMockFns
 
 function createRequest(headers: Record<string, string>): NextRequest {
   return new NextRequest('http://localhost/api/test', { headers })
@@ -38,7 +33,6 @@ function createRequest(headers: Record<string, string>): NextRequest {
 
 describe('checkHybridAuth credential precedence', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockVerifyInternalToken.mockResolvedValue({ valid: false })
     mockGetSession.mockResolvedValue({
       user: { id: 'session-user', name: 'Session User', email: 'session@example.com' },

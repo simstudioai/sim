@@ -1,19 +1,19 @@
 /**
  * @vitest-environment node
  */
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import { utilsHelpersMock, utilsHelpersMockFns } from '@sim/testing/mocks/utils-helpers.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSecureFetch, mockSleep, mockValidateUrl } = vi.hoisted(() => ({
-  mockSecureFetch: vi.fn(),
-  mockSleep: vi.fn(),
-  mockValidateUrl: vi.fn(),
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithPinnedIP: mockSecureFetch,
-  validateUrlWithDNS: mockValidateUrl,
-}))
-vi.mock('@sim/utils/helpers', () => ({ interruptibleSleep: mockSleep }))
+const mockSecureFetch = inputValidationMockFns.mockSecureFetchWithPinnedIP
+const mockValidateUrl = inputValidationMockFns.mockValidateUrlWithDNS
+const mockSleep = utilsHelpersMockFns.mockInterruptibleSleep
 
 import { createTimeoutAbortController } from '@/lib/core/execution-limits'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
@@ -57,7 +57,9 @@ function getRequest(): OracleFusionRequest {
 
 describe('Oracle Fusion client', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    mockSecureFetch.mockReset()
+    mockValidateUrl.mockReset()
+    mockSleep.mockReset()
     mockValidateUrl.mockResolvedValue({
       isValid: true,
       resolvedIP: '203.0.113.10',
@@ -69,7 +71,6 @@ describe('Oracle Fusion client', () => {
 
   afterEach(() => {
     vi.useRealTimers()
-    vi.restoreAllMocks()
   })
 
   it.each([
@@ -81,7 +82,7 @@ describe('Oracle Fusion client', () => {
     async (family, path) => {
       await expect(
         requestOracleFusionJson(CREDENTIAL, {
-          address: { family, relativePath: path.split('/').at(-1)! },
+          address: { family, relativePath: path.slice(path.lastIndexOf('/') + 1) },
           query: {
             q: 'Name="A B"',
             limit: 25,

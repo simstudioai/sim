@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import { LARGE_VALUE_THRESHOLD_BYTES } from '@/lib/execution/payloads/large-value-ref'
 import type { UserFile } from '@/executor/types'
@@ -22,6 +19,8 @@ import {
   prepareProviderAttachments,
   shouldUseLargeFilePath,
 } from '@/providers/attachments'
+import { setNativeConversationMessage } from '@/providers/conversation-metadata'
+import type { Message } from '@/providers/types'
 
 const imageFile: UserFile = {
   id: 'file-1',
@@ -54,6 +53,26 @@ const markdownFile: UserFile = {
 }
 
 describe('provider attachments', () => {
+  it('restores trusted native chat reasoning while leaving ordinary message JSON alone', () => {
+    const message: Message = { role: 'assistant', content: 'answer' }
+    const native = {
+      role: 'assistant',
+      content: 'answer',
+      reasoning_content: 'opaque reasoning',
+      reasoning_details: [{ type: 'reasoning.encrypted', data: 'signed-content' }],
+    }
+    setNativeConversationMessage(message, {
+      protocol: 'chat-completions',
+      providerId: 'openrouter',
+      model: 'model',
+      binding: 'test',
+      value: native,
+    })
+    expect(formatMessagesForProvider([message], 'openrouter')).toEqual([native])
+    expect(
+      formatMessagesForProvider([{ role: 'assistant', content: 'answer' }], 'openrouter')
+    ).toEqual([{ role: 'assistant', content: 'answer' }])
+  })
   it('infers MIME type from filename when file type is generic', () => {
     expect(
       inferAttachmentMimeType({

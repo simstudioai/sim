@@ -5,6 +5,7 @@ import {
   resolvePrincipalAttribution,
   toPrincipalActor,
 } from '@sim/auth/principal'
+import { chatDeploymentDelegationPolicy } from '@/lib/chat-deployments/application/authorization'
 import {
   requireWorkflowChatDeployment,
   resolveWorkflowChatDeploymentApplicationContext,
@@ -26,6 +27,7 @@ import {
 } from '@/lib/chat-deployments/queries'
 import { buildChatDeploymentUrl } from '@/lib/chat-deployments/urls'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
+import { resolveCopilotSecretReference } from '@/lib/core/application/environment-reference'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { performChatDeploy, performChatUndeploy } from '@/lib/workflows/orchestration'
 import { validateChatDeployAuth } from '@/ee/access-control/utils/permission-check'
@@ -91,7 +93,7 @@ function resolveContext({ input }: { input: WorkflowChatDeploymentInput }) {
 export const readWorkflowChatDeployment = defineAuthorizedWorkspaceUseCase({
   operation: chatDeploymentOperations.read,
   resolveContext,
-  authorizationOptions: {},
+  authorizationOptions: { delegation: chatDeploymentDelegationPolicy },
   async execute({ context }): Promise<WorkflowChatDeploymentResult> {
     return {
       deployment: toEffectiveChatDeploymentView(
@@ -100,6 +102,44 @@ export const readWorkflowChatDeployment = defineAuthorizedWorkspaceUseCase({
       ),
       workspaceId: context.workspaceId,
       workflowId: context.workflowId,
+    }
+  },
+})
+
+export interface WorkflowChatDeploymentStatus {
+  isDeployed: boolean
+  /** Enough to address the deployment, and nothing the detail read gates. */
+  deployment: { id: string; identifier: string } | null
+}
+
+/**
+ * Whether the workflow publishes a chat, for the editor's deploy affordance.
+ *
+ * Bound to `chat_deployments.list`, not `chat_deployments.read`, and narrowed
+ * here in the use case rather than in the adapter. The editor needs to know a
+ * chat exists and which one it is so it can then fetch the detail; everything
+ * `V2_CHAT_DEPLOYMENT_GATED_FIELDS` withholds from the `read`-level list —
+ * `allowedEmails`, `hasPassword`, `customizations` — is absent for the same
+ * reason, so this cannot be used to route around the admin-gated detail read.
+ * The `deploy.chat` capability comes with `list`: a group with the chat
+ * deployment surface withheld should not still be told what is published.
+ *
+ * `isDeployed` is the chat row's own `isActive`, deliberately not
+ * {@link toEffectiveChatDeploymentView}'s "chat and workflow both live" rule.
+ * This answers "does this workflow already have a chat to update", which stays
+ * true while the workflow is undeployed — the editor would otherwise offer to
+ * launch a chat that already exists.
+ */
+export const readWorkflowChatDeploymentStatus = defineAuthorizedWorkspaceUseCase({
+  operation: chatDeploymentOperations.list,
+  resolveContext,
+  authorizationOptions: { delegation: chatDeploymentDelegationPolicy },
+  async execute({ context }): Promise<WorkflowChatDeploymentStatus> {
+    const deployment = context.chatDeployment
+    if (!deployment) return { isDeployed: false, deployment: null }
+    return {
+      isDeployed: deployment.isActive,
+      deployment: { id: deployment.id, identifier: deployment.identifier },
     }
   },
 })
@@ -145,7 +185,7 @@ export const replaceWorkflowChatDeployment = defineAuthorizedWorkspaceUseCase({
   operation: chatDeploymentOperations.replace,
   resolveContext: ({ input }: { input: ReplaceWorkflowChatDeploymentInput }) =>
     resolveWorkflowChatDeploymentApplicationContext({ workflowId: input.workflowId }),
-  authorizationOptions: {},
+  authorizationOptions: { delegation: chatDeploymentDelegationPolicy },
   async execute({ principal, input, context }) {
     const existing = context.chatDeployment
     const authType = input.authType ?? 'public'
@@ -162,6 +202,21 @@ export const replaceWorkflowChatDeployment = defineAuthorizedWorkspaceUseCase({
     }
 
     await assertAuthModePermitted(context, principal, authType)
+
+    /**
+     * Replace semantics: a mode that owns no password stores none. Resolved
+     * before {@link performChatDeploy}, so its password rules apply to the value
+     * actually stored rather than to an agent's `{{NAME}}` placeholder.
+     */
+    const password =
+      authType === 'password'
+        ? await resolveCopilotSecretReference(
+            principal,
+            context.workspaceId,
+            input.password,
+            'password'
+          )
+        : null
 
     const allowedEmails = input.allowedEmails ?? []
     const outputConfigs = input.outputConfigs ?? []
@@ -184,8 +239,7 @@ export const replaceWorkflowChatDeployment = defineAuthorizedWorkspaceUseCase({
       description: input.description ?? '',
       customizations,
       authType,
-      /** Replace semantics: a mode that owns no password stores none. */
-      password: authType === 'password' ? input.password : null,
+      password,
       allowedEmails,
       outputConfigs,
       includeThinking: input.includeThinking ?? false,
@@ -247,7 +301,7 @@ export const replaceWorkflowChatDeployment = defineAuthorizedWorkspaceUseCase({
 export const deleteWorkflowChatDeployment = defineAuthorizedWorkspaceUseCase({
   operation: chatDeploymentOperations.delete,
   resolveContext,
-  authorizationOptions: {},
+  authorizationOptions: { delegation: chatDeploymentDelegationPolicy },
   async execute({ principal, context }): Promise<WorkflowChatDeploymentResult> {
     const deployment = requireWorkflowChatDeployment(context)
     const attribution = resolvePrincipalAttribution(principal, {

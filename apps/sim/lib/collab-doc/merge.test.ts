@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import { describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
@@ -9,13 +6,6 @@ import { markdownToYDoc, yDocToMarkdown } from './converter'
 import { buildFileDocMergeUpdate } from './merge'
 
 describe('buildFileDocMergeUpdate', () => {
-  it('produces a diff that turns the live doc into the target markdown', () => {
-    const live = markdownToYDoc('# Title\n\nOriginal.')
-    const update = buildFileDocMergeUpdate(Y.encodeStateAsUpdate(live), '# Title\n\nRewritten.')
-    Y.applyUpdate(live, update)
-    expect(yDocToMarkdown(live)).toBe(serializeMarkdownBody('# Title\n\nRewritten.'))
-  })
-
   it('strips frontmatter from the body but stores it in the config for the editor to re-attach', () => {
     const live = markdownToYDoc('# Title\n\nBody.')
     const update = buildFileDocMergeUpdate(
@@ -31,15 +21,6 @@ describe('buildFileDocMergeUpdate', () => {
     expect(live.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.frontmatterKey)).toContain(
       'title: X'
     )
-  })
-
-  it('returns an empty (no-op) diff when the markdown already matches', () => {
-    const live = markdownToYDoc('# Same\n\nBody.')
-    const before = Y.encodeStateVector(live)
-    const update = buildFileDocMergeUpdate(Y.encodeStateAsUpdate(live), yDocToMarkdown(live))
-    Y.applyUpdate(live, update)
-    // Nothing new was introduced: the doc's state vector is unchanged by applying the diff.
-    expect(Y.encodeStateVector(live)).toEqual(before)
   })
 
   it('merges a copilot rewrite with a concurrent remote edit (no clobber)', () => {

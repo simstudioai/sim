@@ -13,6 +13,7 @@ import {
   type NoteSearchHighlight,
   type NoteSearchRange,
 } from '@sim/workflow-renderer'
+import { isWorkflowBlockProtected } from '@sim/workflow-types/workflow'
 import { type Node, type NodeProps, useReactFlow } from '@xyflow/react'
 import dynamic from 'next/dynamic'
 import { useShallow } from 'zustand/react/shallow'
@@ -28,7 +29,6 @@ import { useNoteImageUpload } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import type { WorkflowBlockProps } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/types'
 import { useBlockVisual } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
-import { isBlockProtected } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useIsCurrentWorkflowExecuting } from '@/stores/execution'
 import { usePanelEditorSearchStore, usePanelEditorStore } from '@/stores/panel'
@@ -109,7 +109,7 @@ export const NoteBlock = memo(function NoteBlock({ id, data, selected }: NodePro
   const isWorkflowRunning = useIsCurrentWorkflowExecuting()
   const canEditWorkflow = userPermissions.canEdit && !data.isWorkflowLocked
   const isProtected = useWorkflowStore(
-    useCallback((state) => isBlockProtected(id, state.blocks), [id])
+    useCallback((state) => isWorkflowBlockProtected(id, state.blocks), [id])
   )
   const clearCurrentBlock = usePanelEditorStore((state) => state.clearCurrentBlock)
   /* Flattened to primitives under a shallow compare, never held as the target

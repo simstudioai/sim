@@ -141,7 +141,7 @@ export function AccessControlGraphic() {
                 team.leftClass
               )}
             >
-              <span className='relative size-8 overflow-hidden rounded-full shadow-sm'>
+              <span className='relative size-8 overflow-hidden rounded-full shadow-xs'>
                 <Image
                   src={team.avatar}
                   alt=''

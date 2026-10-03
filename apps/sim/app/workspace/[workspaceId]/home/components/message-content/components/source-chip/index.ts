@@ -1,1 +1,6 @@
-export { BRAND_ICON_BY_BASE_TYPE, SourceChip, sourceLabel } from './source-chip'
+export {
+  SourceChip,
+  sourceLabel,
+  sourceSiteName,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip/source-chip'
+export { SourceIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip/source-icon'

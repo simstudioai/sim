@@ -77,7 +77,8 @@ function EnrichmentsSidebarBody({
             variant='ghost'
             size='sm'
             onClick={onClose}
-            className='!p-1 size-7 flex-none'
+            iconPadding='sm'
+            className='size-7 flex-none'
             aria-label='Close'
           >
             <X className='size-[14px]' />
@@ -123,7 +124,8 @@ function EnrichmentsSidebarBody({
           variant='ghost'
           size='sm'
           onClick={onClose}
-          className='!p-1 size-7 flex-none'
+          iconPadding='sm'
+          className='size-7 flex-none'
           aria-label='Close'
         >
           <X className='size-[14px]' />

@@ -1,3 +1,4 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import type {
   MintlifySearchParams,
   MintlifySearchResponse,
@@ -8,7 +9,6 @@ import {
   mintlifyHeaders,
   pathSegment,
   readMintlifyJson,
-  toNullableString,
   toStringArray,
 } from '@/tools/mintlify/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -108,8 +108,8 @@ export const mintlifySearchTool: ToolConfig<MintlifySearchParams, MintlifySearch
     const results: MintlifySearchResult[] = rows.map((entry) => {
       const row = (entry ?? {}) as Record<string, unknown>
       return {
-        content: toNullableString(row.content),
-        path: toNullableString(row.path),
+        content: toStringOrNull(row.content),
+        path: toStringOrNull(row.path),
         metadata:
           row.metadata && typeof row.metadata === 'object'
             ? (row.metadata as Record<string, unknown>)

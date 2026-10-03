@@ -23,6 +23,12 @@ type GoogleSelectorKey = Extract<
   'google.tasks.lists' | 'gmail.labels' | 'google.calendar' | 'google.drive' | 'google.sheets'
 >
 
+const GOOGLE_SELECTOR_SCOPES: Partial<Record<string, string[]>> = {
+  'google-drive': ['https://www.googleapis.com/auth/drive.readonly'],
+  gmail: ['https://www.googleapis.com/auth/gmail.modify'],
+  'google-calendar': ['https://www.googleapis.com/auth/calendar'],
+}
+
 interface GoogleTaskList {
   id: string
   title: string
@@ -62,15 +68,20 @@ interface Sheet {
 interface GooglePage<T> {
   items: T[]
   nextCursor?: string
+  truncated?: boolean
 }
 
-async function googleAccessToken(args: ExecuteServerSelectorArgs, serviceId: string) {
+async function googleAccessToken(
+  args: ExecuteServerSelectorArgs,
+  serviceId: string,
+  scopes = GOOGLE_SELECTOR_SCOPES[serviceId] ?? getScopesForService(serviceId)
+) {
   if (!args.credential) throw new SelectorConnectionUnavailableError()
   try {
     return await resolveSelectorOAuthAccessToken({
       credential: args.credential,
       serviceId,
-      scopes: getScopesForService(serviceId),
+      scopes,
       impersonateEmail: args.context.impersonateUserEmail,
       protectedValues: args.protectedValues,
     })
@@ -142,7 +153,13 @@ function gmailLabelName(label: GmailLabel): string {
 
 async function executeGmailLabels(args: ExecuteServerSelectorArgs) {
   requireListRequest(args.selectorKey, args.request)
-  const accessToken = await googleAccessToken(args, 'gmail')
+  const accessToken = await googleAccessToken(
+    args,
+    'gmail',
+    args.context.impersonateUserEmail
+      ? ['https://www.googleapis.com/auth/gmail.readonly']
+      : GOOGLE_SELECTOR_SCOPES.gmail
+  )
   const data = await fetchProviderJson<{ labels?: GmailLabel[] }>(
     'https://gmail.googleapis.com/gmail/v1/users/me/labels',
     { headers: { Authorization: `Bearer ${accessToken}` }, signal: args.signal }
@@ -152,20 +169,32 @@ async function executeGmailLabels(args: ExecuteServerSelectorArgs) {
     data.labels
       .filter((label) => label.id && label.name)
       .map((label) => ({
-        id: label.id,
+        id: args.context.impersonateUserEmail ? label.name : label.id,
         label: gmailLabelName(label),
       }))
   )
 }
 
 async function executeCalendars(args: ExecuteServerSelectorArgs) {
-  const accessToken = await googleAccessToken(args, 'google-calendar')
+  const accessToken = await googleAccessToken(
+    args,
+    'google-calendar',
+    args.context.impersonateUserEmail
+      ? ['https://www.googleapis.com/auth/calendar.readonly']
+      : GOOGLE_SELECTOR_SCOPES['google-calendar']
+  )
   if (args.request.kind === 'detail') {
     const calendar = await fetchProviderJson<CalendarListItem>(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(requireGoogleCalendarId(args.request.id))}`,
       { headers: { Authorization: `Bearer ${accessToken}` }, signal: args.signal }
     )
-    return detailSelectorResult({ id: calendar.id, label: calendar.summary })
+    return detailSelectorResult({
+      id:
+        args.context.impersonateUserEmail && args.request.id === 'primary'
+          ? 'primary'
+          : calendar.id,
+      label: calendar.summary,
+    })
   }
   requireListRequest(args.selectorKey, args.request)
   const result = await fetchGooglePage<
@@ -192,7 +221,7 @@ async function executeCalendars(args: ExecuteServerSelectorArgs) {
     calendars
       .filter((calendar) => calendar.id && calendar.summary)
       .map((calendar) => ({
-        id: calendar.id,
+        id: args.context.impersonateUserEmail && calendar.primary ? 'primary' : calendar.id,
         label: calendar.summary,
       })),
     result.nextCursor
@@ -214,29 +243,26 @@ function requireGoogleId(value: string | undefined, maxLength = 255): string {
 async function fetchSharedDrivePage(
   accessToken: string,
   pageToken: string | undefined,
+  search: string | undefined,
   signal?: AbortSignal
 ): Promise<GooglePage<DriveFile>> {
-  try {
-    const url = new URL('https://www.googleapis.com/drive/v3/drives')
-    url.searchParams.set('pageSize', '100')
-    url.searchParams.set('fields', 'nextPageToken,drives(id,name)')
-    if (pageToken) url.searchParams.set('pageToken', pageToken)
-    const data = await fetchProviderJson<{
-      drives?: Array<{ id: string; name: string }>
-      nextPageToken?: string
-    }>(url, { headers: { Authorization: `Bearer ${accessToken}` }, signal })
-    const nextCursor = data.nextPageToken?.trim()
-    return {
-      items: (data.drives ?? []).map((drive) => ({
-        id: drive.id,
-        name: drive.name,
-        mimeType: 'application/vnd.google-apps.folder',
-      })),
-      ...(nextCursor ? { nextCursor } : {}),
-    }
-  } catch (error) {
-    if (signal?.aborted) throw error
-    return { items: [] }
+  const url = new URL('https://www.googleapis.com/drive/v3/drives')
+  url.searchParams.set('pageSize', '100')
+  url.searchParams.set('fields', 'nextPageToken,drives(id,name)')
+  if (pageToken) url.searchParams.set('pageToken', pageToken)
+  if (search) url.searchParams.set('q', `name contains '${escapeDriveQuery(search)}'`)
+  const data = await fetchProviderJson<{
+    drives?: Array<{ id: string; name: string }>
+    nextPageToken?: string
+  }>(url, { headers: { Authorization: `Bearer ${accessToken}` }, signal })
+  const nextCursor = data.nextPageToken?.trim()
+  return {
+    items: (data.drives ?? []).map((drive) => ({
+      id: drive.id,
+      name: drive.name,
+      mimeType: 'application/vnd.google-apps.folder',
+    })),
+    ...(nextCursor ? { nextCursor } : {}),
   }
 }
 
@@ -250,8 +276,8 @@ function parseDriveCursor(cursor: string | undefined): DriveCursor | undefined {
   return { source: source === 'd:' ? 'drives' : 'files', pageToken }
 }
 
-function driveCursor(source: DriveCursor['source'], pageToken?: string): string {
-  return `${source === 'drives' ? 'd' : 'f'}:${pageToken ?? ''}`
+function driveCursor(source: DriveCursor['source'], pageToken: string): string {
+  return `${source === 'drives' ? 'd' : 'f'}:${pageToken}`
 }
 
 async function listDriveFiles(
@@ -268,24 +294,23 @@ async function listDriveFiles(
   if (mimeType) clauses.push(`mimeType = '${escapeDriveQuery(mimeType)}'`)
   if (search) clauses.push(`name contains '${escapeDriveQuery(search)}'`)
 
-  const includeSharedDrives =
-    !folderId && mimeType === 'application/vnd.google-apps.folder' && !search
+  const includeSharedDrives = !folderId && mimeType === 'application/vnd.google-apps.folder'
   const request = requireListRequest(args.selectorKey, args.request)
   const cursor = parseDriveCursor(request.cursor)
   if (cursor?.source === 'drives' && !includeSharedDrives) {
     throw new SelectorContextUnavailableError()
   }
 
+  let sharedDrives: DriveFile[] = []
   if (includeSharedDrives && (!cursor || cursor.source === 'drives')) {
-    const drives = await fetchSharedDrivePage(accessToken, cursor?.pageToken, args.signal)
-    if (drives.items.length > 0 || drives.nextCursor) {
+    const drives = await fetchSharedDrivePage(accessToken, cursor?.pageToken, search, args.signal)
+    if (drives.nextCursor) {
       return {
         items: drives.items,
-        nextCursor: drives.nextCursor
-          ? driveCursor('drives', drives.nextCursor)
-          : driveCursor('files'),
+        nextCursor: driveCursor('drives', drives.nextCursor),
       }
     }
+    sharedDrives = drives.items
   }
 
   const pageToken = cursor?.source === 'files' ? cursor.pageToken : undefined
@@ -295,17 +320,22 @@ async function listDriveFiles(
   url.searchParams.set('supportsAllDrives', 'true')
   url.searchParams.set('includeItemsFromAllDrives', 'true')
   url.searchParams.set('pageSize', '100')
-  url.searchParams.set('fields', 'nextPageToken,files(id,name,mimeType)')
+  url.searchParams.set('fields', 'nextPageToken,incompleteSearch,files(id,name,mimeType)')
   if (pageToken) url.searchParams.set('pageToken', pageToken)
-  const data = await fetchProviderJson<{ files?: DriveFile[]; nextPageToken?: string }>(url, {
+  const data = await fetchProviderJson<{
+    files?: DriveFile[]
+    nextPageToken?: string
+    incompleteSearch?: boolean
+  }>(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
     signal: args.signal,
   })
   const nextPageToken = data.nextPageToken?.trim()
 
   return {
-    items: data.files ?? [],
+    items: [...sharedDrives, ...(data.files ?? [])],
     ...(nextPageToken ? { nextCursor: driveCursor('files', nextPageToken) } : {}),
+    ...(data.incompleteSearch === true ? { truncated: true } : {}),
   }
 }
 
@@ -369,7 +399,8 @@ async function executeDrive(args: ExecuteServerSelectorArgs) {
         id: file.id,
         label: file.name,
       })),
-    result.nextCursor
+    result.nextCursor,
+    result.truncated ? { truncated: { reason: 'provider-cap' } } : undefined
   )
 }
 

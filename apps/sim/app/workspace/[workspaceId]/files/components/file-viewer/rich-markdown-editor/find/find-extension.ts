@@ -1,9 +1,16 @@
+import { PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
 import type { Editor } from '@tiptap/core'
 import { Extension } from '@tiptap/core'
+import { closeHistory } from '@tiptap/pm/history'
 import type { EditorState } from '@tiptap/pm/state'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
-import { EMPTY_FIND_RESULT, type FindMatch, findMatches } from './find-matches'
+import { yUndoPluginKey } from '@tiptap/y-tiptap'
+import {
+  EMPTY_FIND_RESULT,
+  type FindMatch,
+  findMatches,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find/find-matches'
 
 /** Class on every match. The active one carries {@link ACTIVE_MATCH_CLASS} as well. */
 const MATCH_CLASS = 'rich-find-match'
@@ -148,4 +155,88 @@ export function setFindQuery(editor: Editor, query: string): void {
 /** Moves the active match by `delta`, cycling past either end. */
 export function stepFindMatch(editor: Editor, delta: number): void {
   dispatchFindMeta(editor, { activeIndex: getFindTally(editor.state).activeIndex + delta })
+}
+
+function stopUndoCapture(editor: Editor): void {
+  const state = yUndoPluginKey.getState(editor.state) as
+    | { undoManager?: { stopCapturing: () => void } }
+    | undefined
+  state?.undoManager?.stopCapturing()
+}
+
+function isolateReplacement(editor: Editor, transaction: EditorState['tr']): void {
+  stopUndoCapture(editor)
+  editor.view.dispatch(closeHistory(transaction).scrollIntoView())
+  stopUndoCapture(editor)
+  editor.view.dispatch(closeHistory(editor.state.tr))
+}
+
+/** Bounds aggregate growth before Replace All can materialize hundreds of large insertions. */
+function replacementExceedsLimit(
+  editor: Editor,
+  matches: readonly FindMatch[],
+  replacement: string
+): boolean {
+  const currentSize = editor.state.doc.content.size
+  const nextSize = matches.reduce(
+    (size, match) => size + replacement.length - (match.to - match.from),
+    currentSize
+  )
+  return nextSize > Math.max(currentSize, PASTE_RENDER_THRESHOLDS.ENHANCED_TEXT_CHARACTERS)
+}
+
+/** Uses the target range's marks, independent of formatting armed at the editor's caret. */
+function replaceMatch(transaction: EditorState['tr'], match: FindMatch, replacement: string): void {
+  const marks = transaction.doc.resolve(match.from).marksAcross(transaction.doc.resolve(match.to))
+  transaction.replaceWith(
+    match.from,
+    match.to,
+    replacement ? transaction.doc.type.schema.text(replacement, marks) : []
+  )
+}
+
+export function replaceActiveFindMatch(
+  editor: Editor,
+  replacement: string,
+  onLimitExceeded?: () => void
+): boolean {
+  if (!editor.isEditable) return false
+  const findState = RICH_FIND_PLUGIN_KEY.getState(editor.state) ?? INITIAL_STATE
+  const { matches, activeIndex } = findState
+  const match = matches[activeIndex]
+  if (!match) return false
+  if (replacementExceedsLimit(editor, [match], replacement)) {
+    onLimitExceeded?.()
+    return false
+  }
+  const transaction = editor.state.tr
+  replaceMatch(transaction, match, replacement)
+  const remaining = findMatches(transaction.doc, findState.query).matches
+  const insertionEnd = match.from + replacement.length
+  const nextIndex = remaining.findIndex((candidate) => candidate.from >= insertionEnd)
+  transaction.setMeta(RICH_FIND_PLUGIN_KEY, { activeIndex: nextIndex === -1 ? 0 : nextIndex })
+  isolateReplacement(editor, transaction)
+  return true
+}
+
+/** Replaces every collected match in one undo step; capped searches must first be narrowed. */
+export function replaceAllFindMatches(
+  editor: Editor,
+  replacement: string,
+  onLimitExceeded?: () => void
+): number {
+  if (!editor.isEditable) return 0
+  const { matches, truncated } = getFindTally(editor.state)
+  if (truncated || matches.length === 0) return 0
+  if (replacementExceedsLimit(editor, matches, replacement)) {
+    onLimitExceeded?.()
+    return 0
+  }
+  const transaction = closeHistory(editor.state.tr)
+  for (let index = matches.length - 1; index >= 0; index -= 1) {
+    const match = matches[index]
+    replaceMatch(transaction, match, replacement)
+  }
+  isolateReplacement(editor, transaction)
+  return matches.length
 }

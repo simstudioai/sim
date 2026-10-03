@@ -1,232 +1,53 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { db } from '@sim/db'
-import { apiKey } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { and, eq, not } from 'drizzle-orm'
-import { type NextRequest, NextResponse } from 'next/server'
-import { updateWorkspaceApiKeyContract } from '@/lib/api/contracts/api-keys'
-import { parseRequest } from '@/lib/api/server'
-import { getSession } from '@/lib/auth'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
-  capabilityRefusal,
-  isWorkspaceCapabilityWithheld,
-} from '@/lib/permission-groups/capability-assertions'
-import { captureServerEvent } from '@/lib/posthog/server'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+  deleteWorkspaceApiKeyContract,
+  updateWorkspaceApiKeyContract,
+  workspaceApiKeyIdParamsSchema,
+} from '@/lib/api/contracts/api-keys'
+import {
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import {
+  renameWorkspaceApiKey,
+  revokeWorkspaceApiKey,
+  workspaceApiKeyOperations,
+} from '@/lib/api-key/application/workspace-api-keys'
+import { workspaceApiKeyErrorPolicy } from '@/lib/api-key/management-error-policy'
 
-const logger = createLogger('WorkspaceApiKeyAPI')
-
-export const PUT = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ id: string; keyId: string }> }) => {
-    const requestId = generateRequestId()
-    const { id: workspaceId, keyId } = await context.params
-
-    try {
-      const session = await getSession()
-      if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized workspace API key update attempt`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const userId = session.user.id
-
-      const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-      if (permission !== 'admin') {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
-
-      /**
-       * permission-group-enforced: api_keys.manage — raw handler with inline
-       * queries, which the authorization funnel never sees.
-       *
-       * Gated like the list and the mint on the collection route, not exempted
-       * like the revocations. A rename grants no access — the body carries a
-       * `name` and nothing else, so no scope, workspace binding or expiry moves
-       * — but neither does reading the list, and this is the same "managing API
-       * keys" the group withheld. The revocation carve-out is narrower than it
-       * looks: it exists because withholding management must not withhold the
-       * one act that *removes* a credential. Renaming removes nothing, so it
-       * inherits nothing from it, and leaving it open would also answer whether
-       * a given key id exists to a caller the same group refuses the list.
-       *
-       * After the admin check, like every other capability assertion here: the
-       * refusal names an organization setting, and a non-admin should not hear
-       * it.
-       */
-      if (await isWorkspaceCapabilityWithheld(userId, workspaceId, 'api_keys.manage')) {
-        return NextResponse.json({ error: capabilityRefusal('api_keys.manage') }, { status: 403 })
-      }
-
-      const parsed = await parseRequest(updateWorkspaceApiKeyContract, request, context)
-      if (!parsed.success) return parsed.response
-      const { name } = parsed.data.body
-
-      const existingKey = await db
-        .select()
-        .from(apiKey)
-        .where(
-          and(
-            eq(apiKey.workspaceId, workspaceId),
-            eq(apiKey.id, keyId),
-            eq(apiKey.type, 'workspace')
-          )
-        )
-        .limit(1)
-
-      if (existingKey.length === 0) {
-        return NextResponse.json({ error: 'API key not found' }, { status: 404 })
-      }
-
-      const conflictingKey = await db
-        .select()
-        .from(apiKey)
-        .where(
-          and(
-            eq(apiKey.workspaceId, workspaceId),
-            eq(apiKey.name, name),
-            eq(apiKey.type, 'workspace'),
-            not(eq(apiKey.id, keyId))
-          )
-        )
-        .limit(1)
-
-      if (conflictingKey.length > 0) {
-        return NextResponse.json(
-          { error: 'A workspace API key with this name already exists' },
-          { status: 400 }
-        )
-      }
-
-      const [updatedKey] = await db
-        .update(apiKey)
-        .set({
-          name,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(apiKey.workspaceId, workspaceId),
-            eq(apiKey.id, keyId),
-            eq(apiKey.type, 'workspace')
-          )
-        )
-        .returning({
-          id: apiKey.id,
-          name: apiKey.name,
-          createdAt: apiKey.createdAt,
-          updatedAt: apiKey.updatedAt,
-        })
-
-      recordAudit({
-        workspaceId,
-        actorId: userId,
-        action: AuditAction.API_KEY_UPDATED,
-        resourceType: AuditResourceType.API_KEY,
-        resourceId: keyId,
-        actorName: session.user.name ?? undefined,
-        actorEmail: session.user.email ?? undefined,
-        resourceName: name,
-        description: `Renamed workspace API key from "${existingKey[0].name}" to "${name}"`,
-        metadata: {
-          keyType: 'workspace',
-          previousName: existingKey[0].name,
-          newName: name,
-        },
-        request,
-      })
-
-      logger.info(`[${requestId}] Updated workspace API key: ${keyId} in workspace ${workspaceId}`)
-      return NextResponse.json({ key: updatedKey })
-    } catch (error: unknown) {
-      logger.error(`[${requestId}] Workspace API key PUT error`, error)
-      return NextResponse.json(
-        { error: getErrorMessage(error, 'Failed to update workspace API key') },
-        { status: 500 }
-      )
-    }
-  }
-)
-
-export const DELETE = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string; keyId: string }> }) => {
-    const requestId = generateRequestId()
-    const { id: workspaceId, keyId } = await params
-
-    try {
-      const session = await getSession()
-      if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized workspace API key deletion attempt`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const userId = session.user.id
-
-      const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-      if (permission !== 'admin') {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
-
-      /**
-       * Deliberately not capability-gated, for the reason the bulk delete on the
-       * collection route records at length: withholding key *management* must
-       * never withhold key *revocation*, or a group setting becomes the thing
-       * standing between an admin and a leaked credential.
-       */
-      const deletedRows = await db
-        .delete(apiKey)
-        .where(
-          and(
-            eq(apiKey.workspaceId, workspaceId),
-            eq(apiKey.id, keyId),
-            eq(apiKey.type, 'workspace')
-          )
-        )
-        .returning({ id: apiKey.id, name: apiKey.name, lastUsed: apiKey.lastUsed })
-
-      if (deletedRows.length === 0) {
-        return NextResponse.json({ error: 'API key not found' }, { status: 404 })
-      }
-
-      const deletedKey = deletedRows[0]
-
-      captureServerEvent(
-        userId,
-        'api_key_revoked',
-        { workspace_id: workspaceId, key_name: deletedKey.name },
-        { groups: { workspace: workspaceId } }
-      )
-
-      recordAudit({
-        workspaceId,
-        actorId: userId,
-        action: AuditAction.API_KEY_REVOKED,
-        resourceType: AuditResourceType.API_KEY,
-        resourceId: keyId,
-        actorName: session.user.name ?? undefined,
-        actorEmail: session.user.email ?? undefined,
-        resourceName: deletedKey.name,
-        description: `Revoked workspace API key: ${deletedKey.name}`,
-        metadata: {
-          keyType: 'workspace',
-          keyName: deletedKey.name,
-          lastUsed: deletedKey.lastUsed?.toISOString() ?? null,
-        },
-        request,
-      })
-
-      logger.info(
-        `[${requestId}] Deleted workspace API key: ${keyId} from workspace ${workspaceId}`
-      )
-      return NextResponse.json({ success: true })
-    } catch (error: unknown) {
-      logger.error(`[${requestId}] Workspace API key DELETE error`, error)
-      return NextResponse.json(
-        { error: getErrorMessage(error, 'Failed to delete workspace API key') },
-        { status: 500 }
-      )
-    }
-  }
-)
+const rateLimit = internalRateLimits.none({
+  reason: 'Preserve existing workspace-key management admission',
+})
+export const PUT = defineInternalJsonRoute({
+  contract: updateWorkspaceApiKeyContract,
+  auth: internalSessionAuth,
+  operation: workspaceApiKeyOperations.rename,
+  rateLimit,
+  errorPolicy: workspaceApiKeyErrorPolicy('write'),
+  beforeParse: async ({ principal, params }) => {
+    const scope = workspaceApiKeyIdParamsSchema.parse(params)
+    await renameWorkspaceApiKey.authorize({
+      principal,
+      input: { workspaceId: scope.id, keyId: scope.keyId, name: '' },
+    })
+  },
+  mapInput: ({ params, body }) => ({
+    workspaceId: params.id,
+    keyId: params.keyId,
+    name: body.name,
+  }),
+  useCase: renameWorkspaceApiKey,
+  present: ({ key }) => ({
+    key: { ...key, createdAt: key.createdAt.toISOString(), updatedAt: key.updatedAt.toISOString() },
+  }),
+})
+export const DELETE = defineInternalJsonRoute({
+  contract: deleteWorkspaceApiKeyContract,
+  auth: internalSessionAuth,
+  operation: workspaceApiKeyOperations.revoke,
+  rateLimit,
+  errorPolicy: workspaceApiKeyErrorPolicy('write'),
+  mapInput: ({ params }) => ({ workspaceId: params.id, keyId: params.keyId }),
+  useCase: revokeWorkspaceApiKey,
+  present: () => ({ success: true as const }),
+})
