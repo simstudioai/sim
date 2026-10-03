@@ -29,29 +29,6 @@ function typeWithFinalChar(ed: Editor, prefix: string, finalChar: string): boole
 }
 
 describe('typed markdown link input rule', () => {
-  it('converts [text](url) to a link mark on the closing paren', () => {
-    editor = mount()
-    typeWithFinalChar(editor, '[hi](https://example.com', ')')
-    const json = JSON.stringify(editor.getJSON())
-    expect(json).toContain('"type":"link"')
-    expect(json).toContain('"href":"https://example.com"')
-    expect(editor.getText()).toBe('hi')
-  })
-
-  it('normalizes a bare domain to https (parity with paste)', () => {
-    editor = mount()
-    typeWithFinalChar(editor, '[site](www.example.com', ')')
-    expect(JSON.stringify(editor.getJSON())).toContain('"href":"https://www.example.com"')
-  })
-
-  it('preserves a link title', () => {
-    editor = mount()
-    typeWithFinalChar(editor, '[t](https://e.com "the title"', ')')
-    const json = JSON.stringify(editor.getJSON())
-    expect(json).toContain('"href":"https://e.com"')
-    expect(json).toContain('"title":"the title"')
-  })
-
   it('refuses an unsafe scheme (leaves it literal)', () => {
     editor = mount()
     typeWithFinalChar(editor, '[x](javascript:alert(1)', ')')

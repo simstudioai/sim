@@ -1,17 +1,12 @@
-/**
- * @vitest-environment node
- */
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetUserProfile, mockDeleteUserAccount, mockGetAccountDeletionPlan } = vi.hoisted(
-  () => ({
-    mockGetUserProfile: vi.fn(),
-    mockDeleteUserAccount: vi.fn(),
-    mockGetAccountDeletionPlan: vi.fn(),
-  })
-)
+const { mockDeleteUserAccount, mockGetAccountDeletionPlan } = vi.hoisted(() => ({
+  mockDeleteUserAccount: vi.fn(),
+  mockGetAccountDeletionPlan: vi.fn(),
+}))
 
-vi.mock('@/lib/users/queries', () => ({ getUserProfile: mockGetUserProfile }))
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
 vi.mock('@/lib/users/account-deletion', () => ({
   deleteUserAccount: mockDeleteUserAccount,
   getAccountDeletionPlan: mockGetAccountDeletionPlan,
@@ -19,12 +14,13 @@ vi.mock('@/lib/users/account-deletion', () => ({
 
 import { deleteAccountUseCase } from '@/lib/users/application/delete-account'
 
+const mockGetUserProfile = usersQueriesMockFns.mockGetUserProfile
+
 const SESSION = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
 const EMPTY_PLAN = { blockers: [], workspacesToDelete: [], workspacesToTransfer: [] }
 
 describe('deleteAccountUseCase', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetUserProfile.mockResolvedValue({ id: 'user-1', email: 'Ada@Example.com' })
     mockDeleteUserAccount.mockResolvedValue(EMPTY_PLAN)
   })

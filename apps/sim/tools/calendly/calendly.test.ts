@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { createEventInviteeTool } from '@/tools/calendly/create_event_invitee'
 import { createInviteeNoShowTool } from '@/tools/calendly/create_invitee_no_show'

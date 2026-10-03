@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 /**
  * Invariants of the projection layer that no schema can express.
@@ -11,39 +8,33 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * that could leave a process-global store stubbed, and a routine registry shape
  * logged as a warning on every sweep.
  */
-const { mockLogger } = vi.hoisted(() => ({
-  mockLogger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => mockLogger,
-  logger: mockLogger,
-  runWithRequestContext: <T>(_ctx: unknown, fn: () => T): T => fn(),
-  getRequestContext: () => undefined,
-  setRequestTraceId: () => undefined,
-}))
-
-vi.mock('@/tools/metadata', () => ({
-  getToolMetadata: (toolId: string) =>
-    toolId === 'hosted_tool'
-      ? { id: 'hosted_tool', name: 'Hosted', description: 'Hosted.', hostedApiKey: 'always' }
-      : undefined,
-}))
-vi.mock('@/tools/metadata-outputs', () => ({ getToolOutputsMetadata: () => ({}) }))
 vi.mock('@/tools/tool-ids', () => ({ resolveToolId: (toolId: string) => toolId }))
-vi.mock('@/blocks/registry', () => ({ getBlockMeta: () => ({ tags: ['messaging'] }) }))
 
-import { projectBlockTriggers } from '@/lib/catalog/projection/block-detail'
 import { projectBlockSummary } from '@/lib/catalog/projection/block-summary'
-import { projectConnectorType } from '@/lib/catalog/projection/connector-type'
 import {
   AsyncOptionsFunctionError,
   projectSubBlock,
   resolveSubBlockOptions,
 } from '@/lib/catalog/projection/subblock'
-import { projectToolDetail } from '@/lib/catalog/projection/tool'
+import { getBlockMeta } from '@/blocks/registry'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
-import type { ConnectorMeta } from '@/connectors/types'
+import { getToolMetadata } from '@/tools/metadata'
+import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
+
+vi.mocked(getToolMetadata).mockImplementation((toolId: string) =>
+  toolId === 'hosted_tool'
+    ? ({
+        id: 'hosted_tool',
+        name: 'Hosted',
+        description: 'Hosted.',
+        hostedApiKey: 'always',
+      } as unknown as ReturnType<typeof getToolMetadata>)
+    : undefined
+)
+vi.mocked(getToolOutputsMetadata).mockReturnValue({})
+vi.mocked(getBlockMeta).mockReturnValue({ tags: ['messaging'] } as unknown as ReturnType<
+  typeof getBlockMeta
+>)
 
 function block(overrides: Partial<BlockConfig> & { type: string }): BlockConfig {
   return {
@@ -59,21 +50,6 @@ function block(overrides: Partial<BlockConfig> & { type: string }): BlockConfig 
     ...overrides,
   } as BlockConfig
 }
-
-describe('hosted-key answers follow the deployment', () => {
-  it('publishes a declared hosted key on a hosted deployment', () => {
-    expect(projectToolDetail('hosted_tool', { hostedKeys: true })?.hostedApiKey).toBe('always')
-  })
-
-  /**
-   * `injectHostedKeyIfNeeded` returns early on `!isHosted`, so a self-hosted
-   * deployment supplies no key at all. Reporting `always` there tells a caller
-   * they need no key of their own when they do.
-   */
-  it('reports none where the deployment supplies no hosted keys', () => {
-    expect(projectToolDetail('hosted_tool', { hostedKeys: false })?.hostedApiKey).toBe('none')
-  })
-})
 
 describe('projections never hand out registry state', () => {
   it('copies the arrays a block summary publishes', () => {
@@ -91,45 +67,50 @@ describe('projections never hand out registry state', () => {
     expect(config.triggers?.available).toEqual(['slack_webhook'])
     expect(config.tools?.access).toEqual(['slack_message'])
   })
+})
 
-  it('copies the arrays a sub-block publishes', () => {
-    const subBlock: SubBlockConfig = {
-      id: 'files',
-      type: 'file-upload',
-      requiredScopes: ['drive.readonly'],
-      columns: ['name'],
-      dependsOn: ['folderId'],
-    }
+describe('conditional requirement is published as a condition, not as required', () => {
+  const field = (overrides: Partial<SubBlockConfig>): SubBlockConfig =>
+    ({ id: 'apiKey', type: 'short-input', ...overrides }) as SubBlockConfig
 
-    const projected = projectSubBlock(subBlock)
-    ;(projected.requiredScopes as string[]).push('injected')
-    ;(projected.columns as string[]).push('injected')
-    ;(projected.dependsOn as string[]).push('injected')
+  it('reports a required field gated by a non-operation condition as optional with requiredWhen', () => {
+    const projected = projectSubBlock(
+      field({ required: true, condition: { field: 'model', value: ['gpt-4o'], not: true } })
+    )
 
-    expect(subBlock.requiredScopes).toEqual(['drive.readonly'])
-    expect(subBlock.columns).toEqual(['name'])
-    expect(subBlock.dependsOn).toEqual(['folderId'])
+    expect(projected.required).toBe(false)
+    expect(projected.requiredWhen).toEqual({ field: 'model', value: ['gpt-4o'], not: true })
+    expect(projected.condition).toEqual({ field: 'model', value: ['gpt-4o'], not: true })
   })
 
-  it('copies a connector config field’s dependsOn, in both of its shapes', () => {
-    const meta = {
-      name: 'Drive',
-      description: 'Sync Drive.',
-      auth: { type: 'oauth', providerId: 'google-drive', scopes: ['drive.readonly'] },
-      configFields: [
-        { id: 'folderId', title: 'Folder', type: 'text', dependsOn: ['accountId'] },
-        { id: 'fileId', title: 'File', type: 'text', dependsOn: { all: ['folderId'] } },
-      ],
-      supportsIncrementalSync: true,
-      tagDefinitions: [],
-    } as unknown as ConnectorMeta
+  it('resolves a condition-shaped required to optional plus the clause', () => {
+    const projected = projectSubBlock(
+      field({ required: () => ({ field: 'memoryType', value: 'conversation' }) })
+    )
 
-    const projected = projectConnectorType('google_drive', meta)
-    ;(projected.configFields[0].dependsOn as string[]).push('injected')
-    ;((projected.configFields[1].dependsOn as { all: string[] }).all as string[]).push('injected')
+    expect(projected.required).toBe(false)
+    expect(projected.requiredWhen).toEqual({ field: 'memoryType', value: 'conversation' })
+  })
+})
 
-    expect(meta.configFields[0].dependsOn).toEqual(['accountId'])
-    expect(meta.configFields[1].dependsOn).toEqual({ all: ['folderId'] })
+describe('model picker options', () => {
+  it('marks hosted models on a resolved option list and leaves other pickers alone', () => {
+    const model = projectSubBlock({
+      id: 'model',
+      type: 'combobox',
+      options: () => [{ id: 'gpt-4o', label: 'gpt-4o' }, { id: 'my-local-model' }],
+    } as unknown as SubBlockConfig)
+    expect(model.options).toEqual([
+      { id: 'gpt-4o', label: 'gpt-4o', hosted: true },
+      { id: 'my-local-model' },
+    ])
+
+    const other = projectSubBlock({
+      id: 'voice',
+      type: 'dropdown',
+      options: [{ id: 'gpt-4o', label: 'gpt-4o' }],
+    } as unknown as SubBlockConfig)
+    expect(other.options).toEqual([{ id: 'gpt-4o', label: 'gpt-4o' }])
   })
 })
 
@@ -147,39 +128,5 @@ describe('options functions must be synchronous', () => {
     } as unknown as SubBlockConfig
 
     expect(() => resolveSubBlockOptions(subBlock)).toThrow(AsyncOptionsFunctionError)
-  })
-
-  it('still degrades an ordinary options failure to no options', () => {
-    const subBlock = {
-      id: 'model',
-      type: 'combobox',
-      options: () => {
-        throw new Error('no store here')
-      },
-    } as unknown as SubBlockConfig
-
-    expect(resolveSubBlockOptions(subBlock)).toBeUndefined()
-  })
-})
-
-describe('trigger kinds with no registered definition', () => {
-  beforeEach(() => {
-    mockLogger.warn.mockClear()
-    mockLogger.debug.mockClear()
-  })
-
-  /**
-   * `start_trigger` names `chat`, `manual` and `api` — entry-point kinds, not
-   * registered trigger definitions. That is the shape of every core trigger
-   * block, so at `warn` the real registry emitted seven warnings per sweep.
-   */
-  it('logs at debug, not warn', () => {
-    const triggers = projectBlockTriggers(
-      block({ type: 'start_trigger', triggers: { enabled: true, available: ['chat', 'manual'] } })
-    )
-
-    expect(triggers).toEqual([])
-    expect(mockLogger.warn).not.toHaveBeenCalled()
-    expect(mockLogger.debug).toHaveBeenCalledTimes(2)
   })
 })

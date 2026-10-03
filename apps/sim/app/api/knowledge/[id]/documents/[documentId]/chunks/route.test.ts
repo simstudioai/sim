@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -41,7 +37,6 @@ const params = () => ({
 
 describe('/api/knowledge/[id]/documents/[documentId]/chunks internal route composition', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'session-1' },

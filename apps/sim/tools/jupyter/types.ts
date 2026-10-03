@@ -1,3 +1,4 @@
+import type { UserFile } from '@/executor/types'
 import type { ToolResponse } from '@/tools/types'
 
 export interface JupyterAuthParams {
@@ -69,6 +70,18 @@ export interface JupyterGetContentResponse extends ToolResponse {
       size: number
     } | null
   }
+}
+
+export interface JupyterGetContentV2Response extends ToolResponse {
+  output:
+    | { file: UserFile }
+    | {
+        name: string
+        path: string
+        mimetype: string | null
+        text: string | null
+        file: null
+      }
 }
 
 export interface JupyterCreateFileParams extends JupyterAuthParams {

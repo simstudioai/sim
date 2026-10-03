@@ -136,15 +136,3 @@ export async function enforceCredentialGroupInvitationRouteRateLimit(
     )
   }
 }
-
-/** Applies the shared invitation budget to non-HTTP workflow execution. */
-export async function enforceCredentialGroupInvitationExecutionRateLimit(
-  workspaceId: string
-): Promise<void> {
-  const result = await rateLimiter.checkRateLimitDirect(
-    credentialGroupInvitationRateLimitKey(workspaceId),
-    CREDENTIAL_GROUP_INVITATION_RATE_LIMIT,
-    { failClosed: true }
-  )
-  if (!result.allowed) throw new RateLimitError('Credential Group invitation rate limit exceeded')
-}

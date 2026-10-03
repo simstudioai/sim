@@ -1,3 +1,4 @@
+import { toRecord } from '@sim/utils/object'
 import { validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { JsmOperationError } from '@/lib/internal/jsm/errors'
 import { getJiraCloudId, parseAtlassianErrorMessage } from '@/tools/jira/utils'
@@ -15,17 +16,9 @@ export interface JsmAssetsConnectionConfig extends JsmConnectionConfig {
 
 export type JsonObject = Record<string, unknown>
 
-export function asObject(value: unknown): JsonObject {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as JsonObject) : {}
-}
-
-export function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : []
-}
-
 export function nested(object: JsonObject, ...keys: string[]): unknown {
   let value: unknown = object
-  for (const key of keys) value = asObject(value)[key]
+  for (const key of keys) value = toRecord(value)[key]
   return value
 }
 
@@ -93,7 +86,7 @@ export class JsmClient {
     signal?: AbortSignal,
     includeProviderDetails = false
   ): Promise<JsonObject> {
-    return asObject(await this.value(path, init, signal, includeProviderDetails))
+    return toRecord(await this.value(path, init, signal, includeProviderDetails))
   }
 
   async value(
@@ -127,7 +120,7 @@ export class JsmClient {
     const response = await this.fetch(path, init, signal)
     if (!response.ok) await throwJsmResponseError(response, includeProviderDetails)
     const text = await response.text()
-    return text ? asObject(JSON.parse(text)) : {}
+    return text ? toRecord(JSON.parse(text)) : {}
   }
 }
 

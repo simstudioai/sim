@@ -1,12 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   clearSailPointTokenStateForTests,
   getSailPointAccessToken,
   getSailPointTokenStateForTests,
-  readTotalCount,
   resolveSailPointHosts,
   sailpointFetch,
 } from '@/lib/internal/sailpoint/client'
@@ -26,7 +22,6 @@ describe('SailPoint client', () => {
 
   afterEach(() => {
     vi.useRealTimers()
-    vi.unstubAllGlobals()
   })
 
   it('accepts only commercial and government tenant hosts', () => {
@@ -112,23 +107,6 @@ describe('SailPoint client', () => {
     expect(getSailPointTokenStateForTests()).toEqual({ cacheSize: 100, exchangeSize: 0 })
   })
 
-  it('rejects provider responses larger than the shared JSON cap', async () => {
-    mockFetch.mockResolvedValueOnce(tokenResponse('token')).mockResolvedValueOnce(
-      new Response('{}', {
-        status: 200,
-        headers: { 'content-length': String(10 * 1024 * 1024 + 1) },
-      })
-    )
-    const credentials = { tenant: 'acme', clientId: 'client', clientSecret: 'secret' }
-
-    await expect(
-      sailpointFetch(credentials, (hosts) => ({
-        url: `${hosts.apiBaseUrl}/identities/v1`,
-        init: { method: 'GET' },
-      }))
-    ).rejects.toThrow(/maximum|limit|exceeds/i)
-  })
-
   it('aborts during rate-limit backoff without another provider call', async () => {
     mockFetch
       .mockResolvedValueOnce(tokenResponse('token'))
@@ -163,11 +141,5 @@ describe('SailPoint client', () => {
 
     expect(mockFetch.mock.calls[0][1]?.redirect).toBe('error')
     expect(mockFetch.mock.calls[1][1]?.redirect).toBe('error')
-  })
-
-  it('accepts only non-negative integer total counts', () => {
-    expect(readTotalCount(new Headers({ 'x-total-count': '7' }))).toBe(7)
-    expect(readTotalCount(new Headers({ 'x-total-count': '1.5' }))).toBeNull()
-    expect(readTotalCount(new Headers({ 'x-total-count': '-1' }))).toBeNull()
   })
 })

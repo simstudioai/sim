@@ -1,20 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, ChipInput, cn, Label, Loader, toast } from '@sim/emcn'
-import { ImageUp as ImageIcon, X } from '@sim/emcn/icons'
+import { Button, ChipInput, cn, Label, toast, UploadPreviewButton } from '@sim/emcn'
+import { X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import Image from 'next/image'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
-import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
 import type { OrganizationWhitelabelSettings } from '@/lib/branding/types'
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import {
-  CHIP_FIELD_INPUT,
-  CHIP_FIELD_SHELL,
-} from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { DropZone } from '@/app/workspace/[workspaceId]/components/drop-zone'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -26,46 +21,9 @@ import {
   useWhitelabelSettings,
   type WhitelabelSettingsPayload,
 } from '@/ee/whitelabeling/hooks/whitelabel'
-import { useOrganizationBilling } from '@/hooks/queries/organization'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 
 const logger = createLogger('WhitelabelingSettings')
-
-interface DropZoneProps {
-  onDrop: (e: React.DragEvent) => void
-  children: React.ReactNode
-  className?: string
-}
-
-function DropZone({ onDrop, children, className }: DropZoneProps) {
-  const [isDragging, setIsDragging] = useState(false)
-
-  return (
-    <div
-      className={cn('relative', className)}
-      onDragOver={(e) => {
-        if (e.dataTransfer.types.includes('Files')) {
-          e.preventDefault()
-          setIsDragging(true)
-        }
-      }}
-      onDragLeave={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-          setIsDragging(false)
-        }
-      }}
-      onDrop={(e) => {
-        setIsDragging(false)
-        onDrop(e)
-      }}
-    >
-      {children}
-      {isDragging && (
-        <div className='pointer-events-none absolute inset-0 z-10 rounded-lg border-[1.5px] border-[var(--brand-accent)] border-dashed bg-[color-mix(in_srgb,var(--brand-accent)_8%,transparent)]' />
-      )}
-    </div>
-  )
-}
 
 interface ColorInputProps {
   label: string
@@ -81,30 +39,31 @@ function ColorInput({ label, value, onChange, placeholder = '#000000' }: ColorIn
   return (
     <div className='flex flex-col gap-1.5'>
       <Label>{label}</Label>
-      <div className={cn(CHIP_FIELD_SHELL, !isValidHex && 'border-[var(--text-error)]')}>
-        <div
-          className={cn(
-            'size-[16px] shrink-0 rounded-sm border border-[var(--border-1)]',
-            !showColor && 'bg-[var(--surface-3)]'
-          )}
-          style={showColor ? { backgroundColor: value } : undefined}
-        />
-        <input
-          value={value}
-          onChange={(e) => {
-            let v = e.target.value.trim()
-            if (v && !v.startsWith('#')) {
-              v = `#${v}`
-            }
-            v = v.slice(0, 1) + v.slice(1).replace(/[^0-9a-fA-F]/g, '')
-            onChange(v.slice(0, 7))
-          }}
-          onFocus={(e) => e.target.select()}
-          placeholder={placeholder}
-          maxLength={7}
-          className={cn(CHIP_FIELD_INPUT, 'font-mono')}
-        />
-      </div>
+      <ChipInput
+        error={!isValidHex}
+        startAdornment={
+          <div
+            className={cn(
+              'size-[16px] shrink-0 rounded-sm border border-[var(--border-1)]',
+              !showColor && 'bg-[var(--surface-3)]'
+            )}
+            style={showColor ? { backgroundColor: value } : undefined}
+          />
+        }
+        value={value}
+        onChange={(e) => {
+          let v = e.target.value.trim()
+          if (v && !v.startsWith('#')) {
+            v = `#${v}`
+          }
+          v = v.slice(0, 1) + v.slice(1).replace(/[^0-9a-fA-F]/g, '')
+          onChange(v.slice(0, 7))
+        }}
+        onFocus={(e) => e.target.select()}
+        placeholder={placeholder}
+        maxLength={7}
+        inputClassName='font-mono'
+      />
       {!isValidHex && (
         <p className='text-[var(--text-error)] text-caption'>
           Must be a valid hex color (e.g. #33c482)
@@ -288,17 +247,13 @@ function WhitelabelingForm({ initialSettings, orgId, uploadWorkspaceId }: Whitel
             >
               <div className='flex items-center gap-4'>
                 <DropZone onDrop={logoUpload.handleFileDrop}>
-                  <button
-                    type='button'
+                  <UploadPreviewButton
                     onClick={logoUpload.handleThumbnailClick}
-                    disabled={logoUpload.isUploading}
+                    loading={logoUpload.isUploading}
                     aria-label={logoUpload.previewUrl ? 'Change logo' : 'Upload logo'}
                     title={logoUpload.previewUrl ? 'Change logo' : 'Upload logo'}
-                    className='group relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
                   >
-                    {logoUpload.isUploading ? (
-                      <Loader className='size-5 text-[var(--text-muted)]' animate />
-                    ) : logoUpload.previewUrl ? (
+                    {logoUpload.previewUrl ? (
                       <Image
                         src={logoUpload.previewUrl}
                         alt='Logo'
@@ -307,10 +262,8 @@ function WhitelabelingForm({ initialSettings, orgId, uploadWorkspaceId }: Whitel
                         className='object-contain p-1'
                         unoptimized
                       />
-                    ) : (
-                      <ImageIcon className='size-5 text-[var(--text-muted)]' />
-                    )}
-                  </button>
+                    ) : null}
+                  </UploadPreviewButton>
                 </DropZone>
                 {logoUpload.previewUrl && (
                   <Button
@@ -339,17 +292,14 @@ function WhitelabelingForm({ initialSettings, orgId, uploadWorkspaceId }: Whitel
             >
               <div className='flex items-center gap-4'>
                 <DropZone onDrop={wordmarkUpload.handleFileDrop} className='min-w-0 flex-1'>
-                  <button
-                    type='button'
+                  <UploadPreviewButton
                     onClick={wordmarkUpload.handleThumbnailClick}
-                    disabled={wordmarkUpload.isUploading}
+                    loading={wordmarkUpload.isUploading}
                     aria-label={wordmarkUpload.previewUrl ? 'Change wordmark' : 'Upload wordmark'}
                     title={wordmarkUpload.previewUrl ? 'Change wordmark' : 'Upload wordmark'}
-                    className='group relative flex h-16 w-full items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--surface-2)] transition-colors hover:bg-[var(--surface-3)] disabled:opacity-50'
+                    className='w-full'
                   >
-                    {wordmarkUpload.isUploading ? (
-                      <Loader className='size-5 text-[var(--text-muted)]' animate />
-                    ) : wordmarkUpload.previewUrl ? (
+                    {wordmarkUpload.previewUrl ? (
                       <Image
                         src={wordmarkUpload.previewUrl}
                         alt='Wordmark'
@@ -358,10 +308,8 @@ function WhitelabelingForm({ initialSettings, orgId, uploadWorkspaceId }: Whitel
                         className='object-contain p-2'
                         unoptimized
                       />
-                    ) : (
-                      <ImageIcon className='size-5 text-[var(--text-muted)]' />
-                    )}
-                  </button>
+                    ) : null}
+                  </UploadPreviewButton>
                 </DropZone>
                 {wordmarkUpload.previewUrl && (
                   <Button
@@ -456,18 +404,13 @@ function WhitelabelingForm({ initialSettings, orgId, uploadWorkspaceId }: Whitel
   )
 }
 
+/** Gates on the entitlement returned by the whitelabel read — the same check saving enforces. */
 export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSettingsProps) {
-  const { billingEnabled } = useDeploymentShape()
-  const {
-    data: organizationBillingData,
-    isPending: organizationBillingLoading,
-    error: organizationBillingError,
-  } = useOrganizationBilling(orgId, { enabled: billingEnabled })
   const { data: workspaces } = useWorkspacesQuery(true)
   const uploadWorkspaceId = workspaces?.find((workspace) => workspace.organizationId === orgId)?.id
-  const { data: savedSettings, error: settingsError, isLoading } = useWhitelabelSettings(orgId)
+  const { data: whitelabel, error: settingsError, isLoading } = useWhitelabelSettings(orgId)
 
-  if (isLoading || (billingEnabled && organizationBillingLoading)) {
+  if (isLoading) {
     return (
       <SettingsPanel
         actions={saveDiscardActions({
@@ -481,7 +424,7 @@ export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSe
     )
   }
 
-  if (!savedSettings) {
+  if (!whitelabel) {
     return (
       <SettingsEmptyState tone='error'>
         {getErrorMessage(settingsError, 'Failed to load whitelabeling settings')}
@@ -489,24 +432,16 @@ export function WhitelabelingSettings({ organizationId: orgId }: WhitelabelingSe
     )
   }
 
-  if (billingEnabled && organizationBillingData === undefined && organizationBillingError) {
+  if (!whitelabel.isEnterprise) {
     return (
-      <SettingsEmptyState tone='error'>
-        {getErrorMessage(organizationBillingError, 'Failed to load organization billing')}
-      </SettingsEmptyState>
-    )
-  }
-
-  if (billingEnabled && !isEnterprise(organizationBillingData?.data?.subscriptionPlan)) {
-    return (
-      <SettingsEmptyState>Whitelabeling is available on Enterprise plans only.</SettingsEmptyState>
+      <SettingsEmptyState>Whitelabeling requires an active Enterprise plan.</SettingsEmptyState>
     )
   }
 
   return (
     <WhitelabelingForm
       key={orgId}
-      initialSettings={savedSettings}
+      initialSettings={whitelabel.settings}
       orgId={orgId}
       uploadWorkspaceId={uploadWorkspaceId}
     />

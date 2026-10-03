@@ -5,7 +5,7 @@ import { Chip } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { truncate } from '@sim/utils/string'
 import { captureClientEvent, captureClientException } from '@/lib/posthog/client'
-import { ErrorShell } from '@/app/workspace/[workspaceId]/components'
+import { ErrorShell } from '@/app/workspace/[workspaceId]/components/error'
 
 const logger = createLogger('ErrorBoundary')
 

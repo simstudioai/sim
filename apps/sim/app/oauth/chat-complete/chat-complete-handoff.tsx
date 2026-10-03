@@ -6,6 +6,7 @@ import {
   OAUTH_CHAT_RETURN_TO_PARAM,
   setOAuthChatAttemptStatus,
 } from '@/lib/credentials/oauth-chat-attempt'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 
 const CLOSE_FALLBACK_DELAY_MS = 400
 
@@ -57,7 +58,7 @@ export function ChatCompleteHandoff() {
 
     window.close()
     const timer = window.setTimeout(() => {
-      window.location.replace(returnTo ?? '/workspace')
+      window.location.replace(returnTo ?? APP_ENTRY_PATH)
     }, CLOSE_FALLBACK_DELAY_MS)
     return () => window.clearTimeout(timer)
   }, [])

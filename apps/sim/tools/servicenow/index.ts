@@ -5,7 +5,10 @@ import { createChangeRequestTool } from '@/tools/servicenow/create_change_reques
 import { createIncidentTool } from '@/tools/servicenow/create_incident'
 import { createRecordTool } from '@/tools/servicenow/create_record'
 import { deleteRecordTool } from '@/tools/servicenow/delete_record'
-import { downloadAttachmentTool } from '@/tools/servicenow/download_attachment'
+import {
+  downloadAttachmentTool,
+  downloadAttachmentV2Tool,
+} from '@/tools/servicenow/download_attachment'
 import { findUserTool } from '@/tools/servicenow/find_user'
 import { getChangeNextStatesTool } from '@/tools/servicenow/get_change_next_states'
 import { getChangeRequestTool } from '@/tools/servicenow/get_change_request'
@@ -42,6 +45,7 @@ export {
   aggregateTool as servicenowAggregateTool,
   listAttachmentsTool as servicenowListAttachmentsTool,
   downloadAttachmentTool as servicenowDownloadAttachmentTool,
+  downloadAttachmentV2Tool as servicenowDownloadAttachmentV2Tool,
   uploadAttachmentTool as servicenowUploadAttachmentTool,
   createIncidentTool as servicenowCreateIncidentTool,
   getIncidentTool as servicenowGetIncidentTool,

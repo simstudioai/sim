@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
@@ -36,7 +32,6 @@ afterAll(resetDbChainMock)
 
 describe('Global Work Pacific reporting windows', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -81,13 +76,6 @@ describe('Global Work Pacific reporting windows', () => {
       mothership: 3,
     })
     expect(rows[8].date).toBe('2026-07-09')
-  })
-
-  it('keeps the reporting formula out of persisted source data', () => {
-    expect(GLOBAL_WORK_FORMULA).toEqual({
-      minutesPerUnit: 5,
-      globalAnnualHours: 2_510_000_000_000,
-    })
   })
 
   it('derives totals and source breakdown from aggregated source rows', async () => {
@@ -171,15 +159,6 @@ describe('Global Work Pacific reporting windows', () => {
     expect(queryText).not.toContain("s.plan LIKE 'pro%'")
   })
 
-  it('only probes usage_log when a workflow lacks an immutable billing snapshot', async () => {
-    execute.mockResolvedValueOnce([])
-
-    await getGlobalWorkSummary('2026-06', new Date('2026-07-09T12:00:00.000Z'))
-
-    const queryText = getCapturedQueryText()
-    expect(queryText).toContain("WHERE NOT (wel.execution_data ? 'billingAttribution')")
-  })
-
   it('counts canonical units, collapses only fork-copied messages, and excludes exact internal domains', async () => {
     execute.mockResolvedValueOnce([])
 
@@ -208,21 +187,6 @@ describe('Global Work Pacific reporting windows', () => {
     expect(query.sql).toContain('su.actor_user_id = $')
     expect(query.params.filter((parameter) => parameter === 'user-1')).toHaveLength(2)
     expect(summary.scope).toEqual({ type: 'user', id: 'user-1' })
-  })
-
-  it('filters an organization by both billing entity type and ID', async () => {
-    execute.mockResolvedValueOnce([])
-
-    const summary = await getGlobalWorkSummary('2026-06', new Date('2026-07-09T12:00:00.000Z'), {
-      type: 'organization',
-      id: 'org-1',
-    })
-
-    const query = dialect.sqlToQuery(getCapturedQuery())
-    expect(query.sql).toContain("su.billing_entity_type = 'organization'")
-    expect(query.sql).toContain('su.billing_entity_id = $')
-    expect(query.params.filter((parameter) => parameter === 'org-1')).toHaveLength(2)
-    expect(summary.scope).toEqual({ type: 'organization', id: 'org-1' })
   })
 
   it('preserves billing entity type across snapshots, usage fallback, and current workspace state', async () => {

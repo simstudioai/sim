@@ -10,6 +10,7 @@ import type { StreamingExecution } from '@/executor/types'
 import { executeGeminiRequest } from '@/providers/gemini/core'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse } from '@/providers/types'
+import { isGemini3Model } from '@/providers/utils'
 
 const logger = createLogger('VertexProvider')
 
@@ -34,13 +35,13 @@ export const vertexProvider: ProviderConfig = {
   executeRequest: async (
     request: ProviderRequest
   ): Promise<ProviderResponse | StreamingExecution> => {
+    const model = request.model.replace(/^vertex\//i, '')
     const vertexProject = request.vertexProject || env.VERTEX_PROJECT
-    // Hostnames are case-insensitive, so a mixed-case location reaches Google fine
-    // today. Normalize before validating rather than rejecting it as malformed.
+    /** Gemini 3 models use global or multi-region endpoints instead of legacy regions. */
     const vertexLocation = (
       request.vertexLocation ||
       env.VERTEX_LOCATION ||
-      'us-central1'
+      (isGemini3Model(model) ? 'global' : 'us-central1')
     ).toLowerCase()
 
     if (!vertexProject) {
@@ -70,9 +71,6 @@ export const vertexProvider: ProviderConfig = {
         'Access token is required for Vertex AI. Run `gcloud auth print-access-token` to get one, or use a service account.'
       )
     }
-
-    // Strip 'vertex/' prefix from model name if present
-    const model = request.model.replace('vertex/', '')
 
     logger.info('Creating Vertex AI client', {
       project: vertexProject,

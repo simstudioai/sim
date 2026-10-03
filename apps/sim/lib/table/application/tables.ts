@@ -10,21 +10,6 @@ import {
   loadActiveFolderPathIndex,
   resolveFolderPathFilter,
 } from '@/lib/folders/queries'
-import {
-  createTable,
-  deleteTable,
-  getTableById,
-  getWorkspaceTableLimits,
-  listTables as listTableDefinitions,
-  moveTableToFolder,
-  queryTables,
-  renameTable,
-  restoreTable,
-  type TableDefinition,
-  type TableSchema,
-  type TableScope,
-  updateTableDescription,
-} from '@/lib/table'
 import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized-table-use-case'
 import {
   resolveActiveTableContext,
@@ -37,7 +22,21 @@ import {
   tableFolderPathForId,
 } from '@/lib/table/application/folder-paths'
 import { tableOperations } from '@/lib/table/application/operations'
+import { getWorkspaceTableLimits } from '@/lib/table/billing'
 import { signalTableSchemaChanged } from '@/lib/table/events'
+import {
+  createTable,
+  deleteTable,
+  getTableById,
+  listTables as listTableDefinitions,
+  moveTableToFolder,
+  queryTables,
+  renameTable,
+  restoreTable,
+  type TableScope,
+  updateTableDescription,
+} from '@/lib/table/service'
+import type { TableDefinition, TableSchema } from '@/lib/table/types'
 
 export interface ListTablesInput {
   workspaceId: string

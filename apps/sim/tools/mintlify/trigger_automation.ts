@@ -1,3 +1,4 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import type {
   MintlifyTriggerAutomationParams,
   MintlifyTriggerAutomationResponse,
@@ -7,7 +8,6 @@ import {
   mintlifyHeaders,
   pathSegment,
   readMintlifyJson,
-  toNullableString,
 } from '@/tools/mintlify/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -56,9 +56,9 @@ export const mintlifyTriggerAutomationTool: ToolConfig<
     return {
       success: true,
       output: {
-        schemaId: toNullableString(data.schemaId),
-        instanceId: toNullableString(data.instanceId),
-        jobId: toNullableString(data.jobId),
+        schemaId: toStringOrNull(data.schemaId),
+        instanceId: toStringOrNull(data.instanceId),
+        jobId: toStringOrNull(data.jobId),
       },
     }
   },

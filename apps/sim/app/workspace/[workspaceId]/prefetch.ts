@@ -1,20 +1,18 @@
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import type { SessionPrincipal } from '@sim/auth/principal'
 import type { QueryClient } from '@tanstack/react-query'
-import { listWorkspacesContract, type WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
-import { listMothershipChats } from '@/lib/copilot/chat/list-mothership-chats'
+import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
-import { getUserProfile } from '@/lib/users/queries'
+import { listMothershipChats } from '@/lib/mothership/chat/list-mothership-chats'
+import { prefetchUserProfile } from '@/lib/users/prefetch-user-profile'
 import { listWorkflowsForUser } from '@/lib/workflows/queries'
 import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
-import { listWorkspacesForViewer } from '@/lib/workspaces/list'
 import { getWorkspacePermissionsForAuthorizedViewer } from '@/lib/workspaces/permissions/utils'
+import { seedWorkspaceList } from '@/lib/workspaces/seed-workspace-list'
 import { prefetchResourceFolders } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-folders'
 import {
-  mapUserProfileResponse,
-  USER_PROFILE_STALE_TIME,
-  userProfileKeys,
-} from '@/hooks/queries/current-user-data'
+  FORK_AVAILABILITY_STALE_TIME,
+  forkAvailabilityKeys,
+} from '@/ee/workspace-forking/hooks/use-forking-available'
 import {
   MOTHERSHIP_CHAT_LIST_STALE_TIME,
   mapChat,
@@ -22,7 +20,6 @@ import {
 } from '@/hooks/queries/mothership-chats'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { mapWorkflow, WORKFLOW_LIST_STALE_TIME } from '@/hooks/queries/utils/workflow-list-query'
-import { normalizeWorkspacesResponse } from '@/hooks/queries/utils/workspace-list-query'
 import { WORKSPACE_PERMISSIONS_STALE_TIME, workspaceKeys } from '@/hooks/queries/workspace'
 import {
   WORKSPACE_HOST_CONTEXT_STALE_TIME,
@@ -43,51 +40,6 @@ export function prefetchWorkspaceHostContext(
     queryFn: () => getWorkspaceHostContextForViewer(workspaceId, userId),
     staleTime: WORKSPACE_HOST_CONTEXT_STALE_TIME,
   })
-}
-
-const logger = createLogger('WorkspacePrefetch')
-
-/**
- * Seeds the viewer's workspace list, which the switcher reads.
- *
- * Seeded rather than prefetched so the empty-list case can decline to create a
- * cache entry at all: the route's default-workspace creation path must run on
- * the client, and an entry — even an empty one — would suppress it. Expressing
- * that as an absent seed also keeps a routine state out of the error channel,
- * where it read as a failure rather than as "nothing to seed".
- */
-async function seedWorkspaceList(
-  queryClient: QueryClient,
-  userId: string,
-  activeOrganizationId: string | null
-): Promise<void> {
-  try {
-    const payload = await listWorkspacesForViewer({
-      userId,
-      activeOrganizationId,
-      scope: 'active',
-    })
-    if (payload.workspaces.length === 0) return
-    /**
-     * Parsing through the route contract's response schema strips the same
-     * server-only fields `requestJson` strips on the client, guaranteeing the
-     * seeded shape is identical to a client fetch.
-     */
-    queryClient.setQueryData(
-      workspaceKeys.list('active'),
-      normalizeWorkspacesResponse(listWorkspacesContract.response.schema.parse(payload))
-    )
-  } catch (error) {
-    /**
-     * Swallowed rather than rethrown — this read is an optimization; the layout
-     * renders fine without it and the client fetch reaches the route instead.
-     * Logged because contract drift between the read and the response schema
-     * would otherwise degrade silently into every viewer waterfalling.
-     */
-    logger.warn('Workspace list seed failed; client will fetch', {
-      error: getErrorMessage(error),
-    })
-  }
 }
 
 /**
@@ -161,19 +113,34 @@ export async function prefetchWorkspaceSidebar(
     /**
      * The sidebar footer renders the viewer's name and avatar, so the profile is
      * sidebar data and joins this batch rather than trailing it as a client
-     * waterfall. Keyed identically to `useUserProfile`, so the footer paints
-     * hydrated. Unlike the settings prefetch this needs no session lookup — the
-     * caller already resolved the viewer.
+     * waterfall.
      */
-    queryClient.prefetchQuery({
-      queryKey: userProfileKeys.profile(),
-      queryFn: async () => {
-        const user = await getUserProfile(userId)
-        if (!user) throw new Error('User not found')
-        return mapUserProfileResponse(user)
-      },
-      staleTime: USER_PROFILE_STALE_TIME,
-    }),
+    prefetchUserProfile(queryClient, userId),
     seedWorkspaceList(queryClient, userId, activeOrganizationId),
   ])
+}
+
+/**
+ * Seeds fork availability, which decides whether the settings sidebar lists Workspace Forks, so
+ * the row renders with the rest of the sidebar. Only admins can read it
+ * (`forkOperations.discover`), so it is skipped for everyone else. It runs the availability
+ * route's own use case; a failed read stays out of hydration and the client refetches it.
+ */
+export async function prefetchWorkspaceForkAvailability(
+  queryClient: QueryClient,
+  workspaceId: string,
+  principal: SessionPrincipal,
+  hostContext: WorkspaceHostContext
+): Promise<void> {
+  if (hostContext.viewer.permission !== 'admin') return
+  await queryClient.prefetchQuery({
+    queryKey: forkAvailabilityKeys.detail(workspaceId),
+    queryFn: async () => {
+      const { getWorkspaceForkAvailability } = await import(
+        '@/ee/workspace-forking/application/discovery'
+      )
+      return getWorkspaceForkAvailability.execute({ principal, input: { workspaceId } })
+    },
+    staleTime: FORK_AVAILABILITY_STALE_TIME,
+  })
 }

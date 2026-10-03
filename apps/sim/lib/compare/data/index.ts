@@ -25,4 +25,6 @@ export type {
   CompetitorProfile,
   Fact,
   FactSource,
+  Prose,
+  ProseSegment,
 } from '@/lib/compare/data/types'

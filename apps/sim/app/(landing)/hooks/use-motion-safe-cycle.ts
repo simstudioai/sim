@@ -24,7 +24,8 @@ interface MotionSafeCycleOptions {
  * {@link MotionSafeCycleOptions.scheduleCycle} on repeat or renders the
  * static finished frame via {@link MotionSafeCycleOptions.showFinished}.
  * Reacts live to preference changes and clears every pending timer on
- * restart, preference flip, and unmount.
+ * restart, preference flip, and unmount. A hidden tab stops the clock (no
+ * beats commit renders nobody sees) and a fresh cycle starts when it returns.
  *
  * @param deps - Effect dependencies; the loop restarts from scratch when
  *   they change. Defaults to mount-only.
@@ -47,19 +48,21 @@ export function useMotionSafeCycle(
       timers = [...scheduled, setTimeout(runCycle, totalMs)]
     }
 
-    const syncMotionPreference = () => {
+    const sync = () => {
       clearScheduled()
       if (media.matches) {
         showFinished()
         return
       }
-      runCycle()
+      if (!document.hidden) runCycle()
     }
 
-    syncMotionPreference()
-    media.addEventListener('change', syncMotionPreference)
+    sync()
+    media.addEventListener('change', sync)
+    document.addEventListener('visibilitychange', sync)
     return () => {
-      media.removeEventListener('change', syncMotionPreference)
+      media.removeEventListener('change', sync)
+      document.removeEventListener('visibilitychange', sync)
       clearScheduled()
     }
   }, deps)

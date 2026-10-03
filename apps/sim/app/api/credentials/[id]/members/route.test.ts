@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { credential } from '@sim/db/schema'
 import {
   auditMock,
@@ -9,25 +6,23 @@ import {
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
   listMembers: vi.fn(),
   removeMember: vi.fn(),
   upsertMember: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 vi.mock('@/lib/credentials/members', () => ({
   leaveCredentialMembership: vi.fn(),
   listCredentialMembers: mocks.listMembers,
@@ -40,7 +35,7 @@ import { DELETE, GET, POST } from '@/app/api/credentials/[id]/members/route'
 
 const CREDENTIAL_ID = 'credential-1'
 const WORKSPACE_ID = 'workspace-1'
-const routeContext = { params: Promise.resolve({ id: CREDENTIAL_ID }) }
+const routeContext = createRouteContext({ id: CREDENTIAL_ID })
 const credentialRow = {
   id: CREDENTIAL_ID,
   workspaceId: WORKSPACE_ID,
@@ -59,19 +54,18 @@ const credentialRow = {
 
 describe('/api/credentials/[id]/members compatibility', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'session-1' },
     })
-    mocks.loadWorkspace.mockResolvedValue({
+    workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext.mockResolvedValue({
       workspaceId: WORKSPACE_ID,
       workspaceOrganizationId: null,
       allowPersonalApiKeys: true,
       billedAccountUserId: 'owner-1',
     })
-    mocks.resolvePermission.mockResolvedValue('read')
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
     mocks.listMembers.mockResolvedValue([
       {
         id: 'member-1',
@@ -112,7 +106,7 @@ describe('/api/credentials/[id]/members compatibility', () => {
 
   it('conceals an existing credential outside the caller workspace as not found', async () => {
     queueTableRows(credential, [credentialRow])
-    mocks.resolvePermission.mockResolvedValue(null)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
 
     const response = await GET(
       createMockRequest(

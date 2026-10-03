@@ -11,15 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Google Contacts](https://contacts.google.com/) is Google's contact management service, letting people store and organize names, emails, phone numbers, and organization details for everyone they communicate with.
-
-With this block, you can:
-
-- **Create and update contacts**: Add new contacts or edit existing ones with names, emails, phone numbers, organization, job title, and notes
-- **Retrieve and list contacts**: Fetch a specific contact by resource name or list contacts with pagination and sort order
-- **Search and delete contacts**: Find contacts by name, email, phone, or organization, or remove a contact entirely
-
-In Sim, the Google Contacts integration allows your agents to create, read, update, delete, list, and search contacts programmatically within a workflow. This enables agents to keep a contact directory in sync, look up contact details before sending communications, or search for matching contacts by name, email, phone, or organization as part of a larger automation.
+[Google Contacts](https://contacts.google.com/) stores contact records for a Google account. Search or list contacts to obtain their resource names, then use those names to read, update, or delete records. Create contacts with the name, email, phone, and other fields needed by your workflow.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -153,5 +145,20 @@ Delete a contact from Google Contacts
 | --------- | ---- | ----------- |
 | `content` | string | Contact deletion confirmation message |
 | `metadata` | json | Deletion details including resource name |
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Google Contacts account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-contacts` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/contacts` | View and manage Google Contacts |
 
 

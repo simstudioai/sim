@@ -3,6 +3,7 @@ import { account, credential, webhook, workflowDeploymentVersion } from '@sim/db
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
+import { toRecord } from '@sim/utils/object'
 import { and, asc, eq, inArray, isNull, ne, or } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
@@ -21,12 +22,14 @@ import {
   projectDesiredWebhookProviderConfig,
 } from '@/lib/webhooks/provider-subscriptions'
 import { getProviderHandler } from '@/lib/webhooks/providers'
+import { WebhookDeploymentConfigurationError } from '@/lib/webhooks/providers/errors'
 import { fetchSlackTeamId } from '@/lib/webhooks/providers/slack'
 import {
   prepareStableWebhookRegistrations,
   type StableDesiredWebhookRegistration,
 } from '@/lib/webhooks/registration-service'
 import { LEGACY_SLACK_CUSTOM_BOT_INGRESS_MODE } from '@/lib/webhooks/slack-custom-ingress-constants'
+import { getSlackNativeSigningSecret } from '@/lib/webhooks/slack-native-config'
 import {
   isSlackStreamResponseRequested,
   normalizeSlackStreamResponseConfig,
@@ -47,7 +50,7 @@ import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { getTrigger, isTriggerValid } from '@/triggers'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
-import { SIM_SUBSCRIBED_EVENTS } from '@/triggers/slack/shared'
+import { SIM_SUBSCRIBED_EVENTS, slackEventById } from '@/triggers/slack/shared'
 import { resolveBlockTriggerId } from '@/triggers/webhook-url'
 
 const logger = createLogger('DeployWebhookSync')
@@ -450,6 +453,18 @@ export async function resolveWebhookConfigForBlock(input: {
           },
         }
       }
+      const eventType =
+        typeof providerConfig.eventType === 'string' ? providerConfig.eventType : null
+      if (eventType && slackEventById.get(eventType)?.legacy) {
+        return {
+          success: false,
+          error: {
+            message:
+              'Legacy Assistant events require a native Sim Slack connection. Choose an Agent View event for a custom bot.',
+            status: 400,
+          },
+        }
+      }
       try {
         replaceSlackStreamAuthoringConfig(
           providerConfig,
@@ -512,6 +527,16 @@ export async function resolveWebhookConfigForBlock(input: {
           error: {
             message:
               'The Sim Slack app trigger is disabled for this deployment. Select a custom bot.',
+            status: 400,
+          },
+        }
+      }
+      if (!getSlackNativeSigningSecret()) {
+        return {
+          success: false,
+          error: {
+            message:
+              'The Sim Slack app trigger is not configured for this deployment. Configure its signing secret or select a custom bot.',
             status: 400,
           },
         }
@@ -677,6 +702,30 @@ export async function resolveWebhookConfigForBlock(input: {
 
     effectivePath = null
     routingKey = openId
+  }
+
+  const handler = getProviderHandler(triggerDef.provider)
+  if (handler?.prepareDeploymentConfig) {
+    try {
+      const prepared = await handler.prepareDeploymentConfig({
+        credentialId,
+        providerConfig,
+        requestId: input.requestId,
+        triggerId,
+      })
+      effectiveProvider = prepared.provider ?? effectiveProvider
+      Object.assign(providerConfig, prepared.providerConfigUpdates)
+      if (prepared.triggerPath !== undefined) effectivePath = prepared.triggerPath
+      if (prepared.routingKey !== undefined) routingKey = prepared.routingKey
+    } catch (error) {
+      return {
+        success: false,
+        error: {
+          message: getErrorMessage(error, `Could not prepare ${triggerDef.name || triggerId}.`),
+          status: error instanceof WebhookDeploymentConfigurationError ? 400 : 500,
+        },
+      }
+    }
   }
 
   return {
@@ -908,7 +957,7 @@ export async function saveTriggerWebhooksForDeploy({
       }
 
       // Check if config changed or if we're forcing recreation (e.g., activating old version)
-      const existingConfig = (existingWh.providerConfig as Record<string, unknown>) || {}
+      const existingConfig = toRecord(existingWh.providerConfig)
       const needsRecreation =
         forceRecreateSubscriptions ||
         existingWh.provider !== provider ||

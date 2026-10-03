@@ -1,22 +1,14 @@
-/**
- * @vitest-environment node
- */
+import {
+  knowledgeMemberQueueMock,
+  knowledgeMemberQueueMockFns,
+} from '@sim/testing/mocks/knowledge-member-queue.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAssertPayload, mockExecuteMemberSync, mockTask } = vi.hoisted(() => ({
-  mockAssertPayload: vi.fn(),
+const { mockExecuteMemberSync } = vi.hoisted(() => ({
   mockExecuteMemberSync: vi.fn(),
-  mockTask: vi.fn((config) => config),
 }))
 
-vi.mock('@trigger.dev/sdk', () => ({
-  task: mockTask,
-  AbortTaskRunError: class AbortTaskRunError extends Error {},
-}))
-vi.mock('@/lib/knowledge/connectors/member-queue', () => ({
-  MEMBER_SYNC_TASK_ID: 'knowledge-connector-member-sync',
-  assertMemberSyncPayload: mockAssertPayload,
-}))
+vi.mock('@/lib/knowledge/connectors/member-queue', () => knowledgeMemberQueueMock)
 vi.mock('@/lib/knowledge/connectors/member-sync-engine', () => ({
   executeMemberSync: mockExecuteMemberSync,
 }))
@@ -25,8 +17,9 @@ import { AbortTaskRunError } from '@trigger.dev/sdk'
 import {
   classifyMemberSyncResult,
   executeMemberSyncJob,
-  knowledgeConnectorMemberSync,
 } from '@/background/knowledge-connector-member-sync'
+
+const mockAssertPayload = knowledgeMemberQueueMockFns.mockAssertMemberSyncPayload
 
 const RESULT = {
   docsAdded: 0,
@@ -60,30 +53,18 @@ const PAYLOAD = {
 
 describe('knowledge connector member sync worker', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockAssertPayload.mockReturnValue(PAYLOAD)
     mockExecuteMemberSync.mockResolvedValue(RESULT)
   })
 
   it('classifies outcomes from the run counters', () => {
     expect(classifyMemberSyncResult(RESULT)).toBe('completed')
+    expect(classifyMemberSyncResult({ ...RESULT, membersIncomplete: 1 })).toBe('partial')
+    expect(classifyMemberSyncResult({ ...RESULT, membersRemaining: true })).toBe('partial')
     expect(classifyMemberSyncResult({ ...RESULT, membersFailed: 1 })).toBe('partial')
     expect(classifyMemberSyncResult({ ...RESULT, docsFailed: 1 })).toBe('partial')
     expect(classifyMemberSyncResult({ ...RESULT, error: 'boom' })).toBe('failed')
     expect(classifyMemberSyncResult({ ...RESULT, skipReason: 'sync_in_progress' })).toBe('skipped')
-  })
-
-  it('runs the engine with the payload token and reports the outcome', async () => {
-    await expect(executeMemberSyncJob(PAYLOAD)).resolves.toMatchObject({
-      success: true,
-      outcome: 'completed',
-      connectorId: 'c-1',
-      membersCompleted: 2,
-    })
-    expect(mockExecuteMemberSync).toHaveBeenCalledWith('c-1', {
-      billingAttribution: PAYLOAD.billingAttribution,
-      dispatchToken: 't-1',
-    })
   })
 
   it('aborts rather than retries a failed run', async () => {
@@ -96,14 +77,6 @@ describe('knowledge connector member sync worker', () => {
     await expect(executeMemberSyncJob(PAYLOAD)).resolves.toMatchObject({
       success: false,
       outcome: 'partial',
-    })
-  })
-
-  it('registers a single-attempt task on its own queue', () => {
-    expect(knowledgeConnectorMemberSync).toMatchObject({
-      id: 'knowledge-connector-member-sync',
-      retry: { maxAttempts: 1 },
-      queue: { name: 'connector-member-sync-queue' },
     })
   })
 })

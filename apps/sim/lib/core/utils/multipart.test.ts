@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { Readable } from 'node:stream'
 import { describe, expect, it } from 'vitest'
 import { isMultipartError, type MultipartError, readMultipart } from '@/lib/core/utils/multipart'

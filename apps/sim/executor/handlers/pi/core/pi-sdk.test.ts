@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import type { PiSdk } from '@/executor/handlers/pi/core/pi-sdk'
 import { createSealedPiResourceLoader } from '@/executor/handlers/pi/core/pi-sdk'

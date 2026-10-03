@@ -1,3 +1,4 @@
+import { toRecord } from '@sim/utils/object'
 import { validateJiraCloudId } from '@/lib/core/security/input-validation'
 import { MAX_JSON_API_RESPONSE_BYTES } from '@/lib/core/security/input-validation.server'
 import {
@@ -16,17 +17,9 @@ export interface ConfluenceConnectionConfig {
 
 export type JsonObject = Record<string, unknown>
 
-export function asObject(value: unknown): JsonObject {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as JsonObject) : {}
-}
-
-export function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : []
-}
-
 export function nested(object: JsonObject, ...keys: string[]): unknown {
   let value: unknown = object
-  for (const key of keys) value = asObject(value)[key]
+  for (const key of keys) value = toRecord(value)[key]
   return value
 }
 
@@ -120,7 +113,7 @@ export async function readConfluenceResponseObject(
   label = 'Confluence response'
 ): Promise<JsonObject> {
   const text = await readConfluenceResponseText(response, signal, label)
-  return text ? asObject(JSON.parse(text)) : {}
+  return text ? toRecord(JSON.parse(text)) : {}
 }
 
 export async function throwConfluenceResponseError(

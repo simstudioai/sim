@@ -2,10 +2,9 @@ import { HubspotIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { HubSpotResponse } from '@/tools/hubspot/types'
 import { getTrigger } from '@/triggers'
 
-export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
+export const HubSpotBlock: BlockConfig = {
   type: 'hubspot',
   name: 'HubSpot',
   description: 'Interact with HubSpot CRM or trigger workflows from HubSpot events',

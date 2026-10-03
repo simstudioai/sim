@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 // Renders the real predicate against the real drizzle dialect and schema: the
 // bug this guards against is a SQL *rendering* bug, so the global drizzle-orm
 // and schema mocks would hide it entirely.
@@ -45,5 +41,14 @@ describe('unreferencedLargeValuePredicate SQL', () => {
     for (const param of params) {
       expect(Array.isArray(param)).toBe(false)
     }
+  })
+
+  it('retains active memory artifacts and their dependencies within the same workspace', () => {
+    expect(text).toContain('FROM "memory_artifact" AS memory_artifact')
+    expect(text).toContain('conversation.workspace_id = "execution_large_values"."workspace_id"')
+    expect(text).toContain('conversation.deleted_at IS NULL')
+    expect(text).toContain('parent_memory_artifact.key = parent_value.key')
+    expect(text).toContain('parent_conversation.workspace_id = parent_value.workspace_id')
+    expect(text).toContain('parent_conversation.deleted_at IS NULL')
   })
 })

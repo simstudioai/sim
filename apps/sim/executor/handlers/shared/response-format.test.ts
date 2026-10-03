@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { createLogger } from '@sim/logger'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { parseResponseFormat } from '@/executor/handlers/shared/response-format'
 
 const mockLogger =
@@ -11,10 +8,6 @@ const mockLogger =
   ].value
 
 describe('parseResponseFormat', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('logs only structural metadata when resolved input is invalid JSON', () => {
     const plaintext = 'response-format-plaintext-secret'
     const responseFormat = `{"description":"${plaintext} __var_API_KEY __sim_runtime"`

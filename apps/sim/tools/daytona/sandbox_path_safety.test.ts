@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Guards the Daytona sandbox-scoped tools against path traversal through
  * `sandboxId`, which is `visibility: 'user-or-llm'` and therefore reachable by
  * prompt injection.

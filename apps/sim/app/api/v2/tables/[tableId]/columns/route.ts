@@ -40,7 +40,9 @@ export const PATCH = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
   mapInput: ({ params, body }) => ({ tableId: params.tableId, ...body }),
-  present: presentColumns,
+  present: ({ table, unmigrated }) => ({
+    data: { columns: table.schema.columns.map(normalizeColumn), unmigrated },
+  }),
 })
 
 export const DELETE = defineV2JsonRoute({

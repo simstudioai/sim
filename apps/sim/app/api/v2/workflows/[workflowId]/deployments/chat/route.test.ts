@@ -1,56 +1,51 @@
-/**
- * @vitest-environment node
- */
 import {
-  MockV2ApiKeyUnauthenticatedError,
+  environmentUtilsMockFns,
   resetDbChainMock,
+  resetEnvironmentUtilsMock,
+  resetEnvMock,
+  setEnv,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import {
+  workflowsOrchestrationMock,
+  workflowsOrchestrationMockFns,
+} from '@sim/testing/mocks/workflows-orchestration.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 
 const mocks = vi.hoisted(() => ({
-  resolvePermission: vi.fn(),
-  loadWorkspaceContext: vi.fn(),
-  resolveWorkflowContext: vi.fn(),
   getLiveChatDeployment: vi.fn(),
   getIdentifierOwner: vi.fn(),
-  performChatDeploy: vi.fn(),
-  performChatUndeploy: vi.fn(),
-  validateChatDeployAuth: vi.fn(),
-  audit: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { CHAT_DEPLOYED: 'chat.deployed', CHAT_DELETED: 'chat.deleted' },
-  AuditResourceType: { CHAT: 'chat' },
-  recordAudit: mocks.audit,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspaceContext,
-  resolveActiveWorkspaceApplicationContext: async (workspaceId: string) => {
-    const context = await mocks.loadWorkspaceContext(workspaceId)
-    if (!context) throw new Error('Workspace not found')
-    return context
-  },
-}))
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveWorkflowContext,
-}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 vi.mock('@/lib/chat-deployments/queries', () => ({
   listWorkspaceChatDeployments: vi.fn(),
   getLiveChatDeploymentForWorkflow: mocks.getLiveChatDeployment,
@@ -58,37 +53,33 @@ vi.mock('@/lib/chat-deployments/queries', () => ({
   getChatDeploymentWithWorkspace: vi.fn(),
   updateChatDeploymentRow: vi.fn(),
 }))
-vi.mock('@/lib/workflows/orchestration', () => ({
-  performChatDeploy: mocks.performChatDeploy,
-  performChatUndeploy: mocks.performChatUndeploy,
-  getWorkflowDeploymentSummary: vi.fn(),
-  performFullDeploy: vi.fn(),
-}))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  validateChatDeployAuth: mocks.validateChatDeployAuth,
-}))
+vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
+import { markCopilotRequest } from '@/lib/api/server/routes/copilot-request'
+import { performChatDeploy as realPerformChatDeploy } from '@/lib/workflows/orchestration/chat-deploy'
 import { DELETE, GET, PUT } from '@/app/api/v2/workflows/[workflowId]/deployments/chat/route'
+
+const { mockPerformChatDeploy, mockPerformChatUndeploy } = workflowsOrchestrationMockFns
 
 const WORKSPACE_ID = 'workspace-1'
 const WORKFLOW_ID = 'workflow-1'
 const PATH = `http://localhost/api/v2/workflows/${WORKFLOW_ID}/deployments/chat`
 
 const personalKeyAuth = {
-  principal: { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'personal-key-1' },
+  principal: createPersonalApiKeyPrincipal({ keyId: 'personal-key-1' }),
   rateLimitSubjectIds: ['api-key:personal-key-1', 'user:user-1'] as const,
   rateLimitSubscription: null,
   keyType: 'personal' as const,
 }
 
 const workspaceKeyAuth = {
-  principal: {
-    kind: 'workspace_api_key' as const,
+  principal: createWorkspaceApiKeyPrincipal({
     workspaceId: WORKSPACE_ID,
     keyId: 'workspace-key-1',
-  },
+  }),
   rateLimitSubjectIds: ['api-key:workspace-key-1'] as const,
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
@@ -124,7 +115,7 @@ function chatRow(overrides: Record<string, unknown> = {}) {
   }
 }
 
-const routeContext = { params: Promise.resolve({ workflowId: WORKFLOW_ID }) }
+const routeContext = createRouteContext({ workflowId: WORKFLOW_ID })
 
 const get = () => GET(new NextRequest(PATH), routeContext)
 const del = () => DELETE(new NextRequest(PATH, { method: 'DELETE' }), routeContext)
@@ -149,15 +140,17 @@ function uniqueViolation(constraint: string) {
 const validBody = { identifier: 'support', title: 'Support chat' }
 
 describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
+  afterEach(resetEnvMock)
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     v2RouteMocks.authenticate.mockResolvedValue(personalKeyAuth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.resolvePermission.mockResolvedValue('admin')
-    mocks.loadWorkspaceContext.mockResolvedValue(workspaceContext)
-    mocks.resolveWorkflowContext.mockResolvedValue({
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('admin')
+    workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext.mockResolvedValue(
+      workspaceContext
+    )
+    workflowContextMockFns.mockResolveActiveWorkflowApplicationContext.mockResolvedValue({
       ...workspaceContext,
       workflowId: WORKFLOW_ID,
       workflow: {
@@ -169,14 +162,14 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
     })
     mocks.getLiveChatDeployment.mockResolvedValue(chatRow())
     mocks.getIdentifierOwner.mockResolvedValue(null)
-    mocks.validateChatDeployAuth.mockResolvedValue(undefined)
-    mocks.performChatDeploy.mockResolvedValue({
+    permissionCheckMockFns.mockValidateChatDeployAuth.mockResolvedValue(undefined)
+    mockPerformChatDeploy.mockResolvedValue({
       success: true,
       chatId: 'chat-1',
       chatUrl: 'http://localhost:3000/chat/support',
       isUpdate: false,
     })
-    mocks.performChatUndeploy.mockResolvedValue({ success: true })
+    mockPerformChatUndeploy.mockResolvedValue({ success: true })
   })
 
   describe('GET', () => {
@@ -210,7 +203,7 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
     })
 
     it('reports the chat inactive when its workflow is undeployed', async () => {
-      mocks.resolveWorkflowContext.mockResolvedValue({
+      workflowContextMockFns.mockResolveActiveWorkflowApplicationContext.mockResolvedValue({
         ...workspaceContext,
         workflowId: WORKFLOW_ID,
         workflow: {
@@ -228,28 +221,26 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
 
     /** The gate configuration it carries is admin-only, unlike the workspace list. */
     it('refuses a caller below workspace admin with 403', async () => {
-      mocks.resolvePermission.mockResolvedValue('write')
+      workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
 
       const response = await get()
 
       expect(response.status).toBe(403)
       expect((await response.json()).error.details.code).toBe('INSUFFICIENT_WORKSPACE_ROLE')
     })
-
-    it('rejects an undeclared query param rather than ignoring it', async () => {
-      const response = await GET(new NextRequest(`${PATH}?workspaceId=other`), routeContext)
-
-      expect(response.status).toBe(400)
-    })
-
-    it('rejects an unauthenticated request', async () => {
-      v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-      expect((await get()).status).toBe(401)
-    })
   })
 
   describe('PUT', () => {
+    it('returns the configured www chat URL to CLI callers on deploy and read', async () => {
+      setEnv({ NEXT_PUBLIC_APP_URL: 'https://www.dev.sim.ai' })
+      mocks.getLiveChatDeployment.mockResolvedValueOnce(null).mockResolvedValue(chatRow())
+
+      for (const response of [await put(validBody), await get()]) {
+        expect(response.status).toBe(200)
+        expect((await response.json()).data.url).toBe('https://www.dev.sim.ai/chat/support')
+      }
+    })
+
     it('creates the chat when the workflow publishes none', async () => {
       mocks.getLiveChatDeployment.mockResolvedValueOnce(null).mockResolvedValue(chatRow())
 
@@ -262,7 +253,7 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
         identifier: 'support',
         url: expect.stringContaining('/chat/support'),
       })
-      expect(mocks.audit).toHaveBeenCalledTimes(1)
+      expect(auditMockFns.mockRecordAudit).toHaveBeenCalledTimes(1)
     })
 
     /**
@@ -285,7 +276,7 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
 
       await put(validBody)
 
-      expect(mocks.performChatDeploy).toHaveBeenCalledWith(
+      expect(mockPerformChatDeploy).toHaveBeenCalledWith(
         expect.objectContaining({
           authType: 'public',
           password: null,
@@ -300,11 +291,11 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
 
     it('is idempotent: the same body twice asks for the same stored state', async () => {
       await put(validBody)
-      const first = mocks.performChatDeploy.mock.calls[0][0]
-      mocks.performChatDeploy.mockClear()
+      const first = mockPerformChatDeploy.mock.calls[0][0]
+      mockPerformChatDeploy.mockClear()
       await put(validBody)
 
-      expect(mocks.performChatDeploy.mock.calls[0][0]).toEqual(first)
+      expect(mockPerformChatDeploy.mock.calls[0][0]).toEqual(first)
     })
 
     /**
@@ -318,7 +309,7 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
       expect((await response.json()).error.message).toBe(
         'password is required when authType is "password"'
       )
-      expect(mocks.performChatDeploy).not.toHaveBeenCalled()
+      expect(mockPerformChatDeploy).not.toHaveBeenCalled()
     })
 
     it('rejects a password the resulting mode would not store', async () => {
@@ -326,7 +317,7 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
 
       expect(response.status).toBe(400)
       expect(JSON.stringify(await response.json())).toContain('password cannot be set')
-      expect(mocks.performChatDeploy).not.toHaveBeenCalled()
+      expect(mockPerformChatDeploy).not.toHaveBeenCalled()
     })
 
     it.each(['email', 'sso'])('refuses %s gating with an empty allow-list', async (authType) => {
@@ -334,7 +325,7 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
 
       expect(response.status).toBe(400)
       expect(JSON.stringify(await response.json())).toContain('allowedEmails must contain at least')
-      expect(mocks.performChatDeploy).not.toHaveBeenCalled()
+      expect(mockPerformChatDeploy).not.toHaveBeenCalled()
     })
 
     it('rejects an allow-list the resulting mode would not admit', async () => {
@@ -342,14 +333,7 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
 
       expect(response.status).toBe(400)
       expect(JSON.stringify(await response.json())).toContain('allowedEmails cannot be set')
-      expect(mocks.performChatDeploy).not.toHaveBeenCalled()
-    })
-
-    it('rejects an unknown field rather than storing it', async () => {
-      const response = await put({ ...validBody, workflowId: WORKFLOW_ID })
-
-      expect(response.status).toBe(400)
-      expect(mocks.performChatDeploy).not.toHaveBeenCalled()
+      expect(mockPerformChatDeploy).not.toHaveBeenCalled()
     })
 
     it('reports an identifier the pre-check finds taken as 409', async () => {
@@ -359,7 +343,7 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
 
       expect(response.status).toBe(409)
       expect((await response.json()).error.message).toBe('Identifier already in use')
-      expect(mocks.performChatDeploy).not.toHaveBeenCalled()
+      expect(mockPerformChatDeploy).not.toHaveBeenCalled()
     })
 
     /**
@@ -370,7 +354,7 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
      * the pre-check reports, so it answers the same `409`.
      */
     it('reports losing the identifier race as 409, not 500', async () => {
-      mocks.performChatDeploy.mockRejectedValue(uniqueViolation('identifier_idx'))
+      mockPerformChatDeploy.mockRejectedValue(uniqueViolation('identifier_idx'))
 
       const response = await put(validBody)
 
@@ -379,12 +363,12 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
       expect(body.error.code).toBe('CONFLICT')
       expect(body.error.message).toContain('support')
       expect(body.error.message).toContain('choose a different identifier')
-      expect(mocks.audit).not.toHaveBeenCalled()
+      expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
     })
 
     /** Only that index is the caller's conflict; any other violation is a real fault. */
     it('keeps a unique violation on a different constraint a 500', async () => {
-      mocks.performChatDeploy.mockRejectedValue(uniqueViolation('chat_pkey'))
+      mockPerformChatDeploy.mockRejectedValue(uniqueViolation('chat_pkey'))
 
       const response = await put(validBody)
 
@@ -393,7 +377,7 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
     })
 
     it('reports an in-flight workflow deployment as a conflict', async () => {
-      mocks.performChatDeploy.mockResolvedValue({
+      mockPerformChatDeploy.mockResolvedValue({
         success: false,
         errorCode: 'conflict',
         error: 'A workflow deployment is still preparing.',
@@ -403,11 +387,11 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
 
       expect(response.status).toBe(409)
       expect((await response.json()).error.message).toContain('still preparing')
-      expect(mocks.audit).not.toHaveBeenCalled()
+      expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
     })
 
     it('keeps an internal invariant failure a 500 with a generic message', async () => {
-      mocks.performChatDeploy.mockResolvedValue({
+      mockPerformChatDeploy.mockResolvedValue({
         success: false,
         errorCode: 'internal',
         error: 'Workflow deployment reported active without a live deployment version.',
@@ -427,21 +411,23 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
       const response = await put(validBody)
 
       expect(response.status).toBe(403)
-      expect(mocks.resolveWorkflowContext).not.toHaveBeenCalled()
+      expect(
+        workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
+      ).not.toHaveBeenCalled()
     })
 
     it('refuses a caller below workspace admin with 403', async () => {
-      mocks.resolvePermission.mockResolvedValue('write')
+      workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
 
       const response = await put(validBody)
 
       expect(response.status).toBe(403)
       expect((await response.json()).error.details.code).toBe('INSUFFICIENT_WORKSPACE_ROLE')
-      expect(mocks.performChatDeploy).not.toHaveBeenCalled()
+      expect(mockPerformChatDeploy).not.toHaveBeenCalled()
     })
 
     it('names a blocked auth mode with an actionable forbidden code', async () => {
-      mocks.validateChatDeployAuth.mockRejectedValue(
+      permissionCheckMockFns.mockValidateChatDeployAuth.mockRejectedValue(
         new PermissionGroupCapabilityError(
           'deploy.chat.auth_mode',
           'CHAT_AUTH_MODE_NOT_PERMITTED',
@@ -457,7 +443,7 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
 
       expect(response.status).toBe(403)
       expect((await response.json()).error.details.code).toBe('CHAT_AUTH_MODE_NOT_PERMITTED')
-      expect(mocks.performChatDeploy).not.toHaveBeenCalled()
+      expect(mockPerformChatDeploy).not.toHaveBeenCalled()
     })
 
     /** A mode already stored can be re-saved without re-clearing the allow-list check. */
@@ -466,7 +452,92 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
 
       await put(validBody)
 
-      expect(mocks.validateChatDeployAuth).not.toHaveBeenCalled()
+      expect(permissionCheckMockFns.mockValidateChatDeployAuth).not.toHaveBeenCalled()
+    })
+
+    describe('password references', () => {
+      const passwordBody = (password: string) => ({ ...validBody, authType: 'password', password })
+
+      /** Admitted exactly as the Sim agent's in-process CLI transport admits its calls. */
+      const agentPut = (body: unknown) => {
+        const request = new NextRequest(PATH, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        markCopilotRequest(request, { userId: 'user-1', workspaceId: WORKSPACE_ID, chatId: 'c-1' })
+        return PUT(request, routeContext)
+      }
+
+      const environment = (variables: Record<string, string>) =>
+        environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables.mockResolvedValueOnce(
+          Object.fromEntries(
+            Object.entries(variables).map(([name, value]) => [
+              name,
+              { value, scope: 'workspace', visible: false },
+            ])
+          )
+        )
+
+      afterEach(resetEnvironmentUtilsMock)
+
+      it("deploys with the value of the agent's referenced variable", async () => {
+        environment({ CHAT_PW: 'resolved-chat-password' })
+
+        const response = await agentPut(passwordBody('{{CHAT_PW}}'))
+
+        expect(response.status).toBe(200)
+        expect(
+          environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables
+        ).toHaveBeenCalledWith('user-1', WORKSPACE_ID, ['CHAT_PW'])
+        expect(mockPerformChatDeploy.mock.calls[0][0].password).toBe('resolved-chat-password')
+      })
+
+      it('refuses an unset variable by name instead of deploying the placeholder', async () => {
+        const response = await agentPut(passwordBody('{{CHAT_PW}}'))
+
+        expect(response.status).toBe(400)
+        expect((await response.json()).error.message).toBe(
+          'Environment variable "CHAT_PW" referenced by password is not set for this workspace or user. Set it first, or pass the raw value.'
+        )
+        expect(mockPerformChatDeploy).not.toHaveBeenCalled()
+      })
+
+      it('holds the resolved value to the chat password rules', async () => {
+        mockPerformChatDeploy.mockImplementation(realPerformChatDeploy)
+        environment({ CHAT_PW: 'short' })
+
+        const response = await agentPut(passwordBody('{{CHAT_PW}}'))
+
+        expect(response.status).toBe(400)
+        expect((await response.json()).error.message).toBe(
+          'Password must be at least 15 characters'
+        )
+      })
+
+      it('keeps a reference literal for an API key caller, under the same rules', async () => {
+        mockPerformChatDeploy.mockImplementation(realPerformChatDeploy)
+
+        const response = await put(passwordBody('{{SHORT}}'))
+
+        expect(response.status).toBe(400)
+        expect((await response.json()).error.message).toBe(
+          'Password must be at least 15 characters'
+        )
+        expect(
+          environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables
+        ).not.toHaveBeenCalled()
+      })
+
+      it('stores a long literal reference verbatim for an API key caller', async () => {
+        const response = await put(passwordBody('{{A_LONG_LITERAL_NAME}}'))
+
+        expect(response.status).toBe(200)
+        expect(mockPerformChatDeploy.mock.calls[0][0].password).toBe('{{A_LONG_LITERAL_NAME}}')
+        expect(
+          environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables
+        ).not.toHaveBeenCalled()
+      })
     })
   })
 
@@ -476,7 +547,7 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
 
       expect(response.status).toBe(200)
       expect((await response.json()).data).toEqual({ id: 'chat-1', deleted: true })
-      expect(mocks.performChatUndeploy).toHaveBeenCalledWith(
+      expect(mockPerformChatUndeploy).toHaveBeenCalledWith(
         expect.objectContaining({ chatId: 'chat-1', workspaceId: WORKSPACE_ID })
       )
     })
@@ -485,12 +556,12 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
       mocks.getLiveChatDeployment.mockResolvedValue(null)
 
       expect((await del()).status).toBe(404)
-      expect(mocks.performChatUndeploy).not.toHaveBeenCalled()
+      expect(mockPerformChatUndeploy).not.toHaveBeenCalled()
     })
 
     /** An infrastructure failure must not read as "the chat is already gone". */
     it('keeps a non-not-found undeploy failure a 500', async () => {
-      mocks.performChatUndeploy.mockResolvedValue({
+      mockPerformChatUndeploy.mockResolvedValue({
         success: false,
         errorCode: 'internal',
         error: 'storage unavailable',
@@ -500,10 +571,10 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
     })
 
     it('refuses a caller below workspace admin with 403', async () => {
-      mocks.resolvePermission.mockResolvedValue('write')
+      workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
 
       expect((await del()).status).toBe(403)
-      expect(mocks.performChatUndeploy).not.toHaveBeenCalled()
+      expect(mockPerformChatUndeploy).not.toHaveBeenCalled()
     })
   })
 })

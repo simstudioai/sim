@@ -18,6 +18,7 @@ import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/conn
 import { RESOURCE_TILE_BASE } from '@/app/workspace/[workspaceId]/components/resource-tile'
 import { IntegrationSkillsSection } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-skills-section'
 import { connectParam } from '@/app/workspace/[workspaceId]/integrations/[block]/search-params'
+import { ConnectPersonalTokenModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-personal-token-modal'
 import {
   ConnectServiceAccountModal,
   useServiceAccountConnectTarget,
@@ -73,6 +74,10 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
   const availability = integrationAvailability.get(integration.type.toLowerCase())
   const oauthAvailable = Boolean(oauthService) && (availability?.oauthAvailable ?? true)
   const [oauthOpen, setOAuthOpen] = useState(false)
+  const [personalTokenOpen, setPersonalTokenOpen] = useState(false)
+  const personalTokenAvailable =
+    integration.type === 'gitlab' &&
+    (availability?.state === 'ready' || availability?.state === 'limited')
 
   const { data: credentials = [], isPending: credentialsLoading } = useWorkspaceCredentials({
     workspaceId,
@@ -87,6 +92,8 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
    * `providerId`s instead hides it from all of them.
    */
   const connectedCredentials = useMemo(() => {
+    if (integration.type === 'gitlab')
+      return credentials.filter((c) => c.type === 'personal_token' && c.providerId === 'gitlab')
     if (!oauthService) return []
     return credentials.filter(
       (c) =>
@@ -94,7 +101,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
         c.providerId &&
         credentialProviderMatchesService(c.providerId, oauthService)
     )
-  }, [credentials, oauthService])
+  }, [credentials, oauthService, integration.type])
   const [serviceAccountOpen, setServiceAccountOpen] = useState(false)
   const serviceAccountTarget = useServiceAccountConnectTarget({
     serviceAccountProviderId: oauthService?.serviceAccountProviderId,
@@ -116,11 +123,14 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
     const availableConnectMode = resolveAvailableConnectMode(connectMode, {
       oauth: Boolean(oauthService) && oauthAvailable,
       serviceAccount: hasServiceAccount,
+      personalToken: personalTokenAvailable,
     })
     if (!availableConnectMode) return
 
     if (availableConnectMode === CONNECT_MODE.oauth) {
       setOAuthOpen(true)
+    } else if (availableConnectMode === CONNECT_MODE.personalToken) {
+      setPersonalTokenOpen(true)
     } else {
       setServiceAccountOpen(true)
     }
@@ -132,6 +142,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
     oauthService,
     oauthAvailable,
     hasServiceAccount,
+    personalTokenAvailable,
     permissionConfigLoading,
     setConnectMode,
   ])
@@ -176,7 +187,11 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
           Integrations
         </ChipLink>
         <div className={cn('ml-auto', HEADER_ACTION_CLUSTER)}>
-          {oauthService ? (
+          {personalTokenAvailable ? (
+            <Chip variant='primary' leftIcon={Plus} onClick={() => setPersonalTokenOpen(true)}>
+              Add personal token
+            </Chip>
+          ) : oauthService ? (
             connectOptions.length > 1 ? (
               <ChipDropdown
                 variant='primary'
@@ -205,6 +220,13 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
           ) : null}
         </div>
       </div>
+      {personalTokenAvailable && (
+        <ConnectPersonalTokenModal
+          open={personalTokenOpen}
+          onOpenChange={setPersonalTokenOpen}
+          workspaceId={workspaceId}
+        />
+      )}
       {oauthService && oauthAvailable && (
         <ConnectOAuthModal
           mode='connect'
@@ -225,6 +247,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
           onOpenChange={setServiceAccountOpen}
           workspaceId={workspaceId}
           serviceAccountProviderId={serviceAccountTarget.serviceAccountProviderId}
+          atlassianProduct={oauthService?.providerId === 'confluence' ? 'confluence' : 'jira'}
           serviceName={serviceAccountTarget.serviceName}
           serviceIcon={serviceAccountTarget.serviceIcon}
         />

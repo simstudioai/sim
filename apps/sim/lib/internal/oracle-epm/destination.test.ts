@@ -1,11 +1,14 @@
 /** @vitest-environment node */
-import { describe, expect, it } from 'vitest'
+import { inputValidationMock } from '@sim/testing/mocks/input-validation.mock'
+import { describe, expect, it, vi } from 'vitest'
 import {
   defineOracleEpmDestination,
-  getOracleEpmDestination,
   normalizeOracleEpmDestination,
-} from '@/lib/internal/oracle-epm/destination'
-import type { OracleEpmDestination } from '@/lib/internal/oracle-epm/types'
+  type OracleEpmDestination,
+} from '@/lib/internal/oracle-epm'
+import { getOracleEpmDestination } from '@/lib/internal/oracle-epm/destination'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 describe('Oracle EPM destination', () => {
   it('normalizes and preserves a credential-owned gateway base path', () => {

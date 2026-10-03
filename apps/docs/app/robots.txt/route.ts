@@ -10,7 +10,6 @@ export async function GET() {
 User-agent: *
 Disallow: /.next/
 Disallow: /api/internal/
-Disallow: /_next/static/
 Disallow: /admin/
 Allow: /
 Allow: /llms.txt

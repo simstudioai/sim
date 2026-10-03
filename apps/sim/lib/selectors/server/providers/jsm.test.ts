@@ -1,17 +1,15 @@
-/**
- * @vitest-environment node
- */
+import {
+  selectorCredentialBundleMock,
+  selectorCredentialBundleMockFns,
+} from '@sim/testing/mocks/selector-credential-bundle.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetch, mockResolveJsmAuth, mockResolveCloudId } = vi.hoisted(() => ({
+const { mockFetch, mockResolveCloudId } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
-  mockResolveJsmAuth: vi.fn(),
   mockResolveCloudId: vi.fn(),
 }))
 
-vi.mock('@/lib/selectors/server/providers/credential-bundle', () => ({
-  resolveSelectorCredentialBundle: mockResolveJsmAuth,
-}))
+vi.mock('@/lib/selectors/server/providers/credential-bundle', () => selectorCredentialBundleMock)
 
 vi.mock('@/lib/selectors/server/providers/atlassian', () => ({
   resolveSelectorAtlassianCloudId: mockResolveCloudId,
@@ -20,6 +18,8 @@ vi.mock('@/lib/selectors/server/providers/atlassian', () => ({
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { jsmSelectorAttachments } from '@/lib/selectors/server/providers/jsm'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
+
+const mockResolveJsmAuth = selectorCredentialBundleMockFns.mockResolveSelectorCredentialBundle
 
 function serviceDeskArgs(): ExecuteServerSelectorArgs {
   return {
@@ -45,7 +45,6 @@ function providerResponse(body: unknown): Response {
 
 describe('JSM server selector adapters', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
     mockResolveJsmAuth.mockResolvedValue({
       accessToken: 'server-only-token',

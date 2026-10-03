@@ -1,0 +1,861 @@
+<!doctype html>
+<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="x-apple-disable-message-reformatting" />
+    <meta name="color-scheme" content="light" />
+    <meta name="supported-color-schemes" content="light" />
+    <title>Introducing Sim Desktop, CLI, and MCP</title>
+    <!-- Subject: Introducing Sim Desktop, CLI, and MCP. Deploy cli.png and search.png from public/email/broadcast/desktop-cli-search before sending. -->
+    <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
+    <style>
+      @font-face {
+        font-family: "Season Sans";
+        font-style: normal;
+        font-weight: 300 800;
+        font-display: swap;
+        src: url("https://sim.ai/brand/fonts/SeasonSansUprightsVF.woff2") format("woff2");
+      }
+      body,
+      table,
+      td,
+      a {
+        -webkit-text-size-adjust: 100%;
+        -ms-text-size-adjust: 100%;
+      }
+      table,
+      td {
+        mso-table-lspace: 0pt;
+        mso-table-rspace: 0pt;
+      }
+      img {
+        -ms-interpolation-mode: bicubic;
+      }
+      a:focus-visible {
+        outline: 2px solid #1a1a1a;
+        outline-offset: 4px;
+      }
+      @media only screen and (max-width: 620px) {
+        .outer {
+          padding-right: 20px !important;
+          padding-left: 20px !important;
+        }
+        .header {
+          padding-top: 26px !important;
+        }
+      }
+    </style>
+    <!--[if mso]><style>body, table, td, h1, h2, p, a { font-family: Arial, sans-serif !important; }</style><![endif]-->
+  </head>
+  <body style="margin: 0; padding: 0; background-color: #ffffff; -webkit-font-smoothing: antialiased">
+    <div
+      style="
+        display: none;
+        max-height: 0;
+        overflow: hidden;
+        opacity: 0;
+        color: transparent;
+        font-size: 1px;
+        line-height: 1px;
+        mso-hide: all;
+      "
+    >
+      Sim on your Mac, in your terminal, and in your AI tools. Plus, Search for enterprise teams.
+    </div>
+    <table width="100%" cellspacing="0" cellpadding="0" border="0" role="presentation" bgcolor="#FFFFFF">
+      <tr>
+        <td align="center" class="outer" style="padding: 0 24px">
+          <!--[if mso]><table width="600" cellspacing="0" cellpadding="0" border="0" role="presentation"><tr><td><![endif]-->
+          <table
+            width="600"
+            cellspacing="0"
+            cellpadding="0"
+            border="0"
+            role="presentation"
+            style="width: 100%; max-width: 600px"
+          >
+            <tr>
+              <td class="header" style="padding: 34px 0 32px">
+                <a
+                  href="https://sim.ai?utm_source=newsletter&amp;utm_medium=email&amp;utm_campaign=desktop-cli-search&amp;utm_content=logo"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style="display: inline-block; text-decoration: none"
+                >
+                  <img
+                    src="https://sim.ai/email/broadcast/aug-13/logo.png"
+                    width="37"
+                    alt="Sim"
+                    border="0"
+                    style="display: block; width: 37px; height: auto"
+                  />
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-bottom: 12px">
+                <h1
+                  style="
+                    margin: 0;
+                    color: #1a1a1a;
+                    font-family:
+                      &quot;Season Sans&quot;,
+                      -apple-system,
+                      &quot;SF Pro Display&quot;,
+                      &quot;SF Pro Text&quot;,
+                      Helvetica,
+                      sans-serif;
+                    font-size: 24px;
+                    font-weight: 400;
+                    line-height: 30px;
+                    letter-spacing: -0.4px;
+                  "
+                >
+                  Introducing Sim&nbsp;Desktop, CLI, and MCP
+                </h1>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-bottom: 20px">
+                <p
+                  style="
+                    margin: 0;
+                    color: #525252;
+                    font-family:
+                      &quot;Season Sans&quot;,
+                      -apple-system,
+                      &quot;SF Pro Display&quot;,
+                      &quot;SF Pro Text&quot;,
+                      Helvetica,
+                      sans-serif;
+                    font-size: 14px;
+                    font-weight: 400;
+                    line-height: 22px;
+                  "
+                >
+                  Pick up where you left off. Your Sim workspace now works on your Mac, in your terminal, and inside
+                  Claude, Codex, or Cursor.
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <table cellspacing="0" cellpadding="0" border="0" role="presentation">
+                  <tr>
+                    <td bgcolor="#1A1A1A" style="border-radius: 8px; mso-padding-alt: 0 8px">
+                      <a
+                        href="https://sim.ai/workspace?utm_source=newsletter&amp;utm_medium=email&amp;utm_campaign=desktop-cli-search&amp;utm_content=hero"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style="
+                          display: inline-block;
+                          padding: 0 8px;
+                          border-radius: 8px;
+                          color: #ffffff;
+                          font-family:
+                            &quot;Season Sans&quot;,
+                            -apple-system,
+                            &quot;SF Pro Display&quot;,
+                            &quot;SF Pro Text&quot;,
+                            Helvetica,
+                            sans-serif;
+                          font-size: 14px;
+                          font-weight: 400;
+                          line-height: 30px;
+                          text-decoration: none;
+                          white-space: nowrap;
+                          mso-padding-alt: 0;
+                        "
+                        >Open your workspace</a
+                      >
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-top: 40px; padding-bottom: 20px">
+                <a
+                  href="https://docs.sim.ai/desktop?utm_source=newsletter&amp;utm_medium=email&amp;utm_campaign=desktop-cli-search&amp;utm_content=desktop_visual"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style="display: block; text-decoration: none"
+                >
+                  <img
+                    src="https://sim.ai/static/readme-desktop.png"
+                    width="600"
+                    height="317"
+                    alt="Sim Desktop with Chat and a built-in browser side by side."
+                    border="0"
+                    style="
+                      display: block;
+                      width: 100%;
+                      max-width: 600px;
+                      height: auto;
+                      border: 0;
+                      border-radius: 8px;
+                      color: #525252;
+                      font-family:
+                        &quot;Season Sans&quot;,
+                        -apple-system,
+                        &quot;SF Pro Display&quot;,
+                        &quot;SF Pro Text&quot;,
+                        Helvetica,
+                        sans-serif;
+                      font-size: 14px;
+                      font-weight: 400;
+                      line-height: 22px;
+                    "
+                  />
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-bottom: 8px">
+                <h2
+                  style="
+                    margin: 0;
+                    color: #1a1a1a;
+                    font-family:
+                      &quot;Season Sans&quot;,
+                      -apple-system,
+                      &quot;SF Pro Display&quot;,
+                      &quot;SF Pro Text&quot;,
+                      Helvetica,
+                      sans-serif;
+                    font-size: 18px;
+                    font-weight: 400;
+                    line-height: 24px;
+                  "
+                >
+                  Sim Desktop
+                </h2>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-bottom: 12px">
+                <p
+                  style="
+                    margin: 0;
+                    color: #525252;
+                    font-family:
+                      &quot;Season Sans&quot;,
+                      -apple-system,
+                      &quot;SF Pro Display&quot;,
+                      &quot;SF Pro Text&quot;,
+                      Helvetica,
+                      sans-serif;
+                    font-size: 14px;
+                    font-weight: 400;
+                    line-height: 22px;
+                  "
+                >
+                  Chat with Sim, browse signed-in sites, and run terminal commands in one Mac app. Your workspace, side
+                  by side.
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <table cellspacing="0" cellpadding="0" border="0" role="presentation">
+                  <tr>
+                    <td
+                      bgcolor="#FFFFFF"
+                      style="
+                        border: 1px solid #d8d8d8;
+                        border-radius: 8px;
+                        font-size: 0;
+                        line-height: 0;
+                        mso-padding-alt: 0 8px;
+                      "
+                    >
+                      <a
+                        href="https://docs.sim.ai/desktop?utm_source=newsletter&amp;utm_medium=email&amp;utm_campaign=desktop-cli-search&amp;utm_content=desktop_cta"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style="
+                          display: inline-block;
+                          padding: 0 8px;
+                          color: #434343;
+                          font-family:
+                            &quot;Season Sans&quot;,
+                            -apple-system,
+                            &quot;SF Pro Display&quot;,
+                            &quot;SF Pro Text&quot;,
+                            Helvetica,
+                            sans-serif;
+                          font-size: 14px;
+                          font-weight: 400;
+                          line-height: 28px;
+                          text-decoration: none;
+                          white-space: nowrap;
+                          vertical-align: middle;
+                          mso-padding-alt: 0;
+                        "
+                        >Get Sim Desktop for macOS</a
+                      >
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-top: 40px; padding-bottom: 20px">
+                <a
+                  href="https://docs.sim.ai/cli?utm_source=newsletter&amp;utm_medium=email&amp;utm_campaign=desktop-cli-search&amp;utm_content=cli_visual"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style="display: block; text-decoration: none"
+                >
+                  <img
+                    src="https://sim.ai/email/broadcast/desktop-cli-search/cli.png"
+                    width="600"
+                    height="366"
+                    alt="Sim CLI commands: bun add -g sim; sim login; sim workflows list --output json."
+                    border="0"
+                    style="
+                      display: block;
+                      width: 100%;
+                      max-width: 600px;
+                      height: auto;
+                      border: 0;
+                      border-radius: 8px;
+                      color: #525252;
+                      font-family:
+                        &quot;Season Sans&quot;,
+                        -apple-system,
+                        &quot;SF Pro Display&quot;,
+                        &quot;SF Pro Text&quot;,
+                        Helvetica,
+                        sans-serif;
+                      font-size: 14px;
+                      font-weight: 400;
+                      line-height: 22px;
+                    "
+                  />
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-bottom: 8px">
+                <h2
+                  style="
+                    margin: 0;
+                    color: #1a1a1a;
+                    font-family:
+                      &quot;Season Sans&quot;,
+                      -apple-system,
+                      &quot;SF Pro Display&quot;,
+                      &quot;SF Pro Text&quot;,
+                      Helvetica,
+                      sans-serif;
+                    font-size: 18px;
+                    font-weight: 400;
+                    line-height: 24px;
+                  "
+                >
+                  Sim CLI
+                </h2>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-bottom: 12px">
+                <p
+                  style="
+                    margin: 0;
+                    color: #525252;
+                    font-family:
+                      &quot;Season Sans&quot;,
+                      -apple-system,
+                      &quot;SF Pro Display&quot;,
+                      &quot;SF Pro Text&quot;,
+                      Helvetica,
+                      sans-serif;
+                    font-size: 14px;
+                    font-weight: 400;
+                    line-height: 22px;
+                  "
+                >
+                  Run workflows, query tables, and inspect logs from your terminal. Built for scripts, CI pipelines, and
+                  coding agents.
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <table cellspacing="0" cellpadding="0" border="0" role="presentation">
+                  <tr>
+                    <td
+                      bgcolor="#FFFFFF"
+                      style="
+                        border: 1px solid #d8d8d8;
+                        border-radius: 8px;
+                        font-size: 0;
+                        line-height: 0;
+                        mso-padding-alt: 0 8px;
+                      "
+                    >
+                      <a
+                        href="https://docs.sim.ai/cli?utm_source=newsletter&amp;utm_medium=email&amp;utm_campaign=desktop-cli-search&amp;utm_content=cli_cta"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style="
+                          display: inline-block;
+                          padding: 0 8px;
+                          color: #434343;
+                          font-family:
+                            &quot;Season Sans&quot;,
+                            -apple-system,
+                            &quot;SF Pro Display&quot;,
+                            &quot;SF Pro Text&quot;,
+                            Helvetica,
+                            sans-serif;
+                          font-size: 14px;
+                          font-weight: 400;
+                          line-height: 28px;
+                          text-decoration: none;
+                          white-space: nowrap;
+                          vertical-align: middle;
+                          mso-padding-alt: 0;
+                        "
+                        >Install Sim CLI</a
+                      >
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-top: 40px; padding-bottom: 8px">
+                <h2
+                  style="
+                    margin: 0;
+                    color: #1a1a1a;
+                    font-family:
+                      &quot;Season Sans&quot;,
+                      -apple-system,
+                      &quot;SF Pro Display&quot;,
+                      &quot;SF Pro Text&quot;,
+                      Helvetica,
+                      sans-serif;
+                    font-size: 18px;
+                    font-weight: 400;
+                    line-height: 24px;
+                  "
+                >
+                  Sim MCP
+                </h2>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-bottom: 12px">
+                <p
+                  style="
+                    margin: 0;
+                    color: #525252;
+                    font-family:
+                      &quot;Season Sans&quot;,
+                      -apple-system,
+                      &quot;SF Pro Display&quot;,
+                      &quot;SF Pro Text&quot;,
+                      Helvetica,
+                      sans-serif;
+                    font-size: 14px;
+                    font-weight: 400;
+                    line-height: 22px;
+                  "
+                >
+                  Bring your Sim workspace into Claude, Codex, or Cursor. Run workflows, query tables, and manage files
+                  from the AI tools you already use.
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <table cellspacing="0" cellpadding="0" border="0" role="presentation">
+                  <tr>
+                    <td
+                      bgcolor="#FFFFFF"
+                      style="
+                        border: 1px solid #d8d8d8;
+                        border-radius: 8px;
+                        font-size: 0;
+                        line-height: 0;
+                        mso-padding-alt: 0 8px;
+                      "
+                    >
+                      <a
+                        href="https://docs.sim.ai/mcp/overview?utm_source=newsletter&amp;utm_medium=email&amp;utm_campaign=desktop-cli-search&amp;utm_content=mcp_cta"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style="
+                          display: inline-block;
+                          padding: 0 8px;
+                          color: #434343;
+                          font-family:
+                            &quot;Season Sans&quot;,
+                            -apple-system,
+                            &quot;SF Pro Display&quot;,
+                            &quot;SF Pro Text&quot;,
+                            Helvetica,
+                            sans-serif;
+                          font-size: 14px;
+                          font-weight: 400;
+                          line-height: 28px;
+                          text-decoration: none;
+                          white-space: nowrap;
+                          vertical-align: middle;
+                          mso-padding-alt: 0;
+                        "
+                        >Connect Sim MCP</a
+                      >
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-top: 40px; padding-bottom: 20px">
+                <a
+                  href="https://sim.ai/demo?utm_source=newsletter&amp;utm_medium=email&amp;utm_campaign=desktop-cli-search&amp;utm_content=search_visual"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style="display: block; text-decoration: none"
+                >
+                  <img
+                    src="https://sim.ai/email/broadcast/desktop-cli-search/search.png"
+                    width="600"
+                    height="310"
+                    alt="Search across Slack, Google Drive, GitHub, and Gmail. Example question: What’s the latest on the launch?"
+                    border="0"
+                    style="
+                      display: block;
+                      width: 100%;
+                      max-width: 600px;
+                      height: auto;
+                      border: 0;
+                      border-radius: 8px;
+                      color: #525252;
+                      font-family:
+                        &quot;Season Sans&quot;,
+                        -apple-system,
+                        &quot;SF Pro Display&quot;,
+                        &quot;SF Pro Text&quot;,
+                        Helvetica,
+                        sans-serif;
+                      font-size: 14px;
+                      font-weight: 400;
+                      line-height: 22px;
+                    "
+                  />
+                </a>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-bottom: 8px">
+                <h2
+                  style="
+                    margin: 0;
+                    color: #1a1a1a;
+                    font-family:
+                      &quot;Season Sans&quot;,
+                      -apple-system,
+                      &quot;SF Pro Display&quot;,
+                      &quot;SF Pro Text&quot;,
+                      Helvetica,
+                      sans-serif;
+                    font-size: 18px;
+                    font-weight: 400;
+                    line-height: 24px;
+                  "
+                >
+                  Sim Search for enterprise
+                </h2>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-bottom: 12px">
+                <p
+                  style="
+                    margin: 0;
+                    color: #525252;
+                    font-family:
+                      &quot;Season Sans&quot;,
+                      -apple-system,
+                      &quot;SF Pro Display&quot;,
+                      &quot;SF Pro Text&quot;,
+                      Helvetica,
+                      sans-serif;
+                    font-size: 14px;
+                    font-weight: 400;
+                    line-height: 22px;
+                  "
+                >
+                  Search Slack, Google Drive, GitHub, and more. Get live answers with citations, while respecting each
+                  person’s access.
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <table cellspacing="0" cellpadding="0" border="0" role="presentation">
+                  <tr>
+                    <td
+                      bgcolor="#FFFFFF"
+                      style="
+                        border: 1px solid #d8d8d8;
+                        border-radius: 8px;
+                        font-size: 0;
+                        line-height: 0;
+                        mso-padding-alt: 0 8px;
+                      "
+                    >
+                      <a
+                        href="https://sim.ai/demo?utm_source=newsletter&amp;utm_medium=email&amp;utm_campaign=desktop-cli-search&amp;utm_content=search_cta"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style="
+                          display: inline-block;
+                          padding: 0 8px;
+                          color: #434343;
+                          font-family:
+                            &quot;Season Sans&quot;,
+                            -apple-system,
+                            &quot;SF Pro Display&quot;,
+                            &quot;SF Pro Text&quot;,
+                            Helvetica,
+                            sans-serif;
+                          font-size: 14px;
+                          font-weight: 400;
+                          line-height: 28px;
+                          text-decoration: none;
+                          white-space: nowrap;
+                          vertical-align: middle;
+                          mso-padding-alt: 0;
+                        "
+                        >Book a Search demo</a
+                      >
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-top: 36px; padding-bottom: 20px">
+                <p
+                  style="
+                    margin: 0;
+                    color: #525252;
+                    font-family:
+                      &quot;Season Sans&quot;,
+                      -apple-system,
+                      &quot;SF Pro Display&quot;,
+                      &quot;SF Pro Text&quot;,
+                      Helvetica,
+                      sans-serif;
+                    font-size: 14px;
+                    font-weight: 400;
+                    line-height: 22px;
+                  "
+                >
+                  Thanks for building with us.<br /><span style="color: #1a1a1a">The Sim team</span>
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-bottom: 32px">
+                <table cellspacing="0" cellpadding="0" border="0" role="presentation">
+                  <tr>
+                    <td bgcolor="#1A1A1A" style="border-radius: 8px; mso-padding-alt: 0 8px">
+                      <a
+                        href="https://sim.ai/workspace?utm_source=newsletter&amp;utm_medium=email&amp;utm_campaign=desktop-cli-search&amp;utm_content=closing"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style="
+                          display: inline-block;
+                          padding: 0 8px;
+                          border-radius: 8px;
+                          color: #ffffff;
+                          font-family:
+                            &quot;Season Sans&quot;,
+                            -apple-system,
+                            &quot;SF Pro Display&quot;,
+                            &quot;SF Pro Text&quot;,
+                            Helvetica,
+                            sans-serif;
+                          font-size: 14px;
+                          font-weight: 400;
+                          line-height: 30px;
+                          text-decoration: none;
+                          white-space: nowrap;
+                          mso-padding-alt: 0;
+                        "
+                        >Open your workspace</a
+                      >
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding-bottom: 24px; border-top: 1px solid #d8d8d8; font-size: 1px; line-height: 1px">
+                &nbsp;
+              </td>
+            </tr>
+            <tr>
+              <td class="footer" style="padding-bottom: 36px; text-align: left">
+                <p
+                  style="
+                    margin: 0 0 8px;
+                    color: #525252;
+                    font-family:
+                      &quot;Season Sans&quot;,
+                      -apple-system,
+                      &quot;SF Pro Display&quot;,
+                      &quot;SF Pro Text&quot;,
+                      &quot;Helvetica&quot;,
+                      sans-serif;
+                    font-size: 12px;
+                    line-height: 20px;
+                  "
+                >
+                  Sim, 80 Langton St, San Francisco, CA 94103, USA
+                </p>
+                <p
+                  style="
+                    margin: 0 0 8px;
+                    color: #525252;
+                    font-family:
+                      &quot;Season Sans&quot;,
+                      -apple-system,
+                      &quot;SF Pro Display&quot;,
+                      &quot;SF Pro Text&quot;,
+                      &quot;Helvetica&quot;,
+                      sans-serif;
+                    font-size: 12px;
+                    line-height: 20px;
+                  "
+                >
+                  Questions?
+                  <a
+                    href="mailto:help@sim.ai"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style="
+                      color: #525252;
+                      font-family:
+                        &quot;Season Sans&quot;,
+                        -apple-system,
+                        &quot;SF Pro Display&quot;,
+                        &quot;SF Pro Text&quot;,
+                        &quot;Helvetica&quot;,
+                        sans-serif;
+                      font-size: 12px;
+                      line-height: 20px;
+                      text-decoration: underline;
+                    "
+                    >help@sim.ai</a
+                  >
+                </p>
+                <p
+                  style="
+                    margin: 0 0 14px;
+                    color: #525252;
+                    font-family:
+                      &quot;Season Sans&quot;,
+                      -apple-system,
+                      &quot;SF Pro Display&quot;,
+                      &quot;SF Pro Text&quot;,
+                      &quot;Helvetica&quot;,
+                      sans-serif;
+                    font-size: 12px;
+                    line-height: 20px;
+                  "
+                >
+                  <a
+                    href="https://sim.ai/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style="
+                      color: #525252;
+                      font-family:
+                        &quot;Season Sans&quot;,
+                        -apple-system,
+                        &quot;SF Pro Display&quot;,
+                        &quot;SF Pro Text&quot;,
+                        &quot;Helvetica&quot;,
+                        sans-serif;
+                      font-size: 12px;
+                      line-height: 20px;
+                      text-decoration: underline;
+                    "
+                    >Privacy Policy</a
+                  >
+                  &nbsp;&middot;&nbsp;
+                  <a
+                    href="https://sim.ai/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style="
+                      color: #525252;
+                      font-family:
+                        &quot;Season Sans&quot;,
+                        -apple-system,
+                        &quot;SF Pro Display&quot;,
+                        &quot;SF Pro Text&quot;,
+                        &quot;Helvetica&quot;,
+                        sans-serif;
+                      font-size: 12px;
+                      line-height: 20px;
+                      text-decoration: underline;
+                    "
+                    >Terms of Service</a
+                  >
+                  &nbsp;&middot;&nbsp;
+                  <a
+                    href="{{{RESEND_UNSUBSCRIBE_URL}}}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style="
+                      color: #525252;
+                      font-family:
+                        &quot;Season Sans&quot;,
+                        -apple-system,
+                        &quot;SF Pro Display&quot;,
+                        &quot;SF Pro Text&quot;,
+                        &quot;Helvetica&quot;,
+                        sans-serif;
+                      font-size: 12px;
+                      line-height: 20px;
+                      text-decoration: underline;
+                    "
+                    >Unsubscribe</a
+                  >
+                </p>
+                <p
+                  style="
+                    margin: 0;
+                    color: #525252;
+                    font-family:
+                      &quot;Season Sans&quot;,
+                      -apple-system,
+                      &quot;SF Pro Display&quot;,
+                      &quot;SF Pro Text&quot;,
+                      &quot;Helvetica&quot;,
+                      sans-serif;
+                    font-size: 12px;
+                    line-height: 20px;
+                  "
+                >
+                  &copy; 2026 Sim, All Rights Reserved
+                </p>
+              </td>
+            </tr>
+          </table>
+          <!--[if mso]></td></tr></table><![endif]-->
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

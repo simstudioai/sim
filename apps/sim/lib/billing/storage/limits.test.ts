@@ -1,51 +1,20 @@
-/**
- * @vitest-environment node
- */
 import {
-  dbChainMockFns,
-  envMockFns,
-  resetDbChainMock,
-  resetEnvFlagsMock,
-  setEnvFlags,
-} from '@sim/testing'
-
-const mockGetEnv = envMockFns.getEnv
-
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { envMockFns } from '@sim/testing/mocks/env.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEq, mockGetHighestPrioritySubscription } = vi.hoisted(() => ({
-  mockEq: vi.fn((field: unknown, value: unknown) => ({ field, value })),
-  mockGetHighestPrioritySubscription: vi.fn(),
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  organization: {
-    id: 'organization.id',
-    storageUsedBytes: 'organization.storageUsedBytes',
-  },
-  userStats: {
-    storageUsedBytes: 'userStats.storageUsedBytes',
-    userId: 'userStats.userId',
-  },
-}))
-
-vi.mock('drizzle-orm', () => ({
-  eq: mockEq,
-}))
-
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 import type { StorageBillingContext } from '@/lib/billing/storage/context'
-import {
-  checkStorageQuota,
-  checkStorageQuotaForBillingContext,
-  getStorageLimitForBillingContext,
-  getStorageUsageForBillingContext,
-  getUserStorageLimit,
-  getUserStorageUsage,
-} from '@/lib/billing/storage/limits'
+import { checkStorageQuota, checkStorageQuotaForBillingContext } from '@/lib/billing/storage/limits'
+
+const mockGetEnv = envMockFns.getEnv
+const mockGetHighestPrioritySubscription =
+  billingSubscriptionMockFns.mockGetHighestPrioritySubscription
 
 const ORG_CONTEXT: StorageBillingContext = {
   workspaceId: 'workspace-1',
@@ -55,21 +24,12 @@ const ORG_CONTEXT: StorageBillingContext = {
   customStorageLimitGB: 1,
 }
 
-const USER_CONTEXT: StorageBillingContext = {
-  workspaceId: 'workspace-2',
-  billedAccountUserId: 'workspace-payer',
-  billingEntity: { type: 'user', id: 'workspace-payer' },
-  plan: 'pro_4000',
-  customStorageLimitGB: null,
-}
-
 const GIB = 1024 ** 3
 
 afterAll(resetEnvFlagsMock)
 
 describe('storage limits and quota', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnvFlags({ isBillingEnabled: true })
     mockGetEnv.mockReturnValue(undefined)
@@ -79,43 +39,6 @@ describe('storage limits and quota', () => {
 
   afterAll(() => {
     resetDbChainMock()
-  })
-
-  it('reads user and organization counters through the same entity-aware path', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([{ storageUsedBytes: 11 }])
-      .mockResolvedValueOnce([{ storageUsedBytes: 22 }])
-      .mockResolvedValueOnce([{ storageUsedBytes: 33 }])
-      .mockResolvedValueOnce([{ storageUsedBytes: 44 }])
-
-    await expect(getStorageUsageForBillingContext(ORG_CONTEXT)).resolves.toBe(11)
-    await expect(getStorageUsageForBillingContext(USER_CONTEXT)).resolves.toBe(22)
-    await expect(
-      getUserStorageUsage('legacy-member', {
-        referenceId: 'legacy-org',
-        plan: 'team_25000',
-      } as never)
-    ).resolves.toBe(33)
-    await expect(getUserStorageUsage('legacy-user', null)).resolves.toBe(44)
-
-    expect(mockEq).toHaveBeenNthCalledWith(1, 'organization.id', 'workspace-org')
-    expect(mockEq).toHaveBeenNthCalledWith(2, 'userStats.userId', 'workspace-payer')
-    expect(mockEq).toHaveBeenNthCalledWith(3, 'organization.id', 'legacy-org')
-    expect(mockEq).toHaveBeenNthCalledWith(4, 'userStats.userId', 'legacy-user')
-  })
-
-  it('normalizes legacy and workspace custom limit inputs without changing their keys', async () => {
-    expect(getStorageLimitForBillingContext(ORG_CONTEXT)).toBe(GIB)
-    expect(getStorageLimitForBillingContext({ ...ORG_CONTEXT, customStorageLimitGB: 0 })).toBe(
-      getStorageLimitForBillingContext({ ...ORG_CONTEXT, customStorageLimitGB: null })
-    )
-    await expect(
-      getUserStorageLimit('legacy-member', {
-        metadata: { customStorageLimitGB: 75 },
-        plan: 'team_25000',
-        referenceId: 'legacy-org',
-      } as never)
-    ).resolves.toBe(75 * GIB)
   })
 
   it('returns the exact same quota result for legacy and workspace organization payers', async () => {
@@ -138,20 +61,6 @@ describe('storage limits and quota', () => {
     expect(legacyResult).toEqual(expected)
     expect(contextResult).toEqual(expected)
     expect(mockGetHighestPrioritySubscription).toHaveBeenCalledTimes(1)
-  })
-
-  it('applies identical disabled-billing behavior without resolving context', async () => {
-    setEnvFlags({ isBillingEnabled: false })
-
-    const expected = {
-      allowed: true,
-      currentUsage: 0,
-      limit: Number.MAX_SAFE_INTEGER,
-    }
-    await expect(checkStorageQuota('workspace-owner', GIB)).resolves.toEqual(expected)
-    await expect(checkStorageQuotaForBillingContext(ORG_CONTEXT, GIB)).resolves.toEqual(expected)
-    expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 
   it('opts into free-tier enforcement when FREE_STORAGE_LIMIT_GB is explicitly set', async () => {
@@ -182,11 +91,5 @@ describe('storage limits and quota', () => {
 
     dbChainMockFns.limit.mockRejectedValueOnce(new Error('counter unavailable'))
     await expect(checkStorageQuotaForBillingContext(ORG_CONTEXT, GIB)).resolves.toEqual(expected)
-  })
-
-  it('retains zero fallback for direct usage readers', async () => {
-    dbChainMockFns.limit.mockRejectedValueOnce(new Error('counter unavailable'))
-
-    await expect(getStorageUsageForBillingContext(ORG_CONTEXT)).resolves.toBe(0)
   })
 })

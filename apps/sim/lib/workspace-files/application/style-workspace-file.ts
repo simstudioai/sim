@@ -1,6 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
-import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
+import { extractDocumentStyle } from '@/lib/mothership/vfs/document-style'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
 import { DEFAULT_SUBBLOCK_TYPE } from '@sim/workflow-persistence/subblocks'
+import { migrateMcpOperationControls } from '@/lib/workflows/migrations/mcp-operation-controls'
 import { sanitizeMalformedSubBlocks } from '@/lib/workflows/sanitization/subblocks'
 import {
   buildCanonicalIndex,
@@ -111,8 +112,23 @@ function isFieldProjection(value: unknown): boolean {
  * secret onto a live subblock.
  */
 export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration[]> = {
+  /** MCP normalization selects the active replacement before this rename pass. */
+  mcp: [
+    { from: 'server', to: 'serverSelector' },
+    { from: 'tool', to: 'toolSelector' },
+    { from: 'connection', to: '_removed_connection' },
+    { from: 'operationPolicy', to: '_removed_operationPolicy' },
+  ],
+  /** List Channels now returns one page and a cursor; automatic page limits are retired. */
+  slack: [{ from: 'channelMaxPages', to: '_removed_channelMaxPages' }],
+  slack_v2: [{ from: 'channelMaxPages', to: '_removed_channelMaxPages' }],
   instagram: [{ from: 'metrics', to: 'insightMetrics' }],
   knowledge: [{ from: 'knowledgeBaseId', to: 'knowledgeBaseSelector' }],
+  /** Connected accounts resolve from the workspace; group selectors have no replacement. */
+  credential_group: [
+    { from: 'credentialGroup', to: '_removed_credentialGroup' },
+    { from: 'manualCredentialGroup', to: '_removed_manualCredentialGroup' },
+  ],
   algolia: [
     { from: 'listPage', to: 'page' },
     { from: 'listHitsPerPage', to: 'hitsPerPage' },
@@ -307,6 +323,60 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, readonly SubblockIdMigration
    * time. Dropped rather than renamed — there is no field for the value to move to.
    */
   vanta: [{ from: 'uploadMimeType', to: '_removed_uploadMimeType' }],
+  /** Parallel's V1 Extract always returns excerpts; the opt-out toggle has no replacement. */
+  parallel_ai: [{ from: 'excerpts', to: '_removed_excerpts' }],
+  /**
+   * Three unrelated QuickBooks changes land here.
+   *
+   * The by-ID read moved off `transactionId`, which the shipped block shared
+   * with every update and void. `tools.config.params` republishes that one
+   * stored value as the read target AND as `paymentId`, `billId`,
+   * `journalEntryId` and the rest, so a bill ID entered under Read Purchasing
+   * Transactions survived a switch to Update Purchase Order and addressed the
+   * wrong entity while the block still validated. `transactionId` stays live
+   * for the mutations, so the rename is scoped to the three read operations
+   * and a mutation's target is left where it is.
+   *
+   * The three `summarize_column_by` subsets collapsed into `reportSummarizeBy`,
+   * which kept its ID. Every value the retired dropdowns could hold is in the
+   * collapsed option list — Intuit documents the identical twelve values on all
+   * fourteen report models that advertise the control, which is why the subsets
+   * collapsed at all — so the stored value moves as-is rather than being
+   * dropped, and no value guard is needed. The renames are unconditional so
+   * that an occupied `reportSummarizeBy` wins and the retired key is discarded:
+   * a block created before the collapse was seeded with `reportSummarizeBy`
+   * too, so its live pick must never be clobbered by a subset control that was
+   * hidden for the selected report type. The value is therefore recovered
+   * exactly where nothing owns the target — YAML- and Copilot-authored blocks,
+   * which persist only the fields they set. Order decides which subset wins if
+   * a hand-authored state carries more than one; the three were mutually
+   * exclusive per report type, so at most one can hold a real pick.
+   *
+   * `attachmentFileName` split: it now carries an `attachmentKind: 'file'`
+   * clause for the upload path and the download-side name moved to
+   * `downloadAttachmentFileName`. The source ID is still the upload override,
+   * so the rename is scoped to the download operation and an add-side value
+   * stays put.
+   */
+  quickbooks: [
+    {
+      from: 'transactionId',
+      to: 'readTransactionId',
+      whenOperation: [
+        'quickbooks_read_sales_transactions',
+        'quickbooks_read_purchasing_transactions',
+        'quickbooks_read_accounting_transactions',
+      ],
+    },
+    { from: 'reportCustomerSalesSummarizeBy', to: 'reportSummarizeBy' },
+    { from: 'reportVendorExpenseSummarizeBy', to: 'reportSummarizeBy' },
+    { from: 'reportTimeSummarizeBy', to: 'reportSummarizeBy' },
+    {
+      from: 'attachmentFileName',
+      to: 'downloadAttachmentFileName',
+      whenOperation: ['quickbooks_download_attachment'],
+    },
+  ],
 }
 
 /** Reads the value out of a stored subblock entry, tolerating a bare value. */
@@ -495,15 +565,18 @@ export function migrateSubblockIds(blocks: Record<string, BlockState>): {
       continue
     }
 
+    const normalized = migrateMcpOperationControls(block)
     const migrations = SUBBLOCK_ID_MIGRATIONS[block.type]
     const renamed = migrations
-      ? migrateBlockSubblockIds(block.type, block.subBlocks, migrations)
-      : { subBlocks: block.subBlocks, migrated: false }
+      ? migrateBlockSubblockIds(block.type, normalized.subBlocks, migrations)
+      : { subBlocks: normalized.subBlocks, migrated: false }
     const purged = dropParkedSubblocks(renamed.subBlocks)
     const changedSubBlocks = renamed.migrated || purged.dropped
-    const renamedBlock = changedSubBlocks ? { ...block, subBlocks: purged.subBlocks } : block
+    const renamedBlock = changedSubBlocks
+      ? { ...normalized, subBlocks: purged.subBlocks }
+      : normalized
     const sanitized = sanitizeMalformedSubBlocks(renamedBlock)
-    const blockMigrated = changedSubBlocks || sanitized.changed
+    const blockMigrated = changedSubBlocks || sanitized.changed || normalized !== block
 
     if (blockMigrated) {
       if (purged.dropped) {
