@@ -439,7 +439,10 @@ export const ToolInput = memo(function ToolInput({
     (nextTools: StoredTool[], positionedTools: StoredTool[] = nextTools) => {
       setLocalExpanded((expanded) =>
         Object.fromEntries(
-          positionedTools.map((tool, index) => [index, expanded[selectedTools.indexOf(tool)] ?? false])
+          positionedTools.map((tool, index) => [
+            index,
+            expanded[selectedTools.indexOf(tool)] ?? false,
+          ])
         )
       )
       const canonicalModes = reindexToolCanonicalModes(
@@ -1645,9 +1648,7 @@ export const ToolInput = memo(function ToolInput({
                     type='button'
                     variant='ghost'
                     className='min-w-0 justify-start gap-2 p-0 text-left focus-visible:bg-[var(--surface-active)] disabled:opacity-100'
-                    disabled={
-                      hasToolBody ? isPreview && !allowExpandInPreview : !isCustomTool
-                    }
+                    disabled={hasToolBody ? isPreview && !allowExpandInPreview : !isCustomTool}
                     aria-expanded={hasToolBody ? isExpandedForDisplay : undefined}
                     aria-controls={hasToolBody ? bodyId : undefined}
                     aria-label={
