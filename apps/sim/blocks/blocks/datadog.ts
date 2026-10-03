@@ -1,7 +1,6 @@
 import { DatadogIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { DatadogResponse } from '@/tools/datadog/types'
 
 /**
  * Normalizes a `switch` sub-block value. Switches serialize their state as the
@@ -32,7 +31,7 @@ function datadogNumber(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
-export const DatadogBlock: BlockConfig<DatadogResponse> = {
+export const DatadogBlock: BlockConfig = {
   type: 'datadog',
   name: 'Datadog',
   description: 'Monitor infrastructure, applications, and logs with Datadog',
@@ -173,7 +172,6 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
     },
   },
   subBlocks: [
-    // Operation selector
     {
       id: 'operation',
       title: 'Operation',
@@ -227,7 +225,6 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
       value: () => 'datadog_submit_metrics',
     },
 
-    // Submit Metrics inputs
     {
       id: 'series',
       title: 'Metrics Data (JSON)',
@@ -257,7 +254,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       },
     },
 
-    // Query Timeseries inputs
     {
       id: 'query',
       title: 'Query',
@@ -321,7 +317,6 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       },
     },
 
-    // Create Event inputs
     {
       id: 'title',
       title: 'Event Title',
@@ -391,7 +386,6 @@ Return the event description text directly - no extra formatting needed.`,
       mode: 'advanced',
     },
 
-    // Create Monitor inputs
     {
       id: 'name',
       title: 'Monitor Name',
@@ -504,7 +498,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       },
     },
 
-    // Get Monitor inputs
     {
       id: 'monitorId',
       title: 'Monitor ID',
@@ -514,7 +507,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       required: true,
     },
 
-    // List Monitors inputs
     {
       id: 'listMonitorName',
       title: 'Filter by Name',
@@ -552,7 +544,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       mode: 'advanced',
     },
 
-    // Mute / Unmute Monitor inputs
     {
       id: 'muteMonitorId',
       title: 'Monitor ID',
@@ -591,7 +582,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       mode: 'advanced',
     },
 
-    // Query Logs inputs
     {
       id: 'logQuery',
       title: 'Search Query',
@@ -672,7 +662,6 @@ Return ONLY the relative time string - no explanations, no quotes, no extra text
       mode: 'advanced',
     },
 
-    // Send Logs inputs
     {
       id: 'logs',
       title: 'Logs (JSON)',
@@ -703,7 +692,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       },
     },
 
-    // Create Downtime inputs
     {
       id: 'downtimeScope',
       title: 'Scope',
@@ -812,7 +800,6 @@ Return ONLY the comma-separated tag list - no explanations, no extra text.`,
       mode: 'advanced',
     },
 
-    // List Downtimes inputs
     {
       id: 'currentOnly',
       title: 'Current Only',
@@ -837,7 +824,6 @@ Return ONLY the comma-separated tag list - no explanations, no extra text.`,
       mode: 'advanced',
     },
 
-    // Cancel Downtime inputs
     {
       id: 'downtimeId',
       title: 'Downtime ID',
@@ -847,7 +833,6 @@ Return ONLY the comma-separated tag list - no explanations, no extra text.`,
       required: true,
     },
 
-    // Incidents inputs
     {
       id: 'incidentId',
       title: 'Incident ID',
@@ -1065,7 +1050,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       },
     },
 
-    // SLO inputs
     {
       id: 'sloId',
       title: 'SLO ID',
@@ -1329,7 +1313,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       mode: 'advanced',
     },
 
-    // Dashboard inputs
     {
       id: 'dashboardId',
       title: 'Dashboard ID',
@@ -1466,7 +1449,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       mode: 'advanced',
     },
 
-    // Synthetics inputs
     {
       id: 'syntheticsPublicId',
       title: 'Test Public ID',
@@ -1575,7 +1557,6 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
       mode: 'advanced',
     },
 
-    // Security monitoring inputs
     {
       id: 'signalId',
       title: 'Signal ID',
@@ -1758,7 +1739,6 @@ Return ONLY the search query string - no explanations.`,
       mode: 'advanced',
     },
 
-    // APM inputs
     {
       id: 'spanQuery',
       title: 'Span Query',
@@ -1862,7 +1842,6 @@ Return ONLY the search query string - no explanations.`,
       mode: 'advanced',
     },
 
-    // Authentication (common)
     {
       id: 'apiKey',
       title: 'API Key',
@@ -2347,18 +2326,15 @@ Return ONLY the search query string - no explanations.`,
     apiKey: { type: 'string', description: 'Datadog API key' },
     applicationKey: { type: 'string', description: 'Datadog Application key' },
     site: { type: 'string', description: 'Datadog site/region' },
-    // Metrics
     series: { type: 'json', description: 'Metrics data to submit' },
     query: { type: 'string', description: 'Query string' },
     from: { type: 'number', description: 'Start time (Unix timestamp)' },
     to: { type: 'number', description: 'End time (Unix timestamp)' },
-    // Events
     title: { type: 'string', description: 'Event title' },
     text: { type: 'string', description: 'Event text/body' },
     alertType: { type: 'string', description: 'Alert type' },
     priority: { type: 'string', description: 'Priority level' },
     tags: { type: 'string', description: 'Comma-separated tags' },
-    // Monitors
     name: { type: 'string', description: 'Monitor name' },
     type: { type: 'string', description: 'Monitor type' },
     monitorQuery: { type: 'string', description: 'Monitor query' },
@@ -2367,7 +2343,6 @@ Return ONLY the search query string - no explanations.`,
     monitorPriority: { type: 'number', description: 'Monitor priority (1-5)' },
     options: { type: 'json', description: 'Monitor options' },
     monitorId: { type: 'string', description: 'Monitor ID' },
-    // Logs
     muteMonitorId: { type: 'string', description: 'Monitor ID to mute or unmute' },
     scope: { type: 'string', description: 'Scope to mute or unmute' },
     end: { type: 'number', description: 'Unix timestamp when the mute ends' },
@@ -2377,7 +2352,6 @@ Return ONLY the search query string - no explanations.`,
     logTo: { type: 'string', description: 'Log end time' },
     logLimit: { type: 'number', description: 'Max logs to return' },
     logs: { type: 'json', description: 'Logs to send' },
-    // Downtimes
     downtimeScope: { type: 'string', description: 'Downtime scope' },
     downtimeMessage: { type: 'string', description: 'Downtime message' },
     downtimeStart: { type: 'number', description: 'Downtime start time' },
@@ -2408,7 +2382,6 @@ Return ONLY the search query string - no explanations.`,
       description:
         'Monitor page number (0-indexed). With neither this nor the page size set, Datadog returns every monitor in the org without pagination.',
     },
-    // Incidents
     incidentId: { type: 'string', description: 'Incident UUID' },
     incidentTitle: { type: 'string', description: 'Incident title' },
     incidentCustomerImpacted: { type: 'boolean', description: 'Whether customers were impacted' },
@@ -2427,7 +2400,6 @@ Return ONLY the search query string - no explanations.`,
     todoContent: { type: 'string', description: 'Follow-up task content' },
     todoAssignees: { type: 'string', description: 'Follow-up task assignees' },
     todoDueDate: { type: 'string', description: 'Follow-up task due date' },
-    // SLOs
     sloId: { type: 'string', description: 'SLO ID' },
     sloName: { type: 'string', description: 'SLO name' },
     sloType: { type: 'string', description: 'SLO type' },
@@ -2456,7 +2428,6 @@ Return ONLY the search query string - no explanations.`,
     sloToTs: { type: 'number', description: 'SLO history window end (Unix seconds)' },
     sloTarget: { type: 'number', description: 'SLO target for history queries' },
     sloApplyCorrection: { type: 'boolean', description: 'Apply SLO corrections' },
-    // Dashboards
     dashboardId: { type: 'string', description: 'Dashboard ID' },
     dashboardTitle: { type: 'string', description: 'Dashboard title' },
     dashboardLayoutType: { type: 'string', description: 'Dashboard layout type' },
@@ -2470,7 +2441,6 @@ Return ONLY the search query string - no explanations.`,
     dashboardFilterDeleted: { type: 'boolean', description: 'Return only deleted dashboards' },
     dashboardCount: { type: 'number', description: 'Max dashboards to return' },
     dashboardStart: { type: 'number', description: 'Dashboard list offset' },
-    // Synthetics
     syntheticsPublicId: { type: 'string', description: 'Synthetic test public ID' },
     syntheticsPublicIds: { type: 'string', description: 'Synthetic test public IDs to trigger' },
     syntheticsNewStatus: { type: 'string', description: 'New Synthetic test status' },
@@ -2479,7 +2449,6 @@ Return ONLY the search query string - no explanations.`,
     syntheticsProbeDc: { type: 'string', description: 'Locations to query results for' },
     syntheticsPageSize: { type: 'number', description: 'Synthetic tests per page' },
     syntheticsPageNumber: { type: 'number', description: 'Synthetic tests page number' },
-    // Security monitoring
     signalId: { type: 'string', description: 'Security signal ID' },
     signalState: { type: 'string', description: 'Security signal triage state' },
     signalArchiveReason: { type: 'string', description: 'Archive reason' },
@@ -2495,7 +2464,6 @@ Return ONLY the search query string - no explanations.`,
     ruleSort: { type: 'string', description: 'Detection rule sort order' },
     rulePageSize: { type: 'number', description: 'Detection rules per page' },
     rulePageNumber: { type: 'number', description: 'Detection rules page number' },
-    // APM
     spanQuery: { type: 'string', description: 'Span search query' },
     spanFrom: { type: 'string', description: 'Span search window start' },
     spanTo: { type: 'string', description: 'Span search window end' },
@@ -2509,41 +2477,32 @@ Return ONLY the search query string - no explanations.`,
   },
   outputs: {
     success: { type: 'boolean', description: 'Whether the operation succeeded' },
-    // Metrics
     series: { type: 'json', description: 'Timeseries data' },
     status: { type: 'string', description: 'Query status' },
     errors: { type: 'json', description: 'Metric series rejected during submission' },
-    // Events
     event: { type: 'json', description: 'Event data' },
-    // Monitors
     monitor: { type: 'json', description: 'Monitor data' },
     monitors: { type: 'json', description: 'List of monitors' },
     monitorId: { type: 'number', description: 'ID of the muted or unmuted monitor' },
     name: { type: 'string', description: 'Name of the muted or unmuted monitor' },
     overallState: { type: 'string', description: 'Monitor state after muting or unmuting' },
-    // Logs
     logs: { type: 'json', description: 'Log entries' },
     nextLogId: { type: 'string', description: 'Pagination cursor for logs' },
-    // Downtimes
     downtime: { type: 'json', description: 'Downtime data' },
     downtimes: { type: 'json', description: 'List of downtimes' },
     totalCount: { type: 'number', description: 'Total downtimes matching the filter' },
-    // Incidents
     incident: { type: 'json', description: 'Incident data' },
     incidents: { type: 'json', description: 'List of incidents' },
     nextOffset: { type: 'number', description: 'Offset for the next page of incidents' },
     todo: { type: 'json', description: 'Incident follow-up task' },
-    // SLOs
     slo: { type: 'json', description: 'Service level objective' },
     slos: { type: 'json', description: 'List of service level objectives' },
     history: { type: 'json', description: 'SLO history for the requested window' },
     sliValue: { type: 'number', description: 'Overall SLI value over the window' },
     deletedIds: { type: 'json', description: 'IDs of deleted service level objectives' },
-    // Dashboards
     dashboard: { type: 'json', description: 'Dashboard definition' },
     dashboards: { type: 'json', description: 'List of dashboard summaries' },
     deletedDashboardId: { type: 'string', description: 'ID of the deleted dashboard' },
-    // Synthetics
     test: { type: 'json', description: 'Synthetic test configuration' },
     tests: { type: 'json', description: 'List of Synthetic tests' },
     results: { type: 'json', description: 'Synthetic test run results' },
@@ -2551,12 +2510,10 @@ Return ONLY the search query string - no explanations.`,
     batchId: { type: 'string', description: 'Public ID of the triggered batch' },
     triggeredCheckIds: { type: 'json', description: 'Public IDs of triggered tests' },
     locations: { type: 'json', description: 'Locations the tests ran from' },
-    // Security monitoring
     signal: { type: 'json', description: 'Security signal' },
     signals: { type: 'json', description: 'List of security signals' },
     rules: { type: 'json', description: 'List of detection rules' },
     nextCursor: { type: 'string', description: 'Cursor for the next page of results' },
-    // APM
     spans: { type: 'json', description: 'List of APM spans' },
     elapsed: { type: 'number', description: 'Query time in milliseconds' },
     services: { type: 'json', description: 'List of service definitions' },

@@ -1,9 +1,8 @@
 import { QdrantIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { QdrantResponse } from '@/tools/qdrant/types'
 
-export const QdrantBlock: BlockConfig<QdrantResponse> = {
+export const QdrantBlock: BlockConfig = {
   type: 'qdrant',
   name: 'Qdrant',
   description: 'Use Qdrant vector database',

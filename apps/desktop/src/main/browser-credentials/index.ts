@@ -30,6 +30,7 @@ export function credentialVault(): CredentialVault {
 
 /** Creates the coordinator once the browser session can report its active tab. */
 export function initFillCoordinator(deps: Omit<FillCoordinatorDeps, 'vault'>): FillCoordinator {
+  coordinatorInstance?.dispose()
   coordinatorInstance = new FillCoordinator({ ...deps, vault: credentialVault() })
   return coordinatorInstance
 }

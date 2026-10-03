@@ -1,3 +1,4 @@
+import { escapeRegExp, hasRegexMetacharacter } from '@sim/utils/string'
 import { RE2JS } from 're2js'
 
 /**
@@ -43,16 +44,9 @@ export interface LinearRegex {
   iterateSplits(text: string): IterableIterator<string>
 }
 
-const METACHARACTERS = /[.*+?^${}()|[\]\\]/
-
-/** Escape every regex metacharacter so `input` matches only itself. */
-function escapeRegExp(input: string): string {
-  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
 /** True when `pattern` has no metacharacter, so both engines behave identically. */
 export function isPlainText(pattern: string): boolean {
-  return !METACHARACTERS.test(pattern)
+  return !hasRegexMetacharacter(pattern)
 }
 
 /**
@@ -258,7 +252,7 @@ function parseSplitShape(pattern: string): SplitShape | null {
  * quadratic on a multi-megabyte document and forfeits the linear guarantee
  * this module exists for. Delimiters that do not self-overlap — punctuation,
  * tags, whitespace between tokens — are exact, and
- * `linear-regex.differential.test.ts` pins that.
+ * `linear-regex.test.ts` pins that.
  */
 export function compileLookaroundSplit(
   pattern: string,

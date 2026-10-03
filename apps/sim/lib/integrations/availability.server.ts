@@ -1,15 +1,16 @@
-import { stripVersionSuffix } from '@sim/utils/string'
-import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
-import { env } from '@/lib/core/config/env'
 import {
   inspectOAuthClientCapability,
   resolveOAuthClientCapabilityId,
-} from '@/lib/core/config/env-capabilities'
+} from '@sim/deployment-config/env-capabilities'
+import { stripVersionSuffix } from '@sim/utils/string'
+import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
+import { env } from '@/lib/core/config/env'
 import {
   type IntegrationAvailability,
   resolveIntegrationAvailability,
   resolveIntegrationAvailabilityStateForVisibility,
 } from '@/lib/integrations/availability'
+import type { OAuthServiceMetadata } from '@/lib/oauth/types'
 
 export type {
   IntegrationAvailability,
@@ -21,6 +22,18 @@ const oauthServiceAvailability = new Map<string, boolean>()
 
 export function getIntegrationAvailability() {
   return resolveIntegrationAvailability(env)
+}
+
+/** OAuth clients are independent of the authentication method a workflow block exposes. */
+export function getOAuthServiceAvailability(
+  services: readonly Pick<OAuthServiceMetadata, 'providerId' | 'authType'>[]
+): { providerId: string; available: boolean }[] {
+  return services
+    .filter((service) => service.authType === 'oauth')
+    .map((service) => ({
+      providerId: service.providerId,
+      available: isOAuthServiceDeploymentAvailable(service.providerId),
+    }))
 }
 
 function getIntegrationAvailabilityByType(): ReadonlyMap<string, IntegrationAvailability> {

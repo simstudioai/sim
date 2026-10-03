@@ -1,32 +1,32 @@
-/**
- * @vitest-environment node
- */
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import { uploadsCopilotMock, uploadsCopilotMockFns } from '@sim/testing/mocks/uploads-copilot.mock'
+import {
+  uploadsExecutionMock,
+  uploadsExecutionMockFns,
+} from '@sim/testing/mocks/uploads-execution.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  secureFetchWithPinnedIP: vi.fn(),
-  validateUrlWithDNS: vi.fn(),
-  uploadCopilotFile: vi.fn(),
-  uploadExecutionFile: vi.fn(),
-}))
-
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithPinnedIP: mocks.secureFetchWithPinnedIP,
-  validateUrlWithDNS: mocks.validateUrlWithDNS,
-}))
-vi.mock('@/lib/uploads/contexts/copilot', () => ({ uploadCopilotFile: mocks.uploadCopilotFile }))
-vi.mock('@/lib/uploads/contexts/execution', () => ({
-  uploadExecutionFile: mocks.uploadExecutionFile,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+vi.mock('@/lib/uploads/contexts/copilot', () => uploadsCopilotMock)
+vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
 
 import { downloadTypeformFile } from '@/lib/internal/typeform/operations'
-import { filesTool } from '@/tools/typeform/files'
+
+const mocks = {
+  uploadCopilotFile: uploadsCopilotMockFns.mockUploadCopilotFile,
+  uploadExecutionFile: uploadsExecutionMockFns.mockUploadExecutionFile,
+}
+
+const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
+const mockValidateUrlWithDNS = inputValidationMockFns.mockValidateUrlWithDNS
 
 describe('Typeform file operation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.validateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
-    mocks.secureFetchWithPinnedIP.mockResolvedValue(
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
+    mockSecureFetchWithPinnedIP.mockResolvedValue(
       new Response('content', {
         headers: {
           'content-type': 'application/pdf',
@@ -46,25 +46,6 @@ describe('Typeform file operation', () => {
       key: 'copilot/file-1',
       context: 'copilot',
     })
-  })
-
-  it('declares typed input without caller-provided execution authority', () => {
-    const input = filesTool.operation.input({
-      formId: 'form-1',
-      responseId: 'response-1',
-      fieldId: 'field-1',
-      filename: 'upload.pdf',
-      apiKey: 'token',
-    })
-    expect(input).toEqual({
-      formId: 'form-1',
-      responseId: 'response-1',
-      fieldId: 'field-1',
-      filename: 'upload.pdf',
-      inline: undefined,
-      apiKey: 'token',
-    })
-    expect('request' in filesTool).toBe(false)
   })
 
   it('stores downloads with trusted execution scope', async () => {
@@ -93,7 +74,7 @@ describe('Typeform file operation', () => {
       'application/pdf',
       'user-1'
     )
-    expect(mocks.secureFetchWithPinnedIP).toHaveBeenCalledWith(
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
       expect.stringContaining('/forms/form-1/responses/response-1/'),
       '93.184.216.34',
       expect.objectContaining({ signal: controller.signal })

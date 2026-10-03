@@ -12,6 +12,8 @@ import { interruptibleSleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
 import { and, eq, isNull, lte, or, sql } from 'drizzle-orm'
+import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
+import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { McpClient } from '@/lib/mcp/client'
 import { mcpConnectionManager } from '@/lib/mcp/connection-manager'
@@ -22,12 +24,8 @@ import {
   validateMcpDomain,
   validateMcpServerSsrf,
 } from '@/lib/mcp/domain-check'
-import {
-  getOrCreateOauthRow,
-  loadPreregisteredClient,
-  SimMcpOauthProvider,
-  withMcpOauthRefreshLock,
-} from '@/lib/mcp/oauth'
+import { getOrCreateOauthRow, loadPreregisteredClient, SimMcpOauthProvider } from '@/lib/mcp/oauth'
+import type { McpOauthCredentials } from '@/lib/mcp/oauth/coordinated-fetch'
 import { resolveMcpConfigEnvVars } from '@/lib/mcp/resolve-config'
 import {
   createMcpCacheAdapter,
@@ -330,15 +328,17 @@ class McpService {
 
   private async getServerConfig(
     serverId: string,
-    workspaceId: string
+    scopeInput: string | ResourceScope
   ): Promise<McpServerConfig | null> {
+    const scope: ResourceScope =
+      typeof scopeInput === 'string' ? { kind: 'workspace', workspaceId: scopeInput } : scopeInput
     const [server] = await db
       .select()
       .from(mcpServers)
       .where(
         and(
           eq(mcpServers.id, serverId),
-          eq(mcpServers.workspaceId, workspaceId),
+          resourceScopeCondition(mcpServers, scope),
           eq(mcpServers.enabled, true),
           isNull(mcpServers.deletedAt)
         )
@@ -360,7 +360,7 @@ class McpService {
       transport: 'streamable-http' as const,
       url: server.url || undefined,
       authType: (server.authType as McpServerConfig['authType']) ?? 'headers',
-      workspaceId: server.workspaceId,
+      ...resourceScopeFields(scope),
       headers: (server.headers as Record<string, string>) || {},
       timeout: server.timeout || 30000,
       retries: server.retries || 3,
@@ -390,7 +390,7 @@ class McpService {
         transport: server.transport as McpTransport,
         url: server.url || undefined,
         authType: (server.authType as McpServerConfig['authType']) ?? 'headers',
-        workspaceId: server.workspaceId,
+        workspaceId,
         headers: (server.headers as Record<string, string>) || {},
         timeout: server.timeout || 30000,
         retries: server.retries || 3,
@@ -431,12 +431,7 @@ class McpService {
     }
     const workspaceId = config.workspaceId
 
-    // Load the row inside the refresh lock so concurrent callers observe tokens
-    // written by a predecessor refresh, rather than a stale snapshot. Without
-    // this, the second caller's provider would hold a rotated-out refresh token
-    // and the SDK would trip `invalid_grant`. The lock is keyed on serverId
-    // since the row is per-server.
-    return withMcpOauthRefreshLock(config.id, async () => {
+    const loadProvider = async () => {
       const row = await getOrCreateOauthRow({
         mcpServerId: config.id,
         userId,
@@ -446,22 +441,26 @@ class McpService {
         throw new McpOauthAuthorizationRequiredError(config.id, config.name)
       }
       const preregistered = await loadPreregisteredClient(config.id)
-      const authProvider = new SimMcpOauthProvider({ row, preregistered })
-      const client = new McpClient({
-        config,
-        securityPolicy,
-        authProvider,
-        resolvedIP: resolvedIP ?? undefined,
-        resolvedSecretTraceProvenance,
-      })
-      await client.connect({ signal })
-      return client
+      return new SimMcpOauthProvider({ row, preregistered })
+    }
+    const client = new McpClient({
+      config,
+      securityPolicy,
+      oauthCredentials: {
+        credentialId: config.id,
+        loadProvider,
+        initialProvider: await loadProvider(),
+      },
+      resolvedIP: resolvedIP ?? undefined,
+      resolvedSecretTraceProvenance,
     })
+    await client.connect({ signal })
+    return client
   }
 
   private async createManagedOauthClient(
     config: McpServerConfig,
-    authProvider: OAuthClientProvider,
+    auth: OAuthClientProvider | McpOauthCredentials,
     signal?: AbortSignal
   ): Promise<McpClient> {
     if (config.authType !== 'oauth' || !config.url) {
@@ -484,25 +483,39 @@ class McpService {
         maxToolExecutionsPerHour: 1000,
         allowedOrigins: [new URL(config.url).origin],
       },
-      authProvider,
+      ...('loadProvider' in auth
+        ? { oauthCredentials: { ...auth, initialProvider: await auth.loadProvider() } }
+        : { authProvider: auth }),
       resolvedIP: resolvedIP ?? undefined,
     })
     await client.connect({ signal })
     return client
   }
 
+  /** An operation owns this unpooled client and must disconnect it in its finalizer. */
+  async openManagedMcpSession(
+    serverId: string,
+    scope: ResourceScope,
+    auth: McpOauthCredentials,
+    signal: AbortSignal
+  ): Promise<Pick<McpClient, 'listTools' | 'callTool' | 'disconnect'>> {
+    const config = await this.getServerConfig(serverId, scope)
+    if (!config) throw new Error('Managed MCP server is unavailable')
+    return this.createManagedOauthClient(config, auth, signal)
+  }
+
   async discoverManagedMcpTools(
     serverId: string,
-    workspaceId: string,
-    authProvider: OAuthClientProvider,
+    scope: string | ResourceScope,
+    auth: OAuthClientProvider | McpOauthCredentials,
     signal?: AbortSignal,
     options: { requireComplete?: boolean } = {}
   ): Promise<McpTool[]> {
-    const config = await this.getServerConfig(serverId, workspaceId)
+    const config = await this.getServerConfig(serverId, scope)
     if (!config) throw new Error('Managed MCP server is unavailable')
     return this.withServerClient(
       { key: '', serverId, allowPool: false },
-      () => this.createManagedOauthClient(config, authProvider, signal),
+      () => this.createManagedOauthClient(config, auth, signal),
       (client) =>
         options.requireComplete
           ? client.listTools(signal, { requireComplete: true })
@@ -513,33 +526,31 @@ class McpService {
   async executeManagedMcpTool(params: {
     connectionId: string
     serverId: string
-    workspaceId: string
+    scope: ResourceScope
     toolCall: McpToolCall
     loadAuthProvider: () => Promise<OAuthClientProvider>
     extraHeaders?: Record<string, string>
     signal?: AbortSignal
     timeoutMs?: number
   }): Promise<McpToolResult> {
-    const config = await this.getServerConfig(params.serverId, params.workspaceId)
+    const config = await this.getServerConfig(params.serverId, params.scope)
     if (!config) throw new Error('Managed MCP server is unavailable')
     const effectiveConfig = params.extraHeaders
       ? { ...config, headers: { ...config.headers, ...params.extraHeaders } }
       : config
-    return withMcpOauthRefreshLock(params.connectionId, () =>
-      this.withServerClient(
-        { key: '', serverId: params.serverId, allowPool: false },
-        async () =>
-          this.createManagedOauthClient(
-            effectiveConfig,
-            await params.loadAuthProvider(),
-            params.signal
-          ),
-        (client) =>
-          client.callTool(params.toolCall, {
-            signal: params.signal,
-            timeoutMs: params.timeoutMs,
-          })
-      )
+    return this.withServerClient(
+      { key: '', serverId: params.serverId, allowPool: false },
+      () =>
+        this.createManagedOauthClient(
+          effectiveConfig,
+          { credentialId: params.connectionId, loadProvider: params.loadAuthProvider },
+          params.signal
+        ),
+      (client) =>
+        client.callTool(params.toolCall, {
+          signal: params.signal,
+          timeoutMs: params.timeoutMs,
+        })
     )
   }
 
@@ -1096,12 +1107,12 @@ class McpService {
           // survives a transport loss and would block that fresh reconnect.
           void (async () => {
             try {
-              const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
+              const { config: resolvedConfig } = await resolveMcpConfigEnvVars(
                 config,
                 userId,
                 workspaceId
               )
-              await manager.connect(resolvedConfig, userId, workspaceId, resolvedIP)
+              await manager.connect(resolvedConfig, userId, workspaceId)
             } catch (err) {
               logger.warn(`[${requestId}] Persistent connection failed for ${config.name}:`, err)
             }

@@ -56,7 +56,7 @@ Set the loop type, then the value it needs:
 
 References differ inside the loop and after it.
 
-<Tabs items={['Inside the loop', 'After the loop']}>
+<Tabs items={['Inside loop', 'After loop']}>
   <Tab>
     Inside the loop, read the current iteration with `<loop.*>`:
 
@@ -114,10 +114,5 @@ For and ForEach loops are capped at **1,000 iterations**. While and Do-While loo
 
 <FAQ items={[
   { question: "What is the maximum number of iterations a loop can run?", answer: "For and ForEach loops are capped at 1,000 iterations. While and Do-While loops with a condition have no hard cap — they run until the condition is false. A Do-While without a condition falls back to a fixed count, also capped at 1,000. Always ensure While/Do-While conditions eventually become false to avoid infinite loops." },
-  { question: "Do loops execute iterations in parallel or sequentially?", answer: "Sequentially, one after another. For concurrency across items, use the Parallel block, or nest a Parallel inside a Loop if you need both patterns." },
-  { question: "How do I access the current item inside a ForEach loop?", answer: "Use <loop.currentItem> for the current item and <loop.index> for the zero-based iteration number. These are only available to blocks inside the loop container." },
-  { question: "How do I access loop results after it finishes?", answer: "Reference the loop block by its normalized name (lowercase, no spaces) with <blockname.results>, which returns an array of all iteration results in order. Do not use <loop.*> outside the loop — that only works inside." },
-  { question: "Can I nest loops inside each other?", answer: "Yes. Loops and Parallels fully support nesting in any combination, and each nested container keeps its own scope and iteration context." },
-  { question: "What is the difference between a While loop and a Do-While loop?", answer: "A While loop checks its condition before each iteration, so it can run zero times. A Do-While loop runs the body once, then checks the condition, so it always runs at least once." },
   { question: "What happens if a ForEach loop receives an empty collection?", answer: "The body is skipped and the loop outputs an empty results array. The workflow continues to whatever is connected after the loop." },
 ]} />

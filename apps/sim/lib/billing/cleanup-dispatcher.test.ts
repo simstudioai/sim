@@ -1,48 +1,37 @@
-/**
- * @vitest-environment node
- */
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
+import { asyncJobsRegionMock } from '@sim/testing/mocks/async-jobs-region.mock'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import { billingSubscriptionMock } from '@sim/testing/mocks/billing-subscription.mock'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
 import {
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-  resetEnvFlagsMock,
-  schemaMock,
-  setEnvFlags,
-} from '@sim/testing'
+  triggerAvailabilityMock,
+  triggerAvailabilityMockFns,
+} from '@sim/testing/mocks/trigger-availability.mock'
+import { workspacesPolicyMock } from '@sim/testing/mocks/workspaces-policy.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIsTriggerAvailable, mockGetOrganizationSubscription, mockEnqueue } = vi.hoisted(() => ({
-  mockIsTriggerAvailable: vi.fn(),
-  mockGetOrganizationSubscription: vi.fn(),
-  mockEnqueue: vi.fn(),
-}))
-
-vi.mock('@/lib/billing/core/billing', () => ({
-  getOrganizationSubscription: mockGetOrganizationSubscription,
-}))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getHighestPriorityPersonalSubscription: vi.fn(),
-}))
-vi.mock('@/lib/core/async-jobs', () => ({
-  getJobQueue: vi.fn(() => ({ enqueue: mockEnqueue })),
-}))
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
 vi.mock('@/lib/core/async-jobs/config', () => ({ shouldExecuteInline: vi.fn(() => false) }))
-vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: vi.fn() }))
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  isTriggerAvailable: mockIsTriggerAvailable,
-}))
-vi.mock('@/lib/workspaces/policy', () => ({
-  WORKSPACE_MODE: { PERSONAL: 'personal', ORGANIZATION: 'organization' },
-  isOrganizationWorkspace: vi.fn(),
-}))
+vi.mock('@/lib/core/async-jobs/region', () => asyncJobsRegionMock)
+vi.mock('@/lib/core/config/trigger-availability', () => triggerAvailabilityMock)
+vi.mock('@/lib/workspaces/policy', () => workspacesPolicyMock)
 
-import { dispatchCleanupJobs } from '@/lib/billing/cleanup-dispatcher'
+import { dispatchCleanupJobs, runCleanupWithLimits } from '@/lib/billing/cleanup-dispatcher'
+import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/subscription'
+import { isOrganizationWorkspace } from '@/lib/workspaces/policy'
+
+const mockIsTriggerAvailable = triggerAvailabilityMockFns.mockIsTriggerAvailable
+const mockGetOrganizationSubscription = billingCoreMockFns.mockGetOrganizationSubscription
+const mockEnqueue = asyncJobsMockFns.mockJobQueue.enqueue
 
 afterAll(resetEnvFlagsMock)
 
 describe('dispatchCleanupJobs retention gate', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnvFlags({ isBillingEnabled: false, isDataRetentionEnabled: false })
     mockIsTriggerAvailable.mockReturnValue(false)
@@ -59,15 +48,6 @@ describe('dispatchCleanupJobs retention gate', () => {
     expect(result).toEqual({ jobIds: [], jobCount: 0, chunkCount: 0, workspaceCount: 0 })
     expect(mockIsTriggerAvailable).not.toHaveBeenCalled()
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
-  })
-
-  it('scans workspaces once retention is explicitly enabled', async () => {
-    setEnvFlags({ isDataRetentionEnabled: true })
-    queueTableRows(schemaMock.workspace, [])
-
-    await dispatchCleanupJobs('cleanup-logs')
-
-    expect(dbChainMockFns.select).toHaveBeenCalled()
   })
 
   it('deletes nothing for a workspace with no configured retention', async () => {
@@ -101,4 +81,144 @@ describe('dispatchCleanupJobs retention gate', () => {
      */
     expect(result.chunkCount).toBe(0)
   })
+})
+
+describe('organization-owned Search retention dispatch', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    setEnvFlags({ isBillingEnabled: false, isDataRetentionEnabled: true })
+    mockIsTriggerAvailable.mockReturnValue(false)
+    mockGetOrganizationSubscription.mockResolvedValue(null)
+    mockEnqueue.mockResolvedValue('cleanup-job')
+    queueTableRows(schemaMock.workspace, [])
+  })
+
+  it('dispatches an organization with zero workspaces using its own configured window', async () => {
+    queueTableRows(schemaMock.organization, [
+      {
+        id: 'org-1',
+        settings: {
+          softDeleteRetentionHours: 72,
+          retentionOverrides: [{ workspaceId: 'irrelevant', softDeleteRetentionHours: 1 }],
+        },
+      },
+    ])
+    queueTableRows(schemaMock.organization, [])
+    const result = await dispatchCleanupJobs('cleanup-soft-deletes')
+    expect(result).toMatchObject({ workspaceCount: 0, chunkCount: 1 })
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      'cleanup-soft-deletes',
+      {
+        plan: 'enterprise',
+        workspaceIds: [],
+        organizationIds: ['org-1'],
+        retentionHours: 72,
+        label: 'enterprise/organization/org-1',
+      },
+      expect.any(Object)
+    )
+    expect(mockGetOrganizationSubscription).not.toHaveBeenCalled()
+  })
+
+  it('does not infer a personal payer when the organization has no subscription', async () => {
+    setEnvFlags({ isBillingEnabled: true })
+    queueTableRows(schemaMock.organization, [
+      { id: 'org-1', settings: { softDeleteRetentionHours: 24 } },
+    ])
+    queueTableRows(schemaMock.organization, [])
+    await dispatchCleanupJobs('cleanup-soft-deletes')
+    expect(mockEnqueue).not.toHaveBeenCalled()
+  })
+
+  it('fails closed after an organization plan lookup error', async () => {
+    setEnvFlags({ isBillingEnabled: true })
+    mockGetOrganizationSubscription.mockRejectedValue(new Error('subscription unavailable'))
+    queueTableRows(schemaMock.organization, [
+      { id: 'org-1', settings: { softDeleteRetentionHours: 24 } },
+    ])
+    queueTableRows(schemaMock.organization, [])
+    await dispatchCleanupJobs('cleanup-soft-deletes')
+    expect(mockEnqueue).not.toHaveBeenCalled()
+  })
+
+  it('dispatches configured organization chat retention independently of soft deletes', async () => {
+    queueTableRows(schemaMock.organization, [
+      { id: 'org-1', settings: { taskCleanupHours: 48, softDeleteRetentionHours: 72 } },
+    ])
+    queueTableRows(schemaMock.organization, [])
+    await dispatchCleanupJobs('cleanup-tasks')
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      'cleanup-tasks',
+      expect.objectContaining({
+        workspaceIds: [],
+        organizationIds: ['org-1'],
+        retentionHours: 48,
+      }),
+      expect.any(Object)
+    )
+  })
+})
+
+describe('cleanup limits', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    setEnvFlags({ isBillingEnabled: false, isDataRetentionEnabled: true })
+    mockIsTriggerAvailable.mockReturnValue(true)
+    vi.mocked(getHighestPriorityPersonalSubscription).mockReset()
+    mockGetOrganizationSubscription.mockReset()
+    vi.mocked(isOrganizationWorkspace).mockReset()
+  })
+
+  it('shares budgets across owners and stops before the next page', async () => {
+    queueTableRows(
+      schemaMock.workspace,
+      ['a', 'b', 'c'].map((id) => ({
+        id,
+        billedAccountUserId: 'user',
+        organizationId: null,
+        workspaceMode: 'personal',
+        organizationSettings: { logRetentionHours: 24 },
+      }))
+    )
+    const seen: number[] = []
+    await runCleanupWithLimits('cleanup-logs', { workflowLogs: 2 }, async (_scope, budgets) => {
+      seen.push(budgets.workflowLogs.remaining)
+      expect(budgets.jobLogs.remaining).toBe(0)
+      budgets.workflowLogs.remaining--
+    })
+    expect(seen).toEqual([2, 1])
+    expect(dbChainMockFns.select).toHaveBeenCalledOnce()
+  })
+
+  it.each(['personal', 'organization-workspace', 'organization'] as const)(
+    'fails a manual job when %s subscription lookup fails',
+    async (kind) => {
+      setEnvFlags({ isBillingEnabled: true })
+      const error = new Error('subscription lookup unavailable')
+      vi.mocked(getHighestPriorityPersonalSubscription).mockRejectedValueOnce(error)
+      mockGetOrganizationSubscription.mockRejectedValueOnce(error)
+      vi.mocked(isOrganizationWorkspace).mockReturnValue(true)
+      queueTableRows(
+        schemaMock.workspace,
+        kind === 'organization'
+          ? []
+          : [
+              {
+                id: 'workspace',
+                billedAccountUserId: 'user',
+                organizationId: 'organization',
+                workspaceMode: kind === 'personal' ? 'personal' : 'organization',
+                organizationSettings: null,
+              },
+            ]
+      )
+      if (kind === 'organization')
+        queueTableRows(schemaMock.organization, [{ id: 'organization', settings: null }])
+      const runScope = vi.fn()
+      await expect(
+        runCleanupWithLimits('cleanup-soft-deletes', { files: 1 }, runScope)
+      ).rejects.toBe(error)
+      expect(runScope).not.toHaveBeenCalled()
+    }
+  )
 })

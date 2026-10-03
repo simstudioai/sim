@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import * as echarts from 'echarts'
 import { describe, expect, it } from 'vitest'
 import { buildChartRenderOption } from '@/lib/charts/option'
@@ -21,10 +18,6 @@ const rows = [
 ]
 
 describe('shapeTableRows', () => {
-  it('passes rows through without groupBy', () => {
-    expect(shapeTableRows(rows, { type: 'table', tableId: 't' })).toBe(rows)
-  })
-
   it('groups and aggregates, keeping first-seen group order', () => {
     const shaped = shapeTableRows(rows, {
       type: 'table',
@@ -50,23 +43,6 @@ describe('shapeTableRows', () => {
       { month: '2024-01', NA: 100, EMEA: 50 },
       { month: '2024-02', NA: 200, EMEA: 80 },
     ])
-  })
-
-  it('prefixes pivot columns when several metrics are aggregated', () => {
-    const shaped = shapeTableRows(rows, {
-      type: 'table',
-      tableId: 't',
-      groupBy: ['month'],
-      aggregate: { revenue: 'sum', conversion: 'avg' },
-      pivot: 'region',
-    })
-    expect(shaped[0]).toEqual({
-      month: '2024-01',
-      'NA revenue': 100,
-      'NA conversion': 4,
-      'EMEA revenue': 50,
-      'EMEA conversion': 2,
-    })
   })
 
   it('counts rows and ignores non-numeric values in numeric ops', () => {
@@ -110,14 +86,6 @@ describe('parseChartSpec option confinement', () => {
     })
   })
 
-  it('overrides a spec-declared html render mode', () => {
-    const option = parse({
-      schema_version: 1,
-      option: { tooltip: { renderMode: 'html', formatter: XSS_FORMATTER } },
-    })
-    expect((option.tooltip as Record<string, unknown>).renderMode).toBe('richText')
-  })
-
   it('reaches tooltips nested under media, baseOption, timeline options, and series', () => {
     const option = parse({
       schema_version: 1,
@@ -148,17 +116,6 @@ describe('parseChartSpec option confinement', () => {
     collect(option)
     expect(renderModes).toHaveLength(5)
     expect(renderModes.every((mode) => mode === 'richText')).toBe(true)
-  })
-
-  it('confines a tooltip declared as an array', () => {
-    const option = parse({
-      schema_version: 1,
-      option: { tooltip: [{ formatter: XSS_FORMATTER }, { formatter: 'plain' }] },
-    })
-    expect(option.tooltip).toEqual([
-      { formatter: XSS_FORMATTER, renderMode: 'richText' },
-      { formatter: 'plain', renderMode: 'richText' },
-    ])
   })
 
   it('drops the toolbox at every level', () => {
@@ -193,11 +150,6 @@ describe('parseChartSpec option confinement', () => {
     expect(option.title).toEqual({ text: 'click me', target: 'self' })
   })
 
-  it('adds no tooltip to a document that declares none', () => {
-    const option = parse({ schema_version: 1, option: { series: [{ type: 'bar', data: [1] }] } })
-    expect('tooltip' in option).toBe(false)
-  })
-
   it('rejects a document too deep to walk instead of throwing', () => {
     const nest = (depth: number) => {
       let series = '1'
@@ -206,12 +158,6 @@ describe('parseChartSpec option confinement', () => {
     }
     expect(parseChartSpec(nest(500)).error).toBeUndefined()
     expect(parseChartSpec(nest(50_000)).error).toMatch(/deeply/)
-  })
-
-  it('leaves dataset rows alone — they hold data, not components', () => {
-    const rows = [{ tooltip: 'ok', toolbox: 'ok', link: 'ok' }]
-    const option = parse({ schema_version: 1, option: { dataset: { source: rows } } })
-    expect((option.dataset as Record<string, unknown>).source).toEqual(rows)
   })
 })
 

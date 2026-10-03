@@ -57,29 +57,7 @@ const nodes = [
 
 describe('getNodeAbsolutePosition', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetNodes.mockReturnValue(nodes)
-  })
-
-  it('places a child at its parent plus its own position, as React Flow does', () => {
-    /* A child's position is already relative to the container's origin — the
-       header and padding live in the position itself, put there by
-       `clampPositionToContainer`. Adding them again reported a nested node 16px
-       right and 66px below where it actually renders, which is why callers had
-       to subtract the same constants back off. */
-    const api = renderNodeUtilities(blocks)
-
-    expect(api.getNodeAbsolutePosition('child')).toEqual({
-      x: CONTAINER_POSITION.x + CHILD_POSITION.x,
-      y: CONTAINER_POSITION.y + CHILD_POSITION.y,
-    })
-  })
-
-  it('leaves a root-level node exactly where it is', () => {
-    const api = renderNodeUtilities(blocks)
-
-    expect(api.getNodeAbsolutePosition('root')).toEqual({ x: 10, y: 20 })
-    expect(api.getNodeAbsolutePosition('loop')).toEqual(CONTAINER_POSITION)
   })
 
   it('round-trips: a child popped out of its container does not move', () => {

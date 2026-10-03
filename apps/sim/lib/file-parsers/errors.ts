@@ -32,6 +32,20 @@ export function isFileParserError(error: unknown): error is FileParserError {
 }
 
 /**
+ * The parser code an error maps to, including the archive guard's own classes
+ * (which are not `FileParserError` because `ooxml-limits` must stay browser-safe
+ * and dependency-free). Callers that branch on a code use this instead of
+ * `isFileParserError` so an archive rejection is never mistaken for an untyped,
+ * retryable failure.
+ */
+export function getFileParserErrorCode(error: unknown): FileParserErrorCode | undefined {
+  if (isFileParserError(error)) return error.code
+  if (error instanceof ArchiveIntegrityError) return 'invalid_format'
+  if (error instanceof ZipBombError) return 'complexity_limit'
+  return undefined
+}
+
+/**
  * Wraps an untyped parser-library exception without erasing a typed inner cause.
  * Archive safety and integrity failures remain typed so every caller can enforce
  * the guard without knowing which parser happened to receive the archive.

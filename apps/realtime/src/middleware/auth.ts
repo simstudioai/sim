@@ -1,7 +1,8 @@
+import { ANONYMOUS_USER, ANONYMOUS_USER_ID } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import type { Socket } from 'socket.io'
-import { ANONYMOUS_USER, ANONYMOUS_USER_ID, auth } from '@/auth'
+import { auth } from '@/auth'
 import { isAuthDisabled } from '@/env'
 
 const logger = createLogger('SocketAuth')

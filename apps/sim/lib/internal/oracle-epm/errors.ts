@@ -74,7 +74,7 @@ export function validateOracleEpmCorrelationId(value: string | null): string | u
 }
 
 /** Maps a provider HTTP failure into the finite public category set. */
-export function categoryForOracleEpmStatus(status: number): OracleEpmErrorCategory {
+function categoryForOracleEpmStatus(status: number): OracleEpmErrorCategory {
   if (status === 400 || status === 422) return 'invalid_input'
   if (status === 401) return 'authentication_required'
   if (status === 403) return 'forbidden'

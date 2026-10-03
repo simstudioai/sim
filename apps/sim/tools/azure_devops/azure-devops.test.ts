@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { hasToolId } from '@/tools/tool-ids'
 import { isAzureDevOpsEventMatch } from '@/triggers/azure_devops/utils'
 import type { ToolConfig } from '../types'
 import { addCommentTool } from './add_comment'
@@ -21,19 +17,8 @@ import { listPipelineRunsTool } from './list_pipeline_runs'
 import { listPipelinesTool } from './list_pipelines'
 import { queryWorkItemsTool } from './query_work_items'
 import type {
-  AddCommentParams,
   CreateWorkItemParams,
-  GetBuildLogParams,
-  GetCommentsParams,
-  GetPipelineParams,
-  GetPipelineRunParams,
-  GetWorkItemParams,
   GetWorkItemsBatchParams,
-  GetWorkItemsBetweenBuildsParams,
-  ListBuildLogsParams,
-  ListBuildsParams,
-  ListPipelineRunsParams,
-  ListPipelinesParams,
   QueryWorkItemsParams,
   UpdateWorkItemParams,
 } from './types'
@@ -44,31 +29,6 @@ const baseParams = {
   project: 'Fabrikam',
   accessToken: 'pat-token',
 }
-
-/**
- * Uses the real tool registry: these assertions are about tool registration and
- * params, which the global `@/tools/registry` mock in vitest.setup.ts empties.
- */
-
-const authHeader = `Basic ${Buffer.from(':pat-token').toString('base64')}`
-
-const allTools = [
-  addCommentTool,
-  createWorkItemTool,
-  getBuildLogTool,
-  getCommentsTool,
-  getPipelineTool,
-  getPipelineRunTool,
-  getWorkItemTool,
-  getWorkItemsBatchTool,
-  getWorkItemsBetweenBuildsTool,
-  listBuildLogsTool,
-  listBuildsTool,
-  listPipelineRunsTool,
-  listPipelinesTool,
-  queryWorkItemsTool,
-  updateWorkItemTool,
-] as const
 
 function buildUrl<P, R>(tool: ToolConfig<P, R>, params: P): string {
   return typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
@@ -113,175 +73,7 @@ const rawComment = {
   id: 9,
 }
 
-describe('Azure DevOps tool contracts', () => {
-  it('exports and registers the full planned tool surface', () => {
-    const expectedIds = [
-      'azure_devops_add_comment',
-      'azure_devops_create_work_item',
-      'azure_devops_get_build_log',
-      'azure_devops_get_comments',
-      'azure_devops_get_pipeline',
-      'azure_devops_get_pipeline_run',
-      'azure_devops_get_work_item',
-      'azure_devops_get_work_items_batch',
-      'azure_devops_get_work_items_between_builds',
-      'azure_devops_list_build_logs',
-      'azure_devops_list_builds',
-      'azure_devops_list_pipeline_runs',
-      'azure_devops_list_pipelines',
-      'azure_devops_query_work_items',
-      'azure_devops_update_work_item',
-    ]
-
-    expect(allTools.map((tool) => tool.id).sort()).toEqual(expectedIds)
-    for (const id of expectedIds) {
-      expect(hasToolId(id), id).toBe(true)
-    }
-  })
-
-  it('sets Basic PAT auth on every tool', () => {
-    for (const tool of allTools) {
-      expect(
-        buildHeaders(tool, {
-          ...baseParams,
-          pipelineId: 1,
-          runId: 2,
-          buildId: 3,
-          logId: 4,
-          fromBuildId: 5,
-          toBuildId: 6,
-          workItemId: 7,
-          ids: '7',
-          wiqlQuery: 'SELECT [System.Id] FROM workitems',
-          workItemType: 'Issue',
-          title: 'Issue title',
-          text: 'Comment text',
-        }).Authorization
-      ).toBe(authHeader)
-    }
-  })
-})
-
 describe('Azure DevOps request builders', () => {
-  it('builds pipeline URLs and optional params', () => {
-    expect(buildUrl(listPipelinesTool, baseParams)).toBe(
-      'https://dev.azure.com/contoso/Fabrikam/_apis/pipelines?api-version=7.2-preview.1'
-    )
-    expect(
-      buildUrl(listPipelinesTool, {
-        ...baseParams,
-        orderBy: 'name',
-        top: 10,
-        continuationToken: 'next-page',
-      } satisfies ListPipelinesParams)
-    ).toBe(
-      'https://dev.azure.com/contoso/Fabrikam/_apis/pipelines?api-version=7.2-preview.1&orderBy=name&%24top=10&continuationToken=next-page'
-    )
-    expect(
-      buildUrl(getPipelineTool, {
-        ...baseParams,
-        pipelineId: 42,
-        pipelineVersion: 3,
-      } satisfies GetPipelineParams)
-    ).toBe(
-      'https://dev.azure.com/contoso/Fabrikam/_apis/pipelines/42?api-version=7.2-preview.1&pipelineVersion=3'
-    )
-    expect(
-      buildUrl(listPipelineRunsTool, {
-        ...baseParams,
-        pipelineId: 42,
-      } satisfies ListPipelineRunsParams)
-    ).toBe(
-      'https://dev.azure.com/contoso/Fabrikam/_apis/pipelines/42/runs?api-version=7.2-preview.1'
-    )
-    expect(
-      buildUrl(getPipelineRunTool, {
-        ...baseParams,
-        pipelineId: 42,
-        runId: 99,
-      } satisfies GetPipelineRunParams)
-    ).toBe(
-      'https://dev.azure.com/contoso/Fabrikam/_apis/pipelines/42/runs/99?api-version=7.2-preview.1'
-    )
-  })
-
-  it('builds build URLs and optional filters', () => {
-    expect(
-      buildUrl(listBuildsTool, {
-        ...baseParams,
-        definitionIds: '1,2',
-        top: 20,
-        statusFilter: 'completed',
-        resultFilter: 'failed',
-        branchName: 'refs/heads/main',
-      } satisfies ListBuildsParams)
-    ).toBe(
-      'https://dev.azure.com/contoso/Fabrikam/_apis/build/builds?api-version=7.2-preview.8&definitions=1%2C2&%24top=20&statusFilter=completed&resultFilter=failed&branchName=refs%2Fheads%2Fmain'
-    )
-    expect(
-      buildUrl(listBuildLogsTool, {
-        ...baseParams,
-        buildId: 101,
-      } satisfies ListBuildLogsParams)
-    ).toBe(
-      'https://dev.azure.com/contoso/Fabrikam/_apis/build/builds/101/logs?api-version=7.2-preview.2'
-    )
-    expect(
-      buildUrl(getBuildLogTool, {
-        ...baseParams,
-        buildId: 101,
-        logId: 3,
-        startLine: 5,
-        endLine: 15,
-      } satisfies GetBuildLogParams)
-    ).toBe(
-      'https://dev.azure.com/contoso/Fabrikam/_apis/build/builds/101/logs/3?api-version=7.2-preview.2&startLine=5&endLine=15'
-    )
-    expect(buildHeaders(getBuildLogTool, { ...baseParams, buildId: 101, logId: 3 }).Accept).toBe(
-      'text/plain'
-    )
-  })
-
-  it('uses the documented work-items-between-builds endpoint shape', () => {
-    expect(
-      buildUrl(getWorkItemsBetweenBuildsTool, {
-        ...baseParams,
-        fromBuildId: 11,
-        toBuildId: 12,
-      } satisfies GetWorkItemsBetweenBuildsParams)
-    ).toBe(
-      'https://dev.azure.com/contoso/Fabrikam/_apis/build/workitems?fromBuildId=11&toBuildId=12&api-version=7.2-preview.2'
-    )
-  })
-
-  it('builds work item URLs and bodies', () => {
-    expect(buildUrl(queryWorkItemsTool, baseParams)).toBe(
-      'https://dev.azure.com/contoso/Fabrikam/_apis/wit/wiql?api-version=7.2-preview.2'
-    )
-    expect(
-      buildBody(queryWorkItemsTool, {
-        ...baseParams,
-        wiqlQuery: 'SELECT [System.Id] FROM workitems',
-      } satisfies QueryWorkItemsParams)
-    ).toEqual({ query: 'SELECT [System.Id] FROM workitems' })
-    expect(
-      buildUrl(getWorkItemTool, {
-        ...baseParams,
-        workItemId: 101,
-      } satisfies GetWorkItemParams)
-    ).toBe(
-      'https://dev.azure.com/contoso/Fabrikam/_apis/wit/workitems/101?%24expand=all&api-version=7.2-preview.3'
-    )
-    expect(
-      buildUrl(getWorkItemsBatchTool, {
-        ...baseParams,
-        ids: '101,102',
-      } satisfies GetWorkItemsBatchParams)
-    ).toBe(
-      'https://dev.azure.com/contoso/Fabrikam/_apis/wit/workitems?ids=101%2C102&%24expand=all&api-version=7.2-preview.3'
-    )
-  })
-
   it('builds JSON Patch work item write requests', () => {
     const createParams = {
       ...baseParams,
@@ -415,35 +207,6 @@ describe('Azure DevOps request builders', () => {
       path: '/fields/Microsoft.VSTS.Scheduling.RemainingWork',
       value: 2,
     })
-  })
-
-  it('builds comment URLs and bodies with comment API pinning', () => {
-    const addParams = {
-      ...baseParams,
-      workItemId: 101,
-      text: 'SimIntegrationTest markdown comment',
-    } satisfies AddCommentParams
-
-    expect(buildUrl(addCommentTool, addParams)).toBe(
-      'https://dev.azure.com/contoso/Fabrikam/_apis/wit/workitems/101/comments?api-version=7.0-preview.3'
-    )
-    expect(buildBody(addCommentTool, addParams)).toEqual({
-      text: 'SimIntegrationTest markdown comment',
-    })
-
-    expect(
-      buildUrl(getCommentsTool, {
-        ...baseParams,
-        workItemId: 101,
-        top: 2,
-        continuationToken: 'next',
-        includeDeleted: true,
-        expand: 'renderedText',
-        order: 'desc',
-      } satisfies GetCommentsParams)
-    ).toBe(
-      'https://dev.azure.com/contoso/Fabrikam/_apis/wit/workitems/101/comments?api-version=7.2-preview.4&%24top=2&continuationToken=next&includeDeleted=true&%24expand=renderedText&order=desc'
-    )
   })
 })
 

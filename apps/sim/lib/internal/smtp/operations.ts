@@ -1,5 +1,5 @@
 import { toError } from '@sim/utils/errors'
-import type nodemailer from 'nodemailer'
+import type { SendMailOptions } from 'nodemailer'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
 import {
   MailAttachmentMaterializationError,
@@ -80,7 +80,7 @@ export async function executeSmtpSend(input: SmtpSendInput, context: SmtpOperati
 
   const from = input.fromName ? `"${input.fromName}" <${input.from}>` : input.from
   const contentType = input.contentType || 'text'
-  const message: nodemailer.SendMailOptions = {
+  const message: SendMailOptions = {
     from,
     to: input.to,
     subject: input.subject,

@@ -149,3 +149,12 @@ export function applyProjectedModelVisibleFileNames(
   }
   return { ...original, name: projected.name }
 }
+
+/** Reports withheld attachments without exposing their unverified names, locators, or contents. */
+export function appendUnavailableAttachmentNotice(
+  content: string | null | undefined,
+  omittedCount: number
+): string {
+  const notice = `Attachment error: ${omittedCount} requested file attachment${omittedCount === 1 ? ' was' : 's were'} not provided because file safety checks failed. Their contents are unavailable. Continue with the available inputs and explain any resulting limitation.`
+  return content ? `${content}\n\n${notice}` : notice
+}

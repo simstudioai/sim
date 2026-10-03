@@ -1,28 +1,12 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   messageForOrchestrationError,
   OrchestrationError,
-  statusForOrchestrationError,
   throwOrchestrationFailure,
 } from '@/lib/core/orchestration/types'
 
 const RAW_DRIVER_MESSAGE =
   'insert into "workflow" ("id") values ($1) - duplicate key value violates unique constraint "workflow_pkey"'
-
-describe('statusForOrchestrationError', () => {
-  it.each([
-    ['validation', 400],
-    ['not_found', 404],
-    ['conflict', 409],
-    ['internal', 500],
-    [undefined, 500],
-  ] as const)('maps %s to %i', (code, expected) => {
-    expect(statusForOrchestrationError(code)).toBe(expected)
-  })
-})
 
 describe('messageForOrchestrationError', () => {
   it('withholds the message of an explicitly internal failure', () => {

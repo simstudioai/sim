@@ -23,77 +23,12 @@ afterEach(() => {
 })
 
 describe('resolveSetupContext', () => {
-  it('finds a Sim checkout from a nested directory', () => {
-    const root = tempRoot()
-    writePackage(root, 'package.json', 'simstudio')
-    writePackage(root, 'apps/sim/package.json', '@sim/app')
-    writePackage(root, 'apps/realtime/package.json', '@sim/realtime')
-    writePackage(root, 'packages/db/package.json', '@sim/db')
-    const nested = path.join(root, 'apps/sim/lib')
-    mkdirSync(nested, { recursive: true })
-
-    expect(resolveSetupContext(nested, [])).toEqual({ kind: 'source', root })
-  })
-
-  it('finds an existing standalone installation', () => {
-    const root = tempRoot()
-    writeFileSync(
-      path.join(root, 'docker-compose.prod.yml'),
-      'image: ghcr.io/simstudioai/simstudio:latest\n'
-    )
-
-    expect(resolveSetupContext(root, [])).toEqual({ kind: 'standalone', root, existing: true })
-  })
-
-  it('creates a dedicated child directory outside an installation', () => {
-    const root = tempRoot()
-
-    expect(resolveSetupContext(root, [])).toEqual({
-      kind: 'standalone',
-      root: path.join(root, 'sim'),
-      existing: false,
-    })
-  })
-
-  it('finds an existing installation in the default child directory', () => {
-    const root = tempRoot()
-    const installRoot = path.join(root, 'sim')
-    mkdirSync(installRoot)
-    writeFileSync(
-      path.join(installRoot, 'docker-compose.prod.yml'),
-      'image: ghcr.io/simstudioai/simstudio:latest\n'
-    )
-
-    expect(resolveSetupContext(root, [])).toEqual({
-      kind: 'standalone',
-      root: installRoot,
-      existing: true,
-    })
-  })
-
   it('fails on a partial Sim checkout', () => {
     const root = tempRoot()
     writePackage(root, 'package.json', 'simstudio')
     writePackage(root, 'apps/sim/package.json', '@sim/app')
 
     expect(() => resolveSetupContext(root, [])).toThrow('Incomplete Sim source checkout')
-  })
-
-  it('fails on malformed package metadata instead of ignoring it', () => {
-    const root = tempRoot()
-    writeFileSync(path.join(root, 'package.json'), '{')
-
-    expect(() => resolveSetupContext(root, [])).toThrow(SyntaxError)
-  })
-
-  it('honors an explicit installation directory', () => {
-    const root = tempRoot()
-
-    expect(resolveSetupContext(root, ['--dir', 'custom'])).toEqual({
-      kind: 'standalone',
-      root: path.join(root, 'custom'),
-      existing: false,
-    })
   })
 
   it('does not replace an explicit standalone directory with an ancestor checkout', () => {

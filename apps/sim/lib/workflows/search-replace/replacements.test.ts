@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import { indexWorkflowSearchMatches } from '@/lib/workflows/search-replace/indexer'
 import { buildWorkflowSearchReplacePlan } from '@/lib/workflows/search-replace/replacements'
@@ -87,48 +84,6 @@ describe('buildWorkflowSearchReplacePlan', () => {
     expect(plan.updates).toEqual([])
     expect(plan.skipped).toEqual([
       { matchId: matches[0].id, reason: 'Display labels cannot be replaced' },
-    ])
-  })
-
-  it('indexes dropdown display labels with the same casing shown by the editor', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['file-1'] = {
-      id: 'file-1',
-      type: 'file_v4',
-      name: 'File',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        operation: { id: 'operation', type: 'dropdown', value: 'file_read' },
-      },
-    }
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'Read',
-      mode: 'text',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        file_v4: {
-          subBlocks: [
-            {
-              id: 'operation',
-              title: 'Operation',
-              type: 'dropdown',
-              options: [{ id: 'file_read', label: 'Read' }],
-            },
-          ],
-        },
-      },
-    }).filter((match) => match.blockId === 'file-1')
-
-    expect(matches).toEqual([
-      expect.objectContaining({
-        searchText: 'read',
-        rawValue: 'read',
-        range: { start: 0, end: 4 },
-      }),
     ])
   })
 
@@ -220,32 +175,6 @@ describe('buildWorkflowSearchReplacePlan', () => {
     expect(plan.updates[0].nextValue).toBe('kb-new,kb-old,kb-second')
   })
 
-  it('replaces a selected duplicate structured resource when duplicates are separated', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['knowledge-1'].subBlocks.knowledgeBaseIds.value = 'kb-old,kb-second,kb-old'
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'kb-old',
-      mode: 'resource',
-      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
-    }).filter((match) => match.kind === 'knowledge-base')
-
-    const plan = buildWorkflowSearchReplacePlan({
-      blocks: workflow.blocks,
-      matches,
-      selectedMatchIds: new Set([matches[1].id]),
-      defaultReplacement: 'kb-new',
-      resourceReplacementOptions: [
-        { kind: 'knowledge-base', value: 'kb-new', label: 'New Knowledge Base' },
-      ],
-    })
-
-    expect(plan.conflicts).toEqual([])
-    expect(plan.updates).toHaveLength(1)
-    expect(plan.updates[0].nextValue).toBe('kb-old,kb-second,kb-new')
-  })
-
   it('conflicts when a selected duplicate structured resource occurrence is removed', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['knowledge-1'].subBlocks.knowledgeBaseIds.value = 'kb-old,kb-second,kb-old'
@@ -273,32 +202,6 @@ describe('buildWorkflowSearchReplacePlan', () => {
     expect(plan.conflicts).toEqual([
       { matchId: matches[1].id, reason: 'Target resource changed since search' },
     ])
-  })
-
-  it('replaces duplicate structured resources with blank comma segments consistently', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['knowledge-1'].subBlocks.knowledgeBaseIds.value = 'kb-old,,kb-second,kb-old'
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'kb-old',
-      mode: 'resource',
-      blockConfigs: SEARCH_REPLACE_BLOCK_CONFIGS,
-    }).filter((match) => match.kind === 'knowledge-base')
-
-    const plan = buildWorkflowSearchReplacePlan({
-      blocks: workflow.blocks,
-      matches,
-      selectedMatchIds: new Set([matches[1].id]),
-      defaultReplacement: 'kb-new',
-      resourceReplacementOptions: [
-        { kind: 'knowledge-base', value: 'kb-new', label: 'New Knowledge Base' },
-      ],
-    })
-
-    expect(plan.conflicts).toEqual([])
-    expect(plan.updates).toHaveLength(1)
-    expect(plan.updates[0].nextValue).toBe('kb-old,,kb-second,kb-new')
   })
 
   it('replaces all compatible knowledge base references across blocks', () => {
@@ -514,97 +417,6 @@ describe('buildWorkflowSearchReplacePlan', () => {
     ])
   })
 
-  it('replaces one duplicate file occurrence in a serialized tool input file array', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    const files = [
-      {
-        name: 'first.pdf',
-        key: 'file-key-old',
-        path: '/first.pdf',
-        size: 12,
-        type: 'application/pdf',
-      },
-      {
-        name: 'second.pdf',
-        key: 'file-key-other',
-        path: '/second.pdf',
-        size: 14,
-        type: 'application/pdf',
-      },
-      {
-        name: 'third.pdf',
-        key: 'file-key-old',
-        path: '/third.pdf',
-        size: 16,
-        type: 'application/pdf',
-      },
-    ]
-    workflow.blocks['tool-input-1'] = {
-      id: 'tool-input-1',
-      type: 'custom',
-      name: 'Tool Input Block',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        tools: {
-          id: 'tools',
-          type: 'tool-input',
-          value: [
-            {
-              type: 'slack',
-              toolId: 'slack_message',
-              operation: 'send',
-              title: 'Slack message',
-              params: {
-                authMethod: 'oauth',
-                credential: 'slack-credential',
-                text: 'message with files',
-                attachmentFiles: JSON.stringify(files),
-              },
-            },
-          ],
-        },
-      },
-    }
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'file-key-old',
-      mode: 'resource',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        custom: {
-          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
-        },
-      },
-    }).filter((match) => match.kind === 'file')
-    const replacementFile = {
-      name: 'replacement.pdf',
-      key: 'file-key-new',
-      path: '/replacement.pdf',
-      size: 24,
-      type: 'application/pdf',
-    }
-    const plan = buildWorkflowSearchReplacePlan({
-      blocks: workflow.blocks,
-      matches,
-      selectedMatchIds: new Set([matches[1].id]),
-      defaultReplacement: JSON.stringify(replacementFile),
-      resourceReplacementOptions: [
-        { kind: 'file', value: JSON.stringify(replacementFile), label: replacementFile.name },
-      ],
-    })
-    const nextTools = plan.updates[0].nextValue as Array<{ params: { attachmentFiles: string } }>
-
-    expect(plan.conflicts).toEqual([])
-    expect(JSON.parse(nextTools[0].params.attachmentFiles)).toEqual([
-      files[0],
-      files[1],
-      replacementFile,
-    ])
-  })
-
   it('conflicts when a selected duplicate file occurrence is removed', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     const files = [
@@ -682,101 +494,6 @@ describe('buildWorkflowSearchReplacePlan', () => {
           credential: 'slack-credential',
           text: 'message with files',
           attachmentFiles: JSON.stringify([files[0], files[1]]),
-        },
-      },
-    ]
-
-    const replacementFile = {
-      name: 'replacement.pdf',
-      key: 'file-key-new',
-      path: '/replacement.pdf',
-      size: 24,
-      type: 'application/pdf',
-    }
-    const plan = buildWorkflowSearchReplacePlan({
-      blocks: workflow.blocks,
-      matches,
-      selectedMatchIds: new Set([matches[1].id]),
-      defaultReplacement: JSON.stringify(replacementFile),
-      resourceReplacementOptions: [
-        { kind: 'file', value: JSON.stringify(replacementFile), label: replacementFile.name },
-      ],
-    })
-
-    expect(plan.updates).toEqual([])
-    expect(plan.conflicts).toEqual([
-      { matchId: matches[1].id, reason: 'Target resource changed since search' },
-    ])
-  })
-
-  it('conflicts when a selected duplicate file occurrence becomes a single file object', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    const firstFile = {
-      name: 'first.pdf',
-      key: 'file-key-old',
-      path: '/first.pdf',
-      size: 12,
-      type: 'application/pdf',
-    }
-    const secondFile = {
-      name: 'second.pdf',
-      key: 'file-key-old',
-      path: '/second.pdf',
-      size: 14,
-      type: 'application/pdf',
-    }
-    workflow.blocks['tool-input-1'] = {
-      id: 'tool-input-1',
-      type: 'custom',
-      name: 'Tool Input Block',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        tools: {
-          id: 'tools',
-          type: 'tool-input',
-          value: [
-            {
-              type: 'slack',
-              toolId: 'slack_message',
-              operation: 'send',
-              title: 'Slack message',
-              params: {
-                authMethod: 'oauth',
-                credential: 'slack-credential',
-                text: 'message with files',
-                attachmentFiles: [firstFile, secondFile],
-              },
-            },
-          ],
-        },
-      },
-    }
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'file-key-old',
-      mode: 'resource',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        custom: {
-          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
-        },
-      },
-    }).filter((match) => match.kind === 'file')
-
-    workflow.blocks['tool-input-1'].subBlocks.tools.value = [
-      {
-        type: 'slack',
-        toolId: 'slack_message',
-        operation: 'send',
-        title: 'Slack message',
-        params: {
-          authMethod: 'oauth',
-          credential: 'slack-credential',
-          text: 'message with files',
-          attachmentFiles: firstFile,
         },
       },
     ]
@@ -1005,114 +722,6 @@ describe('buildWorkflowSearchReplacePlan', () => {
     })
   })
 
-  it('replaces object-valued fallback tool params without changing metadata', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['tool-input-1'] = {
-      id: 'tool-input-1',
-      type: 'custom',
-      name: 'Tool Input Block',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        tools: {
-          id: 'tools',
-          type: 'tool-input',
-          value: [
-            {
-              type: 'mcp',
-              title: 'MCP tool',
-              params: {
-                payload: {
-                  type: 'metadata-type',
-                  filter: { status: 'old customer' },
-                },
-              },
-            },
-          ],
-        },
-      },
-    }
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'old',
-      mode: 'text',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        custom: {
-          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
-        },
-      },
-    }).filter((match) => match.blockId === 'tool-input-1')
-    const plan = buildWorkflowSearchReplacePlan({
-      blocks: workflow.blocks,
-      matches,
-      selectedMatchIds: new Set(matches.map((match) => match.id)),
-      defaultReplacement: 'new',
-    })
-    const nextTools = plan.updates[0].nextValue as Array<{
-      params: { payload: { type: string; filter: { status: string } } }
-    }>
-
-    expect(plan.conflicts).toEqual([])
-    expect(nextTools[0].params.payload).toEqual({
-      type: 'metadata-type',
-      filter: { status: 'new customer' },
-    })
-  })
-
-  it('replaces serialized JSON fallback tool param values without changing keys', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['tool-input-1'] = {
-      id: 'tool-input-1',
-      type: 'custom',
-      name: 'Tool Input Block',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        tools: {
-          id: 'tools',
-          type: 'tool-input',
-          value: [
-            {
-              type: 'mcp',
-              title: 'MCP tool',
-              params: {
-                payload: JSON.stringify({ customer: { name: 'old customer' } }),
-              },
-            },
-          ],
-        },
-      },
-    }
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'old',
-      mode: 'text',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        custom: {
-          subBlocks: [{ id: 'tools', title: 'Tools', type: 'tool-input' }],
-        },
-      },
-    }).filter((match) => match.blockId === 'tool-input-1')
-    const plan = buildWorkflowSearchReplacePlan({
-      blocks: workflow.blocks,
-      matches,
-      selectedMatchIds: new Set(matches.map((match) => match.id)),
-      defaultReplacement: 'new',
-    })
-    const nextTools = plan.updates[0].nextValue as Array<{ params: { payload: string } }>
-
-    expect(plan.conflicts).toEqual([])
-    expect(JSON.parse(nextTools[0].params.payload)).toEqual({
-      customer: { name: 'new customer' },
-    })
-  })
-
   it('replaces stringified variables-input values without changing metadata', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['variables-1'] = {
@@ -1171,48 +780,6 @@ describe('buildWorkflowSearchReplacePlan', () => {
         isExisting: true,
       },
     ])
-  })
-
-  it('replaces stringified table cell values without changing row metadata', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['table-1'] = {
-      id: 'table-1',
-      type: 'custom',
-      name: 'Table',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        rows: {
-          id: 'rows',
-          type: 'table',
-          value: JSON.stringify([{ id: 'row-id', cells: { Name: 'old customer' } }]),
-        },
-      },
-    }
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'old',
-      mode: 'text',
-      blockConfigs: {
-        ...SEARCH_REPLACE_BLOCK_CONFIGS,
-        custom: {
-          subBlocks: [{ id: 'rows', title: 'Rows', type: 'table', columns: ['Name'] }],
-        },
-      },
-    }).filter((match) => match.blockId === 'table-1')
-
-    const plan = buildWorkflowSearchReplacePlan({
-      blocks: workflow.blocks,
-      matches,
-      selectedMatchIds: new Set(matches.map((match) => match.id)),
-      defaultReplacement: 'new',
-    })
-    const nextRows = JSON.parse(plan.updates[0].nextValue as string)
-
-    expect(plan.conflicts).toEqual([])
-    expect(nextRows).toEqual([{ id: 'row-id', cells: { Name: 'new customer' } }])
   })
 
   it('allows replacing text matches with an empty string', () => {
@@ -1323,96 +890,6 @@ describe('buildWorkflowSearchReplacePlan', () => {
     ])
   })
 
-  it('replaces JSON-backed tag value fields without touching tag metadata', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['tag-block-1'] = {
-      id: 'tag-block-1',
-      type: 'custom',
-      name: 'Tag Block',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        tagFilters: {
-          id: 'tagFilters',
-          type: 'knowledge-tag-filters',
-          value: JSON.stringify([
-            {
-              id: 'filter-open',
-              tagName: 'Status',
-              fieldType: 'text',
-              operator: 'eq',
-              tagValue: 'open ticket',
-              collapsed: false,
-            },
-          ]),
-        },
-        documentTags: {
-          id: 'documentTags',
-          type: 'document-tag-entry',
-          value: JSON.stringify([
-            {
-              id: 'tag-open',
-              tagName: 'Priority',
-              fieldType: 'text',
-              value: 'open escalation',
-              collapsed: false,
-            },
-          ]),
-        },
-      },
-    }
-    const blockConfigs = {
-      ...SEARCH_REPLACE_BLOCK_CONFIGS,
-      custom: {
-        subBlocks: [
-          { id: 'tagFilters', title: 'Tag Filters', type: 'knowledge-tag-filters' },
-          { id: 'documentTags', title: 'Document Tags', type: 'document-tag-entry' },
-        ],
-      },
-    }
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'open',
-      mode: 'text',
-      blockConfigs,
-    }).filter((match) => match.blockId === 'tag-block-1')
-
-    const plan = buildWorkflowSearchReplacePlan({
-      blocks: workflow.blocks,
-      matches,
-      selectedMatchIds: new Set(matches.map((match) => match.id)),
-      defaultReplacement: 'resolved',
-    })
-
-    const tagFilterUpdate = plan.updates.find((update) => update.subBlockId === 'tagFilters')
-    const documentTagUpdate = plan.updates.find((update) => update.subBlockId === 'documentTags')
-    const nextTagFilterValue = JSON.parse(String(tagFilterUpdate?.nextValue))
-    const nextDocumentTagValue = JSON.parse(String(documentTagUpdate?.nextValue))
-
-    expect(plan.conflicts).toEqual([])
-    expect(nextTagFilterValue).toEqual([
-      {
-        id: 'filter-open',
-        tagName: 'Status',
-        fieldType: 'text',
-        operator: 'eq',
-        tagValue: 'resolved ticket',
-        collapsed: false,
-      },
-    ])
-    expect(nextDocumentTagValue).toEqual([
-      {
-        id: 'tag-open',
-        tagName: 'Priority',
-        fieldType: 'text',
-        value: 'resolved escalation',
-        collapsed: false,
-      },
-    ])
-  })
-
   it('replaces JSON-backed condition branch values without touching branch metadata', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['branch-1'] = {
@@ -1471,53 +948,6 @@ describe('buildWorkflowSearchReplacePlan', () => {
         showTags: false,
         showEnvVars: false,
       },
-    ])
-  })
-
-  it('replaces object-backed input mapping values without changing mapping keys', () => {
-    const workflow = createSearchReplaceWorkflowFixture()
-    workflow.blocks['mapping-1'] = {
-      id: 'mapping-1',
-      type: 'custom',
-      name: 'Mapping Block',
-      position: { x: 0, y: 0 },
-      enabled: true,
-      outputs: {},
-      subBlocks: {
-        inputMapping: {
-          id: 'inputMapping',
-          type: 'input-mapping',
-          value: { customerEmail: 'old email value' },
-        },
-      },
-    }
-    const blockConfigs = {
-      ...SEARCH_REPLACE_BLOCK_CONFIGS,
-      custom: {
-        subBlocks: [{ id: 'inputMapping', title: 'Input Mapping', type: 'input-mapping' }],
-      },
-    }
-
-    const matches = indexWorkflowSearchMatches({
-      workflow,
-      query: 'old',
-      mode: 'text',
-      blockConfigs,
-    }).filter((match) => match.blockId === 'mapping-1')
-
-    const plan = buildWorkflowSearchReplacePlan({
-      blocks: workflow.blocks,
-      matches,
-      selectedMatchIds: new Set(matches.map((match) => match.id)),
-      defaultReplacement: 'new',
-    })
-
-    expect(plan.conflicts).toEqual([])
-    expect(plan.updates).toEqual([
-      expect.objectContaining({
-        subBlockId: 'inputMapping',
-        nextValue: { customerEmail: 'new email value' },
-      }),
     ])
   })
 

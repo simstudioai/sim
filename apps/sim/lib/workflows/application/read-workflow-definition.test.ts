@@ -1,47 +1,39 @@
-/**
- * @vitest-environment node
- */
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
+import {
+  workflowsQueriesMock,
+  workflowsQueriesMockFns,
+} from '@sim/testing/mocks/workflows-queries.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadDeployed: vi.fn(),
-  loadSnapshot: vi.fn(),
-  resolveContext: vi.fn(),
-  resolvePermission: vi.fn(),
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveContext,
-}))
+vi.mock('@/lib/workflows/queries', () => workflowsQueriesMock)
 
-vi.mock('@/lib/workflows/queries', () => ({
-  loadWorkflowReadSnapshot: mocks.loadSnapshot,
-}))
-
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadDeployedWorkflowState: mocks.loadDeployed,
-  NoActiveDeploymentError: class NoActiveDeploymentError extends Error {},
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 import { readWorkflowDefinition } from '@/lib/workflows/application/read-workflow-definition'
 
+const mocks = {
+  loadSnapshot: workflowsQueriesMockFns.mockLoadWorkflowReadSnapshot,
+}
+
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockResolveContext = workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
+
 const WORKFLOW_ID = 'workflow-1'
 const WORKSPACE_ID = 'workspace-1'
-const principal = {
-  kind: 'session' as const,
-  userId: 'user-1',
-  sessionId: 'session-1',
-}
+const principal = createSessionPrincipal()
 const contextWorkflow = {
   id: WORKFLOW_ID,
   workspaceId: WORKSPACE_ID,
@@ -70,28 +62,15 @@ const draftState = {
 
 describe('readWorkflowDefinition', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.resolveContext.mockResolvedValue(context)
-    mocks.resolvePermission.mockResolvedValue('read')
+    mockResolveContext.mockResolvedValue(context)
+    mockResolvePermission.mockResolvedValue('read')
     mocks.loadSnapshot.mockResolvedValue({
       workflowRecord: snapshotWorkflow,
       normalizedData: draftState,
     })
-    mocks.loadDeployed.mockResolvedValue({ ...draftState, deploymentVersionId: 'version-1' })
-  })
-
-  it('returns the workflow row and draft state from one canonical snapshot', async () => {
-    const result = await readWorkflowDefinition.execute({
-      principal,
-      input: { workflowId: WORKFLOW_ID, state: 'draft' },
-    })
-
-    expect(mocks.loadSnapshot).toHaveBeenCalledWith(WORKFLOW_ID, WORKSPACE_ID)
-    expect(mocks.loadDeployed).not.toHaveBeenCalled()
-    expect(result).toEqual({
-      workflow: snapshotWorkflow,
-      workspaceId: WORKSPACE_ID,
-      state: draftState,
+    workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState.mockResolvedValue({
+      ...draftState,
+      deploymentVersionId: 'version-1',
     })
   })
 
@@ -112,7 +91,9 @@ describe('readWorkflowDefinition', () => {
 
   it('keeps deployed reads on the immutable deployment-state path', async () => {
     const deployedState = { ...draftState, deploymentVersionId: 'version-1' }
-    mocks.loadDeployed.mockResolvedValueOnce(deployedState)
+    workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState.mockResolvedValueOnce(
+      deployedState
+    )
 
     const result = await readWorkflowDefinition.execute({
       principal,
@@ -120,7 +101,10 @@ describe('readWorkflowDefinition', () => {
     })
 
     expect(mocks.loadSnapshot).not.toHaveBeenCalled()
-    expect(mocks.loadDeployed).toHaveBeenCalledWith(WORKFLOW_ID, WORKSPACE_ID)
+    expect(workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState).toHaveBeenCalledWith(
+      WORKFLOW_ID,
+      WORKSPACE_ID
+    )
     expect(result).toEqual({
       workflow: contextWorkflow,
       workspaceId: WORKSPACE_ID,

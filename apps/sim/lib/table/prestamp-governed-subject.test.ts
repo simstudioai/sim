@@ -1,30 +1,40 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import { tableEventsMock } from '@sim/testing/mocks/table-events.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  getTableById: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   writeWorkflowGroupState: vi.fn(),
   batchEnqueueAndWait: vi.fn(),
 }))
 
-vi.mock('@/lib/table/events', () => ({ appendTableEvent: vi.fn() }))
-vi.mock('@/lib/table/service', () => ({ getTableById: mocks.getTableById }))
+vi.mock('@/lib/table/events', () => tableEventsMock)
+vi.mock('@/lib/table/service', () => tableServiceMock)
 vi.mock('@/lib/table/cell-write', () => ({
-  writeWorkflowGroupState: mocks.writeWorkflowGroupState,
+  writeWorkflowGroupState: hoisted.writeWorkflowGroupState,
 }))
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionSnapshot: (snapshot: unknown) => snapshot,
-  resolveBillingAttribution: async () => ({ actorUserId: 'billing-owner' }),
-  resolveSystemBillingAttribution: async () => ({ actorUserId: null }),
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 vi.mock('@/lib/core/async-jobs/config', () => ({
-  getJobQueue: async () => ({ batchEnqueueAndWait: mocks.batchEnqueueAndWait }),
+  getJobQueue: async () => ({ batchEnqueueAndWait: hoisted.batchEnqueueAndWait }),
 }))
 
 import { dispatcherStep } from '@/lib/table/dispatcher'
+
+const mocks = {
+  ...hoisted,
+  getTableById: tableServiceMockFns.mockGetTableById,
+}
+
+billingAttributionMockFns.mockResolveBillingAttribution.mockResolvedValue({
+  actorUserId: 'billing-owner',
+})
+billingAttributionMockFns.mockResolveSystemBillingAttribution.mockResolvedValue({
+  actorUserId: null,
+})
 
 const GROUP = { id: 'group-1', workflowId: 'workflow-1', outputs: [] }
 
@@ -65,7 +75,6 @@ describe('the dispatcher pre-stamp', () => {
   }, 60_000)
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.getTableById.mockResolvedValue({
       id: 'table-1',

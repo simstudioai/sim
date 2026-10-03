@@ -5,6 +5,7 @@ import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { getCredentialActorContext, requireOrdinaryCredentialType } from '@/lib/credentials/access'
+import { credentialDelegationPolicy } from '@/lib/credentials/application/authorization'
 import {
   defineAuthorizedCredentialUseCase,
   requireManageableCredentialType,
@@ -21,13 +22,24 @@ import {
   deleteCredentialRecord,
 } from '@/lib/credentials/orchestration'
 import type { CredentialRow } from '@/lib/credentials/queries'
+import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
+import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
-export type CreateServiceAccountInput = Omit<
-  CreateServiceAccountCredentialParams,
-  'userId' | 'request'
->
+type InlineServiceAccountInput = Omit<CreateServiceAccountCredentialParams, 'userId' | 'request'>
+
+export interface StoredSlackBotCredentialInput {
+  workspaceId: string
+  displayName: string
+  description?: string
+  storedSlackSecrets: {
+    signingSecretEnvVar: string
+    botTokenEnvVar: string
+  }
+}
+
+export type CreateServiceAccountInput = InlineServiceAccountInput | StoredSlackBotCredentialInput
 
 export interface CreateServiceAccountResult {
   credential: CredentialRow
@@ -53,14 +65,44 @@ export const createServiceAccountCredentialUseCase = defineAuthorizedWorkspaceUs
     if (!context) throw new OrchestrationError('not_found', 'Workspace not found')
     return context
   },
-  authorizationOptions: {},
+  authorizationOptions: { delegation: credentialDelegationPolicy },
   async execute({ principal, input, context, request }): Promise<CreateServiceAccountResult> {
+    const stored = 'storedSlackSecrets' in input
+    if (principal.kind === 'delegated' && !stored) {
+      throw new OrchestrationError('validation', 'Copilot must reference existing Sim secrets')
+    }
     const catalog = await listCredentialProviderCatalog(principal, context)
-    requireAvailableServiceAccountCredentialProvider(catalog, input.providerId)
+    const providerId = stored ? SLACK_CUSTOM_BOT_PROVIDER_ID : input.providerId
+    requireAvailableServiceAccountCredentialProvider(catalog, providerId)
+    const userId = requirePrincipalSubjectUserId(principal)
+    let credentialInput: InlineServiceAccountInput
+    if (stored) {
+      const { signingSecretEnvVar, botTokenEnvVar } = input.storedSlackSecrets
+      const environment = await getEffectiveDecryptedEnv(userId, context.workspaceId)
+      const missing = [signingSecretEnvVar, botTokenEnvVar].filter(
+        (name) => !Object.hasOwn(environment, name) || !environment[name]
+      )
+      if (missing.length) {
+        throw new OrchestrationError(
+          'validation',
+          `Stored secrets unavailable: ${missing.join(', ')}`
+        )
+      }
+      credentialInput = {
+        workspaceId: context.workspaceId,
+        providerId,
+        displayName: input.displayName,
+        description: input.description,
+        signingSecret: environment[signingSecretEnvVar],
+        botToken: environment[botTokenEnvVar],
+      }
+    } else {
+      credentialInput = input
+    }
     const result = await createServiceAccountCredential({
-      ...input,
+      ...credentialInput,
       workspaceId: context.workspaceId,
-      userId: requirePrincipalSubjectUserId(principal),
+      userId,
       request,
     })
     if (!result.success) {

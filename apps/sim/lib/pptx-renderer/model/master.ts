@@ -41,27 +41,27 @@ function extractPlaceholders(spTree: SafeXmlNode): SafeXmlNode[] {
 export function parseMaster(root: SafeXmlNode): MasterData {
   const cSld = root.child('cSld')
 
-  // --- Background ---
+  // Background
   const bg = cSld.child('bg')
   const background = bg.exists() ? bg : undefined
 
-  // --- Shape tree ---
+  // Shape tree
   const spTree = cSld.child('spTree')
 
-  // --- Color map ---
+  // Color map
   const clrMap = root.child('clrMap')
   const colorMap = parseAllAttributes(clrMap)
 
-  // --- Text styles ---
+  // Text styles
   const txStyles = root.child('txStyles')
   const titleStyle = txStyles.child('titleStyle')
   const bodyStyle = txStyles.child('bodyStyle')
   const otherStyle = txStyles.child('otherStyle')
 
-  // --- Default text style ---
+  // Default text style
   const defaultTextStyle = root.child('defaultTextStyle')
 
-  // --- Placeholders ---
+  // Placeholders
   const placeholders = extractPlaceholders(spTree)
 
   return {

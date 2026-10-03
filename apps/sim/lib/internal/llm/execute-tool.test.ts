@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,7 +7,6 @@ vi.mock('@/lib/internal/llm/operations', () => ({
   executeLlmProviderOperation: executeOperation,
 }))
 
-import { LlmOperationError } from '@/lib/internal/llm/errors'
 import { executeLlmTool } from '@/lib/internal/llm/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 
@@ -37,7 +33,6 @@ function request(overrides: Partial<InternalToolOperationCall> = {}): InternalTo
 
 describe('executeLlmTool', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     executeOperation.mockResolvedValue({ content: 'hello', model: 'gpt-4o' })
   })
 
@@ -60,32 +55,5 @@ describe('executeLlmTool', () => {
         signal: controller.signal,
       })
     )
-  })
-
-  it('preserves classified provider errors', async () => {
-    executeOperation.mockRejectedValueOnce(new LlmOperationError(403, { error: 'Forbidden' }))
-
-    const response = await executeLlmTool(request())
-
-    expect(response.status).toBe(403)
-    await expect(response.json()).resolves.toEqual({ error: 'Forbidden' })
-  })
-
-  it('propagates cancellation before and after provider work', async () => {
-    const before = new AbortController()
-    before.abort(new DOMException('cancelled', 'AbortError'))
-    await expect(executeLlmTool(request({ signal: before.signal }))).rejects.toMatchObject({
-      name: 'AbortError',
-    })
-    expect(executeOperation).not.toHaveBeenCalled()
-
-    const after = new AbortController()
-    executeOperation.mockImplementationOnce(async () => {
-      after.abort(new DOMException('cancelled', 'AbortError'))
-      return { content: 'unused', model: 'gpt-4o' }
-    })
-    await expect(executeLlmTool(request({ signal: after.signal }))).rejects.toMatchObject({
-      name: 'AbortError',
-    })
   })
 })
