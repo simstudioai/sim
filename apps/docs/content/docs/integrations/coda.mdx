@@ -409,6 +409,10 @@ Get the type and current value of a control in a Coda doc
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `control` | object | Control details |
+|   ↳ `id` | string | ID |
+|   ↳ `name` | string | Name |
+|   ↳ `href` | string | API link |
+|   ↳ `parent` | object (nullable) | Page containing the item |
 |   ↳ `controlType` | string (nullable) | Control type \(aiBlock, button, checkbox, datePicker, dateRangePicker, dateTimePicker, lookup, multiselect, select, scale, slider, reaction, textbox, timePicker\) |
 |   ↳ `value` | json (nullable) | Current value \(string, number, boolean, or array of these\) |
 
@@ -496,6 +500,10 @@ Get the current computed value of a named formula in a Coda doc
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `formula` | object | Formula details |
+|   ↳ `id` | string | ID |
+|   ↳ `name` | string | Name |
+|   ↳ `href` | string | API link |
+|   ↳ `parent` | object (nullable) | Page containing the item |
 |   ↳ `value` | json (nullable) | Computed value \(string, number, boolean, or array of these\) |
 
 ### Coda Get Mutation Status
@@ -738,6 +746,13 @@ Get per-day or cumulative analytics (views, copies, likes, sessions by device, A
 | --------- | ---- | ----------- |
 | `items` | array | Analytics per doc |
 |   ↳ `doc` | object | Doc the metrics belong to |
+|     ↳ `id` | string | Doc ID |
+|     ↳ `title` | string | Doc title |
+|     ↳ `href` | string | API link to the doc |
+|     ↳ `browserLink` | string | Browser link to the doc |
+|     ↳ `icon` | object (nullable) | Doc icon |
+|     ↳ `createdAt` | string (nullable) | Doc creation time |
+|     ↳ `publishedAt` | string (nullable) | Doc publish time |
 |   ↳ `metrics` | array | Metrics per date |
 |     ↳ `date` | string (nullable) | Date of the data \(YYYY-MM-DD\) |
 |     ↳ `views` | number (nullable) | Doc views |
@@ -856,6 +871,9 @@ Get daily analytics (views, sessions, users, time viewed) for each page of a Cod
 | --------- | ---- | ----------- |
 | `items` | array | Analytics per page |
 |   ↳ `page` | object | Page the metrics belong to |
+|     ↳ `id` | string | Page ID |
+|     ↳ `name` | string | Page name |
+|     ↳ `icon` | object (nullable) | Page icon |
 |   ↳ `metrics` | array | Metrics per date |
 |     ↳ `date` | string (nullable) | Date of the data \(YYYY-MM-DD\) |
 |     ↳ `views` | number (nullable) | Page views that day |

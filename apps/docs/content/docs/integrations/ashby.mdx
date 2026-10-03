@@ -1458,6 +1458,15 @@ Lists interview schedules in Ashby, optionally filtered by application or interv
 |   ↳ `status` | string | Schedule status \(NeedsScheduling, WaitingOnCandidateBooking, Scheduled, Complete, Cancelled, OnHold, etc.\) |
 |   ↳ `applicationId` | string | Associated application UUID |
 |   ↳ `interviewStageId` | string | Interview stage UUID |
+|   ↳ `scheduledBy` | object | User summary |
+|     ↳ `id` | string | User UUID |
+|     ↳ `firstName` | string | First name |
+|     ↳ `lastName` | string | Last name |
+|     ↳ `email` | string | Email |
+|     ↳ `globalRole` | string | Role |
+|     ↳ `isEnabled` | boolean | Whether enabled |
+|     ↳ `updatedAt` | string | Last update timestamp |
+|     ↳ `managerId` | string | User ID of the user's manager |
 |   ↳ `createdAt` | string | ISO 8601 creation timestamp |
 |   ↳ `updatedAt` | string | ISO 8601 last update timestamp |
 |   ↳ `interviewEvents` | array | Scheduled interview events on this schedule |
@@ -2004,12 +2013,7 @@ Sets several custom field values on one Ashby Application, Candidate, Job, or Op
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `customFields` | array | The custom fields as stored on the object after the write |
-|   ↳ `id` | string | Custom field UUID |
-|   ↳ `title` | string | Field title |
-|   ↳ `isPrivate` | boolean | Whether the field is private |
-|   ↳ `valueLabel` | json | Human-readable value label, present only for ValueSelect and MultiValueSelect fields. A string for ValueSelect, an array of strings for MultiValueSelect. |
-|   ↳ `value` | string | Raw field value \(type depends on fieldType\) |
+| `customFields` | array | Custom field values |
 
 ### Ashby Update Candidate
 

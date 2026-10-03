@@ -250,29 +250,6 @@ List customers from SAP S/4HANA Cloud (API_BUSINESS_PARTNER, A_Customer) with op
 | --------- | ---- | ----------- |
 | `status` | number | HTTP status code returned by SAP |
 | `data` | json | Array of A_Customer entities, or `\{ results, __count?, __next? \}` when pagination metadata is present \(the integration unwraps the OData v2 `d` envelope\). Properties below describe each customer item. |
-|   ↳ `Customer` | string | Customer key \(up to 10 characters\) |
-|   ↳ `CustomerName` | string | Name of customer |
-|   ↳ `CustomerFullName` | string | Full name of the customer |
-|   ↳ `CustomerAccountGroup` | string | Customer account group |
-|   ↳ `CustomerClassification` | string | Customer classification code |
-|   ↳ `CustomerCorporateGroup` | string | Corporate group code |
-|   ↳ `AuthorizationGroup` | string | Authorization group |
-|   ↳ `Supplier` | string | Linked supplier account number |
-|   ↳ `FiscalAddress` | string | Fiscal address ID |
-|   ↳ `Industry` | string | Industry key |
-|   ↳ `NielsenRegion` | string | Nielsen ID |
-|   ↳ `ResponsibleType` | string | Responsible type |
-|   ↳ `NFPartnerIsNaturalPerson` | string | Natural person indicator |
-|   ↳ `InternationalLocationNumber1` | string | International location number 1 |
-|   ↳ `TaxNumberType` | string | Tax number type |
-|   ↳ `VATRegistration` | string | VAT registration number |
-|   ↳ `DeletionIndicator` | boolean | Central deletion flag |
-|   ↳ `OrderIsBlockedForCustomer` | string | Central order block reason code |
-|   ↳ `PostingIsBlocked` | boolean | Central posting block flag |
-|   ↳ `DeliveryIsBlocked` | string | Central delivery block reason code |
-|   ↳ `BillingIsBlockedForCustomer` | string | Central billing block reason code |
-|   ↳ `CreationDate` | string | Creation date \(OData v2 epoch\) |
-|   ↳ `CreatedByUser` | string | User who created the customer |
 
 ### SAP S/4HANA Get Customer
 

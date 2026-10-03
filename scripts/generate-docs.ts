@@ -2914,13 +2914,7 @@ export function parseConstProperties(
         const propContent = content.substring(startPos + 1, endPos - 1).trim()
         // If it starts with 'type:', it's an output field definition - process it
         if (propContent.match(/^\s*type\s*:/)) {
-          const parsedProp = parseConstFieldContent(
-            propContent,
-            toolPrefix,
-            typesContent,
-            depth,
-            propName
-          )
+          const parsedProp = parseConstFieldContent(propContent, toolPrefix, typesContent, depth)
           if (parsedProp) {
             properties[propName] = parsedProp
           }
@@ -2942,13 +2936,7 @@ export function parseConstProperties(
 
       if (endPos !== -1) {
         const propContent = content.substring(startPos + 1, endPos - 1).trim()
-        const parsedProp = parseConstFieldContent(
-          propContent,
-          toolPrefix,
-          typesContent,
-          depth,
-          propName
-        )
+        const parsedProp = parseConstFieldContent(propContent, toolPrefix, typesContent, depth)
         if (parsedProp) {
           properties[propName] = parsedProp
         }
@@ -3031,8 +3019,7 @@ function parseConstFieldContent(
   fieldContent: string,
   toolPrefix: string,
   typesContent: string,
-  depth: number,
-  propertyName?: string
+  depth: number
 ): any {
   const typeMatch = fieldContent.match(/type\s*:\s*['"]([^'"]+)['"]/)
   const description = extractDescription(fieldContent)
@@ -3050,7 +3037,7 @@ function parseConstFieldContent(
   }
 
   if (fieldType === 'object' || fieldType === 'json') {
-    const propsConstMatch = matchSchemaKeyword(fieldContent, propertyName, PROPERTIES_CONST_PATTERN)
+    const propsConstMatch = matchSchemaKeyword(fieldContent, PROPERTIES_CONST_PATTERN)
     if (propsConstMatch) {
       const resolvedProps = resolveConstFromTypesContent(
         propsConstMatch[1],
@@ -3062,11 +3049,7 @@ function parseConstFieldContent(
         result.properties = resolvedProps
       }
     } else {
-      const propertiesStart = findSchemaKeyword(
-        fieldContent,
-        propertyName,
-        PROPERTIES_INLINE_PATTERN
-      )
+      const propertiesStart = findSchemaKeyword(fieldContent, PROPERTIES_INLINE_PATTERN)
       if (propertiesStart !== -1) {
         const braceStart = fieldContent.indexOf('{', propertiesStart)
         const braceEnd = findMatchingClose(fieldContent, braceStart)
@@ -3084,7 +3067,7 @@ function parseConstFieldContent(
     }
   }
 
-  const itemsConstMatch = matchSchemaKeyword(fieldContent, propertyName, ITEMS_CONST_PATTERN)
+  const itemsConstMatch = matchSchemaKeyword(fieldContent, ITEMS_CONST_PATTERN)
   if (itemsConstMatch) {
     const resolvedItems = resolveConstFromTypesContent(
       itemsConstMatch[1],
@@ -3096,7 +3079,7 @@ function parseConstFieldContent(
       result.items = resolvedItems
     }
   } else {
-    const itemsStart = findSchemaKeyword(fieldContent, propertyName, ITEMS_INLINE_PATTERN)
+    const itemsStart = findSchemaKeyword(fieldContent, ITEMS_INLINE_PATTERN)
     if (itemsStart !== -1) {
       const braceStart = fieldContent.indexOf('{', itemsStart)
       const braceEnd = findMatchingClose(fieldContent, braceStart)
@@ -3159,9 +3142,14 @@ function parseConstFieldContent(
 /**
  * Extract outputs from a tool content block by trying:
  * 1. Const reference (e.g., `outputs: GIT_REF_OUTPUT_PROPERTIES,`)
- * 2. Inline object (e.g., `outputs: { id: { type: 'string', ... } }`)
+ * 2. Inline object (e.g., `outputs: { id: { type: 'string', ... } }`), with `...sharedConst`
+ *    spreads inlined by `expandSpreads` when the caller can resolve them
  */
-function extractOutputsFromToolContent(content: string, toolPrefix: string): Record<string, any> {
+function extractOutputsFromToolContent(
+  content: string,
+  toolPrefix: string,
+  expandSpreads: (body: string) => string = (body) => body
+): Record<string, any> {
   const constMatch = content.match(/(?<![a-zA-Z_])outputs\s*:\s*([A-Z][A-Z_0-9]+)\s*(?:,|\}|$)/)
   if (constMatch) {
     const resolved = resolveConstReference(constMatch[1], toolPrefix)
@@ -3177,7 +3165,7 @@ function extractOutputsFromToolContent(content: string, toolPrefix: string): Rec
       const closePos = findMatchingClose(content, openBracePos)
       if (closePos !== -1) {
         const outputsContent = content.substring(openBracePos + 1, closePos - 1).trim()
-        return parseToolOutputsField(outputsContent, toolPrefix)
+        return parseToolOutputsField(expandSpreads(outputsContent), toolPrefix)
       }
     }
   }
@@ -3525,7 +3513,9 @@ export function extractToolInfo(
 
     const toolPrefix = getToolPrefixFromName(toolName)
 
-    let outputs = extractOutputsFromToolContent(toolContent, toolPrefix)
+    const expandOutputSpreads = (body: string) =>
+      expandSpreadConsts(body, fileContent, toolFilePath, rootDir)
+    let outputs = extractOutputsFromToolContent(toolContent, toolPrefix, expandOutputSpreads)
 
     // If no outputs found, check for spread inheritance (e.g., "...extendParserTool")
     // toolContent may be narrowed past the spread line, so reconstruct the full block
@@ -3559,7 +3549,11 @@ export function extractToolInfo(
           const endIdx = findMatchingClose(fileContent, baseStart)
           if (endIdx !== -1) {
             const baseToolContent = fileContent.substring(baseStart, endIdx)
-            outputs = extractOutputsFromToolContent(baseToolContent, toolPrefix)
+            outputs = extractOutputsFromToolContent(
+              baseToolContent,
+              toolPrefix,
+              expandOutputSpreads
+            )
           }
         }
       }
@@ -3792,25 +3786,15 @@ const PROPERTIES_INLINE_PATTERN = /properties\s*:\s*{/
 const ITEMS_CONST_PATTERN = /items\s*:\s*([A-Z][A-Z_0-9]+)/
 const ITEMS_INLINE_PATTERN = /items\s*:\s*{/
 
-function matchSchemaKeyword(
-  content: string,
-  propertyName: string | undefined,
-  pattern: RegExp
-): RegExpExecArray | null {
-  return propertyName === 'items' ? findTopLevelMatch(content, pattern) : content.match(pattern)
+function matchSchemaKeyword(content: string, pattern: RegExp): RegExpExecArray | null {
+  return findTopLevelMatch(content, pattern)
 }
 
-function findSchemaKeyword(
-  content: string,
-  propertyName: string | undefined,
-  pattern: RegExp
-): number {
-  return propertyName === 'items'
-    ? (findTopLevelMatch(content, pattern)?.index ?? -1)
-    : content.search(pattern)
+function findSchemaKeyword(content: string, pattern: RegExp): number {
+  return findTopLevelMatch(content, pattern)?.index ?? -1
 }
 
-function parseFieldContent(fieldContent: string, toolPrefix?: string, propertyName?: string): any {
+function parseFieldContent(fieldContent: string, toolPrefix?: string): any {
   // Only match `type:` that is at the top level of fieldContent (depth 0).
   // Child objects like `title: { type: 'string', ... }` also contain `type:` but at depth 1.
   const typeRegex = /type\s*:\s*['"]([^'"]+)['"]/g
@@ -3872,18 +3856,14 @@ function parseFieldContent(fieldContent: string, toolPrefix?: string, propertyNa
 
   if (fieldType === 'object' || fieldType === 'json') {
     // Check for const reference first (e.g., properties: SCHEDULE_DATA_OUTPUT_PROPERTIES)
-    const propsConstMatch = matchSchemaKeyword(fieldContent, propertyName, PROPERTIES_CONST_PATTERN)
+    const propsConstMatch = matchSchemaKeyword(fieldContent, PROPERTIES_CONST_PATTERN)
     if (propsConstMatch && toolPrefix) {
       const resolvedProps = resolveConstReference(propsConstMatch[1], toolPrefix)
       if (resolvedProps) {
         result.properties = resolvedProps
       }
     } else {
-      const propertiesStart = findSchemaKeyword(
-        fieldContent,
-        propertyName,
-        PROPERTIES_INLINE_PATTERN
-      )
+      const propertiesStart = findSchemaKeyword(fieldContent, PROPERTIES_INLINE_PATTERN)
 
       if (propertiesStart !== -1) {
         const braceStart = fieldContent.indexOf('{', propertiesStart)
@@ -3898,14 +3878,14 @@ function parseFieldContent(fieldContent: string, toolPrefix?: string, propertyNa
   }
 
   // Check for items const reference (e.g., items: ATTENDEES_OUTPUT)
-  const itemsConstMatch = matchSchemaKeyword(fieldContent, propertyName, ITEMS_CONST_PATTERN)
+  const itemsConstMatch = matchSchemaKeyword(fieldContent, ITEMS_CONST_PATTERN)
   if (itemsConstMatch && toolPrefix) {
     const resolvedItems = resolveConstReference(itemsConstMatch[1], toolPrefix)
     if (resolvedItems) {
       result.items = resolvedItems
     }
   } else {
-    const itemsStart = findSchemaKeyword(fieldContent, propertyName, ITEMS_INLINE_PATTERN)
+    const itemsStart = findSchemaKeyword(fieldContent, ITEMS_INLINE_PATTERN)
 
     if (itemsStart !== -1) {
       const braceStart = fieldContent.indexOf('{', itemsStart)
@@ -4101,7 +4081,7 @@ export function parsePropertiesContent(
   }
 
   propPositions.forEach((prop) => {
-    const parsedProp = parseFieldContent(prop.content, toolPrefix, prop.name)
+    const parsedProp = parseFieldContent(prop.content, toolPrefix)
     if (parsedProp) {
       properties[prop.name] = parsedProp
     }

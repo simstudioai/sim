@@ -125,10 +125,10 @@ Create comments on GitHub PRs
 | `id` | number | Comment ID |
 | `body` | string | Comment body |
 | `html_url` | string | GitHub web URL |
-| `path` | string | File path \(for file comments\) |
-| `line` | number | Line number \(for file comments\) |
-| `side` | string | Side \(LEFT/RIGHT for diff comments\) |
-| `commit_id` | string | Commit SHA |
+| `path` | string | File path \(if file comment\) |
+| `line` | number | Line number |
+| `side` | string | Diff side |
+| `commit_id` | string | Commit ID |
 | `created_at` | string | Creation timestamp |
 | `updated_at` | string | Last update timestamp |
 
@@ -916,10 +916,10 @@ Get detailed information about a specific branch in a GitHub repository, includi
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `name` | string | Branch name |
 | `commit` | object | Commit reference info |
 |   ↳ `sha` | string | Commit SHA |
 |   ↳ `url` | string | Commit API URL |
+| `name` | string | Branch name |
 | `protected` | boolean | Whether branch is protected |
 | `protection` | json | Protection settings object |
 | `protection_url` | string | URL to protection settings |
@@ -1191,13 +1191,52 @@ List issues in a GitHub repository. Note: This includes pull requests as PRs are
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `items` | array | Array of issue objects from GitHub API |
-|   ↳ `id` | number | Label ID |
-|   ↳ `node_id` | string | GraphQL node ID |
-|   ↳ `url` | string | API URL |
-|   ↳ `name` | string | Label name |
-|   ↳ `description` | string | Label description |
-|   ↳ `color` | string | Hex color code \(without #\) |
-|   ↳ `default` | boolean | Whether this is a default label |
+|   ↳ `user` | object | GitHub user object |
+|     ↳ `login` | string | GitHub username |
+|     ↳ `id` | number | User ID |
+|     ↳ `avatar_url` | string | Avatar image URL |
+|     ↳ `html_url` | string | Profile URL |
+|     ↳ `type` | string | Account type \(User or Organization\) |
+|   ↳ `id` | number | Issue ID |
+|   ↳ `number` | number | Issue number |
+|   ↳ `title` | string | Issue title |
+|   ↳ `state` | string | Issue state \(open/closed\) |
+|   ↳ `html_url` | string | GitHub web URL |
+|   ↳ `body` | string | Issue body/description |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `closed_at` | string | Close timestamp |
+|   ↳ `state_reason` | string | State reason \(completed/not_planned\) |
+|   ↳ `labels` | array | Array of label objects |
+|     ↳ `id` | number | Label ID |
+|     ↳ `node_id` | string | GraphQL node ID |
+|     ↳ `url` | string | API URL |
+|     ↳ `name` | string | Label name |
+|     ↳ `description` | string | Label description |
+|     ↳ `color` | string | Hex color code \(without #\) |
+|     ↳ `default` | boolean | Whether this is a default label |
+|   ↳ `assignees` | array | Array of assignee objects |
+|     ↳ `login` | string | GitHub username |
+|     ↳ `id` | number | User ID |
+|     ↳ `avatar_url` | string | Avatar image URL |
+|     ↳ `html_url` | string | Profile URL |
+|     ↳ `type` | string | Account type \(User or Organization\) |
+|   ↳ `milestone` | object | GitHub milestone object |
+|     ↳ `id` | number | Milestone ID |
+|     ↳ `node_id` | string | GraphQL node ID |
+|     ↳ `number` | number | Milestone number |
+|     ↳ `title` | string | Milestone title |
+|     ↳ `description` | string | Milestone description |
+|     ↳ `state` | string | State \(open or closed\) |
+|     ↳ `url` | string | API URL |
+|     ↳ `html_url` | string | GitHub web URL |
+|     ↳ `labels_url` | string | Labels API URL |
+|     ↳ `due_on` | string | Due date \(ISO 8601\) |
+|     ↳ `open_issues` | number | Number of open issues |
+|     ↳ `closed_issues` | number | Number of closed issues |
+|     ↳ `created_at` | string | Creation timestamp |
+|     ↳ `updated_at` | string | Last update timestamp |
+|     ↳ `closed_at` | string | Close timestamp |
 | `count` | number | Number of issues returned |
 
 ### GitHub Get Issue
@@ -1263,7 +1302,7 @@ Get detailed information about a specific issue in a GitHub repository
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
 |   ↳ `closed_at` | string | Close timestamp |
-| `closed_by` | object | User who closed the issue |
+| `closed_by` | object | GitHub user object |
 |   ↳ `login` | string | GitHub username |
 |   ↳ `id` | number | User ID |
 |   ↳ `avatar_url` | string | Avatar image URL |
@@ -1303,7 +1342,7 @@ Close an issue in a GitHub repository
 | `created_at` | string | Creation timestamp |
 | `updated_at` | string | Last update timestamp |
 | `closed_at` | string | Close timestamp |
-| `state_reason` | string | State reason \(completed/not_planned\) |
+| `state_reason` | string | Reason for closing |
 | `labels` | array | Array of label objects |
 |   ↳ `id` | number | Label ID |
 |   ↳ `node_id` | string | GraphQL node ID |
@@ -1816,9 +1855,42 @@ List workflow runs for a repository, or for a single workflow when a workflow ID
 | --------- | ---- | ----------- |
 | `total_count` | number | Total number of workflow runs |
 | `items` | array | Array of workflow run objects |
-|   ↳ `id` | number | Pull request ID |
-|   ↳ `number` | number | Pull request number |
-|   ↳ `url` | string | API URL |
+|   ↳ `triggering_actor` | object | GitHub user object |
+|     ↳ `login` | string | GitHub username |
+|     ↳ `id` | number | User ID |
+|     ↳ `avatar_url` | string | Avatar image URL |
+|     ↳ `html_url` | string | Profile URL |
+|     ↳ `type` | string | Account type \(User or Organization\) |
+|   ↳ `head_commit` | object | Head commit information |
+|     ↳ `id` | string | Commit SHA |
+|     ↳ `tree_id` | string | Tree SHA |
+|     ↳ `message` | string | Commit message |
+|     ↳ `timestamp` | string | Commit timestamp |
+|   ↳ `id` | number | Workflow run ID |
+|   ↳ `name` | string | Workflow name |
+|   ↳ `head_branch` | string | Head branch name |
+|   ↳ `head_sha` | string | Head commit SHA |
+|   ↳ `run_number` | number | Run number |
+|   ↳ `run_attempt` | number | Run attempt number |
+|   ↳ `event` | string | Event that triggered the run |
+|   ↳ `status` | string | Run status \(queued/in_progress/completed\) |
+|   ↳ `conclusion` | string | Run conclusion \(success/failure/cancelled/etc\) |
+|   ↳ `workflow_id` | number | Associated workflow ID |
+|   ↳ `html_url` | string | GitHub web URL |
+|   ↳ `logs_url` | string | Logs download URL |
+|   ↳ `jobs_url` | string | Jobs API URL |
+|   ↳ `artifacts_url` | string | Artifacts API URL |
+|   ↳ `run_started_at` | string | Run start timestamp |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `pull_requests` | array | Associated pull requests |
+|     ↳ `id` | number | Pull request ID |
+|     ↳ `number` | number | Pull request number |
+|     ↳ `url` | string | API URL |
+|   ↳ `referenced_workflows` | array | Referenced workflows |
+|     ↳ `path` | string | Path to referenced workflow |
+|     ↳ `sha` | string | Commit SHA of referenced workflow |
+|     ↳ `ref` | string | Git ref of referenced workflow |
 
 ### GitHub Get Workflow Run
 
@@ -2708,13 +2780,6 @@ Get a gist by ID including its file contents
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `files` | object | Files in the gist \(keyed by filename\) |
-|   ↳ `filename` | string | File name |
-|   ↳ `type` | string | MIME type |
-|   ↳ `language` | string | Programming language |
-|   ↳ `raw_url` | string | Raw file URL |
-|   ↳ `size` | number | File size in bytes |
-|   ↳ `truncated` | boolean | Whether content is truncated |
-|   ↳ `content` | string | File content |
 | `owner` | object | Gist owner |
 |   ↳ `login` | string | Username |
 |   ↳ `id` | number | User ID |
@@ -2760,13 +2825,6 @@ List gists for a user or the authenticated user
 | --------- | ---- | ----------- |
 | `items` | array | Array of gist objects from GitHub API |
 |   ↳ `files` | object | Files in the gist \(keyed by filename\) |
-|     ↳ `filename` | string | File name |
-|     ↳ `type` | string | MIME type |
-|     ↳ `language` | string | Programming language |
-|     ↳ `raw_url` | string | Raw file URL |
-|     ↳ `size` | number | File size in bytes |
-|     ↳ `truncated` | boolean | Whether content is truncated |
-|     ↳ `content` | string | File content |
 |   ↳ `owner` | object | Gist owner |
 |     ↳ `login` | string | Username |
 |     ↳ `id` | number | User ID |
@@ -2958,8 +3016,13 @@ Fork a repository to your account or an organization
 |   ↳ `type` | string | User or Organization |
 |   ↳ `site_admin` | boolean | GitHub staff indicator |
 | `parent` | object | Parent repository \(source of the fork\) |
-|   ↳ `login` | string | Username |
-|   ↳ `id` | number | User ID |
+|   ↳ `id` | number | Repository ID |
+|   ↳ `full_name` | string | Full name |
+|   ↳ `html_url` | string | Web URL |
+|   ↳ `description` | string | Description |
+|   ↳ `owner` | object | Parent owner |
+|     ↳ `login` | string | Username |
+|     ↳ `id` | number | User ID |
 | `source` | object | Source repository \(ultimate origin\) |
 |   ↳ `id` | number | Repository ID |
 |   ↳ `full_name` | string | Full name |

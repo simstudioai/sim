@@ -55,7 +55,9 @@ Create a new product in your Shopify store
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
 |   ↳ `variants` | object | Product variants with edges/nodes structure |
+|     ↳ `edges` | array | Array of variant edges |
 |   ↳ `images` | object | Product images with edges/nodes structure |
+|     ↳ `edges` | array | Array of image edges |
 
 ### Shopify Get Product
 
@@ -84,7 +86,9 @@ Get a single product by ID from your Shopify store
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
 |   ↳ `variants` | object | Product variants with edges/nodes structure |
+|     ↳ `edges` | array | Array of variant edges |
 |   ↳ `images` | object | Product images with edges/nodes structure |
+|     ↳ `edges` | array | Array of image edges |
 
 ### Shopify List Products
 
@@ -114,7 +118,9 @@ List products from your Shopify store with optional filtering
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
 |   ↳ `variants` | object | Product variants with edges/nodes structure |
+|     ↳ `edges` | array | Array of variant edges |
 |   ↳ `images` | object | Product images with edges/nodes structure |
+|     ↳ `edges` | array | Array of image edges |
 | `pageInfo` | object | Pagination information |
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
@@ -152,7 +158,9 @@ Update an existing product in your Shopify store
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last modification timestamp \(ISO 8601\) |
 |   ↳ `variants` | object | Product variants with edges/nodes structure |
+|     ↳ `edges` | array | Array of variant edges |
 |   ↳ `images` | object | Product images with edges/nodes structure |
+|     ↳ `edges` | array | Array of image edges |
 
 ### Shopify Delete Product
 
@@ -205,6 +213,7 @@ Get a single order by ID from your Shopify store
 |   ↳ `tags` | array | Order tags |
 |   ↳ `customer` | object | Customer who placed the order |
 |   ↳ `lineItems` | object | Order line items with edges/nodes structure |
+|     ↳ `edges` | array | Array of line item edges |
 |   ↳ `shippingAddress` | object | Shipping address |
 |   ↳ `billingAddress` | object | Billing address |
 |   ↳ `fulfillments` | array | Order fulfillments |
@@ -245,6 +254,7 @@ List orders from your Shopify store with optional filtering
 |   ↳ `tags` | array | Order tags |
 |   ↳ `customer` | object | Customer who placed the order |
 |   ↳ `lineItems` | object | Order line items with edges/nodes structure |
+|     ↳ `edges` | array | Array of line item edges |
 |   ↳ `shippingAddress` | object | Shipping address |
 |   ↳ `billingAddress` | object | Billing address |
 |   ↳ `fulfillments` | array | Order fulfillments |
@@ -289,6 +299,7 @@ Update an existing order in your Shopify store (note, tags, email)
 |   ↳ `tags` | array | Order tags |
 |   ↳ `customer` | object | Customer who placed the order |
 |   ↳ `lineItems` | object | Order line items with edges/nodes structure |
+|     ↳ `edges` | array | Array of line item edges |
 |   ↳ `shippingAddress` | object | Shipping address |
 |   ↳ `billingAddress` | object | Billing address |
 |   ↳ `fulfillments` | array | Order fulfillments |

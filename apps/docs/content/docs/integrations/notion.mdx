@@ -164,8 +164,17 @@ Query and filter Notion database entries with advanced filtering
 |     ↳ `workspace` | boolean | True if parent is workspace \(if type is workspace\) |
 |     ↳ `block_id` | string | Parent block UUID \(if type is block_id\) |
 |   ↳ `icon` | object | Page/database icon \(emoji, custom_emoji, or file\) |
-|     ↳ `url` | string | Authenticated URL valid for one hour |
-|     ↳ `expiry_time` | string | ISO 8601 timestamp when URL expires |
+|     ↳ `type` | string | Icon type: "emoji", "custom_emoji", or "file" |
+|     ↳ `emoji` | string | Emoji character \(if type is emoji\) |
+|     ↳ `custom_emoji` | object | Custom emoji object \(if type is custom_emoji\) |
+|       ↳ `id` | string | Custom emoji UUID |
+|       ↳ `name` | string | Custom emoji name |
+|       ↳ `url` | string | URL to custom emoji image |
+|     ↳ `file` | object | Notion-hosted file \(if type is file\) |
+|       ↳ `url` | string | Authenticated URL valid for one hour |
+|       ↳ `expiry_time` | string | ISO 8601 timestamp when URL expires |
+|     ↳ `external` | object | External file \(if type is external\) |
+|       ↳ `url` | string | External file URL \(never expires\) |
 |   ↳ `cover` | object | Page/database cover image |
 |     ↳ `type` | string | File type: "file", "file_upload", or "external" |
 |     ↳ `file` | object | Notion-hosted file object \(when type is "file"\) |

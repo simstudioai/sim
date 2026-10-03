@@ -98,6 +98,20 @@ describe('documentation tool metadata', () => {
     expect(outputs.user).toMatchObject({ type: 'object', nullable: false })
   })
 
+  it('preserves inline fields alongside spread children with properties constants', async () => {
+    const [block] = extractAllBlockConfigs(
+      fs.readFileSync(path.resolve('apps/sim/blocks/blocks/coda.ts'), 'utf-8')
+    )
+    const markdown = await generateMarkdownForBlock({
+      ...block,
+      tools: { access: ['coda_get_control', 'coda_get_formula'] },
+    })
+
+    expect(markdown).toContain('|   ↳ `controlType` | string (nullable) |')
+    expect(markdown).toContain('|   ↳ `value` | json (nullable) | Current value')
+    expect(markdown).toContain('|   ↳ `value` | json (nullable) | Computed value')
+  })
+
   it('preserves a satisfies block and replaces only the versioned download operation', () => {
     const [block] = extractAllBlockConfigs(`
       export const DownloadBlock = ({
@@ -306,6 +320,32 @@ describe('documentation output property parsing', () => {
       type: 'number',
       description: 'Number of items in the vault',
     })
+  })
+
+  it('inlines a shared output group spread into the outputs object', () => {
+    const source = `
+      const SHARED_OUTPUTS = {
+        sources: { type: 'array', description: 'Cited sources' },
+        warnings: { type: 'array', description: 'Research warnings' },
+      }
+
+      export const exampleResearchTool = {
+        id: 'example_research',
+        name: 'Example Research',
+        description: 'Research a question',
+        params: {},
+        outputs: {
+          taskId: { type: 'string', description: 'Background task ID' },
+          ...SHARED_OUTPUTS,
+        },
+      }
+    `
+
+    expect(Object.keys(extractToolInfo('example_research', source)?.outputs ?? {})).toEqual([
+      'taskId',
+      'sources',
+      'warnings',
+    ])
   })
 })
 
