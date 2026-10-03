@@ -73,7 +73,7 @@ async function deliverOtp(requestId: string, shareId: string, email: string): Pr
   const otp = generateOTP()
   await storeOTP('file', shareId, email, otp)
 
-  const emailHtml = await renderOTPEmail(otp, email, 'email-verification', SHARE_EMAIL_LABEL)
+  const emailHtml = await renderOTPEmail(otp, 'email-verification', SHARE_EMAIL_LABEL)
   const emailResult = await sendEmail({
     to: email,
     subject: getOtpSubject(SHARE_EMAIL_LABEL),

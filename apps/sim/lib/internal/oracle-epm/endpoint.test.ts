@@ -1,13 +1,16 @@
 /** @vitest-environment node */
-import { describe, expect, it } from 'vitest'
+import { inputValidationMock } from '@sim/testing/mocks/input-validation.mock'
+import { describe, expect, it, vi } from 'vitest'
 import {
-  getOracleEpmEndpoint,
+  defineOracleEpmRouteSpace,
+  type OracleEpmEndpoint,
   oracleEpmLiteral,
   oracleEpmPathParameter,
   oracleEpmQuery,
-} from '@/lib/internal/oracle-epm/endpoint'
-import { defineOracleEpmRouteSpace } from '@/lib/internal/oracle-epm/route-space'
-import type { OracleEpmEndpoint } from '@/lib/internal/oracle-epm/types'
+} from '@/lib/internal/oracle-epm'
+import { getOracleEpmEndpoint } from '@/lib/internal/oracle-epm/endpoint'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const routes = defineOracleEpmRouteSpace({
   context: ['Synthetic', 'rest'],

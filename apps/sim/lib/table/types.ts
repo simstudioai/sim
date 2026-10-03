@@ -152,9 +152,11 @@ export interface WorkflowGroup {
    */
   inputMappings?: WorkflowGroupInputMapping[]
   /**
-   * Which workflow state per-cell runs execute against. Defaults to `'live'`
-   * (editable draft) when absent. `'deployed'` runs the workflow's latest
-   * active deployment. Only meaningful for `manual` groups.
+   * Which workflow state per-cell runs execute against. Defaults to
+   * `'deployed'` (the workflow's latest active deployment) when absent —
+   * resolve it through `resolveWorkflowGroupDeploymentMode`, never by reading
+   * the raw field. `'live'` runs the editable draft. Only meaningful for
+   * `manual` groups.
    */
   deploymentMode?: WorkflowGroupDeploymentMode
   /**
@@ -342,24 +344,6 @@ export interface TableDeleteJobPayload {
    * consistent (rows disappear as they're deleted) like a bounded update, because the filter-based
    * mask would over-hide the rows beyond the cap that this job never deletes.
    */
-  maxRows?: number
-}
-
-/**
- * Persisted scope of a running bulk-update job (`table_jobs.payload`): the same `data` patch is
- * merged into every row matching `filter` with `created_at <= cutoff` (so mid-job inserts are
- * spared, matching the delete job's snapshot semantics). `affectedCount` is the kickoff estimate,
- * display-only. Unlike delete, reads are not masked — updated rows still exist, so a background
- * update is eventually consistent (readers may see a mix of patched/unpatched rows mid-job).
- */
-export interface TableUpdateJobPayload {
-  filter: Filter
-  /** Column-id-keyed partial patch applied to every matched row (JSONB merge). */
-  data: RowData
-  /** ISO timestamp; rows created after it are not patched. */
-  cutoff: string
-  affectedCount?: number
-  /** Stop after updating this many rows (an explicit caller-supplied limit). Omitted = every match. */
   maxRows?: number
 }
 

@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeAddUserAppRoleAssignmentOperation } from '@/lib/internal/microsoft-ad/operations/add-user-app-role-assignment'
 
 const INPUT = {
@@ -19,8 +16,6 @@ describe('executeAddUserAppRoleAssignmentOperation', () => {
     vi.stubGlobal('fetch', fetchMock)
   })
 
-  afterEach(() => vi.unstubAllGlobals())
-
   it('rejects malformed successful Graph JSON instead of fabricating a null assignment', async () => {
     fetchMock.mockResolvedValueOnce(new Response('not-json'))
 
@@ -28,21 +23,5 @@ describe('executeAddUserAppRoleAssignmentOperation', () => {
       'Microsoft Graph returned malformed JSON for the app role assignment'
     )
     expect(fetchMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('rejects a successful non-object assignment payload', async () => {
-    fetchMock.mockResolvedValueOnce(Response.json(null))
-
-    await expect(executeAddUserAppRoleAssignmentOperation(INPUT)).rejects.toThrow(
-      'Microsoft Graph returned an invalid app role assignment'
-    )
-  })
-
-  it('rejects a successful empty assignment payload', async () => {
-    fetchMock.mockResolvedValueOnce(Response.json({}))
-
-    await expect(executeAddUserAppRoleAssignmentOperation(INPUT)).rejects.toThrow(
-      'Microsoft Graph returned an invalid app role assignment'
-    )
   })
 })

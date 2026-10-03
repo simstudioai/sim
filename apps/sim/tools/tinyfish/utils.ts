@@ -1,7 +1,9 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import type {
   TinyFishBrowserConfig,
+  TinyFishProfileHint,
   TinyFishRawBrowserConfig,
+  TinyFishRawProfileHint,
   TinyFishRawRunError,
   TinyFishRawRunSummary,
   TinyFishRawSchemaValidation,
@@ -121,6 +123,24 @@ export function mapRunError(raw: TinyFishRawRunError | null | undefined): TinyFi
   }
 }
 
+/**
+ * Maps the nudge TinyFish attaches to a run it thinks a profile would fix.
+ *
+ * All three fields are required when the object is present, so a payload
+ * missing any of them is treated as no hint rather than a half-filled one a
+ * workflow would have to guard.
+ */
+export function mapProfileHint(
+  raw: TinyFishRawProfileHint | null | undefined
+): TinyFishProfileHint | null {
+  if (!raw?.message || !raw.setup_url || !raw.reason) return null
+  return {
+    message: raw.message,
+    setupUrl: raw.setup_url,
+    reason: raw.reason,
+  }
+}
+
 function mapBrowserConfig(
   raw: TinyFishRawBrowserConfig | null | undefined
 ): TinyFishBrowserConfig | null {
@@ -146,7 +166,26 @@ export function mapRunSummary(raw: TinyFishRawRunSummary): TinyFishRunSummary {
     error: mapRunError(raw.error),
     streamingUrl: raw.streaming_url ?? null,
     browserConfig: mapBrowserConfig(raw.browser_config),
+    profileAttached: raw.profile_attached ?? null,
+    profileId: raw.profile_id ?? null,
+    profileHint: mapProfileHint(raw.profile_hint),
   }
+}
+
+/**
+ * Reads a workflow switch as a boolean.
+ *
+ * On the canvas a switch stores a real boolean, but `StoredTool.params` is a
+ * string map, so `encodeToolParamValue` writes `'false'` for a disabled flag on
+ * the agent tool-input path. `decodeToolParamValue` normally reverses that, and
+ * the paths that skip it — a `paramsTransform` that threw, an unresolved
+ * `<start.flag>` token — are exactly the ones that would arrive here as a
+ * truthy `'false'`. Every flag on the automation body is read through this so a
+ * disabled switch cannot enable a proxy, a vault, or a saved authenticated
+ * session.
+ */
+function isEnabled(value: boolean | string | undefined): boolean {
+  return value === true || value === 'true'
 }
 
 /**
@@ -154,8 +193,9 @@ export function mapRunSummary(raw: TinyFishRawRunSummary): TinyFishRunSummary {
  * `POST /v1/automation/run-async`.
  *
  * Optional fields are omitted rather than sent as null so TinyFish applies its
- * own documented defaults (`lite` browser profile, `default` agent mode, 150
- * max steps, no proxy, no vault).
+ * own documented defaults (`lite` browser engine, `default` agent mode, 150
+ * max steps, no duration limit, no proxy, no vault, no Browser Context
+ * Profile).
  */
 export function buildAutomationBody(params: {
   url: string
@@ -163,11 +203,14 @@ export function buildAutomationBody(params: {
   browserProfile?: string
   agentMode?: string
   maxSteps?: number
+  maxDurationSeconds?: number
   outputSchema?: string | Record<string, unknown>
-  proxyEnabled?: boolean
+  proxyEnabled?: boolean | string
   proxyCountryCode?: string
-  useVault?: boolean
+  useVault?: boolean | string
   credentialItemIds?: string | string[]
+  useProfile?: boolean | string
+  profileId?: string
   webhookUrl?: string
 }): Record<string, unknown> {
   const body: Record<string, unknown> = {
@@ -183,9 +226,12 @@ export function buildAutomationBody(params: {
   if (typeof params.maxSteps === 'number' && Number.isFinite(params.maxSteps)) {
     agentConfig.max_steps = params.maxSteps
   }
+  if (typeof params.maxDurationSeconds === 'number' && Number.isFinite(params.maxDurationSeconds)) {
+    agentConfig.max_duration_seconds = params.maxDurationSeconds
+  }
   if (Object.keys(agentConfig).length > 0) body.agent_config = agentConfig
 
-  if (params.proxyEnabled) {
+  if (isEnabled(params.proxyEnabled)) {
     const proxyConfig: Record<string, unknown> = { enabled: true, type: 'tetra' }
     if (params.proxyCountryCode) proxyConfig.country_code = params.proxyCountryCode
     body.proxy_config = proxyConfig
@@ -194,10 +240,22 @@ export function buildAutomationBody(params: {
   const outputSchema = parseJsonSchema(params.outputSchema)
   if (outputSchema) body.output_schema = outputSchema
 
-  if (params.useVault) {
+  if (isEnabled(params.useVault)) {
     body.use_vault = true
     const credentialItemIds = parseList(params.credentialItemIds)
     if (credentialItemIds.length > 0) body.credential_item_ids = credentialItemIds
+  }
+
+  /**
+   * `profile_id` is sent only alongside `use_profile: true`, because TinyFish
+   * rejects the id on its own with a 400. Without an id the run falls back to
+   * the account's default Browser Context Profile, which is also a 400 when no
+   * default has been set.
+   */
+  if (isEnabled(params.useProfile)) {
+    body.use_profile = true
+    const profileId = params.profileId?.trim()
+    if (profileId) body.profile_id = profileId
   }
 
   if (params.webhookUrl) body.webhook_url = params.webhookUrl
@@ -223,7 +281,8 @@ export const AUTOMATION_TOOL_PARAMS = {
     type: 'string',
     required: false,
     visibility: 'user-or-llm',
-    description: 'Browser engine: "lite" (standard) or "stealth" (anti-detection)',
+    description:
+      'Browser engine: "lite" (standard) or "stealth" (anti-detection). Not a Browser Context Profile — use useProfile for saved logins',
   },
   agentMode: {
     type: 'string',
@@ -236,6 +295,13 @@ export const AUTOMATION_TOOL_PARAMS = {
     required: false,
     visibility: 'user-or-llm',
     description: 'Maximum tool-call steps before the agent stops (1-500, default 150)',
+  },
+  maxDurationSeconds: {
+    type: 'number',
+    required: false,
+    visibility: 'user-or-llm',
+    description:
+      'Maximum wall-clock seconds before the agent stops. Unlimited by default, so a run stalled on a slow page is only bounded by the step cap',
   },
   outputSchema: {
     type: 'json',
@@ -267,6 +333,26 @@ export const AUTOMATION_TOOL_PARAMS = {
     visibility: 'user-only',
     description: 'Comma-separated vault credential URIs to scope the run to',
   },
+  /**
+   * A Browser Context Profile carries a logged-in session, so activating one is
+   * as sensitive as handing the run a credential. Both fields are therefore
+   * `user-only` — the same visibility the vault fields above use — which keeps
+   * them out of the tool schema the agent model writes.
+   */
+  useProfile: {
+    type: 'boolean',
+    required: false,
+    visibility: 'user-only',
+    description:
+      'Start the run from a saved Browser Context Profile, reusing the logged-in session stored in it',
+  },
+  profileId: {
+    type: 'string',
+    required: false,
+    visibility: 'user-only',
+    description:
+      'Browser Context Profile to start from, such as "prof_abc123". Requires useProfile; omit to use the account default',
+  },
   apiKey: {
     type: 'string',
     required: true,
@@ -284,8 +370,8 @@ export const AUTOMATION_TOOL_PARAMS = {
  * are therefore model input and are projected to canonical secret placeholders
  * before the request is formatted.
  *
- * The target URL, browser profile, proxy settings, and vault scoping are ordinary
- * request inputs and keep their normal semantics. The schema is projected as the
+ * The target URL, browser engine, proxy settings, and Browser Context Profile and
+ * vault scoping are ordinary request inputs and keep their normal semantics. The schema is projected as the
  * whole param rather than through `applyProjected` because it reaches the request
  * formatter unparsed, matching `tools/exa/search.ts`.
  */

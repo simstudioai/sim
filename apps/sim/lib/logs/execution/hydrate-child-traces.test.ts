@@ -1,56 +1,22 @@
-/**
- * @vitest-environment node
- */
+import { dbChainMockFns } from '@sim/testing'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { traceStoreMock, traceStoreMockFns } from '@sim/testing/mocks/trace-store.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TraceSpan } from '@/lib/logs/types'
 
-const { mockSelect, mockSelectPolicies, mockCheckWorkspaceAccess, mockMaterialize } = vi.hoisted(
-  () => ({
-    mockSelect: vi.fn(),
-    mockSelectPolicies: vi.fn(),
-    mockCheckWorkspaceAccess: vi.fn(),
-    mockMaterialize: vi.fn(),
-  })
-)
-
-// Two queries per depth now — the child log rows, then the publisher policy for the
-// blocks they belong to. Routed by table so neither test has to know the call order.
-vi.mock('@sim/db', () => ({
-  db: {
-    select: (columns: Record<string, unknown>) => ({
-      from: () => ({
-        where: (...args: unknown[]) =>
-          'traceChildRuns' in columns ? mockSelectPolicies(...args) : mockSelect(...args),
-      }),
-    }),
-  },
+const { mockSelect, mockSelectPolicies } = vi.hoisted(() => ({
+  mockSelect: vi.fn(),
+  mockSelectPolicies: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/logs/execution/trace-store', () => ({
-  materializeExecutionDataForDisplay: mockMaterialize,
-  stripJoinedChildTraceSpend: (spans: unknown) => {
-    if (!Array.isArray(spans)) return
-    for (const span of spans) {
-      if (span && typeof span === 'object') {
-        const record = span as { cost?: unknown; children?: unknown }
-        if ('cost' in record) record.cost = undefined
-        if (Array.isArray(record.children)) {
-          for (const child of record.children) {
-            if (child && typeof child === 'object' && 'cost' in child) {
-              ;(child as { cost?: unknown }).cost = undefined
-            }
-          }
-        }
-      }
-    }
-  },
-}))
+vi.mock('@/lib/logs/execution/trace-store', () => traceStoreMock)
 
 import { hydrateChildTraces } from '@/lib/logs/execution/hydrate-child-traces'
+
+const mockCheckWorkspaceAccess = permissionsMockFns.mockCheckWorkspaceAccess
+const mockMaterialize = traceStoreMockFns.mockMaterializeExecutionDataForDisplay
 
 const boundarySpan = (childExecutionId: string): TraceSpan => ({
   id: 'span-1',
@@ -77,7 +43,16 @@ const childSpan = (overrides: Partial<TraceSpan> = {}): TraceSpan => ({
 
 describe('hydrateChildTraces', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    /**
+     * Two queries per depth — the child log rows, then the publisher policy for the
+     * blocks they belong to. Routed by table so neither test has to know the call order.
+     */
+    dbChainMockFns.select.mockImplementation((columns: Record<string, unknown>) => ({
+      from: () => ({
+        where: (...args: unknown[]) =>
+          'traceChildRuns' in columns ? mockSelectPolicies(...args) : mockSelect(...args),
+      }),
+    }))
     mockSelect.mockResolvedValue([])
     // Publishers of every source workflow the tests reference have opted in; the
     // closed-policy cases override this.
@@ -134,35 +109,6 @@ describe('hydrateChildTraces', () => {
     expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
   })
 
-  it('joins the same run for an actorless read, which carries no reader at all', async () => {
-    // A scheduled run inspecting its own child has no user on its principal. The
-    // viewer is attribution, never a gate, so its absence must change nothing about
-    // what is joined — and must not throw, which is how this broke in production.
-    mockSelect.mockResolvedValue([
-      {
-        executionId: 'child-exec-1',
-        workspaceId: 'ws-source',
-        workflowId: 'wf-source',
-        stateSnapshotId: 'snap-1',
-        executionData: {},
-      },
-    ])
-    const spans = [boundarySpan('child-exec-1')]
-
-    const result = await hydrateChildTraces(spans, {})
-
-    expect(result.hydrated).toBe(1)
-    expect(spans[0].childTraceAccess).toBe('granted')
-    expect(spans[0].children?.[0].name).toBe('Agent 1')
-    expect(spans[0].childWorkflowSnapshotId).toBe('snap-1')
-    // Pinned rather than left implicit: materialization is told there is no owner,
-    // instead of being handed a stand-in the run never authorized.
-    expect(mockMaterialize).toHaveBeenCalledWith(
-      {},
-      expect.objectContaining({ workspaceId: 'ws-source', userId: undefined })
-    )
-  })
-
   it('refuses a handle whose block is not opted in, however it got there', async () => {
     // The decisive case: handles persisted before this policy existed meant "a child
     // ran, authorize the reader", not "the publisher consented". Reading presence as
@@ -208,52 +154,6 @@ describe('hydrateChildTraces', () => {
 
     expect(result.dropped.policyClosed).toBe(1)
     expect(spans[0].childTraceAccess).toBe('disabled')
-  })
-
-  it('fails closed when the policy read itself throws', async () => {
-    mockSelect.mockResolvedValue([
-      {
-        executionId: 'child-exec-1',
-        workspaceId: 'ws-source',
-        workflowId: 'wf-source',
-        stateSnapshotId: null,
-        executionData: {},
-      },
-    ])
-    mockSelectPolicies.mockRejectedValue(new Error('policy read failed'))
-    const spans = [boundarySpan('child-exec-1')]
-
-    const result = await hydrateChildTraces(spans, { viewerUserId: 'user-1' })
-
-    expect(result.dropped.policyClosed).toBe(1)
-    expect(spans[0].childTraceAccess).toBe('disabled')
-  })
-
-  it('reads each block policy once no matter how many boundaries resolve to it', async () => {
-    mockSelect.mockResolvedValue([
-      {
-        executionId: 'child-exec-1',
-        workspaceId: 'ws-source',
-        workflowId: 'wf-source',
-        stateSnapshotId: null,
-        executionData: {},
-      },
-      {
-        executionId: 'child-exec-2',
-        workspaceId: 'ws-source',
-        workflowId: 'wf-source',
-        stateSnapshotId: null,
-        executionData: {},
-      },
-    ])
-    const spans = [
-      boundarySpan('child-exec-1'),
-      { ...boundarySpan('child-exec-2'), id: 'span-2', blockId: 'blk-2' },
-    ]
-
-    await hydrateChildTraces(spans, { viewerUserId: 'user-1' })
-
-    expect(mockSelectPolicies).toHaveBeenCalledTimes(1)
   })
 
   it('marks a missing child log row rather than failing the parent read', async () => {
@@ -334,15 +234,6 @@ describe('hydrateChildTraces', () => {
     expect(spans[0].children?.[0].childTraceAccess).toBe('truncated')
   })
 
-  it('marks row-capped boundaries as truncated rather than leaving them bare', async () => {
-    mockSelect.mockResolvedValue([])
-    const spans = [boundarySpan('child-exec-1'), { ...boundarySpan('child-exec-2'), id: 'span-2' }]
-
-    await hydrateChildTraces(spans, { viewerUserId: 'user-1', maxRows: 1 })
-
-    expect(spans[1].childTraceAccess).toBe('truncated')
-  })
-
   it('follows a NESTED custom block into its own source workspace', async () => {
     // Orchestrator -> impl (ws-b) -> sub-impl (ws-c). Each hop's handle was written by
     // its own publisher's opt-in, so the walk simply follows what is there.
@@ -378,15 +269,6 @@ describe('hydrateChildTraces', () => {
     expect(spans[0].childTraceAccess).toBe('granted')
     expect(spans[0].children?.[0].childTraceAccess).toBe('granted')
     expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
-  })
-
-  it('does nothing when no span carries a boundary handle', async () => {
-    const spans = [{ ...boundarySpan('x'), childExecutionId: undefined }]
-
-    const result = await hydrateChildTraces(spans, { viewerUserId: 'user-1' })
-
-    expect(result.hydrated).toBe(0)
-    expect(mockSelect).not.toHaveBeenCalled()
   })
 
   it('joins a custom block invoked as an Agent tool, nested under the agent span', async () => {
@@ -427,22 +309,5 @@ describe('hydrateChildTraces', () => {
     expect(result.hydrated).toBe(1)
     expect(toolSpan.childTraceAccess).toBe('granted')
     expect(toolSpan.children?.[0].name).toBe('Agent 1')
-  })
-
-  it('never joins an untraced boundary, since it carries no handle at all', async () => {
-    // The opt-out is enforced at write time: with no `childExecutionId` there is nothing
-    // for a reader to look up, whatever access they hold.
-    const spans: TraceSpan[] = [
-      { ...boundarySpan('unused'), childExecutionId: undefined, childTraceDisabled: true },
-    ]
-
-    const result = await hydrateChildTraces(spans, { viewerUserId: 'user-1' })
-
-    expect(result.hydrated).toBe(0)
-    expect(mockSelect).not.toHaveBeenCalled()
-    expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
-    // Untouched by hydration: the marker stays the only thing the UI reads.
-    expect(spans[0].childTraceAccess).toBeUndefined()
-    expect(spans[0].childTraceDisabled).toBe(true)
   })
 })

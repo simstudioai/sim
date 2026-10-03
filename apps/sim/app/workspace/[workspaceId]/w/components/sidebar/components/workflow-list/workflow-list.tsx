@@ -557,7 +557,7 @@ export const WorkflowList = memo(function WorkflowList({
       <div
         role='tree'
         aria-label='Workflows'
-        className='flex min-h-full flex-col pb-2'
+        className='flex min-h-full flex-col'
         onClick={handleContainerClick}
         onContextMenu={handleContainerContextMenu}
         onKeyDown={(e) => {

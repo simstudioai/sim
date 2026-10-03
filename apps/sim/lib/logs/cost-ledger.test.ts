@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { buildCostLedger } from '@/lib/logs/cost-ledger'

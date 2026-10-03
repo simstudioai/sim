@@ -18,6 +18,7 @@ const EXCLUDED: Record<string, string> = {
   'check:audits': 'this runner',
   'check:migrations': 'needs a git base ref argument',
   'check:api-validation': 'superseded by the :strict variant, which this runner does run',
+  'check:dead-code': 'check:unused-exports gates the same issues in its single knip pass',
 }
 
 /**

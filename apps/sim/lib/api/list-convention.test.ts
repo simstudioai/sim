@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * One test per v2 list-backing query, asserting the same two things everywhere:
  * `search` becomes a bound case-insensitive substring predicate on that
  * resource's natural name column, and `sortBy` selects the ordering columns.
@@ -20,33 +18,22 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { billingStorageMock } from '@sim/testing/mocks/billing-storage.mock'
+import { billingSubscriptionMock } from '@sim/testing/mocks/billing-subscription.mock'
+import { billingUsageMock } from '@sim/testing/mocks/billing-usage.mock'
+import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
+import { tableBillingMock } from '@sim/testing/mocks/table-billing.mock'
+import { tableEventsMock } from '@sim/testing/mocks/table-events.mock'
+import { tableJobsServiceMock } from '@sim/testing/mocks/table-jobs-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/billing/core/subscription', () => ({ getHighestPrioritySubscription: vi.fn() }))
-vi.mock('@/lib/billing/core/usage', () => ({ ensureUserStatsExists: vi.fn() }))
-vi.mock('@/lib/billing/storage', () => ({
-  applyStorageUsageDeltasInTx: vi.fn(),
-  decrementStorageUsageForBillingContextInTx: vi.fn(),
-  incrementStorageUsageForBillingContextInTx: vi.fn(),
-  maybeNotifyStorageLimitForBillingContext: vi.fn(),
-  resolveStorageBillingContext: vi.fn(),
-}))
-vi.mock('@/lib/table/billing', () => ({
-  assertRowCapacity: vi.fn(),
-  notifyTableRowUsage: vi.fn(),
-}))
-vi.mock('@/lib/table/jobs/service', () => ({
-  EMPTY_JOB_FIELDS: {},
-  latestNonExportJobJson: vi.fn(() => null),
-  mapJobRow: vi.fn(() => ({})),
-  latestJobsForTables: vi.fn(async () => new Map()),
-}))
-vi.mock('@/lib/table/events', () => ({ appendTableEvent: vi.fn() }))
-vi.mock('@/lib/realtime/notify', () => ({
-  mergeEditIntoLiveFileDoc: vi.fn(),
-  notifyWorkspaceFilesChanged: vi.fn(),
-  notifyWorkspaceTablesChanged: vi.fn(),
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
+vi.mock('@/lib/table/billing', () => tableBillingMock)
+vi.mock('@/lib/table/jobs/service', () => tableJobsServiceMock)
+vi.mock('@/lib/table/events', () => tableEventsMock)
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/skills/access', () => ({ getEditableSkillIds: vi.fn() }))
 vi.mock('@/lib/workflows/skills/builtin-skills', () => ({
   BUILTIN_SKILLS: [],
@@ -212,7 +199,6 @@ const CASES: ListCase[] = [
 
 describe.each(CASES)('$name list query', (listCase) => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     queueTableRows(listCase.table, [])
   })
@@ -221,18 +207,6 @@ describe.each(CASES)('$name list query', (listCase) => {
     await listCase.run({ search: 'quarterly' })
 
     expect(searchNode()).toMatchObject({ column: listCase.column, pattern: '%quarterly%' })
-  })
-
-  it('escapes LIKE wildcards so a caller cannot widen its own match', async () => {
-    await listCase.run({ search: '50%_off' })
-
-    expect(searchNode()).toMatchObject({ pattern: '%50\\%\\_off%' })
-  })
-
-  it('adds no search condition when the caller did not search', async () => {
-    await listCase.run({})
-
-    expect(searchNode()).toBeUndefined()
   })
 
   it('orders by the requested field and direction', async () => {

@@ -42,7 +42,7 @@ export const listPermissionSetsTool: InternalToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of permission sets to return',
+      description: 'Maximum number of permission sets to return (1-100)',
     },
     nextToken: {
       type: 'string',
@@ -80,9 +80,30 @@ export const listPermissionSetsTool: InternalToolConfig<
 
   outputs: {
     permissionSets: {
-      type: 'json',
-      description:
-        'List of permission sets with permissionSetArn, name, description, sessionDuration',
+      type: 'array',
+      description: 'Permission sets defined on the instance',
+      items: {
+        type: 'object',
+        properties: {
+          permissionSetArn: { type: 'string', description: 'ARN of the permission set' },
+          name: { type: 'string', description: 'Permission set name' },
+          description: {
+            type: 'string',
+            description: 'Permission set description',
+            nullable: true,
+          },
+          sessionDuration: {
+            type: 'string',
+            description: 'ISO 8601 session duration (e.g., PT1H)',
+            nullable: true,
+          },
+          createdDate: {
+            type: 'string',
+            description: 'ISO 8601 date the permission set was created',
+            nullable: true,
+          },
+        },
+      },
     },
     nextToken: {
       type: 'string',

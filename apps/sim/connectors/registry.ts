@@ -6,6 +6,7 @@ import { bitbucketConnectorMeta } from '@/connectors/bitbucket/meta'
 import { boxConnectorMeta } from '@/connectors/box/meta'
 import { circlebackConnectorMeta } from '@/connectors/circleback/meta'
 import { clickupConnectorMeta } from '@/connectors/clickup/meta'
+import { codaConnectorMeta } from '@/connectors/coda/meta'
 import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import { databricksConnectorMeta } from '@/connectors/databricks/meta'
 import { discordConnectorMeta } from '@/connectors/discord/meta'
@@ -42,6 +43,7 @@ import { mondayConnectorMeta } from '@/connectors/monday/meta'
 import { notionConnectorMeta } from '@/connectors/notion/meta'
 import { obsidianConnectorMeta } from '@/connectors/obsidian/meta'
 import { onedriveConnectorMeta } from '@/connectors/onedrive/meta'
+import { otterConnectorMeta } from '@/connectors/otter/meta'
 import { outlookConnectorMeta } from '@/connectors/outlook/meta'
 import { pagerdutyConnectorMeta } from '@/connectors/pagerduty/meta'
 import { redditConnectorMeta } from '@/connectors/reddit/meta'
@@ -81,6 +83,7 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
   box: boxConnectorMeta,
   circleback: circlebackConnectorMeta,
   clickup: clickupConnectorMeta,
+  coda: codaConnectorMeta,
   confluence: confluenceConnectorMeta,
   databricks: databricksConnectorMeta,
   discord: discordConnectorMeta,
@@ -117,6 +120,7 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
   notion: notionConnectorMeta,
   obsidian: obsidianConnectorMeta,
   onedrive: onedriveConnectorMeta,
+  otter: otterConnectorMeta,
   outlook: outlookConnectorMeta,
   pagerduty: pagerdutyConnectorMeta,
   reddit: redditConnectorMeta,

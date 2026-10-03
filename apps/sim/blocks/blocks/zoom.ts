@@ -2,7 +2,6 @@ import { ZoomIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { ZoomResponse } from '@/tools/zoom/types'
 import { getTrigger } from '@/triggers'
 
 /*
@@ -12,7 +11,7 @@ import { getTrigger } from '@/triggers'
  */
 const MEETING_FIELD = ['meetingSelector', 'meetingId'] as const
 
-export const ZoomBlock: BlockConfig<ZoomResponse> = {
+export const ZoomBlock: BlockConfig = {
   type: 'zoom',
   name: 'Zoom',
   description: 'Create and manage Zoom meetings and recordings',

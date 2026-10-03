@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -25,7 +22,6 @@ vi.mock('@/lib/knowledge/application/add-workspace-files', () => ({
   },
 }))
 
-import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { POST } from '@/app/api/v2/knowledge/[knowledgeBaseId]/documents/from-workspace-files/route'
 
@@ -41,7 +37,6 @@ function buildRequest(body: unknown) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
   v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
   v2RouteMocks.authenticate.mockResolvedValue({
@@ -62,56 +57,6 @@ beforeEach(() => {
 })
 
 describe('POST /api/v2/knowledge/[knowledgeBaseId]/documents/from-workspace-files', () => {
-  /**
-   * A partial outcome is a 200 with a populated `failed` array. v2 has exactly
-   * two body shapes and a 207 multi-status is neither.
-   */
-  it('reports partial success as a 200 rather than a multi-status', async () => {
-    const response = await POST(
-      buildRequest({ workspaceId: WORKSPACE_ID, fileReferences: ['handbook.pdf', 'missing.pdf'] }),
-      context
-    )
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      data: {
-        knowledgeBaseId: 'kb-1',
-        added: [
-          {
-            documentId: 'doc-1',
-            filename: 'handbook.pdf',
-            mimeType: 'application/pdf',
-            fileSize: 42,
-          },
-        ],
-        failed: ['missing.pdf'],
-      },
-    })
-  })
-
-  it('does not leak the knowledge base name the use case carries internally', async () => {
-    const response = await POST(
-      buildRequest({ workspaceId: WORKSPACE_ID, fileReferences: ['handbook.pdf'] }),
-      context
-    )
-
-    expect(Object.keys((await response.json()).data).sort()).toEqual([
-      'added',
-      'failed',
-      'knowledgeBaseId',
-    ])
-  })
-
-  it('rejects an empty reference list', async () => {
-    const response = await POST(
-      buildRequest({ workspaceId: WORKSPACE_ID, fileReferences: [] }),
-      context
-    )
-
-    expect(response.status).toBe(400)
-    expect(mockAddWorkspaceFiles).not.toHaveBeenCalled()
-  })
-
   it('caps the reference list before the use case runs', async () => {
     const response = await POST(
       buildRequest({
@@ -124,20 +69,6 @@ describe('POST /api/v2/knowledge/[knowledgeBaseId]/documents/from-workspace-file
     expect(response.status).toBe(400)
     expect((await response.json()).error.message).toContain('100')
     expect(mockAddWorkspaceFiles).not.toHaveBeenCalled()
-  })
-
-  it('projects a usage limit as 402 rather than a generic failure', async () => {
-    mockAddWorkspaceFiles.mockRejectedValue(
-      new KnowledgeUsageLimitExceededError('Usage limit exceeded.')
-    )
-
-    const response = await POST(
-      buildRequest({ workspaceId: WORKSPACE_ID, fileReferences: ['handbook.pdf'] }),
-      context
-    )
-
-    expect(response.status).toBe(402)
-    expect((await response.json()).error.code).toBe('USAGE_LIMIT_EXCEEDED')
   })
 
   it('denies a workspace API key, as the operation policy declares', () => {

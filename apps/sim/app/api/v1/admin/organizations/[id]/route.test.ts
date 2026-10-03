@@ -1,39 +1,45 @@
-/**
- * @vitest-environment node
- */
-import { createMockRequest, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  createMockRequest,
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
-const { mockDetachOrganizationWorkspacesTx, mockDelete, mockAuthenticateAdminRequest } = vi.hoisted(
-  () => ({
-    mockDetachOrganizationWorkspacesTx: vi.fn(),
-    mockDelete: vi.fn(),
-    mockAuthenticateAdminRequest: vi.fn(),
-  })
-)
+const {
+  mockDetachOrganizationWorkspacesTx,
+  mockEnqueueResourceCleanup,
+  mockAuthenticateAdminRequest,
+} = vi.hoisted(() => ({
+  mockDetachOrganizationWorkspacesTx: vi.fn(),
+  mockEnqueueResourceCleanup: vi.fn(),
+  mockAuthenticateAdminRequest: vi.fn(),
+}))
 
 vi.mock('@/lib/workspaces/organization-workspaces', () => ({
   detachOrganizationWorkspacesTx: mockDetachOrganizationWorkspacesTx,
+}))
+
+vi.mock('@/lib/organizations/resource-cleanup', () => ({
+  enqueueOrganizationResourceCleanup: mockEnqueueResourceCleanup,
 }))
 
 vi.mock('@/app/api/v1/admin/auth', () => ({
   authenticateAdminRequest: mockAuthenticateAdminRequest,
 }))
 
-vi.mock('@sim/audit', () => ({
-  recordAudit: vi.fn(),
-  recordAuditBatch: vi.fn(),
-  AuditAction: {
-    ORGANIZATION_UPDATED: 'organization.updated',
-    ORGANIZATION_DELETED: 'organization.deleted',
-  },
-  AuditResourceType: { ORGANIZATION: 'organization' },
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 import { DELETE } from '@/app/api/v1/admin/organizations/[id]/route'
 
+const { mockRecordAudit: recordAudit, mockRecordAuditBatch: recordAuditBatch } = auditMockFns
+
 const ORG_ID = 'org-1'
-const routeContext = { params: Promise.resolve({ id: ORG_ID }) }
+const routeContext = createRouteContext({ id: ORG_ID })
 
 function deleteRequest(confirmSlug?: string) {
   const query = confirmSlug === undefined ? '' : `?confirmSlug=${encodeURIComponent(confirmSlug)}`
@@ -52,7 +58,6 @@ function queueOrganization(slug = 'acme-inc') {
 
 describe('admin organization DELETE', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockAuthenticateAdminRequest.mockReturnValue({ authenticated: true })
     mockDetachOrganizationWorkspacesTx.mockResolvedValue({
@@ -61,19 +66,10 @@ describe('admin organization DELETE', () => {
       /** Returned rather than written, so the caller can emit them post-commit. */
       auditEntries: [],
     })
-    mockDelete.mockClear()
+    mockEnqueueResourceCleanup.mockResolvedValue(undefined)
   })
 
   afterAll(resetDbChainMock)
-
-  it('returns 404 when the organization does not exist', async () => {
-    queueTableRows(schemaMock.organization, [])
-
-    const response = await DELETE(deleteRequest('acme-inc'), routeContext)
-
-    expect(response.status).toBe(404)
-    expect(mockDetachOrganizationWorkspacesTx).not.toHaveBeenCalled()
-  })
 
   it('refuses when confirmSlug does not match the organization slug', async () => {
     queueOrganization('acme-inc')
@@ -115,7 +111,7 @@ describe('admin organization DELETE', () => {
     expect(mockDetachOrganizationWorkspacesTx).toHaveBeenCalledWith(expect.anything(), ORG_ID)
   })
 
-  it('detaches workspaces before deleting the organization', async () => {
+  it('detaches workspaces and enqueues resource cleanup before deleting in the same transaction', async () => {
     queueOrganization()
     queueTableRows(schemaMock.subscription, [])
     queueTableRows(schemaMock.member, [{ value: 3 }])
@@ -130,6 +126,15 @@ describe('admin organization DELETE', () => {
      * through so the detach and the delete commit together.
      */
     expect(mockDetachOrganizationWorkspacesTx).toHaveBeenCalledWith(expect.anything(), ORG_ID)
+    const tx = mockDetachOrganizationWorkspacesTx.mock.calls[0][0]
+    expect(mockEnqueueResourceCleanup).toHaveBeenCalledExactlyOnceWith(tx, ORG_ID)
+    expect(mockDetachOrganizationWorkspacesTx.mock.invocationCallOrder[0]).toBeLessThan(
+      mockEnqueueResourceCleanup.mock.invocationCallOrder[0]
+    )
+    expect(mockEnqueueResourceCleanup.mock.invocationCallOrder[0]).toBeLessThan(
+      dbChainMockFns.delete.mock.invocationCallOrder[0]
+    )
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
 
     const body = await response.json()
     expect(body.data).toMatchObject({
@@ -139,5 +144,59 @@ describe('admin organization DELETE', () => {
       membersRemoved: 3,
       workspacesDetached: 2,
     })
+  })
+
+  it('aborts the transaction before cascade and audit when durable cleanup cannot be queued', async () => {
+    queueOrganization()
+    queueTableRows(schemaMock.subscription, [])
+    queueTableRows(schemaMock.member, [{ value: 3 }])
+    mockEnqueueResourceCleanup.mockRejectedValueOnce(new Error('outbox unavailable'))
+
+    const response = await DELETE(deleteRequest('acme-inc'), routeContext)
+
+    expect(response.status).toBe(500)
+    expect(mockDetachOrganizationWorkspacesTx).toHaveBeenCalledTimes(1)
+    expect(mockEnqueueResourceCleanup).toHaveBeenCalledExactlyOnceWith(
+      mockDetachOrganizationWorkspacesTx.mock.calls[0][0],
+      ORG_ID
+    )
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+    expect(recordAudit).not.toHaveBeenCalled()
+    expect(recordAuditBatch).not.toHaveBeenCalled()
+  })
+
+  it('does not emit success audit after a cascade failure', async () => {
+    queueOrganization()
+    queueTableRows(schemaMock.subscription, [])
+    queueTableRows(schemaMock.member, [{ value: 3 }])
+    dbChainMockFns.delete.mockImplementationOnce(() => {
+      throw new Error('cascade unavailable')
+    })
+
+    const response = await DELETE(deleteRequest('acme-inc'), routeContext)
+
+    expect(response.status).toBe(500)
+    expect(mockEnqueueResourceCleanup).toHaveBeenCalledTimes(1)
+    expect(recordAudit).not.toHaveBeenCalled()
+    expect(recordAuditBatch).not.toHaveBeenCalled()
+  })
+
+  it('returns a retryable conflict if the workspace lock set changed', async () => {
+    queueOrganization()
+    queueTableRows(schemaMock.subscription, [])
+    queueTableRows(schemaMock.member, [{ value: 3 }])
+    const message = 'Organization workspaces changed during detachment; retry'
+    mockDetachOrganizationWorkspacesTx.mockRejectedValueOnce(
+      new OrchestrationError('conflict', message)
+    )
+
+    const response = await DELETE(deleteRequest('acme-inc'), routeContext)
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toMatchObject({ error: { message } })
+    expect(mockEnqueueResourceCleanup).not.toHaveBeenCalled()
+    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+    expect(recordAudit).not.toHaveBeenCalled()
+    expect(recordAuditBatch).not.toHaveBeenCalled()
   })
 })

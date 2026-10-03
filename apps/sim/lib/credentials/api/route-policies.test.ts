@@ -1,9 +1,18 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
-import { internalCredentialErrorPolicy } from '@/lib/credentials/api/route-policies'
+import {
+  CredentialGroupOAuthError,
+  CredentialGroupProviderConfigurationError,
+} from '@/lib/credential-groups/provider-adapter'
+import {
+  internalCredentialErrorPolicy,
+  internalPersonalCredentialConnectionErrorPolicy,
+} from '@/lib/credentials/api/route-policies'
 import { CredentialProviderOperationError } from '@/lib/credentials/application/credential-crud'
+import {
+  OAuthDisconnectLimitError,
+  OAuthDisconnectPartialFailureError,
+  OAuthProviderRevocationError,
+} from '@/lib/credentials/oauth-accounts'
 
 function project(error: unknown) {
   return internalCredentialErrorPolicy.project(error)
@@ -34,7 +43,61 @@ describe('internalCredentialErrorPolicy', () => {
     expect(response?.headers).toBeUndefined()
   })
 
-  it('defers anything that is not a provider failure to the base policy', () => {
-    expect(project(new Error('unrelated'))).toBeNull()
+  it('renders an OAuth revocation outage as retryable without exposing the provider response', () => {
+    const response = project(
+      new OAuthProviderRevocationError('QuickBooks', new Error('upstream token detail'))
+    )
+
+    expect(response?.status).toBe(503)
+    expect(response?.headers).toEqual({ 'Retry-After': '5' })
+    expect(response?.body).toEqual({
+      error: 'Unable to revoke QuickBooks access. Please try again.',
+    })
+  })
+
+  it('renders a disconnect size limit as a caller-fixable 400', () => {
+    const response = project(new OAuthDisconnectLimitError('Too many linked accounts'))
+
+    expect(response?.status).toBe(400)
+    expect(response?.headers).toBeUndefined()
+    expect(response?.body).toEqual({ error: 'Too many linked accounts' })
+  })
+
+  it('keeps a later revocation outage retryable after an earlier account was deleted', () => {
+    const revocation = new OAuthProviderRevocationError(
+      'QuickBooks',
+      new Error('upstream token detail')
+    )
+    const response = project(new OAuthDisconnectPartialFailureError([], revocation))
+
+    expect(response?.status).toBe(503)
+    expect(response?.headers).toEqual({ 'Retry-After': '5' })
+    expect(response?.body).toEqual({
+      error: 'Unable to revoke QuickBooks access. Please try again.',
+    })
+  })
+})
+
+describe('personal account connection errors', () => {
+  it('keeps account setup instructions actionable', () => {
+    const response = internalPersonalCredentialConnectionErrorPolicy.project(
+      new CredentialGroupProviderConfigurationError('private configuration detail')
+    )
+    expect(response).toMatchObject({
+      status: 409,
+      body: {
+        error: 'Ask an organization admin to configure this integration in organization settings',
+      },
+    })
+  })
+
+  it('does not expose upstream transport details', () => {
+    const response = internalPersonalCredentialConnectionErrorPolicy.project(
+      new CredentialGroupOAuthError('upstream credential response', 502)
+    )
+    expect(response).toMatchObject({
+      status: 503,
+      body: { error: 'Account sign-in is temporarily unavailable. Please try again.' },
+    })
   })
 })

@@ -4,22 +4,29 @@ export {
   type AuthorizedWorkspaceUseCaseContext,
   type AuthorizedWorkspaceUseCaseDefinition,
   type AuthorizedWorkspaceUseCaseResultContext,
+  type AuthorizingUseCase,
   defineAuthorizedWorkspaceUseCase,
   recordProjectedUseCaseAuditEntries,
   type WorkspaceUseCaseAuditEntry,
 } from '@/lib/core/application/authorized-workspace-use-case'
 export {
-  FORBIDDEN_DETAIL_CODE_DESCRIPTIONS,
   FORBIDDEN_DETAIL_CODES,
   type ForbiddenDetailCode,
   ForbiddenOperationError,
   forbiddenErrorDetails,
 } from '@/lib/core/application/forbidden'
 export {
+  InsufficientScopeError,
+  OAuthAccessTokenExpiredError,
+  requireOAuthOperationScope,
+} from '@/lib/core/application/oauth-authorization'
+export {
   type ApplicationOperation,
   assertOperationCapability,
+  assertOperationOAuthPolicy,
   assertOperationPrincipal,
   defineOperation,
+  type OAuthOperationPolicy,
   type OperationDeclarableCapability,
   type OperationUseCase,
   type PrincipalKind,
@@ -44,6 +51,7 @@ export {
   requireAllowedWorkspacePrincipal,
   requireCurrentHumanRole,
   requirePersonalApiKeysAllowed,
+  requireUserCredentialCapabilities,
   WorkspaceApiKeyAuthorizationError,
   WorkspaceApiKeyScopeAuthorizationError,
 } from '@/lib/core/application/workspace-authorization'

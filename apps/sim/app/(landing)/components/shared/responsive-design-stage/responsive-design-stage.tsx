@@ -54,9 +54,8 @@ interface ResponsiveDesignStageProps {
  * Fits a fixed-size HTML design surface into its host without putting HTML in
  * SVG. `ResizeObserver` watches only the stable host box, and the scale is
  * written directly to the design surface so resizes do not rerender its React
- * subtree. CSS `zoom` keeps the surface in normal document layout and avoids
- * the fractional compositing drift caused by scaling a layer full of animated
- * descendants. The transform branch is a fallback for older browsers.
+ * subtree. A transform scales text and its containers together, avoiding iOS
+ * Safari's font boosting inside CSS `zoom`, which can overflow fixed-height rows.
  */
 export function ResponsiveDesignStage({
   width,
@@ -79,7 +78,6 @@ export function ResponsiveDesignStage({
     surface.style.width = `${width}px`
     surface.style.height = `${height}px`
 
-    const supportsZoom = CSS.supports('zoom', '1')
     let appliedScale = -1
 
     const applyScale = (availableWidth: number, availableHeight: number) => {
@@ -98,13 +96,7 @@ export function ResponsiveDesignStage({
       }
       if (Math.abs(scale - appliedScale) < SCALE_EPSILON) return
 
-      if (supportsZoom) {
-        surface.style.zoom = String(scale)
-        surface.style.transform = ''
-      } else {
-        surface.style.zoom = '1'
-        surface.style.transform = `scale(${scale})`
-      }
+      surface.style.transform = `scale(${scale})`
       surface.style.opacity = '1'
       appliedScale = scale
     }

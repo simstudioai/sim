@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { type createMockLogger, loggerMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { linkedInSharePostTool } from '@/tools/linkedin/share_post'
 import type { SharePostParams } from '@/tools/linkedin/types'
 
@@ -25,12 +22,7 @@ const executeTool = vi.fn()
 
 describe('linkedInSharePostTool.postProcess', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('reads the created post id from the x-restli-id header on an empty 201 body', async () => {

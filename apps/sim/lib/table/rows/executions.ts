@@ -41,6 +41,24 @@ interface LoadExecutionsOptions {
 }
 
 /**
+ * Whether a table can have any run-state sidecar at all.
+ *
+ * `tableRowExecutions` is keyed by `(rowId, groupId)`, and every writer takes its `groupId` from
+ * a group on the table's own schema. Group and column deletes strip the matching sidecar rows in
+ * the same transaction that removes the group ({@link stripGroupExecutions}), so a schema that
+ * declares no group cannot have a surviving row — the sidecar read would return nothing, and the
+ * caller would fill in the same empty map it gets by skipping.
+ *
+ * Both signals are checked rather than just `workflowGroups`: a column still carrying a
+ * `workflowGroupId` means the table has group state whatever the group list looks like, so an
+ * unexpected schema shape keeps the query instead of silently dropping run state.
+ */
+export function tableMayHaveRunState(schema: TableSchema): boolean {
+  if (schema.workflowGroups && schema.workflowGroups.length > 0) return true
+  return schema.columns.some((column) => column.workflowGroupId !== undefined)
+}
+
+/**
  * Loads `tableRowExecutions` rows for the given row ids and groups them into a
  * `Map<rowId, RowExecutions>` suitable for plugging into `TableRow.executions`.
  *

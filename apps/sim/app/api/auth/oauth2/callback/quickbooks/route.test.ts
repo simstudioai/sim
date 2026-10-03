@@ -1,0 +1,119 @@
+import { createMockRequest } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockCompleteQuickBooksConnection } = vi.hoisted(() => ({
+  mockCompleteQuickBooksConnection: vi.fn(),
+}))
+
+vi.mock('@/lib/credentials/application/complete-quickbooks-connection', () => ({
+  completeQuickBooksConnection: { execute: mockCompleteQuickBooksConnection },
+}))
+
+import { createQuickBooksOAuthState } from '@/lib/oauth/quickbooks-state'
+import { GET } from '@/app/api/auth/oauth2/callback/quickbooks/route'
+
+const mockGetSession = authMockFns.mockGetSession
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
+
+function callbackRequest(searchParams: URLSearchParams) {
+  return createMockRequest(
+    'GET',
+    undefined,
+    undefined,
+    `https://sim.test/api/auth/oauth2/callback/quickbooks?${searchParams.toString()}`
+  )
+}
+
+describe('QuickBooks OAuth callback', () => {
+  beforeEach(() => {
+    mockGetSession.mockResolvedValue({
+      user: { id: 'user-1' },
+      session: { id: 'session-1' },
+    })
+    mockCompleteQuickBooksConnection.mockResolvedValue({
+      accountId: 'account-1',
+      environment: 'sandbox',
+      realmId: '1234567890',
+    })
+  })
+
+  it('binds the provider callback to the signed draft and callback-derived realm', async () => {
+    const state = createQuickBooksOAuthState({
+      userId: 'user-1',
+      draftId: 'draft-from-state',
+      returnUrl: 'https://sim.test/oauth/credential-connected?flow=quickbooks',
+    })
+    const response = await GET(
+      callbackRequest(
+        new URLSearchParams({
+          code: 'authorization-code',
+          state,
+          realmId: ' 1234567890 ',
+          locale: 'en-US',
+        })
+      )
+    )
+
+    expect(mockCompleteQuickBooksConnection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: createSessionPrincipal(),
+        input: expect.objectContaining({
+          draftId: 'draft-from-state',
+          code: 'authorization-code',
+          realmId: '1234567890',
+          redirectUri: 'https://sim.test/api/auth/oauth2/callback/quickbooks',
+        }),
+      })
+    )
+    expect(response.headers.get('location')).toBe(
+      'https://sim.test/oauth/credential-connected?flow=quickbooks&quickbooks_connected=true'
+    )
+  })
+
+  it('returns completion failures to the signed initiating surface', async () => {
+    mockCompleteQuickBooksConnection.mockRejectedValueOnce(new Error('Token exchange failed'))
+    const state = createQuickBooksOAuthState({
+      userId: 'user-1',
+      draftId: 'draft-1',
+      returnUrl: 'https://sim.test/desktop/connect/complete?state=handoff',
+    })
+    const response = await GET(
+      callbackRequest(
+        new URLSearchParams({
+          code: 'authorization-code',
+          state,
+          realmId: '1234567890',
+        })
+      )
+    )
+
+    expect(response.headers.get('location')).toBe(
+      'https://sim.test/desktop/connect/complete?state=handoff&error=quickbooks_callback_error'
+    )
+  })
+
+  it('rejects signed cross-origin return destinations', async () => {
+    const state = createQuickBooksOAuthState({
+      userId: 'user-1',
+      draftId: 'draft-1',
+      returnUrl: 'https://attacker.example/capture',
+    })
+    const response = await GET(
+      callbackRequest(
+        new URLSearchParams({
+          code: 'authorization-code',
+          state,
+          realmId: '1234567890',
+        })
+      )
+    )
+
+    expect(mockCompleteQuickBooksConnection).not.toHaveBeenCalled()
+    expect(response.headers.get('location')).toBe(
+      'https://sim.test/home?error=quickbooks_callback_error'
+    )
+  })
+})

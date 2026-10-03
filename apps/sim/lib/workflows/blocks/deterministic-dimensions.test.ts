@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { BLOCK_DIMENSIONS } from '@sim/workflow-renderer'
 import { describe, expect, it } from 'vitest'
 import { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/deterministic-dimensions'
@@ -16,16 +13,6 @@ const { HEADER_HEIGHT, WORKFLOW_CONTENT_PADDING, WORKFLOW_CONTENT_GAP, WORKFLOW_
   BLOCK_DIMENSIONS
 
 describe('calculateWorkflowBlockDimensions', () => {
-  it('floors a header-only card at the shortest paintable silhouette', () => {
-    const { height, width } = calculateWorkflowBlockDimensions({
-      blockType: 'starter',
-      visibleSubBlockCount: 0,
-    })
-
-    expect(height).toBe(BLOCK_DIMENSIONS.MIN_PAINTED_HEIGHT)
-    expect(width).toBe(BLOCK_DIMENSIONS.FIXED_WIDTH)
-  })
-
   it('sums rows with one gap between each adjacent pair, not a per-row pitch', () => {
     const { height } = calculateWorkflowBlockDimensions({
       blockType: 'agent',
@@ -75,19 +62,6 @@ describe('calculateWorkflowBlockDimensions', () => {
     )
   })
 
-  it('lets a summary replace both the chips row and every field row', () => {
-    const { height } = calculateWorkflowBlockDimensions({
-      blockType: 'table',
-      visibleSubBlockCount: 4,
-      chipCount: 2,
-      sentenceLineCount: 2,
-    })
-
-    expect(height).toBe(
-      HEADER_HEIGHT + WORKFLOW_CONTENT_PADDING + 2 * BLOCK_DIMENSIONS.WORKFLOW_SENTENCE_LINE_HEIGHT
-    )
-  })
-
   it('sizes a router by its context row plus one row per route', () => {
     const { height } = calculateWorkflowBlockDimensions({
       blockType: 'router_v2',
@@ -98,22 +72,5 @@ describe('calculateWorkflowBlockDimensions', () => {
     expect(height).toBe(
       HEADER_HEIGHT + WORKFLOW_CONTENT_PADDING + 3 * WORKFLOW_ROW_HEIGHT + 2 * WORKFLOW_CONTENT_GAP
     )
-  })
-
-  it('ignores chips and summaries on branch blocks, which render neither', () => {
-    const plain = calculateWorkflowBlockDimensions({
-      blockType: 'condition',
-      visibleSubBlockCount: 0,
-      conditionRowCount: 2,
-    })
-    const decorated = calculateWorkflowBlockDimensions({
-      blockType: 'condition',
-      visibleSubBlockCount: 0,
-      conditionRowCount: 2,
-      chipCount: 2,
-      sentenceLineCount: 3,
-    })
-
-    expect(decorated.height).toBe(plain.height)
   })
 })

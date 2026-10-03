@@ -35,6 +35,7 @@ export type EnterpriseFeature =
   | 'inbox'
   | 'organizations'
   | 'sandboxes'
+  | 'scim'
   | 'sessionPolicies'
   | 'sso'
   | 'usageMonitoring'
@@ -82,6 +83,7 @@ export const ENTERPRISE_FEATURE_LEGACY_DEFAULTS: Readonly<Record<EnterpriseFeatu
   inbox: true,
   organizations: false,
   sandboxes: false,
+  scim: false,
   sessionPolicies: true,
   sso: false,
   usageMonitoring: false,

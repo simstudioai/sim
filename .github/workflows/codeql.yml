@@ -62,7 +62,15 @@ on:
 
 concurrency:
   group: codeql-${{ github.ref }}
-  cancel-in-progress: true
+  # PR runs only. Superseding is what this is for: a PR push makes the previous
+  # scan of that PR irrelevant, and `refs/pull/N/merge` keeps each PR in its own
+  # group. The push and schedule triggers both resolve to `refs/heads/main`, so a
+  # blanket `true` let the daily cron cancel the merge scan of the same commit --
+  # a 2-minute window that finally landed on 3c8a4c4 (push 08:32:58 killed by the
+  # 08:34:47 cron), leaving main with a red rollup for a commit that the cron had
+  # in fact scanned clean. Non-PR events now queue instead: one pending run is
+  # held per group, so the cron simply waits out the merge scan.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

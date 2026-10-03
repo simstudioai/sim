@@ -1,9 +1,14 @@
 /** @vitest-environment node */
-import { describe, expect, it } from 'vitest'
-import { oracleEpmLiteral } from '@/lib/internal/oracle-epm/endpoint'
+import { inputValidationMock } from '@sim/testing/mocks/input-validation.mock'
+import { describe, expect, it, vi } from 'vitest'
+import {
+  defineOracleEpmRouteSpace,
+  type OracleEpmReturnedLinkPolicy,
+  oracleEpmLiteral,
+} from '@/lib/internal/oracle-epm'
 import { getOracleEpmReturnedLinkPolicy } from '@/lib/internal/oracle-epm/links'
-import { defineOracleEpmRouteSpace } from '@/lib/internal/oracle-epm/route-space'
-import type { OracleEpmReturnedLinkPolicy } from '@/lib/internal/oracle-epm/types'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 const routes = defineOracleEpmRouteSpace({
   context: ['Synthetic', 'rest'],
