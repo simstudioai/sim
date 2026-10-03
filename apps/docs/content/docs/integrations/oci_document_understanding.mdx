@@ -1,0 +1,563 @@
+---
+title: OCI Document Understanding
+description: Extract document text, tables and fields, classify documents, and manage analysis jobs
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oci_document_understanding"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Analyze JPEG, PNG, PDF and TIFF documents with native OCI API signing-key credentials. Synchronous and inline job input is limited to 8 MB and five pages. Object Storage jobs accept up to 2000 documents, 500 MB and 2000 pages per document, within a 500 KB request body. Remote document limits are enforced by Oracle. Choose feature objects for OCR, tables, key-value extraction, document classification and language classification. Pretrained models need no modelId. Language and feature combinations depend on the model; no explicit model-version switch is sent. Searchable PDFs are supported through jobs. Existing models and projects can be discovered; model training and separate Generative AI products are not included. Jobs require an existing output bucket and prefix plus Oracle IAM access to process documents and read/write Object Storage. Cross-tenancy inputs require Oracle endorse/admit policies. Artifact paths follow Oracle’s prefix/jobId/ convention; no complete failure manifest or ZIP schema is assumed. Partial success is FAILED with PARTIALLY_SUCCEEDED details. Status reads do not poll automatically. The OCI transport sends synchronous analysis once. Disable block/workflow retries for paid analysis: the shared executor currently drops the non-retryable marker. Job tokens are derived from complete workflow invocation identity, otherwise generated per call; supply a stable token for deliberate replays with identical input. Oracle tokens expire after 24 hours and may be invalidated earlier. Structured output defaults to 1 MiB and 20 pages, capped at 8 MiB and 100 pages, with explicit truncation. JSON parsing is capped at 32 MiB. File artifacts up to 100 MiB are persisted as Sim files. Use file retrieval when an artifact exceeds the structured limit. No arbitrary document URLs are accepted.
+
+
+
+## Actions
+
+### OCI Document Understanding Analyze Document
+
+Analyze text, tables, fields and classifications in one JPEG, PNG, PDF or TIFF document of at most 8 MB and five pages. The OCI transport makes one attempt. Disable block/workflow retries to avoid duplicate paid analysis.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region in the credential realm; defaults to the credential region |
+| `source` | string | Yes | file for an authorized Sim file, or objectStorage for Oracle object references |
+| `file` | file | No | Stored Sim UserFile; required only for source=file. JPEG, PNG, PDF or TIFF; at most 8 MB and five pages |
+| `objects` | json | No | For source=objectStorage: \[\{namespaceName,bucketName,objectName,pageRange?\}\]. One object for synchronous analysis; at most 2000 for jobs. No URLs |
+| `pageRange` | json | No | Inline file page ranges, such as \["1-3","5"\]. Object references carry their own pageRange |
+| `features` | json | Yes | Array of \{featureType,modelId?\}: TEXT_EXTRACTION, TABLE_EXTRACTION, KEY_VALUE_EXTRACTION, DOCUMENT_CLASSIFICATION, LANGUAGE_CLASSIFICATION. Classification supports maxResults; key-value/document classification support model tenancyId. OCR supports selectionMarkDetection and job-only generateSearchablePdf |
+| `compartmentId` | string | No | OCI processing compartment OCID; required for processor jobs |
+| `documentType` | string | No | Document type hint, such as INVOICE, RECEIPT, PASSPORT, DRIVER_LICENSE or HEALTH_INSURANCE_ID |
+| `language` | string | No | BCP 47 language hint. Multilingual support depends on feature/model; no explicit model-version switch is sent |
+| `pageNumbers` | json | No | Original provider page numbers to return, e.g. \[1,3\]. Does not change paid analysis |
+| `maxPages` | number | No | Maximum returned pages; default 20, maximum 100 |
+| `maxOutputBytes` | number | No | Structured output budget; default 1048576, range 16384–8388608 bytes including envelope reserve |
+| `includeWords` | boolean | No | Include words and valid word-index references; default false |
+| `includeGeometry` | boolean | No | Include normalized geometry; default false |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `analysis` | object | Bounded documented analysis projection |
+|   ↳ `documentMetadata` | object | Provider document metadata |
+|     ↳ `pageCount` | number | Provider page count |
+|     ↳ `mimeType` | string | Detected MIME type |
+|   ↳ `pages` | array | Selected pages; omissions are reported by truncation metadata |
+|     ↳ `pageNumber` | number | Original provider page number |
+|     ↳ `dimensions` | object | Page size and units |
+|       ↳ `width` | number | Page width |
+|       ↳ `height` | number | Page height |
+|       ↳ `unit` | string | PIXEL or INCH |
+|     ↳ `text` | string | Sim-derived text joined from returned lines |
+|     ↳ `lines` | array | Recognized lines with text, confidence and optional geometry/word indices |
+|       ↳ `text` | string | Recognized text |
+|       ↳ `confidence` | number | Provider confidence from 0 to 1 |
+|       ↳ `boundingPolygon` | object | Normalized geometry when requested |
+|         ↳ `normalizedVertices` | array | Normalized polygon vertices |
+|           ↳ `x` | number | Normalized x coordinate |
+|           ↳ `y` | number | Normalized y coordinate |
+|       ↳ `wordIndexes` | array | Indices into the returned page words; omitted when words are omitted |
+|     ↳ `words` | array | Recognized words with text, confidence and optional geometry |
+|       ↳ `text` | string | Recognized text |
+|       ↳ `confidence` | number | Provider confidence from 0 to 1 |
+|       ↳ `boundingPolygon` | object | Normalized geometry when requested |
+|         ↳ `normalizedVertices` | array | Normalized polygon vertices |
+|           ↳ `x` | number | Normalized x coordinate |
+|           ↳ `y` | number | Normalized y coordinate |
+|       ↳ `wordIndexes` | array | Indices into the returned page words; omitted when words are omitted |
+|     ↳ `documentFields` | array | Fields with index paths, labels, names and typed values |
+|       ↳ `path` | array | Sim-derived index path preserving nested array fields |
+|       ↳ `fieldType` | string | Provider field type |
+|       ↳ `fieldLabel` | object | Detected label name and confidence |
+|         ↳ `name` | string | Label name |
+|         ↳ `confidence` | number | Provider confidence from 0 to 1 |
+|       ↳ `fieldName` | object | Detected name, confidence, optional geometry and word indices |
+|         ↳ `name` | string | Field name |
+|         ↳ `confidence` | number | Provider confidence from 0 to 1 |
+|         ↳ `boundingPolygon` | object | Normalized geometry when requested |
+|           ↳ `normalizedVertices` | array | Normalized polygon vertices |
+|             ↳ `x` | number | Normalized x coordinate |
+|             ↳ `y` | number | Normalized y coordinate |
+|         ↳ `wordIndexes` | array | Indices into the returned page words; omitted when words are omitted |
+|       ↳ `fieldValue` | object | Typed value; ARRAY children are separate fields with extended paths |
+|         ↳ `valueType` | string | STRING, DATE, TIME, PHONE_NUMBER, NUMBER, INTEGER or ARRAY |
+|         ↳ `text` | string | Recognized value text |
+|         ↳ `stringValue` | string | Provider string/date/time/phone value without date conversion |
+|         ↳ `numberValue` | number | Provider numeric value |
+|         ↳ `normalizedValue` | string | Provider normalized value |
+|         ↳ `normalizedConfidence` | number | Normalization confidence from 0 to 1 |
+|         ↳ `confidence` | number | Provider confidence from 0 to 1 |
+|         ↳ `boundingPolygon` | object | Normalized geometry when requested |
+|           ↳ `normalizedVertices` | array | Normalized polygon vertices |
+|             ↳ `x` | number | Normalized x coordinate |
+|             ↳ `y` | number | Normalized y coordinate |
+|         ↳ `wordIndexes` | array | Indices into the returned page words; omitted when words are omitted |
+|     ↳ `tables` | array | Tables with dimensions, confidence and header/body/footer rows of cells |
+|       ↳ `rowCount` | number | Table row count |
+|       ↳ `columnCount` | number | Table column count |
+|       ↳ `confidence` | number | Provider confidence from 0 to 1 |
+|       ↳ `boundingPolygon` | object | Normalized geometry when requested |
+|         ↳ `normalizedVertices` | array | Normalized polygon vertices |
+|           ↳ `x` | number | Normalized x coordinate |
+|           ↳ `y` | number | Normalized y coordinate |
+|       ↳ `headerRows` | array | Header rows containing cells with text and row/column indices |
+|         ↳ `cells` | array | Cells with text, confidence, row/column indices and optional geometry |
+|           ↳ `rowIndex` | number | Provider row index |
+|           ↳ `columnIndex` | number | Provider column index |
+|       ↳ `bodyRows` | array | Body rows containing cells with text and row/column indices |
+|         ↳ `cells` | array | Cells with text, confidence, row/column indices and optional geometry |
+|           ↳ `rowIndex` | number | Provider row index |
+|           ↳ `columnIndex` | number | Provider column index |
+|       ↳ `footerRows` | array | Footer rows containing cells with text and row/column indices |
+|         ↳ `cells` | array | Cells with text, confidence, row/column indices and optional geometry |
+|           ↳ `rowIndex` | number | Provider row index |
+|           ↳ `columnIndex` | number | Provider column index |
+|     ↳ `detectedDocumentTypes` | array | Detected document classes |
+|       ↳ `documentType` | string | Document class |
+|       ↳ `confidence` | number | Confidence from 0 to 1 |
+|     ↳ `detectedLanguages` | array | Detected languages |
+|       ↳ `language` | string | Language code |
+|       ↳ `confidence` | number | Confidence from 0 to 1 |
+|     ↳ `selectionMarks` | array | Selection marks when detected |
+|       ↳ `state` | string | Provider selection state |
+|       ↳ `confidence` | number | Provider confidence from 0 to 1 |
+|       ↳ `boundingPolygon` | object | Normalized geometry when requested |
+|         ↳ `normalizedVertices` | array | Normalized polygon vertices |
+|           ↳ `x` | number | Normalized x coordinate |
+|           ↳ `y` | number | Normalized y coordinate |
+|   ↳ `detectedDocumentTypes` | array | Detected document classes |
+|     ↳ `documentType` | string | Document class |
+|     ↳ `confidence` | number | Confidence from 0 to 1 |
+|   ↳ `detectedLanguages` | array | Detected languages |
+|     ↳ `language` | string | Language code |
+|     ↳ `confidence` | number | Confidence from 0 to 1 |
+|   ↳ `modelVersions` | array | Reported feature model versions |
+|     ↳ `feature` | string | Feature name |
+|     ↳ `version` | string | Reported model version |
+|   ↳ `errors` | array | Document-level processing errors; not inferred page errors |
+|     ↳ `code` | string | Processing error code |
+|     ↳ `message` | string | Processing error message |
+|   ↳ `truncated` | boolean | Whether a projection limit omitted content |
+|   ↳ `truncationReasons` | array | Explicit reasons for incomplete output |
+|   ↳ `returnedPageCount` | number | Pages returned in this projection |
+|   ↳ `availablePageCount` | number | Pages in the provider result before projection |
+| `opcRequestId` | string | Oracle request identifier |
+
+### OCI Document Understanding Create Processor Job
+
+Submit document analysis or searchable-PDF generation. Inline: 8 MB/five pages. Object Storage: 500 MB/2000 pages per document, at most 2000 documents and 500 KB request JSON. Results require Object Storage access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region in the credential realm; defaults to the credential region |
+| `source` | string | Yes | file for an authorized Sim file, or objectStorage for Oracle object references |
+| `file` | file | No | Stored Sim UserFile; required only for source=file. JPEG, PNG, PDF or TIFF; at most 8 MB and five pages |
+| `objects` | json | No | For source=objectStorage: \[\{namespaceName,bucketName,objectName,pageRange?\}\]. One object for synchronous analysis; at most 2000 for jobs. No URLs |
+| `pageRange` | json | No | Inline file page ranges, such as \["1-3","5"\]. Object references carry their own pageRange |
+| `features` | json | Yes | Array of \{featureType,modelId?\}: TEXT_EXTRACTION, TABLE_EXTRACTION, KEY_VALUE_EXTRACTION, DOCUMENT_CLASSIFICATION, LANGUAGE_CLASSIFICATION. Classification supports maxResults; key-value/document classification support model tenancyId. OCR supports selectionMarkDetection and job-only generateSearchablePdf |
+| `compartmentId` | string | Yes | OCI processing compartment OCID; required for processor jobs |
+| `documentType` | string | No | Document type hint, such as INVOICE, RECEIPT, PASSPORT, DRIVER_LICENSE or HEALTH_INSURANCE_ID |
+| `language` | string | No | BCP 47 language hint. Multilingual support depends on feature/model; no explicit model-version switch is sent |
+| `outputLocation` | json | Yes | Existing output location: \{namespaceName,bucketName,prefix\}. Results use prefix/jobId/. ZIP output is disabled |
+| `displayName` | string | No | Job display name |
+| `retryToken` | string | No | Stable submission token; derived from complete workflow invocation identity when omitted, otherwise generated per call. Supply explicitly for deliberate replays. At most 64 ASCII letters/digits/_/-. Reuse only for the identical request; expires after 24 hours and may be invalidated earlier |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job` | object | Processor job status without echoed document bytes |
+|   ↳ `id` | string | Processor job OCID |
+|   ↳ `compartmentId` | string | Processing compartment |
+|   ↳ `displayName` | string | Job display name |
+|   ↳ `lifecycleState` | string | ACCEPTED, IN_PROGRESS, SUCCEEDED, FAILED, CANCELING or CANCELED |
+|   ↳ `lifecycleDetails` | string | Includes PARTIALLY_SUCCEEDED or COMPLETELY_FAILED for failed jobs |
+|   ↳ `timeAccepted` | string | Acceptance timestamp |
+|   ↳ `timeStarted` | string | Start timestamp |
+|   ↳ `timeFinished` | string | Finish timestamp |
+|   ↳ `percentComplete` | number | Provider progress percentage |
+|   ↳ `outputLocation` | object | Configured output storage location |
+|     ↳ `namespaceName` | string | Object Storage namespace |
+|     ↳ `bucketName` | string | Object Storage bucket |
+|     ↳ `prefix` | string | Configured output prefix |
+|   ↳ `terminal` | boolean | Sim-derived terminal-state flag |
+|   ↳ `partiallySucceeded` | boolean | FAILED with PARTIALLY_SUCCEEDED lifecycle details |
+| `opcRequestId` | string | Oracle request identifier |
+| `retryToken` | string | Token used for this logical submission |
+
+### OCI Document Understanding Get Processor Job
+
+Read processor status once. Use bounded workflow waits for polling; FAILED with PARTIALLY_SUCCEEDED can still have usable output artifacts.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region in the credential realm; defaults to the credential region |
+| `jobId` | string | Yes | Document Understanding processor job OCID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job` | object | Processor job status without echoed document bytes |
+|   ↳ `id` | string | Processor job OCID |
+|   ↳ `compartmentId` | string | Processing compartment |
+|   ↳ `displayName` | string | Job display name |
+|   ↳ `lifecycleState` | string | ACCEPTED, IN_PROGRESS, SUCCEEDED, FAILED, CANCELING or CANCELED |
+|   ↳ `lifecycleDetails` | string | Includes PARTIALLY_SUCCEEDED or COMPLETELY_FAILED for failed jobs |
+|   ↳ `timeAccepted` | string | Acceptance timestamp |
+|   ↳ `timeStarted` | string | Start timestamp |
+|   ↳ `timeFinished` | string | Finish timestamp |
+|   ↳ `percentComplete` | number | Provider progress percentage |
+|   ↳ `outputLocation` | object | Configured output storage location |
+|     ↳ `namespaceName` | string | Object Storage namespace |
+|     ↳ `bucketName` | string | Object Storage bucket |
+|     ↳ `prefix` | string | Configured output prefix |
+|   ↳ `terminal` | boolean | Sim-derived terminal-state flag |
+|   ↳ `partiallySucceeded` | boolean | FAILED with PARTIALLY_SUCCEEDED lifecycle details |
+| `opcRequestId` | string | Oracle request identifier |
+| `etag` | string | Job ETag for cancellation’s ifMatch precondition |
+
+### OCI Document Understanding Cancel Processor Job
+
+Request processor cancellation. The acknowledgement does not prove the job is canceled; read its status afterward.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region in the credential realm; defaults to the credential region |
+| `jobId` | string | Yes | Document Understanding processor job OCID |
+| `ifMatch` | string | No | Optional provider ETag condition |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request identifier |
+| `jobId` | string | Processor job OCID |
+| `cancellationRequested` | boolean | Oracle acknowledged the cancellation request |
+
+### OCI Document Understanding List Job Outputs
+
+List one page of artifacts beneath the authenticated job’s output prefix. Requires Oracle Object Storage list access. Missing artifacts do not establish individual document failures.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region in the credential realm; defaults to the credential region |
+| `jobId` | string | Yes | Document Understanding processor job OCID |
+| `limit` | number | No | Result limit; default 100, maximum 1000 |
+| `start` | string | No | Inclusive continuation name from nextStartWith |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `job` | object | Processor job status without echoed document bytes |
+|   ↳ `id` | string | Processor job OCID |
+|   ↳ `compartmentId` | string | Processing compartment |
+|   ↳ `displayName` | string | Job display name |
+|   ↳ `lifecycleState` | string | ACCEPTED, IN_PROGRESS, SUCCEEDED, FAILED, CANCELING or CANCELED |
+|   ↳ `lifecycleDetails` | string | Includes PARTIALLY_SUCCEEDED or COMPLETELY_FAILED for failed jobs |
+|   ↳ `timeAccepted` | string | Acceptance timestamp |
+|   ↳ `timeStarted` | string | Start timestamp |
+|   ↳ `timeFinished` | string | Finish timestamp |
+|   ↳ `percentComplete` | number | Provider progress percentage |
+|   ↳ `outputLocation` | object | Configured output storage location |
+|     ↳ `namespaceName` | string | Object Storage namespace |
+|     ↳ `bucketName` | string | Object Storage bucket |
+|     ↳ `prefix` | string | Configured output prefix |
+|   ↳ `terminal` | boolean | Sim-derived terminal-state flag |
+|   ↳ `partiallySucceeded` | boolean | FAILED with PARTIALLY_SUCCEEDED lifecycle details |
+| `opcRequestId` | string | Oracle request identifier |
+| `objects` | array | Available artifacts |
+|   ↳ `name` | string | Exact artifact object name |
+|   ↳ `size` | number | Object size in bytes |
+|   ↳ `etag` | string | Entity tag |
+|   ↳ `timeCreated` | string | Creation timestamp |
+| `nextStartWith` | string | Next inclusive listing start |
+
+### OCI Document Understanding Get Job Output
+
+Retrieve one job artifact with Oracle Object Storage read access. Project documented analysis JSON up to 32 MiB or persist a file up to 100 MiB. No automatic reanalysis or ZIP parsing.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region in the credential realm; defaults to the credential region |
+| `jobId` | string | Yes | Document Understanding processor job OCID |
+| `pageNumbers` | json | No | Original provider page numbers to return, e.g. \[1,3\]. Does not change paid analysis |
+| `maxPages` | number | No | Maximum returned pages; default 20, maximum 100 |
+| `maxOutputBytes` | number | No | Structured output budget; default 1048576, range 16384–8388608 bytes including envelope reserve |
+| `includeWords` | boolean | No | Include words and valid word-index references; default false |
+| `includeGeometry` | boolean | No | Include normalized geometry; default false |
+| `objectName` | string | Yes | Exact name returned by List Job Outputs; must remain under this job’s prefix |
+| `resultType` | string | No | structured \(default\) for analysis JSON or file for a persisted artifact |
+| `ifMatch` | string | No | Optional artifact ETag from listing |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request identifier |
+| `jobId` | string | Processor job OCID |
+| `analysis` | object | Bounded documented analysis projection |
+|   ↳ `documentMetadata` | object | Provider document metadata |
+|     ↳ `pageCount` | number | Provider page count |
+|     ↳ `mimeType` | string | Detected MIME type |
+|   ↳ `pages` | array | Selected pages; omissions are reported by truncation metadata |
+|     ↳ `pageNumber` | number | Original provider page number |
+|     ↳ `dimensions` | object | Page size and units |
+|       ↳ `width` | number | Page width |
+|       ↳ `height` | number | Page height |
+|       ↳ `unit` | string | PIXEL or INCH |
+|     ↳ `text` | string | Sim-derived text joined from returned lines |
+|     ↳ `lines` | array | Recognized lines with text, confidence and optional geometry/word indices |
+|       ↳ `text` | string | Recognized text |
+|       ↳ `confidence` | number | Provider confidence from 0 to 1 |
+|       ↳ `boundingPolygon` | object | Normalized geometry when requested |
+|         ↳ `normalizedVertices` | array | Normalized polygon vertices |
+|           ↳ `x` | number | Normalized x coordinate |
+|           ↳ `y` | number | Normalized y coordinate |
+|       ↳ `wordIndexes` | array | Indices into the returned page words; omitted when words are omitted |
+|     ↳ `words` | array | Recognized words with text, confidence and optional geometry |
+|       ↳ `text` | string | Recognized text |
+|       ↳ `confidence` | number | Provider confidence from 0 to 1 |
+|       ↳ `boundingPolygon` | object | Normalized geometry when requested |
+|         ↳ `normalizedVertices` | array | Normalized polygon vertices |
+|           ↳ `x` | number | Normalized x coordinate |
+|           ↳ `y` | number | Normalized y coordinate |
+|       ↳ `wordIndexes` | array | Indices into the returned page words; omitted when words are omitted |
+|     ↳ `documentFields` | array | Fields with index paths, labels, names and typed values |
+|       ↳ `path` | array | Sim-derived index path preserving nested array fields |
+|       ↳ `fieldType` | string | Provider field type |
+|       ↳ `fieldLabel` | object | Detected label name and confidence |
+|         ↳ `name` | string | Label name |
+|         ↳ `confidence` | number | Provider confidence from 0 to 1 |
+|       ↳ `fieldName` | object | Detected name, confidence, optional geometry and word indices |
+|         ↳ `name` | string | Field name |
+|         ↳ `confidence` | number | Provider confidence from 0 to 1 |
+|         ↳ `boundingPolygon` | object | Normalized geometry when requested |
+|           ↳ `normalizedVertices` | array | Normalized polygon vertices |
+|             ↳ `x` | number | Normalized x coordinate |
+|             ↳ `y` | number | Normalized y coordinate |
+|         ↳ `wordIndexes` | array | Indices into the returned page words; omitted when words are omitted |
+|       ↳ `fieldValue` | object | Typed value; ARRAY children are separate fields with extended paths |
+|         ↳ `valueType` | string | STRING, DATE, TIME, PHONE_NUMBER, NUMBER, INTEGER or ARRAY |
+|         ↳ `text` | string | Recognized value text |
+|         ↳ `stringValue` | string | Provider string/date/time/phone value without date conversion |
+|         ↳ `numberValue` | number | Provider numeric value |
+|         ↳ `normalizedValue` | string | Provider normalized value |
+|         ↳ `normalizedConfidence` | number | Normalization confidence from 0 to 1 |
+|         ↳ `confidence` | number | Provider confidence from 0 to 1 |
+|         ↳ `boundingPolygon` | object | Normalized geometry when requested |
+|           ↳ `normalizedVertices` | array | Normalized polygon vertices |
+|             ↳ `x` | number | Normalized x coordinate |
+|             ↳ `y` | number | Normalized y coordinate |
+|         ↳ `wordIndexes` | array | Indices into the returned page words; omitted when words are omitted |
+|     ↳ `tables` | array | Tables with dimensions, confidence and header/body/footer rows of cells |
+|       ↳ `rowCount` | number | Table row count |
+|       ↳ `columnCount` | number | Table column count |
+|       ↳ `confidence` | number | Provider confidence from 0 to 1 |
+|       ↳ `boundingPolygon` | object | Normalized geometry when requested |
+|         ↳ `normalizedVertices` | array | Normalized polygon vertices |
+|           ↳ `x` | number | Normalized x coordinate |
+|           ↳ `y` | number | Normalized y coordinate |
+|       ↳ `headerRows` | array | Header rows containing cells with text and row/column indices |
+|         ↳ `cells` | array | Cells with text, confidence, row/column indices and optional geometry |
+|           ↳ `rowIndex` | number | Provider row index |
+|           ↳ `columnIndex` | number | Provider column index |
+|       ↳ `bodyRows` | array | Body rows containing cells with text and row/column indices |
+|         ↳ `cells` | array | Cells with text, confidence, row/column indices and optional geometry |
+|           ↳ `rowIndex` | number | Provider row index |
+|           ↳ `columnIndex` | number | Provider column index |
+|       ↳ `footerRows` | array | Footer rows containing cells with text and row/column indices |
+|         ↳ `cells` | array | Cells with text, confidence, row/column indices and optional geometry |
+|           ↳ `rowIndex` | number | Provider row index |
+|           ↳ `columnIndex` | number | Provider column index |
+|     ↳ `detectedDocumentTypes` | array | Detected document classes |
+|       ↳ `documentType` | string | Document class |
+|       ↳ `confidence` | number | Confidence from 0 to 1 |
+|     ↳ `detectedLanguages` | array | Detected languages |
+|       ↳ `language` | string | Language code |
+|       ↳ `confidence` | number | Confidence from 0 to 1 |
+|     ↳ `selectionMarks` | array | Selection marks when detected |
+|       ↳ `state` | string | Provider selection state |
+|       ↳ `confidence` | number | Provider confidence from 0 to 1 |
+|       ↳ `boundingPolygon` | object | Normalized geometry when requested |
+|         ↳ `normalizedVertices` | array | Normalized polygon vertices |
+|           ↳ `x` | number | Normalized x coordinate |
+|           ↳ `y` | number | Normalized y coordinate |
+|   ↳ `detectedDocumentTypes` | array | Detected document classes |
+|     ↳ `documentType` | string | Document class |
+|     ↳ `confidence` | number | Confidence from 0 to 1 |
+|   ↳ `detectedLanguages` | array | Detected languages |
+|     ↳ `language` | string | Language code |
+|     ↳ `confidence` | number | Confidence from 0 to 1 |
+|   ↳ `modelVersions` | array | Reported feature model versions |
+|     ↳ `feature` | string | Feature name |
+|     ↳ `version` | string | Reported model version |
+|   ↳ `errors` | array | Document-level processing errors; not inferred page errors |
+|     ↳ `code` | string | Processing error code |
+|     ↳ `message` | string | Processing error message |
+|   ↳ `truncated` | boolean | Whether a projection limit omitted content |
+|   ↳ `truncationReasons` | array | Explicit reasons for incomplete output |
+|   ↳ `returnedPageCount` | number | Pages returned in this projection |
+|   ↳ `availablePageCount` | number | Pages in the provider result before projection |
+| `file` | file | Artifact persisted before the tool response |
+
+### OCI Document Understanding List Projects
+
+Discover one page of Document Understanding projects in a compartment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region in the credential realm; defaults to the credential region |
+| `compartmentId` | string | Yes | OCI compartment OCID to list |
+| `displayName` | string | No | Exact display-name filter |
+| `lifecycleState` | string | No | Provider lifecycle filter, such as ACTIVE |
+| `limit` | number | No | One-page result limit; default 100, maximum 100 |
+| `page` | string | No | Opaque nextPage token from a prior response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request identifier |
+| `projects` | array | Project identity, description, lifecycle and timestamps |
+|   ↳ `id` | string | Resource OCID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `description` | string | Description |
+|   ↳ `compartmentId` | string | Compartment OCID |
+|   ↳ `lifecycleState` | string | Lifecycle state |
+|   ↳ `lifecycleDetails` | string | Lifecycle details |
+|   ↳ `timeCreated` | string | Creation timestamp |
+|   ↳ `timeUpdated` | string | Update timestamp |
+| `nextPage` | string | Provider continuation token |
+
+### OCI Document Understanding List Models
+
+Discover one page of existing models, optionally within a project. Does not create or train models.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region in the credential realm; defaults to the credential region |
+| `compartmentId` | string | Yes | OCI compartment OCID to list |
+| `displayName` | string | No | Exact display-name filter |
+| `lifecycleState` | string | No | Provider lifecycle filter, such as ACTIVE |
+| `limit` | number | No | One-page result limit; default 100, maximum 100 |
+| `page` | string | No | Opaque nextPage token from a prior response |
+| `projectId` | string | No | Optional project OCID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request identifier |
+| `models` | array | Model summaries without datasets or training payloads |
+|   ↳ `id` | string | Resource OCID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `description` | string | Description |
+|   ↳ `compartmentId` | string | Compartment OCID |
+|   ↳ `projectId` | string | Project OCID |
+|   ↳ `modelType` | string | Model type |
+|   ↳ `modelSubType` | object | Documented model subtype discriminator |
+|     ↳ `modelType` | string | Subtype model family |
+|     ↳ `modelSubType` | string | Subtype within the model family |
+|   ↳ `modelVersion` | string | Provider model version |
+|   ↳ `lifecycleState` | string | Lifecycle state |
+|   ↳ `lifecycleDetails` | string | Lifecycle details |
+|   ↳ `timeCreated` | string | Creation timestamp |
+|   ↳ `timeUpdated` | string | Update timestamp |
+|   ↳ `language` | string | Model language |
+|   ↳ `aliasName` | string | Model alias |
+|   ↳ `tenancyId` | string | Model tenancy |
+| `nextPage` | string | Provider continuation token |
+
+### OCI Document Understanding Get Model
+
+Inspect an existing Document Understanding model’s identity, type, language, version and lifecycle.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region in the credential realm; defaults to the credential region |
+| `modelId` | string | Yes | Model OCID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request identifier |
+| `model` | object | Model details without training data |
+|   ↳ `id` | string | Resource OCID |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `description` | string | Description |
+|   ↳ `compartmentId` | string | Compartment OCID |
+|   ↳ `projectId` | string | Project OCID |
+|   ↳ `modelType` | string | Model type |
+|   ↳ `modelSubType` | object | Documented model subtype discriminator |
+|     ↳ `modelType` | string | Subtype model family |
+|     ↳ `modelSubType` | string | Subtype within the model family |
+|   ↳ `modelVersion` | string | Provider model version |
+|   ↳ `lifecycleState` | string | Lifecycle state |
+|   ↳ `lifecycleDetails` | string | Lifecycle details |
+|   ↳ `timeCreated` | string | Creation timestamp |
+|   ↳ `timeUpdated` | string | Update timestamp |
+|   ↳ `language` | string | Model language |
+|   ↳ `aliasName` | string | Model alias |
+|   ↳ `tenancyId` | string | Model tenancy |
+
+### OCI Document Understanding Get Model Type
+
+Inspect documented model-type versions and capabilities; does not select a hidden analysis API version.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Connected OCI API signing-key service account |
+| `region` | string | No | OCI region in the credential realm; defaults to the credential region |
+| `modelType` | string | Yes | Oracle model type |
+| `modelSubType` | string | No | Optional Oracle model subtype filter |
+| `compartmentId` | string | No | Optional compartment OCID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `opcRequestId` | string | Oracle request identifier |
+| `versions` | array | Documented versions |
+| `capabilities` | array | Flattened provider capability map |
+|   ↳ `version` | string | Version key |
+|   ↳ `name` | string | Capability name |
+|   ↳ `details` | array | Capability details |
+
+

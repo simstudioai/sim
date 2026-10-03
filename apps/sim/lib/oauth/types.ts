@@ -107,6 +107,7 @@ export type OAuthProvider =
   | 'zoho-desk'
 
 export type OAuthService =
+  | 'oci_document_understanding'
   | 'oci'
   | 'github-repositories'
   | 'google'
