@@ -47,6 +47,7 @@ import {
   lockWorkspaceProject,
   transferWorkspaceProjects,
 } from '@/lib/projects/membership'
+import { restoreWorkflow } from '@/lib/workflows/lifecycle'
 import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import { createWorkspaceInTransaction } from '@/lib/workspaces/create'
 import { archiveWorkspace } from '@/lib/workspaces/lifecycle'
@@ -939,6 +940,46 @@ describe('Project foundation at the database and application boundary', () => {
       expect(row.isPublicApi).toBe(false)
     }
   )
+
+  check('workflow restore cannot overtake a concurrent Project archive', async () => {
+    const f = await fixture()
+    const workflowId = await addWorkflow(f.ids[0], f.ownerId)
+    await db.update(workflow).set({ archivedAt: new Date() }).where(eq(workflow.id, workflowId))
+    const held = createDeferred<number>()
+    const release = createDeferred<void>()
+    const archive = db.transaction(async (tx) => {
+      const [connection] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+      await tx.select().from(workflow).where(eq(workflow.id, workflowId)).for('update')
+      await archiveProjectInTransaction(tx, f.projectId)
+      held.resolve(connection.pid)
+      await release.promise
+    })
+    const blocker = await held.promise
+    const restore = restoreWorkflow(workflowId, request).then(
+      (result) => result,
+      (error: unknown) => error
+    )
+    try {
+      let waiting = false
+      for (let attempt = 0; attempt < 100; attempt++) {
+        const rows = await db.execute(sql`
+          SELECT 1 FROM pg_stat_activity WHERE ${blocker} = ANY(pg_blocking_pids(pid))
+        `)
+        if (rows.length) {
+          waiting = true
+          break
+        }
+        await sleep(10)
+      }
+      expect(waiting).toBe(true)
+    } finally {
+      release.resolve()
+      await archive
+    }
+    expect(await restore).toMatchObject({ code: 'not_found' })
+    const [row] = await db.select().from(workflow).where(eq(workflow.id, workflowId))
+    expect(row.archivedAt).not.toBeNull()
+  })
 
   check(
     'Project archive rolls back as a unit and retries without losing environments',

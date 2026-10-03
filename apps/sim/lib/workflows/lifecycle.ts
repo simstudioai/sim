@@ -22,6 +22,7 @@ import { mcpPubSub } from '@/lib/mcp/pubsub'
 import { releaseWebhookPathClaims } from '@/lib/webhooks/path-claims'
 import { supersedeInFlightDeploymentOperations } from '@/lib/workflows/persistence/deployment-operations'
 import { getWorkflowById } from '@/lib/workflows/utils'
+import { lockActiveWorkspace } from '@/lib/workspaces/active-workspace'
 
 const logger = createLogger('WorkflowLifecycle')
 
@@ -178,6 +179,8 @@ export async function restoreWorkflow(
   const archivedAt = existingWorkflow.archivedAt
 
   await db.transaction(async (tx) => {
+    if (existingWorkflow.workspaceId) await lockActiveWorkspace(tx, existingWorkflow.workspaceId)
+
     await tx
       .update(workflow)
       .set({
