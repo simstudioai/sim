@@ -1,3 +1,6 @@
-export type { AgentGroupItem, NestedAgentGroup } from './agent-group'
-export { AgentGroup, isAgentGroupResolved } from './agent-group'
-export { CircleStop } from './tool-call-item'
+export { AgentGroup } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group'
+export { isAgentGroupResolved } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-content'
+export type {
+  AgentGroupItem,
+  NestedAgentGroup,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { guardSubscriptionPlanWrites } from '@/lib/auth/stripe-adapter-guard'
@@ -32,7 +29,6 @@ const WHERE = [{ field: 'id', value: 'sub-1' }]
 
 describe('guardSubscriptionPlanWrites', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

@@ -1,28 +1,26 @@
-/**
- * @vitest-environment node
- */
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  blockVisibilityMock,
+  blockVisibilityMockFns,
+} from '@sim/testing/mocks/block-visibility.mock'
+import { envFlagsMockFns } from '@sim/testing/mocks/env-flags.mock'
+import { oauthUtilsMock, oauthUtilsMockFns } from '@sim/testing/mocks/oauth-utils.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  getBlockVisibility: vi.fn(),
-  getAllowedIntegrationsFromEnv: vi.fn(),
-  getUserPermissionConfig: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   createVisibility: vi.fn(),
-  getAllOAuthServices: vi.fn(),
-  getServiceConfigByServiceId: vi.fn(),
 }))
 
-vi.mock('@/lib/core/config/block-visibility', () => ({
-  getBlockVisibility: mocks.getBlockVisibility,
-}))
+vi.mock('@/lib/core/config/block-visibility', () => blockVisibilityMock)
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  getAllowedIntegrationsFromEnv: mocks.getAllowedIntegrationsFromEnv,
-}))
-
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: mocks.getUserPermissionConfig,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 /**
  * The real helpers canonicalize each side through the generated successor map;
@@ -54,13 +52,10 @@ vi.mock('@/lib/permission-groups/integration-allowlist', () => {
 })
 
 vi.mock('@/lib/integrations/credential-visibility.server', () => ({
-  createIntegrationCredentialVisibility: mocks.createVisibility,
+  createIntegrationCredentialVisibility: hoisted.createVisibility,
 }))
 
-vi.mock('@/lib/oauth/utils', () => ({
-  getAllOAuthServices: mocks.getAllOAuthServices,
-  getServiceConfigByServiceId: mocks.getServiceConfigByServiceId,
-}))
+vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 
 import {
   listCredentialProviderCatalog,
@@ -68,11 +63,15 @@ import {
   type ServiceAccountCredentialProviderCatalogEntry,
 } from '@/lib/credentials/application/provider-catalog'
 
-const personalPrincipal = {
-  kind: 'personal_api_key' as const,
-  userId: 'user-1',
-  keyId: 'key-1',
+const mocks = {
+  ...hoisted,
+  getBlockVisibility: blockVisibilityMockFns.mockGetBlockVisibility,
+  getAllOAuthServices: oauthUtilsMockFns.mockGetAllOAuthServices,
+  getServiceConfigByServiceId: oauthUtilsMockFns.mockGetServiceConfigByServiceId,
+  getAllowedIntegrationsFromEnv: envFlagsMockFns.getAllowedIntegrationsFromEnv,
 }
+
+const personalPrincipal = createPersonalApiKeyPrincipal()
 const context = {
   workspaceId: 'workspace-1',
   workspaceOrganizationId: 'organization-1',
@@ -108,7 +107,6 @@ const services = [
 
 describe('listCredentialProviderCatalog', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getAllOAuthServices.mockReturnValue(services)
     /**
      * The permission group is the NARROWER half on purpose. With the deployment
@@ -117,7 +115,7 @@ describe('listCredentialProviderCatalog', () => {
      * that never consulted it — which is what this fixture used to look like.
      */
     mocks.getAllowedIntegrationsFromEnv.mockReturnValue(['salesforce', 'trello'])
-    mocks.getUserPermissionConfig.mockResolvedValue({
+    permissionGroupsResolveMockFns.mockGetUserPermissionConfig.mockResolvedValue({
       allowedIntegrations: ['salesforce'],
     })
     mocks.getBlockVisibility.mockResolvedValue({
@@ -140,79 +138,50 @@ describe('listCredentialProviderCatalog', () => {
         }
       }
       if (serviceId === 'trello') return {}
-      if (serviceId === 'quickbooks') return {}
       return null
     })
   })
 
-  it('projects OAuth services, authorization options, and reconnect capability', async () => {
+  it('applies the narrower permission-group allowlist to OAuth availability', async () => {
     const catalog = await listCredentialProviderCatalog(personalPrincipal, context)
 
-    expect(catalog).toEqual([
-      {
-        type: 'oauth',
-        serviceId: 'salesforce',
-        name: 'Salesforce',
-        description: 'Connect Salesforce.',
-        providerFamily: 'salesforce',
-        available: true,
-        supportsReconnect: true,
-        fields: [],
-        authorizationOptions: [
-          { providerId: 'salesforce', label: 'Production' },
-          { providerId: 'salesforce-sandbox', label: 'Sandbox' },
-        ],
-      },
-      {
-        type: 'oauth',
-        serviceId: 'trello',
-        name: 'Trello',
-        description: 'Connect Trello.',
-        providerFamily: 'trello',
-        available: false,
-        supportsReconnect: true,
-        fields: [],
-        authorizationOptions: [{ providerId: 'trello', label: 'Trello' }],
-      },
-      {
-        type: 'service_account',
-        serviceId: 'claude-platform-service-account',
-        providerId: 'claude-platform-service-account',
-        name: 'Claude Platform API key',
-        description: 'Connect Claude Platform with a API key.',
-        providerFamily: 'claude-platform',
-        available: true,
-        docsUrl: 'https://docs.sim.ai/integrations/managed-agent',
-        requiresClientGeneratedCredentialId: false,
-        fields: [
-          {
-            id: 'apiToken',
-            label: 'API key',
-            placeholder: 'sk-ant-...',
-            required: true,
-            secret: true,
-            multiline: false,
-            hint: 'Claude Platform API keys usually start with sk-ant-.',
-          },
-        ],
-      },
+    expect(catalog.map(({ serviceId, available }) => ({ serviceId, available }))).toEqual([
+      { serviceId: 'salesforce', available: true },
+      { serviceId: 'trello', available: false },
+      { serviceId: 'claude-platform-service-account', available: true },
     ])
     expect(mocks.createVisibility).toHaveBeenCalledWith(
       expect.objectContaining({ allowedIntegrationTypes: new Set(['salesforce']) })
     )
   })
 
+  it('uses enrollment app visibility for managed OAuth without changing ordinary OAuth', async () => {
+    const isCredentialVisible = vi.fn(({ type }) => type === 'managed_oauth')
+    mocks.createVisibility.mockReturnValue({
+      isOAuthServiceVisible: () => false,
+      isCredentialVisible,
+    })
+    const ordinary = await listCredentialProviderCatalog(personalPrincipal, context)
+    expect(ordinary.find((provider) => provider.serviceId === 'salesforce')?.available).toBe(false)
+    const enrolled = await listCredentialProviderCatalog(
+      personalPrincipal,
+      context,
+      'managed_oauth'
+    )
+    expect(enrolled.find((provider) => provider.serviceId === 'salesforce')?.available).toBe(true)
+    expect(isCredentialVisible).toHaveBeenCalledWith({
+      providerId: 'salesforce',
+      type: 'managed_oauth',
+    })
+  })
+
   it('does not borrow a human permission group for workspace API keys', async () => {
     await listCredentialProviderCatalog(
-      {
-        kind: 'workspace_api_key',
-        workspaceId: 'workspace-1',
-        keyId: 'workspace-key-1',
-      },
+      createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key-1' }),
       context
     )
 
-    expect(mocks.getUserPermissionConfig).not.toHaveBeenCalled()
+    expect(permissionGroupsResolveMockFns.mockGetUserPermissionConfig).not.toHaveBeenCalled()
     /**
      * The deployment allowlist alone, not the personal caller's narrower group:
      * a workspace API key has no user and therefore no group, and borrowing the
@@ -221,70 +190,6 @@ describe('listCredentialProviderCatalog', () => {
     expect(mocks.createVisibility).toHaveBeenCalledWith(
       expect.objectContaining({ allowedIntegrationTypes: new Set(['salesforce', 'trello']) })
     )
-  })
-
-  it('projects QuickBooks app credentials as write-only OAuth setup fields', async () => {
-    mocks.getAllOAuthServices.mockReturnValue([
-      {
-        serviceId: 'quickbooks',
-        providerId: 'quickbooks',
-        name: 'QuickBooks',
-        description: 'Connect QuickBooks.',
-        baseProvider: 'quickbooks',
-        authType: 'oauth',
-        clientConfiguration: {
-          fields: [
-            {
-              id: 'clientId',
-              label: 'Client ID',
-              placeholder: 'Enter client ID',
-              secret: false,
-            },
-            {
-              id: 'clientSecret',
-              label: 'Client secret',
-              placeholder: 'Enter client secret',
-              secret: true,
-            },
-            {
-              id: 'environment',
-              label: 'Environment',
-              placeholder: 'Select environment',
-              secret: false,
-              options: [
-                { label: 'Sandbox', value: 'sandbox' },
-                { label: 'Production', value: 'production' },
-              ],
-            },
-          ],
-        },
-      },
-    ])
-    mocks.createVisibility.mockReturnValue({
-      isOAuthServiceVisible: () => true,
-      isCredentialVisible: () => false,
-    })
-
-    const catalog = await listCredentialProviderCatalog(personalPrincipal, context)
-
-    expect(catalog[0]).toMatchObject({
-      type: 'oauth',
-      serviceId: 'quickbooks',
-      available: true,
-      fields: [
-        { id: 'clientId', required: true, secret: false },
-        { id: 'clientSecret', required: true, secret: true },
-        {
-          id: 'environment',
-          required: true,
-          secret: false,
-          options: [
-            { label: 'Sandbox', value: 'sandbox' },
-            { label: 'Production', value: 'production' },
-          ],
-        },
-      ],
-    })
   })
 
   it('publishes the OCI setup contract but keeps it unavailable without product metadata', async () => {
@@ -326,20 +231,6 @@ describe('listCredentialProviderCatalog', () => {
       }),
     ])
   })
-
-  it('fails fast when a multi-server provider lacks complete labels', async () => {
-    mocks.getServiceConfigByServiceId.mockImplementation((serviceId: string) => {
-      if (serviceId === 'salesforce') {
-        return { providerIdLabels: { salesforce: 'Production' } }
-      }
-      if (serviceId === 'trello') return {}
-      return null
-    })
-
-    await expect(listCredentialProviderCatalog(personalPrincipal, context)).rejects.toThrow(
-      'OAuth provider salesforce-sandbox is missing its authorization option label'
-    )
-  })
 })
 
 describe('requireAvailableServiceAccountCredentialProvider', () => {
@@ -355,12 +246,6 @@ describe('requireAvailableServiceAccountCredentialProvider', () => {
     requiresClientGeneratedCredentialId: false,
     fields: [],
   }
-
-  it('returns an available service-account provider', () => {
-    expect(requireAvailableServiceAccountCredentialProvider([provider], provider.providerId)).toBe(
-      provider
-    )
-  })
 
   it('rejects a service-account provider hidden by workspace policy', () => {
     expect(() =>

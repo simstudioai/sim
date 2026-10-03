@@ -8,8 +8,8 @@ import {
   type ErrorResponseId,
   RATE_LIMIT_HEADERS,
   RESOURCE_ERRORS,
-  V2_API_KEY_SECURITY,
-  V2_API_KEY_SECURITY_SCHEMES,
+  V2_AUTH_SECURITY,
+  V2_AUTH_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
 } from '@/lib/api/contracts/v2/openapi/shared'
@@ -19,6 +19,7 @@ import {
   type OpenApiOperationMetadata,
   type OpenApiSuccessMetadata,
 } from '@/lib/api/openapi/types'
+import { billingOperations } from '@/lib/billing/application/operations'
 
 const BILLING_STATUS_EXAMPLE = {
   data: {
@@ -78,10 +79,11 @@ const routes = [
   defineOpenApiRoute(
     v2GetBillingStatusContract,
     billingOperation({
+      applicationOperation: billingOperations.readStatus,
       operationId: 'getBillingStatus',
       summary: 'Get Billing Status',
       description:
-        "Return the current plan, billing standing, credit allowance, and storage quota. `credits` and `storage` report the payer's pooled allowances and are null unless the caller can manage that payer's billing; they are always null for a workspace API key. Billing history lives at `GET /api/v2/billing/logs`.",
+        "Get the current plan, billing standing, credit allowance, and storage quota. Pooled `credits` and `storage` are visible only to callers who can manage the payer's billing; workspace API keys receive null for both. Use List Billing Logs for credit history.",
       errors: RESOURCE_ERRORS,
       success: { description: 'The current billing and storage status.' },
     }),
@@ -104,10 +106,11 @@ const routes = [
   defineOpenApiRoute(
     v2ListBillingLogsContract,
     billingOperation({
+      applicationOperation: billingOperations.listLogs,
       operationId: 'listBillingLogs',
       summary: 'List Billing Logs',
       description:
-        'List the credit-denominated billing ledger with source filtering and opaque cursor pagination. `period` defaults to `30d`, so an unqualified request covers only the last 30 days: paginating to `nextCursor: null` exhausts that window, not the whole ledger. An inverted custom window is a 400 rather than an empty page.',
+        'List credit usage with source filtering and cursor pagination. The default `period` is `30d`; pagination covers only the selected time window. An inverted custom window returns `400`.',
       errors: RESOURCE_ERRORS,
       success: { description: 'A page of usage events.' },
     }),
@@ -153,8 +156,8 @@ export const billingOpenApiDocument = defineOpenApiDocument({
       description: 'Inspect billing standing, credit allowance, storage quota, and usage history.',
     },
   ],
-  security: V2_API_KEY_SECURITY,
-  securitySchemes: V2_API_KEY_SECURITY_SCHEMES,
+  security: V2_AUTH_SECURITY,
+  securitySchemes: V2_AUTH_SECURITY_SCHEMES,
   headers: V2_COMMON_HEADERS,
   errorSchema: V2_ERROR_SCHEMA,
   errorResponses: ERROR_RESPONSES,

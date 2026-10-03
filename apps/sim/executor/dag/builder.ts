@@ -6,10 +6,10 @@ import { ParallelConstructor } from '@/executor/dag/construction/parallels'
 import { PathConstructor } from '@/executor/dag/construction/paths'
 import type { DAGEdge, NodeMetadata } from '@/executor/dag/types'
 import {
+  buildLoopSentinelStartId,
   buildParallelSentinelStartId,
-  buildSentinelStartId,
   normalizeNodeId,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
 import type {
   SerializedBlock,
   SerializedLoop,
@@ -150,7 +150,7 @@ export class DAGBuilder {
     type: 'Loop' | 'Parallel'
   ): void {
     const sentinelStartId =
-      type === 'Loop' ? buildSentinelStartId(id) : buildParallelSentinelStartId(id)
+      type === 'Loop' ? buildLoopSentinelStartId(id) : buildParallelSentinelStartId(id)
     const sentinelStartNode = dag.nodes.get(sentinelStartId)
 
     if (!sentinelStartNode) return

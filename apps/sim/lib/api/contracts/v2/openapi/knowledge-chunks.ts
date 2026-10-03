@@ -17,6 +17,7 @@ import {
   WORKSPACE_API_KEY_DENIED,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import { defineOpenApiRoute } from '@/lib/api/openapi/types'
+import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 
 /**
  * Chunk operations of the knowledge OpenAPI document.
@@ -27,19 +28,19 @@ import { defineOpenApiRoute } from '@/lib/api/openapi/types'
  * on the request itself.
  */
 
-const CONNECTOR_MANAGED =
-  'Chunks of a connector-synced document are read-only and a write answers `403` with `error.details.code: "CONNECTOR_MANAGED_RESOURCE_READ_ONLY"` — change the content at the source and re-sync, or exclude the document from the connector.'
-
 const DOCUMENT_NOT_READY =
-  'A document that has not finished processing answers `409`; the message names the status it is in.'
+  'Documents that have not finished processing return `409` with their current status.'
+const CONNECTOR_MANAGED =
+  'Connector-synced chunks are read-only and return `403` with `error.details.code: "CONNECTOR_MANAGED_RESOURCE_READ_ONLY"`; change the source and re-sync, or exclude the document.'
 
 export const knowledgeChunkOpenApiRoutes = [
   defineOpenApiRoute(
     v2ListKnowledgeChunksContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.listChunks,
       operationId: 'listKnowledgeChunks',
       summary: 'List Chunks',
-      description: `List the passages a document was split into, with content search, enabled filtering, sorting, and opaque cursor pagination. Tag values are projected by slot; resolve slots to display names with \`GET /api/v2/knowledge/{knowledgeBaseId}/tags\`. ${DOCUMENT_NOT_READY} ${WORKSPACE_API_KEY_DENIED}`,
+      description: `List document chunks with content search, enabled filtering, sorting, and cursor pagination. Tags use slots; use List Tags to resolve display names. ${DOCUMENT_NOT_READY} ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'A page of document chunks.' },
     }),
@@ -67,9 +68,10 @@ export const knowledgeChunkOpenApiRoutes = [
   defineOpenApiRoute(
     v2CreateKnowledgeChunkContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.createChunk,
       operationId: 'createKnowledgeChunk',
       summary: 'Create Chunk',
-      description: `Append a chunk to a document. The text is embedded before the response returns, so the chunk is searchable immediately, and it inherits the document's tag values and the next \`chunkIndex\`. ${CONNECTOR_MANAGED} ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Append a chunk, embedding it before the response so it is immediately searchable. It inherits the document's tags and next \`chunkIndex\`. ${CONNECTOR_MANAGED} ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'The created chunk.' },
     }),
@@ -104,9 +106,10 @@ export const knowledgeChunkOpenApiRoutes = [
   defineOpenApiRoute(
     v2BulkUpdateKnowledgeChunksContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.bulkChunks,
       operationId: 'bulkUpdateKnowledgeChunks',
       summary: 'Bulk Update Chunks',
-      description: `Enable, disable, or delete many chunks of one document in a single request. Best-effort: an identifier naming no chunk in the document is reported in \`errors\` rather than failing the request. \`processed\` counts the chunks the operation matched, not the chunks it changed. ${CONNECTOR_MANAGED} ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Enable, disable, or delete multiple chunks in one best-effort request. Unknown chunk IDs appear in \`errors\` without failing the request; \`processed\` counts matched chunks, not changes. ${CONNECTOR_MANAGED} ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_ERRORS,
       success: { description: 'Outcome of the bulk chunk operation.' },
     }),
@@ -142,9 +145,10 @@ export const knowledgeChunkOpenApiRoutes = [
   defineOpenApiRoute(
     v2GetKnowledgeChunkContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.readChunk,
       operationId: 'getKnowledgeChunk',
       summary: 'Get Chunk',
-      description: `Retrieve one chunk of a document, including the exact text that was embedded. ${DOCUMENT_NOT_READY} ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Get one chunk of a document, including the exact text that was embedded. ${DOCUMENT_NOT_READY} ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The requested chunk.' },
     }),
@@ -172,9 +176,10 @@ export const knowledgeChunkOpenApiRoutes = [
   defineOpenApiRoute(
     v2UpdateKnowledgeChunkContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.updateChunk,
       operationId: 'updateKnowledgeChunk',
       summary: 'Update Chunk',
-      description: `Correct a chunk's text or take it out of search. Changing \`content\` re-embeds the chunk and re-derives the document's token and character counts, so the correction reaches search immediately; disabling keeps the chunk indexed. ${CONNECTOR_MANAGED} ${DOCUMENT_NOT_READY} ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Correct chunk text or disable it from search. Changing \`content\` re-embeds immediately and recalculates document token and character counts; disabling retains the index. ${CONNECTOR_MANAGED} ${DOCUMENT_NOT_READY} ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The updated chunk.' },
     }),
@@ -204,9 +209,10 @@ export const knowledgeChunkOpenApiRoutes = [
   defineOpenApiRoute(
     v2DeleteKnowledgeChunkContract,
     knowledgeOperation({
+      applicationOperation: knowledgeOperations.deleteChunk,
       operationId: 'deleteKnowledgeChunk',
       summary: 'Delete Chunk',
-      description: `Permanently remove one chunk and subtract it from the document's counts. Deleting does not renumber the remaining chunks, so \`chunkIndex\` values stay stable but become non-contiguous. ${CONNECTOR_MANAGED} ${DOCUMENT_NOT_READY} ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Permanently remove one chunk and subtract it from document counts. Remaining \`chunkIndex\` values stay stable and may become non-contiguous. ${CONNECTOR_MANAGED} ${DOCUMENT_NOT_READY} ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'Chunk deletion acknowledgement.' },
     }),

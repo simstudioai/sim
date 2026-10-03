@@ -8,7 +8,6 @@ vi.mock('@/lib/internal/oci/client.server', () => ({ createOciClient: mocks.crea
 vi.mock('@/lib/internal/oci-monitoring/operations', () => ({
   executeOciMonitoringOperation: mocks.execute,
 }))
-vi.mock('@/blocks/registry', () => ({ getBlock: vi.fn() }))
 
 import { OciClientError } from '@/lib/internal/oci/errors'
 import { ociMonitoringInputSchemas } from '@/lib/internal/oci-monitoring/input'
@@ -57,7 +56,6 @@ function args(
 
 describe('OCI Monitoring selector adapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.createClient.mockResolvedValue(client)
   })
 
@@ -319,6 +317,17 @@ describe('OCI Monitoring selector adapter', () => {
     call.credential = undefined
     await expect(selectors['oci_monitoring.namespaces'].execute(call)).rejects.toMatchObject({
       name: 'SelectorConnectionUnavailableError',
+    })
+    expect(mocks.createClient).not.toHaveBeenCalled()
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('rejects missing workspace context before binding a credential', async () => {
+    const call = args()
+    call.workspaceId = undefined
+    call.scope = { kind: 'organization', organizationId: 'organization' }
+    await expect(selectors['oci_monitoring.namespaces'].execute(call)).rejects.toMatchObject({
+      name: 'SelectorContextUnavailableError',
     })
     expect(mocks.createClient).not.toHaveBeenCalled()
     expect(mocks.execute).not.toHaveBeenCalled()

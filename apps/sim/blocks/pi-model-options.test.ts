@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { getPiModelOptions } from '@/blocks/utils'
 import { resolvePiModelId } from '@/providers/pi-providers'
@@ -50,14 +47,6 @@ describe('Pi model options', () => {
     expect(modelIds).toContain('claude-sonnet-4-6')
     expect(modelIds).not.toContain('claude-opus-4-1')
     expect(modelIds).not.toContain('claude-sonnet-4-0')
-  })
-
-  it('keeps persisted and selectable models available', () => {
-    const modelIds = getPiModelOptions().map(({ id }) => id)
-
-    expect(modelIds).toContain('cerebras/zai-glm-4.7')
-    expect(modelIds).toContain('glm-5.1')
-    expect(modelIds).toContain('glm-4.5-air')
   })
 
   it("does not apply OpenRouter capability filters beyond Pi's catalog", () => {

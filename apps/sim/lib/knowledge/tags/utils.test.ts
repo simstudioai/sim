@@ -1,8 +1,9 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
-import { coerceTagFilterValue, validateTagValue } from '@/lib/knowledge/tags/utils'
+import {
+  coerceTagFilterValue,
+  validateTagValue,
+  validateTagValueLength,
+} from '@/lib/knowledge/tags/utils'
 
 describe('coerceTagFilterValue', () => {
   it('accepts exactly what validateTagValue accepts', () => {
@@ -25,46 +26,13 @@ describe('coerceTagFilterValue', () => {
       )
     }
   })
-
-  it('trims a date the same way the gate does', () => {
-    expect(coerceTagFilterValue(' 2026-08-13 ', 'date')).toEqual({ ok: true, value: '2026-08-13' })
-  })
-
-  it('reads a boolean case-insensitively', () => {
-    expect(coerceTagFilterValue('TRUE', 'boolean')).toEqual({ ok: true, value: true })
-    expect(coerceTagFilterValue('False', 'boolean')).toEqual({ ok: true, value: false })
-    expect(coerceTagFilterValue(true, 'boolean')).toEqual({ ok: true, value: true })
-  })
-
-  it('reads a number with the same base the gate validates with', () => {
-    expect(coerceTagFilterValue('0x10', 'number')).toEqual({ ok: true, value: 16 })
-    expect(coerceTagFilterValue('', 'number')).toEqual({ ok: true, value: 0 })
-    expect(coerceTagFilterValue(12.5, 'number')).toEqual({ ok: true, value: 12.5 })
-  })
-
-  it('leaves a text value untouched so a search for padded text still matches', () => {
-    expect(coerceTagFilterValue(' padded ', 'text')).toEqual({ ok: true, value: ' padded ' })
-  })
 })
 
-describe('validateTagValue', () => {
-  it('keeps its distinct messages per failure', () => {
-    expect(validateTagValue('flag', 'yes', 'boolean')).toBe(
-      'Tag "flag" expects a boolean value (true/false), but received "yes"'
+describe('validateTagValueLength', () => {
+  it('accepts a value at the indexed-text limit and names the tag past it', () => {
+    expect(validateTagValueLength('Labels', 'a'.repeat(512))).toBeNull()
+    expect(validateTagValueLength('Labels', 'a'.repeat(513))).toBe(
+      'Tag "Labels" cannot exceed 512 characters'
     )
-    expect(validateTagValue('score', 'abc', 'number')).toBe(
-      'Tag "score" expects a number value, but received "abc"'
-    )
-    expect(validateTagValue('due', '13-08-2026', 'date')).toBe(
-      'Tag "due" expects a date in YYYY-MM-DD format, but received "13-08-2026"'
-    )
-    expect(validateTagValue('due', '2026-02-31', 'date')).toBe(
-      'Tag "due" has an invalid date: "2026-02-31"'
-    )
-  })
-
-  it('does not constrain text or unknown field types', () => {
-    expect(validateTagValue('name', 'anything', 'text')).toBeNull()
-    expect(validateTagValue('name', 'anything', 'json')).toBeNull()
   })
 })

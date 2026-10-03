@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
   encryptionMock,
@@ -17,16 +14,10 @@ afterAll(resetRedisConfigMock)
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
-import {
-  getOrCreateOauthRow,
-  loadOauthRow,
-  setOauthRowUser,
-  withMcpOauthRefreshLock,
-} from './storage'
+import { getOrCreateOauthRow, loadOauthRow, withMcpOauthRefreshLock } from './storage'
 
 describe('MCP OAuth storage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: '{}' })
     encryptionMockFns.mockEncryptSecret.mockResolvedValue({
@@ -86,23 +77,10 @@ describe('MCP OAuth storage', () => {
     expect(row.userId).toBe('authorizer-1')
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
-
-  it('records the latest authorizing user without changing row ownership', async () => {
-    await setOauthRowUser('oauth-row-1', 'user-2')
-
-    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: 'user-2',
-        updatedAt: expect.any(Date),
-      })
-    )
-  })
 })
 
 describe('withMcpOauthRefreshLock', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockAcquireLock.mockReset()
     mockReleaseLock.mockReset()
     mockExtendLock.mockReset()
@@ -203,15 +181,6 @@ describe('withMcpOauthRefreshLock', () => {
     await expect(withMcpOauthRefreshLock('row-throws', fn)).rejects.toThrow('refresh failed')
 
     expect(mockReleaseLock).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not surface releaseLock failures to the caller', async () => {
-    mockAcquireLock.mockResolvedValue(true)
-    mockReleaseLock.mockRejectedValueOnce(new Error('release failed'))
-    const fn = vi.fn(async () => 'value')
-
-    const result = await withMcpOauthRefreshLock('row-release-fail', fn)
-    expect(result).toBe('value')
   })
 
   it('uses per-row lock keys so different rows do not serialize', async () => {

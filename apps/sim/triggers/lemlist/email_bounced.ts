@@ -23,7 +23,7 @@ export const lemlistEmailBouncedTrigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'lemlist_email_bounced',
     triggerOptions: lemlistTriggerOptions,
-    setupInstructions: lemlistSetupInstructions('emailsBounced'),
+    setupInstructions: lemlistSetupInstructions(),
     extraFields: buildLemlistExtraFields('lemlist_email_bounced'),
   }),
 

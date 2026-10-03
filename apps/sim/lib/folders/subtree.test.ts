@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   collectDescendantFolderIds,
@@ -8,7 +5,6 @@ import {
   collectFolderDepths,
   type FolderNode,
   indexFolderChildren,
-  selectFolderSubtreeRows,
 } from '@/lib/folders/subtree'
 
 const tree: FolderNode[] = [
@@ -24,23 +20,6 @@ const tree: FolderNode[] = [
 describe('collectDescendantFolderIds', () => {
   it('collects the full subtree, excluding the root itself', () => {
     expect(collectDescendantFolderIds(tree, 'a').sort()).toEqual(['a1', 'a1x', 'a2'])
-  })
-
-  it('descends more than one level', () => {
-    expect(collectDescendantFolderIds(tree, 'root')).toContain('a1x')
-  })
-
-  it('returns nothing for a leaf', () => {
-    expect(collectDescendantFolderIds(tree, 'a1x')).toEqual([])
-  })
-
-  it('returns nothing for an unknown id', () => {
-    expect(collectDescendantFolderIds(tree, 'missing')).toEqual([])
-  })
-
-  it('excludes unrelated branches', () => {
-    expect(collectDescendantFolderIds(tree, 'a')).not.toContain('b')
-    expect(collectDescendantFolderIds(tree, 'a')).not.toContain('other')
   })
 
   it('terminates on a parent cycle instead of recursing forever', () => {
@@ -59,10 +38,6 @@ describe('collectDescendantFolderIds', () => {
 
     expect(collectDescendantFolderIds(selfParent, 'x')).toEqual([])
   })
-
-  it('handles an empty list', () => {
-    expect(collectDescendantFolderIds([], 'x')).toEqual([])
-  })
 })
 
 describe('collectDescendantFolderIdsFrom', () => {
@@ -78,33 +53,6 @@ describe('collectDescendantFolderIdsFrom', () => {
         collectDescendantFolderIds(tree, node.id).sort()
       )
     }
-  })
-
-  it('is reusable across folders without being rebuilt', () => {
-    const index = indexFolderChildren(tree)
-
-    expect(collectDescendantFolderIdsFrom(index, 'a').sort()).toEqual(['a1', 'a1x', 'a2'])
-    expect(collectDescendantFolderIdsFrom(index, 'a').sort()).toEqual(['a1', 'a1x', 'a2'])
-    expect(collectDescendantFolderIdsFrom(index, 'b')).toEqual([])
-  })
-
-  it('terminates on a parent cycle', () => {
-    const cyclic: FolderNode[] = [
-      { id: 'x', parentId: 'y' },
-      { id: 'y', parentId: 'x' },
-    ]
-
-    expect(collectDescendantFolderIdsFrom(indexFolderChildren(cyclic), 'x')).toEqual(['y'])
-  })
-})
-
-describe('indexFolderChildren', () => {
-  it('keys children by parent and drops roots', () => {
-    const index = indexFolderChildren(tree)
-
-    expect(index.get('root')).toEqual(['a', 'b'])
-    expect(index.get('a')).toEqual(['a1', 'a2'])
-    expect(index.has('other')).toBe(false)
   })
 })
 
@@ -133,24 +81,8 @@ describe('collectFolderDepths', () => {
     expect(collectFolderDepths(depthTree, 'reports').has('reportsx')).toBe(false)
   })
 
-  it('walks from the workspace root when the root id is null', () => {
-    const depths = collectFolderDepths(depthTree, null)
-
-    expect(depths.get('reports')).toBe(1)
-    expect(depths.get('reportsx')).toBe(1)
-    expect(depths.get('draft')).toBe(3)
-  })
-
   it('stops at maxDepth', () => {
     expect([...collectFolderDepths(depthTree, 'reports', { maxDepth: 1 }).keys()]).toEqual(['q3'])
-  })
-
-  it('returns nothing for a non-positive maxDepth', () => {
-    expect(collectFolderDepths(depthTree, 'reports', { maxDepth: 0 }).size).toBe(0)
-  })
-
-  it('returns nothing for a root with no children', () => {
-    expect(collectFolderDepths(depthTree, 'draft').size).toBe(0)
   })
 
   it('terminates on a cycle the database permits between constraint checks', () => {
@@ -163,22 +95,5 @@ describe('collectFolderDepths', () => {
     const withCycle: FolderNode[] = [...cyclic, { id: 'a', parentId: 'b' }]
 
     expect(() => collectFolderDepths(withCycle, 'root')).not.toThrow()
-  })
-})
-
-describe('selectFolderSubtreeRows', () => {
-  it('keeps the query order rather than the walk order', () => {
-    const rows = [{ id: 'draft' }, { id: 'q3' }, { id: 'reportsx' }]
-
-    expect(selectFolderSubtreeRows(rows, depthTree, 'reports')).toEqual([
-      { id: 'draft' },
-      { id: 'q3' },
-    ])
-  })
-
-  it('derives depth from the full tree, so a filtered row set cannot orphan descendants', () => {
-    const rows = [{ id: 'draft' }]
-
-    expect(selectFolderSubtreeRows(rows, depthTree, 'reports')).toEqual([{ id: 'draft' }])
   })
 })

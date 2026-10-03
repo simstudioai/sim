@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { generateShortId } from '@sim/utils/id'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { JWT } from 'google-auth-library'
@@ -10,7 +11,6 @@ import {
   type ParsedServiceAccount,
   parseServiceAccount,
   refineServiceAccountJson,
-  sleepUntilAborted,
 } from '@/lib/data-drains/destinations/utils'
 import type { DrainDestination } from '@/lib/data-drains/types'
 
@@ -155,7 +155,7 @@ async function fetchWithRetry(input: RetryRequestInput): Promise<void> {
         error: toError(error).message,
       })
       if (attempt < MAX_ATTEMPTS) {
-        await sleepUntilAborted(backoffWithJitter(attempt, null), input.signal)
+        await interruptibleSleep(backoffWithJitter(attempt, null), input.signal)
         continue
       }
       throw error
@@ -180,7 +180,7 @@ async function fetchWithRetry(input: RetryRequestInput): Promise<void> {
     const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'))
     /** Drain the retryable response body so undici can return the socket to the keep-alive pool. */
     await response.text().catch(() => '')
-    await sleepUntilAborted(backoffWithJitter(attempt, retryAfterMs), input.signal)
+    await interruptibleSleep(backoffWithJitter(attempt, retryAfterMs), input.signal)
   }
   throw lastError instanceof Error
     ? lastError

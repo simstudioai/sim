@@ -92,7 +92,7 @@ Click **Save changes**. The block is published immediately and becomes available
 
 In the workflow editor, open the block toolbar. Published custom blocks appear under a **Custom blocks** section. Drag one into your workflow like any other block, fill in its inputs (using the placeholders as a guide), and reference its outputs in downstream blocks.
 
-<Image src="/static/enterprise/custom-blocks-toolbar.png" alt="Workflow editor block toolbar with a Custom Blocks section listing two published blocks below Core Blocks" width={400} height={476} />
+<Image src="/static/enterprise/custom-blocks-toolbar.png" alt="Workflow editor block toolbar with a Custom Blocks section listing two published blocks below Core Blocks" width={400} height={476} className="mx-auto h-auto w-full max-w-xs" />
 
 Consumers don't need any access to the source workflow. The block runs on its own, using only the inputs provided, and returns only the outputs you exposed. Its internal steps, models, and intermediate values stay hidden unless the block's publisher turned on **Trace runs in consumer logs**, in which case they appear under the block in the run's trace.
 

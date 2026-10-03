@@ -23,9 +23,9 @@ interface FileSearchResponse extends ToolResponse {
  */
 const TOOL_DESCRIPTIONS: Record<FileSearchMode, string> = {
   regex:
-    'Search the indexed text of active workspace files for lines matching a regular expression, and return each matching line once with its file ID and line number. Coverage is what the index currently holds. A term that is not found is only authoritative when "complete" is true AND "indexStatus" reports no skipped or partial files; otherwise it is unknown rather than absent, so re-check before creating something on the assumption it is missing. Narrow the search with folderPaths to confine it to one or more folder trees, which also narrows "indexStatus" to those trees.',
+    'Search the indexed text of active workspace files for lines matching a regular expression, and return each matching line once with its file ID and line number. Coverage is what the index currently holds. A term that is not found is only authoritative when "complete" is true AND "indexStatus" reports no skipped files; otherwise it is unknown rather than absent, so re-check before creating something on the assumption it is missing. Narrow the search with folderPaths to confine it to one or more folder trees, which also narrows "indexStatus" to those trees.',
   exact:
-    'Search the indexed text of active workspace files for lines containing an exact piece of text, and return each matching line once with its file ID and line number. Coverage is what the index currently holds. A term that is not found is only authoritative when "complete" is true AND "indexStatus" reports no skipped or partial files; otherwise it is unknown rather than absent, so re-check before creating something on the assumption it is missing. Narrow the search with folderPaths to confine it to one or more folder trees, which also narrows "indexStatus" to those trees.',
+    'Search the indexed text of active workspace files for lines containing an exact piece of text, and return each matching line once with its file ID and line number. Coverage is what the index currently holds. A term that is not found is only authoritative when "complete" is true AND "indexStatus" reports no skipped files; otherwise it is unknown rather than absent, so re-check before creating something on the assumption it is missing. Narrow the search with folderPaths to confine it to one or more folder trees, which also narrows "indexStatus" to those trees.',
 }
 
 const QUERY_DESCRIPTIONS: Record<FileSearchMode, string> = {
@@ -50,7 +50,7 @@ const DECLARED_QUERY_DESCRIPTION = `${QUERY_DESCRIPTIONS.regex} When the workflo
  * tell which mode a given block is set to.
  */
 const DECLARED_TOOL_DESCRIPTION =
-  'Search the indexed text of active workspace files for lines matching a query, and return each matching line once with its file ID and line number. By default the query is a regular expression; in exact mode it is matched verbatim and metacharacters are literal. Coverage is what the index currently holds. A term that is not found is only authoritative when "complete" is true AND "indexStatus" reports no skipped or partial files; otherwise it is unknown rather than absent, so re-check before creating something on the assumption it is missing. Narrow the search with folderPaths to confine it to one or more folder trees, which also narrows "indexStatus" to those trees.'
+  'Search the indexed text of active workspace files for lines matching a query, and return each matching line once with its file ID and line number. By default the query is a regular expression; in exact mode it is matched verbatim and metacharacters are literal. Coverage is what the index currently holds. A term that is not found is only authoritative when "complete" is true AND "indexStatus" reports no skipped files; otherwise it is unknown rather than absent, so re-check before creating something on the assumption it is missing. Narrow the search with folderPaths to confine it to one or more folder trees, which also narrows "indexStatus" to those trees.'
 
 export const fileSearchTool: InternalToolConfig<FileSearchParams, FileSearchResponse> = {
   id: 'file_search',
@@ -178,13 +178,16 @@ export const fileSearchTool: InternalToolConfig<FileSearchParams, FileSearchResp
     complete: {
       type: 'boolean',
       description:
-        'Whether indexing has no pending or failed current revisions; skipped and partial coverage is reported separately.',
+        'Whether indexing has no pending or failed current revisions; excluded files are reported separately.',
     },
     indexStatus: {
       type: 'object',
       description: 'Current workspace search-index coverage by file status.',
       properties: {
-        readyFiles: { type: 'number', description: 'Files whose current revision is searchable.' },
+        readyFiles: {
+          type: 'number',
+          description: 'Files whose entire current extracted text is searchable.',
+        },
         pendingFiles: { type: 'number', description: 'Files still waiting to be indexed.' },
         failedFiles: {
           type: 'number',
@@ -192,11 +195,13 @@ export const fileSearchTool: InternalToolConfig<FileSearchParams, FileSearchResp
         },
         skippedFiles: {
           type: 'number',
-          description: 'Files intentionally excluded because they are unsupported or oversized.',
+          description:
+            'Files excluded in full because they are oversized, unsupported, or cannot be completely extracted.',
         },
         partialFiles: {
           type: 'number',
-          description: 'Searchable files whose extracted text was truncated by the parser or cap.',
+          description:
+            'Always zero; retained for compatibility. Files are never partially indexed.',
         },
       },
     },

@@ -16,7 +16,6 @@ import { getPerRequestOAuthLinkScopes } from '@/lib/oauth/utils'
 const logger = createLogger('OAuthConnectionsQuery')
 
 export const OAUTH_CONNECTIONS_STALE_TIME = 30 * 1000
-export const OAUTH_CONNECTED_ACCOUNTS_STALE_TIME = 60 * 1000
 
 /**
  * Query key factory for OAuth connection queries.

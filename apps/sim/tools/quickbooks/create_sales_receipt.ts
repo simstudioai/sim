@@ -46,9 +46,9 @@ export const quickbooksCreateSalesReceiptTool: ToolConfig<
     },
     customerId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Customer for the sales receipt',
+      description: 'Customer for the sales receipt, omitted for an anonymous sale',
     },
     lines: {
       type: 'json',
@@ -120,7 +120,7 @@ export const quickbooksCreateSalesReceiptTool: ToolConfig<
       ).toString(),
     method: 'POST',
     headers: (params) => getQuickBooksToolHeaders(params.accessToken, 'application/json'),
-    body: (params) => buildQuickBooksCreateSalesDocumentBody(params),
+    body: (params) => buildQuickBooksCreateSalesDocumentBody(params, { customerOptional: true }),
     retry: { enabled: false },
   },
   transformResponse: (response) =>

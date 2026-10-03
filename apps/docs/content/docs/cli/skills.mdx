@@ -15,7 +15,7 @@ Every command below also accepts the [global options](/cli/commands#global-optio
 sim skills create [options]
 ```
 
-Create Skill (personal API key required)
+Create Skill (OAuth login or personal API key required)
 
 **Options**
 
@@ -35,7 +35,7 @@ Create Skill (personal API key required)
 sim skills delete <skillId> [options]
 ```
 
-Delete Skill (personal API key required)
+Delete Skill (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -79,7 +79,7 @@ sim skills get <skillId>
 sim skills editors create <skillId> [options]
 ```
 
-Grant Skill Editor (personal API key required)
+Grant Skill Editor (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -125,7 +125,7 @@ sim skills editors list <skillId> [options]
 | --- | --- | --- |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `email`, `name`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -135,7 +135,7 @@ sim skills editors list <skillId> [options]
 sim skills editors delete <skillId> [options]
 ```
 
-Revoke Skill Editor (personal API key required)
+Revoke Skill Editor (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -173,7 +173,7 @@ sim skills list [options]
 | `--search <value>` | No | Case-insensitive substring match against the skill name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 
@@ -183,7 +183,7 @@ sim skills list [options]
 sim skills update <skillId> [options]
 ```
 
-Update Skill (personal API key required)
+Update Skill (OAuth login or personal API key required)
 
 **Arguments**
 

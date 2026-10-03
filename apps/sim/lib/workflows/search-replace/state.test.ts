@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { getWorkflowSearchBlocks } from '@/lib/workflows/search-replace/state'
 import type { BlockState } from '@/stores/workflows/workflow/types'

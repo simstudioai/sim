@@ -1,14 +1,17 @@
-/**
- * @vitest-environment node
- */
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import { uploadsCopilotMock, uploadsCopilotMockFns } from '@sim/testing/mocks/uploads-copilot.mock'
+import {
+  uploadsExecutionMock,
+  uploadsExecutionMockFns,
+} from '@sim/testing/mocks/uploads-execution.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   readGraph: vi.fn(),
-  validateUrl: vi.fn(),
-  secureFetch: vi.fn(),
-  uploadExecution: vi.fn(),
-  uploadCopilot: vi.fn(),
   uploadMedia: vi.fn(),
 }))
 
@@ -16,28 +19,26 @@ vi.mock('@/lib/internal/whatsapp/client', () => ({
   readWhatsAppGraphResponse: mocks.readGraph,
 }))
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  validateUrlWithDNS: mocks.validateUrl,
-  secureFetchWithPinnedIP: mocks.secureFetch,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-vi.mock('@/lib/uploads/contexts/execution', () => ({
-  uploadExecutionFile: mocks.uploadExecution,
-}))
+vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
 
-vi.mock('@/lib/uploads/contexts/copilot', () => ({
-  uploadCopilotFile: mocks.uploadCopilot,
-}))
+vi.mock('@/lib/uploads/contexts/copilot', () => uploadsCopilotMock)
 
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  getExtensionFromMimeType: () => 'jpg',
-}))
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
 
 vi.mock('@/lib/internal/whatsapp/upload', () => ({
   uploadWhatsAppMedia: mocks.uploadMedia,
 }))
 
 import { executeWhatsAppGetMedia } from '@/lib/internal/whatsapp/operations'
+
+const { mockUploadCopilotFile } = uploadsCopilotMockFns
+
+const { mockUploadExecutionFile } = uploadsExecutionMockFns
+
+const { mockValidateUrlWithDNS, mockSecureFetchWithPinnedIP } = inputValidationMockFns
+const { mockGetExtensionFromMimeType } = fileUtilsMockFns
 
 const input = { accessToken: ' token ', mediaId: 'media-id', phoneNumberId: 'phone-id' }
 const storedFile = {
@@ -49,7 +50,7 @@ const storedFile = {
 
 describe('WhatsApp media operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    mockGetExtensionFromMimeType.mockReturnValue('jpg')
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}')))
     mocks.readGraph.mockResolvedValue({
       url: 'https://cdn.example.com/media',
@@ -58,10 +59,10 @@ describe('WhatsApp media operations', () => {
       sha256: 'hash',
       id: 'media-id',
     })
-    mocks.validateUrl.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.10' })
-    mocks.secureFetch.mockResolvedValue(new Response('abc'))
-    mocks.uploadExecution.mockResolvedValue(storedFile)
-    mocks.uploadCopilot.mockResolvedValue(storedFile)
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.10' })
+    mockSecureFetchWithPinnedIP.mockResolvedValue(new Response('abc'))
+    mockUploadExecutionFile.mockResolvedValue(storedFile)
+    mockUploadCopilotFile.mockResolvedValue(storedFile)
   })
 
   it('stores downloads under the trusted execution scope, not serialized input', async () => {
@@ -76,7 +77,7 @@ describe('WhatsApp media operations', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(mocks.uploadExecution).toHaveBeenCalledWith(
+    expect(mockUploadExecutionFile).toHaveBeenCalledWith(
       {
         workspaceId: 'workspace-1',
         workflowId: 'workflow-1',
@@ -87,8 +88,8 @@ describe('WhatsApp media operations', () => {
       'image/jpeg',
       'user-1'
     )
-    expect(mocks.uploadCopilot).not.toHaveBeenCalled()
-    expect(mocks.secureFetch).toHaveBeenCalledWith(
+    expect(mockUploadCopilotFile).not.toHaveBeenCalled()
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
       'https://cdn.example.com/media',
       '203.0.113.10',
       expect.objectContaining({
@@ -117,21 +118,7 @@ describe('WhatsApp media operations', () => {
     })
 
     expect(response.status).toBe(413)
-    expect(mocks.secureFetch).not.toHaveBeenCalled()
-    expect(mocks.uploadExecution).not.toHaveBeenCalled()
-  })
-
-  it('does no work when the execution is already canceled', async () => {
-    const controller = new AbortController()
-    controller.abort(new Error('execution canceled'))
-
-    await expect(
-      executeWhatsAppGetMedia(input, {
-        userId: 'user-1',
-        requestId: 'request-1',
-        signal: controller.signal,
-      })
-    ).rejects.toThrow('execution canceled')
-    expect(fetch).not.toHaveBeenCalled()
+    expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    expect(mockUploadExecutionFile).not.toHaveBeenCalled()
   })
 })

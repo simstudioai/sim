@@ -1,4 +1,5 @@
 import {
+  ApiError,
   type Candidate,
   type Content,
   type FunctionCall,
@@ -14,14 +15,44 @@ import {
 } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toArray, toRecord } from '@sim/utils/object'
 import { buildGeminiMessageParts } from '@/providers/attachments'
+import { captureProviderConversationStep } from '@/providers/conversation-history'
+import {
+  getNativeConversationMessage,
+  retainConversationMessageSource,
+} from '@/providers/conversation-metadata'
 import type { GeminiUsage } from '@/providers/gemini/types'
+import { splitGeminiUsage } from '@/providers/gemini/usage'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { ProviderRequest } from '@/providers/types'
 import { trackForcedToolUsage } from '@/providers/utils'
 
 const logger = createLogger('GoogleUtils')
+
+const RETRY_INFO_TYPE = 'type.googleapis.com/google.rpc.RetryInfo'
+
+/**
+ * The delay a Gemini rejection asks for before a retry. The SDK surfaces no response
+ * headers: `ApiError.message` is the JSON error body, and a rate limit carries a
+ * `google.rpc.RetryInfo` detail whose `retryDelay` is a protobuf Duration such as `"31s"`.
+ */
+export function geminiRetryDelayMs(error: unknown): number | null {
+  if (!(error instanceof ApiError)) return null
+  let body: unknown
+  try {
+    body = JSON.parse(error.message)
+  } catch {
+    return null
+  }
+  for (const detail of toArray(toRecord(toRecord(body).error).details)) {
+    const record = toRecord(detail)
+    if (record['@type'] !== RETRY_INFO_TYPE || typeof record.retryDelay !== 'string') continue
+    const seconds = /^(\d+(?:\.\d+)?)s$/.exec(record.retryDelay)
+    if (seconds) return Number(seconds[1]) * 1000
+  }
+  return null
+}
 
 /**
  * Ensures a value is a valid object for Gemini's functionResponse.response field.
@@ -133,6 +164,7 @@ export function convertToGeminiFormat(
   systemInstruction: Content | undefined
 } {
   const contents: Content[] = []
+  const nativeCallIds = new Map<string, string | undefined>()
   let systemInstruction: Content | undefined
 
   if (request.systemPrompt) {
@@ -152,21 +184,33 @@ export function convertToGeminiFormat(
           systemInstruction.parts[0].text = `${systemInstruction.parts[0].text}\n${message.content}`
         }
       } else if (message.role === 'user' || message.role === 'assistant') {
+        const nativeMessage = getNativeConversationMessage(message, 'gemini')
+        if (isRecordLike(nativeMessage) && Array.isArray(nativeMessage.parts)) {
+          const functionCalls =
+            (nativeMessage as Content).parts?.flatMap((part) =>
+              part.functionCall ? [part.functionCall] : []
+            ) ?? []
+          message.tool_calls?.forEach((call, index) => {
+            if (functionCalls[index]) nativeCallIds.set(call.id, functionCalls[index].id)
+          })
+          contents.push(retainConversationMessageSource(message, nativeMessage as Content))
+          continue
+        }
         const geminiRole = message.role === 'user' ? 'user' : 'model'
         const parts = buildGeminiMessageParts(message.content, message.files, providerId) as Part[]
-
-        if (parts.length > 0) {
-          contents.push({ role: geminiRole, parts })
-        }
 
         if (message.role === 'assistant' && message.tool_calls?.length) {
           const functionCalls = message.tool_calls.map((toolCall) => ({
             functionCall: {
+              id: toolCall.id,
               name: toolCall.function?.name,
               args: JSON.parse(toolCall.function?.arguments || '{}') as Record<string, unknown>,
             },
           }))
-          contents.push({ role: 'model', parts: functionCalls })
+          parts.push(...functionCalls)
+        }
+        if (parts.length > 0) {
+          contents.push(retainConversationMessageSource(message, { role: geminiRole, parts }))
         }
       } else if (message.role === 'tool') {
         if (!message.name) {
@@ -180,18 +224,22 @@ export function convertToGeminiFormat(
         } catch {
           responseData = { output: message.content }
         }
-        contents.push({
-          role: 'user',
-          parts: [
-            {
-              functionResponse: {
-                id: message.tool_call_id,
-                name: message.name,
-                response: responseData,
-              },
-            },
-          ],
-        })
+        const part: Part = {
+          functionResponse: {
+            id:
+              message.tool_call_id && nativeCallIds.has(message.tool_call_id)
+                ? nativeCallIds.get(message.tool_call_id)
+                : message.tool_call_id,
+            name: message.name,
+            response: responseData,
+          },
+        }
+        const previous = contents.at(-1)
+        if (previous?.role === 'user' && previous.parts?.every((part) => part.functionResponse)) {
+          previous.parts.push(part)
+        } else {
+          contents.push({ role: 'user', parts: [part] })
+        }
       }
     }
   }
@@ -242,10 +290,12 @@ export function convertToGeminiFormat(
  */
 export function createReadableStreamFromGeminiStream(
   stream: AsyncGenerator<GenerateContentResponse>,
-  onComplete?: (content: string, usage: GeminiUsage, thinking?: string) => void
+  onComplete?: (content: string, usage: GeminiUsage, thinking?: string) => void,
+  request?: ProviderRequest
 ): ReadableStream<AgentStreamEvent> {
   let fullContent = ''
   let fullThinking = ''
+  const modelParts: Part[] = []
   let usage: GeminiUsage = {
     promptTokenCount: 0,
     candidatesTokenCount: 0,
@@ -278,6 +328,7 @@ export function createReadableStreamFromGeminiStream(
 
           const parts = chunk.candidates?.[0]?.content?.parts
           if (Array.isArray(parts)) {
+            modelParts.push(...parts)
             for (const part of parts) {
               if (!part.text) continue
               if (part.thought === true) {
@@ -295,11 +346,23 @@ export function createReadableStreamFromGeminiStream(
           const text = chunk.text
           if (text) {
             fullContent += text
+            modelParts.push({ text })
             controller.enqueue({ type: 'text_delta', text, turn: 'final' })
           }
         }
 
         if (cancelled) return
+        if (request) {
+          await captureProviderConversationStep(
+            request,
+            'gemini',
+            {
+              role: 'model',
+              parts: modelParts,
+            },
+            splitGeminiUsage(usage)
+          )
+        }
         onComplete?.(fullContent, usage, fullThinking || undefined)
         controller.close()
       } catch (error) {

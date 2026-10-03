@@ -51,6 +51,7 @@ export const GET = defineV2JsonRoute({
   useCase: listPublicWorkspaceMembers,
   present: ({ page }, { params }) => ({
     data: page.members.map((member) => ({
+      userId: member.userId,
       email: member.email,
       name: member.name,
       image: member.image,

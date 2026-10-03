@@ -61,6 +61,13 @@ export const quickbooksRunFinancialReportTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Report end or as-of date in YYYY-MM-DD format',
     },
+    dateMacro: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Predefined QuickBooks report date range, such as this_fiscal_year_to_date; cannot be combined with startDate or endDate',
+    },
     accountingMethod: {
       type: 'string',
       required: false,
@@ -72,6 +79,13 @@ export const quickbooksRunFinancialReportTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description: 'Time period or business dimension used to summarize report columns',
+    },
+    quickZoomUrl: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Ask QuickBooks to generate quick-zoom drill-down links, returned as the href on report row values',
     },
     customerId: {
       type: 'string',
@@ -90,6 +104,12 @@ export const quickbooksRunFinancialReportTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description: 'Single QuickBooks account ID filter',
+    },
+    employeeId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Single QuickBooks employee ID filter, supported by Profit and Loss Detail',
     },
     itemId: {
       type: 'string',

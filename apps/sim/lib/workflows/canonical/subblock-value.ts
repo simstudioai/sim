@@ -4,15 +4,16 @@ import {
   sanitizeTableRows,
   sanitizeTools,
 } from '@/lib/workflows/comparison/normalize'
+import { coerceObjectArray } from '@/lib/workflows/persistence/remap-internal-ids'
 
 /**
  * Everything the canonical form needs to know about one declared subblock.
- * Derived from the block definition, never from stored state.
+ * Derived from the block and selected trigger definitions, never from stored values.
  */
 export interface CanonicalFieldSpec {
   /** The declared subblock type, or the stored one when the field is undeclared. */
   type?: string
-  /** Absent when the definition declares no default. Never `null` by convention. */
+  /** Default substituted by trigger deployment, excluding editor-only action defaults. */
   defaultValue?: unknown
   /** The field declares that an explicitly empty value is a real choice. */
   emptyIsValid?: boolean
@@ -44,9 +45,12 @@ export function shapeSubBlockValue(
   ) {
     shaped = sanitizeInputFormat(shaped)
   }
-  if (Array.isArray(shaped) && subBlockType === 'table') {
-    const rows = sanitizeTableRows(shaped)
-    shaped = rows.length > 0 ? rows : null
+  if (subBlockType === 'table') {
+    const { array, wasString } = coerceObjectArray(shaped)
+    if (array) {
+      const rows = sanitizeTableRows(array)
+      shaped = wasString ? JSON.stringify(rows) : rows.length > 0 ? rows : null
+    }
   }
 
   return shaped
@@ -55,15 +59,11 @@ export function shapeSubBlockValue(
 /**
  * Resolves a stored subblock value to the configuration it actually represents.
  *
- * Returns `undefined` for "this field carries no configuration" — which is what
- * a blank value and a value equal to the field's declared default both mean.
- * Collapsing them is the whole point: an unset field has four legal spellings in
- * storage (key absent, `null`, `''`, or the declared default, which deploy
- * materializes into `webhook.providerConfig`), and different pipelines pick
- * different ones. Any comparison that can tell them apart reports a change the
- * user did not make — and, because adding a defaulted field to a block
- * definition changes the spelling on one side only, does so retroactively for
- * every already-deployed workflow.
+ * Returns `undefined` for a missing root value or an implicit trigger default.
+ * Trigger deployment substitutes defaults into `webhook.providerConfig`, and
+ * reading that configuration back into the editor must remain equivalent to the
+ * original unset value. Action defaults remain explicit configuration because
+ * execution does not make that substitution.
  *
  * Resolution is deliberately comparison-time only. Writing defaults into storage
  * would answer the same question, but it is a one-way migration whose rollback
@@ -71,8 +71,8 @@ export function shapeSubBlockValue(
  * "key absent means this state predates the field" signal the subblock-rename
  * migrations depend on.
  *
- * `defaultValue` is consulted; `value()` deliberately is not. Value thunks are
- * generators (`() => generateId()`), so resolving one would produce a fresh
+ * The spec's deployment `defaultValue` is consulted; `value()` deliberately is
+ * not. Value thunks can generate IDs, so resolving one would produce a fresh
  * value per call and make a state unequal to itself.
  */
 export function canonicalizeSubBlockValue(
@@ -83,9 +83,8 @@ export function canonicalizeSubBlockValue(
   const shaped = shapeSubBlockValue(subBlockId, stored, spec?.type)
 
   /*
-   * Absent, `null` and `undefined` are one state: no consumer distinguishes
-   * them, and the subblock merge contract already collapses `undefined` into
-   * "no value recorded".
+   * Root absence is canonicalized separately from structured values, where
+   * explicit JSON null remains meaningful.
    */
   if (shaped === null || shaped === undefined) return undefined
 

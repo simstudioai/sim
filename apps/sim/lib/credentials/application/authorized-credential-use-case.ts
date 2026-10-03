@@ -56,7 +56,7 @@ export function requireManageableCredentialType(
 ): void {
   const allowedTypes =
     principal.kind === 'session'
-      ? ['oauth', 'env_workspace', 'env_personal', 'service_account']
+      ? ['oauth', 'env_workspace', 'env_personal', 'service_account', 'personal_token']
       : principal.kind === 'delegated'
         ? ['oauth']
         : ['oauth', 'service_account']
@@ -90,11 +90,18 @@ export function defineAuthorizedCredentialUseCase<
     async authorizeResource({ principal, context }) {
       const actor = await getCredentialActorContext(
         context.credential.id,
-        requireCredentialExecutionUserId(principal)
+        requireCredentialExecutionUserId(principal),
+        { workspaceId: context.workspaceId }
       )
       if (
         !actor.credential ||
-        actor.credential.workspaceId !== context.workspaceId ||
+        !(
+          actor.credential.workspaceId === context.workspaceId ||
+          (actor.credential.type === 'personal_token' &&
+            !actor.credential.workspaceId &&
+            actor.credential.organizationId === context.workspaceOrganizationId &&
+            Boolean(context.workspaceOrganizationId))
+        ) ||
         !actor.hasWorkspaceAccess
       ) {
         throw new OrchestrationError('not_found', 'Credential not found')

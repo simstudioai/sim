@@ -46,6 +46,7 @@ function selectorError(error: unknown): Error {
 
 async function prepareDestination(args: ExecuteServerSelectorArgs): Promise<OciClient> {
   args.signal?.throwIfAborted()
+  if (!args.workspaceId) throw new SelectorContextUnavailableError()
   const access = args.credential?.access
   if (!access?.ok || !access.resolvedCredentialId || access.credentialType !== 'service_account') {
     throw new SelectorConnectionUnavailableError()

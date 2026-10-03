@@ -1,61 +1,59 @@
-/**
- * @vitest-environment node
- */
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  resolveWorkspace: vi.fn(),
-  resolveWorkflow: vi.fn(),
-  resolvePermission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   importTransition: vi.fn(),
+  mappedImport: vi.fn(),
   buildExport: vi.fn(),
   folderLock: vi.fn(),
-  loadIndex: vi.fn(),
-  recordAudit: vi.fn(),
-  notifyWorkspace: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.resolveWorkspace,
-}))
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveWorkflow,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) =>
-    actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    WORKFLOW_CREATED: 'workflow.created',
-    WORKFLOW_EXPORTED: 'workflow.exported',
-  },
-  AuditResourceType: { WORKFLOW: 'workflow' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/folders/locks', () => ({
-  withFolderTreeLock: mocks.folderLock,
+  withFolderTreeLock: hoisted.folderLock,
 }))
-vi.mock('@/lib/folders/queries', () => ({
-  loadActiveFolderPathIndex: mocks.loadIndex,
-  resolveFolderPathFromIndex: (index: { idByPath: Map<string, string> }, path: string) =>
-    path === '/' ? null : index.idByPath.get(path),
-}))
-vi.mock('@/lib/realtime/notify', () => ({
-  notifyWorkspaceWorkflowsChanged: mocks.notifyWorkspace,
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
+
+vi.mock('@/lib/workflows/application/mapped-import', () => ({
+  applyMappedWorkflowImport: hoisted.mappedImport,
 }))
 
 vi.mock('@/lib/workflows/operations/import-workflow', () => ({
-  importWorkflowIntoWorkspaceTransition: mocks.importTransition,
+  importWorkflowIntoWorkspaceTransition: hoisted.importTransition,
 }))
 vi.mock('@/lib/workflows/operations/export-workflow', () => ({
-  buildWorkflowExportPayload: mocks.buildExport,
+  buildWorkflowExportPayload: hoisted.buildExport,
 }))
 
-import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { exportWorkflow, importWorkflow } from '@/lib/workflows/application/import-export'
 import { WorkflowImportError } from '@/lib/workflows/application/workflow-import-error'
+
+const mocks = {
+  ...hoisted,
+  loadIndex: folderQueriesMockFns.mockLoadActiveFolderPathIndex,
+}
+
+const mockResolveWorkspace = workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext
+const mockResolveWorkflow = workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockNotifyWorkspace = realtimeNotifyMockFns.mockNotifyWorkspaceWorkflowsChanged
 
 const workspaceContext = {
   workspaceId: 'ws-1',
@@ -86,6 +84,11 @@ const imported = {
   folderId: 'folder-1',
   createdAt: new Date('2026-01-01T00:00:00Z'),
   updatedAt: new Date('2026-01-01T00:00:00Z'),
+  blocks: [
+    { id: 'block-1', type: 'starter', name: 'Start' },
+    { id: 'block-2', type: 'agent', name: 'Classify' },
+    { id: 'block-3', type: 'response', name: 'Reply' },
+  ],
 }
 const exportPayload = {
   version: '1.0' as const,
@@ -109,14 +112,13 @@ const exportPayload = {
 
 describe('workflow import and export application operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.resolveWorkspace.mockResolvedValue(workspaceContext)
-    mocks.resolveWorkflow.mockResolvedValue({
+    mockResolveWorkspace.mockResolvedValue(workspaceContext)
+    mockResolveWorkflow.mockResolvedValue({
       ...workspaceContext,
       workflowId: 'workflow-1',
       workflow: workflowRecord,
     })
-    mocks.resolvePermission.mockResolvedValue('write')
+    mockResolvePermission.mockResolvedValue('write')
     mocks.folderLock.mockImplementation(
       async (
         _workspaceId: string,
@@ -125,41 +127,45 @@ describe('workflow import and export application operations', () => {
       ) => callback({})
     )
     mocks.loadIndex.mockResolvedValue(folderIndex)
-    mocks.importTransition.mockResolvedValue({ success: true, workflow: imported })
+    mocks.importTransition.mockResolvedValue({ success: true, workflow: imported, warnings: [] })
     mocks.buildExport.mockResolvedValue(exportPayload)
   })
 
-  it('imports through the unaudited transition and projects one semantic audit', async () => {
-    const result = await importWorkflow.execute({
-      principal: { kind: 'workspace_api_key', workspaceId: 'ws-1', keyId: 'key-1' },
-      input: {
-        workspaceId: 'ws-1',
+  it.each([false, true])(
+    'preserves mapped import receipts (legacy=%s) without duplicate audit',
+    async (legacy) => {
+      const { blocks: _blocks, ...metadata } = imported
+      const recordedWorkflow = legacy ? metadata : imported
+      const operation = { requestId: 'request-1' }
+      mocks.mappedImport.mockResolvedValue({
+        workflow: recordedWorkflow,
         folderPath: '/Reports',
-        workflow: { blocks: {}, edges: [] },
-      },
-    })
+        operation,
+        replayed: true,
+      })
 
-    expect(result).toEqual({ workflow: imported, folderPath: '/Reports' })
-    expect(mocks.importTransition).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: 'ws-1',
-        folderId: 'folder-1',
-        userId: 'owner-1',
+      const result = await importWorkflow.execute({
+        principal: createPersonalApiKeyPrincipal(),
+        input: {
+          workspaceId: 'ws-1',
+          workflow: { blocks: {}, edges: [] },
+          requestId: 'request-1',
+          previewFingerprint: 'preview-1',
+        },
       })
-    )
-    expect(mocks.recordAudit).toHaveBeenCalledOnce()
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorId: null,
-        actorName: 'Workspace API key',
-        metadata: expect.objectContaining({
-          operation: 'workflows.import',
-          actor: { kind: 'workspace_api_key', keyId: 'key-1', workspaceId: 'ws-1' },
-        }),
+
+      expect(result).toEqual({
+        workflow: recordedWorkflow,
+        folderPath: '/Reports',
+        operation,
+        replayed: true,
+        warnings: [],
       })
-    )
-    expect(mocks.notifyWorkspace).toHaveBeenCalledWith('ws-1')
-  })
+      expect(mocks.importTransition).not.toHaveBeenCalled()
+      expect(mockRecordAudit).not.toHaveBeenCalled()
+      expect(mockNotifyWorkspace).not.toHaveBeenCalled()
+    }
+  )
 
   it('preserves classified import details and does not audit a failure', async () => {
     mocks.importTransition.mockResolvedValue({
@@ -171,7 +177,7 @@ describe('workflow import and export application operations', () => {
 
     const error = await importWorkflow
       .execute({
-        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+        principal: createPersonalApiKeyPrincipal(),
         input: { workspaceId: 'ws-1', workflow: { blocks: null } },
       })
       .catch((failure: unknown) => failure)
@@ -181,40 +187,23 @@ describe('workflow import and export application operations', () => {
       code: 'validation',
       details: [{ path: ['blocks'] }],
     })
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 
-  it('exports from the canonical workflow context and audits authoritative counts', async () => {
-    const result = await exportWorkflow.execute({
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-      input: { workflowId: 'workflow-1' },
+  it('keeps workspace bindings only when asked, and says so in the audit', async () => {
+    await exportWorkflow.execute({
+      principal: createPersonalApiKeyPrincipal(),
+      input: { workflowId: 'workflow-1', includeWorkspaceBindings: true },
     })
 
-    expect(mocks.resolveWorkflow).toHaveBeenCalledWith({ workflowId: 'workflow-1' })
-    expect(mocks.buildExport).toHaveBeenCalledWith(workflowRecord)
-    expect(mocks.loadIndex).toHaveBeenCalledWith('ws-1', 'workflow', undefined, {
-      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    expect(mocks.buildExport).toHaveBeenCalledWith(workflowRecord, {
+      includeReferences: undefined,
+      includeWorkspaceBindings: true,
     })
-    expect(mocks.folderLock).not.toHaveBeenCalled()
-    expect(result).toEqual({ payload: exportPayload, folderPath: '/Reports' })
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
+    expect(mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
-        resourceId: 'workflow-1',
-        metadata: expect.objectContaining({ blocksCount: 0, edgesCount: 0 }),
+        metadata: expect.objectContaining({ includeWorkspaceBindings: true }),
       })
     )
-  })
-
-  it('propagates export infrastructure failures without audit', async () => {
-    const failure = new Error('storage unavailable')
-    mocks.buildExport.mockRejectedValueOnce(failure)
-
-    await expect(
-      exportWorkflow.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: { workflowId: 'workflow-1' },
-      })
-    ).rejects.toBe(failure)
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 })

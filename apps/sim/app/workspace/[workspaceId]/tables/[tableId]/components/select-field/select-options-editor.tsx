@@ -18,7 +18,8 @@ interface SelectOptionsEditorProps {
  * option and focus jumps into it so typing flows straight through.
  */
 export function SelectOptionsEditor({ options, onChange }: SelectOptionsEditorProps) {
-  const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
+  const inputElementsRef = useRef<Map<string, HTMLInputElement> | null>(null)
+  const inputRefs = (inputElementsRef.current ??= new Map())
   const trailingRef = useRef<HTMLInputElement>(null)
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null)
 
@@ -26,7 +27,7 @@ export function SelectOptionsEditor({ options, onChange }: SelectOptionsEditorPr
   // registered by the time this effect runs.
   useEffect(() => {
     if (!pendingFocusId) return
-    const el = inputRefs.current.get(pendingFocusId)
+    const el = inputRefs.get(pendingFocusId)
     if (el) {
       el.focus()
       const end = el.value.length
@@ -40,7 +41,7 @@ export function SelectOptionsEditor({ options, onChange }: SelectOptionsEditorPr
   }
 
   const remove = (id: string) => {
-    inputRefs.current.delete(id)
+    inputRefs.delete(id)
     onChange(options.filter((o) => o.id !== id))
   }
 
@@ -57,8 +58,8 @@ export function SelectOptionsEditor({ options, onChange }: SelectOptionsEditorPr
         <div key={option.id} className='flex items-center gap-1.5'>
           <ChipInput
             ref={(el) => {
-              if (el) inputRefs.current.set(option.id, el)
-              else inputRefs.current.delete(option.id)
+              if (el) inputRefs.set(option.id, el)
+              else inputRefs.delete(option.id)
             }}
             value={option.name}
             onChange={(e) => update(option.id, { name: e.target.value })}
@@ -78,7 +79,8 @@ export function SelectOptionsEditor({ options, onChange }: SelectOptionsEditorPr
             variant='ghost'
             size='sm'
             onClick={() => remove(option.id)}
-            className='size-7 shrink-0 p-1!'
+            iconPadding='sm'
+            className='size-7 shrink-0'
             aria-label={`Remove ${option.name || 'option'}`}
           >
             <X className='size-[12px]' />

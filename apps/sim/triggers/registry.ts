@@ -400,6 +400,11 @@ import {
   notionPagePropertiesUpdatedTrigger,
   notionWebhookTrigger,
 } from '@/triggers/notion'
+import {
+  otterConversationCompletedTrigger,
+  otterConversationSharedTrigger,
+  otterWebhookTrigger,
+} from '@/triggers/otter'
 import { outlookPollingTrigger } from '@/triggers/outlook'
 import {
   pagerdutyIncidentAcknowledgedTrigger,
@@ -838,6 +843,9 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   notion_database_deleted: notionDatabaseDeletedTrigger,
   notion_comment_created: notionCommentCreatedTrigger,
   notion_webhook: notionWebhookTrigger,
+  otter_conversation_completed: otterConversationCompletedTrigger,
+  otter_conversation_shared: otterConversationSharedTrigger,
+  otter_webhook: otterWebhookTrigger,
   outlook_poller: outlookPollingTrigger,
   pagerduty_incident_triggered: pagerdutyIncidentTriggeredTrigger,
   pagerduty_incident_acknowledged: pagerdutyIncidentAcknowledgedTrigger,

@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
+import { chatDeploymentDelegationPolicy } from '@/lib/chat-deployments/application/authorization'
 import {
   assertedChatDeploymentWorkspaceId,
   resolveActiveChatDeploymentApplicationContext,
@@ -16,12 +17,8 @@ export interface DeleteChatDeploymentInput {
 }
 
 /**
- * Stops one chat deployment serving.
- *
- * Keyed on the deployment rather than on its workflow, which is what
- * `workflows.chat.undeploy` takes. Both end in `performChatUndeploy`; they stay
- * separate operations because a caller holding a deployment id cannot name the
- * workflow the other requires, and the reverse.
+ * Stops one chat deployment serving, keyed on the deployment rather than on
+ * its workflow.
  *
  * The workflow's own deployment is untouched — only the chat surface stops.
  */
@@ -38,7 +35,7 @@ export const deleteChatDeployment = defineAuthorizedWorkspaceUseCase({
       chatDeploymentId: input.chatDeploymentId,
       assertedWorkspaceId: assertedChatDeploymentWorkspaceId(principal, input.assertedWorkspaceId),
     }),
-  authorizationOptions: {},
+  authorizationOptions: { delegation: chatDeploymentDelegationPolicy },
   async execute({ principal, context }) {
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,

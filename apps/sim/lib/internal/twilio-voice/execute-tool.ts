@@ -1,7 +1,11 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { z } from 'zod'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
-import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
+import { isInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
+import type {
+  InternalToolOperationHandler,
+  InternalToolOperationResult,
+} from '@/lib/internal/tool-operations/types'
 import { TwilioVoiceOperationError } from '@/lib/internal/twilio-voice/errors'
 import { getTwilioRecording } from '@/lib/internal/twilio-voice/operations'
 
@@ -11,7 +15,9 @@ const inputSchema = z.object({
   recordingSid: z.string().min(1, 'Recording SID is required'),
 })
 
-export const executeTwilioVoiceTool: InternalToolOperationHandler = async (request) => {
+export const executeTwilioVoiceTool: InternalToolOperationHandler<
+  InternalToolOperationResult
+> = async (request) => {
   request.signal?.throwIfAborted()
   if (request.toolId !== 'twilio_voice_get_recording') {
     return Response.json(
@@ -24,12 +30,11 @@ export const executeTwilioVoiceTool: InternalToolOperationHandler = async (reque
     return Response.json({ success: false, error: 'Invalid request data' }, { status: 400 })
   }
   try {
-    return Response.json(
-      await getTwilioRecording(parsed.data, {
-        requestId: request.requestId,
-        signal: request.signal,
-      })
-    )
+    const result = await getTwilioRecording(parsed.data, {
+      requestId: request.requestId,
+      signal: request.signal,
+    })
+    return isInternalToolFileResult(result) ? result : Response.json(result)
   } catch (error) {
     request.signal?.throwIfAborted()
     const status = isPayloadSizeLimitError(error)

@@ -122,6 +122,11 @@ export async function authorizeCredentialUseForAuth(
   const platformCredential = platformAccess.credential
 
   if (platformCredential) {
+    if (!platformCredential.workspaceId)
+      return {
+        ok: false,
+        error: 'Organization credentials require organization-scoped authorization',
+      }
     if (scopeWorkspaceId && scopeWorkspaceId !== platformCredential.workspaceId) {
       return { ok: false, error: 'Credential is not accessible from this workflow workspace' }
     }
@@ -189,6 +194,7 @@ export async function authorizeCredentialUseForAuth(
 
   let firstRejection: string | null = null
   for (const workspaceCredential of workspaceCredentials) {
+    if (!workspaceCredential.workspaceId) continue
     const accessError = credentialAccessError(
       await getCredentialActorContext(workspaceCredential.id, actingUserId)
     )

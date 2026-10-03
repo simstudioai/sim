@@ -11,6 +11,8 @@ export interface CollapsibleCardProps {
   /** Optional trailing header content, e.g. a type `Badge`. */
   badge?: React.ReactNode
   collapsed: boolean
+  /** Selection state when the header also toggles a selection. */
+  selected?: boolean
   onToggleCollapse: () => void
   /** Body content, shown when expanded. */
   children: React.ReactNode
@@ -26,6 +28,7 @@ export function CollapsibleCard({
   title,
   badge,
   collapsed,
+  selected,
   onToggleCollapse,
   children,
   className,
@@ -40,6 +43,7 @@ export function CollapsibleCard({
     >
       <div
         role='button'
+        aria-pressed={selected}
         tabIndex={0}
         className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-2.5 py-[5px]'
         onClick={onToggleCollapse}

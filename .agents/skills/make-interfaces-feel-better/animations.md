@@ -1,5 +1,7 @@
 # Animations
 
+> In this repo: `import { motion, AnimatePresence } from 'framer-motion'`; never `motion/react`.
+
 Interruptible animations, enter/exit transitions, and contextual icon animations.
 
 ## Interruptible Animations
@@ -189,7 +191,7 @@ When icons appear or disappear contextually (on hover, on state change), animate
 ### Motion Example
 
 ```tsx
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion } from "framer-motion";
 
 function IconButton({ isActive, icon: Icon }) {
   return (
@@ -259,7 +261,7 @@ The non-absolute icon (InactiveIcon) defines the layout size. The absolute icon 
 | **Enter animation** | Yes | Yes |
 | **Exit animation** | Yes (via `AnimatePresence`) | Yes (cross-fade — icon never unmounts) |
 | **Spring physics** | Yes | No — use `cubic-bezier(0.2, 0, 0, 1)` as approximation |
-| **When to use** | Project already uses `motion/react` | No motion dependency, or keeping bundle small |
+| **When to use** | Project already uses `framer-motion` (or `motion/react`) | No motion dependency, or keeping bundle small |
 
 **Rule:** Check the project's `package.json` for `motion` or `framer-motion`. If present, use the Motion approach. If not, use the CSS cross-fade pattern — don't add a dependency just for icon transitions.
 
