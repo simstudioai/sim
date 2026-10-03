@@ -86,6 +86,37 @@ function internalSelector(
 }
 
 export const selectorManifest = {
+  'oracleFusionService.serviceRequests': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionService.queues': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionService.accounts': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionService.contacts': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionService.resources': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionService.businessUnits': providerSelector([], {
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionService.statuses': providerSelector([], { listMode: 'paginated' }),
   'airtable.bases': providerSelector([], { detail: true }),
   'airtable.tables': providerSelector(['baseId'], {
     readiness: { all: ['oauthCredential', 'baseId'] },
