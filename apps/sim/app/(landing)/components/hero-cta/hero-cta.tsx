@@ -1,3 +1,6 @@
+'use client'
+
+import { usePathname } from 'next/navigation'
 import { LandingCtaLink, type LandingCtaSection } from '@/app/(landing)/components/landing-cta-link'
 import { DEMO_HREF, SIGNUP_HREF } from '@/app/(landing)/constants'
 
@@ -18,6 +21,8 @@ export function HeroCta({
   secondaryLabel = 'Sign up',
   trackingSection,
 }: HeroCtaProps) {
+  const demoOnly = usePathname() === '/search'
+
   return (
     <div className='flex items-center gap-2 max-sm:w-full max-sm:flex-col max-sm:items-stretch'>
       <LandingCtaLink
@@ -28,15 +33,17 @@ export function HeroCta({
       >
         {DEMO_LABEL}
       </LandingCtaLink>
-      <LandingCtaLink
-        variant='outline'
-        href={SIGNUP_HREF}
-        prefetch={false}
-        size={size}
-        track={trackingSection && { label: secondaryLabel, section: trackingSection }}
-      >
-        {secondaryLabel}
-      </LandingCtaLink>
+      {!demoOnly && (
+        <LandingCtaLink
+          variant='outline'
+          href={SIGNUP_HREF}
+          prefetch={false}
+          size={size}
+          track={trackingSection && { label: secondaryLabel, section: trackingSection }}
+        >
+          {secondaryLabel}
+        </LandingCtaLink>
+      )}
     </div>
   )
 }
