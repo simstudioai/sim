@@ -6,10 +6,7 @@ import {
   buildDomainFilters,
   mapResearchSources,
   parseJsonSchema,
-  RESEARCH_CONTENT_OUTPUT,
-  RESEARCH_CONTENT_TYPE_OUTPUT,
-  RESEARCH_SOURCES_OUTPUT,
-  RESEARCH_WARNINGS_OUTPUT,
+  RESEARCH_ANSWER_OUTPUTS,
   toCode,
   YOUCOM_API_BASE_URL,
   youComApiKeyParam,
@@ -132,10 +129,7 @@ export const youComResearchTool: ToolConfig<YouComResearchParams, YouComResearch
   },
 
   outputs: {
-    content: { ...RESEARCH_CONTENT_OUTPUT, nullable: true },
-    contentType: { ...RESEARCH_CONTENT_TYPE_OUTPUT, nullable: true },
-    sources: RESEARCH_SOURCES_OUTPUT,
-    warnings: RESEARCH_WARNINGS_OUTPUT,
+    ...RESEARCH_ANSWER_OUTPUTS,
     taskId: {
       type: 'string',
       description: 'Background task ID to pass to Get Research Task (background only)',
