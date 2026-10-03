@@ -5,7 +5,7 @@ description: Interact with Fireflies.ai meeting transcripts and recordings
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="fireflies_v2"
   color="#100730"
 />
@@ -261,8 +261,6 @@ List all contacts from your Fireflies.ai meetings
 | --------- | ---- | ----------- |
 | `contacts` | array | List of contacts from meetings |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -285,4 +283,3 @@ Trigger workflow when a Fireflies meeting transcription is complete
 | `eventType` | string | The type of event \(e.g. Transcription completed, meeting.transcribed\) |
 | `clientReferenceId` | string | Custom reference ID if set during upload |
 | `timestamp` | number | Unix timestamp in milliseconds when the event was fired \(V2 webhooks\) |
-

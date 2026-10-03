@@ -5,7 +5,7 @@ description: Query data, ask Cortex Analyst, and manage warehouses and tasks in 
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="snowflake"
   color="#FFFFFF"
 />
@@ -58,22 +58,22 @@ Execute one parameterized SQL statement through the Snowflake SQL API.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -99,22 +99,22 @@ Check a running or completed statement and retrieve exactly one result partition
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -138,22 +138,22 @@ Cancel a running Snowflake SQL API statement.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -183,22 +183,22 @@ Insert structured JSON rows using bound values.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -229,22 +229,22 @@ Update matching rows with a bound MERGE statement without inserting new rows.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -275,22 +275,22 @@ Update matching rows and insert unmatched rows with a bound MERGE statement.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -320,22 +320,22 @@ Delete rows matching a required set of bound column filters.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -372,22 +372,22 @@ Load files from an existing Snowflake stage with COPY INTO.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -423,22 +423,22 @@ Export a Snowflake table to files in a stage with COPY INTO.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -465,22 +465,22 @@ List the databases the credential can access.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -508,22 +508,22 @@ List the schemas in a Snowflake database.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -552,22 +552,22 @@ List the tables in a Snowflake schema.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -594,22 +594,22 @@ List warehouses visible to the active Snowflake role.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -635,22 +635,22 @@ Get the full details for a Snowflake virtual warehouse.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -676,22 +676,22 @@ Resume a Snowflake virtual warehouse if it is suspended.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -717,22 +717,22 @@ Suspend a Snowflake virtual warehouse.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -761,22 +761,22 @@ Resize a Snowflake warehouse or change its auto-suspend and auto-resume settings
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -805,22 +805,22 @@ List tasks in a Snowflake schema.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -848,22 +848,22 @@ Describe a Snowflake task.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -892,22 +892,22 @@ Run a Snowflake task immediately, optionally retrying its last failed graph.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -935,22 +935,22 @@ Resume a suspended Snowflake task so its schedule runs again.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -978,22 +978,22 @@ Suspend a Snowflake task so its schedule stops triggering runs.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -1024,22 +1024,22 @@ Query up to seven days of Snowflake task history, capped at 10000 rows.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -1069,22 +1069,22 @@ Find one task history record by query ID within Snowflake’s seven-day window a
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -1111,22 +1111,22 @@ Cancel one running task query by query ID with SYSTEM$CANCEL_QUERY. Task runs al
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -1154,22 +1154,22 @@ Read a task query result with RESULT_SCAN during Snowflake’s 24-hour retention
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -1201,22 +1201,22 @@ List queries that completed in the last seven days, optionally filtered.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -1248,22 +1248,22 @@ List staged-file load results for a table over the last fourteen days.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -1294,22 +1294,22 @@ Inspect table and column metadata through Snowflake INFORMATION_SCHEMA views.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -1340,22 +1340,22 @@ Call a stored procedure with explicitly typed Snowflake bindings.
 | --------- | ---- | ----------- |
 | `statementHandle` | string | Snowflake statement handle |
 | `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-| `message` | string | Snowflake response message |
-| `result` | object | Completed result partition, or null while running or when no result is available |
-|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+| `message` | string (nullable) | Snowflake response message |
+| `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |     ↳ `name` | string | Column name |
 |     ↳ `type` | string | Snowflake data type |
-|     ↳ `length` | number | Column length |
-|     ↳ `precision` | number | Numeric precision |
-|     ↳ `scale` | number | Numeric scale |
+|     ↳ `length` | number (nullable) | Column length |
+|     ↳ `precision` | number (nullable) | Numeric precision |
+|     ↳ `scale` | number (nullable) | Numeric scale |
 |     ↳ `nullable` | boolean | Whether the column is nullable |
 |   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `totalRows` | number (nullable) | Total result rows |
 |   ↳ `currentPartition` | number | Zero-based partition returned |
-|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |   ↳ `rowsInserted` | number | Rows inserted by the statement |
 |   ↳ `rowsUpdated` | number | Rows updated by the statement |
 |   ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -1387,47 +1387,47 @@ Ask Snowflake Cortex Analyst a question in natural language against a semantic v
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `requestId` | string | Cortex Analyst request ID, used to send feedback on this answer |
-| `text` | string | How Cortex Analyst interpreted the question, or why it could not answer it \(text content joined in order\) |
-| `sql` | string | SQL Cortex Analyst generated, or null when the question was ambiguous |
-| `verifiedQuery` | object | Verified Query Repository entry used to generate the SQL, or null when none was used |
-|   ↳ `name` | string | Verified query name |
-|   ↳ `question` | string | Question the verified query answers |
-|   ↳ `sql` | string | SQL of the verified query |
-|   ↳ `verifiedAt` | number | When the query was last verified \(Unix epoch seconds, UTC\) |
-|   ↳ `verifiedBy` | string | Who verified the query |
+| `requestId` | string (nullable) | Cortex Analyst request ID, used to send feedback on this answer |
+| `text` | string (nullable) | How Cortex Analyst interpreted the question, or why it could not answer it \(text content joined in order\) |
+| `sql` | string (nullable) | SQL Cortex Analyst generated, or null when the question was ambiguous |
+| `verifiedQuery` | object (nullable) | Verified Query Repository entry used to generate the SQL, or null when none was used |
+|   ↳ `name` | string (nullable) | Verified query name |
+|   ↳ `question` | string (nullable) | Question the verified query answers |
+|   ↳ `sql` | string (nullable) | SQL of the verified query |
+|   ↳ `verifiedAt` | number (nullable) | When the query was last verified \(Unix epoch seconds, UTC\) |
+|   ↳ `verifiedBy` | string (nullable) | Who verified the query |
 | `suggestions` | array | Questions the semantic model can answer, returned instead of SQL when the question was ambiguous |
 | `warnings` | array | Warnings Cortex Analyst raised about the request |
-| `questionCategory` | string | How Cortex Analyst categorized the question \(for example CLEAR_SQL\) |
+| `questionCategory` | string (nullable) | How Cortex Analyst categorized the question \(for example CLEAR_SQL\) |
 | `modelNames` | array | Models used to generate the response |
-| `semanticModelSelection` | object | Which semantic source Cortex Analyst chose when several were given, or null for a single source |
-|   ↳ `index` | number | Zero-based position of the chosen source in Semantic Sources |
-|   ↳ `semanticView` | string | Chosen semantic view |
-|   ↳ `semanticModelFile` | string | Chosen staged semantic model file |
-|   ↳ `inlineSemanticModel` | string | Chosen inline semantic model YAML |
-| `cortexSearchRetrieval` | json | Entities Cortex Analyst resolved with Cortex Search \(\[\{service, query, response_body\}\]\), passed through as returned |
+| `semanticModelSelection` | object (nullable) | Which semantic source Cortex Analyst chose when several were given, or null for a single source |
+|   ↳ `index` | number (nullable) | Zero-based position of the chosen source in Semantic Sources |
+|   ↳ `semanticView` | string (nullable) | Chosen semantic view |
+|   ↳ `semanticModelFile` | string (nullable) | Chosen staged semantic model file |
+|   ↳ `inlineSemanticModel` | string (nullable) | Chosen inline semantic model YAML |
+| `cortexSearchRetrieval` | json (nullable) | Entities Cortex Analyst resolved with Cortex Search \(\[\{service, query, response_body\}\]\), passed through as returned |
 | `conversation` | array | Full conversation including this question and answer \(analyst turns keep their text and SQL\); pass it as History to ask a follow-up. Snowflake recommends starting a new conversation after many turns |
 |   ↳ `role` | string | user or analyst |
 |   ↳ `content` | array | Message content blocks \(text, sql, suggestions\) |
-| `execution` | object | Result of running the generated SQL when Run Generated SQL is on, otherwise null. A query still running after 45 seconds returns status RUNNING with a statementHandle; fetch its rows with Get Statement |
+| `execution` | object (nullable) | Result of running the generated SQL when Run Generated SQL is on, otherwise null. A query still running after 45 seconds returns status RUNNING with a statementHandle; fetch its rows with Get Statement |
 |   ↳ `statementHandle` | string | Snowflake statement handle |
 |   ↳ `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
-|   ↳ `message` | string | Snowflake response message |
-|   ↳ `result` | object | Completed result partition, or null while running or when no result is available |
-|     ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+|   ↳ `message` | string (nullable) | Snowflake response message |
+|   ↳ `result` | object (nullable) | Completed result partition, or null while running or when no result is available |
+|     ↳ `columns` | array (nullable) | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
 |       ↳ `name` | string | Column name |
 |       ↳ `type` | string | Snowflake data type |
-|       ↳ `length` | number | Column length |
-|       ↳ `precision` | number | Numeric precision |
-|       ↳ `scale` | number | Numeric scale |
+|       ↳ `length` | number (nullable) | Column length |
+|       ↳ `precision` | number (nullable) | Numeric precision |
+|       ↳ `scale` | number (nullable) | Numeric scale |
 |       ↳ `nullable` | boolean | Whether the column is nullable |
 |     ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
-|     ↳ `totalRows` | number | Total result rows |
+|     ↳ `totalRows` | number (nullable) | Total result rows |
 |     ↳ `currentPartition` | number | Zero-based partition returned |
-|     ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
-|     ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
-|     ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
-|   ↳ `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|     ↳ `partitionCount` | number (nullable) | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|     ↳ `nextPartition` | number (nullable) | Next partition to request with Get Statement, if one exists |
+|     ↳ `truncated` | boolean (nullable) | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+|   ↳ `dml` | object (nullable) | Completed DML statistics, or null when the statement has no DML statistics |
 |     ↳ `rowsInserted` | number | Rows inserted by the statement |
 |     ↳ `rowsUpdated` | number | Rows updated by the statement |
 |     ↳ `rowsDeleted` | number | Rows deleted by the statement |
@@ -1452,5 +1452,3 @@ Rate a Cortex Analyst answer thumbs up or down, with an optional comment. Feedba
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the feedback was recorded |
-
-

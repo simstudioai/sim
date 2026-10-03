@@ -5,7 +5,7 @@ description: AI-powered meeting notes, action items, and transcripts
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="circleback"
   color="linear-gradient(180deg, #E0F7FA 0%, #FFFFFF 100%)"
 />
@@ -70,37 +70,37 @@ Lists meetings from Circleback with optional ownership, status, tag, and attende
 | --------- | ---- | ----------- |
 | `meetings` | array | The meetings on this page |
 |   ↳ `id` | string | The Circleback meeting ID |
-|   ↳ `name` | string | The meeting name |
+|   ↳ `name` | string (nullable) | The meeting name |
 |   ↳ `createdAt` | string | When the meeting was created \(ISO 8601\) |
 |   ↳ `updatedAt` | string | When the meeting was last updated \(ISO 8601\) |
-|   ↳ `duration` | number | The meeting duration in seconds |
-|   ↳ `url` | string | The URL of the virtual meeting \(Zoom, Google Meet, or Microsoft Teams\) |
-|   ↳ `recordingUrl` | string | The URL of the meeting recording file, valid for 24 hours |
+|   ↳ `duration` | number (nullable) | The meeting duration in seconds |
+|   ↳ `url` | string (nullable) | The URL of the virtual meeting \(Zoom, Google Meet, or Microsoft Teams\) |
+|   ↳ `recordingUrl` | string (nullable) | The URL of the meeting recording file, valid for 24 hours |
 |   ↳ `tags` | array | Tags added to the meeting |
 |     ↳ `id` | number | The unique identifier of the tag |
 |     ↳ `name` | string | The display name of the tag |
-|     ↳ `description` | string | A description of the tag |
-|   ↳ `icalUid` | string | The identifier of the calendar event associated with the meeting |
+|     ↳ `description` | string (nullable) | A description of the tag |
+|   ↳ `icalUid` | string (nullable) | The identifier of the calendar event associated with the meeting |
 |   ↳ `attendees` | array | The meeting attendees |
 |     ↳ `profileId` | number | The unique identifier of the attendee profile |
-|     ↳ `name` | string | The attendee name |
-|     ↳ `title` | string | The attendee job title |
-|     ↳ `companyName` | string | The name of the company the attendee belongs to |
-|     ↳ `email` | string | The attendee email address |
+|     ↳ `name` | string (nullable) | The attendee name |
+|     ↳ `title` | string (nullable) | The attendee job title |
+|     ↳ `companyName` | string (nullable) | The name of the company the attendee belongs to |
+|     ↳ `email` | string (nullable) | The attendee email address |
 |     ↳ `isCalendarEventOrganizer` | boolean | Whether the attendee organized the calendar event |
 |     ↳ `isCalendarInvitee` | boolean | Whether the attendee was invited on the calendar event |
-|   ↳ `notes` | string | The meeting notes with Markdown formatting |
-|   ↳ `privateNotes` | string | The authenticated user private notes for the meeting |
+|   ↳ `notes` | string (nullable) | The meeting notes with Markdown formatting |
+|   ↳ `privateNotes` | string (nullable) | The authenticated user private notes for the meeting |
 |   ↳ `actionItems` | array | Action items created for the meeting |
 |     ↳ `id` | number | The unique identifier of the action item |
 |     ↳ `title` | string | The action item title |
 |     ↳ `description` | string | The action item description |
-|     ↳ `assignee` | json | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
+|     ↳ `assignee` | json (nullable) | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
 |     ↳ `status` | string | The completion status, PENDING or DONE |
 |   ↳ `insights` | json | Insight results for the meeting, keyed by the name of the user-created insight |
-|   ↳ `linkAccess` | string | Who can access the meeting through its shareable link: Editor, Viewer, or LimitedViewer |
-|   ↳ `calendarEvent` | json | The associated calendar event as an object with id, icalUid, description, platform, and platformId, or null |
-| `nextCursor` | string | Pagination cursor for the next page, or null on the last page |
+|   ↳ `linkAccess` | string (nullable) | Who can access the meeting through its shareable link: Editor, Viewer, or LimitedViewer |
+|   ↳ `calendarEvent` | json (nullable) | The associated calendar event as an object with id, icalUid, description, platform, and platformId, or null |
+| `nextCursor` | string (nullable) | Pagination cursor for the next page, or null on the last page |
 | `hasMore` | boolean | Whether another page of meetings is available |
 
 ### Circleback Get Meeting
@@ -119,36 +119,36 @@ Gets a Circleback meeting by ID, including notes, attendees, action items, insig
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `id` | string | The Circleback meeting ID |
-| `name` | string | The meeting name |
+| `name` | string (nullable) | The meeting name |
 | `createdAt` | string | When the meeting was created \(ISO 8601\) |
 | `updatedAt` | string | When the meeting was last updated \(ISO 8601\) |
-| `duration` | number | The meeting duration in seconds |
-| `url` | string | The URL of the virtual meeting \(Zoom, Google Meet, or Microsoft Teams\) |
-| `recordingUrl` | string | The URL of the meeting recording file, valid for 24 hours |
+| `duration` | number (nullable) | The meeting duration in seconds |
+| `url` | string (nullable) | The URL of the virtual meeting \(Zoom, Google Meet, or Microsoft Teams\) |
+| `recordingUrl` | string (nullable) | The URL of the meeting recording file, valid for 24 hours |
 | `tags` | array | Tags added to the meeting |
 |   ↳ `id` | number | The unique identifier of the tag |
 |   ↳ `name` | string | The display name of the tag |
-|   ↳ `description` | string | A description of the tag |
-| `icalUid` | string | The identifier of the calendar event associated with the meeting |
+|   ↳ `description` | string (nullable) | A description of the tag |
+| `icalUid` | string (nullable) | The identifier of the calendar event associated with the meeting |
 | `attendees` | array | The meeting attendees |
 |   ↳ `profileId` | number | The unique identifier of the attendee profile |
-|   ↳ `name` | string | The attendee name |
-|   ↳ `title` | string | The attendee job title |
-|   ↳ `companyName` | string | The name of the company the attendee belongs to |
-|   ↳ `email` | string | The attendee email address |
+|   ↳ `name` | string (nullable) | The attendee name |
+|   ↳ `title` | string (nullable) | The attendee job title |
+|   ↳ `companyName` | string (nullable) | The name of the company the attendee belongs to |
+|   ↳ `email` | string (nullable) | The attendee email address |
 |   ↳ `isCalendarEventOrganizer` | boolean | Whether the attendee organized the calendar event |
 |   ↳ `isCalendarInvitee` | boolean | Whether the attendee was invited on the calendar event |
-| `notes` | string | The meeting notes with Markdown formatting |
-| `privateNotes` | string | The authenticated user private notes for the meeting |
+| `notes` | string (nullable) | The meeting notes with Markdown formatting |
+| `privateNotes` | string (nullable) | The authenticated user private notes for the meeting |
 | `actionItems` | array | Action items created for the meeting |
 |   ↳ `id` | number | The unique identifier of the action item |
 |   ↳ `title` | string | The action item title |
 |   ↳ `description` | string | The action item description |
-|   ↳ `assignee` | json | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
+|   ↳ `assignee` | json (nullable) | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
 |   ↳ `status` | string | The completion status, PENDING or DONE |
 | `insights` | json | Insight results for the meeting, keyed by the name of the user-created insight |
-| `linkAccess` | string | Who can access the meeting through its shareable link: Editor, Viewer, or LimitedViewer |
-| `calendarEvent` | json | The associated calendar event as an object with id, icalUid, description, platform, and platformId, or null |
+| `linkAccess` | string (nullable) | Who can access the meeting through its shareable link: Editor, Viewer, or LimitedViewer |
+| `calendarEvent` | json (nullable) | The associated calendar event as an object with id, icalUid, description, platform, and platformId, or null |
 
 ### Circleback Search Meetings
 
@@ -171,37 +171,37 @@ Searches Circleback meetings by name and content, with optional filters for spec
 | --------- | ---- | ----------- |
 | `meetings` | array | The matching meetings on this page |
 |   ↳ `id` | string | The Circleback meeting ID |
-|   ↳ `name` | string | The meeting name |
+|   ↳ `name` | string (nullable) | The meeting name |
 |   ↳ `createdAt` | string | When the meeting was created \(ISO 8601\) |
 |   ↳ `updatedAt` | string | When the meeting was last updated \(ISO 8601\) |
-|   ↳ `duration` | number | The meeting duration in seconds |
-|   ↳ `url` | string | The URL of the virtual meeting \(Zoom, Google Meet, or Microsoft Teams\) |
-|   ↳ `recordingUrl` | string | The URL of the meeting recording file, valid for 24 hours |
+|   ↳ `duration` | number (nullable) | The meeting duration in seconds |
+|   ↳ `url` | string (nullable) | The URL of the virtual meeting \(Zoom, Google Meet, or Microsoft Teams\) |
+|   ↳ `recordingUrl` | string (nullable) | The URL of the meeting recording file, valid for 24 hours |
 |   ↳ `tags` | array | Tags added to the meeting |
 |     ↳ `id` | number | The unique identifier of the tag |
 |     ↳ `name` | string | The display name of the tag |
-|     ↳ `description` | string | A description of the tag |
-|   ↳ `icalUid` | string | The identifier of the calendar event associated with the meeting |
+|     ↳ `description` | string (nullable) | A description of the tag |
+|   ↳ `icalUid` | string (nullable) | The identifier of the calendar event associated with the meeting |
 |   ↳ `attendees` | array | The meeting attendees |
 |     ↳ `profileId` | number | The unique identifier of the attendee profile |
-|     ↳ `name` | string | The attendee name |
-|     ↳ `title` | string | The attendee job title |
-|     ↳ `companyName` | string | The name of the company the attendee belongs to |
-|     ↳ `email` | string | The attendee email address |
+|     ↳ `name` | string (nullable) | The attendee name |
+|     ↳ `title` | string (nullable) | The attendee job title |
+|     ↳ `companyName` | string (nullable) | The name of the company the attendee belongs to |
+|     ↳ `email` | string (nullable) | The attendee email address |
 |     ↳ `isCalendarEventOrganizer` | boolean | Whether the attendee organized the calendar event |
 |     ↳ `isCalendarInvitee` | boolean | Whether the attendee was invited on the calendar event |
-|   ↳ `notes` | string | The meeting notes with Markdown formatting |
-|   ↳ `privateNotes` | string | The authenticated user private notes for the meeting |
+|   ↳ `notes` | string (nullable) | The meeting notes with Markdown formatting |
+|   ↳ `privateNotes` | string (nullable) | The authenticated user private notes for the meeting |
 |   ↳ `actionItems` | array | Action items created for the meeting |
 |     ↳ `id` | number | The unique identifier of the action item |
 |     ↳ `title` | string | The action item title |
 |     ↳ `description` | string | The action item description |
-|     ↳ `assignee` | json | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
+|     ↳ `assignee` | json (nullable) | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
 |     ↳ `status` | string | The completion status, PENDING or DONE |
 |   ↳ `insights` | json | Insight results for the meeting, keyed by the name of the user-created insight |
-|   ↳ `linkAccess` | string | Who can access the meeting through its shareable link: Editor, Viewer, or LimitedViewer |
-|   ↳ `calendarEvent` | json | The associated calendar event as an object with id, icalUid, description, platform, and platformId, or null |
-| `nextCursor` | string | Pagination cursor for the next page, or null on the last page |
+|   ↳ `linkAccess` | string (nullable) | Who can access the meeting through its shareable link: Editor, Viewer, or LimitedViewer |
+|   ↳ `calendarEvent` | json (nullable) | The associated calendar event as an object with id, icalUid, description, platform, and platformId, or null |
+| `nextCursor` | string (nullable) | Pagination cursor for the next page, or null on the last page |
 | `hasMore` | boolean | Whether another page of results is available |
 
 ### Circleback Get Transcript
@@ -220,7 +220,7 @@ Gets the full transcript for a Circleback meeting.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `transcript` | array | The transcript segments in order |
-|   ↳ `speaker` | string | The speaker name |
+|   ↳ `speaker` | string (nullable) | The speaker name |
 |   ↳ `text` | string | The words spoken |
 |   ↳ `timestamp` | number | The timestamp in seconds that marks the beginning of the segment |
 
@@ -243,9 +243,9 @@ Updates the name, notes, or private notes of a Circleback meeting. The API retur
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `id` | string | The Circleback meeting ID |
-| `name` | string | The updated meeting name, when the name was updated |
-| `notes` | string | The updated meeting notes, when the notes were updated |
-| `privateNotes` | string | The updated private notes, when the private notes were updated |
+| `name` | string (nullable) | The updated meeting name, when the name was updated |
+| `notes` | string (nullable) | The updated meeting notes, when the notes were updated |
+| `privateNotes` | string (nullable) | The updated private notes, when the private notes were updated |
 | `updatedAt` | string | When the meeting was last updated \(ISO 8601\) |
 
 ### Circleback Delete Meeting
@@ -264,36 +264,36 @@ Deletes a Circleback meeting. Only the owner of the meeting can delete it. Retur
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `id` | string | The Circleback meeting ID |
-| `name` | string | The meeting name |
+| `name` | string (nullable) | The meeting name |
 | `createdAt` | string | When the meeting was created \(ISO 8601\) |
 | `updatedAt` | string | When the meeting was last updated \(ISO 8601\) |
-| `duration` | number | The meeting duration in seconds |
-| `url` | string | The URL of the virtual meeting \(Zoom, Google Meet, or Microsoft Teams\) |
-| `recordingUrl` | string | The URL of the meeting recording file, valid for 24 hours |
+| `duration` | number (nullable) | The meeting duration in seconds |
+| `url` | string (nullable) | The URL of the virtual meeting \(Zoom, Google Meet, or Microsoft Teams\) |
+| `recordingUrl` | string (nullable) | The URL of the meeting recording file, valid for 24 hours |
 | `tags` | array | Tags added to the meeting |
 |   ↳ `id` | number | The unique identifier of the tag |
 |   ↳ `name` | string | The display name of the tag |
-|   ↳ `description` | string | A description of the tag |
-| `icalUid` | string | The identifier of the calendar event associated with the meeting |
+|   ↳ `description` | string (nullable) | A description of the tag |
+| `icalUid` | string (nullable) | The identifier of the calendar event associated with the meeting |
 | `attendees` | array | The meeting attendees |
 |   ↳ `profileId` | number | The unique identifier of the attendee profile |
-|   ↳ `name` | string | The attendee name |
-|   ↳ `title` | string | The attendee job title |
-|   ↳ `companyName` | string | The name of the company the attendee belongs to |
-|   ↳ `email` | string | The attendee email address |
+|   ↳ `name` | string (nullable) | The attendee name |
+|   ↳ `title` | string (nullable) | The attendee job title |
+|   ↳ `companyName` | string (nullable) | The name of the company the attendee belongs to |
+|   ↳ `email` | string (nullable) | The attendee email address |
 |   ↳ `isCalendarEventOrganizer` | boolean | Whether the attendee organized the calendar event |
 |   ↳ `isCalendarInvitee` | boolean | Whether the attendee was invited on the calendar event |
-| `notes` | string | The meeting notes with Markdown formatting |
-| `privateNotes` | string | The authenticated user private notes for the meeting |
+| `notes` | string (nullable) | The meeting notes with Markdown formatting |
+| `privateNotes` | string (nullable) | The authenticated user private notes for the meeting |
 | `actionItems` | array | Action items created for the meeting |
 |   ↳ `id` | number | The unique identifier of the action item |
 |   ↳ `title` | string | The action item title |
 |   ↳ `description` | string | The action item description |
-|   ↳ `assignee` | json | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
+|   ↳ `assignee` | json (nullable) | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
 |   ↳ `status` | string | The completion status, PENDING or DONE |
 | `insights` | json | Insight results for the meeting, keyed by the name of the user-created insight |
-| `linkAccess` | string | Who can access the meeting through its shareable link: Editor, Viewer, or LimitedViewer |
-| `calendarEvent` | json | The associated calendar event as an object with id, icalUid, description, platform, and platformId, or null |
+| `linkAccess` | string (nullable) | Who can access the meeting through its shareable link: Editor, Viewer, or LimitedViewer |
+| `calendarEvent` | json (nullable) | The associated calendar event as an object with id, icalUid, description, platform, and platformId, or null |
 
 ### Circleback List Action Items
 
@@ -320,16 +320,16 @@ Lists action items across the authenticated user meetings, filtered by assignee,
 |   ↳ `id` | number | The unique identifier of the action item |
 |   ↳ `title` | string | The action item title |
 |   ↳ `description` | string | The action item description |
-|   ↳ `assignee` | json | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
-|   ↳ `completedAt` | string | When the action item was marked done, or null if not completed |
-|   ↳ `meetingId` | string | The ID of the meeting the action item belongs to, or null |
+|   ↳ `assignee` | json (nullable) | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
+|   ↳ `completedAt` | string (nullable) | When the action item was marked done, or null if not completed |
+|   ↳ `meetingId` | string (nullable) | The ID of the meeting the action item belongs to, or null |
 |   ↳ `status` | string | The completion status, PENDING or DONE |
 |   ↳ `meetings` | array | The meetings the action item is associated with |
 |     ↳ `id` | string | The Circleback meeting ID |
-|     ↳ `name` | string | The meeting name |
+|     ↳ `name` | string (nullable) | The meeting name |
 |     ↳ `createdAt` | string | When the meeting was created \(ISO 8601\) |
 |   ↳ `canEditActionItem` | boolean | Whether the caller may edit the action item. Returned only by the list operation |
-| `nextCursor` | string | Pagination cursor for the next page, or null on the last page |
+| `nextCursor` | string (nullable) | Pagination cursor for the next page, or null on the last page |
 | `hasMore` | boolean | Whether another page of action items is available |
 
 ### Circleback Update Action Item
@@ -354,13 +354,13 @@ Updates the title, description, status, or assignee of a Circleback action item.
 | `id` | number | The unique identifier of the action item |
 | `title` | string | The action item title |
 | `description` | string | The action item description |
-| `assignee` | json | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
-| `completedAt` | string | When the action item was marked done, or null if not completed |
-| `meetingId` | string | The ID of the meeting the action item belongs to, or null |
+| `assignee` | json (nullable) | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
+| `completedAt` | string (nullable) | When the action item was marked done, or null if not completed |
+| `meetingId` | string (nullable) | The ID of the meeting the action item belongs to, or null |
 | `status` | string | The completion status, PENDING or DONE |
 | `meetings` | array | The meetings the action item is associated with |
 |   ↳ `id` | string | The Circleback meeting ID |
-|   ↳ `name` | string | The meeting name |
+|   ↳ `name` | string (nullable) | The meeting name |
 |   ↳ `createdAt` | string | When the meeting was created \(ISO 8601\) |
 | `canEditActionItem` | boolean | Whether the caller may edit the action item. Returned only by the list operation |
 
@@ -382,13 +382,13 @@ Deletes a Circleback action item. Returns the deleted action item.
 | `id` | number | The unique identifier of the action item |
 | `title` | string | The action item title |
 | `description` | string | The action item description |
-| `assignee` | json | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
-| `completedAt` | string | When the action item was marked done, or null if not completed |
-| `meetingId` | string | The ID of the meeting the action item belongs to, or null |
+| `assignee` | json (nullable) | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
+| `completedAt` | string (nullable) | When the action item was marked done, or null if not completed |
+| `meetingId` | string (nullable) | The ID of the meeting the action item belongs to, or null |
 | `status` | string | The completion status, PENDING or DONE |
 | `meetings` | array | The meetings the action item is associated with |
 |   ↳ `id` | string | The Circleback meeting ID |
-|   ↳ `name` | string | The meeting name |
+|   ↳ `name` | string (nullable) | The meeting name |
 |   ↳ `createdAt` | string | When the meeting was created \(ISO 8601\) |
 | `canEditActionItem` | boolean | Whether the caller may edit the action item. Returned only by the list operation |
 
@@ -416,7 +416,7 @@ Lists upcoming calendar events from the authenticated user connected calendars, 
 |   ↳ `title` | string | The title of the calendar meeting |
 |   ↳ `icalUid` | string | The iCalendar UID of the calendar event |
 |   ↳ `attendees` | array | The attendees invited to the calendar meeting |
-|     ↳ `name` | string | The name of the attendee |
+|     ↳ `name` | string (nullable) | The name of the attendee |
 |     ↳ `email` | string | The email address of the attendee |
 |     ↳ `isOrganizer` | boolean | Whether the attendee organized the calendar meeting |
 |     ↳ `status` | string | The attendee response to the invitation: accepted, declined, tentative, or not_available |
@@ -428,14 +428,14 @@ Lists upcoming calendar events from the authenticated user connected calendars, 
 |   ↳ `isHostedByMe` | boolean | Whether the current user organized the calendar meeting |
 |   ↳ `location` | string | The location of the calendar meeting |
 |   ↳ `meetingId` | string | The Circleback meeting associated with the calendar meeting, when one exists |
-|   ↳ `meetingPlatform` | string | The conferencing platform hosting the meeting, when detected |
-|   ↳ `organizerEmail` | string | The email address of the meeting organizer |
-|   ↳ `platform` | string | The conferencing platform hosting the meeting, when detected. Alias of meetingPlatform |
-|   ↳ `overrideShouldRecord` | boolean | Whether the user manually overrode the automatic recording decision, or null when no override is set |
+|   ↳ `meetingPlatform` | string (nullable) | The conferencing platform hosting the meeting, when detected |
+|   ↳ `organizerEmail` | string (nullable) | The email address of the meeting organizer |
+|   ↳ `platform` | string (nullable) | The conferencing platform hosting the meeting, when detected. Alias of meetingPlatform |
+|   ↳ `overrideShouldRecord` | boolean (nullable) | Whether the user manually overrode the automatic recording decision, or null when no override is set |
 |   ↳ `recurringEventId` | string | The identifier of the recurring event series the meeting belongs to |
 |   ↳ `willRecord` | boolean | Whether the notetaker will join and record the meeting |
 |   ↳ `willRecordReason` | string | A human-readable explanation of why the meeting will or will not be recorded |
-| `nextCursor` | string | Pagination cursor for the next page, or null on the last page |
+| `nextCursor` | string (nullable) | Pagination cursor for the next page, or null on the last page |
 | `hasMore` | boolean | Whether another page of calendar events is available |
 
 ### Circleback List Companies
@@ -456,10 +456,10 @@ Lists the companies whose people attend the authenticated user meetings, with op
 | --------- | ---- | ----------- |
 | `companies` | array | The companies on this page |
 |   ↳ `id` | number | The unique identifier of the company |
-|   ↳ `name` | string | The company name |
-|   ↳ `avatarUrl` | string | The URL of the company logo image |
+|   ↳ `name` | string (nullable) | The company name |
+|   ↳ `avatarUrl` | string (nullable) | The URL of the company logo image |
 |   ↳ `domain` | string | The company website domain |
-| `nextCursor` | string | Pagination cursor for the next page, or null on the last page |
+| `nextCursor` | string (nullable) | Pagination cursor for the next page, or null on the last page |
 | `hasMore` | boolean | Whether another page of companies is available |
 
 ### Circleback Get Company
@@ -477,8 +477,8 @@ Gets a company by its domain from Circleback, including its people and external 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `name` | string | The company name |
-| `avatarUrl` | string | The URL of the company logo image |
+| `name` | string (nullable) | The company name |
+| `avatarUrl` | string (nullable) | The URL of the company logo image |
 | `domain` | string | The company website domain |
 | `externalLinks` | array | Links to the company on external platforms and connected integrations |
 |   ↳ `url` | string | The URL of the external resource |
@@ -486,12 +486,12 @@ Gets a company by its domain from Circleback, including its people and external 
 |   ↳ `type` | string | The platform or integration the link points to, such as Attio, HubSpot, Linear, Salesforce, Zoho, linkedin, or website |
 | `people` | array | People at the company the authenticated user has met with |
 |   ↳ `id` | number | The unique identifier of the person |
-|   ↳ `title` | string | The person job title |
-|   ↳ `companyId` | number | The unique identifier of the company the person belongs to |
-|   ↳ `companyName` | string | The name of the company the person belongs to |
-|   ↳ `email` | string | The person email address |
-|   ↳ `firstName` | string | The person first name |
-|   ↳ `lastName` | string | The person last name |
+|   ↳ `title` | string (nullable) | The person job title |
+|   ↳ `companyId` | number (nullable) | The unique identifier of the company the person belongs to |
+|   ↳ `companyName` | string (nullable) | The name of the company the person belongs to |
+|   ↳ `email` | string (nullable) | The person email address |
+|   ↳ `firstName` | string (nullable) | The person first name |
+|   ↳ `lastName` | string (nullable) | The person last name |
 
 ### Circleback List People
 
@@ -513,13 +513,13 @@ Lists the people who attend the authenticated user meetings, ordered by most rec
 | --------- | ---- | ----------- |
 | `people` | array | The people on this page |
 |   ↳ `id` | number | The unique identifier of the person |
-|   ↳ `title` | string | The person job title |
-|   ↳ `companyId` | number | The unique identifier of the company the person belongs to |
-|   ↳ `companyName` | string | The name of the company the person belongs to |
-|   ↳ `email` | string | The person email address |
-|   ↳ `firstName` | string | The person first name |
-|   ↳ `lastName` | string | The person last name |
-| `nextCursor` | string | Pagination cursor for the next page, or null on the last page |
+|   ↳ `title` | string (nullable) | The person job title |
+|   ↳ `companyId` | number (nullable) | The unique identifier of the company the person belongs to |
+|   ↳ `companyName` | string (nullable) | The name of the company the person belongs to |
+|   ↳ `email` | string (nullable) | The person email address |
+|   ↳ `firstName` | string (nullable) | The person first name |
+|   ↳ `lastName` | string (nullable) | The person last name |
+| `nextCursor` | string (nullable) | Pagination cursor for the next page, or null on the last page |
 | `hasMore` | boolean | Whether another page of people is available |
 
 ### Circleback Get Person
@@ -538,12 +538,12 @@ Gets a person by their profile ID from Circleback, including their profile detai
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `id` | number | The unique identifier of the person |
-| `title` | string | The person job title |
-| `companyId` | number | The unique identifier of the company the person belongs to |
-| `companyName` | string | The name of the company the person belongs to |
-| `email` | string | The person email address |
-| `firstName` | string | The person first name |
-| `lastName` | string | The person last name |
+| `title` | string (nullable) | The person job title |
+| `companyId` | number (nullable) | The unique identifier of the company the person belongs to |
+| `companyName` | string (nullable) | The name of the company the person belongs to |
+| `email` | string (nullable) | The person email address |
+| `firstName` | string (nullable) | The person first name |
+| `lastName` | string (nullable) | The person last name |
 | `externalLinks` | array | Links to the person on external platforms and connected integrations |
 |   ↳ `url` | string | The URL of the external resource |
 |   ↳ `objectType` | string | Whether the link refers to a person or a company |
@@ -566,7 +566,7 @@ Lists every tag available to the authenticated Circleback user.
 | `tags` | array | Every tag available to the authenticated user |
 |   ↳ `id` | number | The unique identifier of the tag |
 |   ↳ `name` | string | The display name of the tag |
-|   ↳ `description` | string | A description of the tag |
+|   ↳ `description` | string (nullable) | A description of the tag |
 
 ### Circleback Create Tag
 
@@ -586,7 +586,7 @@ Creates a new tag in Circleback. If a tag with the same name already exists, a c
 | --------- | ---- | ----------- |
 | `id` | number | The unique identifier of the tag |
 | `name` | string | The display name of the tag |
-| `description` | string | A description of the tag |
+| `description` | string (nullable) | A description of the tag |
 
 ### Circleback Update Tag
 
@@ -607,7 +607,7 @@ Updates the name or description of a Circleback tag.
 | --------- | ---- | ----------- |
 | `id` | number | The unique identifier of the tag |
 | `name` | string | The display name of the tag |
-| `description` | string | A description of the tag |
+| `description` | string (nullable) | A description of the tag |
 
 ### Circleback Delete Tag
 
@@ -626,7 +626,7 @@ Permanently deletes a Circleback tag and removes it from every meeting it was ap
 | --------- | ---- | ----------- |
 | `id` | number | The unique identifier of the tag |
 | `name` | string | The display name of the tag |
-| `description` | string | A description of the tag |
+| `description` | string (nullable) | A description of the tag |
 
 ### Circleback Add Tag to Meetings
 
@@ -646,36 +646,36 @@ Applies an existing Circleback tag to one or more meetings and returns the updat
 | --------- | ---- | ----------- |
 | `meetings` | array | The updated meetings |
 |   ↳ `id` | string | The Circleback meeting ID |
-|   ↳ `name` | string | The meeting name |
+|   ↳ `name` | string (nullable) | The meeting name |
 |   ↳ `createdAt` | string | When the meeting was created \(ISO 8601\) |
 |   ↳ `updatedAt` | string | When the meeting was last updated \(ISO 8601\) |
-|   ↳ `duration` | number | The meeting duration in seconds |
-|   ↳ `url` | string | The URL of the virtual meeting \(Zoom, Google Meet, or Microsoft Teams\) |
-|   ↳ `recordingUrl` | string | The URL of the meeting recording file, valid for 24 hours |
+|   ↳ `duration` | number (nullable) | The meeting duration in seconds |
+|   ↳ `url` | string (nullable) | The URL of the virtual meeting \(Zoom, Google Meet, or Microsoft Teams\) |
+|   ↳ `recordingUrl` | string (nullable) | The URL of the meeting recording file, valid for 24 hours |
 |   ↳ `tags` | array | Tags added to the meeting |
 |     ↳ `id` | number | The unique identifier of the tag |
 |     ↳ `name` | string | The display name of the tag |
-|     ↳ `description` | string | A description of the tag |
-|   ↳ `icalUid` | string | The identifier of the calendar event associated with the meeting |
+|     ↳ `description` | string (nullable) | A description of the tag |
+|   ↳ `icalUid` | string (nullable) | The identifier of the calendar event associated with the meeting |
 |   ↳ `attendees` | array | The meeting attendees |
 |     ↳ `profileId` | number | The unique identifier of the attendee profile |
-|     ↳ `name` | string | The attendee name |
-|     ↳ `title` | string | The attendee job title |
-|     ↳ `companyName` | string | The name of the company the attendee belongs to |
-|     ↳ `email` | string | The attendee email address |
+|     ↳ `name` | string (nullable) | The attendee name |
+|     ↳ `title` | string (nullable) | The attendee job title |
+|     ↳ `companyName` | string (nullable) | The name of the company the attendee belongs to |
+|     ↳ `email` | string (nullable) | The attendee email address |
 |     ↳ `isCalendarEventOrganizer` | boolean | Whether the attendee organized the calendar event |
 |     ↳ `isCalendarInvitee` | boolean | Whether the attendee was invited on the calendar event |
-|   ↳ `notes` | string | The meeting notes with Markdown formatting |
-|   ↳ `privateNotes` | string | The authenticated user private notes for the meeting |
+|   ↳ `notes` | string (nullable) | The meeting notes with Markdown formatting |
+|   ↳ `privateNotes` | string (nullable) | The authenticated user private notes for the meeting |
 |   ↳ `actionItems` | array | Action items created for the meeting |
 |     ↳ `id` | number | The unique identifier of the action item |
 |     ↳ `title` | string | The action item title |
 |     ↳ `description` | string | The action item description |
-|     ↳ `assignee` | json | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
+|     ↳ `assignee` | json (nullable) | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
 |     ↳ `status` | string | The completion status, PENDING or DONE |
 |   ↳ `insights` | json | Insight results for the meeting, keyed by the name of the user-created insight |
-|   ↳ `linkAccess` | string | Who can access the meeting through its shareable link: Editor, Viewer, or LimitedViewer |
-|   ↳ `calendarEvent` | json | The associated calendar event as an object with id, icalUid, description, platform, and platformId, or null |
+|   ↳ `linkAccess` | string (nullable) | Who can access the meeting through its shareable link: Editor, Viewer, or LimitedViewer |
+|   ↳ `calendarEvent` | json (nullable) | The associated calendar event as an object with id, icalUid, description, platform, and platformId, or null |
 
 ### Circleback Remove Tag from Meetings
 
@@ -695,38 +695,36 @@ Removes a Circleback tag from one or more meetings and returns the updated meeti
 | --------- | ---- | ----------- |
 | `meetings` | array | The updated meetings |
 |   ↳ `id` | string | The Circleback meeting ID |
-|   ↳ `name` | string | The meeting name |
+|   ↳ `name` | string (nullable) | The meeting name |
 |   ↳ `createdAt` | string | When the meeting was created \(ISO 8601\) |
 |   ↳ `updatedAt` | string | When the meeting was last updated \(ISO 8601\) |
-|   ↳ `duration` | number | The meeting duration in seconds |
-|   ↳ `url` | string | The URL of the virtual meeting \(Zoom, Google Meet, or Microsoft Teams\) |
-|   ↳ `recordingUrl` | string | The URL of the meeting recording file, valid for 24 hours |
+|   ↳ `duration` | number (nullable) | The meeting duration in seconds |
+|   ↳ `url` | string (nullable) | The URL of the virtual meeting \(Zoom, Google Meet, or Microsoft Teams\) |
+|   ↳ `recordingUrl` | string (nullable) | The URL of the meeting recording file, valid for 24 hours |
 |   ↳ `tags` | array | Tags added to the meeting |
 |     ↳ `id` | number | The unique identifier of the tag |
 |     ↳ `name` | string | The display name of the tag |
-|     ↳ `description` | string | A description of the tag |
-|   ↳ `icalUid` | string | The identifier of the calendar event associated with the meeting |
+|     ↳ `description` | string (nullable) | A description of the tag |
+|   ↳ `icalUid` | string (nullable) | The identifier of the calendar event associated with the meeting |
 |   ↳ `attendees` | array | The meeting attendees |
 |     ↳ `profileId` | number | The unique identifier of the attendee profile |
-|     ↳ `name` | string | The attendee name |
-|     ↳ `title` | string | The attendee job title |
-|     ↳ `companyName` | string | The name of the company the attendee belongs to |
-|     ↳ `email` | string | The attendee email address |
+|     ↳ `name` | string (nullable) | The attendee name |
+|     ↳ `title` | string (nullable) | The attendee job title |
+|     ↳ `companyName` | string (nullable) | The name of the company the attendee belongs to |
+|     ↳ `email` | string (nullable) | The attendee email address |
 |     ↳ `isCalendarEventOrganizer` | boolean | Whether the attendee organized the calendar event |
 |     ↳ `isCalendarInvitee` | boolean | Whether the attendee was invited on the calendar event |
-|   ↳ `notes` | string | The meeting notes with Markdown formatting |
-|   ↳ `privateNotes` | string | The authenticated user private notes for the meeting |
+|   ↳ `notes` | string (nullable) | The meeting notes with Markdown formatting |
+|   ↳ `privateNotes` | string (nullable) | The authenticated user private notes for the meeting |
 |   ↳ `actionItems` | array | Action items created for the meeting |
 |     ↳ `id` | number | The unique identifier of the action item |
 |     ↳ `title` | string | The action item title |
 |     ↳ `description` | string | The action item description |
-|     ↳ `assignee` | json | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
+|     ↳ `assignee` | json (nullable) | The assignee as an object with profileId, name, title, companyName, and email, or null if unassigned |
 |     ↳ `status` | string | The completion status, PENDING or DONE |
 |   ↳ `insights` | json | Insight results for the meeting, keyed by the name of the user-created insight |
-|   ↳ `linkAccess` | string | Who can access the meeting through its shareable link: Editor, Viewer, or LimitedViewer |
-|   ↳ `calendarEvent` | json | The associated calendar event as an object with id, icalUid, description, platform, and platformId, or null |
-
-
+|   ↳ `linkAccess` | string (nullable) | Who can access the meeting through its shareable link: Editor, Viewer, or LimitedViewer |
+|   ↳ `calendarEvent` | json (nullable) | The associated calendar event as an object with id, icalUid, description, platform, and platformId, or null |
 
 ## Triggers
 
@@ -878,4 +876,3 @@ Generic webhook trigger for all Circleback events
 |   ↳ `duration` | number | Duration in seconds |
 |   ↳ `createdAt` | string | Creation timestamp |
 |   ↳ `recordingUrl` | string | Recording URL |
-

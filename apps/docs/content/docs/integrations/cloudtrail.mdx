@@ -5,7 +5,7 @@ description: Audit who did what in AWS with CloudTrail event history and Lake qu
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="cloudtrail"
   color="linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)"
 />
@@ -219,10 +219,10 @@ List the ARN, name, and home Region of every CloudTrail trail visible to the acc
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `trails` | array | Trail summaries |
-|   ↳ `trailArn` | string | ARN of the trail |
-|   ↳ `name` | string | Trail name |
-|   ↳ `homeRegion` | string | Region in which the trail was created |
-| `nextToken` | string | Pagination token for the next page of trails, or null on the last page |
+|   ↳ `trailArn` | string (nullable) | ARN of the trail |
+|   ↳ `name` | string (nullable) | Trail name |
+|   ↳ `homeRegion` | string (nullable) | Region in which the trail was created |
+| `nextToken` | string (nullable) | Pagination token for the next page of trails, or null on the last page |
 
 ### CloudTrail Get Event Selectors
 
@@ -432,22 +432,22 @@ Retrieve the configuration of a single CloudTrail Lake event data store
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `eventDataStoreArn` | string | ARN of the event data store |
-| `name` | string | Name of the event data store |
-| `status` | string | CREATED, ENABLED, PENDING_DELETION, or an ingestion state |
+| `eventDataStoreArn` | string (nullable) | ARN of the event data store |
+| `name` | string (nullable) | Name of the event data store |
+| `status` | string (nullable) | CREATED, ENABLED, PENDING_DELETION, or an ingestion state |
 | `advancedEventSelectors` | array | Advanced event selectors that define what the store ingests |
-|   ↳ `name` | string | Name of the advanced event selector |
+|   ↳ `name` | string (nullable) | Name of the advanced event selector |
 |   ↳ `fieldSelectors` | array | Field selectors, each with field plus its equals, startsWith, endsWith, notEquals, notStartsWith, and notEndsWith values |
-| `multiRegionEnabled` | boolean | Whether the store collects events from all Regions |
-| `organizationEnabled` | boolean | Whether the store collects events for the organization |
-| `retentionPeriod` | number | Retention period in days |
-| `terminationProtectionEnabled` | boolean | Whether termination protection is enabled |
-| `createdTimestamp` | string | When the store was created \(ISO 8601\) |
-| `updatedTimestamp` | string | When the store was last updated \(ISO 8601\) |
-| `kmsKeyId` | string | KMS key used to encrypt the store |
-| `billingMode` | string | EXTENDABLE_RETENTION_PRICING or FIXED_RETENTION_PRICING |
-| `federationStatus` | string | Lake Formation federation status |
-| `federationRoleArn` | string | ARN of the role used for Lake Formation federation |
+| `multiRegionEnabled` | boolean (nullable) | Whether the store collects events from all Regions |
+| `organizationEnabled` | boolean (nullable) | Whether the store collects events for the organization |
+| `retentionPeriod` | number (nullable) | Retention period in days |
+| `terminationProtectionEnabled` | boolean (nullable) | Whether termination protection is enabled |
+| `createdTimestamp` | string (nullable) | When the store was created \(ISO 8601\) |
+| `updatedTimestamp` | string (nullable) | When the store was last updated \(ISO 8601\) |
+| `kmsKeyId` | string (nullable) | KMS key used to encrypt the store |
+| `billingMode` | string (nullable) | EXTENDABLE_RETENTION_PRICING or FIXED_RETENTION_PRICING |
+| `federationStatus` | string (nullable) | Lake Formation federation status |
+| `federationRoleArn` | string (nullable) | ARN of the role used for Lake Formation federation |
 | `partitionKeys` | array | Partition keys of the event data store |
 |   ↳ `name` | string | Partition key name |
 |   ↳ `type` | string | Partition key data type |
@@ -474,5 +474,3 @@ List the tags on CloudTrail trails, event data stores, dashboards, or channels
 |   ↳ `resourceId` | string | ARN of the tagged resource |
 |   ↳ `tags` | array | Tags on the resource, as key and value |
 | `nextToken` | string | Reserved for future use by AWS |
-
-

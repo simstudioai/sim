@@ -5,7 +5,7 @@ description: Research private markets — firmographics, funding, and predictive
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="cbinsights"
   color="#FFFFFF"
 />
@@ -69,9 +69,9 @@ Resolve company names or websites to CB Insights organization IDs. This endpoint
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `orgs` | json | Matched organizations as \[\{orgId, name, description, aliases, urls\}\] |
-| `nextPageToken` | string | Token for the next page, or null when there are no more results |
-| `totalHits` | number | Total number of matching records |
-| `totalHitsRelation` | string | Whether totalHits is exact \('eq'\) or a floor \('gte', used above 10,000\) |
+| `nextPageToken` | string (nullable) | Token for the next page, or null when there are no more results |
+| `totalHits` | number (nullable) | Total number of matching records |
+| `totalHitsRelation` | string (nullable) | Whether totalHits is exact \('eq'\) or a floor \('gte', used above 10,000\) |
 
 ### CB Insights Search Firmographics
 
@@ -126,9 +126,9 @@ Search profiles of private companies, public companies, and investors by market,
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `orgs` | json | Matching profiles as \[\{orgId, summary, taxonomy, financials, headcount, identifiers, businessModels, competitors, expertCollections, parentOrgs, childOrgs\}\] |
-| `nextPageToken` | string | Token for the next page, or null when there are no more results |
-| `totalHits` | number | Total number of matching records |
-| `totalHitsRelation` | string | Whether totalHits is exact \('eq'\) or a floor \('gte', used above 10,000\) |
+| `nextPageToken` | string (nullable) | Token for the next page, or null when there are no more results |
+| `totalHits` | number (nullable) | Total number of matching records |
+| `totalHitsRelation` | string (nullable) | Whether totalHits is exact \('eq'\) or a floor \('gte', used above 10,000\) |
 
 ### CB Insights Get Organization Fundings
 
@@ -150,9 +150,9 @@ Retrieve the funding rounds one organization has received, its cap table history
 | --------- | ---- | ----------- |
 | `fundings` | json | Rounds as \[\{dealId, date, round, roundCategory, amountInMillions, valuationInMillions, investors, insights, sources\}\] |
 | `capTableHistory` | json | Ownership structure as \[\{dealId, roundType, issuancePrice, conversionPrice, percentageOwned, sharesAuthorized, terms\}\] |
-| `nextPageToken` | string | Token for the next page, or null when there are no more results |
-| `totalHits` | number | Total number of matching records |
-| `totalHitsRelation` | string | Whether totalHits is exact \('eq'\) or a floor \('gte', used above 10,000\) |
+| `nextPageToken` | string (nullable) | Token for the next page, or null when there are no more results |
+| `totalHits` | number (nullable) | Total number of matching records |
+| `totalHitsRelation` | string (nullable) | Whether totalHits is exact \('eq'\) or a floor \('gte', used above 10,000\) |
 
 ### CB Insights Get Organization Investments
 
@@ -173,9 +173,9 @@ Retrieve the rounds in which one organization invested in another, with AI-gener
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `investments` | json | Rounds as \[\{dealId, date, round, roundCategory, amountInMillions, valuationInMillions, recipient, investors, insights, sources\}\] |
-| `nextPageToken` | string | Token for the next page, or null when there are no more results |
-| `totalHits` | number | Total number of matching records |
-| `totalHitsRelation` | string | Whether totalHits is exact \('eq'\) or a floor \('gte', used above 10,000\) |
+| `nextPageToken` | string (nullable) | Token for the next page, or null when there are no more results |
+| `totalHits` | number (nullable) | Total number of matching records |
+| `totalHitsRelation` | string (nullable) | Whether totalHits is exact \('eq'\) or a floor \('gte', used above 10,000\) |
 
 ### CB Insights Get Organization Portfolio Exits
 
@@ -231,7 +231,7 @@ Retrieve an organization's leadership team and board members with their educatio
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `people` | json | People as \[\{personId, givenName, middleName, surname, email, linkedInUrl, education, workExperience, boardAssociations\}\] |
-| `mosaicManagement` | number | Management factor of the Mosaic Score, measuring the pedigree and track record of the leadership team |
+| `mosaicManagement` | number (nullable) | Management factor of the Mosaic Score, measuring the pedigree and track record of the leadership team |
 
 ### CB Insights Get Organization Outlook
 
@@ -249,9 +249,9 @@ Retrieve an organization's current Mosaic Score, Commercial Maturity level, and 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `mosaicScore` | json | Mosaic Score on a 0-1000 scale: \{overall, management, market, momentum, money\}, each with scoreValue, asOfDate, and scoreInsights |
-| `commercialMaturity` | json | Commercial Maturity on a 1-5 scale: \{maturityLevel: \{level, stage, stageDescription, asOfDate\}, commercialMaturitySignals\}. Available only for a subset of companies. |
-| `exitProbability` | json | Two-year exit probability: \{ipo, mna, exitSignals, incompleteRoundType\}. A pending round zeroes the probabilities rather than omitting them. |
+| `mosaicScore` | json (nullable) | Mosaic Score on a 0-1000 scale: \{overall, management, market, momentum, money\}, each with scoreValue, asOfDate, and scoreInsights |
+| `commercialMaturity` | json (nullable) | Commercial Maturity on a 1-5 scale: \{maturityLevel: \{level, stage, stageDescription, asOfDate\}, commercialMaturitySignals\}. Available only for a subset of companies. |
+| `exitProbability` | json (nullable) | Two-year exit probability: \{ipo, mna, exitSignals, incompleteRoundType\}. A pending round zeroes the probabilities rather than omitting them. |
 
 ### CB Insights Get Organization Funding Window
 
@@ -269,11 +269,11 @@ Retrieve the estimated window in which an organization is likely to raise its ne
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `windowStart` | string | Estimated start of the next funding window, as YYYY-MM-DD |
-| `windowEnd` | string | Estimated end of the next funding window, as YYYY-MM-DD |
-| `cohortNextRoundRate` | number | Share of the cohort that historically raised another round, as a decimal between 0 and 1 |
-| `cohortCriteria` | json | How the comparison cohort was defined: \{cohortGeo, cohortRoundCategory, cohortLandscapes\} |
-| `latestFunding` | json | The latest equity-backed round: \{date, dealId\} |
+| `windowStart` | string (nullable) | Estimated start of the next funding window, as YYYY-MM-DD |
+| `windowEnd` | string (nullable) | Estimated end of the next funding window, as YYYY-MM-DD |
+| `cohortNextRoundRate` | number (nullable) | Share of the cohort that historically raised another round, as a decimal between 0 and 1 |
+| `cohortCriteria` | json (nullable) | How the comparison cohort was defined: \{cohortGeo, cohortRoundCategory, cohortLandscapes\} |
+| `latestFunding` | json (nullable) | The latest equity-backed round: \{date, dealId\} |
 
 ### CB Insights Get Organization Revenue
 
@@ -291,9 +291,9 @@ Retrieve reported and estimated revenue by calendar year for one organization, w
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `orgId` | number | CB Insights organization ID |
-| `orgName` | string | The organization's name |
-| `orgUrl` | string | The organization's website |
+| `orgId` | number (nullable) | CB Insights organization ID |
+| `orgName` | string (nullable) | The organization's name |
+| `orgUrl` | string (nullable) | The organization's website |
 | `revenue` | json | Revenue by year as \[\{calendarYear, lowestValue, averageValue, highestValue, isActual, reportedMetric, yoyGrowthPercent, sources\}\] |
 
 ### CB Insights Get Mosaic History
@@ -359,7 +359,7 @@ Retrieve an organization's historical two-year IPO and M&A exit probabilities, e
 | --------- | ---- | ----------- |
 | `ipo` | json | IPO probability over time as \[\{asOfDate, exitProbability, meanProbability, ratioToMean\}\] |
 | `mna` | json | M&A probability over time as \[\{asOfDate, exitProbability, meanProbability, ratioToMean\}\] |
-| `incompleteRoundType` | string | An in-progress round, if any. A pending round zeroes every probability; a rumored round zeroes only the matching exit type. |
+| `incompleteRoundType` | string (nullable) | An in-progress round, if any. A pending round zeroes every probability; a rumored round zeroes only the matching exit type. |
 
 ### CB Insights Get Strategy Map
 
@@ -377,8 +377,8 @@ Retrieve the companies related to an organization, grouped into industry categor
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `orgName` | string | The organization's name |
-| `logoUrl` | string | URL of the organization's logo |
+| `orgName` | string (nullable) | The organization's name |
+| `logoUrl` | string (nullable) | URL of the organization's logo |
 | `categories` | json | Industry categories as \[\{name, companies: \[\{orgId, name, logoUrl, connections: \{businessRelationships, investments, acquisitions\}\}\]\}\] |
 
 ### CB Insights Get Scouting Report
@@ -397,9 +397,9 @@ Generate an AI-written Scouting Report on a private company covering its busines
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `orgInfo` | json | Firmographics and proprietary scores for the company: \{id, name, url, description, foundedYear, headcount, address, stage, totalFunding, lastFundingDate, overallMosaicScore, commercialMaturity\} |
-| `reportMarkdown` | string | The Scouting Report as Markdown, including citations |
-| `reportJson` | string | The Scouting Report as a JSON string. Citation links are not included in this form — use reportMarkdown when they matter. |
+| `orgInfo` | json (nullable) | Firmographics and proprietary scores for the company: \{id, name, url, description, foundedYear, headcount, address, stage, totalFunding, lastFundingDate, overallMosaicScore, commercialMaturity\} |
+| `reportMarkdown` | string (nullable) | The Scouting Report as Markdown, including citations |
+| `reportJson` | string (nullable) | The Scouting Report as a JSON string. Citation links are not included in this form — use reportMarkdown when they matter. |
 
 ### CB Insights List Fundings
 
@@ -420,9 +420,9 @@ Retrieve funding rounds and cap table history for up to 100 organizations at onc
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `orgs` | json | Organizations as \[\{orgId, fundings, capTableHistory\}\]. An organization with no data is omitted from the response. |
-| `nextPageToken` | string | Token for the next page, or null when there are no more results |
-| `totalHits` | number | Total number of matching records |
-| `totalHitsRelation` | string | Whether totalHits is exact \('eq'\) or a floor \('gte', used above 10,000\) |
+| `nextPageToken` | string (nullable) | Token for the next page, or null when there are no more results |
+| `totalHits` | number (nullable) | Total number of matching records |
+| `totalHitsRelation` | string (nullable) | Whether totalHits is exact \('eq'\) or a floor \('gte', used above 10,000\) |
 
 ### CB Insights List Investments
 
@@ -443,9 +443,9 @@ Retrieve the rounds up to 100 organizations participated in as investors, with A
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `orgs` | json | Organizations as \[\{orgId, investments\}\]. An organization with no data is omitted from the response. |
-| `nextPageToken` | string | Token for the next page, or null when there are no more results |
-| `totalHits` | number | Total number of matching records |
-| `totalHitsRelation` | string | Whether totalHits is exact \('eq'\) or a floor \('gte', used above 10,000\) |
+| `nextPageToken` | string (nullable) | Token for the next page, or null when there are no more results |
+| `totalHits` | number (nullable) | Total number of matching records |
+| `totalHitsRelation` | string (nullable) | Whether totalHits is exact \('eq'\) or a floor \('gte', used above 10,000\) |
 
 ### CB Insights List Portfolio Exits
 
@@ -466,9 +466,9 @@ Retrieve exit rounds for companies up to 100 organizations invested in before th
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `orgs` | json | Organizations as \[\{orgId, portfolioExits\}\]. An organization with no data is omitted from the response. |
-| `nextPageToken` | string | Token for the next page, or null when there are no more results |
-| `totalHits` | number | Total number of matching records |
-| `totalHitsRelation` | string | Whether totalHits is exact \('eq'\) or a floor \('gte', used above 10,000\) |
+| `nextPageToken` | string (nullable) | Token for the next page, or null when there are no more results |
+| `totalHits` | number (nullable) | Total number of matching records |
+| `totalHitsRelation` | string (nullable) | Whether totalHits is exact \('eq'\) or a floor \('gte', used above 10,000\) |
 
 ### CB Insights List Business Relationships
 
@@ -488,7 +488,7 @@ Retrieve partnerships, client/vendor relationships, and licensing activity for u
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `orgs` | json | Organizations as \[\{orgId, businessRelationships\}\] |
-| `nextPageToken` | string | Token for the next page, or null when there are no more results |
+| `nextPageToken` | string (nullable) | Token for the next page, or null when there are no more results |
 
 ### CB Insights List Management and Board
 
@@ -580,9 +580,9 @@ Ask ChatCBI a question in natural language and get an answer grounded in CB Insi
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `chatId` | string | Conversation ID. Pass it back as chatId to continue this conversation. |
-| `title` | string | Title CB Insights gave the conversation |
-| `message` | string | ChatCBI's answer, as Markdown |
+| `chatId` | string (nullable) | Conversation ID. Pass it back as chatId to continue this conversation. |
+| `title` | string (nullable) | Title CB Insights gave the conversation |
+| `message` | string (nullable) | ChatCBI's answer, as Markdown |
 | `sources` | json | Sources behind the answer as \[\{sourceIndex, result: \{title, url, date, thumbnailUrl\}\}\] |
 | `relatedContent` | json | Related references as \[\{title, url, date, thumbnailUrl\}\] |
 | `suggestions` | json | Suggested follow-up questions |
@@ -603,7 +603,5 @@ Retrieve the raw structured CB Insights data relevant to a question, for feeding
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `data` | string | Retrieved records as a JSON string, keyed by source \(companySearch, dealSearch, markets, scoutingReports, businessRelationships, revenue, investments, and others\) |
+| `data` | string (nullable) | Retrieved records as a JSON string, keyed by source \(companySearch, dealSearch, markets, scoutingReports, businessRelationships, revenue, investments, and others\) |
 | `guidance` | json | Notes describing what each returned data source contains |
-
-

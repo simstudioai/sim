@@ -537,11 +537,17 @@ const wouldDeletePaths: string[] = []
 
 /** Writes a generated artifact, or in check mode records its final content for the end-of-run comparison. */
 function emitGeneratedFile(filePath: string, content: string): void {
+  if (filePath.endsWith('.mdx')) content = finalizeGeneratedMarkdown(content)
   if (CHECK_ONLY) {
     emittedByPath.set(filePath, content)
     return
   }
   fs.writeFileSync(filePath, content)
+}
+
+/** Keeps one final newline without stripping Markdown hard-break spaces from authored content. */
+export function finalizeGeneratedMarkdown(content: string): string {
+  return content.replace(/\n*$/, '\n')
 }
 
 /** Reads a generated artifact as the pipeline would see it mid-run: overlay first in check mode, then disk. */
@@ -2908,13 +2914,7 @@ export function parseConstProperties(
         const propContent = content.substring(startPos + 1, endPos - 1).trim()
         // If it starts with 'type:', it's an output field definition - process it
         if (propContent.match(/^\s*type\s*:/)) {
-          const parsedProp = parseConstFieldContent(
-            propContent,
-            toolPrefix,
-            typesContent,
-            depth,
-            propName
-          )
+          const parsedProp = parseConstFieldContent(propContent, toolPrefix, typesContent, depth)
           if (parsedProp) {
             properties[propName] = parsedProp
           }
@@ -2936,13 +2936,7 @@ export function parseConstProperties(
 
       if (endPos !== -1) {
         const propContent = content.substring(startPos + 1, endPos - 1).trim()
-        const parsedProp = parseConstFieldContent(
-          propContent,
-          toolPrefix,
-          typesContent,
-          depth,
-          propName
-        )
+        const parsedProp = parseConstFieldContent(propContent, toolPrefix, typesContent, depth)
         if (parsedProp) {
           properties[propName] = parsedProp
         }
@@ -3025,8 +3019,7 @@ function parseConstFieldContent(
   fieldContent: string,
   toolPrefix: string,
   typesContent: string,
-  depth: number,
-  propertyName?: string
+  depth: number
 ): any {
   const typeMatch = fieldContent.match(/type\s*:\s*['"]([^'"]+)['"]/)
   const description = extractDescription(fieldContent)
@@ -3038,10 +3031,13 @@ function parseConstFieldContent(
   const result: any = {
     type: fieldType,
     description: description || '',
+    ...(findTopLevelMatch(blankStringsAndComments(fieldContent) ?? '', /\bnullable\s*:\s*true\b/)
+      ? { nullable: true }
+      : {}),
   }
 
   if (fieldType === 'object' || fieldType === 'json') {
-    const propsConstMatch = matchSchemaKeyword(fieldContent, propertyName, PROPERTIES_CONST_PATTERN)
+    const propsConstMatch = matchSchemaKeyword(fieldContent, PROPERTIES_CONST_PATTERN)
     if (propsConstMatch) {
       const resolvedProps = resolveConstFromTypesContent(
         propsConstMatch[1],
@@ -3053,11 +3049,7 @@ function parseConstFieldContent(
         result.properties = resolvedProps
       }
     } else {
-      const propertiesStart = findSchemaKeyword(
-        fieldContent,
-        propertyName,
-        PROPERTIES_INLINE_PATTERN
-      )
+      const propertiesStart = findSchemaKeyword(fieldContent, PROPERTIES_INLINE_PATTERN)
       if (propertiesStart !== -1) {
         const braceStart = fieldContent.indexOf('{', propertiesStart)
         const braceEnd = findMatchingClose(fieldContent, braceStart)
@@ -3075,7 +3067,7 @@ function parseConstFieldContent(
     }
   }
 
-  const itemsConstMatch = matchSchemaKeyword(fieldContent, propertyName, ITEMS_CONST_PATTERN)
+  const itemsConstMatch = matchSchemaKeyword(fieldContent, ITEMS_CONST_PATTERN)
   if (itemsConstMatch) {
     const resolvedItems = resolveConstFromTypesContent(
       itemsConstMatch[1],
@@ -3087,7 +3079,7 @@ function parseConstFieldContent(
       result.items = resolvedItems
     }
   } else {
-    const itemsStart = findSchemaKeyword(fieldContent, propertyName, ITEMS_INLINE_PATTERN)
+    const itemsStart = findSchemaKeyword(fieldContent, ITEMS_INLINE_PATTERN)
     if (itemsStart !== -1) {
       const braceStart = fieldContent.indexOf('{', itemsStart)
       const braceEnd = findMatchingClose(fieldContent, braceStart)
@@ -3589,6 +3581,9 @@ function formatOutputStructure(outputs: Record<string, any>, indentLevel = 0): s
       if (output.type) {
         type = output.type
       }
+      if (output.nullable === true) {
+        type += ' (nullable)'
+      }
 
       if (output.description) {
         description = output.description
@@ -3791,25 +3786,15 @@ const PROPERTIES_INLINE_PATTERN = /properties\s*:\s*{/
 const ITEMS_CONST_PATTERN = /items\s*:\s*([A-Z][A-Z_0-9]+)/
 const ITEMS_INLINE_PATTERN = /items\s*:\s*{/
 
-function matchSchemaKeyword(
-  content: string,
-  propertyName: string | undefined,
-  pattern: RegExp
-): RegExpExecArray | null {
-  return propertyName === 'items' ? findTopLevelMatch(content, pattern) : content.match(pattern)
+function matchSchemaKeyword(content: string, pattern: RegExp): RegExpExecArray | null {
+  return findTopLevelMatch(content, pattern)
 }
 
-function findSchemaKeyword(
-  content: string,
-  propertyName: string | undefined,
-  pattern: RegExp
-): number {
-  return propertyName === 'items'
-    ? (findTopLevelMatch(content, pattern)?.index ?? -1)
-    : content.search(pattern)
+function findSchemaKeyword(content: string, pattern: RegExp): number {
+  return findTopLevelMatch(content, pattern)?.index ?? -1
 }
 
-function parseFieldContent(fieldContent: string, toolPrefix?: string, propertyName?: string): any {
+function parseFieldContent(fieldContent: string, toolPrefix?: string): any {
   // Only match `type:` that is at the top level of fieldContent (depth 0).
   // Child objects like `title: { type: 'string', ... }` also contain `type:` but at depth 1.
   const typeRegex = /type\s*:\s*['"]([^'"]+)['"]/g
@@ -3835,6 +3820,11 @@ function parseFieldContent(fieldContent: string, toolPrefix?: string, propertyNa
       if (description) {
         result.description = description
       }
+      const nullableOverride = findTopLevelMatch(
+        blankStringsAndComments(fieldContent) ?? '',
+        /\bnullable\s*:\s*(true|false)\b/
+      )
+      if (nullableOverride) result.nullable = nullableOverride[1] === 'true'
       return result
     }
   }
@@ -3859,22 +3849,21 @@ function parseFieldContent(fieldContent: string, toolPrefix?: string, propertyNa
   const result: any = {
     type: fieldType,
     description: description || '',
+    ...(findTopLevelMatch(blankStringsAndComments(fieldContent) ?? '', /\bnullable\s*:\s*true\b/)
+      ? { nullable: true }
+      : {}),
   }
 
   if (fieldType === 'object' || fieldType === 'json') {
     // Check for const reference first (e.g., properties: SCHEDULE_DATA_OUTPUT_PROPERTIES)
-    const propsConstMatch = matchSchemaKeyword(fieldContent, propertyName, PROPERTIES_CONST_PATTERN)
+    const propsConstMatch = matchSchemaKeyword(fieldContent, PROPERTIES_CONST_PATTERN)
     if (propsConstMatch && toolPrefix) {
       const resolvedProps = resolveConstReference(propsConstMatch[1], toolPrefix)
       if (resolvedProps) {
         result.properties = resolvedProps
       }
     } else {
-      const propertiesStart = findSchemaKeyword(
-        fieldContent,
-        propertyName,
-        PROPERTIES_INLINE_PATTERN
-      )
+      const propertiesStart = findSchemaKeyword(fieldContent, PROPERTIES_INLINE_PATTERN)
 
       if (propertiesStart !== -1) {
         const braceStart = fieldContent.indexOf('{', propertiesStart)
@@ -3889,14 +3878,14 @@ function parseFieldContent(fieldContent: string, toolPrefix?: string, propertyNa
   }
 
   // Check for items const reference (e.g., items: ATTENDEES_OUTPUT)
-  const itemsConstMatch = matchSchemaKeyword(fieldContent, propertyName, ITEMS_CONST_PATTERN)
+  const itemsConstMatch = matchSchemaKeyword(fieldContent, ITEMS_CONST_PATTERN)
   if (itemsConstMatch && toolPrefix) {
     const resolvedItems = resolveConstReference(itemsConstMatch[1], toolPrefix)
     if (resolvedItems) {
       result.items = resolvedItems
     }
   } else {
-    const itemsStart = findSchemaKeyword(fieldContent, propertyName, ITEMS_INLINE_PATTERN)
+    const itemsStart = findSchemaKeyword(fieldContent, ITEMS_INLINE_PATTERN)
 
     if (itemsStart !== -1) {
       const braceStart = fieldContent.indexOf('{', itemsStart)
@@ -4092,7 +4081,7 @@ export function parsePropertiesContent(
   }
 
   propPositions.forEach((prop) => {
-    const parsedProp = parseFieldContent(prop.content, toolPrefix, prop.name)
+    const parsedProp = parseFieldContent(prop.content, toolPrefix)
     if (parsedProp) {
       properties[prop.name] = parsedProp
     }
@@ -4312,7 +4301,9 @@ export async function getToolInfo(
         toolName === 'file_edit' ||
         hasWrappedToolBase(toolName, toolFileContent)
           ? (generatedOutputs ?? sourceInfo?.outputs ?? {})
-          : (sourceInfo?.outputs ?? generatedOutputs ?? {}),
+          : sourceInfo && Object.keys(sourceInfo.outputs).length > 0
+            ? sourceInfo.outputs
+            : (generatedOutputs ?? {}),
     }
   } catch (error) {
     console.error(`Error getting info for tool ${toolName}:`, error)
@@ -4335,7 +4326,8 @@ function extractManualContent(existingContent: string): Record<string, string> {
   return manualSections
 }
 
-function mergeWithManualContent(
+/** Re-inserts preserved manual sections at their supported locations in generated block Markdown. */
+export function mergeWithManualContent(
   generatedMarkdown: string,
   existingContent: string | null,
   manualSections: Record<string, string>
@@ -4460,7 +4452,8 @@ async function generateBlockDoc(blockPath: string) {
   }
 }
 
-async function generateMarkdownForBlock(
+/** Renders a block's integration reference, including tool metadata and output schemas. */
+export async function generateMarkdownForBlock(
   blockConfig: BlockConfig,
   oauthCredential?: OAuthCredentialSource
 ): Promise<string> {
@@ -4566,7 +4559,7 @@ description: ${description}
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="${type}"
   color="${bgColor || '#F5F5F5'}"
 />

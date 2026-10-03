@@ -5,7 +5,7 @@ description: Search and look up companies, people, funding rounds, and acquisiti
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="crunchbase"
   color="#0287D1"
 />
@@ -64,9 +64,9 @@ Search Crunchbase companies, investors, and schools with filter predicates on fu
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `count` | number | Total number of organizations matching the query |
+| `count` | number (nullable) | Total number of organizations matching the query |
 | `entities` | json | Matching organizations as \[\{uuid, properties\}\], where properties holds the requested field_ids |
-| `nextAfterId` | string | UUID of the last row, to pass as afterId for the next page |
+| `nextAfterId` | string (nullable) | UUID of the last row, to pass as afterId for the next page |
 
 ### Crunchbase Get Organization
 
@@ -85,11 +85,11 @@ Look up a single Crunchbase organization by permalink or UUID, returning the req
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `uuid` | string | Crunchbase UUID of the organization |
-| `name` | string | Organization name |
-| `permalink` | string | Crunchbase permalink of the organization |
+| `uuid` | string (nullable) | Crunchbase UUID of the organization |
+| `name` | string (nullable) | Organization name |
+| `permalink` | string (nullable) | Crunchbase permalink of the organization |
 | `properties` | json | Requested organization fields, keyed by field_id |
-| `cards` | json | Requested related-entity cards, keyed by card_id |
+| `cards` | json (nullable) | Requested related-entity cards, keyed by card_id |
 
 ### Crunchbase Search People
 
@@ -111,9 +111,9 @@ Search Crunchbase people — founders, executives, and investors — with filter
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `count` | number | Total number of people matching the query |
+| `count` | number (nullable) | Total number of people matching the query |
 | `entities` | json | Matching people as \[\{uuid, properties\}\], where properties holds the requested field_ids |
-| `nextAfterId` | string | UUID of the last row, to pass as afterId for the next page |
+| `nextAfterId` | string (nullable) | UUID of the last row, to pass as afterId for the next page |
 
 ### Crunchbase Get Person
 
@@ -132,11 +132,11 @@ Look up a single Crunchbase person by permalink or UUID, returning the requested
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `uuid` | string | Crunchbase UUID of the person |
-| `name` | string | Full name of the person |
-| `permalink` | string | Crunchbase permalink of the person |
+| `uuid` | string (nullable) | Crunchbase UUID of the person |
+| `name` | string (nullable) | Full name of the person |
+| `permalink` | string (nullable) | Crunchbase permalink of the person |
 | `properties` | json | Requested person fields, keyed by field_id |
-| `cards` | json | Requested related-entity cards, keyed by card_id |
+| `cards` | json (nullable) | Requested related-entity cards, keyed by card_id |
 
 ### Crunchbase Search Funding Rounds
 
@@ -158,9 +158,9 @@ Search Crunchbase funding rounds with filter predicates on announced date, inves
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `count` | number | Total number of funding rounds matching the query |
+| `count` | number (nullable) | Total number of funding rounds matching the query |
 | `entities` | json | Matching funding rounds as \[\{uuid, properties\}\], where properties holds the requested field_ids |
-| `nextAfterId` | string | UUID of the last row, to pass as afterId for the next page |
+| `nextAfterId` | string (nullable) | UUID of the last row, to pass as afterId for the next page |
 
 ### Crunchbase Get Funding Round
 
@@ -179,11 +179,11 @@ Look up a single Crunchbase funding round by permalink or UUID, returning the re
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `uuid` | string | Crunchbase UUID of the funding round |
-| `name` | string | Funding round name |
-| `permalink` | string | Crunchbase permalink of the funding round |
+| `uuid` | string (nullable) | Crunchbase UUID of the funding round |
+| `name` | string (nullable) | Funding round name |
+| `permalink` | string (nullable) | Crunchbase permalink of the funding round |
 | `properties` | json | Requested funding round fields, keyed by field_id |
-| `cards` | json | Requested related-entity cards, keyed by card_id |
+| `cards` | json (nullable) | Requested related-entity cards, keyed by card_id |
 
 ### Crunchbase Search Acquisitions
 
@@ -205,9 +205,9 @@ Search Crunchbase acquisitions with filter predicates on announced date, price, 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `count` | number | Total number of acquisitions matching the query |
+| `count` | number (nullable) | Total number of acquisitions matching the query |
 | `entities` | json | Matching acquisitions as \[\{uuid, properties\}\], where properties holds the requested field_ids |
-| `nextAfterId` | string | UUID of the last row, to pass as afterId for the next page |
+| `nextAfterId` | string (nullable) | UUID of the last row, to pass as afterId for the next page |
 
 ### Crunchbase Get Acquisition
 
@@ -226,11 +226,11 @@ Look up a single Crunchbase acquisition by permalink or UUID, returning the requ
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `uuid` | string | Crunchbase UUID of the acquisition |
-| `name` | string | Acquisition name |
-| `permalink` | string | Crunchbase permalink of the acquisition |
+| `uuid` | string (nullable) | Crunchbase UUID of the acquisition |
+| `name` | string (nullable) | Acquisition name |
+| `permalink` | string (nullable) | Crunchbase permalink of the acquisition |
 | `properties` | json | Requested acquisition fields, keyed by field_id |
-| `cards` | json | Requested related-entity cards, keyed by card_id |
+| `cards` | json (nullable) | Requested related-entity cards, keyed by card_id |
 
 ### Crunchbase Search Entities
 
@@ -253,9 +253,9 @@ Search any Crunchbase collection — events, jobs, ipos, funds, investments, pre
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `count` | number | Total number of entities matching the query |
+| `count` | number (nullable) | Total number of entities matching the query |
 | `entities` | json | Matching entities as \[\{uuid, properties\}\], where properties holds the requested field_ids |
-| `nextAfterId` | string | UUID of the last row, to pass as afterId for the next page |
+| `nextAfterId` | string (nullable) | UUID of the last row, to pass as afterId for the next page |
 
 ### Crunchbase Get Entity
 
@@ -275,11 +275,11 @@ Look up a single entity in any Crunchbase collection — events, jobs, ipos, fun
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `uuid` | string | Crunchbase UUID of the entity |
-| `name` | string | Name of the entity |
-| `permalink` | string | Crunchbase permalink of the entity |
+| `uuid` | string (nullable) | Crunchbase UUID of the entity |
+| `name` | string (nullable) | Name of the entity |
+| `permalink` | string (nullable) | Crunchbase permalink of the entity |
 | `properties` | json | Requested entity fields, keyed by field_id |
-| `cards` | json | Requested related-entity cards, keyed by card_id |
+| `cards` | json (nullable) | Requested related-entity cards, keyed by card_id |
 
 ### Crunchbase Get Entity Card
 
@@ -305,7 +305,7 @@ Page through one related-entity card of a Crunchbase entity — an investor's in
 | --------- | ---- | ----------- |
 | `items` | json | Card items for this page, each holding the requested card_field_ids |
 | `properties` | json | Properties of the parent entity returned alongside the card |
-| `nextAfterId` | string | UUID of the last card item, to pass as afterId for the next page |
+| `nextAfterId` | string (nullable) | UUID of the last card item, to pass as afterId for the next page |
 
 ### Crunchbase Autocomplete
 
@@ -347,7 +347,7 @@ List entities Crunchbase has deleted, so a mirrored copy can be pruned in step w
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `entities` | json | Deleted entities as \[\{deleted_at, identifier: \{uuid, value, permalink, entity_def_id\}\}\] |
-| `nextAfterId` | string | UUID of the last row, to pass as afterId for the next page |
+| `nextAfterId` | string (nullable) | UUID of the last row, to pass as afterId for the next page |
 
 ### Crunchbase Get Fields Metadata
 
@@ -365,5 +365,3 @@ List the field ids, types, and descriptions each Crunchbase collection publishes
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `csv` | string | Field metadata as CSV, one row per field with its collection, id, type, and description |
-
-

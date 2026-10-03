@@ -5,7 +5,7 @@ description: Manage records in Agiloft CLM
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="agiloft"
   color="#001028"
 />
@@ -475,5 +475,3 @@ Create an Agiloft record, or update it when a record already matches the given f
 | `id` | string | ID of the created or updated record |
 | `created` | boolean | True when a new record was created, false when an existing one was updated |
 | `callbackId` | string | Returned for a queued upsert; pass it to Async Status to poll the result |
-
-

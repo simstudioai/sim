@@ -5,7 +5,7 @@ description: Interact with Confluence
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="confluence_v2"
   color="#FFFFFF"
 />
@@ -49,8 +49,9 @@ Retrieve content from Confluence pages using the Confluence API.
 | `createdAt` | string | ISO 8601 timestamp when the page was created |
 | `url` | string | URL to view the page in Confluence |
 | `body` | object | Raw page body content in storage format |
-|   ↳ `value` | string | The content value in the specified format |
-|   ↳ `representation` | string | Content representation type |
+|   ↳ `storage` | object | Body in storage format \(Confluence markup\) |
+|     ↳ `value` | string | The content value in the specified format |
+|     ↳ `representation` | string | Content representation type |
 | `version` | object | Page version information |
 |   ↳ `number` | number | Version number |
 |   ↳ `message` | string | Version message |
@@ -319,8 +320,9 @@ Get details about a specific version of a Confluence page.
 |   ↳ `prevVersion` | number | Previous version number |
 |   ↳ `nextVersion` | number | Next version number |
 | `body` | object | Raw page body content in storage format at this version |
-|   ↳ `value` | string | The content value in the specified format |
-|   ↳ `representation` | string | Content representation type |
+|   ↳ `storage` | object | Body in storage format \(Confluence markup\) |
+|     ↳ `value` | string | The content value in the specified format |
+|     ↳ `representation` | string | Content representation type |
 
 ### Confluence List Page Properties
 
@@ -2204,5 +2206,3 @@ Sim requests these scopes when someone connects a Confluence account. On a self-
 | `read:space.property:confluence` | View Confluence space properties |
 | `write:space.property:confluence` | Create and manage space properties |
 | `read:space.permission:confluence` | View Confluence space permissions |
-
-

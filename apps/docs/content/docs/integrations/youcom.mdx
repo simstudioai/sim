@@ -5,7 +5,7 @@ description: Search, read, and research the web with You.com
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="youcom"
   color="#FFFFFF"
 />
@@ -65,35 +65,35 @@ Search the web and news with You.com, returning LLM-ready results with optional 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `web` | array | Web results |
-|   ↳ `url` | string | URL of the result |
-|   ↳ `title` | string | Title of the result |
-|   ↳ `description` | string | Brief description of the result |
+|   ↳ `url` | string (nullable) | URL of the result |
+|   ↳ `title` | string (nullable) | Title of the result |
+|   ↳ `description` | string (nullable) | Brief description of the result |
 |   ↳ `snippets` | array | Short keyword-centered fragments \(omitted when highlights extraction is used\) |
-|   ↳ `thumbnailUrl` | string | Thumbnail URL |
-|   ↳ `faviconUrl` | string | Favicon URL of the result's domain |
-|   ↳ `pageAge` | string | Age of the result |
+|   ↳ `thumbnailUrl` | string (nullable) | Thumbnail URL |
+|   ↳ `faviconUrl` | string (nullable) | Favicon URL of the result's domain |
+|   ↳ `pageAge` | string (nullable) | Age of the result |
 |   ↳ `highlights` | array | Query-relevant passages \(highlights extraction only\) |
-|   ↳ `html` | string | Full page HTML \(full_page only\) |
-|   ↳ `markdown` | string | Full page Markdown \(full_page only\) |
+|   ↳ `html` | string (nullable) | Full page HTML \(full_page only\) |
+|   ↳ `markdown` | string (nullable) | Full page Markdown \(full_page only\) |
 | `news` | array | News results |
-|   ↳ `url` | string | URL of the article |
-|   ↳ `title` | string | Title of the article |
-|   ↳ `description` | string | Brief description of the article |
-|   ↳ `thumbnailUrl` | string | Thumbnail URL |
-|   ↳ `pageAge` | string | UTC publication timestamp |
-|   ↳ `html` | string | Full page HTML \(full_page only\) |
-|   ↳ `markdown` | string | Full page Markdown \(full_page only\) |
+|   ↳ `url` | string (nullable) | URL of the article |
+|   ↳ `title` | string (nullable) | Title of the article |
+|   ↳ `description` | string (nullable) | Brief description of the article |
+|   ↳ `thumbnailUrl` | string (nullable) | Thumbnail URL |
+|   ↳ `pageAge` | string (nullable) | UTC publication timestamp |
+|   ↳ `html` | string (nullable) | Full page HTML \(full_page only\) |
+|   ↳ `markdown` | string (nullable) | Full page Markdown \(full_page only\) |
 | `knowledge` | array | Knowledge results from licensed data providers \(when knowledge is core\) |
 |   ↳ `type` | string | Kind of knowledge result \(currently answer\) |
 |   ↳ `title` | string | Title of the knowledge result |
-|   ↳ `description` | string | Knowledge drawn from licensed data |
-|   ↳ `asOf` | string | Date the data covers \(YYYY-MM-DD\) |
+|   ↳ `description` | string (nullable) | Knowledge drawn from licensed data |
+|   ↳ `asOf` | string (nullable) | Date the data covers \(YYYY-MM-DD\) |
 |   ↳ `attribution` | array | Data provider credits |
 |     ↳ `name` | string | Data provider name |
-|     ↳ `sourceDescription` | string | Description of the provider |
-| `searchUuid` | string | Unique ID of the search |
-| `query` | string | Query used to retrieve the results |
-| `latency` | number | Search latency in seconds |
+|     ↳ `sourceDescription` | string (nullable) | Description of the provider |
+| `searchUuid` | string (nullable) | Unique ID of the search |
+| `query` | string (nullable) | Query used to retrieve the results |
+| `latency` | number (nullable) | Search latency in seconds |
 
 ### You.com Get Contents
 
@@ -114,12 +114,12 @@ Fetch the HTML, Markdown, and page metadata of one or more web pages with You.co
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `pages` | array | Content of each fetched page |
-|   ↳ `url` | string | URL of the fetched page |
-|   ↳ `title` | string | Title of the page |
-|   ↳ `html` | string | Page HTML \(html format\) |
-|   ↳ `markdown` | string | Page Markdown \(markdown format\) |
-|   ↳ `siteName` | string | OpenGraph site name \(metadata format\) |
-|   ↳ `faviconUrl` | string | Favicon URL of the page's domain \(metadata format\) |
+|   ↳ `url` | string (nullable) | URL of the fetched page |
+|   ↳ `title` | string (nullable) | Title of the page |
+|   ↳ `html` | string (nullable) | Page HTML \(html format\) |
+|   ↳ `markdown` | string (nullable) | Page Markdown \(markdown format\) |
+|   ↳ `siteName` | string (nullable) | OpenGraph site name \(metadata format\) |
+|   ↳ `faviconUrl` | string (nullable) | Favicon URL of the page's domain \(metadata format\) |
 
 ### You.com Answer
 
@@ -151,9 +151,9 @@ Get a synthesized answer to a question with numbered citations and the web resul
 |   ↳ `url` | string | URL of the source webpage |
 |   ↳ `title` | string | Title of the source webpage |
 |   ↳ `snippets` | array | Text snippets previewing the content |
-|   ↳ `description` | string | Brief description |
-|   ↳ `thumbnailUrl` | string | Thumbnail URL |
-|   ↳ `pageAge` | string | Age of the result |
+|   ↳ `description` | string (nullable) | Brief description |
+|   ↳ `thumbnailUrl` | string (nullable) | Thumbnail URL |
+|   ↳ `pageAge` | string (nullable) | Age of the result |
 
 ### You.com Research
 
@@ -178,17 +178,17 @@ Run multi-step web research on a question and get a thorough, cited answer, or s
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `content` | json | Markdown answer with numbered inline citations, or an object matching the output schema when one was supplied |
-| `contentType` | string | Format of content: text \(Markdown\) or object \(structured output\) |
+| `content` | json (nullable) | Markdown answer with numbered inline citations, or an object matching the output schema when one was supplied |
+| `contentType` | string (nullable) | Format of content: text \(Markdown\) or object \(structured output\) |
 | `sources` | array | Web sources used to generate the answer |
 |   ↳ `url` | string | URL of the source webpage |
-|   ↳ `title` | string | Title of the source webpage |
+|   ↳ `title` | string (nullable) | Title of the source webpage |
 |   ↳ `snippets` | array | Excerpts from the source used to generate the answer |
 | `warnings` | array | Warnings raised during research, such as source access issues or partial results |
-| `taskId` | string | Background task ID to pass to Get Research Task \(background only\) |
-| `status` | string | Background task status: queued, running, completed, failed, or cancelled \(background only\) |
-| `streamUrl` | string | URL path of the task progress event stream \(background only\) |
-| `createdAt` | string | When the background task was created, RFC 3339 \(background only\) |
+| `taskId` | string (nullable) | Background task ID to pass to Get Research Task \(background only\) |
+| `status` | string (nullable) | Background task status: queued, running, completed, failed, or cancelled \(background only\) |
+| `streamUrl` | string (nullable) | URL path of the task progress event stream \(background only\) |
+| `createdAt` | string (nullable) | When the background task was created, RFC 3339 \(background only\) |
 
 ### You.com Get Research Task
 
@@ -209,21 +209,21 @@ Get the status of a background research task and, once completed, its cited answ
 | `taskType` | string | Task type \(research\) |
 | `status` | string | Task status: queued, running, completed, failed, or cancelled |
 | `createdAt` | string | When the task was created, RFC 3339 |
-| `updatedAt` | string | When the task was last updated, RFC 3339 |
-| `completedAt` | string | When the task reached a terminal status, RFC 3339 |
-| `error` | string | Diagnostic message when failed |
-| `taskInput` | json | Original request parameters submitted for the task |
+| `updatedAt` | string (nullable) | When the task was last updated, RFC 3339 |
+| `completedAt` | string (nullable) | When the task reached a terminal status, RFC 3339 |
+| `error` | string (nullable) | Diagnostic message when failed |
+| `taskInput` | json (nullable) | Original request parameters submitted for the task |
 |   ↳ `input` | string | Research question that was submitted |
 |   ↳ `researchEffort` | string | Research effort level submitted |
 |   ↳ `background` | boolean | Whether background mode was requested |
-|   ↳ `outputSchema` | json | Structured output schema submitted |
-|   ↳ `sourceControl` | json | Source control configuration submitted |
+|   ↳ `outputSchema` | json (nullable) | Structured output schema submitted |
+|   ↳ `sourceControl` | json (nullable) | Source control configuration submitted |
 |   ↳ `type` | string | Task type \(research\) |
-| `content` | json | Markdown answer with numbered inline citations, or an object matching the output schema when one was supplied |
-| `contentType` | string | Format of content: text \(Markdown\) or object \(structured output\) |
+| `content` | json (nullable) | Markdown answer with numbered inline citations, or an object matching the output schema when one was supplied |
+| `contentType` | string (nullable) | Format of content: text \(Markdown\) or object \(structured output\) |
 | `sources` | array | Web sources used to generate the answer |
 |   ↳ `url` | string | URL of the source webpage |
-|   ↳ `title` | string | Title of the source webpage |
+|   ↳ `title` | string (nullable) | Title of the source webpage |
 |   ↳ `snippets` | array | Excerpts from the source used to generate the answer |
 | `warnings` | array | Warnings raised during research, such as source access issues or partial results |
 
@@ -247,7 +247,7 @@ Research a financial question across earnings reports, SEC filings, analyst cove
 | `contentType` | string | Format of content \(text\) |
 | `sources` | array | Web sources used to generate the answer |
 |   ↳ `url` | string | URL of the source webpage |
-|   ↳ `title` | string | Title of the source webpage |
+|   ↳ `title` | string (nullable) | Title of the source webpage |
 |   ↳ `snippets` | array | Excerpts from the source used to generate the answer |
 | `warnings` | array | Warnings raised during research, such as source access issues or partial results |
 
@@ -268,13 +268,13 @@ Find image URLs for a query with You.com. Beta, and limited to You.com early-acc
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `images` | array | Image results |
-|   ↳ `title` | string | Title of the image result |
-|   ↳ `pageUrl` | string | URL of the page containing the image |
-|   ↳ `imageUrl` | string | Direct URL to the image |
-|   ↳ `thumbnail` | string | Proxy-hosted thumbnail URL |
-|   ↳ `largeThumbnail` | string | Larger resized image URL; fall back to thumbnail or imageUrl if it fails |
-| `query` | string | Query that was submitted |
-| `searchUuid` | string | Unique ID of the search |
+|   ↳ `title` | string (nullable) | Title of the image result |
+|   ↳ `pageUrl` | string (nullable) | URL of the page containing the image |
+|   ↳ `imageUrl` | string (nullable) | Direct URL to the image |
+|   ↳ `thumbnail` | string (nullable) | Proxy-hosted thumbnail URL |
+|   ↳ `largeThumbnail` | string (nullable) | Larger resized image URL; fall back to thumbnail or imageUrl if it fails |
+| `query` | string (nullable) | Query that was submitted |
+| `searchUuid` | string (nullable) | Unique ID of the search |
 
 ### You.com Get Account Balance
 
@@ -293,5 +293,3 @@ Get the remaining You.com API credit balance for the account or organization tha
 | `accountId` | string | Stable hashed ID of the billing entity \(user or organization\) |
 | `accountType` | string | Billing entity type \(account\) |
 | `balance` | number | Remaining credit balance in cents \(divide by 100 for USD\) |
-
-

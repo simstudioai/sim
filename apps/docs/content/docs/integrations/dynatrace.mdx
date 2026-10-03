@@ -5,7 +5,7 @@ description: Manage Dynatrace problems, metrics, entities, logs, SLOs, settings,
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="dynatrace"
   color="#FFFFFF"
 />
@@ -148,10 +148,10 @@ Close a Dynatrace problem and record the closing comment.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `problemId` | string | ID of the closed problem |
-| `closeTimestamp` | number | Timestamp when closing was triggered, in UTC milliseconds |
-| `closing` | boolean | Whether the problem is in the process of being closed |
-| `comment` | object | The closing comment that was recorded |
+| `problemId` | string (nullable) | ID of the closed problem |
+| `closeTimestamp` | number (nullable) | Timestamp when closing was triggered, in UTC milliseconds |
+| `closing` | boolean (nullable) | Whether the problem is in the process of being closed |
+| `comment` | object (nullable) | The closing comment that was recorded |
 
 ### Dynatrace List Problem Comments
 
@@ -193,7 +193,7 @@ Add a comment to a Dynatrace problem.
 | --------- | ---- | ----------- |
 | `problemId` | string | ID of the problem the comment was added to |
 | `message` | string | Text of the comment that was added |
-| `context` | string | Context of the comment |
+| `context` | string (nullable) | Context of the comment |
 
 ### Dynatrace Query Metrics
 
@@ -218,10 +218,10 @@ Read metric data points from Dynatrace using a metric selector, with optional en
 | --------- | ---- | ----------- |
 | `result` | array | One entry per queried metric |
 |   ↳ `metricId` | string | Metric key including transformations |
-|   ↳ `dataPointCountRatio` | number | Queried data points relative to the query limit |
-|   ↳ `dimensionCountRatio` | number | Queried dimension tuples relative to the query limit |
+|   ↳ `dataPointCountRatio` | number (nullable) | Queried data points relative to the query limit |
+|   ↳ `dimensionCountRatio` | number (nullable) | Queried dimension tuples relative to the query limit |
 |   ↳ `appliedOptionalFilters` | array | Optional filters Dynatrace applied to the query |
-|   ↳ `dql` | json | DQL translation of the query, when available |
+|   ↳ `dql` | json (nullable) | DQL translation of the query, when available |
 |     ↳ `status` | string | Whether the translation succeeded |
 |     ↳ `query` | string | The equivalent DQL query |
 |   ↳ `warnings` | array | Warnings for this metric |
@@ -230,7 +230,7 @@ Read metric data points from Dynatrace using a metric selector, with optional en
 |     ↳ `dimensionMap` | json | Dimension values keyed by dimension key |
 |     ↳ `timestamps` | array | Timestamps in UTC milliseconds, one per value |
 |     ↳ `values` | array | Metric values. Null where no data exists |
-| `resolution` | string | Resolution Dynatrace actually used |
+| `resolution` | string (nullable) | Resolution Dynatrace actually used |
 
 ### Dynatrace List Metrics
 
@@ -291,15 +291,15 @@ Push custom metric data points into Dynatrace using the metric line protocol, on
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `linesOk` | number | Number of accepted data points |
-| `linesInvalid` | number | Number of rejected data points |
-| `ingestError` | json | Details of the invalid lines |
+| `linesOk` | number (nullable) | Number of accepted data points |
+| `linesInvalid` | number (nullable) | Number of rejected data points |
+| `ingestError` | json (nullable) | Details of the invalid lines |
 |   ↳ `code` | number | Error code |
 |   ↳ `message` | string | Error message |
 |   ↳ `invalidLines` | array | The rejected lines |
 |     ↳ `line` | number | Line number in the payload |
 |     ↳ `error` | string | Why the line was rejected |
-| `warnings` | json | Warnings raised during ingestion, such as changed metric keys |
+| `warnings` | json (nullable) | Warnings raised during ingestion, such as changed metric keys |
 |   ↳ `message` | string | Warning message |
 |   ↳ `changedMetricKeys` | array | Lines whose metric key Dynatrace rewrote |
 |     ↳ `line` | number | Line number in the payload |
@@ -369,9 +369,9 @@ List the monitored entity types available in the environment, with the propertie
 | --------- | ---- | ----------- |
 | `types` | array | Available entity types |
 |   ↳ `type` | string | Entity type \(e.g., HOST, SERVICE\) |
-|   ↳ `displayName` | string | Display name of the type |
-|   ↳ `dimensionKey` | string | Metric dimension key of the type |
-|   ↳ `entityLimitExceeded` | boolean | Whether the environment exceeded the entity limit for this type |
+|   ↳ `displayName` | string (nullable) | Display name of the type |
+|   ↳ `dimensionKey` | string (nullable) | Metric dimension key of the type |
+|   ↳ `entityLimitExceeded` | boolean (nullable) | Whether the environment exceeded the entity limit for this type |
 |   ↳ `fromRelationships` | array | Relationships originating at this type |
 |     ↳ `id` | string | Relationship ID |
 |     ↳ `toTypes` | array | Entity types the relationship points to |
@@ -442,9 +442,9 @@ Push an event into Dynatrace — a deployment marker, custom annotation, or cust
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `reportCount` | number | Number of events Dynatrace reported |
+| `reportCount` | number (nullable) | Number of events Dynatrace reported |
 | `eventIngestResults` | array | One result per ingested event |
-|   ↳ `correlationId` | string | Correlation ID of the ingested event |
+|   ↳ `correlationId` | string (nullable) | Correlation ID of the ingested event |
 |   ↳ `status` | string | OK, INVALID_ENTITY_TYPE, INVALID_METADATA, or INVALID_TIMESTAMPS |
 
 ### Dynatrace Search Logs
@@ -472,11 +472,11 @@ Search log records in Dynatrace by query and timeframe, for troubleshooting and 
 |   ↳ `timestamp` | number | Log timestamp in UTC milliseconds |
 |   ↳ `status` | string | Log level: ERROR, WARN, INFO, NONE, or NOT_APPLICABLE |
 |   ↳ `content` | string | Log message content |
-|   ↳ `eventType` | string | Event type of the record |
+|   ↳ `eventType` | string (nullable) | Event type of the record |
 |   ↳ `additionalColumns` | json | Additional log attributes keyed by column name |
-| `sliceSize` | number | Number of records in this slice |
-| `nextSliceKey` | string | Cursor for the next slice. Null when the result is complete |
-| `warnings` | string | Warning raised while searching |
+| `sliceSize` | number (nullable) | Number of records in this slice |
+| `nextSliceKey` | string (nullable) | Cursor for the next slice. Null when the result is complete |
+| `warnings` | string (nullable) | Warning raised while searching |
 
 ### Dynatrace Ingest Logs
 
@@ -496,7 +496,7 @@ Push log events into Dynatrace. Accepts a single log event object or an array of
 | --------- | ---- | ----------- |
 | `accepted` | boolean | True when Dynatrace accepted every log event \(HTTP 204\) |
 | `statusCode` | number | HTTP status Dynatrace returned. 204 is full success, 200 is partial success |
-| `details` | json | Partial-success body, present only when some events were rejected. The reference does not document its shape, so it is passed through as-is |
+| `details` | json (nullable) | Partial-success body, present only when some events were rejected. The reference does not document its shape, so it is passed through as-is |
 
 ### Dynatrace List SLOs
 
@@ -616,21 +616,21 @@ Read the Dynatrace audit log — who changed which configuration, when, and whet
 |   ↳ `logId` | string | Audit log entry ID |
 |   ↳ `eventType` | string | Type of the audited change |
 |   ↳ `category` | string | Category of the audited change |
-|   ↳ `entityId` | string | ID of the changed entity |
+|   ↳ `entityId` | string (nullable) | ID of the changed entity |
 |   ↳ `environmentId` | string | Environment the change happened in |
 |   ↳ `user` | string | User or token that made the change |
 |   ↳ `userType` | string | Type of the acting user |
-|   ↳ `userOrigin` | string | Origin of the request |
+|   ↳ `userOrigin` | string (nullable) | Origin of the request |
 |   ↳ `timestamp` | number | Change timestamp in UTC milliseconds |
 |   ↳ `success` | boolean | Whether the change succeeded |
-|   ↳ `message` | string | Description of the change |
-|   ↳ `patch` | json | JSON patch describing the change. Its shape follows whatever settings object was edited, so it is dynamic |
-|   ↳ `settingsSchemaId` | string | Settings schema ID \(dt.settings.schema_id\) |
-|   ↳ `settingsScopeId` | string | Settings scope ID \(dt.settings.scope_id\) |
-|   ↳ `settingsKey` | string | Settings key \(dt.settings.key\) |
-|   ↳ `settingsObjectId` | string | Settings object ID \(dt.settings.object_id\) |
-|   ↳ `settingsObjectSummary` | string | Settings object summary \(dt.settings.object_summary\) |
-|   ↳ `settingsScopeName` | string | Settings scope name \(dt.settings.scope_name\) |
+|   ↳ `message` | string (nullable) | Description of the change |
+|   ↳ `patch` | json (nullable) | JSON patch describing the change. Its shape follows whatever settings object was edited, so it is dynamic |
+|   ↳ `settingsSchemaId` | string (nullable) | Settings schema ID \(dt.settings.schema_id\) |
+|   ↳ `settingsScopeId` | string (nullable) | Settings scope ID \(dt.settings.scope_id\) |
+|   ↳ `settingsKey` | string (nullable) | Settings key \(dt.settings.key\) |
+|   ↳ `settingsObjectId` | string (nullable) | Settings object ID \(dt.settings.object_id\) |
+|   ↳ `settingsObjectSummary` | string (nullable) | Settings object summary \(dt.settings.object_summary\) |
+|   ↳ `settingsScopeName` | string (nullable) | Settings scope name \(dt.settings.scope_name\) |
 
 ### Dynatrace Mute Security Problem
 
@@ -651,8 +651,8 @@ Mute a single Dynatrace vulnerability with a reason, for triaging false positive
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `securityProblemId` | string | ID of the muted security problem |
-| `reason` | string | Reason recorded for the mute |
-| `comment` | string | Comment recorded for the mute |
+| `reason` | string (nullable) | Reason recorded for the mute |
+| `comment` | string (nullable) | Comment recorded for the mute |
 | `alreadyInState` | boolean | True when Dynatrace reported the problem was already muted \(HTTP 204\) |
 
 ### Dynatrace Unmute Security Problem
@@ -674,8 +674,8 @@ Unmute a single Dynatrace vulnerability, returning it to the active triage queue
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `securityProblemId` | string | ID of the unmuted security problem |
-| `reason` | string | Reason recorded for the unmute |
-| `comment` | string | Comment recorded for the unmute |
+| `reason` | string (nullable) | Reason recorded for the unmute |
+| `comment` | string (nullable) | Comment recorded for the unmute |
 | `alreadyInState` | boolean | True when Dynatrace reported the problem was already unmuted \(HTTP 204\) |
 
 ### Dynatrace Mute Security Problems
@@ -820,7 +820,7 @@ Add custom tags to every monitored entity an entity selector matches. Tags drive
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `appliedTags` | array | Tags that were applied |
-| `matchedEntitiesCount` | number | How many entities the selector matched and were tagged |
+| `matchedEntitiesCount` | number (nullable) | How many entities the selector matched and were tagged |
 
 ### Dynatrace Delete Tag
 
@@ -843,7 +843,7 @@ Remove a custom tag from every monitored entity an entity selector matches. Dele
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `matchedEntitiesCount` | number | How many entities the selector matched and had the tag removed from |
+| `matchedEntitiesCount` | number (nullable) | How many entities the selector matched and had the tag removed from |
 
 ### Dynatrace List Settings Schemas
 
@@ -928,9 +928,9 @@ Create a settings object — a maintenance window, alerting profile, management 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `results` | array | One result per submitted object |
-|   ↳ `code` | number | Per-object HTTP status |
-|   ↳ `objectId` | string | ID of the created object |
-|   ↳ `writeError` | json | Validation error for this object, when it failed |
+|   ↳ `code` | number (nullable) | Per-object HTTP status |
+|   ↳ `objectId` | string (nullable) | ID of the created object |
+|   ↳ `writeError` | json (nullable) | Validation error for this object, when it failed |
 |     ↳ `code` | number | Error code |
 |     ↳ `message` | string | Error message |
 |     ↳ `constraintViolations` | array | Which part of the value failed validation |
@@ -939,7 +939,7 @@ Create a settings object — a maintenance window, alerting profile, management 
 |       ↳ `parameterLocation` | string | HEADER, PATH, PAYLOAD_BODY, or QUERY |
 |       ↳ `path` | string | Path to the offending field |
 |   ↳ `invalidValue` | json | The value that was rejected. Mirrors the submitted schema-defined value, so the shape is dynamic |
-| `objectId` | string | ID of the created object, lifted from the first result |
+| `objectId` | string (nullable) | ID of the created object, lifted from the first result |
 
 ### Dynatrace Update Settings Object
 
@@ -961,7 +961,7 @@ Update an existing settings object. Pass the update token from Get Settings Obje
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `objectId` | string | ID of the updated object |
+| `objectId` | string (nullable) | ID of the updated object |
 | `code` | number | Status Dynatrace reported for the update |
 
 ### Dynatrace Delete Settings Object
@@ -1027,9 +1027,9 @@ Trigger an on-demand batch execution of synthetic monitors, for gating a deploy 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `batchId` | string | ID of the batch, to poll with Get Synthetic Batch |
-| `triggeredCount` | number | How many executions were triggered |
-| `triggeringProblemsCount` | number | How many executions could not be triggered |
+| `batchId` | string (nullable) | ID of the batch, to poll with Get Synthetic Batch |
+| `triggeredCount` | number (nullable) | How many executions were triggered |
+| `triggeringProblemsCount` | number (nullable) | How many executions could not be triggered |
 | `triggered` | array | Triggered executions, grouped by monitor |
 |   ↳ `monitorId` | string | Monitor that was triggered |
 |   ↳ `executions` | array | One entry per location the monitor ran from |
@@ -1058,13 +1058,13 @@ Get the status and failures of an on-demand synthetic batch execution. Poll it a
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `batchId` | string | ID of the batch |
-| `batchStatus` | string | RUNNING, SUCCESS, FAILED, FAILED_TO_EXECUTE, or NOT_TRIGGERED |
-| `executedCount` | number | Executions completed |
-| `failedCount` | number | Executions that failed |
-| `failedToExecuteCount` | number | Executions that never ran |
-| `triggeredCount` | number | Executions triggered |
-| `triggeringProblemsCount` | number | Executions that could not be triggered |
+| `batchId` | string (nullable) | ID of the batch |
+| `batchStatus` | string (nullable) | RUNNING, SUCCESS, FAILED, FAILED_TO_EXECUTE, or NOT_TRIGGERED |
+| `executedCount` | number (nullable) | Executions completed |
+| `failedCount` | number (nullable) | Executions that failed |
+| `failedToExecuteCount` | number (nullable) | Executions that never ran |
+| `triggeredCount` | number (nullable) | Executions triggered |
+| `triggeringProblemsCount` | number (nullable) | Executions that could not be triggered |
 | `failedExecutions` | array | Executions that ran and failed |
 |   ↳ `errorCode` | string | Error code Dynatrace reported |
 |   ↳ `executionId` | string | Execution ID |
@@ -1088,7 +1088,7 @@ Get the status and failures of an on-demand synthetic batch execution. Poll it a
 |   ↳ `executionId` | string | Execution ID, when one was assigned |
 |   ↳ `locationId` | string | Location the execution targeted |
 | `metadata` | json | Key-value metadata supplied when the batch was triggered. Keys are caller-defined, so the shape is dynamic |
-| `userId` | string | Who triggered the batch |
+| `userId` | string (nullable) | Who triggered the batch |
 
 ### Dynatrace Get Problem Comment
 
@@ -1131,7 +1131,7 @@ Replace the text of an existing comment on a Dynatrace problem.
 | `problemId` | string | ID of the problem |
 | `commentId` | string | ID of the updated comment |
 | `message` | string | Text the comment now carries |
-| `context` | string | Context of the comment |
+| `context` | string (nullable) | Context of the comment |
 
 ### Dynatrace Delete Problem Comment
 
@@ -1181,7 +1181,7 @@ Create a service-level objective from a metric expression, target, and evaluatio
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `sloId` | string | ID of the created SLO, read from the Location header |
+| `sloId` | string (nullable) | ID of the created SLO, read from the Location header |
 | `name` | string | Name the SLO was created with |
 
 ### Dynatrace Update SLO
@@ -1233,5 +1233,3 @@ Delete a service-level objective.
 | --------- | ---- | ----------- |
 | `sloId` | string | ID of the deleted SLO |
 | `deleted` | boolean | Always true — a failed delete raises instead |
-
-

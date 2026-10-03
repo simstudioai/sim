@@ -5,7 +5,7 @@ description: Manage contacts, companies, conversations, tickets, and messages in
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="intercom_v2"
   color="#FFFFFF"
 />
@@ -164,11 +164,13 @@ Get a single contact by ID from Intercom. Returns API-aligned fields only.
 |     ↳ `country_code` | string | ISO country code |
 |     ↳ `continent_code` | string | Continent code |
 |   ↳ `social_profiles` | object | Social profiles of the contact |
-|     ↳ `type` | string | Social network type \(e.g., twitter, facebook\) |
-|     ↳ `name` | string | Social network name |
-|     ↳ `url` | string | Profile URL |
-|     ↳ `username` | string | Username on the social network |
-|     ↳ `id` | string | User ID on the social network |
+|     ↳ `type` | string | Object type \(social_profile.list\) |
+|     ↳ `data` | array | Array of social profile objects |
+|       ↳ `type` | string | Social network type \(e.g., twitter, facebook\) |
+|       ↳ `name` | string | Social network name |
+|       ↳ `url` | string | Profile URL |
+|       ↳ `username` | string | Username on the social network |
+|       ↳ `id` | string | User ID on the social network |
 
 ### Update Contact in Intercom
 
@@ -1075,8 +1077,6 @@ Remove a contact from a company in Intercom
 | `companyId` | string | ID of the company |
 | `name` | string | Name of the company |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -1227,4 +1227,3 @@ Trigger workflow on any Intercom webhook event
 | `delivery_attempts` | number | Number of delivery attempts for this notification |
 | `first_sent_at` | number | Unix timestamp of first delivery attempt |
 | `data` | json | Event data containing the affected object. Access via data.item for the resource \(conversation, contact, company, ticket, etc.\) |
-

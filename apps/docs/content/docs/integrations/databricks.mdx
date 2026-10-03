@@ -5,7 +5,7 @@ description: Run SQL, manage jobs, and ask Genie agents on Databricks
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="databricks"
   color="#F9F7F4"
 />
@@ -403,32 +403,32 @@ Ask a Databricks Genie space a question in natural language and wait for the ans
 | `messageId` | string | Genie message ID |
 | `status` | string | Message status \(SUBMITTED, FETCHING_METADATA, FILTERING_CONTEXT, ASKING_AI, PENDING_WAREHOUSE, EXECUTING_QUERY, COMPLETED, FAILED, CANCELLED, QUERY_RESULT_EXPIRED\) |
 | `content` | string | The question that was asked |
-| `answer` | string | Genie's text answer or summary |
-| `followUpQuestion` | string | Clarifying question Genie asked instead of, or alongside, an answer |
-| `queryTitle` | string | Title of the generated query |
-| `sql` | string | SQL query Genie generated |
-| `queryDescription` | string | Plain-language description of the generated SQL |
-| `queryAttachmentId` | string | Attachment ID of the generated query, used to fetch or re-run its result |
-| `statementId` | string | SQL statement ID of the generated query |
-| `rowCount` | number | Number of rows the generated query returned |
+| `answer` | string (nullable) | Genie's text answer or summary |
+| `followUpQuestion` | string (nullable) | Clarifying question Genie asked instead of, or alongside, an answer |
+| `queryTitle` | string (nullable) | Title of the generated query |
+| `sql` | string (nullable) | SQL query Genie generated |
+| `queryDescription` | string (nullable) | Plain-language description of the generated SQL |
+| `queryAttachmentId` | string (nullable) | Attachment ID of the generated query, used to fetch or re-run its result |
+| `statementId` | string (nullable) | SQL statement ID of the generated query |
+| `rowCount` | number (nullable) | Number of rows the generated query returned |
 | `thoughts` | array | How Genie interpreted the question and built the SQL \(Public Preview\) |
-|   ↳ `type` | string | Thought category \(THOUGHT_TYPE_DESCRIPTION, THOUGHT_TYPE_UNDERSTANDING, THOUGHT_TYPE_DATA_SOURCING, THOUGHT_TYPE_INSTRUCTIONS, THOUGHT_TYPE_STEPS\) |
+|   ↳ `type` | string (nullable) | Thought category \(THOUGHT_TYPE_DESCRIPTION, THOUGHT_TYPE_UNDERSTANDING, THOUGHT_TYPE_DATA_SOURCING, THOUGHT_TYPE_INSTRUCTIONS, THOUGHT_TYPE_STEPS\) |
 |   ↳ `content` | string | Markdown-formatted thought |
 | `suggestedQuestions` | array | Follow-up questions suggested by Genie |
 | `visualizations` | array | Charts Genie generated \(only when visualization was requested\) |
 |   ↳ `attachmentId` | string | Visualization attachment ID, used to download the chart |
-|   ↳ `title` | string | Chart title |
-|   ↳ `queryAttachmentId` | string | Query attachment the chart was built from |
-| `error` | string | Why Genie failed to answer |
-| `errorType` | string | Genie error type |
-| `createdTimestamp` | number | When the message was created |
-| `columns` | array | Column schema of the query result |
+|   ↳ `title` | string (nullable) | Chart title |
+|   ↳ `queryAttachmentId` | string (nullable) | Query attachment the chart was built from |
+| `error` | string (nullable) | Why Genie failed to answer |
+| `errorType` | string (nullable) | Genie error type |
+| `createdTimestamp` | number (nullable) | When the message was created |
+| `columns` | array (nullable) | Column schema of the query result |
 |   ↳ `name` | string | Column name |
 |   ↳ `position` | number | Column position \(0-based\) |
 |   ↳ `typeName` | string | Column type \(STRING, INT, LONG, DOUBLE, BOOLEAN, TIMESTAMP, DATE, DECIMAL, etc.\) |
-| `data` | array | Result rows as a 2D array; each non-null value is a string and null values stay null |
-| `totalRows` | number | Total number of rows in the result |
-| `truncated` | boolean | Whether the result set was truncated |
+| `data` | array (nullable) | Result rows as a 2D array; each non-null value is a string and null values stay null |
+| `totalRows` | number (nullable) | Total number of rows in the result |
+| `truncated` | boolean (nullable) | Whether the result set was truncated |
 
 ### Databricks Genie Get Message
 
@@ -452,25 +452,25 @@ Get a Genie message's status and answer, including the generated SQL, visualizat
 | `messageId` | string | Genie message ID |
 | `status` | string | Message status \(SUBMITTED, FETCHING_METADATA, FILTERING_CONTEXT, ASKING_AI, PENDING_WAREHOUSE, EXECUTING_QUERY, COMPLETED, FAILED, CANCELLED, QUERY_RESULT_EXPIRED\) |
 | `content` | string | The question that was asked |
-| `answer` | string | Genie's text answer or summary |
-| `followUpQuestion` | string | Clarifying question Genie asked instead of, or alongside, an answer |
-| `queryTitle` | string | Title of the generated query |
-| `sql` | string | SQL query Genie generated |
-| `queryDescription` | string | Plain-language description of the generated SQL |
-| `queryAttachmentId` | string | Attachment ID of the generated query, used to fetch or re-run its result |
-| `statementId` | string | SQL statement ID of the generated query |
-| `rowCount` | number | Number of rows the generated query returned |
+| `answer` | string (nullable) | Genie's text answer or summary |
+| `followUpQuestion` | string (nullable) | Clarifying question Genie asked instead of, or alongside, an answer |
+| `queryTitle` | string (nullable) | Title of the generated query |
+| `sql` | string (nullable) | SQL query Genie generated |
+| `queryDescription` | string (nullable) | Plain-language description of the generated SQL |
+| `queryAttachmentId` | string (nullable) | Attachment ID of the generated query, used to fetch or re-run its result |
+| `statementId` | string (nullable) | SQL statement ID of the generated query |
+| `rowCount` | number (nullable) | Number of rows the generated query returned |
 | `thoughts` | array | How Genie interpreted the question and built the SQL \(Public Preview\) |
-|   ↳ `type` | string | Thought category \(THOUGHT_TYPE_DESCRIPTION, THOUGHT_TYPE_UNDERSTANDING, THOUGHT_TYPE_DATA_SOURCING, THOUGHT_TYPE_INSTRUCTIONS, THOUGHT_TYPE_STEPS\) |
+|   ↳ `type` | string (nullable) | Thought category \(THOUGHT_TYPE_DESCRIPTION, THOUGHT_TYPE_UNDERSTANDING, THOUGHT_TYPE_DATA_SOURCING, THOUGHT_TYPE_INSTRUCTIONS, THOUGHT_TYPE_STEPS\) |
 |   ↳ `content` | string | Markdown-formatted thought |
 | `suggestedQuestions` | array | Follow-up questions suggested by Genie |
 | `visualizations` | array | Charts Genie generated \(only when visualization was requested\) |
 |   ↳ `attachmentId` | string | Visualization attachment ID, used to download the chart |
-|   ↳ `title` | string | Chart title |
-|   ↳ `queryAttachmentId` | string | Query attachment the chart was built from |
-| `error` | string | Why Genie failed to answer |
-| `errorType` | string | Genie error type |
-| `createdTimestamp` | number | When the message was created |
+|   ↳ `title` | string (nullable) | Chart title |
+|   ↳ `queryAttachmentId` | string (nullable) | Query attachment the chart was built from |
+| `error` | string (nullable) | Why Genie failed to answer |
+| `errorType` | string (nullable) | Genie error type |
+| `createdTimestamp` | number (nullable) | When the message was created |
 
 ### Databricks Genie List Messages
 
@@ -496,26 +496,26 @@ List the messages in a Genie conversation with their answers and generated SQL, 
 |   ↳ `messageId` | string | Genie message ID |
 |   ↳ `status` | string | Message status \(SUBMITTED, FETCHING_METADATA, FILTERING_CONTEXT, ASKING_AI, PENDING_WAREHOUSE, EXECUTING_QUERY, COMPLETED, FAILED, CANCELLED, QUERY_RESULT_EXPIRED\) |
 |   ↳ `content` | string | The question that was asked |
-|   ↳ `answer` | string | Genie's text answer or summary |
-|   ↳ `followUpQuestion` | string | Clarifying question Genie asked instead of, or alongside, an answer |
-|   ↳ `queryTitle` | string | Title of the generated query |
-|   ↳ `sql` | string | SQL query Genie generated |
-|   ↳ `queryDescription` | string | Plain-language description of the generated SQL |
-|   ↳ `queryAttachmentId` | string | Attachment ID of the generated query, used to fetch or re-run its result |
-|   ↳ `statementId` | string | SQL statement ID of the generated query |
-|   ↳ `rowCount` | number | Number of rows the generated query returned |
+|   ↳ `answer` | string (nullable) | Genie's text answer or summary |
+|   ↳ `followUpQuestion` | string (nullable) | Clarifying question Genie asked instead of, or alongside, an answer |
+|   ↳ `queryTitle` | string (nullable) | Title of the generated query |
+|   ↳ `sql` | string (nullable) | SQL query Genie generated |
+|   ↳ `queryDescription` | string (nullable) | Plain-language description of the generated SQL |
+|   ↳ `queryAttachmentId` | string (nullable) | Attachment ID of the generated query, used to fetch or re-run its result |
+|   ↳ `statementId` | string (nullable) | SQL statement ID of the generated query |
+|   ↳ `rowCount` | number (nullable) | Number of rows the generated query returned |
 |   ↳ `thoughts` | array | How Genie interpreted the question and built the SQL \(Public Preview\) |
-|     ↳ `type` | string | Thought category \(THOUGHT_TYPE_DESCRIPTION, THOUGHT_TYPE_UNDERSTANDING, THOUGHT_TYPE_DATA_SOURCING, THOUGHT_TYPE_INSTRUCTIONS, THOUGHT_TYPE_STEPS\) |
+|     ↳ `type` | string (nullable) | Thought category \(THOUGHT_TYPE_DESCRIPTION, THOUGHT_TYPE_UNDERSTANDING, THOUGHT_TYPE_DATA_SOURCING, THOUGHT_TYPE_INSTRUCTIONS, THOUGHT_TYPE_STEPS\) |
 |     ↳ `content` | string | Markdown-formatted thought |
 |   ↳ `suggestedQuestions` | array | Follow-up questions suggested by Genie |
 |   ↳ `visualizations` | array | Charts Genie generated \(only when visualization was requested\) |
 |     ↳ `attachmentId` | string | Visualization attachment ID, used to download the chart |
-|     ↳ `title` | string | Chart title |
-|     ↳ `queryAttachmentId` | string | Query attachment the chart was built from |
-|   ↳ `error` | string | Why Genie failed to answer |
-|   ↳ `errorType` | string | Genie error type |
-|   ↳ `createdTimestamp` | number | When the message was created |
-| `nextPageToken` | string | Token for the next page of results |
+|     ↳ `title` | string (nullable) | Chart title |
+|     ↳ `queryAttachmentId` | string (nullable) | Query attachment the chart was built from |
+|   ↳ `error` | string (nullable) | Why Genie failed to answer |
+|   ↳ `errorType` | string (nullable) | Genie error type |
+|   ↳ `createdTimestamp` | number (nullable) | When the message was created |
+| `nextPageToken` | string (nullable) | Token for the next page of results |
 
 ### Databricks Genie Get Query Result
 
@@ -536,13 +536,13 @@ Get the rows returned by the SQL query Genie generated for a message. Available 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `columns` | array | Column schema of the query result |
+| `columns` | array (nullable) | Column schema of the query result |
 |   ↳ `name` | string | Column name |
 |   ↳ `position` | number | Column position \(0-based\) |
 |   ↳ `typeName` | string | Column type \(STRING, INT, LONG, DOUBLE, BOOLEAN, TIMESTAMP, DATE, DECIMAL, etc.\) |
-| `data` | array | Result rows as a 2D array; each non-null value is a string and null values stay null |
-| `totalRows` | number | Total number of rows in the result |
-| `truncated` | boolean | Whether the result set was truncated |
+| `data` | array (nullable) | Result rows as a 2D array; each non-null value is a string and null values stay null |
+| `totalRows` | number (nullable) | Total number of rows in the result |
+| `truncated` | boolean (nullable) | Whether the result set was truncated |
 | `statementId` | string | SQL statement ID of the query |
 | `status` | string | Statement status \(PENDING, RUNNING, SUCCEEDED, FAILED, CANCELED, CLOSED\) |
 
@@ -565,13 +565,13 @@ Re-run the SQL query Genie generated for a message. Use this when the message's 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `columns` | array | Column schema of the query result |
+| `columns` | array (nullable) | Column schema of the query result |
 |   ↳ `name` | string | Column name |
 |   ↳ `position` | number | Column position \(0-based\) |
 |   ↳ `typeName` | string | Column type \(STRING, INT, LONG, DOUBLE, BOOLEAN, TIMESTAMP, DATE, DECIMAL, etc.\) |
-| `data` | array | Result rows as a 2D array; each non-null value is a string and null values stay null |
-| `totalRows` | number | Total number of rows in the result |
-| `truncated` | boolean | Whether the result set was truncated |
+| `data` | array (nullable) | Result rows as a 2D array; each non-null value is a string and null values stay null |
+| `totalRows` | number (nullable) | Total number of rows in the result |
+| `truncated` | boolean (nullable) | Whether the result set was truncated |
 | `statementId` | string | SQL statement ID of the query |
 | `status` | string | Statement status \(PENDING, RUNNING, SUCCEEDED, FAILED, CANCELED, CLOSED\) |
 
@@ -659,10 +659,10 @@ List conversations in a Genie space, including whether each is a chat-mode or ag
 | --------- | ---- | ----------- |
 | `conversations` | array | Conversations in the Genie space |
 |   ↳ `conversationId` | string | Conversation ID |
-|   ↳ `title` | string | Conversation title |
-|   ↳ `createdTimestamp` | number | When the conversation was created |
-|   ↳ `agentType` | string | Conversation mode \(GENIE_CONVERSATION_TYPE_CHAT or GENIE_CONVERSATION_TYPE_AGENT\) |
-| `nextPageToken` | string | Token for the next page of results |
+|   ↳ `title` | string (nullable) | Conversation title |
+|   ↳ `createdTimestamp` | number (nullable) | When the conversation was created |
+|   ↳ `agentType` | string (nullable) | Conversation mode \(GENIE_CONVERSATION_TYPE_CHAT or GENIE_CONVERSATION_TYPE_AGENT\) |
+| `nextPageToken` | string (nullable) | Token for the next page of results |
 
 ### Databricks Genie Delete Conversation
 
@@ -703,12 +703,12 @@ List the Genie spaces (Genie agents) you can access. Use this to find the space 
 | `spaces` | array | Genie spaces |
 |   ↳ `spaceId` | string | Genie space ID |
 |   ↳ `title` | string | Space title |
-|   ↳ `description` | string | Space description |
-|   ↳ `warehouseId` | string | SQL warehouse the space runs queries on |
-|   ↳ `parentPath` | string | Workspace folder containing the space |
-|   ↳ `createTime` | string | When the space was created \(ISO 8601\) |
-|   ↳ `updateTime` | string | When the space was last modified \(ISO 8601\) |
-| `nextPageToken` | string | Token for the next page of results |
+|   ↳ `description` | string (nullable) | Space description |
+|   ↳ `warehouseId` | string (nullable) | SQL warehouse the space runs queries on |
+|   ↳ `parentPath` | string (nullable) | Workspace folder containing the space |
+|   ↳ `createTime` | string (nullable) | When the space was created \(ISO 8601\) |
+|   ↳ `updateTime` | string (nullable) | When the space was last modified \(ISO 8601\) |
+| `nextPageToken` | string (nullable) | Token for the next page of results |
 
 ### Databricks Genie Get Space
 
@@ -729,12 +729,12 @@ Get a Genie space's title, description, and SQL warehouse, optionally with its f
 | --------- | ---- | ----------- |
 | `spaceId` | string | Genie space ID |
 | `title` | string | Space title |
-| `description` | string | Space description |
-| `warehouseId` | string | SQL warehouse the space runs queries on |
-| `parentPath` | string | Workspace folder containing the space |
-| `createTime` | string | When the space was created \(ISO 8601\) |
-| `updateTime` | string | When the space was last modified \(ISO 8601\) |
-| `serializedSpace` | string | Serialized space configuration as a JSON string \(data sources, instructions, sample questions\) |
+| `description` | string (nullable) | Space description |
+| `warehouseId` | string (nullable) | SQL warehouse the space runs queries on |
+| `parentPath` | string (nullable) | Workspace folder containing the space |
+| `createTime` | string (nullable) | When the space was created \(ISO 8601\) |
+| `updateTime` | string (nullable) | When the space was last modified \(ISO 8601\) |
+| `serializedSpace` | string (nullable) | Serialized space configuration as a JSON string \(data sources, instructions, sample questions\) |
 
 ### Databricks Genie Agent Ask
 
@@ -758,23 +758,23 @@ Ask a Genie agent a question in agent mode, where Genie plans multi-step researc
 | `responseId` | string | Agent response ID |
 | `conversationId` | string | Agent-mode conversation ID; pass it back to ask a follow-up |
 | `status` | string | Response status \(completed\) |
-| `report` | string | The agent's final report, with citation links |
+| `report` | string (nullable) | The agent's final report, with citation links |
 | `queries` | array | SQL queries the agent ran |
 |   ↳ `callId` | string | Function call ID |
-|   ↳ `title` | string | Query title |
-|   ↳ `sql` | string | SQL the agent ran |
+|   ↳ `title` | string (nullable) | Query title |
+|   ↳ `sql` | string (nullable) | SQL the agent ran |
 | `items` | array | Every output item: reasoning, SQL calls, query results, and messages |
 |   ↳ `type` | string | Item type \(message, reasoning, function_call, function_call_output\) |
 |   ↳ `id` | string | Item ID |
-|   ↳ `status` | string | Item status |
-|   ↳ `role` | string | Message role \(user, assistant, or system\) for message items |
-|   ↳ `text` | string | Text of a message or reasoning item |
-|   ↳ `callId` | string | Pairs a function_call with its function_call_output |
-|   ↳ `name` | string | Function name \(execute_sql\) |
-|   ↳ `arguments` | string | Function call arguments as a JSON string \(title and sql\) |
-|   ↳ `output` | string | Query result: the query title followed by a Markdown table |
-| `createdAt` | number | When the response was created \(Unix epoch seconds\) |
-| `error` | string | System error message the agent reported alongside its report |
+|   ↳ `status` | string (nullable) | Item status |
+|   ↳ `role` | string (nullable) | Message role \(user, assistant, or system\) for message items |
+|   ↳ `text` | string (nullable) | Text of a message or reasoning item |
+|   ↳ `callId` | string (nullable) | Pairs a function_call with its function_call_output |
+|   ↳ `name` | string (nullable) | Function name \(execute_sql\) |
+|   ↳ `arguments` | string (nullable) | Function call arguments as a JSON string \(title and sql\) |
+|   ↳ `output` | string (nullable) | Query result: the query title followed by a Markdown table |
+| `createdAt` | number (nullable) | When the response was created \(Unix epoch seconds\) |
+| `error` | string (nullable) | System error message the agent reported alongside its report |
 
 ### Databricks Genie Agent List Items
 
@@ -799,16 +799,14 @@ List an agent-mode conversation's full history in order: questions, reasoning, S
 | `items` | array | Conversation items in order; user questions are message items whose ID ends in _input |
 |   ↳ `type` | string | Item type \(message, reasoning, function_call, function_call_output\) |
 |   ↳ `id` | string | Item ID |
-|   ↳ `status` | string | Item status |
-|   ↳ `role` | string | Message role \(user, assistant, or system\) for message items |
-|   ↳ `text` | string | Text of a message or reasoning item |
-|   ↳ `callId` | string | Pairs a function_call with its function_call_output |
-|   ↳ `name` | string | Function name \(execute_sql\) |
-|   ↳ `arguments` | string | Function call arguments as a JSON string \(title and sql\) |
-|   ↳ `output` | string | Query result: the query title followed by a Markdown table |
-| `firstId` | string | ID of the first item in the page |
-| `lastId` | string | ID of the last item in the page; pass it as After for the next page |
+|   ↳ `status` | string (nullable) | Item status |
+|   ↳ `role` | string (nullable) | Message role \(user, assistant, or system\) for message items |
+|   ↳ `text` | string (nullable) | Text of a message or reasoning item |
+|   ↳ `callId` | string (nullable) | Pairs a function_call with its function_call_output |
+|   ↳ `name` | string (nullable) | Function name \(execute_sql\) |
+|   ↳ `arguments` | string (nullable) | Function call arguments as a JSON string \(title and sql\) |
+|   ↳ `output` | string (nullable) | Query result: the query title followed by a Markdown table |
+| `firstId` | string (nullable) | ID of the first item in the page |
+| `lastId` | string (nullable) | ID of the last item in the page; pass it as After for the next page |
 | `hasMore` | boolean | Whether more items follow this page |
-| `status` | string | Status of the latest response in the conversation |
-
-
+| `status` | string (nullable) | Status of the latest response in the conversation |

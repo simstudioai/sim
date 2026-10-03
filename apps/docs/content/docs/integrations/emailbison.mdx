@@ -5,7 +5,7 @@ description: Manage Email Bison leads, campaigns, replies, and tags
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="emailbison"
   color="#FB7A22"
 />
@@ -53,19 +53,27 @@ Retrieves leads from Email Bison with optional search and tag filters.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `leads` | array | List of leads |
-| `campaigns` | array | List of campaigns |
-| `replies` | array | List of replies |
-| `tags` | array | List of tags |
-| `count` | number | Number of returned records |
-| `id` | number | Record ID |
-| `uuid` | string | Record UUID |
-| `name` | string | Campaign or tag name |
-| `first_name` | string | Lead first name |
-| `last_name` | string | Lead last name |
-| `email` | string | Lead email address |
-| `status` | string | Record status |
-| `success` | boolean | Whether the action succeeded |
-| `message` | string | Action message |
+|   ↳ `id` | number | Lead ID |
+|   ↳ `first_name` | string | Lead first name |
+|   ↳ `last_name` | string | Lead last name |
+|   ↳ `email` | string | Lead email address |
+|   ↳ `title` | string | Lead title |
+|   ↳ `company` | string | Lead company |
+|   ↳ `notes` | string | Lead notes |
+|   ↳ `status` | string | Lead status |
+|   ↳ `custom_variables` | array | Lead custom variables |
+|     ↳ `name` | string | Custom variable name |
+|     ↳ `value` | string | Custom variable value |
+|   ↳ `lead_campaign_data` | array | Lead campaign data returned by Email Bison |
+|   ↳ `overall_stats` | object | Lead engagement stats |
+|     ↳ `emails_sent` | number | Emails sent |
+|     ↳ `opens` | number | Email opens |
+|     ↳ `replies` | number | Replies |
+|     ↳ `unique_replies` | number | Unique replies |
+|     ↳ `unique_opens` | number | Unique opens |
+|   ↳ `created_at` | string | Lead creation timestamp |
+|   ↳ `updated_at` | string | Lead update timestamp |
+| `count` | number | Number of leads returned |
 
 ### Email Bison Get Lead
 
@@ -83,20 +91,26 @@ Retrieves a lead by Email Bison lead ID or email address.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `leads` | array | List of leads |
-| `campaigns` | array | List of campaigns |
-| `replies` | array | List of replies |
-| `tags` | array | List of tags |
-| `count` | number | Number of returned records |
-| `id` | number | Record ID |
-| `uuid` | string | Record UUID |
-| `name` | string | Campaign or tag name |
+| `id` | number | Lead ID |
 | `first_name` | string | Lead first name |
 | `last_name` | string | Lead last name |
 | `email` | string | Lead email address |
-| `status` | string | Record status |
-| `success` | boolean | Whether the action succeeded |
-| `message` | string | Action message |
+| `title` | string | Lead title |
+| `company` | string | Lead company |
+| `notes` | string | Lead notes |
+| `status` | string | Lead status |
+| `custom_variables` | array | Lead custom variables |
+|   ↳ `name` | string | Custom variable name |
+|   ↳ `value` | string | Custom variable value |
+| `lead_campaign_data` | array | Lead campaign data returned by Email Bison |
+| `overall_stats` | object | Lead engagement stats |
+|   ↳ `emails_sent` | number | Emails sent |
+|   ↳ `opens` | number | Email opens |
+|   ↳ `replies` | number | Replies |
+|   ↳ `unique_replies` | number | Unique replies |
+|   ↳ `unique_opens` | number | Unique opens |
+| `created_at` | string | Lead creation timestamp |
+| `updated_at` | string | Lead update timestamp |
 
 ### Email Bison Create Lead
 
@@ -120,20 +134,26 @@ Creates a single lead in Email Bison.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `leads` | array | List of leads |
-| `campaigns` | array | List of campaigns |
-| `replies` | array | List of replies |
-| `tags` | array | List of tags |
-| `count` | number | Number of returned records |
-| `id` | number | Record ID |
-| `uuid` | string | Record UUID |
-| `name` | string | Campaign or tag name |
+| `id` | number | Lead ID |
 | `first_name` | string | Lead first name |
 | `last_name` | string | Lead last name |
 | `email` | string | Lead email address |
-| `status` | string | Record status |
-| `success` | boolean | Whether the action succeeded |
-| `message` | string | Action message |
+| `title` | string | Lead title |
+| `company` | string | Lead company |
+| `notes` | string | Lead notes |
+| `status` | string | Lead status |
+| `custom_variables` | array | Lead custom variables |
+|   ↳ `name` | string | Custom variable name |
+|   ↳ `value` | string | Custom variable value |
+| `lead_campaign_data` | array | Lead campaign data returned by Email Bison |
+| `overall_stats` | object | Lead engagement stats |
+|   ↳ `emails_sent` | number | Emails sent |
+|   ↳ `opens` | number | Email opens |
+|   ↳ `replies` | number | Replies |
+|   ↳ `unique_replies` | number | Unique replies |
+|   ↳ `unique_opens` | number | Unique opens |
+| `created_at` | string | Lead creation timestamp |
+| `updated_at` | string | Lead update timestamp |
 
 ### Email Bison Update Lead
 
@@ -158,20 +178,26 @@ Updates an existing Email Bison lead. Fields omitted from a PUT update may be cl
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `leads` | array | List of leads |
-| `campaigns` | array | List of campaigns |
-| `replies` | array | List of replies |
-| `tags` | array | List of tags |
-| `count` | number | Number of returned records |
-| `id` | number | Record ID |
-| `uuid` | string | Record UUID |
-| `name` | string | Campaign or tag name |
+| `id` | number | Lead ID |
 | `first_name` | string | Lead first name |
 | `last_name` | string | Lead last name |
 | `email` | string | Lead email address |
-| `status` | string | Record status |
-| `success` | boolean | Whether the action succeeded |
-| `message` | string | Action message |
+| `title` | string | Lead title |
+| `company` | string | Lead company |
+| `notes` | string | Lead notes |
+| `status` | string | Lead status |
+| `custom_variables` | array | Lead custom variables |
+|   ↳ `name` | string | Custom variable name |
+|   ↳ `value` | string | Custom variable value |
+| `lead_campaign_data` | array | Lead campaign data returned by Email Bison |
+| `overall_stats` | object | Lead engagement stats |
+|   ↳ `emails_sent` | number | Emails sent |
+|   ↳ `opens` | number | Email opens |
+|   ↳ `replies` | number | Replies |
+|   ↳ `unique_replies` | number | Unique replies |
+|   ↳ `unique_opens` | number | Unique opens |
+| `created_at` | string | Lead creation timestamp |
+| `updated_at` | string | Lead update timestamp |
 
 ### Email Bison List Campaigns
 
@@ -188,20 +214,35 @@ Retrieves Email Bison campaigns.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `leads` | array | List of leads |
 | `campaigns` | array | List of campaigns |
-| `replies` | array | List of replies |
-| `tags` | array | List of tags |
-| `count` | number | Number of returned records |
-| `id` | number | Record ID |
-| `uuid` | string | Record UUID |
-| `name` | string | Campaign or tag name |
-| `first_name` | string | Lead first name |
-| `last_name` | string | Lead last name |
-| `email` | string | Lead email address |
-| `status` | string | Record status |
-| `success` | boolean | Whether the action succeeded |
-| `message` | string | Action message |
+|   ↳ `id` | number | Campaign ID |
+|   ↳ `uuid` | string | Campaign UUID |
+|   ↳ `name` | string | Campaign name |
+|   ↳ `type` | string | Campaign type |
+|   ↳ `status` | string | Campaign status |
+|   ↳ `emails_sent` | number | Emails sent |
+|   ↳ `opened` | number | Total opens |
+|   ↳ `unique_opens` | number | Unique opens |
+|   ↳ `replied` | number | Total replies |
+|   ↳ `unique_replies` | number | Unique replies |
+|   ↳ `bounced` | number | Bounces |
+|   ↳ `unsubscribed` | number | Unsubscribes |
+|   ↳ `interested` | number | Interested replies |
+|   ↳ `total_leads_contacted` | number | Total leads contacted |
+|   ↳ `total_leads` | number | Total leads |
+|   ↳ `max_emails_per_day` | number | Maximum emails per day |
+|   ↳ `max_new_leads_per_day` | number | Maximum new leads per day |
+|   ↳ `plain_text` | boolean | Whether campaign emails are plain text |
+|   ↳ `open_tracking` | boolean | Whether open tracking is enabled |
+|   ↳ `can_unsubscribe` | boolean | Whether recipients can unsubscribe |
+|   ↳ `unsubscribe_text` | string | Unsubscribe text |
+|   ↳ `tags` | array | Campaign tags |
+|     ↳ `id` | number | Tag ID |
+|     ↳ `name` | string | Tag name |
+|     ↳ `default` | boolean | Whether this is a default tag |
+|   ↳ `created_at` | string | Campaign creation timestamp |
+|   ↳ `updated_at` | string | Campaign update timestamp |
+| `count` | number | Number of campaigns returned |
 
 ### Email Bison Create Campaign
 
@@ -220,20 +261,33 @@ Creates a new Email Bison campaign.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `leads` | array | List of leads |
-| `campaigns` | array | List of campaigns |
-| `replies` | array | List of replies |
-| `tags` | array | List of tags |
-| `count` | number | Number of returned records |
-| `id` | number | Record ID |
-| `uuid` | string | Record UUID |
-| `name` | string | Campaign or tag name |
-| `first_name` | string | Lead first name |
-| `last_name` | string | Lead last name |
-| `email` | string | Lead email address |
-| `status` | string | Record status |
-| `success` | boolean | Whether the action succeeded |
-| `message` | string | Action message |
+| `id` | number | Campaign ID |
+| `uuid` | string | Campaign UUID |
+| `name` | string | Campaign name |
+| `type` | string | Campaign type |
+| `status` | string | Campaign status |
+| `emails_sent` | number | Emails sent |
+| `opened` | number | Total opens |
+| `unique_opens` | number | Unique opens |
+| `replied` | number | Total replies |
+| `unique_replies` | number | Unique replies |
+| `bounced` | number | Bounces |
+| `unsubscribed` | number | Unsubscribes |
+| `interested` | number | Interested replies |
+| `total_leads_contacted` | number | Total leads contacted |
+| `total_leads` | number | Total leads |
+| `max_emails_per_day` | number | Maximum emails per day |
+| `max_new_leads_per_day` | number | Maximum new leads per day |
+| `plain_text` | boolean | Whether campaign emails are plain text |
+| `open_tracking` | boolean | Whether open tracking is enabled |
+| `can_unsubscribe` | boolean | Whether recipients can unsubscribe |
+| `unsubscribe_text` | string | Unsubscribe text |
+| `tags` | array | Campaign tags |
+|   ↳ `id` | number | Tag ID |
+|   ↳ `name` | string | Tag name |
+|   ↳ `default` | boolean | Whether this is a default tag |
+| `created_at` | string | Campaign creation timestamp |
+| `updated_at` | string | Campaign update timestamp |
 
 ### Email Bison Update Campaign
 
@@ -260,20 +314,33 @@ Updates Email Bison campaign settings.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `leads` | array | List of leads |
-| `campaigns` | array | List of campaigns |
-| `replies` | array | List of replies |
-| `tags` | array | List of tags |
-| `count` | number | Number of returned records |
-| `id` | number | Record ID |
-| `uuid` | string | Record UUID |
-| `name` | string | Campaign or tag name |
-| `first_name` | string | Lead first name |
-| `last_name` | string | Lead last name |
-| `email` | string | Lead email address |
-| `status` | string | Record status |
-| `success` | boolean | Whether the action succeeded |
-| `message` | string | Action message |
+| `id` | number | Campaign ID |
+| `uuid` | string | Campaign UUID |
+| `name` | string | Campaign name |
+| `type` | string | Campaign type |
+| `status` | string | Campaign status |
+| `emails_sent` | number | Emails sent |
+| `opened` | number | Total opens |
+| `unique_opens` | number | Unique opens |
+| `replied` | number | Total replies |
+| `unique_replies` | number | Unique replies |
+| `bounced` | number | Bounces |
+| `unsubscribed` | number | Unsubscribes |
+| `interested` | number | Interested replies |
+| `total_leads_contacted` | number | Total leads contacted |
+| `total_leads` | number | Total leads |
+| `max_emails_per_day` | number | Maximum emails per day |
+| `max_new_leads_per_day` | number | Maximum new leads per day |
+| `plain_text` | boolean | Whether campaign emails are plain text |
+| `open_tracking` | boolean | Whether open tracking is enabled |
+| `can_unsubscribe` | boolean | Whether recipients can unsubscribe |
+| `unsubscribe_text` | string | Unsubscribe text |
+| `tags` | array | Campaign tags |
+|   ↳ `id` | number | Tag ID |
+|   ↳ `name` | string | Tag name |
+|   ↳ `default` | boolean | Whether this is a default tag |
+| `created_at` | string | Campaign creation timestamp |
+| `updated_at` | string | Campaign update timestamp |
 
 ### Email Bison Update Campaign Status
 
@@ -292,20 +359,33 @@ Pauses, resumes, or archives an Email Bison campaign.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `leads` | array | List of leads |
-| `campaigns` | array | List of campaigns |
-| `replies` | array | List of replies |
-| `tags` | array | List of tags |
-| `count` | number | Number of returned records |
-| `id` | number | Record ID |
-| `uuid` | string | Record UUID |
-| `name` | string | Campaign or tag name |
-| `first_name` | string | Lead first name |
-| `last_name` | string | Lead last name |
-| `email` | string | Lead email address |
-| `status` | string | Record status |
-| `success` | boolean | Whether the action succeeded |
-| `message` | string | Action message |
+| `id` | number | Campaign ID |
+| `uuid` | string | Campaign UUID |
+| `name` | string | Campaign name |
+| `type` | string | Campaign type |
+| `status` | string | Campaign status |
+| `emails_sent` | number | Emails sent |
+| `opened` | number | Total opens |
+| `unique_opens` | number | Unique opens |
+| `replied` | number | Total replies |
+| `unique_replies` | number | Unique replies |
+| `bounced` | number | Bounces |
+| `unsubscribed` | number | Unsubscribes |
+| `interested` | number | Interested replies |
+| `total_leads_contacted` | number | Total leads contacted |
+| `total_leads` | number | Total leads |
+| `max_emails_per_day` | number | Maximum emails per day |
+| `max_new_leads_per_day` | number | Maximum new leads per day |
+| `plain_text` | boolean | Whether campaign emails are plain text |
+| `open_tracking` | boolean | Whether open tracking is enabled |
+| `can_unsubscribe` | boolean | Whether recipients can unsubscribe |
+| `unsubscribe_text` | string | Unsubscribe text |
+| `tags` | array | Campaign tags |
+|   ↳ `id` | number | Tag ID |
+|   ↳ `name` | string | Tag name |
+|   ↳ `default` | boolean | Whether this is a default tag |
+| `created_at` | string | Campaign creation timestamp |
+| `updated_at` | string | Campaign update timestamp |
 
 ### Email Bison Attach Leads to Campaign
 
@@ -325,18 +405,6 @@ Adds existing Email Bison leads to a campaign.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `leads` | array | List of leads |
-| `campaigns` | array | List of campaigns |
-| `replies` | array | List of replies |
-| `tags` | array | List of tags |
-| `count` | number | Number of returned records |
-| `id` | number | Record ID |
-| `uuid` | string | Record UUID |
-| `name` | string | Campaign or tag name |
-| `first_name` | string | Lead first name |
-| `last_name` | string | Lead last name |
-| `email` | string | Lead email address |
-| `status` | string | Record status |
 | `success` | boolean | Whether the action succeeded |
 | `message` | string | Action message |
 
@@ -363,20 +431,16 @@ Retrieves Email Bison replies with optional status, folder, campaign, sender, le
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `leads` | array | List of leads |
-| `campaigns` | array | List of campaigns |
 | `replies` | array | List of replies |
-| `tags` | array | List of tags |
-| `count` | number | Number of returned records |
-| `id` | number | Record ID |
-| `uuid` | string | Record UUID |
-| `name` | string | Campaign or tag name |
-| `first_name` | string | Lead first name |
-| `last_name` | string | Lead last name |
-| `email` | string | Lead email address |
-| `status` | string | Record status |
-| `success` | boolean | Whether the action succeeded |
-| `message` | string | Action message |
+|   ↳ `id` | number | Reply ID |
+|   ↳ `subject` | string | Reply subject |
+|   ↳ `text_body` | string | Reply text body |
+|   ↳ `from_email_address` | string | Sender email |
+|   ↳ `primary_to_email_address` | string | Primary recipient |
+|   ↳ `date_received` | string | Date received |
+|   ↳ `interested` | boolean | Whether the reply is marked interested |
+|   ↳ `read` | boolean | Whether the reply is read |
+| `count` | number | Number of replies returned |
 
 ### Email Bison List Tags
 
@@ -393,20 +457,13 @@ Retrieves all Email Bison tags for the authenticated workspace.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `leads` | array | List of leads |
-| `campaigns` | array | List of campaigns |
-| `replies` | array | List of replies |
 | `tags` | array | List of tags |
-| `count` | number | Number of returned records |
-| `id` | number | Record ID |
-| `uuid` | string | Record UUID |
-| `name` | string | Campaign or tag name |
-| `first_name` | string | Lead first name |
-| `last_name` | string | Lead last name |
-| `email` | string | Lead email address |
-| `status` | string | Record status |
-| `success` | boolean | Whether the action succeeded |
-| `message` | string | Action message |
+|   ↳ `id` | number | Tag ID |
+|   ↳ `name` | string | Tag name |
+|   ↳ `default` | boolean | Whether this is a default tag |
+|   ↳ `created_at` | string | Tag creation timestamp |
+|   ↳ `updated_at` | string | Tag update timestamp |
+| `count` | number | Number of tags returned |
 
 ### Email Bison Create Tag
 
@@ -424,20 +481,11 @@ Creates a new Email Bison tag.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `leads` | array | List of leads |
-| `campaigns` | array | List of campaigns |
-| `replies` | array | List of replies |
-| `tags` | array | List of tags |
-| `count` | number | Number of returned records |
-| `id` | number | Record ID |
-| `uuid` | string | Record UUID |
-| `name` | string | Campaign or tag name |
-| `first_name` | string | Lead first name |
-| `last_name` | string | Lead last name |
-| `email` | string | Lead email address |
-| `status` | string | Record status |
-| `success` | boolean | Whether the action succeeded |
-| `message` | string | Action message |
+| `id` | number | Tag ID |
+| `name` | string | Tag name |
+| `default` | boolean | Whether this is a default tag |
+| `created_at` | string | Tag creation timestamp |
+| `updated_at` | string | Tag update timestamp |
 
 ### Email Bison Attach Tags to Leads
 
@@ -457,22 +505,8 @@ Attaches Email Bison tags to one or more leads.
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `leads` | array | List of leads |
-| `campaigns` | array | List of campaigns |
-| `replies` | array | List of replies |
-| `tags` | array | List of tags |
-| `count` | number | Number of returned records |
-| `id` | number | Record ID |
-| `uuid` | string | Record UUID |
-| `name` | string | Campaign or tag name |
-| `first_name` | string | Lead first name |
-| `last_name` | string | Lead last name |
-| `email` | string | Lead email address |
-| `status` | string | Record status |
 | `success` | boolean | Whether the action succeeded |
 | `message` | string | Action message |
-
-
 
 ## Triggers
 
@@ -1639,4 +1673,3 @@ Trigger when warmup is disabled for a sender email receiving too many bounces
 |   ↳ `interested` | number | Sender email interested count |
 |   ↳ `created_at` | string | Sender email creation timestamp |
 |   ↳ `updated_at` | string | Sender email update timestamp |
-

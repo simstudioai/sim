@@ -5,7 +5,7 @@ description: Interact with Azure DevOps pipelines, builds, and work items
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="azure_devops"
   color="#0078D4"
 />
@@ -505,9 +505,9 @@ Add a comment to a work item in Azure DevOps.
 |     ↳ `version` | number | Comment version |
 |     ↳ `text` | string | Comment text |
 |     ↳ `renderedText` | string | Rendered HTML comment text when available |
-|     ↳ `createdBy` | string | Display name of the comment author, or null |
+|     ↳ `createdBy` | string (nullable) | Display name of the comment author, or null |
 |     ↳ `createdDate` | string | ISO timestamp when comment was created |
-|     ↳ `modifiedBy` | string | Display name of the last modifier, or null |
+|     ↳ `modifiedBy` | string (nullable) | Display name of the last modifier, or null |
 |     ↳ `modifiedDate` | string | ISO timestamp when comment was modified |
 |     ↳ `isDeleted` | boolean | Whether the comment is deleted |
 |     ↳ `url` | string | API URL for the comment |
@@ -546,14 +546,12 @@ List comments for an Azure DevOps work item.
 |     ↳ `version` | number | Comment version |
 |     ↳ `text` | string | Comment text |
 |     ↳ `renderedText` | string | Rendered HTML comment text when available |
-|     ↳ `createdBy` | string | Display name of the comment author |
+|     ↳ `createdBy` | string (nullable) | Display name of the comment author |
 |     ↳ `createdDate` | string | ISO 8601 creation timestamp |
-|     ↳ `modifiedBy` | string | Display name of the last modifier |
+|     ↳ `modifiedBy` | string (nullable) | Display name of the last modifier |
 |     ↳ `modifiedDate` | string | ISO 8601 modified timestamp |
 |     ↳ `isDeleted` | boolean | Whether the comment is deleted |
 |     ↳ `url` | string | API URL for the comment |
-
-
 
 ## Triggers
 
@@ -625,4 +623,3 @@ Trigger workflow when a work item is created in Azure DevOps
 | `description` | string | Work item description \(HTML\), or null if not set |
 | `projectName` | string | Azure DevOps project name |
 | `workItemUrl` | string | API URL for the work item resource |
-
