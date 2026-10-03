@@ -4,7 +4,7 @@
 
 import { omit } from '@sim/utils/object'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
-import { afterAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
 
@@ -16,7 +16,10 @@ import * as blocksBarrel from '@/blocks'
 import { getBlock as getRealBlock } from '@/blocks/registry'
 import { extractBlockParams } from '@/serializer'
 
-const getBlockSpy = vi.spyOn(blocksBarrel, 'getBlock').mockImplementation(getRealBlock)
+let getBlockSpy: MockInstance<typeof blocksBarrel.getBlock>
+beforeEach(() => {
+  getBlockSpy = vi.spyOn(blocksBarrel, 'getBlock').mockImplementation(getRealBlock)
+})
 
 afterAll(() => {
   getBlockSpy.mockRestore()
@@ -71,7 +74,13 @@ describe('projectLegacySlackV2Auth', () => {
 
   it('honors the historical custom-bot and OAuth modes', () => {
     const historical = createHistoricalSlackV2Block()
-    historical.data!.canonicalModes!.botCredential = 'advanced'
+    historical.data = {
+      ...historical.data,
+      canonicalModes: {
+        ...historical.data?.canonicalModes,
+        botCredential: 'advanced',
+      },
+    }
     historical.subBlocks.manualCustomBotCredential.value = 'credential-manual-bot'
 
     const projected = projectLegacySlackV2Auth({ [historical.id]: historical })[historical.id]
