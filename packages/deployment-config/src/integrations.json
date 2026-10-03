@@ -8474,6 +8474,70 @@
       "tags": ["meeting", "note-taking"]
     },
     {
+      "type": "figma",
+      "slug": "figma",
+      "name": "Figma",
+      "description": "Read designs, export assets, and manage Figma feedback",
+      "longDescription": "Connect a Figma account to read file metadata, document contents, selected nodes, image fills, comments, versions, and published library components/styles, export nodes, and create or delete your own comments. Supply a file key or an HTTPS Figma file URL; node reads and exports require comma-separated node IDs. Sim limits each node-ID input to 1000 IDs and 64 Ki characters before normalization. Advanced mode supports version, depth, geometry, plugin data, branch data, rendering controls, comment positioning, and version cursors. Export URLs expire after 30 days, and image-fill URLs expire within 14 days; null render entries indicate nodes that could not be rendered. The integration returns URLs without downloading assets. Version history returns one page (30 entries by default, maximum 50); use string before/after cursors from pagination links to request another page. Published components/styles require a main-file key and a published library; local unpublished resources are available through file contents. OAuth requires current_user:read, file_metadata:read, file_content:read, file_comments:read, file_comments:write, file_versions:read, and library_content:read. Self-hosted deployments need FIGMA_CLIENT_ID and FIGMA_CLIENT_SECRET with /api/auth/oauth2/callback/figma registered on the deployment URL. Draft OAuth apps can be used by their owners; public app approval is required for wider use. Figma plan and seat rate limits apply; permission errors and failed responses use standard workflow error handling. Each response is limited to 10 MiB; narrow large document requests with node IDs/depth. Account-wide file discovery, canvas editing, variables, and triggers are outside this integration.",
+      "bgColor": "#FFFFFF",
+      "iconName": "FigmaIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/figma",
+      "operations": [
+        {
+          "name": "Get File Metadata",
+          "description": "Read lightweight metadata for a Figma file without loading its document tree"
+        },
+        {
+          "name": "Get File Contents",
+          "description": "Read a Figma document tree and its component, style, and branch metadata"
+        },
+        {
+          "name": "Get File Nodes",
+          "description": "Read selected Figma nodes and their descendants; missing node IDs remain null"
+        },
+        {
+          "name": "Export Nodes",
+          "description": "Render selected Figma nodes as temporary asset URLs, preserving null entries for failed renderings; URLs expire after 30 days"
+        },
+        {
+          "name": "Get Image Fills",
+          "description": "Get temporary URLs for original image fills in a Figma file; links expire within 14 days"
+        },
+        {
+          "name": "List Comments",
+          "description": "List comments and replies on a Figma file"
+        },
+        {
+          "name": "Create Comment",
+          "description": "Post a comment on a Figma file or reply to a root comment"
+        },
+        {
+          "name": "Delete Comment",
+          "description": "Delete a Figma comment authored by the connected account"
+        },
+        {
+          "name": "List File Versions",
+          "description": "List one page of Figma file version history with links to previous and next pages"
+        },
+        {
+          "name": "List File Components",
+          "description": "List published components in a Figma file library; requires a main file key rather than a branch key"
+        },
+        {
+          "name": "List File Styles",
+          "description": "List published styles in a Figma file library; requires a main file key rather than a branch key"
+        }
+      ],
+      "operationCount": 11,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "oauth",
+      "oauthServiceId": "figma",
+      "category": "tools",
+      "integrationType": "productivity",
+      "tags": ["content-management", "project-management", "automation"]
+    },
+    {
       "type": "findymail",
       "slug": "findymail",
       "name": "Findymail",

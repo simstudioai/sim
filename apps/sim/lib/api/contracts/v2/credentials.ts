@@ -276,6 +276,7 @@ export const V2_OAUTH_CONNECTION_PROVIDER_IDS = [
   'slack',
   'reddit',
   'wealthbox',
+  'figma',
   'webflow',
   'trello',
   'asana',

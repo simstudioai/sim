@@ -2512,6 +2512,106 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
     },
 
     {
+      providerId: 'figma',
+      clientId: env.FIGMA_CLIENT_ID as string,
+      clientSecret: env.FIGMA_CLIENT_SECRET as string,
+      authorizationUrl: 'https://www.figma.com/oauth',
+      tokenUrl: 'https://api.figma.com/v1/oauth/token',
+      userInfoUrl: 'https://api.figma.com/v1/me',
+      authentication: 'basic',
+      scopes: getCanonicalScopesForProvider('figma'),
+      responseType: 'code',
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/figma`,
+      getToken: async ({ code, redirectURI }) => {
+        const response = await fetch('https://api.figma.com/v1/oauth/token', {
+          method: 'POST',
+          headers: {
+            Authorization: `Basic ${Buffer.from(`${env.FIGMA_CLIENT_ID}:${env.FIGMA_CLIENT_SECRET}`).toString('base64')}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            grant_type: 'authorization_code',
+            code,
+            redirect_uri: redirectURI,
+          }),
+          redirect: 'error',
+          signal: AbortSignal.timeout(15_000),
+        })
+        if (!response.ok) {
+          await readResponseTextWithLimit(response, {
+            maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+            label: 'Figma code exchange error response',
+          }).catch(() => {})
+          throw new Error(`Figma code exchange failed (${response.status})`)
+        }
+        const data = await readResponseJsonWithLimit<Record<string, unknown>>(response, {
+          maxBytes: 1024 * 1024,
+          label: 'Figma token response',
+        })
+        if (
+          !isRecordLike(data) ||
+          typeof data.access_token !== 'string' ||
+          !data.access_token ||
+          typeof data.refresh_token !== 'string' ||
+          !data.refresh_token
+        ) {
+          throw new Error('Figma token response is missing access or refresh tokens')
+        }
+        const tokens = getOAuth2Tokens(data)
+        // Figma's documented token response omits scope. Completing this fixed-scope
+        // consent grants the canonical set, which the credential picker must retain.
+        tokens.scopes =
+          typeof data.scope === 'string'
+            ? data.scope.split(/\s+/).filter(Boolean)
+            : getCanonicalScopesForProvider('figma')
+        return tokens
+      },
+      getUserInfo: async (tokens) => {
+        try {
+          const response = await fetch('https://api.figma.com/v1/me', {
+            headers: { Authorization: `Bearer ${tokens.accessToken}` },
+            redirect: 'error',
+            signal: AbortSignal.timeout(15_000),
+          })
+          if (!response.ok) {
+            await readResponseTextWithLimit(response, {
+              maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+              label: 'Figma profile error response',
+            }).catch(() => {})
+            logger.warn('Figma profile lookup failed', { status: response.status })
+            return null
+          }
+          const profile = await readResponseJsonWithLimit<unknown>(response, {
+            maxBytes: 1024 * 1024,
+            label: 'Figma profile response',
+          })
+          if (
+            !isRecordLike(profile) ||
+            typeof profile.id !== 'string' ||
+            !profile.id.trim() ||
+            typeof profile.handle !== 'string' ||
+            !profile.handle.trim()
+          ) {
+            logger.warn('Figma profile response has an invalid identity')
+            return null
+          }
+          const now = new Date()
+          return {
+            id: `figma-${profile.id}-${generateId()}`,
+            name: profile.handle,
+            email: syntheticConnectorEmail('figma', profile.id),
+            emailVerified: false,
+            image: typeof profile.img_url === 'string' ? profile.img_url : undefined,
+            createdAt: now,
+            updatedAt: now,
+          }
+        } catch {
+          logger.warn('Figma profile lookup could not complete')
+          return null
+        }
+      },
+    },
+    {
       providerId: 'webflow',
       clientId: env.WEBFLOW_CLIENT_ID as string,
       clientSecret: env.WEBFLOW_CLIENT_SECRET as string,

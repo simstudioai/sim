@@ -1,0 +1,393 @@
+---
+title: Figma
+description: Read designs, export assets, and manage Figma feedback
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard
+  type="figma"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Connect a Figma account to read file metadata, document contents, selected nodes, image fills, comments, versions, and published library components/styles, export nodes, and create or delete your own comments. Supply a file key or an HTTPS Figma file URL; node reads and exports require comma-separated node IDs. Sim limits each node-ID input to 1000 IDs and 64 Ki characters before normalization. Advanced mode supports version, depth, geometry, plugin data, branch data, rendering controls, comment positioning, and version cursors. Export URLs expire after 30 days, and image-fill URLs expire within 14 days; null render entries indicate nodes that could not be rendered. The integration returns URLs without downloading assets. Version history returns one page (30 entries by default, maximum 50); use string before/after cursors from pagination links to request another page. Published components/styles require a main-file key and a published library; local unpublished resources are available through file contents. OAuth requires current_user:read, file_metadata:read, file_content:read, file_comments:read, file_comments:write, file_versions:read, and library_content:read. Self-hosted deployments need FIGMA_CLIENT_ID and FIGMA_CLIENT_SECRET with /api/auth/oauth2/callback/figma registered on the deployment URL. Draft OAuth apps can be used by their owners; public app approval is required for wider use. Figma plan and seat rate limits apply; permission errors and failed responses use standard workflow error handling. Each response is limited to 10 MiB; narrow large document requests with node IDs/depth. Account-wide file discovery, canvas editing, variables, and triggers are outside this integration.
+
+
+
+## Actions
+
+### Figma Get File Metadata
+
+Read lightweight metadata for a Figma file without loading its document tree
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileKey` | string | Yes | Figma file key or HTTPS Figma file URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | object | File metadata |
+|   ↳ `name` | string | File name |
+|   ↳ `folder_name` | string | Containing folder name |
+|   ↳ `last_touched_at` | string | Last content update timestamp |
+|   ↳ `creator` | object | File creator |
+|     ↳ `id` | string | Stable Figma user ID, preserved as a string |
+|     ↳ `handle` | string | User display name |
+|     ↳ `img_url` | string | Profile image URL |
+|   ↳ `last_touched_by` | object | Last editor |
+|     ↳ `id` | string | Stable Figma user ID, preserved as a string |
+|     ↳ `handle` | string | User display name |
+|     ↳ `img_url` | string | Profile image URL |
+|   ↳ `thumbnail_url` | string | Thumbnail URL |
+|   ↳ `editorType` | string | Editor type |
+|   ↳ `version` | string | Version ID |
+|   ↳ `role` | string | Caller role |
+|   ↳ `link_access` | string | Link access policy |
+|   ↳ `url` | string | File URL |
+
+### Figma Get File Contents
+
+Read a Figma document tree and its component, style, and branch metadata
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileKey` | string | Yes | Figma file key or HTTPS Figma file URL |
+| `version` | string | No | Specific file version ID |
+| `nodeIds` | string | No | Comma-separated node IDs to include |
+| `depth` | number | No | Positive traversal depth; omitted returns all descendants |
+| `geometry` | string | No | Set to paths to include vector geometry |
+| `pluginData` | string | No | Comma-separated plugin IDs, optionally shared |
+| `branchData` | boolean | No | Include branch metadata |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | File name |
+| `role` | string | Caller file role |
+| `lastModified` | string | Last modification timestamp |
+| `editorType` | string | Figma editor type |
+| `thumbnailUrl` | string | Thumbnail URL |
+| `version` | string | Current version ID |
+| `document` | json | Recursive Figma node tree with id, name, type, children, and node-specific layout, geometry, text, and paint fields |
+|   ↳ `id` | string | Node ID |
+|   ↳ `name` | string | Node name |
+|   ↳ `type` | string | Node type |
+|   ↳ `children` | array | Child nodes with recursive node-specific properties |
+| `components` | json | Component metadata keyed by node ID \(key, name, description, remote, componentSetId, documentationLinks\) |
+| `componentSets` | json | Component-set metadata keyed by node ID \(key, name, description, remote, documentationLinks\) |
+| `styles` | json | Style metadata keyed by style ID \(key, name, description, remote, styleType\) |
+| `schemaVersion` | number | Document schema version |
+| `linkAccess` | string | Link access policy |
+| `mainFileKey` | string | Main file key for a branch |
+| `branches` | array | File branches when requested |
+|   ↳ `key` | string | Branch file key |
+|   ↳ `name` | string | Branch name |
+|   ↳ `thumbnail_url` | string | Branch thumbnail URL |
+|   ↳ `last_modified` | string | Branch last modification timestamp |
+|   ↳ `link_access` | string | Branch link access policy |
+
+### Figma Get File Nodes
+
+Read selected Figma nodes and their descendants; missing node IDs remain null
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileKey` | string | Yes | Figma file key or HTTPS Figma file URL |
+| `version` | string | No | Specific file version ID |
+| `nodeIds` | string | Yes | Comma-separated node IDs to include |
+| `depth` | number | No | Positive traversal depth; omitted returns all descendants |
+| `geometry` | string | No | Set to paths to include vector geometry |
+| `pluginData` | string | No | Comma-separated plugin IDs, optionally shared |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | File name |
+| `role` | string | Caller file role |
+| `lastModified` | string | Last modification timestamp |
+| `editorType` | string | Figma editor type |
+| `thumbnailUrl` | string | Thumbnail URL |
+| `version` | string | Current version ID |
+| `nodes` | json | Map from node ID to null or \{ document, components, componentSets, schemaVersion, styles \}; document retains its recursive Figma properties |
+
+### Figma Export Nodes
+
+Render selected Figma nodes as temporary asset URLs, preserving null entries for failed renderings; URLs expire after 30 days
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileKey` | string | Yes | Figma file key or HTTPS Figma file URL |
+| `nodeIds` | string | Yes | Comma-separated node IDs to render |
+| `version` | string | No | Specific file version ID |
+| `scale` | number | No | Image scale from 0.01 to 4 |
+| `format` | string | No | Export format: png, jpg, svg, or pdf |
+| `svgOutlineText` | boolean | No | Render SVG text as vector outlines |
+| `svgIncludeId` | boolean | No | Include layer names as SVG element IDs |
+| `svgIncludeNodeId` | boolean | No | Include Figma node IDs in SVG elements |
+| `svgSimplifyStroke` | boolean | No | Simplify inside/outside strokes |
+| `contentsOnly` | boolean | No | Exclude content overlapping the node |
+| `useAbsoluteBounds` | boolean | No | Render the complete bounds of the node |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `err` | string | Rendering error message; null on success |
+| `status` | number | Provider rendering status; null when omitted on success |
+| `images` | json | Map from requested node IDs to temporary export URLs or null; URLs expire after 30 days |
+
+### Figma Get Image Fills
+
+Get temporary URLs for original image fills in a Figma file; links expire within 14 days
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileKey` | string | Yes | Figma file key or HTTPS Figma file URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `images` | json | Map from imageRef values to original-image URLs that expire within 14 days |
+
+### Figma List Comments
+
+List comments and replies on a Figma file
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileKey` | string | Yes | Figma file key or HTTPS Figma file URL |
+| `asMarkdown` | boolean | No | Return comments in Markdown when available |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comments` | array | Comments and replies |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `message` | string | Comment text |
+|   ↳ `file_key` | string | File containing the comment |
+|   ↳ `parent_id` | string | Root comment ID for a reply |
+|   ↳ `user` | object | Comment author |
+|     ↳ `id` | string | Stable Figma user ID, preserved as a string |
+|     ↳ `handle` | string | User display name |
+|     ↳ `img_url` | string | Profile image URL |
+|   ↳ `created_at` | string | Creation timestamp in UTC ISO 8601 format |
+|   ↳ `resolved_at` | string | Resolution timestamp |
+|   ↳ `order_id` | string | Number displayed for a root comment |
+|   ↳ `client_meta` | json | Canvas coordinates or frame-relative position, optionally including region dimensions |
+|     ↳ `x` | number | Canvas X coordinate |
+|     ↳ `y` | number | Canvas Y coordinate |
+|     ↳ `node_id` | string | Positioned node ID |
+|     ↳ `node_offset` | object | Offset relative to node |
+|       ↳ `x` | number | Relative X coordinate |
+|       ↳ `y` | number | Relative Y coordinate |
+|     ↳ `region_width` | number | Comment region width |
+|     ↳ `region_height` | number | Comment region height |
+|     ↳ `comment_pin_corner` | string | Region pin corner |
+|   ↳ `reactions` | array | Comment reactions |
+|     ↳ `user` | object | Reacting user |
+|       ↳ `id` | string | Stable Figma user ID, preserved as a string |
+|       ↳ `handle` | string | User display name |
+|       ↳ `img_url` | string | Profile image URL |
+|     ↳ `emoji` | string | Emoji shortcode |
+|     ↳ `created_at` | string | Reaction timestamp |
+
+### Figma Create Comment
+
+Post a comment on a Figma file or reply to a root comment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileKey` | string | Yes | Figma file key or HTTPS Figma file URL |
+| `message` | string | Yes | Text of the comment |
+| `replyToCommentId` | string | No | Root comment ID to reply to; replies cannot be parents |
+| `clientMeta` | json | No | Canvas or frame-relative comment position |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `comment` | object | Created comment or reply |
+|   ↳ `id` | string | Comment ID |
+|   ↳ `message` | string | Comment text |
+|   ↳ `file_key` | string | File containing the comment |
+|   ↳ `parent_id` | string | Root comment ID for a reply |
+|   ↳ `user` | object | Comment author |
+|     ↳ `id` | string | Stable Figma user ID, preserved as a string |
+|     ↳ `handle` | string | User display name |
+|     ↳ `img_url` | string | Profile image URL |
+|   ↳ `created_at` | string | Creation timestamp in UTC ISO 8601 format |
+|   ↳ `resolved_at` | string | Resolution timestamp |
+|   ↳ `order_id` | string | Number displayed for a root comment |
+|   ↳ `client_meta` | json | Canvas coordinates or frame-relative position, optionally including region dimensions |
+|     ↳ `x` | number | Canvas X coordinate |
+|     ↳ `y` | number | Canvas Y coordinate |
+|     ↳ `node_id` | string | Positioned node ID |
+|     ↳ `node_offset` | object | Offset relative to node |
+|       ↳ `x` | number | Relative X coordinate |
+|       ↳ `y` | number | Relative Y coordinate |
+|     ↳ `region_width` | number | Comment region width |
+|     ↳ `region_height` | number | Comment region height |
+|     ↳ `comment_pin_corner` | string | Region pin corner |
+|   ↳ `reactions` | array | Comment reactions |
+|     ↳ `user` | object | Reacting user |
+|       ↳ `id` | string | Stable Figma user ID, preserved as a string |
+|       ↳ `handle` | string | User display name |
+|       ↳ `img_url` | string | Profile image URL |
+|     ↳ `emoji` | string | Emoji shortcode |
+|     ↳ `created_at` | string | Reaction timestamp |
+
+### Figma Delete Comment
+
+Delete a Figma comment authored by the connected account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileKey` | string | Yes | Figma file key or HTTPS Figma file URL |
+| `commentId` | string | Yes | ID of the comment to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the comment was deleted |
+
+### Figma List File Versions
+
+List one page of Figma file version history with links to previous and next pages
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileKey` | string | Yes | Figma file key or HTTPS Figma file URL |
+| `pageSize` | number | No | Versions per page from 1 to 50; default 30 |
+| `before` | string | No | Version ID cursor for earlier versions, preserved as a string |
+| `after` | string | No | Version ID cursor for later versions, preserved as a string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `versions` | array | File versions |
+|   ↳ `id` | string | Version ID, preserved as a string |
+|   ↳ `created_at` | string | Version creation timestamp |
+|   ↳ `label` | string | Version label |
+|   ↳ `description` | string | Version description |
+|   ↳ `user` | object | Version author |
+|     ↳ `id` | string | Stable Figma user ID, preserved as a string |
+|     ↳ `handle` | string | User display name |
+|     ↳ `img_url` | string | Profile image URL |
+|   ↳ `thumbnail_url` | string | Version thumbnail URL |
+| `pagination` | object | Pagination links; only the current page is fetched |
+|   ↳ `prev_page` | string | Previous-page URL |
+|   ↳ `next_page` | string | Next-page URL |
+
+### Figma List File Components
+
+List published components in a Figma file library; requires a main file key rather than a branch key
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileKey` | string | Yes | Figma file key or HTTPS Figma file URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `components` | array | Published components |
+|   ↳ `key` | string | Published resource key |
+|   ↳ `file_key` | string | Containing main file key |
+|   ↳ `node_id` | string | Resource node ID |
+|   ↳ `name` | string | Resource name |
+|   ↳ `description` | string | Publisher description |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `user` | object | Last publisher |
+|     ↳ `id` | string | Stable Figma user ID, preserved as a string |
+|     ↳ `handle` | string | User display name |
+|     ↳ `img_url` | string | Profile image URL |
+|   ↳ `thumbnail_url` | string | Resource thumbnail URL |
+|   ↳ `containing_frame` | object | Containing page/frame |
+|     ↳ `nodeId` | string | Containing node ID |
+|     ↳ `name` | string | Containing node name |
+|     ↳ `backgroundColor` | string | Frame background color |
+|     ↳ `pageId` | string | Containing page ID |
+|     ↳ `pageName` | string | Containing page name |
+|     ↳ `containingComponentSet` | object | Containing component set |
+|       ↳ `nodeId` | string | Containing node ID |
+|       ↳ `name` | string | Containing node name |
+
+### Figma List File Styles
+
+List published styles in a Figma file library; requires a main file key rather than a branch key
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileKey` | string | Yes | Figma file key or HTTPS Figma file URL |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `styles` | array | Published styles |
+|   ↳ `key` | string | Published resource key |
+|   ↳ `file_key` | string | Containing main file key |
+|   ↳ `node_id` | string | Resource node ID |
+|   ↳ `name` | string | Resource name |
+|   ↳ `description` | string | Publisher description |
+|   ↳ `created_at` | string | Creation timestamp |
+|   ↳ `updated_at` | string | Last update timestamp |
+|   ↳ `user` | object | Last publisher |
+|     ↳ `id` | string | Stable Figma user ID, preserved as a string |
+|     ↳ `handle` | string | User display name |
+|     ↳ `img_url` | string | Profile image URL |
+|   ↳ `thumbnail_url` | string | Resource thumbnail URL |
+|   ↳ `style_type` | string | FILL, TEXT, EFFECT, or GRID |
+|   ↳ `sort_position` | string | Publisher-defined sort order |
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Figma account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/figma` |
+| Environment variables | `FIGMA_CLIENT_ID`, `FIGMA_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `current_user:read` | View your Figma identity |
+| `file_metadata:read` | View Figma file metadata |
+| `file_content:read` | Read Figma documents, nodes, and image exports |
+| `file_comments:read` | Read Figma file comments |
+| `file_comments:write` | Create and delete your Figma comments |
+| `file_versions:read` | Read Figma version history |
+| `library_content:read` | Read published Figma components and styles |

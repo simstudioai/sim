@@ -1729,6 +1729,7 @@ export type CreateCredentialConnectionBody =
         | 'slack'
         | 'reddit'
         | 'wealthbox'
+        | 'figma'
         | 'webflow'
         | 'trello'
         | 'asana'
