@@ -47,14 +47,25 @@ function buildOAuthDeploymentFacts(): CanonicalOAuthDeploymentFacts {
   }
 
   const catalogServiceIds = new Set<string>()
+  const oauthServiceIds = new Set<string>()
   for (const integration of INTEGRATION_METADATA) {
-    if (integration.authType !== 'oauth') continue
-    if (!integration.oauthServiceId) {
+    if (integration.authType === 'oauth' && !integration.oauthServiceId) {
       throw new Error(
         'Generated integration catalog contains an OAuth entry without oauthServiceId'
       )
     }
-    catalogServiceIds.add(integration.oauthServiceId)
+    if (integration.authType === 'oauth' && integration.oauthServiceId) {
+      catalogServiceIds.add(integration.oauthServiceId)
+      oauthServiceIds.add(integration.oauthServiceId)
+    }
+    if (integration.serviceAccountServiceId) {
+      if (!canonicalServices.get(integration.serviceAccountServiceId)?.serviceAccountProviderId) {
+        throw new Error(
+          `Integration catalog references a service without a service-account provider: ${integration.serviceAccountServiceId}`
+        )
+      }
+      catalogServiceIds.add(integration.serviceAccountServiceId)
+    }
   }
 
   const providers = new Map<string, string>()
@@ -64,7 +75,9 @@ function buildOAuthDeploymentFacts(): CanonicalOAuthDeploymentFacts {
       throw new Error(`Integration catalog references unknown OAuth service: ${serviceId}`)
     }
     const service = canonicalServices.get(serviceId)
-    if (service?.credentialConfigured) credentialConfiguredOAuthServiceIds.push(serviceId)
+    if (oauthServiceIds.has(serviceId) && service?.credentialConfigured) {
+      credentialConfiguredOAuthServiceIds.push(serviceId)
+    }
     const providerId = service?.serviceAccountProviderId
     if (providerId) providers.set(serviceId, providerId)
   }

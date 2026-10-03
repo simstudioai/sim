@@ -8,6 +8,7 @@ import { stripVersionSuffix } from '@sim/utils/string'
  */
 import { BLOCK_REGISTRY } from '../apps/sim/blocks/registry-maps'
 import { AuthMode, type BlockConfig } from '../apps/sim/blocks/types'
+import { getServiceConfigByServiceId } from '../apps/sim/lib/oauth/utils'
 import { INTEGRATION_METADATA } from '../packages/deployment-config/src/integration-metadata'
 import integrationsJson from '../packages/deployment-config/src/integrations.json'
 import { DOCS_ORIGIN, DOCS_OUTPUT_PATH, defaultIntegrationDocsUrl } from './generate-docs'
@@ -23,6 +24,7 @@ interface CatalogEntry {
   bgColor: string
   authType: CatalogAuthType
   oauthServiceId?: string
+  serviceAccountServiceId?: string
 }
 
 function resolveAuthType(block: BlockConfig): CatalogAuthType {
@@ -57,7 +59,14 @@ function expectedEntry(block: BlockConfig): CatalogEntry {
     throw new Error(`Integration block "${block.type}" is missing integrationType`)
   }
   const authType = resolveAuthType(block)
-  const oauthServiceId = authType === 'oauth' ? resolveOAuthServiceId(block) : undefined
+  const credentialServiceId = resolveOAuthServiceId(block)
+  const oauthServiceId = authType === 'oauth' ? credentialServiceId : undefined
+  const serviceAccountServiceId =
+    authType !== 'oauth' &&
+    credentialServiceId &&
+    getServiceConfigByServiceId(credentialServiceId)?.serviceAccountProviderId
+      ? credentialServiceId
+      : undefined
   if (authType === 'oauth' && !oauthServiceId) {
     throw new Error(`OAuth integration block "${block.type}" is missing an OAuth service ID`)
   }
@@ -73,6 +82,7 @@ function expectedEntry(block: BlockConfig): CatalogEntry {
     bgColor: block.bgColor,
     authType,
     ...(oauthServiceId ? { oauthServiceId } : {}),
+    ...(serviceAccountServiceId ? { serviceAccountServiceId } : {}),
   }
 }
 
@@ -134,12 +144,22 @@ function verifyIntegrationCatalog(): void {
 
   const actual = integrationsJson.integrations as readonly CatalogEntry[]
   const expectedMetadata = actual.map(
-    ({ type, slug, name, authType, oauthServiceId, bgColor, integrationType }) => ({
+    ({
+      type,
+      slug,
+      name,
+      authType,
+      oauthServiceId,
+      serviceAccountServiceId,
+      bgColor,
+      integrationType,
+    }) => ({
       type,
       slug,
       name,
       authType,
       ...(oauthServiceId ? { oauthServiceId } : {}),
+      ...(serviceAccountServiceId ? { serviceAccountServiceId } : {}),
       bgColor,
       integrationType,
     })
@@ -178,6 +198,7 @@ function verifyIntegrationCatalog(): void {
       'bgColor',
       'authType',
       'oauthServiceId',
+      'serviceAccountServiceId',
     ] as const) {
       if (generated[field] !== entry[field]) {
         issues.push(`"${type}" has stale ${field}`)

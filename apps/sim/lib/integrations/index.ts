@@ -68,6 +68,7 @@ export {
   type OAuthServiceMatch,
   resolveOAuthServiceForIntegration,
   resolveOAuthServiceForSlug,
+  resolveServiceAccountServiceForIntegration,
 } from '@/lib/integrations/oauth-service'
 export type { AuthType, FAQItem, Integration, IntegrationSummary } from '@/lib/integrations/types'
 export type { BlockMeta, BlockTemplate } from '@/blocks/types'

@@ -69,6 +69,24 @@ describe('integration credential visibility', () => {
 
   it.each([
     {
+      serviceId: 'netsuite',
+      providerId: 'netsuite-service-account',
+      blockType: 'netsuite',
+      name: 'NetSuite',
+    },
+    {
+      serviceId: 'snowflake',
+      providerId: 'snowflake-service-account',
+      blockType: 'snowflake',
+      name: 'Snowflake',
+    },
+    {
+      serviceId: 'harmonic',
+      providerId: 'harmonic-service-account',
+      blockType: 'harmonic',
+      name: 'Harmonic',
+    },
+    {
       serviceId: 'coda',
       providerId: 'coda-service-account',
       blockType: 'coda',
