@@ -15,7 +15,7 @@ Every command below also accepts the [global options](/cli/commands#global-optio
 sim workflows activate create <workflowId> <version> [options]
 ```
 
-Activate Workflow Version (personal API key required)
+Activate Workflow Version (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -38,13 +38,13 @@ Activate Workflow Version (personal API key required)
 
 </CommandTable>
 
-## Apply workflow operations
+## Edit a workflow’s blocks, connections and settings with a batch of operations
 
 ```bash
 sim workflows operations apply <workflowId> [options]
 ```
 
-Apply Workflow Operations (personal API key required)
+Edit a workflow’s blocks, connections and settings with a batch of operations (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -62,7 +62,7 @@ Apply Workflow Operations (personal API key required)
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--dry-run` | No | Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified. |
+| `--dry-run` | No | Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs. |
 | `--no-dry-run` | No | Send --dry-run as false. |
 | `--operations <json\|@file>` | Yes | Edits to apply, in a single batch, keyed by operation_type: [&#123;"operation_type":"add","block_id":"my-fn","params":&#123;"type":"function","name":"My Fn","inputs":&#123;"code":"return &#123;ok:true&#125;"&#125;&#125;&#125;,&#123;"operation_type":"edit","block_id":"&lt;uuid&gt;","params":&#123;"name":"Renamed","connections":&#123;"success":"my-fn"&#125;&#125;&#125;,&#123;"operation_type":"delete","block_id":"&lt;uuid&gt;"&#125;]. Also extract_from_subflow, whose params carry &#123;"subflowId":"&lt;loop-id&gt;"&#125;, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId (JSON, or @path / @- to read a file or stdin). |
 | `--atomic` | No | Fail the whole batch when any operation is declined or any block input would be dropped. The default applies what it can and reports the rest in `skipped` and `inputValidationErrors`; `true` writes nothing and answers `409` instead. |
@@ -152,7 +152,7 @@ Show run status (requested outputs are included in JSON or YAML output)
 | --- | --- | --- |
 | `--workflow <workflowId>` | Yes | Workflow ID. |
 | `--include-output` | No | Include the final output in JSON or YAML output. |
-| `--select-output <value...>` | No | Include blockId or blockId.path values in JSON or YAML output; block names are not resolved on a finished run (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--select-output <value...>` | No | Include blockName.path or blockId.path values (e.g. agent_1.content) in JSON or YAML output; names resolve against the workflow’s current blocks, and missing paths are omitted (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--include-file-base64` | No | Inline each produced file's bytes as base64. Requires `includeOutput`. A file above the inline ceiling answers `413` naming its download path; fetch large files from `downloadPath` instead. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
 | `--base64-max-bytes <value>` | No | Per-file inline ceiling, lowering but never raising the server limit of 16 MiB. |
@@ -177,6 +177,7 @@ sim workflows runs list [options]
 | `--start-date <value>` | No | Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
 | `--end-date <value>` | No | Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 | `--order <value>` | No | Sort direction by run start time. This list is sortable only by run start time, so it takes `order` in place of `sortBy`/`sortOrder`, which it rejects. Accepted values: `asc`, `desc`. |
 
 </CommandTable>
@@ -238,6 +239,105 @@ sim workflows runs wait <runId> [options]
 
 </CommandTable>
 
+## Compare workflow versions
+
+```bash
+sim workflows versions compare <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--base <value>` | Yes | Deployment version to compare from. |
+| `--target <value>` | Yes | Deployment version to compare to, in the same workflow. |
+
+</CommandTable>
+
+## Get workflow version
+
+```bash
+sim workflows versions get <workflowId> <version>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+| `version` | Yes | Numeric deployment version. |
+
+</CommandTable>
+
+## List workflow versions
+
+```bash
+sim workflows versions list <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+## Update workflow version
+
+```bash
+sim workflows versions update <workflowId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+| `version` | Yes | Numeric deployment version. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | New label for the deployment version. |
+| `--description <value>` | No | New release note for the deployment version, or null to clear it. (--description null sends the word, not JSON null). |
+
+</CommandTable>
+
 ## Create workflow
 
 ```bash
@@ -252,7 +352,7 @@ sim workflows create [options]
 | --- | --- | --- |
 | `--name <value>` | Yes | Workflow name. |
 | `--description <value>` | No | Optional workflow description. |
-| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+| `--folder <value>` | No | Existing folder path (leading / optional); create it first with sim workflows mkdir &lt;path&gt;. |
 
 </CommandTable>
 
@@ -371,7 +471,7 @@ sim workflows delete <workflowId> [options]
 sim workflows chat unpublish <workflowId> [options]
 ```
 
-Take a workflow’s chat deployment offline (personal API key required)
+Take a workflow’s chat deployment offline (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -399,7 +499,7 @@ Take a workflow’s chat deployment offline (personal API key required)
 sim workflows chat status <workflowId>
 ```
 
-Show a workflow’s chat deployment (personal API key required)
+Show a workflow’s chat deployment (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -417,7 +517,7 @@ Show a workflow’s chat deployment (personal API key required)
 sim workflows chat publish <workflowId> [options]
 ```
 
-Publish or replace a workflow’s chat deployment (personal API key required)
+Publish or replace a workflow’s chat deployment (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -440,7 +540,7 @@ Publish or replace a workflow’s chat deployment (personal API key required)
 | `--description <value>` | No | Description shown to visitors. Omitted clears it. |
 | `--customizations <json\|@file>` | No | Presentation overrides. Omitted fields take platform defaults. (JSON, or @path / @- to read a file or stdin). |
 | `--auth-type <value>` | No | How visitors are gated. `public` leaves the chat open to anyone holding the URL. Accepted values: `public`, `password`, `email`, `sso`. |
-| `--password <value>` | No | Write-only password. Required whenever `authType` is `password`, and rejected otherwise. Never readable back. |
+| `--password <value>` | No | Write-only password of 15 to 1024 characters, not only whitespace. Required whenever `authType` is `password`, and rejected otherwise. Never readable back. Taken literally, except that a request from the Sim agent resolves a whole-value `&#123;&#123;ENV_VAR&#125;&#125;` reference to that variable before the rules apply. |
 | `--allowed-emails <json\|@file>` | No | Email addresses or domains admitted under `email` and `sso` gating. At least one is required for those modes. (JSON, or @path / @- to read a file or stdin). |
 | `--output-configs <json\|@file>` | No | Block outputs to surface to visitors. Omitted surfaces none. (JSON, or @path / @- to read a file or stdin). |
 | `--include-thinking` | No | Allow visitors to receive provider thinking events. |
@@ -457,7 +557,7 @@ Publish or replace a workflow’s chat deployment (personal API key required)
 sim workflows deploy <workflowId> [options]
 ```
 
-Deploy Workflow (personal API key required)
+Deploy Workflow (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -531,15 +631,15 @@ sim workflows run <workflowId> [options]
 | --- | --- | --- |
 | `--input <json\|@file>` | No | Trigger input as JSON (JSON, or @path / @- to read a file or stdin). |
 | `--async` | No | Queue the run and return immediately. |
-| `--execution-timeout-seconds <value>` | No | Requested server-side timeout for an asynchronous run, in seconds. An upper bound, not the effective timeout: the run uses the smaller of this value and the plan's execution timeout, so requesting more than the plan allows silently yields the plan timeout. Rejected with `400` unless `async` is true. |
-| `--select-output <value...>` | No | Return blockName.field values from the streamed result (e.g. agent_1.content), requires --follow; missing fields are omitted (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--execution-timeout-seconds <value>` | No | Maximum duration of an asynchronous run, in seconds, capped by the plan's execution timeout. Requires `async: true`; otherwise returns `400`. |
+| `--select-output <value...>` | No | Return blockName.path values (e.g. agent_1.content), or childWorkflowId.blockName.path for a child workflow (applies to every invocation) — in blockOutputs on a sync run, or from the streamed result with --follow; missing paths are omitted. Not available with --async (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--include-file-base64` | No | Inline eligible output files as base64 content. Rejected when `async` is true. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
 | `--base64-max-bytes <value>` | No | Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true. |
 | `--run-id <value>` | No | One-shot identifier for this run; NOT an idempotency key — reusing a claimed value fails with RUN_ID_CONFLICT instead of replaying the first result, and a fresh value starts another run. |
 | `--manual` | No | Run the current saved workflow state instead of the active deployment. |
-| `--trigger <blockId>` | No | Enter a manual run through this runnable trigger (requires --manual). |
-| `--mock-payload` | No | Use the selected trigger's server-derived mock payload (requires --manual). |
+| `--trigger <blockId>` | No | Enter the run through this runnable trigger; runs the current saved workflow state (implies --manual). |
+| `--mock-payload` | No | Use the selected trigger's server-derived mock payload; runs the current saved workflow state (implies --manual). |
 | `--from-block <blockId>` | No | Run manually from this saved workflow block. |
 | `--source-run <runId>` | No | Prior run whose persisted state supplies upstream outputs (requires --from-block). |
 | `--follow` | No | Stream the run as it happens; progress on stderr, result on stdout. The stream reports only success and output, so the result omits the run id and timings a non-streaming run returns. |
@@ -551,7 +651,7 @@ sim workflows run <workflowId> [options]
 ## Print a workflow as a portable JSON document
 
 ```bash
-sim workflows export <workflowId>
+sim workflows export <workflowId> [options]
 ```
 
 **Arguments**
@@ -561,6 +661,18 @@ sim workflows export <workflowId>
 | Argument | Required | Description |
 | --- | --- | --- |
 | `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--include-references` | No | Include non-secret resource identities for mapped import. |
+| `--include-workspace-bindings` | No | Whether to keep workspace-scoped bindings — table, knowledge base, document, folder, channel, and other resource selectors — in the exported state. Defaults to false, the sharing-safe export in which those ids are cleared because they resolve nowhere else. Send true for a same-workspace round trip so the re-imported workflow can run without re-selecting them. Credentials, passwords, and table sub-block values are cleared either way. |
+| `--no-include-workspace-bindings` | No | Send --include-workspace-bindings as false. |
 
 </CommandTable>
 
@@ -602,7 +714,7 @@ sim workflows deployment status <workflowId>
 sim workflows deployment update <workflowId> [options]
 ```
 
-Update Workflow Public API Access (personal API key required)
+Update Workflow Public API Access (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -646,7 +758,7 @@ sim workflows state get <workflowId>
 sim workflows state replace <workflowId> [options]
 ```
 
-Replace Workflow State (personal API key required)
+Replace Workflow State (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -664,7 +776,7 @@ Replace Workflow State (personal API key required)
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--dry-run` | No | Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified. |
+| `--dry-run` | No | Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs. |
 | `--no-dry-run` | No | Send --dry-run as false. |
 | `--blocks <json\|@file>` | Yes | Blocks keyed by block id. (JSON, or @path / @- to read a file or stdin). |
 | `--edges <json\|@file>` | Yes | Directed connections between blocks. (JSON, or @path / @- to read a file or stdin). |
@@ -672,77 +784,6 @@ Replace Workflow State (personal API key required)
 | `--parallels <json\|@file>` | No | Ignored on write: parallel containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
 | `--variables <json\|@file>` | No | Replacement variable set. Omit to leave the stored variables untouched. (JSON, or @path / @- to read a file or stdin). |
 | `-y, --yes` | No | Confirm this operation (required unless --dry-run). |
-
-</CommandTable>
-
-## Get workflow version
-
-```bash
-sim workflows versions get <workflowId> <version>
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `workflowId` | Yes | Unique workflow identifier. |
-| `version` | Yes | Numeric deployment version. |
-
-</CommandTable>
-
-## List workflow versions
-
-```bash
-sim workflows versions list <workflowId> [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `workflowId` | Yes | Unique workflow identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-
-</CommandTable>
-
-## Update workflow version
-
-```bash
-sim workflows versions update <workflowId> <version> [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `workflowId` | Yes | Unique workflow identifier. |
-| `version` | Yes | Numeric deployment version. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--name <value>` | No | New label for the deployment version. |
-| `--description <value>` | No | New release note for the deployment version, or null to clear it. (--description null sends the word, not JSON null). |
 
 </CommandTable>
 
@@ -762,6 +803,13 @@ sim workflows import [options]
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--name <value>` | No | Override for the imported workflow name. |
 | `--description <value>` | No | Override for the imported workflow description. |
+| `--mappings <json\|@file>` | No | Mappings keyed by resource type and source identifier. (JSON, or @path / @- to read a file or stdin). |
+| `--bindings <json\|@file>` | No | Resolved and unresolved source occurrences with their destination selections. (JSON, or @path / @- to read a file or stdin). |
+| `--dependent-values <json\|@file>` | No | Destination-dependent choices keyed by source workflow, block, and field identities. (JSON, or @path / @- to read a file or stdin). |
+| `--request-id <value>` | No | Stable client request ID for reconciliation and identical retries. |
+| `--preview-fingerprint <value>` | No | Fingerprint of the reviewed preview and its choices. |
+| `--wait` | No | Wait for the committed operation to finish; missing configuration and failure exit nonzero. |
+| `--wait-timeout <seconds>` | No | Maximum operation wait in seconds (default 3600; 0 waits indefinitely). |
 
 </CommandTable>
 
@@ -781,7 +829,7 @@ sim workflows list [options]
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--deployed-only` | No | Return only workflows with an active deployment when true. |
 | `--no-deployed-only` | No | Send --deployed-only as false. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 | `--search <value>` | No | Case-insensitive substring match against the resource name. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `position`, `name`, `createdAt`, `updatedAt`, `runCount`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
@@ -802,6 +850,28 @@ sim workflows move [options]
 | --- | --- | --- |
 | `--workflow <value...>` | Yes | Workflows to move. Duplicates are collapsed. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--to <value>` | Yes | Destination folder path; / moves the workflows to the workspace root. |
+
+</CommandTable>
+
+## Preview workflow import
+
+```bash
+sim workflows import-preview [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <json\|@file>` | Yes | Workflow export object, bare workflow state, or JSON string containing either form. (JSON, or @path / @- to read a file or stdin). |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+| `--name <value>` | No | Override for the imported workflow name. |
+| `--description <value>` | No | Override for the imported workflow description. |
+| `--mappings <json\|@file>` | No | Mappings keyed by resource type and source identifier. (JSON, or @path / @- to read a file or stdin). |
+| `--bindings <json\|@file>` | No | Resolved and unresolved source occurrences with their destination selections. (JSON, or @path / @- to read a file or stdin). |
+| `--dependent-values <json\|@file>` | No | Destination-dependent choices keyed by source workflow, block, and field identities. (JSON, or @path / @- to read a file or stdin). |
 
 </CommandTable>
 
@@ -827,7 +897,7 @@ sim workflows restore <workflowId>
 sim workflows revert create <workflowId> <version> [options]
 ```
 
-Revert Workflow To Version (personal API key required)
+Revert Workflow To Version (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -856,7 +926,7 @@ Revert Workflow To Version (personal API key required)
 sim workflows rollback <workflowId> [options]
 ```
 
-Rollback Workflow (personal API key required)
+Rollback Workflow (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -885,7 +955,7 @@ Rollback Workflow (personal API key required)
 sim workflows undeploy <workflowId> [options]
 ```
 
-Take a workflow out of deployment (personal API key required)
+Take a workflow out of deployment (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -975,7 +1045,7 @@ sim workflows ls [path] [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--search <text>` | No | Filter folders and resources by name. |
-| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum combined items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
 

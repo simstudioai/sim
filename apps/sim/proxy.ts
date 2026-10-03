@@ -1,7 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { getSessionCookie } from 'better-auth/cookies'
 import { type NextRequest, NextResponse } from 'next/server'
-import { sendToProfound } from './lib/analytics/profound'
+import { resolveSimMcpHostPath } from '@/lib/api/mcp/host-routing'
+import { SIM_MCP_ROUTE_PATH } from '@/lib/api/mcp/urls'
+import { APP_ENTRY_PATH, isAppSurfacePath, isNoindexPath } from '@/lib/navigation/paths'
+import { isOAuthAuthorizationCallback, resolveAuthRedirect } from '@/app/(auth)/auth-redirect'
 import { getEnv } from './lib/core/config/env'
 import { isAuthDisabled, isDev, isHosted } from './lib/core/config/env-flags'
 import { generateRuntimeCSP } from './lib/core/security/csp'
@@ -46,17 +49,41 @@ const DEFAULT_API_ALLOWED_METHODS = 'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS'
  * to miss.
  */
 const DEFAULT_API_EXPOSED_HEADERS =
-  'Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Request-Id, X-Run-Id'
+  'Retry-After, WWW-Authenticate, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Request-Id, X-Run-Id'
 
-const DEFAULT_API_ALLOWED_HEADERS =
-  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, Authorization'
+/**
+ * Every API policy allows these. `X-Sim-Client-Info` is here rather than on one
+ * policy because every official client sends it on every request.
+ */
+const BASE_API_ALLOWED_HEADERS = [
+  'X-CSRF-Token',
+  'X-Requested-With',
+  'Accept',
+  'Accept-Version',
+  'Content-Length',
+  'Content-MD5',
+  'Content-Type',
+  'Date',
+  'X-Api-Version',
+  'X-API-Key',
+  'Authorization',
+  'X-Sim-Client-Info',
+] as const
 
-const WORKFLOW_EXECUTE_HEADERS =
-  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, X-Execution-Id, X-Execution-Mode, X-Execution-Timeout-Seconds'
+function allowedHeaders(...extra: string[]): string {
+  return [...BASE_API_ALLOWED_HEADERS, ...extra].join(', ')
+}
+
+const DEFAULT_API_ALLOWED_HEADERS = allowedHeaders()
+
+const WORKFLOW_EXECUTE_HEADERS = allowedHeaders(
+  'X-Execution-Id',
+  'X-Execution-Mode',
+  'X-Execution-Timeout-Seconds'
+)
 
 /** v2 execute: run identity and modes use the v2 wire names while streaming negotiates its protocol. */
-const WORKFLOW_EXECUTE_V2_HEADERS =
-  'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, X-Run-Id, X-Sim-Stream-Protocol'
+const WORKFLOW_EXECUTE_V2_HEADERS = allowedHeaders('X-Run-Id', 'X-Sim-Stream-Protocol')
 
 /** Subpaths under /api/chat/* that serve the workspace UI, not embeds. */
 const EMBED_RESERVED_SEGMENTS = new Set(['manage', 'validate'])
@@ -85,6 +112,15 @@ const CORS_RULES: readonly CorsRule[] = [
       credentials: false,
       methods: 'GET, POST, OPTIONS',
       headers: 'Content-Type, Authorization, Accept',
+    }),
+  },
+  {
+    match: (p) => p.startsWith('/api/auth/.well-known/'),
+    policy: () => ({
+      origin: '*',
+      credentials: false,
+      methods: 'GET, OPTIONS',
+      headers: 'Content-Type, Accept',
     }),
   },
   {
@@ -205,18 +241,18 @@ function handleRootPathRedirects(
   if (!isHosted && !isDev) {
     // Self-hosted production: Always redirect based on session.
     if (hasActiveSession) {
-      return NextResponse.redirect(new URL('/workspace', request.url))
+      return NextResponse.redirect(new URL(APP_ENTRY_PATH, request.url))
     }
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // For root path, redirect authenticated users to workspace
+  // For root path, redirect authenticated users into the app
   // Unless they have a 'home' query parameter (e.g., ?home)
   // This allows intentional navigation to the homepage from anywhere in the app
   if (hasActiveSession) {
     const isBrowsingHome = url.searchParams.has('home')
     if (!isBrowsingHome) {
-      return NextResponse.redirect(new URL('/workspace', request.url))
+      return NextResponse.redirect(new URL(APP_ENTRY_PATH, request.url))
     }
   }
 
@@ -299,8 +335,20 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
   return null
 }
 
-export async function proxy(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const url = request.nextUrl
+
+  const mcpPath = resolveSimMcpHostPath(request.headers.get('host'), url.pathname)
+  if (mcpPath === 'not_found') return new NextResponse(null, { status: 404 })
+  if (mcpPath && mcpPath !== url.pathname) {
+    const rewrite = NextResponse.rewrite(new URL(`${mcpPath}${url.search}`, request.url))
+    if (mcpPath !== SIM_MCP_ROUTE_PATH) return rewrite
+    /** The endpoint keeps the `/api` CORS policy it has on the app host; its metadata sets its own. */
+    const policy = resolveApiCorsPolicy(request)
+    if (request.method === 'OPTIONS') return buildPreflightResponse(policy)
+    applyCorsHeaders(rewrite, policy)
+    return rewrite
+  }
 
   if (url.pathname.startsWith('/api/')) {
     const policy = resolveApiCorsPolicy(request)
@@ -316,40 +364,50 @@ export async function proxy(request: NextRequest) {
   const hasActiveSession = isAuthDisabled || !!sessionCookie
 
   const redirect = handleRootPathRedirects(request, hasActiveSession)
-  if (redirect) return track(request, redirect)
+  if (redirect) return applyIndexingPolicy(request, redirect)
 
   if (url.pathname === '/login' || url.pathname === '/signup') {
-    if (hasActiveSession) {
-      return track(request, NextResponse.redirect(new URL('/workspace', request.url)))
+    const { rawCallbackUrl } = resolveAuthRedirect({
+      redirect: url.searchParams.get('redirect'),
+      callbackUrl: url.searchParams.get('callbackUrl'),
+      inviteFlow: url.searchParams.get('invite_flow'),
+    })
+    const isOAuthSignIn =
+      isOAuthAuthorizationCallback(rawCallbackUrl, url.origin) && !isAuthDisabled
+    if (hasActiveSession && !isOAuthSignIn) {
+      return applyIndexingPolicy(
+        request,
+        NextResponse.redirect(new URL(APP_ENTRY_PATH, request.url))
+      )
     }
     const response = NextResponse.next()
     response.headers.set('Content-Security-Policy', generateRuntimeCSP())
     response.headers.set('X-Content-Type-Options', 'nosniff')
     response.headers.set('X-Frame-Options', 'SAMEORIGIN')
-    return track(request, response)
+    return applyIndexingPolicy(request, response)
   }
 
   // Chat pages are publicly accessible embeds — CSP is set in next.config.ts headers
   if (url.pathname.startsWith('/chat/')) {
-    return track(request, NextResponse.next())
+    return applyIndexingPolicy(request, NextResponse.next())
   }
 
-  if (url.pathname.startsWith('/workspace')) {
+  if (isAppSurfacePath(url.pathname)) {
     if (!hasActiveSession) {
-      return track(request, NextResponse.redirect(new URL('/login', request.url)))
+      return applyIndexingPolicy(request, NextResponse.redirect(new URL('/login', request.url)))
     }
     const response = NextResponse.next()
     response.headers.set('Content-Security-Policy', generateRuntimeCSP())
     response.headers.set('X-Content-Type-Options', 'nosniff')
     response.headers.set('X-Frame-Options', 'SAMEORIGIN')
-    return track(request, response)
+    return applyIndexingPolicy(request, response)
   }
 
   const invitationRedirect = handleInvitationRedirects(request, hasActiveSession)
-  if (invitationRedirect) return track(request, invitationRedirect)
+  if (invitationRedirect) return applyIndexingPolicy(request, invitationRedirect)
 
   const securityBlock = handleSecurityFiltering(request)
-  if (securityBlock) return track(request, securityBlock)
+  if (securityBlock) return applyIndexingPolicy(request, securityBlock)
 
   const response = NextResponse.next()
   response.headers.set('Vary', 'User-Agent')
@@ -358,11 +416,13 @@ export async function proxy(request: NextRequest) {
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('X-Frame-Options', 'SAMEORIGIN')
 
-  return track(request, response)
+  return applyIndexingPolicy(request, response)
 }
 
 /**
- * Keeps non-production sim.ai deployments out of search results.
+ * Keeps non-production sim.ai deployments, and app and utility surfaces on every
+ * deployment, out of search results. Applies to redirects too, so a signed-out
+ * crawler bounced from `/workspace/*` to `/login` sees the directive.
  *
  * `noindex` rather than a robots.txt `Disallow` is deliberate: a disallowed URL
  * can still be indexed when linked externally, and blocking the crawl stops
@@ -370,23 +430,16 @@ export async function proxy(request: NextRequest) {
  * the index. robots.txt is excluded from this proxy's matcher so it keeps
  * serving the crawlable rules this header depends on.
  */
-function applyIndexingPolicy(request: NextRequest, response: NextResponse): void {
+function applyIndexingPolicy(request: NextRequest, response: NextResponse): NextResponse {
   const host =
     request.headers.get('x-forwarded-host')?.split(',')[0]?.trim() ||
     request.headers.get('host') ||
     request.nextUrl.host
 
-  if (isNonCanonicalSimHost(host)) {
+  if (isNonCanonicalSimHost(host) || isNoindexPath(request.nextUrl.pathname)) {
     response.headers.set('X-Robots-Tag', 'noindex, nofollow')
   }
-}
 
-/**
- * Sends request data to Profound analytics (fire-and-forget) and returns the response.
- */
-function track(request: NextRequest, response: NextResponse): NextResponse {
-  applyIndexingPolicy(request, response)
-  sendToProfound(request, response.status)
   return response
 }
 
@@ -398,6 +451,9 @@ export const config = {
     '/w', // Legacy /w redirect
     '/w/:path*', // Legacy /w/* redirects
     '/workspace/:path*', // New workspace routes
+    '/home', // App entry
+    '/o', // Organization surface
+    '/o/:path*',
     '/login',
     '/signup',
     '/invite/:path*', // Match invitation routes

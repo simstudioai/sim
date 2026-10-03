@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { scanSecretReferences } from '@/lib/secrets/references/scan'
 
 /** A stored block row as the scan reads it, with one short-input sub-block. */
@@ -27,7 +24,6 @@ function shortInput(key: string, value: unknown) {
 
 describe('scanSecretReferences', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -112,6 +108,65 @@ describe('scanSecretReferences', () => {
     const scan = await scanSecretReferences({ workspaceId: 'workspace-1', name: 'API_KEY' })
 
     expect(scan.workflows).toEqual([])
+  })
+
+  /**
+   * A Note is documentation on the canvas: its text never resolves at run time, so a `{{KEY}}`
+   * in it is prose about the secret, not a use of it. The remapper drops it for the same reason
+   * it drops a condition-hidden field, and the tab has to agree — rotating a key does not mean
+   * editing every note that mentions it.
+   */
+  it('drops a Note block that mentions the secret', async () => {
+    queueTableRows(schemaMock.workflowBlocks, [
+      blockRow({
+        blockId: 'block-1',
+        blockName: 'Setup notes',
+        blockType: 'note',
+        workflowId: 'workflow-1',
+        workflowName: 'Nightly sync',
+        subBlocks: {
+          content: { id: 'content', type: 'long-input', value: 'Uses {{API_KEY}} for auth.' },
+        },
+      }),
+    ])
+
+    const scan = await scanSecretReferences({ workspaceId: 'workspace-1', name: 'API_KEY' })
+
+    expect(scan.workflows).toEqual([])
+  })
+
+  it('lists only the executing block when a Note and a block both name the secret', async () => {
+    queueTableRows(schemaMock.workflowBlocks, [
+      blockRow({
+        blockId: 'block-1',
+        blockName: 'Setup notes',
+        blockType: 'note',
+        workflowId: 'workflow-1',
+        workflowName: 'Nightly sync',
+        subBlocks: {
+          content: { id: 'content', type: 'long-input', value: 'Uses {{API_KEY}} for auth.' },
+        },
+      }),
+      blockRow({
+        blockId: 'block-2',
+        blockName: 'Fetch orders',
+        workflowId: 'workflow-1',
+        workflowName: 'Nightly sync',
+        subBlocks: shortInput('apiKey', '{{API_KEY}}'),
+      }),
+    ])
+
+    const scan = await scanSecretReferences({ workspaceId: 'workspace-1', name: 'API_KEY' })
+
+    expect(scan.workflows).toEqual([
+      {
+        workflowId: 'workflow-1',
+        workflowName: 'Nightly sync',
+        blocks: [
+          { blockId: 'block-2', blockName: 'Fetch orders', blockType: 'agent', field: 'apiKey' },
+        ],
+      },
+    ])
   })
 
   /**

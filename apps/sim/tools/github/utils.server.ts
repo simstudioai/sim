@@ -63,12 +63,13 @@ export async function secureGitHubRequest(
   url: string,
   options: SecureGitHubRequestOptions
 ): Promise<Response> {
-  const validation = await validateUrlWithDNS(url, 'githubUrl')
-  if (!validation.isValid || !validation.resolvedIP) {
+  const validation = await validateUrlWithDNS(url, 'githubUrl', 'configuredEndpoint')
+  if (!validation.isValid) {
     throw new Error(`Invalid GitHub URL: ${validation.error ?? 'DNS resolution failed'}`)
   }
 
   const response = await secureFetchWithPinnedIP(url, validation.resolvedIP, {
+    profile: 'configuredEndpoint',
     method: options.method ?? 'GET',
     headers: withUserAgent(options.headers),
     body: options.body,

@@ -1,3 +1,4 @@
+import type Anthropic from '@anthropic-ai/sdk'
 import type { RawMessageStreamEvent } from '@anthropic-ai/sdk/resources'
 import { createLogger } from '@sim/logger'
 import {
@@ -17,6 +18,7 @@ export interface AnthropicStreamComplete {
   /** Assembled thinking text for traces (redacted blocks become `[redacted]`). */
   thinking: string
   finishReason?: string
+  nativeContent: Anthropic.Messages.ContentBlock[]
 }
 
 /**
@@ -27,7 +29,7 @@ export interface AnthropicStreamComplete {
  */
 export function createReadableStreamFromAnthropicStream(
   anthropicStream: AsyncIterable<RawMessageStreamEvent>,
-  onComplete?: (result: AnthropicStreamComplete) => void
+  onComplete?: (result: AnthropicStreamComplete) => void | Promise<void>
 ): ReadableStream<AgentStreamEvent> {
   let cancelled = false
   let streamIterator: AsyncIterator<RawMessageStreamEvent> | undefined
@@ -40,6 +42,7 @@ export function createReadableStreamFromAnthropicStream(
         let currentThinking = ''
         let usageSnapshot: AnthropicUsageLike = {}
         let finishReason: string | undefined
+        const nativeBlocks = new Map<number, Anthropic.Messages.ContentBlock>()
 
         const flushThinkingBlock = () => {
           if (currentThinking) {
@@ -76,6 +79,13 @@ export function createReadableStreamFromAnthropicStream(
           }
 
           if (event.type === 'content_block_start') {
+            if (
+              event.content_block.type === 'text' ||
+              event.content_block.type === 'thinking' ||
+              event.content_block.type === 'redacted_thinking'
+            ) {
+              nativeBlocks.set(event.index, { ...event.content_block })
+            }
             if (event.content_block.type === 'redacted_thinking') {
               flushThinkingBlock()
               thinkingBlocks.push('[redacted]')
@@ -95,6 +105,15 @@ export function createReadableStreamFromAnthropicStream(
           }
 
           const delta = event.delta
+          const nativeBlock = nativeBlocks.get(event.index)
+          if (delta.type === 'text_delta' && nativeBlock?.type === 'text')
+            nativeBlock.text += delta.text
+          if (delta.type === 'thinking_delta' && nativeBlock?.type === 'thinking')
+            nativeBlock.thinking += delta.thinking
+          if (delta.type === 'signature_delta' && nativeBlock?.type === 'thinking')
+            nativeBlock.signature += delta.signature
+          if (delta.type === 'citations_delta' && nativeBlock?.type === 'text')
+            nativeBlock.citations = [...(nativeBlock.citations ?? []), delta.citation]
 
           if (delta.type === 'thinking_delta' && typeof delta.thinking === 'string') {
             currentThinking += delta.thinking
@@ -115,11 +134,14 @@ export function createReadableStreamFromAnthropicStream(
         if (onComplete) {
           const usage = createAnthropicUsageAccumulator()
           addAnthropicUsage(usage, usageSnapshot)
-          onComplete({
+          await onComplete({
             content: fullContent,
             usage,
             thinking: thinkingBlocks.filter(Boolean).join('\n\n'),
             finishReason,
+            nativeContent: [...nativeBlocks.entries()]
+              .sort(([left], [right]) => left - right)
+              .map(([, block]) => block),
           })
         }
 

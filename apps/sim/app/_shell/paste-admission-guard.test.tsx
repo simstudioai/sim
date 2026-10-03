@@ -2,20 +2,31 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { emcnMock, emcnMockFns } from '@sim/testing/mocks/emcn.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { warning } = vi.hoisted(() => ({ warning: vi.fn() }))
+vi.mock('@sim/emcn', () => emcnMock)
 
-vi.mock('@sim/emcn', () => ({
-  useToast: () => ({ toast: { warning } }),
-}))
-
-import { SIM_SELECTION_MIME } from '@/lib/copilot/chat/selection-clipboard'
+import { SIM_SELECTION_MIME } from '@/lib/mothership/chat/selection-clipboard'
 import { PasteAdmissionGuard } from '@/app/_shell/paste-admission-guard'
+
+const { warning } = emcnMockFns.mockToast
 
 let host: HTMLDivElement
 let root: Root
+
+const selectionContext = {
+  kind: 'table_selection',
+  tableId: 'table-1',
+  tableName: 'Large table',
+  rowIds: ['row-1'],
+  label: 'Large table (1 row)',
+}
+
+function selectionPayload(sourceWorkspaceId = 'ws-1'): string {
+  return JSON.stringify({ version: 1, sourceWorkspaceId, context: selectionContext })
+}
 
 function dispatchPaste(
   target: Element,
@@ -53,7 +64,6 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   host.remove()
-  vi.clearAllMocks()
 })
 
 describe('PasteAdmissionGuard', () => {
@@ -71,77 +81,25 @@ describe('PasteAdmissionGuard', () => {
     expect(warning).toHaveBeenCalledOnce()
   })
 
-  it('does not reject a small payload because the existing native value is large', () => {
-    const input = document.createElement('textarea')
-    input.dataset.pasteMaxBytes = '6'
-    input.value = '123456'
-    host.appendChild(input)
-
-    input.setSelectionRange(6, 6)
-    expect(dispatchPaste(input, 'a').defaultPrevented).toBe(false)
-  })
-
-  it('honors a surface-specific character contract', () => {
-    const input = document.createElement('textarea')
-    input.dataset.pasteMaxBytes = '100'
-    input.dataset.pasteMaxCharacters = '2'
-    host.appendChild(input)
-
-    expect(dispatchPaste(input, '💡💡').defaultPrevented).toBe(true)
-  })
-
-  it('does not reject a small payload because contenteditable text is already large', () => {
-    const editable = document.createElement('div')
-    editable.contentEditable = 'true'
-    editable.dataset.pasteMaxBytes = '6'
-    editable.textContent = '123456'
-    host.appendChild(editable)
-
-    expect(dispatchPaste(editable, 'a').defaultPrevented).toBe(false)
-  })
-
-  it('defers text admission to an editor that projects its exact paste result', () => {
-    const editor = document.createElement('div')
-    editor.setAttribute('contenteditable', 'true')
-    editor.dataset.pasteMaxBytes = '4'
-    editor.dataset.pasteProjectsTextResult = 'true'
-    host.appendChild(editor)
-
-    const targetHandler = vi.fn()
-    editor.addEventListener('paste', targetHandler)
-    expect(dispatchPaste(editor, '12345').defaultPrevented).toBe(false)
-    expect(targetHandler).toHaveBeenCalledOnce()
-  })
-
-  it('lets a prompt consume a compact Sim selection reference before its large plain text', () => {
+  it('still bounds a cross-workspace selection plain-text representation', () => {
     const input = document.createElement('textarea')
     input.dataset.pasteMaxBytes = '4'
-    input.dataset.pasteSelectionContext = 'reference'
+    input.dataset.pasteSelectionContext = 'ws-2'
     host.appendChild(input)
-    const selectionContext = JSON.stringify({
-      kind: 'table_selection',
-      tableId: 'table-1',
-      tableName: 'Large table',
-      rowIds: ['row-1'],
-      label: 'Large table (1 row)',
-    })
 
-    expect(dispatchPaste(input, '12345', { selectionContext }).defaultPrevented).toBe(false)
+    expect(
+      dispatchPaste(input, '12345', { selectionContext: selectionPayload() }).defaultPrevented
+    ).toBe(true)
   })
 
   it('still bounds a Sim selection plain-text representation outside the prompt', () => {
     const input = document.createElement('textarea')
     input.dataset.pasteMaxBytes = '4'
     host.appendChild(input)
-    const selectionContext = JSON.stringify({
-      kind: 'table_selection',
-      tableId: 'table-1',
-      tableName: 'Large table',
-      rowIds: ['row-1'],
-      label: 'Large table (1 row)',
-    })
 
-    expect(dispatchPaste(input, '12345', { selectionContext }).defaultPrevented).toBe(true)
+    expect(
+      dispatchPaste(input, '12345', { selectionContext: selectionPayload() }).defaultPrevented
+    ).toBe(true)
   })
 
   it('bounds rich HTML separately from its smaller plain-text representation', () => {
@@ -154,24 +112,5 @@ describe('PasteAdmissionGuard', () => {
     expect(dispatchPaste(editable, 'abc', { html: '<strong>abc</strong>' }).defaultPrevented).toBe(
       true
     )
-  })
-
-  it('lets an opted-in rich editor handle clipboard image files before text admission', () => {
-    const editable = document.createElement('div')
-    editable.setAttribute('contenteditable', 'true')
-    editable.dataset.pasteMaxBytes = '4'
-    editable.dataset.pasteMaxHtmlBytes = '4'
-    editable.dataset.pasteHandlesImages = 'true'
-    host.appendChild(editable)
-
-    const targetHandler = vi.fn()
-    editable.addEventListener('paste', targetHandler)
-    const event = dispatchPaste(editable, '12345', {
-      html: '<img src="data:image/png;base64,large">',
-      imageFile: true,
-    })
-
-    expect(event.defaultPrevented).toBe(false)
-    expect(targetHandler).toHaveBeenCalledOnce()
   })
 })

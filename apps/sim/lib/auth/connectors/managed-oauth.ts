@@ -1,14 +1,17 @@
 import { createHash } from 'node:crypto'
-import type { OAuth2Tokens } from '@better-auth/core/oauth2'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
+import type { OAuth2Tokens } from 'better-auth/oauth2'
 import type { GenericOAuthConfig } from 'better-auth/plugins'
 import { OAuth2Client, type TokenPayload } from 'google-auth-library'
+import { createRemoteJWKSet, type JWTPayload, jwtVerify } from 'jose'
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
+import { verifyGitHubRepositoriesIdentity } from '@/lib/oauth/github-repositories'
+import { deriveMicrosoftEmailVerified, mapMicrosoftProfileToUser } from '@/lib/oauth/microsoft'
 import { SALESFORCE_LOGIN_HOSTS } from '@/lib/oauth/salesforce'
 import { isTerminalRefreshError } from '@/lib/oauth/terminal-errors'
-import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
+import { getCanonicalScopesForProvider, isScopeSatisfiedBy } from '@/lib/oauth/utils'
 import { MONDAY_API_URL, MONDAY_API_VERSION } from '@/tools/monday/utils'
 
 const GOOGLE_OPENID_SCOPE = 'openid'
@@ -21,6 +24,19 @@ const GMAIL_LABELS_SCOPE = 'https://www.googleapis.com/auth/gmail.labels'
 const ATLASSIAN_USER_INFO_URL = 'https://api.atlassian.com/me'
 const ATLASSIAN_USER_INFO_MAX_BYTES = 256 * 1024
 const ATLASSIAN_USER_INFO_TIMEOUT_MS = 10_000
+const MICROSOFT_JWKS_URL = 'https://login.microsoftonline.com/common/discovery/v2.0/keys'
+const MICROSOFT_OIDC_USER_INFO_URL = 'https://graph.microsoft.com/oidc/userinfo'
+const MICROSOFT_OIDC_USER_INFO_MAX_BYTES = 256 * 1024
+const MICROSOFT_OIDC_USER_INFO_TIMEOUT_MS = 10_000
+const MICROSOFT_GRAPH_SCOPE_PREFIX = 'https://graph.microsoft.com/'
+/** The Microsoft providers whose accounts a Credential Group can collect per person. */
+const MICROSOFT_MANAGED_OAUTH_PROVIDER_IDS = new Set([
+  'microsoft-teams',
+  'outlook',
+  'onedrive',
+  'sharepoint',
+  'microsoft-excel',
+])
 
 type AtlassianManagedOAuthProviderId = 'confluence' | 'jira'
 
@@ -46,7 +62,6 @@ export interface ManagedOAuthConnectorConfig {
    */
   scopeless?: boolean
   nonceVerification: 'id_token' | 'state_only'
-  includeLoginHint: boolean
   prompt?: string
   authorizationUrlParams?: Record<string, string>
   getAuthorizationAppId(clientId: string): string
@@ -76,7 +91,7 @@ function hasRequiredGoogleScopes(
   const granted = new Set(grantedScopes.map(canonicalGoogleScope))
   return requiredScopes.every((requestedScope) => {
     const required = canonicalGoogleScope(requestedScope)
-    if (granted.has(required)) return true
+    if (granted.has(required) || isScopeSatisfiedBy(required, granted)) return true
     return (
       providerId === 'google-email' &&
       granted.has(GMAIL_MODIFY_SCOPE) &&
@@ -103,7 +118,6 @@ export function createGoogleManagedOAuthConnector(providerId: string): ManagedOA
     requiresRefreshToken: true,
     pkce: true,
     nonceVerification: 'id_token',
-    includeLoginHint: true,
     prompt: 'consent select_account',
     authorizationUrlParams: { include_granted_scopes: 'false' },
     getAuthorizationAppId(clientId) {
@@ -182,7 +196,6 @@ export function createAtlassianManagedOAuthConnector(
     requiresRefreshToken: true,
     pkce: false,
     nonceVerification: 'state_only',
-    includeLoginHint: false,
     prompt: 'consent',
     authorizationUrlParams: { audience: 'api.atlassian.com' },
     getAuthorizationAppId(clientId) {
@@ -222,8 +235,161 @@ export function createAtlassianManagedOAuthConnector(
       return requiredScopes.every((scope) => granted.has(scope))
     },
     isTerminalRefreshError(errorCode) {
-      return errorCode === 'invalid_grant'
+      return errorCode === 'invalid_grant' || errorCode === 'unauthorized_client'
     },
+  }
+}
+
+let microsoftJwks: ReturnType<typeof createRemoteJWKSet> | undefined
+
+/** The signing keys of the multi-tenant Microsoft identity platform, cached across verifications. */
+function getMicrosoftJwks(): ReturnType<typeof createRemoteJWKSet> {
+  microsoftJwks ??= createRemoteJWKSet(new URL(MICROSOFT_JWKS_URL))
+  return microsoftJwks
+}
+
+/**
+ * Graph delegated scopes compare by name regardless of case, and a token response may spell
+ * one as its resource-qualified form.
+ */
+function canonicalMicrosoftScope(scope: string): string {
+  const unqualified = scope.startsWith(MICROSOFT_GRAPH_SCOPE_PREFIX)
+    ? scope.slice(MICROSOFT_GRAPH_SCOPE_PREFIX.length)
+    : scope
+  return unqualified.toLowerCase()
+}
+
+interface MicrosoftIdentityClaims {
+  oid: string
+  tid: string
+  sub: string
+  email: string
+  name?: string
+  nonce?: string
+  claims: Record<string, unknown>
+}
+
+/**
+ * Reads the claims a verified Microsoft id_token must carry to bind an enrollment. `oid` and
+ * `tid` identify the person and their tenant stably across every Microsoft app; `sub` is the
+ * app-pairwise subject the OIDC userinfo endpoint echoes back. The issuer is checked against the
+ * token's own tenant because the multi-tenant `/common` authority signs for every tenant.
+ */
+function requireMicrosoftIdentityClaims(payload: JWTPayload): MicrosoftIdentityClaims {
+  const claims: Record<string, unknown> = { ...payload }
+  const { oid, tid, sub, iss, name, nonce } = claims
+  if (
+    typeof oid !== 'string' ||
+    !oid ||
+    typeof tid !== 'string' ||
+    !tid ||
+    typeof sub !== 'string' ||
+    !sub ||
+    iss !== `https://login.microsoftonline.com/${tid}/v2.0`
+  ) {
+    throw new Error('Microsoft returned an invalid identity token')
+  }
+  const email = [claims.email, claims.preferred_username, claims.upn].find(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0
+  )
+  if (!email) {
+    throw new Error('Microsoft returned an identity token without an email')
+  }
+  return {
+    oid,
+    tid,
+    sub,
+    email,
+    ...(typeof name === 'string' && name.trim() ? { name } : {}),
+    ...(typeof nonce === 'string' && nonce ? { nonce } : {}),
+    claims,
+  }
+}
+
+/**
+ * The subject the access token resolves to at Microsoft's OIDC userinfo endpoint. It needs only
+ * the `openid` grant, so unlike Graph `/me` it does not fail for a tenant whose administrator has
+ * not consented to Graph.
+ */
+async function fetchMicrosoftAccessTokenSubject(accessToken: string): Promise<string> {
+  const response = await fetch(MICROSOFT_OIDC_USER_INFO_URL, {
+    headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(MICROSOFT_OIDC_USER_INFO_TIMEOUT_MS),
+  })
+  const profile = await readResponseJsonWithLimit<unknown>(response, {
+    maxBytes: MICROSOFT_OIDC_USER_INFO_MAX_BYTES,
+    label: 'Microsoft user identity response',
+  })
+  if (!response.ok) {
+    throw new Error(`Microsoft user identity request failed with HTTP ${response.status}`)
+  }
+  if (!isRecordLike(profile) || typeof profile.sub !== 'string' || !profile.sub) {
+    throw new Error('Microsoft returned an invalid user identity')
+  }
+  return profile.sub
+}
+
+/**
+ * Managed enrollment policy for the providers that share Sim's Microsoft app registration.
+ *
+ * Identity comes from the id_token, verified against the identity platform's published keys and
+ * bound to the access token through the OIDC userinfo subject, the way the Google policy binds
+ * through tokeninfo. Microsoft never asserts `email_verified` for a work account, so the email
+ * counts as proven only through the claims Entra does vouch for: the verified-email claims, or
+ * `xms_edov` asserting the domain belongs to the account's own tenant.
+ */
+export function createMicrosoftManagedOAuthConnector(
+  providerId: string
+): ManagedOAuthConnectorConfig {
+  return {
+    additionalScopes: [],
+    requiresRefreshToken: true,
+    pkce: true,
+    nonceVerification: 'id_token',
+    prompt: 'select_account',
+    getAuthorizationAppId(clientId) {
+      return `microsoft:${createHash('sha256').update(clientId).digest('hex')}`
+    },
+    async verifyIdentity({ tokens, clientId }) {
+      if (!tokens.idToken || !tokens.accessToken) {
+        throw new Error(`Microsoft ${providerId} returned an incomplete authorization`)
+      }
+      const { payload } = await jwtVerify(tokens.idToken, getMicrosoftJwks(), {
+        audience: clientId,
+      })
+      const identity = requireMicrosoftIdentityClaims(payload)
+      const accessTokenSubject = await fetchMicrosoftAccessTokenSubject(tokens.accessToken)
+      if (accessTokenSubject !== identity.sub) {
+        throw new Error('Microsoft returned an access token for another identity')
+      }
+      /**
+       * The token response's `scope` is not guaranteed to echo the OIDC scopes or
+       * `offline_access`, so each is counted only when the response itself proves the grant: an
+       * id_token for `openid`, its `name` and `email` claims for `profile` and `email`, and a
+       * refresh token for `offline_access`.
+       */
+      const grantedScopes = new Set(tokens.scopes ?? [])
+      grantedScopes.add('openid')
+      if (identity.name) grantedScopes.add('profile')
+      if (typeof identity.claims.email === 'string') grantedScopes.add('email')
+      if (tokens.refreshToken) grantedScopes.add('offline_access')
+      return {
+        providerSubjectId: identity.oid,
+        providerTenantId: identity.tid,
+        email: identity.email,
+        emailVerified:
+          deriveMicrosoftEmailVerified(identity.claims, identity.email) ||
+          mapMicrosoftProfileToUser(identity.claims).emailVerified === true,
+        ...(identity.name ? { displayName: identity.name } : {}),
+        ...(identity.nonce ? { nonce: identity.nonce } : {}),
+        grantedScopes: [...grantedScopes],
+      }
+    },
+    hasRequiredScopes(grantedScopes, requiredScopes) {
+      const granted = new Set(grantedScopes.map(canonicalMicrosoftScope))
+      return requiredScopes.every((scope) => granted.has(canonicalMicrosoftScope(scope)))
+    },
+    isTerminalRefreshError,
   }
 }
 
@@ -350,7 +516,6 @@ export function createUserInfoManagedOAuthConnector(
     requiresRefreshToken: options.requiresRefreshToken,
     pkce: options.pkce ?? false,
     nonceVerification: 'state_only',
-    includeLoginHint: false,
     ...(options.scopeless ? { scopeless: true } : {}),
     ...(options.prompt ? { prompt: options.prompt } : {}),
     ...(options.authorizationUrlParams
@@ -488,7 +653,6 @@ function createAttioManagedOAuthConnector(): ManagedOAuthConnectorConfig {
     requiresRefreshToken: false,
     pkce: false,
     nonceVerification: 'state_only',
-    includeLoginHint: false,
     getAuthorizationAppId(clientId) {
       return `attio:${createHash('sha256').update(clientId).digest('hex')}`
     },
@@ -559,6 +723,91 @@ function createAttioManagedOAuthConnector(): ManagedOAuthConnectorConfig {
   }
 }
 
+const BITBUCKET_API_BASE = 'https://api.bitbucket.org/2.0'
+const BITBUCKET_EMAIL_SCOPE = 'email'
+
+/**
+ * Bitbucket's current-user endpoint carries no address, and its emails endpoint needs the
+ * `email` scope the consumer would not otherwise request; so this policy adds that scope and
+ * reads the two resources in turn. The subject is the immutable `account_id`; there is no
+ * tenant because one Bitbucket account belongs to any number of workspaces.
+ */
+function createBitbucketManagedOAuthConnector(): ManagedOAuthConnectorConfig {
+  return {
+    additionalScopes: [BITBUCKET_EMAIL_SCOPE],
+    requiresRefreshToken: true,
+    pkce: false,
+    nonceVerification: 'state_only',
+    getAuthorizationAppId(clientId) {
+      return `bitbucket:${createHash('sha256').update(clientId).digest('hex')}`
+    },
+    async verifyIdentity({ tokens }) {
+      if (!tokens.accessToken) {
+        throw new Error('Bitbucket returned an incomplete authorization')
+      }
+      const headers = {
+        Accept: 'application/json',
+        Authorization: `Bearer ${tokens.accessToken}`,
+      }
+      const userResponse = await fetch(`${BITBUCKET_API_BASE}/user`, {
+        headers,
+        signal: AbortSignal.timeout(USER_INFO_TIMEOUT_MS),
+      })
+      const userBody = await readResponseJsonWithLimit<unknown>(userResponse, {
+        maxBytes: USER_INFO_MAX_BYTES,
+        label: 'Bitbucket identity response',
+      })
+      if (!userResponse.ok) {
+        throw new Error(`Bitbucket identity request failed with HTTP ${userResponse.status}`)
+      }
+      const user = asProfileRecord(userBody, 'Bitbucket')
+      const accountId = requireIdentityField(user.account_id, 'Bitbucket account id')
+      const emailsResponse = await fetch(`${BITBUCKET_API_BASE}/user/emails`, {
+        headers,
+        signal: AbortSignal.timeout(USER_INFO_TIMEOUT_MS),
+      })
+      const emailsBody = await readResponseJsonWithLimit<unknown>(emailsResponse, {
+        maxBytes: USER_INFO_MAX_BYTES,
+        label: 'Bitbucket emails response',
+      })
+      if (!emailsResponse.ok) {
+        throw new Error(`Bitbucket emails request failed with HTTP ${emailsResponse.status}`)
+      }
+      const emails = asProfileRecord(emailsBody, 'Bitbucket').values
+      const primary = Array.isArray(emails)
+        ? emails.find(
+            (entry): entry is Record<string, unknown> =>
+              isRecordLike(entry) && entry.is_primary === true && entry.is_confirmed === true
+          )
+        : undefined
+      const avatar =
+        isRecordLike(user.links) && isRecordLike(user.links.avatar)
+          ? user.links.avatar.href
+          : undefined
+      const base = withOptionalIdentityFields(
+        {
+          providerSubjectId: accountId,
+          email: requireIdentityField(primary?.email, 'Bitbucket confirmed primary email'),
+          /** Only a confirmed primary address is accepted above. */
+          emailVerified: true,
+        },
+        { displayName: user.display_name, avatarUrl: avatar }
+      )
+      return {
+        ...base,
+        providerTenantId: null,
+        /** Bitbucket reports the consumer's granted scopes on the token response. */
+        grantedScopes: [...new Set(tokens.scopes ?? [])],
+      }
+    },
+    hasRequiredScopes(grantedScopes, requiredScopes) {
+      const granted = new Set(grantedScopes)
+      return requiredScopes.every((scope) => granted.has(scope))
+    },
+    isTerminalRefreshError,
+  }
+}
+
 /**
  * Managed enrollment policies for the providers whose identity endpoint reports an email the
  * provider itself vouches for. Keyed by connector provider id.
@@ -581,7 +830,7 @@ const USER_INFO_MANAGED_OAUTH_CONNECTORS = new Map<string, () => ManagedOAuthCon
         },
         parse: (profile) => {
           const account = asProfileRecord(profile, 'Dropbox')
-          const name = isRecordLike(account.name) ? account.name : {}
+          const name = toRecord(account.name)
           return withOptionalIdentityFields(
             {
               providerSubjectId: requireIdentityField(account.account_id, 'Dropbox account id'),
@@ -640,15 +889,15 @@ const USER_INFO_MANAGED_OAUTH_CONNECTORS = new Map<string, () => ManagedOAuthCon
            * `bot.owner.user`. A workspace-owned internal integration reports
            * `{ type: 'workspace' }` and identifies nobody, which cannot be bound to an invitation.
            */
-          const bot = isRecordLike(self.bot) ? self.bot : {}
-          const owner = isRecordLike(bot.owner) ? bot.owner : {}
+          const bot = toRecord(self.bot)
+          const owner = toRecord(bot.owner)
           if (owner.type !== 'user') {
             throw new Error(
               'Notion returned a workspace-owned integration, which identifies no person to bind this invitation to'
             )
           }
           const user = asProfileRecord(owner.user, 'Notion')
-          const person = isRecordLike(user.person) ? user.person : {}
+          const person = toRecord(user.person)
           return withOptionalIdentityFields(
             {
               providerSubjectId: requireIdentityField(user.id, 'Notion user id'),
@@ -719,6 +968,29 @@ const USER_INFO_MANAGED_OAUTH_CONNECTORS = new Map<string, () => ManagedOAuthCon
       }),
   ],
   ['attio', createAttioManagedOAuthConnector],
+  ['bitbucket', createBitbucketManagedOAuthConnector],
+  [
+    'github-repositories',
+    () => ({
+      additionalScopes: [],
+      requiresRefreshToken: true,
+      pkce: true,
+      scopeless: true,
+      nonceVerification: 'state_only',
+      getAuthorizationAppId(clientId) {
+        return `github-repositories:${createHash('sha256').update(clientId).digest('hex')}`
+      },
+      verifyIdentity({ tokens }) {
+        return verifyGitHubRepositoriesIdentity(tokens.accessToken ?? '')
+      },
+      hasRequiredScopes(_grantedScopes, requiredScopes) {
+        return requiredScopes.length === 0
+      },
+      isTerminalRefreshError(errorCode) {
+        return isTerminalRefreshError(errorCode)
+      },
+    }),
+  ],
   [
     'hubspot',
     () =>
@@ -732,7 +1004,7 @@ const USER_INFO_MANAGED_OAUTH_CONNECTORS = new Map<string, () => ManagedOAuthCon
         scopes: {
           from: 'profile',
           read: (profile) => {
-            const metadata = isRecordLike(profile) ? profile : {}
+            const metadata = toRecord(profile)
             if (Array.isArray(metadata.scopes)) {
               return metadata.scopes.filter((scope): scope is string => typeof scope === 'string')
             }
@@ -798,8 +1070,8 @@ const USER_INFO_MANAGED_OAUTH_CONNECTORS = new Map<string, () => ManagedOAuthCon
     () =>
       createUserInfoManagedOAuthConnector({
         providerId: 'monday',
-        /** monday.com access tokens do not expire and no refresh token is issued. */
-        requiresRefreshToken: false,
+        requiresRefreshToken: true,
+        pkce: true,
         scopes: { from: 'token_response' },
         userInfo: {
           url: MONDAY_API_URL,
@@ -863,7 +1135,7 @@ const USER_INFO_MANAGED_OAUTH_CONNECTORS = new Map<string, () => ManagedOAuthCon
         parse: (profile) => {
           const envelope = asProfileRecord(profile, 'Asana')
           const user = asProfileRecord(envelope.data, 'Asana')
-          const photo = isRecordLike(user.photo) ? user.photo : {}
+          const photo = toRecord(user.photo)
           return withOptionalIdentityFields(
             {
               providerSubjectId: requireIdentityField(user.gid, 'Asana user id'),
@@ -1031,11 +1303,23 @@ export function getManagedOAuthConnectorPolicy(
 function resolveManagedOAuthPolicy(
   providerId: string
 ): (() => ManagedOAuthConnectorConfig) | undefined {
-  if (providerId === 'google-email' || providerId === 'google-calendar') {
+  if (
+    providerId === 'google-email' ||
+    providerId === 'google-calendar' ||
+    providerId === 'google-drive' ||
+    providerId === 'google-docs' ||
+    providerId === 'google-forms' ||
+    providerId === 'google-chat' ||
+    providerId === 'google-meet' ||
+    providerId === 'google-sheets'
+  ) {
     return () => createGoogleManagedOAuthConnector(providerId)
   }
   if (providerId === 'confluence' || providerId === 'jira') {
     return () => createAtlassianManagedOAuthConnector(providerId)
+  }
+  if (MICROSOFT_MANAGED_OAUTH_PROVIDER_IDS.has(providerId)) {
+    return () => createMicrosoftManagedOAuthConnector(providerId)
   }
   return USER_INFO_MANAGED_OAUTH_CONNECTORS.get(providerId)
 }

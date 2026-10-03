@@ -12,10 +12,10 @@ import {
 import { Button, cn } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { WorkflowBlockBorder, type WorkflowBorderPort } from '@sim/workflow-renderer'
+import { Handle, type Node, type NodeProps, Position } from '@xyflow/react'
 import { Command } from 'cmdk'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { Handle, type NodeProps, Position } from 'reactflow'
 import { captureEvent } from '@/lib/posthog/client'
 import {
   CommandFadedList,
@@ -93,10 +93,15 @@ const SELECTOR_PORTS: WorkflowBorderPort[] = [
   },
 ]
 
-export interface ConnectionBlockSelectorData {
+export interface ConnectionBlockSelectorData extends Record<string, unknown> {
   pendingConnect: PendingConnect
   onClose: () => void
 }
+
+export type ConnectionBlockSelectorNode = Node<
+  ConnectionBlockSelectorData,
+  'connectionBlockSelector'
+>
 
 type RecentSelection =
   | { kind: 'block'; id: string }
@@ -144,7 +149,7 @@ function isRecentSelection(value: unknown): value is RecentSelection {
  * pane. Its outer silhouette is the canonical workflow-card border, so the
  * temporary edge reads as connected to the block that will replace it.
  */
-export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockSelectorData>) {
+export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockSelectorNode>) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const currentWorkflowId = params.workflowId as string | undefined
@@ -438,7 +443,7 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
           onClick={data.onClose}
           aria-label='Close block selector'
           title='Close'
-          className="nodrag nopan !h-[24px] !w-[40px] !bg-[color-mix(in_srgb,var(--surface-2)_18%,transparent)] !text-[color-mix(in_srgb,var(--text-inverse)_72%,transparent)] hover-hover:!bg-[var(--surface-2)] hover-hover:!text-[var(--text-primary)] [&_svg]:-translate-x-[6px] shrink-0 rounded-md border-none p-0 transition-[background-color,color,opacity,transform] duration-150 [clip-path:path('M16.25_0A8_8_0_0_1_22.4_2.88L36.59_19.9A2.5_2.5_0_0_1_34.66_24L4_24A4_4_0_0_1_0_20L0_4A4_4_0_0_1_4_0Z')] active:scale-[0.96] [&_svg]:translate-y-px"
+          className="nodrag nopan [&_svg]:-translate-x-[6px] h-[24px]! w-[40px]! shrink-0 rounded-md border-none bg-[color-mix(in_srgb,var(--surface-2)_18%,transparent)]! p-0 text-[color-mix(in_srgb,var(--text-inverse)_72%,transparent)]! transition-[background-color,color,opacity,transform] duration-150 [clip-path:path('M16.25_0A8_8_0_0_1_22.4_2.88L36.59_19.9A2.5_2.5_0_0_1_34.66_24L4_24A4_4_0_0_1_0_20L0_4A4_4_0_0_1_4_0Z')] hover-hover:bg-[var(--surface-2)]! hover-hover:text-[var(--text-primary)]! active:scale-[0.96] [&_svg]:translate-y-px"
         >
           <X className='size-[14px]' />
         </Button>
@@ -447,7 +452,7 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
         type='target'
         position={Position.Left}
         id='target'
-        className='!left-0 !top-1/2 !z-30 !h-[38px] !w-[14px] !-translate-y-1/2 !cursor-default !rounded-none !border-none !bg-transparent !opacity-0'
+        className='-translate-y-1/2! top-1/2! left-0! z-30! h-[38px]! w-[14px]! cursor-default! rounded-none! border-none! bg-transparent! opacity-0!'
         isConnectableStart={false}
         isConnectableEnd={false}
       />
@@ -462,9 +467,8 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
         <div className='relative min-h-0 flex-1'>
           <CommandFadedList
             ref={listRef}
-            fade='canvas'
             className={cn(
-              "nodrag nopan nowheel allow-scroll scrollbar-none [&_[cmdk-item][aria-selected='true']]:!border-transparent [&_[cmdk-item][aria-selected='true']]:!bg-[var(--surface-hover)] [&_[cmdk-item]_svg]:!scale-100 [&_[cmdk-item]_svg]:!transition-none h-full [clip-path:inset(3px_round_13px)]",
+              "nodrag nopan nowheel allow-scroll scrollbar-none h-full [clip-path:inset(3px_round_13px)] [&_[cmdk-item][aria-selected='true']]:border-transparent! [&_[cmdk-item][aria-selected='true']]:bg-[var(--surface-hover)]! [&_[cmdk-item]_svg]:scale-100! [&_[cmdk-item]_svg]:transition-none!",
               CMDK_ITEM_GAP_CLASS,
               CMDK_SECTION_GAP_CLASS
             )}

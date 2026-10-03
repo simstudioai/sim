@@ -84,6 +84,7 @@ async function fetchAccessToken(
   const response = await secureFetchWithValidation(
     `${authority}/${encodeURIComponent(input.tenantId)}/oauth2/token`,
     {
+      profile: 'configuredEndpoint',
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -269,6 +270,7 @@ export async function requestAzureDataExplorer(
   const response = await secureFetchWithValidation(
     `${clusterUrl.origin}/v1/rest/${input.endpoint}`,
     {
+      profile: 'configuredEndpoint',
       method: 'POST',
       headers,
       body: JSON.stringify({

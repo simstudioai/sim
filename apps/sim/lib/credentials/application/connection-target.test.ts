@@ -1,16 +1,22 @@
-/**
- * @vitest-environment node
- */
+import {
+  credentialsAccessMock,
+  credentialsAccessMockFns,
+} from '@sim/testing/mocks/credentials-access.mock'
+import { oauthUtilsMock } from '@sim/testing/mocks/oauth-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   listCatalog: vi.fn(),
   getWorkspaceCredential: vi.fn(),
-  getCredentialActorContext: vi.fn(),
+  assertWorkspaceCapability: vi.fn(),
+}))
+
+vi.mock('@/lib/permission-groups/capability-assertions', () => ({
+  assertWorkspaceCapability: hoisted.assertWorkspaceCapability,
 }))
 
 vi.mock('@/lib/credentials/application/provider-catalog', () => ({
-  listCredentialProviderCatalog: mocks.listCatalog,
+  listCredentialProviderCatalog: hoisted.listCatalog,
   requireAvailableOAuthCredentialProvider: (
     catalog: Array<{
       available: boolean
@@ -29,23 +35,19 @@ vi.mock('@/lib/credentials/application/provider-catalog', () => ({
 }))
 
 vi.mock('@/lib/credentials/queries', () => ({
-  getWorkspaceCredential: mocks.getWorkspaceCredential,
+  getWorkspaceCredential: hoisted.getWorkspaceCredential,
 }))
 
-vi.mock('@/lib/credentials/access', () => ({
-  getCredentialActorContext: mocks.getCredentialActorContext,
-}))
+vi.mock('@/lib/credentials/access', () => credentialsAccessMock)
 
-vi.mock('@/lib/oauth/utils', () => ({
-  credentialProviderMatchesService: (
-    credentialProviderId: string,
-    service: { providerId: string; additionalProviderIds?: readonly string[] }
-  ) =>
-    credentialProviderId === service.providerId ||
-    (service.additionalProviderIds?.includes(credentialProviderId) ?? false),
-}))
+vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 
 import { resolveCredentialConnectionTarget } from '@/lib/credentials/application/connection-target'
+
+const mocks = {
+  ...hoisted,
+  getCredentialActorContext: credentialsAccessMockFns.mockGetCredentialActorContext,
+}
 
 const principal = {
   kind: 'personal_api_key' as const,
@@ -81,24 +83,31 @@ const credential = {
 
 describe('resolveCredentialConnectionTarget', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.listCatalog.mockResolvedValue([salesforceProvider])
     mocks.getWorkspaceCredential.mockResolvedValue(credential)
     mocks.getCredentialActorContext.mockResolvedValue({ credential, isAdmin: true })
+    mocks.assertWorkspaceCapability.mockResolvedValue(undefined)
   })
 
-  it('accepts an exact authorization option for a new connection', async () => {
-    const result = await resolveCredentialConnectionTarget({
-      principal,
-      context,
-      providerId: 'salesforce-sandbox',
-    })
+  /**
+   * `disablePersonalCredentials` leaves members "only workspace-shared ones", so
+   * it withholds connecting an account and not re-authorizing a credential the
+   * workspace already holds. Declaring it on the operation refused both.
+   */
+  it('asserts the personal-credential capability only when connecting an account', async () => {
+    await resolveCredentialConnectionTarget({ principal, context, providerId: 'salesforce' })
 
-    expect(result).toEqual({
-      provider: salesforceProvider,
-      providerId: 'salesforce-sandbox',
-    })
-    expect(mocks.getWorkspaceCredential).not.toHaveBeenCalled()
+    expect(mocks.assertWorkspaceCapability).toHaveBeenCalledWith(
+      'user-1',
+      'workspace-1',
+      'credentials.personal',
+      null
+    )
+
+    mocks.assertWorkspaceCapability.mockClear()
+    await resolveCredentialConnectionTarget({ principal, context, credentialId: 'credential-1' })
+
+    expect(mocks.assertWorkspaceCapability).not.toHaveBeenCalled()
   })
 
   it('loads reconnect credentials through the asserted workspace and requires admin access', async () => {

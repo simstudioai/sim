@@ -12,7 +12,7 @@ import type {
   TablePredicateInput,
 } from '@/lib/table/types'
 import type { BlockConfig } from '@/blocks/types'
-import type { TableQueryV2Response } from '@/tools/table/types'
+import { TABLE_ID_PARAM } from '@/tools/table/params'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -221,19 +221,12 @@ const TABLE_FIELD = ['tableSelector', 'manualTableId'] as const
 const FILTER_FIELD = ['filterBuilder', 'filter'] as const
 const SORT_FIELD = ['sortBuilder', 'order'] as const
 
-export const TableV2Block: BlockConfig<TableQueryV2Response> = {
+export const TableV2Block: BlockConfig = {
   type: 'table_v2',
   name: 'Table',
   description: 'User-defined data tables',
   longDescription:
-    'Create and manage custom data tables. Store, query, and manipulate structured data within workflows. ' +
-    'Query Rows accepts a plain predicate — `{"field":"wins","op":"gte","value":10}` — for one condition. ' +
-    'Use `all` (AND) or `any` (OR) groups for multiple or nested conditions. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, ' +
-    'nlike, nilike, contains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. Order is a sort ' +
-    'spec `[{"field":"wins","direction":"desc"}]`. Query Rows returns every matching row when Limit is omitted ' +
-    '(fails if the result exceeds 5MB — add a filter or a Limit). With a Limit, responses page: a non-null ' +
-    'nextCursor means more rows exist — pass it back as the cursor. Columns to Return narrows each row to ' +
-    'the selected columns (by stable id or name; one that no longer exists is skipped); leave it empty for every column.',
+    'Create and manage custom data tables. Store, query, and manipulate structured data within workflows. Query Rows accepts a plain predicate — `{"field":"wins","op":"gte","value":10}` — for one condition. Use `all` (AND) or `any` (OR) groups for multiple or nested conditions. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, nlike, nilike, contains, ncontains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. Order is a sort spec `[{"field":"wins","direction":"desc"}]`. Query Rows returns every matching row when Limit is omitted (fails if the result exceeds 5MB — add a filter or a Limit). With a Limit, responses page: a non-null nextCursor means more rows exist — pass it back as the cursor. Columns to Return narrows each row to the selected columns (by stable id or name; one that no longer exists is skipped); leave it empty for every column.',
   bestPractices: `
 - To fetch specific rows, use Query Rows with a predicate filter (e.g. {"field":"slack_user_id","op":"in","value":["U1","U2"]}) — do NOT read every row and filter downstream with a Condition block.
 - Use "Get Row by ID" only when you have the row's id; otherwise filter with a predicate.
@@ -242,15 +235,10 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
 - like/ilike use * as the wildcard (e.g. {"field":"name","op":"ilike","value":"*jo*"}).
 - Omit Limit to get the entire matching result in one response — the query fails with a clear error if it exceeds 5MB (narrow with a filter or set a Limit).
 - With a Limit, pages can end at the Limit or the 5MB byte budget, whichever comes first — pass nextCursor back as the cursor and loop until it is null; never infer completion from page size.
-- Columns are scalar (string/number/boolean/date) or opaque json — there are no array columns; for substring use ilike with *x*.
+- For substring matching on a text column use ilike with *x*. A select column accepts only a subset of the operators — eq, ne, in, nin when single; contains, ncontains when multi (a multi-select cell holds a list, matched by option name) — plus isEmpty, isNotEmpty, isNull, isNotNull on both. The query is rejected outright on anything else.
 - Use Columns to Return to keep only the fields a downstream step needs (e.g. ["col_email","name"]) — the 5MB budget counts only the returned columns, so narrowing columns is another way to fit a large table; leave it empty for every column.`,
   docsLink: 'https://docs.sim.ai/integrations/table',
   category: 'blocks',
-  // Unreleased: hidden from every discovery surface until revealed via the hosted
-  // `block-visibility` AppConfig document or the `PREVIEW_BLOCKS` env allowlist.
-  // Placed instances always execute. At GA: drop this, add the BlockMeta + docs,
-  // and mark v1 `table` superseded.
-  preview: true,
   bgColor: '#10B981',
   icon: Table,
   canvasPresentation: {
@@ -382,6 +370,7 @@ export const TableV2Block: BlockConfig<TableQueryV2Response> = {
       id: 'data',
       title: 'Row Data (JSON)',
       type: 'code',
+      language: 'json',
       placeholder: '{"column_name": "value"}',
       condition: {
         field: 'operation',
@@ -438,6 +427,7 @@ Return ONLY the data JSON:`,
       id: 'rows',
       title: 'Rows Data (Array of JSON)',
       type: 'code',
+      language: 'json',
       placeholder: '[{"col1": "val1"}, {"col1": "val2"}]',
       condition: { field: 'operation', value: 'batch_insert_rows' },
       required: true,
@@ -479,6 +469,7 @@ Return ONLY the rows array:`,
       id: 'filter',
       title: 'Filter',
       type: 'code',
+      language: 'json',
       canonicalParamId: 'filterInput',
       mode: 'advanced',
       placeholder: '{"field":"wins","op":"gte","value":10}',
@@ -595,7 +586,7 @@ Return ONLY the JSON object:`,
 
   inputs: {
     operation: { type: 'string', description: 'Table operation to perform' },
-    tableId: { type: 'string', description: 'Table identifier' },
+    tableId: { type: 'string', description: TABLE_ID_PARAM.description },
     data: { type: 'json', description: 'Row data for insert/update' },
     rows: { type: 'array', description: 'Array of row data for batch insert' },
     rowId: { type: 'string', description: 'Row identifier for ID-based operations' },

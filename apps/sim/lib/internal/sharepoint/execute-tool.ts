@@ -14,13 +14,17 @@ import {
 import type {
   InternalToolOperationCall,
   InternalToolOperationHandler,
+  InternalToolOperationResult,
 } from '@/lib/internal/tool-operations/types'
 
 async function executeParsed<S extends z.ZodType>(
   request: InternalToolOperationCall,
   schema: S,
-  execute: (input: z.output<S>, context: SharePointOperationContext) => Promise<Response>
-): Promise<Response> {
+  execute: (
+    input: z.output<S>,
+    context: SharePointOperationContext
+  ) => Promise<InternalToolOperationResult>
+): Promise<InternalToolOperationResult> {
   let serializedInput: string
   try {
     serializedInput = JSON.stringify(request.input) ?? ''
@@ -57,7 +61,9 @@ async function executeParsed<S extends z.ZodType>(
   })
 }
 
-export const executeSharePointTool: InternalToolOperationHandler = async (request) => {
+export const executeSharePointTool: InternalToolOperationHandler<
+  InternalToolOperationResult
+> = async (request) => {
   request.signal?.throwIfAborted()
   if (!request.context.userId) {
     return Response.json({ success: false, error: 'Authentication required' }, { status: 401 })

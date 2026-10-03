@@ -4,6 +4,10 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import {
+  createInternalToolFilesResult,
+  type InternalToolFile,
+} from '@/lib/internal/tool-operations/file-result'
 import { ZoomOperationError } from '@/lib/internal/zoom/errors'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { getExtensionFromMimeType } from '@/lib/uploads/utils/file-utils'
@@ -52,13 +56,7 @@ export interface ZoomOperationContext {
 export async function getZoomMeetingRecordings(
   input: ZoomGetMeetingRecordingsParams,
   context: ZoomOperationContext
-): Promise<{
-  success: true
-  output: {
-    recording: ZoomRecordingsResponse & { recording_files: ZoomRecordingFile[] }
-    files?: Array<{ name: string; mimeType: string; data: string; size: number }>
-  }
-}> {
+) {
   context.signal?.throwIfAborted()
   const query = new URLSearchParams()
   if (input.includeFolderItems != null) {
@@ -67,13 +65,14 @@ export async function getZoomMeetingRecordings(
   if (input.ttl) query.set('ttl', String(input.ttl))
   const baseUrl = `https://api.zoom.us/v2/meetings/${encodeURIComponent(input.meetingId)}/recordings`
   const apiUrl = query.size > 0 ? `${baseUrl}?${query}` : baseUrl
-  const validation = await validateUrlWithDNS(apiUrl, 'apiUrl')
+  const validation = await validateUrlWithDNS(apiUrl, 'apiUrl', 'configuredEndpoint')
   context.signal?.throwIfAborted()
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new ZoomOperationError(validation.error || 'Invalid Zoom API URL', 400)
   }
 
   const response = await secureFetchWithPinnedIP(apiUrl, validation.resolvedIP, {
+    profile: 'configuredEndpoint',
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -86,7 +85,7 @@ export async function getZoomMeetingRecordings(
     throw new ZoomOperationError(errorData.message || `Zoom API error: ${response.status}`, 400)
   }
   const data = (await response.json()) as ZoomRecordingsResponse
-  const files: Array<{ name: string; mimeType: string; data: string; size: number }> = []
+  const files: InternalToolFile[] = []
   let bufferedBytes = 0
 
   if (input.downloadFiles && Array.isArray(data.recording_files)) {
@@ -101,12 +100,17 @@ export async function getZoomMeetingRecordings(
             413
           )
         }
-        const fileValidation = await validateUrlWithDNS(file.download_url, 'downloadUrl')
-        if (!fileValidation.isValid || !fileValidation.resolvedIP) continue
+        const fileValidation = await validateUrlWithDNS(
+          file.download_url,
+          'downloadUrl',
+          'contentFetch'
+        )
+        if (!fileValidation.isValid) continue
         const downloadResponse = await secureFetchWithPinnedIP(
           file.download_url,
           fileValidation.resolvedIP,
           {
+            profile: 'contentFetch',
             method: 'GET',
             headers: { Authorization: `Bearer ${input.accessToken}` },
             maxResponseBytes: remainingBytes,
@@ -128,8 +132,7 @@ export async function getZoomMeetingRecordings(
         files.push({
           name: `zoom-recording-${file.id || file.recording_start || Date.now()}.${extension}`,
           mimeType,
-          data: buffer.toString('base64'),
-          size: buffer.length,
+          buffer,
         })
       } catch (error) {
         context.signal?.throwIfAborted()
@@ -147,36 +150,35 @@ export async function getZoomMeetingRecordings(
     }
   }
 
-  return {
-    success: true,
-    output: {
-      recording: {
-        uuid: data.uuid,
-        id: data.id,
-        account_id: data.account_id,
-        host_id: data.host_id,
-        topic: data.topic,
-        type: data.type,
-        start_time: data.start_time,
-        duration: data.duration,
-        total_size: data.total_size,
-        recording_count: data.recording_count,
-        share_url: data.share_url,
-        recording_files: (data.recording_files || []).map((file) => ({
-          id: file.id,
-          meeting_id: file.meeting_id,
-          recording_start: file.recording_start,
-          recording_end: file.recording_end,
-          file_type: file.file_type,
-          file_extension: file.file_extension,
-          file_size: file.file_size,
-          play_url: file.play_url,
-          download_url: file.download_url,
-          status: file.status,
-          recording_type: file.recording_type,
-        })),
-      },
-      files: files.length > 0 ? files : undefined,
-    },
+  const recording = {
+    uuid: data.uuid,
+    id: data.id,
+    account_id: data.account_id,
+    host_id: data.host_id,
+    topic: data.topic,
+    type: data.type,
+    start_time: data.start_time,
+    duration: data.duration,
+    total_size: data.total_size,
+    recording_count: data.recording_count,
+    share_url: data.share_url,
+    recording_files: (data.recording_files || []).map((file) => ({
+      id: file.id,
+      meeting_id: file.meeting_id,
+      recording_start: file.recording_start,
+      recording_end: file.recording_end,
+      file_type: file.file_type,
+      file_extension: file.file_extension,
+      file_size: file.file_size,
+      play_url: file.play_url,
+      download_url: file.download_url,
+      status: file.status,
+      recording_type: file.recording_type,
+    })),
   }
+  if (files.length === 0) return { success: true, output: { recording } }
+  return createInternalToolFilesResult(files, (storedFiles) => ({
+    success: true,
+    output: { recording, files: storedFiles },
+  }))
 }

@@ -80,6 +80,7 @@ async function hydrateExplicitBase64(
     fileKeys: context.executionContext.fileKeys,
     allowLargeValueWorkflowScope: context.executionContext.allowLargeValueWorkflowScope,
     userId: context.executionContext.userId,
+    principal: context.executionContext.principal,
     maxBytes: context.executionContext.base64MaxBytes,
   })
   if (!hydrated.base64) {

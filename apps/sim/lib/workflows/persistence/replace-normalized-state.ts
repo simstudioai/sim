@@ -5,6 +5,7 @@ import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/erro
 import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
+import { assertNoWithheldBlockType } from '@/lib/workflows/persistence/block-access-guard'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import {
   type PreparedWorkflowState,
@@ -190,6 +191,18 @@ export interface ReplaceWorkflowNormalizedStateInput {
   /** Owner recorded on any custom tool this graph defines. */
   attributedUserId: string
   /**
+   * The human this replace is performed as, or `null` when it is performed as no
+   * human.
+   *
+   * Deliberately separate from `attributedUserId`, which answers a workspace API
+   * key with the workspace's billing owner: attribution is a billing question
+   * and fails open here, where this one decides whether a member's own
+   * permission group may store a block type. Required, and `null` spelled out,
+   * so an actorless write is a claim the caller made rather than an argument it
+   * forgot.
+   */
+  subjectUserId: string | null
+  /**
    * The graph to write, or a reader that produces it.
    *
    * A read-modify-write caller must pass the reader form: it runs after the row
@@ -230,8 +243,23 @@ export interface ReplaceWorkflowNormalizedStateResult {
 export async function replaceWorkflowNormalizedState(
   input: ReplaceWorkflowNormalizedStateInput
 ): Promise<ReplaceWorkflowNormalizedStateResult> {
-  const { workflowId, workspaceId, attributedUserId, state, requestId } = input
+  const { workflowId, workspaceId, attributedUserId, subjectUserId, state, requestId } = input
   const logPrefix = requestId ? `[${requestId}] ` : ''
+
+  /**
+   * Hoisted ahead of the transaction even though the shared write checks it
+   * again: the second call is answered from the request-scoped memo, and
+   * refusing here means a withheld block type never takes the workflow's row
+   * lock or reaches drizzle's transaction wrapper — so the thrown
+   * `OrchestrationError` arrives at callers unwrapped.
+   *
+   * A caller that produces its graph from a reader is unaffected: the reader
+   * composes a graph from what is already stored, and this pass covers the
+   * blocks it hands back through the inner check.
+   */
+  if (typeof state !== 'function') {
+    await assertNoWithheldBlockType({ workspaceId, subjectUserId }, Object.values(state.blocks))
+  }
 
   let preparedState!: PreparedWorkflowState
   let warnings: string[] = []
@@ -277,7 +305,12 @@ export async function replaceWorkflowNormalizedState(
 
     let result: Awaited<ReturnType<typeof saveWorkflowToNormalizedTables>>
     try {
-      result = await saveWorkflowToNormalizedTables(workflowId, workflowState, tx)
+      result = await saveWorkflowToNormalizedTables(
+        workflowId,
+        workflowState,
+        { workspaceId, subjectUserId },
+        tx
+      )
     } catch (error) {
       if (isGraphIdUniqueViolation(error)) {
         throw new OrchestrationError(

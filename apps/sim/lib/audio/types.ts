@@ -3,6 +3,7 @@ export interface AudioExtractionOptions {
   sampleRate?: number
   channels?: 1 | 2
   bitrate?: string
+  signal?: AbortSignal
 }
 
 export interface AudioExtractionResult {

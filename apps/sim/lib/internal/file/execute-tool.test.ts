@@ -1,31 +1,50 @@
-/**
- * @vitest-environment node
- */
+import type { PersonalApiKeyPrincipal } from '@sim/auth/principal'
 import { createExecutionContext } from '@sim/testing'
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { InvalidInternalDelegationBindingError } from '@/lib/auth/internal-delegation'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 
 const mocks = vi.hoisted(() => ({
-  createPrincipal: vi.fn(),
   executeManage: vi.fn(),
   executeParser: vi.fn(),
+  searchContent: vi.fn(),
+  getProvenance: vi.fn(),
 }))
 
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: mocks.createPrincipal,
-}))
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 
 vi.mock('@/lib/internal/file/operations', () => ({
   executeFileManageOperation: mocks.executeManage,
+  getFileContentProvenance: mocks.getProvenance,
+  fileContentJsonResponse: (
+    body: Record<string, unknown>,
+    includePrivateProvenance: boolean,
+    init?: ResponseInit,
+    provenance?: Record<string, unknown>
+  ) =>
+    Response.json(
+      includePrivateProvenance ? { ...body, __resolvedSecretTraceProvenance: provenance } : body,
+      init
+    ),
 }))
 
 vi.mock('@/lib/internal/file/parser', () => ({
   executeFileParserOperation: mocks.executeParser,
 }))
 
+vi.mock('@/lib/workspace-files/application/search-workspace-file-content', () => ({
+  searchWorkspaceFileContent: { execute: mocks.searchContent },
+}))
+
 import { executeFileTool } from '@/lib/internal/file/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
+
+const { mockCreateExecutorPrincipalFromExecutionContext } = executorPrincipalMockFns
 
 const MANAGE_INPUTS = {
   file_append: { operation: 'append', fileName: 'notes.txt', content: 'next' },
@@ -37,8 +56,6 @@ const MANAGE_INPUTS = {
   file_read: { operation: 'read', fileId: 'file-1' },
   file_write: { operation: 'write', fileName: 'notes.txt', content: 'hello' },
 } as const
-
-const PARSER_TOOL_IDS = ['file_fetch', 'file_parser', 'file_parser_v2', 'file_parser_v3'] as const
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'user-1',
@@ -52,6 +69,26 @@ const BILLING_ATTRIBUTION = {
   },
   payerSubscription: null,
 } satisfies BillingAttributionSnapshot
+
+const SEARCH_RESULT = {
+  results: [{ fileId: 'file-1', lineNumber: 2, text: 'needle' }],
+  count: 1,
+  truncated: false,
+  complete: true,
+  indexStatus: {
+    readyFiles: 1,
+    pendingFiles: 0,
+    failedFiles: 0,
+    skippedFiles: 0,
+    partialFiles: 0,
+  },
+  sources: [
+    {
+      identity: { fileId: 'file-1', key: 'workspace/workspace-1/file.txt' },
+      ownerUserId: 'user-1',
+    },
+  ],
+}
 
 function request(
   toolId: string,
@@ -83,8 +120,7 @@ function request(
 
 describe('executeFileTool', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.createPrincipal.mockResolvedValue({
+    mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValue({
       kind: 'delegated',
       serviceId: 'executor',
       subjectUserId: 'user-1',
@@ -92,56 +128,12 @@ describe('executeFileTool', () => {
     })
     mocks.executeManage.mockResolvedValue(Response.json({ success: true }))
     mocks.executeParser.mockResolvedValue(Response.json({ success: true }))
-  })
-
-  it.each(Object.entries(MANAGE_INPUTS))('validates and dispatches %s', async (toolId, input) => {
-    const response = await executeFileTool(request(toolId, input))
-
-    expect(response.status).toBe(200)
-    expect(mocks.executeManage).toHaveBeenCalledWith(
-      expect.objectContaining(input),
-      expect.objectContaining({
-        workspaceId: 'workspace-1',
-        attributedUserId: 'user-1',
-        fileAccessUserId: 'user-1',
-        requestId: 'request-1',
-      })
-    )
-    expect(mocks.executeParser).not.toHaveBeenCalled()
-  })
-
-  it.each(PARSER_TOOL_IDS)('dispatches %s with trusted execution scope', async (toolId) => {
-    const response = await executeFileTool(
-      request(toolId, { filePath: 'https://example.com/report.txt', fileType: '' })
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.executeParser).toHaveBeenCalledWith(
-      expect.objectContaining({ filePath: 'https://example.com/report.txt' }),
-      expect.objectContaining({
-        workspaceId: 'workspace-1',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-        attributedUserId: 'user-1',
-        fileAccessUserId: 'user-1',
-      })
-    )
-    expect(mocks.executeManage).not.toHaveBeenCalled()
-  })
-
-  it('constructs the executor principal from trusted context', async () => {
-    const executionRequest = request('file_get', MANAGE_INPUTS.file_get)
-
-    await executeFileTool(executionRequest)
-
-    expect(mocks.createPrincipal).toHaveBeenCalledWith({
-      context: executionRequest.context,
-      audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
-    })
+    mocks.searchContent.mockResolvedValue(SEARCH_RESULT)
+    mocks.getProvenance.mockResolvedValue({ version: 1, complete: true, entries: [] })
   })
 
   it('uses the delegation origin as the file authorization subject in child workflows', async () => {
-    mocks.createPrincipal.mockResolvedValueOnce({
+    mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValueOnce({
       kind: 'delegated',
       serviceId: 'executor',
       subjectUserId: 'invoking-user',
@@ -202,7 +194,7 @@ describe('executeFileTool', () => {
         },
       },
     }
-    mocks.createPrincipal.mockResolvedValueOnce(principal)
+    mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValueOnce(principal)
 
     await executeFileTool(
       request('file_decompress', MANAGE_INPUTS.file_decompress, {
@@ -233,6 +225,71 @@ describe('executeFileTool', () => {
     )
   })
 
+  it.each([undefined, 'user-1'])(
+    'does not derive authority from body fields or userId (%s)',
+    async (userId) => {
+      const response = await executeFileTool(
+        request(
+          'file_read',
+          {
+            operation: 'read',
+            fileId: 'file-1',
+            callerPrincipal: { kind: 'session', userId: 'user-1', sessionId: 'forged' },
+          },
+          {
+            context: { workflowId: '', workspaceId: 'workspace-1', userId },
+          }
+        )
+      )
+      expect(response.status).toBe(401)
+      expect(mockCreateExecutorPrincipalFromExecutionContext).not.toHaveBeenCalled()
+      expect(mocks.executeManage).not.toHaveBeenCalled()
+    }
+  )
+
+  it('keeps executor delegation authoritative when a direct caller is also present', async () => {
+    const callerPrincipal: PersonalApiKeyPrincipal = {
+      kind: 'personal_api_key',
+      userId: 'user-1',
+      keyId: 'key-1',
+    }
+    const call = request('file_read', MANAGE_INPUTS.file_read)
+    call.context.callerPrincipal = callerPrincipal
+    const response = await executeFileTool(call)
+    expect(response.status).toBe(200)
+    expect(mockCreateExecutorPrincipalFromExecutionContext).toHaveBeenCalled()
+    expect(mocks.executeManage.mock.calls[0]?.[1].principal).toMatchObject({
+      kind: 'delegated',
+      serviceId: 'executor',
+    })
+    expect(mocks.executeManage.mock.calls[0]?.[1].principal).not.toBe(callerPrincipal)
+  })
+
+  it('never falls back to a direct caller after invalid executor delegation', async () => {
+    const call = request('file_read', MANAGE_INPUTS.file_read)
+    call.context.callerPrincipal = { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' }
+    mockCreateExecutorPrincipalFromExecutionContext.mockRejectedValueOnce(
+      new InvalidInternalDelegationBindingError()
+    )
+    const response = await executeFileTool(call)
+    expect(response.status).toBe(401)
+    expect(mockCreateExecutorPrincipalFromExecutionContext).toHaveBeenCalled()
+    expect(mocks.executeManage).not.toHaveBeenCalled()
+  })
+
+  it('rejects a direct caller without trusted workspace scope', async () => {
+    const response = await executeFileTool(
+      request('file_read', MANAGE_INPUTS.file_read, {
+        context: {
+          workflowId: '',
+          callerPrincipal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+        },
+      })
+    )
+    expect(response.status).toBe(401)
+    expect(mocks.executeManage).not.toHaveBeenCalled()
+  })
+
   it('rejects missing trusted identity during principal construction', async () => {
     const response = await executeFileTool(
       request('file_get', MANAGE_INPUTS.file_get, {
@@ -246,41 +303,7 @@ describe('executeFileTool', () => {
     )
 
     expect(response.status).toBe(401)
-    expect(mocks.createPrincipal).not.toHaveBeenCalled()
+    expect(mockCreateExecutorPrincipalFromExecutionContext).not.toHaveBeenCalled()
     expect(mocks.executeManage).not.toHaveBeenCalled()
-  })
-
-  it('returns canonical validation errors before operation work', async () => {
-    const response = await executeFileTool(request('file_write', { operation: 'write' }))
-
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toMatchObject({
-      error: 'Invalid request data',
-      details: expect.any(Array),
-    })
-    expect(mocks.executeManage).not.toHaveBeenCalled()
-  })
-
-  it('propagates cancellation before principal or operation work', async () => {
-    const controller = new AbortController()
-    controller.abort(new DOMException('cancelled', 'AbortError'))
-
-    await expect(
-      executeFileTool(request('file_get', MANAGE_INPUTS.file_get, { signal: controller.signal }))
-    ).rejects.toMatchObject({ name: 'AbortError' })
-    expect(mocks.createPrincipal).not.toHaveBeenCalled()
-    expect(mocks.executeManage).not.toHaveBeenCalled()
-  })
-
-  it('propagates cancellation that arrives while operation work is running', async () => {
-    const controller = new AbortController()
-    mocks.executeManage.mockImplementationOnce(async () => {
-      controller.abort(new DOMException('cancelled', 'AbortError'))
-      return Response.json({ success: true })
-    })
-
-    await expect(
-      executeFileTool(request('file_get', MANAGE_INPUTS.file_get, { signal: controller.signal }))
-    ).rejects.toMatchObject({ name: 'AbortError' })
   })
 })

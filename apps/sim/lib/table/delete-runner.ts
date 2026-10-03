@@ -14,9 +14,10 @@ import {
 } from '@/lib/table/jobs/service'
 import { assertRowDelete, type MutationProof, TableLockedError } from '@/lib/table/mutation-locks'
 import type { DbTransaction } from '@/lib/table/planner'
-import { deletePageByIds, selectRowIdPage } from '@/lib/table/rows/ordering'
+import { type DeletedTableRow, deletePageByIds, selectRowIdPage } from '@/lib/table/rows/ordering'
 import { getTableById } from '@/lib/table/service'
 import { buildFilterClause } from '@/lib/table/sql'
+import { fireTableTrigger } from '@/lib/table/trigger'
 
 const logger = createLogger('TableDeleteRunner')
 
@@ -122,6 +123,22 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
     // an absent filter is still legitimate (delete-all is an explicit caller mode).
     if (filter && !filterClause) throw new Error('Filter is required for bulk delete')
     const excluded = new Set(excludeRowIds ?? [])
+    const dispatchDeleteTriggers = async (
+      rows: DeletedTableRow[],
+      committedTable?: TableDefinition
+    ) => {
+      const triggerTable = committedTable ?? table
+      await fireTableTrigger(
+        triggerTable.id,
+        triggerTable.workspaceId,
+        triggerTable.name,
+        'delete',
+        rows,
+        null,
+        triggerTable.schema,
+        requestId
+      )
+    }
 
     // Resume the persisted count: a retried attempt's earlier batches are already committed,
     // so starting at zero would overwrite cumulative progress with this attempt's smaller
@@ -170,7 +187,14 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
         // returns or throws. (An attempt that ends up committing nothing only over-refetches — harmless.)
         deletedAny = true
         try {
-          processed += await deletePageByIds(tableId, workspaceId, toDelete, pageProof, revalidate)
+          processed += await deletePageByIds(
+            tableId,
+            workspaceId,
+            toDelete,
+            pageProof,
+            revalidate,
+            dispatchDeleteTriggers
+          )
         } catch (err) {
           if (!(err instanceof TableLockedError)) throw err
           // A lock landed between batches. Batches already committed stay

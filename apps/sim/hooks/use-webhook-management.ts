@@ -16,6 +16,10 @@ interface UseWebhookManagementProps {
   triggerId?: string
   isPreview?: boolean
   useWebhookUrl?: boolean
+  providerWebhookUrl?: {
+    providerPath: string
+    routingKeySubBlockId: string
+  }
 }
 
 interface WebhookManagementState {
@@ -88,6 +92,7 @@ export function useWebhookManagement({
   triggerId,
   isPreview = false,
   useWebhookUrl = false,
+  providerWebhookUrl,
 }: UseWebhookManagementProps): WebhookManagementState {
   const params = useParams()
   const workflowId = params.workflowId as string
@@ -99,6 +104,16 @@ export function useWebhookManagement({
   const webhookPath = useSubBlockStore(
     useCallback((state) => state.getValue(blockId, 'triggerPath') as string | null, [blockId])
   )
+  const providerRoutingKey = useSubBlockStore(
+    useCallback(
+      (state) =>
+        providerWebhookUrl
+          ? (state.getValue(blockId, providerWebhookUrl.routingKeySubBlockId) as string | null)
+          : null,
+      [blockId, providerWebhookUrl]
+    )
+  )
+  const shouldLoadWebhook = useWebhookUrl || Boolean(providerWebhookUrl)
 
   /**
    * Derived only when the caller actually renders the URL. `getBaseUrl()` throws
@@ -109,15 +124,19 @@ export function useWebhookManagement({
    * Consumers already gate their reads on `useWebhookUrl`.
    */
   const webhookUrl = useMemo(() => {
-    if (!useWebhookUrl) {
+    if (!shouldLoadWebhook) {
       return ''
+    }
+    if (providerWebhookUrl) {
+      if (!providerRoutingKey) return ''
+      return `${getBaseUrl()}/api/webhooks/${encodeURIComponent(providerWebhookUrl.providerPath)}/${encodeURIComponent(providerRoutingKey)}`
     }
     const baseUrl = getBaseUrl()
     if (!webhookPath) {
       return `${baseUrl}/api/webhooks/trigger/${blockId}`
     }
     return `${baseUrl}/api/webhooks/trigger/${webhookPath}`
-  }, [useWebhookUrl, webhookPath, blockId])
+  }, [shouldLoadWebhook, providerWebhookUrl, providerRoutingKey, webhookPath, blockId])
 
   useEffect(() => {
     if (triggerId && !isPreview) {
@@ -128,7 +147,7 @@ export function useWebhookManagement({
     }
   }, [triggerId, blockId, isPreview])
 
-  const queryEnabled = useWebhookUrl && !isPreview && Boolean(workflowId && blockId)
+  const queryEnabled = shouldLoadWebhook && !isPreview && Boolean(workflowId && blockId)
 
   // Reset sync flag when blockId changes or query becomes disabled (render-phase guard)
   const prevBlockIdRef = useRef(blockId)

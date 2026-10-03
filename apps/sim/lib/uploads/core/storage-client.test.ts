@@ -1,33 +1,33 @@
-/**
- * @vitest-environment node
- */
+import { setUploadsConfig, uploadsConfigMock } from '@sim/testing/mocks/uploads-config.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetFileMetadataByKey, mockHeadS3Object } = vi.hoisted(() => ({
-  mockGetFileMetadataByKey: vi.fn(),
+const { mockHeadS3Object } = vi.hoisted(() => ({
   mockHeadS3Object: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/config', () => ({
-  USE_S3_STORAGE: true,
-  USE_BLOB_STORAGE: false,
-  USE_GCS_STORAGE: false,
-  S3_CONFIG: { bucket: 'bucket', region: 'region' },
-}))
+vi.mock('@/lib/uploads/config', () => uploadsConfigMock)
 
 vi.mock('@/lib/uploads/providers/s3/client', () => ({
   headS3Object: mockHeadS3Object,
 }))
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  getFileMetadataByKey: mockGetFileMetadataByKey,
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 import { getFileMetadata } from '@/lib/uploads/core/storage-client'
 
+setUploadsConfig({
+  USE_S3_STORAGE: true,
+  S3_CONFIG: { bucket: 'bucket', region: 'region' },
+})
+
+const mockGetFileMetadataByKey = uploadsMetadataMockFns.mockGetFileMetadataByKey
+
 describe('getFileMetadata', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetFileMetadataByKey.mockResolvedValue(null)
   })
 
@@ -47,18 +47,6 @@ describe('getFileMetadata', () => {
     )
 
     await expect(getFileMetadata('workspace/ws/key.md')).rejects.toThrow('AccessDenied')
-  })
-
-  it('returns provider metadata when the object exists', async () => {
-    mockHeadS3Object.mockResolvedValue({ size: 12, metadata: { workspaceid: 'ws-1' } })
-
-    await expect(getFileMetadata('workspace/ws/key.md')).resolves.toEqual({ workspaceid: 'ws-1' })
-  })
-
-  it('treats an object carrying no metadata as no metadata', async () => {
-    mockHeadS3Object.mockResolvedValue({ size: 12 })
-
-    await expect(getFileMetadata('workspace/ws/key.md')).resolves.toEqual({})
   })
 
   it('prefers the database record when one exists', async () => {

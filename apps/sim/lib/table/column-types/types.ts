@@ -36,6 +36,7 @@ export const COLUMN_TYPES = [
   'currency',
   'boolean',
   'date',
+  'ttl',
   'json',
   'select',
 ] as const
@@ -48,6 +49,8 @@ export type ColumnCellEditor =
   | 'text'
   /** Calendar + time picker. */
   | 'date'
+  /** Calendar + time picker retaining the cell's numeric offset, independent of viewer settings. */
+  | 'offset-date'
   /** Option dropdown. */
   | 'select'
   /** Not editable inline — the grid toggles it in place instead. */
@@ -67,11 +70,19 @@ export type TypeSpecificColumnKey = (typeof TYPE_SPECIFIC_COLUMN_KEYS)[number]
 /** Result of coercing a raw value toward a column's declared type. */
 export type CoerceResult = { ok: true; value: JsonValue } | { ok: false }
 
+/** Additional format and precision rules for native PostgreSQL timestamp validation. */
+export interface TimestampValidation {
+  readonly pattern: string
+  readonly maxFractionDigits: number
+}
+
 export interface ColumnTypeDefinition {
   readonly id: ColumnType
 
   /** Human label in the type picker, column header menu, and docs. */
   readonly label: string
+  /** Maximum columns of this type a table may contain. Omitted when unlimited. */
+  readonly maxPerTable?: number
   /** Type icon. A component reference only — never invoked server-side. */
   readonly icon: React.ComponentType<{ className?: string }>
   /**
@@ -79,6 +90,8 @@ export interface ColumnTypeDefinition {
    * comparison is correct. Single source for both filter ranges and sort order.
    */
   readonly jsonbCast: 'numeric' | 'timestamptz' | null
+  /** Guards timestamp comparisons against malformed stored cells without guessing a timezone. */
+  readonly timestampValidation?: TimestampValidation
 
   /**
    * Wire operators a column of this type accepts, or `null` for "all
@@ -159,8 +172,14 @@ export interface ColumnTypeDefinition {
    */
   coerce(value: JsonValue, column: ColumnDefinition): CoerceResult
 
+  /** Equivalent-value projection for in-memory equality; also enables jsonbCast for SQL equality. */
+  valueForEquality?(value: JsonValue): JsonValue
+
   /** Validates a stored cell's shape. Returns an error message, or null when valid. */
   validateCell(value: JsonValue, column: ColumnDefinition): string | null
+
+  /** Optional strict validation for non-null equality, membership, and range operands. */
+  validateFilterValue?(value: JsonValue, column: ColumnDefinition): string | null
 
   /**
    * Validates this type's own column metadata (a `select`'s options, a

@@ -13,8 +13,11 @@ import {
   resolveBlockReference,
   resolveBlockReferenceAsync,
 } from '@/executor/utils/block-reference'
-import { formatLiteralForCode } from '@/executor/utils/code-formatting'
-import { buildClonedSubflowId, extractOuterBranchIndex } from '@/executor/utils/subflow-utils'
+import { formatInertStringLiteral, formatLiteralForCode } from '@/executor/utils/code-formatting'
+import {
+  buildOuterBranchScopedId,
+  extractOuterBranchIndex,
+} from '@/executor/utils/subflow-node-id-codec'
 import {
   type AsyncPathNavigator,
   navigatePath,
@@ -355,7 +358,7 @@ export class BlockResolver implements Resolver {
 
     if (shouldResolveClonedSubflowOutput) {
       const clonedState = context.executionState.getBlockState(
-        buildClonedSubflowId(blockId, mappedBranchIndex)
+        buildOuterBranchScopedId(blockId, mappedBranchIndex)
       )
       if (clonedState !== undefined) {
         return clonedState
@@ -414,12 +417,7 @@ export class BlockResolver implements Resolver {
 
   private stringifyForCondition(value: any): string {
     if (typeof value === 'string') {
-      const sanitized = value
-        .replace(/\\/g, '\\\\')
-        .replace(/"/g, '\\"')
-        .replace(/\n/g, '\\n')
-        .replace(/\r/g, '\\r')
-      return `"${sanitized}"`
+      return formatInertStringLiteral(value, '"')
     }
     if (value === null) {
       return 'null'

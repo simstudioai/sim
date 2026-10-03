@@ -1,11 +1,17 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { type DelegatedPrincipal, resolvePrincipalSubject } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   impersonateEmailSchema,
   type OAuthTokenResponse,
 } from '@/lib/api/contracts/oauth-connections'
 import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
 import type { AuthResult } from '@/lib/auth/hybrid'
+import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import { InvalidManagedOAuthDelegationError } from '@/lib/credentials/application/managed-oauth-delegation'
+import { resolveManagedOAuthCredentialToken } from '@/lib/credentials/application/resolve-managed-oauth-token'
+import { ManagedOAuthCredentialError } from '@/lib/credentials/managed-oauth'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import {
   getCredential,
@@ -18,8 +24,11 @@ import {
   extractMicrosoftDataverseEnvironmentUrl,
   MICROSOFT_DATAVERSE_PROVIDER_ID,
 } from '@/lib/oauth/microsoft-dataverse'
+import { parseQuickBooksAccountId } from '@/lib/oauth/quickbooks'
 import { extractSalesforceInstanceUrl, isSalesforceOAuthProviderId } from '@/lib/oauth/salesforce'
+import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { getToolMetadata } from '@/tools/metadata'
 import { extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
 
 const logger = createLogger('OAuthTokenResolution')
@@ -50,19 +59,43 @@ export interface ResolveCredentialTokenInput {
    */
   callerUserId?: string
   auditRequest?: CredentialAuditRequest
-  /** Reuses a credential lookup already performed by the route's managed-OAuth dispatch. */
-  resolvedCredential?: ResolvedCredential | null
+  /** Credential lookup already performed by {@link resolveCredentialAccessToken}'s dispatch. */
+  resolvedCredential: ResolvedCredential | null
 }
 
 export type ResolveCredentialTokenResult =
   | { ok: true; token: CredentialTokenPayload }
   | { ok: false; status: number; error: string; code?: string }
 
+interface OAuthCredentialContext {
+  providerId: string
+  accountId?: string | null
+}
+
+export function validateOAuthCredentialContext(
+  credential: OAuthCredentialContext
+): { ok: true } | { ok: false; error: string } {
+  if (credential.providerId !== 'quickbooks') return { ok: true }
+
+  try {
+    parseQuickBooksAccountId(credential.accountId ?? '')
+    return { ok: true }
+  } catch (error) {
+    return {
+      ok: false,
+      error: getErrorMessage(
+        error,
+        'QuickBooks company identity is invalid. Reconnect the QuickBooks credential.'
+      ),
+    }
+  }
+}
+
 /**
  * Emits the semantic "credential used" trail for one resolved credential.
  * Both the audit row and the analytics event are fire-and-forget.
  */
-function recordCredentialAccess(params: {
+export function recordCredentialAccess(params: {
   actorId: string
   workspaceId: string | null
   resourceId: string
@@ -102,7 +135,12 @@ function recordCredentialAccess(params: {
  * local regex — these values are injected into tool calls that carry the token.
  */
 function buildOAuthTokenPayload(
-  credential: { providerId: string; scope?: string | null; idToken?: string | null },
+  credential: {
+    providerId: string
+    accountId?: string | null
+    scope?: string | null
+    idToken?: string | null
+  },
   accessToken: string
 ): CredentialTokenPayload {
   const instanceUrl = isSalesforceOAuthProviderId(credential.providerId)
@@ -116,11 +154,21 @@ function buildOAuthTokenPayload(
     apiDomain = extractZohoDeskBaseFromScope(credential.scope)
   }
 
+  const quickBooksIdentity =
+    credential.providerId === 'quickbooks'
+      ? parseQuickBooksAccountId(credential.accountId ?? '')
+      : undefined
+
   return {
     accessToken,
+    credentialType: 'oauth',
     idToken: credential.idToken || undefined,
     ...(instanceUrl && { instanceUrl }),
     ...(apiDomain && { apiDomain }),
+    ...(quickBooksIdentity && {
+      realmId: quickBooksIdentity.realmId,
+      quickBooksEnvironment: quickBooksIdentity.environment,
+    }),
   }
 }
 
@@ -131,13 +179,23 @@ function buildOAuthTokenPayload(
  */
 export async function completeOAuthCredentialToken(params: {
   requestId: string
-  credential: { providerId: string; scope?: string | null; idToken?: string | null }
+  credential: {
+    providerId: string
+    accountId?: string | null
+    scope?: string | null
+    idToken?: string | null
+  }
   resolvedCredentialId: string
   actorId?: string
   workspaceId: string | null
   auditRequest?: CredentialAuditRequest
 }): Promise<ResolveCredentialTokenResult> {
   const { requestId, credential, resolvedCredentialId, actorId, workspaceId, auditRequest } = params
+  const contextValidation = validateOAuthCredentialContext(credential)
+  if (!contextValidation.ok) {
+    return { ok: false, status: 401, error: contextValidation.error }
+  }
+
   try {
     const { accessToken } = await refreshTokenIfNeeded(requestId, credential, resolvedCredentialId)
 
@@ -160,9 +218,10 @@ export async function completeOAuthCredentialToken(params: {
 }
 
 /**
- * Authorized application operation behind `POST /api/auth/oauth/token`. Every surface that
- * needs a credential token — the route and the in-process tool executor — goes through
- * here, so authorization, refresh, and audit cannot drift between them.
+ * Resolves a plain OAuth or service-account credential to a token for an
+ * authenticated caller. Managed OAuth credentials are dispatched one level up by
+ * {@link resolveCredentialAccessToken}, which every server surface goes through,
+ * so authorization, refresh, and audit cannot drift between surfaces.
  *
  * @param auth Result of authenticating the caller (session or internal JWT).
  */
@@ -191,16 +250,12 @@ export async function resolveCredentialToken(
       return { ok: false, status: 400, error: 'impersonateEmail must be a valid email address' }
     }
 
-    /**
-     * Both branches below authorize with the same arguments, and neither read depends
-     * on the other, so they resolve together — this runs per credentialed tool call.
-     */
-    const [resolved, authz] = await Promise.all([
-      input.resolvedCredential === undefined
-        ? resolveOAuthAccountId(credentialId)
-        : input.resolvedCredential,
-      authorizeCredentialUseForAuth(auth, { credentialId, workflowId, callerUserId }),
-    ])
+    const resolved = input.resolvedCredential
+    const authz = await authorizeCredentialUseForAuth(auth, {
+      credentialId,
+      workflowId,
+      callerUserId,
+    })
 
     if (resolved?.credentialType === 'service_account' && resolved.credentialId) {
       if (!authz.ok) {
@@ -233,6 +288,7 @@ export async function resolveCredentialToken(
           ok: true,
           token: {
             accessToken: result.accessToken,
+            credentialType: 'service_account',
             cloudId: result.cloudId,
             domain: result.domain,
             instanceUrl: result.instanceUrl,
@@ -304,5 +360,168 @@ export async function resolveCredentialToken(
   } catch (error) {
     logger.error(`[${requestId}] Error getting access token`, error)
     return { ok: false, status: 500, error: 'Internal server error' }
+  }
+}
+
+export interface ResolveCredentialAccessTokenInput
+  extends Omit<ResolveCredentialTokenInput, 'resolvedCredential'> {
+  /** Tool consuming the token; required by the managed-OAuth scope policy. */
+  toolId?: string
+  /**
+   * Authenticates the caller for non-managed credentials. Invoked only when the
+   * credential is not managed OAuth, which authenticates through delegation instead.
+   */
+  authenticate: () => AuthResult | Promise<AuthResult>
+  /**
+   * Proves a delegation for one managed credential: a workflow execution (the
+   * route verifies the delegation JWT header; the executor binds its delegation
+   * origin in-process) or a Chat turn acting as the signed-in user. Absent,
+   * managed credentials are rejected with `MANAGED_CREDENTIAL_DELEGATION_REQUIRED`.
+   * Must throw {@link InvalidManagedOAuthDelegationError} on an invalid delegation.
+   */
+  resolveManagedPrincipal?: (credentialId: string) => Promise<DelegatedPrincipal>
+}
+
+/**
+ * Authorized application dispatch behind `POST /api/auth/oauth/token`. Every server
+ * surface that needs a credential token — the route and the in-process tool
+ * executor — goes through here, so the managed / service-account / plain-OAuth
+ * dispatch, authorization, refresh, audit, and analytics cannot drift between them.
+ */
+export async function resolveCredentialAccessToken(
+  input: ResolveCredentialAccessTokenInput
+): Promise<ResolveCredentialTokenResult> {
+  const { requestId, credentialId, toolId, auditRequest } = input
+
+  const resolved = credentialId ? await resolveOAuthAccountId(credentialId) : null
+
+  if (resolved?.credentialType !== 'managed_oauth' || !resolved.credentialId) {
+    const auth = await input.authenticate()
+    return resolveCredentialToken(auth, {
+      requestId,
+      credentialId,
+      workflowId: input.workflowId,
+      scopes: input.scopes,
+      /**
+       * In-process callers forward raw subblock state, where an untouched
+       * field is '' — treated as absent, matching what the wire contract
+       * (which rejects '') and the old truthy guards always produced.
+       */
+      impersonateEmail: input.impersonateEmail || undefined,
+      callerUserId: input.callerUserId,
+      auditRequest,
+      resolvedCredential: resolved,
+    })
+  }
+
+  if (!input.resolveManagedPrincipal) {
+    return {
+      ok: false,
+      status: 403,
+      code: 'MANAGED_CREDENTIAL_DELEGATION_REQUIRED',
+      error: 'Managed credentials can only be used by an authenticated workflow execution',
+    }
+  }
+
+  let principal: DelegatedPrincipal
+  try {
+    principal = await input.resolveManagedPrincipal(resolved.credentialId)
+  } catch (error) {
+    if (!(error instanceof InvalidManagedOAuthDelegationError)) throw error
+    return {
+      ok: false,
+      status: 401,
+      code: 'MANAGED_CREDENTIAL_DELEGATION_INVALID',
+      error: error.message,
+    }
+  }
+
+  if (!toolId) {
+    return {
+      ok: false,
+      status: 400,
+      code: 'MANAGED_CREDENTIAL_TOOL_REQUIRED',
+      error: 'A tool ID is required to use a managed credential',
+    }
+  }
+
+  const toolMetadata = getToolMetadata(toolId)
+  if (!toolMetadata?.oauth?.required) {
+    logger.error(`[${requestId}] Tool is not configured for managed OAuth`, { toolId })
+    return {
+      ok: false,
+      status: 500,
+      code: 'MANAGED_CREDENTIAL_TOOL_UNSUPPORTED',
+      error: 'This tool is not configured to use managed credentials',
+    }
+  }
+  const requiredScopes =
+    toolMetadata.oauth.requiredScopes ?? getCanonicalScopesForProvider(toolMetadata.oauth.provider)
+  if (requiredScopes.length === 0 && toolMetadata.oauth.requiredScopes === undefined) {
+    logger.error(`[${requestId}] Tool has no trusted OAuth scope policy`, {
+      toolId,
+      providerId: toolMetadata.oauth.provider,
+    })
+    return {
+      ok: false,
+      status: 500,
+      code: 'MANAGED_CREDENTIAL_TOOL_UNSUPPORTED',
+      error: 'This tool is not configured to use managed credentials',
+    }
+  }
+
+  try {
+    const result = await resolveManagedOAuthCredentialToken.execute({
+      principal,
+      input: {
+        credentialId: resolved.credentialId,
+        expectedProviderId: toolMetadata.oauth.provider,
+        requiredScopes,
+        toolId,
+      },
+      request: auditRequest,
+    })
+
+    const subject = resolvePrincipalSubject(principal)
+    if (subject?.kind === 'sim_user') {
+      captureServerEvent(
+        subject.userId,
+        'credential_used',
+        {
+          credential_type: 'managed_oauth',
+          provider_id: toolMetadata.oauth.provider,
+          workspace_id: principal.workspaceId,
+        },
+        { groups: { workspace: principal.workspaceId } }
+      )
+    }
+
+    return {
+      ok: true,
+      token: {
+        accessToken: result.accessToken,
+        credentialType: 'managed_oauth',
+        idToken: result.idToken,
+      },
+    }
+  } catch (error) {
+    if (error instanceof ManagedOAuthCredentialError) {
+      logger.warn(`[${requestId}] Managed OAuth credential rejected`, {
+        credentialId: resolved.credentialId,
+        code: error.code,
+      })
+      return { ok: false, status: error.statusCode, code: error.code, error: error.message }
+    }
+
+    const orchestrationError = asOrchestrationError(error)
+    if (orchestrationError) {
+      return {
+        ok: false,
+        status: statusForOrchestrationError(orchestrationError.code),
+        code: 'MANAGED_CREDENTIAL_UNAUTHORIZED',
+        error: orchestrationError.message,
+      }
+    }
+    throw error
   }
 }

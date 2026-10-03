@@ -4,8 +4,8 @@ import { useCallback, useState } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useUnsavedChangesGuard } from '@/app/workspace/[workspaceId]/components/credential-detail/hooks/use-unsaved-changes-guard'
 import { useUpdateWorkspaceCredential, type WorkspaceCredential } from '@/hooks/queries/credentials'
-import { useUnsavedChangesGuard } from './use-unsaved-changes-guard'
 
 const logger = createLogger('CredentialDetailForm')
 
@@ -26,6 +26,7 @@ export interface CredentialDetailFormSection {
 }
 
 interface UseCredentialDetailFormParams {
+  workspaceId?: string
   credential: WorkspaceCredential | null
   isAdmin: boolean
   /** Where the back link / discard navigates to. */
@@ -47,12 +48,13 @@ interface UseCredentialDetailFormParams {
  * into that one save and one guard.
  */
 export function useCredentialDetailForm({
+  workspaceId,
   credential,
   isAdmin,
   backHref,
   section,
 }: UseCredentialDetailFormParams) {
-  const updateCredential = useUpdateWorkspaceCredential()
+  const updateCredential = useUpdateWorkspaceCredential(workspaceId)
 
   const [displayNameDraft, setDisplayNameDraft] = useState('')
   const [descriptionDraft, setDescriptionDraft] = useState('')

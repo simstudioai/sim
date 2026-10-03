@@ -1,11 +1,13 @@
 import { createLogger, type Logger } from '@sim/logger'
+import { describeError, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { isTimeoutAbortReason } from '@/lib/core/execution-limits/types'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
+import { compactBlockOutput } from '@/lib/execution/payloads/serializer'
 import { redactLargeValueRefsInValue } from '@/lib/logs/execution/pii-large-values'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import {
@@ -23,6 +25,7 @@ import {
   CHILD_TRACE_DISABLED_OUTPUT_KEY,
   DEFAULTS,
   EDGE,
+  isHumanInTheLoopBlock,
   isSentinelBlockType,
   isWorkflowBlockType,
 } from '@/executor/constants'
@@ -46,6 +49,7 @@ import {
 import {
   type BlockHandler,
   type BlockLog,
+  type BlockRetryAttempt,
   type BlockState,
   type ExecutionContext,
   getNextExecutionOrder,
@@ -53,7 +57,13 @@ import {
   type StreamingExecution,
 } from '@/executor/types'
 import { streamingResponseFormatProcessor } from '@/executor/utils'
-import { buildBlockExecutionError, normalizeError } from '@/executor/utils/errors'
+import {
+  attachTrustedExecutionCost,
+  buildBlockExecutionError,
+  normalizeError,
+  readTrustedExecutionCost,
+  type TrustedExecutionCost,
+} from '@/executor/utils/errors'
 import {
   buildUnifiedParentIterations,
   getIterationContext,
@@ -69,7 +79,7 @@ import {
   buildBranchNodeId,
   buildOuterBranchScopedId,
   extractOuterBranchIndex,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
 import {
   FUNCTION_BLOCK_CONTEXT_VARS_KEY,
   FUNCTION_BLOCK_DISPLAY_CODE_KEY,
@@ -81,6 +91,24 @@ import type { SerializedBlock } from '@/serializer/types'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
 
 const logger = createLogger('BlockExecutor')
+
+function addTrustedExecutionCosts(
+  accumulated: TrustedExecutionCost | undefined,
+  current: TrustedExecutionCost | undefined
+): TrustedExecutionCost | undefined {
+  if (!accumulated) return current
+  if (!current) return accumulated
+
+  return {
+    input: accumulated.input + current.input,
+    output: accumulated.output + current.output,
+    total: accumulated.total + current.total,
+  }
+}
+
+/** Replaces a database query failure's message, which carries SQL text and bound parameters. */
+const INTERNAL_DATABASE_ERROR_MESSAGE =
+  'An internal error occurred while executing the block. Please try again.'
 
 export class BlockExecutor {
   private execLogger: Logger
@@ -119,9 +147,13 @@ export class BlockExecutor {
       []
     )
     const inputDisplayRegistry = blockResolvedSecretTraceRegistry
-    const blockCtx = blockResolvedSecretTraceRegistry
-      ? { ...ctx, resolvedSecretTraceRegistry: blockResolvedSecretTraceRegistry }
-      : ctx
+    const blockCtx: ExecutionContext = {
+      ...ctx,
+      mcpBlockId: block.id,
+      ...(blockResolvedSecretTraceRegistry
+        ? { resolvedSecretTraceRegistry: blockResolvedSecretTraceRegistry }
+        : {}),
+    }
     let registryCommitted = false
     const commitBlockRegistry = () => {
       const settledBlockRegistry = blockCtx.resolvedSecretTraceRegistry
@@ -166,7 +198,7 @@ export class BlockExecutor {
     }
     let cleanupSelfReference: (() => void) | undefined
 
-    if (block.metadata?.id === BlockType.HUMAN_IN_THE_LOOP) {
+    if (isHumanInTheLoopBlock(block.metadata?.id)) {
       cleanupSelfReference = this.preparePauseResumeSelfReference(
         blockCtx,
         node,
@@ -235,17 +267,31 @@ export class BlockExecutor {
     cleanupSelfReference?.()
 
     let failureDiagnosticOutput: Record<string, any> | undefined
+    /**
+     * Cost of a handler that already finished, kept for the catch below.
+     *
+     * A Function block's sandbox is paid for the moment it completes, but the
+     * steps after the handler returns — base64 hydration, and large-value
+     * redaction that deliberately throws rather than emit unredacted data — can
+     * still fail the block. The error those raise carries no cost of its own, so
+     * without holding it here the completed sandbox would go unbilled. Hoisted
+     * for the same reason `failureDiagnosticOutput` above is.
+     */
+    let completedHandlerCost: TrustedExecutionCost | undefined
     try {
       /**
        * Only the handler call is retried. A streaming handler returns before any
        * token is drained, so a replay cannot duplicate output the client has
        * already seen.
        */
-      const output = await this.runHandlerWithRetry(blockCtx, block, blockLog, () =>
-        handler.executeWithNode
-          ? handler.executeWithNode(blockCtx, block, resolvedInputs, nodeMetadata)
-          : handler.execute(blockCtx, block, resolvedInputs, nodeMetadata)
-      )
+      const output = await this.runHandlerWithRetry(blockCtx, block, blockLog, (retry) => {
+        const invocationMetadata = retry ? { ...nodeMetadata, retry } : nodeMetadata
+        return handler.executeWithNode
+          ? handler.executeWithNode(blockCtx, block, resolvedInputs, invocationMetadata)
+          : handler.execute(blockCtx, block, resolvedInputs, invocationMetadata)
+      })
+
+      completedHandlerCost = readTrustedExecutionCost(output)
 
       const isStreamingExecution =
         output && typeof output === 'object' && 'stream' in output && 'execution' in output
@@ -265,7 +311,8 @@ export class BlockExecutor {
             block,
             streamingExec,
             resolvedInputs,
-            normalizeStringArray(blockCtx.selectedOutputs)
+            normalizeStringArray(blockCtx.selectedOutputs),
+            blockLog?.executionOrder
           )
         } catch (streamError) {
           const resultRegistry = blockCtx.resolvedSecretTraceRegistry
@@ -302,6 +349,7 @@ export class BlockExecutor {
           fileKeys: blockCtx.fileKeys,
           allowLargeValueWorkflowScope: blockCtx.allowLargeValueWorkflowScope,
           userId: blockCtx.userId,
+          principal: blockCtx.principal,
           maxBytes: blockCtx.base64MaxBytes,
           preserveLargeValueMetadata: true,
         })) as NormalizedBlockOutput
@@ -328,20 +376,24 @@ export class BlockExecutor {
             workspaceId: blockCtx.workspaceId,
             workflowId: blockCtx.workflowId,
             executionId: blockCtx.executionId,
+            largeValueExecutionIds: blockCtx.largeValueExecutionIds,
+            largeValueKeys: blockCtx.largeValueKeys,
+            allowLargeValueWorkflowScope: blockCtx.allowLargeValueWorkflowScope,
             userId: blockCtx.userId,
           },
         })
         normalizedOutput = await redactObjectStrings(normalizedOutput, redactionOptions)
       }
 
-      normalizedOutput = (await compactExecutionPayload(normalizedOutput, {
+      const compacted = await compactBlockOutput(normalizedOutput, {
         workspaceId: blockCtx.workspaceId,
         workflowId: blockCtx.workflowId,
         executionId: blockCtx.executionId,
         userId: blockCtx.userId,
         preserveUserFileBase64: blockCtx.includeFileBase64 === true,
         requireDurable: true,
-      })) as NormalizedBlockOutput
+      })
+      normalizedOutput = compacted.output
 
       const endedAt = new Date().toISOString()
       const duration = performance.now() - startTime
@@ -351,8 +403,8 @@ export class BlockExecutor {
         blockLog.durationMs = duration
         blockLog.success = true
         blockLog.output = filterOutputForLog(block.metadata?.id || '', normalizedOutput, { block })
-        if (normalizedOutput.childTraceSpans && Array.isArray(normalizedOutput.childTraceSpans)) {
-          blockLog.childTraceSpans = normalizedOutput.childTraceSpans
+        if (compacted.childTraceSpans) {
+          blockLog.childTraceSpans = compacted.childTraceSpans
         }
         const childExecutionId = normalizedOutput[CHILD_EXECUTION_ID_OUTPUT_KEY]
         if (typeof childExecutionId === 'string' && childExecutionId) {
@@ -364,7 +416,6 @@ export class BlockExecutor {
       }
 
       const {
-        childTraceSpans: _traces,
         [CHILD_EXECUTION_ID_OUTPUT_KEY]: _childExecutionId,
         [CHILD_TRACE_DISABLED_OUTPUT_KEY]: _childTraceDisabled,
         ...outputForState
@@ -425,7 +476,8 @@ export class BlockExecutor {
           inputDisplayRegistry,
           isSentinel,
           'execution',
-          failureDiagnosticOutput
+          failureDiagnosticOutput,
+          completedHandlerCost
         )
       } finally {
         commitBlockRegistry()
@@ -505,25 +557,55 @@ export class BlockExecutor {
    * Rethrows the final try's error so the caller's catch — and with it the error
    * port — behaves exactly as it does for a block that never retried. Retrying
    * only ever delays the existing outcome; it never changes it.
+   *
+   * Each try is told where it sits in the policy (`BlockRetryAttempt`). The
+   * policy stays here: a handler cannot ask for another try or skip the wait,
+   * it can only hold work for the try after which no other follows, the way the
+   * Agent block keeps its fallback models for the final try.
    */
   private async runHandlerWithRetry<T>(
     ctx: ExecutionContext,
     block: SerializedBlock,
     blockLog: BlockLog | undefined,
-    invoke: () => Promise<T>
+    invoke: (retry: BlockRetryAttempt | undefined) => Promise<T>
   ): Promise<T> {
     const policy = resolveBlockRetryPolicy(block)
-    if (!policy) return invoke()
+    if (!policy) return invoke(undefined)
 
+    const shouldAccumulateFunctionCost = block.metadata?.id === BlockType.FUNCTION
+    let accumulatedFunctionCost: TrustedExecutionCost | undefined
     let tries = 0
     try {
       for (;;) {
         tries++
+        const isFinalTry = tries >= policy.maxTries
         try {
-          return await invoke()
+          const output = await invoke({ attempt: tries, maxTries: policy.maxTries, isFinalTry })
+          if (!shouldAccumulateFunctionCost || !accumulatedFunctionCost || !isRecordLike(output)) {
+            return output
+          }
+
+          const totalCost = addTrustedExecutionCosts(
+            accumulatedFunctionCost,
+            readTrustedExecutionCost(output)
+          )
+          if (!totalCost) return output
+
+          const outputWithCost = { ...output, cost: totalCost }
+          attachTrustedExecutionCost(outputWithCost, totalCost)
+          return outputWithCost as T
         } catch (error) {
-          const isFinalTry = tries >= policy.maxTries
-          if (isFinalTry || ctx.abortSignal?.aborted || !isRetryableBlockError(error)) throw error
+          if (shouldAccumulateFunctionCost) {
+            accumulatedFunctionCost = addTrustedExecutionCosts(
+              accumulatedFunctionCost,
+              readTrustedExecutionCost(error)
+            )
+          }
+
+          if (isFinalTry || ctx.abortSignal?.aborted || !isRetryableBlockError(error)) {
+            attachTrustedExecutionCost(error, accumulatedFunctionCost)
+            throw error
+          }
 
           this.execLogger.warn('Block failed; retrying', {
             blockId: block.id,
@@ -537,7 +619,10 @@ export class BlockExecutor {
           if (policy.waitBetweenTriesMs > 0) await sleep(policy.waitBetweenTriesMs)
 
           /** `sleep` is not abort-aware, so a run stopped mid-wait must not start another try. */
-          if (ctx.abortSignal?.aborted) throw error
+          if (ctx.abortSignal?.aborted) {
+            attachTrustedExecutionCost(error, accumulatedFunctionCost)
+            throw error
+          }
         }
       }
     } finally {
@@ -557,11 +642,13 @@ export class BlockExecutor {
     inputDisplayRegistry: ResolvedSecretTraceRegistry | undefined,
     isSentinel: boolean,
     phase: 'input_resolution' | 'execution',
-    failureDiagnosticOutput?: Record<string, any>
+    failureDiagnosticOutput?: Record<string, any>,
+    completedHandlerCost?: TrustedExecutionCost
   ): Promise<NormalizedBlockOutput> {
     const endedAt = new Date().toISOString()
     const duration = performance.now() - startTime
-    const errorMessage = normalizeError(error)
+    const isDatabaseError = error instanceof DrizzleQueryError
+    const errorMessage = isDatabaseError ? INTERNAL_DATABASE_ERROR_MESSAGE : normalizeError(error)
     const hasLogInputs =
       inputsForLog && typeof inputsForLog === 'object' && Object.keys(inputsForLog).length > 0
     const input = hasLogInputs
@@ -629,8 +716,10 @@ export class BlockExecutor {
       return softOutput
     }
 
+    const trustedExecutionCost = readTrustedExecutionCost(error) ?? completedHandlerCost
     const errorOutput: NormalizedBlockOutput = {
       error: errorMessage,
+      ...(trustedExecutionCost ? { cost: trustedExecutionCost } : {}),
     }
 
     // Retain completed provider diagnostics for observability and billing while
@@ -711,10 +800,12 @@ export class BlockExecutor {
     ) {
       diagnosticRegistry.mergeToolCallRegistry(ctx.resolvedSecretTraceRegistry)
     }
-    const errorDiagnostic = projectResolvedSecretDiagnosticError(
-      error,
-      diagnosticRegistry ?? ctx.resolvedSecretTraceRegistry
-    )
+    const errorDiagnostic = isDatabaseError
+      ? { cause: describeError(error) }
+      : projectResolvedSecretDiagnosticError(
+          error,
+          diagnosticRegistry ?? ctx.resolvedSecretTraceRegistry
+        )
 
     this.execLogger.error(
       phase === 'input_resolution' ? 'Failed to resolve block inputs' : 'Block execution failed',
@@ -765,7 +856,11 @@ export class BlockExecutor {
       return errorOutput
     }
 
-    const errorToThrow = error instanceof Error ? error : new Error(errorMessage)
+    const errorToThrow = isDatabaseError
+      ? new Error(errorMessage, { cause: error })
+      : error instanceof Error
+        ? error
+        : new Error(errorMessage)
 
     throw buildBlockExecutionError({
       block,
@@ -897,7 +992,7 @@ export class BlockExecutor {
               }
             })()
           : mapping
-      inputs = isRecordLike(parsed) ? parsed : {}
+      inputs = toRecord(parsed)
     }
 
     const result: Record<string, any> = {}
@@ -1107,9 +1202,10 @@ export class BlockExecutor {
     block: SerializedBlock,
     streamingExec: StreamingExecution,
     resolvedInputs: Record<string, any>,
-    selectedOutputs: string[]
+    selectedOutputs: string[],
+    executionOrder?: number
   ): Promise<void> {
-    const blockId = node.id
+    const blockId = node.metadata?.originalBlockId ?? node.id
     const piiEnabled = Boolean(ctx.piiBlockOutputRedaction?.enabled)
     // Live-forward only when a client stream exists and PII redaction is off.
     const forwardToClient = Boolean(ctx.onStream) && !piiEnabled
@@ -1160,6 +1256,8 @@ export class BlockExecutor {
       onStreamPromise = ctx
         .onStream({
           ...streamingExecutionForConsumer,
+          blockId,
+          ...(executionOrder !== undefined ? { executionOrder } : {}),
           stream: processedClientStream,
           streamFormat: 'text',
           subscribe: pump.subscribe,
@@ -1189,7 +1287,7 @@ export class BlockExecutor {
       if (onStreamPromise) {
         await onStreamPromise.catch(() => {})
       }
-      throw error instanceof Error ? error : new Error(String(error))
+      throw toError(error)
     }
 
     if (onStreamPromise) {

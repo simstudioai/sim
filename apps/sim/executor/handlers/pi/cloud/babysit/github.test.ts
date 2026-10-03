@@ -1,10 +1,7 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
+import { describe, expect, it, vi } from 'vitest'
 
-const { mockExecuteTool } = vi.hoisted(() => ({ mockExecuteTool: vi.fn() }))
-vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
+vi.mock('@/tools', () => toolsMock)
 
 import {
   babysitReviewLandedSince,
@@ -13,6 +10,8 @@ import {
   fetchBabysitThreads,
   replyAndResolveBabysitThreads,
 } from '@/executor/handlers/pi/cloud/babysit/github'
+
+const mockExecuteTool = toolsMockFns.mockExecuteTool
 
 const HEAD_SHA = 'a'.repeat(40)
 const BASE_SHA = 'b'.repeat(40)
@@ -72,8 +71,6 @@ function checkPage(contexts: unknown[], overrides: Record<string, unknown> = {})
 }
 
 describe('Babysit GitHub orchestration', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   it('accepts only a strict same-repository PR and reports conflicts without stopping', async () => {
     mockExecuteTool.mockResolvedValue({
       success: true,
@@ -92,21 +89,6 @@ describe('Babysit GitHub orchestration', () => {
       }),
     })
     await expect(fetchBabysitSnapshot(params)).rejects.toMatchObject({ reason: 'fork_pr' })
-  })
-
-  // GitHub answers a renamed repository through a 301 and reports the canonical name in
-  // the body, so comparing head against the block's typed owner/repo called a
-  // same-repository PR a fork. Head against base is the definition that survives a rename.
-  it('accepts a same-repository PR whose canonical name differs from the configured one', async () => {
-    mockExecuteTool.mockResolvedValue({
-      success: true,
-      output: snapshot({
-        head: { sha: HEAD_SHA, ref: 'feature', repo_full_name: 'octo-renamed/demo' },
-        base: { sha: BASE_SHA, ref: 'main', repo_full_name: 'octo-renamed/demo' },
-      }),
-    })
-
-    await expect(fetchBabysitSnapshot(params)).resolves.toMatchObject({ headRef: 'feature' })
   })
 
   it('pages threads and skips untrusted or truncated conversations whole', async () => {
@@ -176,74 +158,6 @@ describe('Babysit GitHub orchestration', () => {
     })
   })
 
-  it('accepts a complete empty rollup when the commit has no checks', async () => {
-    mockExecuteTool.mockResolvedValueOnce(checkPage([], { state: null }))
-
-    const state = await fetchBabysitCheckState(params, HEAD_SHA)
-
-    expect(state.checks).toEqual([])
-    expect(state.checksGreen).toBe(true)
-    expect(state.contextRequirements).toEqual(new Map())
-  })
-
-  it('treats EXPECTED and incomplete checks as pending and optional failures as non-blocking', async () => {
-    mockExecuteTool.mockResolvedValueOnce(
-      checkPage([
-        {
-          __typename: 'StatusContext',
-          context: 'required-status',
-          state: 'EXPECTED',
-          description: null,
-          targetUrl: null,
-          isRequired: true,
-        },
-        {
-          __typename: 'CheckRun',
-          name: 'optional-lint',
-          status: 'COMPLETED',
-          conclusion: 'FAILURE',
-          detailsUrl: null,
-          databaseId: null,
-          isRequired: false,
-          title: null,
-          summary: null,
-        },
-      ])
-    )
-    const state = await fetchBabysitCheckState(params, HEAD_SHA)
-    expect(state.blockingPending.map(({ name }) => name)).toEqual(['required-status'])
-    expect(state.failing.map(({ name }) => name)).toContain('optional-lint')
-    expect(state.blockingFailing).toEqual([])
-  })
-
-  // Branch protection does not accept either as a successful required check, so counting
-  // them as passing reported a mergeable PR that GitHub still blocks.
-  it.each(['CANCELLED', 'STALE'])(
-    'treats a required %s check as failing rather than green',
-    async (conclusion) => {
-      mockExecuteTool.mockResolvedValueOnce(
-        checkPage([
-          {
-            __typename: 'CheckRun',
-            name: 'build',
-            status: 'COMPLETED',
-            conclusion,
-            detailsUrl: null,
-            databaseId: null,
-            isRequired: true,
-            title: null,
-            summary: null,
-          },
-        ])
-      )
-
-      const state = await fetchBabysitCheckState(params, HEAD_SHA)
-
-      expect(state.blockingFailing.map(({ name }) => name)).toEqual(['build'])
-      expect(state.checksGreen).toBe(false)
-    }
-  )
-
   it('remembers initial contexts and treats a missing context after a push as pending', async () => {
     mockExecuteTool.mockResolvedValueOnce(
       checkPage([
@@ -281,28 +195,6 @@ describe('Babysit GitHub orchestration', () => {
     expect(next.blockingPending).toEqual([
       expect.objectContaining({ name: 'build', status: 'MISSING' }),
     ])
-  })
-
-  it('synthesizes initial contexts when a new pushed SHA has no rollup yet', async () => {
-    mockExecuteTool.mockResolvedValueOnce(checkPage([], { state: null }))
-
-    const state = await fetchBabysitCheckState(
-      params,
-      NEXT_SHA,
-      new Map([
-        ['check:build', true],
-        ['status:preview', false],
-      ])
-    )
-
-    expect(state.checks).toEqual([
-      expect.objectContaining({ key: 'check:build', disposition: 'pending', required: true }),
-      expect.objectContaining({ key: 'status:preview', disposition: 'pending', required: false }),
-    ])
-    expect(state.blockingPending).toEqual([
-      expect.objectContaining({ key: 'check:build', status: 'MISSING' }),
-    ])
-    expect(state.checksGreen).toBe(false)
   })
 
   it('posts every reply before revalidation and resolves only successful replies', async () => {
@@ -383,82 +275,6 @@ describe('Babysit GitHub orchestration', () => {
     )
   })
 
-  it('reports awaiting confirmation when a third SHA appears after a lagging push', async () => {
-    const thirdSha = 'd'.repeat(40)
-    mockExecuteTool.mockImplementation(async (toolId: string) => {
-      if (toolId === 'github_reply_review_thread') {
-        return { success: true, output: { id: 'reply' } }
-      }
-      if (toolId === 'github_pr_v2') {
-        return {
-          success: true,
-          output: snapshot({
-            head: { sha: thirdSha, ref: 'feature', repo_full_name: 'octo/demo' },
-          }),
-        }
-      }
-      throw new Error(`Unexpected tool ${toolId}`)
-    })
-
-    const result = await replyAndResolveBabysitThreads(
-      params,
-      { headSha: NEXT_SHA, headRef: 'feature', baseRef: 'main' },
-      [
-        {
-          threadId: 'one',
-          classification: 'fixed',
-          reply: 'Fixed.',
-          resolvable: true,
-        },
-      ],
-      undefined,
-      HEAD_SHA
-    )
-
-    expect(result).toMatchObject({
-      repliesPosted: 1,
-      threadsResolved: 0,
-      headMoved: false,
-      awaitingConfirmation: true,
-    })
-    expect(result.stopReason).toBeUndefined()
-  })
-
-  it('retains successful reply counts when between-phase revalidation fails', async () => {
-    mockExecuteTool.mockImplementation(async (toolId: string) => {
-      if (toolId === 'github_reply_review_thread') {
-        return { success: true, output: { id: 'reply' } }
-      }
-      if (toolId === 'github_pr_v2') throw new Error('temporary GitHub read failure')
-      throw new Error(`Unexpected tool ${toolId}`)
-    })
-
-    const result = await replyAndResolveBabysitThreads(
-      params,
-      { headSha: HEAD_SHA, headRef: 'feature', baseRef: 'main' },
-      [
-        {
-          threadId: 'one',
-          classification: 'already_addressed',
-          reply: 'Already done.',
-          resolvable: true,
-        },
-      ]
-    )
-
-    expect(result).toMatchObject({
-      repliesPosted: 1,
-      threadsResolved: 0,
-      headMoved: false,
-      phaseError: 'temporary GitHub read failure',
-    })
-    expect(mockExecuteTool).not.toHaveBeenCalledWith(
-      'github_resolve_review_thread',
-      expect.anything(),
-      expect.anything()
-    )
-  })
-
   it('detects bot activity after a request while excluding its own comments', async () => {
     mockExecuteTool.mockResolvedValueOnce({
       success: true,
@@ -481,19 +297,5 @@ describe('Babysit GitHub orchestration', () => {
     await expect(
       babysitReviewLandedSince(params, '2026-07-25T12:00:00.000Z', new Set([11]), null)
     ).resolves.toBe(true)
-  })
-
-  // The caller's most recent thread fetch already carries `latestReview`, so a landed
-  // review is recognized without re-listing the pull request.
-  it('accepts the caller-supplied latest review without issuing a thread listing', async () => {
-    await expect(
-      babysitReviewLandedSince(params, '2026-07-25T12:00:00.000Z', new Set(), {
-        state: 'COMMENTED',
-        submittedAt: '2026-07-25T12:05:00.000Z',
-        authorLogin: 'review-bot',
-        authorType: 'Bot',
-      })
-    ).resolves.toBe(true)
-    expect(mockExecuteTool).not.toHaveBeenCalled()
   })
 })

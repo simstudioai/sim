@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Lock-order regression guard: `updateDocument` must lock the document's
  * embedding rows BEFORE the document row when cascading tag updates, matching
  * the embedding → document order every chunk-mutation path uses
@@ -9,7 +7,7 @@
  */
 import { document, embedding } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { updateDocument } from '@/lib/knowledge/documents/service'
 
 /** invocationCallOrder of the first `tx.update(table)` call. */
@@ -23,7 +21,6 @@ function updateOrderForTable(table: unknown): number {
 
 describe('updateDocument lock ordering', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     queueTableRows(document, [
       { id: 'doc-1', knowledgeBaseId: 'kb-1', secretProvenanceVersion: null },

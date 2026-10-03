@@ -8,9 +8,9 @@ import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attr
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
+import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
+import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { prepareWorkflowExecutionAdmission } from '@/lib/workflows/execution-admission'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import {
@@ -29,11 +29,18 @@ import {
 } from '@/lib/workflows/triggers/run-options'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionResult } from '@/executor/types'
-import { attachAttemptedExecutionId } from '@/executor/utils/errors'
+import { attachAttemptedExecutionId, hasExecutionResult } from '@/executor/utils/errors'
+import {
+  emptyRunFromBlockSnapshot,
+  RunFromBlockValidationError,
+} from '@/executor/utils/run-from-block'
 
 const logger = createLogger('CopilotWorkflowRun')
 
-import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  emptyResolvedSecretTraceProvenance,
+  type ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 export interface CopilotWorkflowRunLifecycle {
   billingAttribution?: BillingAttributionSnapshot
@@ -80,23 +87,12 @@ interface SnapshotCopilotRunInput extends BaseCopilotRunInput {
   blockId: string
   workflowInput?: unknown
   sourceExecutionId?: string
+  /** Mocked upstream outputs — lets the block run with no prior execution at all. */
+  variableInputs?: Record<string, unknown>
 }
 
 export interface RunFromBlockFromCopilotInput extends SnapshotCopilotRunInput {}
 export interface RunBlockFromCopilotInput extends SnapshotCopilotRunInput {}
-
-function resolveContext<I extends BaseCopilotRunInput>({
-  principal,
-  input,
-}: {
-  principal: Principal
-  input: I
-}) {
-  return resolveActiveWorkflowApplicationContext({
-    workflowId: input.workflowId,
-    assertedWorkspaceId: assertedWorkflowWorkspaceId(principal, input.assertedWorkspaceId),
-  })
-}
 
 async function loadDefinition(input: BaseCopilotRunInput, workspaceId: string) {
   if (input.useDraftState) return loadWorkflowFromNormalizedTables(input.workflowId)
@@ -120,15 +116,25 @@ async function resolveTriggerExecution(params: {
     )
   }
   const merged = mergeSubblockStateWithValues(state.blocks)
-  const options = resolveTriggerRunOptions(merged, state.edges)
+  const options = resolveTriggerRunOptions(merged)
   if (options.length === 0) {
     throw new OrchestrationError(
       'validation',
       'No runnable trigger found. Add a Start/API/Input/Chat trigger or an external (webhook/integration) trigger before running.'
     )
   }
+  /**
+   * Names each trigger as `blockId → type/name` and points at the input shape
+   * where the agent surface actually exposes it. There is no run-options tool
+   * on that surface — the shape is the trigger block's `inputFormat`, read from
+   * `workflows state get`.
+   */
   const listTriggers = () =>
-    options.map((option) => `${option.triggerBlockId} (${option.blockName})`).join(', ')
+    options
+      .map((option) => `${option.triggerBlockId} → ${option.triggerType}/${option.blockName}`)
+      .join(', ')
+  const inputShapeHint =
+    "Each trigger's input shape is its block's inputFormat in workflows state get."
   let option = options[0]
   if (params.input.triggerBlockId) {
     const selected = options.find(
@@ -137,14 +143,14 @@ async function resolveTriggerExecution(params: {
     if (!selected) {
       throw new OrchestrationError(
         'validation',
-        `triggerBlockId "${params.input.triggerBlockId}" is not a runnable trigger in this workflow. Valid triggers: ${listTriggers()}. Call get_workflow_run_options to inspect them.`
+        `triggerBlockId "${params.input.triggerBlockId}" is not a runnable trigger in this workflow. Valid triggers: ${listTriggers()}. ${inputShapeHint}`
       )
     }
     option = selected
   } else if (options.length > 1) {
     throw new OrchestrationError(
       'validation',
-      `This workflow has multiple triggers — pass triggerBlockId to choose one: ${listTriggers()}. Call get_workflow_run_options for each trigger's input shape.`
+      `This workflow has ${options.length} triggers: pass triggerBlockId (${listTriggers()}). ${inputShapeHint}`
     )
   }
 
@@ -193,7 +199,7 @@ async function resolveTriggerExecution(params: {
 }
 
 async function resolveSourceSnapshot(input: SnapshotCopilotRunInput): Promise<{
-  executionId: string
+  executionId?: string
   snapshot: SerializableExecutionState
 }> {
   if (input.sourceExecutionId) {
@@ -206,27 +212,38 @@ async function resolveSourceSnapshot(input: SnapshotCopilotRunInput): Promise<{
   }
   const latest = await getLatestExecutionStateWithExecutionId(input.workflowId)
   if (latest?.state) return { executionId: latest.executionId, snapshot: latest.state }
+  // Pure-mock isolated run: with variableInputs the executor overlays every upstream
+  // output the block reads, so no prior execution is required. No executionId means
+  // the snapshot is treated as untrusted, exactly like a caller-supplied one.
+  if (input.variableInputs && Object.keys(input.variableInputs).length > 0) {
+    return { snapshot: emptyRunFromBlockSnapshot() }
+  }
   throw new OrchestrationError(
     'not_found',
-    `No execution state found for workflow ${input.workflowId}. Run the full workflow first to create a snapshot.`
+    `No execution state found for workflow ${input.workflowId}. Run the full workflow first to create a snapshot, or pass variableInputs mocking the upstream outputs.`
   )
 }
 
 async function executeCopilotRun(params: {
   principal: Principal
   input: BaseCopilotRunInput
-  context: Awaited<ReturnType<typeof resolveActiveWorkflowApplicationContext>>
+  context: ActiveWorkflowApplicationContext
   executionInput: unknown
   triggerBlockId?: string
   stopAfterBlockId?: string
   runFromBlock?: {
     startBlockId: string
     sourceSnapshot: SerializableExecutionState
-    sourceExecutionId: string
+    sourceExecutionId?: string
+    variableInputs?: Record<string, unknown>
   }
 }): Promise<ExecutionResult> {
   if (
+    params.principal.kind === 'organization_delegated' ||
+    params.principal.kind === 'slack_app' ||
+    params.principal.kind === 'slack_installation' ||
     params.principal.kind === 'credential_group_enrollment' ||
+    params.principal.kind === 'scim_connection' ||
     (params.principal.kind === 'delegated' && params.principal.serviceId === 'executor')
   ) {
     throw new Error('The principal cannot start a Copilot workflow execution')
@@ -250,6 +267,13 @@ async function executeCopilotRun(params: {
     params.executionInput
   )
   const completePendingActivation = registry?.beginPendingActivation()
+  /**
+   * The run's own result, once the executor returns it. The post-run crossing below is inside the
+   * same `try`, so its failure reaches the catch carrying nothing — and on that evidence alone it
+   * is indistinguishable from a run that never started. Holding the result here keeps the real
+   * envelope available to describe content that certainly exists.
+   */
+  let runResult: ExecutionResult | undefined
   /**
    * The executor call is the first statement of this `try`, so everything caught below is
    * post-dispatch by construction, while authorization, admission and provenance export all
@@ -302,6 +326,7 @@ async function executeCopilotRun(params: {
       },
       childExecutionId
     )
+    runResult = result
     if (registry) {
       await registry.importCrossingProvenance(
         result.executionState?.resolvedSecretTraceProvenance,
@@ -310,7 +335,17 @@ async function executeCopilotRun(params: {
       )
     }
     return result
-  } catch (error) {
+  } catch (caught) {
+    /**
+     * A refused run-from-block start — block missing, inside a loop, or an upstream block the
+     * snapshot never executed — is the caller's to fix, so it crosses as a classified validation
+     * failure. Left bare, the Copilot projection reduced it to "Workflow execution failed" and
+     * the agent had to recover the reason from the trace.
+     */
+    const error =
+      caught instanceof RunFromBlockValidationError
+        ? new OrchestrationError('validation', caught.message)
+        : caught
     /**
      * `executeWorkflow` names the run itself once it crosses its own dispatch boundary, so
      * preflight failures inside it correctly carry nothing. This covers only the window it
@@ -325,16 +360,23 @@ async function executeCopilotRun(params: {
      * as never started and invite the duplicate this id exists to prevent.
      */
     if (registry) {
-      const executionResult =
-        typeof error === 'object' &&
-        error !== null &&
-        'executionResult' in error &&
-        typeof error.executionResult === 'object'
-          ? (error.executionResult as ExecutionResult)
-          : undefined
+      /**
+       * Either source counts as proof a run exists: the error carries the result when the run or
+       * its post-execution work threw, and `runResult` holds it when the failure came later still
+       * — from the crossing below, after the executor had already returned.
+       */
+      const executionResult = hasExecutionResult(error) ? error.executionResult : runResult
       try {
+        /**
+         * Only a failure with no result from either source can claim nothing ran, and saying so
+         * keeps the caller's failure reason instead of reducing the tool result to "result
+         * unavailable" for a message that named no secret because none had been resolved yet.
+         * Every other failure hands back the envelope it has, and an incomplete one still latches.
+         */
         await registry.importCrossingProvenance(
-          executionResult?.executionState?.resolvedSecretTraceProvenance,
+          executionResult
+            ? executionResult.executionState?.resolvedSecretTraceProvenance
+            : emptyResolvedSecretTraceProvenance(),
           {
             output: executionResult?.output,
             logs: executionResult?.logs,
@@ -373,7 +415,7 @@ function defineTriggerRunUseCase<I extends TriggerCopilotRunInput & { stopAfterB
 ) {
   return defineAuthorizedWorkflowUseCase({
     operation,
-    resolveContext: resolveContext<I>,
+    resolveContext: resolvePrincipalWorkflowContext<I>,
     async execute({ principal, input, context }) {
       const prepared = await resolveTriggerExecution({ input, workspaceId: context.workspaceId })
       return executeCopilotRun({
@@ -405,7 +447,7 @@ function defineSnapshotRunUseCase<I extends SnapshotCopilotRunInput>(
 ) {
   return defineAuthorizedWorkflowUseCase({
     operation,
-    resolveContext: resolveContext<I>,
+    resolveContext: resolvePrincipalWorkflowContext<I>,
     async execute({ principal, input, context }) {
       const state = await loadDefinition(input, context.workspaceId)
       if (!state?.blocks) {
@@ -423,7 +465,8 @@ function defineSnapshotRunUseCase<I extends SnapshotCopilotRunInput>(
         runFromBlock: {
           startBlockId: input.blockId,
           sourceSnapshot: source.snapshot,
-          sourceExecutionId: source.executionId,
+          ...(source.executionId ? { sourceExecutionId: source.executionId } : {}),
+          ...(input.variableInputs ? { variableInputs: input.variableInputs } : {}),
         },
         stopAfterBlockId: stopAtStartBlock ? input.blockId : undefined,
       })

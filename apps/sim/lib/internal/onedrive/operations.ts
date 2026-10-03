@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import * as XLSX from 'xlsx'
 import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
 import {
@@ -17,6 +17,10 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { OneDriveOperationError } from '@/lib/internal/onedrive/errors'
 import type { OneDriveUploadInput } from '@/lib/internal/onedrive/schema'
+import {
+  createInternalToolFileResult,
+  type InternalToolFileResult,
+} from '@/lib/internal/tool-operations/file-result'
 import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
 import {
   getExtensionFromMimeType,
@@ -25,7 +29,7 @@ import {
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
-import type { OneDriveDownloadResponse, OneDriveToolParams } from '@/tools/onedrive/types'
+import type { OneDriveToolParams } from '@/tools/onedrive/types'
 import { normalizeExcelValues } from '@/tools/onedrive/utils'
 
 const MAX_GRAPH_JSON_BYTES = 2 * 1024 * 1024
@@ -104,14 +108,14 @@ async function readGraphJson(
 
 async function graphRequest(
   url: string,
-  init: Parameters<typeof secureFetchWithValidation>[1],
+  init: Omit<Parameters<typeof secureFetchWithValidation>[1], 'profile'>,
   label: string,
   signal?: AbortSignal
 ): Promise<SecureFetchResponse> {
   signal?.throwIfAborted()
   return secureFetchWithValidation(
     url,
-    { ...init, maxResponseBytes: MAX_GRAPH_JSON_BYTES, signal },
+    { ...init, profile: 'configuredEndpoint', maxResponseBytes: MAX_GRAPH_JSON_BYTES, signal },
     label
   )
 }
@@ -257,7 +261,7 @@ async function writeExcelValues(
       }
     }
     const written = await readGraphJson(writeResponse, context.signal)
-    const data = isRecordLike(written) ? written : {}
+    const data = toRecord(written)
     const returnedValues = Array.isArray(data.values) ? data.values : []
     const firstRow = Array.isArray(returnedValues[0]) ? returnedValues[0] : []
     return {
@@ -427,12 +431,13 @@ async function fetchGraph(
   maxResponseBytes: number,
   signal?: AbortSignal
 ) {
-  const validation = await validateUrlWithDNS(url, label)
+  const validation = await validateUrlWithDNS(url, label, 'contentFetch')
   signal?.throwIfAborted()
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new OneDriveOperationError(validation.error || `Invalid ${label}`, 400)
   }
   return secureFetchWithPinnedIP(url, validation.resolvedIP, {
+    profile: 'contentFetch',
     headers: { Authorization: `Bearer ${accessToken}` },
     maxResponseBytes,
     signal,
@@ -451,7 +456,7 @@ async function graphError(response: SecureFetchResponse, fallback: string, signa
 export async function downloadOneDriveFile(
   input: OneDriveDownloadInput,
   context: OneDriveOperationContext
-): Promise<OneDriveDownloadResponse> {
+): Promise<InternalToolFileResult> {
   context.signal?.throwIfAborted()
   const fileId = encodeURIComponent(input.fileId)
   const metadataResponse = await fetchGraph(
@@ -497,15 +502,12 @@ export async function downloadOneDriveFile(
     label: 'OneDrive file download',
     signal: context.signal,
   })
-  return {
-    success: true,
-    output: {
-      file: {
-        name: input.fileName || metadata.name || 'download',
-        mimeType: metadata.file?.mimeType || 'application/octet-stream',
-        data: buffer.toString('base64'),
-        size: buffer.length,
-      },
+  return createInternalToolFileResult(
+    {
+      buffer,
+      name: input.fileName || metadata.name || 'download',
+      mimeType: metadata.file?.mimeType || 'application/octet-stream',
     },
-  }
+    (file) => ({ success: true, output: { file } })
+  )
 }

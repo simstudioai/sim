@@ -265,7 +265,8 @@ export interface PostHogEventMap {
 
   knowledge_base_connector_added: {
     knowledge_base_id: string
-    workspace_id: string
+    workspace_id?: string
+    organization_id?: string
     connector_type: string
     sync_interval_minutes: number
   }
@@ -279,7 +280,8 @@ export interface PostHogEventMap {
 
   knowledge_base_connector_synced: {
     knowledge_base_id: string
-    workspace_id: string
+    workspace_id?: string
+    organization_id?: string
     connector_type: string
   }
 
@@ -340,6 +342,7 @@ export interface PostHogEventMap {
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'
+      | 'personal_token'
     provider_id: string
     workspace_id: string
   }
@@ -351,6 +354,7 @@ export interface PostHogEventMap {
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'
+      | 'personal_token'
     provider_id: string
     workspace_id: string
   }
@@ -362,6 +366,7 @@ export interface PostHogEventMap {
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'
+      | 'personal_token'
     role: 'admin' | 'member'
     workspace_id: string
   }
@@ -373,6 +378,7 @@ export interface PostHogEventMap {
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'
+      | 'personal_token'
     workspace_id: string
   }
 
@@ -544,8 +550,10 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
-  task_forked: {
-    workspace_id: string
+  task_forked: (
+    | { workspace_id: string; organization_id?: never }
+    | { organization_id: string; workspace_id?: never }
+  ) & {
     source_chat_id: string
   }
 
@@ -614,7 +622,10 @@ export interface PostHogEventMap {
     action_id?: string
   }
 
-  /** A home-page suggested action was clicked. `action_id` is the candidate id (e.g. `gmail-0`). */
+  /**
+   * A home-page suggested action was clicked. `action_id` is the candidate id
+   * (e.g. `integrate-gmail`).
+   */
   suggested_action_clicked: {
     workspace_id: string
     kind: 'prompt' | 'integration'
@@ -717,6 +728,12 @@ export interface PostHogEventMap {
     is_self_removal: boolean
   }
 
+  /** A member the organization's identity provider created rather than a person. */
+  scim_user_provisioned: {
+    organization_id: string
+    created_account: boolean
+  }
+
   org_member_role_changed: {
     organization_id: string
     new_role: string
@@ -749,6 +766,17 @@ export interface PostHogEventMap {
     workspace_id: string
     workflow_count: number
     fork_sync_excluded: boolean
+  }
+
+  /**
+   * The lineage-wide "do new workflows sync to forks?" default was changed from the Forks
+   * settings. `workspace_id` is where the admin changed it; the write fans out to the
+   * whole lineage.
+   */
+  fork_sync_default_updated: {
+    workspace_id: string
+    fork_sync_new_workflows_excluded: boolean
+    workspaces_updated: number
   }
 
   workflow_schedule_created: {
@@ -797,6 +825,7 @@ export interface PostHogEventMap {
       | 'env_workspace'
       | 'env_personal'
       | 'service_account'
+      | 'personal_token'
     provider_id: string
     workspace_id?: string
   }

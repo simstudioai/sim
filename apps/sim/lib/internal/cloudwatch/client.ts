@@ -125,7 +125,7 @@ const MAX_LOG_STREAMS_PAGES = 20
 
 const logger = createLogger('CloudWatchUtils')
 
-interface DescribedLogStream {
+export interface DescribedLogStream {
   logStreamName: string
   lastEventTimestamp: number | undefined
   firstEventTimestamp: number | undefined
@@ -145,13 +145,25 @@ interface DescribedLogStream {
 export async function describeLogStreams(
   client: CloudWatchLogsClient,
   logGroupName: string,
-  options?: { prefix?: string; limit?: number },
+  options?: {
+    prefix?: string
+    limit?: number
+    nextToken?: string
+    suppressTruncationLog?: boolean
+  },
   signal?: AbortSignal
-): Promise<{ logStreams: DescribedLogStream[] }> {
+): Promise<{
+  logStreams: DescribedLogStream[]
+  truncated: boolean
+  pages: number
+  nextToken?: string
+}> {
   const hasPrefix = Boolean(options?.prefix)
   const totalLimit = options?.limit
   const logStreams: DescribedLogStream[] = []
-  let nextToken: string | undefined
+  let nextToken = options?.nextToken
+  let pages = 0
+  let truncated = false
 
   for (let page = 0; page < MAX_LOG_STREAMS_PAGES; page++) {
     const pageLimit =
@@ -165,10 +177,11 @@ export async function describeLogStreams(
         ? { orderBy: 'LogStreamName', logStreamNamePrefix: options!.prefix }
         : { orderBy: 'LastEventTime', descending: true }),
       limit: pageLimit,
-      ...(nextToken && { nextToken }),
+      ...(nextToken !== undefined ? { nextToken } : {}),
     })
 
     const response = await client.send(command, { abortSignal: signal })
+    pages = page + 1
 
     for (const ls of response.logStreams ?? []) {
       logStreams.push({
@@ -185,15 +198,21 @@ export async function describeLogStreams(
     if (totalLimit !== undefined && logStreams.length >= totalLimit) break
 
     if (page === MAX_LOG_STREAMS_PAGES - 1) {
-      logger.warn(
-        `DescribeLogStreams hit pagination cap of ${MAX_LOG_STREAMS_PAGES} pages; log stream list may be incomplete`,
-        { logGroupName }
-      )
+      truncated = true
+      if (!options?.suppressTruncationLog) {
+        logger.warn(
+          `DescribeLogStreams hit pagination cap of ${MAX_LOG_STREAMS_PAGES} pages; log stream list may be incomplete`,
+          { logGroupName }
+        )
+      }
     }
   }
 
   return {
     logStreams: totalLimit !== undefined ? logStreams.slice(0, totalLimit) : logStreams,
+    truncated,
+    pages,
+    ...(nextToken !== undefined ? { nextToken } : {}),
   }
 }
 

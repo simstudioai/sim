@@ -11,15 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-Sim's Knowledge Base is a native feature that enables you to create, manage, and query custom knowledge bases directly within the platform. Using advanced AI embeddings and vector search, the Knowledge Base block allows you to build intelligent search capabilities into your workflows.
-
-With the Knowledge Base in Sim, you can:
-
-- **Search knowledge**: Perform semantic searches across your custom knowledge bases using AI-powered vector similarity matching
-- **Upload chunks**: Add text chunks with metadata to a knowledge base for indexing
-- **Create documents**: Add new documents to a knowledge base for searchable content
-
-In Sim, the Knowledge Base block enables your agents to perform intelligent semantic searches across your organizational knowledge as part of automated workflows. This is ideal for information retrieval, content recommendations, FAQ automation, and grounding agent responses in your own data.
+Use the Knowledge block to search a Sim knowledge base and manage its documents and chunks from a workflow. The reference below also covers tags, connector inspection, and connector sync. See [Using knowledge in workflows](/knowledgebase/using-in-workflows) for configuration and examples.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -33,7 +25,7 @@ Integrate Knowledge into the workflow. Perform full CRUD operations on documents
 
 ### Knowledge Search
 
-Search for similar content in a knowledge base using vector similarity
+Search for similar content in a knowledge base by relevance
 
 #### Input
 
@@ -43,7 +35,7 @@ Search for similar content in a knowledge base using vector similarity
 | `query` | string | No | Search query text \(optional when using tag filters\) |
 | `topK` | number | No | Number of most similar results to return \(1-100\) |
 | `tagFilters` | array | No | Array of tag filters with tagName and tagValue properties |
-| `searchMode` | string | No | Retrieval mode: 'vector' \(default\) uses semantic similarity only, 'hybrid' also runs a full-text leg and fuses both |
+| `searchMode` | string | No | Retrieval mode: 'hybrid' fuses a full-text leg with semantic similarity, 'vector' uses semantic similarity only; omit for the workspace's default |
 | `rerankerEnabled` | boolean | No | Whether to apply Cohere reranking to vector search results |
 | `rerankerModel` | string | No | Cohere rerank model to use \(one of: rerank-v4.0-pro, rerank-v4.0-fast, rerank-v3.5\) |
 | `rerankerInputCount` | number | No | Number of vector results sent to the Cohere reranker \(1–100\). Defaults to topK × 4 capped at 100. |
@@ -59,7 +51,9 @@ Search for similar content in a knowledge base using vector similarity
 |   ↳ `sourceUrl` | string | URL to the original source document \(e.g., Confluence page, Google Doc, Notion page\). Null for documents without an external source. |
 |   ↳ `content` | string | Content of the result |
 |   ↳ `chunkIndex` | number | Index of the chunk within the document |
-|   ↳ `similarity` | number | Similarity score of the result |
+|   ↳ `similarity` | number | Cosine similarity between the query and the chunk \(1 - cosine distance\) in every search mode; 1 for tag-only matches. Not the ordering key in hybrid mode |
+|   ↳ `rankScore` | number | Score the results are ordered by, descending: the reciprocal-rank-fusion score in hybrid mode, the cosine similarity in vector mode, or the reranker score when a reranker ordered the results |
+|   ↳ `rank` | number | 1-based position in the returned order |
 |   ↳ `metadata` | object | Metadata of the result, including tags |
 | `query` | string | The search query that was executed |
 | `totalResults` | number | Total number of results found |

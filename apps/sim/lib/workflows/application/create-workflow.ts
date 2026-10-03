@@ -6,7 +6,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
-import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
+import { notifyWorkflowUpdated, notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { requireWorkflowTransition } from '@/lib/workflows/application/transition-result'
@@ -98,7 +98,10 @@ export const createWorkflow = defineAuthorizedWorkflowUseCase({
     },
   }),
   async afterSuccess({ result }) {
-    await notifyWorkflowUpdated(result.workflow.id)
+    await Promise.all([
+      notifyWorkflowUpdated(result.workflow.id),
+      notifyWorkspaceWorkflowsChanged(result.workflow.workspaceId),
+    ])
     try {
       PlatformEvents.workflowCreated({
         workflowId: result.workflow.id,

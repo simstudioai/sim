@@ -115,7 +115,11 @@ export const PATCH = withRouteHandler(
 
       // `write` is the floor for either operation; a `locks` change additionally
       // requires `admin` (checked below), matching the workflow-lock precedent.
-      const result = await checkAccess(tableId, authResult.userId, 'write')
+      const result = await checkAccess(
+        tableId,
+        { kind: 'user', userId: authResult.userId },
+        'write'
+      )
       if (!result.ok) return accessError(result, requestId, tableId)
 
       const { table } = result
@@ -125,7 +129,11 @@ export const PATCH = withRouteHandler(
       }
 
       if (validated.locks !== undefined) {
-        const adminResult = await checkAccess(tableId, authResult.userId, 'admin')
+        const adminResult = await checkAccess(
+          tableId,
+          { kind: 'user', userId: authResult.userId },
+          'admin'
+        )
         if (!adminResult.ok) {
           return NextResponse.json(
             { error: 'Admin access required to change table locks' },
@@ -233,7 +241,11 @@ export const DELETE = withRouteHandler(
         workspaceId: searchParams.get('workspaceId'),
       })
 
-      const result = await checkAccess(tableId, authResult.userId, 'write')
+      const result = await checkAccess(
+        tableId,
+        { kind: 'user', userId: authResult.userId },
+        'write'
+      )
       if (!result.ok) return accessError(result, requestId, tableId)
 
       const { table } = result

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { cn, Loader } from '@sim/emcn'
+import { cn, Lightbox, Loader } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
@@ -41,6 +41,70 @@ const AttachedFileChip = React.memo(function AttachedFileChip({
   const isMedia = isVideo || file.type.startsWith('image/')
   const extension = getFileExtension(file.name)
   const [previewFailed, setPreviewFailed] = useState(false)
+  const lightboxSrc = file.type.startsWith('image/') && !previewFailed ? file.previewUrl : undefined
+
+  const preview = (
+    <button
+      type='button'
+      className={cn(
+        CHIP_SURFACE,
+        'size-full',
+        isMedia ? 'overflow-hidden' : 'flex items-center gap-2 py-[7px] pr-5 pl-2'
+      )}
+      onClick={lightboxSrc ? undefined : () => onFileClick(file)}
+      aria-label={lightboxSrc ? `Preview ${file.name}` : `Open ${file.name}`}
+    >
+      {isMedia ? (
+        <>
+          <span className='absolute inset-0 flex items-center justify-center text-[var(--text-icon)]'>
+            <Icon className='size-[18px]' />
+          </span>
+          {file.previewUrl &&
+            !previewFailed &&
+            (isVideo ? (
+              <video
+                src={file.previewUrl}
+                muted
+                playsInline
+                preload='metadata'
+                className='relative size-full object-cover'
+              />
+            ) : (
+              <img
+                src={file.previewUrl}
+                alt={file.name}
+                onError={() => setPreviewFailed(true)}
+                className='relative size-full object-cover'
+              />
+            ))}
+        </>
+      ) : (
+        <>
+          {/* Fill is constant — the chip's own hover is the only hover affordance. It
+                sits a step below `--surface-6` in light mode so the chip's hover fill
+                (`--surface-active`) cannot close on it. */}
+          <span className='flex size-[32px] shrink-0 items-center justify-center rounded-md bg-[var(--surface-7)] text-[var(--text-icon)] dark:bg-[var(--surface-3)]'>
+            <Icon className='size-[16px]' />
+          </span>
+          <span className='flex min-w-0 flex-col items-start'>
+            <span className='w-full truncate text-[var(--text-body)] text-small leading-tight'>
+              {file.name}
+            </span>
+            {extension && (
+              <span className='text-[var(--text-icon)] text-caption uppercase leading-tight'>
+                {extension}
+              </span>
+            )}
+          </span>
+        </>
+      )}
+      {file.uploading && (
+        <span className='absolute inset-0 flex items-center justify-center rounded-[inherit] bg-[var(--surface-5)]/70 dark:bg-[var(--surface-4)]/70'>
+          <Loader className='size-[14px] text-[var(--text-icon)]' animate />
+        </span>
+      )}
+    </button>
+  )
 
   return (
     /* Owns the width cap: it anchors the remove badge, which a max-content button would strand. */
@@ -50,65 +114,13 @@ const AttachedFileChip = React.memo(function AttachedFileChip({
         isMedia ? 'size-[48px] shrink-0' : 'h-[48px] min-w-0 max-w-[min(220px,100%)]'
       )}
     >
-      <button
-        type='button'
-        className={cn(
-          CHIP_SURFACE,
-          'size-full',
-          isMedia ? 'overflow-hidden' : 'flex items-center gap-2 py-[7px] pr-5 pl-2'
-        )}
-        onClick={() => onFileClick(file)}
-      >
-        {isMedia ? (
-          <>
-            <span className='absolute inset-0 flex items-center justify-center text-[var(--text-icon)]'>
-              <Icon className='size-[18px]' />
-            </span>
-            {file.previewUrl &&
-              !previewFailed &&
-              (isVideo ? (
-                <video
-                  src={file.previewUrl}
-                  muted
-                  playsInline
-                  preload='metadata'
-                  className='relative size-full object-cover'
-                />
-              ) : (
-                <img
-                  src={file.previewUrl}
-                  alt={file.name}
-                  onError={() => setPreviewFailed(true)}
-                  className='relative size-full object-cover'
-                />
-              ))}
-          </>
-        ) : (
-          <>
-            {/* Fill is constant — the chip's own hover is the only hover affordance. It
-                sits a step below `--surface-6` in light mode so the chip's hover fill
-                (`--surface-active`) cannot close on it. */}
-            <span className='flex size-[32px] shrink-0 items-center justify-center rounded-md bg-[var(--surface-7)] text-[var(--text-icon)] dark:bg-[var(--surface-3)]'>
-              <Icon className='size-[16px]' />
-            </span>
-            <span className='flex min-w-0 flex-col items-start'>
-              <span className='w-full truncate text-[var(--text-body)] text-small leading-tight'>
-                {file.name}
-              </span>
-              {extension && (
-                <span className='text-[var(--text-icon)] text-caption uppercase leading-tight'>
-                  {extension}
-                </span>
-              )}
-            </span>
-          </>
-        )}
-        {file.uploading && (
-          <span className='absolute inset-0 flex items-center justify-center rounded-[inherit] bg-[var(--surface-5)]/70 dark:bg-[var(--surface-4)]/70'>
-            <Loader className='size-[14px] text-[var(--text-icon)]' animate />
-          </span>
-        )}
-      </button>
+      {lightboxSrc ? (
+        <Lightbox src={lightboxSrc} alt={file.name}>
+          {preview}
+        </Lightbox>
+      ) : (
+        preview
+      )}
       {!file.uploading && (
         <button
           type='button'

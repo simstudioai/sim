@@ -131,8 +131,8 @@ export function useDeployReadiness(workflowId: string | null): DeployReadiness {
     const queue = useOperationQueueStore.getState()
     if (queue.hasOperationError) return false
 
-    const drained = await queue.waitForWorkflowOperations(workflowId)
-    if (!drained) return false
+    const drainResult = await queue.waitForWorkflowOperations(workflowId)
+    if (drainResult !== 'drained') return false
 
     const latestQueue = useOperationQueueStore.getState()
     const diff = useWorkflowDiffStore.getState()

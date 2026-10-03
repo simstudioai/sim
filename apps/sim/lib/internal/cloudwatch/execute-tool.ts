@@ -1,9 +1,5 @@
 import { toError } from '@sim/utils/errors'
 import type { AnyApiRouteContract, ContractBody } from '@/lib/api/contracts'
-import {
-  cloudwatchLogGroupsSelectorContract,
-  cloudwatchLogStreamsSelectorContract,
-} from '@/lib/api/contracts/selectors/cloudwatch'
 import { awsCloudwatchDescribeAlarmHistoryContract } from '@/lib/api/contracts/tools/aws/cloudwatch-describe-alarm-history'
 import { awsCloudwatchDescribeAlarmsContract } from '@/lib/api/contracts/tools/aws/cloudwatch-describe-alarms'
 import { awsCloudwatchFilterLogEventsContract } from '@/lib/api/contracts/tools/aws/cloudwatch-filter-log-events'
@@ -15,6 +11,10 @@ import { awsCloudwatchPutLogGroupRetentionContract } from '@/lib/api/contracts/t
 import { awsCloudwatchPutMetricDataContract } from '@/lib/api/contracts/tools/aws/cloudwatch-put-metric-data'
 import { awsCloudwatchQueryLogsContract } from '@/lib/api/contracts/tools/aws/cloudwatch-query-logs'
 import { awsCloudwatchUnmuteAlarmContract } from '@/lib/api/contracts/tools/aws/cloudwatch-unmute-alarm'
+import {
+  cloudwatchLogGroupsContract,
+  cloudwatchLogStreamsContract,
+} from '@/lib/api/contracts/tools/cloudwatch'
 import {
   CloudWatchInputError,
   executeCloudwatchDescribeAlarmHistory,
@@ -81,7 +81,7 @@ export const executeCloudwatchTool: InternalToolOperationHandler = async ({
       )
     case 'cloudwatch_describe_log_groups':
       return executeOperation(
-        cloudwatchLogGroupsSelectorContract,
+        cloudwatchLogGroupsContract,
         input,
         executeCloudwatchDescribeLogGroups,
         'Failed to describe CloudWatch log groups',
@@ -89,7 +89,7 @@ export const executeCloudwatchTool: InternalToolOperationHandler = async ({
       )
     case 'cloudwatch_describe_log_streams':
       return executeOperation(
-        cloudwatchLogStreamsSelectorContract,
+        cloudwatchLogStreamsContract,
         input,
         executeCloudwatchDescribeLogStreams,
         'Failed to describe CloudWatch log streams',

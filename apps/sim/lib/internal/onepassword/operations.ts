@@ -1,5 +1,6 @@
 import type { ItemCreateParams } from '@1password/sdk'
 import { generateId } from '@sim/utils/id'
+import { toRecord } from '@sim/utils/object'
 import type { ContractBody } from '@/lib/api/contracts'
 import type {
   onePasswordCreateItemContract,
@@ -32,6 +33,10 @@ import {
   applyOnePasswordPatch,
   type JsonPatchOperation,
 } from '@/lib/internal/onepassword/json-patch'
+import {
+  createInternalToolFileResult,
+  type InternalToolFileResult,
+} from '@/lib/internal/tool-operations/file-result'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 
 export interface OnePasswordOperationContext {
@@ -49,14 +54,8 @@ type DeleteItemInput = ContractBody<typeof onePasswordDeleteItemContract>
 type ResolveSecretInput = ContractBody<typeof onePasswordResolveSecretContract>
 type GetItemFileInput = ContractBody<typeof onePasswordGetItemFileContract>
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
-}
-
 function providerMessage(data: unknown, fallback: string): string {
-  const message = asRecord(data).message
+  const message = toRecord(data).message
   return typeof message === 'string' && message ? message : fallback
 }
 
@@ -206,7 +205,7 @@ export async function executeOnePasswordCreateItem(
       : undefined
     const fields = input.fields
       ? (JSON.parse(input.fields) as Array<Record<string, unknown>>).map((field) => {
-          const section = asRecord(field.section)
+          const section = toRecord(field.section)
           return {
             id: (field.id as string) || generateId().slice(0, 8),
             title: (field.label as string) || (field.title as string) || '',
@@ -373,9 +372,7 @@ export async function executeOnePasswordResolveSecret(
 export async function executeOnePasswordGetItemFile(
   input: GetItemFileInput,
   context: OnePasswordOperationContext
-): Promise<{
-  file: { name: string; mimeType: string; data: string; size: number }
-}> {
+): Promise<InternalToolFileResult> {
   const credentials = resolveCredentials(input)
   if (credentials.mode === 'service_account') {
     const client = await createOnePasswordClient(credentials.serviceAccountToken, context.signal)
@@ -390,14 +387,10 @@ export async function executeOnePasswordGetItemFile(
     )
     assertKnownSizeWithinLimit(content.byteLength, MAX_FILE_SIZE, '1Password item file')
     const buffer = Buffer.from(content.buffer, content.byteOffset, content.byteLength)
-    return {
-      file: {
-        name: attributes.name,
-        mimeType: 'application/octet-stream',
-        data: buffer.toString('base64'),
-        size: attributes.size,
-      },
-    }
+    return createInternalToolFileResult(
+      { buffer, name: attributes.name, mimeType: 'application/octet-stream' },
+      (file) => ({ file })
+    )
   }
 
   const metadataResponse = await connectRequest({
@@ -414,7 +407,7 @@ export async function executeOnePasswordGetItemFile(
       error: providerMessage(data, 'Failed to get file metadata'),
     })
   }
-  const metadata = asRecord(await metadataResponse.json())
+  const metadata = toRecord(await metadataResponse.json())
   context.signal?.throwIfAborted()
 
   const contentResponse = await connectRequest({
@@ -434,12 +427,12 @@ export async function executeOnePasswordGetItemFile(
   }
   const buffer = Buffer.from(await contentResponse.arrayBuffer())
   context.signal?.throwIfAborted()
-  return {
-    file: {
+  return createInternalToolFileResult(
+    {
+      buffer,
       name: typeof metadata.name === 'string' ? metadata.name : 'attachment',
       mimeType: contentResponse.headers.get('content-type') || 'application/octet-stream',
-      data: buffer.toString('base64'),
-      size: typeof metadata.size === 'number' ? metadata.size : buffer.length,
     },
-  }
+    (file) => ({ file })
+  )
 }

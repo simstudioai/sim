@@ -1,7 +1,7 @@
 import { workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireWorkflowMcpServerLock } from '@/lib/mcp/server-locks'
 import { validateMcpToolMetadataForStorage } from '@/lib/mcp/tool-limits'
 import { getEdgeMappingRows } from '@/ee/workspace-forking/lib/mapping/mapping-store'
@@ -102,7 +102,7 @@ export async function copyForkWorkflowMcpAttachments(params: {
  * Returns the affected target server ids so the caller can notify them post-commit.
  */
 export async function reconcileForkWorkflowMcpAttachments(params: {
-  tx: DbOrTx
+  tx: DbTransaction
   childWorkspaceId: string
   /** True when the sync SOURCE is the parent workspace (a pull). */
   sourceIsParent: boolean

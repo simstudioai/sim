@@ -11,6 +11,7 @@ import { McpIcon } from '@/components/icons'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowStateContract } from '@/lib/api/contracts/workflows'
+import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
 import {
   getIssueBadgeLabel,
   getIssueBadgeVariant,
@@ -91,6 +92,9 @@ function ServerListItem({
   onAuthorize,
 }: ServerListItemProps) {
   const transportLabel = formatTransportLabel(server.transport || 'http')
+  const ServerIcon = server.managedConnectorId
+    ? getManagedMcpConnectorIcon(server.managedConnectorId)
+    : McpIcon
   const toolsLabel = getServerToolsLabel(
     tools,
     server.connectionStatus,
@@ -113,20 +117,22 @@ function ServerListItem({
   const serverName = server.name || 'Unnamed server'
   // Transport rides on the description rather than beside the name — inside the
   // row's truncating title a long name would clip it away entirely.
-  const statusText = isConnecting
-    ? 'Waiting for authorization...'
-    : isRefreshing
-      ? 'Refreshing...'
-      : isLoadingTools && tools.length === 0
-        ? 'Loading...'
-        : showDiscoveryError
-          ? discoveryError
-          : toolsLabel
+  const statusText = server.managedConnectorId
+    ? 'Managed by Connected accounts'
+    : isConnecting
+      ? 'Waiting for authorization...'
+      : isRefreshing
+        ? 'Refreshing...'
+        : isLoadingTools && tools.length === 0
+          ? 'Loading...'
+          : showDiscoveryError
+            ? discoveryError
+            : toolsLabel
 
   return (
     <SettingsResourceRow
-      icon={<McpIcon className='text-[var(--text-icon)]' />}
-      iconFilled
+      icon={<ServerIcon className='text-[var(--text-icon)]' />}
+      iconFilled={!server.managedConnectorId}
       title={serverName}
       description={
         <>
@@ -145,7 +151,10 @@ function ServerListItem({
       clickLabel={`Open ${serverName}`}
       navigable
       trailing={
-        canManage && server.authType === 'oauth' && server.connectionStatus !== 'connected' ? (
+        canManage &&
+        !server.managedConnectorId &&
+        server.authType === 'oauth' &&
+        server.connectionStatus !== 'connected' ? (
           <Chip onClick={onAuthorize}>{isConnecting ? 'Reopen authorization' : 'Authorize'}</Chip>
         ) : undefined
       }
@@ -440,7 +449,7 @@ export function MCP() {
         back={{ text: 'MCP tools', icon: ArrowLeft, onSelect: handleBackToList }}
         title={server.name || 'Unnamed server'}
         actions={
-          canEdit
+          canEdit && !server.managedConnectorId
             ? [
                 {
                   text: refreshAction.text,
@@ -474,6 +483,10 @@ export function MCP() {
               </SettingsField>
             )}
 
+            {server.managedConnectorId && (
+              <SettingsField label='Managed by'>Connected accounts</SettingsField>
+            )}
+
             {server.connectionStatus !== 'connected' && (
               <SettingsField label='Status'>
                 <p className='text-[var(--text-error)] text-sm'>
@@ -487,20 +500,23 @@ export function MCP() {
               </SettingsField>
             )}
 
-            {canEdit && server.authType === 'oauth' && server.connectionStatus !== 'connected' && (
-              <SettingsField label='Authentication'>
-                <div>
-                  <Chip
-                    variant='primary'
-                    onClick={async () => {
-                      await startOauthForServer(server.id)
-                    }}
-                  >
-                    {connectingOauthServers.has(server.id) ? 'Reopen authorization' : 'Authorize'}
-                  </Chip>
-                </div>
-              </SettingsField>
-            )}
+            {canEdit &&
+              !server.managedConnectorId &&
+              server.authType === 'oauth' &&
+              server.connectionStatus !== 'connected' && (
+                <SettingsField label='Authentication'>
+                  <div>
+                    <Chip
+                      variant='primary'
+                      onClick={async () => {
+                        await startOauthForServer(server.id)
+                      }}
+                    >
+                      {connectingOauthServers.has(server.id) ? 'Reopen authorization' : 'Authorize'}
+                    </Chip>
+                  </div>
+                </SettingsField>
+              )}
           </div>
         </SettingsSection>
 
@@ -562,7 +578,7 @@ export function MCP() {
                       {hasParams && (
                         <ChevronDown
                           className={cn(
-                            'mt-0.5 size-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-200',
+                            'mt-0.5 size-[14px] shrink-0 text-[var(--text-muted)] transition-transform duration-200',
                             isExpanded && 'rotate-180'
                           )}
                         />

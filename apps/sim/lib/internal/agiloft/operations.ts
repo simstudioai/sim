@@ -1,5 +1,5 @@
 import { toError } from '@sim/utils/errors'
-import { filterUndefined } from '@sim/utils/object'
+import { filterUndefined, toRecordOrNull } from '@sim/utils/object'
 import type {
   AgiloftAsyncStatusBody,
   AgiloftAttachBody,
@@ -65,6 +65,10 @@ import {
   getLockHttpMethod,
   parseFieldList,
 } from '@/lib/internal/agiloft/urls'
+import {
+  createInternalToolFileResult,
+  type InternalToolFileResult,
+} from '@/lib/internal/tool-operations/file-result'
 import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
 import type {
   AgiloftAsyncStatusResponse,
@@ -93,10 +97,7 @@ export interface AgiloftOperationContext {
 
 function parseRecordData(data: string): Record<string, unknown> | null {
   try {
-    const parsed = JSON.parse(data)
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null
+    return toRecordOrNull(JSON.parse(data))
   } catch {
     return null
   }
@@ -853,6 +854,7 @@ export async function executeAgiloftAttachFile(
     buildAttachFileUrl(input.instanceUrl.replace(/\/$/, ''), input, fileName),
     resolvedIP,
     {
+      profile: 'configuredEndpoint',
       method: 'PUT',
       headers: { 'Content-Type': 'application/octet-stream' },
       body: buffer,
@@ -892,7 +894,7 @@ export async function executeAgiloftAttachFile(
 export async function executeAgiloftRetrieveAttachment(
   input: AgiloftRetrieveBody,
   context: AgiloftOperationContext
-): Promise<ToolResponse> {
+): Promise<InternalToolFileResult> {
   let resolvedIP: string
   try {
     resolvedIP = await resolveAgiloftInstance(input.instanceUrl, context.signal)
@@ -903,7 +905,12 @@ export async function executeAgiloftRetrieveAttachment(
   const response = await secureFetchWithPinnedIP(
     buildRetrieveAttachmentUrl(input.instanceUrl.replace(/\/$/, ''), input),
     resolvedIP,
-    { method: 'GET', maxResponseBytes: AGILOFT_MAX_ATTACHMENT_BYTES, signal: context.signal }
+    {
+      profile: 'configuredEndpoint',
+      method: 'GET',
+      maxResponseBytes: AGILOFT_MAX_ATTACHMENT_BYTES,
+      signal: context.signal,
+    }
   )
   if (!response.ok) {
     const text = await response.text()
@@ -924,15 +931,8 @@ export async function executeAgiloftRetrieveAttachment(
       error: `Agiloft error: ${buffer.toString('utf8').slice(0, 300)}`,
     })
   }
-  return {
-    success: true,
-    output: {
-      file: {
-        name: fileName,
-        mimeType: resolveEffectiveMimeType(contentType, fileName),
-        data: buffer.toString('base64'),
-        size: buffer.length,
-      },
-    },
-  }
+  return createInternalToolFileResult(
+    { buffer, name: fileName, mimeType: resolveEffectiveMimeType(contentType, fileName) },
+    (file) => ({ success: true, output: { file } })
+  )
 }

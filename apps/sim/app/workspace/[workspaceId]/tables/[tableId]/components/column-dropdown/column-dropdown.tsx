@@ -5,20 +5,27 @@ import {
   chipContentIconClass,
   chipContentLabelClass,
   chipVariants,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  Plus,
+  Tooltip,
 } from '@sim/emcn'
-import { Sparkles } from '@sim/emcn/icons'
+import { Lock, Plus, Sparkles } from '@sim/emcn/icons'
 import type { ColumnDefinition } from '@/lib/table'
-import { COLUMN_TYPE_OPTIONS } from '../column-config-sidebar'
+import {
+  type ColumnTypeOption,
+  columnTypeOptionsForTable,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/column-config-sidebar'
+import { LOCK_TOOLTIPS } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
 
 const CELL_HEADER =
   'border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[7px] text-left align-middle'
 
 interface ColumnDropdownProps {
+  columns: readonly ColumnDefinition[]
+  tableRowTtlEnabled: boolean
   /** `'header'` renders the page-header trigger (subtle Button); `'inline-header'` renders
    *  the in-table column-header `<th>` trigger. Same dropdown content either way. */
   trigger: 'header' | 'inline-header'
@@ -26,14 +33,42 @@ interface ColumnDropdownProps {
   onPickType: (type: ColumnDefinition['type']) => void
   onPickWorkflow: () => void
   onPickEnrichment: () => void
-  /**
-   * When true, the trigger stays visible and clickable but opens nothing — it
-   * calls {@link onBlocked} instead. Used when the table is schema-locked:
-   * hiding the control leaves the user guessing, so it stays and explains.
-   * Paired required so `blocked` can never be set without a handler.
-   */
+  /** A schema lock disables the action and explains why on hover or focus. */
   blocked: boolean
-  onBlocked: () => void
+}
+
+interface ColumnTypeMenuItemProps {
+  option: ColumnTypeOption
+  onSelect: () => void
+}
+
+function ColumnTypeMenuItem({ option, onSelect }: ColumnTypeMenuItemProps) {
+  const Icon = option.icon
+  const item = (
+    <DropdownMenuItem
+      aria-disabled={option.disabledReason ? true : undefined}
+      className={cn(option.disabledReason && 'cursor-not-allowed opacity-50 focus:bg-transparent')}
+      onSelect={(event) => {
+        if (option.disabledReason) {
+          event.preventDefault()
+          return
+        }
+        onSelect()
+      }}
+    >
+      <Icon className='size-[14px] text-[var(--text-icon)]' />
+      {option.label}
+    </DropdownMenuItem>
+  )
+
+  if (!option.disabledReason) return item
+
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>{item}</Tooltip.Trigger>
+      <Tooltip.Content>{option.disabledReason}</Tooltip.Content>
+    </Tooltip.Root>
+  )
 }
 
 /**
@@ -42,43 +77,54 @@ interface ColumnDropdownProps {
  * opens the right sidebar pre-seeded.
  */
 export function ColumnDropdown({
+  columns,
+  tableRowTtlEnabled,
   trigger,
   disabled,
   onPickType,
   onPickWorkflow,
   onPickEnrichment,
   blocked,
-  onBlocked,
 }: ColumnDropdownProps) {
+  const Icon = blocked ? Lock : Plus
   const triggerButton =
     trigger === 'header' ? (
       <button
         type='button'
-        className={chipVariants()}
+        className={cn(chipVariants(), blocked && 'cursor-not-allowed opacity-60')}
         disabled={disabled}
-        onClick={blocked ? onBlocked : undefined}
+        aria-disabled={blocked || undefined}
       >
-        <Plus className={chipContentIconClass} />
+        <Icon className={chipContentIconClass} />
         <span className={chipContentLabelClass}>New column</span>
         <ChipChevronDown />
       </button>
     ) : (
       <button
         type='button'
-        className='flex h-[20px] cursor-pointer items-center gap-2 outline-none'
+        className={cn(
+          'flex h-[20px] items-center gap-2 outline-hidden',
+          blocked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+        )}
         disabled={disabled}
-        onClick={blocked ? onBlocked : undefined}
+        aria-disabled={blocked || undefined}
       >
-        <Plus className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+        <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
         <span className='text-[var(--text-body)] text-small'>New column</span>
       </button>
     )
 
   if (blocked) {
+    const lockedTrigger = (
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>{triggerButton}</Tooltip.Trigger>
+        <Tooltip.Content>{LOCK_TOOLTIPS.schema}</Tooltip.Content>
+      </Tooltip.Root>
+    )
     return trigger === 'inline-header' ? (
-      <th className={CELL_HEADER}>{triggerButton}</th>
+      <th className={CELL_HEADER}>{lockedTrigger}</th>
     ) : (
-      triggerButton
+      lockedTrigger
     )
   }
 
@@ -86,18 +132,12 @@ export function ColumnDropdown({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{triggerButton}</DropdownMenuTrigger>
       <DropdownMenuContent align='start' side='bottom' sideOffset={4}>
-        {COLUMN_TYPE_OPTIONS.map((option) => {
-          const Icon = option.icon
+        {columnTypeOptionsForTable(columns, undefined, { tableRowTtlEnabled }).map((option) => {
           const onSelect =
             option.type === 'workflow'
               ? onPickWorkflow
               : () => onPickType(option.type as ColumnDefinition['type'])
-          return (
-            <DropdownMenuItem key={option.type} onSelect={onSelect}>
-              <Icon className='size-[14px] text-[var(--text-icon)]' />
-              {option.label}
-            </DropdownMenuItem>
-          )
+          return <ColumnTypeMenuItem key={option.type} option={option} onSelect={onSelect} />
         })}
         <DropdownMenuItem onSelect={onPickEnrichment}>
           <Sparkles className='size-[14px] text-[var(--text-icon)]' />

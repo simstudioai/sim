@@ -15,8 +15,10 @@ export const chipFilledSurfaceTokens = `border border-[var(--border-1)] ${chipFi
  */
 export const chipPrimaryFillTokens =
   'bg-[var(--text-primary)] text-[var(--text-inverse)] dark:bg-white dark:text-[var(--bg)]'
+/** The default chip corner radius. `chipVariants`' `shape: 'round'` swaps it for `rounded-full`. */
+export const chipRadiusClass = 'rounded-lg'
 /** Filled surface shared by the chip text fields ({@link ChipInput}, {@link ChipTextarea}) — aligned with `Chip` / `ChipDropdown`. */
-export const chipFieldSurfaceClass = `rounded-lg ${chipFilledSurfaceTokens} transition-colors`
+export const chipFieldSurfaceClass = `${chipRadiusClass} ${chipFilledSurfaceTokens} transition-colors`
 /**
  * The raised "border + drop shadow" ring of the `border-shadow` chip variant: a
  * 1px hairline ring plus a soft drop shadow, in both light and dark. Single
@@ -37,7 +39,7 @@ export const chipBorderShadowRing =
  * further from the visible text the longer the value. Matches `Input`/`Textarea`.
  */
 export const chipFieldTextClass =
-  'text-[var(--text-body)] text-sm [letter-spacing:inherit] outline-none placeholder:text-[var(--text-muted)]'
+  'text-[var(--text-body)] text-sm [letter-spacing:inherit] outline-hidden placeholder:text-[var(--text-muted)]'
 
 /**
  * Icon↔label gap of the canonical chip-content row — the icon↔label pair inside
@@ -48,15 +50,22 @@ export const chipFieldTextClass =
 export const chipContentGap = 'gap-1.5'
 
 /**
+ * Chip pill geometry minus its corner radius — height, centering, gap, padding,
+ * text size. `chipVariants` composes this with its `shape` variant so a raw
+ * (non-`cn`) consumer never emits two competing radii; everything else reads
+ * {@link chipGeometryClass}, which adds the default radius back.
+ */
+export const chipGeometryUnroundedClass = `h-[30px] items-center ${chipContentGap} px-2 text-left text-sm`
+/**
  * Chip pill geometry — height, centering, gap, radius, padding, text size — with
  * NO interactivity (no `cursor-pointer`, no hover). `chipVariants` composes this
  * for its base; static, chip-aligned surfaces (e.g. the resource header's
  * current-location label or a non-navigable breadcrumb) reuse it directly to
  * match a chip's shape without inheriting its hover.
  */
-export const chipGeometryClass = `h-[30px] items-center ${chipContentGap} rounded-lg px-2 text-left text-sm`
+export const chipGeometryClass = `${chipGeometryUnroundedClass} ${chipRadiusClass}`
 /** Chip-content icon (non-inverse): 16px, non-shrinking, `--text-icon`. Inverse chip variants override the color to `currentColor`. */
-export const chipContentIconClass = 'size-[16px] flex-shrink-0 text-[var(--text-icon)]'
+export const chipContentIconClass = 'size-[16px] shrink-0 text-[var(--text-icon)]'
 /** Fade-free single-line fallback for rich chip content. Plain text labels should render through `OverflowText`. */
 export const chipContentLabelClass =
   'min-w-0 overflow-hidden text-clip whitespace-nowrap text-[var(--text-body)] text-sm'
@@ -99,9 +108,9 @@ export const chipDropTargetSurfaceClass = `${chipActiveSurfaceClass} outline out
  * migrating them onto this token is the remaining half of the consolidation.
  */
 export const disclosureChevronClass =
-  'size-[14px] flex-shrink-0 text-[var(--text-icon)] transition-[opacity,transform] duration-150'
+  'size-[14px] shrink-0 text-[var(--text-icon)] transition-[opacity,transform] duration-150'
 /** The 16px square a chip-row icon or chevron centers in, so every row's label starts on the same baseline. */
-export const chipIconSlotClass = 'inline-flex size-[16px] flex-shrink-0 items-center justify-center'
+export const chipIconSlotClass = 'inline-flex size-[16px] shrink-0 items-center justify-center'
 /**
  * Force-sizes a PRE-RENDERED icon node (`<svg>`/`<img>`/`<span>` avatar) to the
  * 14px resource-row standard + `--text-icon` color — regardless of the size the
@@ -117,4 +126,4 @@ export const chipIconSlotClass = 'inline-flex size-[16px] flex-shrink-0 items-ce
  * chrome — do not relocate it to a table-specific module.
  */
 export const cellIconNodeClass =
-  'inline-flex flex-shrink-0 items-center text-[var(--text-icon)] [&>svg]:size-[14px] [&>img]:size-[14px] [&>span]:size-[14px]'
+  'inline-flex shrink-0 items-center text-[var(--text-icon)] [&>svg]:size-[14px] [&>img]:size-[14px] [&>span]:size-[14px]'

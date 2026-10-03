@@ -1,7 +1,6 @@
 import type { ComponentType, SVGProps } from 'react'
-import { cn } from '@sim/emcn'
+import { cn, SimWordmark } from '@sim/emcn'
 import type { CompetitorBrand } from '@/lib/compare/data'
-import { SimWordmark } from '@/app/(landing)/components/navbar/components/sim-wordmark'
 
 export interface BrandIconTileProps {
   icon: ComponentType<SVGProps<SVGSVGElement>>

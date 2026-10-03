@@ -1,3 +1,4 @@
+import { queryOptions } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type ContractJsonResponse,
@@ -5,6 +6,7 @@ import {
   type WorkspaceCredential,
   type WorkspaceCredentialType,
 } from '@/lib/api/contracts'
+import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 
 export const WORKSPACE_CREDENTIAL_LIST_STALE_TIME = 60 * 1000
 
@@ -27,11 +29,28 @@ export function requireWorkspaceCredentialListResponse(
 export async function fetchWorkspaceCredentialList(
   workspaceId: string,
   signal?: AbortSignal,
-  type?: WorkspaceCredentialType
+  type?: WorkspaceCredentialType,
+  providerId?: string
 ): Promise<WorkspaceCredential[]> {
   const data = await requestJson(listWorkspaceCredentialsContract, {
-    query: { workspaceId, type },
+    query: { workspaceId, type, providerId },
     signal,
   })
   return requireWorkspaceCredentialListResponse(data)
+}
+
+export function workspaceCredentialListQueryOptions(
+  workspaceId?: string,
+  type?: WorkspaceCredentialType,
+  providerId?: string
+) {
+  return queryOptions({
+    queryKey: workspaceCredentialKeys.list(workspaceId, type, providerId),
+    queryFn: ({ signal }) =>
+      workspaceId
+        ? fetchWorkspaceCredentialList(workspaceId, signal, type, providerId)
+        : Promise.resolve([]),
+    retryOnMount: true,
+    staleTime: WORKSPACE_CREDENTIAL_LIST_STALE_TIME,
+  })
 }

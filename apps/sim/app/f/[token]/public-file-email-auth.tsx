@@ -6,8 +6,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { normalizeEmail } from '@sim/utils/string'
 import { useRouter } from 'next/navigation'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { AuthSubmitButton } from '@/app/(auth)/components'
-import { AUTH_TEXT_LINK } from '@/app/(auth)/components/auth-button-classes'
+import { AuthSubmitButton, AuthTextLink } from '@/app/(auth)/components'
 import { PublicFileAuthShell } from '@/app/f/[token]/public-file-auth-shell'
 import { usePublicFileOtpRequest, usePublicFileOtpVerify } from '@/hooks/queries/public-shares'
 
@@ -176,28 +175,23 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
                 Resend in <span className='text-[var(--text-primary)]'>{countdown}s</span>
               </span>
             ) : (
-              <button
-                className={AUTH_TEXT_LINK}
-                onClick={resend}
-                disabled={requestOtp.isPending || verifyOtp.isPending}
-              >
+              <AuthTextLink onClick={resend} disabled={requestOtp.isPending || verifyOtp.isPending}>
                 Resend
-              </button>
+              </AuthTextLink>
             )}
           </p>
         </div>
 
         <div className='text-center font-light text-sm'>
-          <button
+          <AuthTextLink
             onClick={() => {
               setSent(false)
               setOtp('')
               setError(null)
             }}
-            className={AUTH_TEXT_LINK}
           >
             Change email
-          </button>
+          </AuthTextLink>
         </div>
       </div>
     </PublicFileAuthShell>

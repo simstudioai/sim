@@ -119,6 +119,8 @@ interface ResolveAtlassianCloudIdOptions {
   /** Product name woven into the failure messages, e.g. `Jira` or `Confluence`. */
   product: string
   retryOptions?: RetryOptions
+  /** Require the configured site instead of accepting a credential's sole other site. */
+  requireExactMatch?: boolean
 }
 
 const cloudIdCache = createAtlassianDiscoveryCache()
@@ -204,6 +206,26 @@ export function atlassianDiscoveryKey(resource: string, accessToken: string): st
 }
 
 /**
+ * The credential reaches no Atlassian site at all. Typed so a caller acting
+ * for one person can tell "this person is not on the site" from a transport
+ * failure or a misconfigured domain.
+ */
+export class AtlassianSiteNotAccessibleError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'AtlassianSiteNotAccessibleError'
+  }
+}
+
+/** The credential reaches sites, but none matches the configured domain. */
+export class AtlassianSiteNotMatchedError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'AtlassianSiteNotMatchedError'
+  }
+}
+
+/**
  * Picks the `cloudId` for `domain` out of an `accessible-resources` payload.
  *
  * Separate from the fetch so a caller that already holds the payload can match
@@ -212,14 +234,15 @@ export function atlassianDiscoveryKey(resource: string, accessToken: string): st
 export function selectAtlassianCloudId(
   resources: unknown,
   domain: string,
-  product: string
+  product: string,
+  requireExactMatch = false
 ): string {
   if (!Array.isArray(resources) || !resources.every(isAccessibleResource)) {
     throw new Error(`Invalid ${product} accessible-resources response`)
   }
 
   if (resources.length === 0) {
-    throw new Error(
+    throw new AtlassianSiteNotAccessibleError(
       `No ${product} sites are accessible to this credential. ` +
         'Reconnect the credential and grant access to the configured Atlassian site.'
     )
@@ -229,9 +252,9 @@ export function selectAtlassianCloudId(
   const match = resources.find((r) => normalizeAtlassianSiteUrl(r.url) === siteUrl)
   if (match) return match.id
 
-  if (resources.length === 1) return resources[0].id
+  if (!requireExactMatch && resources.length === 1) return resources[0].id
 
-  throw new Error(
+  throw new AtlassianSiteNotMatchedError(
     `Could not match ${product} domain "${domain}" to any accessible resource. ` +
       `Available sites: ${resources.map((r) => r.url).join(', ')}`
   )
@@ -247,14 +270,15 @@ export function selectAtlassianCloudId(
 export async function resolveAtlassianCloudId(
   options: ResolveAtlassianCloudIdOptions
 ): Promise<string> {
-  const { domain, accessToken, product, retryOptions } = options
-  const key = atlassianDiscoveryKey(normalizeAtlassianSiteUrl(domain), accessToken)
+  const { domain, accessToken, product, retryOptions, requireExactMatch = false } = options
+  const key = `${requireExactMatch ? 'exact' : 'fallback'}:${atlassianDiscoveryKey(normalizeAtlassianSiteUrl(domain), accessToken)}`
 
   return cloudIdCache.resolve(key, async () =>
     selectAtlassianCloudId(
       await fetchAccessibleResources(accessToken, product, retryOptions),
       domain,
-      product
+      product,
+      requireExactMatch
     )
   )
 }

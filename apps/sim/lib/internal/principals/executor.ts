@@ -1,8 +1,10 @@
 import { type DelegatedPrincipal, resolvePrincipalSubject } from '@sim/auth/principal'
 import { generateId } from '@sim/utils/id'
 import { bindInternalExecutorDelegation } from '@/lib/auth/internal-delegation'
+import { MANAGED_MCP_DELEGATION_AUDIENCE } from '@/lib/credentials/application/authorization'
 import { ExecutorDelegationOriginRequiredError } from '@/lib/internal/tool-operations/identity-faults'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
+import { MCP_SERVER_DELEGATION_AUDIENCE } from '@/lib/mcp/application/authorization'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 
 const EXECUTOR_DELEGATION_TTL_MS = 5 * 60 * 1000
@@ -29,7 +31,13 @@ export function resolveExecutorOriginSubject(origin: ExecutorDelegationOrigin): 
   return subjectUserId
 }
 
-async function bindExecutorPrincipal(
+/**
+ * Binds an executor delegation origin to a delegated principal in-process,
+ * without minting and re-verifying a delegation JWT. The underlying binding
+ * still re-validates the workflow and deployment context, so trust matches the
+ * wire path minus the signature check, which proves nothing in-process.
+ */
+export async function createExecutorPrincipalFromDelegationOrigin(
   origin: ExecutorDelegationOrigin,
   audience: string,
   resourceScope?: DelegatedPrincipal['resourceScope'],
@@ -74,5 +82,15 @@ export async function createExecutorPrincipalFromExecutionContext({
 }: CreateExecutorPrincipalFromExecutionContextInput) {
   const origin = context.executorDelegationOrigin
   if (!origin) throw new ExecutorDelegationOriginRequiredError()
-  return bindExecutorPrincipal(origin, audience, resourceScope, expiresAt, context.userId)
+  const isMcpAudience =
+    audience === MCP_SERVER_DELEGATION_AUDIENCE || audience === MANAGED_MCP_DELEGATION_AUDIENCE
+  return createExecutorPrincipalFromDelegationOrigin(
+    origin,
+    audience,
+    isMcpAudience && context.mcpBlockId
+      ? { ...resourceScope, mcpBlockId: context.mcpBlockId }
+      : resourceScope,
+    expiresAt,
+    context.userId
+  )
 }

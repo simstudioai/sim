@@ -46,6 +46,7 @@ export const GET = defineInternalBinaryRoute({
       filesToZip.map((file) => ({
         name: file.name,
         folderPath: file.folderId ? folderPaths.get(file.folderId) : null,
+        contentType: file.type,
       }))
     )
     const archive = new ZipArchive({ store: true })

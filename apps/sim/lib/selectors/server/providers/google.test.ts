@@ -1,0 +1,327 @@
+import {
+  selectorCredentialsMock,
+  selectorCredentialsMockFns,
+} from '@sim/testing/mocks/selector-credentials.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockFetch } = vi.hoisted(() => ({
+  mockFetch: vi.fn(),
+}))
+
+vi.mock('@/lib/selectors/server/credentials', () => selectorCredentialsMock)
+
+import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
+import { googleSelectorAttachments } from '@/lib/selectors/server/providers/google'
+import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
+
+const mockResolveSelectorOAuthAccessToken =
+  selectorCredentialsMockFns.mockResolveSelectorOAuthAccessToken
+
+function driveDetailArgs(signal?: AbortSignal): ExecuteServerSelectorArgs {
+  return {
+    selectorKey: 'google.drive',
+    context: { oauthCredential: 'credential-1' },
+    request: { kind: 'detail', id: 'drive-item-1' },
+    scope: { kind: 'workspace', workspaceId: 'workspace-1' },
+    workspaceId: 'workspace-1',
+    principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+    requesterUserId: 'user-1',
+    credential: { suppliedId: 'credential-1' },
+    references: new Map(),
+    protectedValues: createSelectorProtectedValues(),
+    signal,
+  }
+}
+
+function listArgs(
+  selectorKey: 'google.tasks.lists' | 'google.calendar' | 'google.drive',
+  cursor?: string
+): ExecuteServerSelectorArgs {
+  return {
+    selectorKey,
+    context: { oauthCredential: 'credential-1' },
+    request: { kind: 'list', ...(cursor ? { cursor } : {}) },
+    scope: { kind: 'workspace', workspaceId: 'workspace-1' },
+    workspaceId: 'workspace-1',
+    principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+    requesterUserId: 'user-1',
+    credential: { suppliedId: 'credential-1' },
+    references: new Map(),
+    protectedValues: createSelectorProtectedValues(),
+  }
+}
+
+describe('Google server selector adapters', () => {
+  beforeEach(() => {
+    mockFetch.mockReset()
+    vi.stubGlobal('fetch', mockFetch)
+    mockResolveSelectorOAuthAccessToken.mockResolvedValue('server-only-token')
+  })
+
+  afterAll(() => vi.unstubAllGlobals())
+
+  it.each(['google-drive', 'google-service-account'])(
+    'uses read-only Drive scopes for %s selectors and forwards the delegated subject',
+    async (providerId) => {
+      mockFetch.mockResolvedValueOnce(new Response(JSON.stringify({ files: [] }), { status: 200 }))
+      const args = listArgs('google.drive')
+      args.credential = { suppliedId: 'credential-1', providerId }
+      args.context.impersonateUserEmail = 'admin@example.com'
+
+      await googleSelectorAttachments['google.drive'].execute(args)
+
+      expect(mockResolveSelectorOAuthAccessToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          serviceId: 'google-drive',
+          scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+          impersonateEmail: 'admin@example.com',
+        })
+      )
+    }
+  )
+
+  it.each([
+    {
+      selectorKey: 'gmail.labels' as const,
+      body: { labels: [] },
+      scopes: ['https://www.googleapis.com/auth/gmail.modify'],
+    },
+    {
+      selectorKey: 'google.calendar' as const,
+      body: { items: [] },
+      scopes: ['https://www.googleapis.com/auth/calendar'],
+    },
+  ])(
+    'does not require identity or unrelated workflow grants to browse $selectorKey',
+    async ({ selectorKey, body, scopes }) => {
+      mockFetch.mockResolvedValueOnce(new Response(JSON.stringify(body)))
+      await googleSelectorAttachments[selectorKey].execute({
+        ...listArgs('google.calendar'),
+        selectorKey,
+      })
+      expect(mockResolveSelectorOAuthAccessToken).toHaveBeenCalledWith(
+        expect.objectContaining({ scopes })
+      )
+    }
+  )
+
+  it('stores delegated Gmail label names so the same selection works in every member mailbox', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          labels: [
+            { id: 'Label_1', name: 'Customer' },
+            { id: 'INBOX', name: 'INBOX', type: 'system' },
+          ],
+        })
+      )
+    )
+    const args = { ...listArgs('google.calendar'), selectorKey: 'gmail.labels' as const }
+    args.context.impersonateUserEmail = 'admin@example.com'
+    await expect(googleSelectorAttachments['gmail.labels'].execute(args)).resolves.toMatchObject({
+      items: [
+        { id: 'Customer', label: 'Customer' },
+        { id: 'INBOX', label: 'Inbox' },
+      ],
+    })
+    expect(mockResolveSelectorOAuthAccessToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scopes: ['https://www.googleapis.com/auth/gmail.readonly'],
+        impersonateEmail: 'admin@example.com',
+      })
+    )
+  })
+
+  it('stores primary as a per-member calendar alias when browsing with delegation', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ items: [{ id: 'admin@example.com', summary: 'Primary', primary: true }] })
+      )
+    )
+    const args = listArgs('google.calendar')
+    args.context.impersonateUserEmail = 'admin@example.com'
+    await expect(googleSelectorAttachments['google.calendar'].execute(args)).resolves.toMatchObject(
+      {
+        items: [{ id: 'primary', label: 'Primary' }],
+      }
+    )
+    expect(mockResolveSelectorOAuthAccessToken).toHaveBeenCalledWith(
+      expect.objectContaining({ scopes: ['https://www.googleapis.com/auth/calendar.readonly'] })
+    )
+  })
+
+  it('includes matching folders when the shared-drive search is complete', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ drives: [{ id: 'drive-1', name: "Team's notes" }] }))
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ files: [{ id: 'folder-1', name: "Team's notes folder" }] }))
+      )
+    const args = listArgs('google.drive')
+    args.context.mimeType = 'application/vnd.google-apps.folder'
+    args.request = { kind: 'list', search: "Team's notes" }
+
+    await expect(googleSelectorAttachments['google.drive'].execute(args)).resolves.toEqual({
+      kind: 'list',
+      items: [
+        { id: 'drive-1', label: "Team's notes" },
+        { id: 'folder-1', label: "Team's notes folder" },
+      ],
+    })
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+
+    const [driveUrl, fileUrl] = mockFetch.mock.calls.map(([url]) => new URL(String(url)))
+    expect(driveUrl.pathname).toBe('/drive/v3/drives')
+    expect(driveUrl.searchParams.get('q')).toBe("name contains 'Team\\'s notes'")
+    expect(fileUrl.pathname).toBe('/drive/v3/files')
+    expect(fileUrl.searchParams.get('q')).toContain("name contains 'Team\\'s notes'")
+  })
+
+  it.each([
+    { files: [{ id: 'folder-1', name: 'Notes' }], nextPageToken: undefined },
+    { files: [], nextPageToken: undefined },
+    { files: [{ id: 'folder-1', name: 'Notes' }], nextPageToken: 'next' },
+  ])('reports incomplete Drive searches without inventing pagination: %j', async (page) => {
+    mockFetch
+      .mockResolvedValueOnce(new Response(JSON.stringify({ drives: [] })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...page, incompleteSearch: true })))
+    const args = listArgs('google.drive')
+    args.context.mimeType = 'application/vnd.google-apps.folder'
+
+    await expect(googleSelectorAttachments['google.drive'].execute(args)).resolves.toEqual({
+      kind: 'list',
+      items: page.files.map((file) => ({ id: file.id, label: file.name })),
+      ...(page.nextPageToken ? { nextCursor: `f:${page.nextPageToken}` } : {}),
+      diagnostics: { truncated: { reason: 'provider-cap' } },
+    })
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+    const fileUrl = new URL(String(mockFetch.mock.calls[1]?.[0]))
+    expect(fileUrl.searchParams.get('fields')).toContain('incompleteSearch')
+  })
+
+  it('continues real folder pages after the final shared-drive page', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ drives: [{ id: 'drive-1', name: 'Engineering' }] }))
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ files: [{ id: 'folder-1', name: 'Notes' }], nextPageToken: 'next' })
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ files: [{ id: 'folder-2', name: 'Plans' }] }))
+      )
+    const args = listArgs('google.drive', 'd:previous')
+    args.context.mimeType = 'application/vnd.google-apps.folder'
+
+    await expect(googleSelectorAttachments['google.drive'].execute(args)).resolves.toEqual({
+      kind: 'list',
+      items: [
+        { id: 'drive-1', label: 'Engineering' },
+        { id: 'folder-1', label: 'Notes' },
+      ],
+      nextCursor: 'f:next',
+    })
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+    args.request = { kind: 'list', cursor: 'f:next' }
+    await expect(googleSelectorAttachments['google.drive'].execute(args)).resolves.toEqual({
+      kind: 'list',
+      items: [{ id: 'folder-2', label: 'Plans' }],
+    })
+    expect(mockFetch).toHaveBeenCalledTimes(3)
+    const urls = mockFetch.mock.calls.map(([url]) => new URL(String(url)))
+    expect(urls[0].searchParams.get('pageToken')).toBe('previous')
+    expect(urls[1].searchParams.has('pageToken')).toBe(false)
+    expect(urls[2].searchParams.get('pageToken')).toBe('next')
+  })
+
+  it('surfaces a folder-list failure after the final shared-drive page', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ drives: [{ id: 'drive-1', name: 'Engineering' }] }))
+      )
+      .mockResolvedValueOnce(new Response('private provider error', { status: 503 }))
+    const args = listArgs('google.drive')
+    args.context.mimeType = 'application/vnd.google-apps.folder'
+
+    await expect(googleSelectorAttachments['google.drive'].execute(args)).rejects.toMatchObject({
+      status: 502,
+    })
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps searches inside a selected folder scoped to that folder', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ files: [{ id: 'child-1', name: 'Notes' }] }))
+    )
+    const args = listArgs('google.drive')
+    args.context.mimeType = 'application/vnd.google-apps.folder'
+    args.context.fileId = 'parent-1'
+    args.request = { kind: 'list', search: 'Notes' }
+
+    await expect(googleSelectorAttachments['google.drive'].execute(args)).resolves.toEqual({
+      kind: 'list',
+      items: [{ id: 'child-1', label: 'Notes' }],
+    })
+    const url = new URL(String(mockFetch.mock.calls[0]?.[0]))
+    expect(url.pathname).toBe('/drive/v3/files')
+    expect(url.searchParams.get('q')).toContain("'parent-1' in parents")
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([401, 403, 429, 503])(
+    'surfaces HTTP %s from shared-drive listing instead of showing an incomplete list',
+    async (status) => {
+      mockFetch
+        .mockResolvedValueOnce(new Response('private provider error', { status }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({ files: [] })))
+      const args = listArgs('google.drive')
+      args.context.mimeType = 'application/vnd.google-apps.folder'
+
+      await expect(googleSelectorAttachments['google.drive'].execute(args)).rejects.toMatchObject({
+        status: status === 503 ? 502 : status,
+      })
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it('uses the bounded 404 path before hydrating a shared drive', async () => {
+    mockFetch
+      .mockResolvedValueOnce(new Response('not forwarded', { status: 404 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: 'drive-item-1', name: 'Shared drive' }), {
+          status: 200,
+        })
+      )
+
+    await expect(
+      googleSelectorAttachments['google.drive'].execute(driveDetailArgs())
+    ).resolves.toEqual({
+      kind: 'detail',
+      item: { id: 'drive-item-1', label: 'Shared drive' },
+    })
+
+    expect(String(mockFetch.mock.calls[0]?.[0])).toContain('/drive/v3/files/drive-item-1')
+    expect(String(mockFetch.mock.calls[1]?.[0])).toContain('/drive/v3/drives/drive-item-1')
+  })
+
+  it('returns one task-list page and preserves the continuation token', async () => {
+    const items = Array.from({ length: 1_000 }, (_, index) => ({
+      id: `task-list-${index}`,
+      title: `Task list ${index}`,
+    }))
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ items, nextPageToken: 'page-1' }), { status: 200 })
+    )
+
+    const result = await googleSelectorAttachments['google.tasks.lists'].execute(
+      listArgs('google.tasks.lists')
+    )
+
+    expect(result).toMatchObject({ kind: 'list', nextCursor: 'page-1' })
+    expect(result.kind === 'list' ? result.items : []).toHaveLength(1_000)
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+})

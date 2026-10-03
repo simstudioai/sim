@@ -1,21 +1,15 @@
-import type { DelegatedPrincipal, Principal } from '@sim/auth/principal'
+import type {
+  DelegatedPrincipal,
+  OrganizationDelegatedPrincipal,
+  Principal,
+} from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import type { ParsedFunctionExecuteBody } from '@/lib/api/contracts'
-import {
-  FORMAT_TO_CONTENT_TYPE,
-  getOutputFileDeclarations,
-  normalizeOutputWorkspaceFileName,
-  type OutputFileDeclaration,
-  resolveOutputFormat,
-} from '@/lib/copilot/request/tools/files'
-import {
-  validateWorkspaceFileWriteTarget,
-  writeWorkspaceFileByPath,
-} from '@/lib/copilot/vfs/resource-writer'
 import { isMothershipSandboxEnabled, isRemoteSandboxEnabled } from '@/lib/core/config/env-flags'
 import {
   createTimeoutAbortController,
@@ -30,8 +24,15 @@ import {
   CodePlaceholderCompileError,
   type CodePlaceholderPrivateInput,
   type CodePlaceholderRuntimeBinding,
+  type CompiledCodePlaceholders,
   compileCodePlaceholders,
 } from '@/lib/execution/code-placeholders'
+import {
+  type DurableSecretProvenance,
+  durableSecretProvenanceFromEnvelope,
+  importDurableSecretProvenance,
+  mergeDurableSecretProvenance,
+} from '@/lib/execution/durable-secret-provenance'
 import { parseExecutionDeadlineHeader } from '@/lib/execution/execution-deadline-header'
 import { executeInIsolatedVM, type IsolatedVMBrokerHandler } from '@/lib/execution/isolated-vm'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
@@ -55,7 +56,7 @@ import {
   MAX_INLINE_MATERIALIZATION_BYTES,
 } from '@/lib/execution/payloads/limits'
 import {
-  readUserFileContent,
+  readUserFileContentWithContributors,
   unavailableLargeValueError,
 } from '@/lib/execution/payloads/materialization.server'
 import {
@@ -77,24 +78,50 @@ import {
   executeShellInSandbox,
   SIM_RESULT_PREFIX,
 } from '@/lib/execution/remote-sandbox'
+import { sandboxSessionInputProvenance } from '@/lib/execution/remote-sandbox/execution-observer'
 import {
   isSandboxOutputFileError,
   isSandboxOutputLimitError,
   isSandboxOutputNotExportableError,
   MAX_SANDBOX_OUTPUT_BYTES,
+  readTrustedSandboxOutputCost,
 } from '@/lib/execution/remote-sandbox/output-limits'
+import { isBinarySandboxPath } from '@/lib/execution/remote-sandbox/sandbox-encoding'
 import {
   MAX_BLOCK_MOUNTED_FILES,
   SANDBOX_OUTPUT_DIR,
 } from '@/lib/execution/remote-sandbox/sandbox-paths'
-import type { SandboxCollectedFile, SandboxFile } from '@/lib/execution/remote-sandbox/types'
+import type {
+  SandboxCollectedFile,
+  SandboxFile,
+  SandboxSessionRequest,
+} from '@/lib/execution/remote-sandbox/types'
 import { isExecutionResourceLimitError } from '@/lib/execution/resource-errors'
+import { MAX_FUNCTION_REFERENCES } from '@/lib/function-execution/limits'
+import type { SandboxExportedFile } from '@/lib/function-execution/output'
 import { planUserFileMounts, resolveUserFileMounts } from '@/lib/function-execution/sandbox-mounts'
+import {
+  FORMAT_TO_CONTENT_TYPE,
+  getOutputFileDeclarations,
+  normalizeOutputWorkspaceFileName,
+  type OutputFileDeclaration,
+  resolveOutputFormat,
+} from '@/lib/mothership/request/tools/files'
+import { activeSandboxChatOwner } from '@/lib/mothership/tools/sandbox-resources'
+import { buildMothershipSandboxSession } from '@/lib/mothership/tools/sandbox-session'
+import {
+  validateWorkspaceFileWriteTarget,
+  writeWorkspaceFileByPath,
+} from '@/lib/mothership/vfs/resource-writer'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-manager'
 import {
+  createWorkspaceFileSecretProvenanceFromRegistry,
   EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
+  importWorkspaceFileSecretProvenanceForRuntime,
+  isOpaqueWorkspaceFileEgressSafe,
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
+  type WorkspaceFileSecretProvenanceIdentity,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { deleteFiles } from '@/lib/uploads/core/storage-service'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
@@ -103,7 +130,7 @@ import { rebindWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/app
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
-import { escapeRegExp, normalizeName, REFERENCE, sanitizeFileName } from '@/executor/constants'
+import { normalizeName, REFERENCE, sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
 import { type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
 import {
@@ -116,7 +143,12 @@ import {
   scanResolvedSecretString,
 } from '@/executor/utils/resolved-secret-content-projection'
 import { isNonIdentifyingSecretLiteral } from '@/executor/utils/resolved-secret-match-policy'
-import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  type ResolvedSecretTraceProvenanceV1,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
+
+const TEXT_OUTPUT_MIME_TYPES = new Set(Object.values(FORMAT_TO_CONTENT_TYPE))
 
 const logger = createLogger('FunctionExecuteAPI')
 
@@ -127,6 +159,12 @@ const E2B_PYTHON_WRAPPER_LINES = 1
 const MAX_SANDBOX_OUTPUT_FILES = 20
 const MAX_PRIVATE_FILE_SECRET_MATCH_EVENTS = 1_000_000
 const SANDBOX_RUNTIME_PAYLOAD_PATH_ENV = '__SIM_RUNTIME_PAYLOAD_PATH'
+
+interface FunctionExecutionCost {
+  input: number
+  output: number
+  total: number
+}
 
 interface SandboxRuntimePayload {
   params: Record<string, unknown>
@@ -723,38 +761,33 @@ function scrubInternalIdentifiers(message: string, identifiers: readonly string[
 
 function resolveWorkflowVariables(
   code: string,
-  workflowVariables: Record<string, any>,
-  contextVariables: Record<string, any>
+  workflowVariables: Record<string, unknown>,
+  contextVariables: Record<string, unknown>
 ): string {
-  let resolvedCode = code
+  const variablesByName = new Map<string, Record<string, unknown>>()
+  for (const value of Object.values(workflowVariables)) {
+    const variable = toRecord(value)
+    if (typeof variable.name !== 'string') continue
+    const name = normalizeName(variable.name)
+    if (!variablesByName.has(name)) variablesByName.set(name, variable)
+  }
+  const replacements = new Map<string, string>()
+  const boundNames = new Set<string>()
 
-  const regex = createWorkflowVariablePattern()
-  let match: RegExpExecArray | null
-  const replacements: Array<{
-    match: string
-    index: number
-    variableName: string
-    variableValue: unknown
-  }> = []
+  return code.replace(createWorkflowVariablePattern(), (_match, name: string) => {
+    const variableName = name.trim()
+    const cached = replacements.get(variableName)
+    if (cached !== undefined) return cached
 
-  while ((match = regex.exec(code)) !== null) {
-    const variableName = match[1].trim()
-
-    const foundVariable = Object.entries(workflowVariables).find(
-      ([_, variable]) => normalizeName(variable.name || '') === variableName
-    )
-
-    if (!foundVariable) {
-      const availableVars = Object.values(workflowVariables)
-        .map((v) => v.name)
-        .filter(Boolean)
+    const variable = variablesByName.get(variableName)
+    if (!variable) {
+      const availableVars = [...variablesByName.values()].map((value) => value.name).filter(Boolean)
       throw new Error(
         `Variable "${variableName}" doesn't exist.` +
           (availableVars.length > 0 ? ` Available: ${availableVars.join(', ')}` : '')
       )
     }
 
-    const variable = foundVariable[1]
     let variableValue: unknown = variable.value
 
     if (variable.value !== undefined && variable.value !== null) {
@@ -778,24 +811,15 @@ function resolveWorkflowVariables(
       }
     }
 
-    replacements.push({
-      match: match[0],
-      index: match.index,
-      variableName,
-      variableValue,
-    })
-  }
-
-  for (let i = replacements.length - 1; i >= 0; i--) {
-    const { match: matchStr, index, variableName, variableValue } = replacements[i]
-
     const safeVarName = `__variable_${variableName.replace(/[^a-zA-Z0-9_]/g, '_')}`
-    contextVariables[safeVarName] = variableValue
-    resolvedCode =
-      resolvedCode.slice(0, index) + safeVarName + resolvedCode.slice(index + matchStr.length)
-  }
-
-  return resolvedCode
+    // The original reverse rewrite gave the first reference precedence on binding-name collisions.
+    if (!boundNames.has(safeVarName)) {
+      contextVariables[safeVarName] = variableValue
+      boundNames.add(safeVarName)
+    }
+    replacements.set(variableName, safeVarName)
+    return safeVarName
+  })
 }
 
 /**
@@ -842,13 +866,12 @@ function resolveTagVariables(
   contextVariables: Record<string, unknown>,
   language = 'javascript'
 ): string {
-  let resolvedCode = code
   const undefinedLiteral = language === 'python' ? 'None' : 'undefined'
+  const replacements = new Map<string, string | undefined>()
 
-  const tagMatches = resolvedCode.match(TAG_PATTERN) || []
-
-  for (const match of tagMatches) {
+  return code.replace(TAG_PATTERN, (match) => {
     const tagName = match.slice(REFERENCE.START.length, -REFERENCE.END.length).trim()
+    if (replacements.has(tagName)) return replacements.get(tagName) ?? match
     const pathParts = tagName.split(REFERENCE.PATH_DELIMITER)
     const blockName = pathParts[0]
     const fieldPath = pathParts.slice(1)
@@ -860,14 +883,15 @@ function resolveTagVariables(
     })
 
     if (!result) {
-      continue
+      replacements.set(tagName, undefined)
+      return match
     }
 
     let tagValue = result.value
 
     if (tagValue === undefined) {
-      resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), undefinedLiteral)
-      continue
+      replacements.set(tagName, undefinedLiteral)
+      return undefinedLiteral
     }
 
     if (typeof tagValue === 'string') {
@@ -883,10 +907,9 @@ function resolveTagVariables(
 
     const safeVarName = `__tag_${tagName.replace(/_/g, '_1').replace(/\./g, '_0')}`
     contextVariables[safeVarName] = tagValue
-    resolvedCode = resolvedCode.replace(new RegExp(escapeRegExp(match), 'g'), safeVarName)
-  }
-
-  return resolvedCode
+    replacements.set(tagName, safeVarName)
+    return safeVarName
+  })
 }
 
 /**
@@ -982,7 +1005,7 @@ function serializeForShellEnv(value: unknown, nullValue = ''): string {
 }
 
 interface FunctionRouteExecutionContext {
-  principal: DelegatedPrincipal
+  principal: DelegatedPrincipal | OrganizationDelegatedPrincipal
   workflowId?: string
   workspaceId?: string
   executionId?: string
@@ -1007,6 +1030,78 @@ interface FunctionRouteExecutionContext {
    */
   unredactedSecretNames: Set<string>
   mountedFileSecretProvenanceScanner?: MountedFileSecretProvenanceScanner
+  runtimeFileSecretProvenanceScanner?: MountedFileSecretProvenanceScanner
+  runtimeFileSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  runtimeInputProvenanceUnrecorded?: boolean
+  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  sessionOutputProvenance?: SandboxSessionRequest['outputProvenance']
+}
+
+/** Keeps bound file provenance in both ordinary Function results and exported artifact bytes. */
+async function importRuntimeFileContributors(
+  context: FunctionRouteExecutionContext,
+  identities: readonly WorkspaceFileSecretProvenanceIdentity[] | undefined,
+  renderedIdentities: readonly WorkspaceFileSecretProvenanceIdentity[] = []
+): Promise<void> {
+  if (!identities?.length && renderedIdentities.length === 0) return
+  if (!context.workspaceId) throw new Error('File provenance requires a workspace')
+  /** Sim-rendered assets can encode literals before user code runs; raw files retain runtime lineage. */
+  for (const identity of renderedIdentities) {
+    if (!(await isOpaqueWorkspaceFileEgressSafe(context.workspaceId, identity))) {
+      throw new Error('File secret provenance is unavailable for Function execution')
+    }
+  }
+  if (!context.runtimeInputProvenanceUnrecorded) {
+    context.runtimeFileSecretTraceRegistry ??=
+      context.resolvedSecretTraceRegistry?.forkForInputPaths([])
+  }
+  for (const identity of identities ?? []) {
+    const imported = await importWorkspaceFileSecretProvenanceForRuntime({
+      workspaceId: context.workspaceId,
+      identity,
+      registry: context.runtimeFileSecretTraceRegistry,
+    })
+    if (!imported) throw new Error('File secret provenance is unavailable for Function execution')
+  }
+  if (context.runtimeFileSecretTraceRegistry && context.resolvedSecretTraceRegistry) {
+    context.resolvedSecretTraceRegistry.mergeToolCallRegistry(
+      context.runtimeFileSecretTraceRegistry
+    )
+  }
+}
+
+/** Includes only lineage carried by the values this Function receives, including deferred refs. */
+async function importRuntimeInputProvenance(
+  context: FunctionRouteExecutionContext,
+  inputs: {
+    code: string
+    params: Record<string, unknown>
+    contextVariables: Record<string, unknown>
+  }
+): Promise<void> {
+  const registry = context.resolvedSecretTraceRegistry
+  if (!registry) return
+  const valueProvenance = registry.exportCommittedProvenanceForValue(inputs)
+  if (!valueProvenance.complete && context.workspaceId) {
+    const decision = await createWorkspaceFileSecretProvenanceFromRegistry(registry, inputs, {
+      userId: context.attributedUserId,
+      workspaceId: context.workspaceId,
+    })
+    if (decision.safe && decision.provenance.status === 'unrecorded') {
+      context.runtimeInputProvenanceUnrecorded = true
+      context.runtimeFileSecretTraceRegistry = new ResolvedSecretTraceRegistry([], {
+        userId: context.attributedUserId,
+        workspaceId: context.workspaceId,
+      })
+      return
+    }
+  }
+  const inputRegistry = registry.forkForInputPaths(Object.keys(inputs).map((key) => [key]))
+  await inputRegistry.importProvenance(valueProvenance, {
+    trusted: true,
+    origin: 'function.runtimeInputs',
+  })
+  context.runtimeFileSecretTraceRegistry = inputRegistry
 }
 
 type ResolvedSecretNamesMetadataType =
@@ -1110,7 +1205,7 @@ function createFunctionRuntimeBrokers(
 
   const readFile = async (args: unknown, encoding: 'base64' | 'text', chunked = false) => {
     const fileArgs = getBrokerFileArgs(args)
-    return readUserFileContent(fileArgs.file, {
+    const materialized = await readUserFileContentWithContributors(fileArgs.file, {
       ...base,
       encoding,
       maxBytes: fileArgs.maxBytes,
@@ -1118,6 +1213,12 @@ function createFunctionRuntimeBrokers(
       offset: chunked ? fileArgs.offset : undefined,
       length: chunked ? fileArgs.length : undefined,
     })
+    await importRuntimeFileContributors(
+      context,
+      materialized.contributingFiles,
+      materialized.renderedContributingFiles
+    )
+    return materialized.content
   }
 
   return {
@@ -1184,6 +1285,12 @@ async function functionJsonResponse<T>(
   context: FunctionRouteExecutionContext,
   init?: ResponseInit
 ) {
+  if (context.sessionOutputProvenance && context.resolvedSecretTraceRegistry) {
+    await importDurableSecretProvenance(
+      context.resolvedSecretTraceRegistry,
+      context.sessionOutputProvenance(body)
+    )
+  }
   const responseBody = {
     ...body,
     largeValueKeys: context.largeValueKeys,
@@ -1249,7 +1356,10 @@ function countProtectedOutputSecretNames(context: FunctionRouteExecutionContext)
  */
 function hasSecretMaterialInScope(context: FunctionRouteExecutionContext): boolean {
   if (countProtectedOutputSecretNames(context) > 0) return true
-  return context.mountedFileSecretProvenanceScanner?.hasSecrets ?? false
+  return Boolean(
+    context.mountedFileSecretProvenanceScanner?.hasSecrets ||
+      context.runtimeFileSecretProvenanceScanner?.hasSecrets
+  )
 }
 
 /**
@@ -1267,15 +1377,34 @@ async function getOutputFileSecretProvenance(
   context: FunctionRouteExecutionContext,
   scope: { userId: string; workspaceId: string }
 ): Promise<WorkspaceFileSecretProvenance> {
+  /** Runtime reads have settled before export; a broker cannot replace this with an older snapshot. */
+  if (context.runtimeFileSecretTraceRegistry && !context.runtimeFileSecretProvenanceScanner) {
+    const provenance = context.runtimeFileSecretTraceRegistry.exportProvenance()
+    context.runtimeFileSecretProvenanceScanner =
+      await createMountedFileSecretProvenanceScanner(provenance)
+    if (!context.runtimeFileSecretProvenanceScanner && provenance.entries.length > 0) {
+      context.runtimeFileSecretProvenanceScanner = {
+        hasSecrets: true,
+        scan: () => ({ status: 'unknown' }),
+      }
+    }
+  }
   if (isBinary) {
     return hasSecretMaterialInScope(context)
       ? { status: 'unknown' }
+      : context.runtimeInputProvenanceUnrecorded
+        ? { status: 'unrecorded' }
+        : EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
+  }
+  const mountedFileProvenance = mergeWorkspaceFileSecretProvenance(
+    context.mountedFileSecretProvenanceScanner?.scan(buffer) ??
+      EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
+    context.runtimeFileSecretProvenanceScanner?.scan(buffer) ??
+      EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
+    context.runtimeInputProvenanceUnrecorded
+      ? { status: 'unrecorded' }
       : EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE
-  }
-  const mountedFileProvenance = context.mountedFileSecretProvenanceScanner?.scan(buffer) ?? {
-    status: 'exact' as const,
-    entries: [],
-  }
+  )
   if (countProtectedOutputSecretNames(context) === 0) {
     return mountedFileProvenance
   }
@@ -1360,14 +1489,6 @@ export interface FunctionExecutionRequestContext {
   signal: AbortSignal
 }
 
-export function projectFunctionValidationResponse(
-  req: Pick<FunctionExecutionRequestContext, 'headers'>,
-  response: NextResponse
-): Promise<NextResponse> {
-  const metadataType = getRequestedResolvedSecretNamesMetadataType(req.headers)
-  return appendPrivateResolvedSecretNames(response, metadataType ? [] : null, metadataType)
-}
-
 /**
  * Compares an about-to-be-exported buffer against the overwrite target's
  * current content. `identical: true` means the export is a byte-for-byte no-op:
@@ -1429,19 +1550,73 @@ function exportUnchangedNote(sandboxPath?: string): string {
 }
 
 function exportFailure(
+  context: FunctionRouteExecutionContext,
   error: string,
   status: number,
   stdout: string,
-  executionTime: number
-): NextResponse {
-  return NextResponse.json(
-    { success: false, error, output: { result: null, stdout: cleanStdout(stdout), executionTime } },
+  executionTime: number,
+  cost: FunctionExecutionCost | undefined
+) {
+  return functionJsonResponse(
+    {
+      success: false,
+      error,
+      output: {
+        result: null,
+        stdout: cleanStdout(stdout),
+        executionTime,
+        ...(cost ? { cost } : {}),
+      },
+    },
+    context,
     { status }
   )
 }
 
 function workspaceFileExportErrorStatus(error: unknown): number {
   return asOrchestrationError(error)?.code === 'forbidden' ? 403 : 400
+}
+
+/**
+ * Builds the success response for a sandbox file export.
+ *
+ * The code's own return value stays in `output.result`, so the consumers that
+ * read it — `outputTable`, the returned-value file writer — keep seeing the rows
+ * when a call also exports files. The export receipt sits beside it under
+ * `output.exported`, and its `message` is mirrored at the top level so the
+ * human-readable receipt stays visible in the tool result. Routed through
+ * {@link functionJsonResponse} so a large returned value is compacted exactly as
+ * it is on the ordinary success path.
+ */
+function sandboxExportResponse(args: {
+  routeContext: FunctionRouteExecutionContext
+  result: unknown
+  message: string
+  files: SandboxExportedFile[]
+  stdout: string
+  executionTime: number
+  cost?: FunctionExecutionCost
+}) {
+  return functionJsonResponse(
+    {
+      success: true,
+      output: {
+        result: args.result ?? null,
+        exported: { message: args.message, files: args.files },
+        message: args.message,
+        stdout: cleanStdout(args.stdout),
+        executionTime: args.executionTime,
+        ...(args.cost ? { cost: args.cost } : {}),
+      },
+      resources: args.files.map((file) => ({
+        type: 'file',
+        id: file.fileId,
+        title: file.fileName,
+        path: file.vfsPath,
+      })),
+    },
+    args.routeContext
+  )
 }
 
 async function maybeExportSandboxFileToWorkspace(args: {
@@ -1455,9 +1630,11 @@ async function maybeExportSandboxFileToWorkspace(args: {
   outputSandboxPath?: string
   overwriteFileId?: string
   outputMode?: 'create' | 'overwrite'
-  exportedFileContent?: string
+  exportedFileContent?: string | Buffer
+  result: unknown
   stdout: string
   executionTime: number
+  cost?: FunctionExecutionCost
 }) {
   const {
     routeContext,
@@ -1471,62 +1648,76 @@ async function maybeExportSandboxFileToWorkspace(args: {
     overwriteFileId,
     outputMode,
     exportedFileContent,
+    result,
     stdout,
     executionTime,
+    cost,
   } = args
 
   if (!outputSandboxPath) return null
 
   if (!outputPath) {
     return exportFailure(
+      routeContext,
       'outputSandboxPath requires outputPath. Set outputPath to the destination workspace file, e.g. "files/result.csv".',
       400,
       stdout,
-      executionTime
+      executionTime,
+      cost
     )
   }
 
   const resolvedWorkspaceId =
     workspaceId || (workflowId ? (await getWorkflowById(workflowId))?.workspaceId : undefined)
 
-  if (!resolvedWorkspaceId) {
+  if (!resolvedWorkspaceId || routeContext.principal.kind !== 'delegated') {
     return exportFailure(
+      routeContext,
       'Workspace context required to save sandbox file to workspace',
       400,
       stdout,
-      executionTime
+      executionTime,
+      cost
     )
   }
 
   if (exportedFileContent === undefined) {
     return exportFailure(
+      routeContext,
       `Sandbox file "${outputSandboxPath}" was not found or could not be read`,
       500,
       stdout,
-      executionTime
+      executionTime,
+      cost
     )
   }
 
   const fileName = normalizeOutputWorkspaceFileName(outputPath)
 
-  const TEXT_MIMES = new Set(Object.values(FORMAT_TO_CONTENT_TYPE))
+  // Decode the way the sandbox read it (by path), never by guessing from the mime: a
+  // `.jpg` with no declared format resolved to the json text format and was stored as
+  // its base64 text (dev, 2026-09-03: thumbnails that opened as "raw text").
+  const isBinary = isBinarySandboxPath(outputSandboxPath)
   const resolvedMimeType =
     outputMimeType ||
-    FORMAT_TO_CONTENT_TYPE[resolveOutputFormat(fileName, outputFormat)] ||
+    (isBinary
+      ? getMimeTypeFromExtension(getFileExtension(fileName))
+      : FORMAT_TO_CONTENT_TYPE[resolveOutputFormat(fileName, outputFormat)]) ||
     'application/octet-stream'
-  const isBinary = !TEXT_MIMES.has(resolvedMimeType)
   const outputBytes = Buffer.byteLength(exportedFileContent, isBinary ? 'base64' : 'utf-8')
   if (outputBytes > MAX_SANDBOX_OUTPUT_BYTES) {
     return exportFailure(
+      routeContext,
       `Sandbox output files exceed ${MAX_SANDBOX_OUTPUT_BYTES} bytes total`,
       400,
       stdout,
-      executionTime
+      executionTime,
+      cost
     )
   }
-  const fileBuffer = isBinary
-    ? Buffer.from(exportedFileContent, 'base64')
-    : Buffer.from(exportedFileContent, 'utf-8')
+  const fileBuffer = Buffer.isBuffer(exportedFileContent)
+    ? exportedFileContent
+    : Buffer.from(exportedFileContent, isBinary ? 'base64' : 'utf-8')
   const secretProvenance = await getOutputFileSecretProvenance(fileBuffer, isBinary, routeContext, {
     userId: authUserId,
     workspaceId: resolvedWorkspaceId,
@@ -1574,15 +1765,16 @@ async function maybeExportSandboxFileToWorkspace(args: {
       sha256,
       unchanged,
     })
-    return NextResponse.json({
-      success: true,
-      output: {
-        result: {
-          message: `Sandbox file exported to ${written.vfsPath} ${formatExportReceipt(
-            fileBuffer.length,
-            previousSize,
-            sha256
-          )}${unchanged ? ` — ${exportUnchangedNote(outputSandboxPath)}` : ''}`,
+    return sandboxExportResponse({
+      routeContext,
+      result,
+      message: `Sandbox file exported to ${written.vfsPath} ${formatExportReceipt(
+        fileBuffer.length,
+        previousSize,
+        sha256
+      )}${unchanged ? ` — ${exportUnchangedNote(outputSandboxPath)}` : ''}`,
+      files: [
+        {
           fileId: written.id,
           fileName: written.name,
           vfsPath: written.vfsPath,
@@ -1593,17 +1785,19 @@ async function maybeExportSandboxFileToWorkspace(args: {
           sha256,
           unchanged,
         },
-        stdout: cleanStdout(stdout),
-        executionTime,
-      },
-      resources: [{ type: 'file', id: written.id, title: written.name, path: written.vfsPath }],
+      ],
+      stdout,
+      executionTime,
+      cost,
     })
   } catch (error) {
     return exportFailure(
+      routeContext,
       getErrorMessage(error, 'Failed to export sandbox file'),
       workspaceFileExportErrorStatus(error),
       stdout,
-      executionTime
+      executionTime,
+      cost
     )
   }
 }
@@ -1614,19 +1808,23 @@ async function maybeExportSandboxFilesToWorkspace(args: {
   workflowId?: string
   workspaceId?: string
   outputFiles: OutputFileDeclaration[]
-  exportedFiles?: Record<string, string>
-  exportedFileContent?: string
+  exportedFiles?: Record<string, string | Buffer>
+  exportedFileContent?: string | Buffer
+  result: unknown
   stdout: string
   executionTime: number
+  cost?: FunctionExecutionCost
 }) {
   const sandboxFiles = args.outputFiles.filter((file) => file.sandboxPath)
   if (sandboxFiles.length === 0) return null
   if (sandboxFiles.length > MAX_SANDBOX_OUTPUT_FILES) {
     return exportFailure(
+      args.routeContext,
       `Too many sandbox output files requested (${sandboxFiles.length}). Maximum is ${MAX_SANDBOX_OUTPUT_FILES}.`,
       400,
       args.stdout,
-      args.executionTime
+      args.executionTime,
+      args.cost
     )
   }
 
@@ -1645,20 +1843,24 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       exportedFileContent:
         (file.sandboxPath ? args.exportedFiles?.[file.sandboxPath] : undefined) ??
         args.exportedFileContent,
+      result: args.result,
       stdout: args.stdout,
       executionTime: args.executionTime,
+      cost: args.cost,
     })
   }
 
   const resolvedWorkspaceId =
     args.workspaceId ||
     (args.workflowId ? (await getWorkflowById(args.workflowId))?.workspaceId : undefined)
-  if (!resolvedWorkspaceId) {
+  if (!resolvedWorkspaceId || args.routeContext.principal.kind !== 'delegated') {
     return exportFailure(
+      args.routeContext,
       'Workspace context required to save sandbox files to workspace',
       400,
       args.stdout,
-      args.executionTime
+      args.executionTime,
+      args.cost
     )
   }
 
@@ -1669,30 +1871,39 @@ async function maybeExportSandboxFilesToWorkspace(args: {
     const content = args.exportedFiles?.[sandboxPath]
     if (content === undefined) {
       return exportFailure(
+        args.routeContext,
         `Sandbox file "${sandboxPath}" was not found or could not be read`,
         500,
         args.stdout,
-        args.executionTime
+        args.executionTime,
+        args.cost
       )
     }
     const outputPath = file.formatPath ?? file.path
     const fileName = normalizeOutputWorkspaceFileName(outputPath)
+    // Same rule as the single-file export: the sandbox path decides the encoding.
+    const isBinary = isBinarySandboxPath(sandboxPath)
     const resolvedMimeType =
       file.mimeType ||
-      FORMAT_TO_CONTENT_TYPE[resolveOutputFormat(fileName, file.format)] ||
+      (isBinary
+        ? getMimeTypeFromExtension(getFileExtension(fileName))
+        : FORMAT_TO_CONTENT_TYPE[resolveOutputFormat(fileName, file.format)]) ||
       'application/octet-stream'
-    const isBinary = !new Set(Object.values(FORMAT_TO_CONTENT_TYPE)).has(resolvedMimeType)
     const size = Buffer.byteLength(content, isBinary ? 'base64' : 'utf-8')
     totalOutputBytes += size
     if (totalOutputBytes > MAX_SANDBOX_OUTPUT_BYTES) {
       return exportFailure(
+        args.routeContext,
         `Sandbox output files exceed ${MAX_SANDBOX_OUTPUT_BYTES} bytes total`,
         400,
         args.stdout,
-        args.executionTime
+        args.executionTime,
+        args.cost
       )
     }
-    const scanBuffer = isBinary ? Buffer.from(content, 'base64') : Buffer.from(content, 'utf-8')
+    const scanBuffer = Buffer.isBuffer(content)
+      ? content
+      : Buffer.from(content, isBinary ? 'base64' : 'utf-8')
     const secretProvenance = await getOutputFileSecretProvenance(
       scanBuffer,
       isBinary,
@@ -1735,10 +1946,12 @@ async function maybeExportSandboxFilesToWorkspace(args: {
     validationPaths = validations.map((validation) => validation.vfsPath)
   } catch (error) {
     return exportFailure(
+      args.routeContext,
       getErrorMessage(error, 'Invalid sandbox output destination'),
       workspaceFileExportErrorStatus(error),
       args.stdout,
-      args.executionTime
+      args.executionTime,
+      args.cost
     )
   }
   const duplicateDestination = validationPaths.find(
@@ -1746,19 +1959,21 @@ async function maybeExportSandboxFilesToWorkspace(args: {
   )
   if (duplicateDestination) {
     return exportFailure(
+      args.routeContext,
       `Duplicate sandbox output destination: ${duplicateDestination}`,
       400,
       args.stdout,
-      args.executionTime
+      args.executionTime,
+      args.cost
     )
   }
 
   const writtenFiles = []
   try {
     for (const prepared of preparedFiles) {
-      const buffer = prepared.isBinary
-        ? Buffer.from(prepared.content, 'base64')
-        : Buffer.from(prepared.content, 'utf-8')
+      const buffer = Buffer.isBuffer(prepared.content)
+        ? prepared.content
+        : Buffer.from(prepared.content, prepared.isBinary ? 'base64' : 'utf-8')
       let previousSize: number | undefined
       let unchanged = false
       if (prepared.target.mode === 'overwrite') {
@@ -1802,55 +2017,49 @@ async function maybeExportSandboxFilesToWorkspace(args: {
     }
   } catch (error) {
     return exportFailure(
+      args.routeContext,
       getErrorMessage(error, 'Failed to export sandbox files'),
       workspaceFileExportErrorStatus(error),
       args.stdout,
-      args.executionTime
+      args.executionTime,
+      args.cost
     )
   }
 
   const unchangedFiles = writtenFiles.filter((file) => file.unchanged)
-  return NextResponse.json({
-    success: true,
-    output: {
-      result: {
-        message: `Exported ${writtenFiles.length} sandbox files: ${writtenFiles
-          .map(
-            (file) =>
-              `${file.vfsPath} ${formatExportReceipt(
-                file.exportedBytes,
-                file.previousSize,
-                file.sha256
-              )}${file.unchanged ? ' [UNCHANGED]' : ''}`
-          )
-          .join('; ')}${
-          unchangedFiles.length > 0
-            ? ` — WARNING: ${unchangedFiles.map((file) => file.vfsPath).join(', ')} ${
-                unchangedFiles.length === 1 ? 'is' : 'are'
-              } byte-identical to the previous version (nothing changed). If you expected new content there, your code did not modify the corresponding sandbox file.`
-            : ''
-        }`,
-        files: writtenFiles.map((file) => ({
-          fileId: file.id,
-          fileName: file.name,
-          vfsPath: file.vfsPath,
-          downloadUrl: file.downloadUrl,
-          sandboxPath: file.sandboxPath,
-          size: file.exportedBytes,
-          previousSize: file.previousSize,
-          sha256: file.sha256,
-          unchanged: file.unchanged,
-        })),
-      },
-      stdout: cleanStdout(args.stdout),
-      executionTime: args.executionTime,
-    },
-    resources: writtenFiles.map((file) => ({
-      type: 'file',
-      id: file.id,
-      title: file.name,
-      path: file.vfsPath,
+  return sandboxExportResponse({
+    routeContext: args.routeContext,
+    result: args.result,
+    message: `Exported ${writtenFiles.length} sandbox files: ${writtenFiles
+      .map(
+        (file) =>
+          `${file.vfsPath} ${formatExportReceipt(
+            file.exportedBytes,
+            file.previousSize,
+            file.sha256
+          )}${file.unchanged ? ' [UNCHANGED]' : ''}`
+      )
+      .join('; ')}${
+      unchangedFiles.length > 0
+        ? ` — WARNING: ${unchangedFiles.map((file) => file.vfsPath).join(', ')} ${
+            unchangedFiles.length === 1 ? 'is' : 'are'
+          } byte-identical to the previous version (nothing changed). If you expected new content there, your code did not modify the corresponding sandbox file.`
+        : ''
+    }`,
+    files: writtenFiles.map((file) => ({
+      fileId: file.id,
+      fileName: file.name,
+      vfsPath: file.vfsPath,
+      downloadUrl: file.downloadUrl,
+      sandboxPath: file.sandboxPath,
+      size: file.exportedBytes,
+      previousSize: file.previousSize,
+      sha256: file.sha256,
+      unchanged: file.unchanged,
     })),
+    stdout: args.stdout,
+    executionTime: args.executionTime,
+    cost: args.cost,
   })
 }
 
@@ -1892,16 +2101,6 @@ function collectedFileName(relativePath: string): string {
 }
 
 /**
- * Persists files harvested from the sandbox output directory as platform file
- * objects, so any downstream tool that accepts a file can consume them.
- *
- * Uploaded here, one at a time, rather than handed to the declarative
- * file-output pipeline as bytes: that path would carry the whole export budget
- * as base64 through `JSON.stringify`, a response buffer, and a re-parse, so
- * several multiples of the payload would be live at once for a value that is a
- * couple of hundred bytes per file once stored.
- */
-/**
  * Removes files already uploaded when a later one in the same harvest is refused.
  *
  * The route answers with a failure and hands back no references, so anything
@@ -1924,18 +2123,40 @@ async function discardUploadedExecutionFiles(files: readonly UserFile[]): Promis
   }
 }
 
-async function collectExecutionOutputFiles(args: {
+/** Uploads harvested files sequentially, retaining their private provenance beside stored bytes. */
+async function collectSandboxOutputFiles(args: {
   routeContext: FunctionRouteExecutionContext
   authUserId: string
   workflowId?: string
   workspaceId?: string
   executionId?: string
   collectedFiles: SandboxCollectedFile[]
+  sandboxProfile?: 'mothership'
+  result: unknown
   stdout: string
   executionTime: number
+  cost?: FunctionExecutionCost
 }): Promise<{ files: UserFile[] } | { response: NextResponse }> {
   const { routeContext, collectedFiles } = args
   if (collectedFiles.length === 0) return { files: [] }
+
+  /** Chat exports use workspace ownership; only workflow exports need an execution scope. */
+  if (args.sandboxProfile === 'mothership') {
+    const response = await maybeExportSandboxFilesToWorkspace({
+      ...args,
+      outputFiles: collectedFiles.map((file) => ({
+        path: `files/${collectedFileName(file.relativePath)}`,
+        sandboxPath: file.path,
+        mode: 'create',
+        mimeType: getMimeTypeFromExtension(getFileExtension(file.relativePath)),
+      })),
+      exportedFiles: Object.fromEntries(
+        collectedFiles.map((file) => [file.path, Buffer.from(file.contentBase64, 'base64')])
+      ),
+    })
+    if (!response) throw new Error('Collected sandbox files require an export response')
+    return { response }
+  }
 
   const resolvedWorkspaceId =
     args.workspaceId ||
@@ -1945,11 +2166,13 @@ async function collectExecutionOutputFiles(args: {
   // reporting success without them would read as "your script wrote nothing".
   if (!resolvedWorkspaceId || !args.workflowId || !args.executionId) {
     return {
-      response: exportFailure(
+      response: await exportFailure(
+        routeContext,
         'Workspace, workflow, and execution context are required to return files from the sandbox.',
         400,
         args.stdout,
-        args.executionTime
+        args.executionTime,
+        args.cost
       ),
     }
   }
@@ -1964,36 +2187,41 @@ async function collectExecutionOutputFiles(args: {
       const name = collectedFileName(collected.relativePath)
       const mimeType = getMimeTypeFromExtension(getFileExtension(name))
 
-      // Scanned unconditionally — never gated on whether the bytes look textual.
-      // Both a filename check and a UTF-8 round-trip were trivially defeated: name
-      // the file `.png`, or append one invalid byte, and a plaintext secret sailed
-      // past. A lossy UTF-8 decode preserves ASCII runs, so a literal secret is
-      // findable in any buffer, textual or not.
-      //
-      // What stays out of reach is a secret carried in transformed form — deflated
-      // inside a PDF, re-encoded — which no substring scan can see. That is an
-      // inherent limit of scanning, not a hole in the gate, and it is why these
-      // files are execution-scoped rather than durable workspace files.
-      {
-        const provenance = await getOutputFileSecretProvenance(buffer, false, routeContext, {
-          userId: args.authUserId,
-          workspaceId: resolvedWorkspaceId,
-        })
-        // An execution-scoped file has nowhere to record a provenance envelope, so
-        // one carrying a resolved secret cannot ship under a lock the way a
-        // workspace file can — it is refused instead.
-        if (provenance.status !== 'exact' || provenance.entries.length > 0) {
-          await discardUploadedExecutionFiles(files)
-          return {
-            response: exportFailure(
-              `Sandbox output file "${name}" contains a resolved secret value and was not returned. Write the file without embedding secret values, or export it to a workspace file where its provenance can be recorded.`,
-              400,
-              args.stdout,
-              args.executionTime
-            ),
-          }
+      /** Literal secrets must be refused regardless of the export's name or encoding. */
+      const scannedProvenance = await getOutputFileSecretProvenance(buffer, false, routeContext, {
+        userId: args.authUserId,
+        workspaceId: resolvedWorkspaceId,
+      })
+      if (
+        scannedProvenance.status === 'unknown' ||
+        (scannedProvenance.status === 'exact' && scannedProvenance.entries.length > 0)
+      ) {
+        await discardUploadedExecutionFiles(files)
+        return {
+          response: await exportFailure(
+            routeContext,
+            `Sandbox output file "${name}" contains a resolved secret value and was not returned. Write the file without embedding secret values, or export it to a workspace file where its provenance can be recorded.`,
+            400,
+            args.stdout,
+            args.executionTime,
+            args.cost
+          ),
         }
       }
+
+      /**
+       * A literal scan cannot vouch for encoded secrets in an archive or binary document.
+       * Persist that uncertainty so a later conversion cannot turn these bytes into a trusted
+       * workspace file. Both the format and bytes must be textual before a scan is sufficient.
+       */
+      const isBinary =
+        !TEXT_OUTPUT_MIME_TYPES.has(mimeType) || !isUtf8(buffer) || buffer.includes(0)
+      const secretProvenance = isBinary
+        ? await getOutputFileSecretProvenance(buffer, true, routeContext, {
+            userId: args.authUserId,
+            workspaceId: resolvedWorkspaceId,
+          })
+        : scannedProvenance
 
       const userFile = await uploadExecutionFile(
         {
@@ -2004,7 +2232,8 @@ async function collectExecutionOutputFiles(args: {
         buffer,
         name,
         mimeType,
-        args.authUserId
+        args.authUserId,
+        secretProvenance
       )
       files.push(userFile)
     }
@@ -2030,8 +2259,9 @@ async function collectExecutionOutputFiles(args: {
 export interface TrustedFunctionExecutionAuth {
   attributedUserId: string
   fileAccessUserId?: string
-  principal: DelegatedPrincipal
+  principal: DelegatedPrincipal | OrganizationDelegatedPrincipal
   sandboxProfile?: 'mothership'
+  resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 }
 
 /** Executes the Function protocol after the application operation authorizes its principal. */
@@ -2065,6 +2295,23 @@ export async function executeFunctionRequest(
       req.headers
     )
     includePrivateResolvedSecretNames = privateResolvedSecretNamesMetadataType !== undefined
+
+    let referenceCount = 0
+    for (const _match of body.code.matchAll(TAG_PATTERN)) {
+      if (++referenceCount > MAX_FUNCTION_REFERENCES) {
+        return appendPrivateResolvedSecretNames(
+          NextResponse.json(
+            {
+              success: false,
+              error: `Function code exceeds the maximum of ${MAX_FUNCTION_REFERENCES} references`,
+            },
+            { status: 400 }
+          ),
+          includePrivateResolvedSecretNames ? [] : null,
+          privateResolvedSecretNamesMetadataType
+        )
+      }
+    }
 
     const mountedWorkspaceFileProvenance = inspectMountedWorkspaceFileProvenance(req.headers, body)
     if (mountedWorkspaceFileProvenance.status === 'invalid') {
@@ -2114,6 +2361,7 @@ export async function executeFunctionRequest(
       mountedSecrets,
       unredactedSecretNames = [],
       sandboxId: selectedSandboxId,
+      sandboxSessionKey,
       blockData = {},
       blockNameMapping = {},
       blockOutputSchemas = {},
@@ -2130,6 +2378,8 @@ export async function executeFunctionRequest(
       files: mountedUserFiles,
       _sandboxFiles,
     } = body
+
+    const meterRemoteSandboxUsage = Boolean(workflowId && !isCustomTool && !usesMothershipSandbox)
 
     if (selectedSandboxId && !isRemoteSandboxEnabled) {
       return NextResponse.json(
@@ -2164,6 +2414,21 @@ export async function executeFunctionRequest(
     // `environmentVariables[...]` dict narrow together — filtering only the dict
     // would leave `{{OTHER_SECRET}}` resolving, which is a hole, not a scope.
     const envVars = scopeEnvironmentVariables(rawEnvVars, secretScope, mountedSecrets)
+    const admittedChatOwner = activeSandboxChatOwner()
+    const admittedSession =
+      usesMothershipSandbox &&
+      !selectedSandboxId &&
+      sandboxSessionKey &&
+      (workspaceId || admittedChatOwner?.organizationId)
+        ? await buildMothershipSandboxSession({
+            sessionKey: sandboxSessionKey,
+            ...(admittedChatOwner?.organizationId
+              ? { organizationId: admittedChatOwner.organizationId }
+              : { workspaceId }),
+            userId: auth.attributedUserId,
+            signal: executionSignal,
+          })
+        : undefined
     sourceCodeForErrors = sourceCode ?? code
     const outputFiles = getOutputFileDeclarations({
       outputs,
@@ -2182,6 +2447,23 @@ export async function executeFunctionRequest(
           {
             success: false,
             error: `Too many sandbox output files requested (${outputSandboxPaths.length}). Maximum is ${MAX_SANDBOX_OUTPUT_FILES}.`,
+          },
+          { status: 400 }
+        ),
+        includePrivateResolvedSecretNames ? [] : null,
+        privateResolvedSecretNamesMetadataType
+      )
+    }
+    try {
+      for (const file of outputFiles) {
+        normalizeOutputWorkspaceFileName(file.formatPath ?? file.path)
+      }
+    } catch (error) {
+      return appendPrivateResolvedSecretNames(
+        NextResponse.json(
+          {
+            success: false,
+            error: getErrorMessage(error, 'Invalid sandbox output destination'),
           },
           { status: 400 }
         ),
@@ -2227,6 +2509,8 @@ export async function executeFunctionRequest(
         unredactedSecretNames.filter((name) => Object.hasOwn(envVars, name))
       ),
       mountedFileSecretProvenanceScanner,
+      resolvedSecretTraceRegistry: auth.resolvedSecretTraceRegistry,
+      sessionOutputProvenance: admittedSession?.outputProvenance,
     }
 
     const lang = isValidCodeLanguage(language) ? language : DEFAULT_CODE_LANGUAGE
@@ -2276,13 +2560,23 @@ export async function executeFunctionRequest(
       outputSandboxPaths.length > 0 ||
       Boolean(outputSandboxPath)
 
-    const compilation = await compileCodePlaceholders({
-      code: codeResolution.resolvedCode,
-      language: lang,
-      params: executionParams,
-      environmentVariables: envVars,
-      reservedNames: Object.keys(contextVariables),
-    })
+    /** Mothership mounts named secrets explicitly; its code may author literal workflow templates. */
+    const compilation: CompiledCodePlaceholders = usesMothershipSandbox
+      ? {
+          code: codeResolution.resolvedCode,
+          bindings: [],
+          privateInputs: [],
+          runtimeBindings: [],
+          internalIdentifiers: [],
+          resolvedSecretNames: Object.keys(envVars),
+        }
+      : await compileCodePlaceholders({
+          code: codeResolution.resolvedCode,
+          language: lang,
+          params: executionParams,
+          environmentVariables: envVars,
+          reservedNames: Object.keys(contextVariables),
+        })
     for (const name of compilation.resolvedSecretNames) {
       if (!Object.hasOwn(envVars, name)) continue
       const plaintext = envVars[name]
@@ -2294,6 +2588,7 @@ export async function executeFunctionRequest(
        * owner's provenance and the file still locks.
        */
       if (routeContext.unredactedSecretNames.has(name)) continue
+      if (isNonIdentifyingSecretLiteral(plaintext)) continue
       const scanLiterals = new Set([plaintext, JSON.stringify(plaintext).slice(1, -1)])
       for (const scanLiteral of scanLiterals) {
         const names = routeContext.outputSecretNamesByScanLiteral.get(scanLiteral) ?? []
@@ -2320,6 +2615,11 @@ export async function executeFunctionRequest(
     for (const binding of compilation.bindings) {
       setRecordValue(contextVariables, binding.name, binding.value)
     }
+    await importRuntimeInputProvenance(routeContext, {
+      code: resolvedCode,
+      params: executionParams,
+      contextVariables,
+    })
     if (lang === CodeLanguage.Shell && containsLargeValueRef(contextVariables)) {
       throw new Error(
         'Large execution values require the JavaScript isolated-vm runtime. Select a nested field or read the value in a JavaScript function.'
@@ -2422,6 +2722,14 @@ export async function executeFunctionRequest(
           logger,
         },
       })
+      if (resolvedMounts.unprovenancedMountCount > 0) {
+        routeContext.runtimeInputProvenanceUnrecorded = true
+      }
+      await importRuntimeFileContributors(
+        routeContext,
+        resolvedMounts.contributingFiles,
+        resolvedMounts.renderedContributingFiles
+      )
     } catch (error) {
       // Everything this can raise is about the files the caller named — a mount
       // it may not read, one over a size ceiling, a set over the aggregate. The
@@ -2442,6 +2750,40 @@ export async function executeFunctionRequest(
       )
     }
     const { sandboxFiles: userFileMounts, manifest: mountManifest } = resolvedMounts
+    const activeRouteContext = routeContext
+    const mothershipSession = admittedSession
+      ? {
+          ...admittedSession,
+          inputProvenance: () => {
+            const runtime = activeRouteContext.runtimeFileSecretTraceRegistry?.exportProvenance()
+            return mergeDurableSecretProvenance(
+              sandboxSessionInputProvenance(),
+              runtime
+                ? durableSecretProvenanceFromEnvelope(runtime)
+                : { status: 'exact', entries: [] }
+            )
+          },
+          acceptOutputProvenance: async (provenance: DurableSecretProvenance) => {
+            const registry = activeRouteContext.resolvedSecretTraceRegistry
+            activeRouteContext.runtimeFileSecretTraceRegistry ??= new ResolvedSecretTraceRegistry(
+              [],
+              {
+                userId: auth.attributedUserId,
+                ...(workspaceId ? { workspaceId } : {}),
+              }
+            )
+            const runtimeRegistry = activeRouteContext.runtimeFileSecretTraceRegistry
+            const runtimeImported = await importDurableSecretProvenance(runtimeRegistry, provenance)
+            const imported = registry && (await importDurableSecretProvenance(registry, provenance))
+            activeRouteContext.runtimeFileSecretProvenanceScanner = undefined
+            if (!runtimeImported || !imported) {
+              throw new Error(
+                'Workbench output withheld because its secret provenance is unavailable'
+              )
+            }
+          },
+        }
+      : undefined
     const sandboxFiles = mergeSandboxFileMounts(_sandboxFiles, userFileMounts)
 
     // Every `<block.file.path>` marker becomes the path its file was mounted at,
@@ -2456,19 +2798,18 @@ export async function executeFunctionRequest(
       )
     }
 
-    // Harvested on every remote run rather than behind a switch: the directory is
-    // Sim's own, so nothing lands there unless the code put it there, and the cost
-    // is one listing on a run that already paid for a sandbox. Isolate runs never
-    // reach here, so they stay as fast as they were.
-    //
-    // Declared sandbox outputs opt out. That request names exactly which paths to
-    // export and answers with that export's own result, so harvesting alongside it
-    // would collect files the response has no shape to carry — they would be read,
-    // scanned, uploaded, and then dropped. Making the exclusion explicit here keeps
-    // it from resting on which branch happens to return first.
+    /**
+     * Automatic exports belong to one execution. Persistent workbenches need a
+     * distinct directory per call so a parallel or later run cannot harvest them.
+     * Declared outputs already name their exact paths and opt out of discovery.
+     */
     const declaresSandboxOutputs = outputFiles.some((file) => file.sandboxPath)
     const outputSandboxDir =
-      useRemoteSandbox && !declaresSandboxOutputs ? SANDBOX_OUTPUT_DIR : undefined
+      useRemoteSandbox && !declaresSandboxOutputs
+        ? mothershipSession
+          ? `${SANDBOX_OUTPUT_DIR}/call-${generateShortId(16)}`
+          : SANDBOX_OUTPUT_DIR
+        : undefined
 
     if (mountManifest.length > 0) {
       logger.info(`[${requestId}] Mounted files into sandbox`, {
@@ -2500,6 +2841,8 @@ export async function executeFunctionRequest(
         exportedFileContent,
         exportedFiles,
         collectedFiles: shellCollectedFiles,
+        cost: shellCost,
+        sandboxSession: shellSandboxSession,
       } = await executeShellInSandbox({
         code: resolvedCode,
         envs: shellEnvs,
@@ -2514,7 +2857,9 @@ export async function executeFunctionRequest(
         ...(usesMothershipSandbox && !selectedSandboxId
           ? { sandboxKind: 'mothership' as const }
           : {}),
+        ...(mothershipSession ? { session: mothershipSession } : {}),
         signal: executionSignal,
+        meterUsage: meterRemoteSandboxUsage,
       })
       const executionTime = Date.now() - execStart
 
@@ -2529,7 +2874,13 @@ export async function executeFunctionRequest(
           {
             success: false,
             error: scrubInternalIdentifiers(shellError, compilerInternalIdentifiers),
-            output: { result: null, stdout: cleanStdout(shellStdout), executionTime },
+            output: {
+              result: null,
+              stdout: cleanStdout(shellStdout),
+              executionTime,
+              ...(shellSandboxSession ? { sandboxSession: shellSandboxSession } : {}),
+              ...(shellCost ? { cost: shellCost } : {}),
+            },
           },
           routeContext,
           { status: 422 }
@@ -2545,23 +2896,28 @@ export async function executeFunctionRequest(
           outputFiles,
           exportedFiles,
           exportedFileContent,
+          result: shellResult,
           stdout: shellStdout,
           executionTime,
+          cost: shellCost,
         })
         if (fileExportResponse) {
           return appendResolvedSecretNames(fileExportResponse, routeContext)
         }
       }
 
-      const shellOutputFiles = await collectExecutionOutputFiles({
+      const shellOutputFiles = await collectSandboxOutputFiles({
         routeContext,
         authUserId: auth.attributedUserId,
         workflowId,
         workspaceId,
         executionId,
         collectedFiles: shellCollectedFiles ?? [],
+        sandboxProfile: auth.sandboxProfile,
+        result: shellResult,
         stdout: shellStdout,
         executionTime,
+        cost: shellCost,
       })
       if ('response' in shellOutputFiles) {
         return appendResolvedSecretNames(shellOutputFiles.response, routeContext)
@@ -2575,6 +2931,8 @@ export async function executeFunctionRequest(
             stdout: cleanStdout(shellStdout),
             executionTime,
             files: shellOutputFiles.files,
+            ...(shellCost ? { cost: shellCost } : {}),
+            ...(shellSandboxSession ? { sandboxSession: shellSandboxSession } : {}),
           },
         },
         routeContext
@@ -2619,7 +2977,7 @@ export async function executeFunctionRequest(
           // code's last stdout write was not newline-terminated (chunks are
           // concatenated verbatim on the parse side, so a glued marker would
           // otherwise be missed silently).
-          `    console.log('\\n${SIM_RESULT_PREFIX}' + JSON.stringify(__sim_result));`,
+          `    console.log('\\n${SIM_RESULT_PREFIX}' + JSON.stringify(__sim_result === undefined ? null : __sim_result));`,
           '  } catch (error) {',
           '    console.log(String((error && (error.stack || error.message)) || error));',
           '    throw error;',
@@ -2637,6 +2995,8 @@ export async function executeFunctionRequest(
           exportedFileContent,
           exportedFiles,
           collectedFiles: jsCollectedFiles,
+          cost: sandboxCost,
+          sandboxSession: jsSandboxSession,
         } = await executeInSandbox({
           code: codeForE2B,
           language: CodeLanguage.JavaScript,
@@ -2652,7 +3012,9 @@ export async function executeFunctionRequest(
           ...(usesMothershipSandbox && !selectedSandboxId
             ? { sandboxKind: 'mothership' as const }
             : {}),
+          ...(mothershipSession ? { session: mothershipSession } : {}),
           signal: executionSignal,
+          meterUsage: meterRemoteSandboxUsage,
         })
         const executionTime = Date.now() - execStart
         stdout += e2bStdout
@@ -2678,7 +3040,13 @@ export async function executeFunctionRequest(
             {
               success: false,
               error: formattedError,
-              output: { result: null, stdout: cleanedOutput, executionTime },
+              output: {
+                result: null,
+                stdout: cleanedOutput,
+                executionTime,
+                ...(jsSandboxSession ? { sandboxSession: jsSandboxSession } : {}),
+                ...(sandboxCost ? { cost: sandboxCost } : {}),
+              },
             },
             routeContext,
             { status: 422 }
@@ -2694,23 +3062,28 @@ export async function executeFunctionRequest(
             outputFiles,
             exportedFiles,
             exportedFileContent,
+            result: e2bResult,
             stdout,
             executionTime,
+            cost: sandboxCost,
           })
           if (fileExportResponse) {
             return appendResolvedSecretNames(fileExportResponse, routeContext)
           }
         }
 
-        const jsOutputFiles = await collectExecutionOutputFiles({
+        const jsOutputFiles = await collectSandboxOutputFiles({
           routeContext,
           authUserId: auth.attributedUserId,
           workflowId,
           workspaceId,
           executionId,
           collectedFiles: jsCollectedFiles ?? [],
+          sandboxProfile: auth.sandboxProfile,
+          result: e2bResult,
           stdout,
           executionTime,
+          cost: sandboxCost,
         })
         if ('response' in jsOutputFiles) {
           return appendResolvedSecretNames(jsOutputFiles.response, routeContext)
@@ -2724,6 +3097,8 @@ export async function executeFunctionRequest(
               stdout: cleanStdout(stdout),
               executionTime,
               files: jsOutputFiles.files,
+              ...(sandboxCost ? { cost: sandboxCost } : {}),
+              ...(jsSandboxSession ? { sandboxSession: jsSandboxSession } : {}),
             },
           },
           routeContext
@@ -2749,6 +3124,8 @@ export async function executeFunctionRequest(
         exportedFileContent,
         exportedFiles,
         collectedFiles: pythonCollectedFiles,
+        cost: sandboxCost,
+        sandboxSession: pythonSandboxSession,
       } = await executeInSandbox({
         code: codeForE2B,
         language: CodeLanguage.Python,
@@ -2763,7 +3140,9 @@ export async function executeFunctionRequest(
         ...(usesMothershipSandbox && !selectedSandboxId
           ? { sandboxKind: 'mothership' as const }
           : {}),
+        ...(mothershipSession ? { session: mothershipSession } : {}),
         signal: executionSignal,
+        meterUsage: meterRemoteSandboxUsage,
       })
       const executionTime = Date.now() - execStart
       stdout += e2bStdout
@@ -2789,7 +3168,13 @@ export async function executeFunctionRequest(
           {
             success: false,
             error: formattedError,
-            output: { result: null, stdout: cleanedOutput, executionTime },
+            output: {
+              result: null,
+              stdout: cleanedOutput,
+              executionTime,
+              ...(sandboxCost ? { cost: sandboxCost } : {}),
+              ...(pythonSandboxSession ? { sandboxSession: pythonSandboxSession } : {}),
+            },
           },
           routeContext,
           { status: 422 }
@@ -2805,23 +3190,28 @@ export async function executeFunctionRequest(
           outputFiles,
           exportedFiles,
           exportedFileContent,
+          result: e2bResult,
           stdout,
           executionTime,
+          cost: sandboxCost,
         })
         if (fileExportResponse) {
           return appendResolvedSecretNames(fileExportResponse, routeContext)
         }
       }
 
-      const pythonOutputFiles = await collectExecutionOutputFiles({
+      const pythonOutputFiles = await collectSandboxOutputFiles({
         routeContext,
         authUserId: auth.attributedUserId,
         workflowId,
         workspaceId,
         executionId,
         collectedFiles: pythonCollectedFiles ?? [],
+        sandboxProfile: auth.sandboxProfile,
+        result: e2bResult,
         stdout,
         executionTime,
+        cost: sandboxCost,
       })
       if ('response' in pythonOutputFiles) {
         return appendResolvedSecretNames(pythonOutputFiles.response, routeContext)
@@ -2835,6 +3225,8 @@ export async function executeFunctionRequest(
             stdout: cleanStdout(stdout),
             executionTime,
             files: pythonOutputFiles.files,
+            ...(sandboxCost ? { cost: sandboxCost } : {}),
+            ...(pythonSandboxSession ? { sandboxSession: pythonSandboxSession } : {}),
           },
         },
         routeContext
@@ -3019,10 +3411,16 @@ export async function executeFunctionRequest(
       isSandboxOutputFileError(error) ||
       isSandboxOutputNotExportableError(error)
     ) {
+      const cost = readTrustedSandboxOutputCost(error)
       const outputLimitResponse = {
         success: false,
         error: error.message,
-        output: { result: null, stdout: cleanStdout(stdout), executionTime },
+        output: {
+          result: null,
+          stdout: cleanStdout(stdout),
+          executionTime,
+          ...(cost ? { cost } : {}),
+        },
       }
       return routeContext
         ? functionJsonResponse(outputLimitResponse, routeContext, { status: 400 })
@@ -3165,3 +3563,5 @@ export async function executeFunctionRequest(
     executionDeadlineController?.cleanup()
   }
 }
+
+import { isUtf8 } from 'node:buffer'

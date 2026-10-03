@@ -73,6 +73,7 @@ export async function fetchSapAccessToken(
   const response = await secureFetchWithValidation(
     tokenUrl,
     {
+      profile: 'configuredEndpoint',
       method: 'POST',
       headers: {
         Authorization: `Basic ${basic}`,
@@ -164,6 +165,7 @@ export async function fetchSapCsrf(
   const response = await secureFetchWithValidation(
     buildOdataUrl(input, '/$metadata'),
     {
+      profile: 'configuredEndpoint',
       method: 'GET',
       headers: {
         Authorization: buildAuthHeader(input, accessToken),
@@ -210,6 +212,7 @@ export async function callSapOdata(
   const response = await secureFetchWithValidation(
     buildOdataUrl(input),
     {
+      profile: 'configuredEndpoint',
       method: input.method,
       headers,
       body: hasBody ? JSON.stringify(input.body) : undefined,

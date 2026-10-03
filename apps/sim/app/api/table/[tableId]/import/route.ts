@@ -11,7 +11,7 @@ import {
 } from '@/lib/api/contracts/tables'
 import { ianaTimezoneSchema } from '@/lib/api/contracts/user'
 import { getValidationErrorMessage } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { capabilityGovernedAuthUserId, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { isMultipartError, readMultipart } from '@/lib/core/utils/multipart'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -24,6 +24,7 @@ import {
   checkAccess,
   csvProxyBodyCapResponse,
   multipartErrorResponse,
+  type TableAccessPrincipal,
 } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportCSVExisting')
@@ -96,7 +97,8 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       )
     }
 
-    const accessResult = await checkAccess(tableId, authResult.userId, 'write')
+    const principal: TableAccessPrincipal = { kind: 'user', userId: authResult.userId }
+    const accessResult = await checkAccess(tableId, principal, 'write')
     if (!accessResult.ok) return accessError(accessResult, requestId, tableId)
 
     const { table } = accessResult
@@ -156,6 +158,18 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       createColumns,
       timezone,
       requestId,
+      /**
+       * An append starts the table's workflow columns on every row it lands, so
+       * those cells are governed by the person behind the request — not left
+       * ungoverned, which would let an import run tools this member's
+       * permission group withholds.
+       *
+       * Derived from the auth type rather than from `principal`: this route
+       * also accepts an internal JWT, whose user id is the run's actor, and
+       * `TableAccessPrincipal` reports one as an ordinary person. An executor
+       * call must dispatch under nobody.
+       */
+      capabilityGovernedUserId: capabilityGovernedAuthUserId(authResult),
     })
 
     if (!outcome.success) {

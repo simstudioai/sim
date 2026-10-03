@@ -10,6 +10,7 @@ import {
   highlight,
   languages,
 } from '@sim/emcn'
+import { escapeRegExp } from '@sim/utils/string'
 import Editor from 'react-simple-code-editor'
 import type { SchemaParameter } from '@/app/workspace/[workspaceId]/components/custom-tool-editor/custom-tool-schema'
 import {
@@ -63,16 +64,16 @@ export function CodeEditor({
       const newVisualLineHeights: number[] = []
 
       const container = document.createElement('div')
-      container.style.cssText = `
-        position: absolute;
-        visibility: hidden;
-        width: ${preElement.clientWidth}px;
-        font-family: ${window.getComputedStyle(preElement).fontFamily};
-        font-size: ${window.getComputedStyle(preElement).fontSize};
-        padding: 12px;
-        white-space: pre-wrap;
-        word-break: break-word;
-      `
+      Object.assign(container.style, {
+        position: 'absolute',
+        visibility: 'hidden',
+        width: `${preElement.clientWidth}px`,
+        fontFamily: window.getComputedStyle(preElement).fontFamily,
+        fontSize: window.getComputedStyle(preElement).fontSize,
+        padding: '12px',
+        whiteSpace: 'pre-wrap',
+        wordBreak: 'break-word',
+      })
       document.body.appendChild(container)
 
       lines.forEach((line) => {
@@ -152,7 +153,7 @@ export function CodeEditor({
 
     if (schemaParameters.length > 0) {
       schemaParameters.forEach((param) => {
-        const escapedName = param.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const escapedName = escapeRegExp(param.name)
         const paramRegex = new RegExp(`\\b(${escapedName})\\b`, 'g')
         processedCode = processedCode.replace(paramRegex, (match) => {
           const placeholder = `__PARAM_${placeholders.length}__`
@@ -202,7 +203,7 @@ export function CodeEditor({
           style={minHeight ? { minHeight } : undefined}
           textareaClassName={cn(
             getCodeEditorProps({ disabled }).textareaClassName,
-            '!block !h-full !min-h-full'
+            'block! h-full! min-h-full!'
           )}
         />
       </Code.Content>

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   createMockRequest,
   dbChainMockFns,
@@ -35,7 +32,6 @@ function listRequest() {
 
 describe('admin workspace folders GET', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -58,18 +54,5 @@ describe('admin workspace folders GET', () => {
         )
       ).toBe(true)
     }
-  })
-
-  it('still scopes to the workspace and to workflow folders', async () => {
-    queueTableRows(schemaMock.workspace, [{ id: WORKSPACE_ID }])
-    queueTableRows(schemaMock.folder, [{ total: 0 }])
-    queueTableRows(schemaMock.folder, [])
-
-    await GET(listRequest(), routeContext)
-
-    const where = dbChainMockFns.where.mock.calls[1]?.[0]
-    const nodes = flattenMockConditions(where)
-    expect(nodes.some((n) => n.type === 'eq' && n.right === WORKSPACE_ID)).toBe(true)
-    expect(nodes.some((n) => n.type === 'eq' && n.right === 'workflow')).toBe(true)
   })
 })

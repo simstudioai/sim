@@ -1,7 +1,7 @@
-import type { MothershipResource } from '@/lib/copilot/resources/types'
 import type { HostedKeyRateLimitConfig } from '@/lib/core/rate-limiter'
 import type { HttpRedirectPolicy } from '@/lib/core/security/http-redirect-policy'
 import type { PrivateSecretProvenanceSelection } from '@/lib/execution/model-input-provenance'
+import type { MothershipResource } from '@/lib/mothership/resources/types'
 import type { OAuthService } from '@/lib/oauth'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
@@ -13,11 +13,13 @@ export type BYOKProviderId =
   | 'mistral'
   | 'zai'
   | 'kimi'
+  | 'typesafe'
   | 'xai'
   | 'fireworks'
   | 'together'
   | 'baseten'
   | 'ollama-cloud'
+  | 'kie'
   | 'falai'
   | 'firecrawl'
   | 'exa'
@@ -95,6 +97,10 @@ export type ParameterVisibility =
   | 'llm-only' // Only LLM provides (computed values)
   | 'hidden' // Not shown to user or LLM
 
+export interface ToolResponseContext {
+  signal?: AbortSignal
+}
+
 export interface ToolResponse {
   success: boolean // Whether the tool execution was successful
   output: Record<string, any> // The structured output from the tool
@@ -122,14 +128,28 @@ export interface OAuthConfig {
   required: boolean // Whether this tool requires OAuth authentication
   provider: OAuthService // The service that needs to be authorized
   requiredScopes?: string[] // Specific scopes this tool needs (for granular scope validation)
+  /** False for provider operations that only accept app or bot identities. */
+  personalTokenSupported?: false
+  /** Restricts execution to one stored credential kind after authorized token resolution. */
+  credentialKind?: 'oauth' | 'service-account'
   /** Token-response fields that must replace any caller-supplied tool parameter of the same name. */
   authoritativeParams?: readonly (
     | 'apiDomain'
     | 'authStyle'
     | 'cloudId'
+    | 'credentialType'
     | 'domain'
     | 'instanceUrl'
+    | 'realmId'
+    | 'quickBooksEnvironment'
   )[]
+}
+
+/** Maps a user-owned provider token and its bound host into an integration's existing parameters. */
+export interface PersonalTokenConfig {
+  provider: string
+  tokenParam: string
+  hostParam: string
 }
 
 export interface ToolRetryConfig {
@@ -147,12 +167,16 @@ export interface ToolParameterItemSchema {
   readonly const?: string | number | boolean
   readonly minimum?: number
   readonly maximum?: number
+  readonly minItems?: number
+  readonly maxItems?: number
   readonly minLength?: number
   readonly maxLength?: number
+  readonly format?: string
   readonly pattern?: string
   readonly additionalProperties?: boolean
   readonly required?: readonly string[]
   readonly properties?: Readonly<Record<string, ToolParameterItemSchema>>
+  readonly items?: ToolParameterItemSchema
   readonly anyOf?: readonly ToolParameterItemSchema[]
 }
 
@@ -173,6 +197,8 @@ export interface ToolConfig<P = any, R = any> {
       default?: any
       description?: string
       items?: ToolParameterItemSchema
+      minItems?: number
+      maxItems?: number
     }
   >
   // Output schema - what this tool produces
@@ -180,6 +206,7 @@ export interface ToolConfig<P = any, R = any> {
 
   // OAuth configuration for this tool (if it requires authentication)
   oauth?: OAuthConfig
+  personalToken?: PersonalTokenConfig
 
   // Error extractor to use for this tool's error responses
   // If specified, only this extractor will be used (deterministic)
@@ -192,6 +219,8 @@ export interface ToolConfig<P = any, R = any> {
     method: HttpMethod | ((params: P) => HttpMethod)
     headers: (params: P) => Record<string, string>
     body?: (params: P) => Record<string, any> | string | FormData | undefined
+    /** Raw binary downloads use the bounded file-transfer budget before file processing. */
+    responseType?: 'binary'
     /**
      * Allows the resolved request URL to target this Sim instance. Reserved for generic,
      * user-directed HTTP capabilities; integration tools must use an in-process operation.
@@ -268,7 +297,7 @@ export interface ToolConfig<P = any, R = any> {
   ) => Promise<R extends ToolResponse ? R : ToolResponse>
 
   // Response handling
-  transformResponse?: (response: Response, params?: P) => Promise<R>
+  transformResponse?: (response: Response, params?: P, context?: ToolResponseContext) => Promise<R>
 
   /**
    * Optional dynamic schema enrichment for specific params.
@@ -295,16 +324,6 @@ export interface TableRow {
     Key: string
     Value: any
   }
-}
-
-export interface OAuthTokenPayload {
-  credentialId?: string
-  credentialAccountUserId?: string
-  providerId?: string
-  toolId?: string
-  workflowId?: string
-  impersonateEmail?: string
-  scopes?: string[]
 }
 
 /**

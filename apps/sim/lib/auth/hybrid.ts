@@ -1,6 +1,7 @@
 import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
+import { API_KEY_HEADER, BEARER_PREFIX } from '@/lib/api/server/credential-headers'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { getSession } from '@/lib/auth'
 import { type InternalSandboxProfile, verifyInternalToken } from '@/lib/auth/internal'
@@ -15,20 +16,6 @@ export const AuthType = {
 
 export type AuthTypeValue = (typeof AuthType)[keyof typeof AuthType]
 
-const API_KEY_HEADER = 'x-api-key'
-const BEARER_PREFIX = 'Bearer '
-
-/**
- * Lightweight header-only check for whether a request carries external API credentials.
- * Does NOT validate the credentials — only inspects headers to classify the request
- * as programmatic API traffic vs interactive session traffic.
- */
-export function hasExternalApiCredentials(headers: Headers): boolean {
-  if (headers.has(API_KEY_HEADER)) return true
-  const auth = headers.get('authorization')
-  return auth?.startsWith(BEARER_PREFIX) ?? false
-}
-
 export interface AuthResult {
   success: boolean
   userId?: string
@@ -40,6 +27,23 @@ export interface AuthResult {
   sandboxProfile?: InternalSandboxProfile
   principal?: WorkflowExecutionPrincipal
   error?: string
+}
+
+/**
+ * The id whose permission group governs a request authenticated by
+ * `checkSessionOrInternalAuth`, or `null` when none does.
+ *
+ * An internal JWT's `auth.userId` is the subject the executor embedded, so
+ * keying on its presence would hand the run's actor's capabilities to a caller
+ * the executor exemption deliberately passes ungated. `authType` is the
+ * authoritative signal, and `apiKeyType` covers the personal-key case. The
+ * principal rules live on `capabilityGovernedPrincipalUserId` in
+ * `@/lib/core/application`; this reads the same decision off an `AuthResult`.
+ */
+export function capabilityGovernedAuthUserId(auth: AuthResult | undefined): string | null {
+  if (!auth?.userId) return null
+  if (auth.authType === AuthType.SESSION) return auth.userId
+  return auth.authType === AuthType.API_KEY && auth.apiKeyType === 'personal' ? auth.userId : null
 }
 
 /**
@@ -86,7 +90,7 @@ export async function checkInternalAuth(
   try {
     const authHeader = request.headers.get('authorization')
 
-    const apiKeyHeader = request.headers.get('x-api-key')
+    const apiKeyHeader = request.headers.get(API_KEY_HEADER)
     if (apiKeyHeader) {
       return {
         success: false,
@@ -94,7 +98,7 @@ export async function checkInternalAuth(
       }
     }
 
-    if (!authHeader?.startsWith('Bearer ')) {
+    if (!authHeader?.startsWith(BEARER_PREFIX)) {
       return {
         success: false,
         error: 'Internal authentication required',
@@ -133,7 +137,7 @@ export async function checkSessionOrInternalAuth(
 ): Promise<AuthResult> {
   try {
     // 1. Reject API keys first
-    const apiKeyHeader = request.headers.get('x-api-key')
+    const apiKeyHeader = request.headers.get(API_KEY_HEADER)
     if (apiKeyHeader) {
       return {
         success: false,
@@ -143,7 +147,7 @@ export async function checkSessionOrInternalAuth(
 
     // 2. Check for internal JWT token
     const authHeader = request.headers.get('authorization')
-    if (authHeader?.startsWith('Bearer ')) {
+    if (authHeader?.startsWith(BEARER_PREFIX)) {
       const token = authHeader.split(' ')[1]
       const verification = await verifyInternalToken(token)
 
@@ -197,7 +201,7 @@ export async function checkHybridAuth(
 ): Promise<AuthResult> {
   try {
     const authHeader = request.headers.get('authorization')
-    if (authHeader?.startsWith('Bearer ')) {
+    if (authHeader?.startsWith(BEARER_PREFIX)) {
       const token = authHeader.split(' ')[1]
       const verification = await verifyInternalToken(token)
 

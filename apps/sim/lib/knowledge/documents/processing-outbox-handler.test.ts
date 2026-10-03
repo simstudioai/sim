@@ -1,19 +1,16 @@
-/**
- * @vitest-environment node
- */
-
+import {
+  knowledgeDocumentsServiceMock,
+  knowledgeDocumentsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-documents-service.mock'
+import { triggerAvailabilityMock } from '@sim/testing/mocks/trigger-availability.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  getKnowledgeDocument: vi.fn(),
-  processDocumentsWithQueue: vi.fn(),
   reclaimStaleDocumentProcessingClaim: vi.fn(),
 }))
 
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  getKnowledgeDocument: mocks.getKnowledgeDocument,
-  processDocumentsWithQueue: mocks.processDocumentsWithQueue,
-}))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
+vi.mock('@/lib/core/config/trigger-availability', () => triggerAvailabilityMock)
 
 vi.mock('@/lib/knowledge/documents/processing-claim', () => ({
   reclaimStaleDocumentProcessingClaim: mocks.reclaimStaleDocumentProcessingClaim,
@@ -23,6 +20,11 @@ import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attr
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 import { KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-outbox-event'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
+import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery'
+
+const mockGetKnowledgeDocument = knowledgeDocumentsServiceMockFns.mockGetKnowledgeDocument
+const mockProcessDocumentsWithQueue = knowledgeDocumentsServiceMockFns.mockProcessDocumentsWithQueue
+const mockProcessDocumentAsync = knowledgeDocumentsServiceMockFns.mockProcessDocumentAsync
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'user-1',
@@ -51,6 +53,7 @@ const PAYLOAD = {
   documentId: 'document-1',
   processingOptions: { recipe: 'default', lang: 'en' },
   billingAttribution: BILLING_ATTRIBUTION,
+  processingLane: 'interactive',
 }
 
 function createContext(eventId = 'outbox-event-1'): OutboxEventContext {
@@ -73,9 +76,8 @@ function handler() {
 
 describe('knowledge document processing outbox handler', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.getKnowledgeDocument.mockResolvedValue(DOCUMENT)
-    mocks.processDocumentsWithQueue.mockResolvedValue({
+    mockGetKnowledgeDocument.mockResolvedValue(DOCUMENT)
+    mockProcessDocumentsWithQueue.mockResolvedValue({
       requested: 1,
       accepted: 1,
       failed: 0,
@@ -84,41 +86,48 @@ describe('knowledge document processing outbox handler', () => {
     mocks.reclaimStaleDocumentProcessingClaim.mockResolvedValue(false)
   })
 
-  it('dispatches the authoritative document with the stable outbox event id', async () => {
-    await handler()(PAYLOAD, createContext('outbox-event-stable'))
-
-    expect(mocks.getKnowledgeDocument).toHaveBeenCalledWith('knowledge-base-1', 'document-1')
-    expect(mocks.processDocumentsWithQueue).toHaveBeenCalledWith(
-      [
-        {
-          documentId: 'document-1',
-          filename: 'guide.pdf',
-          fileUrl: '/api/files/serve/kb%2Fguide.pdf?context=knowledge-base',
-          fileSize: 128,
-          mimeType: 'application/pdf',
-        },
-      ],
-      'knowledge-base-1',
-      { recipe: 'default', lang: 'en' },
-      'outbox-event-stable',
-      BILLING_ATTRIBUTION
-    )
+  it('transfers a recovery admission only on its first delivery', async () => {
+    const recover =
+      knowledgeDocumentProcessingOutboxHandlers[KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT]
+    const payload = {
+      ...PAYLOAD,
+      billingScope: 'workspace',
+      actorUserId: BILLING_ATTRIBUTION.actorUserId,
+      workspaceId: BILLING_ATTRIBUTION.workspaceId,
+      requestId: 'recovery-generation',
+      processingQueueToken: 'recovery-generation',
+      processingQueuedAt: new Date().toISOString(),
+      chargedAtDispatch: true,
+      docData: {
+        filename: DOCUMENT.filename,
+        fileUrl: DOCUMENT.fileUrl,
+        fileSize: DOCUMENT.fileSize,
+        mimeType: DOCUMENT.mimeType,
+      },
+    }
+    mockProcessDocumentAsync.mockRejectedValueOnce(new Error('Synthetic connection loss'))
+    await expect(recover(payload, createContext())).rejects.toThrow('Synthetic connection loss')
+    expect(mockProcessDocumentAsync.mock.calls[0][6].chargedAtDispatch).toBe(true)
+    mockProcessDocumentAsync.mockResolvedValueOnce(undefined)
+    await recover(payload, { ...createContext(), attempts: 1 })
+    expect(mockProcessDocumentAsync.mock.calls[1][6].chargedAtDispatch).toBe(false)
   })
 
-  it.each([null, { ...DOCUMENT, processingStatus: 'completed' }])(
-    'completes without redispatch when the document is absent or completed',
-    async (document) => {
-      mocks.getKnowledgeDocument.mockResolvedValueOnce(document)
+  it.each([
+    null,
+    { ...DOCUMENT, processingStatus: 'completed' },
+    { ...DOCUMENT, processingStatus: 'failed', processingOutcome: 'skipped' },
+  ])('completes without redispatch when the document is absent or terminal', async (document) => {
+    mockGetKnowledgeDocument.mockResolvedValueOnce(document)
 
-      await handler()(PAYLOAD, createContext())
+    await handler()(PAYLOAD, createContext())
 
-      expect(mocks.processDocumentsWithQueue).not.toHaveBeenCalled()
-    }
-  )
+    expect(mockProcessDocumentsWithQueue).not.toHaveBeenCalled()
+  })
 
   it('keeps the event retryable while an earlier processing attempt is active', async () => {
     const processingStartedAt = new Date()
-    mocks.getKnowledgeDocument.mockResolvedValueOnce({
+    mockGetKnowledgeDocument.mockResolvedValueOnce({
       ...DOCUMENT,
       processingStatus: 'processing',
       processingStartedAt,
@@ -133,12 +142,12 @@ describe('knowledge document processing outbox handler', () => {
       documentId: 'document-1',
       processingStartedAt,
     })
-    expect(mocks.processDocumentsWithQueue).not.toHaveBeenCalled()
+    expect(mockProcessDocumentsWithQueue).not.toHaveBeenCalled()
   })
 
   it('reclaims and redispatches an abandoned processing attempt', async () => {
     const processingStartedAt = new Date('2026-08-11T11:00:00.000Z')
-    mocks.getKnowledgeDocument.mockResolvedValueOnce({
+    mockGetKnowledgeDocument.mockResolvedValueOnce({
       ...DOCUMENT,
       processingStatus: 'processing',
       processingStartedAt,
@@ -152,7 +161,7 @@ describe('knowledge document processing outbox handler', () => {
       documentId: 'document-1',
       processingStartedAt,
     })
-    expect(mocks.processDocumentsWithQueue).toHaveBeenCalledWith(
+    expect(mockProcessDocumentsWithQueue).toHaveBeenCalledWith(
       [
         {
           documentId: 'document-1',
@@ -165,19 +174,22 @@ describe('knowledge document processing outbox handler', () => {
       'knowledge-base-1',
       { recipe: 'default', lang: 'en' },
       'outbox-event-retry',
-      BILLING_ATTRIBUTION
+      BILLING_ATTRIBUTION,
+      'interactive',
+      undefined,
+      { signal: expect.any(AbortSignal), deadlineAt: undefined }
     )
   })
 
   it('propagates dispatch failures so the outbox schedules a retry', async () => {
     const failure = new Error('queue unavailable')
-    mocks.processDocumentsWithQueue.mockRejectedValueOnce(failure)
+    mockProcessDocumentsWithQueue.mockRejectedValueOnce(failure)
 
     await expect(handler()(PAYLOAD, createContext())).rejects.toBe(failure)
   })
 
   it('keeps the event retryable when dispatch returns a zero-acceptance failure', async () => {
-    mocks.processDocumentsWithQueue.mockResolvedValueOnce({
+    mockProcessDocumentsWithQueue.mockResolvedValueOnce({
       requested: 1,
       accepted: 0,
       failed: 1,
@@ -194,6 +206,6 @@ describe('knowledge document processing outbox handler', () => {
       handler()({ ...PAYLOAD, processingOptions: { unsupported: true } }, createContext())
     ).rejects.toThrow('unsupported processing options')
 
-    expect(mocks.getKnowledgeDocument).not.toHaveBeenCalled()
+    expect(mockGetKnowledgeDocument).not.toHaveBeenCalled()
   })
 })

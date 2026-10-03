@@ -1,9 +1,12 @@
 'use client'
 
-import { ArrowLeft, Label, Switch } from '@sim/emcn'
-import { requestJson } from '@/lib/api/client/request'
-import { telemetryContract } from '@/lib/api/contracts/telemetry'
-import { isHosted } from '@/lib/core/config/env-flags'
+import { ArrowLeft, Label, Switch, toast } from '@sim/emcn'
+import { getErrorMessage } from '@sim/utils/errors'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import {
+  getBrowserTelemetryPreference,
+  setBrowserTelemetryPreference,
+} from '@/lib/telemetry/browser-preference'
 import { CookiePreferences } from '@/app/workspace/[workspaceId]/settings/components/general/components/cookie-preferences'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -25,20 +28,19 @@ interface PrivacyViewProps {
 export function PrivacyView({ onBack }: PrivacyViewProps) {
   const { data: settings } = useGeneralSettings()
   const updateSetting = useUpdateGeneralSetting()
+  const { hosted } = useDeploymentShape()
 
   const handleTelemetryToggle = async (checked: boolean) => {
     if (checked === settings?.telemetryEnabled || updateSetting.isPending) return
 
-    await updateSetting.mutateAsync({ key: 'telemetryEnabled', value: checked })
-
-    if (checked && typeof window !== 'undefined') {
-      requestJson(telemetryContract, {
-        body: {
-          category: 'consent',
-          action: 'enable_from_settings',
-          timestamp: new Date().toISOString(),
-        },
-      }).catch(() => {})
+    const previous = getBrowserTelemetryPreference()
+    setBrowserTelemetryPreference(false)
+    try {
+      await updateSetting.mutateAsync({ key: 'telemetryEnabled', value: checked })
+      setBrowserTelemetryPreference(checked)
+    } catch (error) {
+      setBrowserTelemetryPreference(previous)
+      toast.error(getErrorMessage(error, 'Could not save your telemetry preference'))
     }
   }
 
@@ -51,21 +53,22 @@ export function PrivacyView({ onBack }: PrivacyViewProps) {
       <SettingsSection label='Telemetry'>
         <div className='flex flex-col gap-3'>
           <div className='flex items-center justify-between'>
-            <Label htmlFor='telemetry'>Allow anonymous telemetry</Label>
+            <Label htmlFor='telemetry'>Allow browser telemetry</Label>
             <Switch
               id='telemetry'
               checked={settings?.telemetryEnabled ?? true}
+              disabled={!settings || updateSetting.isPending}
               onCheckedChange={handleTelemetryToggle}
             />
           </div>
           <p className='text-[var(--text-muted)] text-small'>
-            We use OpenTelemetry to collect anonymous usage data to improve Sim. You can opt-out at
-            any time.
+            Share browser performance and error diagnostics to improve Sim. You can opt out at any
+            time. This does not control server operational logs.
           </p>
         </div>
       </SettingsSection>
 
-      {isHosted && <CookiePreferences />}
+      {hosted && <CookiePreferences />}
     </SettingsPanel>
   )
 }

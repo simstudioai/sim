@@ -1,9 +1,11 @@
-/**
- * @vitest-environment node
- */
 import { redisConfigMockFns, resetEnvMock, resetRedisConfigMock, setEnv } from '@sim/testing'
-import { sleep } from '@sim/utils/helpers'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  largeValueMetadataMock,
+  largeValueMetadataMockFns,
+} from '@sim/testing/mocks/large-value-metadata.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionEventEntry } from '@/lib/execution/event-buffer'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { LARGE_VALUE_REF_MARKER } from '@/lib/execution/payloads/large-value-ref'
@@ -25,30 +27,23 @@ const { mockRedis, persistedEntries } = vi.hoisted(() => {
   return { mockRedis, persistedEntries }
 })
 
-const { mockRegisterLargeValueOwner, mockUploadFile } = vi.hoisted(() => ({
-  mockRegisterLargeValueOwner: vi.fn(),
-  mockUploadFile: vi.fn(),
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
-vi.mock('@/lib/uploads', () => ({
-  StorageService: {
-    uploadFile: mockUploadFile,
-  },
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  uploadFile: mockUploadFile,
-}))
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => largeValueMetadataMock)
 
-vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
-  registerLargeValueOwner: mockRegisterLargeValueOwner,
-}))
-
+const { mockRegisterLargeValueOwner } = largeValueMetadataMockFns
 const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
+const { mockUploadFile } = storageServiceMockFns
 
 afterAll(() => {
   resetEnvMock()
   resetRedisConfigMock()
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 import {
@@ -103,7 +98,6 @@ function countOccurrences(haystack: string, needle: string): number {
 
 describe('execution event buffer', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     clearLargeValueCacheForTests()
     setEnv({ REDIS_URL: 'redis://localhost:6379' })
     persistedEntries.length = 0
@@ -338,7 +332,7 @@ describe('execution event buffer', () => {
       () => Promise.resolve(),
     ]
 
-    mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
+    mockRedis.eval.mockImplementation(async (_script: string, ...args: unknown[]) => {
       const batchEntries: ExecutionEventEntry[] = []
       const { zaddArgs } = parseFlushEvalArgs(args)
       for (let i = 0; i < zaddArgs.length; i += 2) {
@@ -423,7 +417,7 @@ describe('execution event buffer', () => {
   it('flushes replay events after a recovered final replay flush without terminal meta', async () => {
     mockRedis.incrby.mockResolvedValue(100)
     let flushAttempt = 0
-    mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
+    mockRedis.eval.mockImplementation(async (_script: string, ...args: unknown[]) => {
       const { zaddArgs } = parseFlushEvalArgs(args)
       if (flushAttempt > 0) {
         for (let i = 0; i < zaddArgs.length; i += 2) {
@@ -476,7 +470,7 @@ describe('execution event buffer', () => {
   it('budgets only net event bytes after pruning during flush', async () => {
     mockRedis.incrby.mockResolvedValue(100)
     let netBudgetBytes = 0
-    mockRedis.eval.mockImplementation(async (script: string, ...args: unknown[]) => {
+    mockRedis.eval.mockImplementation(async (_script: string, ...args: unknown[]) => {
       const keyCount = Number(args[0])
       netBudgetBytes = Number(args[keyCount + 5])
       const { zaddArgs } = parseFlushEvalArgs(args)
@@ -654,15 +648,18 @@ describe('execution event buffer', () => {
       })
     })
 
+    vi.useFakeTimers()
     const writer = createExecutionEventWriter('exec-1')
     await writer.write(makeEvent('first'))
+    // The write only arms the flush timer; fire it so the flush is in flight.
+    await vi.runOnlyPendingTimersAsync()
     await firstFlushStarted
 
     const terminalWrite = writer.writeTerminal(makeEvent('terminal'), 'complete')
     // Let writeTerminal's queued body actually enqueue its entry before the
     // in-flight flush resolves — otherwise the scheduled loop finds nothing left
     // to drain and the race under test never forms.
-    await sleep(5)
+    await vi.advanceTimersByTimeAsync(5)
     releaseFirstFlush?.()
     await terminalWrite
 
@@ -776,10 +773,12 @@ describe('execution event buffer', () => {
       return [1, 'ok', 0, 0]
     })
 
+    vi.useFakeTimers()
     const writer = createExecutionEventWriter('exec-1')
     await writer.write(makeEvent('a'))
 
-    await sleep(60)
+    // Fire the scheduled flush (and any backoff it arms) before the caller's own.
+    await vi.runAllTimersAsync()
 
     await expect(writer.flush()).resolves.toBeUndefined()
   })

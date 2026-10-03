@@ -3,7 +3,11 @@ import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { getBlockVisibility } from '@/lib/core/config/block-visibility'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { canUseCredential, getCredentialActorContext } from '@/lib/credentials/access'
+import {
+  canUseCredential,
+  getCredentialActorContext,
+  requireOrdinaryCredentialType,
+} from '@/lib/credentials/access'
 import {
   defineAuthorizedCredentialUseCase,
   requireCredentialAccess,
@@ -11,6 +15,7 @@ import {
 } from '@/lib/credentials/application/authorized-credential-use-case'
 import { resolveCredentialApplicationContext } from '@/lib/credentials/application/credential-context'
 import { credentialOperations } from '@/lib/credentials/application/operations'
+import { requireWorkspacePersonalAccounts } from '@/lib/credentials/application/workspace-personal-accounts'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
 import {
   createCredentialRecord,
@@ -21,6 +26,10 @@ import {
   updateCredentialRecord,
 } from '@/lib/credentials/orchestration'
 import {
+  createPersonalTokenCredential,
+  updatePersonalTokenCredential,
+} from '@/lib/credentials/personal-tokens'
+import {
   type CredentialRow,
   findWorkspaceCredentialLookup,
   listVisibleWorkspaceCredentials,
@@ -29,6 +38,8 @@ import {
 } from '@/lib/credentials/queries'
 import { getServiceAccountGatingBlockType } from '@/lib/credentials/service-account-provider-ids'
 import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
+import { allowedIntegrationTypes } from '@/lib/integrations/principal-scope.server'
+import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
@@ -44,7 +55,7 @@ export class CredentialProviderOperationError extends OrchestrationError {
   }
 }
 
-function throwCredentialMutationFailure(result: {
+export function throwCredentialMutationFailure(result: {
   success: boolean
   error?: string
   errorCode?: PerformCredentialResult['errorCode']
@@ -129,6 +140,7 @@ export const listInternalCredentials = defineAuthorizedWorkspaceUseCase({
         credential: await findWorkspaceCredentialLookup({
           workspaceId: context.workspaceId,
           credentialId: input.credentialId,
+          userId: requirePrincipalSubjectUserId(principal),
         }),
       }
     }
@@ -166,6 +178,16 @@ export interface CreateWorkspaceCredentialResult {
   auditMetadata: Record<string, unknown>
 }
 
+/**
+ * The credential types that belong to one person rather than to the workspace:
+ * a personal environment secret, and an OAuth grant bound to the connecting
+ * user's own linked account. `env_workspace`, `service_account` and
+ * `managed_oauth` are workspace-shared and stay available.
+ */
+const PERSONAL_SCOPE_CREDENTIAL_TYPES: ReadonlySet<PerformCreateCredentialParams['type']> = new Set(
+  ['env_personal', 'oauth', 'personal_token']
+)
+
 export const createWorkspaceCredential = defineAuthorizedWorkspaceUseCase({
   operation: credentialOperations.create,
   resolveContext: async ({ input }: { input: CreateWorkspaceCredentialInput }) => {
@@ -174,12 +196,52 @@ export const createWorkspaceCredential = defineAuthorizedWorkspaceUseCase({
     return context
   },
   authorizationOptions: {},
-  async execute({ principal, input }): Promise<CreateWorkspaceCredentialResult> {
+  async execute({ principal, input, context }): Promise<CreateWorkspaceCredentialResult> {
     const userId = requirePrincipalSubjectUserId(principal)
-    const result = await createCredentialRecord({ ...input, userId }, { authorizeWorkspace: false })
+    /**
+     * permission-group-enforced: credentials.personal — scope is the request's
+     * `type`, not a property of the operation: the same `credentials.create`
+     * makes a personal secret and a workspace-shared one. Declaring the
+     * capability on the operation would refuse both, so it is asserted here
+     * against the type actually being created.
+     */
+    if (PERSONAL_SCOPE_CREDENTIAL_TYPES.has(input.type)) {
+      await assertWorkspaceCapability(
+        userId,
+        context.workspaceId,
+        'credentials.personal',
+        context.workspaceOrganizationId
+      )
+    }
+    if (input.type === 'personal_token') {
+      const [allowedIntegrations, blockVisibility] = await Promise.all([
+        allowedIntegrationTypes(principal, context.workspaceId),
+        getBlockVisibility({
+          userId,
+          ...(context.workspaceOrganizationId ? { orgId: context.workspaceOrganizationId } : {}),
+        }),
+      ])
+      if (
+        !createIntegrationCredentialVisibility({
+          allowedIntegrationTypes: allowedIntegrations,
+          blockVisibility,
+        }).isCredentialVisible({ providerId: input.providerId ?? '', type: 'personal_token' })
+      )
+        throw new OrchestrationError('forbidden', 'GitLab is unavailable in this workspace')
+    }
+    const result =
+      input.type === 'personal_token'
+        ? await createPersonalTokenCredential({
+            ...input,
+            userId,
+            accounts: await requireWorkspacePersonalAccounts(principal, context),
+          })
+        : await createCredentialRecord({ ...input, userId }, { authorizeWorkspace: false })
     if (!result.success) throwCredentialMutationFailure(result)
     if (!result.credential) throw new Error('Credential creation succeeded without a credential')
-    const access = await getCredentialActorContext(result.credential.id, userId)
+    const access = await getCredentialActorContext(result.credential.id, userId, {
+      workspaceId: context.workspaceId,
+    })
     if (!access.credential || !canUseCredential(access)) {
       throw new Error('Created credential is not visible to its creator')
     }
@@ -215,7 +277,7 @@ export const createWorkspaceCredential = defineAuthorizedWorkspaceUseCase({
       requirePrincipalSubjectUserId(principal),
       'credential_connected',
       {
-        credential_type: result.credential.type,
+        credential_type: requireOrdinaryCredentialType(result.credential.type),
         provider_id: result.credential.providerId ?? result.credential.type,
         workspace_id: context.workspaceId,
       },
@@ -229,6 +291,7 @@ export const createWorkspaceCredential = defineAuthorizedWorkspaceUseCase({
 
 export interface GetWorkspaceCredentialInput {
   credentialId: string
+  assertedWorkspaceId?: string
 }
 
 export const getWorkspaceCredentialUseCase = defineAuthorizedCredentialUseCase({
@@ -245,9 +308,9 @@ export type UpdateWorkspaceCredentialInput = Omit<
   'userId' | 'actorName' | 'actorEmail' | 'allowedTypes' | 'reason' | 'request'
 > & {
   /**
-   * Workspace the caller asserts owns the credential; a mismatch is concealed as
-   * a not-found. The internal surface omits it and resolves the credential's own
-   * workspace instead, which is what it did before this field existed.
+   * Execution workspace asserted by the caller. Required for organization personal
+   * tokens; workspace-owned credentials can resolve their own workspace when omitted.
+   * A mismatched owner organization or workspace is concealed as a not-found.
    */
   assertedWorkspaceId?: string
 }
@@ -259,11 +322,33 @@ export const updateWorkspaceCredentialUseCase = defineAuthorizedCredentialUseCas
   async execute({ principal, input, context }) {
     requireManageableCredentialType(principal, context.credential)
     const { assertedWorkspaceId, ...fields } = input
-    const result = await updateCredentialRecord({ ...fields, credential: context.credential })
+    if (context.credential.type === 'personal_token') {
+      const allowedFields = new Set([
+        'credentialId',
+        'displayName',
+        'description',
+        'apiToken',
+        'domain',
+      ])
+      if (
+        Object.entries(fields).some(
+          ([key, value]) => value !== undefined && !allowedFields.has(key)
+        )
+      )
+        throw new OrchestrationError(
+          'validation',
+          'Personal tokens allow only token, name, and description updates'
+        )
+    }
+    const result =
+      context.credential.type === 'personal_token'
+        ? await updatePersonalTokenCredential({ ...fields, credential: context.credential })
+        : await updateCredentialRecord({ ...fields, credential: context.credential })
     if (!result.success) throwCredentialMutationFailure(result)
     const access = await getCredentialActorContext(
       context.credential.id,
-      requirePrincipalSubjectUserId(principal)
+      requirePrincipalSubjectUserId(principal),
+      { workspaceId: context.workspaceId }
     )
     if (!access.credential || !access.isAdmin) {
       throw new Error('Updated credential is no longer visible to its administrator')

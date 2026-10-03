@@ -1,44 +1,52 @@
 /**
- * @vitest-environment node
- *
  * Mount resolution for platform file objects. The authorization assertions run
  * against the real `assertUserFileContentAccess` rather than a stub: which files
  * a Function block may mount is the security-relevant part of this module, and
  * mocking it away would leave exactly that untested.
  */
+
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { UserFile } from '@/executor/types'
 
-const {
-  mockHasCloudStorage,
-  mockGeneratePresignedDownloadUrl,
-  mockDownloadServableFileFromStorage,
-  mockReadWorkspaceFileRecordByKey,
-} = vi.hoisted(() => ({
-  mockHasCloudStorage: vi.fn(),
-  mockGeneratePresignedDownloadUrl: vi.fn(),
-  mockDownloadServableFileFromStorage: vi.fn(),
+const { mockReadWorkspaceFileRecordByKey } = vi.hoisted(() => ({
   mockReadWorkspaceFileRecordByKey: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  hasCloudStorage: mockHasCloudStorage,
-  generatePresignedDownloadUrl: mockGeneratePresignedDownloadUrl,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: mockDownloadServableFileFromStorage,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
-vi.mock('@/lib/workspace-files/application/read-workspace-file-content-by-key', () => ({
-  readWorkspaceFileRecordByKey: { execute: mockReadWorkspaceFileRecordByKey },
-}))
+vi.mock(
+  '@/lib/workspace-files/application/read-stored-workspace-file-record-by-key',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('@/lib/workspace-files/application/read-stored-workspace-file-record-by-key')
+    >()),
+    readStoredWorkspaceFileRecordByKey: { execute: mockReadWorkspaceFileRecordByKey },
+  })
+)
+
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 import {
   MOUNT_URL_TTL_SECONDS,
   planUserFileMounts,
   resolveUserFileMounts,
 } from '@/lib/function-execution/sandbox-mounts'
+
+const { mockHasCloudStorage, mockGeneratePresignedDownloadUrl } = storageServiceMockFns
+const { mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
+const { mockGetFileMetadataByKey } = uploadsMetadataMockFns
 
 const WORKSPACE_ID = 'ws-1'
 const WORKFLOW_ID = 'wf-1'
@@ -88,7 +96,7 @@ describe('planUserFileMounts', () => {
   it('cannot be escaped by a traversal in the file name', () => {
     const planned = planUserFileMounts([
       executionFile({ name: '../../etc/passwd' }),
-      executionFile({ id: 'file_2', name: '..' }),
+      executionFile({ id: 'file_2', key: 'execution/other', name: '..' }),
     ])
 
     for (const { mountPath } of planned) {
@@ -100,9 +108,9 @@ describe('planUserFileMounts', () => {
 
   it('suffixes colliding names so neither file is silently overwritten', () => {
     const planned = planUserFileMounts([
-      executionFile({ id: 'file_1', name: 'report.csv' }),
-      executionFile({ id: 'file_2', name: 'report.csv' }),
-      executionFile({ id: 'file_3', name: 'report.csv' }),
+      executionFile({ id: 'file_1', key: 'execution/a/report.csv', name: 'report.csv' }),
+      executionFile({ id: 'file_2', key: 'execution/b/report.csv', name: 'report.csv' }),
+      executionFile({ id: 'file_3', key: 'execution/c/report.csv', name: 'report.csv' }),
     ])
 
     expect(planned.map((entry) => entry.mountPath)).toEqual([
@@ -111,14 +119,32 @@ describe('planUserFileMounts', () => {
       '/tmp/sim/inputs/report-3.csv',
     ])
   })
+
+  it('mounts one storage key once however many sources named it', () => {
+    // A caller listing the same file twice, and a `<block.file.path>` marker for
+    // a file the caller also passed explicitly, both land in one list here. A
+    // second copy of identical bytes costs a presign and a duplicate transfer,
+    // and charges the byte budget and the 20-file ceiling twice over.
+    const planned = planUserFileMounts([
+      executionFile({ id: 'file_1', name: 'report.csv' }),
+      executionFile({ id: 'file_1_again', name: 'report.csv' }),
+      executionFile({ id: 'file_2', name: 'renamed.csv' }),
+      workspaceFile(),
+    ])
+
+    expect(planned.map((entry) => entry.mountPath)).toEqual([
+      '/tmp/sim/inputs/report.csv',
+      '/tmp/sim/inputs/brief.pdf',
+    ])
+  })
 })
 
 describe('resolveUserFileMounts', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockHasCloudStorage.mockReturnValue(true)
     mockGeneratePresignedDownloadUrl.mockResolvedValue('https://presigned.example/object')
     mockReadWorkspaceFileRecordByKey.mockResolvedValue({ file: { id: 'wf_1' } })
+    mockGetFileMetadataByKey.mockResolvedValue(null)
     // Sized from the file being read: the aggregate budget counts bytes actually
     // buffered, so a fixed-size stub would never let the total ceiling trip.
     mockDownloadServableFileFromStorage.mockImplementation(async (file: UserFile) => ({
@@ -157,6 +183,124 @@ describe('resolveUserFileMounts', () => {
     ])
   })
 
+  it('carries canonical execution provenance through a URL mount without buffering bytes', async () => {
+    const file = executionFile({ id: 'untrusted-public-id' })
+    const contentUpdatedAt = new Date('2026-01-01T00:00:00Z')
+    mockGetFileMetadataByKey.mockResolvedValue({
+      id: 'canonical-file-id',
+      key: file.key,
+      context: 'execution',
+      workspaceId: WORKSPACE_ID,
+      userId: 'user-1',
+      contentUpdatedAt,
+    })
+
+    const result = await resolveUserFileMounts({
+      planned: planUserFileMounts([file]),
+      context: {
+        ...executionContext,
+        principal: createSessionPrincipal(),
+      },
+    })
+
+    expect(result.contributingFiles).toEqual([
+      {
+        fileId: 'canonical-file-id',
+        key: file.key,
+        context: 'execution',
+        contentUpdatedAt,
+      },
+    ])
+    expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
+  })
+
+  /**
+   * A persistent workbench certifies its machine from these counts: a mount whose bytes have no
+   * provenance source can hold resolved secret plaintext nobody recorded, so it must be reported.
+   */
+  it.each([
+    ['has no metadata record', null, 1],
+    ['has a canonical metadata record', 'recorded', 0],
+  ] as const)('reports a mounted file whose key %s', async (_label, metadata, expected) => {
+    const file = executionFile()
+    mockGetFileMetadataByKey.mockResolvedValue(
+      metadata
+        ? {
+            id: 'canonical-file-id',
+            key: file.key,
+            context: 'execution',
+            workspaceId: WORKSPACE_ID,
+            userId: 'user-1',
+            contentUpdatedAt: new Date('2026-01-01T00:00:00Z'),
+          }
+        : null
+    )
+    const result = await resolveUserFileMounts({
+      planned: planUserFileMounts([file]),
+      context: { ...executionContext, principal: createSessionPrincipal() },
+    })
+    expect(result.unprovenancedMountCount).toBe(expected)
+  })
+
+  it('reports every mount as unprovenanced when no principal can bind its source', async () => {
+    const result = await resolveUserFileMounts({
+      planned: planUserFileMounts([executionFile()]),
+      context: executionContext,
+    })
+    expect(result.unprovenancedMountCount).toBe(1)
+  })
+
+  it('preserves contributors introduced when an inline mount renders generated source', async () => {
+    const contributor = {
+      fileId: 'image-file',
+      key: 'workspace/ws-1/image.png',
+      context: 'workspace' as const,
+      contentUpdatedAt: new Date('2026-01-01T00:00:00Z'),
+    }
+    mockHasCloudStorage.mockReturnValue(false)
+    mockDownloadServableFileFromStorage.mockResolvedValueOnce({
+      buffer: Buffer.from('rendered'),
+      contributingFiles: [contributor],
+    })
+    const result = await resolveUserFileMounts({
+      planned: planUserFileMounts([executionFile()]),
+      context: executionContext,
+    })
+    expect(result.contributingFiles).toEqual([contributor])
+    expect(result.renderedContributingFiles).toEqual([contributor])
+  })
+
+  it('retains both revisions when a file changes between two mount resolutions', async () => {
+    const oldFile = workspaceFile({ key: 'workspace/ws-1/old.pdf' })
+    const newFile = workspaceFile({ key: 'workspace/ws-1/new.pdf' })
+    const revisions = [new Date('2026-01-01T00:00:00Z'), new Date('2026-01-01T00:01:00Z')]
+    for (const [index, file] of [oldFile, newFile].entries()) {
+      mockGetFileMetadataByKey.mockResolvedValueOnce({
+        id: 'canonical-file-id',
+        key: file.key,
+        context: 'workspace',
+        workspaceId: WORKSPACE_ID,
+        userId: 'user-1',
+        contentUpdatedAt: revisions[index],
+      })
+    }
+    const result = await resolveUserFileMounts({
+      planned: planUserFileMounts([oldFile, newFile]),
+      context: {
+        ...executionContext,
+        principal: createSessionPrincipal(),
+      },
+    })
+    expect(result.contributingFiles).toEqual(
+      [oldFile, newFile].map((file, index) => ({
+        fileId: 'canonical-file-id',
+        key: file.key,
+        context: 'workspace',
+        contentUpdatedAt: revisions[index],
+      }))
+    )
+  })
+
   it('buffers bytes inline when there is no cloud storage to presign from', async () => {
     mockHasCloudStorage.mockReturnValue(false)
 
@@ -193,14 +337,16 @@ describe('resolveUserFileMounts', () => {
 
     await expect(
       resolveUserFileMounts({
-        planned: planUserFileMounts([
-          executionFile({ id: 'a', name: 'a.bin', size: 9 * 1024 * 1024 }),
-          executionFile({ id: 'b', name: 'b.bin', size: 9 * 1024 * 1024 }),
-          executionFile({ id: 'c', name: 'c.bin', size: 9 * 1024 * 1024 }),
-          executionFile({ id: 'd', name: 'd.bin', size: 9 * 1024 * 1024 }),
-          executionFile({ id: 'e', name: 'e.bin', size: 9 * 1024 * 1024 }),
-          executionFile({ id: 'f', name: 'f.bin', size: 9 * 1024 * 1024 }),
-        ]),
+        planned: planUserFileMounts(
+          ['a', 'b', 'c', 'd', 'e', 'f'].map((id) =>
+            executionFile({
+              id,
+              key: `execution/${WORKSPACE_ID}/${WORKFLOW_ID}/${EXECUTION_ID}/${id}/${id}.bin`,
+              name: `${id}.bin`,
+              size: 9 * 1024 * 1024,
+            })
+          )
+        ),
         context: executionContext,
       })
     ).rejects.toThrow(/total mount limit/)

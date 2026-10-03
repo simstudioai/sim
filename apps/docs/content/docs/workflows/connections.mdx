@@ -5,9 +5,7 @@ description: The syntax for referencing an earlier block's output and the shape 
 
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
-import { Card, Cards } from 'fumadocs-ui/components/card'
 import { Video } from '@/components/ui/video'
-import { FAQ } from '@/components/ui/faq'
 
 A **connection** wires one block to the next and sets the order they run in. [How blocks pass data](/workflows/data-flow) covers the concept: once a block runs, its output is remembered under the block's name, and any later block reads it by reference. This page is the reference for the **connection tag** syntax and the output shapes you'll reach into.
 
@@ -101,7 +99,8 @@ A tag's path depends on what the source block produced. These are the standard s
     ```json
     {
       "result": "Function return value",
-      "stdout": "Console output"
+      "stdout": "Console output",
+      "files": []
     }
     ```
 
@@ -141,7 +140,7 @@ A tag's path depends on what the source block produced. These are the standard s
   <Tab>
     ```json
     {
-      "content": "Evaluation summary",
+      "content": "The original content being evaluated",
       "model": "claude-sonnet-4-6",
       "tokens": { "input": 120, "output": 85, "total": 205 },
       "metric1": 8.5,
@@ -149,25 +148,8 @@ A tag's path depends on what the source block produced. These are the standard s
     }
     ```
 
-    `content` summarizes the evaluation. Each metric you defined appears as its own field with a numeric score.
+    `content` contains the original input that was evaluated. Each metric you defined appears as its own field with a numeric score.
   </Tab>
 </Tabs>
 
 A Function's `result`, an API's `data`, and an Agent with a response format all return whatever your code, the remote service, or your schema produced, so check the output panel during development to confirm the path you're referencing.
-
-<FAQ items={[
-  { question: "How are tag references resolved at runtime?", answer: "The executor matches each angle-bracket reference against resolvers in a fixed order: loop and parallel context, then workflow variables, then block outputs. The first resolver that recognizes the reference handles it, and an unmatched reference is left in place unsubstituted." },
-  { question: "Does the block name in a tag need to match exactly?", answer: "Names are normalized before matching — lowercased, spaces removed — so <My Agent.content> and <myagent.content> resolve to the same block. The field path after the block name is case-sensitive." },
-  { question: "Can I reference environment variables with angle brackets?", answer: "No. Environment variables use double-brace syntax, {{MY_VAR}}, and resolve separately. Angle brackets read block outputs, workflow variables, and loop or parallel context. See the variables reference for both syntaxes." },
-  { question: "What happens if I reference a block that didn't run?", answer: "If the block was on a branch that wasn't taken, the reference resolves to an empty value — an empty string in most blocks, null in Function blocks. Check the failed block's Input tab in the logs to see what a reference actually resolved to." },
-  { question: "Can I access array elements inside a tag?", answer: "Yes. Use bracket indices in the path, like <api1.data.users[0].name>. Multiple levels of indexing such as items[0][1] work as well." },
-  { question: "Why does the same tag render differently in a Function block?", answer: "Function blocks receive resolved values as code literals — strings quoted, objects as JSON, null as null — so they drop straight into JavaScript or Python. In other blocks, objects are JSON-stringified and primitives become plain strings." },
-]} />
-
-## Next
-
-<Cards>
-  <Card title="How blocks pass data" href="/workflows/data-flow" description="What an output is and how blocks reference earlier ones." />
-  <Card title="How workflows run" href="/workflows/how-it-runs" description="Execution order, branches, and error paths." />
-  <Card title="Blocks" href="/workflows#blocks" description="What each block outputs in full." />
-</Cards>

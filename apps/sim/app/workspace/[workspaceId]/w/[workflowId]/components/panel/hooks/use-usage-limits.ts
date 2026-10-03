@@ -1,4 +1,4 @@
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { useWorkspaceUsageGate } from '@/hooks/queries/workspace-usage'
 
 interface UseUsageLimitsOptions {
@@ -9,7 +9,8 @@ interface UseUsageLimitsOptions {
  * Exposes the routed workspace's payer/member execution gate.
  */
 export function useUsageLimits({ workspaceId }: UseUsageLimitsOptions) {
-  const { data, isLoading } = useWorkspaceUsageGate(isBillingEnabled ? workspaceId : undefined)
+  const { billingEnabled } = useDeploymentShape()
+  const { data, isLoading } = useWorkspaceUsageGate(billingEnabled ? workspaceId : undefined)
 
   return {
     usageExceeded: data?.isExceeded ?? false,

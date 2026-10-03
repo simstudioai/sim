@@ -6,7 +6,7 @@
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
-    "bun": ">=1.3.14",
+    "bun": ">=1.4.2",
     "node": ">=20.0.0"
   },
   "exports": {
@@ -27,11 +27,11 @@
     "format:check": "biome format ."
   },
   "peerDependencies": {
-    "reactflow": "^11.11.4"
+    "@xyflow/react": "^12.11.3"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
-    "reactflow": "^11.11.4",
+    "@xyflow/react": "12.11.3",
     "typescript": "^7.0.2"
   }
 }

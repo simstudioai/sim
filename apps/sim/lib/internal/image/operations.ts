@@ -376,12 +376,13 @@ async function bufferFromImageUrl(
     }
   }
 
-  const urlValidation = await validateUrlWithDNS(url, 'imageUrl')
-  if (!urlValidation.isValid || !urlValidation.resolvedIP) {
+  const urlValidation = await validateUrlWithDNS(url, 'imageUrl', 'contentFetch')
+  if (!urlValidation.isValid) {
     throw new Error(urlValidation.error || 'Generated image URL failed validation')
   }
 
   const imageResponse = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP, {
+    profile: 'contentFetch',
     method: 'GET',
     maxResponseBytes: MAX_IMAGE_BYTES,
     signal,
@@ -747,6 +748,15 @@ async function generateWithFalAI(
 
   logger.info(`[${requestId}] Fal.ai image request created: ${falRequestId}`)
 
+  // `status_url`/`response_url` are read out of the queue response, so they are
+  // content: guard and pin them so a spoofed response cannot point an
+  // authenticated poll at an internal address. The status URL is constant across
+  // the loop, so it is validated once and the pinned address reused.
+  const statusValidation = await validateUrlWithDNS(statusUrl, 'statusUrl', 'contentFetch')
+  if (!statusValidation.isValid) {
+    throw new Error(statusValidation.error)
+  }
+
   const pollIntervalMs = 3000
   const maxAttempts = Math.ceil(getMaxExecutionTimeout() / pollIntervalMs)
   let attempts = 0
@@ -755,10 +765,12 @@ async function generateWithFalAI(
     await interruptibleSleep(pollIntervalMs, signal)
     signal?.throwIfAborted()
 
-    const statusResponse = await fetch(statusUrl, {
+    const statusResponse = await secureFetchWithPinnedIP(statusUrl, statusValidation.resolvedIP, {
+      profile: 'contentFetch',
       headers: {
         Authorization: `Key ${apiKey}`,
       },
+      maxResponseBytes: MAX_IMAGE_JSON_BYTES,
       signal,
     })
 
@@ -787,15 +799,19 @@ async function generateWithFalAI(
         throw new Error(`Fal.ai generation failed: ${getFalAIErrorMessage(statusError)}`)
       }
 
-      const resultResponse = await fetch(
-        getStringProperty(statusData, 'response_url') || responseUrl,
-        {
-          headers: {
-            Authorization: `Key ${apiKey}`,
-          },
-          signal,
-        }
-      )
+      const resultUrl = getStringProperty(statusData, 'response_url') || responseUrl
+      const resultValidation = await validateUrlWithDNS(resultUrl, 'resultUrl', 'contentFetch')
+      if (!resultValidation.isValid) {
+        throw new Error(resultValidation.error)
+      }
+      const resultResponse = await secureFetchWithPinnedIP(resultUrl, resultValidation.resolvedIP, {
+        profile: 'contentFetch',
+        headers: {
+          Authorization: `Key ${apiKey}`,
+        },
+        maxResponseBytes: MAX_IMAGE_JSON_BYTES,
+        signal,
+      })
 
       if (!resultResponse.ok) {
         await readResponseTextWithLimit(resultResponse, {

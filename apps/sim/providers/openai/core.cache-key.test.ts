@@ -1,38 +1,34 @@
 /**
- * @vitest-environment node
- *
  * OpenAI prompt caching is automatic, so the only lever is routing stickiness:
  * a `prompt_cache_key` that is stable for one agent block and distinct between
  * blocks. Sharing a key across blocks with different prefixes would lower the
  * hit rate rather than raise it.
  */
+import { providersMock } from '@sim/testing/mocks/providers.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { toolsMock } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeResponsesProviderRequest } from '@/providers/openai/core'
 import type { ProviderRequest } from '@/providers/types'
 
-vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 5 }))
+providersMock.MAX_TOOL_ITERATIONS = 5
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  calculateCost: () => ({ input: 0, output: 0, total: 0 }),
-  sumToolCosts: () => 0,
-  enforceStrictSchema: (schema: unknown) => schema,
-  prepareToolExecution: () => ({ toolParams: {}, executionParams: {} }),
-  prepareToolsWithUsageControl: (tools: unknown[]) => ({
-    tools,
-    toolChoice: undefined,
-    forcedTools: [],
-    hasFilteredTools: false,
-  }),
-  trackForcedToolUsage: () => ({ hasUsedForcedTool: false, usedForcedTools: [] }),
-  supportsReasoningEffort: () => false,
+providersUtilsMockFns.mockPrepareToolExecution.mockReturnValue({
+  toolParams: {},
+  executionParams: {},
+})
+providersUtilsMockFns.mockPrepareToolsWithUsageControl.mockImplementation((tools) => ({
+  tools,
+  toolChoice: undefined,
+  forcedTools: [],
+  hasFilteredTools: false,
 }))
 
-vi.mock('@/tools', () => ({ executeTool: vi.fn() }))
+vi.mock('@/providers', () => providersMock)
+
+vi.mock('@/providers/utils', () => providersUtilsMock)
+
+vi.mock('@/tools', () => toolsMock)
 
 const COMPLETED_RESPONSE = {
   id: 'resp_1',
@@ -45,7 +41,6 @@ describe('executeResponsesProviderRequest prompt cache key', () => {
   let fetchMock: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
-    vi.clearAllMocks()
     // A Response body reads once, so each call needs its own instance.
     fetchMock = vi.fn(
       async () =>

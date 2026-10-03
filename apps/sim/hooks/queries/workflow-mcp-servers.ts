@@ -1,11 +1,5 @@
 import { createLogger } from '@sim/logger'
-import {
-  keepPreviousData,
-  queryOptions,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -27,35 +21,24 @@ import {
 const logger = createLogger('WorkflowMcpServerQueries')
 
 export type { DeployedWorkflow }
-
-/**
- * Query key factories for Workflow MCP Server queries
- */
-export const workflowMcpServerKeys = {
-  all: ['workflow-mcp-servers'] as const,
-  servers: (workspaceId: string) => [...workflowMcpServerKeys.all, 'servers', workspaceId] as const,
-  server: (workspaceId: string, serverId: string) =>
-    [...workflowMcpServerKeys.servers(workspaceId), serverId] as const,
-  tools: (workspaceId: string, serverId: string) =>
-    [...workflowMcpServerKeys.server(workspaceId, serverId), 'tools'] as const,
-  deployedWorkflows: (workspaceId: string) =>
-    [...workflowMcpServerKeys.all, 'deployed-workflows', workspaceId] as const,
-}
-
 export type { WorkflowMcpServer, WorkflowMcpTool }
 
-export const WORKFLOW_MCP_SERVERS_LIST_STALE_TIME = 60 * 1000
-export const WORKFLOW_MCP_SERVER_DETAIL_STALE_TIME = 30 * 1000
-export const WORKFLOW_MCP_TOOLS_STALE_TIME = 30 * 1000
-export const WORKFLOW_MCP_DEPLOYED_WORKFLOWS_STALE_TIME = 30 * 1000
-
-interface UseWorkflowMcpServersOptions {
-  enabled?: boolean
+export const workflowMcpServerKeys = {
+  all: ['workflow-mcp-servers'] as const,
+  serverLists: () => [...workflowMcpServerKeys.all, 'server-list'] as const,
+  servers: (workspaceId: string) => [...workflowMcpServerKeys.serverLists(), workspaceId] as const,
+  details: () => [...workflowMcpServerKeys.all, 'detail'] as const,
+  server: (workspaceId: string, serverId: string) =>
+    [...workflowMcpServerKeys.details(), workspaceId, serverId] as const,
+  tools: (workspaceId: string, serverId: string) =>
+    [...workflowMcpServerKeys.server(workspaceId, serverId), 'tools'] as const,
+  deployedWorkflowLists: () => [...workflowMcpServerKeys.all, 'deployed-workflow-list'] as const,
+  deployedWorkflows: (workspaceId: string) =>
+    [...workflowMcpServerKeys.deployedWorkflowLists(), workspaceId] as const,
 }
 
-/**
- * Fetch workflow MCP servers for a workspace
- */
+export const WORKFLOW_MCP_SERVERS_LIST_STALE_TIME = 60 * 1000
+
 async function fetchWorkflowMcpServers(
   workspaceId: string,
   signal?: AbortSignal
@@ -67,9 +50,7 @@ async function fetchWorkflowMcpServers(
     })
     return data.data.servers
   } catch (error) {
-    if (error instanceof ApiClientError && error.status === 404) {
-      return []
-    }
+    if (error instanceof ApiClientError && error.status === 404) return []
     throw error
   }
 }
@@ -79,9 +60,17 @@ export function workflowMcpServersQueryOptions(workspaceId: string) {
     queryKey: workflowMcpServerKeys.servers(workspaceId),
     queryFn: ({ signal }) => fetchWorkflowMcpServers(workspaceId, signal),
     retry: false,
+    retryOnMount: true,
     staleTime: WORKFLOW_MCP_SERVERS_LIST_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
+}
+
+export const WORKFLOW_MCP_SERVER_DETAIL_STALE_TIME = 30 * 1000
+export const WORKFLOW_MCP_TOOLS_STALE_TIME = 30 * 1000
+export const WORKFLOW_MCP_DEPLOYED_WORKFLOWS_STALE_TIME = 30 * 1000
+
+interface UseWorkflowMcpServersOptions {
+  enabled?: boolean
 }
 
 /**
@@ -160,7 +149,6 @@ export function useWorkflowMcpTools(workspaceId: string, serverId: string | null
     enabled: !!workspaceId && !!serverId,
     retry: false,
     staleTime: WORKFLOW_MCP_TOOLS_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 
@@ -265,6 +253,11 @@ export function useDeleteWorkflowMcpServer() {
 
       logger.info(`Deleted workflow MCP server: ${serverId}`)
       return data
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.removeQueries({
+        queryKey: workflowMcpServerKeys.server(variables.workspaceId, variables.serverId),
+      })
     },
     onSettled: (_data, _error, variables) => {
       return queryClient.invalidateQueries({
@@ -436,6 +429,5 @@ export function useDeployedWorkflows(workspaceId: string) {
     queryFn: ({ signal }) => fetchDeployedWorkflows(workspaceId, signal),
     enabled: !!workspaceId,
     staleTime: WORKFLOW_MCP_DEPLOYED_WORKFLOWS_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }

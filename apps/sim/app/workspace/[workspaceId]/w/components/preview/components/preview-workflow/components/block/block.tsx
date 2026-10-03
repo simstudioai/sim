@@ -1,16 +1,20 @@
 'use client'
 
 import { type CSSProperties, memo, useMemo } from 'react'
-import { OverflowText } from '@sim/emcn'
+import { cn, OverflowText } from '@sim/emcn'
 import {
   CanvasSentenceView,
-  HANDLE_POSITIONS,
   humanizeBlockName,
   SubBlockRowView,
   WorkflowTypeTag,
 } from '@sim/workflow-renderer'
-import { WORKFLOW_SOURCE_HANDLE_ID, WORKFLOW_TARGET_HANDLE_ID } from '@sim/workflow-types/workflow'
-import { Handle, type NodeProps, Position } from 'reactflow'
+import {
+  WORKFLOW_ERROR_HANDLE_ID,
+  WORKFLOW_SOURCE_HANDLE_ID,
+  WORKFLOW_TARGET_HANDLE_ID,
+} from '@sim/workflow-types/workflow'
+import { Handle, type Node, type NodeProps, Position } from '@xyflow/react'
+import { type CanvasPort, getCanvasPorts } from '@/lib/workflows/blocks/canvas-ports'
 import { resolveCanvasBlockPresentation } from '@/lib/workflows/blocks/canvas-presentation'
 import {
   type CardSelector,
@@ -19,10 +23,13 @@ import {
 } from '@/lib/workflows/blocks/canvas-sentence'
 import { resolveSelectedTriggerId } from '@/lib/workflows/blocks/canvas-trigger-sentence'
 import { resolveCanvasCodePreview } from '@/lib/workflows/blocks/code-preview'
+import type { BlockDiffStatus } from '@/lib/workflows/comparison'
 import {
   getDisplayValue,
   hasDisplayableRowValue,
   resolveDropdownLabel,
+  resolveFallbackModelsLabel,
+  resolveFolderPathLabel,
   resolveSkillsLabel,
   resolveToolsLabel,
   resolveVariablesLabel,
@@ -36,6 +43,13 @@ import {
   isSubBlockVisibleForMode,
   isToolInputOnlySubBlock,
 } from '@/lib/workflows/subblocks/visibility'
+import { DiffStatusLabel } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/diff-label/diff-label'
+import { PreviewPortRows } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/port-rows/port-rows'
+import {
+  getPreviewPortRows,
+  PREVIEW_CARD_BORDER_WIDTH,
+} from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/preview-ports'
+import { usePreviewPortInternals } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/use-preview-port-internals'
 import { getBlock } from '@/blocks'
 import { hasBlockAccent } from '@/blocks/accent'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
@@ -56,11 +70,11 @@ interface SubBlockValueEntry {
  * Extracted to avoid recreating style objects on each render.
  */
 const HANDLE_STYLES = {
-  horizontal: '!border-none !bg-[var(--surface-7)] !h-5 !w-[7px] !rounded-xs',
+  horizontal: 'border-none! bg-[var(--surface-7)]! h-5! w-[7px]! rounded-xs!',
   right:
-    '!z-[10] !border-none !bg-[var(--workflow-edge)] !h-5 !w-[7px] !rounded-r-[2px] !rounded-l-none',
+    'z-[10]! border-none! bg-[var(--workflow-edge)]! h-5! w-[7px]! rounded-r-[2px]! rounded-l-none!',
   error:
-    '!z-[10] !border-none !bg-[var(--text-error)] !h-[7px] !w-6 !rounded-b-[2px] !rounded-t-none',
+    'z-[10]! border-none! bg-[var(--text-error)]! h-[7px]! w-6! rounded-b-[2px]! rounded-t-none!',
 } as const
 
 /** Reusable style object for error handles positioned at bottom-right */
@@ -72,7 +86,7 @@ const ERROR_HANDLE_STYLE: CSSProperties = {
   transform: 'translateX(-50%)',
 }
 
-interface WorkflowPreviewBlockData {
+interface WorkflowPreviewBlockData extends Record<string, unknown> {
   type: string
   name: string
   workflowMap?: Record<string, WorkflowMetadata>
@@ -96,6 +110,17 @@ interface WorkflowPreviewBlockData {
   hasErrorConnection?: boolean
   /** Skips expensive subblock computations for thumbnails/template previews */
   lightweight?: boolean
+  /** Comparison status when previewing a version diff */
+  diffStatus?: BlockDiffStatus
+  /** Sub-block ids the comparison reported as changed on this block */
+  changedFields?: string[]
+  removedPorts?: CanvasPort[]
+}
+
+/** A removed card fades instead of ringing, so only the live statuses have a ring. */
+const DIFF_RING_CLASS: Record<Exclude<BlockDiffStatus, 'removed'>, string> = {
+  added: 'ring-[var(--brand-accent)]',
+  modified: 'ring-[var(--warning)]',
 }
 
 /**
@@ -116,6 +141,8 @@ interface SubBlockRowProps {
   rawValue?: unknown
   workflowMap: Record<string, WorkflowMetadata>
   workflowLabelsReady: boolean
+  /** The comparison reported this field as changed; tint the row */
+  changed?: boolean
 }
 
 /**
@@ -150,6 +177,7 @@ function resolvePreviewDisplayValue(
   // schema/registry fallbacks rather than the API.
   const toolsDisplay = resolveToolsLabel(subBlock, rawValue, [])
   const skillsDisplay = resolveSkillsLabel(subBlock, rawValue, [])
+  const fallbackModelsDisplay = resolveFallbackModelsLabel(subBlock, rawValue)
   const workflowName = resolveWorkflowSelectionLabel(subBlock, rawValue, workflowLookup)
   const workflowMultiSelectionNames = resolveWorkflowMultiSelectLabel(
     subBlock,
@@ -164,8 +192,16 @@ function resolvePreviewDisplayValue(
     variablesDisplay ||
     toolsDisplay ||
     skillsDisplay ||
+    fallbackModelsDisplay ||
     workflowName ||
-    workflowMultiSelectionNames
+    workflowMultiSelectionNames ||
+    /*
+     * A type in SELECTOR_TYPES_HYDRATION_REQUIRED with no resolver here falls to
+     * the placeholder below, so a picked folder read as "you picked nothing".
+     * Same decode the canvas card and the workflow diff use, and it needs no
+     * hook or fetch, which is what lets it sit in this hook-free resolver.
+     */
+    resolveFolderPathLabel(subBlock, rawValue)
 
   return maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
 }
@@ -187,6 +223,7 @@ const SubBlockRow = memo(function SubBlockRow({
   rawValue,
   workflowMap,
   workflowLabelsReady,
+  changed = false,
 }: SubBlockRowProps) {
   const displayValue = resolvePreviewDisplayValue(
     value,
@@ -197,7 +234,12 @@ const SubBlockRow = memo(function SubBlockRow({
   )
 
   return (
-    <div className='flex h-5 items-center gap-2'>
+    <div
+      className={cn(
+        'flex h-5 items-center gap-2',
+        changed && '-mx-1 rounded-sm bg-[color-mix(in_srgb,var(--warning)_14%,transparent)] px-1'
+      )}
+    >
       <OverflowText label={title} className='text-[var(--text-tertiary)] text-sm capitalize' />
       {displayValue !== undefined && (
         <OverflowText
@@ -215,7 +257,9 @@ const SubBlockRow = memo(function SubBlockRow({
  * hooks, store subscriptions, or interactive features.
  * Matches the visual structure of WorkflowBlock exactly.
  */
-function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>) {
+type WorkflowPreviewBlockNode = Node<WorkflowPreviewBlockData, 'workflowBlock' | 'noteBlock'>
+
+function WorkflowPreviewBlockInner({ id, data }: NodeProps<WorkflowPreviewBlockNode>) {
   const {
     type,
     name,
@@ -229,7 +273,11 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
     errorEnabled = false,
     hasErrorConnection = false,
     lightweight = false,
+    diffStatus,
+    changedFields,
+    removedPorts,
   } = data
+  const changedFieldSet = new Set(changedFields)
 
   const blockConfig = getBlock(type)
   const effectiveTrigger = isTrigger || type === 'starter'
@@ -369,116 +417,60 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
     )
   }, [lightweight, blockConfig, type, effectiveTrigger, visibleSubBlocks, onCardById, rawValues])
 
-  /**
-   * Compute condition rows for condition blocks.
-   * In lightweight mode, returns default structure without parsing values.
-   */
-  const conditionRows = useMemo(() => {
-    if (type !== 'condition') return []
-
-    /** Default structure for lightweight mode or when no values */
-    const defaultRows = [
-      { id: 'if', title: 'if', value: '' },
-      { id: 'else', title: 'else', value: '' },
-    ]
-
-    if (lightweight) return defaultRows
-
-    const conditionsValue = rawValues.conditions
-    const raw = typeof conditionsValue === 'string' ? conditionsValue : undefined
-
-    try {
-      if (raw) {
-        const parsed = JSON.parse(raw) as unknown
-        if (Array.isArray(parsed)) {
-          return parsed.map((item: unknown, index: number) => {
-            const conditionItem = item as { id?: string; value?: unknown }
-            const title = index === 0 ? 'if' : index === parsed.length - 1 ? 'else' : 'else if'
-            return {
-              id: conditionItem?.id ?? `cond-${index}`,
-              title,
-              value: typeof conditionItem?.value === 'string' ? conditionItem.value : '',
-            }
-          })
-        }
-      }
-    } catch {
-      /* empty */
-    }
-
-    return defaultRows
-  }, [type, rawValues, lightweight])
-
-  /**
-   * Compute router rows for router_v2 blocks.
-   * In lightweight mode, returns default structure without parsing values.
-   */
-  const routerRows = useMemo(() => {
-    if (type !== 'router_v2') return []
-
-    /** Default structure for lightweight mode or when no values */
-    const defaultRows = [{ id: 'route1', value: '' }]
-
-    if (lightweight) return defaultRows
-
-    const routesValue = rawValues.routes
-    const raw = typeof routesValue === 'string' ? routesValue : undefined
-
-    try {
-      if (raw) {
-        const parsed = JSON.parse(raw) as unknown
-        if (Array.isArray(parsed)) {
-          return parsed.map((item: unknown, index: number) => {
-            const routeItem = item as { id?: string; value?: string }
-            return {
-              id: routeItem?.id ?? `route${index + 1}`,
-              value: routeItem?.value ?? '',
-            }
-          })
-        }
-      }
-    } catch {
-      /* empty */
-    }
-
-    return defaultRows
-  }, [type, rawValues, lightweight])
+  const portBlock = {
+    id,
+    type,
+    triggerMode: isTrigger,
+    errorEnabled,
+    subBlocks: {
+      conditions: { value: extractValue(subBlockValues?.conditions) },
+      routes: { value: extractValue(subBlockValues?.routes) },
+      context: { value: extractValue(subBlockValues?.context) },
+    },
+  }
+  const ports = getCanvasPorts(portBlock, hasErrorConnection)
+  const portRows = getPreviewPortRows(portBlock, removedPorts)
+  usePreviewPortInternals(id, [...ports, ...(removedPorts ?? [])])
+  const isBranchBlock = type === 'condition' || type === 'router_v2'
 
   if (!blockConfig || !canvasPresentation) {
     return null
   }
 
   const IconComponent = blockConfig.icon
-  const isStarterOrTrigger = blockConfig.category === 'triggers' || type === 'starter' || isTrigger
   const isNoteBlock = type === 'note'
-
-  const shouldShowDefaultHandles = !isStarterOrTrigger && !isNoteBlock
+  const mountedHandles = new Set(ports.map((port) => port.handleId))
   const hasSubBlocks = visibleSubBlocks.length > 0
-  /*
-   * Gated on rows the preview actually renders. The error row that used to be
-   * the guaranteed content for every non-trigger block is gone, so keeping
-   * `shouldShowDefaultHandles` in this test painted an empty padded band under
-   * the header of any unconfigured block — content the editor canvas, which
-   * derives this from its real sections, never shows.
-   */
-  const hasContentBelowHeader =
-    type === 'condition'
-      ? conditionRows.length > 0
-      : type === 'router_v2'
-        ? /* The Context row renders whether or not any routes are defined. */
-          true
-        : /* A sentence built only from literals resolves no field, so it
-             contributes no rows but still paints. */
-          sentenceSegments !== null || hasSubBlocks
+  const hasContentBelowHeader = !isBranchBlock && (sentenceSegments !== null || hasSubBlocks)
 
   const hasError = executionStatus === 'error'
   const hasSuccess = executionStatus === 'success'
+  const isRemoved = diffStatus === 'removed'
 
   return (
-    <div className='relative w-[250px] select-none rounded-2xl border-[1.5px] border-[var(--border-1)] bg-[var(--surface-2)]'>
+    <div
+      style={{ '--preview-border-width': `${PREVIEW_CARD_BORDER_WIDTH}px` } as CSSProperties}
+      className={cn(
+        'relative w-[250px] select-none rounded-2xl border-[length:var(--preview-border-width)] border-[var(--border)] bg-[var(--surface-2)]',
+        /* Ghost: the same card, just faded, so the eye reads "used to be here" not "broken". */
+        isRemoved &&
+          'border-[var(--border)] bg-[var(--surface-1)] [&>[data-ghost-content]]:opacity-45'
+      )}
+    >
+      {/* Comparison label above the card */}
+      {diffStatus && <DiffStatusLabel status={diffStatus} />}
       {/* Selection ring overlay (takes priority over execution rings) */}
       {isPreviewSelected && (
         <div className='pointer-events-none absolute inset-0 z-40 rounded-2xl ring-[1.5px] ring-[var(--text-secondary)]' />
+      )}
+      {/* Comparison ring overlay */}
+      {!isPreviewSelected && diffStatus && diffStatus !== 'removed' && (
+        <div
+          className={cn(
+            'pointer-events-none absolute inset-0 z-40 rounded-2xl ring-[1.5px]',
+            DIFF_RING_CLASS[diffStatus]
+          )}
+        />
       )}
       {/* Success ring overlay (only shown if not selected) */}
       {!isPreviewSelected && hasSuccess && (
@@ -490,7 +482,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       )}
 
       {/* Target handle - not shown for triggers/starters */}
-      {shouldShowDefaultHandles && (
+      {mountedHandles.has(WORKFLOW_TARGET_HANDLE_ID) && (
         <Handle
           type='target'
           position={Position.Left}
@@ -501,7 +493,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       )}
 
       {/* Header - matches WorkflowBlock structure */}
-      <div className='flex h-[40px] items-center justify-between px-2'>
+      <div data-ghost-content='' className='flex h-[40px] items-center justify-between px-2'>
         <div className='relative z-10 flex min-w-0 flex-1 items-center'>
           <OverflowText
             label={humanizeBlockName(canvasPresentation.title)}
@@ -522,18 +514,8 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
 
       {/* Content area with subblocks */}
       {hasContentBelowHeader && (
-        <div className='flex flex-col gap-2 p-2'>
-          {type === 'condition' ? (
-            conditionRows.map((cond) => (
-              <SubBlockRow
-                key={cond.id}
-                title={cond.title}
-                value={lightweight ? undefined : getDisplayValue(cond.value)}
-                workflowMap={workflowMap}
-                workflowLabelsReady={workflowLabelsReady}
-              />
-            ))
-          ) : sentenceSegments ? (
+        <div data-ghost-content='' className='flex flex-col gap-2 p-2'>
+          {sentenceSegments ? (
             <CanvasSentenceView
               segments={sentenceSegments}
               renderChip={(subBlockId) => {
@@ -551,7 +533,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
                    back as the `-` sentinel. That reads as noise mid-sentence, so
                    hand the slot back and let its noun stand in instead. */
                 if (!displayValue || displayValue === '-') return null
-                return (
+                const chip = (
                   <SubBlockRowView
                     title={subBlock.title ?? subBlock.id}
                     displayValue={displayValue}
@@ -559,27 +541,15 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
                     variant='inline-value'
                   />
                 )
+                if (!changedFieldSet.has(subBlockId)) return chip
+                /* The chip, not the sentence, is what changed. */
+                return (
+                  <span className='rounded-sm bg-[color-mix(in_srgb,var(--warning)_18%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--warning)_45%,transparent)]'>
+                    {chip}
+                  </span>
+                )
               }}
             />
-          ) : type === 'router_v2' ? (
-            <>
-              <SubBlockRow
-                key='context'
-                title='Context'
-                value={lightweight ? undefined : getDisplayValue(rawValues.context)}
-                workflowMap={workflowMap}
-                workflowLabelsReady={workflowLabelsReady}
-              />
-              {routerRows.map((route, index) => (
-                <SubBlockRow
-                  key={route.id}
-                  title={`Route ${index + 1}`}
-                  value={lightweight ? undefined : getDisplayValue(route.value)}
-                  workflowMap={workflowMap}
-                  workflowLabelsReady={workflowLabelsReady}
-                />
-              ))}
-            </>
           ) : (
             visibleSubBlocks.map((subBlock) => {
               const rawValue = lightweight ? undefined : rawValues[subBlock.id]
@@ -597,6 +567,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
                   rawValue={rawValue}
                   workflowMap={workflowMap}
                   workflowLabelsReady={workflowLabelsReady}
+                  changed={changedFieldSet.has(subBlock.id)}
                 />
               )
             })
@@ -604,49 +575,17 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
         </div>
       )}
 
-      {/* Condition block handles */}
-      {type === 'condition' && (
-        <>
-          {conditionRows.map((cond, condIndex) => {
-            const topOffset =
-              HANDLE_POSITIONS.CONDITION_START_Y + condIndex * HANDLE_POSITIONS.CONDITION_ROW_HEIGHT
-            return (
-              <Handle
-                key={`handle-${cond.id}`}
-                type='source'
-                position={Position.Right}
-                id={`condition-${cond.id}`}
-                className={HANDLE_STYLES.right}
-                style={{ top: `${topOffset}px`, right: '-7px', transform: 'translateY(-50%)' }}
-              />
-            )
-          })}
-        </>
-      )}
-
-      {/* Router block handles */}
-      {type === 'router_v2' && (
-        <>
-          {routerRows.map((route, routeIndex) => {
-            const topOffset =
-              HANDLE_POSITIONS.CONDITION_START_Y +
-              (routeIndex + 1) * HANDLE_POSITIONS.CONDITION_ROW_HEIGHT
-            return (
-              <Handle
-                key={`handle-${route.id}`}
-                type='source'
-                position={Position.Right}
-                id={`router-${route.id}`}
-                className={HANDLE_STYLES.right}
-                style={{ top: `${topOffset}px`, right: '-7px', transform: 'translateY(-50%)' }}
-              />
-            )
-          })}
-        </>
-      )}
+      <div data-ghost-content=''>
+        <PreviewPortRows
+          rows={portRows}
+          changedFields={changedFieldSet}
+          lightweight={lightweight}
+          borderWidth={PREVIEW_CARD_BORDER_WIDTH}
+        />
+      </div>
 
       {/* Source and error handles for non-condition/router/note blocks */}
-      {type !== 'condition' && type !== 'router_v2' && type !== 'response' && !isNoteBlock && (
+      {mountedHandles.has(WORKFLOW_SOURCE_HANDLE_ID) && (
         <Handle
           type='source'
           position={Position.Right}
@@ -660,17 +599,24 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
           half of the error-output toggle, and a card that never opted in should
           not grow one. An existing error edge keeps it mounted regardless, or
           React Flow would drop that edge for having no handle to leave from. */}
-      {shouldShowDefaultHandles && type !== 'response' && (errorEnabled || hasErrorConnection) && (
+      {mountedHandles.has(WORKFLOW_ERROR_HANDLE_ID) && (
         <Handle
           type='source'
           position={Position.Bottom}
-          id='error'
+          id={WORKFLOW_ERROR_HANDLE_ID}
           className={HANDLE_STYLES.error}
           style={ERROR_HANDLE_STYLE}
         />
       )}
     </div>
   )
+}
+
+/** Same changed-field list, by identity first so the common unchanged case costs nothing. */
+function sameFields(prev: string[] | undefined, next: string[] | undefined): boolean {
+  if (prev === next) return true
+  if (!prev || !next || prev.length !== next.length) return false
+  return prev.every((field, index) => field === next[index])
 }
 
 /**
@@ -681,8 +627,8 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
  * @returns True if render should be skipped (props are equal)
  */
 function shouldSkipPreviewBlockRender(
-  prevProps: NodeProps<WorkflowPreviewBlockData>,
-  nextProps: NodeProps<WorkflowPreviewBlockData>
+  prevProps: NodeProps<WorkflowPreviewBlockNode>,
+  nextProps: NodeProps<WorkflowPreviewBlockNode>
 ): boolean {
   if (
     prevProps.id !== nextProps.id ||
@@ -694,13 +640,20 @@ function shouldSkipPreviewBlockRender(
     prevProps.data.executionStatus !== nextProps.data.executionStatus ||
     prevProps.data.errorEnabled !== nextProps.data.errorEnabled ||
     prevProps.data.hasErrorConnection !== nextProps.data.hasErrorConnection ||
-    prevProps.data.lightweight !== nextProps.data.lightweight
+    prevProps.data.lightweight !== nextProps.data.lightweight ||
+    prevProps.data.diffStatus !== nextProps.data.diffStatus ||
+    prevProps.data.removedPorts !== nextProps.data.removedPorts ||
+    !sameFields(prevProps.data.changedFields, nextProps.data.changedFields)
   ) {
     return false
   }
 
-  /** Skip subBlockValues comparison in lightweight mode */
-  if (nextProps.data.lightweight) return true
+  if (
+    prevProps.data.workflowMap !== nextProps.data.workflowMap ||
+    prevProps.data.workflowLabelsReady !== nextProps.data.workflowLabelsReady
+  ) {
+    return false
+  }
 
   const prevValues = prevProps.data.subBlockValues
   const nextValues = nextProps.data.subBlockValues

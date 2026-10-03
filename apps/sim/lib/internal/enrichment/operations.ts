@@ -8,6 +8,8 @@ const logger = createLogger('EnrichmentOperations')
 
 export interface EnrichmentOperationContext {
   workspaceId: string
+  /** The acting user, so the per-tool permission gate applies to the provider call. */
+  userId: string
   signal?: AbortSignal
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 }
@@ -24,6 +26,7 @@ export async function executeEnrichment(
 
   const { result, cost, error, provider } = await runEnrichment(enrichment, input.inputs, {
     workspaceId: context.workspaceId,
+    userId: context.userId,
     signal: context.signal,
     resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
   })

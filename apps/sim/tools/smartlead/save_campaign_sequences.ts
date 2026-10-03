@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { toRecord, toRecordOrNull } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   SmartleadCampaignIdParams,
@@ -26,8 +26,8 @@ interface SaveCampaignSequencesParams extends SmartleadCampaignIdParams {
  * value is far easier for a model to supply flat. This accepts either form.
  */
 function toSequencePayload(value: unknown, index: number): Record<string, unknown> {
-  const record = isRecordLike(value) ? value : {}
-  const existingDelay = isRecordLike(record.seq_delay_details) ? record.seq_delay_details : null
+  const record = toRecord(value)
+  const existingDelay = toRecordOrNull(record.seq_delay_details)
   const delayInDays =
     existingDelay?.delay_in_days ??
     existingDelay?.delayInDays ??
@@ -87,7 +87,7 @@ export const saveCampaignSequencesTool: ToolConfig<
   },
   transformResponse: async (response) => {
     const record = await smartleadRecord(response, 'sequence save')
-    const data = isRecordLike(record.data) ? record.data : {}
+    const data = toRecord(record.data)
     const saved = Array.isArray(data.sequences) ? data.sequences : []
     const sequences = saved.map(mapSavedSequence)
 

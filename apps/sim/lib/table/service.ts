@@ -31,6 +31,7 @@ import {
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
 import { resolveRestoredFolderId } from '@/lib/folders/queries'
 import { notifyWorkspaceTablesChanged } from '@/lib/realtime/notify'
@@ -43,6 +44,7 @@ import {
   TABLE_LIMITS,
 } from '@/lib/table/constants'
 import { appendTableEvent } from '@/lib/table/events'
+import { generateTableId } from '@/lib/table/ids'
 import {
   EMPTY_JOB_FIELDS,
   latestJobsForTables,
@@ -57,6 +59,7 @@ import {
   mutateTableRowsWithSecretProvenance,
 } from '@/lib/table/rows/secret-provenance'
 import { assertValidSchema } from '@/lib/table/schema-invariants'
+import { assertTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import {
   type CreateTableData,
@@ -133,9 +136,7 @@ export async function withLockedTable<T>(
 ): Promise<T> {
   return db.transaction(async (trx) => {
     await setTableTxTimeouts(trx)
-    await trx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_schema:${tableId}`}, 0))`
-    )
+    await acquireAdvisoryXactLock(trx, 'user_table_schema', `user_table_schema:${tableId}`)
     const table = await getTableById(tableId, { tx: trx, includeArchived: opts?.includeArchived })
     if (!table || (opts?.expectedWorkspaceId && table.workspaceId !== opts.expectedWorkspaceId)) {
       throw new OrchestrationError('not_found', 'Table not found')
@@ -560,7 +561,11 @@ export async function createTable(
     )
   }
 
-  const tableId = `tbl_${generateId().replace(/-/g, '')}`
+  if (data.schema.columns.some((column) => column.type === 'ttl')) {
+    await assertTableRowTtlEnabled()
+  }
+
+  const tableId = generateTableId()
   const now = new Date()
 
   // Stamp stable ids so the table is id-keyed from its first row write.
@@ -828,6 +833,7 @@ export async function addTableColumnsWithTx(
     ...table.schema,
     columns: [...table.schema.columns, ...additions],
   }
+  assertValidSchema(updatedSchema, table.metadata?.columnOrder)
   const now = new Date()
 
   await trx

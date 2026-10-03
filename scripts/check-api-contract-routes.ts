@@ -21,9 +21,9 @@
  * behind a route. Scanning the source text instead would have to re-implement a
  * TypeScript lexer to know which braces are code and which sit inside a string,
  * template literal, regex or comment, and it could only ever see contracts whose
- * `method`/`path` are inline literals — the 70-plus built through helpers like
- * `definePostSelector(path, …)` would be invisible. Route files stay a static
- * scan on purpose: importing one drags in `@sim/db`, auth and `next/server`,
+ * `method`/`path` are inline literals — helper-built contracts such as
+ * `defineJsmToolContract(path, …)` would be invisible. Route files stay a
+ * static scan on purpose: importing one drags in `@sim/db`, auth and `next/server`,
  * whereas contract modules are pure Zod.
  */
 import { existsSync } from 'node:fs'
@@ -44,6 +44,9 @@ interface DeclaredContract {
   routePath: string
   module: string
 }
+
+const fileSourceCache = new Map<string, Promise<string | null>>()
+const routeSourceCache = new Map<string, Promise<string | null>>()
 
 async function listContractModules(dir: string, results: string[] = []): Promise<string[]> {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -68,12 +71,19 @@ function isRouteContract(value: unknown): value is { method: HttpMethod; path: s
 }
 
 async function readIfFile(candidate: string): Promise<string | null> {
-  try {
-    if (!(await stat(candidate)).isFile()) return null
-    return await readFile(candidate, 'utf8')
-  } catch {
-    return null
+  let pending = fileSourceCache.get(candidate)
+  if (!pending) {
+    pending = (async () => {
+      try {
+        if (!(await stat(candidate)).isFile()) return null
+        return await readFile(candidate, 'utf8')
+      } catch {
+        return null
+      }
+    })()
+    fileSourceCache.set(candidate, pending)
   }
+  return pending
 }
 
 /**
@@ -84,6 +94,15 @@ async function readIfFile(candidate: string): Promise<string | null> {
  * own file — would look routeless and be silently exempted from the check.
  */
 async function readRouteFile(routePath: string): Promise<string | null> {
+  let pending = routeSourceCache.get(routePath)
+  if (!pending) {
+    pending = resolveRouteFile(routePath)
+    routeSourceCache.set(routePath, pending)
+  }
+  return pending
+}
+
+async function resolveRouteFile(routePath: string): Promise<string | null> {
   if (!routePath.startsWith('/api/')) return null
   const segments = routePath.slice('/api/'.length).split('/').filter(Boolean)
 

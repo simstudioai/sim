@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { reportDurableSecretProvenanceUnrecorded } from '@/lib/execution/durable-secret-provenance-telemetry'
+import { resolveStoredFileProvenanceSource } from '@/lib/execution/payloads/file-secret-provenance'
 import {
   assertUserFileContentAccess,
   type ExecutionMaterializationContext,
@@ -7,6 +9,7 @@ import {
 import { MAX_SANDBOX_URL_MOUNT_BYTES } from '@/lib/execution/remote-sandbox/output-limits'
 import { SANDBOX_INPUT_DIR } from '@/lib/execution/remote-sandbox/sandbox-paths'
 import type { SandboxFile } from '@/lib/execution/remote-sandbox/types'
+import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import { generatePresignedDownloadUrl, hasCloudStorage } from '@/lib/uploads/core/storage-service'
 import type { StorageContext } from '@/lib/uploads/shared/types'
@@ -227,16 +230,32 @@ function uniqueMountFileName(name: string, used: Set<string>): string {
  * Assigns each file a deterministic mount path. Pure and I/O-free, so a caller
  * can decide whether an execution needs a sandbox filesystem before spending a
  * presign or a byte of transfer on a request that may still be refused.
+ *
+ * A storage key mounts once. The same object arrives from independent sources —
+ * a caller listing it twice, or listing one the code also asked for with
+ * `<block.file.path>` — and a second copy of identical bytes costs a presign, a
+ * duplicate transfer, and a second charge against both the byte budget and the
+ * per-request file ceiling. First occurrence wins, so the name listed first is
+ * the one the code sees.
  */
 export function planUserFileMounts(
   files: readonly UserFile[],
   mountDir: string = SANDBOX_INPUT_DIR
 ): PlannedUserFileMount[] {
   const used = new Set<string>()
-  return files.map((userFile) => ({
-    userFile,
-    mountPath: `${mountDir}/${uniqueMountFileName(userFile.name, used)}`,
-  }))
+  const mountedKeys = new Set<string>()
+  const planned: PlannedUserFileMount[] = []
+
+  for (const userFile of files) {
+    if (mountedKeys.has(userFile.key)) continue
+    mountedKeys.add(userFile.key)
+    planned.push({
+      userFile,
+      mountPath: `${mountDir}/${uniqueMountFileName(userFile.name, used)}`,
+    })
+  }
+
+  return planned
 }
 
 /**
@@ -254,14 +273,44 @@ export function planUserFileMounts(
 export async function resolveUserFileMounts(args: {
   planned: readonly PlannedUserFileMount[]
   context: ExecutionMaterializationContext
-}): Promise<{ sandboxFiles: SandboxFile[]; manifest: SandboxMountManifestEntry[] }> {
+}): Promise<{
+  sandboxFiles: SandboxFile[]
+  manifest: SandboxMountManifestEntry[]
+  contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
+  renderedContributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
+  /** Mounts without producer provenance remain usable and report the recording gap. */
+  unprovenancedMountCount: number
+}> {
+  let unprovenancedMountCount = 0
   const sandboxFiles: SandboxFile[] = []
   const manifest: SandboxMountManifestEntry[] = []
   const budget = createSandboxMountBudget()
+  const contributingFiles = new Map<string, WorkspaceFileSecretProvenanceIdentity>()
+  const renderedContributingFiles = new Map<string, WorkspaceFileSecretProvenanceIdentity>()
+  const addContributor = (identity: WorkspaceFileSecretProvenanceIdentity, rendered = false) => {
+    const revision = JSON.stringify([
+      identity.fileId,
+      identity.key,
+      identity.context,
+      identity.contentUpdatedAt?.getTime(),
+    ])
+    contributingFiles.set(revision, identity)
+    if (rendered) renderedContributingFiles.set(revision, identity)
+  }
 
   for (const { userFile, mountPath } of args.planned) {
     const storageContext = resolveTrustedFileContext(userFile.key, userFile.context)
     await assertUserFileContentAccess(userFile, args.context)
+    const source =
+      args.context.principal && args.context.workspaceId
+        ? await resolveStoredFileProvenanceSource(userFile, {
+            ...args.context,
+            principal: args.context.principal,
+            workspaceId: args.context.workspaceId,
+          })
+        : undefined
+    if (source) addContributor(source.identity)
+    else unprovenancedMountCount += 1
 
     await pushSandboxFileMount(
       sandboxFiles,
@@ -275,12 +324,22 @@ export async function resolveUserFileMounts(args: {
           // Base64 regardless of content type: the payload is reproduced exactly
           // for any byte sequence, and picking utf8 for a mistyped binary would
           // substitute U+FFFD and hand the code a corrupted file.
-          const { content } = await readUserFileContentWithContributors(userFile, {
+          const {
+            content,
+            contributingFiles: contributors,
+            renderedContributingFiles,
+          } = await readUserFileContentWithContributors(userFile, {
             ...args.context,
             encoding: 'base64',
             maxBytes,
             maxSourceBytes: maxBytes,
           })
+          for (const contributor of contributors ?? []) {
+            addContributor(contributor)
+          }
+          for (const contributor of renderedContributingFiles ?? []) {
+            addContributor(contributor, true)
+          }
           return {
             content,
             encoding: 'base64' as const,
@@ -299,11 +358,27 @@ export async function resolveUserFileMounts(args: {
     })
   }
 
+  if (unprovenancedMountCount > 0) {
+    reportDurableSecretProvenanceUnrecorded({
+      surface: 'workspace-file',
+      workspaceId: args.context.workspaceId,
+      actorUserId: args.context.userId,
+      recordCount: unprovenancedMountCount,
+    })
+  }
   logger.info('Resolved sandbox file mounts', {
     mountCount: sandboxFiles.length,
     bufferedBytes: budget.buffered,
     urlBytes: budget.url,
   })
 
-  return { sandboxFiles, manifest }
+  return {
+    sandboxFiles,
+    manifest,
+    unprovenancedMountCount,
+    ...(contributingFiles.size > 0 ? { contributingFiles: [...contributingFiles.values()] } : {}),
+    ...(renderedContributingFiles.size > 0
+      ? { renderedContributingFiles: [...renderedContributingFiles.values()] }
+      : {}),
+  }
 }

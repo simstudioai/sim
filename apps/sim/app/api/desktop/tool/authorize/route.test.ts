@@ -1,37 +1,38 @@
-/**
- * @vitest-environment node
- */
 import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
+  mothershipWorkspaceTargetMock,
+  mothershipWorkspaceTargetMockFns,
+} from '@sim/testing/mocks/mothership-workspace-target.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
-const { claimPendingAsyncToolCall, getAsyncToolCall, getRunSegment } = vi.hoisted(() => ({
-  claimPendingAsyncToolCall: vi.fn(),
-  getAsyncToolCall: vi.fn(),
-  getRunSegment: vi.fn(),
-}))
-
-vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
-
-vi.mock('@/lib/copilot/async-runs/repository', () => ({
-  claimPendingAsyncToolCall,
-  getAsyncToolCall,
-  getRunSegment,
-}))
+vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
+vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 import { POST } from './route'
 
-function request(toolCallId: unknown): NextRequest {
+const claimPendingAsyncToolCall = mothershipAsyncRunsMockFns.mockClaimPendingAsyncToolCall
+const getAsyncToolCall = mothershipAsyncRunsMockFns.mockGetAsyncToolCall
+const getRunSegment = mothershipAsyncRunsMockFns.mockGetRunSegment
+const resolveInvocationWorkspace = mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace
+
+function request(toolCallId: unknown, claim = false): NextRequest {
   return new NextRequest('http://localhost:3000/api/desktop/tool/authorize', {
     method: 'POST',
-    body: JSON.stringify({ toolCallId }),
+    body: JSON.stringify({ toolCallId, claim }),
     headers: { 'Content-Type': 'application/json' },
   })
 }
 
 describe('desktop tool authorization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    resolveInvocationWorkspace.mockResolvedValue({ workspaceId: 'target' })
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
       isAuthenticated: true,
@@ -52,34 +53,23 @@ describe('desktop tool authorization', () => {
     claimPendingAsyncToolCall.mockResolvedValue({ toolCallId: 'browser-tool', status: 'running' })
   })
 
-  it('returns the server-persisted args for an owned pending user-local call', async () => {
-    const response = await POST(request('tool-1'))
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      chatId: 'chat-1',
-      toolName: 'read',
-      args: { path: 'user-local/Project--mount-1/README.md', offset: 0, limit: 100 },
-    })
-  })
-
-  it('authorizes a known browser tool and returns its persisted args', async () => {
+  it('never returns presentation activity as an executable browser argument', async () => {
+    const fields = [{ elementId: 1, kind: 'text', text: 'a' }]
     getAsyncToolCall.mockResolvedValueOnce({
-      toolCallId: 'browser-tool',
+      toolCallId: 'form-tool',
       runId: 'run-1',
       status: 'pending',
-      toolName: 'browser_navigate',
-      args: { url: 'https://example.com' },
+      toolName: 'browser_fill_form',
+      args: { activity: { description: 'Filling the form' }, fields },
     })
 
-    const response = await POST(request('browser-tool'))
+    const response = await POST(request('form-tool'))
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
       chatId: 'chat-1',
-      toolName: 'browser_navigate',
-      args: { url: 'https://example.com' },
+      toolName: 'browser_fill_form',
+      args: { fields },
     })
-    expect(claimPendingAsyncToolCall).toHaveBeenCalledWith('browser-tool', 'desktop-browser')
   })
 
   it('rejects retired browser tools retained only for history', async () => {
@@ -161,6 +151,55 @@ describe('desktop tool authorization', () => {
       status: 'complete',
     })
     expect((await POST(request('completed-run-tool'))).status).toBe(404)
+  })
+
+  it('claims an org-view import once and permits chunks only under that claim', async () => {
+    const args = { path: '~/Documents/project', targetWorkspaceId: 'target' }
+    const tool = {
+      toolCallId: 'import-1',
+      runId: 'run-1',
+      toolName: 'import_local_files',
+      args,
+      status: 'pending',
+    }
+    getAsyncToolCall.mockResolvedValue(tool)
+    getRunSegment.mockResolvedValue({
+      id: 'run-1',
+      userId: 'user-1',
+      chatId: 'chat-1',
+      organizationId: 'org-1',
+      status: 'active',
+    })
+    expect((await POST(request('import-1'))).status).toBe(404)
+    expect((await POST(request('import-1', true))).status).toBe(200)
+    expect(resolveInvocationWorkspace).toHaveBeenCalledWith(
+      { userId: 'user-1', chatId: 'chat-1', organizationId: 'org-1', workspaceId: undefined },
+      'target'
+    )
+    expect(claimPendingAsyncToolCall).toHaveBeenCalledExactlyOnceWith('import-1', 'desktop-files')
+    getAsyncToolCall.mockResolvedValue({ ...tool, status: 'running', claimedBy: 'desktop-files' })
+    expect((await POST(request('import-1', true))).status).toBe(409)
+    expect((await POST(request('import-1'))).status).toBe(200)
+    getAsyncToolCall.mockResolvedValue({ ...tool, status: 'running', claimedBy: 'sim-stream' })
+    expect((await POST(request('import-1'))).status).toBe(404)
+    expect(claimPendingAsyncToolCall).toHaveBeenCalledOnce()
+  })
+
+  it('rejects inaccessible destinations and lost import claims before exposing files', async () => {
+    getAsyncToolCall.mockResolvedValue({
+      toolCallId: 'import-1',
+      runId: 'run-1',
+      status: 'pending',
+      toolName: 'import_local_files',
+      args: { path: '~/file', targetWorkspaceId: 'outside-org' },
+    })
+    resolveInvocationWorkspace.mockRejectedValueOnce(
+      new OrchestrationError('not_found', 'Workspace not found')
+    )
+    expect((await POST(request('import-1', true))).status).toBe(404)
+    expect(claimPendingAsyncToolCall).not.toHaveBeenCalled()
+    claimPendingAsyncToolCall.mockResolvedValueOnce(null)
+    expect((await POST(request('import-1', true))).status).toBe(409)
   })
 
   it('authenticates before parsing and rejects malformed IDs', async () => {

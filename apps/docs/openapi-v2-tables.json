@@ -29,6 +29,9 @@
   "security": [
     {
       "apiKey": []
+    },
+    {
+      "oauthBearer": []
     }
   ],
   "paths": {
@@ -36,7 +39,9 @@
       "get": {
         "operationId": "listTables",
         "summary": "List Tables",
-        "description": "List tables in a workspace with optional folder filtering, search, sorting, and an opaque cursor envelope. `scope=archived` lists tables a `DELETE` archived, which `POST /api/v2/tables/{tableId}/restore` can bring back. A workspace folder tree over 10,000 folders is a `413`.",
+        "description": "List active tables with folder filtering, search, sorting, and cursor pagination. Use `scope=archived` to find tables available for restoration. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "tables.list",
+        "x-oauth-scope": "api:read",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -67,9 +72,9 @@
             "name": "folderPath",
             "in": "query",
             "required": false,
-            "description": "Restrict results to tables in this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+            "description": "Restrict results to tables in this folder. Unknown folder paths contribute no matches.",
             "schema": {
-              "description": "Restrict results to tables in this folder. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+              "description": "Restrict results to tables in this folder. Unknown folder paths contribute no matches.",
               "$ref": "#/components/schemas/FolderPathInput"
             }
           },
@@ -183,7 +188,9 @@
       "post": {
         "operationId": "createTable",
         "summary": "Create Table",
-        "description": "Create a table with a typed column schema and optional folder placement.",
+        "description": "Create a table with a typed column schema and optional folder placement.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.create",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "requestBody": {
           "required": true,
@@ -255,7 +262,9 @@
       "get": {
         "operationId": "getTable",
         "summary": "Get Table",
-        "description": "Retrieve a table with its metadata, column schema, locks, and current job. A workspace folder tree over 10,000 folders is a `413`.",
+        "description": "Get a table with its metadata, column schema, locks, and current job. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "tables.read",
+        "x-oauth-scope": "api:read",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -332,7 +341,9 @@
       "delete": {
         "operationId": "deleteTable",
         "summary": "Delete Table",
-        "description": "Archive a table and return an explicit deletion acknowledgement. The table is soft-deleted, not erased: its rows are retained and `POST /api/v2/tables/{tableId}/restore` brings it back.",
+        "description": "Archive a table while retaining its rows. Use List Tables with `scope=archived` to find it and Restore Table to recover it.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.delete",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -409,7 +420,9 @@
       "patch": {
         "operationId": "updateTable",
         "summary": "Update Table",
-        "description": "Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags remain read-only.\n\nNOT atomic: name, description, and folder are written independently, so a 4xx does not mean nothing changed. When at least one field landed before the failure the error body carries `details.applied` naming those fields — retry with only the ones missing from it. Its absence means nothing was applied.\n\nA workspace folder tree over 10,000 folders is a `413`.",
+        "description": "Rename a table, edit its description, or move it to a folder. Fields are saved independently: a failed request may leave partial changes. `error.details.applied` lists saved fields; retry only the remaining fields. If absent, nothing changed. Lock flags are read-only. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.update",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -494,7 +507,9 @@
       "post": {
         "operationId": "addTableColumn",
         "summary": "Add Column",
-        "description": "Add a typed column and return the complete resulting table schema.",
+        "description": "Add a typed column and return the complete resulting table schema.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.columns.add",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -577,7 +592,9 @@
       "patch": {
         "operationId": "updateTableColumn",
         "summary": "Update Column",
-        "description": "Update a column by name and return the complete resulting table schema.",
+        "description": "Update a column by name and return the complete schema. Renames update rows, views, and workflow-group references keyed by column ID. Workflow Table blocks keep their authored `filter`, `order`, and `data` JSON unchanged. Bound blocks still referencing the old name appear in `unmigrated`; edit them with Apply Workflow Operations to prevent failures on their next run.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.columns.update",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -605,7 +622,7 @@
         },
         "responses": {
           "200": {
-            "description": "The updated table columns.",
+            "description": "The updated table columns, plus any unmigrated workflow Table blocks.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -620,7 +637,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/V2TableColumnsResponse"
+                  "$ref": "#/components/schemas/V2UpdateTableColumnResponse"
                 }
               }
             }
@@ -660,7 +677,9 @@
       "delete": {
         "operationId": "deleteTableColumn",
         "summary": "Delete Column",
-        "description": "Delete a column by name while preserving at least one table column.",
+        "description": "Delete a column by name while preserving at least one table column.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.columns.delete",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -745,7 +764,9 @@
       "get": {
         "operationId": "listTableRows",
         "summary": "List Rows",
-        "description": "List a plain cursor page in default row order. Pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null. Use the query endpoint for predicate filtering and sorting. Set `includeRunState=true` to attach each row's per-workflow-group run outcomes; the row limit is capped when it is set.",
+        "description": "List rows in default order with cursor pagination. Pages default to a 5 MB limit and may contain fewer rows than requested; continue until `nextCursor` is null. Use Query Rows for filtering and sorting. `includeRunState=true` adds per-group run outcomes and reduces the row limit.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "tables.rows.list",
+        "x-oauth-scope": "api:read",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -854,7 +875,9 @@
       "post": {
         "operationId": "createTableRows",
         "summary": "Create Rows",
-        "description": "Insert one row with a data object or insert a bounded batch with a rows array. Cell keys are column names.",
+        "description": "Insert one row with a data object or insert a bounded batch with a rows array. Cell keys are column names.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.rows.create",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -937,7 +960,9 @@
       "patch": {
         "operationId": "updateTableRows",
         "summary": "Update Rows by Filter",
-        "description": "Apply the same partial data patch to every row matching a non-empty predicate.",
+        "description": "Apply the same partial data patch to every row matching a non-empty predicate.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.rows.update_many",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1020,7 +1045,9 @@
       "delete": {
         "operationId": "deleteTableRows",
         "summary": "Delete Rows",
-        "description": "Delete rows by a non-empty predicate or an explicit bounded list of row identifiers.",
+        "description": "Delete rows by a non-empty predicate or an explicit bounded list of row identifiers.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.rows.delete_many",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1105,7 +1132,9 @@
       "get": {
         "operationId": "getTableRow",
         "summary": "Get Row",
-        "description": "Retrieve one row by identifier. Set `includeRunState=true` to attach the row's per-workflow-group run outcomes.",
+        "description": "Get one row by identifier. Set `includeRunState=true` to attach the row's per-workflow-group run outcomes.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "tables.rows.read",
+        "x-oauth-scope": "api:read",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1200,7 +1229,9 @@
       "patch": {
         "operationId": "updateTableRow",
         "summary": "Update Row",
-        "description": "Merge a partial data patch into one row by identifier.",
+        "description": "Merge a partial data patch into one row by identifier.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.rows.update",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1294,7 +1325,9 @@
       "delete": {
         "operationId": "deleteTableRow",
         "summary": "Delete Row",
-        "description": "Delete one row by identifier.",
+        "description": "Delete one row by identifier.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.rows.delete",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1384,7 +1417,9 @@
       "post": {
         "operationId": "upsertTableRow",
         "summary": "Upsert Row",
-        "description": "Insert a row or update the existing row that conflicts on a selected unique column.\n\nWARNING — the update branch REPLACES the row, it does not merge. `data` is the complete new row value, so every column you omit is cleared on the matched row. Send the full row here, or use `PATCH /api/v2/tables/{tableId}/rows/{rowId}` to change a subset.",
+        "description": "Insert a row or replace the row matching a selected unique column. On replacement, omitted columns are cleared; send the complete row. Use Update Row for a partial patch.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.rows.upsert",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1469,7 +1504,9 @@
       "post": {
         "operationId": "queryTableRows",
         "summary": "Query Rows",
-        "description": "Query rows with an optional typed predicate, ordered sort specification, and opaque cursor pagination. A predicate may be one condition or an `all`/`any` group; omit it to match every row. Bounded pages are capped at 5MB by default and may contain fewer rows than the requested limit; continue until nextCursor is null. A predicate larger than the request-body ceiling is a `413`. Set `includeRunState: true` to attach each row's per-workflow-group run outcomes; the row limit is capped when it is set. Row totals live on the companion `POST /api/v2/tables/{tableId}/query/count`, which is a separate snapshot — a caller needing a consistent pair should take the count first and treat it as a floor.",
+        "description": "Query rows with typed predicates, sorting, and cursor pagination. Omit the predicate to match all rows. Pages default to a 5 MB limit; continue until `nextCursor` is null. Oversized predicates return `413`. `includeRunState` adds per-group outcomes and reduces the row limit. Counts are read separately and can differ from paged results if rows change.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "tables.rows.query",
+        "x-oauth-scope": "api:read",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1551,7 +1588,9 @@
       "post": {
         "operationId": "countTableRows",
         "summary": "Count Rows",
-        "description": "Count the rows matching a typed predicate across the entire table. A predicate may be one condition or an `all`/`any` group. The paged reads carry no total, and `rowCount` on the table resource counts every row rather than the matches. Omit the predicate to count the whole table. A predicate larger than the request-body ceiling is a `413`.",
+        "description": "Count rows matching a typed predicate, or omit the predicate to count all rows. The count is read separately from row pages and can change between requests. Oversized predicates return `413`.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "tables.rows.query",
+        "x-oauth-scope": "api:read",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1633,7 +1672,9 @@
       "get": {
         "operationId": "listTableViews",
         "summary": "List Views",
-        "description": "List the bounded set of saved table views, with references to removed columns pruned on read. The bounded set is returned in one page; `nextCursor` is always null.",
+        "description": "List saved table views, omitting references to removed columns. Returns the complete set in one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "tables.views.list",
+        "x-oauth-scope": "api:read",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1707,7 +1748,9 @@
       "post": {
         "operationId": "createTableView",
         "summary": "Create View",
-        "description": "Save a filter, sort, and column layout as a named presentation of a table.",
+        "description": "Save a filter, sort, and column layout as a named presentation of a table.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.views.create",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1789,7 +1832,9 @@
       "get": {
         "operationId": "getTableView",
         "summary": "Get View",
-        "description": "Retrieve one saved table view by identifier.",
+        "description": "Get one saved table view by identifier.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "tables.views.read",
+        "x-oauth-scope": "api:read",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1874,7 +1919,9 @@
       "patch": {
         "operationId": "updateTableView",
         "summary": "Update View",
-        "description": "Rename a view, replace or shallow-merge its configuration, or promote it to the table default.",
+        "description": "Rename a view, replace or shallow-merge its configuration, or promote it to the table default.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.views.update",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1965,7 +2012,9 @@
       "delete": {
         "operationId": "deleteTableView",
         "summary": "Delete View",
-        "description": "Delete a saved presentation without changing any table rows.",
+        "description": "Delete a saved presentation without changing any table rows.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.views.delete",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2052,7 +2101,9 @@
       "get": {
         "operationId": "listTableWorkflowGroups",
         "summary": "List Workflow Groups",
-        "description": "List the workflow and enrichment groups that can be dispatched for a table. The bounded set is returned in one page; `nextCursor` is always null.",
+        "description": "List the workflow and enrichment groups that can be dispatched for a table. Returns the complete set in one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "tables.groups.list",
+        "x-oauth-scope": "api:read",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2126,7 +2177,9 @@
       "post": {
         "operationId": "addTableWorkflowGroup",
         "summary": "Add Workflow Group",
-        "description": "Bind a workflow or enrichment to the table and create the columns populated by its outputs.",
+        "description": "Bind a workflow or enrichment to the table and create the columns populated by its outputs. An output whose column the table already has attaches that column to the group instead of creating it, so `outputColumns` may be omitted when every output lands in an existing column.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.groups.create",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2209,7 +2262,9 @@
       "patch": {
         "operationId": "updateTableWorkflowGroup",
         "summary": "Update Workflow Group",
-        "description": "Restructure a workflow group, its producer, outputs, or execution behavior. Repointing the group at a different workflow concurrently invalidates the resolved output types and returns `409` — retry the update.",
+        "description": "Restructure a workflow group, its producer, outputs, or execution behavior. Repointing the group at a different workflow concurrently invalidates the resolved output types and returns `409` — retry the update.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.groups.update",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2295,7 +2350,9 @@
       "delete": {
         "operationId": "deleteTableWorkflowGroup",
         "summary": "Delete Workflow Group",
-        "description": "Delete a workflow group and every table column populated by that group.",
+        "description": "Delete a workflow group and every table column populated by that group.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.groups.delete",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2380,7 +2437,9 @@
       "post": {
         "operationId": "createTableDispatch",
         "summary": "Create Run Dispatch",
-        "description": "Asynchronously run workflow or enrichment groups across all rows or a selected row subset. Poll the returned `dispatchId` with `GET /api/v2/tables/{tableId}/dispatches/{dispatchId}` until its status is `complete` or `canceled`, and cancel it with `DELETE` on the same path. A `null` `dispatchId` means the run settled inline and there is nothing to poll.",
+        "description": "Start workflow or enrichment groups across all rows or selected rows. Poll Get Run Dispatch until `complete` or `canceled`. A null `dispatchId` means no dispatch is available to poll; check row outcomes with `includeRunState`. Use Cancel Run Dispatch to stop further scheduling.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.runs.start",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2459,8 +2518,10 @@
       },
       "get": {
         "operationId": "listTableDispatches",
-        "summary": "List Active Run Dispatches",
-        "description": "List the run dispatches still in flight on one table. Bounded by the dispatcher rather than by a page size, so this list is unpaginated and `nextCursor` is always null. A settled dispatch is read by identifier.",
+        "summary": "List Run Dispatches",
+        "description": "List the run dispatches on one table, most recent first — settled dispatches (`complete`, `canceled`) alongside the ones still in flight, so a run that finished between two polls is still visible next to the `dispatchId` its create returned. Capped at the 100 most recent, so this list is unpaginated and `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "tables.runs.read",
+        "x-oauth-scope": "api:read",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2488,7 +2549,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The table's active run dispatches.",
+            "description": "The table's most recent run dispatches.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -2536,7 +2597,9 @@
       "post": {
         "operationId": "runRowEnrichment",
         "summary": "Run Enrichment For One Row",
-        "description": "Asynchronously run one workflow or enrichment group for one table row. Poll the returned `dispatchId` with `GET /api/v2/tables/{tableId}/dispatches/{dispatchId}`; a `null` `dispatchId` means the cell already settled inline.",
+        "description": "Start one workflow or enrichment group for a table row. Poll Get Run Dispatch using the returned `dispatchId`. A null `dispatchId` means no dispatch is available to poll; check row outcomes with `includeRunState`.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.runs.start",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2637,8 +2700,10 @@
       },
       "get": {
         "operationId": "getRowEnrichment",
-        "summary": "Get Enrichment Run Detail",
-        "description": "Retrieve the provider cascade behind one enrichment cell: every configured provider in cascade order, each one's status, hosted-key cost, and duration, plus which provider produced the match. `null` means the cell has never run, or ran before cascade detail was recorded — distinct from a `404`, which means the table, row, or group does not exist.",
+        "summary": "Get Row Group Run",
+        "description": "Read a workflow or enrichment group’s outcome for one row: `runState` (as exposed by `includeRunState`), output cells keyed by column name, and enrichment providers in cascade order with status, hosted-key cost, duration, and the matching provider. Existing rows always answer: `runState: null` means never run; `cascade: null` means no breakdown recorded. Missing tables, rows, or groups return `404`.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "tables.rows.read",
+        "x-oauth-scope": "api:read",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2688,7 +2753,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The enrichment run detail, or null when none was recorded.",
+            "description": "The run state, output cells, and provider cascade for the group on the row.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -2736,7 +2801,9 @@
       "post": {
         "operationId": "searchTableRows",
         "summary": "Search Rows",
-        "description": "Text-search every cell case-insensitively for the substring `q`, optionally within a predicate-filtered and sorted view. This is TEXT search, not the structured predicate read: `POST /api/v2/tables/{tableId}/query` is that one, and on this surface `query` always means a structured predicate while `search` always means text.\n\nIt returns cell COORDINATES — `{ ordinal, rowId, column }` — and never row data. `ordinal` is the row's zero-based index in the same filtered, sorted view `POST /query` pages, so read the rows themselves through that. The result is uncursored and capped: at most 1000 matches come back and `truncated` is `true` when more matched than were returned. There is no cursor to page with — narrow `q` or the predicate instead.",
+        "description": "Search cell text for a case-insensitive substring within an optional filtered and sorted view. Returns cell coordinates, not row data; `ordinal` matches the view used by Query Rows. Results are unpaginated and capped at 1000. If `truncated` is true, narrow the search or predicate.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "tables.rows.search",
+        "x-oauth-scope": "api:read",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2818,7 +2885,9 @@
       "post": {
         "operationId": "createTableImport",
         "summary": "Create Table Import",
-        "description": "Create a durable CSV import. Upload sources receive signed transfer instructions; workspace-file sources begin processing directly.",
+        "description": "Create a CSV import. Upload sources receive signed transfer instructions; workspace-file sources start processing directly.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.imports.create",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "requestBody": {
           "required": true,
@@ -2893,7 +2962,9 @@
       "get": {
         "operationId": "getTableImport",
         "summary": "Get Table Import",
-        "description": "Read progress and terminal state for a durable table import.\n\nAn upload-backed import has no durable record until its upload completes, so send the signed upload control token to read it during the `uploading` phase; without the token that phase is a `404`.",
+        "description": "Get an import's progress and status. During `uploading`, the signed upload token is required; omitting it returns `404`.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "tables.imports.read",
+        "x-oauth-scope": "api:read",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2979,7 +3050,9 @@
       "delete": {
         "operationId": "cancelTableImport",
         "summary": "Cancel Table Import",
-        "description": "Cancel an upload or processing import without rolling back committed row batches.\n\nAn import that is not in a cancelable state, including an `expired` one, is a `409` naming the current status. An unknown or already-purged import id is a `404`.",
+        "description": "Cancel an upload or processing import. Committed row batches remain. Non-cancelable states, including `expired`, return `409`; unknown or purged imports return `404`.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.imports.cancel",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -3070,7 +3143,9 @@
       "post": {
         "operationId": "createTableImportPartUrls",
         "summary": "Create Table Import Part URLs",
-        "description": "Issue short-lived signed PUT URLs for a bounded set of multipart part numbers.\n\nThe import must still be `uploading`; one that has moved on, including an `expired` one, is a `409` naming the current status. An unknown or already-purged import id is a `404`.",
+        "description": "Create signed URLs for multipart upload parts. Requires the `uploading` state; other states return `409`. Unknown or purged imports return `404`.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.imports.create_parts",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -3178,7 +3253,9 @@
       "post": {
         "operationId": "completeTableImportUpload",
         "summary": "Complete Table Import Upload",
-        "description": "Verify or assemble the uploaded CSV and begin processing with the same import id.\n\nAn import no longer awaiting an upload, including an `expired` one, is a `409` naming the current status. An unknown or already-purged import id is a `404`.",
+        "description": "Verify or assemble uploaded CSV bytes and start processing under the same import ID. Requires an import awaiting upload completion; other states return `409`. Unknown or purged imports return `404`.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.imports.complete",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -3272,7 +3349,9 @@
       "post": {
         "operationId": "createTableExport",
         "summary": "Create Table Export",
-        "description": "Create a durable CSV or JSON export that completes inline for small tables and queues larger work.",
+        "description": "Create a CSV or JSON export. Exports of small tables finish during the request; larger exports run asynchronously.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.exports.create",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -3357,7 +3436,9 @@
       "get": {
         "operationId": "getTableExport",
         "summary": "Get Table Export",
-        "description": "Read progress and terminal state for a durable table export.",
+        "description": "Get a table export's progress and status.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "tables.exports.read",
+        "x-oauth-scope": "api:read",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -3443,7 +3524,9 @@
       "delete": {
         "operationId": "cancelTableExport",
         "summary": "Cancel Table Export",
-        "description": "Cancel an export that has not reached a terminal state.",
+        "description": "Cancel an export that is still in progress.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.exports.cancel",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -3534,7 +3617,9 @@
       "get": {
         "operationId": "downloadTableExport",
         "summary": "Download Table Export",
-        "description": "Return a short-lived signed download URL for a completed table export.\n\nThe export must have reached `completed`; one still processing, failed, or canceled is a `409` naming the current status. An export whose file is no longer available is a `404`, not a `410`.",
+        "description": "Get a short-lived signed download URL for a completed export. Other states return `409`; an unavailable export file returns `404`.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "tables.exports.download",
+        "x-oauth-scope": "api:read",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -3625,7 +3710,9 @@
       "post": {
         "operationId": "cancelTableRuns",
         "summary": "Cancel Column Runs",
-        "description": "Stop in-flight and pending workflow or enrichment cell runs across the table or one selected row.",
+        "description": "Stop in-flight and pending workflow or enrichment cell runs across the table or one selected row.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.runs.cancel",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -3707,7 +3794,9 @@
       "get": {
         "operationId": "listTablesFolders",
         "summary": "List Folders",
-        "description": "List table folders, optionally restricting the result to direct children of a canonical parent path. The bounded set is returned in one page; `nextCursor` is always null.",
+        "description": "List table folders, optionally limiting results to direct children of a parent path. Returns the complete set in one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "tables.folders.list",
+        "x-oauth-scope": "api:read",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -3726,9 +3815,9 @@
             "name": "parentPath",
             "in": "query",
             "required": false,
-            "description": "Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+            "description": "Restrict results to direct children of this parent path. Unknown folder paths contribute no matches.",
             "schema": {
-              "description": "Restrict results to direct children of this parent path. A path that names no folder narrows the result to nothing, so the response is an empty page rather than an error.",
+              "description": "Restrict results to direct children of this parent path. Unknown folder paths contribute no matches.",
               "$ref": "#/components/schemas/FolderPathInput"
             }
           },
@@ -3820,7 +3909,9 @@
       "post": {
         "operationId": "createTablesFolder",
         "summary": "Create Folder",
-        "description": "Create one table-folder leaf whose parent path already exists.",
+        "description": "Create one table-folder leaf whose parent path already exists.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.folders.create",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "requestBody": {
           "required": true,
@@ -3890,7 +3981,9 @@
       "patch": {
         "operationId": "relocateTablesFolder",
         "summary": "Rename or Move Folder",
-        "description": "Rename or move a table folder and update all descendant paths.",
+        "description": "Rename or move a table folder and update all descendant paths.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.folders.update",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "requestBody": {
           "required": true,
@@ -3960,7 +4053,9 @@
       "delete": {
         "operationId": "deleteTablesFolder",
         "summary": "Delete Folder",
-        "description": "Delete an empty table folder, or recursively delete its descendants and tables when explicitly requested.",
+        "description": "Archive an empty folder, or set `recursive=true` to archive its tables and subfolders. Use Restore Folder to recover the archived contents.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.folders.delete",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -4070,7 +4165,9 @@
       "post": {
         "operationId": "restoreTablesFolder",
         "summary": "Restore Folder",
-        "description": "Un-archive a table folder a recursive `DELETE` archived, along with every subfolder and table archived with it. Address it by the path it held when it was deleted. The restore may legally land it elsewhere: a folder whose parent is still archived is re-rooted to `/`, and a name an active sibling has taken meanwhile is deduplicated — so read the returned folder's `path` rather than assuming the requested one. A path that is not archived answers `404`. `DELETE /api/v2/tables/folders` returns the path it archived, which is the value to keep and send here; unlike the files surface, `GET /api/v2/tables/folders` does not yet list archived folders, so a caller that discards that path cannot recover it over the API.",
+        "description": "Restore an archived table folder, its descendants, and tables using its former path. An archived parent moves it to the root; name conflicts may change the returned `path`. Non-archived paths return `404`. Save the path from Delete Folder, because List Folders does not include archived table folders.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.folders.restore",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "requestBody": {
           "required": true,
@@ -4142,7 +4239,9 @@
       "post": {
         "operationId": "restoreTable",
         "summary": "Restore Table",
-        "description": "Un-archive a table a `DELETE` archived, along with the rows, views, and workflow groups archived with it. Find archived tables with `scope=archived` on the table list. Idempotent: a table that is already active is returned unchanged with no audit entry recorded, so a retry after a dropped response cannot look like a failure. A name collision is resolved by renaming, so the restored table may come back under a different `name`.",
+        "description": "Restore a table and its archived rows, views, and workflow groups. Active tables return unchanged without a new audit event. Name conflicts may change the returned `name`. Find archived tables with List Tables and `scope=archived`.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.restore",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -4227,7 +4326,9 @@
       "post": {
         "operationId": "bulkUpdateTableRows",
         "summary": "Bulk Update Rows",
-        "description": "Apply a distinct partial data patch to each of up to 1000 rows in one request. Each patch merges into its row, so a column absent from `data` is left alone. Membership is atomic: a `rowId` naming no row in this table fails the whole request with a `400` listing the missing identifiers. Use `PATCH /api/v2/tables/{tableId}/rows` when one patch applies to every matching row.",
+        "description": "Apply separate partial patches to up to 1,000 rows, preserving omitted columns. A row outside the table rejects the entire request with `400` and lists missing IDs. Use Update Rows by Filter to apply one patch to every matching row.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.rows.update_many",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -4312,7 +4413,9 @@
       "get": {
         "operationId": "getTableDispatch",
         "summary": "Get Run Dispatch",
-        "description": "Poll one workflow-column run dispatch by the `dispatchId` the run endpoints returned. Answers in every lifecycle state — `pending`, `dispatching`, `complete`, and `canceled` — so a poller can wait for a run to settle. Per-cell outcomes are read with `includeRunState` on the row endpoints.",
+        "description": "Get a dispatch's current state. Poll until `complete` or `canceled`; use row reads with `includeRunState` for per-cell outcomes.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "tables.runs.read",
+        "x-oauth-scope": "api:read",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -4398,7 +4501,9 @@
       "delete": {
         "operationId": "cancelTableDispatch",
         "summary": "Cancel Run Dispatch",
-        "description": "Cancel one run dispatch by the `dispatchId` the run endpoint returned. This stops the scheduler: the dispatcher observes the cancellation at its next iteration and enqueues no further cells. Cells already handed to the queue are NOT canceled here — nothing links a queued cell back to the dispatch that enqueued it — so use `POST /api/v2/tables/{tableId}/cancel-runs` to stop work already in flight. Idempotent: a dispatch already `complete` or `canceled` is returned unchanged.",
+        "description": "Stop a dispatch from scheduling more cells. Already queued or running cells continue; use Cancel Column Runs to stop them. Completed or canceled dispatches return unchanged.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.runs.cancel",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -4486,7 +4591,9 @@
       "post": {
         "operationId": "moveTables",
         "summary": "Move Tables and Folders",
-        "description": "Move up to 100 tables and table folders into one destination folder in a single authorized request. Folders are named by canonical path, and `null` or `/` moves to the workspace root. Best-effort per item: a table filed inside a selected folder is reported in `skipped` because the folder already carries it, an entry that resolves to nothing lands in `notFound`, and an item refused by a lock or a folder cycle lands in `failed` with a reason. An invalid destination fails the whole request before anything moves.",
+        "description": "Move up to 100 tables and folders to one destination. Items succeed or fail independently: covered tables are `skipped`, missing items are `notFound`, and lock or cycle failures include reasons in `failed`. An invalid destination rejects the request before any move.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.bulk_move",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "requestBody": {
           "required": true,
@@ -4555,7 +4662,9 @@
       "post": {
         "operationId": "bulkDeleteTables",
         "summary": "Bulk Delete Tables and Folders",
-        "description": "Archive up to 100 tables and delete table folders in a single authorized request. Folders are named by canonical path and each cascades to everything inside it; `deletedItems` reports the totals across every cascade. Archived tables stay recoverable through `POST /api/v2/tables/{tableId}/restore`. Best-effort per item, with the same `skipped` / `notFound` / `failed` dispositions as the bulk move.",
+        "description": "Archive up to 100 selected tables and folders, including folder contents. Items succeed or fail independently, with `skipped`, `notFound`, and `failed` outcomes. `deletedItems` includes all descendants. Use Restore Table or Restore Folder to recover archived items.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "tables.bulk_delete",
+        "x-oauth-scope": "api:write",
         "tags": ["Tables"],
         "requestBody": {
           "required": true,
@@ -4631,6 +4740,12 @@
         "in": "header",
         "name": "X-API-Key",
         "description": "Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description."
+      },
+      "oauthBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "OAuth 2.0 access token",
+        "description": "A Sim OAuth access token obtained by a registered client through the authorization-code flow. Each operation declares its required scope: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role."
       }
     },
     "headers": {
@@ -4702,7 +4817,7 @@
         }
       },
       "Unauthorized": {
-        "description": "The API key is missing or invalid.",
+        "description": "The API credential is missing or invalid.",
         "content": {
           "application/json": {
             "schema": {
@@ -4711,7 +4826,7 @@
             "example": {
               "error": {
                 "code": "UNAUTHORIZED",
-                "message": "API key required"
+                "message": "Authentication required"
               }
             }
           }
@@ -4801,7 +4916,7 @@
         }
       },
       "Locked": {
-        "description": "The resource is locked and cannot be modified.",
+        "description": "The resource is temporarily locked or unavailable; retry the request.",
         "content": {
           "application/json": {
             "schema": {
@@ -4882,6 +4997,51 @@
       }
     },
     "schemas": {
+      "V2ActionableForbiddenDetails": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/V2ForbiddenDetailCode"
+          }
+        },
+        "required": ["code"],
+        "additionalProperties": {
+          "description": "Additional context for this refusal."
+        },
+        "title": "Actionable forbidden details",
+        "description": "Machine-readable cause and optional context for an actionable `403` response."
+      },
+      "V2ForbiddenDetailCode": {
+        "type": "string",
+        "enum": [
+          "INSUFFICIENT_WORKSPACE_ROLE",
+          "PERSONAL_API_KEYS_DISABLED",
+          "WORKSPACE_KEY_OPERATION_NOT_PERMITTED",
+          "PRINCIPAL_KIND_NOT_PERMITTED",
+          "ORGANIZATION_MEMBERSHIP_REQUIRED",
+          "ORGANIZATION_ADMIN_REQUIRED",
+          "ENTERPRISE_PLAN_REQUIRED",
+          "ORGANIZATION_PLAN_REQUIRED",
+          "AUDIT_LOGS_DISABLED",
+          "ACCESS_REQUESTS_DISABLED",
+          "ACCESS_REQUEST_ORGANIZATION_REQUIRED",
+          "SKILL_EDITOR_ACCESS_REQUIRED",
+          "SECRET_ADMIN_ACCESS_REQUIRED",
+          "WORKSPACE_RESOURCE_LIMIT_REACHED",
+          "PUBLIC_SHARING_NOT_ALLOWED",
+          "CREDENTIAL_ADMIN_ACCESS_REQUIRED",
+          "MCP_SERVER_URL_NOT_ALLOWED",
+          "WORKSPACE_PLAN_CAPABILITY_REQUIRED",
+          "CHAT_AUTH_MODE_NOT_PERMITTED",
+          "CONNECTOR_MANAGED_RESOURCE_READ_ONLY",
+          "PERMISSION_GROUP_CAPABILITY_BLOCKED",
+          "INTEGRATION_NOT_ALLOWED",
+          "INSUFFICIENT_SCOPE",
+          "SCIM_MANAGED_MEMBERSHIP"
+        ],
+        "title": "Forbidden detail code",
+        "description": "Stable cause code for an actionable `403` response."
+      },
       "V2Error": {
         "type": "object",
         "properties": {
@@ -4897,7 +5057,15 @@
                 "description": "Human-readable explanation of the error."
               },
               "details": {
-                "description": "Structured error details. On a `403` whose cause a caller can act on, this carries a `code` from a closed set:\n- `INSUFFICIENT_WORKSPACE_ROLE` — The caller has access to the workspace but its role is below the one this operation requires.\n- `PERSONAL_API_KEYS_DISABLED` — The workspace's organization does not allow personal API keys. Use a workspace API key.\n- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — This operation is not available to a workspace-scoped API key. Use a personal API key.\n- `PRINCIPAL_KIND_NOT_PERMITTED` — This operation does not accept the caller’s kind of API key.\n- `ORGANIZATION_MEMBERSHIP_REQUIRED` — The caller is not a member of the organization it named.\n- `ORGANIZATION_ADMIN_REQUIRED` — The caller is a member of the organization but not an admin or owner.\n- `ENTERPRISE_PLAN_REQUIRED` — The organization has no active enterprise subscription.\n- `ORGANIZATION_PLAN_REQUIRED` — The organization has no active organization subscription (Pro for Teams, Max for Teams, or Enterprise).\n- `AUDIT_LOGS_DISABLED` — Audit logging is not enabled for this deployment.\n- `SKILL_EDITOR_ACCESS_REQUIRED` — The caller can write in the workspace but is not an editor of this skill.\n- `SECRET_ADMIN_ACCESS_REQUIRED` — The caller can write in the workspace but is not an admin of this secret. Ask a workspace admin, or someone holding admin on the secret, to grant access or set the value.\n- `WORKSPACE_RESOURCE_LIMIT_REACHED` — The workspace already holds the maximum number of resources of this kind. Delete one, or contact Sim to raise the limit; the message names the ceiling.\n- `PUBLIC_SHARING_NOT_ALLOWED` — The workspace's organization does not permit sharing this resource publicly. An organization admin controls the policy.\n- `CREDENTIAL_ADMIN_ACCESS_REQUIRED` — The caller can reach the workspace but cannot administer this credential.\n- `MCP_SERVER_URL_NOT_ALLOWED` — The supplied MCP server URL is outside the allowed domains or resolves to an internal address.\n- `WORKSPACE_PLAN_CAPABILITY_REQUIRED` — The workspace's plan does not include a capability this request depends on. The message names the capability; upgrading the workspace's plan is the remedy.\n- `CHAT_AUTH_MODE_NOT_PERMITTED` — The workspace's permission group does not allow the chat authentication mode the request selected. A mode already saved on the deployment may still be re-saved; changing to a disallowed one cannot.\n- `CONNECTOR_MANAGED_RESOURCE_READ_ONLY` — This resource is managed by a knowledge base connector and cannot be edited directly. Change it at the source and re-sync, or exclude the document from the connector."
+                "description": "Structured error context whose keys depend on the error. Actionable `403` responses use the `V2ActionableForbiddenDetails` shape; validation failures may return issue arrays instead.",
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/V2ActionableForbiddenDetails"
+                  },
+                  {
+                    "description": "Other structured context defined by the specific error."
+                  }
+                ]
               }
             },
             "required": ["code", "message"],
@@ -5604,6 +5772,173 @@
           }
         ]
       },
+      "V2UnmigratedTableBlockReference": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "description": "Workflow holding the Table block."
+          },
+          "workflowName": {
+            "type": "string",
+            "description": "Display name of that workflow."
+          },
+          "blockId": {
+            "type": "string",
+            "description": "Table block whose configuration still names the old column."
+          },
+          "blockName": {
+            "type": "string",
+            "description": "Display name of that block."
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["filter", "order", "data"]
+            },
+            "description": "Sub-block fields that still reference the old column name."
+          }
+        },
+        "required": ["workflowId", "workflowName", "blockId", "blockName", "fields"],
+        "additionalProperties": false,
+        "title": "Unmigrated table block reference",
+        "description": "A workflow Table block still configured against a renamed column."
+      },
+      "V2UpdateTableColumnData": {
+        "type": "object",
+        "properties": {
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "description": "Stable server-assigned column identifier.",
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 50,
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                  "description": "Column name used as the public row-data key."
+                },
+                "type": {
+                  "type": "string",
+                  "enum": ["string", "number", "currency", "boolean", "date", "json", "select"],
+                  "description": "Data type of values stored in the column."
+                },
+                "required": {
+                  "default": false,
+                  "description": "Whether inserts require a value for this column.",
+                  "type": "boolean"
+                },
+                "unique": {
+                  "default": false,
+                  "description": "Whether values must be unique across table rows.",
+                  "type": "boolean"
+                },
+                "workflowGroupId": {
+                  "description": "Workflow group whose output populates this column.",
+                  "type": "string"
+                },
+                "options": {
+                  "description": "Options declared for a select column.",
+                  "maxItems": 100,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Stable select-option identifier."
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100,
+                        "description": "Display name of the select option."
+                      }
+                    },
+                    "required": ["id", "name"],
+                    "additionalProperties": false
+                  }
+                },
+                "multiple": {
+                  "description": "Whether a select column accepts multiple options.",
+                  "type": "boolean"
+                },
+                "currencyCode": {
+                  "description": "ISO 4217 code for a currency column, normalized to uppercase.",
+                  "type": "string",
+                  "pattern": "^[A-Za-z]{3}$"
+                }
+              },
+              "required": ["name", "type", "required", "unique"],
+              "additionalProperties": false,
+              "description": "A typed column in a table schema."
+            },
+            "description": "Current table columns."
+          },
+          "unmigrated": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2UnmigratedTableBlockReference"
+            },
+            "description": "Workflow Table blocks bound to this table whose `filter`, `order`, or `data` still name the column by its previous name. Only populated by a rename; empty otherwise. Workflow state is never rewritten here — edit those blocks with Apply Workflow Operations or their next run fails on the old name."
+          }
+        },
+        "required": ["columns", "unmigrated"],
+        "additionalProperties": false,
+        "title": "Update table column data",
+        "description": "The table column list after the update, plus any workflow Table blocks a rename left pointing at the old column name."
+      },
+      "V2UpdateTableColumnResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2UpdateTableColumnData"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Update table column response",
+        "description": "The table column list after the update, plus workflow Table blocks a rename left on the old column name.",
+        "examples": [
+          {
+            "data": {
+              "columns": [
+                {
+                  "id": "col_name",
+                  "name": "name",
+                  "type": "string",
+                  "required": true,
+                  "unique": false
+                },
+                {
+                  "id": "col_plan",
+                  "name": "subscriptionPlan",
+                  "type": "string",
+                  "required": false,
+                  "unique": false
+                }
+              ],
+              "unmigrated": [
+                {
+                  "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                  "workflowName": "Weekly digest",
+                  "blockId": "blk_9c1d3f5a7e2b4068a0c2e4f6b8d0f193",
+                  "blockName": "Query plans",
+                  "fields": ["filter"]
+                }
+              ]
+            }
+          }
+        ]
+      },
       "UpdateTableColumnRequest": {
         "type": "object",
         "properties": {
@@ -6037,10 +6372,9 @@
         "title": "Update table rows response",
         "description": "Updated row count and identifiers."
       },
-      "TablePredicate": {
-        "title": "Table predicate",
-        "description": "Recursive predicate tree. Each group node is exactly one non-empty `all` or `any` array whose members are further groups or `{ field, op, value }` conditions; the root must be a group, not a bare condition. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so \"not X\" is not the complement of \"X\" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.",
-        "type": "object",
+      "TablePredicateInput": {
+        "title": "Table predicate input",
+        "description": "One condition or a recursive `all`/`any` group, normalized to a grouped predicate. Limits: 100 members per group, 10 levels, and 500 nodes. The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them. Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.",
         "oneOf": [
           {
             "type": "object",
@@ -6055,7 +6389,7 @@
                   "description": "A nested group, or a single condition.",
                   "anyOf": [
                     {
-                      "$ref": "#/components/schemas/TablePredicate"
+                      "$ref": "#/components/schemas/TablePredicateInput"
                     },
                     {
                       "type": "object",
@@ -6092,7 +6426,7 @@
                             "isNull",
                             "isNotNull"
                           ],
-                          "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
+                          "description": "Operators: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`; `in`/`nin` take arrays; `isEmpty`, `isNotEmpty`, `isNull`, and `isNotNull` take no operand. Text operators are `contains`, `ncontains`, `startsWith`, `endsWith`, `like`, `nlike`, `ilike`, and `nilike`. Contains variants are case-insensitive and literal; `like`/`nlike` are case-sensitive, while `ilike`/`nilike` are case-insensitive. `*` is the only wildcard; `%`, `_`, and backslash are literal. For `select` columns, single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names resolve to IDs."
                         },
                         "value": {
                           "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
@@ -6121,7 +6455,7 @@
                   "description": "A nested group, or a single condition.",
                   "anyOf": [
                     {
-                      "$ref": "#/components/schemas/TablePredicate"
+                      "$ref": "#/components/schemas/TablePredicateInput"
                     },
                     {
                       "type": "object",
@@ -6158,7 +6492,7 @@
                             "isNull",
                             "isNotNull"
                           ],
-                          "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
+                          "description": "Operators: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`; `in`/`nin` take arrays; `isEmpty`, `isNotEmpty`, `isNull`, and `isNotNull` take no operand. Text operators are `contains`, `ncontains`, `startsWith`, `endsWith`, `like`, `nlike`, `ilike`, and `nilike`. Contains variants are case-insensitive and literal; `like`/`nlike` are case-sensitive, while `ilike`/`nilike` are case-insensitive. `*` is the only wildcard; `%`, `_`, and backslash are literal. For `select` columns, single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names resolve to IDs."
                         },
                         "value": {
                           "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
@@ -6173,6 +6507,50 @@
             },
             "required": ["any"],
             "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "title": "Predicate condition",
+            "description": "One column comparison.",
+            "properties": {
+              "field": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "eq",
+                  "ne",
+                  "gt",
+                  "gte",
+                  "lt",
+                  "lte",
+                  "in",
+                  "nin",
+                  "contains",
+                  "ncontains",
+                  "startsWith",
+                  "endsWith",
+                  "like",
+                  "ilike",
+                  "nlike",
+                  "nilike",
+                  "isEmpty",
+                  "isNotEmpty",
+                  "isNull",
+                  "isNotNull"
+                ],
+                "description": "Operators: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`; `in`/`nin` take arrays; `isEmpty`, `isNotEmpty`, `isNull`, and `isNotNull` take no operand. Text operators are `contains`, `ncontains`, `startsWith`, `endsWith`, `like`, `nlike`, `ilike`, and `nilike`. Contains variants are case-insensitive and literal; `like`/`nlike` are case-sensitive, while `ilike`/`nilike` are case-insensitive. `*` is the only wildcard; `%`, `_`, and backslash are literal. For `select` columns, single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names resolve to IDs."
+              },
+              "value": {
+                "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
+              }
+            },
+            "required": ["field", "op"],
+            "additionalProperties": false
           }
         ]
       },
@@ -6186,7 +6564,7 @@
             "description": "Unique workspace identifier."
           },
           "filter": {
-            "$ref": "#/components/schemas/TablePredicate"
+            "$ref": "#/components/schemas/TablePredicateInput"
           },
           "data": {
             "description": "Row-data patch applied to every matching row.",
@@ -6258,7 +6636,7 @@
             "description": "Unique workspace identifier."
           },
           "filter": {
-            "$ref": "#/components/schemas/TablePredicate"
+            "$ref": "#/components/schemas/TablePredicateInput"
           },
           "limit": {
             "description": "Maximum matching rows to delete.",
@@ -6280,13 +6658,7 @@
         "required": ["workspaceId"],
         "additionalProperties": false,
         "title": "Delete table rows request",
-        "description": "Workspace scope and exactly one of a predicate or row identifier list.",
-        "examples": [
-          {
-            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-            "rowIds": ["row_1f3e5d7c9b8a4c2d806e4a6b8d0f2e93"]
-          }
-        ]
+        "description": "Workspace scope and exactly one of a predicate or row identifier list."
       },
       "V2TableRowResponse": {
         "type": "object",
@@ -6450,188 +6822,6 @@
         "additionalProperties": false,
         "title": "Query table rows response",
         "description": "A cursor-paginated page of matching table rows."
-      },
-      "TablePredicateInput": {
-        "title": "Table predicate input",
-        "description": "A single `{ field, op, value }` condition or a recursive `all`/`any` group; either form is normalized to a grouped predicate after validation. At most 100 members per group, 10 levels of nesting, and 500 nodes in total. The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so \"not X\" is not the complement of \"X\" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`. Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`. Membership: `in`, `nin` (array operand). Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand). Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`. Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: \"Hi*\"`, not `like: \"Hi%\"`. A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.",
-        "oneOf": [
-          {
-            "type": "object",
-            "description": "Matches a row when every member matches.",
-            "properties": {
-              "all": {
-                "type": "array",
-                "minItems": 1,
-                "maxItems": 100,
-                "description": "Members combined with AND. An empty group is rejected, because it would compile to no filter at all.",
-                "items": {
-                  "description": "A nested group, or a single condition.",
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/TablePredicateInput"
-                    },
-                    {
-                      "type": "object",
-                      "title": "Predicate condition",
-                      "description": "One column comparison.",
-                      "properties": {
-                        "field": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 128,
-                          "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
-                        },
-                        "op": {
-                          "type": "string",
-                          "enum": [
-                            "eq",
-                            "ne",
-                            "gt",
-                            "gte",
-                            "lt",
-                            "lte",
-                            "in",
-                            "nin",
-                            "contains",
-                            "ncontains",
-                            "startsWith",
-                            "endsWith",
-                            "like",
-                            "ilike",
-                            "nlike",
-                            "nilike",
-                            "isEmpty",
-                            "isNotEmpty",
-                            "isNull",
-                            "isNotNull"
-                          ],
-                          "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
-                        },
-                        "value": {
-                          "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
-                        }
-                      },
-                      "required": ["field", "op"],
-                      "additionalProperties": false
-                    }
-                  ]
-                }
-              }
-            },
-            "required": ["all"],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "description": "Matches a row when at least one member matches.",
-            "properties": {
-              "any": {
-                "type": "array",
-                "minItems": 1,
-                "maxItems": 100,
-                "description": "Members combined with OR. An empty group is rejected, because it would compile to no filter at all.",
-                "items": {
-                  "description": "A nested group, or a single condition.",
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/TablePredicateInput"
-                    },
-                    {
-                      "type": "object",
-                      "title": "Predicate condition",
-                      "description": "One column comparison.",
-                      "properties": {
-                        "field": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 128,
-                          "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
-                        },
-                        "op": {
-                          "type": "string",
-                          "enum": [
-                            "eq",
-                            "ne",
-                            "gt",
-                            "gte",
-                            "lt",
-                            "lte",
-                            "in",
-                            "nin",
-                            "contains",
-                            "ncontains",
-                            "startsWith",
-                            "endsWith",
-                            "like",
-                            "ilike",
-                            "nlike",
-                            "nilike",
-                            "isEmpty",
-                            "isNotEmpty",
-                            "isNull",
-                            "isNotNull"
-                          ],
-                          "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
-                        },
-                        "value": {
-                          "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
-                        }
-                      },
-                      "required": ["field", "op"],
-                      "additionalProperties": false
-                    }
-                  ]
-                }
-              }
-            },
-            "required": ["any"],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "title": "Predicate condition",
-            "description": "One column comparison.",
-            "properties": {
-              "field": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 128,
-                "description": "Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`."
-              },
-              "op": {
-                "type": "string",
-                "enum": [
-                  "eq",
-                  "ne",
-                  "gt",
-                  "gte",
-                  "lt",
-                  "lte",
-                  "in",
-                  "nin",
-                  "contains",
-                  "ncontains",
-                  "startsWith",
-                  "endsWith",
-                  "like",
-                  "ilike",
-                  "nlike",
-                  "nilike",
-                  "isEmpty",
-                  "isNotEmpty",
-                  "isNull",
-                  "isNotNull"
-                ],
-                "description": "Comparison operator. The `TablePredicate` schema description carries the grammar for all of them."
-              },
-              "value": {
-                "description": "Operand. A scalar for the comparison operators, an array of at most 1000 entries for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`."
-              }
-            },
-            "required": ["field", "op"],
-            "additionalProperties": false
-          }
-        ]
       },
       "QueryTableRowsRequest": {
         "type": "object",
@@ -7331,16 +7521,16 @@
             }
           },
           "deploymentMode": {
-            "description": "Workflow execution mode.",
             "type": "string",
-            "enum": ["live", "deployed"]
+            "enum": ["live", "deployed"],
+            "description": "Which workflow state per-cell runs execute against. `deployed` (the default when a group was created without one) runs the latest active deployment and refuses to run while the workflow is undeployed; `live` runs the editable draft."
           },
           "autoRun": {
             "description": "Whether the group automatically runs for new rows.",
             "type": "boolean"
           }
         },
-        "required": ["id", "workflowId", "outputs"],
+        "required": ["id", "workflowId", "outputs", "deploymentMode"],
         "additionalProperties": false,
         "title": "Table workflow group",
         "description": "A workflow or enrichment producer and the columns it populates."
@@ -7585,7 +7775,8 @@
             "description": "Workflow or enrichment producer definition."
           },
           "outputColumns": {
-            "minItems": 1,
+            "default": [],
+            "description": "Columns to create for producer outputs. An entry naming a column the table already has attaches that column to the group instead of creating it (its `type` must match), and an output whose column already exists may omit its entry entirely — so `[]` attaches existing columns only.",
             "type": "array",
             "items": {
               "type": "object",
@@ -7611,8 +7802,7 @@
               },
               "required": ["name", "type"],
               "additionalProperties": false
-            },
-            "description": "Columns created for producer outputs."
+            }
           },
           "autoRun": {
             "default": false,
@@ -7620,7 +7810,7 @@
             "type": "boolean"
           }
         },
-        "required": ["workspaceId", "group", "outputColumns"],
+        "required": ["workspaceId", "group"],
         "additionalProperties": false,
         "title": "Add table workflow group request",
         "description": "Workspace scope, producer definition, and output columns.",
@@ -7969,7 +8159,7 @@
                 "type": "null"
               }
             ],
-            "description": "Background dispatch identifier, or null when execution is inline."
+            "description": "Run dispatch ID, or null when no dispatch is available to poll. Use row reads with `includeRunState` to check cell outcomes."
           }
         },
         "required": ["dispatchId"],
@@ -8025,7 +8215,7 @@
             }
           },
           "filter": {
-            "$ref": "#/components/schemas/TablePredicate"
+            "$ref": "#/components/schemas/TablePredicateInput"
           },
           "excludeRowIds": {
             "description": "Rows excluded from a select-all run scope.",
@@ -8058,13 +8248,7 @@
         "required": ["workspaceId", "groupIds"],
         "additionalProperties": false,
         "title": "Create table dispatch request",
-        "description": "Workspace scope, producer groups, execution mode, and optional row scope.",
-        "examples": [
-          {
-            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-            "groupIds": ["grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204"]
-          }
-        ]
+        "description": "Workspace scope, producer groups, execution mode, and optional row scope."
       },
       "V2RunRowEnrichmentResponse": {
         "type": "object",
@@ -8170,7 +8354,7 @@
             "description": "Case-insensitive cell substring to find."
           },
           "predicate": {
-            "$ref": "#/components/schemas/TablePredicate"
+            "$ref": "#/components/schemas/TablePredicateInput"
           },
           "sort": {
             "description": "Ordered table-row sort specification.",
@@ -8199,22 +8383,7 @@
         "required": ["workspaceId", "q"],
         "additionalProperties": false,
         "title": "Search table rows request",
-        "description": "Workspace scope, substring query, and optional predicate and sort.",
-        "examples": [
-          {
-            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-            "q": "acme",
-            "predicate": {
-              "all": [
-                {
-                  "field": "status",
-                  "op": "eq",
-                  "value": "active"
-                }
-              ]
-            }
-          }
-        ]
+        "description": "Workspace scope, substring query, and optional predicate and sort."
       },
       "V2TableUploadImportSource": {
         "type": "object",
@@ -8368,7 +8537,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Lower bound on the source records the CSV parser could not read and dropped, counted as one per parser failure. A single failure can discard more than one record — an unterminated quote swallows the rest of the file and is reported once — so the true loss may be larger. Non-zero means the import is partial even when the status is completed; zero is not a guarantee that nothing was dropped."
+            "description": "Minimum number of source records dropped by parser failures. One failure can discard multiple records, such as an unterminated quote consuming the rest of the file. A non-zero value means partial import even with `completed` status; zero does not guarantee no loss."
           },
           "cellsRejected": {
             "type": "integer",
@@ -8451,7 +8620,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Signed URL to which the file bytes are uploaded. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. The URL is signed and self-describing — construct it from this field only, never by hand.\n\n**Where this URL points depends on the deployment, and so does what answers you.** When Sim stores objects itself the URL is Sim's own data plane: success is `204` with an empty body, and a failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response — `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. When object storage is configured — S3, Google Cloud Storage, or Azure Blob — the URL is that provider's own presigned URL, and the provider answers directly: treat **any `2xx` as success** (S3 and GCS answer `200`, Azure `201`), and on failure expect the provider's error document, typically XML, not the v2 envelope. Do not branch on `204` and do not parse a failure as JSON."
+            "description": "Signed URL to which the file bytes are uploaded. Upload bytes with `PUT` and exactly the supplied headers; never construct or modify the signed URL. Treat any `2xx` as success. Sim-hosted URLs return an empty `204` and v2 JSON errors. Object-storage URLs may return `200` or `201` and provider-specific errors, often XML."
           },
           "headers": {
             "type": "object",
@@ -8610,7 +8779,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Lower bound on the source records the CSV parser could not read and dropped, counted as one per parser failure. A single failure can discard more than one record — an unterminated quote swallows the rest of the file and is reported once — so the true loss may be larger. Non-zero means the import is partial even when the status is completed; zero is not a guarantee that nothing was dropped."
+            "description": "Minimum number of source records dropped by parser failures. One failure can discard multiple records, such as an unterminated quote consuming the rest of the file. A non-zero value means partial import even with `completed` status; zero does not guarantee no loss."
           },
           "cellsRejected": {
             "type": "integer",
@@ -8954,7 +9123,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991,
-            "description": "Lower bound on the source records the CSV parser could not read and dropped, counted as one per parser failure. A single failure can discard more than one record — an unterminated quote swallows the rest of the file and is reported once — so the true loss may be larger. Non-zero means the import is partial even when the status is completed; zero is not a guarantee that nothing was dropped."
+            "description": "Minimum number of source records dropped by parser failures. One failure can discard multiple records, such as an unterminated quote consuming the rest of the file. A non-zero value means partial import even with `completed` status; zero does not guarantee no loss."
           },
           "cellsRejected": {
             "type": "integer",
@@ -9064,7 +9233,7 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Signed URL for this upload part. Send the bytes with `PUT` to this URL, including exactly the headers in `headers` and nothing that alters the body. The URL is signed and self-describing — construct it from this field only, never by hand.\n\n**Where this URL points depends on the deployment, and so does what answers you.** When Sim stores objects itself the URL is Sim's own data plane: success is `204` with an empty body, and a failure is the same `{ \"error\": { \"code\", \"message\" } }` envelope as every other v2 response — `400` when the body does not match the size or content type the session was created for, `403` when the token is invalid, expired, or belongs to another session, and `409` when the session is no longer accepting bytes. When object storage is configured — S3, Google Cloud Storage, or Azure Blob — the URL is that provider's own presigned URL, and the provider answers directly: treat **any `2xx` as success** (S3 and GCS answer `200`, Azure `201`), and on failure expect the provider's error document, typically XML, not the v2 envelope. Do not branch on `204` and do not parse a failure as JSON.\n\nYou do not need to retain the `ETag` each part upload returns. Unlike a raw S3 multipart flow, completion takes no request body: Sim lists the uploaded parts from the provider itself and reads their entity tags there, so `POST .../complete` only has to happen after every part has been sent."
+            "description": "Signed URL for this upload part. Upload bytes with `PUT` and exactly the supplied headers; never construct or modify the signed URL. Treat any `2xx` as success. Sim-hosted URLs return an empty `204` and v2 JSON errors. Object-storage URLs may return `200` or `201` and provider-specific errors, often XML. Do not retain part `ETag` values; after every part succeeds, call the completion endpoint without a request body."
           },
           "headers": {
             "type": "object",
@@ -9389,7 +9558,7 @@
             "minLength": 1
           },
           "filter": {
-            "$ref": "#/components/schemas/TablePredicate"
+            "$ref": "#/components/schemas/TablePredicateInput"
           },
           "excludeRowIds": {
             "description": "Rows excluded from an all-scope cancellation.",
@@ -9404,14 +9573,7 @@
         "required": ["workspaceId", "scope"],
         "additionalProperties": false,
         "title": "Cancel table runs request",
-        "description": "Workspace scope, cancellation scope, and optional predicate or producer groups.",
-        "examples": [
-          {
-            "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
-            "scope": "row",
-            "rowId": "row_1f3e5d7c9b8a4c2d806e4a6b8d0f2e93"
-          }
-        ]
+        "description": "Workspace scope, cancellation scope, and optional predicate or producer groups."
       },
       "V2Folder": {
         "type": "object",
@@ -9540,8 +9702,8 @@
             "$ref": "#/components/schemas/NonRootFolderPathInput"
           },
           "destinationPath": {
-            "description": "New full path for the folder and its descendants.",
-            "$ref": "#/components/schemas/NonRootFolderPathInput"
+            "description": "Where the folder lands, with `mv` semantics. A path naming an existing folder receives the source as a child under its current name; `/` moves it to the workspace root under its current name; any other path becomes the folder’s new full path (a rename, a relocation, or both).",
+            "$ref": "#/components/schemas/FolderPathInput"
           }
         },
         "required": ["workspaceId", "path", "destinationPath"],
@@ -9881,7 +10043,7 @@
           },
           "status": {
             "type": "string",
-            "description": "How this provider ended: `matched`, `no_match`, `skipped`, `error`, or `not_run`. Declared as a string rather than a closed enum because the value is read back out of a schemaless JSONB blob — a member added by a newer runner must widen a client's switch, not fail its read."
+            "description": "Provider outcome: `matched`, `no_match`, `skipped`, `error`, or `not_run`. Handle unrecognized values, since additional statuses may be returned."
           },
           "cost": {
             "type": "number",
@@ -9908,10 +10070,29 @@
         "title": "Enrichment provider outcome",
         "description": "One provider's result within an enrichment cascade."
       },
-      "V2RowEnrichmentResponse": {
+      "V2RowGroupEnrichment": {
         "type": "object",
         "properties": {
-          "data": {
+          "groupId": {
+            "type": "string",
+            "description": "Workflow or enrichment group this answers for."
+          },
+          "runState": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/V2TableRowRunState"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Most recent run of this group on this row — the same shape `includeRunState` reports — or null when the group has never run for the row."
+          },
+          "outputs": {
+            "description": "The group's output cells keyed by column name. A column the run has not populated is null.",
+            "$ref": "#/components/schemas/V2TableRowData"
+          },
+          "cascade": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/V2EnrichmentRunDetail"
@@ -9920,13 +10101,26 @@
                 "type": "null"
               }
             ],
-            "description": "Response data."
+            "description": "Provider cascade behind the cell, or null when none was recorded — a manual workflow group, a group that has not run, or a run predating the breakdown."
+          }
+        },
+        "required": ["groupId", "runState", "outputs", "cascade"],
+        "additionalProperties": false,
+        "title": "Row group enrichment",
+        "description": "Run state, output cells, and provider cascade for one group on one row."
+      },
+      "V2RowEnrichmentResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2RowGroupEnrichment"
           }
         },
         "required": ["data"],
         "additionalProperties": false,
         "title": "Row enrichment response",
-        "description": "Provider cascade, cost, and timing for one enrichment cell."
+        "description": "Run state, output cells, and provider cascade for one group on one row."
       },
       "V2TableRunDispatch": {
         "type": "object",
@@ -10124,7 +10318,7 @@
         "required": ["data", "nextCursor"],
         "additionalProperties": false,
         "title": "Table run dispatch list response",
-        "description": "The table's active run dispatches."
+        "description": "The table's most recent run dispatches, settled ones included."
       },
       "V2MoveTablesData": {
         "type": "object",
@@ -10417,7 +10611,32 @@
         "required": ["data"],
         "additionalProperties": false,
         "title": "Bulk delete tables response",
-        "description": "Per-item outcome of a bulk table and folder delete."
+        "description": "Per-item outcome of a bulk table and folder delete.",
+        "examples": [
+          {
+            "data": {
+              "deleted": [
+                {
+                  "kind": "table",
+                  "id": "tbl_7c9e6679742540de944be07fc1f90ae7",
+                  "name": "Leads"
+                },
+                {
+                  "kind": "folder",
+                  "id": "/Sales/Archive",
+                  "name": "/Sales/Archive"
+                }
+              ],
+              "skipped": [],
+              "notFound": [],
+              "failed": [],
+              "deletedItems": {
+                "tables": 1,
+                "folders": 1
+              }
+            }
+          }
+        ]
       },
       "BulkDeleteTablesRequest": {
         "type": "object",

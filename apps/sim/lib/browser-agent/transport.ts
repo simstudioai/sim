@@ -97,9 +97,15 @@ export function initBrowserAgentTransport(): void {
     useBrowserSessionStore.getState().setSessionAlive(alive, scopeId)
   })
   agent.onScopeSuspended(applyBrowserScopeSuspended)
+  agent.registerSitePermissionPromptSupport?.()
 }
 
-/** Makes one chat's browser set active in both renderer and desktop. */
+/**
+ * Makes one chat's browser set active in both renderer and desktop, then
+ * materializes its persisted pages. Each live page is a resource tab, so the
+ * tab list has to exist before any browser panel is mounted rather than being
+ * hydrated by the panel reporting its bounds.
+ */
 export async function activateBrowserScope(scopeId: string): Promise<void> {
   activeScopeId = scopeId
   useBrowserSessionStore.getState().activateScope(scopeId)
@@ -107,11 +113,12 @@ export async function activateBrowserScope(scopeId: string): Promise<void> {
   if (!agent) return
   const tabs = await agent.activateScope(scopeId)
   useBrowserSessionStore.getState().setTabsState(tabs)
+  if (tabs.tabs.length === 0 && activeScopeId === scopeId) await restoreBrowserScope(scopeId)
 }
 
 /**
- * Materializes persisted tabs for a lazily activated scope without waiting for
- * its React panel to mount and report native-view bounds.
+ * Materializes persisted tabs for a lazily activated scope. Safe to repeat: a
+ * scope that already hydrated answers with its live list.
  */
 export async function restoreBrowserScope(scopeId: string): Promise<boolean> {
   const agent = bridge()
@@ -352,39 +359,40 @@ export async function openBrowserTab(
   return state
 }
 
-/** Opens a distinct browser tab and navigates it after the shell accepts it. */
+/**
+ * Opens a distinct browser tab and navigates it after the shell accepts it.
+ * Resolves with the new tab's id, or null on older shells that only confirm
+ * through a later tab-state push.
+ */
 export async function openUrlInNewBrowserTab(
   url: string,
   scopeId = currentBrowserScopeId()
-): Promise<void> {
-  await openBrowserTab(scopeId)
+): Promise<string | null> {
+  const agent = bridge()
+  if (!agent) throw new Error('The Sim desktop browser agent is unavailable.')
+  if (agent.openUrl) {
+    const state = await agent.openUrl(url, scopeId)
+    if (state.scopeId !== scopeId || !state.activeTabId) {
+      throw new Error('The desktop browser did not confirm the new tab.')
+    }
+    useBrowserSessionStore.getState().setTabsState(state)
+    return state.activeTabId
+  }
+  const state = await openBrowserTab(scopeId)
   sendBrowserPanelAction('navigate', { url }, scopeId)
+  return state?.activeTabId ?? null
 }
 
-/** Pins or unpins a live browser tab. */
-export function setBrowserTabPinned(
-  tabId: string,
-  pinned: boolean,
-  scopeId = currentBrowserScopeId()
-): void {
-  bridge()?.setTabPinned(tabId, pinned, scopeId)
-}
-
-/** Opens the desktop shell's native menu for one browser tab. */
-export function showBrowserTabContextMenu(tabId: string, scopeId = currentBrowserScopeId()): void {
-  bridge()?.showTabContextMenu(tabId, scopeId)
-}
-
-/** Moves a live browser tab to its final list index. */
+/**
+ * Mirrors a resource-strip reorder into the native tab list, so restore and
+ * the agent's tab list keep the strip's order. Older shells keep native order.
+ */
 export function reorderBrowserTab(
   tabId: string,
   targetIndex: number,
   scopeId = currentBrowserScopeId()
 ): void {
-  const agent = bridge()
-  if (!agent) return
-  useBrowserSessionStore.getState().reorderTab(scopeId, tabId, targetIndex)
-  agent.reorderTab(tabId, targetIndex, scopeId)
+  bridge()?.reorderTab?.(tabId, targetIndex, scopeId)
 }
 
 /** Mirrors Sim's raw light/dark/system preference into embedded pages. */
@@ -482,27 +490,6 @@ export function onBrowserFillAvailability(
       },
       scopeId
     ) ?? (() => {})
-  )
-}
-
-/** Saved accounts that the active scoped page can accept right now. */
-export function loadBrowserFillOptions(
-  scopeId = currentBrowserScopeId()
-): Promise<BrowserCredentialMetadata[]> {
-  return (
-    getDesktopBridge()
-      ?.browserCredentials.listFillOptions(scopeId)
-      .catch(() => []) ?? Promise.resolve([])
-  )
-}
-
-/** Fills one user-selected saved account into the active scoped page. */
-export function fillBrowserCredential(
-  credentialId: string,
-  scopeId = currentBrowserScopeId()
-): Promise<boolean> {
-  return (
-    getDesktopBridge()?.browserCredentials.fill(credentialId, scopeId) ?? Promise.resolve(false)
   )
 }
 
@@ -672,6 +659,7 @@ export function setBrowserPanelOccluded(
  * with its left edge shifted by the divider's travel. Call at drag start with
  * the divider position (the panel's left edge in viewport CSS pixels); the
  * returned predictor reports a rect per pointer move, before layout runs.
+ * Pass the current scope with each prediction if a pending chat adopts its durable ID mid-drag.
  * Measured reports remain authoritative and correct any drift.
  *
  * Both `startDividerX` and every `dividerX` must be the panel's REAL viewport
@@ -686,10 +674,10 @@ export function setBrowserPanelOccluded(
 export function beginBrowserPanelDividerDrag(
   startDividerX: number,
   scopeId = currentBrowserScopeId()
-): ((dividerX: number) => void) | null {
+): ((dividerX: number, reportScopeId?: string) => void) | null {
   const base = latestPanelBoundsByScope.get(scopeId)
   if (!bridge() || !base) return null
-  return (dividerX: number) => {
+  return (dividerX: number, reportScopeId = scopeId) => {
     const dx = Math.round(dividerX - startDividerX)
     const width = base.width - dx
     if (width <= 0) return
@@ -699,7 +687,7 @@ export function beginBrowserPanelDividerDrag(
     reportBrowserPanelBounds(
       { x: base.x + dx, y: base.y, width, height: base.height },
       { viewportWidth: window.innerWidth, viewportHeight: window.innerHeight, widthRatio: 0 },
-      scopeId
+      reportScopeId
     )
   }
 }

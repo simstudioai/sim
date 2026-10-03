@@ -8,6 +8,7 @@ import {
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { GoogleVaultOperationError } from '@/lib/internal/google-vault/errors'
+import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import type { GoogleVaultDownloadExportFileParams } from '@/tools/google_vault/types'
 import { enhanceGoogleVaultError } from '@/tools/google_vault/utils'
@@ -42,9 +43,9 @@ export async function downloadGoogleVaultExportFile(
   const bucket = encodeURIComponent(input.bucketName)
   const object = encodeURIComponent(input.objectName)
   const downloadUrl = `https://storage.googleapis.com/storage/v1/b/${bucket}/o/${object}?alt=media`
-  const validation = await validateUrlWithDNS(downloadUrl, 'downloadUrl')
+  const validation = await validateUrlWithDNS(downloadUrl, 'downloadUrl', 'configuredEndpoint')
   context.signal?.throwIfAborted()
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new GoogleVaultOperationError(
       enhanceGoogleVaultError(validation.error || 'Invalid URL'),
       400
@@ -52,6 +53,7 @@ export async function downloadGoogleVaultExportFile(
   }
 
   const response = await secureFetchWithPinnedIP(downloadUrl, validation.resolvedIP, {
+    profile: 'configuredEndpoint',
     method: 'GET',
     headers: { Authorization: `Bearer ${input.accessToken}` },
     maxResponseBytes: MAX_BUFFERED_TRANSFER_BYTES,
@@ -83,10 +85,8 @@ export async function downloadGoogleVaultExportFile(
     input.fileName,
     input.objectName
   )
-  return {
+  return createInternalToolFileResult({ buffer, name, mimeType }, (file) => ({
     success: true,
-    output: {
-      file: { name, mimeType, data: buffer.toString('base64'), size: buffer.length },
-    },
-  }
+    output: { file },
+  }))
 }

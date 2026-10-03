@@ -69,7 +69,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       },
     })
 
-    const accessError = await validateWorkspaceAccess(rateLimit, userId, params.workspaceId)
+    const accessError = await validateWorkspaceAccess(rateLimit, userId, params.workspaceId, 'none')
     if (accessError) return accessError
 
     const conditions = [eq(workflow.workspaceId, params.workspaceId), isNull(workflow.archivedAt)]

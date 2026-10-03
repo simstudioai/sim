@@ -130,7 +130,7 @@ export async function executeStagehandAgent(
 
   try {
     const startUrl = normalizeStagehandUrl(input.startUrl)
-    const urlValidation = await validateUrlWithDNS(startUrl, 'startUrl')
+    const urlValidation = await validateUrlWithDNS(startUrl, 'startUrl', 'requestTarget')
     context.signal?.throwIfAborted()
     if (!urlValidation.isValid) {
       return Response.json({ error: urlValidation.error }, { status: 400 })
@@ -251,7 +251,7 @@ export async function executeStagehandExtract(
 
   try {
     const url = normalizeStagehandUrl(input.url)
-    const urlValidation = await validateUrlWithDNS(url, 'url')
+    const urlValidation = await validateUrlWithDNS(url, 'url', 'requestTarget')
     context.signal?.throwIfAborted()
     if (!urlValidation.isValid) {
       return Response.json({ error: urlValidation.error }, { status: 400 })

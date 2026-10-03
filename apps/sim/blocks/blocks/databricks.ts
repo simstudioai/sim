@@ -1,18 +1,58 @@
 import { DatabricksIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { DatabricksResponse } from '@/tools/databricks/types'
 
 /** A run is parameterized either at the job level or per notebook, never both. */
 const DATABRICKS_RUN_PARAMS_FIELD = ['jobParameters', 'notebookParams'] as const
 
-export const DatabricksBlock: BlockConfig<DatabricksResponse> = {
+/** Genie operations that act on one message's query attachment. */
+const GENIE_ATTACHMENT_OPERATIONS = [
+  'genie_get_query_result',
+  'genie_execute_query',
+  'genie_download_visualization',
+]
+
+/** Genie operations that address one message in a conversation. */
+const GENIE_MESSAGE_OPERATIONS = [
+  'genie_get_message',
+  'genie_send_feedback',
+  'genie_delete_message',
+  ...GENIE_ATTACHMENT_OPERATIONS,
+]
+
+/** Genie operations that require an existing conversation. */
+const GENIE_CONVERSATION_OPERATIONS = [
+  ...GENIE_MESSAGE_OPERATIONS,
+  'genie_list_messages',
+  'genie_delete_conversation',
+  'genie_agent_list_items',
+]
+
+/** Genie operations that ask a question, optionally continuing a conversation. */
+const GENIE_ASK_OPERATIONS = ['genie_ask', 'genie_agent_ask']
+
+/** Genie operations scoped to one Genie space. */
+const GENIE_SPACE_OPERATIONS = [
+  ...GENIE_ASK_OPERATIONS,
+  ...GENIE_CONVERSATION_OPERATIONS,
+  'genie_list_conversations',
+  'genie_get_space',
+]
+
+/** Genie list operations paginated with page_size / page_token. */
+const GENIE_PAGED_OPERATIONS = [
+  'genie_list_spaces',
+  'genie_list_conversations',
+  'genie_list_messages',
+]
+
+export const DatabricksBlock: BlockConfig = {
   type: 'databricks',
   name: 'Databricks',
-  description: 'Run SQL queries and manage jobs on Databricks',
+  description: 'Run SQL, manage jobs, and ask Genie agents on Databricks',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Connect to Databricks to execute SQL queries against SQL warehouses, trigger and monitor job runs, manage clusters, and retrieve run outputs. Requires a Personal Access Token and workspace host URL.',
+    'Connect to Databricks to execute SQL queries against SQL warehouses, trigger and monitor job runs, manage clusters, and retrieve run outputs. Ask Genie spaces (Genie agents) questions in natural language and get back answers, the generated SQL, result rows, and charts, continuing a conversation across follow-ups, or run Genie agent mode for multi-step research reports. Requires a Personal Access Token and workspace host URL.',
   docsLink: 'https://docs.sim.ai/integrations/databricks',
   category: 'tools',
   integrationType: IntegrationType.Databases,
@@ -57,6 +97,47 @@ export const DatabricksBlock: BlockConfig<DatabricksResponse> = {
         get_cluster: [
           { text: 'Read the configuration of cluster', field: 'clusterId', core: true },
         ],
+        genie_ask: [
+          { text: 'Ask Genie', field: 'content', core: true },
+          { text: ', in space', field: 'spaceId' },
+        ],
+        genie_get_message: [{ text: 'Read Genie message', field: 'messageId', core: true }],
+        genie_list_messages: [
+          { text: 'List messages in Genie conversation', field: 'conversationId', core: true },
+        ],
+        genie_get_query_result: [
+          { text: 'Read the query result of Genie message', field: 'messageId', core: true },
+        ],
+        genie_execute_query: [
+          { text: 'Re-run the query of Genie message', field: 'messageId', core: true },
+        ],
+        genie_download_visualization: [
+          { text: 'Download the chart of Genie message', field: 'messageId', core: true },
+        ],
+        genie_send_feedback: [
+          { text: 'Rate Genie message', field: 'messageId', core: true },
+          { text: ' as', field: 'rating' },
+        ],
+        genie_delete_message: [{ text: 'Delete Genie message', field: 'messageId', core: true }],
+        genie_list_conversations: [
+          { text: 'List Genie conversations in space', field: 'spaceId', core: true },
+        ],
+        genie_delete_conversation: [
+          { text: 'Delete Genie conversation', field: 'conversationId', core: true },
+        ],
+        genie_list_spaces: ['List Genie spaces'],
+        genie_get_space: [{ text: 'Read Genie space', field: 'spaceId', core: true }],
+        genie_agent_ask: [
+          { text: 'Ask Genie agent', field: 'content', core: true },
+          { text: ', in space', field: 'spaceId' },
+        ],
+        genie_agent_list_items: [
+          {
+            text: 'List the history of Genie agent conversation',
+            field: 'conversationId',
+            core: true,
+          },
+        ],
       },
     },
   },
@@ -78,6 +159,20 @@ export const DatabricksBlock: BlockConfig<DatabricksResponse> = {
         { label: 'Get Run Output', id: 'get_run_output' },
         { label: 'List Clusters', id: 'list_clusters' },
         { label: 'Get Cluster', id: 'get_cluster' },
+        { label: 'Ask Genie', id: 'genie_ask' },
+        { label: 'Get Genie Message', id: 'genie_get_message' },
+        { label: 'List Genie Messages', id: 'genie_list_messages' },
+        { label: 'Get Genie Query Result', id: 'genie_get_query_result' },
+        { label: 'Execute Genie Query', id: 'genie_execute_query' },
+        { label: 'Download Genie Visualization', id: 'genie_download_visualization' },
+        { label: 'Send Genie Feedback', id: 'genie_send_feedback' },
+        { label: 'Delete Genie Message', id: 'genie_delete_message' },
+        { label: 'List Genie Conversations', id: 'genie_list_conversations' },
+        { label: 'Delete Genie Conversation', id: 'genie_delete_conversation' },
+        { label: 'List Genie Spaces', id: 'genie_list_spaces' },
+        { label: 'Get Genie Space', id: 'genie_get_space' },
+        { label: 'Ask Genie Agent', id: 'genie_agent_ask' },
+        { label: 'List Genie Agent Items', id: 'genie_agent_list_items' },
       ],
       value: () => 'execute_sql',
     },
@@ -167,7 +262,10 @@ export const DatabricksBlock: BlockConfig<DatabricksResponse> = {
       title: 'Limit',
       type: 'short-input',
       placeholder: '20',
-      condition: { field: 'operation', value: ['list_jobs', 'list_runs'] },
+      condition: {
+        field: 'operation',
+        value: ['list_jobs', 'list_runs', 'genie_agent_list_items'],
+      },
       mode: 'advanced',
     },
     {
@@ -364,6 +462,128 @@ Return ONLY the numeric timestamp in milliseconds - no explanations, no extra te
       required: { field: 'operation', value: 'get_cluster' },
     },
 
+    // ── Genie ──
+    {
+      id: 'spaceId',
+      title: 'Genie Space ID',
+      type: 'short-input',
+      placeholder: 'Enter the Genie space (agent) ID',
+      condition: { field: 'operation', value: GENIE_SPACE_OPERATIONS },
+      required: { field: 'operation', value: GENIE_SPACE_OPERATIONS },
+    },
+    {
+      id: 'content',
+      title: 'Question',
+      type: 'long-input',
+      placeholder: 'What were total sales by region last quarter?',
+      condition: { field: 'operation', value: GENIE_ASK_OPERATIONS },
+      required: { field: 'operation', value: GENIE_ASK_OPERATIONS },
+    },
+    {
+      id: 'conversationId',
+      title: 'Conversation ID',
+      type: 'short-input',
+      placeholder: 'Enter the conversation ID (leave empty to start a new one when asking)',
+      condition: {
+        field: 'operation',
+        value: [...GENIE_ASK_OPERATIONS, ...GENIE_CONVERSATION_OPERATIONS],
+      },
+      required: { field: 'operation', value: GENIE_CONVERSATION_OPERATIONS },
+    },
+    {
+      id: 'messageId',
+      title: 'Message ID',
+      type: 'short-input',
+      placeholder: 'Enter the Genie message ID',
+      condition: { field: 'operation', value: GENIE_MESSAGE_OPERATIONS },
+      required: { field: 'operation', value: GENIE_MESSAGE_OPERATIONS },
+    },
+    {
+      id: 'attachmentId',
+      title: 'Attachment ID',
+      type: 'short-input',
+      placeholder: 'queryAttachmentId, or a visualization attachmentId for charts',
+      condition: { field: 'operation', value: GENIE_ATTACHMENT_OPERATIONS },
+      required: { field: 'operation', value: GENIE_ATTACHMENT_OPERATIONS },
+    },
+    {
+      id: 'enableVisualization',
+      title: 'Generate Charts',
+      type: 'switch',
+      condition: { field: 'operation', value: GENIE_ASK_OPERATIONS },
+      mode: 'advanced',
+    },
+    {
+      id: 'rating',
+      title: 'Rating',
+      type: 'dropdown',
+      options: [
+        { label: 'Positive', id: 'POSITIVE' },
+        { label: 'Negative', id: 'NEGATIVE' },
+        { label: 'None (clear rating)', id: 'NONE' },
+      ],
+      value: () => 'POSITIVE',
+      condition: { field: 'operation', value: 'genie_send_feedback' },
+      required: { field: 'operation', value: 'genie_send_feedback' },
+    },
+    {
+      id: 'comment',
+      title: 'Comment',
+      type: 'long-input',
+      placeholder: 'Optional feedback comment',
+      condition: { field: 'operation', value: 'genie_send_feedback' },
+    },
+    {
+      id: 'includeAll',
+      title: 'Include All Users',
+      type: 'switch',
+      condition: { field: 'operation', value: 'genie_list_conversations' },
+      mode: 'advanced',
+    },
+    {
+      id: 'includeSerializedSpace',
+      title: 'Include Configuration',
+      type: 'switch',
+      condition: { field: 'operation', value: 'genie_get_space' },
+      mode: 'advanced',
+    },
+    {
+      id: 'pageSize',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '20 (max 100)',
+      condition: { field: 'operation', value: GENIE_PAGED_OPERATIONS },
+      mode: 'advanced',
+    },
+    {
+      id: 'pageToken',
+      title: 'Page Token',
+      type: 'short-input',
+      placeholder: 'nextPageToken from a previous call',
+      condition: { field: 'operation', value: GENIE_PAGED_OPERATIONS },
+      mode: 'advanced',
+    },
+    {
+      id: 'after',
+      title: 'After',
+      type: 'short-input',
+      placeholder: 'lastId from a previous call',
+      condition: { field: 'operation', value: 'genie_agent_list_items' },
+      mode: 'advanced',
+    },
+    {
+      id: 'order',
+      title: 'Order',
+      type: 'dropdown',
+      options: [
+        { label: 'Oldest first', id: 'asc' },
+        { label: 'Newest first', id: 'desc' },
+      ],
+      value: () => 'asc',
+      condition: { field: 'operation', value: 'genie_agent_list_items' },
+      mode: 'advanced',
+    },
+
     // ── Credentials (common to all operations) ──
     {
       id: 'host',
@@ -395,6 +615,20 @@ Return ONLY the numeric timestamp in milliseconds - no explanations, no extra te
       'databricks_get_run_output',
       'databricks_list_clusters',
       'databricks_get_cluster',
+      'databricks_genie_ask',
+      'databricks_genie_get_message',
+      'databricks_genie_list_messages',
+      'databricks_genie_get_query_result',
+      'databricks_genie_execute_query',
+      'databricks_genie_download_visualization',
+      'databricks_genie_send_feedback',
+      'databricks_genie_delete_message',
+      'databricks_genie_list_conversations',
+      'databricks_genie_delete_conversation',
+      'databricks_genie_list_spaces',
+      'databricks_genie_get_space',
+      'databricks_genie_agent_ask',
+      'databricks_genie_agent_list_items',
     ],
     config: {
       tool: (params) => `databricks_${params.operation}`,
@@ -407,11 +641,17 @@ Return ONLY the numeric timestamp in milliseconds - no explanations, no extra te
         if (params.offset) result.offset = Number(params.offset)
         if (params.startTimeFrom) result.startTimeFrom = Number(params.startTimeFrom)
         if (params.startTimeTo) result.startTimeTo = Number(params.startTimeTo)
+        if (params.pageSize) result.pageSize = Number(params.pageSize)
         result.includeHistory = params.includeHistory === 'true'
         result.includeResolvedValues = params.includeResolvedValues === 'true'
         result.activeOnly = params.activeOnly === 'true'
         result.completedOnly = params.completedOnly === 'true'
         result.expandTasks = params.expandTasks === 'true'
+        result.includeAll = params.includeAll === true || params.includeAll === 'true'
+        result.includeSerializedSpace =
+          params.includeSerializedSpace === true || params.includeSerializedSpace === 'true'
+        result.enableVisualization =
+          params.enableVisualization === true || params.enableVisualization === 'true'
         if (params.runType === '') result.runType = undefined
         return result
       },
@@ -445,18 +685,38 @@ Return ONLY the numeric timestamp in milliseconds - no explanations, no extra te
     runType: { type: 'string', description: 'Filter by run type' },
     startTimeFrom: { type: 'number', description: 'Filter runs started after (epoch ms)' },
     startTimeTo: { type: 'number', description: 'Filter runs started before (epoch ms)' },
+    spaceId: { type: 'string', description: 'Genie space (agent) ID' },
+    content: { type: 'string', description: 'Question to ask Genie' },
+    conversationId: { type: 'string', description: 'Genie conversation ID' },
+    messageId: { type: 'string', description: 'Genie message ID' },
+    attachmentId: { type: 'string', description: 'Genie query or visualization attachment ID' },
+    enableVisualization: { type: 'boolean', description: 'Ask Genie to generate charts' },
+    rating: { type: 'string', description: 'Genie feedback rating (POSITIVE, NEGATIVE, NONE)' },
+    comment: { type: 'string', description: 'Genie feedback comment' },
+    includeAll: { type: 'boolean', description: "Include every user's Genie conversations" },
+    includeSerializedSpace: {
+      type: 'boolean',
+      description: "Include the Genie space's serialized configuration",
+    },
+    pageSize: { type: 'number', description: 'Results per page' },
+    pageToken: { type: 'string', description: 'Pagination token' },
+    after: { type: 'string', description: 'Agent item pagination cursor' },
+    order: { type: 'string', description: 'Agent item sort order (asc or desc)' },
   },
   outputs: {
     // Execute SQL
     statementId: { type: 'string', description: 'Statement ID' },
-    status: { type: 'string', description: 'Execution status' },
+    status: { type: 'string', description: 'SQL statement, Genie message, or Genie agent status' },
     columns: { type: 'json', description: 'Result column schema' },
     data: { type: 'json', description: 'Result rows as 2D array' },
     totalRows: { type: 'number', description: 'Total row count' },
     truncated: { type: 'boolean', description: 'Whether results were truncated' },
     // List Jobs
     jobs: { type: 'json', description: 'List of jobs' },
-    hasMore: { type: 'boolean', description: 'Whether more results are available' },
+    hasMore: {
+      type: 'boolean',
+      description: 'Whether more results or Genie agent items are available',
+    },
     nextPageToken: { type: 'string', description: 'Pagination token for next page' },
     // List Warehouses
     warehouses: {
@@ -503,7 +763,10 @@ Return ONLY the numeric timestamp in milliseconds - no explanations, no extra te
     success: { type: 'boolean', description: 'Whether the cancel request was accepted' },
     // Get Run Output
     notebookOutput: { type: 'json', description: 'Notebook task output' },
-    error: { type: 'string', description: 'Error message if run failed' },
+    error: {
+      type: 'string',
+      description: 'Error message if the run failed or Genie could not answer',
+    },
     errorTrace: { type: 'string', description: 'Error stack trace' },
     logs: { type: 'string', description: 'Run log output' },
     logsTruncated: { type: 'boolean', description: 'Whether logs were truncated' },
@@ -514,6 +777,71 @@ Return ONLY the numeric timestamp in milliseconds - no explanations, no extra te
       type: 'json',
       description: 'Cluster detail (clusterId, clusterName, state, sparkVersion, autoscale, ...)',
     },
+    // Genie (chat mode)
+    conversationId: { type: 'string', description: 'Genie conversation ID' },
+    messageId: { type: 'string', description: 'Genie message ID' },
+    content: { type: 'string', description: 'Question asked to Genie' },
+    answer: { type: 'string', description: "Genie's text answer or summary" },
+    followUpQuestion: {
+      type: 'string',
+      description: 'Clarifying question Genie asked instead of, or alongside, an answer',
+    },
+    queryTitle: { type: 'string', description: 'Title of the generated query' },
+    sql: { type: 'string', description: 'SQL query Genie generated' },
+    queryDescription: { type: 'string', description: 'Description of the generated SQL' },
+    queryAttachmentId: { type: 'string', description: 'Attachment ID of the generated query' },
+    rowCount: { type: 'number', description: 'Rows returned by the generated query' },
+    thoughts: {
+      type: 'json',
+      description: 'How Genie interpreted the question and built the SQL ([{type, content}])',
+    },
+    suggestedQuestions: { type: 'json', description: 'Follow-up questions suggested by Genie' },
+    visualizations: {
+      type: 'json',
+      description: 'Charts Genie generated ([{attachmentId, title, queryAttachmentId}])',
+    },
+    errorType: { type: 'string', description: 'Genie error type when Genie failed to answer' },
+    createdTimestamp: { type: 'number', description: 'When the Genie message was created' },
+    messages: {
+      type: 'json',
+      description: 'Genie messages ([{messageId, content, status, answer, sql, ...}])',
+    },
+    file: { type: 'file', description: 'Downloaded Genie chart (PNG)' },
+    conversations: {
+      type: 'json',
+      description: 'Genie conversations ([{conversationId, title, createdTimestamp, agentType}])',
+    },
+    // Genie spaces
+    spaces: {
+      type: 'json',
+      description: 'Genie spaces ([{spaceId, title, description, warehouseId, ...}])',
+    },
+    spaceId: { type: 'string', description: 'Genie space ID' },
+    title: { type: 'string', description: 'Genie space title' },
+    description: { type: 'string', description: 'Genie space description' },
+    warehouseId: { type: 'string', description: 'SQL warehouse the Genie space queries' },
+    parentPath: { type: 'string', description: 'Workspace folder containing the Genie space' },
+    createTime: { type: 'string', description: 'When the Genie space was created' },
+    updateTime: { type: 'string', description: 'When the Genie space was last modified' },
+    serializedSpace: {
+      type: 'string',
+      description: 'Serialized Genie space configuration (JSON string)',
+    },
+    // Genie (agent mode)
+    responseId: { type: 'string', description: 'Genie agent response ID' },
+    report: { type: 'string', description: "Genie agent's final report" },
+    queries: { type: 'json', description: 'SQL the Genie agent ran ([{callId, title, sql}])' },
+    items: {
+      type: 'json',
+      description:
+        'Genie agent items ([{type, id, status, role, text, callId, name, arguments, output}])',
+    },
+    createdAt: {
+      type: 'number',
+      description: 'When the Genie agent response was created (Unix epoch seconds)',
+    },
+    firstId: { type: 'string', description: 'First Genie agent item ID in the page' },
+    lastId: { type: 'string', description: 'Last Genie agent item ID in the page' },
   },
 }
 
@@ -589,6 +917,36 @@ export const DatabricksBlockMeta = {
       tags: ['devops', 'monitoring', 'engineering'],
       alsoIntegrations: ['slack'],
     },
+    {
+      icon: DatabricksIcon,
+      title: 'Databricks Genie Slack analyst',
+      prompt:
+        'Build an agent that answers data questions asked in a Slack channel with Databricks Genie. It keeps one Genie conversation per Slack thread in a table so follow-up questions keep their context, then replies in the thread with the answer, a short table of the result rows, and the SQL Genie ran.',
+      modules: ['agent', 'tables', 'workflows'],
+      category: 'operations',
+      tags: ['analysis', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: DatabricksIcon,
+      title: 'Databricks Genie space router',
+      prompt:
+        'Create an agent that lists the Databricks Genie spaces I can access, picks the space whose title and description best fit each incoming question, asks that Genie space, and posts the answer to Slack with which space answered it.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['analysis', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: DatabricksIcon,
+      title: 'Databricks Genie KPI digest',
+      prompt:
+        "Build a scheduled workflow that asks a Databricks Genie agent every Monday for a research report on last week's key business metrics and what drove them, then posts the report and the SQL behind it to a Slack channel.",
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['reporting', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
   ],
   skills: [
     {
@@ -611,6 +969,20 @@ export const DatabricksBlockMeta = {
         'Check the status of a Databricks job run, pull its output, and diagnose failures.',
       content:
         '# Monitor a Databricks Job Run\n\nTrack a job run to completion and report results.\n\n## Steps\n1. Get the run for the given run id and read its lifecycle and result state.\n2. If still running, report progress; if finished, pull the run output.\n3. On failure, capture the error and the failing task.\n\n## Output\nA run summary with final state, key output, and (on failure) the error and failing task.',
+    },
+    {
+      name: 'ask-genie',
+      description:
+        'Ask a Databricks Genie space a data question and report the answer, result rows, and generated SQL.',
+      content:
+        '# Ask Databricks Genie\n\nAnswer a business question from governed data through Genie.\n\n## Steps\n1. If the Genie space is unknown, list Genie spaces and pick the one whose title and description fit the question.\n2. Ask Genie the question, passing the conversation ID when this is a follow-up.\n3. If Genie asked a clarifying follow-up question instead of answering, surface it to the user.\n4. Otherwise capture the answer, the result rows, and the SQL Genie ran.\n\n## Output\nThe answer in plain English, a compact table of the key rows, the SQL, and the conversation ID for follow-ups.',
+    },
+    {
+      name: 'research-with-genie-agent',
+      description:
+        'Run a multi-step Databricks Genie agent-mode investigation and summarize its report.',
+      content:
+        '# Research with a Genie Agent\n\nUse Genie agent mode for open-ended questions that need several queries.\n\n## Steps\n1. Ask the Genie agent the research question, continuing the conversation ID for follow-ups.\n2. Read the final report and the SQL queries the agent ran.\n3. List the conversation items if the reasoning or intermediate results are needed.\n\n## Output\nThe report summary, the key findings, and the queries behind them.',
     },
   ],
 } as const satisfies BlockMeta

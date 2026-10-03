@@ -10,17 +10,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuItemAction,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Duplicate,
   Layout,
   MoreHorizontal,
-  Popover,
-  PopoverContent,
-  PopoverItem,
-  PopoverScrollArea,
-  PopoverSection,
-  PopoverTrigger,
   Trash,
   toast,
 } from '@sim/emcn'
@@ -41,15 +37,15 @@ import {
 import { getWorkflowNormalizedStateContract } from '@/lib/api/contracts/workflows'
 import { useSession } from '@/lib/auth/auth-client'
 import { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permissions'
-import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
   MOTHERSHIP_SEND_MESSAGE_EVENT,
   type MothershipSendMessageDetail,
 } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { generateWorkflowJson } from '@/lib/workflows/operations/import-export'
-import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
-import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components'
+import { ConversationListItem } from '@/app/workspace/[workspaceId]/components/conversation-list-item'
+import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'
 import { getWorkflowCopilotUseChatOptions, useChat } from '@/app/workspace/[workspaceId]/home/hooks'
 import type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -70,7 +66,10 @@ import { useAutoLayout } from '@/app/workspace/[workspaceId]/w/[workflowId]/hook
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
-import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
+import { useDeleteWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
+import { RequestAccessModal } from '@/ee/access-requests/components/request-access-action'
+import { getMyAccessRequestHref } from '@/ee/access-requests/lib/navigation'
+import { useDiscoverAccessRequests } from '@/hooks/queries/access-requests'
 import { useCopilotChatSelection } from '@/hooks/queries/copilot-chat-selection'
 import {
   type CopilotChatListItem,
@@ -138,10 +137,10 @@ export const Panel = memo(function Panel() {
   const routeWorkflowId = params.workflowId as string | undefined
 
   const posthog = usePostHog()
+  const { chatEnabled } = useDeploymentShape()
   const posthogRef = useRef(posthog)
 
   const panelRef = useRef<HTMLElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const {
     activeTab: storedActiveTab,
     setActiveTab,
@@ -178,10 +177,9 @@ export const Panel = memo(function Panel() {
    * `hidden`, so a persisted `activeTab: 'copilot'` would hide all three and
    * paint an empty panel — resolve it to the toolbar instead.
    */
-  const isCopilotTabAvailable = isChatEnabled && !permissionConfig.hideCopilot
+  const isCopilotTabAvailable = chatEnabled && !permissionConfig.hideCopilot
   const activeTab: PanelTab =
     storedActiveTab === 'copilot' && !isCopilotTabAvailable ? 'toolbar' : storedActiveTab
-  const { isImporting, handleFileChange } = useImportWorkflow({ workspaceId })
   const duplicateWorkflowMutation = useDuplicateWorkflowMutation()
   const { data: workflows = {} } = useWorkflowMap(workspaceId)
   const { data: folders = {} } = useFolderMap(workspaceId)
@@ -218,6 +216,20 @@ export const Panel = memo(function Panel() {
     scope: usageLimitScope,
     isLoading: isUsageGateLoading,
   } = useUsageLimits({ workspaceId })
+  const isMemberLimitExceeded = usageExceeded && usageLimitScope === 'member'
+  const memberLimitRequest = useDiscoverAccessRequests(
+    { kind: 'workspace', workspaceId, targetKind: 'usage_limit', limit: 1, offset: 0 },
+    isMemberLimitExceeded
+  )
+  const [showLimitRequest, setShowLimitRequest] = useState(false)
+  const memberLimitTarget =
+    isMemberLimitExceeded && memberLimitRequest.isSuccess && memberLimitRequest.data.enabled
+      ? memberLimitRequest.data.entries.find((entry) => entry.state === 'requestable')
+      : undefined
+
+  if (showLimitRequest && !memberLimitTarget) {
+    setShowLimitRequest(false)
+  }
 
   // Workflow execution hook
   const { handleRunWorkflow, handleCancelExecution, isExecuting } = useWorkflowExecution()
@@ -242,10 +254,23 @@ export const Panel = memo(function Panel() {
   /**
    * Runs the workflow with usage limit check
    */
-  const runWorkflow = useCallback(async () => {
+  const runWorkflow = async () => {
     if (isUsageGateLoading) return
 
     if (usageExceeded) {
+      if (usageLimitScope === 'member' && memberLimitTarget) {
+        if (memberLimitTarget.pendingRequestId) {
+          router.push(
+            getMyAccessRequestHref(
+              { kind: 'workspace', workspaceId },
+              memberLimitTarget.pendingRequestId
+            )
+          )
+        } else {
+          setShowLimitRequest(true)
+        }
+        return
+      }
       const action = getWorkspaceUsageLimitAction(hostContext, session?.user?.id, {
         message: usageLimitMessage,
         scope: usageLimitScope,
@@ -258,15 +283,7 @@ export const Panel = memo(function Panel() {
       return
     }
     await handleRunWorkflow()
-  }, [
-    usageExceeded,
-    usageLimitMessage,
-    usageLimitScope,
-    isUsageGateLoading,
-    hostContext,
-    session?.user?.id,
-    handleRunWorkflow,
-  ])
+  }
 
   // Chat state
   const { isChatOpen, setIsChatOpen } = useChatStore(
@@ -314,7 +331,8 @@ export const Panel = memo(function Panel() {
   // Auto-select most recent on first list arrival per workflow, and drop a
   // selection that no longer matches anything in the current list (e.g. the
   // chat was deleted in another tab).
-  const autoSelectAttemptedForRef = useRef<Set<string>>(new Set())
+  const autoSelectAttemptedForRef = useRef<Set<string> | null>(null)
+  const autoSelectAttemptedFor = (autoSelectAttemptedForRef.current ??= new Set())
   useEffect(() => {
     // The list query is skipped when the tab is unavailable, so an empty list
     // there means "not fetched", not "deleted elsewhere" — clearing on it would
@@ -327,9 +345,9 @@ export const Panel = memo(function Panel() {
     }
 
     if (copilotChatId) return
-    if (autoSelectAttemptedForRef.current.has(activeWorkflowId)) return
+    if (autoSelectAttemptedFor.has(activeWorkflowId)) return
     if (copilotChatList.length === 0) return
-    autoSelectAttemptedForRef.current.add(activeWorkflowId)
+    autoSelectAttemptedFor.add(activeWorkflowId)
     setCopilotChatId(copilotChatList[0].id)
   }, [copilotChatList, copilotChatId, activeWorkflowId, isCopilotTabAvailable, setCopilotChatId])
 
@@ -512,6 +530,8 @@ export const Panel = memo(function Panel() {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<MothershipSendMessageDetail>).detail
       if (!detail?.message) return
+      /** A mode-bearing send (Ask) belongs to the home chat, which has the mode; left unclaimed, it is stored for that surface. */
+      if (detail.requestMode) return
       e.preventDefault()
       setActiveTab('copilot')
       copilotSendMessage(detail.message, detail.fileAttachments, detail.contexts, {
@@ -705,6 +725,14 @@ export const Panel = memo(function Panel() {
 
   return (
     <>
+      {showLimitRequest && memberLimitTarget && (
+        <RequestAccessModal
+          scope={{ kind: 'workspace', workspaceId }}
+          target={memberLimitTarget.target}
+          label={memberLimitTarget.label}
+          onClose={() => setShowLimitRequest(false)}
+        />
+      )}
       <aside
         ref={panelRef}
         className='panel-container relative shrink-0 overflow-hidden bg-[var(--bg)]'
@@ -712,12 +740,12 @@ export const Panel = memo(function Panel() {
       >
         <div className='flex h-full flex-col border-[var(--border)] border-l pt-3.5'>
           {/* Header */}
-          <div className='flex flex-shrink-0 items-center justify-between px-2'>
+          <div className='flex shrink-0 items-center justify-between px-2'>
             {/* More and Chat */}
             <div className='flex gap-1.5'>
               <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                 <DropdownMenuTrigger asChild>
-                  <Button className='size-[30px] rounded-[5px]'>
+                  <Button aria-label='Workflow actions' className='size-[30px]'>
                     <MoreHorizontal className='size-[14px]' />
                   </Button>
                 </DropdownMenuTrigger>
@@ -777,7 +805,8 @@ export const Panel = memo(function Panel() {
                 </DropdownMenuContent>
               </DropdownMenu>
               <Button
-                className='size-[30px] rounded-[5px]'
+                aria-label={isChatOpen ? 'Close chat' : 'Open chat'}
+                className='size-[30px]'
                 variant={isChatOpen ? 'active' : 'default'}
                 onClick={() => setIsChatOpen(!isChatOpen)}
               >
@@ -801,7 +830,7 @@ export const Panel = memo(function Panel() {
                 leftAdornment={
                   <span
                     aria-hidden='true'
-                    className='inline-flex size-5 flex-shrink-0 items-center justify-center overflow-visible'
+                    className='inline-flex size-5 shrink-0 items-center justify-center overflow-visible'
                   >
                     <ThinkingLoader
                       variant={isExecuting ? undefined : 'play'}
@@ -825,14 +854,14 @@ export const Panel = memo(function Panel() {
           </div>
 
           {/* Tabs */}
-          <div className='flex flex-shrink-0 items-center justify-between px-2 pt-3.5'>
+          <div className='flex shrink-0 items-center justify-between px-2 pt-3.5'>
             <div className='flex gap-1'>
               {isCopilotTabAvailable && (
                 <Button
-                  className={`h-[28px] truncate rounded-md border px-2 py-[5px] text-[12.5px] ${
+                  className={`h-[28px] truncate rounded-md border py-[5px] text-[12.5px] ${
                     _hasHydrated && activeTab === 'copilot'
                       ? 'border-[var(--border-1)]'
-                      : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
+                      : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)]'
                   }`}
                   variant={_hasHydrated && activeTab === 'copilot' ? 'active' : 'ghost'}
                   onClick={() => handleTabClick('copilot')}
@@ -842,10 +871,10 @@ export const Panel = memo(function Panel() {
                 </Button>
               )}
               <Button
-                className={`h-[28px] rounded-md border px-2 py-[5px] text-[12.5px] ${
+                className={`h-[28px] rounded-md border py-[5px] text-[12.5px] ${
                   _hasHydrated && activeTab === 'toolbar'
                     ? 'border-[var(--border-1)]'
-                    : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
+                    : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)]'
                 }`}
                 variant={_hasHydrated && activeTab === 'toolbar' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('toolbar')}
@@ -854,10 +883,10 @@ export const Panel = memo(function Panel() {
                 Toolbar
               </Button>
               <Button
-                className={`h-[28px] rounded-md border px-2 py-[5px] text-[12.5px] ${
+                className={`h-[28px] rounded-md border py-[5px] text-[12.5px] ${
                   _hasHydrated && activeTab === 'editor'
                     ? 'border-[var(--border-1)]'
-                    : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
+                    : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)]'
                 }`}
                 variant={_hasHydrated && activeTab === 'editor' ? 'active' : 'ghost'}
                 onClick={() => handleTabClick('editor')}
@@ -882,71 +911,68 @@ export const Panel = memo(function Panel() {
                 data-tab-content='copilot'
               >
                 {/* Copilot Header */}
-                <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between gap-2 border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'>
+                <div className='mx-[-1px] flex shrink-0 items-center justify-between gap-2 border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'>
                   <h2 className='min-w-0 flex-1 truncate text-[var(--text-primary)] text-sm'>
                     {copilotChatTitle || 'New Chat'}
                   </h2>
                   <div className='flex items-center gap-2'>
-                    <Button variant='ghost' className='p-0' onClick={handleCopilotNewChat}>
+                    <Button
+                      aria-label='New Chat'
+                      variant='ghost'
+                      className='p-0'
+                      onClick={handleCopilotNewChat}
+                    >
                       <Plus className='size-[14px]' />
                     </Button>
-                    <Popover
+                    <DropdownMenu
                       open={isCopilotHistoryOpen}
                       onOpenChange={(open) => {
                         setIsCopilotHistoryOpen(open)
                         if (open) loadCopilotChats()
                       }}
                     >
-                      <PopoverTrigger asChild>
-                        <Button variant='ghost' className='p-0'>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant='ghost' className='p-0' aria-label='Chat history'>
                           <BubbleChatDelay className='size-[14px]' />
                         </Button>
-                      </PopoverTrigger>
-                      <PopoverContent align='end' side='bottom' sideOffset={8} maxHeight={280}>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align='end'
+                        side='bottom'
+                        sideOffset={8}
+                        className='max-h-[280px] w-[220px]'
+                      >
                         {copilotChatList.length === 0 ? (
-                          <div className='px-1.5 py-4 text-center text-caption text-muted-foreground'>
-                            No chats yet
-                          </div>
+                          <DropdownMenuItem disabled>No chats yet</DropdownMenuItem>
                         ) : (
-                          <PopoverScrollArea>
-                            <PopoverSection className='pt-0'>Recent</PopoverSection>
-                            <div className='flex flex-col gap-0.5'>
-                              {copilotChatList.map((chat) => (
-                                <div key={chat.id} className='group'>
-                                  <PopoverItem
-                                    active={copilotChatId === chat.id}
-                                    onClick={() => handleCopilotSelectChat(chat)}
+                          <>
+                            <DropdownMenuLabel>Recent</DropdownMenuLabel>
+                            {copilotChatList.map((chat) => (
+                              <DropdownMenuItem
+                                key={chat.id}
+                                active={copilotChatId === chat.id}
+                                actionOpen={copilotChatId === chat.id}
+                                onSelect={() => handleCopilotSelectChat(chat)}
+                                action={
+                                  <DropdownMenuItemAction
+                                    aria-label='Delete chat'
+                                    onClick={() => handleCopilotDeleteChat(chat.id)}
                                   >
-                                    <ConversationListItem
-                                      title={chat.title || 'New Chat'}
-                                      isActive={Boolean(chat.activeStreamId)}
-                                      titleClassName='text-small'
-                                      actions={
-                                        <div
-                                          className={`flex flex-shrink-0 items-center gap-1 ${copilotChatId !== chat.id ? 'opacity-0 transition-opacity group-hover:opacity-100' : ''}`}
-                                        >
-                                          <Button
-                                            variant='ghost'
-                                            className='size-[16px] p-0'
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              handleCopilotDeleteChat(chat.id)
-                                            }}
-                                            aria-label='Delete chat'
-                                          >
-                                            <Trash className='size-[10px]' />
-                                          </Button>
-                                        </div>
-                                      }
-                                    />
-                                  </PopoverItem>
-                                </div>
-                              ))}
-                            </div>
-                          </PopoverScrollArea>
+                                    <Trash />
+                                  </DropdownMenuItemAction>
+                                }
+                              >
+                                <ConversationListItem
+                                  title={chat.title || 'New Chat'}
+                                  isActive={Boolean(chat.activeStreamId)}
+                                  titleClassName='text-small'
+                                />
+                              </DropdownMenuItem>
+                            ))}
+                          </>
                         )}
-                      </PopoverContent>
-                    </Popover>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
 

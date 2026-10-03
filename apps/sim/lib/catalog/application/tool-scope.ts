@@ -22,13 +22,16 @@ const VERSION_SUFFIX = /^\d+$/
  * An id that is itself visible is returned untouched, so an exact versioned
  * request never silently answers with a different version.
  */
-export function resolveVisibleToolId(toolId: string, visibleToolIds: ReadonlySet<string>): string {
+export function resolveVisibleToolId(
+  toolId: string,
+  visibleToolIds: ReadonlySet<string> | ReadonlyMap<string, unknown>
+): string {
   if (visibleToolIds.has(toolId)) return toolId
 
   const prefix = `${toolId}_v`
   let bestId: string | undefined
   let bestVersion = 0
-  for (const candidate of visibleToolIds) {
+  for (const candidate of visibleToolIds.keys()) {
     if (!candidate.startsWith(prefix)) continue
     const suffix = candidate.slice(prefix.length)
     if (!VERSION_SUFFIX.test(suffix)) continue
@@ -54,13 +57,36 @@ export function resolveVisibleToolId(toolId: string, visibleToolIds: ReadonlySet
  * not caller-invokable, so publishing them would advertise an id that cannot be
  * used.
  */
-export function resolveVisibleToolIds(gate: CatalogGate): Promise<Set<string>> {
+export async function resolveVisibleToolIds(gate: CatalogGate): Promise<Set<string>> {
+  return new Set((await resolveVisibleToolOwners(gate)).keys())
+}
+
+/**
+ * The same set, mapped to the block types that expose each tool.
+ *
+ * Execution needs the owner where listing needs only the id: refusing a tool
+ * the workspace's integration allowlist denies is a `403` a caller can act on,
+ * while refusing one no visible block exposes at all is a `404` — and telling
+ * those apart requires knowing which block the id came from. Derived from the
+ * same single pass so the two answers cannot disagree about what is visible.
+ *
+ * A tool can be exposed by more than one block: the `google-drive` credential
+ * authenticates `google_drive` and `google_slides_v2` alike. All of them are
+ * kept, because the allowlist convention is that any one owning block type
+ * satisfying the check is enough — permitting either already grants the access.
+ */
+export function resolveVisibleToolOwners(gate: CatalogGate): Promise<Map<string, string[]>> {
   return withCatalogBlockScope(gate, async () => {
-    const toolIds = new Set<string>()
+    const owners = new Map<string, string[]>()
     for (const block of getAllBlocks()) {
       if (!isBlockVisibleToCaller(block, gate)) continue
-      for (const toolId of block.tools?.access ?? []) toolIds.add(resolveToolId(toolId))
+      for (const rawToolId of block.tools?.access ?? []) {
+        const toolId = resolveToolId(rawToolId)
+        const existing = owners.get(toolId)
+        if (existing) existing.push(block.type)
+        else owners.set(toolId, [block.type])
+      }
     }
-    return toolIds
+    return owners
   })
 }

@@ -18,6 +18,11 @@ export const pipedriveGetPipelinesTool: ToolConfig<
   description: 'Retrieve all pipelines from Pipedrive',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'pipedrive',
+  },
+
   params: {
     accessToken: {
       type: 'string',

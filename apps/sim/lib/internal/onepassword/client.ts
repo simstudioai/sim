@@ -10,17 +10,13 @@ import type {
   VaultOverview,
   Website,
 } from '@1password/sdk'
-import { createLogger } from '@sim/logger'
-import { resolveHostAddresses } from '@sim/security/dns'
-import { isPrivateIp, unwrapIpv6Brackets } from '@sim/security/ssrf'
-import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import * as ipaddr from 'ipaddr.js'
-import { isHosted } from '@/lib/core/config/env-flags'
+import { toRecord } from '@sim/utils/object'
 import {
   MAX_JSON_API_RESPONSE_BYTES,
   type SecureFetchResponse,
   secureFetchWithPinnedIP,
+  validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 
 /** Connect-format field type strings returned by normalization. */
@@ -262,85 +258,32 @@ export async function createOnePasswordClient(serviceAccountToken: string, signa
   return client
 }
 
-const connectLogger = createLogger('OnePasswordConnect')
-
 /**
- * Enforces the SSRF policy for a resolved Connect server IP.
+ * Validates a Connect server URL against the deployment's egress policy and
+ * returns the resolved IP for DNS pinning.
  *
- * On the hosted service, all private and reserved IPs are blocked — a tenant has
- * no legitimate reason to point Connect at the platform's internal network. On
- * self-hosted deployments only link-local (cloud metadata) is blocked, since the
- * operator controls both the workflows and the network and Connect servers
- * legitimately live on private (RFC1918) addresses.
+ * The `selfHostedService` profile matches how Connect is deployed: plain HTTP on
+ * an arbitrary port is ordinary, loopback is reachable off the hosted platform,
+ * and a Connect server on the rest of a private network is reachable once the
+ * operator names it in the egress allowlist.
  *
- * @throws Error if the IP is not permitted under the active policy.
- */
-function assertConnectIpAllowed(ip: string, hostname: string): void {
-  if (isHosted) {
-    if (isPrivateIp(ip)) {
-      connectLogger.warn('1Password Connect server URL resolves to a private or reserved IP', {
-        hostname,
-        resolvedIP: ip,
-      })
-      throw new Error('1Password server URL cannot point to a private or reserved IP address')
-    }
-    return
-  }
-
-  if (ipaddr.isValid(ip) && ipaddr.process(ip).range() === 'linkLocal') {
-    connectLogger.warn('1Password Connect server URL resolves to a link-local IP', {
-      hostname,
-      resolvedIP: ip,
-    })
-    throw new Error('1Password server URL cannot point to a link-local address')
-  }
-}
-
-/**
- * Validates a Connect server URL against the SSRF policy and returns the resolved
- * IP for DNS pinning to prevent TOCTOU rebinding. See {@link assertConnectIpAllowed}
- * for the hosted vs. self-hosted policy.
- * @throws Error if the URL is invalid, fails the IP policy, or DNS fails.
+ * @throws Error if the URL is invalid, refused by the policy, or unresolvable.
  */
 export async function validateConnectServerUrl(
   serverUrl: string,
   signal?: AbortSignal
 ): Promise<string> {
   signal?.throwIfAborted()
-  let hostname: string
-  try {
-    hostname = new URL(serverUrl).hostname
-  } catch {
-    throw new Error('1Password server URL is not a valid URL')
+  const validation = await validateUrlWithDNS(
+    serverUrl,
+    '1Password server URL',
+    'selfHostedService'
+  )
+  signal?.throwIfAborted()
+  if (!validation.isValid) {
+    throw new Error(validation.error)
   }
-
-  const clean = unwrapIpv6Brackets(hostname)
-
-  if (ipaddr.isValid(clean)) {
-    assertConnectIpAllowed(clean, clean)
-    return clean
-  }
-
-  let addresses: string[]
-  let address: string
-  try {
-    const resolved = await resolveHostAddresses(clean)
-    signal?.throwIfAborted()
-    addresses = resolved.addresses
-    address = resolved.preferred
-  } catch (error) {
-    signal?.throwIfAborted()
-    connectLogger.warn('DNS lookup failed for 1Password Connect server URL', {
-      hostname: clean,
-      error: toError(error).message,
-    })
-    throw new Error('1Password server URL hostname could not be resolved')
-  }
-
-  for (const candidate of addresses) {
-    assertConnectIpAllowed(candidate, clean)
-  }
-  return address
+  return validation.resolvedIP
 }
 
 /**
@@ -379,7 +322,7 @@ export async function connectRequest(options: {
     method: options.method,
     headers,
     body: options.body ? JSON.stringify(options.body) : undefined,
-    allowHttp: true,
+    profile: 'selfHostedService',
     maxResponseBytes: options.maxResponseBytes ?? MAX_JSON_API_RESPONSE_BYTES,
     signal: options.signal,
   })
@@ -507,12 +450,6 @@ export function findItemFileAttributes(item: Item, fileId: string): FileAttribut
  * category enum strings vs Connect's SCREAMING_SNAKE_CASE) and silently no-ops or
  * corrupts the write otherwise.
  */
-function objectValue(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
-}
-
 function optionalString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined
 }
@@ -523,8 +460,8 @@ export function connectItemToSdkItem(connectItem: Record<string, unknown>, exist
 
   const fields = Array.isArray(connectItem.fields)
     ? connectItem.fields.map((value) => {
-        const field = objectValue(value)
-        const section = objectValue(field.section)
+        const field = toRecord(value)
+        const section = toRecord(field.section)
         const id = optionalString(field.id)
         return {
           /** Preserve SDK-only metadata on fields that already existed. */
@@ -540,7 +477,7 @@ export function connectItemToSdkItem(connectItem: Record<string, unknown>, exist
 
   const sections = Array.isArray(connectItem.sections)
     ? connectItem.sections.map((value) => {
-        const section = objectValue(value)
+        const section = toRecord(value)
         const id = optionalString(section.id)
         return {
           ...(id ? existingSectionsById.get(id) : undefined),
@@ -553,7 +490,7 @@ export function connectItemToSdkItem(connectItem: Record<string, unknown>, exist
   const websitesValue = connectItem.urls ?? connectItem.websites
   const websites = Array.isArray(websitesValue)
     ? websitesValue.map((value) => {
-        const website = objectValue(value)
+        const website = toRecord(value)
         return {
           url: optionalString(website.href) || optionalString(website.url) || '',
           label: optionalString(website.label) || '',

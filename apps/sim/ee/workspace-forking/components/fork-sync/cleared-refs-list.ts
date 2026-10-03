@@ -67,6 +67,7 @@ export function splitForkClearedRefs(visibleRefs: ForkClearedRef[]): {
 export const FORK_RESOURCE_KIND_LABEL: Record<string, string> = {
   table: 'table',
   'knowledge-base': 'knowledge base',
+  'file-folder': 'file folder',
   file: 'file',
   'custom-tool': 'custom tool',
   'custom-block': 'custom block',
