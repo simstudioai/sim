@@ -9,6 +9,7 @@ vi.mock('@/blocks', () => ({
 }))
 
 import {
+  getDisplayValue,
   resolveDropdownLabel,
   resolveFallbackModelsLabel,
   resolveFolderPathLabel,

@@ -183,7 +183,7 @@ describe('Knowledge Tools', () => {
           expectedIdentifier: { tagId: 'tag-definition-id' },
         },
       ])('normalizes the actual $mode UI filter shape', ({ filter, expectedIdentifier }) => {
-        const body = knowledgeSearchTool.request.body({
+        const body = knowledgeSearchTool.operation.input({
           knowledgeBaseId: 'kb-123',
           tagFilters: JSON.stringify([filter]),
         })
