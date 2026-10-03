@@ -67,7 +67,9 @@ import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { createWorkflow } from '@/lib/workflows/application/create-workflow'
 import { listWorkflowVersions } from '@/lib/workflows/application/list-workflow-versions'
 import { readWorkflow, readWorkflowMetadata } from '@/lib/workflows/application/read-workflow'
+import { readWorkflowVersion } from '@/lib/workflows/application/read-workflow-version'
 import { updateWorkflow } from '@/lib/workflows/application/update-workflow'
+import { createHistoricalSlackV2Block } from '@/lib/workflows/compatibility/slack-v2-auth.fixtures'
 
 const mocks = {
   ...hoisted,
@@ -385,5 +387,32 @@ describe('authorized workflow CRUD and version reads', () => {
         input: { workflowId: WORKFLOW_ID },
       })
     ).rejects.toThrow('Workflow version list exceeds the 1000 row limit')
+  })
+
+  it('presents historical Slack v2 auth canonically without mutating the stored version', async () => {
+    const historicalSlack = createHistoricalSlackV2Block('slack')
+    const state = {
+      blocks: { slack: historicalSlack },
+      edges: [],
+      loops: {},
+      parallels: {},
+    }
+    mockReadVersion.mockResolvedValue({
+      id: 'version-legacy-slack',
+      version: 1,
+      state,
+    })
+
+    const result = await readWorkflowVersion.execute({
+      principal: personalPrincipal,
+      input: { workflowId: WORKFLOW_ID, version: 1, includeCredentialValues: true },
+    })
+
+    expect(result.version.state.blocks.slack.subBlocks.credential.value).toBe(
+      'credential-custom-bot'
+    )
+    expect(result.version.state.blocks.slack.subBlocks).not.toHaveProperty('authMethod')
+    expect(historicalSlack.subBlocks.authMethod.value).toBe('bot_token')
+    expect(historicalSlack.subBlocks.credential.value).toBe('dormant-oauth')
   })
 })
