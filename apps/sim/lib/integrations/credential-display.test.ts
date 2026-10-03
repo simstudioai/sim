@@ -61,6 +61,7 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
   'linear-service-account': ['linear'],
   'monday-service-account': ['monday'],
   'notion-service-account': ['notion'],
+  'oracle-epm-service-account': [],
   // NetSuite remains an API-key catalog integration, like Snowflake, while its
   // block uses the shared reusable-credential selector.
   'netsuite-service-account': [],

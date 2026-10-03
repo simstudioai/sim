@@ -1,0 +1,511 @@
+---
+title: Oracle EPM Profitability and Cost Management (PCM)
+description: Calculate allocations and manage PCM data, POVs, reports, and tasks
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oracle_epm_profitability"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Automate Cloud PCM Management Ledger applications using the epm/rest/v1 API family. This is distinct from Enterprise Profitability and Cost Management (EPCM). Use a provisioned PCM environment under an eligible EPM Enterprise or legacy PCM subscription. Most operations require Service Administrator or Power User; creating an application requires Service Administrator. Report and query-export submissions accept all application roles, but task polling requires Service Administrator or Power User. File operations and file selectors require Service Administrator or an application role with Migrations - Administer. Upload inputs to profitinbox and download reports from profitoutbox. Downloads require repository paths of at most 255 UTF-8 bytes; use short output filenames. Submission and waiting are separate; retain processName and inspect the Job Library after ambiguous failures. Application, POV, model view, rule, and query names are manual inputs. Template export and undocumented nested rule-balancing fields are not exposed.
+
+
+
+## Actions
+
+### Oracle PCM Create Application
+
+Create a PCM file-based application with rule and balance dimensions. Requires Service Administrator. Submission is separate from waiting; do not blindly retry an ambiguous failure.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for a PCM environment |
+| `applicationName` | string | Yes | Exact PCM Management Ledger application name |
+| `description` | string | Yes | Description of the application |
+| `ruleDimensionName` | string | Yes | Rule dimension name |
+| `balanceDimensionName` | string | Yes | Balance dimension name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `processName` | string | Task identifier from a validated Job Status link; retain for polling |
+| `status` | number | PCM status: -1 pending, 0 success, any positive value failed |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `statusMessage` | string | Oracle status message |
+| `details` | string | Oracle task details; may be prose rather than an identifier |
+
+### Oracle PCM Enable Application
+
+Enable a PCM file-based application after loading its dimensions. Requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for a PCM environment |
+| `applicationName` | string | Yes | Exact PCM Management Ledger application name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `processName` | string | Task identifier from a validated Job Status link; retain for polling |
+| `status` | number | PCM status: -1 pending, 0 success, any positive value failed |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `statusMessage` | string | Oracle status message |
+| `details` | string | Oracle task details; may be prose rather than an identifier |
+
+### Oracle PCM Deploy Cube
+
+Deploy or redeploy the PCM calculation cube immediately. Requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for a PCM environment |
+| `applicationName` | string | Yes | Exact PCM Management Ledger application name |
+| `isKeepData` | boolean | Yes | Preserve existing cube data; cannot combine with isReplaceCube |
+| `isReplaceCube` | boolean | Yes | Replace the existing cube; cannot combine with isKeepData |
+| `comment` | string | Yes | Comment for the operation |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `processName` | string | Task identifier from a validated Job Status link; retain for polling |
+| `status` | number | PCM status: -1 pending, 0 success, any positive value failed |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `statusMessage` | string | Oracle status message |
+| `details` | string | Oracle task details; may be prose rather than an identifier |
+
+### Oracle PCM Update Dimensions
+
+Update PCM dimensions from metadata files already staged in profitinbox. Requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for a PCM environment |
+| `applicationName` | string | Yes | Exact PCM Management Ledger application name |
+| `dataFileName` | string | Yes | Filename already staged in profitinbox; dimension updates accept a delimiter-separated list |
+| `stringDelimiter` | string | No | Single separator: defaults to underscore for POVs and comma for dimension file lists |
+| `acceptableDecreasePercentage` | number | No | Maximum permitted dimension member decrease percentage, 0 to 100 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `processName` | string | Task identifier from a validated Job Status link; retain for polling |
+| `status` | number | PCM status: -1 pending, 0 success, any positive value failed |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `statusMessage` | string | Oracle status message |
+| `details` | string | Oracle task details; may be prose rather than an identifier |
+
+### Oracle PCM Load Data
+
+Load Essbase input data from a file in profitinbox. Requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for a PCM environment |
+| `applicationName` | string | Yes | Exact PCM Management Ledger application name |
+| `clearAllDataFlag` | boolean | Yes | Clear all existing data before loading |
+| `dataLoadValue` | string | Yes | How incoming values affect existing data Allowed values: ADD_EXISTING_VALUES, OVERWRITE_EXISTING_VALUES. |
+| `dataFileName` | string | Yes | Filename already staged in profitinbox; dimension updates accept a delimiter-separated list |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `processName` | string | Task identifier from a validated Job Status link; retain for polling |
+| `status` | number | PCM status: -1 pending, 0 success, any positive value failed |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `statusMessage` | string | Oracle status message |
+| `details` | string | Oracle task details; may be prose rather than an identifier |
+
+### Oracle PCM Run Calculation
+
+Run PCM allocations using all rules, a rule-set range, or one rule. Requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for a PCM environment |
+| `applicationName` | string | Yes | Exact PCM Management Ledger application name |
+| `povName` | string | Yes | POV members joined by stringDelimiter; model POV for calculations |
+| `exeType` | string | Yes | Rules to execute; dataPOVName requires ALL_RULES Allowed values: ALL_RULES, RULESET_SUBSET, SINGLE_RULE. |
+| `dataPOVName` | string | No | Optional different data POV; requires ALL_RULES |
+| `isClearCalculated` | boolean | No | Clear previously calculated data |
+| `optimizeReporting` | boolean | No | Run default aggregation after calculation |
+| `subsetStart` | number | No | First rule-set sequence; required for RULESET_SUBSET |
+| `subsetEnd` | number | No | Last rule-set sequence; required for RULESET_SUBSET |
+| `ruleName` | string | No | Existing rule name; required for SINGLE_RULE |
+| `ruleSetName` | string | No | Existing rule set name; required for SINGLE_RULE |
+| `comment` | string | No | Comment for the operation |
+| `stringDelimiter` | string | No | Single separator: defaults to underscore for POVs and comma for dimension file lists |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `processName` | string | Task identifier from a validated Job Status link; retain for polling |
+| `status` | number | PCM status: -1 pending, 0 success, any positive value failed |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `statusMessage` | string | Oracle status message |
+| `details` | string | Oracle task details; may be prose rather than an identifier |
+
+### Oracle PCM Copy POV
+
+Copy PCM rules and input data to a destination POV. Requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for a PCM environment |
+| `applicationName` | string | Yes | Exact PCM Management Ledger application name |
+| `povName` | string | Yes | POV members joined by stringDelimiter; model POV for calculations |
+| `destinationPovName` | string | Yes | Destination POV members joined by stringDelimiter |
+| `isManageRule` | boolean | Yes | Copy or clear program rules for the selected POV |
+| `isInputData` | boolean | Yes | Copy or clear input data for the selected POV |
+| `modelViewName` | string | No | Existing model view to limit the data slice |
+| `createDestPOV` | boolean | Yes | Create the destination POV if it does not exist |
+| `nonEmptyTupleEnabled` | boolean | No | Enable nonempty tuple optimization when copying data |
+| `stringDelimiter` | string | Yes | Single separator: defaults to underscore for POVs and comma for dimension file lists |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `processName` | string | Task identifier from a validated Job Status link; retain for polling |
+| `status` | number | PCM status: -1 pending, 0 success, any positive value failed |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `statusMessage` | string | Oracle status message |
+| `details` | string | Oracle task details; may be prose rather than an identifier |
+
+### Oracle PCM Clear POV
+
+Clear selected PCM POV rules or data, optionally limiting input data by an existing query. Requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for a PCM environment |
+| `applicationName` | string | Yes | Exact PCM Management Ledger application name |
+| `povName` | string | Yes | POV members joined by stringDelimiter; model POV for calculations |
+| `isManageRule` | boolean | No | Copy or clear program rules for the selected POV |
+| `isInputData` | boolean | No | Copy or clear input data for the selected POV |
+| `queryName` | string | No | Existing PCM query; exports with no query export all application data |
+| `isAllocatedValues` | boolean | No | Clear allocated values; incompatible with queryName |
+| `isAdjustmentValues` | boolean | No | Clear adjustment values; incompatible with queryName |
+| `stringDelimiter` | string | No | Single separator: defaults to underscore for POVs and comma for dimension file lists |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `processName` | string | Task identifier from a validated Job Status link; retain for polling |
+| `status` | number | PCM status: -1 pending, 0 success, any positive value failed |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `statusMessage` | string | Oracle status message |
+| `details` | string | Oracle task details; may be prose rather than an identifier |
+
+### Oracle PCM Get Rule Balancing
+
+Read documented scalar rule-balancing results for a PCM POV and model view; nested rules are not exposed. Requires Service Administrator or Power User.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for a PCM environment |
+| `applicationName` | string | Yes | Exact PCM Management Ledger application name |
+| `povName` | string | Yes | POV members joined by stringDelimiter; model POV for calculations |
+| `modelViewName` | string | Yes | Existing model view to limit the data slice |
+| `stringDelimiter` | string | No | Single separator: defaults to underscore for POVs and comma for dimension file lists |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | number | status output from the tool |
+| `items` | array | Documented scalar rule-balancing fields; nested rules are omitted |
+|   ↳ `ruleNumber` | string | ruleNumber output from the tool |
+|   ↳ `balanceTypeRule` | boolean | balanceTypeRule output from the tool |
+|   ↳ `scale` | number | scale output from the tool |
+|   ↳ `sequence` | number | sequence output from the tool |
+|   ↳ `name` | string | name output from the tool |
+|   ↳ `description` | string | description output from the tool |
+|   ↳ `runningBalance` | number | runningBalance output from the tool |
+|   ↳ `balance` | number | balance output from the tool |
+|   ↳ `allocationIn` | number | allocationIn output from the tool |
+|   ↳ `allocationOut` | number | allocationOut output from the tool |
+|   ↳ `adjustmentIn` | number | adjustmentIn output from the tool |
+|   ↳ `adjustmentOut` | number | adjustmentOut output from the tool |
+|   ↳ `input` | number | input output from the tool |
+|   ↳ `runningRemainder` | number | runningRemainder output from the tool |
+|   ↳ `remainder` | number | remainder output from the tool |
+|   ↳ `netChange` | number | netChange output from the tool |
+|   ↳ `offset` | number | offset output from the tool |
+
+### Oracle PCM Generate Program Documentation
+
+Submit a PCM program documentation report to profitoutbox. Available to all application roles; status polling requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for a PCM environment |
+| `applicationName` | string | Yes | Exact PCM Management Ledger application name |
+| `povName` | string | Yes | POV members joined by stringDelimiter; model POV for calculations |
+| `fileName` | string | No | Filename without a folder for upload/import/export; download uses the listed profitoutbox path |
+| `fileType` | string | No | Program documentation format Allowed values: PDF, XML, WORD, EXCEL, HTML. |
+| `skipFilters` | boolean | No | Use level-0 member counts instead of resolving rule filters in documentation |
+| `subsetStart` | number | No | First rule-set sequence; required for RULESET_SUBSET |
+| `subsetEnd` | number | No | Last rule-set sequence; required for RULESET_SUBSET |
+| `useAlias` | boolean | No | Use aliases in the program documentation report |
+| `stringDelimiter` | string | No | Single separator: defaults to underscore for POVs and comma for dimension file lists |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `processName` | string | Task identifier from a validated Job Status link; retain for polling |
+| `status` | number | PCM status: -1 pending, 0 success, any positive value failed |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `statusMessage` | string | Oracle status message |
+| `details` | string | Oracle task details; may be prose rather than an identifier |
+
+### Oracle PCM Export Query Results
+
+Export an existing PCM query or application data to profitoutbox. Available to all application roles; status polling requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for a PCM environment |
+| `applicationName` | string | Yes | Exact PCM Management Ledger application name |
+| `fileName` | string | Yes | Filename without a folder for upload/import/export; download uses the listed profitoutbox path |
+| `queryName` | string | No | Existing PCM query; exports with no query export all application data |
+| `exportOnlyLevel0Flg` | boolean | No | Export only level-0 query data; ignored when exporting the whole application |
+| `fileOutputOptions` | string | No | Export compression and text-file output Allowed values: ZIP_ONLY, ZIP_AND_TEXT, TEXT_ONLY. |
+| `roundingPrecision` | number | No | Decimal places for named query exports; Oracle defaults to 2 |
+| `dataFormat` | string | No | NATIVE exports query data; COLUMNAR exports application data and ignores queryName Allowed values: NATIVE, COLUMNAR. |
+| `memberFilters` | string | No | JSON string mapping dimensions to level-0 member arrays; applies to COLUMNAR exports |
+| `includeHeader` | boolean | No | Include dimension column headers for COLUMNAR exports |
+| `delimiter` | string | No | Single column separator for COLUMNAR exports; Oracle defaults to space |
+| `keepDuplicateMemberFormat` | boolean | No | Use qualified duplicate member names for COLUMNAR exports |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `processName` | string | Task identifier from a validated Job Status link; retain for polling |
+| `status` | number | PCM status: -1 pending, 0 success, any positive value failed |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `statusMessage` | string | Oracle status message |
+| `details` | string | Oracle task details; may be prose rather than an identifier |
+
+### Oracle PCM Import Template
+
+Import a PCM application template ZIP already staged in profitinbox. Requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for a PCM environment |
+| `applicationName` | string | Yes | Exact PCM Management Ledger application name |
+| `description` | string | Yes | Description of the application |
+| `fileName` | string | Yes | Filename without a folder for upload/import/export; download uses the listed profitoutbox path |
+| `isApplicationOverwrite` | boolean | Yes | Overwrite an application with the same name when importing |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `processName` | string | Task identifier from a validated Job Status link; retain for polling |
+| `status` | number | PCM status: -1 pending, 0 success, any positive value failed |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `statusMessage` | string | Oracle status message |
+| `details` | string | Oracle task details; may be prose rather than an identifier |
+
+### Oracle PCM Apply Data Grants
+
+Recreate Essbase data grants from the latest PCM application grants. Requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for a PCM environment |
+| `applicationName` | string | Yes | Exact PCM Management Ledger application name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `processName` | string | Task identifier from a validated Job Status link; retain for polling |
+| `status` | number | PCM status: -1 pending, 0 success, any positive value failed |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `statusMessage` | string | Oracle status message |
+| `details` | string | Oracle task details; may be prose rather than an identifier |
+
+### Oracle PCM Merge Slices
+
+Merge PCM incremental data slices into the main database slice. Requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for a PCM environment |
+| `applicationName` | string | Yes | Exact PCM Management Ledger application name |
+| `removeZeroCells` | boolean | No | Remove zero-valued cells while merging slices |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `processName` | string | Task identifier from a validated Job Status link; retain for polling |
+| `status` | number | PCM status: -1 pending, 0 success, any positive value failed |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `statusMessage` | string | Oracle status message |
+| `details` | string | Oracle task details; may be prose rather than an identifier |
+
+### Oracle PCM Optimize Cube
+
+Control query tracking or create and clear aggregate views for a PCM ASO cube. Requires Service Administrator or Power User. Submission is separate from waiting; do not blindly retry an ambiguous failure.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for a PCM environment |
+| `applicationName` | string | Yes | Exact PCM Management Ledger application name |
+| `type` | string | Yes | ASO optimization operation Allowed values: clearAggregations, createAggregations, startQueryTracking, stopQueryTracking, createQBOAggregations. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `processName` | string | Task identifier from a validated Job Status link; retain for polling |
+| `status` | number | PCM status: -1 pending, 0 success, any positive value failed |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `statusMessage` | string | Oracle status message |
+| `details` | string | Oracle task details; may be prose rather than an identifier |
+
+### Oracle PCM Get Task Status
+
+Read PCM task status using its processName. Requires Service Administrator or Power User.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for a PCM environment |
+| `processName` | string | Yes | Task processName returned by PCM submission; not a numeric EPCM job ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `processName` | string | Task identifier from a validated Job Status link; retain for polling |
+| `status` | number | PCM status: -1 pending, 0 success, any positive value failed |
+| `state` | string | Normalized pending, succeeded, or failed state |
+| `statusMessage` | string | Oracle status message |
+| `details` | string | Oracle task details; may be prose rather than an identifier |
+
+### Oracle PCM Wait for Task
+
+Wait within a bounded deadline for a PCM task; retain processName to resume after timeout. Requires Service Administrator or Power User.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for a PCM environment |
+| `processName` | string | Yes | Task processName returned by PCM submission; not a numeric EPCM job ID |
+| `maxWaitSeconds` | number | No | Maximum wait in seconds, 1 to 3600; does not cancel the remote task |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `processName` | string | Task identifier retained even when the wait expires |
+| `timedOut` | boolean | Whether the bounded wait expired; the remote task was not cancelled |
+| `attempts` | number | Status reads before a terminal result |
+
+### Oracle PCM Upload File
+
+Upload one authorized Sim file to profitinbox, up to 100 MiB. Existing names are rejected. Requires Service Administrator or an application role with Migrations - Administer.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for a PCM environment |
+| `fileName` | string | Yes | Filename without a folder for upload/import/export; download uses the listed profitoutbox path |
+| `file` | file | Yes | One canonical Sim UserFile or one-element upload array |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fileName` | string | Uploaded repository path in profitinbox |
+| `status` | number | Zero means the ordinary-file upload succeeded |
+
+### Oracle PCM List Files
+
+List ordinary files in profitinbox and profitoutbox, excluding LCM snapshots. Requires Service Administrator or an application role with Migrations - Administer.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for a PCM environment |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `files` | array | Ordinary PCM repository files; names include profitinbox or profitoutbox |
+|   ↳ `name` | string | name output from the tool |
+|   ↳ `type` | string | type output from the tool |
+|   ↳ `size` | number | size output from the tool |
+|   ↳ `lastModifiedTime` | number | lastModifiedTime output from the tool |
+
+### Oracle PCM Download File
+
+Download one listed PCM repository file as a Sim UserFile, up to 100 MiB. Requires Service Administrator or an application role with Migrations - Administer.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle EPM service-account credential for a PCM environment |
+| `fileName` | string | Yes | Filename without a folder for upload/import/export; download uses the listed profitoutbox path |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Canonical Sim UserFile stored in this execution |
+
+
