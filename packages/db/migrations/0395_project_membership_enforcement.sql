@@ -273,13 +273,8 @@ BEGIN
     IF TG_OP <> 'DELETE' THEN next_id := NEW.project_id; END IF;
     PERFORM project_contract_lock_projects(ARRAY[previous_id, next_id]);
   ELSE
-    IF TG_TABLE_NAME = 'workspace' THEN
-      IF TG_OP <> 'INSERT' THEN previous_id := OLD.id; END IF;
-      IF TG_OP <> 'DELETE' THEN next_id := NEW.id; END IF;
-    ELSE
-      IF TG_OP <> 'INSERT' THEN previous_id := OLD.workspace_id; END IF;
-      IF TG_OP <> 'DELETE' THEN next_id := NEW.workspace_id; END IF;
-    END IF;
+    IF TG_OP <> 'INSERT' THEN previous_id := OLD.id; END IF;
+    IF TG_OP <> 'DELETE' THEN next_id := NEW.id; END IF;
     SELECT array_agg(project_id ORDER BY workspace_id) INTO owners FROM project_workspace WHERE workspace_id IN (previous_id, next_id);
     PERFORM project_contract_lock_projects(owners);
     IF owners IS DISTINCT FROM (
@@ -310,12 +305,9 @@ BEGIN
       PERFORM project_contract_assert_project(NEW.project_id);
       PERFORM project_contract_assert_workspace(NEW.workspace_id);
     END IF;
-  ELSIF TG_TABLE_NAME = 'workspace' THEN
+  ELSE
     IF TG_OP <> 'INSERT' THEN PERFORM project_contract_assert_workspace(OLD.id); END IF;
     IF TG_OP <> 'DELETE' THEN PERFORM project_contract_assert_workspace(NEW.id); END IF;
-  ELSE
-    IF TG_OP <> 'INSERT' THEN PERFORM project_contract_assert_workspace(OLD.workspace_id); END IF;
-    IF TG_OP <> 'DELETE' THEN PERFORM project_contract_assert_workspace(NEW.workspace_id); END IF;
   END IF;
   RETURN NULL;
 END;
@@ -331,7 +323,7 @@ SET LOCAL lock_timeout = '1s';
 SET LOCAL statement_timeout = '5s';
 --> statement-breakpoint
 -- Only trigger installation holds table locks. Both data scans run outside this transaction.
-LOCK TABLE workspace, project, project_workspace, workflow IN ACCESS EXCLUSIVE MODE NOWAIT;
+LOCK TABLE workspace, project, project_workspace IN ACCESS EXCLUSIVE MODE NOWAIT;
 --> statement-breakpoint
 DROP TRIGGER IF EXISTS project_contract_lock ON project;
 CREATE TRIGGER project_contract_lock BEFORE INSERT OR UPDATE OR DELETE ON project
@@ -354,16 +346,9 @@ DROP TRIGGER IF EXISTS project_contract_check ON workspace;
 CREATE CONSTRAINT TRIGGER project_contract_check AFTER INSERT OR UPDATE OF id, archived_at, organization_id, forked_from_workspace_id OR DELETE ON workspace
 DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION project_contract_after_write();
 --> statement-breakpoint
-DROP TRIGGER IF EXISTS project_contract_lock ON workflow;
-CREATE TRIGGER project_contract_lock BEFORE INSERT OR UPDATE OF workspace_id, archived_at OR DELETE ON workflow
-FOR EACH ROW EXECUTE FUNCTION project_contract_before_write();
-DROP TRIGGER IF EXISTS project_contract_check ON workflow;
-CREATE CONSTRAINT TRIGGER project_contract_check AFTER INSERT OR UPDATE OF workspace_id, archived_at OR DELETE ON workflow
-DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION project_contract_after_write();
---> statement-breakpoint
 COMMIT;
 --> statement-breakpoint
--- Installed triggers keep new writes valid while this read-only scan checks existing rows.
+-- Membership triggers and compatible workspace-guarded writers protect new writes during validation.
 SELECT pg_temp.validate_project_membership();
 --> statement-breakpoint
 DROP FUNCTION pg_temp.validate_project_membership();

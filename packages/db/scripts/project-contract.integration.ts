@@ -140,7 +140,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
       const held = createDeferred<void>()
       const release = createDeferred<void>()
       const reader = sql.begin(async (tx) => {
-        await tx`SELECT * FROM workflow`
+        await tx`SELECT * FROM project_workspace`
         held.resolve()
         await release.promise
       })
@@ -202,7 +202,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
           timeout: 12000,
         }
       )
-      expect(JSON.parse(result.stdout)).toEqual({ before: 4, after: 0 })
+      expect(JSON.parse(result.stdout)).toEqual({ before: 3, after: 0 })
       await sql.begin(async (tx) => {
         await tx`SET LOCAL statement_timeout = '500ms'`
         await tx`INSERT INTO workspace (id, name, owner_id) VALUES ('live', 'Live', 'owner')`
@@ -270,7 +270,7 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
     })
   })
 
-  it('archives all Project environments and workflows together and refuses later active workflow insertion', async () => {
+  it('requires workflows to be archived when archiving their Project and environments', async () => {
     await database(async (sql) => {
       await seed(sql)
       await enforce(sql)
@@ -285,9 +285,6 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
         await tx`UPDATE workspace SET archived_at = now()`
         await tx`UPDATE project SET archived_at = now()`
       })
-      await expect(sql`INSERT INTO workflow VALUES ('late', 'child', NULL)`).rejects.toSatisfy(
-        constraintFailure
-      )
       await expect(
         sql`UPDATE workspace SET archived_at = NULL WHERE id = 'root'`
       ).rejects.toSatisfy(constraintFailure)
@@ -295,49 +292,34 @@ describe('Project expand/backfill/contract against PostgreSQL', () => {
     })
   })
 
-  it('retries a workflow write when its environment moves Projects while the writer waits', async () => {
+  it('allows concurrent workflow lifecycle writes without rewriting or locking their Project', async () => {
     await database(async (sql) => {
       await seed(sql)
-      await enforce(sql)
-      const moved = createDeferred<void>()
+      const before = await sql`SELECT id, xmin::text FROM project`
+      const held = createDeferred<void>()
       const release = createDeferred<void>()
-      const transfer = sql.begin(async (tx) => {
-        await tx`INSERT INTO project (id, name, owner_id) VALUES ('destination', 'Destination', 'owner')`
-        await tx`UPDATE workspace SET forked_from_workspace_id = NULL WHERE id = 'child'`
-        await tx`UPDATE project_workspace SET project_id = 'destination' WHERE workspace_id = 'child'`
-        moved.resolve()
+      const writer = sql.begin(async (tx) => {
+        await tx`INSERT INTO workflow VALUES ('first', 'root', NULL)`
+        held.resolve()
         await release.promise
       })
-      await moved.promise
-      const writer = sql
-        .begin(async (tx) => {
-          await tx`SET LOCAL application_name = 'project_contract_stale_writer'`
-          await tx`INSERT INTO workflow VALUES ('racing', 'child', NULL)`
-        })
-        .then(
-          () => null,
-          (error: unknown) => error
-        )
+      await held.promise
       try {
-        let waiting = false
-        for (let attempt = 0; attempt < 100; attempt++) {
-          const rows =
-            await sql`SELECT 1 FROM pg_stat_activity WHERE application_name = 'project_contract_stale_writer' AND wait_event_type = 'Lock'`
-          if (rows.length) {
-            waiting = true
-            break
-          }
-          await sleep(10)
-        }
-        expect(waiting).toBe(true)
+        await sql.begin(async (tx) => {
+          await tx`SET LOCAL statement_timeout = '500ms'`
+          await tx`INSERT INTO workflow VALUES ('same-workspace', 'root', NULL), ('other-workspace', 'child', NULL)`
+          await tx`UPDATE workflow SET archived_at = now() WHERE id = 'other-workspace'`
+          await tx`UPDATE workflow SET workspace_id = 'child' WHERE id = 'same-workspace'`
+          await tx`DELETE FROM workflow WHERE id = 'other-workspace'`
+        })
       } finally {
         release.resolve()
+        await writer
       }
-      await transfer
-      expect(getPostgresErrorCode(await writer)).toBe('40001')
-      expect(await sql`SELECT 1 FROM workflow WHERE id = 'racing'`).toHaveLength(0)
-      await sql`INSERT INTO workflow VALUES ('retried', 'child', NULL)`
-      expect(await sql`SELECT 1 FROM workflow WHERE id = 'retried'`).toHaveLength(1)
+      expect(await sql`SELECT id, xmin::text FROM project`).toEqual(before)
+      expect(
+        await sql`SELECT id FROM workflow WHERE id = 'same-workspace' AND workspace_id = 'child'`
+      ).toHaveLength(1)
     })
   })
 
