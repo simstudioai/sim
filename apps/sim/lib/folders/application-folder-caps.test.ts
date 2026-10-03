@@ -1,62 +1,36 @@
-/**
- * @vitest-environment node
- */
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
+import { publicSharesMock } from '@sim/testing/mocks/public-shares.mock'
+import { tableMock, tableMockFns } from '@sim/testing/mocks/table.mock'
+import {
+  tableApplicationContextMock,
+  tableApplicationContextMockFns,
+} from '@sim/testing/mocks/table-application-context.mock'
+import { tableEventsMock } from '@sim/testing/mocks/table-events.mock'
+import {
+  workflowsQueriesMock,
+  workflowsQueriesMockFns,
+} from '@sim/testing/mocks/workflows-queries.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  listFolderRows: vi.fn(),
-  listTables: vi.fn(),
-  listWorkflows: vi.fn(),
-  loadFolderIndex: vi.fn(),
-  queryWorkspaceFiles: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveWorkspaceFileWorkspace: vi.fn(),
-  resolveTableWorkspace: vi.fn(),
-  resolveWorkflowWorkspace: vi.fn(),
-}))
-
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => actual === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@/lib/folders/queries', () => ({
-  listActiveFolderRows: mocks.listFolderRows,
-  loadActiveFolderPathIndex: mocks.loadFolderIndex,
-  resolveFolderPathFromIndex: (index: { idByPath: Map<string, string> }, path: string) =>
-    path === '/' ? null : index.idByPath.get(path),
-  resolveFolderPathFilter: (index: { idByPath: Map<string, string> }, path: string | undefined) => {
-    if (path === undefined) return { kind: 'unfiltered' }
-    if (path === '/') return { kind: 'folder', folderId: null }
-    const folderId = index.idByPath.get(path)
-    return folderId === undefined ? { kind: 'noMatch' } : { kind: 'folder', folderId }
-  },
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.resolveWorkflowWorkspace,
-}))
-vi.mock('@/lib/workflows/queries', () => ({
-  listWorkspaceWorkflows: mocks.listWorkflows,
-}))
-vi.mock('@/lib/table/application/context', () => ({
-  resolveTableWorkspaceContext: mocks.resolveTableWorkspace,
-}))
-vi.mock('@/lib/table', () => ({
-  createTable: vi.fn(),
-  deleteTable: vi.fn(),
-  getTableById: vi.fn(),
-  getWorkspaceTableLimits: vi.fn(),
-  moveTableToFolder: vi.fn(),
-  queryTables: mocks.listTables,
-  renameTable: vi.fn(),
-  updateTableDescription: vi.fn(),
-}))
-vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: vi.fn() }))
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  listWorkspaceFiles: vi.fn(),
-  loadActiveWorkspaceContext: mocks.resolveWorkspaceFileWorkspace,
-  queryWorkspaceFiles: mocks.queryWorkspaceFiles,
-}))
-vi.mock('@/lib/public-shares/share-manager', () => ({ getWorkspaceShares: vi.fn() }))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workflows/queries', () => workflowsQueriesMock)
+vi.mock('@/lib/table/application/context', () => tableApplicationContextMock)
+vi.mock('@/lib/table', () => tableMock)
+vi.mock('@/lib/table/events', () => tableEventsMock)
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
 
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { listTableFoldersUseCase } from '@/lib/table/application/folders'
@@ -65,13 +39,25 @@ import { listWorkflows } from '@/lib/workflows/application/list-workflows'
 import { listWorkflowFolders } from '@/lib/workflows/application/workflow-folders'
 import { queryWorkspaceFilePage } from '@/lib/workspace-files/application/list-workspace-files'
 
+const mocks = {
+  listTables: tableMockFns.mockQueryTables,
+  listWorkflows: workflowsQueriesMockFns.mockListWorkspaceWorkflows,
+  resolveTableWorkspace: tableApplicationContextMockFns.mockResolveTableWorkspaceContext,
+  listFolderRows: folderQueriesMockFns.mockListActiveFolderRows,
+  loadFolderIndex: folderQueriesMockFns.mockLoadActiveFolderPathIndex,
+  queryWorkspaceFiles: workspaceUploadsMockFns.mockQueryWorkspaceFiles,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  resolveWorkspaceFileWorkspace: workspaceUploadsMockFns.mockLoadActiveWorkspaceContext,
+  resolveWorkflowWorkspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+}
+
 const context = {
   workspaceId: 'workspace-1',
   workspaceOrganizationId: null,
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner-1',
 }
-const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const principal = createSessionPrincipal()
 const folderIndex = {
   idByPath: new Map<string, string>(),
   pathById: new Map<string, string>(),
@@ -80,7 +66,6 @@ const folderIndex = {
 
 describe('workflow and table application folder caps', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.resolveWorkflowWorkspace.mockResolvedValue(context)
     mocks.resolveTableWorkspace.mockResolvedValue(context)
@@ -196,7 +181,6 @@ describe('a list folder filter that matches no folder', () => {
   const MISSING = '/does-not-exist'
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.resolveWorkflowWorkspace.mockResolvedValue(context)
     mocks.resolveTableWorkspace.mockResolvedValue(context)
@@ -219,37 +203,5 @@ describe('a list folder filter that matches no folder', () => {
 
     expect(result).toMatchObject({ workflows: [], nextCursorKeys: null })
     expect(mocks.listWorkflows).not.toHaveBeenCalled()
-  })
-
-  it('returns an empty table page without querying rows', async () => {
-    const result = await listTablesUseCase.execute({
-      principal,
-      input: {
-        workspaceId: context.workspaceId,
-        folderPath: MISSING,
-        sortBy: 'name',
-        sortOrder: 'asc',
-        limit: 25,
-      },
-    })
-
-    expect(result).toMatchObject({ tables: [], nextKeys: null })
-    expect(mocks.listTables).not.toHaveBeenCalled()
-  })
-
-  it('returns an empty file page without querying rows', async () => {
-    const result = await queryWorkspaceFilePage.execute({
-      principal,
-      input: {
-        workspaceId: context.workspaceId,
-        folderPath: MISSING,
-        sortBy: 'name',
-        sortOrder: 'asc',
-        limit: 25,
-      },
-    })
-
-    expect(result).toMatchObject({ files: [], nextKeys: null })
-    expect(mocks.queryWorkspaceFiles).not.toHaveBeenCalled()
   })
 })

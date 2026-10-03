@@ -1,3 +1,4 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import type {
   MintlifyFeedbackPageEntry,
   MintlifyGetFeedbackByPageParams,
@@ -10,7 +11,6 @@ import {
   pathSegment,
   readMintlifyJson,
   toNullableNumber,
-  toNullableString,
 } from '@/tools/mintlify/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -19,7 +19,7 @@ function toPageEntries(value: unknown): MintlifyFeedbackPageEntry[] {
   return value.map((item) => {
     const entry = (item ?? {}) as Record<string, unknown>
     return {
-      path: toNullableString(entry.path),
+      path: toStringOrNull(entry.path),
       thumbsUp: toNullableNumber(entry.thumbsUp),
       thumbsDown: toNullableNumber(entry.thumbsDown),
       code: toNullableNumber(entry.code),

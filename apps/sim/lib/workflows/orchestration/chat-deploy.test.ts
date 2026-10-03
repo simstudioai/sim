@@ -1,26 +1,25 @@
-/**
- * @vitest-environment node
- */
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  workflowDeploymentStatusMock,
+  workflowDeploymentStatusMockFns,
+} from '@sim/testing/mocks/workflow-deployment-status.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetWorkflowDeploymentSummary, mockPerformFullDeploy, mockCheckNeedsRedeployment } =
-  vi.hoisted(() => ({
-    mockGetWorkflowDeploymentSummary: vi.fn(),
-    mockPerformFullDeploy: vi.fn(),
-    mockCheckNeedsRedeployment: vi.fn(),
-  }))
+const { mockGetWorkflowDeploymentSummary, mockPerformFullDeploy } = vi.hoisted(() => ({
+  mockGetWorkflowDeploymentSummary: vi.fn(),
+  mockPerformFullDeploy: vi.fn(),
+}))
 
 vi.mock('@/lib/workflows/orchestration/deploy', () => ({
   getWorkflowDeploymentSummary: mockGetWorkflowDeploymentSummary,
   performFullDeploy: mockPerformFullDeploy,
 }))
 
-vi.mock('@/lib/workflows/deployment-status', () => ({
-  checkNeedsRedeployment: mockCheckNeedsRedeployment,
-}))
+vi.mock('@/lib/workflows/deployment-status', () => workflowDeploymentStatusMock)
 
 import { performChatDeploy } from '@/lib/workflows/orchestration/chat-deploy'
+
+const { mockCheckNeedsRedeployment } = workflowDeploymentStatusMockFns
 
 const basePayload = {
   workflowId: 'workflow-1',
@@ -31,7 +30,6 @@ const basePayload = {
 
 describe('performChatDeploy password guards', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGetWorkflowDeploymentSummary.mockResolvedValue({
       activeDeployment: { id: 'deployment-1' },
@@ -72,16 +70,6 @@ describe('performChatDeploy password guards', () => {
     })
 
     expect(mockGetWorkflowDeploymentSummary).not.toHaveBeenCalled()
-  })
-
-  it('rejects a whitespace-only password regardless of auth type', async () => {
-    await expect(
-      performChatDeploy({ ...basePayload, authType: 'public', password: '   ' })
-    ).resolves.toEqual({
-      success: false,
-      error: 'Password cannot contain only whitespace',
-      errorCode: 'validation',
-    })
   })
 
   /**

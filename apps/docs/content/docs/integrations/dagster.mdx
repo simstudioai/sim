@@ -40,7 +40,7 @@ Launch a job run on a Dagster instance.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3000\) |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3000) |
 | `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
 | `repositoryLocationName` | string | Yes | Repository location \(code location\) name |
 | `repositoryName` | string | Yes | Repository name within the code location |
@@ -62,7 +62,7 @@ Get the status and details of a Dagster run by its ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3000\) |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3000) |
 | `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
 | `runId` | string | Yes | The ID of the run to retrieve |
 
@@ -93,7 +93,7 @@ Fetch execution event logs for a Dagster run.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001) |
 | `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
 | `runId` | string | Yes | The ID of the run to fetch logs for |
 | `afterCursor` | string | No | Cursor for paginating through log events \(from a previous response\) |
@@ -121,7 +121,7 @@ List Dagster runs with optional filters by job name, status, and creation-time r
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001) |
 | `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
 | `jobName` | string | No | Filter runs by job name \(optional\) |
 | `statuses` | string | No | Comma-separated run statuses to filter by, e.g. "SUCCESS,FAILURE" \(optional\) |
@@ -152,7 +152,7 @@ List all jobs across repositories in a Dagster instance.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001) |
 | `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
 
 #### Output
@@ -171,7 +171,7 @@ Reexecute an existing Dagster run, optionally resuming only from failed steps.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001) |
 | `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
 | `parentRunId` | string | Yes | The ID of the run to reexecute |
 | `strategy` | string | Yes | Reexecution strategy: ALL_STEPS reruns everything, FROM_FAILURE resumes from failed steps, FROM_ASSET_FAILURE resumes from failed assets |
@@ -190,7 +190,7 @@ Terminate an in-progress Dagster run.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001) |
 | `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
 | `runId` | string | Yes | The ID of the run to terminate |
 
@@ -210,7 +210,7 @@ Permanently delete a Dagster run record.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001) |
 | `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
 | `runId` | string | Yes | The ID of the run to delete |
 
@@ -228,7 +228,7 @@ List all schedules in a Dagster repository, optionally filtered by status.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001) |
 | `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
 | `repositoryLocationName` | string | Yes | Repository location \(code location\) name |
 | `repositoryName` | string | Yes | Repository name within the code location |
@@ -255,7 +255,7 @@ Enable (start) a schedule in a Dagster repository.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001) |
 | `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
 | `repositoryLocationName` | string | Yes | Repository location \(code location\) name |
 | `repositoryName` | string | Yes | Repository name within the code location |
@@ -276,7 +276,7 @@ Disable (stop) a running schedule in Dagster.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001) |
 | `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
 | `instigationStateId` | string | Yes | InstigationState ID of the schedule to stop — available from dagster_list_schedules output |
 
@@ -295,7 +295,7 @@ List all sensors in a Dagster repository, optionally filtered by status.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001) |
 | `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
 | `repositoryLocationName` | string | Yes | Repository location \(code location\) name |
 | `repositoryName` | string | Yes | Repository name within the code location |
@@ -320,7 +320,7 @@ Enable (start) a sensor in a Dagster repository.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001) |
 | `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
 | `repositoryLocationName` | string | Yes | Repository location \(code location\) name |
 | `repositoryName` | string | Yes | Repository name within the code location |
@@ -341,7 +341,7 @@ Disable (stop) a running sensor in Dagster.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001) |
 | `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
 | `instigationStateId` | string | Yes | InstigationState ID of the sensor to stop — available from dagster_list_sensors output |
 
@@ -360,7 +360,7 @@ List assets tracked by a Dagster instance, optionally filtered by key prefix.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001) |
 | `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
 | `prefix` | string | No | Slash-delimited asset key prefix to filter by, e.g. "raw" or "raw/events" \(optional\) |
 | `cursor` | string | No | Asset key cursor from a previous response, for pagination \(optional\) |
@@ -384,7 +384,7 @@ Get an asset definition and its latest materialization by asset key.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001) |
 | `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
 | `assetKey` | string | Yes | Slash-delimited asset key, e.g. "my_asset" or "raw/events" |
 
@@ -413,7 +413,7 @@ Materialize selected assets by launching their asset job with an asset selection
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001) |
 | `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
 | `repositoryLocationName` | string | Yes | Repository location \(code location\) name |
 | `repositoryName` | string | Yes | Repository name within the code location |
@@ -435,7 +435,7 @@ Report an external (runless) materialization or observation for an asset.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001) |
 | `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
 | `assetKey` | string | Yes | Slash-delimited asset key to report against, e.g. "my_asset" or "raw/events" |
 | `eventType` | string | No | Event type to report: ASSET_MATERIALIZATION \(default\) or ASSET_OBSERVATION |
@@ -457,7 +457,7 @@ DESTRUCTIVE: permanently wipes ALL materialization history (every partition) for
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001\) |
+| `host` | string | Yes | Dagster host URL \(e.g., https://myorg.dagster.cloud/prod or http://localhost:3001) |
 | `apiKey` | string | No | Dagster+ API token \(leave blank for OSS / self-hosted\) |
 | `assetKey` | string | Yes | Slash-delimited asset key to wipe, e.g. "my_asset" or "raw/events" |
 

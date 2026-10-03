@@ -13,6 +13,8 @@ export type EmailSubjectType =
   | 'enterprise-owner-invitation'
   | 'batch-invitation'
   | 'workspace-added'
+  | 'permission-access-request-created'
+  | 'permission-access-request-decided'
   | 'enterprise-subscription'
   | 'usage-threshold'
   | 'free-tier-upgrade'
@@ -54,6 +56,10 @@ export function getEmailSubject(type: EmailSubjectType): string {
       return `You've been invited to join a team and workspaces on ${brandName}`
     case 'workspace-added':
       return `You've been added to a workspace on ${brandName}`
+    case 'permission-access-request-created':
+      return `An access request needs review on ${brandName}`
+    case 'permission-access-request-decided':
+      return `Your access request was updated on ${brandName}`
     case 'enterprise-subscription':
       return `Your Enterprise Plan is now active on ${brandName}`
     case 'usage-threshold':

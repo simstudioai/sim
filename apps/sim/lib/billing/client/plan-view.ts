@@ -1,16 +1,7 @@
-import { MAX_TIER_CREDITS } from '@/lib/billing/constants'
-import { getPlanTierCredits, isEnterprise, isFree, isPaid } from '@/lib/billing/plan-helpers'
-
 /**
- * Canonical client-side plan abstraction.
+ * Client-side plan tiers and the per-card CTA on the upgrade page.
  *
- * Single source of truth for the plan-derived UI decisions shared across the
- * upgrade page, the home credits chip, the sidebar usage indicator, and the
- * settings billing page: which tier the user is on, the per-card CTA on the
- * upgrade page, whether the upgrade page is accessible, and whether credit
- * balances should be shown.
- *
- * Pure and framework-free — see {@link usePlanView} for the React Query wrapper.
+ * Pure and framework-free.
  */
 
 /** Credit-tier-resolved plan identity used to drive upgrade-page UI. */
@@ -34,30 +25,8 @@ export interface PlanCardCta {
   highlighted: boolean
 }
 
-/** Plan-derived view consumed by every billing surface. */
-export interface PlanView {
-  tier: PlanTier
-  isFree: boolean
-  isPaid: boolean
-  isEnterprise: boolean
-  /** Enterprise manages billing out-of-band — it cannot use the self-serve upgrade page. */
-  canAccessUpgrade: boolean
-  /** Credit balances are meaningless for enterprise (custom limits) and are hidden. */
-  showCredits: boolean
-}
-
 /** Tier ordering used to derive upgrade/downgrade/highlight relationships. */
 const PLAN_RANK: Record<PlanTier, number> = { free: 0, pro: 1, max: 2, enterprise: 3 }
-
-/**
- * Resolve a plan name to its credit-tier identity. Paid pro/team plans split
- * into `pro` / `max` by their credit allocation (>= 25k credits => Max).
- */
-export function resolvePlanTier(plan: string | null | undefined): PlanTier {
-  if (isEnterprise(plan)) return 'enterprise'
-  if (isFree(plan)) return 'free'
-  return getPlanTierCredits(plan) >= MAX_TIER_CREDITS ? 'max' : 'pro'
-}
 
 /**
  * Derive the CTA for a single upgrade card given the current plan tier.
@@ -99,18 +68,5 @@ export function getUpgradeCardCta(current: PlanTier, card: UpgradeCardId): PlanC
     variant: isNextStepUp ? 'primary' : 'border-shadow',
     intent: 'upgrade',
     highlighted: isNextStepUp,
-  }
-}
-
-/** Derive the shared plan view from a plan name. */
-export function derivePlanView(plan: string | null | undefined): PlanView {
-  const enterprise = isEnterprise(plan)
-  return {
-    tier: resolvePlanTier(plan),
-    isFree: isFree(plan),
-    isPaid: isPaid(plan),
-    isEnterprise: enterprise,
-    canAccessUpgrade: !enterprise,
-    showCredits: !enterprise,
   }
 }

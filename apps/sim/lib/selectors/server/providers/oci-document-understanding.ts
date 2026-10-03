@@ -18,6 +18,7 @@ import {
 import type { SafeSelectorOption } from '@/lib/selectors/types'
 
 async function prepareDestination(args: ExecuteServerSelectorArgs) {
+  if (!args.workspaceId) throw new SelectorContextUnavailableError()
   const credential = args.credential
   const credentialId = credential?.access?.resolvedCredentialId
   if (

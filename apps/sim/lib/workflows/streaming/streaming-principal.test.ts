@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createStreamingResponse } from '@/lib/workflows/streaming/streaming'

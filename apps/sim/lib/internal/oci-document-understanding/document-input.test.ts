@@ -114,7 +114,6 @@ describe('authorized document inputs', () => {
     )
     expect(safeKey).toHaveBeenCalledWith(file.key, {
       workspaceId: 'workspace-1',
-      actorUserId: 'actor-1',
     })
     expect(download).toHaveBeenCalledWith(
       file,

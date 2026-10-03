@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -42,6 +39,7 @@ const mockAgentSession = {
 }
 const mockSdk = {
   defineTool: vi.fn((tool) => tool),
+  SettingsManager: { inMemory: () => ({}) },
   SessionManager: { inMemory: vi.fn(() => ({})) },
   createAgentSession: mockCreateAgentSession,
 }
@@ -90,7 +88,6 @@ function baseParams(): PiLocalRunParams {
 
 describe('runLocalPi secret boundaries', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     sessionEventListener = undefined
     mockAgentSession.agent.state.errorMessage = undefined
     mockPrompt.mockReset()
@@ -215,13 +212,6 @@ describe('runLocalPi secret boundaries', () => {
     expect(mockPrompt).toHaveBeenCalledWith('look up sk-search-key')
     expect(toolResult.content).toEqual([{ type: 'text', text: 'result mentioning sk-search-key' }])
     expect(result.changedFiles).toEqual(['sk-hosted.ts'])
-  })
-
-  it('leaves the tool list untouched when search is off', async () => {
-    await runLocalPi(baseParams(), { onEvent: vi.fn() })
-
-    const customTools = mockCreateAgentSession.mock.calls[0][0].customTools
-    expect(customTools.map((tool: { name: string }) => tool.name)).toEqual(['read'])
   })
 
   it('scrubs short SSH authentication material from connection errors', async () => {

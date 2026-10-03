@@ -149,31 +149,31 @@ export async function parseZip(
   await mapWithConcurrency(entries, maxConcurrency, async ([path, file]) => {
     const normalizedPath = path.replace(/\\/g, '/')
 
-    // --- Content Types ---
+    // Content Types
     if (normalizedPath === '[Content_Types].xml') {
       result.contentTypes = await file.async('string')
       return
     }
 
-    // --- Presentation ---
+    // Presentation
     if (normalizedPath === 'ppt/presentation.xml') {
       result.presentation = await file.async('string')
       return
     }
 
-    // --- Presentation Rels ---
+    // Presentation Rels
     if (normalizedPath === 'ppt/_rels/presentation.xml.rels') {
       result.presentationRels = await file.async('string')
       return
     }
 
-    // --- Table Styles ---
+    // Table Styles
     if (normalizedPath === 'ppt/tableStyles.xml') {
       result.tableStyles = await file.async('string')
       return
     }
 
-    // --- Media (binary) ---
+    // Media (binary)
     if (normalizedPath.startsWith('ppt/media/')) {
       const bytes = await file.async('uint8array')
       if (!knownSizeByPath.has(normalizedPath)) {
@@ -200,67 +200,67 @@ export async function parseZip(
       return
     }
 
-    // --- Slide Rels (must check before slides to avoid false match) ---
+    // Slide Rels (must check before slides to avoid false match)
     if (/^ppt\/slides\/_rels\/slide\d+\.xml\.rels$/.test(normalizedPath)) {
       result.slideRels.set(normalizedPath, await file.async('string'))
       return
     }
 
-    // --- Slides ---
+    // Slides
     if (/^ppt\/slides\/slide\d+\.xml$/.test(normalizedPath)) {
       result.slides.set(normalizedPath, await file.async('string'))
       return
     }
 
-    // --- Slide Layout Rels ---
+    // Slide Layout Rels
     if (/^ppt\/slideLayouts\/_rels\/slideLayout\d+\.xml\.rels$/.test(normalizedPath)) {
       result.slideLayoutRels.set(normalizedPath, await file.async('string'))
       return
     }
 
-    // --- Slide Layouts ---
+    // Slide Layouts
     if (/^ppt\/slideLayouts\/slideLayout\d+\.xml$/.test(normalizedPath)) {
       result.slideLayouts.set(normalizedPath, await file.async('string'))
       return
     }
 
-    // --- Slide Master Rels ---
+    // Slide Master Rels
     if (/^ppt\/slideMasters\/_rels\/slideMaster\d+\.xml\.rels$/.test(normalizedPath)) {
       result.slideMasterRels.set(normalizedPath, await file.async('string'))
       return
     }
 
-    // --- Slide Masters ---
+    // Slide Masters
     if (/^ppt\/slideMasters\/slideMaster\d+\.xml$/.test(normalizedPath)) {
       result.slideMasters.set(normalizedPath, await file.async('string'))
       return
     }
 
-    // --- Themes ---
+    // Themes
     if (/^ppt\/theme\/theme\d+\.xml$/.test(normalizedPath)) {
       result.themes.set(normalizedPath, await file.async('string'))
       return
     }
 
-    // --- Charts ---
+    // Charts
     if (/^ppt\/charts\/chart\d+\.xml$/.test(normalizedPath)) {
       result.charts.set(normalizedPath, await file.async('string'))
       return
     }
 
-    // --- Chart Styles ---
+    // Chart Styles
     if (/^ppt\/charts\/style\d+\.xml$/.test(normalizedPath)) {
       result.chartStyles.set(normalizedPath, await file.async('string'))
       return
     }
 
-    // --- Chart Colors ---
+    // Chart Colors
     if (/^ppt\/charts\/colors\d+\.xml$/.test(normalizedPath)) {
       result.chartColors.set(normalizedPath, await file.async('string'))
       return
     }
 
-    // --- Diagram Drawings (SmartArt fallback) ---
+    // Diagram Drawings (SmartArt fallback)
     if (/^ppt\/diagrams\/drawing\d+\.xml$/.test(normalizedPath)) {
       result.diagramDrawings.set(normalizedPath, await file.async('string'))
       return

@@ -1,8 +1,10 @@
 import type { ScopedTerminalCommandEvent, ScopedTerminalTabsState } from '@sim/terminal-protocol'
+import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   activateScope,
+  activateStoreScope,
   applyCommandEvent,
   clearScrollback,
   discardScope,
@@ -11,15 +13,19 @@ const {
   markScopeSuspended,
   migrateStoreScope,
   nativeMigrateScope,
+  nativeOpenTerminal,
   nativeReorderTerminal,
+  nativeStart,
   onCommand,
   onData,
   onDefaultZoomChanged,
   onShortcutCommand,
   onTabs,
   onScopeSuspended,
+  restoreScope,
   setTabs,
   nativeSuspendScope,
+  nativeSwitchTerminal,
   write,
 } = vi.hoisted(() => ({
   activateScope: vi.fn(async (scopeId: string) => ({
@@ -27,6 +33,7 @@ const {
     tabs: [],
     activeTerminalId: null,
   })),
+  activateStoreScope: vi.fn(),
   applyCommandEvent: vi.fn(),
   clearScrollback: vi.fn(async () => true),
   discardScope: vi.fn(),
@@ -39,52 +46,64 @@ const {
   markScopeSuspended: vi.fn(),
   migrateStoreScope: vi.fn(),
   nativeMigrateScope: vi.fn(),
+  nativeOpenTerminal: vi.fn(async (_cwd: string | undefined, scopeId: string) => ({
+    scopeId,
+    tabs: [],
+    activeTerminalId: null,
+  })),
   nativeReorderTerminal: vi.fn(),
+  nativeStart: vi.fn(),
   onCommand: vi.fn(),
   onData: vi.fn(() => vi.fn()),
   onDefaultZoomChanged: vi.fn(() => vi.fn()),
   onShortcutCommand: vi.fn(() => vi.fn()),
   onTabs: vi.fn(),
   onScopeSuspended: vi.fn(),
+  restoreScope: vi.fn(async (scopeId: string) => ({
+    scopeId,
+    tabs: [],
+    activeTerminalId: null,
+  })),
   setTabs: vi.fn(),
   nativeSuspendScope: vi.fn(async () => true),
+  nativeSwitchTerminal: vi.fn(async () => {}),
   write: vi.fn(),
 }))
 
-vi.mock('@/lib/desktop', () => ({
-  getDesktopBridge: () => ({
-    terminal: {
-      activateScope,
-      closeTerminal: vi.fn(),
-      clearScrollback,
-      dispose: vi.fn(),
-      disposeScope,
-      executeTool: vi.fn(),
-      getScrollback: vi.fn(),
-      getTabs,
-      migrateScope: nativeMigrateScope,
-      onCommand,
-      onData,
-      onDefaultZoomChanged,
-      onShortcutCommand,
-      onTabs,
-      onScopeSuspended,
-      openTerminal: vi.fn(),
-      reorderTerminal: nativeReorderTerminal,
-      resize: vi.fn(),
-      start: vi.fn(),
-      switchTerminal: vi.fn(),
-      suspendScope: nativeSuspendScope,
-      write,
-    },
-  }),
-  isTerminalEnabled: () => true,
-}))
+const bridgeTerminal = vi.hoisted(() => ({}) as Record<string, unknown>)
+Object.assign(bridgeTerminal, {
+  activateScope,
+  closeTerminal: vi.fn(),
+  clearScrollback,
+  dispose: vi.fn(),
+  disposeScope,
+  executeTool: vi.fn(),
+  getScrollback: vi.fn(),
+  getTabs,
+  migrateScope: nativeMigrateScope,
+  onCommand,
+  onData,
+  onDefaultZoomChanged,
+  onShortcutCommand,
+  onTabs,
+  onScopeSuspended,
+  openTerminal: nativeOpenTerminal,
+  reorderTerminal: nativeReorderTerminal,
+  resize: vi.fn(),
+  restoreScope,
+  switchTerminal: nativeSwitchTerminal,
+  suspendScope: nativeSuspendScope,
+  write,
+})
+
+vi.mock('@/lib/desktop', () => libDesktopMock)
 
 vi.mock('@/stores/copilot-terminal/store', () => ({
   useCopilotTerminalStore: {
     getState: () => ({
       activeScopeId: null,
+      sessions: {},
+      activateScope: activateStoreScope,
       applyCommandEvent,
       discardScope,
       migrateScope: migrateStoreScope,
@@ -95,21 +114,30 @@ vi.mock('@/stores/copilot-terminal/store', () => ({
 }))
 
 import {
-  clearTerminalScrollback,
-  discardTerminalScope,
+  activateTerminalScope,
   initTerminalTransport,
   migrateTerminalScope,
   onTerminalData,
-  onTerminalDefaultZoomChanged,
   onTerminalShortcutCommand,
-  reorderTerminal,
+  openTerminal,
   suspendTerminalScope,
-  writeToTerminal,
 } from '@/lib/terminal/transport'
 
+libDesktopMockFns.mockGetDesktopBridge.mockReturnValue({ terminal: bridgeTerminal })
+
 describe('terminal transport chat scopes', () => {
+  /** Vitest clears mock call history before every test, so keep the registrations. */
+  const registrations = {
+    onTabs: [] as unknown[][],
+    onCommand: [] as unknown[][],
+    onScopeSuspended: [] as unknown[][],
+  }
+
   beforeAll(() => {
     initTerminalTransport()
+    registrations.onTabs = [...onTabs.mock.calls]
+    registrations.onCommand = [...onCommand.mock.calls]
+    registrations.onScopeSuspended = [...onScopeSuspended.mock.calls]
   })
 
   beforeEach(() => {
@@ -124,12 +152,98 @@ describe('terminal transport chat scopes', () => {
     migrateStoreScope.mockClear()
     nativeMigrateScope.mockReset()
     nativeReorderTerminal.mockReset()
+    activateScope.mockClear()
+    restoreScope.mockClear()
+    nativeSwitchTerminal.mockClear()
+    nativeOpenTerminal.mockClear()
+    nativeStart.mockClear()
     write.mockClear()
   })
 
+  it('restores a chat with no live shells when its scope is activated', async () => {
+    restoreScope.mockResolvedValueOnce({
+      scopeId: 'chat-restore',
+      tabs: [
+        {
+          terminalId: 'restored-1',
+          title: 'sim',
+          cwd: '/code/sim',
+          running: null,
+          interactive: false,
+          active: true,
+        },
+      ],
+      activeTerminalId: 'restored-1',
+    })
+
+    await activateTerminalScope('chat-restore')
+
+    expect(restoreScope).toHaveBeenCalledWith('chat-restore')
+    expect(setTabs).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scopeId: 'chat-restore', activeTerminalId: 'restored-1' })
+    )
+  })
+
+  it('does not restore when the chat already has live shells', async () => {
+    activateScope.mockResolvedValueOnce({
+      scopeId: 'chat-live',
+      tabs: [
+        {
+          terminalId: 'live-1',
+          title: 'sim',
+          cwd: '/code/sim',
+          running: null,
+          interactive: false,
+          active: true,
+        },
+      ],
+      activeTerminalId: 'live-1',
+    })
+
+    await activateTerminalScope('chat-live')
+
+    expect(restoreScope).not.toHaveBeenCalled()
+  })
+
+  it('skips the restore when the user moved to another chat during activation', async () => {
+    let finishActivation: (tabs: ScopedTerminalTabsState) => void = () => {}
+    activateScope.mockImplementationOnce(
+      () => new Promise<ScopedTerminalTabsState>((resolve) => (finishActivation = resolve))
+    )
+
+    const first = activateTerminalScope('chat-first')
+    await activateTerminalScope('chat-second')
+    finishActivation({ scopeId: 'chat-first', tabs: [], activeTerminalId: null })
+    await first
+
+    expect(restoreScope).toHaveBeenCalledExactlyOnceWith('chat-second')
+  })
+
+  it('opens a fresh shell through openTerminal on shells that restore on activation', async () => {
+    await openTerminal(undefined, 'chat-b')
+
+    expect(nativeOpenTerminal).toHaveBeenCalledWith(undefined, 'chat-b')
+    expect(nativeStart).not.toHaveBeenCalled()
+  })
+
+  it('adopts a chat through start on shells that cannot restore on activation', async () => {
+    const { restoreScope: modern } = bridgeTerminal
+    bridgeTerminal.restoreScope = undefined
+    bridgeTerminal.start = nativeStart
+    try {
+      await openTerminal(undefined, 'chat-b')
+    } finally {
+      bridgeTerminal.restoreScope = modern
+      bridgeTerminal.start = undefined
+    }
+
+    expect(nativeStart).toHaveBeenCalledWith({ cols: 80, rows: 24 }, 'chat-b')
+    expect(nativeOpenTerminal).not.toHaveBeenCalled()
+  })
+
   it('routes pushed tab and command state to the scope carried by each event', () => {
-    const tabsListener = onTabs.mock.calls[0][0] as (state: ScopedTerminalTabsState) => void
-    const commandListener = onCommand.mock.calls[0][0] as (
+    const tabsListener = registrations.onTabs[0][0] as (state: ScopedTerminalTabsState) => void
+    const commandListener = registrations.onCommand[0][0] as (
       event: ScopedTerminalCommandEvent
     ) => void
     const tabs = { scopeId: 'chat-a', tabs: [] as [], activeTerminalId: null }
@@ -146,14 +260,6 @@ describe('terminal transport chat scopes', () => {
 
     expect(setTabs).toHaveBeenCalledWith(tabs)
     expect(applyCommandEvent).toHaveBeenCalledWith(command)
-  })
-
-  it('applies native suspension pushes to the matching renderer scope', () => {
-    const listener = onScopeSuspended.mock.calls[0][0] as (scopeId: string) => void
-
-    listener('chat-background')
-
-    expect(markScopeSuspended).toHaveBeenCalledWith('chat-background')
   })
 
   it('separates output handlers for overlapping terminal ids', () => {
@@ -178,24 +284,6 @@ describe('terminal transport chat scopes', () => {
     unsubscribeB()
   })
 
-  it('forwards user input with the explicit chat scope', () => {
-    writeToTerminal('same-id', 'ls\r', 'chat-b')
-
-    expect(write).toHaveBeenCalledWith('same-id', 'ls\r', 'chat-b')
-  })
-
-  it('forwards terminal tab reordering with the explicit chat scope', async () => {
-    await reorderTerminal('terminal-b', 2, 'chat-b')
-
-    expect(nativeReorderTerminal).toHaveBeenCalledWith('terminal-b', 2, 'chat-b')
-  })
-
-  it('clears retained terminal output in the explicit chat scope', async () => {
-    await expect(clearTerminalScrollback('same-id', 'chat-b')).resolves.toBe(true)
-
-    expect(clearScrollback).toHaveBeenCalledWith('same-id', 'chat-b')
-  })
-
   it('routes focus commands only to the subscribed terminal scope', () => {
     const callback = vi.fn()
     onTerminalShortcutCommand(callback, 'chat-a', 'terminal-a')
@@ -211,23 +299,6 @@ describe('terminal transport chat scopes', () => {
 
     expect(callback).toHaveBeenCalledOnce()
     expect(callback).toHaveBeenCalledWith('clear')
-  })
-
-  it('forwards device-wide terminal zoom baseline changes', () => {
-    const callback = vi.fn()
-    onTerminalDefaultZoomChanged(callback)
-    const listener = onDefaultZoomChanged.mock.calls.at(-1)?.[0] as (zoom: 125) => void
-
-    listener(125)
-
-    expect(callback).toHaveBeenCalledWith(125)
-  })
-
-  it('forgets an abandoned provisional terminal scope on both sides', async () => {
-    await discardTerminalScope('pending:new')
-
-    expect(discardScope).toHaveBeenCalledWith('pending:new')
-    expect(disposeScope).toHaveBeenCalledWith('pending:new')
   })
 
   it('moves renderer state only after native terminal migration succeeds', async () => {

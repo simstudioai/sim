@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useVariablesStore } from '@/stores/variables/store'
 import { applyWorkflowVariablesToStore } from '@/stores/workflow-diff/utils'

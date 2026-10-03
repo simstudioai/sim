@@ -102,8 +102,8 @@ export const ERROR_RESPONSES = {
       message: 'Invalid request',
     }
   ),
-  Unauthorized: errorResponse(401, 'The API key is missing or invalid.', {
-    message: 'API key required',
+  Unauthorized: errorResponse(401, 'The API credential is missing or invalid.', {
+    message: 'Authentication required',
   }),
   UsageLimitExceeded: errorResponse(
     402,
@@ -214,7 +214,7 @@ export type ErrorResponseId = keyof typeof ERROR_RESPONSES
  * {@link ERROR_RESPONSES} with a document's own body for the statuses whose message is the
  * domain's rather than the surface's.
  *
- * Most statuses read the same everywhere — a `401` is `API key required` whatever you were
+ * Most statuses read the same everywhere — a `401` is `Authentication required` whatever you were
  * asking for. `409` and `423` are not: nothing in the response layer supplies them, so the
  * only real strings are each domain's, and one shared example necessarily shows four of the
  * seven documents a message they never send. Tables answering `Workflow is locked` is the
@@ -317,15 +317,22 @@ export function withRequestBodyErrors(route: OpenApiRouteDefinition): OpenApiRou
   return { ...route, operation: { ...route.operation, errors: derived } }
 }
 
-export const V2_API_KEY_SECURITY = [{ apiKey: [] }] as const
+export const V2_AUTH_SECURITY = [{ apiKey: [] }, { oauthBearer: [] }] as const
 
-export const V2_API_KEY_SECURITY_SCHEMES = {
+export const V2_AUTH_SECURITY_SCHEMES = {
   apiKey: {
     type: 'apiKey',
     in: 'header',
     name: 'X-API-Key',
     description:
       'Your Sim API key, personal or workspace-scoped. Generate one under Settings, then API Keys. Operations that reject workspace keys say so in their own description.',
+  },
+  oauthBearer: {
+    type: 'http',
+    scheme: 'bearer',
+    bearerFormat: 'OAuth 2.0 access token',
+    description:
+      'A Sim OAuth access token obtained by a registered client through the authorization-code flow. Each operation declares its required scope: api:read permits reads and searches; api:write also permits changes and execution and implies api:read. Scope requirements follow the application operation, independent of HTTP method or workspace role.',
   },
 } as const satisfies Readonly<Record<string, OpenApiSecurityScheme>>
 
@@ -338,7 +345,7 @@ export const V2_API_KEY_SECURITY_SCHEMES = {
  * rendering one back do not need this sentence: the shared `413` response
  * description already covers them.
  */
-export const FOLDER_TREE_TOO_LARGE = 'A workspace folder tree over 10,000 folders is a `413`.'
+export const FOLDER_TREE_TOO_LARGE = 'Workspace folder trees exceeding 10,000 folders return `413`.'
 
 /**
  * Appended to a list whose result set is bounded by construction, so it answers
@@ -348,9 +355,9 @@ export const FOLDER_TREE_TOO_LARGE = 'A workspace folder tree over 10,000 folder
  * single-page list from a paged one by shape alone. Saying so once keeps the
  * eight such operations from drifting into eight paraphrases of the same
  * promise. The authoritative membership is pinned in
- * `contracts/v2/__tests__/list-pagination.test.ts` as `FULL_SET_LISTS`.
+ * `contracts/v2/list-pagination.test.ts` as `FULL_SET_LISTS`.
  */
-export const FULL_SET_LIST = 'The bounded set is returned in one page; `nextCursor` is always null.'
+export const FULL_SET_LIST = 'Returns the complete set in one page; `nextCursor` is always null.'
 
 /**
  * Appended to a `GET` whose route declares `headSafe: false` because the read
@@ -359,7 +366,7 @@ export const FULL_SET_LIST = 'The bounded set is returned in one page; `nextCurs
  * Pinned by `contracts/v2/openapi/head-not-safe.test.ts`.
  */
 export const HEAD_MIRRORS_GET =
-  'A `HEAD` skips the effect but is authorized exactly as the `GET` is, so it answers `400`, `401`, `403`, or `404` wherever the `GET` would and an empty `200` otherwise. Skipping the effect means skipping the read that produces the payload, so that `200` carries none of the response headers documented below — it answers whether the `GET` would be allowed, not what the `GET` would return.'
+  '`HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success.'
 
 /**
  * Appended where the skipped payload headers are the ones a caller is most
@@ -371,7 +378,7 @@ export const HEAD_MIRRORS_GET =
  * `headSafe: false` exists to skip.
  */
 export const HEAD_OMITS_PAYLOAD_HEADERS =
-  'In particular a `HEAD` does not report `Content-Length`, so it cannot be used to size a download in advance; read the size from the file resource instead.'
+  '`HEAD` omits `Content-Length`; use file metadata to size downloads.'
 
 /**
  * Appended to an operation whose semantic operation sets `workspaceApiKey: 'deny'`.
@@ -379,7 +386,7 @@ export const HEAD_OMITS_PAYLOAD_HEADERS =
  * so it is not something a workspace owner can grant around.
  */
 export const WORKSPACE_API_KEY_DENIED =
-  'A workspace API key is rejected with `403`; use a personal API key.'
+  'Workspace API keys return `403`; use a personal API key or scoped OAuth token.'
 
 /**
  * {@link WORKSPACE_API_KEY_DENIED} for an operation behind the resource-concealment
@@ -395,7 +402,7 @@ export const WORKSPACE_API_KEY_DENIED =
  * and the wording it guards drift apart.
  */
 export const WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND =
-  'A workspace API key is rejected as `404` rather than `403`, because unauthorized resources are concealed; use a personal API key.'
+  'A workspace API key is rejected as `404` rather than `403`, because unauthorized resources are concealed; use a personal API key or an appropriately scoped OAuth token.'
 
 /**
  * Appended to the two reads over `workflow_execution_logs`, which is the only
@@ -417,7 +424,7 @@ export const WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND =
  * cannot drift into two paraphrases of one window.
  */
 export const RUN_RETENTION =
-  "Runs are hard-deleted once they pass the payer's log retention window, so an older run is simply absent rather than reported as removed. The window is 30 days from run start on the free plan, unbounded on Pro and Team, and set per organization on Enterprise with an optional per-workspace override."
+  'Expired runs are permanently deleted. Retention is 30 days from run start on Free, unlimited on Pro and Team, and configured per organization on Enterprise with workspace overrides.'
 
 /**
  * Response headers a binary download declares on top of the common set. Shared

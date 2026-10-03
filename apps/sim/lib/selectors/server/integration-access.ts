@@ -1,7 +1,10 @@
 import type { Principal } from '@sim/auth/principal'
 import { getIntegrationTypesForOAuthServiceId } from '@sim/deployment-config/integration-availability'
 import { createLogger } from '@sim/logger'
-import { allowedIntegrationTypes } from '@/lib/integrations/principal-scope.server'
+import {
+  allowedIntegrationTypes,
+  allowedOrganizationIntegrationTypes,
+} from '@/lib/integrations/principal-scope.server'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { resolveAccessControlBlockType } from '@/lib/permission-groups/integration-allowlist'
 import type {
@@ -82,13 +85,18 @@ export function selectorIntegrationBlockTypes(
  */
 export async function assertSelectorIntegrationAllowed(input: {
   principal: Principal
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   blockTypes: readonly string[]
 }): Promise<void> {
   const blockTypes = input.blockTypes
   if (blockTypes.length === 0) return
 
-  const allowlist = await allowedIntegrationTypes(input.principal, input.workspaceId)
+  const allowlist = input.organizationId
+    ? await allowedOrganizationIntegrationTypes(input.organizationId)
+    : input.workspaceId
+      ? await allowedIntegrationTypes(input.principal, input.workspaceId)
+      : new Set<string>()
   if (allowlist === null) return
 
   const allowed = blockTypes.some(

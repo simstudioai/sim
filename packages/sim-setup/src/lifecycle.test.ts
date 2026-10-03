@@ -1,66 +1,17 @@
-import { createHash } from 'node:crypto'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { ensureProductionComposeFile } from './compose-asset'
 import {
   composeInstallFromDirectory,
-  getComposeUpdateMode,
-  isLifecycleCommand,
-  refreshComposeFileForUpdate,
+  composeServiceQuery,
+  composeServiceState,
+  type Install,
+  serviceStatusRows,
 } from './lifecycle'
 
 describe('setup lifecycle', () => {
-  it('recognizes update as a lifecycle command', () => {
-    expect(isLifecycleCommand('update')).toBe(true)
-  })
-
-  it('pulls published installs and rebuilds source installs', () => {
-    expect(getComposeUpdateMode('/repo/docker-compose.prod.yml')).toBe('pull')
-    expect(getComposeUpdateMode('/repo/docker-compose.local.yml')).toBe('build')
-    expect(() => getComposeUpdateMode('/repo/compose.yml')).toThrow(/Unsupported Sim Compose file/)
-  })
-
-  it('refreshes a discovered standalone install outside the current setup context', () => {
-    const root = mkdtempSync(path.join(tmpdir(), 'sim-setup-lifecycle-'))
-    try {
-      const composeFile = ensureProductionComposeFile({ kind: 'standalone', root, existing: false })
-      const packaged = readFileSync(composeFile, 'utf8')
-      const previous = `${packaged}\nservices: {}\n`
-      writeFileSync(composeFile, previous)
-      writeFileSync(
-        path.join(root, '.sim-setup.json'),
-        JSON.stringify({
-          schemaVersion: 1,
-          composeSha256: createHash('sha256').update(previous).digest('hex'),
-        })
-      )
-
-      expect(refreshComposeFileForUpdate(composeFile, root)).toBe(composeFile)
-      expect(readFileSync(composeFile, 'utf8')).toBe(packaged)
-    } finally {
-      rmSync(root, { recursive: true, force: true })
-    }
-  })
-
-  it('restores a downed standalone install from its persisted project name', () => {
-    const root = mkdtempSync(path.join(tmpdir(), 'sim-setup-lifecycle-'))
-    try {
-      ensureProductionComposeFile({ kind: 'standalone', root, existing: false })
-      writeFileSync(path.join(root, '.env'), 'COMPOSE_PROJECT_NAME=sim-a1b2c3d4e5f6\n')
-
-      expect(composeInstallFromDirectory(root, [])).toEqual({
-        kind: 'compose',
-        file: path.join(root, 'docker-compose.prod.yml'),
-        dir: root,
-        project: 'sim-a1b2c3d4e5f6',
-      })
-    } finally {
-      rmSync(root, { recursive: true, force: true })
-    }
-  })
-
   it('does not duplicate a running install restored from its directory', () => {
     const root = mkdtempSync(path.join(tmpdir(), 'sim-setup-lifecycle-'))
     try {
@@ -71,5 +22,112 @@ describe('setup lifecycle', () => {
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
+  })
+
+  it('reads a Compose service as running when any replica is running', () => {
+    expect(composeServiceState('running')).toEqual({ state: 'running' })
+    expect(composeServiceState('exited\nrunning\n')).toEqual({ state: 'running' })
+  })
+
+  it('reads a Compose service with only stopped containers as stopped', () => {
+    expect(composeServiceState('exited')).toEqual({ state: 'stopped' })
+    expect(composeServiceState('created\nexited')).toEqual({ state: 'stopped' })
+  })
+
+  it('reads an empty Compose query as absent and a failed one as unknown', () => {
+    expect(composeServiceState('')).toBeNull()
+    expect(composeServiceState('\n  \n')).toBeNull()
+    expect(composeServiceState(null)).toBe('unknown')
+  })
+})
+
+describe('status service rows', () => {
+  const compose = (project: string): Install => ({
+    kind: 'compose',
+    file: `/srv/${project}/docker-compose.prod.yml`,
+    dir: `/srv/${project}`,
+    project,
+  })
+  const dev: Install = { kind: 'dev', postgres: true, redis: true }
+  const standalone = { db: { state: 'running' as const }, redis: null }
+
+  /** Answers `docker ps` by the project/service labels in the query, like Docker would. */
+  const fakeDocker =
+    (states: Record<string, string | null>) =>
+    (args: string[]): string | null => {
+      const project = args.find((a) => a.startsWith('label=com.docker.compose.project='))
+      const service = args.find((a) => a.startsWith('label=com.docker.compose.service='))
+      const key = `${project?.split('=').pop()}/${service?.split('=').pop()}`
+      return key in states ? states[key]! : ''
+    }
+
+  it('queries Compose services by project and service label', () => {
+    expect(composeServiceQuery('sim-abc', 'db')).toEqual([
+      'ps',
+      '-a',
+      '--filter',
+      'label=com.docker.compose.project=sim-abc',
+      '--filter',
+      'label=com.docker.compose.service=db',
+      '--format',
+      '{{.State}}',
+    ])
+  })
+
+  it('shows only Compose rows for a Compose install', () => {
+    const rows = serviceStatusRows(
+      [compose('sim-abc')],
+      standalone,
+      fakeDocker({ 'sim-abc/db': 'running', 'sim-abc/redis': 'exited' })
+    )
+    expect(rows).toEqual([
+      { label: 'postgres (compose db)', state: { state: 'running' } },
+      { label: 'redis (compose redis)', state: { state: 'stopped' } },
+    ])
+  })
+
+  it('reports a failed Compose query as unknown, not absent', () => {
+    const rows = serviceStatusRows([compose('sim-abc')], standalone, () => null)
+    expect(rows.map((row) => row.state)).toEqual(['unknown', 'unknown'])
+  })
+
+  it('keeps standalone rows when a dev install is present', () => {
+    const rows = serviceStatusRows(
+      [dev, compose('sim-abc')],
+      standalone,
+      fakeDocker({ 'sim-abc/db': 'running', 'sim-abc/redis': 'running' })
+    )
+    expect(rows.map((row) => row.label)).toEqual([
+      'postgres (sim-postgres)',
+      'redis (sim-redis)',
+      'postgres (compose db)',
+      'redis (compose redis)',
+    ])
+    expect(rows[0]!.state).toEqual({ state: 'running' })
+    expect(rows[1]!.state).toBeNull()
+  })
+
+  it('never queries Compose labels without a Compose install', () => {
+    let queried = false
+    const rows = serviceStatusRows([dev], standalone, () => {
+      queried = true
+      return ''
+    })
+    expect(queried).toBe(false)
+    expect(rows.map((row) => row.label)).toEqual(['postgres (sim-postgres)', 'redis (sim-redis)'])
+  })
+
+  it('prefixes rows with the project when several Compose stacks run', () => {
+    const rows = serviceStatusRows(
+      [compose('sim-a'), compose('sim-b')],
+      standalone,
+      fakeDocker({ 'sim-a/db': 'running', 'sim-b/db': '' })
+    )
+    expect(rows.map((row) => [row.label, row.state])).toEqual([
+      ['sim-a postgres (compose db)', { state: 'running' }],
+      ['sim-a redis (compose redis)', null],
+      ['sim-b postgres (compose db)', null],
+      ['sim-b redis (compose redis)', null],
+    ])
   })
 })

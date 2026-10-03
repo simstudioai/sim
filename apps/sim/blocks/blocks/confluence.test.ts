@@ -1,23 +1,11 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ConfluenceV2Block } from '@/blocks/blocks/confluence'
-
-const { mockGetBlock } = vi.hoisted(() => ({ mockGetBlock: vi.fn() }))
-
-vi.mock('@/blocks/registry', () => ({
-  getBlock: mockGetBlock,
-  getAllBlocks: vi.fn(() => []),
-  getLatestBlock: vi.fn(() => undefined),
-  getBlockRegistry: vi.fn(() => ({})),
-  getBlockByToolName: vi.fn(() => undefined),
-  getBlocksByCategory: vi.fn(() => []),
-}))
-
 import { migrateSubblockIds } from '@/lib/workflows/migrations/subblock-migrations'
+import { ConfluenceV2Block } from '@/blocks/blocks/confluence'
+import { getBlock } from '@/blocks/registry'
 import { extractBlockParams } from '@/serializer'
 import type { BlockState } from '@/stores/workflows/workflow/types'
+
+const mockGetBlock = vi.mocked(getBlock)
 
 function legacySearchBlock(field: string, value: string, advancedMode: boolean): BlockState {
   const values = { operation: 'search_in_space', [field]: value }
@@ -51,7 +39,6 @@ function mappedSearchParams(state: BlockState): {
 
 describe('Confluence search-in-space values saved before the selector split', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetBlock.mockReturnValue(ConfluenceV2Block)
   })
 

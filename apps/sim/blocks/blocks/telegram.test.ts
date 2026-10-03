@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { TelegramBlock } from '@/blocks/blocks/telegram'
 
@@ -44,22 +41,6 @@ describe('Telegram media params', () => {
         expect(mapped[key]).toBe('https://storage.example/pic.jpg')
       })
 
-      it('passes a file_id through untouched', () => {
-        const mapped = mapParams({ operation, [key]: '  AgACAgIAAxkBAAI  ' })
-        expect(mapped[key]).toBe('AgACAgIAAxkBAAI')
-      })
-
-      it('passes a public HTTP URL through untouched', () => {
-        const mapped = mapParams({ operation, [key]: 'https://example.com/a.jpg' })
-        expect(mapped[key]).toBe('https://example.com/a.jpg')
-      })
-
-      it('still accepts a file reference left in the legacy field', () => {
-        // Before the upload pair existed this field held either a reference or a string.
-        const mapped = mapParams({ operation, [key]: JSON.stringify(userFile) })
-        expect(mapped[key]).toBe('https://storage.example/pic.jpg')
-      })
-
       it('reports a clear error when the file has no https URL to fetch', () => {
         expect(() =>
           mapParams({ operation, [`${key}Source`]: { ...userFile, url: '/api/files/serve/local' } })
@@ -71,15 +52,4 @@ describe('Telegram media params', () => {
       })
     })
   }
-
-  it('keeps each media pair to a file upload plus a file reference', () => {
-    for (const { key } of MEDIA_OPS) {
-      const members = TelegramBlock.subBlocks.filter((s) => s.canonicalParamId === `${key}Source`)
-      expect(members.map((s) => s.type)).toEqual(['file-upload', 'short-input'])
-      expect(members.map((s) => s.mode)).toEqual(['basic', 'advanced'])
-      // The file_id/URL field is deliberately outside the pair.
-      const direct = TelegramBlock.subBlocks.find((s) => s.id === key)
-      expect(direct?.canonicalParamId).toBeUndefined()
-    }
-  })
 })

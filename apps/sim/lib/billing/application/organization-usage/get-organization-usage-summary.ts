@@ -1,4 +1,5 @@
 import { defineAuthorizedOrganizationUsageUseCase } from '@/lib/billing/application/organization-usage/authorized-organization-usage-use-case'
+import { requireBoundedUsageWindow } from '@/lib/billing/application/organization-usage/limits'
 import { organizationUsageOperations } from '@/lib/billing/application/organization-usage/operations'
 import type { UsagePeriodSource } from '@/lib/billing/core/reporting-period'
 import {
@@ -16,6 +17,7 @@ import { apportionCredits, dollarsToCredits } from '@/lib/billing/credits/conver
 
 export interface OrganizationUsageSummaryInput {
   organizationId: string
+  maxWindowDays?: number
   preset: UsageWindowPreset
   startDate?: Date
   endDate?: Date
@@ -48,6 +50,7 @@ export const getOrganizationUsageSummary = defineAuthorizedOrganizationUsageUseC
       customEnd: input.endDate,
       timezone: input.timezone,
     })
+    requireBoundedUsageWindow(window, input.maxWindowDays)
     const bucket = resolveUsageBucket(window)
     const scope = buildUsageAnalyticsScope(context.billingEntity, window, input.workspaceId)
 

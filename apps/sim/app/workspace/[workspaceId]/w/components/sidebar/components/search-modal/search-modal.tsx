@@ -88,6 +88,7 @@ import {
   CMDK_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
+import { useWorkspaceAccessRequestFeatures } from '@/ee/access-requests/components/permission-access-boundary'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
@@ -164,6 +165,8 @@ function SearchModalContent({
   const visuallyOpen = nativeSurfaceReady
   const { navigateToSettings } = useSettingsNavigation()
   const { config: permissionConfig } = usePermissionConfig()
+  const accessRequests = useWorkspaceAccessRequestFeatures()
+  const accessRequestsEnabled = accessRequests.data?.enabled === true
   const invokeCommand = useInvokeGlobalCommand()
   const posthog = usePostHog()
 
@@ -265,7 +268,7 @@ function SearchModalContent({
           name: 'Integrations',
           icon: Integration,
           href: `/workspace/${workspaceId}/integrations`,
-          hidden: permissionConfig.hideIntegrationsTab,
+          hidden: permissionConfig.hideIntegrationsTab && !accessRequestsEnabled,
         },
         {
           id: 'skills',
@@ -279,21 +282,21 @@ function SearchModalContent({
           name: 'Tables',
           icon: Table,
           href: `/workspace/${workspaceId}/tables`,
-          hidden: permissionConfig.hideTablesTab,
+          hidden: permissionConfig.hideTablesTab && !accessRequestsEnabled,
         },
         {
           id: 'files',
           name: 'Files',
           icon: File,
           href: `/workspace/${workspaceId}/files`,
-          hidden: permissionConfig.hideFilesTab,
+          hidden: permissionConfig.hideFilesTab && !accessRequestsEnabled,
         },
         {
           id: 'knowledge-base',
           name: 'Knowledge bases',
           icon: Database,
           href: `/workspace/${workspaceId}/knowledge`,
-          hidden: permissionConfig.hideKnowledgeBaseTab,
+          hidden: permissionConfig.hideKnowledgeBaseTab && !accessRequestsEnabled,
         },
         {
           id: 'logs',
@@ -329,6 +332,7 @@ function SearchModalContent({
       permissionConfig.hideTablesTab,
       permissionConfig.hideFilesTab,
       permissionConfig.hideIntegrationsTab,
+      accessRequestsEnabled,
     ]
   )
 
@@ -1351,7 +1355,6 @@ function SearchModalContent({
                   rows against an edge the user cannot see. */}
               <CommandFadedList
                 ref={listRef}
-                fade='palette'
                 className={cn(
                   'scrollbar-none max-h-[min(448px,calc(85dvh-26px))] [clip-path:inset(3px_round_13px)]',
                   CMDK_ITEM_GAP_CLASS,

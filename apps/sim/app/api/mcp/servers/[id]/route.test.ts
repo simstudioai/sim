@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetDbChainMock } from '@sim/testing'
 import type { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -56,7 +53,6 @@ function updateRequest() {
 
 describe('MCP server PATCH route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

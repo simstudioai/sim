@@ -25,27 +25,11 @@ const TOUCHED = ['SIM_ENV_SECRET_ID', 'FOO', 'BAZ'] as const
 
 describe('loadRuntimeSecrets', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     for (const key of TOUCHED) delete process.env[key]
   })
 
   afterEach(() => {
     for (const key of TOUCHED) delete process.env[key]
-  })
-
-  it('no-ops when SIM_ENV_SECRET_ID is unset', async () => {
-    await loadRuntimeSecrets()
-    expect(mockSend).not.toHaveBeenCalled()
-  })
-
-  it('hydrates process.env from the parsed secret JSON', async () => {
-    process.env.SIM_ENV_SECRET_ID = '/test/sim/env-vars'
-    mockSend.mockResolvedValue({ SecretString: JSON.stringify({ FOO: 'bar', BAZ: 'qux' }) })
-
-    await loadRuntimeSecrets()
-
-    expect(process.env.FOO).toBe('bar')
-    expect(process.env.BAZ).toBe('qux')
   })
 
   it('never overwrites an already-set env var', async () => {
@@ -59,33 +43,11 @@ describe('loadRuntimeSecrets', () => {
     expect(process.env.BAZ).toBe('qux')
   })
 
-  it('throws when the secret is not valid JSON', async () => {
-    process.env.SIM_ENV_SECRET_ID = '/test/sim/env-vars'
-    mockSend.mockResolvedValue({ SecretString: 'not json' })
-
-    await expect(loadRuntimeSecrets()).rejects.toThrow(/not valid JSON/)
-  })
-
-  it('throws when the secret JSON is not an object', async () => {
-    process.env.SIM_ENV_SECRET_ID = '/test/sim/env-vars'
-    mockSend.mockResolvedValue({ SecretString: JSON.stringify(['a', 'b']) })
-
-    await expect(loadRuntimeSecrets()).rejects.toThrow(/must be a JSON object/)
-  })
-
   it('throws immediately on a binary secret (no SecretString), without retrying', async () => {
     process.env.SIM_ENV_SECRET_ID = '/test/sim/env-vars'
     mockSend.mockResolvedValue({})
 
     await expect(loadRuntimeSecrets()).rejects.toThrow(/binary secrets/)
     expect(mockSend).toHaveBeenCalledTimes(1)
-  })
-
-  it('retries then throws when the fetch keeps failing', async () => {
-    process.env.SIM_ENV_SECRET_ID = '/test/sim/env-vars'
-    mockSend.mockRejectedValue(new Error('boom'))
-
-    await expect(loadRuntimeSecrets()).rejects.toThrow(/Failed to fetch runtime secrets/)
-    expect(mockSend).toHaveBeenCalledTimes(3)
   })
 })

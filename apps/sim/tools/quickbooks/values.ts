@@ -1,6 +1,8 @@
 import type {
   QuickBooksActiveStatus,
   QuickBooksAddress,
+  QuickBooksGlobalTaxCalculation,
+  QuickBooksItem,
   QuickBooksReference,
   QuickBooksWritableItemType,
 } from '@/tools/quickbooks/types'
@@ -30,6 +32,53 @@ export function quickBooksReference(value: string, fieldName: string): QuickBook
   return { value: requiredQuickBooksString(value, fieldName) }
 }
 
+const QUICKBOOKS_CURRENCY_CODE_PATTERN = /^[A-Za-z]{3}$/
+
+/**
+ * Builds a transaction `CurrencyRef`.
+ *
+ * Intuit flags `CurrencyRef` as "Conditionally required" on every purchasing and
+ * accounting transaction: "This must be defined if multicurrency is enabled for
+ * the company." `CurrencyRef.value` is "A three letter string representing the
+ * ISO 4217 code for the currency", which is all that can be checked locally —
+ * whether the company actually trades in that currency stays Intuit's decision.
+ */
+export function quickBooksCurrencyRef(value?: string): QuickBooksReference | undefined {
+  const normalized = optionalQuickBooksString(value)
+  if (!normalized) return undefined
+  if (!QUICKBOOKS_CURRENCY_CODE_PATTERN.test(normalized)) {
+    throw new Error('currencyCode must be a three-letter ISO 4217 currency code such as USD')
+  }
+  return { value: normalized.toUpperCase() }
+}
+
+/**
+ * Every value Intuit documents for `GlobalTaxCalculation`. Entities that accept
+ * only a subset pass their own list.
+ */
+export const QUICKBOOKS_GLOBAL_TAX_CALCULATIONS: readonly QuickBooksGlobalTaxCalculation[] = [
+  'TaxExcluded',
+  'TaxInclusive',
+  'NotApplicable',
+]
+
+/**
+ * Validates `GlobalTaxCalculation`, which Intuit flags as "Conditionally
+ * required": "Not applicable to US companies; required for non-US companies."
+ */
+export function quickBooksGlobalTaxCalculation(
+  value: string | undefined,
+  allowed: readonly QuickBooksGlobalTaxCalculation[] = QUICKBOOKS_GLOBAL_TAX_CALCULATIONS
+): QuickBooksGlobalTaxCalculation | undefined {
+  const normalized = optionalQuickBooksString(value)
+  if (!normalized) return undefined
+  const match = allowed.find((candidate) => candidate === normalized)
+  if (!match) {
+    throw new Error(`globalTaxCalculation must be one of ${allowed.join(', ')}`)
+  }
+  return match
+}
+
 const QUICKBOOKS_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
 export function validateQuickBooksDate(
@@ -48,9 +97,29 @@ export function validateQuickBooksDate(
   return normalized
 }
 
+/**
+ * Maximum length Intuit documents for an email address: "maximum of 100 chars".
+ */
+const QUICKBOOKS_EMAIL_MAX_LENGTH = 100
+
+/**
+ * Accepts only an address Intuit can store: "An email address. The address
+ * format must follow the RFC 822 standard." A single `@` with a non-empty,
+ * whitespace-free local part and domain is the part of RFC 822 that can be
+ * checked without rejecting addresses Intuit accepts, so nothing stricter is
+ * enforced here.
+ */
 export function quickBooksEmailAddress(value?: string): { Address: string } | undefined {
   const normalized = optionalQuickBooksString(value)
-  return normalized ? { Address: normalized } : undefined
+  if (!normalized) return undefined
+  if (normalized.length > QUICKBOOKS_EMAIL_MAX_LENGTH) {
+    throw new Error(`Email address cannot exceed ${QUICKBOOKS_EMAIL_MAX_LENGTH} characters`)
+  }
+  const [localPart, domain, ...extra] = normalized.split('@')
+  if (extra.length > 0 || !localPart || !domain || /\s/.test(normalized)) {
+    throw new Error('Email address must be a valid address such as name@example.com')
+  }
+  return { Address: normalized }
 }
 
 export function quickBooksPhoneNumber(value?: string): { FreeFormNumber: string } | undefined {
@@ -67,6 +136,12 @@ export function validateQuickBooksOptionalNumber(
   return value
 }
 
+/**
+ * Intuit: "The maximum number of entities that can be returned in a response is
+ * 1,000. If the result size isn't specified, the default number is 100."
+ */
+export const QUICKBOOKS_MAX_RESULTS = 1000
+
 export function validateQuickBooksPagination(
   startPosition: number,
   maxResults: number
@@ -74,8 +149,8 @@ export function validateQuickBooksPagination(
   if (!Number.isInteger(startPosition) || startPosition < 1) {
     throw new Error('startPosition must be a positive integer')
   }
-  if (!Number.isInteger(maxResults) || maxResults < 1 || maxResults > 100) {
-    throw new Error('maxResults must be an integer from 1 through 100')
+  if (!Number.isInteger(maxResults) || maxResults < 1 || maxResults > QUICKBOOKS_MAX_RESULTS) {
+    throw new Error(`maxResults must be an integer from 1 through ${QUICKBOOKS_MAX_RESULTS}`)
   }
   return { startPosition, maxResults }
 }
@@ -90,6 +165,81 @@ export function assertQuickBooksListOnlyFilters(
     return value !== 'default'
   })
   if (provided) throw new Error(`${provided[0]} is supported only for List mode`)
+}
+
+/**
+ * Maximum length Intuit documents for `DisplayName` on Customer, Vendor, and
+ * Employee: "maximum of 500 chars".
+ */
+const QUICKBOOKS_DISPLAY_NAME_MAX_LENGTH = 500
+
+/**
+ * Validates a `DisplayName` locally so an over-long value fails before it costs
+ * a round trip. Uniqueness across Customer, Vendor, and Employee is documented
+ * too, but only Intuit can decide it, so that stays a remote error.
+ */
+export function quickBooksDisplayName(
+  value: string | undefined,
+  fieldName: string
+): string | undefined {
+  const normalized = optionalQuickBooksString(value)
+  if (normalized !== undefined && normalized.length > QUICKBOOKS_DISPLAY_NAME_MAX_LENGTH) {
+    throw new Error(`${fieldName} cannot exceed ${QUICKBOOKS_DISPLAY_NAME_MAX_LENGTH} characters`)
+  }
+  return normalized
+}
+
+/** Maximum length Intuit documents for `Item.Name`: "Maximum of 100 chars". */
+const QUICKBOOKS_ITEM_NAME_MAX_LENGTH = 100
+
+/**
+ * Applies Intuit's documented `Item.Name` rule: "This value must be unique, at
+ * least one character in length, and cannot include tabs, new lines, or
+ * colons." Uniqueness is left to Intuit.
+ */
+export function quickBooksItemName(value: string | undefined): string | undefined {
+  const normalized = optionalQuickBooksString(value)
+  if (normalized === undefined) return undefined
+  if (normalized.length > QUICKBOOKS_ITEM_NAME_MAX_LENGTH) {
+    throw new Error(`name cannot exceed ${QUICKBOOKS_ITEM_NAME_MAX_LENGTH} characters`)
+  }
+  if (/[\t\n\r:]/.test(normalized)) {
+    throw new Error('name cannot include tabs, new lines, or colons')
+  }
+  return normalized
+}
+
+/**
+ * Refuses the item updates Intuit documents as unsafe or unsupported.
+ *
+ * A full update echoes the record read back from QuickBooks, and for an
+ * `Inventory` item that record carries `InvStartDate` and `QtyOnHand`. Intuit:
+ * "For read operations, the date returned in this field is always the
+ * originally provided inventory start date. For update operations, the date
+ * supplied is interpreted as the inventory adjust date, is stored as such in
+ * the underlying data model, and is reflected in the QuickBooks Online UI."
+ * Both fields are also "Required for Inventory type items", so neither can be
+ * dropped from the body: an inventory item has no safe full update from here,
+ * and creating one is already unsupported.
+ *
+ * Intuit also documents inactivation — "achieved by setting the Active
+ * attribute to false in an object update request" — as "Not valid for Category
+ * item types".
+ */
+export function assertQuickBooksItemUpdatable(
+  current: Record<string, unknown>,
+  patch: Record<string, unknown>
+): void {
+  const itemType: QuickBooksItem['Type'] =
+    typeof current.Type === 'string' ? current.Type : undefined
+  if (itemType === 'Inventory') {
+    throw new Error(
+      'QuickBooks Inventory items cannot be updated here: the update would be recorded as an inventory adjustment. Edit inventory items in QuickBooks Online.'
+    )
+  }
+  if (itemType === 'Category' && 'Active' in patch) {
+    throw new Error('QuickBooks does not support the Active attribute on Category item types')
+  }
 }
 
 export function quickBooksWritableItemType(itemType: QuickBooksWritableItemType): string {
@@ -107,6 +257,12 @@ const QUICKBOOKS_ADDRESS_FIELDS = {
   Line1: 'Line1',
   line2: 'Line2',
   Line2: 'Line2',
+  line3: 'Line3',
+  Line3: 'Line3',
+  line4: 'Line4',
+  Line4: 'Line4',
+  line5: 'Line5',
+  Line5: 'Line5',
   city: 'City',
   City: 'City',
   countrySubDivisionCode: 'CountrySubDivisionCode',
@@ -166,8 +322,11 @@ export function quickBooksActiveValue(
  * Enforces both halves of the contract:
  * 1. `sparse` is literally `true`. Intuit treats an update without it as a
  *    *full* replacement, silently clearing every field the body omits, and
- *    documents `sparse` as required to void an object. A builder that drops it
- *    would otherwise fail only against the live API.
+ *    documents `sparse` as required by the `include=void` form of the void
+ *    operation (Payment, SalesReceipt). Invoice voids through
+ *    `?operation=void`, whose documented request model is `deleterequest` —
+ *    `Id` and `SyncToken` only, no `sparse`. A builder that drops it would
+ *    otherwise fail only against the live API.
  * 2. The body carries at least one field beyond the required identifiers
  *    (`Id`, `SyncToken`, `sparse` by default), so an update that would change
  *    nothing never reaches the API.

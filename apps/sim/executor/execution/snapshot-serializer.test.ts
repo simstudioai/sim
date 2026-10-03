@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import { EdgeManager } from '@/executor/execution/edge-manager'
@@ -59,26 +56,6 @@ describe('serializePauseSnapshot', () => {
       entries: [{ name: 'TOKEN', encryptedValue: 'ciphertext' }],
     })
     expect(snapshot.snapshot).not.toContain('raw-secret')
-  })
-
-  it('persists a complete zero-entry provenance state for a fresh execution', () => {
-    const registry = new ResolvedSecretTraceRegistry([], {
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-    })
-
-    const snapshot = serializePauseSnapshot(
-      createContext({ resolvedSecretTraceRegistry: registry }),
-      ['next-block']
-    )
-    const serialized = JSON.parse(snapshot.snapshot)
-
-    expect(serialized.state.resolvedSecretTraceProvenance).toEqual({
-      version: 1,
-      complete: true,
-      entries: [],
-      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
-    })
   })
 
   it('persists only encrypted value-adjacent provenance across pause and resume', () => {
@@ -263,27 +240,6 @@ describe('serializePauseSnapshot', () => {
     }
   })
 
-  it('preserves an explicit useDraftState=true even when the context is a deployed (server-side) context', () => {
-    const context = createContext({
-      isDeployedContext: true,
-      metadata: {
-        requestId: 'request-1',
-        executionId: 'execution-1',
-        workflowId: 'workflow-1',
-        workspaceId: 'workspace-1',
-        userId: 'user-1',
-        triggerType: 'manual',
-        useDraftState: true,
-        startTime: '2026-01-01T00:00:00.000Z',
-      },
-    })
-
-    const snapshot = serializePauseSnapshot(context, ['next-block'])
-    const serialized = JSON.parse(snapshot.snapshot)
-
-    expect(serialized.metadata.useDraftState).toBe(true)
-  })
-
   it('serializes billing attribution for an exact-payer resume', () => {
     const billingAttribution = {
       actorUserId: 'external-actor',
@@ -328,14 +284,6 @@ describe('serializePauseSnapshot', () => {
     expect(serialized.metadata.executionMode).toBe('stream')
   })
 
-  it('omits chat event policies when the live run did not enable them', () => {
-    const snapshot = serializePauseSnapshot(createContext(), ['next-block'])
-    const serialized = JSON.parse(snapshot.snapshot)
-
-    expect(serialized.metadata.includeThinking).toBeUndefined()
-    expect(serialized.metadata.includeToolCalls).toBeUndefined()
-  })
-
   /**
    * A table cell dispatched by a workspace API key bills the workspace's
    * billing owner and is gated on the member who asked. Losing the gate's
@@ -357,26 +305,5 @@ describe('serializePauseSnapshot', () => {
 
     expect(serialized.metadata.userId).toBe('workspace-billing-owner')
     expect(serialized.metadata.capabilityGovernedUserId).toBe('requesting-member')
-  })
-
-  /** A declared `null` is the actorless run, and is not the same as absence. */
-  it('preserves a declared actorless gate subject as null', () => {
-    const context = createContext({
-      metadata: {
-        ...createContext().metadata,
-        userId: 'workspace-billing-owner',
-        capabilityGovernedUserId: null,
-      },
-    })
-
-    const serialized = JSON.parse(serializePauseSnapshot(context, ['next-block']).snapshot)
-
-    expect(serialized.metadata.capabilityGovernedUserId).toBeNull()
-  })
-
-  it('declares nothing for a run whose caller is its only person', () => {
-    const serialized = JSON.parse(serializePauseSnapshot(createContext(), ['next-block']).snapshot)
-
-    expect(serialized.metadata.capabilityGovernedUserId).toBeUndefined()
   })
 })

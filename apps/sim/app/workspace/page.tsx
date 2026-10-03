@@ -16,7 +16,6 @@ import {
   isUpgradeReason,
   UPGRADE_REASON_PARAM,
 } from '@/lib/billing/upgrade-reasons'
-import { WorkspaceRecencyStorage } from '@/lib/core/utils/browser-storage'
 import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 import { useWorkspacesWithMetadata } from '@/hooks/queries/workspace'
 
@@ -125,14 +124,13 @@ export default function WorkspacePage() {
     const redirectTarget = urlParams.get('redirect')
     const rawReason = urlParams.get(UPGRADE_REASON_PARAM)
 
-    // `?redirect=upgrade` is how a caller that cannot know a workspace id — a
-    // self-hosted deployment, an email — reaches the plan picker. It has to
-    // survive workspace creation too: a first-time visitor has no workspace to
-    // resolve, and dropping the intent lands them on home with no explanation.
+    /** Preserve settings and upgrade destinations when selecting or creating a workspace. */
     const destinationFor = (id: string) =>
       redirectTarget === 'upgrade'
         ? buildUpgradeHref(id, isUpgradeReason(rawReason) ? rawReason : undefined)
-        : `/workspace/${id}`
+        : redirectTarget === 'settings'
+          ? `/workspace/${id}/settings/general`
+          : `/workspace/${id}`
 
     const { workspaces, lastActiveWorkspaceId, creationPolicy } = data
 
@@ -160,12 +158,7 @@ export default function WorkspacePage() {
 
     hasRedirectedRef.current = true
 
-    const localRecentId = WorkspaceRecencyStorage.getMostRecent()
-    const findWorkspace = (id: string | null) =>
-      id ? workspaces.find((w) => w.id === id) : undefined
-
-    const targetWorkspace =
-      findWorkspace(localRecentId) ?? findWorkspace(lastActiveWorkspaceId) ?? workspaces[0]
+    const targetWorkspace = workspaces.find((w) => w.id === lastActiveWorkspaceId) ?? workspaces[0]
 
     if (redirectWorkflowId) {
       handleWorkflowRedirect(redirectWorkflowId, targetWorkspace.id, router)

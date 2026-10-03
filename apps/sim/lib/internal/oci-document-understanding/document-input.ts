@@ -87,7 +87,7 @@ export async function prepareDocumentSource(
     throw new DocumentOperationError('File is not available in this execution', 404)
   }
   request.signal?.throwIfAborted()
-  if (!(await isModelSafeWorkspaceFileKey(file.key, { workspaceId, actorUserId: userId }))) {
+  if (!(await isModelSafeWorkspaceFileKey(file.key, { workspaceId }))) {
     throw new DocumentOperationError(MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
   }
   const servable = await downloadServableFileFromStorage(file, request.requestId, logger, {

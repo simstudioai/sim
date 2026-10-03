@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 
 const MAX_SLACK_JSON_BYTES = 2 * 1024 * 1024
@@ -8,6 +9,7 @@ export interface SlackApiResult {
   data: SlackJsonObject
   status: number
   statusText: string
+  grantedScopes?: string[]
 }
 
 export interface SlackApiRequest {
@@ -20,8 +22,18 @@ export interface SlackApiRequest {
   tolerateInvalidErrorJson?: boolean
 }
 
-function isSlackJsonObject(value: unknown): value is SlackJsonObject {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+export interface SlackMessage {
+  channel: string
+  text: string
+  thread_ts?: string
+  blocks?: unknown[]
+  unfurl_links?: boolean
+  unfurl_media?: boolean
+}
+
+/** Shared provider primitive for workflow tools and application-owned Slack responses. */
+export function postSlackMessage(accessToken: string, message: SlackMessage, signal?: AbortSignal) {
+  return requestSlackApi({ accessToken, method: 'chat.postMessage', body: { ...message }, signal })
 }
 
 export function slackString(data: SlackJsonObject, key: string): string | undefined {
@@ -31,7 +43,7 @@ export function slackString(data: SlackJsonObject, key: string): string | undefi
 
 export function slackObject(data: SlackJsonObject, key: string): SlackJsonObject | undefined {
   const value = data[key]
-  return isSlackJsonObject(value) ? value : undefined
+  return isRecordLike(value) ? value : undefined
 }
 
 export function slackArray(data: SlackJsonObject, key: string): unknown[] | undefined {
@@ -88,8 +100,21 @@ export async function requestSlackApi({
     }
   }
   signal?.throwIfAborted()
-  if (!isSlackJsonObject(parsed)) throw new Error('Slack API returned an invalid response')
-  return { data: parsed, status: response.status, statusText: response.statusText }
+  if (!isRecordLike(parsed)) throw new Error('Slack API returned an invalid response')
+  const scopeHeader = response.headers.get('x-oauth-scopes')
+  return {
+    data: parsed,
+    status: response.status,
+    statusText: response.statusText,
+    ...(scopeHeader !== null
+      ? {
+          grantedScopes: scopeHeader
+            .split(',')
+            .map((scope) => scope.trim())
+            .filter(Boolean),
+        }
+      : {}),
+  }
 }
 
 /** Opens a Slack direct-message conversation while retaining the legacy thrown-error behavior. */

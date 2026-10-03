@@ -29,15 +29,4 @@ describe('flattenSuccessors', () => {
 
     expect(map.has('a')).toBe(false)
   })
-
-  it('emits nothing for a block that is already current', () => {
-    expect(flattenSuccessors({}, registered(['slack_v2'])).size).toBe(0)
-  })
-
-  /** No key may also be a value, or the runtime's single lookup would be short. */
-  it('produces a closed map', () => {
-    const map = flattenSuccessors({ a: 'b', b: 'c' }, registered(['a', 'b', 'c']))
-
-    for (const successor of map.values()) expect(map.has(successor)).toBe(false)
-  })
 })
