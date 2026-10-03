@@ -73,7 +73,7 @@
     "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils-store.test.ts": 7,
     "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils.test.ts": 6,
     "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-utils.ts": 8,
-    "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/workflow.tsx": 9,
+    "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/workflow.tsx": 5,
     "apps/sim/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/preview-workflow.tsx": 1,
     "apps/sim/app/workspace/providers/socket-provider.tsx": 10,
     "apps/sim/background/workflow-execution.ts": 2,

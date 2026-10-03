@@ -1,5 +1,5 @@
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS, getNoteBlockHeight } from '@sim/workflow-renderer'
-import type { Edge, Node } from '@xyflow/react'
+import type { Edge, EdgeChange, Node } from '@xyflow/react'
 import { isEqual } from 'es-toolkit'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { clampPositionToContainer } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/node-position-utils'
@@ -330,7 +330,7 @@ export function getNodeSelectionContextId(
   return node.parentId || blocks[node.id]?.data?.parentId || null
 }
 
-export function getEdgeSelectionContextId(
+function getEdgeSelectionContextId(
   edge: Pick<Edge, 'source' | 'target'>,
   nodes: Array<Pick<Node, 'id' | 'parentId'>>,
   blocks: Record<string, { data?: { parentId?: string } }>
@@ -342,6 +342,44 @@ export function getEdgeSelectionContextId(
   if (sourceContextId) return sourceContextId
   if (targetContextId) return targetContextId
   return null
+}
+
+/** Stable key for transient edge selection, including a nested subflow context when present. */
+export function getEdgeSelectionMapKey(
+  edge: Pick<Edge, 'id' | 'source' | 'target'>,
+  nodes: Array<Pick<Node, 'id' | 'parentId'>>,
+  blocks: Record<string, { data?: { parentId?: string } }>
+): string {
+  const contextId = getEdgeSelectionContextId(edge, nodes, blocks)
+  return contextId ? `${edge.id}-${contextId}` : edge.id
+}
+
+type EdgeSelectChange = Extract<EdgeChange, { type: 'select' }>
+
+/** Applies React Flow selection changes to the canvas' transient edge-selection map. */
+export function applyEdgeSelectionChanges(
+  current: Map<string, string>,
+  changes: EdgeSelectChange[],
+  getSelectionKey: (edgeId: string) => string | null
+): Map<string, string> {
+  let next: Map<string, string> | null = null
+  const writable = () => (next ??= new Map(current))
+
+  for (const change of changes) {
+    if (change.selected) {
+      const selectionKey = getSelectionKey(change.id)
+      if (selectionKey && (next ?? current).get(selectionKey) !== change.id) {
+        writable().set(selectionKey, change.id)
+      }
+      continue
+    }
+
+    for (const [selectionKey, edgeId] of next ?? current) {
+      if (edgeId === change.id) writable().delete(selectionKey)
+    }
+  }
+
+  return next ?? current
 }
 
 export function resolveSelectionContextConflicts(

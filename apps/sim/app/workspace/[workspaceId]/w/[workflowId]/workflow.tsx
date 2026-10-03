@@ -6,6 +6,7 @@ import {
   applyNodeChanges,
   ConnectionLineType,
   type Edge,
+  type EdgeChange,
   type Node,
   type NodeChange,
   type OnConnectStart,
@@ -89,6 +90,7 @@ import {
   useWorkflowExecution,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import {
+  applyEdgeSelectionChanges,
   calculateContainerDimensions,
   clampPositionToContainer,
   clearDragHighlights,
@@ -98,7 +100,7 @@ import {
   getArrowNavigationDirection,
   getClampedPositionForNode,
   getDescendantBlockIds,
-  getEdgeSelectionContextId,
+  getEdgeSelectionMapKey,
   getNodeDataDimension,
   getNodeSelectionContextId,
   getRunFromBlockDependencyState,
@@ -3359,12 +3361,39 @@ const WorkflowContent = React.memo(
       }
     }, [blocks, batchUpdateBlocksWithParent, getNodeAbsolutePosition, isWorkflowReady])
 
-    /** Handles edge removal changes. */
+    /** Synchronizes transient edge selection and handles edge removal changes. */
     const onEdgesChange = useCallback(
-      (changes: any) => {
+      (changes: EdgeChange[]) => {
+        const selectionChanges = changes.filter(
+          (change): change is Extract<EdgeChange, { type: 'select' }> => change.type === 'select'
+        )
+        if (selectionChanges.length > 0) {
+          const focusedEdgeTestId = document.activeElement?.getAttribute('data-testid')
+          const shouldRestoreEdgeFocus = selectionChanges.some(
+            (change) => change.selected && focusedEdgeTestId === `rf__edge-${change.id}`
+          )
+          const nodes = getNodes()
+          setSelectedEdges((current) =>
+            applyEdgeSelectionChanges(current, selectionChanges, (edgeId) => {
+              const edge = edgesForDisplay.find((candidate) => candidate.id === edgeId)
+              return edge ? getEdgeSelectionMapKey(edge, nodes, blocks) : null
+            })
+          )
+          if (shouldRestoreEdgeFocus) {
+            requestAnimationFrame(() => {
+              const focusedEdge = Array.from(
+                document.querySelectorAll<SVGGElement>('.react-flow__edge')
+              ).find((edge) => edge.getAttribute('data-testid') === focusedEdgeTestId)
+              focusedEdge?.focus({ preventScroll: true })
+            })
+          }
+        }
+
         const edgeIdsToRemove = changes
-          .filter((change: any) => change.type === 'remove')
-          .map((change: any) => change.id)
+          .filter(
+            (change): change is Extract<EdgeChange, { type: 'remove' }> => change.type === 'remove'
+          )
+          .map((change) => change.id)
           .filter((edgeId: string) => {
             const edge = edges.find((e) => e.id === edgeId)
             if (!edge) return true
@@ -3375,7 +3404,7 @@ const WorkflowContent = React.memo(
           collaborativeBatchRemoveEdges(edgeIdsToRemove)
         }
       },
-      [collaborativeBatchRemoveEdges, edges, blocks]
+      [blocks, collaborativeBatchRemoveEdges, edges, edgesForDisplay, getNodes]
     )
 
     /**
@@ -4687,36 +4716,6 @@ const WorkflowContent = React.memo(
       workflowIdParam,
     ])
 
-    /** Handles edge selection with container context tracking and Shift-click multi-selection. */
-    const onEdgeClick = useCallback(
-      (event: React.MouseEvent, edge: any) => {
-        event.stopPropagation() // Prevent bubbling
-        if (edge.id === `${CONNECTION_BLOCK_SELECTOR_NODE_ID}-edge`) return
-
-        const contextId = `${edge.id}${(() => {
-          const selectionContextId = getEdgeSelectionContextId(edge, getNodes(), blocks)
-          return selectionContextId ? `-${selectionContextId}` : ''
-        })()}`
-
-        if (event.shiftKey) {
-          // Shift-click: toggle edge in selection
-          setSelectedEdges((prev) => {
-            const next = new Map(prev)
-            if (next.has(contextId)) {
-              next.delete(contextId)
-            } else {
-              next.set(contextId, edge.id)
-            }
-            return next
-          })
-        } else {
-          // Normal click: replace selection with this edge
-          setSelectedEdges(new Map([[contextId, edge.id]]))
-        }
-      },
-      [blocks, getNodes]
-    )
-
     const latestEdgesRef = useRef(edges)
     latestEdgesRef.current = edges
     const latestBlocksRef = useRef(blocks)
@@ -4724,6 +4723,8 @@ const WorkflowContent = React.memo(
     /** Stable delete handler to avoid creating new function references per edge. */
     const handleEdgeDelete = useCallback(
       (edgeId: string) => {
+        if (!effectivePermissions.canEdit) return
+
         const edge = latestEdgesRef.current.find((candidate) => candidate.id === edgeId)
         if (edge && isEdgeProtected(edge, latestBlocksRef.current)) {
           toast({ message: 'Cannot remove connections to locked blocks' })
@@ -4740,7 +4741,7 @@ const WorkflowContent = React.memo(
           return next
         })
       },
-      [removeEdge]
+      [effectivePermissions.canEdit, removeEdge]
     )
 
     /*
@@ -4813,7 +4814,7 @@ const WorkflowContent = React.memo(
         const sourceNode = nodeMap.get(edge.source)
         const targetNode = nodeMap.get(edge.target)
         const parentLoopId = sourceNode?.parentId || targetNode?.parentId
-        const edgeContextId = `${edge.id}${parentLoopId ? `-${parentLoopId}` : ''}`
+        const edgeContextId = getEdgeSelectionMapKey(edge, displayNodes, blocks)
 
         // Ordered within the edge band by its container's depth, so an edge is
         // always above the container body it crosses (which is opaque, and takes
@@ -4854,6 +4855,7 @@ const WorkflowContent = React.memo(
 
         return {
           ...edge,
+          selected: isSelected,
           zIndex,
           data: {
             ...edge.data,
@@ -4862,7 +4864,7 @@ const WorkflowContent = React.memo(
             isInsideLoop: Boolean(parentLoopId),
             parentLoopId,
             sourceHandle: edge.sourceHandle,
-            onDelete: handleEdgeDelete,
+            ...(effectivePermissions.canEdit ? { onDelete: handleEdgeDelete } : {}),
             ...(targetContainerZIndex !== undefined ? { labelZIndex: zIndex } : {}),
           },
         }
@@ -4878,10 +4880,12 @@ const WorkflowContent = React.memo(
       previousEdgesWithSelectionRef.current = reconciledEdges
       return reconciledEdges
     }, [
+      blocks,
       edgesForDisplay,
       displayNodes,
       selectedNodeIds,
       selectedEdges,
+      effectivePermissions.canEdit,
       handleEdgeDelete,
       editorOpenBlockId,
       panelActiveTab,
@@ -4935,6 +4939,9 @@ const WorkflowContent = React.memo(
 
         // Handle edge deletion first (edges take priority if selected)
         if (selectedEdges.size > 0) {
+          event.preventDefault()
+          if (!effectivePermissions.canEdit) return
+
           const edgeIds = Array.from(selectedEdges.values()).filter((edgeId) => {
             const edge = edges.find((e) => e.id === edgeId)
             if (!edge) return true
@@ -5126,7 +5133,6 @@ const WorkflowContent = React.memo(
                   connectionLineContainerStyle={CONNECTION_LINE_CONTAINER_STYLE}
                   connectionLineType={ConnectionLineType.SmoothStep}
                   onPaneClick={onPaneClick}
-                  onEdgeClick={embedded ? undefined : onEdgeClick}
                   onNodeClick={handleNodeClick}
                   onPaneContextMenu={handlePaneContextMenu}
                   onNodeContextMenu={handleNodeContextMenu}

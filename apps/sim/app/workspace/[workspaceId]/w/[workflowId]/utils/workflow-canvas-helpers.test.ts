@@ -1,5 +1,54 @@
 import { describe, expect, it } from 'vitest'
-import { isPositionalTriggerBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-canvas-helpers'
+import {
+  applyEdgeSelectionChanges,
+  getEdgeSelectionMapKey,
+  isPositionalTriggerBlock,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-canvas-helpers'
+
+describe('edge selection helpers', () => {
+  it('keeps modifier selections and removes deselected edges', () => {
+    const selected = new Map([['edge-1-loop-1', 'edge-1']])
+    const selectionKeys = new Map([
+      ['edge-1', 'edge-1-loop-1'],
+      ['edge-2', 'edge-2-loop-1'],
+    ])
+
+    const withSecondEdge = applyEdgeSelectionChanges(
+      selected,
+      [{ id: 'edge-2', type: 'select', selected: true }],
+      (edgeId) => selectionKeys.get(edgeId) ?? null
+    )
+    expect([...withSecondEdge]).toEqual([
+      ['edge-1-loop-1', 'edge-1'],
+      ['edge-2-loop-1', 'edge-2'],
+    ])
+
+    const withoutFirstEdge = applyEdgeSelectionChanges(
+      withSecondEdge,
+      [{ id: 'edge-1', type: 'select', selected: false }],
+      (edgeId) => selectionKeys.get(edgeId) ?? null
+    )
+    expect([...withoutFirstEdge]).toEqual([['edge-2-loop-1', 'edge-2']])
+  })
+
+  it('uses nested context keys and ignores temporary edges', () => {
+    const key = getEdgeSelectionMapKey(
+      { id: 'edge-1', source: 'source', target: 'target' },
+      [{ id: 'source', parentId: 'loop-1' }, { id: 'target' }],
+      {}
+    )
+    expect(key).toBe('edge-1-loop-1')
+
+    const selected = new Map<string, string>()
+    expect(
+      applyEdgeSelectionChanges(
+        selected,
+        [{ id: 'connection-block-selector-edge', type: 'select', selected: true }],
+        () => null
+      )
+    ).toBe(selected)
+  })
+})
 
 describe('isPositionalTriggerBlock', () => {
   it('returns false for a block nested in a subflow even with no incoming edges', () => {

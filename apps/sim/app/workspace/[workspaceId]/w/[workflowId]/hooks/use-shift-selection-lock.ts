@@ -31,7 +31,7 @@ export function useShiftSelectionLock({
       if (!event.shiftKey) return
 
       const target = event.target as HTMLElement | null
-      const isPaneTarget = Boolean(target?.closest('.react-flow__pane, .react-flow__selectionpane'))
+      const isPaneTarget = Boolean(target?.matches('.react-flow__pane, .react-flow__selectionpane'))
 
       if (isPaneTarget && isHandMode) {
         setIsShiftSelecting(true)
