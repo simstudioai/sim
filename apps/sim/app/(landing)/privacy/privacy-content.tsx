@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode } from 'react'
+import { SITE_URL } from '@/lib/core/utils/urls'
 import { type LegalPageConfig, ProseLink } from '@/app/(landing)/components/prose-page'
 
 const INLINE_PATTERN =
@@ -43,12 +44,12 @@ function richText(content: string): ReactNode {
 export const PRIVACY_CONFIG: LegalPageConfig = {
   title: 'Privacy Policy',
   description: 'Sim Studio, Inc. · Operating the Sim platform (sim.ai)',
-  lastUpdated: 'August 25, 2026',
+  lastUpdated: 'September 2, 2026',
   intro: [
     {
       kind: 'paragraph',
       content: richText(
-        'This Privacy Policy describes how Sim ("we", "us", "our", or "the Service") collects, uses, discloses, and protects personal data, including data obtained from Google APIs (including Google Workspace APIs), and your rights and controls regarding that data. This Privacy Policy is provided for transparency and information purposes only, including to satisfy the information obligations in Articles 13 and 14 of the General Data Protection Regulation ("GDPR"). It does not create contractual obligations on you. Your use of the Service is governed by the [Terms of Service](https://sim.ai/terms).'
+        `This Privacy Policy describes how Sim ("we", "us", "our", or "the Service") collects, uses, discloses, and protects personal data, including data obtained from Google APIs (including Google Workspace APIs), and your rights and controls regarding that data. This Privacy Policy is provided for transparency and information purposes only, including to satisfy the information obligations in Articles 13 and 14 of the General Data Protection Regulation ("GDPR"). It does not create contractual obligations on you. Your use of the Service is governed by the [Terms of Service](${SITE_URL}/terms).`
       ),
     },
   ],
@@ -199,7 +200,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'The [Cookie Policy](https://sim.ai/cookie-policy) lists the Cookies set by Sim and its providers, their purposes, lifetimes, providers, and the methods for changing or withdrawing a choice.'
+            `The [Cookie Policy](${SITE_URL}/cookie-policy) lists the Cookies set by Sim and its providers, their purposes, lifetimes, providers, and the methods for changing or withdrawing a choice.`
           ),
         },
       ],
@@ -264,7 +265,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
               'Behavioral remarketing',
               'Cookie and pixel identifiers, browser and Device data, campaign attribution, and website interaction data',
               'Consent — Article 6(1)(a)',
-              'Marketing technologies are disabled until the Marketing category is accepted. Consent may be changed or withdrawn through the cookie preferences link.',
+              'Marketing cookies and ad personalization require Marketing consent. Google Ads may load earlier with ad storage denied and send limited cookieless consent signals. Consent may be changed or withdrawn through the cookie preferences link.',
             ],
             [
               'Retaining transaction and tax records',
@@ -399,7 +400,7 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'Sim subjects all Personal Data received from the European Union, the United Kingdom and Gibraltar, and Switzerland in reliance on the applicable part of the DPF program to the relevant DPF Principles. Sim Studio, Inc. has no other U.S. entities or U.S. subsidiaries covered by its certification. This public policy covers non-human-resources Personal Data. Any human-resources data covered by the certification is addressed in the applicable employee privacy notice.'
+            "Sim subjects all Personal Data received from the European Union, the United Kingdom and Gibraltar, and Switzerland in reliance on the applicable part of the DPF program to the relevant DPF Principles. Sim Studio, Inc. has no other U.S. entities or U.S. subsidiaries covered by its certification. Sim's certification under the EU-U.S. DPF, the UK Extension to the EU-U.S. DPF, and the Swiss-U.S. DPF covers non-human-resources Personal Data only. Human-resources data is not covered by this certification."
           ),
         },
         { kind: 'subheading', text: 'Notice, Use, and Choice' },
@@ -576,13 +577,13 @@ export const PRIVACY_CONFIG: LegalPageConfig = {
         {
           kind: 'paragraph',
           content: richText(
-            'The Company uses Google Ads, Twitter, and Facebook remarketing services to advertise on third-party websites after You visit the Service. These services operate through non-essential Cookies and similar technologies. They are activated only after You give consent to the Marketing category in the cookie banner. No marketing Cookie is set before that consent.'
+            'The Company uses Google Ads, Twitter, and Facebook remarketing services to advertise on third-party websites after You visit the Service. These services operate through non-essential Cookies and similar technologies. Marketing Cookies and ad personalization are enabled only after You give consent to the Marketing category in the cookie banner. Google Ads may load before that consent with ad storage denied and send limited cookieless consent signals, as described in the Cookie Policy.'
           ),
         },
         {
           kind: 'paragraph',
           content: richText(
-            'You may change or withdraw consent at any time through the cookie preferences link. If Your browser or extension sends a Global Privacy Control signal, we treat it as a withdrawal of consent for analytics and marketing Cookies. The [Cookie Policy](https://sim.ai/cookie-policy) explains the technologies, providers, purposes, lifetimes, and available controls.'
+            `You may change or withdraw consent at any time through the cookie preferences link. If Your browser or extension sends a Global Privacy Control signal, we treat it as a withdrawal of consent for analytics and marketing Cookies. The [Cookie Policy](${SITE_URL}/cookie-policy) explains the technologies, providers, purposes, lifetimes, and available controls.`
           ),
         },
         {

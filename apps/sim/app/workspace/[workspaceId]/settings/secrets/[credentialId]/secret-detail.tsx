@@ -15,7 +15,6 @@ import { useQueryState } from 'nuqs'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import { SettingsActionChips } from '@/components/settings/settings-header'
 import { isApiClientError } from '@/lib/api/client/errors'
-import { ResourceTile } from '@/app/workspace/[workspaceId]/components'
 import {
   AddPeopleModal,
   CredentialDetailHeading,
@@ -25,6 +24,7 @@ import {
   UnsavedChangesModal,
   useCredentialDetailForm,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { ResourceTile } from '@/app/workspace/[workspaceId]/components/resource-tile'
 import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
 import { useSecretValue } from '@/app/workspace/[workspaceId]/settings/components/secrets/hooks/use-secret-value'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
@@ -256,6 +256,22 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
         </DetailSection>
 
         {!isPersonal && (
+          <DetailSection title='Description'>
+            <ChipTextarea
+              id='secret-description'
+              rows={4}
+              value={form.descriptionDraft}
+              onChange={(event) => form.setDescriptionDraft(event.target.value)}
+              placeholder='Add a description...'
+              maxLength={500}
+              autoComplete='off'
+              data-lpignore='true'
+              viewOnly={!isWorkspaceSecretAdmin}
+            />
+          </DetailSection>
+        )}
+
+        {!isPersonal && (
           <DetailSection title='Visibility'>
             <div className='flex items-center justify-between'>
               <div className='flex flex-col gap-1'>
@@ -273,22 +289,6 @@ export function SecretDetail({ workspaceId, credentialId }: SecretDetailProps) {
                 disabled={!isWorkspaceSecretAdmin}
               />
             </div>
-          </DetailSection>
-        )}
-
-        {!isPersonal && (
-          <DetailSection title='Description'>
-            <ChipTextarea
-              id='secret-description'
-              rows={4}
-              value={form.descriptionDraft}
-              onChange={(event) => form.setDescriptionDraft(event.target.value)}
-              placeholder='Add a description...'
-              maxLength={500}
-              autoComplete='off'
-              data-lpignore='true'
-              viewOnly={!isWorkspaceSecretAdmin}
-            />
           </DetailSection>
         )}
 

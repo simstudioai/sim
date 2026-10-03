@@ -24,4 +24,5 @@ export const DELETE = defineInternalJsonRoute({
     enrollmentId: params.enrollmentId,
   }),
   useCase: deleteCredentialGroupEnrollmentSettings,
+  present: ({ credentialGroupEnrollment }) => ({ credentialGroupEnrollment }),
 })

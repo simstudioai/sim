@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import {
   MAX_JSON_API_RESPONSE_BYTES,
   secureFetchWithPinnedIP,
@@ -48,12 +48,13 @@ export async function listPipedriveFiles(
   if (input.sort) url.searchParams.set('sort', input.sort)
   if (input.limit) url.searchParams.set('limit', input.limit)
   if (input.start) url.searchParams.set('start', input.start)
-  const validation = await validateUrlWithDNS(url.toString(), 'apiUrl')
+  const validation = await validateUrlWithDNS(url.toString(), 'apiUrl', 'configuredEndpoint')
   signal?.throwIfAborted()
-  if (!validation.isValid || !validation.resolvedIP) {
+  if (!validation.isValid) {
     throw new PipedriveOperationError(validation.error || 'Invalid Pipedrive API URL', 400)
   }
   const response = await secureFetchWithPinnedIP(url.toString(), validation.resolvedIP, {
+    profile: 'configuredEndpoint',
     method: 'GET',
     headers: getPipedriveAuthHeaders(input),
     maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
@@ -75,9 +76,8 @@ export async function listPipedriveFiles(
   const files = Array.isArray(data.data)
     ? data.data.filter((file): file is PipedriveFile => isRecordLike(file))
     : []
-  const additionalData = isRecordLike(data.additional_data) ? data.additional_data : null
-  const pagination =
-    additionalData && isRecordLike(additionalData.pagination) ? additionalData.pagination : null
+  const additionalData = toRecordOrNull(data.additional_data)
+  const pagination = additionalData ? toRecordOrNull(additionalData.pagination) : null
   return {
     files,
     hasMore: pagination?.more_items_in_collection === true,
@@ -92,14 +92,15 @@ export async function downloadPipedriveFile(
   signal?: AbortSignal
 ): Promise<{ buffer: Buffer; contentType: string | null } | null> {
   signal?.throwIfAborted()
-  const validation = await validateUrlWithDNS(fileUrl, 'fileUrl')
+  const validation = await validateUrlWithDNS(fileUrl, 'fileUrl', 'contentFetch')
   signal?.throwIfAborted()
-  if (!validation.isValid || !validation.resolvedIP) return null
+  if (!validation.isValid) return null
   const authHeaders: Record<string, string> =
     input.authStyle === 'x-api-token'
       ? { 'x-api-token': input.accessToken }
       : { Authorization: `Bearer ${input.accessToken}` }
   const response = await secureFetchWithPinnedIP(fileUrl, validation.resolvedIP, {
+    profile: 'contentFetch',
     method: 'GET',
     headers: isPipedriveHost(fileUrl) ? authHeaders : {},
     maxResponseBytes: maxBytes,

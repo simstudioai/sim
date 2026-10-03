@@ -4,7 +4,9 @@ import { ashbyConnector } from '@/connectors/ashby'
 import { azureDevopsConnector } from '@/connectors/azure-devops'
 import { bitbucketConnector } from '@/connectors/bitbucket'
 import { boxConnector } from '@/connectors/box'
+import { circlebackConnector } from '@/connectors/circleback'
 import { clickupConnector } from '@/connectors/clickup'
+import { codaConnector } from '@/connectors/coda'
 import { confluenceConnector } from '@/connectors/confluence'
 import { databricksConnector } from '@/connectors/databricks'
 import { discordConnector } from '@/connectors/discord'
@@ -41,6 +43,7 @@ import { mondayConnector } from '@/connectors/monday'
 import { notionConnector } from '@/connectors/notion'
 import { obsidianConnector } from '@/connectors/obsidian'
 import { onedriveConnector } from '@/connectors/onedrive'
+import { otterConnector } from '@/connectors/otter'
 import { outlookConnector } from '@/connectors/outlook'
 import { pagerdutyConnector } from '@/connectors/pagerduty'
 import { redditConnector } from '@/connectors/reddit'
@@ -78,7 +81,9 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   azure_devops: azureDevopsConnector,
   bitbucket: bitbucketConnector,
   box: boxConnector,
+  circleback: circlebackConnector,
   clickup: clickupConnector,
+  coda: codaConnector,
   confluence: confluenceConnector,
   databricks: databricksConnector,
   discord: discordConnector,
@@ -115,6 +120,7 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   notion: notionConnector,
   obsidian: obsidianConnector,
   onedrive: onedriveConnector,
+  otter: otterConnector,
   outlook: outlookConnector,
   pagerduty: pagerdutyConnector,
   reddit: redditConnector,

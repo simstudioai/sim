@@ -10,6 +10,7 @@ import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 
 const logger = createLogger('BillingPortal')
 
@@ -28,7 +29,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
     const context = parsedBody.data.context
     const organizationId = parsedBody.data.organizationId
-    const returnUrl = parsedBody.data.returnUrl || `${getBaseUrl()}/workspace?billing=updated`
+    const returnUrl =
+      parsedBody.data.returnUrl || `${getBaseUrl()}${APP_ENTRY_PATH}?billing=updated`
 
     const stripe = requireStripeClient()
 

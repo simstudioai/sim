@@ -1,3 +1,4 @@
+import { toRecord } from '@sim/utils/object'
 import {
   MAX_JSON_API_RESPONSE_BYTES,
   type SecureFetchResponse,
@@ -25,7 +26,7 @@ export async function requestGoogleDrive(
   options: GoogleDriveRequestOptions
 ): Promise<SecureFetchResponse> {
   options.signal?.throwIfAborted()
-  const validation = await validateUrlWithDNS(options.url, options.label)
+  const validation = await validateUrlWithDNS(options.url, options.label, 'configuredEndpoint')
   options.signal?.throwIfAborted()
   if (!validation.isValid) {
     throw new GoogleDriveOperationError(400, {
@@ -34,7 +35,8 @@ export async function requestGoogleDrive(
     })
   }
 
-  return secureFetchWithPinnedIP(options.url, validation.resolvedIP!, {
+  return secureFetchWithPinnedIP(options.url, validation.resolvedIP, {
+    profile: 'configuredEndpoint',
     method: options.method,
     headers: {
       Authorization: `Bearer ${options.accessToken}`,
@@ -52,14 +54,8 @@ export async function requestGoogleDrive(
 
 export type JsonObject = Record<string, unknown>
 
-export function asObject(value: unknown): JsonObject {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as JsonObject)
-    : {}
-}
-
 export async function responseObject(response: SecureFetchResponse): Promise<JsonObject> {
-  return asObject(await response.json())
+  return toRecord(await response.json())
 }
 
 export async function responseErrorObject(
@@ -72,7 +68,7 @@ export async function responseErrorObject(
       label: 'Google Drive error response',
       signal,
     })
-    return text ? asObject(JSON.parse(text)) : {}
+    return text ? toRecord(JSON.parse(text)) : {}
   } catch {
     signal?.throwIfAborted()
     return {}
@@ -80,6 +76,6 @@ export async function responseErrorObject(
 }
 
 export function googleApiErrorMessage(data: JsonObject, fallback: string): string {
-  const error = asObject(data.error)
+  const error = toRecord(data.error)
   return typeof error.message === 'string' && error.message ? error.message : fallback
 }

@@ -129,7 +129,7 @@ export const listMonitorsTool: ToolConfig<ListMonitorsParams, ListMonitorsRespon
     let data: unknown
     try {
       data = JSON.parse(text)
-    } catch (e) {
+    } catch {
       return {
         success: false,
         output: { monitors: [] },

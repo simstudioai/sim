@@ -549,7 +549,7 @@ export const mistralParserV3Tool: InternalToolConfig<MistralParserV2Input, Mistr
       file: {
         type: 'file',
         required: true,
-        visibility: 'hidden',
+        visibility: 'user-only',
         description: 'Normalized UserFile from file upload or file reference',
       },
       resultType: mistralParserTool.params.resultType,

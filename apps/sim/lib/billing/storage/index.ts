@@ -12,6 +12,7 @@ export {
   applyStorageUsageDeltasInTx,
   checkAndIncrementStorageUsageInTx,
   decrementStorageUsageForBillingContextInTx,
+  incrementAdmittedStorageUsageForBillingContextInTx,
   incrementStorageUsageForBillingContextInTx,
   type LegacyStorageUsageDelta,
   maybeNotifyStorageLimitForBillingContext,

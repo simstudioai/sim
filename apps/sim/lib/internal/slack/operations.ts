@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toRecord } from '@sim/utils/object'
 import type {
   SlackDeleteMessageBody,
   SlackDownloadBody,
@@ -15,6 +16,7 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import {
   openSlackDm,
+  postSlackMessage as postMessage,
   requestSlackApi,
   type SlackJsonObject,
   slackArray,
@@ -24,8 +26,12 @@ import {
 } from '@/lib/internal/slack/client'
 import { SlackOperationError } from '@/lib/internal/slack/errors'
 import { forEachSlackAttachmentFile } from '@/lib/internal/slack/file-input'
+import {
+  createInternalToolFileResult,
+  createInternalToolFilesResult,
+  type InternalToolFile,
+} from '@/lib/internal/tool-operations/file-result'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
-import type { ToolFileData } from '@/tools/types'
 
 const logger = createLogger('SlackOperations')
 
@@ -44,9 +50,7 @@ function providerError(data: SlackJsonObject, status: number, fallback: string):
 }
 
 function record(value: unknown): SlackJsonObject {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as SlackJsonObject)
-    : {}
+  return toRecord(value)
 }
 
 function mapReaction(value: unknown) {
@@ -277,26 +281,25 @@ async function postSlackMessage(
   channel: string,
   signal?: AbortSignal
 ) {
-  return requestSlackApi({
-    accessToken: input.accessToken,
-    method: 'chat.postMessage',
-    body: {
+  return postMessage(
+    input.accessToken,
+    {
       channel,
       text: input.text,
       ...(input.thread_ts ? { thread_ts: input.thread_ts } : {}),
       ...(input.blocks?.length ? { blocks: input.blocks } : {}),
     },
-    signal,
-  })
+    signal
+  )
 }
 
 async function uploadSlackFiles(
   input: SlackSendMessageBody,
   channel: string,
   context: SlackOperationContext
-): Promise<{ fileIds: string[]; files: ToolFileData[]; message?: unknown }> {
+): Promise<{ fileIds: string[]; files: InternalToolFile[]; message?: unknown }> {
   const fileIds: string[] = []
-  const files: ToolFileData[] = []
+  const files: InternalToolFile[] = []
 
   await forEachSlackAttachmentFile(
     input.files ?? [],
@@ -325,6 +328,7 @@ async function uploadSlackFiles(
       const uploaded = await secureFetchWithValidation(
         uploadUrl,
         {
+          profile: 'contentFetch',
           method: 'POST',
           body: file.buffer,
           maxResponseBytes: 64 * 1024,
@@ -343,8 +347,7 @@ async function uploadSlackFiles(
       files.push({
         name: file.name,
         mimeType: file.contentType || file.type || 'application/octet-stream',
-        data: file.buffer.toString('base64'),
-        size: file.buffer.length,
+        buffer: file.buffer,
       })
     }
   )
@@ -412,16 +415,17 @@ export async function executeSlackSendMessage(
     return { success: true as const, output: sentMessageOutput(data, input.text) }
   }
 
-  return {
-    success: true as const,
+  const { message, fileIds, files } = uploaded
+  return createInternalToolFilesResult(files, (storedFiles) => ({
+    success: true,
     output: {
-      message: uploaded.message,
-      ts: record(uploaded.message).ts,
+      message,
+      ts: record(message).ts,
       channel,
-      fileCount: uploaded.fileIds.length,
-      files: uploaded.files,
+      fileCount: fileIds.length,
+      files: storedFiles,
     },
-  }
+  }))
 }
 
 export async function executeSlackDownload(input: SlackDownloadBody, signal?: AbortSignal) {
@@ -444,10 +448,11 @@ export async function executeSlackDownload(input: SlackDownloadBody, signal?: Ab
   const urlPrivate = slackString(file, 'url_private')
   if (!urlPrivate) failure(400, 'File does not have a download URL')
   const downloadUrl = urlPrivate
-  const validation = await validateUrlWithDNS(downloadUrl, 'urlPrivate')
+  const validation = await validateUrlWithDNS(downloadUrl, 'urlPrivate', 'contentFetch')
   signal?.throwIfAborted()
   if (!validation.isValid) failure(400, validation.error || 'Invalid Slack file URL')
-  const response = await secureFetchWithPinnedIP(downloadUrl, validation.resolvedIP!, {
+  const response = await secureFetchWithPinnedIP(downloadUrl, validation.resolvedIP, {
+    profile: 'contentFetch',
     headers: { Authorization: `Bearer ${input.accessToken}` },
     maxResponseBytes: MAX_FILE_SIZE,
     signal,
@@ -456,10 +461,8 @@ export async function executeSlackDownload(input: SlackDownloadBody, signal?: Ab
   if (!response.ok) failure(400, 'Failed to download file content')
   const buffer = Buffer.from(await response.arrayBuffer())
   signal?.throwIfAborted()
-  return {
-    success: true as const,
-    output: {
-      file: { name, mimeType, data: buffer.toString('base64'), size: buffer.length },
-    },
-  }
+  return createInternalToolFileResult({ buffer, name, mimeType }, (file) => ({
+    success: true,
+    output: { file },
+  }))
 }

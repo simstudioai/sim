@@ -1,5 +1,6 @@
 import {
   getLargeValueMaterializationError,
+  isGrantedLargeValueKey,
   isLargeValueRef,
   type LargeValueRef,
 } from '@/lib/execution/payloads/large-value-ref'
@@ -167,7 +168,7 @@ function scopeMatchesRef(
     callerScope.executionId,
     ...(callerScope.largeValueExecutionIds ?? []),
   ])
-  if (ref.key && callerScope.largeValueKeys?.includes(ref.key)) {
+  if (ref.key && isGrantedLargeValueKey(ref.key, callerScope)) {
     return true
   }
   const workflowScopeAllowed =

@@ -122,7 +122,32 @@ function buildSimToolSpec(
       properties: {},
     },
     execute: async (args) => {
-      const params = mergeToolParameters(preseededParams, args as Record<string, unknown>)
+      /**
+       * The same transform the agent block applies before executing a tool: canonical
+       * basic/advanced resolution, the block's own `params` function, and the decode
+       * that turns the tool row's stringified values back into the shapes the tool
+       * declares. Skipping it here left Pi local tools receiving a raw selector id
+       * where the tool expected a resolved one, and `'false'` where it expected `false`.
+       *
+       * A failure keeps the raw params, matching `prepareToolExecution`. The projected
+       * copy is only transformed when the raw one was, so the two stay comparable.
+       */
+      let transformApplied = false
+      const applyParamsTransform = (input: Record<string, unknown>): Record<string, unknown> => {
+        if (!provider.paramsTransform) return input
+        try {
+          const transformed = provider.paramsTransform(input)
+          transformApplied = true
+          return transformed
+        } catch (error) {
+          logger.warn('paramsTransform failed for Pi local tool, using raw params', { error })
+          return input
+        }
+      }
+
+      const params = applyParamsTransform(
+        mergeToolParameters(preseededParams, args as Record<string, unknown>)
+      )
       const registry = ctx.resolvedSecretTraceRegistry
       const sourcePath = ['tools', String(toolIndex), 'params'] as const
       const toolCallRegistry = registry?.forkForInputPaths([sourcePath], {
@@ -142,10 +167,27 @@ function buildSimToolSpec(
         if (!inputProjection.complete || !projectedTool) {
           return unavailableToolResult()
         }
-        const projectedParams = mergeToolParameters(
+        const mergedProjectedParams = mergeToolParameters(
           projectedTool.params || {},
           args as Record<string, unknown>
         )
+
+        // The projected copy has to go through the SAME transform, or its shape diverges
+        // from the executed params and the comparison below reads that as a provenance
+        // failure. If the transform succeeded for the real params but throws here, fail
+        // closed rather than pairing transformed params with untransformed projected ones
+        // — mirrors `prepareToolExecution`'s `tool-params-transform-failed`.
+        let projectedParams = mergedProjectedParams
+        if (transformApplied && provider.paramsTransform) {
+          try {
+            projectedParams = provider.paramsTransform(mergedProjectedParams)
+          } catch (error) {
+            logger.warn('paramsTransform failed for the Pi local tool projection', { error })
+            toolCallRegistry.markIncomplete('tool-params-transform-failed')
+            return unavailableToolResult()
+          }
+        }
+
         toolCallRegistry.recordTransformedInputProjection(params, projectedParams)
         if (!toolCallRegistry.isComplete()) return unavailableToolResult()
       }

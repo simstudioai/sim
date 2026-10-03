@@ -26,7 +26,9 @@ import { jsonColumnType } from '@/lib/table/column-types/json'
 import { numberColumnType } from '@/lib/table/column-types/number'
 import {
   MULTI_SELECT_OPERATORS,
+  MULTI_SELECT_OPS,
   SINGLE_SELECT_OPERATORS,
+  SINGLE_SELECT_OPS,
   selectColumnType,
 } from '@/lib/table/column-types/select'
 import { stringColumnType } from '@/lib/table/column-types/string'
@@ -36,7 +38,7 @@ import { COLUMN_TYPES, TYPE_SPECIFIC_COLUMN_KEYS } from '@/lib/table/column-type
 import type { ColumnDefinition, JsonValue } from '@/lib/table/types'
 
 export { COLUMN_TYPES }
-export { MULTI_SELECT_OPERATORS, SINGLE_SELECT_OPERATORS }
+export { MULTI_SELECT_OPERATORS, MULTI_SELECT_OPS, SINGLE_SELECT_OPERATORS, SINGLE_SELECT_OPS }
 
 /**
  * Every column type, keyed by id. The annotation is the completeness gate —
@@ -74,6 +76,11 @@ export function columnTypeOf(column: Pick<ColumnDefinition, 'type'>): ColumnType
   return COLUMN_TYPE_REGISTRY[column.type] ?? stringColumnType
 }
 
+/** Compares equivalent values without changing their stored representation. */
+export function columnValueForEquality(value: JsonValue, column: ColumnDefinition): JsonValue {
+  return columnTypeOf(column).valueForEquality?.(value) ?? value
+}
+
 /** The definition for a type id, or `string`'s when the id is unknown. */
 export function columnTypeById(type: string | undefined): ColumnTypeDefinition {
   return (isColumnType(type) && COLUMN_TYPE_REGISTRY[type]) || stringColumnType
@@ -90,16 +97,6 @@ export function isValueCompatible(value: unknown, target: ColumnDefinition): boo
   const definition = columnTypeOf(target)
   if (definition.isCompatibleWith) return definition.isCompatibleWith(value, target)
   return definition.coerce(value as JsonValue, target).ok
-}
-
-/** Applies source-owned normalization before a value is converted to another type. */
-export function valueForTypeConversion(
-  value: JsonValue,
-  source: ColumnDefinition,
-  target: ColumnDefinition
-): JsonValue {
-  const normalized = columnTypeOf(source).valueForConversion?.(value, target)
-  return normalized === undefined ? value : normalized
 }
 
 /** This type's own metadata errors; types carrying no metadata report none. */

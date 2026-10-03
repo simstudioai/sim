@@ -1,23 +1,15 @@
-/**
- * @vitest-environment node
- */
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
-const {
-  mockBackoffWithJitter,
-  mockCreatePinnedFetchWithDispatcher,
-  mockParseRetryAfter,
-  mockSecureFetchWithPinnedIP,
-  mockValidateUrlWithDNS,
-} = vi.hoisted(() => ({
+const { mockBackoffWithJitter, mockParseRetryAfter } = vi.hoisted(() => ({
   mockBackoffWithJitter: vi.fn(() => 0),
-  mockCreatePinnedFetchWithDispatcher: vi.fn(),
   mockParseRetryAfter: vi.fn((header: string | null) =>
     header === null ? null : Number(header) * 1000
   ),
-  mockSecureFetchWithPinnedIP: vi.fn(),
-  mockValidateUrlWithDNS: vi.fn(),
 }))
 
 vi.mock('@sim/utils/retry', () => ({
@@ -25,16 +17,17 @@ vi.mock('@sim/utils/retry', () => ({
   parseRetryAfter: mockParseRetryAfter,
 }))
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  createPinnedFetchWithDispatcher: mockCreatePinnedFetchWithDispatcher,
-  secureFetchWithPinnedIP: mockSecureFetchWithPinnedIP,
-  validateUrlWithDNS: mockValidateUrlWithDNS,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import {
   resolveBitbucketPullRequestRedirect,
   secureBitbucketRead,
 } from '@/tools/bitbucket/utils.server'
+
+const mockCreatePinnedFetchWithDispatcher =
+  inputValidationMockFns.mockCreatePinnedFetchWithDispatcher
+const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
+const mockValidateUrlWithDNS = inputValidationMockFns.mockValidateUrlWithDNS
 
 function secureResponse(
   status: number,
@@ -55,7 +48,6 @@ function secureResponse(
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mockBackoffWithJitter.mockReturnValue(0)
   mockParseRetryAfter.mockImplementation((header: string | null) =>
     header === null ? null : Number(header) * 1000

@@ -1,30 +1,26 @@
-/**
- * @vitest-environment node
- */
-import { describe, expect, it, vi } from 'vitest'
-
-const { mockParseOfficeAsync } = vi.hoisted(() => ({
-  mockParseOfficeAsync: vi.fn(),
-}))
-
-vi.mock('@/lib/file-parsers/officeparser-module', () => ({
-  loadParseOfficeAsync: vi.fn(async () => mockParseOfficeAsync),
-}))
-
+import { describe, expect, it } from 'vitest'
 import type { FileParserError } from '@/lib/file-parsers/errors'
 import { PptxParser } from '@/lib/file-parsers/pptx-parser'
 
+const LEGACY_OLE_BUFFER = Buffer.concat([
+  Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]),
+  Buffer.alloc(2048),
+])
+
 describe('PptxParser', () => {
-  it('classifies encrypted legacy presentations before degraded extraction', async () => {
-    const libraryError = new Error('File is password-protected')
-    mockParseOfficeAsync.mockRejectedValueOnce(libraryError)
-    const legacyOleBuffer = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])
+  it('rejects a legacy OLE .ppt as unsupported rather than scraping its bytes', async () => {
+    await expect(
+      new PptxParser().parseBuffer(LEGACY_OLE_BUFFER)
+    ).rejects.toMatchObject<FileParserError>({ code: 'unsupported_type' })
+  })
 
-    const result = new PptxParser().parseBuffer(legacyOleBuffer)
+  it('preserves cancellation instead of classifying the container', async () => {
+    const controller = new AbortController()
+    const abortError = new DOMException('The operation was aborted', 'AbortError')
+    controller.abort(abortError)
 
-    await expect(result).rejects.toMatchObject<FileParserError>({
-      code: 'encrypted_file',
-      cause: libraryError,
-    })
+    await expect(
+      new PptxParser().parseBuffer(LEGACY_OLE_BUFFER, { signal: controller.signal })
+    ).rejects.toBe(abortError)
   })
 })

@@ -5,6 +5,7 @@ export * from './components'
  * the COMPONENT; the icon stays available from `@sim/emcn/icons`.
  */
 export { Calendar, type CalendarProps } from './components/calendar/calendar'
+export * from './components/charts'
 /**
  * `Code` exists in BOTH `./components` (the code editor) and `./icons` (a
  * glyph). Same resolution as `Calendar` and `Table`: the barrel yields the
@@ -16,6 +17,14 @@ export {
   calculateGutterWidth,
   getCodeEditorProps,
 } from './components/code/code'
+export {
+  SCROLL_FADE_BAND_PX,
+  type ScrollEdges,
+  type ScrollEdgesX,
+  scrollFadeAttributes,
+  scrollFadeClass,
+  scrollFadeXClass,
+} from './components/scroll-fade/scroll-fade'
 /**
  * `Table` exists in BOTH `./components` (data-table element) and `./icons`
  * (glyph). This explicit re-export resolves the ambiguity to the COMPONENT —
@@ -32,6 +41,7 @@ export {
   TableHead,
   TableHeader,
   TableRow,
+  tableVariants,
 } from './components/table/table'
 export {
   type ClipboardContent,
@@ -39,6 +49,8 @@ export {
   writeTextToClipboard,
 } from './hooks/use-copy-to-clipboard'
 export { usePrefersReducedMotion } from './hooks/use-prefers-reduced-motion'
+export { useScrollEdges } from './hooks/use-scroll-edges'
 export * from './icons'
 export { cn } from './lib/cn'
 export { handleKeyboardActivation, isKeyboardActivation } from './lib/keyboard'
+export { bindPreviewHorizontalWheel, bindPreviewWheelZoom } from './lib/preview-wheel-zoom'

@@ -8,6 +8,8 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
+import { omit } from '@sim/utils/object'
+import { escapeLikePattern } from '@sim/utils/string'
 import { and, eq, isNull, ne, sql } from 'drizzle-orm'
 import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
@@ -51,7 +53,7 @@ async function eligibleOrgForWorkspace(workspaceId: string): Promise<string | nu
 /**
  * Whether the workspace's organization may use custom blocks. Feeds the
  * `custom-blocks` entitlement in
- * `@/lib/copilot/entitlements` and matches the REST route gates.
+ * `@/lib/mothership/entitlements` and matches the REST route gates.
  */
 export async function isCustomBlocksEligible(workspaceId: string): Promise<boolean> {
   return (await eligibleOrgForWorkspace(workspaceId)) !== null
@@ -126,6 +128,29 @@ function applyInputPlaceholders(
   })
 }
 
+const CUSTOM_BLOCK_ROW_COLUMNS = {
+  type: customBlock.type,
+  name: customBlock.name,
+  description: customBlock.description,
+  workflowId: customBlock.workflowId,
+  outputs: customBlock.outputs,
+  enabled: customBlock.enabled,
+}
+
+function toCustomBlockRow({
+  outputs,
+  ...row
+}: {
+  type: string
+  name: string
+  description: string
+  workflowId: string
+  outputs: CustomBlockOutput[] | null
+  enabled: boolean
+}): CustomBlockRow & { enabled: boolean } {
+  return { ...row, exposedOutputs: outputs ?? [] }
+}
+
 /**
  * The org's custom blocks for the server overlay (`withCustomBlockOverlay`).
  * Includes DISABLED rows (carrying `enabled`) so a still-placed disabled block
@@ -139,31 +164,33 @@ export async function getCustomBlockRowsForOrg(
   organizationId: string
 ): Promise<Array<CustomBlockRow & { enabled: boolean }>> {
   const rows = await db
-    .select({
-      type: customBlock.type,
-      name: customBlock.name,
-      description: customBlock.description,
-      workflowId: customBlock.workflowId,
-      outputs: customBlock.outputs,
-      enabled: customBlock.enabled,
-    })
+    .select(CUSTOM_BLOCK_ROW_COLUMNS)
     .from(customBlock)
     .where(eq(customBlock.organizationId, organizationId))
 
-  return rows.map(({ outputs, ...r }) => ({ ...r, exposedOutputs: outputs ?? [] }))
+  return rows.map(toCustomBlockRow)
 }
 
 /**
  * The custom-block rows in scope for a workspace's organization, for wrapping an
  * execution in `withCustomBlockOverlay`. Returns `[]` when the workspace has no
- * organization (nothing to resolve).
+ * organization or the organization is not entitled to custom blocks.
+ *
+ * Every execution starts here, so the rows are read first, joined through the
+ * workspace: most organizations have none, which settles the answer in one query
+ * without the entitlement check.
  */
 export async function getCustomBlockRowsForWorkspace(
   workspaceId: string
 ): Promise<CustomBlockRow[]> {
-  const organizationId = await eligibleOrgForWorkspace(workspaceId)
-  if (!organizationId) return []
-  return getCustomBlockRowsForOrg(organizationId)
+  const rows = await db
+    .select({ ...CUSTOM_BLOCK_ROW_COLUMNS, organizationId: customBlock.organizationId })
+    .from(customBlock)
+    .innerJoin(workspace, eq(workspace.organizationId, customBlock.organizationId))
+    .where(eq(workspace.id, workspaceId))
+  if (rows.length === 0) return []
+  if (!(await isCustomBlocksEligibleForOrganization(rows[0].organizationId))) return []
+  return rows.map((row) => toCustomBlockRow(omit(row, ['organizationId'])))
 }
 
 /**
@@ -307,11 +334,23 @@ export async function getCustomBlockManageContext(id: string): Promise<{
  * executor to run the bound workflow under the invocation-boundary model: the
  * consumer needs no permission on the source workflow. Returns the authoritative
  * `workflowId` from the DB (never trust a serialized value) plus the source
- * workflow's **owner** (`workflow.userId`) — the same identity a normal deployed
- * API/schedule/webhook run executes as. Using the owner (not the publisher) means
- * the owner always has read on their own workflow, and owner deletion cascade-
- * deletes the workflow → the custom_block row, so there is never an orphaned block.
- * `null` when no enabled block matches the type.
+ * workflow's **owner** (`workflow.userId`). Using the owner (not the publisher)
+ * means the owner always has read on their own workflow, and owner deletion
+ * cascade-deletes the workflow → the custom_block row, so there is never an
+ * orphaned block. `null` when no enabled block matches the type.
+ *
+ * `ownerUserId` carries further than the owner does on any other trigger. It is
+ * the child run's actor, the personal-variable identity, and the subject of its
+ * delegated tool calls, because a custom block publishes a fixed behavior to
+ * consumers who can see none of its internals and the publisher's own
+ * integrations and personal keys are part of that behavior.
+ *
+ * It is NOT the identity for the two things a workspace owns. Workspace
+ * variables authorize against the source workspace's billing account, and that
+ * account is the payer, exactly as they would for a schedule on the same
+ * workflow — see the environment resolution in `workflow-handler`. Reading those
+ * as the owner too gave a published block a narrower workspace-secret selection
+ * than the workflow got on every other trigger, which no consumer could see.
  */
 export async function getCustomBlockAuthority(
   type: string,
@@ -641,7 +680,7 @@ export async function getCustomBlockUsageCounts(
   )
   // Escape LIKE wildcards — the `_`s in `custom_block_<id>` would otherwise match
   // any character and let unrelated states through to the jsonb parse.
-  const likePattern = `%${blockType.replace(/[\\%_]/g, '\\$&')}%`
+  const likePattern = `%${escapeLikePattern(blockType)}%`
 
   const [liveRows, deployedRows] = await Promise.all([
     db

@@ -37,19 +37,24 @@
     },
     "test": {
       "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/vitest.shared.ts"],
       "outputs": []
     },
     "lint": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/biome.json"],
       "dependsOn": ["transit"],
       "outputs": []
     },
     "format": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/biome.json"],
       "outputs": []
     },
     "format:check": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/biome.json"],
       "outputs": []
     },
     "lint:check": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/biome.json"],
       "dependsOn": ["transit"],
       "outputs": []
     },

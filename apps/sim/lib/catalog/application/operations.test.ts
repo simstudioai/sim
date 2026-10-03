@@ -1,55 +1,63 @@
-/**
- * @vitest-environment node
- */
-import { describe, expect, it } from 'vitest'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+} from '@sim/testing/mocks/permission-group-scope.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+
 import { catalogOperations } from '@/lib/catalog/application/operations'
+import type { WorkspaceOperation } from '@/lib/core/application'
+import { authorizeWorkspaceOperation, PermissionGroupCapabilityError } from '@/lib/core/application'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+
+const resolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
+const sessionPrincipal = createSessionPrincipal()
+const context = {
+  workspaceId: 'workspace-1',
+  workspaceOrganizationId: 'organization-1',
+  allowPersonalApiKeys: true,
+}
 
 /**
- * Operation metadata is executable policy, not documentation: it decides which
- * principals reach the use case and at what role. Pinning it here makes
- * widening any of the six a deliberate edit rather than a side effect.
+ * The connector-type catalog is the one entry with a capability, so the split
+ * is pinned from both sides: hiding knowledge bases must close it, and must not
+ * close the block and tool catalogs the editor needs to render at all.
  */
-const EXPECTED_OPERATION_IDS = {
-  listBlocks: 'catalog.blocks.list',
-  readBlock: 'catalog.blocks.read',
-  listTools: 'catalog.tools.list',
-  readTool: 'catalog.tools.read',
-  listConnectorTypes: 'catalog.connector_types.list',
-} as const
-
-describe('catalogOperations', () => {
-  it('declares exactly the five catalog reads under their published ids', () => {
-    expect(Object.keys(catalogOperations).sort()).toEqual(
-      Object.keys(EXPECTED_OPERATION_IDS).sort()
-    )
-    for (const [key, id] of Object.entries(EXPECTED_OPERATION_IDS)) {
-      expect(catalogOperations[key as keyof typeof catalogOperations].id).toBe(id)
-    }
+describe('catalog operations under a group that hides knowledge bases', () => {
+  beforeEach(() => {
+    resolvePermission.mockResolvedValue('admin')
+    resolveGroupConfigMock.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      hideKnowledgeBaseTab: true,
+    })
   })
 
-  it('keeps every catalog read at the read role with workspace keys allowed', () => {
-    for (const operation of Object.values(catalogOperations)) {
-      expect(operation.minimumRole, operation.id).toBe('read')
-      expect(operation.workspaceApiKey, operation.id).toBe('allow')
-      expect([...operation.principalKinds].sort(), operation.id).toEqual([
-        'personal_api_key',
-        'session',
-        'workspace_api_key',
-      ])
-    }
+  it('refuses the connector-type catalog', async () => {
+    await expect(
+      authorizeWorkspaceOperation(
+        sessionPrincipal,
+        catalogOperations.listConnectorTypes as WorkspaceOperation,
+        context
+      )
+    ).rejects.toBeInstanceOf(PermissionGroupCapabilityError)
   })
 
-  it('admits no delegated principal, because no delegated caller exists yet', () => {
-    for (const operation of Object.values(catalogOperations)) {
-      expect(operation.principalKinds, operation.id).not.toContain('delegated')
-      expect(operation.delegatedServices, operation.id).toBeUndefined()
-    }
-  })
-
-  it('freezes each operation so a caller cannot widen it at runtime', () => {
-    for (const operation of Object.values(catalogOperations)) {
-      expect(Object.isFrozen(operation), operation.id).toBe(true)
-      expect(Object.isFrozen(operation.principalKinds), operation.id).toBe(true)
+  it('still answers the block and tool catalogs', async () => {
+    for (const operation of [
+      catalogOperations.listBlocks,
+      catalogOperations.readBlock,
+      catalogOperations.listTools,
+      catalogOperations.readTool,
+    ]) {
+      await expect(
+        authorizeWorkspaceOperation(sessionPrincipal, operation as WorkspaceOperation, context),
+        operation.id
+      ).resolves.toBeUndefined()
     }
   })
 })

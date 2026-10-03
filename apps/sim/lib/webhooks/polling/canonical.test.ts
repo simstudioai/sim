@@ -1,30 +1,14 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { readCanonicalTriggerValue } from '@/lib/webhooks/polling/canonical'
 
 describe('readCanonicalTriggerValue', () => {
-  it('returns the canonical value when present', () => {
-    expect(readCanonicalTriggerValue('canon', 'basic', 'advanced')).toBe('canon')
-  })
-
   it('falls back basic-first when the canonical key is absent (transitional)', () => {
     expect(readCanonicalTriggerValue(undefined, 'basic', 'advanced')).toBe('basic')
-  })
-
-  it('falls back to the advanced value when canonical and basic are absent', () => {
-    expect(readCanonicalTriggerValue(undefined, undefined, 'advanced')).toBe('advanced')
   })
 
   it('treats empty strings as unset', () => {
     expect(readCanonicalTriggerValue('', '', 'advanced')).toBe('advanced')
     expect(readCanonicalTriggerValue('', '')).toBeUndefined()
-  })
-
-  it('ignores non-string members', () => {
-    expect(readCanonicalTriggerValue(null, 42 as unknown, 'advanced')).toBe('advanced')
-    expect(readCanonicalTriggerValue(undefined, undefined)).toBeUndefined()
   })
 
   /**

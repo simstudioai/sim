@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Fails when app code reads a pending-drop table without naming its columns.
+ * Fails when app code reads or inserts retired columns of a pending-drop table.
  *
  * A `contract-pending` marker inside a table in `packages/db/schema.ts` means the table
  * still declares columns whose physical `DROP COLUMN` is deferred until the app version
@@ -10,6 +10,8 @@
  * single argless read puts the doomed columns back into live SQL and would fail with
  * 42703 against the already-migrated database for the whole cutover window of the
  * contract deploy. Reads of these tables must name the columns they want.
+ * INSERTs also name omitted columns with DEFAULT values. Remove retired columns
+ * from the application table definition before the contract deploy.
  *
  * The audit derives everything from schema.ts itself and retires when the contract PR
  * deletes the markers:
@@ -28,6 +30,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, extname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse } from '@babel/parser'
+import ts from '@typescript/typescript6'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
@@ -105,9 +108,8 @@ function parseSource(
     errorRecovery: true,
     plugins: [...(extname(file) === '.tsx' ? (['jsx'] as const) : []), 'typescript', 'decorators'],
   })
-  const comments = Array.isArray(syntaxTree.comments)
-    ? syntaxTree.comments.filter(isCommentNode)
-    : []
+  const detachedComments: unknown[] = syntaxTree.comments ?? []
+  const comments = detachedComments.filter(isCommentNode)
   return { program: syntaxTree.program as unknown as SyntaxNode, comments }
 }
 
@@ -282,7 +284,12 @@ function resolveTable(
 
 /** A module that can export the schema's table objects. */
 function isSchemaModule(source: unknown): boolean {
-  const value = isSyntaxNode(source) && typeof source.value === 'string' ? source.value : null
+  const value =
+    typeof source === 'string'
+      ? source
+      : isSyntaxNode(source) && typeof source.value === 'string'
+        ? source.value
+        : null
   return value !== null && (/@sim\/db(\/|$)/.test(value) || /(^|\/)schema(\.ts)?$/.test(value))
 }
 
@@ -294,7 +301,10 @@ function collectTableBindings(
   program: SyntaxNode,
   pendingTables: Map<string, Set<string>>
 ): TableBindings {
-  const bindings: TableBindings = { locals: new Map(), namespaces: new Set() }
+  const bindings: TableBindings = {
+    locals: new Map(),
+    namespaces: new Set(),
+  }
 
   const visitImports = (node: SyntaxNode) => {
     if (node.type === 'ImportDeclaration' && isSchemaModule(node.source)) {
@@ -350,7 +360,7 @@ function collectTableBindings(
 /**
  * Validates the sanctioned live-column builders around a `getTableColumns(t)`
  * call: `omit(getTableColumns(t), ['doomed', ...])` (the `<table>Columns`
- * helpers in schema.ts, e.g. `workspaceFileColumns`) and
+ * helpers in schema.ts) and
  * `const { doomed, ...live } = getTableColumns(t)`. Returns `null` when the
  * surrounding form is not a sanctioned builder at all, otherwise the doomed
  * columns the builder fails to name away — `[]` means fully sanctioned. Any
@@ -419,6 +429,14 @@ function checkCall(
   if (callee?.type !== 'MemberExpression') return
   const method = propertyName(callee.property)
 
+  if (method === 'insert') {
+    const table = resolveArg(args[0])
+    if (table) {
+      report(call, table, 'insert() names every declared column, including omitted DEFAULT values')
+    }
+    return
+  }
+
   // <builder>.select()/.selectDistinct() ... .from(pendingTable) with no selection.
   if (method === 'from') {
     const table = resolveArg(args[0])
@@ -483,7 +501,7 @@ function checkCall(
   }
 }
 
-function auditFile(
+export function auditFile(
   file: string,
   source: string,
   pendingTables: Map<string, Set<string>>
@@ -528,6 +546,28 @@ function collectSources(dir: string, found: string[] = []): string[] {
   return found
 }
 
+export function mayReferencePendingTable(source: string, tableNames: ReadonlySet<string>): boolean {
+  const scanner = ts.createScanner(ts.ScriptTarget.Latest, true, ts.LanguageVariant.JSX, source)
+  let hasSchemaModule = false
+  let hasTableName = false
+
+  for (let token = scanner.scan(); token !== ts.SyntaxKind.EndOfFileToken; token = scanner.scan()) {
+    const value = scanner.getTokenValue()
+    if (
+      (token === ts.SyntaxKind.StringLiteral ||
+        token === ts.SyntaxKind.NoSubstitutionTemplateLiteral) &&
+      (/@sim\/db(\/|$)/.test(value) || /(^|\/)schema(\.ts)?$/.test(value))
+    ) {
+      hasSchemaModule = true
+    }
+    if (token === ts.SyntaxKind.Identifier && tableNames.has(value)) {
+      hasTableName = true
+    }
+    if (hasSchemaModule && hasTableName) return true
+  }
+  return false
+}
+
 function main(): void {
   const pendingTables = readPendingTables()
   if (pendingTables.size === 0) {
@@ -538,27 +578,27 @@ function main(): void {
   // schema.ts is deliberately NOT skipped: its own `<table>Columns` helpers
   // must keep naming every doomed column away, including ones deprecated later.
   const skipFiles = new Set([fileURLToPath(import.meta.url)])
-  const namePattern = new RegExp(`\\b(${[...pendingTables.keys()].join('|')}|alias)\\b`)
+  const pendingTableNames = new Set(pendingTables.keys())
   const violations: Violation[] = []
   for (const file of SCAN_DIRS.flatMap((dir) => collectSources(dir))) {
     if (skipFiles.has(file) || /\.test\.(ts|tsx|mts|cts)$/.test(file)) continue
     const source = readFileSync(file, 'utf8')
-    if (!namePattern.test(source)) continue
+    if (file !== SCHEMA_PATH && !mayReferencePendingTable(source, pendingTableNames)) continue
     violations.push(...auditFile(file, source, pendingTables))
   }
 
   if (violations.length === 0) {
     console.log(
-      `✓ No argless reads of pending-drop tables (${[...pendingTables.keys()].sort().join(', ')}).`
+      `✓ No unsafe reads or inserts of pending-drop tables (${[...pendingTables.keys()].sort().join(', ')}).`
     )
     return
   }
 
   console.error(
-    `❌ Found ${violations.length} read(s) of pending-drop tables that select every declared column.\n` +
+    `❌ Found ${violations.length} unsafe read(s) or insert(s) of pending-drop tables.\n` +
       'These tables carry a `contract-pending` marker in packages/db/schema.ts: deprecated\n' +
-      'columns are awaiting DROP, and an argless read would re-introduce them into live SQL\n' +
-      'and 42703 during the contract deploy. Name the live columns explicitly instead.\n'
+      'columns are awaiting DROP, and full-table reads or inserts re-introduce them into live SQL\n' +
+      'and 42703 during the contract deploy. Exclude retired columns from generated SQL.\n'
   )
   for (const violation of violations) {
     console.error(
@@ -568,4 +608,4 @@ function main(): void {
   process.exit(1)
 }
 
-main()
+if (import.meta.main) main()

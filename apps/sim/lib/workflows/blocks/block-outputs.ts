@@ -3,7 +3,9 @@ import {
   extractFieldsFromSchema,
   parseResponseFormatSafely,
 } from '@/lib/core/utils/response-format'
+import { getJevAnswerOutput } from '@/lib/workflows/blocks/jev-outputs'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
+import { containsReference } from '@/lib/workflows/sanitization/references'
 import {
   classifyStartBlockType,
   StartBlockPath,
@@ -22,6 +24,8 @@ import {
   type OutputCondition,
   type OutputFieldDefinition,
 } from '@/blocks/types'
+import { isHumanInTheLoopBlock } from '@/executor/constants'
+import { isEvaluationModel } from '@/providers/models'
 import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
 import { getTrigger, isTriggerValid } from '@/triggers'
 
@@ -60,15 +64,19 @@ function evaluateOutputCondition(
 
   const fieldValue = subBlocks[condition.field]?.value
 
+  const deferred =
+    condition.allowReference && typeof fieldValue === 'string' && containsReference(fieldValue)
   let matches: boolean
-  if (Array.isArray(condition.value)) {
+  if (deferred) {
+    matches = true
+  } else if (Array.isArray(condition.value)) {
     // For array conditions, check if fieldValue is a valid primitive and included
     matches = isConditionPrimitive(fieldValue) && condition.value.includes(fieldValue)
   } else {
     matches = fieldValue === condition.value
   }
 
-  if (condition.not) {
+  if (condition.not && !deferred) {
     matches = !matches
   }
 
@@ -148,9 +156,27 @@ const START_RUN_METADATA_OUTPUT = {
   type: 'json',
   description: 'Trusted run metadata (server-injected)',
   properties: {
-    userEmail: {
-      type: 'string',
-      description: 'Email of the user who invoked the run (for custom blocks, the invoking user)',
+    subject: {
+      type: 'json',
+      description:
+        'Authenticated caller subject, or null for actorless runs such as workspace API keys and schedules',
+      properties: {
+        kind: {
+          type: 'string',
+          description: 'Subject kind: sim_user, authenticated_email, or external_user',
+        },
+        userId: { type: 'string', description: 'Sim user ID for a sim_user subject' },
+        email: {
+          type: 'string',
+          description: 'Email for a Sim user or email-authenticated chat subject',
+        },
+        provider: { type: 'string', description: 'Provider for an external_user subject' },
+        tenantId: {
+          type: 'string',
+          description: 'Provider tenant ID for an external_user subject',
+        },
+        subjectId: { type: 'string', description: 'Provider user ID for an external_user subject' },
+      },
     },
     workspaceId: {
       type: 'string',
@@ -322,7 +348,7 @@ export function getBlockOutputs(
     return getUnifiedStartOutputs(subBlocks)
   }
 
-  if (blockType === 'human_in_the_loop') {
+  if (isHumanInTheLoopBlock(blockType)) {
     // Start with block config outputs (respects hiddenFromDisplay via filterOutputsByCondition)
     const baseOutputs = filterOutputsByCondition(
       { ...(blockConfig.outputs || {}) } as OutputDefinition,
@@ -409,6 +435,18 @@ export function getEffectiveBlockOutputs(
   const includeHidden = options?.includeHidden ?? false
 
   if (blockType === 'agent') {
+    const model = subBlocks?.model?.value
+    const mayEvaluate =
+      typeof model === 'string' && (isEvaluationModel(model) || containsReference(model))
+    if (mayEvaluate) {
+      const outputs = getBlockOutputs('agent', subBlocks, false, { includeHidden })
+      const answers = getJevAnswerOutput(subBlocks?.evaluationQuestions?.value)
+      return {
+        ...outputs,
+        ...(containsReference(model) ? getResponseFormatOutputs(subBlocks, 'agent') : undefined),
+        ...(answers ? { answers } : undefined),
+      }
+    }
     const responseFormatOutputs = getResponseFormatOutputs(subBlocks, 'agent')
     if (responseFormatOutputs) return responseFormatOutputs
   }
@@ -523,9 +561,7 @@ function traverseOutputPath(outputs: OutputDefinition, pathParts: string[]): unk
 
     const currentObj = current as Record<string, unknown>
 
-    if (part in currentObj) {
-      current = currentObj[part]
-    } else if (
+    if (
       'type' in currentObj &&
       (currentObj.type === 'object' || currentObj.type === 'json') &&
       'properties' in currentObj &&
@@ -556,6 +592,8 @@ function traverseOutputPath(outputs: OutputDefinition, pathParts: string[]): unk
       } else {
         return null
       }
+    } else if (part in currentObj) {
+      current = currentObj[part]
     } else {
       return null
     }

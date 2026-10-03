@@ -8,8 +8,8 @@ import {
   normalizeWorkflowEdgeTargetHandle,
   SUBFLOW_TYPES,
 } from '@sim/workflow-types/workflow'
+import type { Edge } from '@xyflow/react'
 import { and, eq, getTableColumns, isNull, sql } from 'drizzle-orm'
-import type { Edge } from 'reactflow'
 import { clampParallelBatchSize } from './subflow-helpers'
 import type { DbOrTx, NormalizedWorkflowData } from './types'
 
@@ -204,6 +204,10 @@ export async function loadWorkflowFromNormalizedTablesRaw(
             ...block,
             data: {
               ...block.data,
+              /** Repair legacy values without changing valid counts used by serialization. */
+              ...(block.data?.count !== undefined && typeof block.data.count !== 'number'
+                ? { count: loop.iterations }
+                : {}),
               collection: loop.forEachItems ?? block.data?.collection ?? '',
               whileCondition: loop.whileCondition ?? block.data?.whileCondition ?? '',
               doWhileCondition: loop.doWhileCondition ?? block.data?.doWhileCondition ?? '',

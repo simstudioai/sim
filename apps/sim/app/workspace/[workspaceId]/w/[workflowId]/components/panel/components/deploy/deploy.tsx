@@ -12,7 +12,7 @@ import {
   useDeployReadiness,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks'
 import { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
-import { apiKeysQueryOptions } from '@/hooks/queries/api-keys'
+import { apiKeysQueryOptions } from '@/hooks/queries/api-key-list'
 import { workflowMcpServersQueryOptions } from '@/hooks/queries/workflow-mcp-servers'
 import { workspaceSettingsQueryOptions } from '@/hooks/queries/workspace'
 import type { WorkspaceUserPermissions } from '@/hooks/use-user-permissions'
@@ -46,7 +46,7 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
     enabled: !isRegistryLoading,
     deployReadiness,
   })
-  const { status: buttonStatus, isDeployed, deployedState } = deployment
+  const { status: buttonStatus, isDeployed } = deployment
   const isDeploymentSettling = deployment.isSettling
 
   const { isDeploying, handleDeployClick } = useDeployment({

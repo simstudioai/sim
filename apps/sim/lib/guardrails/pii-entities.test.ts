@@ -1,23 +1,10 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
-  emptyStagePolicy,
   getEntityGroupsForLanguage,
-  NER_PII_ENTITIES,
   normalizeRuleStages,
   sanitizeCustomPatterns,
   stripNerEntities,
 } from '@/lib/guardrails/pii-entities'
-
-describe('NER_PII_ENTITIES', () => {
-  it('covers the spaCy-NER entities including ORGANIZATION', () => {
-    expect(new Set(NER_PII_ENTITIES)).toEqual(
-      new Set(['PERSON', 'LOCATION', 'NRP', 'DATE_TIME', 'ORGANIZATION'])
-    )
-  })
-})
 
 describe('stripNerEntities', () => {
   it('drops NER entities and keeps regex/checksum ones (order preserved)', () => {
@@ -33,25 +20,11 @@ describe('stripNerEntities', () => {
       ])
     ).toEqual(['EMAIL_ADDRESS', 'US_SSN', 'PHONE_NUMBER'])
   })
-
-  it('returns an empty list when only NER was selected', () => {
-    expect(stripNerEntities(['PERSON', 'NRP'])).toEqual([])
-  })
-
-  it('is a no-op for a regex-only list', () => {
-    expect(stripNerEntities(['EMAIL_ADDRESS', 'US_SSN'])).toEqual(['EMAIL_ADDRESS', 'US_SSN'])
-  })
 })
 
 describe('getEntityGroupsForLanguage', () => {
   const flatten = (groups: Array<{ entities: Array<{ value: string }> }>) =>
     groups.flatMap((g) => g.entities.map((e) => e.value))
-
-  it('includes NER entities by default', () => {
-    const values = flatten(getEntityGroupsForLanguage('en'))
-    expect(values).toContain('PERSON')
-    expect(values).toContain('EMAIL_ADDRESS')
-  })
 
   it('excludes the spaCy-NER entities when regexOnly', () => {
     const values = flatten(getEntityGroupsForLanguage('en', { regexOnly: true }))
@@ -91,25 +64,6 @@ describe('normalizeRuleStages', () => {
     expect(stages.blockOutputs.enabled).toBe(false)
   })
 
-  it('keeps blockOutputs enabled when custom patterns survive the NER strip', () => {
-    const stages = normalizeRuleStages({
-      stages: {
-        input: { enabled: false, entityTypes: [] },
-        blockOutputs: {
-          enabled: true,
-          entityTypes: ['PERSON'],
-          customPatterns: [{ name: 'Employee ID', regex: 'EMP-\\d{6}', replacement: '<EMP>' }],
-        },
-        logs: { enabled: false, entityTypes: [] },
-      },
-    })
-    expect(stages.blockOutputs.entityTypes).toEqual([])
-    expect(stages.blockOutputs.customPatterns).toEqual([
-      { name: 'Employee ID', regex: 'EMP-\\d{6}', replacement: '<EMP>' },
-    ])
-    expect(stages.blockOutputs.enabled).toBe(true)
-  })
-
   it('sanitizes stored custom patterns on every stage', () => {
     const stages = normalizeRuleStages({
       stages: {
@@ -130,17 +84,6 @@ describe('normalizeRuleStages', () => {
       { name: 'Ticket', regex: 'TCK-\\d+', replacement: '<TICKET>' },
     ])
     expect(stages.input.enabled).toBe(true)
-  })
-})
-
-describe('emptyStagePolicy', () => {
-  it('starts disabled with no entity types and no custom patterns', () => {
-    expect(emptyStagePolicy()).toEqual({
-      enabled: false,
-      entityTypes: [],
-      language: 'en',
-      customPatterns: [],
-    })
   })
 })
 

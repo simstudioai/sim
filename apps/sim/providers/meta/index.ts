@@ -6,8 +6,18 @@ import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
-import { createReadableStreamFromMetaStream } from '@/providers/meta/utils'
+import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
+import {
+  captureProviderConversationStep,
+  recordProviderConversationToolError,
+} from '@/providers/conversation-history'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
+import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
+import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
@@ -96,14 +106,7 @@ export const metaProvider: ProviderConfig = {
       }
 
       const responseFormatPayload = request.responseFormat
-        ? {
-            type: 'json_schema' as const,
-            json_schema: {
-              name: request.responseFormat.name || 'response_schema',
-              schema: request.responseFormat.schema || request.responseFormat,
-              strict: request.responseFormat.strict !== false,
-            },
-          }
+        ? buildJsonSchemaResponseFormat(request.responseFormat)
         : undefined
 
       let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
@@ -163,11 +166,11 @@ export const metaProvider: ProviderConfig = {
         logger.info('Using streaming response for Meta request (no tools)')
 
         const streamResponse = await meta.chat.completions.create(
-          {
+          await prepareConversationGeneration(request, 'chat-completions', {
             ...payload,
             stream: true,
             stream_options: { include_usage: true },
-          },
+          }),
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
 
@@ -181,27 +184,31 @@ export const metaProvider: ProviderConfig = {
           isStreaming: true,
           streamFormat: 'agent-events-v1',
           createStream: ({ output }) =>
-            createReadableStreamFromMetaStream(
+            createOpenAICompatibleAgentEventStream(
               // double-cast-allowed: payload is untyped so the SDK cannot resolve the streaming overload; the stream yields OpenAI ChatCompletionChunk objects
               streamResponse as unknown as AsyncIterable<ChatCompletionChunk>,
-              (content, usage) => {
-                output.content = content
-                output.tokens = {
-                  input: usage.prompt_tokens,
-                  output: usage.completion_tokens,
-                  total: usage.total_tokens,
-                }
+              {
+                providerName: 'Meta',
+                request,
+                onComplete: ({ content, usage }) => {
+                  output.content = content
+                  output.tokens = {
+                    input: usage.prompt_tokens,
+                    output: usage.completion_tokens,
+                    total: usage.total_tokens,
+                  }
 
-                const costResult = calculateCost(
-                  request.model,
-                  usage.prompt_tokens,
-                  usage.completion_tokens
-                )
-                output.cost = {
-                  input: costResult.input,
-                  output: costResult.output,
-                  total: costResult.total,
-                }
+                  const costResult = calculateCost(
+                    request.model,
+                    usage.prompt_tokens,
+                    usage.completion_tokens
+                  )
+                  output.cost = {
+                    input: costResult.input,
+                    output: costResult.output,
+                    total: costResult.total,
+                  }
+                },
               }
             ),
         })
@@ -212,9 +219,17 @@ export const metaProvider: ProviderConfig = {
       const initialCallTime = Date.now()
 
       let currentResponse = await meta.chat.completions.create(
-        payload,
+        await prepareConversationGeneration(request, 'chat-completions', payload),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
+      if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+        await captureProviderConversationStep(
+          request,
+          'chat-completions',
+          currentResponse.choices[0]?.message,
+          getChatCompletionConversationUsage(currentResponse.usage)
+        )
+      }
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = currentResponse.choices[0]?.message?.content || ''
@@ -263,6 +278,12 @@ export const metaProvider: ProviderConfig = {
 
           const toolsStartTime = Date.now()
 
+          await captureProviderConversationStep(
+            request,
+            'chat-completions',
+            currentResponse.choices[0]?.message,
+            getChatCompletionConversationUsage(currentResponse.usage)
+          )
           const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
             const toolCallStartTime = Date.now()
             const toolName = toolCall.function.name
@@ -275,6 +296,12 @@ export const metaProvider: ProviderConfig = {
               // `tool` message, or the next request violates the OpenAI message contract.
               // Emit an error result for an unknown tool rather than dropping it.
               if (!tool) {
+                await recordProviderConversationToolError(
+                  request,
+                  toolCall.id,
+                  toolName,
+                  `Tool "${toolName}" is not available`
+                )
                 const toolCallEndTime = Date.now()
                 return {
                   toolCall,
@@ -320,6 +347,12 @@ export const metaProvider: ProviderConfig = {
               if (isAbortError(error) || request.abortSignal?.aborted) {
                 throw error
               }
+              await recordProviderConversationToolError(
+                request,
+                toolCall.id,
+                toolName,
+                getErrorMessage(error, 'Tool execution failed')
+              )
               const toolCallEndTime = Date.now()
               logger.error('Error processing tool call:', { error, toolName })
 
@@ -417,9 +450,17 @@ export const metaProvider: ProviderConfig = {
 
           const nextModelStartTime = Date.now()
           currentResponse = await meta.chat.completions.create(
-            nextPayload,
+            await prepareConversationGeneration(request, 'chat-completions', nextPayload),
             request.abortSignal ? { signal: request.abortSignal } : undefined
           )
+          if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+            await captureProviderConversationStep(
+              request,
+              'chat-completions',
+              currentResponse.choices[0]?.message,
+              getChatCompletionConversationUsage(currentResponse.usage)
+            )
+          }
 
           const nextModelEndTime = Date.now()
           const thisModelTime = nextModelEndTime - nextModelStartTime
@@ -467,9 +508,17 @@ export const metaProvider: ProviderConfig = {
 
             const finalModelStartTime = Date.now()
             currentResponse = await meta.chat.completions.create(
-              finalPayload,
+              await prepareConversationGeneration(request, 'chat-completions', finalPayload),
               request.abortSignal ? { signal: request.abortSignal } : undefined
             )
+            if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+              await captureProviderConversationStep(
+                request,
+                'chat-completions',
+                currentResponse.choices[0]?.message,
+                getChatCompletionConversationUsage(currentResponse.usage)
+              )
+            }
             const finalModelEndTime = Date.now()
             const finalModelDuration = finalModelEndTime - finalModelStartTime
 
@@ -520,9 +569,17 @@ export const metaProvider: ProviderConfig = {
         }
 
         currentResponse = await meta.chat.completions.create(
-          finalPayload,
+          await prepareConversationGeneration(request, 'chat-completions', finalPayload),
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
+        if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+          await captureProviderConversationStep(
+            request,
+            'chat-completions',
+            currentResponse.choices[0]?.message,
+            getChatCompletionConversationUsage(currentResponse.usage)
+          )
+        }
 
         const finalFormatEndTime = Date.now()
         timeSegments.push({
@@ -630,7 +687,11 @@ export const metaProvider: ProviderConfig = {
         duration: totalDuration,
       })
 
-      if (isAbortError(error) || request.abortSignal?.aborted) {
+      if (
+        isAbortError(error) ||
+        request.abortSignal?.aborted ||
+        isConversationContextError(error)
+      ) {
         throw error
       }
 

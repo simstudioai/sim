@@ -17,6 +17,8 @@ import {
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
+  requireWorkspaceRequestActor,
+  tableAccessPrincipal,
 } from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1TableDetailAPI')
@@ -38,7 +40,6 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
       return createRateLimitResponse(rateLimit)
     }
 
-    const userId = rateLimit.userId!
     const parsed = await parseRequest(v1GetTableContract, request, context, {
       validationErrorResponse: (error) => {
         const hasInvalidTableId = error.issues.some((issue) => issue.path.includes('tableId'))
@@ -60,7 +61,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
     const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
     if (scopeError) return scopeError
 
-    const result = await checkAccess(tableId, userId, 'read')
+    const result = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'read')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     const { table } = result
@@ -111,7 +112,6 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Tab
       return createRateLimitResponse(rateLimit)
     }
 
-    const userId = rateLimit.userId!
     const parsed = await parseRequest(v1DeleteTableContract, request, context, {
       validationErrorResponse: (error) => {
         const hasInvalidTableId = error.issues.some((issue) => issue.path.includes('tableId'))
@@ -130,17 +130,35 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Tab
     const { tableId } = parsed.data.params
     const { workspaceId } = parsed.data.query
 
-    const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, workspaceId, 'write')
     if (scopeError) return scopeError
 
-    const result = await checkAccess(tableId, userId, 'write')
+    /**
+     * A workspace key names no human, so its creator must not be attributed the
+     * deletion in audit and analytics. The shared resolver substitutes the
+     * explicit system actor for a workspace key and keeps the owner for a
+     * personal one, exactly as the row routes on this table already do. An
+     * archived or deleted workspace has no billed account to stand in, which is
+     * a controlled 400 rather than an uncaught throw the catch-all would report
+     * as a 500.
+     */
+    const actor = await requireWorkspaceRequestActor(rateLimit, workspaceId)
+    if (!actor.ok) return actor.response
+    const actorUserId = actor.actorUserId
+
+    const result = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     if (result.table.workspaceId !== workspaceId) {
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const outcome = await performDeleteTable({ table: result.table, userId, requestId, request })
+    const outcome = await performDeleteTable({
+      table: result.table,
+      userId: actorUserId,
+      requestId,
+      request,
+    })
     if (!outcome.success) {
       return orchestrationOutcomeErrorResponse(outcome, 'Failed to delete table')
     }

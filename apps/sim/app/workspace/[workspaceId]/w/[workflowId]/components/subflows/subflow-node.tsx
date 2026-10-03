@@ -1,6 +1,6 @@
 import { memo, useMemo } from 'react'
 import { type SubflowNodeData, SubflowNodeView } from '@sim/workflow-renderer'
-import { type NodeProps, useReactFlow } from 'reactflow'
+import { type Node, type NodeProps, useReactFlow } from '@xyflow/react'
 import { hasDiffStatus } from '@/lib/workflows/diff/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ActionBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/action-bar'
@@ -19,7 +19,9 @@ import { usePanelEditorStore } from '@/stores/panel'
  * the pure view shared with the docs preview — injecting the editor-only
  * {@link ActionBar} through the view's `actionBar` slot.
  */
-export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<SubflowNodeData>) => {
+type SubflowNode = Node<SubflowNodeData, 'subflowNode'>
+
+export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<SubflowNode>) => {
   const { getNodes } = useReactFlow()
   const userPermissions = useUserPermissionsContext()
   const canEditWorkflow = userPermissions.canEdit && !data.isWorkflowLocked
@@ -60,7 +62,8 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
       level++
       const parentNode = getNodes().find((n) => n.id === currentParentId)
       if (!parentNode) break
-      currentParentId = parentNode.data?.parentId
+      currentParentId =
+        typeof parentNode.data?.parentId === 'string' ? parentNode.data.parentId : undefined
     }
 
     return level

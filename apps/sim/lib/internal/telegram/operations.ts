@@ -2,6 +2,10 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isPayloadSizeLimitError, readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import { TelegramOperationError } from '@/lib/internal/telegram/errors'
+import {
+  createInternalToolFileResult,
+  type InternalToolFileResult,
+} from '@/lib/internal/tool-operations/file-result'
 import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
@@ -35,7 +39,7 @@ interface TelegramApiResponse {
 export async function sendTelegramDocument(
   input: TelegramSendDocumentInput,
   context: TelegramOperationContext
-): Promise<TelegramSendDocumentResponse> {
+): Promise<InternalToolFileResult> {
   context.signal?.throwIfAborted()
   if (!input.files?.length) {
     throw new TelegramOperationError(
@@ -118,19 +122,12 @@ export async function sendTelegramDocument(
     )
   }
 
-  return {
+  return createInternalToolFileResult({ buffer, name: userFile.name, mimeType }, (file) => ({
     success: true,
     output: {
       message: 'Document sent successfully',
       data: data.result,
-      files: [
-        {
-          name: userFile.name,
-          mimeType,
-          data: buffer.toString('base64'),
-          size: buffer.length,
-        },
-      ],
+      files: [file],
     },
-  }
+  }))
 }

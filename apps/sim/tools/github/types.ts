@@ -844,14 +844,12 @@ export const PR_SUMMARY_OUTPUT_PROPERTIES = {
   merged_at: { type: 'string', description: 'Merge timestamp', optional: true },
 } as const satisfies Record<string, OutputProperty>
 
-// Base parameters shared by all GitHub operations
 export interface BaseGitHubParams {
   owner: string
   repo: string
   apiKey: string
 }
 
-// PR operation parameters
 export interface PROperationParams extends BaseGitHubParams {
   pullNumber: number
 }
@@ -862,7 +860,6 @@ export interface PRV2OperationParams extends PROperationParams {
   includeFiles?: boolean
 }
 
-// Comment operation parameters
 export interface CreateCommentParams extends PROperationParams {
   body: string
   path?: string
@@ -872,12 +869,10 @@ export interface CreateCommentParams extends PROperationParams {
   commentType?: 'pr_comment' | 'file_comment'
 }
 
-// Latest commit parameters
 export interface LatestCommitParams extends BaseGitHubParams {
   branch?: string
 }
 
-// Create PR parameters
 export interface CreatePRParams extends BaseGitHubParams {
   title: string
   head: string
@@ -886,7 +881,6 @@ export interface CreatePRParams extends BaseGitHubParams {
   draft?: boolean
 }
 
-// Update PR parameters
 export interface UpdatePRParams extends BaseGitHubParams {
   pullNumber: number
   title?: string
@@ -895,7 +889,6 @@ export interface UpdatePRParams extends BaseGitHubParams {
   base?: string
 }
 
-// Merge PR parameters
 export interface MergePRParams extends BaseGitHubParams {
   pullNumber: number
   commit_title?: string
@@ -903,7 +896,6 @@ export interface MergePRParams extends BaseGitHubParams {
   merge_method?: 'merge' | 'squash' | 'rebase'
 }
 
-// List PRs parameters
 export interface ListPRsParams extends BaseGitHubParams {
   state?: 'open' | 'closed' | 'all'
   head?: string
@@ -914,19 +906,16 @@ export interface ListPRsParams extends BaseGitHubParams {
   page?: number
 }
 
-// Get PR files parameters
 export interface GetPRFilesParams extends BaseGitHubParams {
   pullNumber: number
   per_page?: number
   page?: number
 }
 
-// Close PR parameters
 export interface ClosePRParams extends BaseGitHubParams {
   pullNumber: number
 }
 
-// Request reviewers parameters
 export interface RequestReviewersParams extends BaseGitHubParams {
   pullNumber: number
   reviewers?: string
@@ -936,7 +925,6 @@ export interface RequestReviewersParams extends BaseGitHubParams {
 /** Inline review comment attached to a submitted PR review. */
 export type CreatePRReviewComment = ReviewComment
 
-// Create PR review parameters
 export interface CreatePRReviewParams extends BaseGitHubParams {
   pullNumber: number
   event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT'
@@ -946,7 +934,6 @@ export interface CreatePRReviewParams extends BaseGitHubParams {
   comments?: CreatePRReviewComment[]
 }
 
-// Response metadata interfaces
 interface BasePRMetadata {
   number: number
   title: string
@@ -1103,7 +1090,6 @@ interface RepoMetadata {
   language: string
 }
 
-// PR operation response metadata
 interface PRMetadata {
   number: number
   title: string
@@ -1161,7 +1147,6 @@ interface ReviewersMetadata {
   }>
 }
 
-// Response types
 export interface PullRequestResponse extends ToolResponse {
   output: {
     content: string
@@ -1195,7 +1180,6 @@ export interface RepoInfoResponse extends ToolResponse {
   }
 }
 
-// Issue comment operation parameters
 export interface CreateIssueCommentParams extends BaseGitHubParams {
   issue_number: number
   body: string
@@ -1226,7 +1210,6 @@ export interface ListPRCommentsParams extends BaseGitHubParams {
   page?: number
 }
 
-// Branch operation parameters
 export interface ListBranchesParams extends BaseGitHubParams {
   protected?: boolean
   per_page?: number
@@ -1252,23 +1235,32 @@ export interface GetBranchProtectionParams extends BaseGitHubParams {
 
 export interface UpdateBranchProtectionParams extends BaseGitHubParams {
   branch: string
-  required_status_checks: {
-    strict: boolean
-    contexts: string[]
-  } | null
-  enforce_admins: boolean
-  required_pull_request_reviews: {
-    required_approving_review_count?: number
-    dismiss_stale_reviews?: boolean
-    require_code_owner_reviews?: boolean
-  } | null
-  restrictions: {
-    users: string[]
-    teams: string[]
-  } | null
+  required_status_checks?:
+    | {
+        strict: boolean
+        contexts: string[]
+      }
+    | string
+    | null
+  enforce_admins?: boolean | string | null
+  required_pull_request_reviews?:
+    | {
+        required_approving_review_count?: number
+        dismiss_stale_reviews?: boolean
+        require_code_owner_reviews?: boolean
+      }
+    | string
+    | null
+  restrictions?:
+    | {
+        users: string[]
+        teams: string[]
+        apps?: string[]
+      }
+    | string
+    | null
 }
 
-// Issue comment response metadata
 interface IssueCommentMetadata {
   id: number
   html_url: string
@@ -1292,7 +1284,6 @@ interface CommentsListMetadata {
   total_count: number
 }
 
-// Response types for new tools
 export interface IssueCommentResponse extends ToolResponse {
   output: {
     content: string
@@ -1317,7 +1308,6 @@ export interface DeleteCommentResponse extends ToolResponse {
   }
 }
 
-// New PR operation response types
 export interface PRResponse extends ToolResponse {
   output: {
     content: string
@@ -1353,7 +1343,6 @@ export interface ReviewersResponse extends ToolResponse {
   }
 }
 
-// Branch response metadata
 interface BranchMetadata {
   name: string
   commit: {
@@ -1405,7 +1394,6 @@ interface DeleteBranchMetadata {
   branch: string
 }
 
-// Branch response types
 export interface BranchResponse extends ToolResponse {
   output: {
     content: string
@@ -1441,7 +1429,6 @@ export interface DeleteBranchResponse extends ToolResponse {
   }
 }
 
-// GitHub Projects V2 parameters
 export interface ListProjectsParams {
   owner_type: 'org' | 'user'
   owner_login: string
@@ -1475,7 +1462,6 @@ export interface DeleteProjectParams {
   apiKey: string
 }
 
-// GitHub Projects V2 response metadata
 interface ProjectMetadata {
   id: string
   title: string
@@ -1486,7 +1472,6 @@ interface ProjectMetadata {
   shortDescription?: string
 }
 
-// GitHub Projects V2 response types
 export interface ListProjectsResponse extends ToolResponse {
   output: {
     content: string
@@ -1504,7 +1489,6 @@ export interface ProjectResponse extends ToolResponse {
   }
 }
 
-// Workflow operation parameters
 export interface ListWorkflowsParams extends BaseGitHubParams {
   per_page?: number
   page?: number
@@ -1521,6 +1505,7 @@ export interface TriggerWorkflowParams extends BaseGitHubParams {
 }
 
 export interface ListWorkflowRunsParams extends BaseGitHubParams {
+  workflow_id?: string | number
   actor?: string
   branch?: string
   event?: string
@@ -1542,7 +1527,6 @@ export interface RerunWorkflowParams extends BaseGitHubParams {
   enable_debug_logging?: boolean
 }
 
-// Workflow response metadata interfaces
 interface WorkflowMetadata {
   id: number
   name: string
@@ -1583,7 +1567,6 @@ interface ListWorkflowRunsMetadata {
   }>
 }
 
-// Workflow response types
 export interface WorkflowResponse extends ToolResponse {
   output: {
     content: string
@@ -1639,21 +1622,17 @@ export interface RerunWorkflowResponse extends ToolResponse {
   }
 }
 
-// Get latest release parameters
 export type GetLatestReleaseParams = BaseGitHubParams
 
-// List tags parameters
 export interface ListTagsParams extends BaseGitHubParams {
   per_page?: number
   page?: number
 }
 
-// Get README parameters
 export interface GetReadmeParams extends BaseGitHubParams {
   ref?: string
 }
 
-// Create PR review response
 export interface PRReviewResponse extends ToolResponse {
   output: {
     content: string
@@ -1667,7 +1646,6 @@ export interface PRReviewResponse extends ToolResponse {
   }
 }
 
-// List tags response
 export interface TagsListResponse extends ToolResponse {
   output: {
     content: string
@@ -1683,7 +1661,6 @@ export interface TagsListResponse extends ToolResponse {
   }
 }
 
-// Get README response
 export interface ReadmeResponse extends ToolResponse {
   output: {
     content: string
@@ -1734,7 +1711,6 @@ export type GitHubResponse =
   | IssuesListResponse
   | LabelsResponse
 
-// Release operation parameters
 export interface CreateReleaseParams extends BaseGitHubParams {
   tag_name: string
   target_commitish?: string
@@ -1767,7 +1743,6 @@ export interface DeleteReleaseParams extends BaseGitHubParams {
   release_id: number
 }
 
-// Release metadata interface
 interface ReleaseMetadata {
   id: number
   tag_name: string
@@ -1781,7 +1756,6 @@ interface ReleaseMetadata {
   published_at: string
 }
 
-// Response types for releases
 export interface ReleaseResponse extends ToolResponse {
   output: {
     content: string
@@ -1809,7 +1783,6 @@ export interface DeleteReleaseResponse extends ToolResponse {
   }
 }
 
-// Issue operation parameters
 export interface CreateIssueParams extends BaseGitHubParams {
   title: string
   body?: string
@@ -1862,7 +1835,6 @@ export interface AddAssigneesParams extends BaseGitHubParams {
   assignees: string
 }
 
-// Issue response metadata
 interface IssueMetadata {
   number: number
   title: string
@@ -1897,7 +1869,6 @@ interface LabelsMetadata {
   html_url: string
 }
 
-// Issue response types
 export interface IssueResponse extends ToolResponse {
   output: {
     content: string
@@ -1951,7 +1922,6 @@ export interface GetTreeParams extends BaseGitHubParams {
   ref?: string
 }
 
-// File/Content metadata interfaces
 interface FileContentMetadata {
   name: string
   path: string
@@ -1988,7 +1958,6 @@ interface TreeItemMetadata {
   html_url?: string
 }
 
-// Response types
 export interface FileContentResponse extends ToolResponse {
   output: {
     content: string

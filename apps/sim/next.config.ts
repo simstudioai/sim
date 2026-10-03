@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { SIM_SITE_URL } from '@sim/utils/site'
 import type { NextConfig } from 'next'
 import { env, isTruthy } from './lib/core/config/env'
 import { isDev } from './lib/core/config/env-flags'
@@ -8,6 +9,7 @@ import {
   getWorkflowExecutionCSPPolicy,
 } from './lib/core/security/csp'
 import { LANDING_ROUTES } from './lib/landing/routes'
+import { LIBRARY_MERGED_SLUGS, LIBRARY_MOVED_BLOG_SLUGS } from './lib/library/retired-slugs'
 
 const nextConfig: NextConfig = {
   devIndicators: false,
@@ -92,8 +94,6 @@ const nextConfig: NextConfig = {
   output: isTruthy(env.DOCKER_BUILD) ? 'standalone' : undefined,
   serverExternalPackages: [
     '@1password/sdk',
-    'unpdf',
-    'fluent-ffmpeg',
     'ws',
     'isolated-vm',
     '@e2b/code-interpreter',
@@ -101,6 +101,12 @@ const nextConfig: NextConfig = {
     '@daytona/sdk',
     '@earendil-works/pi-ai',
     '@earendil-works/pi-coding-agent',
+    /**
+     * Keep PDF.js and its native canvas implementation intact. The shared server
+     * loader initializes canvas primitives before PDF.js evaluates its module.
+     */
+    'pdfjs-dist',
+    '@napi-rs/canvas',
     // The collab-doc seed converter lazily `require`s jsdom for a headless TipTap editor. Keep it
     // external so webpack doesn't try to bundle jsdom's dynamic internal requires.
     'jsdom',
@@ -141,7 +147,11 @@ const nextConfig: NextConfig = {
      * No `sharp`/`@img` entries: these globs resolve against apps/sim while both hoist to the
      * monorepo root, so they matched nothing. docker/app.Dockerfile copies them instead.
      */
-    '/*': ['./lib/execution/sandbox/bundles/*.cjs', './node_modules/ws/**/*'],
+    '/*': [
+      './lib/execution/sandbox/bundles/*.cjs',
+      './node_modules/ws/**/*',
+      '../../packages/sim-cli/dist/runtime.js',
+    ],
   },
   experimental: {
     /**
@@ -209,7 +219,7 @@ const nextConfig: NextConfig = {
      */
     optimizePackageImports: [
       'framer-motion',
-      'reactflow',
+      '@xyflow/react',
       '@radix-ui/react-dialog',
       '@radix-ui/react-dropdown-menu',
       '@radix-ui/react-popover',
@@ -243,6 +253,7 @@ const nextConfig: NextConfig = {
   transpilePackages: [
     '@react-email/components',
     '@react-email/render',
+    'sim',
     '@t3-oss/env-nextjs',
     '@t3-oss/env-core',
     '@sim/db',
@@ -263,6 +274,16 @@ const nextConfig: NextConfig = {
             value: 'public, max-age=86400, stale-while-revalidate=604800',
           },
         ],
+      },
+      {
+        /** Generated footer artwork uses content hashes, so URLs are immutable. */
+        source: '/landing/footer-artwork/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
+      {
+        /** Generated hero artwork uses content hashes, so URLs are immutable. */
+        source: '/landing/hero-artwork/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
       },
       {
         source: '/.well-known/:path*',
@@ -432,7 +453,7 @@ const nextConfig: NextConfig = {
       },
       {
         source: '/linkedin',
-        destination: 'https://www.linkedin.com/company/simstudioai/',
+        destination: 'https://www.linkedin.com/company/simdotai/',
         permanent: false,
       },
       {
@@ -447,19 +468,25 @@ const nextConfig: NextConfig = {
       }
     )
 
-    // Redirect /building and /studio to /blog (legacy URL support)
-    redirects.push(
-      {
-        source: '/building/:path*',
-        destination: 'https://www.sim.ai/blog/:path*',
-        permanent: true,
-      },
-      {
-        source: '/studio/:path*',
-        destination: 'https://www.sim.ai/blog/:path*',
-        permanent: true,
+    /**
+     * Legacy `/building` and `/studio` URLs map to `/blog`. Posts since moved to
+     * `/library` get their own rules ahead of the wildcard (first match wins)
+     * so they land there in one hop instead of chaining through `/blog`.
+     */
+    for (const legacyPrefix of ['building', 'studio']) {
+      for (const slug of LIBRARY_MOVED_BLOG_SLUGS) {
+        redirects.push({
+          source: `/${legacyPrefix}/${slug}`,
+          destination: `${SIM_SITE_URL}/library/${slug}`,
+          permanent: true,
+        })
       }
-    )
+      redirects.push({
+        source: `/${legacyPrefix}/:path*`,
+        destination: `${SIM_SITE_URL}/blog/:path*`,
+        permanent: true,
+      })
+    }
 
     // The scheduled-tasks marketing page is retired with the feature. The URL is
     // indexed, so send it to the surface that still carries scheduled execution
@@ -546,22 +573,18 @@ const nextConfig: NextConfig = {
       permanent: true,
     })
 
-    /**
-     * AEO/GEO-style posts (listicles, comparisons, how-tos) were split out of
-     * `/blog` into the dedicated `/library` section so `/blog` stays
-     * editorial-only. Preserve previously indexed URLs for the moved posts.
-     */
-    for (const slug of [
-      'best-zapier-alternatives',
-      'ai-agents-vs-rpa',
-      'ai-agent-vs-chatbot',
-      'openai-vs-n8n-vs-sim',
-      'ai-agent-ideas',
-      'how-to-create-an-ai-agent',
-    ]) {
+    for (const slug of LIBRARY_MOVED_BLOG_SLUGS) {
       redirects.push({
         source: `/blog/${slug}`,
         destination: `/library/${slug}`,
+        permanent: true,
+      })
+    }
+
+    for (const [retired, kept] of Object.entries(LIBRARY_MERGED_SLUGS)) {
+      redirects.push({
+        source: `/library/${retired}`,
+        destination: `/library/${kept}`,
         permanent: true,
       })
     }

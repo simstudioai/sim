@@ -12,6 +12,7 @@ import { env } from '@/lib/core/config/env'
 import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
+import type { DbOrTx } from '@/lib/db/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { validateTriggerWebhookConfigForDeploy } from '@/lib/webhooks/deploy'
 import { normalizedStringify } from '@/lib/workflows/comparison/normalize'
@@ -31,6 +32,7 @@ import {
   processWorkflowDeploymentOutboxEvent,
 } from '@/lib/workflows/deployment-outbox'
 import {
+  getDeploymentOperation,
   getWorkflowDeploymentStatus,
   prepareWorkflowDeployment,
   prepareWorkflowVersionActivation,
@@ -180,21 +182,17 @@ export async function performFullDeploy(
   }
 }
 
-async function performStableFullDeploy(params: {
+/** Admits the supplied immutable graph and pending deployment work in the caller's transaction. */
+export async function prepareWorkflowSnapshotDeployment(params: {
   params: PerformFullDeployParams
   actorId: string
   requestId: string
   idempotencyKey: string
-}): Promise<PerformFullDeployResult> {
-  const workflowState = await loadWorkflowDeploymentSnapshot(params.params.workflowId)
-  if (!workflowState) {
-    return {
-      success: false,
-      error: 'Failed to load workflow state',
-      errorCode: 'validation',
-    }
-  }
-
+  workflowState: WorkflowState
+  tx?: DbOrTx
+  workspaceOperationId?: string
+}) {
+  const workflowState = params.workflowState
   const validation = await validateDeploymentState(workflowState.blocks)
   if (!validation.success) return validation
 
@@ -206,6 +204,7 @@ async function performStableFullDeploy(params: {
   })
   let outboxEventId: string | undefined
   const prepared = await prepareWorkflowDeployment({
+    tx: params.tx,
     workflowId: params.params.workflowId,
     actorId: params.actorId,
     requestHash,
@@ -230,21 +229,55 @@ async function performStableFullDeploy(params: {
         captureAnalytics: params.params.captureAnalytics,
         requestId: params.requestId,
         checkpoints: {},
+        workspaceOperationId: params.workspaceOperationId,
       })
     },
   })
 
   if (!prepared.success) {
     return {
-      success: false,
+      success: false as const,
       error: prepared.error,
       errorCode: mapPrepareFailureCode(prepared.reason),
     }
   }
 
-  const processResult = await processStableDeploymentPreparationNow(outboxEventId, params.requestId)
-  const deploymentStatus = await getWorkflowDeploymentStatus(params.params.workflowId)
-  const inlineFailure = buildInlinePreparationFailure(prepared.operation.id, deploymentStatus)
+  return { success: true as const, operation: prepared.operation, outboxEventId }
+}
+
+async function performStableFullDeploy(params: {
+  params: PerformFullDeployParams
+  actorId: string
+  requestId: string
+  idempotencyKey: string
+}): Promise<PerformFullDeployResult> {
+  const workflowState = await loadWorkflowDeploymentSnapshot(params.params.workflowId)
+  if (!workflowState) {
+    return {
+      success: false,
+      error: 'Failed to load workflow state',
+      errorCode: 'validation',
+    }
+  }
+
+  const prepared = await prepareWorkflowSnapshotDeployment({ ...params, workflowState })
+  if (!prepared.success) return prepared
+  return finishPreparedWorkflowDeployment(prepared, params.requestId)
+}
+
+/** Processes the exact admitted deployment without reading a newer editor draft. */
+export async function finishPreparedWorkflowDeployment(
+  prepared: { operation: WorkflowDeploymentOperation; outboxEventId?: string },
+  requestId: string
+): Promise<PerformFullDeployResult> {
+  const processResult = await processStableDeploymentPreparationNow(
+    prepared.outboxEventId,
+    requestId
+  )
+  const [deploymentStatus, inlineFailure] = await Promise.all([
+    getWorkflowDeploymentStatus(prepared.operation.workflowId),
+    getInlinePreparationFailure(prepared.operation),
+  ])
   if (inlineFailure) return inlineFailure
   const result = buildStableDeploymentResult(deploymentStatus, processResult)
   /**
@@ -261,23 +294,35 @@ async function performStableFullDeploy(params: {
 }
 
 /**
- * Surfaces a synchronous failure when the attempt created by this request
- * already failed terminally, so callers get an error response instead of a
- * success payload with a buried failed status.
+ * Reports terminal failure for the admitted attempt, even after a newer
+ * operation has become the workflow's latest attempt.
  */
-function buildInlinePreparationFailure(
-  operationId: string,
-  status: WorkflowDeploymentStatus
-): { success: false; error: string; errorCode: OrchestrationErrorCode } | null {
-  const latest = status.latestOperation
-  if (!latest || latest.id !== operationId || latest.status !== 'failed') return null
+async function getInlinePreparationFailure(
+  admitted: WorkflowDeploymentOperation
+): Promise<{ success: false; error: string; errorCode: OrchestrationErrorCode } | null> {
+  const operation = await getDeploymentOperation({
+    workflowId: admitted.workflowId,
+    operationId: admitted.id,
+    generation: admitted.generation,
+  })
+  if (!operation) {
+    return { success: false, error: 'Deployment operation not found', errorCode: 'not_found' }
+  }
+  if (operation.status === 'superseded') {
+    return {
+      success: false,
+      error: 'Deployment was superseded by a newer operation',
+      errorCode: 'conflict',
+    }
+  }
+  if (operation.status !== 'failed') return null
   return {
     success: false,
-    error: latest.errorMessage || 'Deployment preparation failed',
+    error: operation.errorMessage || 'Deployment preparation failed',
     errorCode:
-      latest.errorCode === DEPLOYMENT_ERROR_CODES.webhookPathConflict
+      operation.errorCode === DEPLOYMENT_ERROR_CODES.webhookPathConflict
         ? 'conflict'
-        : latest.errorCode === DEPLOYMENT_ERROR_CODES.invalidTriggerConfiguration
+        : operation.errorCode === DEPLOYMENT_ERROR_CODES.invalidTriggerConfiguration
           ? 'validation'
           : 'internal',
   }
@@ -829,7 +874,7 @@ async function performStableVersionActivation(params: {
 
   if (!prepared.success) {
     return {
-      success: false,
+      success: false as const,
       error: prepared.error,
       errorCode: mapPrepareFailureCode(prepared.reason),
     }
@@ -845,8 +890,10 @@ async function performStableVersionActivation(params: {
   }
 
   const processResult = await processStableDeploymentPreparationNow(outboxEventId, params.requestId)
-  const status = await getWorkflowDeploymentStatus(params.workflowId)
-  const inlineFailure = buildInlinePreparationFailure(prepared.operation.id, status)
+  const [status, inlineFailure] = await Promise.all([
+    getWorkflowDeploymentStatus(params.workflowId),
+    getInlinePreparationFailure(prepared.operation),
+  ])
   if (inlineFailure) return { ...inlineFailure, ...metadata }
   const result = buildStableDeploymentResult(status, processResult)
   return {
@@ -966,7 +1013,22 @@ export async function performRevertToVersion(
         restoredState.variables = deployedState.variables || {}
       }
 
-      const result = await saveWorkflowToNormalizedTables(workflowId, restoredState, tx)
+      const result = await saveWorkflowToNormalizedTables(
+        workflowId,
+        restoredState,
+        {
+          /**
+           * Actorless, and deliberately so. This is the executor-adjacent path:
+           * it writes back a graph the workspace already deployed. A run
+           * persisting its own state must not be refused because the member who
+           * triggered it is in a group that withholds a block the deployment
+           * uses — the deployment was authorized when it was created.
+           */
+          workspaceId: null,
+          subjectUserId: null,
+        },
+        tx
+      )
       if (!result.success) return result
 
       await tx

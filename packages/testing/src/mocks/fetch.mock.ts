@@ -63,42 +63,6 @@ export function createMockResponse(config: MockFetchResponse = {}): Response {
 }
 
 /**
- * Creates a mock fetch that handles multiple URLs with different responses.
- *
- * @example
- * ```ts
- * const mockFetch = createMultiMockFetch({
- *   '/api/users': { json: [{ id: 1 }] },
- *   '/api/error': { status: 500, json: { error: 'Server Error' } },
- * })
- * global.fetch = mockFetch
- * ```
- */
-export function createMultiMockFetch(
-  routes: Record<string, MockFetchResponse>,
-  defaultResponse?: MockFetchResponse
-) {
-  return vi.fn(async (url: string | URL | Request, _init?: RequestInit) => {
-    const urlString = url instanceof Request ? url.url : url.toString()
-
-    // Find matching route (exact or partial match)
-    const matchedRoute = Object.keys(routes).find(
-      (route) => urlString === route || urlString.includes(route)
-    )
-
-    if (matchedRoute) {
-      return createMockResponse(routes[matchedRoute])
-    }
-
-    if (defaultResponse) {
-      return createMockResponse(defaultResponse)
-    }
-
-    return createMockResponse({ status: 404, json: { error: 'Not Found' } })
-  })
-}
-
-/**
  * Sets up global fetch mock.
  *
  * @example
@@ -112,24 +76,4 @@ export function setupGlobalFetchMock(defaultResponse?: MockFetchResponse) {
   const mockFetch = createMockFetch(defaultResponse)
   vi.stubGlobal('fetch', mockFetch)
   return mockFetch
-}
-
-/**
- * Configures fetch to return a specific response for the next call.
- */
-export function mockNextFetchResponse(response: MockFetchResponse) {
-  const currentFetch = globalThis.fetch
-  if (vi.isMockFunction(currentFetch)) {
-    currentFetch.mockResolvedValueOnce(createMockResponse(response))
-  }
-}
-
-/**
- * Configures fetch to reject with an error.
- */
-export function mockFetchError(error: Error | string) {
-  const currentFetch = globalThis.fetch
-  if (vi.isMockFunction(currentFetch)) {
-    currentFetch.mockRejectedValueOnce(error instanceof Error ? error : new Error(error))
-  }
 }

@@ -56,7 +56,7 @@ export const zendeskGetTicketsTool: ToolConfig<ZendeskGetTicketsParams, ZendeskG
       apiToken: {
         type: 'string',
         required: true,
-        visibility: 'hidden',
+        visibility: 'user-only',
         description: 'Zendesk API token',
       },
       subdomain: {

@@ -1,11 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { googleFormsConnectorMeta, MAX_RESPONSES_PER_FORM } from '@/connectors/google-forms/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
   buildDriveParentsClause,
+  isListingScopeUnavailableError,
   joinTagArray,
+  listingRequestError,
   parseMultiValue,
   parseTagDate,
 } from '@/connectors/utils'
@@ -434,6 +437,8 @@ function buildDriveQuery(folderIds: string[]): string {
 export const googleFormsConnector: ConnectorConfig = {
   ...googleFormsConnectorMeta,
 
+  isListingScopeUnavailableError: isListingScopeUnavailableError,
+
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
@@ -480,7 +485,7 @@ export const googleFormsConnector: ConnectorConfig = {
     if (!response.ok) {
       const errorText = await response.text()
       logger.error('Failed to list Google Forms', { status: response.status, error: errorText })
-      throw new Error(`Failed to list Google Forms: ${response.status}`)
+      throw listingRequestError('Failed to list Google Forms', response.status)
     }
 
     const data = await response.json()

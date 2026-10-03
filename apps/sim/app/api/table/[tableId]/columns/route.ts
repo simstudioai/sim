@@ -17,6 +17,7 @@ import { normalizeColumn } from '@/lib/table/wire'
 import {
   accessError,
   checkAccess,
+  orchestrationErrorResponse,
   orchestrationOutcomeErrorResponse,
   rootErrorMessage,
   tableLockErrorResponse,
@@ -44,7 +45,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
     if (!validation.success) return validation.response
     const validated = validation.data.body
 
-    const result = await checkAccess(tableId, authResult.userId, 'write')
+    const result = await checkAccess(tableId, { kind: 'user', userId: authResult.userId }, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     const { table } = result
@@ -63,8 +64,8 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
       },
     })
   } catch (error) {
-    const lockError = tableLockErrorResponse(error)
-    if (lockError) return lockError
+    const classifiedError = orchestrationErrorResponse(error)
+    if (classifiedError) return classifiedError
     if (isZodError(error)) {
       return validationErrorResponse(error, 'Invalid request data')
     }
@@ -104,7 +105,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
     if (!validation.success) return validation.response
     const validated = validation.data.body
 
-    const result = await checkAccess(tableId, authResult.userId, 'write')
+    const result = await checkAccess(tableId, { kind: 'user', userId: authResult.userId }, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     const { table } = result
@@ -161,7 +162,11 @@ export const DELETE = withRouteHandler(
       if (!validation.success) return validation.response
       const validated = validation.data.body
 
-      const result = await checkAccess(tableId, authResult.userId, 'write')
+      const result = await checkAccess(
+        tableId,
+        { kind: 'user', userId: authResult.userId },
+        'write'
+      )
       if (!result.ok) return accessError(result, requestId, tableId)
 
       const { table } = result

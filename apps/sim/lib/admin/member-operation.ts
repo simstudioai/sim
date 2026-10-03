@@ -16,7 +16,7 @@ import {
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { ENTITLED_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import {
-  deferOutboxHandler,
+  continueOutboxHandler,
   enqueueOutboxEvent,
   type OutboxHandler,
   outboxEventHasSourceOperationId,
@@ -688,7 +688,7 @@ export const processAdminMemberOperation: OutboxHandler<unknown> = async (rawPay
   }
 
   if (nextWorkspaceIndex < payload.request.workspaceIds.length) {
-    return deferOutboxHandler('Continuing bounded member workspace moves', undefined, false)
+    return continueOutboxHandler('Continuing bounded member workspace moves')
   }
 }
 

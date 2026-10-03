@@ -29,16 +29,6 @@ export type FeatureFlagsConfig = Record<string, FeatureFlagRule>
 export type FeatureFlagContext = AppConfigGateContext
 
 /**
- * Registry of known feature flags. Each maps to the secret consulted ONLY when
- * AppConfig is not the source of truth (self-hosted/OSS, local dev, or hosted
- * without APPCONFIG_*). A truthy secret turns the flag on globally.
- *
- * Gating by workspace/org/user/admin is available ONLY through the hosted AppConfig document
- * — it deliberately cannot be expressed here, so no environment can grant (e.g.)
- * admin access from a code literal. To add a flag, register its name and the secret
- * to fall back on.
- */
-/**
  * The single definition of a feature flag. Everything about a flag lives in one
  * place: its name (the registry key), a human-readable `description`, and the
  * `fallback` secret consulted when AppConfig isn't the source of truth (truthy ⇒ on
@@ -56,6 +46,40 @@ interface FeatureFlagDefinition {
 
 /** The single registry of known flags. To add a flag, add one entry here. */
 const FEATURE_FLAGS = {
+  dashboards: {
+    description:
+      'Enable dashboard resources, rendering, analytics, and Mothership authoring. Supports global and organization rollout; disabled by default.',
+    fallback: 'DASHBOARDS',
+  },
+  'mothership-model-selector': {
+    description:
+      'Show the Mothership model selector, model-specific effort levels, and Fast for supported ' +
+      'models. Global on/off only; disabled uses Astra with simplified effort labels.',
+    fallback: 'MSHIP_MODEL_SELECTOR',
+  },
+  'mothership-plan-mode': {
+    description:
+      'Show and admit Mothership Plan conversations. Global on/off only, shared by organization ' +
+      'and workspace surfaces.',
+    fallback: 'MSHIP_PLAN_MODE',
+  },
+  'agent-memory-history': {
+    description:
+      'Capture durable Workflow Agent tool history and continue existing retries. Supports workspace rollout targeting; version-aware memory storage remains active when capture is disabled.',
+    fallback: 'AGENT_MEMORY_HISTORY',
+  },
+  'zoom-search': {
+    description:
+      'Enable Zoom Search setup, personal authorization and retrieval. Organization targeting only; disabled by default. Standard workflow Zoom OAuth is unchanged.',
+    fallback: 'ZOOM_SEARCH',
+  },
+  'slack-search-shared-app': {
+    description:
+      'Enable the official shared Slack app for existing Search customers. Supports orgId ' +
+      'targeting for setup, personal connections, and bot execution. Off-AppConfig falls back ' +
+      'to SLACK_SEARCH_SHARED_APP.',
+    fallback: 'SLACK_SEARCH_SHARED_APP',
+  },
   'trigger-eu-region': {
     description:
       'Route Trigger.dev runs to eu-central-1 instead of the default us-east-1. Global on/off ' +
@@ -80,10 +104,22 @@ const FEATURE_FLAGS = {
   },
   'credential-groups': {
     description:
-      'Workspace-owned collections that gather managed OAuth credentials from external users. ' +
-      'Gated by workspaceId via AppConfig (or globally); hosted workspaces must also have an ' +
-      'Enterprise subscription. Off-AppConfig falls back to CREDENTIAL_GROUPS.',
+      'Managed connected accounts, including organization account pools and their settings UI. ' +
+      'Uses orgId targeting only; workspace callers resolve their canonical organization. Hosted ' +
+      'owners also require an active Enterprise subscription. Organization Search additionally ' +
+      'requires knowledge-member-access. Off-AppConfig falls back to CREDENTIAL_GROUPS.',
     fallback: 'CREDENTIAL_GROUPS',
+  },
+  'knowledge-member-access': {
+    description:
+      'Organization Search (live) and the permission-aware workspace connector modes: members ' +
+      '(per-member sync, which also requires credential-groups) and admin (source ACL ' +
+      'mirroring, independent of managed identities). Organization Search UI, MCP, and ' +
+      'search APIs require this flag and credential-groups for the canonical orgId; ' +
+      'user/admin/workspace targeting cannot enable another organization. Workspace connector ' +
+      'modes use workspaceId; workspace retrieval defaults may additionally use user/admin ' +
+      'targeting. Off-AppConfig falls back to KNOWLEDGE_MEMBER_ACCESS.',
+    fallback: 'KNOWLEDGE_MEMBER_ACCESS',
   },
 } satisfies Record<string, FeatureFlagDefinition>
 

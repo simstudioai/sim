@@ -20,10 +20,12 @@ const GROUP_ALIASES: Readonly<Record<string, string>> = {
   'audit-logs': 'audit-log',
   credentials: 'credential',
   'custom-tools': 'custom-tool',
+  'permission-groups': 'permission-group',
   files: 'file',
   knowledge: 'kb',
   logs: 'log',
   'mcp-servers': 'mcp-server',
+  sandboxes: 'sandbox',
   secrets: 'secret',
   skills: 'skill',
   tables: 'table',
@@ -32,7 +34,7 @@ const GROUP_ALIASES: Readonly<Record<string, string>> = {
 }
 
 /**
- * States the personal-key restriction the way every generated command states it.
+ * States the workspace-key restriction the way every generated command states it.
  *
  * The suffix lives here, once, because a fully hand-written command renders its
  * own `.description()` and never reaches the generated path — three commands
@@ -42,7 +44,9 @@ const GROUP_ALIASES: Readonly<Record<string, string>> = {
  * caller has to name the operation it actually calls, so the two cannot drift.
  */
 export function describeOperation(operationSpec: OperationSpec, described: string): string {
-  return operationSpec.personalKeyOnly ? `${described} (personal API key required)` : described
+  return operationSpec.workspaceKeyUnsupported
+    ? `${described} (OAuth login or personal API key required)`
+    : described
 }
 
 function argumentSyntax(command: Command): string {

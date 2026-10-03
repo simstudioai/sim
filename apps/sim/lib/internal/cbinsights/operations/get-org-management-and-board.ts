@@ -1,8 +1,8 @@
+import { toNumberOrNull } from '@sim/utils/coerce'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type { CbInsightsOrgManagementParams } from '@/tools/cbinsights/get_org_management_and_board'
 import {
   asArray,
-  asNumber,
   cbInsightsRequest,
   compactBody,
   parseIdListParam,
@@ -21,7 +21,7 @@ export const executeCbinsightsGetOrgManagementAndBoardOperation: InternalToolOpe
     },
     (data) => ({
       people: asArray(data.people),
-      mosaicManagement: asNumber(data.mosaicManagement),
+      mosaicManagement: toNumberOrNull(data.mosaicManagement),
     }),
     signal
   )

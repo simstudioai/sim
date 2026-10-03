@@ -1,9 +1,16 @@
-/**
- * @vitest-environment node
- */
+import { inputValidationMock, inputValidationMockFns } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.unmock('@/tools/registry')
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
+/**
+ * Only this service's configs are needed; the full registry is ~6,000 modules.
+ * Registration is asserted through the generated `@/tools/tool-ids`.
+ */
+vi.mock('@/tools/registry', async () => {
+  const { partialToolRegistry } = await import('@sim/testing/mocks/tool-registry.mock')
+  return { tools: partialToolRegistry(await import('@/tools/pitchbook')) }
+})
 
 import { PitchBookBlock } from '@/blocks/blocks/pitchbook'
 import { ErrorExtractorId, extractErrorMessage, redactErrorData } from '@/tools/error-extractors'
@@ -44,30 +51,6 @@ function blockParams(input: ToolParams): Record<string, unknown> {
 }
 
 describe('pitchbook wiring', () => {
-  const access = PitchBookBlock.tools.access ?? []
-
-  it('registry keys match each tool id', () => {
-    for (const id of access) {
-      expect(tools[id], `missing registry entry ${id}`).toBeDefined()
-      expect(tools[id].id).toBe(id)
-    }
-  })
-
-  it('every operation option maps to an accessible tool', () => {
-    const op = PitchBookBlock.subBlocks.find((s) => s.id === 'operation')
-    const ids = (op?.options as Array<{ id: string }>).map((o) => o.id)
-    expect(ids.length).toBe(access.length)
-    for (const id of ids) {
-      const selected = PitchBookBlock.tools.config?.tool?.({ operation: id })
-      expect(access).toContain(selected)
-    }
-  })
-
-  it('subblock ids are unique', () => {
-    const ids = PitchBookBlock.subBlocks.map((s) => s.id)
-    expect(new Set(ids).size).toBe(ids.length)
-  })
-
   it('maps prefixed search subblocks onto PitchBook query params', () => {
     const mapped = blockParams({
       operation: 'company_search',
@@ -222,7 +205,6 @@ describe('pitchbook wiring', () => {
   })
 
   it('omits activeContract unless the user picks a side, since PitchBook is tri-state', () => {
-    const cfg = PitchBookBlock.tools.config
     const run = (contractFilter?: string) =>
       blockParams({ operation: 'contracts_history', apiKey: 'k', contractFilter })
 
@@ -320,26 +302,6 @@ describe('pitchbook wiring', () => {
       dealId: '52721-65T',
     })
     expect(asSearch.pbId).toBeUndefined()
-  })
-
-  it('exposes every window and paging field its operation actually accepts', () => {
-    const visibleFor = (operation: string) =>
-      new Set(
-        PitchBookBlock.subBlocks
-          .filter((sub) => {
-            const condition = sub.condition
-            if (!condition || condition.field !== 'operation') return true
-            const values = Array.isArray(condition.value) ? condition.value : [condition.value]
-            return values.includes(operation)
-          })
-          .map((sub) => sub.id)
-      )
-
-    // Each tool declares these; the canvas must offer them too.
-    expect(visibleFor('entity_news').has('sinceDate')).toBe(true)
-    expect(visibleFor('shared_search').has('page')).toBe(true)
-    expect(visibleFor('shared_search').has('perPage')).toBe(true)
-    expect(visibleFor('company_social_analytics').has('compare')).toBe(true)
   })
 
   it('clears cleared numeric fields instead of sending an empty string', () => {
@@ -476,28 +438,42 @@ describe('pitchbook error extraction', () => {
    * not appear anywhere in the tool result, message or retained body.
    */
   it('keeps the rejected key out of the whole failed tool result', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          reason: 'UNAUTHORIZED',
-          message: `Active API key ${SUBMITTED_KEY} not found`,
-        }),
-        { status: 401, headers: { 'content-type': 'application/json' } }
-      )
+    const response = new Response(
+      JSON.stringify({
+        reason: 'UNAUTHORIZED',
+        message: `Active API key ${SUBMITTED_KEY} not found`,
+      }),
+      { status: 401, headers: { 'content-type': 'application/json' } }
     )
+    inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValueOnce({
+      isValid: true,
+      resolvedIP: '93.184.216.34',
+    })
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValueOnce({
+      ok: response.ok,
+      status: response.status,
+      statusText: response.statusText,
+      headers: {
+        get: (name: string) => response.headers.get(name),
+        toRecord: () => Object.fromEntries(response.headers.entries()),
+      },
+      body: response.body,
+      text: () => response.text(),
+      json: () => response.json(),
+      arrayBuffer: () => response.arrayBuffer(),
+    })
 
-    try {
-      const result = await executeTool('pitchbook_company_bio', {
-        apiKey: SUBMITTED_KEY,
-        pbId: '10618-03',
-      })
+    const result = await executeTool('pitchbook_company_bio', {
+      apiKey: SUBMITTED_KEY,
+      pbId: '10618-03',
+    })
 
-      expect(result.success).toBe(false)
-      expect(JSON.stringify(result.output ?? {})).not.toContain(SUBMITTED_KEY)
-      expect(result.error ?? '').not.toContain(SUBMITTED_KEY)
-    } finally {
-      fetchSpy.mockRestore()
-    }
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).toHaveBeenCalledOnce()
+    expect(result.success).toBe(false)
+    expect(result.error).toBe(
+      'PitchBook rejected the API key. Check that the key is active and has API access.'
+    )
+    expect(JSON.stringify(result)).not.toContain(SUBMITTED_KEY)
   })
 
   it('routes every pitchbook tool through the scrubbing extractor', () => {

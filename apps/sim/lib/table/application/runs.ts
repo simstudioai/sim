@@ -1,6 +1,7 @@
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { getRequestContext } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { capabilityGovernedPrincipalUserId } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   DEFAULT_TABLE_PLAN_LIMITS,
@@ -24,7 +25,7 @@ import {
   type DispatchLimit,
   type DispatchMode,
   type DispatchRow,
-  listActiveDispatches,
+  listDispatches,
   readDispatch,
 } from '@/lib/table/dispatcher'
 import { signalTableRowsChanged } from '@/lib/table/events'
@@ -96,6 +97,14 @@ export const startTableRun = defineAuthorizedTableUseCase({
   resolveContext: ({ input }: { input: StartTableRunInput }) => resolveActiveTableContext(input),
   async execute({ principal, input, context }): Promise<StartTableRunResult> {
     const triggeredByUserId = actorUserId(principal, context.billedAccountUserId)
+    /**
+     * The gate's subject, which is not the meter's. `actorUserId` substitutes
+     * the workspace billed account when the credential names no human, so a
+     * workspace-API-key run would otherwise carry that bystander into the
+     * cells' tool denylist. Null here means no acting person and no per-tool
+     * gate — the same answer an executor delegation gets from the funnel.
+     */
+    const capabilityGovernedUserId = capabilityGovernedPrincipalUserId(principal)
     if (input.kind === 'row_enrichment') {
       requireCanonicalGroups(context.table, [input.groupId])
       const row = await getRowById(context.tableId, input.rowId, context.workspaceId)
@@ -108,6 +117,7 @@ export const startTableRun = defineAuthorizedTableUseCase({
         mode: 'all',
         requestId: requestId(input),
         triggeredByUserId,
+        capabilityGovernedUserId,
       })
       return {
         table: context.table,
@@ -165,6 +175,7 @@ export const startTableRun = defineAuthorizedTableUseCase({
       limit: input.limit,
       requestId: requestId(input),
       triggeredByUserId,
+      capabilityGovernedUserId,
     })
     return {
       table: context.table,
@@ -308,14 +319,16 @@ export interface ListTableDispatchesResult extends TableRunResult {
 }
 
 /**
- * The dispatches still in flight on one table. Bounded by the dispatcher rather
- * than by a page size, which is why the surface publishes it unpaged.
+ * The dispatches on one table, most recent first — in flight and settled alike,
+ * so a run that just completed is still listed next to the id its create
+ * returned. Capped at `MAX_LISTED_DISPATCHES`, which is why the surface
+ * publishes it unpaged.
  */
 export const listTableDispatches = defineAuthorizedTableUseCase({
   operation: tableOperations.readRun,
   resolveContext: ({ input }: { input: ListTableDispatchesInput }) =>
     resolveActiveTableContext(input),
   async execute({ context }): Promise<ListTableDispatchesResult> {
-    return { table: context.table, dispatches: await listActiveDispatches(context.tableId) }
+    return { table: context.table, dispatches: await listDispatches(context.tableId) }
   },
 })

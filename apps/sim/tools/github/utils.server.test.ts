@@ -2,8 +2,6 @@
  * Pins the redirect contract of the GitHub direct-execution transport: the workspace
  * token must never cross an origin boundary, while a legitimate same-origin GitHub
  * redirect (a renamed repository) must stay authenticated.
- *
- * @vitest-environment node
  */
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
@@ -12,12 +10,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@sim/security/dns', () => ({
   resolveHostAddresses: vi.fn(async () => ({ addresses: ['127.0.0.1'] })),
   preferIpv4: (addresses: string[]) => addresses[0],
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isHosted: false,
-  isPrivateDatabaseHostsAllowed: false,
-  getProxyUrl: () => undefined,
 }))
 
 import { secureGitHubRequest } from '@/tools/github/utils.server'
@@ -83,7 +75,7 @@ describe('secureGitHubRequest redirects', () => {
     expect(hops[0].headers.authorization).toBeUndefined()
   })
 
-  it('does not forward the GitHub token when a comment POST crosses an origin boundary', async () => {
+  it('refuses a comment POST that crosses an origin boundary', async () => {
     const hops: RecordedHop[] = []
     const attacker = await startRecordingServer(hops)
     const origin = await startServer((req, res) => {
@@ -92,15 +84,18 @@ describe('secureGitHubRequest redirects', () => {
       res.end()
     })
 
-    await secureGitHubRequest(origin, {
-      method: 'POST',
-      headers: { ...GITHUB_HEADERS, 'Content-Type': 'application/json' },
-      body: '{"body":"Looks good"}',
-    })
+    // Stronger than withholding the token: the comment body never reaches the
+    // redirect target either, so nothing is disclosed and nothing is written
+    // somewhere the caller did not address.
+    await expect(
+      secureGitHubRequest(origin, {
+        method: 'POST',
+        headers: { ...GITHUB_HEADERS, 'Content-Type': 'application/json' },
+        body: '{"body":"Looks good"}',
+      })
+    ).rejects.toThrow('cross-origin redirect would forward a request body')
 
-    expect(hops).toHaveLength(1)
-    expect(hops[0].headers.authorization).toBeUndefined()
-    expect(hops[0].headers.cookie).toBeUndefined()
+    expect(hops).toHaveLength(0)
   })
 
   it('replays a comment POST as a POST across a same-origin renamed-repository 301', async () => {

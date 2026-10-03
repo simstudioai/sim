@@ -4,6 +4,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { allowedIntegrationTypes, principalUserId } from '@/lib/integrations/principal-scope.server'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
+import { resolveAccessControlBlockType } from '@/lib/permission-groups/integration-allowlist'
 import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import {
   type ActiveWorkspaceApplicationContext,
@@ -56,6 +57,16 @@ export async function resolveCatalogGate(
   return { allowedIntegrations, visibility, customBlockRows }
 }
 
+/** Per-read relaxations of the visibility predicate. */
+export interface BlockVisibilityOptions {
+  /**
+   * Admit a sunset (`legacy` / `deprecated`) block that is hidden from the
+   * toolbar. Only the lifecycle hide is lifted: an unrevealed preview block, a
+   * kill-switched one, and one the workspace excludes stay hidden.
+   */
+  includeSunset?: boolean
+}
+
 /**
  * Whether this caller may see a block at all.
  *
@@ -63,8 +74,12 @@ export async function resolveCatalogGate(
  * detail route 404s on it. Applying a weaker rule to the detail route would let
  * a caller enumerate unrevealed preview blocks one id at a time.
  */
-export function isBlockVisibleToCaller(block: BlockConfig, gate: CatalogGate): boolean {
-  if (block.hideFromToolbar) return false
+export function isBlockVisibleToCaller(
+  block: BlockConfig,
+  gate: CatalogGate,
+  options: BlockVisibilityOptions = {}
+): boolean {
+  if (block.hideFromToolbar && !(options.includeSunset && block.sunset)) return false
   if (isHiddenUnder(gate.visibility, block)) return false
   if (!isIntegrationDeploymentAvailableForVisibility(block.type, gate.visibility)) return false
   return isBlockTypeAllowed(block.type, gate)
@@ -74,7 +89,7 @@ export function isBlockVisibleToCaller(block: BlockConfig, gate: CatalogGate): b
 export function isBlockTypeAllowed(blockType: string, gate: CatalogGate): boolean {
   if (gate.allowedIntegrations === null) return true
   if (isBlockTypeAccessControlExempt(blockType)) return true
-  return gate.allowedIntegrations.has(blockType.toLowerCase())
+  return gate.allowedIntegrations.has(resolveAccessControlBlockType(blockType).toLowerCase())
 }
 
 /**

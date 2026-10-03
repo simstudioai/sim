@@ -1,6 +1,7 @@
 import type { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
+import type { EgressProfile } from '@/lib/core/security/egress/profiles'
 import { validateS3BucketName } from '@/lib/core/security/input-validation'
 import {
   secureFetchWithPinnedIP,
@@ -36,17 +37,25 @@ export type ResolveDocumentResult =
   | { ok: true; document: ResolvedDocument }
   | { ok: false; response: NextResponse }
 
+/**
+ * `profile` distinguishes the two kinds of URL that reach here: a document URL
+ * the caller supplied, and a presigned URL Sim minted against its own configured
+ * object storage — which on a self-hosted deployment legitimately points at a
+ * private or loopback MinIO.
+ */
 async function fetchDocumentBytes(
   url: string,
+  profile: EgressProfile,
   signal?: AbortSignal
 ): Promise<{ bytes: Buffer; contentType: string }> {
   signal?.throwIfAborted()
-  const urlValidation = await validateUrlWithDNS(url, 'Document URL')
+  const urlValidation = await validateUrlWithDNS(url, 'Document URL', profile)
   if (!urlValidation.isValid) {
     throw new TextractOperationError(urlValidation.error || 'Invalid document URL', 400)
   }
 
-  const response = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP!, {
+  const response = await secureFetchWithPinnedIP(url, urlValidation.resolvedIP, {
+    profile,
     method: 'GET',
     signal,
   })
@@ -159,7 +168,7 @@ export async function resolveDocumentInput(
         ),
       }
     } else {
-      const urlValidation = await validateUrlWithDNS(fileUrl, 'Document URL')
+      const urlValidation = await validateUrlWithDNS(fileUrl, 'Document URL', 'contentFetch')
       if (!urlValidation.isValid) {
         logger.warn(`[${requestId}] SSRF attempt blocked`, {
           userId,
@@ -176,7 +185,11 @@ export async function resolveDocumentInput(
       }
     }
 
-    const fetched = await fetchDocumentBytes(fileUrl, signal)
+    const fetched = await fetchDocumentBytes(
+      fileUrl,
+      isInternalFilePath ? 'configuredEndpoint' : 'contentFetch',
+      signal
+    )
     return {
       ok: true,
       document: {

@@ -74,6 +74,7 @@ async function fetchAccessToken(
   const response = await secureFetchWithValidation(
     tokenUrl,
     {
+      profile: 'configuredEndpoint',
       method: 'POST',
       headers: {
         Authorization: `Basic ${basic}`,
@@ -163,6 +164,7 @@ async function invokeZoomInfo(
   const response = await secureFetchWithValidation(
     url,
     {
+      profile: 'configuredEndpoint',
       method: input.method,
       headers,
       body: hasBody

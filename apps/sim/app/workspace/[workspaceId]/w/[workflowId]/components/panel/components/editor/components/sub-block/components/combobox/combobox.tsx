@@ -1,7 +1,10 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Combobox, type ComboboxOption, cn } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
-import { useReactFlow } from 'reactflow'
+import { useReactFlow } from '@xyflow/react'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import type { SelectorKey } from '@/lib/selectors/manifest'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
 import { SandboxCreateModal } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/components/sandbox-create-modal'
 import type { SandboxLanguage } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/utils'
@@ -14,7 +17,7 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
-import type { SelectorKey } from '@/hooks/selectors/types'
+import { useDebounce } from '@/hooks/use-debounce'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -22,7 +25,7 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 /**
  * Constants for ComboBox component behavior
  */
-const DEFAULT_MODEL = 'claude-sonnet-5'
+const DEFAULT_MODEL = 'claude-sonnet-5-5'
 const ZOOM_FACTOR_BASE = 0.96
 const MIN_ZOOM = 0.1
 const MAX_ZOOM = 1
@@ -125,6 +128,13 @@ export const ComboBox = memo(function ComboBox({
       : undefined
   )
 
+  /**
+   * Option builders such as the model list and the Function block's languages read the
+   * deployment shape outside React, so the list is keyed on the subscribed shape as well:
+   * a host context that lands after mount (an app version rolling out the field) must
+   * re-evaluate them rather than leave the env fallback's list in place.
+   */
+  const deploymentShape = useDeploymentShape()
   const staticOptions = useMemo(() => {
     const opts =
       typeof options === 'function'
@@ -136,23 +146,35 @@ export const ComboBox = memo(function ComboBox({
     }
 
     return opts
-  }, [options, blockValues, subBlockId, isModelUsable])
+  }, [options, blockValues, subBlockId, isModelUsable, deploymentShape])
+
+  const [selectorSearch, setSelectorSearch] = useState('')
+  const debouncedSelectorSearch = useDebounce(selectorSearch.trim(), SEARCH_DEBOUNCE_MS)
+  const activeSelectorSearch = selectorSearch.trim() === '' ? '' : debouncedSelectorSearch
 
   const {
     fetchedOptions,
     isLoadingOptions,
+    isFetchingMore,
+    isLoadingAll,
+    hasMore,
+    truncated,
     fetchError,
     hydratedOption,
     missingOptionId,
     isDynamic,
+    loadMore,
+    loadAll,
     refetch: refetchOptions,
   } = useFetchedOptions({
     blockId,
+    subBlockId,
     dependsOnFields,
     selectorKey,
     selectorExcludeSelf,
     isPreview: Boolean(isPreview),
     disabled: Boolean(disabled),
+    search: activeSelectorSearch,
     valueToHydrate: value as string | null | undefined,
     localOptions: staticOptions,
   })
@@ -274,7 +296,7 @@ export const ComboBox = memo(function ComboBox({
 
   /**
    * Determines the default option value to use.
-   * Priority: explicit defaultValue > claude-sonnet-5 for model field > first option
+   * Priority: explicit defaultValue > DEFAULT_MODEL for model field > first option
    */
   const defaultOptionValue = useMemo(() => {
     if (defaultValue !== undefined) {
@@ -286,7 +308,6 @@ export const ComboBox = memo(function ComboBox({
       // Default not available (e.g. provider disabled) — fall through to other fallbacks
     }
 
-    // For model field, default to claude-sonnet-5 if available
     if (subBlockId === 'model') {
       const defaultModelOption = evaluatedOptions.find(
         (opt) => getOptionValue(opt) === DEFAULT_MODEL
@@ -422,7 +443,7 @@ export const ComboBox = memo(function ComboBox({
     })
     return (
       <div className='flex w-full items-center truncate [scrollbar-width:none]'>
-        {SelectedIcon && <SelectedIcon className='mr-2 size-3 flex-shrink-0' />}
+        {SelectedIcon && <SelectedIcon className='mr-2 size-3 shrink-0' />}
         <div className='truncate'>
           {formatDisplayText(displayLabel, {
             accessiblePrefixes,
@@ -450,8 +471,10 @@ export const ComboBox = memo(function ComboBox({
       const matchedComboboxOption = comboboxOptions.find((option) => option.value === newValue)
       if (matchedComboboxOption) {
         setInputValue(matchedComboboxOption.label)
+        setSelectorSearch('')
       } else {
         setInputValue(newValue)
+        setSelectorSearch(newValue)
       }
 
       // Use controller's handler so env vars, tags, and DnD still work
@@ -541,8 +564,16 @@ export const ComboBox = memo(function ComboBox({
               className={cn('allow-scroll overflow-x-auto', selectedOptionIcon && 'pl-7')}
               inputProps={comboboxInputProps}
               isLoading={isLoadingOptions}
+              isLoadingMore={isFetchingMore}
+              isLoadingAll={isLoadingAll}
+              hasMore={hasMore}
+              truncated={truncated}
+              searchActive={Boolean(debouncedSelectorSearch)}
+              onLoadMore={loadMore}
+              onLoadAll={loadAll}
               error={fetchError}
               onOpenChange={handleOpenChange}
+              onSearchChange={setSelectorSearch}
             />
           )
         }}

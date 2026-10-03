@@ -4,6 +4,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { z } from 'zod'
 import { fileParseContract } from '@/lib/api/contracts/storage-transfer'
 import { fileManageContract } from '@/lib/api/contracts/tools/file'
+import { v2FolderPathInputSchema } from '@/lib/api/contracts/v2/shared'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import {
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
@@ -31,6 +32,7 @@ import {
   FILE_SEARCH_MAX_RESULTS,
   FILE_SEARCH_MIN_QUERY_LENGTH,
 } from '@/lib/workspace-files/search/constants'
+import { FILE_SEARCH_MODES } from '@/lib/workspace-files/search/pattern'
 
 const logger = createLogger('FileToolExecution')
 
@@ -41,6 +43,7 @@ const FILE_MANAGE_TOOL_IDS = new Set([
   'file_get',
   'file_get_content',
   'file_manage_sharing',
+  'file_edit',
   'file_fetch',
   'file_parser',
   'file_parser_v2',
@@ -48,6 +51,12 @@ const FILE_MANAGE_TOOL_IDS = new Set([
   'file_read',
   'file_search',
   'file_write',
+  'file_list',
+  'file_create_folder',
+  'file_update_folder',
+  'file_delete_folder',
+  'file_restore_folder',
+  'file_move',
 ])
 
 const fileSearchInputSchema = z
@@ -57,12 +66,16 @@ const fileSearchInputSchema = z
       .min(FILE_SEARCH_MIN_QUERY_LENGTH)
       .max(FILE_SEARCH_MAX_QUERY_LENGTH)
       .refine((query) => !query.includes('\0'), 'Search query cannot contain NUL characters'),
+    mode: z.enum(FILE_SEARCH_MODES).default('regex'),
     maxResults: z
       .number()
       .int()
       .min(1)
       .max(FILE_SEARCH_MAX_RESULTS)
       .default(FILE_SEARCH_DEFAULT_MAX_RESULTS),
+    /** Same spelling and bound as the folder scope on read, content and compress. */
+    folderPaths: z.array(v2FolderPathInputSchema).max(64, 'Too many folders').optional(),
+    includeSubfolders: z.boolean().optional(),
   })
   .strict()
 
@@ -76,7 +89,10 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
   }
 
   const workspaceId = request.context.workspaceId
-  if (!workspaceId || !request.context.executorDelegationOrigin) {
+  if (
+    !workspaceId ||
+    (!request.context.executorDelegationOrigin && !request.context.callerPrincipal)
+  ) {
     return Response.json({ success: false, error: 'Authentication required' }, { status: 401 })
   }
 
@@ -99,10 +115,13 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
     isParserTool || isSearchTool ? null : parseInternalToolInput(fileManageContract, request.input)
   if (manageInput && !manageInput.success) return manageInput.response
   try {
-    const principal = await createExecutorPrincipalFromExecutionContext({
-      context: request.context,
-      audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
-    })
+    const principal =
+      request.context.callerPrincipal && !request.context.executorDelegationOrigin
+        ? request.context.callerPrincipal
+        : await createExecutorPrincipalFromExecutionContext({
+            context: request.context,
+            audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+          })
     if (searchInput) {
       request.signal?.throwIfAborted()
       const result = await searchWorkspaceFileContent.execute({
@@ -110,7 +129,10 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
         input: {
           workspaceId,
           query: searchInput.data.query,
+          mode: searchInput.data.mode,
           maxResults: searchInput.data.maxResults,
+          folderPaths: searchInput.data.folderPaths,
+          includeSubfolders: searchInput.data.includeSubfolders,
           signal: request.signal,
         },
       })
@@ -150,6 +172,7 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
         fileKeys: request.context.fileKeys,
         allowLargeValueWorkflowScope: request.context.allowLargeValueWorkflowScope,
         requestId: request.requestId,
+        headers: request.headers,
         signal: request.signal,
       })
     } else {

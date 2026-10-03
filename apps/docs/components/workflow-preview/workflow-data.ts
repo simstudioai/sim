@@ -1,10 +1,19 @@
 import {
   BLOCK_Z_BASE,
+  type CanvasSentenceSegment,
   CONTAINER_CHILD_Z_BASE,
   getEdgeZIndex,
   getEdgeZIndexForTarget,
 } from '@sim/workflow-renderer'
-import { type Edge, type Node, Position } from 'reactflow'
+import { type Edge, Position } from '@xyflow/react'
+import type {
+  DocsBlockData,
+  DocsBlockNodeType,
+} from '@/components/workflow-preview/docs-block-node'
+import type {
+  DocsContainerData,
+  DocsContainerNodeType,
+} from '@/components/workflow-preview/docs-container-node'
 
 /**
  * Tool entry displayed as a chip on a block (e.g. an Agent's attached tools).
@@ -25,6 +34,11 @@ export interface PreviewBlock {
   type: string
   bgColor: string
   rows: Array<{ title: string; value: string }>
+  /** Resolved example copy; value slots refer to the titles in `rows`. */
+  sentence?: readonly CanvasSentenceSegment[]
+  typeLabel?: string
+  isIntegration?: boolean
+  triggerMode?: boolean
   /**
    * Branch rows, each with its own right-edge source handle whose id is the
    * branch id. Author ids in the app's own handle scheme so edges match the
@@ -51,6 +65,15 @@ export interface PreviewWorkflow {
   edges: Array<{ id: string; source: string; target: string; sourceHandle?: string }>
 }
 
+export type PreviewNode = DocsBlockNodeType | DocsContainerNodeType
+
+export interface PreviewEdgeData extends Record<string, unknown> {
+  animate: boolean
+  delay: number
+}
+
+export type PreviewFlowEdge = Edge<PreviewEdgeData, 'previewEdge'>
+
 export const BLOCK_STAGGER = 0.12
 export const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1]
 
@@ -58,6 +81,10 @@ const EDGE_STYLE = { stroke: 'var(--workflow-edge)', strokeWidth: 2 } as const
 const EDGE_STYLE_HIGHLIGHT = { stroke: 'var(--brand-secondary)', strokeWidth: 2.5 } as const
 /** Edges leaving a block's error port render red, matching the editor. */
 const EDGE_STYLE_ERROR = { stroke: 'var(--text-error)', strokeWidth: 2 } as const
+
+/** De-emphasizes diagram context without reducing the contrast of its text. */
+export const DIMMED_PREVIEW_CLASS =
+  '[&_[data-workflow-block-border]]:opacity-35 [&_[data-workflow-type-accent]]:grayscale [&_[data-subflow-type-tag]]:grayscale'
 
 /** Optional emphasis: light one block or one edge and dim everything else. */
 export interface HighlightOptions {
@@ -96,14 +123,17 @@ export function toReactFlowElements(
   workflow: PreviewWorkflow,
   animate = false,
   highlight: HighlightOptions = {}
-): { nodes: Node[]; edges: Edge[] } {
+): { nodes: PreviewNode[]; edges: PreviewFlowEdge[] } {
   const { highlightBlock, highlightEdge, selectedBlock } = highlight
   const hasHighlight = Boolean(highlightBlock || highlightEdge)
   const blockIndexMap = new Map(workflow.blocks.map((b, i) => [b.id, i]))
 
   const blocksById = new Map(workflow.blocks.map((b) => [b.id, b]))
+  const errorSources = new Set(
+    workflow.edges.filter((edge) => edge.sourceHandle === 'error').map((edge) => edge.source)
+  )
 
-  const nodes: Node[] = workflow.blocks.map((block, index) => {
+  const nodes: PreviewNode[] = workflow.blocks.map((block, index) => {
     const isContainer = Boolean(block.size)
     const nestingDepth = getNestingDepth(block, blocksById)
     // Nested blocks are authored relative to their container; render them at
@@ -113,13 +143,20 @@ export function toReactFlowElements(
     const position = parent
       ? { x: parent.position.x + block.position.x, y: parent.position.y + block.position.y }
       : block.position
-    return {
+    const commonNode = {
       id: block.id,
-      type: isContainer ? 'previewContainer' : 'previewBlock',
       position,
       zIndex: isContainer ? nestingDepth : block.parentId ? CONTAINER_CHILD_Z_BASE : BLOCK_Z_BASE,
       ...(block.size ? { style: { width: block.size.width, height: block.size.height } } : {}),
-      data: {
+      draggable: true,
+      selectable: false,
+      connectable: false,
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+    }
+
+    if (isContainer) {
+      const data: DocsContainerData = {
         name: block.name,
         blockType: block.type,
         bgColor: block.bgColor,
@@ -132,17 +169,43 @@ export function toReactFlowElements(
         index,
         animate,
         isHighlighted: highlightBlock === block.id || selectedBlock === block.id,
-        isDimmed: hasHighlight && highlightBlock !== block.id,
-      },
-      draggable: true,
-      selectable: false,
-      connectable: false,
-      sourcePosition: Position.Right,
-      targetPosition: Position.Left,
+        isDimmed: hasHighlight && highlightBlock !== block.id && selectedBlock !== block.id,
+      }
+      return {
+        ...commonNode,
+        type: 'previewContainer',
+        data,
+      }
+    }
+
+    const data: DocsBlockData = {
+      name: block.name,
+      blockType: block.type,
+      bgColor: block.bgColor,
+      rows: block.rows,
+      sentence: block.sentence,
+      typeLabel: block.typeLabel,
+      isIntegration: block.isIntegration,
+      triggerMode: block.triggerMode,
+      hasErrorConnection: errorSources.has(block.id),
+      branches: block.branches,
+      tools: block.tools,
+      hideTargetHandle: block.hideTargetHandle,
+      size: block.size,
+      parentId: block.parentId,
+      index,
+      animate,
+      isHighlighted: highlightBlock === block.id || selectedBlock === block.id,
+      isDimmed: hasHighlight && highlightBlock !== block.id && selectedBlock !== block.id,
+    }
+    return {
+      ...commonNode,
+      type: 'previewBlock',
+      data,
     }
   })
 
-  const edges: Edge[] = workflow.edges.map((e) => {
+  const edges: PreviewFlowEdge[] = workflow.edges.map((e) => {
     const sourceIndex = blockIndexMap.get(e.source) ?? 0
     const isEdgeHighlight = highlightEdge === e.id
     const dimmed = hasHighlight && !isEdgeHighlight

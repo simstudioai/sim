@@ -11,6 +11,7 @@ import {
 } from '@/lib/logs/application/authorization'
 import { logOperations } from '@/lib/logs/application/operations'
 import { readLogDetail } from '@/lib/logs/fetch-log-detail'
+import { logProjectionSubjectUserId, resolveLogFieldProjection } from '@/lib/logs/log-projection'
 import {
   type ActiveWorkspaceApplicationContext,
   resolveActiveWorkspaceApplicationContext,
@@ -79,12 +80,26 @@ const authorizedReadLogDetailUseCase = defineAuthorizedWorkspaceUseCase({
     input.signal?.throwIfAborted()
     // Attribution, not authorization: an actorless run (a schedule, or a webhook
     // with no external subject) reads its own workspace's logs with no user to name.
+    const viewerUserId = resolvePrincipalSubjectUserId(principal)
+
+    /**
+     * A projection rather than a refusal: the log stays readable, its execution
+     * payloads and its spend do not. Resolved through the shared helper, which
+     * the v1 public API reads too — see {@link resolveLogFieldProjection}.
+     */
+    const projection = await resolveLogFieldProjection(
+      logProjectionSubjectUserId(principal),
+      context.workspaceId,
+      context.workspaceOrganizationId
+    )
+
     const detail = await readLogDetail({
-      viewerUserId: resolvePrincipalSubjectUserId(principal),
+      viewerUserId,
       workspaceId: context.workspaceId,
       lookupColumn: input.lookupColumn,
       lookupValue: input.lookupValue,
       signal: input.signal,
+      ...projection,
     })
     input.signal?.throwIfAborted()
     if (!detail) throw new OrchestrationError('not_found', 'Not found')

@@ -76,8 +76,10 @@ export const searchVectorTool: ToolConfig<PineconeSearchVectorParams, PineconeRe
           ? JSON.parse(params.filter)
           : params.filter
         : undefined,
-      includeValues: true, //TODO: Make this dynamic
-      includeMetadata: true, //TODO: Make this dynamic
+      // Both default to on, which is what this sent unconditionally before the
+      // "Options" field was wired up; an explicit choice now overrides it.
+      includeValues: params.includeValues ?? true,
+      includeMetadata: params.includeMetadata ?? true,
     }),
   },
 

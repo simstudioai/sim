@@ -1,4 +1,4 @@
-import { createLogger } from '@sim/logger'
+import { toArray, toRecord } from '@sim/utils/object'
 import type {
   JsmApprovalsBody,
   JsmCommentBody,
@@ -16,18 +16,14 @@ import type {
   JsmSlaBody,
   JsmTransitionBody,
   JsmTransitionsBody,
-} from '@/lib/api/contracts/selectors/jsm'
+} from '@/lib/api/contracts/tools/jsm'
 import {
   validateAlphanumericId,
   validateEnum,
   validateJiraIssueKey,
 } from '@/lib/core/security/input-validation'
-import { asArray, asObject, createJsmClient } from '@/lib/internal/jsm/client'
+import { createJsmClient } from '@/lib/internal/jsm/client'
 import { JsmOperationError } from '@/lib/internal/jsm/errors'
-
-const logger = createLogger('JsmServiceDeskOperations')
-const SELECTOR_PAGE_SIZE = 100
-const SELECTOR_MAX_PAGES = 50
 
 function validateId(value: string, field: string): void {
   const validation = validateAlphanumericId(value, field)
@@ -148,8 +144,8 @@ export async function executeJsmGetRequestTypeFields(
       requestTypeId: input.requestTypeId,
       canAddRequestParticipants: data.canAddRequestParticipants ?? false,
       canRaiseOnBehalfOf: data.canRaiseOnBehalfOf ?? false,
-      requestTypeFields: asArray(data.requestTypeFields).map((entry) => {
-        const field = asObject(entry)
+      requestTypeFields: toArray(data.requestTypeFields).map((entry) => {
+        const field = toRecord(entry)
         return {
           fieldId: field.fieldId ?? null,
           name: field.name ?? null,
@@ -217,7 +213,7 @@ export async function executeJsmGetRequests(input: JsmRequestsBody, signal?: Abo
 }
 
 function currentStatus(data: Record<string, unknown>) {
-  const value = asObject(data.currentStatus)
+  const value = toRecord(data.currentStatus)
   return data.currentStatus
     ? {
         status: value.status ?? null,
@@ -229,7 +225,7 @@ function currentStatus(data: Record<string, unknown>) {
 
 function reporter(data: Record<string, unknown>, includeActive: boolean) {
   if (!data.reporter) return null
-  const value = asObject(data.reporter)
+  const value = toRecord(data.reporter)
   return {
     accountId: value.accountId ?? null,
     displayName: value.displayName ?? null,
@@ -320,8 +316,8 @@ export async function executeJsmGetRequest(input: JsmRequestBody, signal?: Abort
       createdDate: data.createdDate ?? null,
       currentStatus: currentStatus(data),
       reporter: reporter(data, true),
-      requestFieldValues: asArray(data.requestFieldValues).map((entry) => {
-        const field = asObject(entry)
+      requestFieldValues: toArray(data.requestFieldValues).map((entry) => {
+        const field = toRecord(entry)
         return {
           fieldId: field.fieldId ?? null,
           label: field.label ?? null,
@@ -343,7 +339,7 @@ export async function executeJsmAddComment(input: JsmCommentBody, signal?: Abort
     signal,
     true
   )
-  const author = asObject(data.author)
+  const author = toRecord(data.author)
   return {
     success: true,
     output: {
@@ -477,9 +473,9 @@ export async function executeJsmAnswerApproval(input: JsmApprovalsBody, signal?:
       name: data.name ?? null,
       finalDecision: data.finalDecision ?? null,
       canAnswerApproval: data.canAnswerApproval ?? null,
-      approvers: asArray(data.approvers).map((entry) => {
-        const item = asObject(entry)
-        const approver = asObject(item.approver)
+      approvers: toArray(data.approvers).map((entry) => {
+        const item = toRecord(entry)
+        const approver = toRecord(item.approver)
         return {
           approver: {
             accountId: approver.accountId ?? null,
@@ -659,59 +655,4 @@ export async function executeJsmAddOrganization(input: JsmOrganizationBody, sign
       success: true,
     },
   }
-}
-
-interface SelectorConnectionInput {
-  domain: string
-  accessToken: string
-}
-
-async function collectSelectorValues(
-  input: SelectorConnectionInput,
-  path: string,
-  signal?: AbortSignal
-): Promise<Record<string, unknown>[]> {
-  const client = await createJsmClient(input, signal)
-  const values: Record<string, unknown>[] = []
-  let start = 0
-  for (let page = 0; page < SELECTOR_MAX_PAGES; page++) {
-    signal?.throwIfAborted()
-    const data = await client.json(
-      client.service(`${path}?start=${start}&limit=${SELECTOR_PAGE_SIZE}`),
-      {},
-      signal
-    )
-    const pageValues = asArray(data.values).map(asObject)
-    values.push(...pageValues)
-    const links = asObject(data._links)
-    if (data.isLastPage === true || !links.next || pageValues.length === 0) return values
-    start += pageValues.length
-  }
-  logger.warn('JSM selector hit pagination cap; list may be incomplete', {
-    pages: SELECTOR_MAX_PAGES,
-    collected: values.length,
-    path,
-  })
-  return values
-}
-
-export async function listJsmServiceDeskOptions(
-  input: SelectorConnectionInput,
-  signal?: AbortSignal
-) {
-  const values = await collectSelectorValues(input, '/servicedesk', signal)
-  return values.map((value) => ({ id: String(value.id), name: String(value.projectName) }))
-}
-
-export async function listJsmRequestTypeOptions(
-  input: SelectorConnectionInput & { serviceDeskId: string },
-  signal?: AbortSignal
-) {
-  validateId(input.serviceDeskId, 'serviceDeskId')
-  const values = await collectSelectorValues(
-    input,
-    serviceDeskPath(input.serviceDeskId, '/requesttype'),
-    signal
-  )
-  return values.map((value) => ({ id: String(value.id), name: String(value.name) }))
 }

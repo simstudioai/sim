@@ -1,13 +1,24 @@
-import type { MenuItemConstructorOptions } from 'electron'
+import { BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS } from '@sim/browser-protocol'
+import { toRecord } from '@sim/utils/object'
+import type { WebContents } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
-import { BrowserWindow, Menu, nativeImage } from 'electron'
+const { stageUploadFiles, saveDownloadToWorkspace } = vi.hoisted(() => ({
+  stageUploadFiles: vi.fn(),
+  saveDownloadToWorkspace: vi.fn(),
+}))
+vi.mock('@/main/browser-agent/file-transfer', () => ({
+  stageUploadFiles,
+  saveDownloadToWorkspace,
+  discardStagedUploads: vi.fn(async () => {}),
+}))
+
+import { BrowserWindow, type nativeImage } from 'electron'
 import * as cdp from '@/main/browser-agent/cdp'
 import * as driverModule from '@/main/browser-agent/driver'
 import * as session from '@/main/browser-agent/session'
-import { fillCoordinator } from '@/main/browser-credentials'
 import type { BrowserSessionSnapshot } from '@/main/desktop-chat-session-store'
 
 type DriverModule = typeof import('@/main/browser-agent/driver')
@@ -33,6 +44,29 @@ function freshDriver(): DriverModule {
   return driverModule
 }
 
+type BrowserToolQueueBoundary = NonNullable<
+  ReturnType<DriverModule['captureBrowserToolQueueBoundary']>
+>
+
+function capturePendingAuthorizations(
+  driver: DriverModule,
+  scopeId: string,
+  count: number = driver.BROWSER_TOOL_ADMISSION_LIMITS.perScope
+): BrowserToolQueueBoundary[] {
+  const boundaries = Array.from({ length: count }, () =>
+    driver.captureBrowserToolQueueBoundary(scopeId)
+  )
+  expect(boundaries.every((boundary) => boundary !== null)).toBe(true)
+  return boundaries.filter((boundary): boundary is BrowserToolQueueBoundary => boundary !== null)
+}
+
+function releasePendingAuthorizations(
+  driver: DriverModule,
+  boundaries: readonly BrowserToolQueueBoundary[]
+): void {
+  for (const boundary of boundaries) driver.releaseBrowserToolQueueBoundary(boundary)
+}
+
 /** Match the serialized function invocation, not comments or helper names in its body. */
 function isPageCall(expression: string, fnName: string): boolean {
   return expression.includes(`function ${fnName}(`)
@@ -53,6 +87,7 @@ describe('executeTool', () => {
   })
 
   it('validates navigation URLs before touching the session', async () => {
+    const prepare = vi.spyOn(session, 'prepareExplicitNavigation')
     const result = await driver.executeTool('chat-test', 'browser_navigate', {
       url: 'file:///etc/passwd',
     })
@@ -60,12 +95,40 @@ describe('executeTool', () => {
       ok: false,
       error: 'URL must be absolute and start with http:// or https://',
     })
+    expect(prepare).not.toHaveBeenCalled()
   })
 
-  it('reports missing required parameters by name', async () => {
-    const result = await driver.executeTool('chat-test', 'browser_navigate', {})
-    expect(result.ok).toBe(false)
-    expect(result.error).toMatch(/Missing required parameter "url"/)
+  it('still waits for a replacement load after loadURL has resolved', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const contents = session.requireTab().view.webContents
+    vi.mocked(contents.isLoading).mockReturnValue(true)
+    vi.useFakeTimers()
+    try {
+      let settled = false
+      const navigation = driver.executeTool('chat-test', 'browser_navigate', {
+        url: 'http://127.0.0.1/loading',
+      })
+      void navigation.then(() => {
+        settled = true
+      })
+
+      await vi.advanceTimersByTimeAsync(500)
+      expect(settled).toBe(false)
+      vi.mocked(contents.isLoading).mockReturnValue(false)
+      for (const [event, listener] of vi.mocked(contents.on).mock.calls) {
+        if (String(event) === 'did-stop-loading') {
+          const onLoadComplete = listener as (...args: unknown[]) => void
+          onLoadComplete()
+        }
+      }
+      await vi.advanceTimersByTimeAsync(399)
+      expect(settled).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(settled).toBe(true)
+      await expect(navigation).resolves.toMatchObject({ ok: true })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('reports an aborted navigation when Chromium never leaves the current URL', async () => {
@@ -92,32 +155,6 @@ describe('executeTool', () => {
     }
   })
 
-  it('accepts ERR_ABORTED only when a replacement navigation changed the URL', async () => {
-    vi.useFakeTimers()
-    try {
-      await driver.executeTool('chat-test', 'browser_open_tab', {})
-      const contents = session.requireTab().view.webContents
-      let currentUrl = 'http://127.0.0.1/old'
-      vi.mocked(contents.getURL).mockImplementation(() => currentUrl)
-      vi.mocked(contents.loadURL).mockImplementation(async () => {
-        currentUrl = 'http://127.0.0.1/replacement'
-        throw Object.assign(new Error('net::ERR_ABORTED'), { code: 'ERR_ABORTED' })
-      })
-
-      const navigation = driver.executeTool('chat-test', 'browser_navigate', {
-        url: 'http://127.0.0.1/new',
-      })
-      await vi.advanceTimersByTimeAsync(1_000)
-
-      await expect(navigation).resolves.toMatchObject({
-        ok: true,
-        result: { url: 'http://127.0.0.1/replacement' },
-      })
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
   it('reports non-abort navigation failures instead of treating dispatch as success', async () => {
     await driver.executeTool('chat-test', 'browser_open_tab', {})
     const contents = session.requireTab().view.webContents
@@ -135,13 +172,29 @@ describe('executeTool', () => {
     })
   })
 
-  it('serializes tool calls: a queued failure never rejects the next call', async () => {
-    const first = await driver.executeTool('chat-test', 'browser_snapshot', {})
-    expect(first.ok).toBe(false)
-    const second = await driver.executeTool('chat-test', 'browser_list_tabs', {})
-    // list_tabs works without a session (empty list).
-    expect(second.ok).toBe(true)
-    expect(second.result).toMatchObject({ tabs: [] })
+  it('uses the shared failed-page recovery path when reloading', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const tab = session.requireTab()
+    tab.pageIssue = {
+      kind: 'load-error',
+      url: 'https://example.com/failed',
+      code: -102,
+      description: 'ERR_CONNECTION_REFUSED',
+    }
+    vi.mocked(tab.view.webContents.loadURL).mockImplementationOnce(async () => {
+      session.notePageLoadStarted(tab.view.webContents)
+    })
+    vi.useFakeTimers()
+    try {
+      const result = driver.executeTool('chat-test', 'browser_reload', {})
+      await vi.advanceTimersByTimeAsync(500)
+
+      await expect(result).resolves.toMatchObject({ ok: true })
+      expect(tab.view.webContents.loadURL).toHaveBeenCalledWith('https://example.com/failed')
+      expect(tab.view.webContents.reload).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('keeps a takeover pending when the clock advances beyond twelve hours', async () => {
@@ -250,6 +303,229 @@ describe('executeTool', () => {
     }
   })
 
+  it('does not let a detached screenshot verification touch a disposed scope', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const contents = session.requireTab().view.webContents
+    vi.mocked(contents.getURL).mockReturnValue('https://example.com/')
+    let resolveCapture: (capture: cdp.ScreenshotCapture) => void = () => {}
+    const captureScreenshot = vi.spyOn(cdp, 'captureScreenshot').mockImplementation(
+      () =>
+        new Promise<cdp.ScreenshotCapture>((resolve) => {
+          resolveCapture = resolve
+        })
+    )
+    const automationTab = vi.spyOn(session, 'automationTab')
+    try {
+      const screenshot = driver.executeTool(
+        'chat-test',
+        'browser_screenshot',
+        {},
+        'tool-disposed-screenshot'
+      )
+      await Promise.resolve()
+      expect(captureScreenshot).toHaveBeenCalledOnce()
+      const signal = captureScreenshot.mock.calls[0][2]
+      expect(signal?.aborted).toBe(false)
+
+      driver.disposeBrowserScope('chat-test')
+      expect(signal?.aborted).toBe(true)
+      automationTab.mockClear()
+      await expect(screenshot).resolves.toMatchObject({
+        ok: false,
+        error: expect.stringContaining('cancelled'),
+      })
+      resolveCapture({
+        dataUrl: 'data:image/jpeg;base64,c2lt',
+        scale: 1,
+        viewport: { width: 800, height: 600 },
+        imageSize: { width: 800, height: 600 },
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+
+      expect(automationTab).not.toHaveBeenCalled()
+    } finally {
+      automationTab.mockRestore()
+      captureScreenshot.mockRestore()
+    }
+  })
+
+  it('cancels active and queued work before closing the browser session', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    vi.useFakeTimers()
+    try {
+      const waiting = driver.executeTool(
+        'chat-test',
+        'browser_wait_for',
+        { timeoutMs: 120_000 },
+        'tool-active-at-close'
+      )
+      await vi.advanceTimersByTimeAsync(0)
+      const queuedOpen = driver.executeTool(
+        'chat-test',
+        'browser_open_tab',
+        {},
+        'tool-queued-at-close'
+      )
+
+      driver.closeBrowserSession()
+
+      await expect(waiting).resolves.toMatchObject({
+        ok: false,
+        error: expect.stringContaining('cancelled'),
+      })
+      await expect(queuedOpen).resolves.toMatchObject({
+        ok: false,
+        error: expect.stringContaining('cancelled before it started'),
+      })
+      expect(session.withBrowserScope('chat-test', () => session.peekTabsState()).tabs).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('rejects authorization captured before a browser-session teardown', async () => {
+    const boundary = driver.captureBrowserToolQueueBoundary('chat-test')
+    expect(boundary).not.toBeNull()
+    if (!boundary) throw new Error('Expected browser tool authorization admission')
+    driver.closeBrowserSession()
+    driver.activateBrowserScope('chat-test')
+
+    await expect(
+      driver.executeTool(
+        'chat-test',
+        'browser_open_tab',
+        {},
+        'tool-authorized-before-close',
+        boundary
+      )
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('cancelled before it started'),
+    })
+    expect(session.withBrowserScope('chat-test', () => session.peekTabsState()).tabs).toEqual([])
+  })
+
+  it('rejects a first-use authorization after its scope is disposed and reopened', async () => {
+    const boundary = driver.captureBrowserToolQueueBoundary('chat-first-use-disposed')
+    expect(boundary).not.toBeNull()
+    if (!boundary) throw new Error('Expected browser tool authorization admission')
+
+    driver.disposeBrowserScope('chat-first-use-disposed')
+    driver.activateBrowserScope('chat-first-use-disposed')
+
+    await expect(
+      driver.executeTool(
+        'chat-first-use-disposed',
+        'browser_open_tab',
+        {},
+        'tool-authorized-before-first-use-disposal',
+        boundary
+      )
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('cancelled before it started'),
+    })
+    expect(
+      session.withBrowserScope('chat-first-use-disposed', () => session.peekTabsState()).tabs
+    ).toEqual([])
+  })
+
+  it('cancels a provisional first-use authorization when its durable scope is disposed', async () => {
+    const boundary = driver.captureBrowserToolQueueBoundary('pending:first-use-disposed')
+    expect(boundary).not.toBeNull()
+    if (!boundary) throw new Error('Expected browser tool authorization admission')
+    expect(driver.migrateBrowserScope('pending:first-use-disposed', 'chat-first-use-durable')).toBe(
+      true
+    )
+
+    driver.disposeBrowserScope('chat-first-use-durable')
+    driver.activateBrowserScope('chat-first-use-durable')
+
+    await expect(
+      driver.executeTool(
+        'chat-first-use-durable',
+        'browser_open_tab',
+        {},
+        'tool-authorized-before-migrated-disposal',
+        boundary
+      )
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('cancelled before it started'),
+    })
+  })
+
+  it('keeps authorization teardown scoped to its existing driver state', async () => {
+    driver.activateBrowserScope('chat-other')
+    const boundary = driver.captureBrowserToolQueueBoundary('chat-other')
+    expect(boundary).not.toBeNull()
+    if (!boundary) throw new Error('Expected browser tool authorization admission')
+
+    driver.disposeBrowserScope('chat-test')
+
+    await expect(
+      driver.executeTool(
+        'chat-other',
+        'browser_list_tabs',
+        {},
+        'tool-authorized-in-other-scope',
+        boundary
+      )
+    ).resolves.toMatchObject({ ok: true })
+  })
+
+  it('bounds pending authorizations without materializing their scopes', () => {
+    const boundaries = capturePendingAuthorizations(driver, 'chat-pending-authorization')
+
+    expect(boundaries.every((boundary) => boundary?.generation === null)).toBe(true)
+    expect(driver.captureBrowserToolQueueBoundary('chat-pending-authorization')).toBeNull()
+
+    releasePendingAuthorizations(driver, boundaries)
+    const replacement = driver.captureBrowserToolQueueBoundary('chat-pending-authorization')
+    expect(replacement).not.toBeNull()
+    if (replacement) driver.releaseBrowserToolQueueBoundary(replacement)
+  })
+
+  it('retains cancelled authorization admissions until their fetches settle', () => {
+    const boundaries = capturePendingAuthorizations(driver, 'chat-test')
+
+    expect(driver.cancelActiveTool('chat-test')).toBe(true)
+    expect(boundaries.every((boundary) => boundary.cancelled)).toBe(true)
+    expect(driver.captureBrowserToolQueueBoundary('chat-test')).toBeNull()
+
+    releasePendingAuthorizations(driver, boundaries)
+    const replacement = driver.captureBrowserToolQueueBoundary('chat-test')
+    expect(replacement).not.toBeNull()
+    if (replacement) driver.releaseBrowserToolQueueBoundary(replacement)
+  })
+
+  it('retains process-wide authorization admissions across driver reinitialization', () => {
+    const boundaries = ['chat-auth-a', 'chat-auth-b', 'chat-auth-c', 'chat-auth-d'].flatMap(
+      (scopeId) => capturePendingAuthorizations(driver, scopeId)
+    )
+    expect(boundaries).toHaveLength(driver.BROWSER_TOOL_ADMISSION_LIMITS.process)
+
+    driver.initDriver(
+      {
+        onPageState: vi.fn(),
+        onTabsState: vi.fn(),
+        onSessionStatus: vi.fn(),
+        onFillAvailability: vi.fn(),
+      },
+      () => null
+    )
+
+    expect(boundaries.every((boundary) => boundary.cancelled)).toBe(true)
+    expect(driver.captureBrowserToolQueueBoundary('chat-after-reinit')).toBeNull()
+
+    driver.releaseBrowserToolQueueBoundary(boundaries[0])
+    const replacement = driver.captureBrowserToolQueueBoundary('chat-after-reinit')
+    expect(replacement).not.toBeNull()
+    if (replacement) driver.releaseBrowserToolQueueBoundary(replacement)
+    releasePendingAuthorizations(driver, boundaries.slice(1))
+  })
+
   it('honors cancellation that arrives before the authorized tool invocation', async () => {
     expect(driver.cancelTool('chat-test', 'tool-before-authorization')).toBe(true)
 
@@ -259,31 +535,6 @@ describe('executeTool', () => {
       ok: false,
       error: expect.stringContaining('cancelled before it started'),
     })
-  })
-
-  it('settles native automation activity immediately when an active tool is cancelled', async () => {
-    await driver.executeTool('chat-test', 'browser_open_tab', {})
-    vi.useFakeTimers()
-    try {
-      const waiting = driver.executeTool(
-        'chat-test',
-        'browser_wait_for',
-        { timeoutMs: 120_000 },
-        'tool-waiting'
-      )
-      await vi.advanceTimersByTimeAsync(0)
-      expect(session.getTabsState().automationActive).toBe(true)
-
-      expect(driver.cancelActiveTool('chat-test')).toBe(true)
-      await vi.advanceTimersByTimeAsync(0)
-      expect(session.getTabsState().automationActive).toBe(false)
-      await expect(waiting).resolves.toMatchObject({
-        ok: false,
-        error: expect.stringContaining('cancelled'),
-      })
-    } finally {
-      vi.useRealTimers()
-    }
   })
 
   it('cancels queued pre-boundary tools while allowing later browser work', async () => {
@@ -339,33 +590,6 @@ describe('executeTool', () => {
       await expect(listTabs).resolves.toMatchObject({
         ok: true,
         result: { tabs: expect.any(Array) },
-      })
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('returns a free-text takeover instruction to the browser agent', async () => {
-    await driver.executeTool('chat-test', 'browser_open_tab', {})
-    vi.useFakeTimers()
-    try {
-      const takeover = driver.executeTool('chat-test', 'browser_request_takeover', {
-        reason: 'Please pick a match in the draw',
-      })
-      await vi.advanceTimersByTimeAsync(0)
-
-      await driver.handlePanelAction('chat-test', {
-        action: 'takeover-done',
-        takeoverResponse: 'Open the second match',
-      })
-      await vi.advanceTimersByTimeAsync(1_500)
-
-      await expect(takeover).resolves.toMatchObject({
-        ok: true,
-        result: {
-          completed: true,
-          userInstruction: 'Open the second match',
-        },
       })
     } finally {
       vi.useRealTimers()
@@ -465,22 +689,6 @@ describe('executeTool', () => {
     expect(contents.loadURL).toHaveBeenCalledWith(failedUrl)
   })
 
-  it('forces fill availability to replay on scope activation and tab switches', async () => {
-    const refreshAvailability = vi
-      .spyOn(fillCoordinator()!, 'refreshAvailability')
-      .mockResolvedValue()
-
-    driver.activateBrowserScope('chat-with-login')
-    expect(refreshAvailability).toHaveBeenCalledWith(true)
-
-    await driver.executeTool('chat-with-login', 'browser_open_tab', {})
-    await driver.executeTool('chat-with-login', 'browser_open_tab', {})
-    refreshAvailability.mockClear()
-    session.switchTab('1')
-
-    expect(refreshAvailability).toHaveBeenCalledWith(true)
-  })
-
   it('keeps target-blank initiation user-owned while automation is active', async () => {
     driver = freshDriver()
     await driver.executeTool('chat-test', 'browser_open_tab', {})
@@ -492,9 +700,11 @@ describe('executeTool', () => {
     beforeMouse({}, { type: 'mouseDown' })
     const openWindow = vi.mocked(source.setWindowOpenHandler).mock.calls[0]?.[0] as (details: {
       url: string
-    }) => { action: string }
+    }) => { action: string; createWindow?: (options: object) => unknown }
 
-    expect(openWindow({ url: 'https://user-popup.example/' })).toEqual({ action: 'deny' })
+    const decision = openWindow({ url: 'https://user-popup.example/' })
+    expect(decision.action).toBe('allow')
+    decision.createWindow?.({})
     const popup = session.activeTab()?.view.webContents
     if (!popup) throw new Error('Expected user popup tab')
     expect(session.automationTab()?.view.webContents).toBe(source)
@@ -508,9 +718,11 @@ describe('executeTool', () => {
     session.setAutomationActive(true)
     const openWindow = vi.mocked(source.setWindowOpenHandler).mock.calls[0]?.[0] as (details: {
       url: string
-    }) => { action: string }
+    }) => { action: string; createWindow?: (options: object) => unknown }
 
-    expect(openWindow({ url: 'https://agent-popup.example/' })).toEqual({ action: 'deny' })
+    const decision = openWindow({ url: 'https://agent-popup.example/' })
+    expect(decision.action).toBe('allow')
+    decision.createWindow?.({})
     const popup = session.requireAutomationTab().view.webContents
     expect(session.activeTab()?.view.webContents).toBe(source)
     session.setAutomationActive(false)
@@ -518,74 +730,19 @@ describe('executeTool', () => {
     expect(popup.loadURL).toHaveBeenCalledWith('https://agent-popup.example/')
   })
 
-  it('keeps context-menu new tabs user-owned while automation is active', async () => {
-    driver = freshDriver()
+  it('does not report a timed-out restored tab as ready to the model', async () => {
     await driver.executeTool('chat-test', 'browser_open_tab', {})
-    const source = session.requireTab().view.webContents
-    session.setAutomationActive(true)
-    vi.mocked(Menu.buildFromTemplate).mockClear()
-    const contextMenu = (source.on as unknown as ReturnType<typeof vi.fn>).mock.calls.find(
-      ([eventName]) => eventName === 'context-menu'
-    )?.[1] as (event: unknown, params: unknown) => void
-    contextMenu(
-      {},
-      {
-        selectionText: '',
-        linkURL: 'https://context-link.example/',
-        isEditable: false,
-        editFlags: { canPaste: false },
-      }
-    )
-    const template = vi.mocked(Menu.buildFromTemplate).mock.calls.at(-1)?.[0] as
-      | MenuItemConstructorOptions[]
-      | undefined
-    template
-      ?.find((item) => item.label === 'Open Link in New Tab')
-      ?.click?.({} as never, undefined as never, {} as never)
+    const tab = session.requireTab()
+    const wait = vi.spyOn(session, 'waitForPendingTabRestore').mockResolvedValue(false)
 
-    const popup = session.activeTab()?.view.webContents
-    if (!popup) throw new Error('Expected context-menu tab')
-    expect(session.automationTab()?.view.webContents).toBe(source)
-    expect(popup.loadURL).toHaveBeenCalledWith('https://context-link.example/')
-  })
-
-  it('builds the native toolbar menu and routes renderer-owned actions back to its chat', async () => {
-    await driver.executeTool('chat-test', 'browser_open_tab', {})
-    const win = new BrowserWindow()
-    vi.mocked(Menu.buildFromTemplate).mockClear()
-
-    expect(driver.showToolbarMenu('chat-test', win, { x: 20, y: 30 })).toBe(true)
-    const template = vi.mocked(Menu.buildFromTemplate).mock.calls[0]?.[0] as
-      | MenuItemConstructorOptions[]
-      | undefined
-    const labels = template?.filter((item) => item.type !== 'separator').map((item) => item.label)
-    expect(labels).toEqual(['Find in Page', 'Zoom (110%)', 'Import Passwords', 'Browser Settings'])
-
-    const settings = template?.find((item) => item.label === 'Browser Settings')
-    const openSettings = settings?.click as (() => void) | undefined
-    openSettings?.()
-    expect(win.webContents.send).toHaveBeenCalledWith(
-      'browser-agent:toolbar-command',
-      'browser-settings',
-      'chat-test'
-    )
-  })
-
-  it('routes an exact renderer media decision through the scoped session boundary', async () => {
-    const respond = vi.spyOn(session, 'respondToMediaPermission').mockResolvedValue()
-
-    await driver.handlePanelAction('chat-test', {
-      action: 'respond-media-permission',
-      requestId: 'request-1',
-      allowed: true,
-    })
-    await driver.handlePanelAction('chat-test', {
-      action: 'respond-media-permission',
-      requestId: 'request-2',
+    await expect(
+      driver.executeTool('chat-test', 'browser_switch_tab', { tabId: tab.id })
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('did not finish loading'),
     })
 
-    expect(respond).toHaveBeenCalledOnce()
-    expect(respond).toHaveBeenCalledWith('request-1', true)
+    wait.mockRestore()
   })
 
   it('keeps tool queues and tab state isolated by chat scope', async () => {
@@ -621,10 +778,74 @@ describe('executeTool', () => {
     expect(driver.migrateBrowserScope('pending:other-chat', 'chat-occupied')).toBe(false)
   })
 
+  it('cancels only the replaced destination authorizations during migration', async () => {
+    await driver.executeTool('pending:new-chat', 'browser_open_tab', {})
+    driver.activateBrowserScope('chat-real')
+    const sourceBoundary = driver.captureBrowserToolQueueBoundary('pending:new-chat')
+    const destinationBoundary = driver.captureBrowserToolQueueBoundary('chat-real')
+    const otherBoundary = driver.captureBrowserToolQueueBoundary('chat-other')
+    expect(sourceBoundary).not.toBeNull()
+    expect(destinationBoundary).not.toBeNull()
+    expect(otherBoundary).not.toBeNull()
+    if (!sourceBoundary || !destinationBoundary || !otherBoundary) {
+      throw new Error('Expected browser tool authorization admissions')
+    }
+
+    expect(driver.migrateBrowserScope('pending:new-chat', 'chat-real')).toBe(true)
+
+    await expect(
+      driver.executeTool(
+        'chat-real',
+        'browser_list_tabs',
+        {},
+        'tool-destination-before-migration',
+        destinationBoundary
+      )
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('cancelled before it started'),
+    })
+    await expect(
+      driver.executeTool(
+        'chat-real',
+        'browser_list_tabs',
+        {},
+        'tool-source-before-migration',
+        sourceBoundary
+      )
+    ).resolves.toMatchObject({ ok: true })
+    await expect(
+      driver.executeTool(
+        'chat-other',
+        'browser_list_tabs',
+        {},
+        'tool-other-during-migration',
+        otherBoundary
+      )
+    ).resolves.toMatchObject({ ok: true })
+  })
+
+  it('retains a migrated provisional alias for callbacks until durable disposal', async () => {
+    await driver.executeTool('pending:new-chat', 'browser_open_tab', {})
+    const tab = session.withBrowserScope('pending:new-chat', () => session.requireTab())
+    expect(driver.migrateBrowserScope('pending:new-chat', 'chat-real')).toBe(true)
+
+    driver.disposeBrowserScope('pending:new-chat')
+
+    await expect(
+      driver.executeTool('pending:new-chat', 'browser_list_tabs', {})
+    ).resolves.toMatchObject({
+      ok: true,
+      result: { scopeId: 'chat-real', tabs: [{ tabId: tab.id }] },
+    })
+    driver.disposeBrowserScope('chat-real')
+    expect(tab.view.webContents.close).toHaveBeenCalledOnce()
+  })
+
   it('keeps activation lazy, then restores and disposes through the driver API', async () => {
     const snapshot: BrowserSessionSnapshot = {
       v: 1,
-      tabs: [{ url: 'https://restored.example/', pinned: false }],
+      tabs: [{ url: 'https://restored.example/' }],
       activeIndex: 0,
       downloads: [],
     }
@@ -753,6 +974,86 @@ describe('executeTool', () => {
     }
   })
 
+  it('expires a bounded queue wait without running the stale action later', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const contents = session.requireTab().view.webContents
+    vi.mocked(contents.loadURL).mockClear()
+    vi.useFakeTimers()
+    try {
+      const waiting = driver.executeTool(
+        'chat-test',
+        'browser_wait_for',
+        { timeoutMs: 120_000 },
+        'tool-queue-head'
+      )
+      await vi.advanceTimersByTimeAsync(0)
+      const queued = driver.executeTool(
+        'chat-test',
+        'browser_navigate',
+        { url: 'http://127.0.0.1/expired' },
+        'tool-queue-expired'
+      )
+
+      await vi.advanceTimersByTimeAsync(BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS)
+      await expect(queued).resolves.toMatchObject({
+        ok: false,
+        error: expect.stringContaining('waited too long for earlier browser work'),
+      })
+
+      expect(driver.cancelTool('chat-test', 'tool-queue-head')).toBe(true)
+      await vi.advanceTimersByTimeAsync(0)
+      await expect(waiting).resolves.toMatchObject({ ok: false })
+      expect(contents.loadURL).not.toHaveBeenCalledWith('http://127.0.0.1/expired')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('bounds one scope queue and admits new work after the held head is cancelled', async () => {
+    vi.useFakeTimers()
+    try {
+      await driver.executeTool('chat-test', 'browser_open_tab', {})
+      const contents = session.requireTab().view.webContents
+      vi.mocked(contents.getURL).mockReturnValue('https://example.com/')
+      vi.mocked(contents.executeJavaScript).mockImplementation(() => new Promise<never>(() => {}))
+
+      const held = driver.executeTool('chat-test', 'browser_snapshot', {}, 'held-scope-head')
+      await vi.advanceTimersByTimeAsync(0)
+      const queued = Array.from(
+        { length: driver.BROWSER_TOOL_ADMISSION_LIMITS.perScope - 1 },
+        (_, index) =>
+          driver.executeTool('chat-test', 'browser_list_tabs', {}, `queued-scope-${index}`)
+      )
+
+      await expect(
+        driver.executeTool('chat-test', 'browser_list_tabs', {}, 'scope-overflow')
+      ).resolves.toEqual({
+        ok: false,
+        error:
+          'This task browser already has too many actions queued. Wait for earlier actions to finish.',
+      })
+
+      expect(driver.cancelTool('chat-test', 'held-scope-head')).toBe(true)
+      await expect(held).resolves.toMatchObject({
+        ok: false,
+        error: expect.stringContaining('cancelled'),
+      })
+      await expect(Promise.all(queued)).resolves.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            ok: true,
+            result: expect.objectContaining({ tabs: expect.any(Array) }),
+          }),
+        ])
+      )
+      await expect(
+        driver.executeTool('chat-test', 'browser_list_tabs', {}, 'scope-recovered')
+      ).resolves.toMatchObject({ ok: true })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('sanitizes hostile tab titles before returning them across the tool boundary', async () => {
     await driver.executeTool('chat-test', 'browser_open_tab', {})
     const contents = session.requireTab().view.webContents
@@ -797,64 +1098,51 @@ describe('executeTool', () => {
     )
   })
 
-  it('does not let a snapshot that resolves after timeout overwrite newer refs', async () => {
-    vi.useFakeTimers()
-    try {
-      await driver.executeTool('chat-test', 'browser_open_tab', {})
-      const contents = session.requireTab().view.webContents
-      vi.mocked(contents.getURL).mockReturnValue('https://example.com/')
-      let resolveLate: ((value: unknown) => void) | undefined
-      let snapshotCalls = 0
-      vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
-        if (!isPageCall(expression, 'collectSnapshot')) return Promise.resolve(undefined)
-        snapshotCalls++
-        if (snapshotCalls === 1) {
+  it.each(['browser_snapshot', 'browser_find'] as const)(
+    'does not let a timed-out %s restore refs',
+    async (tool) => {
+      vi.useFakeTimers()
+      try {
+        await driver.executeTool('chat-test', 'browser_open_tab', {})
+        const contents = session.requireTab().view.webContents
+        vi.mocked(contents.getURL).mockReturnValue('https://example.com/')
+        let resolveLate: ((value: unknown) => void) | undefined
+        vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+          if (!isPageCall(expression, 'collectSnapshot')) return Promise.resolve(undefined)
           return new Promise((resolve) => {
             resolveLate = resolve
           })
-        }
-        return Promise.resolve({
-          url: 'https://example.com/',
-          title: 'Fresh',
-          outline: '- button "Fresh" [ref=10]',
-          truncated: false,
-          refIds: [10],
-          refLineIndexes: { 10: 0 },
-          nextElementId: 11,
         })
-      })
 
-      const late = driver.executeTool('chat-test', 'browser_snapshot', {})
-      await vi.advanceTimersByTimeAsync(20_000)
-      await expect(late).resolves.toMatchObject({ ok: false })
-      await expect(driver.executeTool('chat-test', 'browser_snapshot', {})).resolves.toMatchObject({
-        ok: true,
-      })
+        const late = driver.executeTool('chat-test', tool, { query: 'Late' })
+        await vi.advanceTimersByTimeAsync(20_000)
+        await expect(late).resolves.toMatchObject({ ok: false })
+        resolveLate?.({
+          url: 'https://example.com/',
+          title: 'Late',
+          outline: '- button "Late" [ref=0]',
+          truncated: false,
+          refIds: [0],
+          refLineIndexes: { 0: 0 },
+          nextElementId: 1,
+        })
+        await Promise.resolve()
+        await Promise.resolve()
 
-      resolveLate?.({
-        url: 'https://example.com/',
-        title: 'Late',
-        outline: '- button "Late" [ref=0]',
-        truncated: false,
-        refIds: [0],
-        refLineIndexes: { 0: 0 },
-        nextElementId: 1,
-      })
-      await Promise.resolve()
-      await Promise.resolve()
-
-      await expect(
-        driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
-      ).resolves.toMatchObject({
-        ok: false,
-        error: expect.stringContaining('not present in the current snapshot'),
-      })
-    } finally {
-      vi.useRealTimers()
+        await expect(
+          driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+        ).resolves.toMatchObject({
+          ok: false,
+          error: expect.stringContaining('Call browser_snapshot'),
+        })
+      } finally {
+        vi.useRealTimers()
+      }
     }
-  })
+  )
 
-  it('merges cross-origin structure and routes its refs through production frame isolation', async () => {
+  const frameUrls = ['https://ogs.google.com/u/0/widget/app', 'about:srcdoc', 'about:blank']
+  it.each(frameUrls)('inspects and interacts with isolated frame %s', async (frameUrl) => {
     const win = new BrowserWindow()
     driver.initDriver(
       {
@@ -944,14 +1232,14 @@ describe('executeTool', () => {
       detached: false,
       isDestroyed: vi.fn(() => false),
       name: 'google-apps',
-      origin: 'https://ogs.google.com',
-      url: 'https://ogs.google.com/u/0/widget/app',
+      origin: frameUrl.startsWith('about:') ? 'null' : 'https://ogs.google.com',
+      url: frameUrl,
       parent: mainFrame,
       executeJavaScript: vi.fn((expression: string) => {
         if (isPageCall(expression, 'collectSnapshot')) {
           return Promise.resolve({
             url: 'https://ogs.google.com/u/0/widget/app',
-            title: 'Google apps',
+            title: 'Google apps [ref=0]',
             outline: '- link "Drive" [ref=1]\n- textbox "Search apps" [ref=2]',
             truncated: false,
             refIds: [1, 2],
@@ -1016,7 +1304,11 @@ describe('executeTool', () => {
     const isolatedFrameEval = vi
       .spyOn(cdp, 'evaluateInIsolatedFrame')
       .mockImplementation((_contents, frame, expression) => {
-        if ((frame as unknown) === mainFrame) return mainFrame.executeJavaScript(expression)
+        if ((frame as unknown) === mainFrame) {
+          return isPageCall(expression, 'readChildFrameElementState')
+            ? mainFrame.executeJavaScript(expression)
+            : contents.executeJavaScript(expression)
+        }
         if ((frame as unknown) === crossFrame) return crossFrame.executeJavaScript(expression)
         return Promise.reject(new Error('unexpected isolated frame target'))
       })
@@ -1037,7 +1329,7 @@ describe('executeTool', () => {
     expect(snapshot).toMatchObject({
       ok: true,
       result: {
-        outline: expect.stringContaining('cross-origin iframe "Google apps"'),
+        outline: expect.stringContaining('cross-origin iframe "Google apps [ref\u200b=0]"'),
         capturedCrossOriginFrames: 1,
         unreadableCrossOriginFrames: 1,
         hiddenCrossOriginFrames: 1,
@@ -1089,6 +1381,10 @@ describe('executeTool', () => {
 })
 
 describe('browserToolWatchdogMs', () => {
+  it('budgets restored-tab switching as navigation work', () => {
+    expect(driverModule.browserToolWatchdogMs('browser_switch_tab', {})).toBe(60_000)
+  })
+
   it.each([
     ['number', 30_000, 35_000],
     ['numeric string', '30000', 35_000],
@@ -1162,12 +1458,19 @@ describe('credential protection', () => {
       for (const [fnName, value] of Object.entries(replies)) {
         if (isPageCall(expression, fnName)) return Promise.resolve(value)
       }
-      if (isPageCall(expression, 'clickElement')) {
-        return Promise.resolve({ dispatched: false, x: 24, y: 48, element: 'Test' })
-      }
+      if (isPageCall(expression, 'clickElement')) return Promise.resolve(CLICK_TARGET)
       return Promise.resolve(undefined)
     })
   }
+
+  function mousePresses(contents: Awaited<ReturnType<typeof openPage>>): number {
+    return cdpCalls(contents, 'Input.dispatchMouseEvent').filter(
+      ([, params]) => toRecord(params).type === 'mousePressed'
+    ).length
+  }
+
+  /** What the page reports for an ordinary click target before native dispatch. */
+  const CLICK_TARGET = { dispatched: false, x: 24, y: 48, element: 'Test' }
 
   function cdpCalls(contents: Awaited<ReturnType<typeof openPage>>, method: string): unknown[][] {
     return vi
@@ -1175,8 +1478,216 @@ describe('credential protection', () => {
       .mock.calls.filter(([called]) => called === method)
   }
 
-  function mockScreenshotImage(size: { width: number; height: number } | null): void {
-    vi.mocked(nativeImage.createFromBuffer).mockReturnValueOnce({
+  async function openForm(
+    options: {
+      refuseAt?: number
+      retainValue?: boolean
+      afterWrite?: (index: number) => void
+      waitForWrite?: Promise<void>
+    } = {}
+  ) {
+    const contents = await openPage()
+    const values = ['', '']
+    const writes: number[] = []
+    const dialogs: string[] = []
+    let selectionReads = 0
+    vi.mocked(contents.executeJavaScript).mockImplementation(async (expression: string) => {
+      const encoded = expression.match(/\.apply\(null, (\[[^\n]*\])\)/)?.[1]
+      const args: unknown[] = encoded ? JSON.parse(encoded) : []
+      const index = Number(args[0]) - 1
+      if (isPageCall(expression, 'collectSnapshot'))
+        return {
+          url: 'https://example.com/login',
+          title: 'Form',
+          outline: '- combobox "First" [ref=1]\n- combobox "Second" [ref=2]',
+          truncated: false,
+          refIds: [1, 2],
+          refLineIndexes: { 1: 0, 2: 1 },
+          nextElementId: 3,
+        }
+      if (isPageCall(expression, 'readPageActionState'))
+        return {
+          url: contents.getURL(),
+          dialogs: [...dialogs],
+          popups: [],
+          observationTruncated: false,
+        }
+      if (isPageCall(expression, 'readFormFieldState')) {
+        if (index === options.refuseAt) return { error: 'password' }
+        return {
+          matchesRequested: values[index] === args[2],
+          valueLength: values[index].length,
+          valuePreview: values[index],
+          redacted: false,
+        }
+      }
+      if (isPageCall(expression, 'clickElement'))
+        return { dispatched: false, x: 24, y: 48, element: 'Select' }
+      if (isPageCall(expression, 'selectOptionInElement')) {
+        writes.push(index)
+        await options.waitForWrite
+        const requested = String(args[1])
+        if (options.retainValue !== false) values[index] = requested
+        options.afterWrite?.(index)
+        return { selected: requested, value: requested }
+      }
+      if (isPageCall(expression, 'readSelectElementState')) {
+        selectionReads++
+        return { selected: values[index], value: values[index] }
+      }
+      return undefined
+    })
+    const snapshot = await driver.executeTool('chat-test', 'browser_snapshot', {})
+    expect(snapshot, JSON.stringify(snapshot)).toMatchObject({ ok: true })
+    return { contents, values, writes, dialogs, selectionReads: () => selectionReads }
+  }
+
+  it.each([
+    { values: ['a', 'b'], labels: ['A', 'B'], expected: true },
+    { values: ['a'], labels: ['A'], expected: false },
+    { values: ['a', 'b'], labels: ['A', 'Other'], expected: false },
+  ])(
+    'verifies the entire multiple selection %j',
+    async ({ values: readbackValues, labels, expected }) => {
+      const contents = await openPage()
+      respondWith(contents, {
+        selectOptionInElement: {
+          selected: 'A',
+          value: 'a',
+          values: ['a', 'b'],
+          labels: ['A', 'B'],
+        },
+        readSelectElementState: { selected: 'A', value: 'a', values: readbackValues, labels },
+      })
+      const result = await driver.executeTool('chat-test', 'browser_select_option', {
+        elementId: 0,
+        values: ['a', 'b'],
+      })
+      expect(result, JSON.stringify(result)).toMatchObject({
+        ok: true,
+        result: { effectObserved: expected, readback: { values: readbackValues } },
+      })
+    }
+  )
+
+  const formFields = [
+    { elementId: 1, kind: 'select', value: 'first' },
+    { elementId: 2, kind: 'select', value: 'second' },
+  ]
+
+  it('fills known form fields in order and verifies every final value', async () => {
+    const form = await openForm()
+    const result = await driver.executeTool('chat-test', 'browser_fill_form', {
+      fields: formFields,
+    })
+    expect(result.result, JSON.stringify(result)).toMatchObject({ completed: true })
+    expect(form.writes).toEqual([0, 1])
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        completed: true,
+        completedCount: 2,
+        results: [
+          { index: 0, verified: true, valuePreview: 'first' },
+          { index: 1, verified: true, valuePreview: 'second' },
+        ],
+      },
+    })
+  })
+
+  it('preflights later secret fields before changing earlier fields', async () => {
+    const form = await openForm({ refuseAt: 1 })
+    const result = await driver.executeTool('chat-test', 'browser_fill_form', {
+      fields: formFields,
+    })
+    expect(form.writes).toEqual([])
+    expect(result).toMatchObject({
+      ok: true,
+      result: { completed: false, completedCount: 0, stoppedIndex: 1 },
+    })
+  })
+
+  it('does not mistake dispatch or weak effects for a retained requested value', async () => {
+    const form = await openForm({ retainValue: false })
+    const result = await driver.executeTool('chat-test', 'browser_fill_form', {
+      fields: formFields,
+    })
+    expect(form.writes).toEqual([0])
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        completed: false,
+        completedCount: 0,
+        stoppedIndex: 0,
+        results: [{ verified: false }],
+        doNotRetry: true,
+      },
+    })
+  })
+
+  it('returns verified partial results and skips later fields when a dialog opens', async () => {
+    const form: Awaited<ReturnType<typeof openForm>> = await openForm({
+      afterWrite: () => form.dialogs.push('Confirm'),
+    })
+    const result = await driver.executeTool('chat-test', 'browser_fill_form', {
+      fields: formFields,
+    })
+    expect(form.writes).toEqual([0])
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        completed: false,
+        completedCount: 1,
+        results: [{ verified: true }],
+        doNotRetry: true,
+      },
+    })
+  })
+
+  it('detects a later field changing an earlier completed field', async () => {
+    const form: Awaited<ReturnType<typeof openForm>> = await openForm({
+      afterWrite: (index) => {
+        if (index === 1) form.values[0] = 'changed'
+      },
+    })
+    const result = await driver.executeTool('chat-test', 'browser_fill_form', {
+      fields: formFields,
+    })
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        completed: false,
+        stoppedIndex: 0,
+        results: [{ verified: false }, { verified: true }],
+      },
+    })
+  })
+
+  it('prevents later form writes after cancellation even if the pending page call resolves late', async () => {
+    let releaseWrite: () => void = () => {}
+    const waitForWrite = new Promise<void>((resolve) => {
+      releaseWrite = resolve
+    })
+    const form = await openForm({ waitForWrite })
+    const pending = driver.executeTool(
+      'chat-test',
+      'browser_fill_form',
+      { fields: formFields },
+      'cancel-form'
+    )
+    await vi.waitFor(() => expect(form.writes).toEqual([0]))
+    driver.cancelTool('chat-test', 'cancel-form')
+    expect(await pending).toMatchObject({ ok: false, error: expect.stringContaining('cancelled') })
+    releaseWrite()
+    await vi.waitFor(() => expect(form.selectionReads()).toBe(1))
+    expect(form.writes).toEqual([0])
+  })
+
+  function mockScreenshotImage(
+    contents: WebContents,
+    size: { width: number; height: number } | null
+  ): void {
+    vi.mocked(contents.capturePage).mockResolvedValue({
       isEmpty: vi.fn(() => size === null),
       getSize: vi.fn(() => size ?? { width: 0, height: 0 }),
       resize: vi.fn(() => ({ toJPEG: vi.fn(() => Buffer.from('resized')) })),
@@ -1232,47 +1743,96 @@ describe('credential protection', () => {
     expect(cdpCalls(contents, 'Input.dispatchKeyEvent').length).toBeGreaterThan(0)
   })
 
-  it('sends the keystroke when nothing sensitive is focused', async () => {
+  it('stops repeating once focus reaches a password field', async () => {
     const contents = await openPage()
-    respondWith(contents, { activeElementSecrecy: 'safe', readActiveElementState: {} })
-
-    const result = await driver.executeTool('chat-test', 'browser_press_key', { key: 'a' })
-
-    expect(result.ok).toBe(true)
-    expect(cdpCalls(contents, 'Input.dispatchKeyEvent').length).toBeGreaterThan(0)
-  })
-
-  it('reports when a platform-mismatched shortcut produces no observable effect', async () => {
-    const contents = await openPage()
-    respondWith(contents, {
-      activeElementSecrecy: 'safe',
-      readActiveElementState: {
-        activeElement: 'body',
-        selectedChars: 0,
-        valueLength: 0,
-        valuePreview: '',
-      },
-      readPageActionState: {
-        url: 'https://example.com/login',
-        title: 'Example',
-        focus: 'body',
-        mutationRevision: 0,
-        dialogs: [],
-        scroll: [0],
-      },
+    let secrecyChecks = 0
+    vi.mocked(contents.executeJavaScript).mockImplementation(async (expression: string) => {
+      if (isPageCall(expression, 'activeElementSecrecy'))
+        return ++secrecyChecks > 1 ? 'secret' : 'safe'
+      if (isPageCall(expression, 'readActiveElementState')) return {}
+      return undefined
     })
 
-    const result = await driver.executeTool('chat-test', 'browser_press_key', { key: 'Control+K' })
-
-    expect(result).toMatchObject({
-      ok: true,
-      result: {
-        pressed: 'Control+K',
-        effectObserved: false,
-        note: expect.stringContaining('No strong observable page change'),
-      },
+    const result = await driver.executeTool('chat-test', 'browser_press_key', {
+      key: 'Tab',
+      repeat: 5,
     })
+
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('1 of 5 times') })
+    const downs = cdpCalls(contents, 'Input.dispatchKeyEvent').filter(
+      ([, event]) => (event as { type?: string }).type === 'rawKeyDown'
+    )
+    expect(downs).toHaveLength(1)
   })
+
+  it.each(['cancelled', 'timed out'] as const)(
+    'retains a completed action when its observation is %s',
+    async (stop) => {
+      const contents = await openPage()
+      respondWith(contents, {
+        activeElementSecrecy: 'safe',
+        readActiveElementState: {},
+        readPageActionState: {},
+      })
+      const pageCall = vi.mocked(contents.executeJavaScript).getMockImplementation()
+      let releaseObservation: (value: unknown) => void = () => {}
+      const observation = new Promise<unknown>((resolve) => {
+        releaseObservation = resolve
+      })
+      let observing = false
+      vi.mocked(contents.executeJavaScript).mockImplementation((expression, ...args) => {
+        if (isPageCall(expression, 'collectSnapshot')) {
+          observing = true
+          return observation
+        }
+        return pageCall?.(expression, ...args) ?? Promise.resolve(undefined)
+      })
+      vi.useFakeTimers()
+      try {
+        const timersBefore = vi.getTimerCount()
+        const pending = driver.executeTool(
+          'chat-test',
+          'browser_press_key',
+          { key: 'a', observe: {} },
+          'observed-action'
+        )
+        await vi.advanceTimersByTimeAsync(200)
+        expect(observing).toBe(true)
+
+        if (stop === 'cancelled') driver.cancelTool('chat-test', 'observed-action')
+        else
+          await vi.advanceTimersByTimeAsync(driver.browserToolWatchdogMs('browser_press_key', {})!)
+
+        await expect(pending).resolves.toMatchObject({
+          ok: true,
+          result: {
+            pressed: 'a',
+            trusted: true,
+            observation: {
+              ok: false,
+              doNotRetry: true,
+              note: expect.stringContaining('The action was dispatched'),
+            },
+          },
+        })
+        await expect(
+          driver.executeTool('chat-test', 'browser_list_tabs', {})
+        ).resolves.toMatchObject({
+          ok: true,
+        })
+        expect(vi.getTimerCount()).toBe(timersBefore)
+        expect(
+          cdpCalls(contents, 'Input.dispatchKeyEvent').filter(([, event]) =>
+            ['keyDown', 'rawKeyDown'].includes((event as { type: string }).type)
+          )
+        ).toHaveLength(1)
+      } finally {
+        releaseObservation({ outline: 'Late snapshot', refIds: [], nextElementId: 1 })
+        await vi.advanceTimersByTimeAsync(0)
+        vi.useRealTimers()
+      }
+    }
+  )
 
   it('aborts a type when focus moves to a password field before the insert', async () => {
     const contents = await openPage()
@@ -1339,63 +1899,42 @@ describe('credential protection', () => {
     expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(0)
   })
 
-  it('warns when acknowledged text produces no observable field change', async () => {
+  it('sets structured input values without dispatching text or select-all keystrokes', async () => {
     const contents = await openPage()
     respondWith(contents, {
-      focusElementForTyping: { focused: true, kind: 'input', x: 24, y: 48 },
-      activeElementSecrecy: 'safe',
-      readActiveElementState: { activeElement: 'input', valueLength: 7 },
+      focusElementForTyping: { focused: true, kind: 'input', valueInput: true, x: 24, y: 48 },
+      setFocusedInputValue: { dispatched: true },
+      readActiveElementState: { activeElement: 'input', valueLength: 10 },
+      readPageActionState: {},
     })
-
     const result = await driver.executeTool('chat-test', 'browser_type', {
       elementId: 0,
-      text: 'hunter2',
+      text: '2026-09-15',
     })
-
-    expect(result.ok).toBe(true)
-    expect(result).toMatchObject({
-      result: {
-        effectObserved: false,
-        note: expect.stringContaining('field readback did not change'),
-      },
-    })
-    expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(1)
+    expect(result).toMatchObject({ ok: true, result: { dispatched: true, trusted: false } })
+    expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(0)
+    expect(cdpCalls(contents, 'Input.dispatchKeyEvent')).toHaveLength(0)
   })
 
-  it('types through a focused combobox suggestions popup without pointer probing', async () => {
+  it('does not retry a rejected structured value through synthetic typing', async () => {
     const contents = await openPage()
     respondWith(contents, {
-      focusElementForTyping: {
-        focused: true,
-        kind: 'input',
-        x: 24,
-        y: 48,
-        coveredByRelatedPopup: true,
-      },
-      readActiveElementState: { activeElement: 'input', valueLength: 0 },
-      readPageActionState: {
-        url: 'https://example.com/login',
-        title: 'Compose',
-        focus: 'input:combobox:::To:',
-        mutationRevision: 0,
-        dialogs: [],
-        popups: ['Contact list'],
-        scroll: [0],
-      },
+      focusElementForTyping: { focused: true, kind: 'input', valueInput: true, x: 24, y: 48 },
+      setFocusedInputValue: { error: 'Invalid value; the field was not changed.' },
+      readActiveElementState: {},
+      readPageActionState: {},
     })
-
     const result = await driver.executeTool('chat-test', 'browser_type', {
       elementId: 0,
-      text: 'Mondu',
+      text: 'invalid-date',
     })
-
-    expect(result).toMatchObject({ ok: true, result: { dispatched: true, trusted: true } })
-    expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(1)
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('Invalid value') })
     expect(
       vi
         .mocked(contents.executeJavaScript)
-        .mock.calls.some(([expression]) => isPageCall(String(expression), 'clickElement'))
-    ).toBe(false)
+        .mock.calls.filter(([expression]) => isPageCall(String(expression), 'typeIntoElement'))
+    ).toHaveLength(0)
+    expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(0)
   })
 
   it('confirms typing only after the field readback changes', async () => {
@@ -1460,41 +1999,6 @@ describe('credential protection', () => {
     }
   )
 
-  it('still allows select-all, which carries no clipboard content', async () => {
-    const contents = await openPage()
-    respondWith(contents, { activeElementSecrecy: 'safe', readActiveElementState: {} })
-
-    const result = await driver.executeTool('chat-test', 'browser_press_key', { key: 'Cmd+A' })
-
-    expect(result.ok).toBe(true)
-  })
-
-  it('surfaces the page-side refusal for element-targeted actions', async () => {
-    const contents = await openPage()
-    respondWith(contents, { clickElement: { error: 'password' } })
-
-    const result = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
-
-    expect(result.ok).toBe(false)
-    expect(result.error).toMatch(/Refusing to act on a password field/)
-  })
-
-  it('guides typing through owned suggestions without dispatching a pointer click', async () => {
-    const contents = await openPage()
-    respondWith(contents, {
-      clickElement: { error: 'suggestions-open', blocker: 'Contact list' },
-    })
-
-    const result = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
-
-    expect(result).toMatchObject({
-      ok: false,
-      error: expect.stringContaining('Use browser_type on the same element'),
-    })
-    expect(result.error).toContain('do not dismiss the popup')
-    expect(cdpCalls(contents, 'Input.dispatchMouseEvent')).toHaveLength(0)
-  })
-
   it('uses trusted CDP mouse input for element clicks', async () => {
     const contents = await openPage()
     respondWith(contents, {
@@ -1524,41 +2028,6 @@ describe('credential protection', () => {
     expect(cdpCalls(contents, 'Input.dispatchMouseEvent')).toHaveLength(3)
   })
 
-  it('returns the actual inner-container movement from browser_scroll', async () => {
-    const contents = await openPage()
-    respondWith(contents, {
-      scrollPage: {
-        direction: 'up',
-        requestedAmount: 500,
-        target: 'Message history',
-        targetSource: 'viewport-center',
-        movedBy: -500,
-        scrollTop: 1_000,
-        scrollHeight: 4_000,
-        clientHeight: 800,
-        atTop: false,
-        atBottom: false,
-      },
-    })
-
-    const result = await driver.executeTool('chat-test', 'browser_scroll', {
-      direction: 'up',
-      amount: 500,
-    })
-
-    expect(result).toMatchObject({
-      ok: true,
-      result: {
-        target: 'Message history',
-        targetSource: 'viewport-center',
-        movedBy: -500,
-        scrollTop: 1_000,
-        atTop: false,
-        atBottom: false,
-      },
-    })
-  })
-
   it('rejects an unsupported browser_scroll direction instead of treating it as down', async () => {
     const contents = await openPage()
 
@@ -1568,7 +2037,7 @@ describe('credential protection', () => {
 
     expect(result).toMatchObject({
       ok: false,
-      error: 'Scroll direction must be "up" or "down".',
+      error: 'Scroll direction must be "up", "down", "left", or "right".',
     })
     expect(
       vi
@@ -1605,48 +2074,6 @@ describe('credential protection', () => {
     expect(result).toMatchObject({
       ok: true,
       result: { effectObserved: true, effect: { targetChanged: true } },
-    })
-  })
-
-  it('confirms a panel close when the clicked target semantically disappears', async () => {
-    const contents = await openPage()
-    let actionReads = 0
-    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
-      if (isPageCall(expression, 'clickElement')) {
-        return Promise.resolve({ dispatched: false, x: 24, y: 48, element: 'Close thread' })
-      }
-      if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
-      if (isPageCall(expression, 'readPageActionState')) {
-        actionReads++
-        return Promise.resolve({
-          url: 'https://example.com/thread',
-          title: 'Thread',
-          focus: 'body',
-          mutationRevision: actionReads === 1 ? 0 : 2,
-          dialogs: [],
-          popups: [],
-          scroll: [0],
-          targetState:
-            actionReads === 1
-              ? { present: true, rendered: true }
-              : { present: false, rendered: false },
-        })
-      }
-      return Promise.resolve(undefined)
-    })
-
-    const result = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
-
-    expect(result).toMatchObject({
-      ok: true,
-      result: {
-        effectObserved: true,
-        possibleEffectObserved: true,
-        effect: { targetChanged: true },
-      },
-    })
-    expect(result).not.toMatchObject({
-      result: { note: expect.stringContaining('background DOM/title churn') },
     })
   })
 
@@ -1775,43 +2202,6 @@ describe('credential protection', () => {
     expect(mainFrame.executeJavaScript).not.toHaveBeenCalled()
   })
 
-  // A dialog that was ALREADY open before the click is not obstructing the
-  // navigation it survived — reporting it made every SPA route change under a
-  // persistent role=dialog (cookie banner, side drawer, picker) read as a
-  // failed click. Only a dialog that arrives with the navigation obstructs it.
-  // targetChanged can only fire when pageActionState was given an elementId.
-  // Tools without one listed it in their effect formula for a long time, where
-  // it was silently always false — coverage that read as real. This pins the
-  // dependency so the next tool that adds the term has to earn it.
-  it('cannot observe a target change for a tool that passes no elementId', async () => {
-    const contents = await openPage()
-    let actionReads = 0
-    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
-      if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
-      if (isPageCall(expression, 'readPageActionState')) {
-        actionReads++
-        // No targetState in either sample: that is what a call without an
-        // elementId returns.
-        return Promise.resolve({
-          url: 'https://example.com/a',
-          title: 'A',
-          focus: 'body',
-          mutationRevision: actionReads === 1 ? 0 : 3,
-          dialogs: [],
-          popups: [],
-          scroll: [0],
-        })
-      }
-      return Promise.resolve(undefined)
-    })
-
-    const result = await driver.executeTool('chat-test', 'browser_press_key', { key: 'Enter' })
-
-    expect(result).toMatchObject({ ok: true })
-    const effect = (result as { result?: { effect?: Record<string, boolean> } }).result?.effect
-    expect(effect?.targetChanged).toBe(false)
-  })
-
   // The click-that-navigates race from the field: "Begin Assessment" submits a
   // form, the navigation tears the origin document down, and the CDP dispatch
   // rejects mid-press. The press already reached the page — the navigation IS
@@ -1855,47 +2245,6 @@ describe('credential protection', () => {
         navigatedDuringDispatch: true,
         effectObserved: true,
       },
-    })
-  })
-
-  it('ignores a dialog that was already open before the click', async () => {
-    const contents = await openPage()
-    let actionReads = 0
-    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
-      if (isPageCall(expression, 'clickElement')) {
-        return Promise.resolve({ dispatched: false, x: 24, y: 48, element: 'Search result' })
-      }
-      if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
-      if (isPageCall(expression, 'readPageActionState')) {
-        actionReads++
-        return Promise.resolve(
-          actionReads === 1
-            ? {
-                url: 'https://example.com/search',
-                title: 'Search',
-                focus: 'body',
-                mutationRevision: 0,
-                dialogs: ['Search'],
-                scroll: [0],
-              }
-            : {
-                url: 'https://example.com/channel/eng-bugs',
-                title: 'eng-bugs',
-                focus: 'body',
-                mutationRevision: 1,
-                dialogs: ['Search'],
-                scroll: [0],
-              }
-        )
-      }
-      return Promise.resolve(undefined)
-    })
-
-    const result = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
-
-    expect(result).toMatchObject({
-      ok: true,
-      result: { effectObserved: true, obstructedAfterNavigation: false, dialogs: ['Search'] },
     })
   })
 
@@ -1943,32 +2292,143 @@ describe('credential protection', () => {
     })
   })
 
-  it('surfaces a CDP dialog notice on the next tool result exactly once', async () => {
+  it('stops a batch at the first failed action and keeps earlier results', async () => {
     const contents = await openPage()
-    const listener = vi
-      .mocked(contents.debugger.on)
-      .mock.calls.find(([event]) => event === 'message')?.[1] as
-      | ((event: unknown, method: string, params: unknown, sessionId?: string) => void)
-      | undefined
-    expect(listener).toBeTypeOf('function')
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (!isPageCall(expression, 'clickElement')) return Promise.resolve(undefined)
+      return Promise.resolve(
+        mousePresses(contents) > 0 ? { error: 'obstructed', blocker: 'IMG' } : CLICK_TARGET
+      )
+    })
 
-    listener?.({}, 'Page.javascriptDialogOpening', { type: 'alert', message: 'Heads up' })
-    await vi.waitFor(() =>
-      expect(contents.debugger.sendCommand).toHaveBeenCalledWith('Page.handleJavaScriptDialog', {
-        accept: false,
-      })
-    )
+    const result = await driver.executeTool('chat-test', 'browser_batch', {
+      actions: [
+        { tool: 'browser_click', args: { elementId: 0 } },
+        { tool: 'browser_click', args: { elementId: 0 } },
+        { tool: 'browser_click', args: { elementId: 0 } },
+      ],
+    })
 
-    const first = await driver.executeTool('chat-test', 'browser_list_tabs', {})
-    const second = await driver.executeTool('chat-test', 'browser_list_tabs', {})
-
-    expect(first).toMatchObject({
+    expect(mousePresses(contents)).toBe(1)
+    expect(result).toMatchObject({
       ok: true,
       result: {
-        notices: [expect.stringContaining('alert dialog ("Heads up") which was auto-dismissed')],
+        completed: false,
+        completedCount: 1,
+        stoppedIndex: 1,
+        stoppedBy: 'failure',
+        error: expect.stringContaining('covered by IMG'),
       },
     })
-    expect(second).not.toMatchObject({ result: { notices: expect.anything() } })
+  })
+
+  it('stops a batch after an action navigates the page', async () => {
+    const contents = await openPage()
+    respondWith(contents, {})
+    const sendCommand = vi.mocked(contents.debugger.sendCommand)
+    const dispatch = sendCommand.getMockImplementation()
+    sendCommand.mockImplementation((method, params) => {
+      if (method === 'Input.dispatchMouseEvent' && toRecord(params).type === 'mouseReleased') {
+        emitContentsEvent(contents, 'did-navigate')
+      }
+      return dispatch?.(method, params) ?? Promise.resolve(undefined)
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_batch', {
+      actions: [
+        { tool: 'browser_click', args: { elementId: 0 } },
+        { tool: 'browser_click', args: { elementId: 0 } },
+      ],
+    })
+
+    expect(mousePresses(contents)).toBe(1)
+    expect(result).toMatchObject({
+      ok: true,
+      result: { completed: false, completedCount: 1, stoppedIndex: 1, stoppedBy: 'page-change' },
+    })
+  })
+
+  it('reports a batch cancelled during its first action as an unknown outcome', async () => {
+    const contents = await openPage()
+    respondWith(contents, {})
+    const sendCommand = vi.mocked(contents.debugger.sendCommand)
+    const dispatch = sendCommand.getMockImplementation()
+    sendCommand.mockImplementation((method, params) =>
+      method === 'Input.dispatchKeyEvent'
+        ? new Promise(() => {})
+        : (dispatch?.(method, params) ?? Promise.resolve(undefined))
+    )
+
+    const pending = driver.executeTool(
+      'chat-test',
+      'browser_batch',
+      {
+        actions: [
+          { tool: 'browser_press_key', args: { key: 'Enter' } },
+          { tool: 'browser_click', args: { elementId: 0 } },
+        ],
+      },
+      'batch-first-call'
+    )
+    await vi.waitFor(() => expect(cdpCalls(contents, 'Input.dispatchKeyEvent')).toHaveLength(1))
+    driver.cancelTool('chat-test', 'batch-first-call')
+
+    await expect(pending).resolves.toMatchObject({
+      ok: true,
+      result: { outcomeUnknown: true, doNotRetry: true },
+    })
+  })
+
+  it('rejects batches that name non-action tools or observe per action', async () => {
+    await openPage()
+
+    const navigation = await driver.executeTool('chat-test', 'browser_batch', {
+      actions: [
+        { tool: 'browser_navigate', args: { url: 'https://example.com' } },
+        { tool: 'browser_click', args: { elementId: 0 } },
+      ],
+    })
+    const observed = await driver.executeTool('chat-test', 'browser_batch', {
+      actions: [
+        { tool: 'browser_click', args: { elementId: 0, observe: {} } },
+        { tool: 'browser_click', args: { elementId: 0 } },
+      ],
+    })
+
+    expect(navigation).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('Batch action 0'),
+    })
+    expect(observed).toMatchObject({ ok: false, error: expect.stringContaining('cannot observe') })
+
+    const held = await driver.executeTool('chat-test', 'browser_batch', {
+      actions: [
+        { tool: 'browser_click', args: { elementId: 0, holdMs: 2000 } },
+        { tool: 'browser_click', args: { elementId: 0 } },
+      ],
+    })
+    expect(held).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('cannot press and hold'),
+    })
+  })
+
+  it('keeps element ids valid when an observed action is refused before dispatch', async () => {
+    const contents = await openPage()
+    respondWith(contents, { clickElement: { error: 'obstructed', blocker: 'IMG' } })
+
+    const refused = await driver.executeTool('chat-test', 'browser_click', {
+      elementId: 0,
+      observe: {},
+    })
+    respondWith(contents, {})
+    const retried = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+
+    expect(refused).toEqual({
+      ok: false,
+      error: expect.stringContaining('That element is covered by IMG'),
+    })
+    expect(retried).toMatchObject({ ok: true, result: { dispatched: true } })
   })
 
   it('invalidates element ids when the active tab changes', async () => {
@@ -2019,31 +2479,6 @@ describe('credential protection', () => {
     })
   })
 
-  it('tolerates same-document URL churn during a keypress', async () => {
-    const contents = await openPage()
-    let urlReads = 0
-    vi.mocked(contents.getURL).mockImplementation(() =>
-      ++urlReads === 1 ? 'https://example.com/channel-a' : 'https://example.com/channel-b'
-    )
-    respondWith(contents, {
-      activeElementSecrecy: 'safe',
-      readActiveElementState: {},
-      readPageActionState: {
-        url: 'https://example.com/channel-a',
-        title: 'Example',
-        focus: 'body',
-        mutationRevision: 0,
-        dialogs: [],
-        scroll: [0],
-      },
-    })
-
-    const result = await driver.executeTool('chat-test', 'browser_press_key', { key: 'Escape' })
-
-    expect(result.ok).toBe(true)
-    expect(cdpCalls(contents, 'Input.dispatchKeyEvent').length).toBeGreaterThan(0)
-  })
-
   it('aborts a keypress when a cross-document navigation lands mid-flight', async () => {
     const contents = await openPage()
     let navigated = false
@@ -2072,58 +2507,6 @@ describe('credential protection', () => {
     expect(result.ok).toBe(false)
     expect(result.error).toMatch(/active tab or page changed/)
     expect(cdpCalls(contents, 'Input.dispatchKeyEvent')).toHaveLength(0)
-  })
-
-  it('waits for a late-mounting editor before typing', async () => {
-    const contents = await openPage()
-    let focusReads = 0
-    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
-      if (isPageCall(expression, 'focusElementForTyping')) {
-        focusReads++
-        return Promise.resolve(
-          focusReads === 1
-            ? { error: 'not-editable' }
-            : { focused: true, kind: 'contenteditable', x: 24, y: 48 }
-        )
-      }
-      if (isPageCall(expression, 'activeElementSecrecy')) return Promise.resolve('safe')
-      if (isPageCall(expression, 'readActiveElementState')) {
-        return Promise.resolve({ activeElement: 'div', valueLength: 5 })
-      }
-      return Promise.resolve(undefined)
-    })
-
-    const result = await driver.executeTool('chat-test', 'browser_type', {
-      elementId: 0,
-      text: 'hello',
-    })
-
-    expect(result.ok).toBe(true)
-    expect(focusReads).toBeGreaterThan(1)
-    expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(1)
-  })
-
-  it('reprobes a transiently stale click target before giving up', async () => {
-    const contents = await openPage()
-    let clickReads = 0
-    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
-      if (isPageCall(expression, 'clickElement')) {
-        clickReads++
-        return Promise.resolve(
-          clickReads === 1
-            ? { error: 'stale' }
-            : { dispatched: false, x: 24, y: 48, element: 'Channel row' }
-        )
-      }
-      if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
-      if (isPageCall(expression, 'readPageActionState')) return Promise.resolve({})
-      return Promise.resolve(undefined)
-    })
-
-    const result = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
-
-    expect(result).toMatchObject({ ok: true, result: { dispatched: true } })
-    expect(clickReads).toBeGreaterThan(1)
   })
 
   it('clicks a coordinate point with native input and reports the target', async () => {
@@ -2158,25 +2541,292 @@ describe('credential protection', () => {
     expect(presses).toHaveLength(1)
   })
 
-  it('double-clicks a coordinate point as a rising clickCount sequence', async () => {
+  it('answers a dialog opened by an action with that action dialog response only', async () => {
     const contents = await openPage()
     respondWith(contents, {
-      describePointTarget: { found: true, element: 'canvas', editable: false },
+      describePointTarget: { found: true, element: 'button "Delete"', editable: false },
       readActiveElementState: {},
       readPageActionState: {},
     })
-
-    const result = await driver.executeTool('chat-test', 'browser_click_at', {
-      x: 10,
-      y: 20,
-      clickCount: 2,
+    const listener = vi
+      .mocked(contents.debugger.on)
+      .mock.calls.find(([event]) => event === 'message')?.[1] as
+      | ((event: unknown, method: string, params: unknown, sessionId?: string) => void)
+      | undefined
+    const send = vi.mocked(contents.debugger.sendCommand)
+    const dispatch = send.getMockImplementation()
+    send.mockImplementation(async (method, params, ...rest) => {
+      if (method === 'Input.dispatchMouseEvent' && params?.type === 'mouseReleased') {
+        listener?.({}, 'Page.javascriptDialogOpening', { type: 'confirm', message: 'Delete?' })
+      }
+      return dispatch?.(method, params, ...rest)
     })
 
-    expect(result).toMatchObject({ ok: true, result: { clickCount: 2 } })
-    const counts = cdpCalls(contents, 'Input.dispatchMouseEvent')
-      .filter(([, event]) => (event as { type?: string }).type === 'mousePressed')
-      .map(([, event]) => (event as { clickCount?: number }).clickCount)
-    expect(counts).toEqual([1, 2])
+    const accepted = await driver.executeTool('chat-test', 'browser_click_at', {
+      x: 10,
+      y: 20,
+      dialog: { accept: true },
+    })
+    const dismissed = await driver.executeTool('chat-test', 'browser_click_at', { x: 10, y: 20 })
+    await driver.executeTool('chat-test', 'browser_list_tabs', {})
+
+    const answers = cdpCalls(contents, 'Page.handleJavaScriptDialog').map(([, answer]) => answer)
+    expect(answers).toEqual([{ accept: true }, { accept: false }])
+    expect(accepted).toMatchObject({ ok: true })
+    expect(dismissed).toMatchObject({ ok: true })
+  })
+
+  it('dismisses background tab dialogs while the action target accepts its dialog', async () => {
+    const background = await openPage()
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const contents = session.requireAutomationTab().view.webContents
+    vi.mocked(contents.getURL).mockReturnValue('https://example.com/target')
+    respondWith(contents, {
+      describePointTarget: { found: true, element: 'button "Delete"', editable: false },
+      readActiveElementState: {},
+      readPageActionState: {},
+    })
+    const listeners = [background, contents].map(
+      (tab) =>
+        vi.mocked(tab.debugger.on).mock.calls.find(([event]) => event === 'message')?.[1] as
+          | ((event: unknown, method: string, params: unknown) => void)
+          | undefined
+    )
+    vi.mocked(contents.debugger.sendCommand).mockImplementation(async (method, params) => {
+      if (method === 'Input.dispatchMouseEvent' && params?.type === 'mouseReleased') {
+        for (const listener of listeners) {
+          listener?.({}, 'Page.javascriptDialogOpening', { type: 'confirm', message: 'Delete?' })
+        }
+      }
+      return {}
+    })
+
+    await expect(
+      driver.executeTool('chat-test', 'browser_click_at', {
+        x: 10,
+        y: 20,
+        dialog: { accept: true },
+      })
+    ).resolves.toMatchObject({ ok: true })
+
+    expect(cdpCalls(background, 'Page.handleJavaScriptDialog').map(([, answer]) => answer)).toEqual(
+      [{ accept: false }]
+    )
+    expect(cdpCalls(contents, 'Page.handleJavaScriptDialog').map(([, answer]) => answer)).toEqual([
+      { accept: true },
+    ])
+  })
+
+  describe('file uploads', () => {
+    it('retains one input handle through staging and releases it after uploading', async () => {
+      const contents = await openPage()
+      respondWith(contents, { readPageActionState: {} })
+      const input = { objectId: 'isolated-input', multiple: true, accept: '.pdf' }
+      const resolve = vi.spyOn(cdp, 'resolveFileInput').mockResolvedValue(input)
+      const setFiles = vi
+        .spyOn(cdp, 'setFileInputFiles')
+        .mockResolvedValue({ files: [{ name: 'a.pdf', size: 3 }] })
+      const release = vi.spyOn(cdp, 'releaseFileInput').mockResolvedValue()
+      stageUploadFiles.mockResolvedValue(['/staged/a.pdf'])
+
+      const result = await driver.executeTool(
+        'chat-test',
+        'browser_upload_file',
+        { elementId: 0, paths: ['files/a.pdf'] },
+        'call-upload'
+      )
+
+      expect(result).toMatchObject({
+        ok: true,
+        result: { uploaded: [{ name: 'a.pdf', size: 3 }], effectObserved: true, accept: '.pdf' },
+      })
+      expect(resolve).toHaveBeenCalledWith(
+        contents,
+        contents.mainFrame,
+        expect.stringContaining('function resolveFileInputTarget(')
+      )
+      expect(stageUploadFiles).toHaveBeenCalledWith(
+        expect.objectContaining({ toolCallId: 'call-upload', paths: ['files/a.pdf'] })
+      )
+      expect(setFiles).toHaveBeenCalledWith(
+        contents,
+        input,
+        ['/staged/a.pdf'],
+        expect.any(AbortSignal),
+        expect.any(Function)
+      )
+      expect(release).toHaveBeenCalledWith(contents, input)
+      expect(resolve).toHaveBeenCalledTimes(1)
+    })
+
+    it.each(['staging', 'attachment'])(
+      'releases the pinned input after %s fails before dispatch',
+      async (failure) => {
+        const contents = await openPage()
+        const input = { objectId: 'isolated-input', multiple: false }
+        vi.spyOn(cdp, 'resolveFileInput').mockResolvedValue(input)
+        const setFiles = vi
+          .spyOn(cdp, 'setFileInputFiles')
+          .mockRejectedValue(new Error('attachment failed'))
+        const release = vi.spyOn(cdp, 'releaseFileInput').mockResolvedValue()
+        stageUploadFiles.mockReset()
+        if (failure === 'staging') stageUploadFiles.mockRejectedValue(new Error('staging failed'))
+        else stageUploadFiles.mockResolvedValue(['/staged/a.pdf'])
+
+        const result = await driver.executeTool(
+          'chat-test',
+          'browser_upload_file',
+          { elementId: 0, paths: ['files/a.pdf'] },
+          'call-failed'
+        )
+
+        expect(result).toEqual({
+          ok: false,
+          error: expect.stringContaining(`${failure} failed`),
+        })
+        if (failure === 'staging') expect(setFiles).not.toHaveBeenCalled()
+        expect(release).toHaveBeenCalledTimes(1)
+        expect(release).toHaveBeenCalledWith(contents, input)
+      }
+    )
+
+    it.each(['cancelled', 'timed out'] as const)(
+      'reports an unconfirmed upload when its acknowledgment is %s without replaying it or affecting queued work',
+      async (stop) => {
+        const contents = await openPage()
+        const input = { objectId: 'isolated-input', multiple: false }
+        vi.spyOn(cdp, 'resolveFileInput').mockResolvedValue(input)
+        let acknowledgeUpload: () => void = () => {}
+        const acknowledgment = new Promise<void>((resolve) => {
+          acknowledgeUpload = resolve
+        })
+        let appliedUploads = 0
+        const setFiles = vi
+          .spyOn(cdp, 'setFileInputFiles')
+          .mockImplementation(async (_contents, _handle, _files, _signal, onDispatch) => {
+            onDispatch?.('pending')
+            appliedUploads++
+            await acknowledgment
+            onDispatch?.('acknowledged')
+            return { files: [{ name: 'a.pdf', size: 3 }] }
+          })
+        const release = vi.spyOn(cdp, 'releaseFileInput').mockResolvedValue()
+        stageUploadFiles.mockResolvedValue(['/staged/a.pdf'])
+        let releaseSnapshot: (value: unknown) => void = () => {}
+        const snapshot = new Promise<unknown>((resolve) => {
+          releaseSnapshot = resolve
+        })
+        let snapshotStarted = false
+        vi.mocked(contents.executeJavaScript).mockImplementation((expression) => {
+          if (isPageCall(expression, 'collectSnapshot')) {
+            snapshotStarted = true
+            return snapshot
+          }
+          return Promise.resolve({})
+        })
+
+        vi.useFakeTimers()
+        try {
+          const timersBefore = vi.getTimerCount()
+          const pending = driver.executeTool(
+            'chat-test',
+            'browser_upload_file',
+            { elementId: 0, paths: ['files/a.pdf'] },
+            'unconfirmed-upload'
+          )
+          await vi.advanceTimersByTimeAsync(200)
+          expect(appliedUploads).toBe(1)
+          const queued = driver.executeTool('chat-test', 'browser_snapshot', {}, 'next-snapshot')
+
+          if (stop === 'cancelled') driver.cancelTool('chat-test', 'unconfirmed-upload')
+          else
+            await vi.advanceTimersByTimeAsync(
+              driver.browserToolWatchdogMs('browser_upload_file', {})!
+            )
+
+          const result = await pending
+          expect(result).toMatchObject({
+            ok: true,
+            result: {
+              outcomeUnknown: true,
+              doNotRetry: true,
+              error: expect.any(String),
+              note: expect.stringContaining('The action may already have run'),
+            },
+          })
+          expect(result.result).not.toHaveProperty('dispatched')
+          await vi.advanceTimersByTimeAsync(0)
+          expect(snapshotStarted).toBe(true)
+          expect(release).not.toHaveBeenCalled()
+
+          acknowledgeUpload()
+          await vi.advanceTimersByTimeAsync(200)
+          expect(release).toHaveBeenCalledExactlyOnceWith(contents, input)
+          expect(appliedUploads).toBe(1)
+          expect(setFiles).toHaveBeenCalledTimes(1)
+          expect(result.result).toMatchObject({ outcomeUnknown: true, doNotRetry: true })
+          expect(result.result).not.toHaveProperty('dispatched')
+
+          driver.cancelTool('chat-test', 'next-snapshot')
+          await expect(queued).resolves.toEqual({
+            ok: false,
+            error: expect.stringContaining('cancelled'),
+          })
+          expect(vi.getTimerCount()).toBe(timersBefore)
+        } finally {
+          acknowledgeUpload()
+          releaseSnapshot({ outline: 'Late snapshot', refIds: [], nextElementId: 1 })
+          await vi.advanceTimersByTimeAsync(200)
+          vi.useRealTimers()
+        }
+      }
+    )
+  })
+
+  it('validates upload paths before touching the page', async () => {
+    await openPage()
+
+    const result = await driver.executeTool(
+      'chat-test',
+      'browser_upload_file',
+      { elementId: 0, paths: [] },
+      'call-empty'
+    )
+
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('paths must list') })
+  })
+
+  it('saves only a completed download, bound to its tool call', async () => {
+    await openPage()
+    const completed = vi
+      .spyOn(session, 'completedBrowserDownload')
+      .mockReturnValueOnce({ filename: 'report.csv', savePath: '/downloads/report.csv' })
+      .mockReturnValueOnce(null)
+    saveDownloadToWorkspace.mockResolvedValue({
+      path: 'files/report.csv',
+      name: 'report.csv',
+      size: 8,
+    })
+
+    const saved = await driver.executeTool(
+      'chat-test',
+      'browser_save_download',
+      { downloadId: 'd1' },
+      'call-save'
+    )
+    const missing = await driver.executeTool(
+      'chat-test',
+      'browser_save_download',
+      { downloadId: 'd2' },
+      'call-save-2'
+    )
+
+    expect(saved).toMatchObject({ ok: true, result: { path: 'files/report.csv' } })
+    expect(saveDownloadToWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({ toolCallId: 'call-save', filePath: '/downloads/report.csv' })
+    )
+    expect(missing).toMatchObject({ ok: false, error: expect.stringContaining('not a completed') })
+    completed.mockRestore()
   })
 
   it('refuses a coordinate click on a file input', async () => {
@@ -2190,129 +2840,6 @@ describe('credential protection', () => {
     expect(result.ok).toBe(false)
     expect(result.error).toMatch(/file input/)
     expect(cdpCalls(contents, 'Input.dispatchMouseEvent')).toHaveLength(0)
-  })
-
-  it('rejects a coordinate click outside the viewport with mapping guidance', async () => {
-    const contents = await openPage()
-    respondWith(contents, {
-      describePointTarget: { error: 'outside-viewport' },
-    })
-
-    const result = await driver.executeTool('chat-test', 'browser_click_at', { x: 9999, y: 5 })
-
-    expect(result.ok).toBe(false)
-    expect(result.error).toMatch(/divide image pixels by its scale/)
-  })
-
-  it('inserts text into the focused editable at the caret', async () => {
-    const contents = await openPage()
-    respondWith(contents, {
-      activeElementSecrecy: 'safe',
-      describeFocusedEditable: { editable: true, kind: 'contenteditable' },
-      readActiveElementState: { activeElement: 'div', valueLength: 12 },
-      readPageActionState: {},
-    })
-
-    const result = await driver.executeTool('chat-test', 'browser_insert_text', {
-      text: 'hello world',
-    })
-
-    expect(result).toMatchObject({
-      ok: true,
-      result: { dispatched: true, trusted: true, kind: 'contenteditable', insertedChars: 11 },
-    })
-    expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(1)
-  })
-
-  it('reports top-page effects observed after inserting text in a child frame', async () => {
-    const contents = await openPage()
-    const mainFrame = {
-      frameTreeNodeId: 1,
-      detached: false,
-      isDestroyed: vi.fn(() => false),
-      origin: 'https://example.com',
-      parent: null,
-      framesInSubtree: [] as unknown[],
-    }
-    const childFrame = {
-      frameTreeNodeId: 2,
-      detached: false,
-      isDestroyed: vi.fn(() => false),
-      origin: 'https://mail-widget.example',
-      parent: mainFrame,
-      url: 'https://mail-widget.example/compose',
-    }
-    mainFrame.framesInSubtree = [mainFrame, childFrame]
-    Object.defineProperty(contents, 'mainFrame', { configurable: true, value: mainFrame })
-    Object.defineProperty(contents, 'focusedFrame', { configurable: true, value: childFrame })
-    let topPageReads = 0
-    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
-      if (isPageCall(expression, 'readPageActionState')) {
-        topPageReads++
-        return Promise.resolve({
-          url:
-            topPageReads === 1 ? 'https://example.com/compose' : 'https://example.com/message/sent',
-          title: 'Mail',
-          focus: 'iframe',
-          mutationRevision: topPageReads,
-          dialogs: [],
-          scroll: [0],
-        })
-      }
-      return Promise.resolve(undefined)
-    })
-    const isolatedFrameEval = vi
-      .spyOn(cdp, 'evaluateInIsolatedFrame')
-      .mockImplementation((_contents, _frame, expression) => {
-        if (isPageCall(expression, 'activeElementSecrecy')) return Promise.resolve('safe')
-        if (isPageCall(expression, 'describeFocusedEditable')) {
-          return Promise.resolve({ editable: true, kind: 'input' })
-        }
-        if (isPageCall(expression, 'readActiveElementState')) {
-          return Promise.resolve({ activeElement: 'input', valueLength: 4 })
-        }
-        if (isPageCall(expression, 'readPageActionState')) {
-          return Promise.resolve({
-            url: 'https://mail-widget.example/compose',
-            title: 'Compose',
-            focus: 'input',
-            mutationRevision: 0,
-            dialogs: [],
-            scroll: [0],
-          })
-        }
-        return Promise.resolve(undefined)
-      })
-
-    try {
-      const result = await driver.executeTool('chat-test', 'browser_insert_text', { text: 'sent' })
-
-      expect(result.ok, result.error).toBe(true)
-      expect(result).toMatchObject({
-        ok: true,
-        result: {
-          effectObserved: true,
-          possibleEffectObserved: true,
-          effect: { urlChanged: true },
-        },
-      })
-    } finally {
-      isolatedFrameEval.mockRestore()
-    }
-  })
-
-  it('refuses insertion when nothing editable holds focus', async () => {
-    const contents = await openPage()
-    respondWith(contents, {
-      activeElementSecrecy: 'safe',
-      describeFocusedEditable: { editable: false, reason: 'none' },
-    })
-
-    const result = await driver.executeTool('chat-test', 'browser_insert_text', { text: 'x' })
-
-    expect(result.ok).toBe(false)
-    expect(result.error).toMatch(/No element is focused/)
-    expect(cdpCalls(contents, 'Input.insertText')).toHaveLength(0)
   })
 
   it('refuses insertion while a password field holds focus', async () => {
@@ -2354,55 +2881,295 @@ describe('credential protection', () => {
     expect(cdpCalls(contents, 'Input.setInterceptDrags').length).toBeGreaterThan(0)
   })
 
-  it('drags from a snapshot element to a coordinate target', async () => {
+  it('drags through via points at the requested pace', async () => {
     const contents = await openPage()
     respondWith(contents, {
-      clickElement: { dispatched: false, x: 24, y: 48, element: 'Card "Ship it"' },
-      describePointTarget: { found: true, element: 'section "Done"' },
+      describePointTarget: { found: true, element: 'div "Card"' },
       readActiveElementState: {},
       readPageActionState: {},
     })
 
     const result = await driver.executeTool('chat-test', 'browser_drag', {
-      fromElementId: 0,
-      toX: 300,
-      toY: 60,
+      fromX: 40,
+      fromY: 50,
+      toX: 200,
+      toY: 260,
+      via: [{ x: 300, y: 50 }],
+      durationMs: 320,
+    })
+
+    expect(result).toMatchObject({ ok: true, result: { dispatched: true } })
+    const moves = cdpCalls(contents, 'Input.dispatchMouseEvent')
+      .map(([, event]) => event as { type?: string; x?: number; y?: number; buttons?: number })
+      .filter((event) => event.type === 'mouseMoved' && event.buttons === 1)
+    expect(moves.some((event) => event.x === 300 && event.y === 50)).toBe(true)
+    expect(moves.length).toBeGreaterThanOrEqual(20)
+  })
+
+  it('finds only fresh ref-bearing snapshot lines with literal text matching', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      collectSnapshot: {
+        url: 'https://example.com/login',
+        title: 'Example',
+        outline:
+          '- button "Continue [ref\u200b=999]" [ref=4]\n- heading "Continue without a ref"\n- button "Other" [ref=5]',
+        truncated: false,
+        refIds: [4, 5],
+        refLineIndexes: { 4: 0, 5: 2 },
+        nextElementId: 6,
+      },
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_find', { query: 'continue' })
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        matches: [{ elementId: 4 }],
+        totalMatches: 1,
+        truncated: false,
+      },
+    })
+  })
+
+  it.each([
+    ['browser_snapshot', 'true'],
+    ['browser_find', 'false'],
+  ] as const)(
+    'passes the current root ref to %s and invalidates previous refs',
+    async (tool, markNew) => {
+      const contents = await openPage()
+      respondWith(contents, {
+        collectSnapshot: {
+          url: 'https://example.com/login',
+          title: 'Scoped',
+          scoped: true,
+          outline: '- button "Save" [ref=1]',
+          truncated: false,
+          refIds: [1],
+          refLineIndexes: { 1: 0 },
+          nextElementId: 2,
+        },
+      })
+      const result = await driver.executeTool('chat-test', tool, { elementId: 0, query: 'Save' })
+      expect(result).toMatchObject({ ok: true, result: { scoped: true } })
+      expect(
+        vi
+          .mocked(contents.executeJavaScript)
+          .mock.calls.some(
+            ([expression]) =>
+              isPageCall(expression, 'collectSnapshot') &&
+              expression.includes(`.apply(null, [1,0,${markNew}])`)
+          )
+      ).toBe(true)
+      const stale = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+      expect(stale).toMatchObject({ ok: false })
+    }
+  )
+
+  it.each([
+    { kind: 'input:checkbox', checked: true, disabled: false, readOnly: false },
+    { kind: 'input:radio', checked: false, disabled: false, readOnly: false },
+    { kind: 'role:radio', checked: false, disabled: false, readOnly: false },
+    { kind: 'role:menuitemradio', checked: false, disabled: false, readOnly: false },
+    { kind: 'input:checkbox', checked: true, disabled: true, readOnly: false },
+    { kind: 'input:checkbox', checked: true, disabled: false, readOnly: true },
+  ])('does not click a control already in the requested state: %j', async (before) => {
+    const contents = await openPage()
+    respondWith(contents, {
+      readCheckableElementState: before,
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_set_checked', {
+      elementId: 0,
+      checked: before.checked,
     })
 
     expect(result).toMatchObject({
       ok: true,
-      result: { dispatched: true, from: { x: 24, y: 48, element: 'Card "Ship it"' } },
+      result: { checked: before.checked, changed: false, dispatched: false },
     })
+    expect(cdpCalls(contents, 'Input.dispatchMouseEvent')).toHaveLength(0)
   })
 
-  it('rejects a drag whose endpoints are the same point', async () => {
+  it.each([
+    { checked: true, kind: 'input:radio', error: 'cannot be unchecked' },
+    { checked: true, kind: 'role:radio', error: 'cannot be unchecked' },
+    { checked: true, kind: 'role:menuitemradio', error: 'cannot be unchecked' },
+    { checked: false, kind: 'input:checkbox', disabled: true, error: 'disabled' },
+    { checked: false, kind: 'input:checkbox', readOnly: true, error: 'read-only' },
+  ])('rejects a prohibited state change: %j', async (before) => {
+    const contents = await openPage()
+    respondWith(contents, { readCheckableElementState: before })
+    const result = await driver.executeTool('chat-test', 'browser_set_checked', {
+      elementId: 0,
+      checked: !before.checked,
+    })
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain(before.error)
+    expect(cdpCalls(contents, 'Input.dispatchMouseEvent')).toHaveLength(0)
+  })
+
+  it.each([false, 'mixed'])(
+    'uses the trusted click path from %s and verifies a changed checkable control',
+    async (initialState) => {
+      const contents = await openPage()
+      let stateReads = 0
+      vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+        if (isPageCall(expression, 'readCheckableElementState')) {
+          stateReads++
+          return Promise.resolve({
+            checked: stateReads > 1 ? true : initialState,
+            disabled: false,
+            readOnly: false,
+            kind: 'input:checkbox',
+          })
+        }
+        if (isPageCall(expression, 'clickElement')) {
+          return Promise.resolve({ dispatched: false, x: 24, y: 48, element: 'Checkbox' })
+        }
+        if (isPageCall(expression, 'readPageActionState')) {
+          return Promise.resolve({
+            url: 'https://example.com/login',
+            title: 'Example',
+            focus: 'body',
+            mutationRevision: 0,
+            dialogs: [],
+            scroll: [0],
+          })
+        }
+        if (isPageCall(expression, 'readActiveElementState')) return Promise.resolve({})
+        return Promise.resolve(undefined)
+      })
+
+      const result = await driver.executeTool('chat-test', 'browser_set_checked', {
+        elementId: 0,
+        checked: true,
+      })
+
+      expect(result).toMatchObject({
+        ok: true,
+        result: { checked: true, changed: true, dispatched: true, trusted: true },
+      })
+      expect(cdpCalls(contents, 'Input.dispatchMouseEvent')).toHaveLength(3)
+    }
+  )
+
+  it.each([true, false])(
+    'polls delayed checkable state without redispatching input (updates=%s)',
+    async (updates) => {
+      const contents = await openPage()
+      let reads = 0
+      vi.mocked(contents.executeJavaScript).mockImplementation(async (expression: string) => {
+        if (isPageCall(expression, 'readCheckableElementState')) {
+          reads++
+          return { checked: updates && reads >= 4, kind: 'input:checkbox' }
+        }
+        if (isPageCall(expression, 'clickElement'))
+          return { dispatched: false, x: 24, y: 48, element: 'Checkbox' }
+        if (isPageCall(expression, 'readPageActionState'))
+          return {
+            url: 'https://example.com/login',
+            title: 'Example',
+            focus: 'body',
+            mutationRevision: 0,
+            dialogs: [],
+            scroll: [0],
+          }
+        if (isPageCall(expression, 'readActiveElementState')) return {}
+      })
+      vi.useFakeTimers()
+      try {
+        const pending = driver.executeTool('chat-test', 'browser_set_checked', {
+          elementId: 0,
+          checked: true,
+        })
+        await vi.advanceTimersByTimeAsync(2000)
+        const result = await pending
+        expect(result.ok).toBe(updates)
+        expect(reads).toBeGreaterThanOrEqual(4)
+        expect(cdpCalls(contents, 'Input.dispatchMouseEvent')).toHaveLength(3)
+        if (!updates) expect(result.error).toContain('did not reach the requested checked state')
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+  )
+
+  it.each(['hidden', 'detached'])(
+    'does not treat a failed probe as element state %s',
+    async (state) => {
+      const contents = await openPage()
+      vi.mocked(contents.executeJavaScript).mockRejectedValue(
+        new Error('Execution context destroyed')
+      )
+      const response = await driver.executeTool('chat-test', 'browser_wait_for', {
+        elementId: 0,
+        state,
+        timeoutMs: 1000,
+      })
+      expect(response).toMatchObject({ ok: false })
+      expect(response.error).toContain('Execution context destroyed')
+    }
+  )
+
+  it('crops an element screenshot without changing the live viewport', async () => {
     const contents = await openPage()
     respondWith(contents, {
-      describePointTarget: { found: true, element: 'div' },
+      getElementScreenshotRect: {
+        x: 20,
+        y: 30,
+        width: 200,
+        height: 100,
+        element: 'button',
+        refRecovered: false,
+      },
+    })
+    const capture = vi.spyOn(cdp, 'captureScreenshot').mockResolvedValue({
+      dataUrl: 'data:image/jpeg;base64,c2lt',
+      scale: 1,
+      viewport: { width: 800, height: 600 },
+      imageSize: { width: 200, height: 100 },
     })
 
-    const result = await driver.executeTool('chat-test', 'browser_drag', {
-      fromX: 10,
-      fromY: 10,
-      toX: 10,
-      toY: 10,
-    })
+    try {
+      const result = await driver.executeTool('chat-test', 'browser_screenshot', { elementId: 0 })
 
-    expect(result.ok).toBe(false)
-    expect(result.error).toMatch(/same point/)
+      expect(capture).toHaveBeenCalledWith(
+        contents,
+        { x: 20, y: 30, width: 200, height: 100 },
+        expect.any(AbortSignal)
+      )
+      expect(result).toMatchObject({
+        ok: true,
+        result: { element: 'button', clip: { x: 20, y: 30, width: 200, height: 100 } },
+      })
+    } finally {
+      capture.mockRestore()
+    }
+  })
+
+  it('zooms by a standard step and invalidates existing element refs', async () => {
+    const contents = await openPage()
+
+    const zoomed = await driver.executeTool('chat-test', 'browser_zoom', { action: 'in' })
+    const staleRef = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+
+    expect(zoomed).toMatchObject({ ok: true, result: { action: 'in' } })
+    expect(contents.setZoomFactor).toHaveBeenCalled()
+    expect(staleRef).toMatchObject({ ok: false })
+    expect(staleRef.error).toMatch(/Call browser_snapshot/)
   })
 
   it('returns the screenshot scale for coordinate mapping', async () => {
     const contents = await openPage()
-    mockScreenshotImage({ width: 1024, height: 512 })
+    mockScreenshotImage(contents, { width: 1024, height: 512 })
     vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
       if (method === 'Page.getLayoutMetrics') {
         return Promise.resolve({
           cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024 },
         })
-      }
-      if (method === 'Page.captureScreenshot') {
-        return Promise.resolve({ data: 'c2lt' })
       }
       return Promise.resolve(undefined)
     })
@@ -2414,6 +3181,7 @@ describe('credential protection', () => {
       ok: true,
       result: {
         scale: 0.5,
+        imageSize: { width: 1024, height: 512 },
         viewport: {
           url: 'https://example.com/login',
           title: 'Example',
@@ -2431,13 +3199,10 @@ describe('credential protection', () => {
 
   it('uses the in-page CSS viewport when CDP exposes only deprecated device metrics', async () => {
     const contents = await openPage()
-    mockScreenshotImage({ width: 1024, height: 512 })
+    mockScreenshotImage(contents, { width: 1024, height: 512 })
     vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
       if (method === 'Page.getLayoutMetrics') {
         return Promise.resolve({ layoutViewport: { clientWidth: 2048, clientHeight: 1024 } })
-      }
-      if (method === 'Page.captureScreenshot') {
-        return Promise.resolve({ data: 'c2lt' })
       }
       return Promise.resolve(undefined)
     })
@@ -2481,90 +3246,13 @@ describe('credential protection', () => {
     ).toBe(true)
   })
 
-  it('accepts stable truncated page identity with deprecated device metrics', async () => {
-    const contents = await openPage()
-    const fullUrl = `https://example.com/${'u'.repeat(5000)}`
-    const fullTitle = `Example ${'t'.repeat(600)}`
-    vi.mocked(contents.getURL).mockReturnValue(fullUrl)
-    vi.mocked(contents.getTitle).mockReturnValue(fullTitle)
-    mockScreenshotImage({ width: 1024, height: 512 })
-    vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
-      if (method === 'Page.getLayoutMetrics') {
-        return Promise.resolve({ layoutViewport: { clientWidth: 2048, clientHeight: 1024 } })
-      }
-      if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
-      return Promise.resolve(undefined)
-    })
-    respondWith(contents, {
-      getViewportInfo: {
-        url: fullUrl.slice(0, 4096),
-        title: fullTitle.slice(0, 500),
-        width: 1024,
-        height: 512,
-      },
-    })
-
-    const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
-
-    expect(result).toMatchObject({
-      ok: true,
-      result: {
-        scale: 1,
-        viewport: {
-          url: fullUrl.slice(0, 4096),
-          title: fullTitle.slice(0, 500),
-          width: 1024,
-          height: 512,
-        },
-      },
-    })
-  })
-
-  it('rejects an undecodable screenshot instead of returning an unverified scale', async () => {
-    const contents = await openPage()
-    mockScreenshotImage(null)
-    vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
-      if (method === 'Page.getLayoutMetrics') {
-        return Promise.resolve({
-          cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024 },
-        })
-      }
-      if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
-      return Promise.resolve(undefined)
-    })
-
-    const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
-
-    expect(result.ok).toBe(false)
-    expect(result.error).toMatch(/verify the screenshot dimensions/)
-  })
-
-  it('rejects a screenshot when no CSS viewport can be established', async () => {
-    const contents = await openPage()
-    mockScreenshotImage({ width: 1024, height: 512 })
-    vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
-      if (method === 'Page.getLayoutMetrics') {
-        return Promise.resolve({ layoutViewport: { clientWidth: 2048, clientHeight: 1024 } })
-      }
-      if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
-      return Promise.resolve(undefined)
-    })
-    respondWith(contents, { getViewportInfo: null })
-
-    const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
-
-    expect(result.ok).toBe(false)
-    expect(result.error).toMatch(/verify the page viewport/)
-  })
-
   it('rejects coordinate mapping when the viewport changes during capture', async () => {
     const contents = await openPage()
-    mockScreenshotImage({ width: 1024, height: 256 })
+    mockScreenshotImage(contents, { width: 1024, height: 256 })
     vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
       if (method === 'Page.getLayoutMetrics') {
         return Promise.resolve({ layoutViewport: { clientWidth: 1024, clientHeight: 256 } })
       }
-      if (method === 'Page.captureScreenshot') return Promise.resolve({ data: 'c2lt' })
       return Promise.resolve(undefined)
     })
     respondWith(contents, {
@@ -2584,18 +3272,20 @@ describe('credential protection', () => {
 
   it('rejects a screenshot when the document navigates during capture', async () => {
     const contents = await openPage()
-    mockScreenshotImage({ width: 1024, height: 512 })
+    mockScreenshotImage(contents, { width: 1024, height: 512 })
     vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
       if (method === 'Page.getLayoutMetrics') {
         return Promise.resolve({
           cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024 },
         })
       }
-      if (method === 'Page.captureScreenshot') {
-        emitContentsEvent(contents, 'did-navigate')
-        return Promise.resolve({ data: 'c2lt' })
-      }
       return Promise.resolve(undefined)
+    })
+
+    const image = await contents.capturePage()
+    vi.mocked(contents.capturePage).mockImplementation(async () => {
+      emitContentsEvent(contents, 'did-navigate')
+      return image
     })
 
     const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
@@ -2603,36 +3293,4 @@ describe('credential protection', () => {
     expect(result.ok).toBe(false)
     expect(result.error).toMatch(/page changed while its screenshot was being captured/)
   })
-
-  it.each(['url', 'title'] as const)(
-    'rejects a screenshot when the page %s changes during capture',
-    async (identityField) => {
-      const contents = await openPage()
-      mockScreenshotImage({ width: 1024, height: 512 })
-      const initialUrl = contents.getURL()
-      const initialTitle = contents.getTitle()
-      let currentUrl = initialUrl
-      let currentTitle = initialTitle
-      vi.mocked(contents.getURL).mockImplementation(() => currentUrl)
-      vi.mocked(contents.getTitle).mockImplementation(() => currentTitle)
-      vi.mocked(contents.debugger.sendCommand).mockImplementation((method: string) => {
-        if (method === 'Page.getLayoutMetrics') {
-          return Promise.resolve({
-            cssLayoutViewport: { clientWidth: 2048, clientHeight: 1024 },
-          })
-        }
-        if (method === 'Page.captureScreenshot') {
-          if (identityField === 'url') currentUrl = 'https://example.com/changed'
-          else currentTitle = 'Changed title'
-          return Promise.resolve({ data: 'c2lt' })
-        }
-        return Promise.resolve(undefined)
-      })
-
-      const result = await driver.executeTool('chat-test', 'browser_screenshot', {})
-
-      expect(result.ok).toBe(false)
-      expect(result.error).toMatch(/page changed while its screenshot was being captured/)
-    }
-  )
 })

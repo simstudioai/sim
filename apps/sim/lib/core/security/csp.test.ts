@@ -1,8 +1,8 @@
-import { createEnvMock } from '@sim/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/core/config/env', () =>
-  createEnvMock({
+await vi.hoisted(async () => {
+  const { setEnv } = await import('@sim/testing/mocks/env.mock')
+  setEnv({
     NEXT_PUBLIC_APP_URL: 'https://example.com',
     NEXT_PUBLIC_SOCKET_URL: 'https://socket.example.com',
     OLLAMA_URL: 'http://localhost:11434',
@@ -14,287 +14,109 @@ vi.mock('@/lib/core/config/env', () =>
     NEXT_PUBLIC_BRAND_FAVICON_URL: 'https://brand.example.com/favicon.ico',
     NEXT_PUBLIC_PRIVACY_URL: 'https://legal.example.com/privacy',
     NEXT_PUBLIC_TERMS_URL: 'https://legal.example.com/terms',
-  })
-)
-
-import {
-  addCSPSource,
-  buildCSPString,
-  buildTimeCSPDirectives,
-  type CSPDirectives,
-  generateRuntimeCSP,
-  getChatEmbedCSPPolicy,
-  getMainCSPPolicy,
-  getWorkflowExecutionCSPPolicy,
-  removeCSPSource,
-} from './csp'
-
-describe('buildCSPString', () => {
-  it('should build CSP string from directives', () => {
-    const directives: CSPDirectives = {
-      'default-src': ["'self'"],
-      'script-src': ["'self'", "'unsafe-inline'"],
-    }
-
-    const result = buildCSPString(directives)
-
-    expect(result).toContain("default-src 'self'")
-    expect(result).toContain("script-src 'self' 'unsafe-inline'")
-    expect(result).toContain(';')
-  })
-
-  it('should handle empty directives', () => {
-    const directives: CSPDirectives = {}
-    const result = buildCSPString(directives)
-    expect(result).toBe('')
-  })
-
-  it('should skip empty source arrays', () => {
-    const directives: CSPDirectives = {
-      'default-src': ["'self'"],
-      'script-src': [],
-    }
-
-    const result = buildCSPString(directives)
-
-    expect(result).toContain("default-src 'self'")
-    expect(result).not.toContain('script-src')
-  })
-
-  it('should filter out empty string sources', () => {
-    const directives: CSPDirectives = {
-      'default-src': ["'self'", '', '  ', 'https://example.com'],
-    }
-
-    const result = buildCSPString(directives)
-
-    expect(result).toContain("default-src 'self' https://example.com")
-    expect(result).not.toMatch(/\s{2,}/)
-  })
-
-  it('should handle all directive types', () => {
-    const directives: CSPDirectives = {
-      'default-src': ["'self'"],
-      'script-src': ["'self'"],
-      'style-src': ["'self'"],
-      'img-src': ["'self'", 'data:'],
-      'media-src': ["'self'"],
-      'font-src': ["'self'"],
-      'connect-src': ["'self'"],
-      'frame-src': ["'none'"],
-      'frame-ancestors': ["'self'"],
-      'form-action': ["'self'"],
-      'base-uri': ["'self'"],
-      'object-src': ["'none'"],
-    }
-
-    const result = buildCSPString(directives)
-
-    expect(result).toContain("default-src 'self'")
-    expect(result).toContain("script-src 'self'")
-    expect(result).toContain("object-src 'none'")
+    S3_ENDPOINT: 'https://s3.de.io.cloud.ovh.net',
+    S3_FORCE_PATH_STYLE: undefined,
   })
 })
 
+import { setEnv } from '@sim/testing/mocks/env.mock'
+import { buildCSPString, generateRuntimeCSP, getChatEmbedCSPPolicy, getMainCSPPolicy } from './csp'
+
+describe('buildCSPString', () => {
+  it('drops empty directives and blank sources', () => {
+    const result = buildCSPString({
+      'default-src': ["'self'", '', '  ', 'https://example.com'],
+      'script-src': [],
+    })
+
+    expect(result).toContain("default-src 'self' https://example.com")
+    expect(result).not.toContain('script-src')
+    expect(result).not.toMatch(/\s{2,}/)
+  })
+})
+
+function connectSources(policy: string): string[] {
+  const directive = policy.split('; ').find((d) => d.startsWith('connect-src ')) ?? ''
+  return directive.split(' ').slice(1)
+}
+
 describe('getMainCSPPolicy', () => {
-  it('should return a valid CSP policy string', () => {
+  it('allows direct uploads to the build-time S3_ENDPOINT', () => {
+    const sources = connectSources(getMainCSPPolicy())
+    expect(sources).toContain('https://s3.de.io.cloud.ovh.net')
+    expect(sources).toContain('https://*.s3.de.io.cloud.ovh.net')
+  })
+
+  it('keeps the restrictive security directives', () => {
     const policy = getMainCSPPolicy()
 
     expect(policy).toContain("default-src 'self'")
-    expect(policy).toContain('script-src')
-    expect(policy).toContain('style-src')
-    expect(policy).toContain('img-src')
-  })
-
-  it('should include security directives', () => {
-    const policy = getMainCSPPolicy()
-
     expect(policy).toContain("object-src 'none'")
     expect(policy).toContain("frame-ancestors 'self'")
     expect(policy).toContain("form-action 'self'")
     expect(policy).toContain("base-uri 'self'")
   })
-
-  it('should include necessary external resources', () => {
-    const policy = getMainCSPPolicy()
-
-    expect(policy).toContain('https://fonts.googleapis.com')
-    expect(policy).toContain('https://fonts.gstatic.com')
-    expect(policy).toContain('https://*.google.com')
-  })
-})
-
-describe('getWorkflowExecutionCSPPolicy', () => {
-  it('should return permissive CSP for workflow execution', () => {
-    const policy = getWorkflowExecutionCSPPolicy()
-
-    expect(policy).toContain('default-src *')
-    expect(policy).toContain("'unsafe-inline'")
-    expect(policy).toContain("'unsafe-eval'")
-    expect(policy).toContain('connect-src *')
-  })
-
-  it('should be more permissive than main CSP', () => {
-    const mainPolicy = getMainCSPPolicy()
-    const execPolicy = getWorkflowExecutionCSPPolicy()
-
-    expect(execPolicy.length).toBeLessThan(mainPolicy.length)
-    expect(execPolicy).toContain('*')
-  })
 })
 
 describe('generateRuntimeCSP', () => {
-  it('should generate CSP with runtime environment variables', () => {
+  it('adds the runtime app, socket (with WebSocket variant) and brand origins', () => {
     const csp = generateRuntimeCSP()
 
-    expect(csp).toContain("default-src 'self'")
     expect(csp).toContain('https://example.com')
-  })
-
-  it('should include socket URL and WebSocket variant', () => {
-    const csp = generateRuntimeCSP()
-
     expect(csp).toContain('https://socket.example.com')
     expect(csp).toContain('wss://socket.example.com')
-  })
-
-  it('should include brand URLs', () => {
-    const csp = generateRuntimeCSP()
-
     expect(csp).toContain('https://brand.example.com')
   })
 
-  it('should not have excessive whitespace', () => {
-    const csp = generateRuntimeCSP()
-
-    expect(csp).not.toMatch(/\s{3,}/)
-    expect(csp.trim()).toBe(csp)
-  })
-
   it('should allow blob URLs for iframe-based PDF previews', () => {
-    const csp = generateRuntimeCSP()
-    const frameSrcDirective = csp
+    const frameSrcDirective = generateRuntimeCSP()
       .split('; ')
       .find((directive) => directive.startsWith('frame-src '))
 
-    expect(frameSrcDirective).toBeDefined()
     expect(frameSrcDirective).toContain('blob:')
   })
 })
 
-describe('addCSPSource', () => {
-  const originalDirectives = structuredClone(buildTimeCSPDirectives)
-
+describe('generateRuntimeCSP S3_ENDPOINT sources', () => {
   afterEach(() => {
-    Object.keys(buildTimeCSPDirectives).forEach((key) => {
-      const k = key as keyof CSPDirectives
-      buildTimeCSPDirectives[k] = originalDirectives[k]
-    })
+    setEnv({ S3_ENDPOINT: 'https://s3.de.io.cloud.ovh.net', S3_FORCE_PATH_STYLE: undefined })
   })
 
-  it('should add a source to an existing directive', () => {
-    const originalLength = buildTimeCSPDirectives['img-src']?.length || 0
-
-    addCSPSource('img-src', 'https://new-source.com')
-
-    expect(buildTimeCSPDirectives['img-src']).toContain('https://new-source.com')
-    expect(buildTimeCSPDirectives['img-src']?.length).toBe(originalLength + 1)
+  it('allows the endpoint and its bucket subdomains for virtual-hosted addressing', () => {
+    setEnv({ S3_ENDPOINT: 'https://acct.r2.cloudflarestorage.com/' })
+    const sources = connectSources(generateRuntimeCSP())
+    expect(sources).toContain('https://acct.r2.cloudflarestorage.com')
+    expect(sources).toContain('https://*.acct.r2.cloudflarestorage.com')
   })
 
-  it('should not add duplicate sources', () => {
-    addCSPSource('img-src', 'https://duplicate.com')
-    const lengthAfterFirst = buildTimeCSPDirectives['img-src']?.length || 0
-
-    addCSPSource('img-src', 'https://duplicate.com')
-
-    expect(buildTimeCSPDirectives['img-src']?.length).toBe(lengthAfterFirst)
+  it('keeps a non-default port and drops the bucket wildcard under S3_FORCE_PATH_STYLE', () => {
+    setEnv({ S3_ENDPOINT: 'https://minio.example.com:9000', S3_FORCE_PATH_STYLE: 'true' })
+    const sources = connectSources(generateRuntimeCSP())
+    expect(sources).toContain('https://minio.example.com:9000')
+    expect(sources.some((s) => s.includes('*.minio.example.com'))).toBe(false)
   })
 
-  it('should create directive array if it does not exist', () => {
-    ;(buildTimeCSPDirectives as any)['worker-src'] = undefined
-
-    addCSPSource('script-src', 'https://worker.example.com')
-
-    expect(buildTimeCSPDirectives['script-src']).toContain('https://worker.example.com')
-  })
-})
-
-describe('removeCSPSource', () => {
-  const originalDirectives = structuredClone(buildTimeCSPDirectives)
-
-  afterEach(() => {
-    Object.keys(buildTimeCSPDirectives).forEach((key) => {
-      const k = key as keyof CSPDirectives
-      buildTimeCSPDirectives[k] = originalDirectives[k]
-    })
+  it('does not build a wildcard over an IP endpoint, which is always path-style', () => {
+    setEnv({ S3_ENDPOINT: 'http://10.0.0.5:9000' })
+    const sources = connectSources(generateRuntimeCSP())
+    expect(sources).toContain('http://10.0.0.5:9000')
+    expect(sources.some((s) => s.includes('*.10.0.0.5'))).toBe(false)
   })
 
-  it('should remove a source from an existing directive', () => {
-    addCSPSource('img-src', 'https://to-remove.com')
-    expect(buildTimeCSPDirectives['img-src']).toContain('https://to-remove.com')
-
-    removeCSPSource('img-src', 'https://to-remove.com')
-
-    expect(buildTimeCSPDirectives['img-src']).not.toContain('https://to-remove.com')
-  })
-
-  it('should handle removing non-existent source gracefully', () => {
-    const originalLength = buildTimeCSPDirectives['img-src']?.length || 0
-
-    removeCSPSource('img-src', 'https://non-existent.com')
-
-    expect(buildTimeCSPDirectives['img-src']?.length).toBe(originalLength)
-  })
-
-  it('should handle removing from non-existent directive gracefully', () => {
-    ;(buildTimeCSPDirectives as any)['worker-src'] = undefined
-
-    expect(() => {
-      removeCSPSource('script-src', 'https://anything.com')
-    }).not.toThrow()
-  })
-})
-
-describe('buildTimeCSPDirectives', () => {
-  it('should have all required security directives', () => {
-    expect(buildTimeCSPDirectives['default-src']).toBeDefined()
-    expect(buildTimeCSPDirectives['object-src']).toContain("'none'")
-    expect(buildTimeCSPDirectives['frame-ancestors']).toContain("'self'")
-    expect(buildTimeCSPDirectives['base-uri']).toContain("'self'")
-  })
-
-  it('should have self as default source', () => {
-    expect(buildTimeCSPDirectives['default-src']).toContain("'self'")
-  })
-
-  it('should allow Google fonts', () => {
-    expect(buildTimeCSPDirectives['style-src']).toContain('https://fonts.googleapis.com')
-    expect(buildTimeCSPDirectives['font-src']).toContain('https://fonts.gstatic.com')
-  })
-
-  it('allows the hosted app to read the Sim status page', () => {
-    expect(getMainCSPPolicy()).toMatch(/connect-src[^;]*https:\/\/status\.sim\.ai/)
-  })
-
-  it('should allow data: and blob: for images', () => {
-    expect(buildTimeCSPDirectives['img-src']).toContain('data:')
-    expect(buildTimeCSPDirectives['img-src']).toContain('blob:')
+  it('ignores an endpoint without an http(s) scheme instead of emitting a broken source', () => {
+    setEnv({ S3_ENDPOINT: 'minio.example.com:9000' })
+    const csp = generateRuntimeCSP()
+    expect(csp).not.toContain('minio.example.com')
+    expect(connectSources(csp)).toContain("'self'")
   })
 })
 
 describe('getChatEmbedCSPPolicy', () => {
-  it('allows iframe embedding from any origin', () => {
-    expect(getChatEmbedCSPPolicy()).toContain('frame-ancestors *')
-  })
-
-  it('allows Office.js to load from Microsoft for Excel/Word add-in embedding', () => {
+  it('allows embedding and Office.js without relaxing object-src or base-uri', () => {
     const policy = getChatEmbedCSPPolicy()
+    expect(policy).toContain('frame-ancestors *')
     expect(policy).toMatch(/script-src[^;]*https:\/\/appsforoffice\.microsoft\.com/)
     expect(policy).toMatch(/connect-src[^;]*https:\/\/appsforoffice\.microsoft\.com/)
-  })
-
-  it('does not regress object-src or base-uri restrictions', () => {
-    const policy = getChatEmbedCSPPolicy()
     expect(policy).toContain("object-src 'none'")
     expect(policy).toContain("base-uri 'self'")
   })

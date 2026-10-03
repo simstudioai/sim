@@ -1,4 +1,4 @@
-import { Suspense } from 'react'
+import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { AccountSettingsRenderer } from '@/components/settings/account-settings-renderer'
@@ -9,9 +9,11 @@ import {
   getSettingsSectionMeta,
   parseSettingsPathSection,
 } from '@/components/settings/navigation'
+import { prefetchStandaloneGeneral } from '@/components/settings/prefetch-standalone-general'
 import { getSession } from '@/lib/auth'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
+import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 
 interface AccountSettingsSectionPageProps {
   params: Promise<{ section: string }>
@@ -38,6 +40,9 @@ export default async function AccountSettingsSectionPage({
   if (!session?.user) redirect('/login')
 
   const { section } = await params
+  if (section === 'authorized-apps') {
+    redirect(`${getAccountSettingsHref('general')}?view=authorized-apps`)
+  }
   const parsed = parseSettingsPathSection({
     path: section,
     items: ACCOUNT_SETTINGS_ITEMS,
@@ -52,14 +57,17 @@ export default async function AccountSettingsSectionPage({
   }
 
   /**
-   * Sections read URL query params via nuqs (which uses `useSearchParams`
-   * internally), so the renderer must sit under a Suspense boundary. The
-   * `null` fallback matches the existing visual behavior — the sections are
-   * `next/dynamic` components that render nothing while their chunk loads.
+   * No Suspense boundary: a fallback mounted with the section puts React's 300ms reveal floor
+   * under every switch (see the workspace section layout).
    */
-  return (
-    <Suspense fallback={null}>
-      <AccountSettingsRenderer section={parsed} />
-    </Suspense>
-  )
+  const content = <AccountSettingsRenderer section={parsed} />
+
+  if (parsed === 'general') {
+    const queryClient = getQueryClient()
+    await prefetchStandaloneGeneral(queryClient)
+
+    return <HydrationBoundary state={dehydrate(queryClient)}>{content}</HydrationBoundary>
+  }
+
+  return content
 }

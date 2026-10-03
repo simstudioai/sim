@@ -4,10 +4,10 @@ import type {
   WorkflowSearchMatch,
   WorkflowSearchMatchKind,
   WorkflowSearchResourceMeta,
+  WorkflowSearchSelectorContext,
   WorkflowSearchValuePath,
 } from '@/lib/workflows/search-replace/types'
 import type { SubBlockConfig } from '@/blocks/types'
-import type { SelectorContext } from '@/hooks/selectors/types'
 
 export type StructuredWorkflowSearchResourceKind = Exclude<
   WorkflowSearchMatchKind,
@@ -21,7 +21,7 @@ interface ResourceCodecParseParams {
     SubBlockConfig,
     'type' | 'serviceId' | 'selectorKey' | 'requiredScopes' | 'multiSelect' | 'multiple'
   >
-  selectorContext?: SelectorContext
+  selectorContext?: WorkflowSearchSelectorContext
 }
 
 export interface StructuredResourceReference {
@@ -39,6 +39,7 @@ interface ResourceCodecReplaceResult {
 }
 
 interface WorkflowSearchResourceCodec {
+  remap?(value: unknown, resolve: (sourceId: string) => string): unknown
   parse(params: ResourceCodecParseParams): StructuredResourceReference[]
   contains(value: unknown, rawValue: string): boolean
   replace(
@@ -69,7 +70,7 @@ function createResourceMeta({
   kind: StructuredWorkflowSearchResourceKind
   rawValue: string
   subBlockConfig: Pick<SubBlockConfig, 'serviceId' | 'selectorKey' | 'requiredScopes'>
-  selectorContext?: SelectorContext
+  selectorContext?: WorkflowSearchSelectorContext
 }): WorkflowSearchResourceMeta {
   const resource: WorkflowSearchResourceMeta = {
     kind,
@@ -196,6 +197,24 @@ function parseFileReplacement(replacement: string): ResourceCodecReplaceResult {
 }
 
 const scalarResourceCodec: WorkflowSearchResourceCodec = {
+  remap(value, resolve) {
+    const map = (item: unknown): unknown => {
+      if (Array.isArray(item)) {
+        const next = item.map(map)
+        return next.some((value, index) => value !== item[index]) ? next : item
+      }
+      if (typeof item !== 'string') return item
+      return item
+        .split(',')
+        .map((part) => {
+          const id = part.trim()
+          const target = id ? resolve(id) : id
+          return target === id ? part : target
+        })
+        .join(',')
+    }
+    return map(value)
+  },
   parse({ value, kind, subBlockConfig, selectorContext }) {
     const values = splitCommaResourceValue(value)
     return values.map((rawValue, index) => ({
@@ -409,7 +428,7 @@ export function parseWorkflowSearchSubBlockResources(
     SubBlockConfig,
     'type' | 'serviceId' | 'selectorKey' | 'requiredScopes' | 'multiSelect' | 'multiple'
   >,
-  selectorContext?: SelectorContext
+  selectorContext?: WorkflowSearchSelectorContext
 ): StructuredResourceReference[] {
   const definition = getWorkflowSearchSubBlockResourceDefinition(subBlockConfig)
   if (!definition || !subBlockConfig) return []

@@ -1,7 +1,7 @@
 import type { WorkflowExecutionAuthority, WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { TraceSpan } from '@/lib/logs/types'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import type { BlockOutput } from '@/blocks/types'
 import type {
   ChildWorkflowContext,
@@ -29,6 +29,12 @@ export interface UserFile {
   key: string
   context?: string
   base64?: string
+  /**
+   * Version number of a workspace file's content, present when the record was read with it. Each
+   * version owns its own storage key, so `key` already pins the bytes; this is the number that
+   * names them in the file version API.
+   */
+  version?: number
   /** Provider Files API handle (OpenAI/Anthropic `file_...` id) set when a large file is uploaded instead of inlined as base64. */
   providerFileId?: string
   /** Provider File API uri (Gemini `fileUri`) set when a large file is uploaded instead of inlined as base64. */
@@ -216,6 +222,7 @@ export interface NormalizedBlockOutput {
     blockTitle?: string
   }
   selectedOption?: string
+  selectedTitle?: string | null
   conditionResult?: boolean
   result?: any
   stdout?: string
@@ -241,6 +248,17 @@ export type ExecutionControlOutputFieldName = (typeof EXECUTION_CONTROL_OUTPUT_F
 /** Start block output key that carries trusted, server-injected run metadata. */
 export const START_BLOCK_METADATA_FIELD = 'metadata'
 
+/** Authenticated human or provider subject safe to expose to workflow authors. */
+export type StartBlockRunSubject =
+  | { kind: 'sim_user'; userId: string; email: string }
+  | { kind: 'authenticated_email'; email: string }
+  | {
+      kind: 'external_user'
+      provider: string
+      tenantId: string
+      subjectId: string
+    }
+
 /**
  * Trusted run metadata surfaced under `<start.metadata.*>` when the Start
  * block's "Add run metadata" toggle is enabled. Built server-side from the
@@ -251,7 +269,7 @@ export const START_BLOCK_METADATA_FIELD = 'metadata'
  * authoring-time-known identity.
  */
 export interface StartBlockRunMetadata {
-  userEmail?: string | null
+  subject?: StartBlockRunSubject | null
   workspaceId?: string | null
   workflowId?: string | null
   executionId?: string
@@ -275,6 +293,13 @@ export interface BlockLog {
   errorHandled?: boolean
   /** Total handler tries, present only when the block retried at least once. */
   tries?: number
+  /**
+   * Models that failed before the one that answered, in the order tried.
+   * Present only when an Agent block fell back at least once. Under retry only
+   * the final try walks the fallbacks, so the field reflects that try; every
+   * earlier try clears it.
+   */
+  modelFallbacks?: string[]
   loopId?: string
   parallelId?: string
   iterationIndex?: number
@@ -333,6 +358,24 @@ interface ExecutionMetadata {
     depth: number
   }
   userId?: string
+  /**
+   * Person whose permission group gates what this run's tools, models and
+   * blocks may do — the *gate*, deliberately separate from {@link userId},
+   * which is the billing/rate actor and the credential subject.
+   *
+   * The two coincide for a session-triggered run and diverge whenever the
+   * trigger has no acting person to charge: a table cell dispatched by a
+   * workspace API key attributes to the workspace's billing owner, and gating
+   * on that bystander is wrong in both directions — it applies a denylist
+   * nobody meant to apply, and it skips the one belonging to whoever actually
+   * asked.
+   *
+   * Tri-state on purpose. `undefined` means the trigger declares no separate
+   * gate, so the gate stays on {@link userId} (every surface that has always
+   * had one acting person). A declared `string` gates on that person; a
+   * declared `null` is an actorless run and applies no group gate at all.
+   */
+  capabilityGovernedUserId?: string | null
   principal?: WorkflowExecutionPrincipal
   executionId?: string
   triggerType?: string
@@ -376,6 +419,10 @@ export interface ExecutionContext {
   workspaceId?: string
   executionId?: string
   largeValueExecutionIds?: string[]
+  /**
+   * Exact large-value and file keys this run may read. Seeded by the executor so every block's
+   * shallow context copy appends to one run-wide list; an executor not handed lists starts empty.
+   */
   largeValueKeys?: string[]
   fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
@@ -384,14 +431,19 @@ export interface ExecutionContext {
   principal?: WorkflowExecutionPrincipal
   /** Trusted origin for signed executor delegation, distinct from the currently executing child. */
   executorDelegationOrigin?: ExecutorDelegationOrigin
+  /** Trusted source block for saved MCP operation restrictions. */
+  mcpBlockId?: string
   isDeployedContext?: boolean
   enforceCredentialAccess?: boolean
   copilotToolExecution?: boolean
   /** In-flight block-output PII redaction policy (resolved `blockOutputs` stage). */
   piiBlockOutputRedaction?: PiiBlockOutputRedaction
 
-  permissionConfig?: PermissionGroupConfig | null
-  permissionConfigLoaded?: boolean
+  /**
+   * Per-run memo of permission config loads, keyed by subject and workspace. A Map so the per-block
+   * shallow copies of this context share it; never inherited by a child workflow's context.
+   */
+  permissionConfigCache?: Map<string, Promise<PermissionGroupConfig | null>>
 
   /**
    * Resolved display names for the resources an agent tool is bound to, keyed `${kind}:${id}`,
@@ -413,8 +465,9 @@ export interface ExecutionContext {
    * in any block state or workspace row, so nothing else can resolve it. The
    * index only *selects*; every read is still authorized on its own.
    *
-   * A Map for the same reason as {@link toolBindingLabelCache}: `blockCtx` is a
-   * shallow clone per block execution, so only a shared reference survives.
+   * Built lazily on the block's context from the current block states, so it lives
+   * for one block: shared by that block's agent turns and tool calls, rebuilt by the
+   * next block. Files from earlier blocks reach it through their committed outputs.
    */
   executionFilesById?: Map<string, UserFile>
 
@@ -638,6 +691,12 @@ export interface ExecutionResult {
 }
 
 export interface StreamingExecution {
+  /** Selected block identity: a root block ID or `childWorkflowId.blockRef`. */
+  blockId?: string
+  /** Internal identity that disambiguates repeated invocations of one child workflow. */
+  childWorkflowInstanceId?: string
+  /** Per-run invocation order, unique across loop and parallel executions. */
+  executionOrder?: number
   /**
    * Provider stream payload. Format is declared by {@link streamFormat}:
    * - `'text'` (default): UTF-8 answer bytes (`ReadableStream<Uint8Array>`)
@@ -677,16 +736,6 @@ export interface StreamingExecution {
   onFullContent?: (content: string) => void | Promise<void>
 }
 
-interface BlockExecutor {
-  canExecute(block: SerializedBlock): boolean
-
-  execute(
-    block: SerializedBlock,
-    inputs: Record<string, any>,
-    context: ExecutionContext
-  ): Promise<BlockOutput>
-}
-
 /**
  * Per-invocation identity for one run of one block.
  *
@@ -705,6 +754,22 @@ export interface BlockNodeMetadata {
   originalBlockId?: string
   isLoopNode?: boolean
   executionOrder?: number
+  /** Where this invocation sits in the block's retry policy; absent when the block has none. */
+  retry?: BlockRetryAttempt
+}
+
+/**
+ * One try of a block under its retry policy, told to the handler so it can hold
+ * work for the last try. `isFinalTry` is the executor's own judgment, not
+ * `attempt >= maxTries` recomputed by the handler: what makes a try final is the
+ * policy's business, and a handler that fails on a non-final try is promised
+ * another invocation for any retryable error.
+ */
+export interface BlockRetryAttempt {
+  /** 1-based. */
+  attempt: number
+  maxTries: number
+  isFinalTry: boolean
 }
 
 export interface BlockHandler {
@@ -727,46 +792,4 @@ export interface BlockHandler {
     inputs: Record<string, any>,
     nodeMetadata: BlockNodeMetadata
   ) => Promise<BlockOutput | StreamingExecution>
-}
-
-interface Tool<P = any, O = Record<string, any>> {
-  id: string
-  name: string
-  description: string
-  version: string
-
-  params: {
-    [key: string]: {
-      type: string
-      required?: boolean
-      description?: string
-      default?: any
-    }
-  }
-
-  request?: {
-    url?: string | ((params: P) => string)
-    method?: string
-    headers?: (params: P) => Record<string, string>
-    body?: (params: P) => Record<string, any>
-  }
-
-  transformResponse?: (response: any) => Promise<{
-    success: boolean
-    output: O
-    error?: string
-  }>
-}
-
-interface ToolRegistry {
-  [key: string]: Tool
-}
-
-export interface ResponseFormatStreamProcessor {
-  processStream(
-    originalStream: ReadableStream,
-    blockId: string,
-    selectedOutputs: string[],
-    responseFormat?: any
-  ): ReadableStream
 }

@@ -1,15 +1,20 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Plus } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { generateSlug, isAdminOrOwner, type Member } from '@/lib/workspaces/organization'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   NoOrganizationView,
@@ -35,25 +40,40 @@ const logger = createLogger('TeamManagement')
 
 interface TeamManagementProps {
   organizationId: string
+  canInviteMembers?: boolean
   /**
-   * Required: organization billing is reached only through a workspace, so the
-   * caller — which knows the workspace — is the only thing that can build it.
+   * The caller owns navigation so the same panel works in organization and
+   * legacy workspace settings.
    */
   billingHref: string
 }
 
-export function TeamManagement({ organizationId, billingHref }: TeamManagementProps) {
+export function TeamManagement({
+  organizationId,
+  billingHref,
+  canInviteMembers,
+}: TeamManagementProps) {
   const { data: session } = useSession()
+  const { billingEnabled } = useDeploymentShape()
   const { isInvitationsDisabled } = usePermissionConfig()
+  const invitationsDisabled =
+    canInviteMembers === undefined ? isInvitationsDisabled : !canInviteMembers
   const [memberQuery, setMemberQuery] = useSettingsSearch()
 
-  const { data: organization, isLoading, error: orgError } = useOrganization(organizationId)
+  const {
+    data: organization,
+    isLoading,
+    error: orgError,
+    isFetchedAfterMount: isOrganizationFetchedAfterMount,
+    isFetching: isOrganizationFetching,
+    refetch: refetchOrganization,
+  } = useOrganization(organizationId)
   /**
    * Personal billing only supports the legacy missing-organization recovery view. A valid
    * organization page derives its plan from organization billing, so avoid that unrelated read
    * on the normal first paint.
    */
-  const shouldLoadRecoverySubscription = !isLoading && !orgError && !organization
+  const shouldLoadRecoverySubscription = billingEnabled && !isLoading && !orgError && !organization
   const { data: userSubscriptionData, isPending: isRecoverySubscriptionPending } =
     useSubscriptionData({
       enabled: shouldLoadRecoverySubscription,
@@ -64,12 +84,23 @@ export function TeamManagement({ organizationId, billingHref }: TeamManagementPr
 
   const adminOrOwner = isAdminOrOwner(organization, session?.user?.email)
 
-  const { data: organizationBillingData, isLoading: isOrgBillingLoading } = useOrganizationBilling(
-    organizationId,
-    { enabled: adminOrOwner }
-  )
+  const {
+    data: organizationBillingData,
+    isLoading: isOrgBillingLoading,
+    error: organizationBillingError,
+    isFetchedAfterMount: isOrganizationBillingFetchedAfterMount,
+    isFetching: isOrganizationBillingFetching,
+    refetch: refetchOrganizationBilling,
+  } = useOrganizationBilling(organizationId, { enabled: billingEnabled && adminOrOwner })
 
-  const { data: roster, isLoading: isLoadingRoster } = useOrganizationRoster(organizationId)
+  const {
+    data: roster,
+    isLoading: isLoadingRoster,
+    error: rosterError,
+    isFetchedAfterMount: isRosterFetchedAfterMount,
+    isFetching: isRosterFetching,
+    refetch: refetchRoster,
+  } = useOrganizationRoster(organizationId)
 
   const removeMemberMutation = useRemoveMember()
   const transferOwnershipMutation = useTransferOwnership()
@@ -119,7 +150,7 @@ export function TeamManagement({ organizationId, billingHref }: TeamManagementPr
    * `client.subscription.list`, which does not reliably surface org-scoped
    * subscriptions.
    */
-  const orgBilling = organizationBillingData?.data ?? null
+  const orgBilling = billingEnabled ? (organizationBillingData?.data ?? null) : null
   const orgSubscription = orgBilling
     ? {
         id: orgBilling.organizationId,
@@ -137,13 +168,13 @@ export function TeamManagement({ organizationId, billingHref }: TeamManagementPr
     }
   }, [hasTeamPlan, hasEnterprisePlan, session?.user?.name, orgName])
 
-  const handleOrgNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleOrgNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newName = e.target.value
     setOrgName(newName)
     setOrgSlug(generateSlug(newName))
-  }, [])
+  }
 
-  const handleCreateOrganization = useCallback(async () => {
+  const handleCreateOrganization = async () => {
     if (!session?.user || !orgName.trim()) return
 
     try {
@@ -158,34 +189,31 @@ export function TeamManagement({ organizationId, billingHref }: TeamManagementPr
     } catch (error) {
       logger.error('Failed to create organization', error)
     }
-  }, [orgName, orgSlug, createOrgMutation, session?.user])
+  }
 
-  const handleRemoveMember = useCallback(
-    async (member: Member) => {
-      if (!session?.user) return
+  const handleRemoveMember = async (member: Member) => {
+    if (!session?.user) return
 
-      if (!member.user?.id) {
-        logger.error('Member object missing user ID', { member })
-        return
-      }
+    if (!member.user?.id) {
+      logger.error('Member object missing user ID', { member })
+      return
+    }
 
-      const isLeavingSelf = member.user?.email === session.user.email
-      const displayName = isLeavingSelf
-        ? 'yourself'
-        : member.user?.name || member.user?.email || 'this member'
+    const isLeavingSelf = member.user?.email === session.user.email
+    const displayName = isLeavingSelf
+      ? 'yourself'
+      : member.user?.name || member.user?.email || 'this member'
 
-      setRemoveMemberDialog({
-        open: true,
-        memberId: member.user.id,
-        memberName: displayName,
-        isSelfRemoval: isLeavingSelf,
-        isExternalRemoval: member.role === 'external',
-      })
-    },
-    [session?.user]
-  )
+    setRemoveMemberDialog({
+      open: true,
+      memberId: member.user.id,
+      memberName: displayName,
+      isSelfRemoval: isLeavingSelf,
+      isExternalRemoval: member.role === 'external',
+    })
+  }
 
-  const confirmRemoveMember = useCallback(async () => {
+  const confirmRemoveMember = async () => {
     const { memberId, isSelfRemoval } = removeMemberDialog
     if (!session?.user || !memberId) return
 
@@ -203,65 +231,53 @@ export function TeamManagement({ organizationId, billingHref }: TeamManagementPr
       })
 
       if (isSelfRemoval) {
-        window.location.href = '/workspace'
+        window.location.href = APP_ENTRY_PATH
       }
     } catch (error) {
       logger.error('Failed to remove member', error)
     }
-  }, [
-    removeMemberDialog.memberId,
-    removeMemberDialog.isSelfRemoval,
-    session?.user?.id,
-    organizationId,
-    removeMemberMutation,
-  ])
+  }
 
-  const handleTransferDialogOpenChange = useCallback(
-    (next: boolean) => {
-      setTransferDialogOpen(next)
-      if (!next) {
-        transferOwnershipMutation.reset()
-        setTransferPortalError(null)
-      }
-    },
-    [transferOwnershipMutation]
-  )
+  const handleTransferDialogOpenChange = (next: boolean) => {
+    setTransferDialogOpen(next)
+    if (!next) {
+      transferOwnershipMutation.reset()
+      setTransferPortalError(null)
+    }
+  }
 
-  const handleOpenTransferDialog = useCallback(() => {
+  const handleOpenTransferDialog = () => {
     transferOwnershipMutation.reset()
     setTransferPortalError(null)
     setTransferDialogOpen(true)
-  }, [transferOwnershipMutation])
+  }
 
-  const handleConfirmTransfer = useCallback(
-    async (newOwnerUserId: string) => {
-      try {
-        const result = await transferOwnershipMutation.mutateAsync({
-          orgId: organizationId,
-          newOwnerUserId,
-          alsoLeave: true,
-        })
+  const handleConfirmTransfer = async (newOwnerUserId: string) => {
+    try {
+      const result = await transferOwnershipMutation.mutateAsync({
+        orgId: organizationId,
+        newOwnerUserId,
+        alsoLeave: true,
+      })
 
-        setTransferDialogOpen(false)
+      setTransferDialogOpen(false)
 
-        if (result.left) {
-          window.location.href = '/workspace'
-        }
-      } catch (error) {
-        logger.error('Failed to transfer ownership', error)
+      if (result.left) {
+        window.location.href = APP_ENTRY_PATH
       }
-    },
-    [organizationId, transferOwnershipMutation]
-  )
+    } catch (error) {
+      logger.error('Failed to transfer ownership', error)
+    }
+  }
 
-  const handleOpenTransferBillingPortal = useCallback(() => {
+  const handleOpenTransferBillingPortal = () => {
     setTransferPortalError(null)
     const portalWindow = window.open('', '_blank')
     openBillingPortal.mutate(
       {
         context: 'organization',
         organizationId,
-        returnUrl: `${getBaseUrl()}/workspace`,
+        returnUrl: `${getBaseUrl()}${APP_ENTRY_PATH}`,
       },
       {
         onSuccess: (data) => {
@@ -280,20 +296,26 @@ export function TeamManagement({ organizationId, billingHref }: TeamManagementPr
         },
       }
     )
-  }, [organizationId, openBillingPortal])
+  }
 
   const displayOrganization = organization
 
-  if (isLoading && !displayOrganization) {
+  if (isLoading && !isOrganizationFetchedAfterMount && !displayOrganization) {
     return null
   }
 
-  if (orgError && !displayOrganization) {
+  if (
+    (orgError || (isOrganizationFetching && isOrganizationFetchedAfterMount)) &&
+    !displayOrganization
+  ) {
     return (
       <SettingsPanel>
-        <SettingsEmptyState tone='error'>
-          {getErrorMessage(orgError, 'Failed to load organization')}
-        </SettingsEmptyState>
+        <SettingsQueryErrorState
+          error={orgError}
+          fallback='Failed to load organization'
+          isRetrying={isOrganizationFetching}
+          onRetry={() => void refetchOrganization()}
+        />
       </SettingsPanel>
     )
   }
@@ -340,34 +362,59 @@ export function TeamManagement({ organizationId, billingHref }: TeamManagementPr
                   icon: Plus,
                   variant: 'primary',
                   onSelect: () => setInviteModalOpen(true),
-                  disabled: isInvitationsDisabled,
-                  tooltip: isInvitationsDisabled ? 'Invitations are disabled' : undefined,
+                  disabled: invitationsDisabled,
+                  tooltip: invitationsDisabled ? 'Invitations are disabled' : undefined,
                 },
               ]
             : []
         }
       >
-        {adminOrOwner && (
-          <TeamSeatsOverview
-            billingHref={billingHref}
-            subscriptionData={orgSubscription}
-            isLoadingSubscription={isOrgBillingLoading}
-            totalSeats={totalSeats}
-            usedSeats={usedSeats}
-            pendingSeats={pendingSeats}
+        {billingEnabled &&
+          adminOrOwner &&
+          ((organizationBillingError ||
+            (isOrganizationBillingFetching && isOrganizationBillingFetchedAfterMount)) &&
+          organizationBillingData === undefined ? (
+            <SettingsQueryErrorState
+              error={organizationBillingError}
+              fallback='Failed to load seat information'
+              isRetrying={isOrganizationBillingFetching}
+              onRetry={() => void refetchOrganizationBilling()}
+              variant='inline'
+            />
+          ) : (
+            <TeamSeatsOverview
+              billingHref={billingHref}
+              subscriptionData={orgSubscription}
+              isLoadingSubscription={isOrgBillingLoading}
+              totalSeats={totalSeats}
+              usedSeats={usedSeats}
+              pendingSeats={pendingSeats}
+            />
+          ))}
+
+        {isLoadingRoster && !isRosterFetchedAfterMount ? (
+          <SettingsEmptyState variant='inline'>Loading members…</SettingsEmptyState>
+        ) : (rosterError || (isRosterFetching && isRosterFetchedAfterMount)) &&
+          roster === undefined ? (
+          <SettingsQueryErrorState
+            error={rosterError}
+            fallback='Failed to load organization members'
+            isRetrying={isRosterFetching}
+            onRetry={() => void refetchRoster()}
+            variant='inline'
+          />
+        ) : (
+          <OrganizationMemberLists
+            canManage={adminOrOwner}
+            organizationId={displayOrganization.id}
+            roster={roster ?? null}
+            isLoadingRoster={false}
+            currentUserId={session?.user?.id ?? ''}
+            query={memberQuery}
+            onRemoveMember={handleRemoveMember}
+            onTransferOwnership={handleOpenTransferDialog}
           />
         )}
-
-        <OrganizationMemberLists
-          canManage={adminOrOwner}
-          organizationId={displayOrganization.id}
-          roster={roster ?? null}
-          isLoadingRoster={isLoadingRoster}
-          currentUserId={session?.user?.id ?? ''}
-          query={memberQuery}
-          onRemoveMember={handleRemoveMember}
-          onTransferOwnership={handleOpenTransferDialog}
-        />
       </SettingsPanel>
 
       {adminOrOwner && (
@@ -375,7 +422,8 @@ export function TeamManagement({ organizationId, billingHref }: TeamManagementPr
           open={inviteModalOpen}
           onOpenChange={setInviteModalOpen}
           organizationId={displayOrganization.id}
-          canInvite={adminOrOwner}
+          isOrganizationAdmin={adminOrOwner}
+          canInvite={adminOrOwner && !invitationsDisabled}
         />
       )}
 

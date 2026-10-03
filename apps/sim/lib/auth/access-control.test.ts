@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, resetEnvMock, setEnv, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AccessControlConfig } from '@/lib/auth/access-control'
@@ -46,7 +43,6 @@ afterAll(() => {
 
 describe('getAccessControlConfig', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isAppConfigEnabled: false })
     setEnv({
       BLOCKED_SIGNUP_DOMAINS: undefined,

@@ -70,7 +70,7 @@ export function BYOKProviderKeysModal({
                 />
               </div>
               {(capabilities.update || capabilities.delete) && (
-                <div className='flex flex-shrink-0 items-center gap-2'>
+                <div className='flex shrink-0 items-center gap-2'>
                   {capabilities.update && <Chip onClick={() => onUpdateKey(key)}>Update</Chip>}
                   {capabilities.delete && <Chip onClick={() => onDeleteKey(key)}>Delete</Chip>}
                 </div>

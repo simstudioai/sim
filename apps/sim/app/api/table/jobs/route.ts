@@ -2,9 +2,10 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { listTableJobsContract } from '@/lib/api/contracts/tables'
 import { parseRequest } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { capabilityGovernedAuthUserId, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { listWorkspaceExportJobs } from '@/lib/table/jobs/service'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -34,6 +35,26 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const { hasAccess } = await checkWorkspaceAccess(workspaceId, authResult.userId)
   if (!hasAccess) {
     return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+  }
+
+  /**
+   * permission-group-enforced: tables.export — this listing is exports and
+   * nothing else, and each row names a `jobId` that resolves to a finished
+   * export file. Withheld as an empty list rather than a refusal: the caller has
+   * no exports they may act on, and erroring the tray would report a failure
+   * where the honest answer is that there is nothing to show.
+   *
+   * Keyed to the governed subject, which names nobody for an internal-JWT
+   * executor call: `authResult.userId` there is the subject the executor
+   * embedded, so reading it bare would hand the run's actor's group to a caller
+   * the executor exemption deliberately passes ungated.
+   */
+  const governedUserId = capabilityGovernedAuthUserId(authResult)
+  if (
+    governedUserId &&
+    (await isWorkspaceCapabilityWithheld(governedUserId, workspaceId, 'tables.export'))
+  ) {
+    return NextResponse.json({ success: true, data: { jobs: [] } })
   }
 
   const jobs = await listWorkspaceExportJobs(workspaceId)

@@ -1,6 +1,5 @@
 import { ProspeoIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { ProspeoResponse } from '@/tools/prospeo/types'
 
 const PERSON_IDENTITY_FIELD = [
   'full_name',
@@ -25,7 +24,7 @@ const COMPANY_IDENTITY_FIELD = [
 
 const SUGGESTION_QUERY_FIELD = ['location_search', 'job_title_search'] as const
 
-export const ProspeoBlock: BlockConfig<ProspeoResponse> = {
+export const ProspeoBlock: BlockConfig = {
   type: 'prospeo',
   name: 'Prospeo',
   description: 'Enrich and search B2B contacts and companies',

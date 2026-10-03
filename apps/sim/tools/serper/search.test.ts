@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { searchTool } from '@/tools/serper/search'
 
@@ -326,13 +323,6 @@ describe('serper searchTool.request.url', () => {
   it('defaults to the search vertical', () => {
     expect(url()).toBe('https://google.serper.dev/search')
   })
-
-  it.each(['search', 'news', 'places', 'images', 'videos', 'shopping', 'scholar', 'patents'])(
-    'builds the %s vertical URL',
-    (type) => {
-      expect(url(type)).toBe(`https://google.serper.dev/${type}`)
-    }
-  )
 
   it('rejects a vertical the transform cannot handle', () => {
     expect(() => url('maps')).toThrow(

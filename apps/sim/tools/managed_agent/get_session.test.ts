@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeManagedAgentGetSessionOperation } from '@/lib/internal/managed-agent/operations/get-session'
 
 const SESSION_INPUT = {
@@ -16,10 +13,6 @@ describe('managed_agent_get_session', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     vi.stubGlobal('fetch', fetchMock)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('does not expose a stale requires-action gate after the session resumes', async () => {

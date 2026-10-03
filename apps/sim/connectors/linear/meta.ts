@@ -18,6 +18,7 @@ export const linearConnectorMeta: ConnectorMeta = {
    */
   supportsIncrementalSync: true,
 
+  permissionScopedListing: { capFieldIds: ['maxIssues'] },
   configFields: [
     {
       id: 'teamSelector',
