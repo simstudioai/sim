@@ -174,20 +174,6 @@ interface ZepThread {
 }
 
 /**
- * User object interface for type safety.
- */
-interface ZepUser {
-  userId: string
-  email?: string
-  firstName?: string
-  lastName?: string
-  uuid?: string
-  createdAt?: string
-  updatedAt?: string
-  metadata?: Record<string, unknown>
-}
-
-/**
  * Message object interface for type safety.
  */
 interface ZepMessage {

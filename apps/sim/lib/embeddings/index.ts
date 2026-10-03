@@ -11,6 +11,7 @@ export {
   toOllamaEmbeddingModelId,
 } from '@/lib/embeddings/catalog'
 export {
+  assertKnowledgeEmbeddingCapacity,
   BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE,
   EMBEDDING_QUOTA_EXHAUSTED_MESSAGE,
   EmbeddingOutputLimitError,
@@ -19,6 +20,7 @@ export {
   embedOpenRouter,
   getEmbeddingAggregateItemLimit,
   isBYOKEmbeddingCredentialRejection,
+  isBYOKEmbeddingQuotaExhaustion,
   isEmbeddingQuotaExhaustion,
 } from '@/lib/embeddings/client'
 export { DEFAULT_OPENROUTER_EMBEDDING_MODEL } from '@/lib/embeddings/openrouter-models'

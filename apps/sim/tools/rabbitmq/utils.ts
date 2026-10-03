@@ -1,4 +1,5 @@
 import { isLoopbackIp } from '@sim/security/ssrf'
+import { toBooleanOrNull, toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
 import { toRecord } from '@sim/utils/object'
 import type {
   RabbitmqBinding,
@@ -283,18 +284,6 @@ export function unwrapPaginated<T>(data: unknown): PaginatedResult<T> {
   }
 }
 
-function asNumberOrNull(value: unknown): number | null {
-  return typeof value === 'number' ? value : null
-}
-
-function asStringOrNull(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
-}
-
-function asBooleanOrNull(value: unknown): boolean | null {
-  return typeof value === 'boolean' ? value : null
-}
-
 /**
  * Fields requested from list endpoints via the `columns` query parameter. A full queue record
  * carries per-queue statistics, consumer details, and garbage-collection blobs that this
@@ -338,19 +327,19 @@ export function projectQueue(raw: unknown): RabbitmqQueue {
   return {
     name: String(queue.name ?? ''),
     vhost: String(queue.vhost ?? ''),
-    type: asStringOrNull(queue.type),
-    state: asStringOrNull(queue.state),
-    durable: asBooleanOrNull(queue.durable),
-    autoDelete: asBooleanOrNull(queue.auto_delete),
-    exclusive: asBooleanOrNull(queue.exclusive),
-    node: asStringOrNull(queue.node),
-    policy: asStringOrNull(queue.policy),
+    type: toStringOrNull(queue.type),
+    state: toStringOrNull(queue.state),
+    durable: toBooleanOrNull(queue.durable),
+    autoDelete: toBooleanOrNull(queue.auto_delete),
+    exclusive: toBooleanOrNull(queue.exclusive),
+    node: toStringOrNull(queue.node),
+    policy: toStringOrNull(queue.policy),
     arguments: toRecord(queue.arguments),
-    messages: asNumberOrNull(queue.messages),
-    messagesReady: asNumberOrNull(queue.messages_ready),
-    messagesUnacknowledged: asNumberOrNull(queue.messages_unacknowledged),
-    consumers: asNumberOrNull(queue.consumers),
-    memory: asNumberOrNull(queue.memory),
+    messages: toNumberOrNull(queue.messages),
+    messagesReady: toNumberOrNull(queue.messages_ready),
+    messagesUnacknowledged: toNumberOrNull(queue.messages_unacknowledged),
+    consumers: toNumberOrNull(queue.consumers),
+    memory: toNumberOrNull(queue.memory),
   }
 }
 
@@ -521,13 +510,13 @@ export function projectVhost(raw: unknown): RabbitmqVhost {
   const vhost = toRecord(raw)
   return {
     name: String(vhost.name ?? ''),
-    description: asStringOrNull(vhost.description),
+    description: toStringOrNull(vhost.description),
     tags: Array.isArray(vhost.tags) ? (vhost.tags as string[]) : [],
-    defaultQueueType: asStringOrNull(vhost.default_queue_type),
+    defaultQueueType: toStringOrNull(vhost.default_queue_type),
     tracing: vhost.tracing === true,
-    messages: asNumberOrNull(vhost.messages),
-    messagesReady: asNumberOrNull(vhost.messages_ready),
-    messagesUnacknowledged: asNumberOrNull(vhost.messages_unacknowledged),
+    messages: toNumberOrNull(vhost.messages),
+    messagesReady: toNumberOrNull(vhost.messages_ready),
+    messagesUnacknowledged: toNumberOrNull(vhost.messages_unacknowledged),
     clusterState: toRecord(vhost.cluster_state),
   }
 }
@@ -538,13 +527,13 @@ export function projectConnection(raw: unknown): RabbitmqConnection {
     name: String(connection.name ?? ''),
     user: String(connection.user ?? ''),
     vhost: String(connection.vhost ?? ''),
-    state: asStringOrNull(connection.state),
-    protocol: asStringOrNull(connection.protocol),
-    node: asStringOrNull(connection.node),
-    channels: asNumberOrNull(connection.channels),
-    peerHost: asStringOrNull(connection.peer_host),
-    peerPort: asNumberOrNull(connection.peer_port),
-    connectedAt: asNumberOrNull(connection.connected_at),
+    state: toStringOrNull(connection.state),
+    protocol: toStringOrNull(connection.protocol),
+    node: toStringOrNull(connection.node),
+    channels: toNumberOrNull(connection.channels),
+    peerHost: toStringOrNull(connection.peer_host),
+    peerPort: toNumberOrNull(connection.peer_port),
+    connectedAt: toNumberOrNull(connection.connected_at),
     ssl: connection.ssl === true,
   }
 }
@@ -554,16 +543,16 @@ export function projectChannel(raw: unknown): RabbitmqChannel {
   const connectionDetails = toRecord(channel.connection_details)
   return {
     name: String(channel.name ?? ''),
-    number: asNumberOrNull(channel.number),
+    number: toNumberOrNull(channel.number),
     user: String(channel.user ?? ''),
     vhost: String(channel.vhost ?? ''),
-    node: asStringOrNull(channel.node),
-    state: asStringOrNull(channel.state),
-    consumerCount: asNumberOrNull(channel.consumer_count),
-    prefetchCount: asNumberOrNull(channel.prefetch_count),
-    messagesUnacknowledged: asNumberOrNull(channel.messages_unacknowledged),
+    node: toStringOrNull(channel.node),
+    state: toStringOrNull(channel.state),
+    consumerCount: toNumberOrNull(channel.consumer_count),
+    prefetchCount: toNumberOrNull(channel.prefetch_count),
+    messagesUnacknowledged: toNumberOrNull(channel.messages_unacknowledged),
     confirm: channel.confirm === true,
-    connectionName: asStringOrNull(connectionDetails.name),
+    connectionName: toStringOrNull(connectionDetails.name),
   }
 }
 
@@ -577,11 +566,11 @@ export function projectConsumer(raw: unknown): RabbitmqConsumer {
     vhost: String(queue.vhost ?? ''),
     ackRequired: consumer.ack_required === true,
     active: consumer.active === true,
-    activityStatus: asStringOrNull(consumer.activity_status),
+    activityStatus: toStringOrNull(consumer.activity_status),
     exclusive: consumer.exclusive === true,
-    prefetchCount: asNumberOrNull(consumer.prefetch_count),
-    channelName: asStringOrNull(channelDetails.name),
-    connectionName: asStringOrNull(channelDetails.connection_name),
+    prefetchCount: toNumberOrNull(consumer.prefetch_count),
+    channelName: toStringOrNull(channelDetails.name),
+    connectionName: toStringOrNull(channelDetails.connection_name),
   }
 }
 
@@ -589,19 +578,19 @@ export function projectNode(raw: unknown): RabbitmqNode {
   const node = toRecord(raw)
   return {
     name: String(node.name ?? ''),
-    type: asStringOrNull(node.type),
+    type: toStringOrNull(node.type),
     running: node.running === true,
-    memUsed: asNumberOrNull(node.mem_used),
-    memLimit: asNumberOrNull(node.mem_limit),
+    memUsed: toNumberOrNull(node.mem_used),
+    memLimit: toNumberOrNull(node.mem_limit),
     memAlarm: node.mem_alarm === true,
-    diskFree: asNumberOrNull(node.disk_free),
-    diskFreeLimit: asNumberOrNull(node.disk_free_limit),
+    diskFree: toNumberOrNull(node.disk_free),
+    diskFreeLimit: toNumberOrNull(node.disk_free_limit),
     diskFreeAlarm: node.disk_free_alarm === true,
-    fdUsed: asNumberOrNull(node.fd_used),
-    fdTotal: asNumberOrNull(node.fd_total),
-    procUsed: asNumberOrNull(node.proc_used),
-    procTotal: asNumberOrNull(node.proc_total),
-    uptime: asNumberOrNull(node.uptime),
+    fdUsed: toNumberOrNull(node.fd_used),
+    fdTotal: toNumberOrNull(node.fd_total),
+    procUsed: toNumberOrNull(node.proc_used),
+    procTotal: toNumberOrNull(node.proc_total),
+    uptime: toNumberOrNull(node.uptime),
     partitions: Array.isArray(node.partitions) ? (node.partitions as string[]) : [],
     beingDrained: node.being_drained === true,
   }
@@ -613,8 +602,8 @@ export function projectPolicy(raw: unknown): RabbitmqPolicy {
     name: String(policy.name ?? ''),
     vhost: String(policy.vhost ?? ''),
     pattern: String(policy.pattern ?? ''),
-    applyTo: asStringOrNull(policy['apply-to']),
-    priority: asNumberOrNull(policy.priority),
+    applyTo: toStringOrNull(policy['apply-to']),
+    priority: toNumberOrNull(policy.priority),
     definition: toRecord(policy.definition),
   }
 }

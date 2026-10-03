@@ -11,16 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[LinkedIn](https://www.linkedin.com) is the world’s largest professional networking platform, empowering users to build their careers, connect with their network, and share professional content. LinkedIn is widely used by professionals across industries for personal branding, recruiting, job search, and business development.
-
-With LinkedIn, you can easily share posts to your personal feed to engage with your network, and access information about your profile to highlight your professional achievements. Automated integration with Sim allows you to leverage LinkedIn functionality programmatically—enabling agents and workflows to post updates, report on your professional presence, and keep your feed active without manual effort.
-
-Key LinkedIn features available through this integration include:
-
-- **Share Posts:** Automatically publish professional updates, articles, or announcements to your LinkedIn personal feed.
-- **Profile Information:** Retrieve detailed information about your LinkedIn profile to monitor or use in downstream tasks within your workflows.
-
-These capabilities make it easy to keep your LinkedIn network engaged and to extend your professional reach efficiently as part of your AI or workflow automation strategy.
+Use [LinkedIn](https://www.linkedin.com) to publish to your personal feed and retrieve your profile information from a workflow.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -69,5 +60,21 @@ Retrieve your LinkedIn profile information
 | `postId` | string | Created post ID |
 | `profile` | json | LinkedIn profile information |
 | `error` | string | Error message if operation failed |
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a LinkedIn account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/linkedin` |
+| Environment variables | `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `profile` | Access profile information |
+| `openid` | Standard authentication |
+| `email` | Access email address |
+| `w_member_social` | Post, comment, and like posts on your behalf |
 
 

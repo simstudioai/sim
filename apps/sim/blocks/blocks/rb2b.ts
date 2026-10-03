@@ -1,7 +1,6 @@
 import { RB2BIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { Rb2bResponse } from '@/tools/rb2b/types'
 
 const EMAIL_OPERATIONS = [
   'hem_to_business_profile',
@@ -20,7 +19,7 @@ const LINKEDIN_OPERATIONS = [
 
 const IP_OPERATIONS = ['ip_to_hem', 'ip_to_maid', 'ip_to_company']
 
-export const RB2BBlock: BlockConfig<Rb2bResponse> = {
+export const RB2BBlock: BlockConfig = {
   type: 'rb2b',
   name: 'RB2B',
   description: 'Identify and enrich website visitors',

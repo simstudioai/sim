@@ -1,13 +1,18 @@
 import { createLogger } from '@sim/logger'
 import { AuthType } from '@/lib/auth/hybrid'
-import type { CopilotExecutionContext } from '@/lib/copilot/auth/application-delegation'
 import { createCopilotManagedOAuthPrincipal } from '@/lib/credentials/application/copilot-managed-oauth-delegation'
 import { bindExecutorManagedOAuthDelegation } from '@/lib/credentials/application/managed-oauth-delegation'
+import { authorizePersonalCredential } from '@/lib/credentials/application/personal-credentials'
+import { executeCopilotCredentialUseCase } from '@/lib/mothership/application/execute-credential-use-case'
+import { resolveCopilotOrganizationPersonalToken } from '@/lib/mothership/application/resolve-organization-personal-token'
+import { projectAssistantConnectedAccountTool } from '@/lib/mothership/assistant/connected-account-tool'
+import type { CopilotExecutionContext } from '@/lib/mothership/auth/application-delegation'
 import {
   type CredentialTokenPayload,
   resolveCredentialAccessToken,
 } from '@/lib/oauth/token-resolution'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
+import { getToolMetadata } from '@/tools/metadata'
 
 const logger = createLogger('ExecutorCredentialToken')
 
@@ -52,6 +57,38 @@ export async function resolveExecutorCredentialToken(
     executorDelegationOrigin,
     copilotExecutionContext,
   } = params
+
+  if (copilotExecutionContext?.requestMode === 'assistant') {
+    if (!userId || userId !== copilotExecutionContext.userId || executorDelegationOrigin) {
+      throw new Error('Assistant credential use requires the authenticated person for this turn.')
+    }
+    const original = toolId ? getToolMetadata(toolId) : undefined
+    const tool = original ? projectAssistantConnectedAccountTool(original) : undefined
+    if (
+      !tool?.oauth?.required ||
+      (!copilotExecutionContext.workspaceId && !copilotExecutionContext.organizationId) ||
+      params.impersonateEmail
+    ) {
+      throw new Error(
+        'Assistant requires your own connected account and cannot impersonate another user.'
+      )
+    }
+    if (copilotExecutionContext.organizationId) {
+      return resolveCopilotOrganizationPersonalToken(copilotExecutionContext, {
+        credentialId,
+        expectedProviderId: tool.oauth.provider,
+        requiredScopes: params.scopes ?? [],
+        toolId: tool.id,
+      })
+    }
+    if (!copilotExecutionContext.workspaceId)
+      throw new Error('Workspace credential scope is required')
+    await executeCopilotCredentialUseCase(copilotExecutionContext, authorizePersonalCredential, {
+      workspaceId: copilotExecutionContext.workspaceId,
+      credentialId,
+      expectedProviderId: tool.oauth.provider,
+    })
+  }
 
   if (executorDelegationOrigin && !executorDelegationOrigin.currentWorkflow) {
     throw new Error('Managed credential delegation is missing current workflow authority')

@@ -29,7 +29,7 @@ function getEncoding(modelName: string): Tiktoken {
     const encoding = encodingForModel(modelName as Parameters<typeof encodingForModel>[0])
     encodingCache.set(modelName, encoding)
     return encoding
-  } catch (error) {
+  } catch {
     logger.warn(`Failed to get encoding for model ${modelName}, falling back to cl100k_base`)
     const encoding = encodingForModel('gpt-4')
     encodingCache.set(modelName, encoding)

@@ -461,23 +461,34 @@ function checkCoherence(ctx: CheckContext): Finding[] {
     })
   }
 
-  const featureRules: Array<{ flag: string; needs: string[]; label: string }> = [
+  const featureRules: Array<{
+    flag: string
+    needs: string[]
+    label: string
+    disableFields?: string[]
+  }> = [
     {
       flag: 'BILLING_ENABLED',
       needs: ['STRIPE_SECRET_KEY'],
       label: 'billing',
     },
+    {
+      flag: 'SLACK_EXTENDED_SCOPES',
+      needs: ['SLACK_SIGNING_SECRET'],
+      label: 'native Slack triggers',
+      disableFields: ['SLACK_EXTENDED_SCOPES', 'NEXT_PUBLIC_SLACK_EXTENDED_SCOPES'],
+    },
     { flag: 'SSO_ENABLED', needs: ['SSO_ISSUER'], label: 'SSO' },
   ]
   for (const rule of featureRules) {
     if (!isTruthy(sim.vars.get(rule.flag))) continue
-    const missing = rule.needs.filter((key) => !sim.vars.get(key))
+    const missing = rule.needs.filter((key) => !sim.vars.get(key)?.trim())
     if (missing.length > 0) {
       findings.push({
         group: 'coherence',
         status: 'fail',
         message: `${rule.flag} is on but ${missing.join(', ')} is not set — ${rule.label} will fail at runtime`,
-        fix: `set ${missing.join(', ')} or remove ${rule.flag}`,
+        fix: `set ${missing.join(', ')} or remove ${(rule.disableFields ?? [rule.flag]).join(' and ')}`,
       })
     }
   }

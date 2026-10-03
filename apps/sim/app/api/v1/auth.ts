@@ -1,8 +1,11 @@
-import type { PersonalApiKeyPrincipal, WorkspaceApiKeyPrincipal } from '@sim/auth/principal'
+import {
+  ANONYMOUS_USER_ID,
+  type PersonalApiKeyPrincipal,
+  type WorkspaceApiKeyPrincipal,
+} from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
-import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { isAuthDisabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('V1Auth')

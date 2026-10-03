@@ -105,13 +105,13 @@ function buildRequest(provider, apiKey, query, numResults) {
   }
   if (provider === "parallel") {
     return {
-      url: "https://api.parallel.ai/v1beta/search",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "parallel-beta": "search-extract-2025-10-10",
+      url: "https://api.parallel.ai/v1/search",
+      headers: { "Content-Type": "application/json", "x-api-key": apiKey },
+      body: {
+        search_queries: [query],
+        objective: query,
+        advanced_settings: { max_results: numResults },
       },
-      body: { objective: query, max_results: numResults },
     }
   }
   if (provider === "firecrawl") {

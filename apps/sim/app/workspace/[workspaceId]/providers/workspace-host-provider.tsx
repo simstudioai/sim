@@ -1,27 +1,13 @@
 'use client'
 
-import { createContext, type ReactNode, useContext, useEffect, useState } from 'react'
+import { createContext, type ReactNode, useContext } from 'react'
 import { isApiClientError } from '@/lib/api/client/errors'
-import type { DeploymentShape, WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
-import { seedDeploymentShape } from '@/lib/core/config/deployment-shape'
+import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { WorkspaceAccessDenied } from '@/app/workspace/[workspaceId]/components/workspace-access-denied'
 import { useWorkspaceHostContextQuery } from '@/hooks/queries/workspace-host'
+import { useSeedDeploymentShape } from '@/hooks/use-seed-deployment-shape'
 
 const WorkspaceHostContextValue = createContext<WorkspaceHostContext | null>(null)
-
-/**
- * Seeds from the provider's own render, ahead of any child, so the first workspace
- * paint already reads the server value; the effect then follows the host context as
- * it refetches. The lazy initializer is React's once-per-mount hook for work that must
- * precede children. Lives here rather than with the reader because block definitions
- * import the reader into React Server Component graphs, where React hooks are rejected.
- */
-function useSeedDeploymentShape(shape: DeploymentShape | undefined): void {
-  useState(() => seedDeploymentShape(shape))
-  useEffect(() => {
-    seedDeploymentShape(shape)
-  }, [shape])
-}
 
 interface WorkspaceHostProviderProps {
   children: ReactNode

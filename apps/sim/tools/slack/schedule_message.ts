@@ -13,6 +13,7 @@ export const slackScheduleMessageTool: ToolConfig<
   oauth: {
     required: true,
     provider: 'slack',
+    requiredScopes: ['chat:write'],
   },
 
   params: {

@@ -106,6 +106,7 @@ interface PreparedCompute {
 async function prepareCompute(args: ExecuteServerSelectorArgs): Promise<PreparedCompute> {
   const access = args.credential?.access
   if (
+    !args.workspaceId ||
     !access?.resolvedCredentialId ||
     access.credentialType !== 'service_account' ||
     access.workspaceId !== args.workspaceId ||

@@ -2,7 +2,6 @@ import { Building, ListChecks, Search, Sprout, Trash, Users } from '@sim/emcn/ic
 import { CrunchbaseIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { CrunchbaseResponse } from '@/tools/crunchbase/types'
 import {
   CRUNCHBASE_CARD_COLLECTIONS,
   CRUNCHBASE_COLLECTIONS,
@@ -78,7 +77,7 @@ Use field_ids belonging to the collection being searched — organizations suppo
 
 Return ONLY the JSON array.`
 
-export const CrunchbaseBlock: BlockConfig<CrunchbaseResponse> = {
+export const CrunchbaseBlock: BlockConfig = {
   type: 'crunchbase',
   name: 'Crunchbase',
   description: 'Search and look up companies, people, funding rounds, and acquisitions',

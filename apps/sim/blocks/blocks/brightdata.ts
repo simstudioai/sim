@@ -1,9 +1,8 @@
 import { BrightDataIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { BrightDataResponse } from '@/tools/brightdata/types'
 
-export const BrightDataBlock: BlockConfig<BrightDataResponse> = {
+export const BrightDataBlock: BlockConfig = {
   type: 'brightdata',
   name: 'Bright Data',
   description: 'Scrape websites, search engines, and extract structured data',

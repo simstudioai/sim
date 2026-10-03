@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { RDSDataClient } from '@aws-sdk/client-rds-data'
 import { describe, expect, it, vi } from 'vitest'
 import { executeStatement } from '@/lib/internal/rds/client'

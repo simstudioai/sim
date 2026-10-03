@@ -323,7 +323,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
           <Button
             type='button'
             variant='ghost'
-            className='size-[14px] shrink-0 p-0 text-[var(--text-tertiary)] hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
+            className='size-[14px] shrink-0 p-0 text-[var(--text-tertiary)] hover-hover:bg-[var(--surface-4)]'
             onClick={(e) => {
               e.stopPropagation()
               onToggleExpand(id)
@@ -505,13 +505,14 @@ function DetailCodeSection({
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Button
+                      aria-label={copied ? 'Copied' : 'Copy'}
                       type='button'
                       variant='default'
                       onClick={(e) => {
                         e.stopPropagation()
                         handleCopy()
                       }}
-                      className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
+                      className='size-[20px] cursor-pointer border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
                     >
                       {copied ? (
                         <Check className='size-[10px] text-[var(--text-success)]' />
@@ -525,13 +526,14 @@ function DetailCodeSection({
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Button
+                      aria-label='Search'
                       type='button'
                       variant='default'
                       onClick={(e) => {
                         e.stopPropagation()
                         activateSearch()
                       }}
-                      className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
+                      className='size-[20px] cursor-pointer border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
                     >
                       <Search className='size-[10px]' />
                     </Button>
@@ -565,7 +567,7 @@ function DetailCodeSection({
               </span>
               <Button
                 variant='ghost'
-                className='p-1!'
+                iconPadding='sm'
                 onClick={goToPreviousMatch}
                 disabled={matchCount === 0}
                 aria-label='Previous match'
@@ -574,7 +576,7 @@ function DetailCodeSection({
               </Button>
               <Button
                 variant='ghost'
-                className='p-1!'
+                iconPadding='sm'
                 onClick={goToNextMatch}
                 disabled={matchCount === 0}
                 aria-label='Next match'
@@ -583,7 +585,7 @@ function DetailCodeSection({
               </Button>
               <Button
                 variant='ghost'
-                className='p-1!'
+                iconPadding='sm'
                 onClick={closeSearch}
                 aria-label='Close search'
               >
@@ -694,6 +696,9 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
   if (span.tries !== undefined) metaEntries.push({ label: 'Tries', value: String(span.tries) })
   if (span.provider) metaEntries.push({ label: 'Provider', value: span.provider })
   if (span.model) metaEntries.push({ label: 'Model', value: span.model })
+  for (const failedModel of span.modelFallbacks ?? []) {
+    metaEntries.push({ label: 'Failed model', value: failedModel })
+  }
   if (span.finishReason) metaEntries.push({ label: 'Finish reason', value: span.finishReason })
   const ttftFormatted = formatTtft(span.ttft)
   if (ttftFormatted) metaEntries.push({ label: 'TTFT', value: ttftFormatted })
@@ -1043,7 +1048,7 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
               <Button
                 type='button'
                 variant='ghost'
-                className='p-1!'
+                iconPadding='sm'
                 onClick={() => copyTrace(JSON.stringify(traceSpans, null, 2))}
                 aria-label='Copy raw trace'
               >
@@ -1063,7 +1068,7 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
               <Button
                 type='button'
                 variant='ghost'
-                className='p-1!'
+                iconPadding='sm'
                 onClick={() => setExpandedNodes(new Set(allIds))}
                 aria-label='Expand all'
               >
@@ -1077,7 +1082,7 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
               <Button
                 type='button'
                 variant='ghost'
-                className='p-1!'
+                iconPadding='sm'
                 onClick={() => setExpandedNodes(new Set())}
                 aria-label='Collapse all'
               >
