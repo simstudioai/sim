@@ -1,13 +1,17 @@
+import { cn } from '@sim/emcn'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import type { CompetitorProfile } from '@/lib/compare/data'
 import { simProfile } from '@/lib/compare/data'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { buildLandingMetadata } from '@/lib/landing/seo'
+import { LIBRARY_SECTION } from '@/lib/library/seo'
 import { COMPARISON_SECTIONS, getFactGroup } from '@/app/(landing)/comparisons/comparison-sections'
 import { BrandIconTile, SimIconTile } from '@/app/(landing)/comparisons/components/brand-icon-tile'
 import { ComparisonCards } from '@/app/(landing)/comparisons/components/comparison-cards'
 import { ComparisonTable } from '@/app/(landing)/comparisons/components/comparison-table'
+import { ProseText } from '@/app/(landing)/comparisons/components/prose-text'
+import { getLibraryPostsForCompetitor } from '@/app/(landing)/comparisons/library-links'
 import {
   ALL_COMPETITORS,
   buildBottomLine,
@@ -16,15 +20,16 @@ import {
   getLatestVerifiedDate,
   SIM_LATEST_VERIFIED,
 } from '@/app/(landing)/comparisons/utils'
-import { BackLink } from '@/app/(landing)/components'
-import { Cta } from '@/app/(landing)/components/cta/cta'
+import { BackLink, ContentRelatedPosts } from '@/app/(landing)/components'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
+import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
 
 const baseUrl = SITE_URL
 
 export const revalidate = 3600
-export const dynamicParams = false
+/** Unknown slugs reach the section 404 while known pages remain pre-rendered. */
+export const dynamicParams = true
 
 export async function generateStaticParams() {
   return ALL_COMPETITORS.map((competitor) => ({ provider: competitor.id }))
@@ -83,6 +88,7 @@ export default async function ComparisonProviderPage({
   }
 
   const faqs = buildComparisonFaqs(competitor)
+  const relatedPosts = await getLibraryPostsForCompetitor(competitor)
   const verdict = buildBottomLine(competitor)
   const CompetitorIcon = competitor.brand?.icon
 
@@ -161,7 +167,7 @@ export default async function ComparisonProviderPage({
       <JsonLd data={faqJsonLd} />
 
       <main id='main-content' className='bg-[var(--bg)]'>
-        <div className='mx-auto w-full max-w-[1446px] px-12 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
+        <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER, 'pt-[112px] max-sm:pt-20')}>
           <div className='mb-6'>
             <BackLink href='/comparisons' label='Back to comparisons' />
           </div>
@@ -173,6 +179,11 @@ export default async function ComparisonProviderPage({
             >
               Sim vs {competitor.name}
             </h1>
+            {competitor.leadAnswer ? (
+              <p className='max-w-[720px] text-[var(--text-body)] text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
+                <ProseText prose={competitor.leadAnswer} />
+              </p>
+            ) : null}
             <p className='max-w-[720px] text-[var(--text-muted)] text-sm leading-[150%] tracking-[0.02em] lg:text-base'>
               Sim is the open-source AI workspace where teams build, deploy, and manage AI agents
               visually, conversationally, or with code. Here is how Sim compares to{' '}
@@ -199,8 +210,24 @@ export default async function ComparisonProviderPage({
 
         <div className='mt-8 h-px w-full bg-[var(--border)]' />
 
-        <div className='mx-auto w-full max-w-[1446px]'>
-          <div className='mx-12 border-[var(--border)] border-x max-sm:mx-5 max-lg:mx-8'>
+        <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
+          <div className='border-[var(--border)] border-x'>
+            {competitor.betterThanAnswer ? (
+              <>
+                <section aria-labelledby='better-than-heading' className='px-6 py-10'>
+                  <h2
+                    id='better-than-heading'
+                    className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em] lg:text-2xl'
+                  >
+                    Is Sim better than {competitor.name}?
+                  </h2>
+                  <p className='max-w-[720px] text-[var(--text-body)] text-small leading-[150%]'>
+                    <ProseText prose={competitor.betterThanAnswer} />
+                  </p>
+                </section>
+                <div className='h-px w-full bg-[var(--border)]' />
+              </>
+            ) : null}
             <div className='grid grid-cols-1 sm:grid-cols-2'>
               <section
                 aria-labelledby='what-is-sim-heading'
@@ -240,15 +267,44 @@ export default async function ComparisonProviderPage({
 
             <div className='h-px w-full bg-[var(--border)]' />
 
-            <section aria-labelledby='comparison-table-heading' className='px-6 py-10'>
+            <section aria-labelledby='comparison-table-heading' className='px-6 pt-10 pb-4'>
               <h2
                 id='comparison-table-heading'
-                className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em] lg:text-2xl'
               >
                 Sim vs {competitor.name}: feature-by-feature comparison
               </h2>
-              <ComparisonTable sim={simProfile} competitor={competitor} />
+              <p className='max-w-[720px] text-[var(--text-body)] text-small leading-[150%]'>
+                The sections below compare Sim and {competitor.name} across platform and deployment,
+                pricing, security and compliance, AI capabilities, integrations, observability, and
+                support.
+              </p>
             </section>
+
+            {COMPARISON_SECTIONS.map((section) => {
+              const sectionIntro = competitor.sectionIntros?.[section.group]
+
+              return (
+                <section
+                  key={section.group}
+                  aria-labelledby={`comparison-section-${section.group}-heading`}
+                  className='px-6 pb-10'
+                >
+                  <h2
+                    id={`comparison-section-${section.group}-heading`}
+                    className='mb-3 text-[18px] text-[var(--text-primary)] leading-snug tracking-[-0.01em]'
+                  >
+                    {section.title}
+                  </h2>
+                  {sectionIntro ? (
+                    <p className='mb-4 max-w-[720px] text-[var(--text-body)] text-small leading-[150%]'>
+                      <ProseText prose={sectionIntro} />
+                    </p>
+                  ) : null}
+                  <ComparisonTable sim={simProfile} competitor={competitor} section={section} />
+                </section>
+              )
+            })}
 
             <div className='h-px w-full bg-[var(--border)]' />
 
@@ -285,7 +341,7 @@ export default async function ComparisonProviderPage({
             <section aria-labelledby='bottom-line-heading' className='px-6 py-10'>
               <h2
                 id='bottom-line-heading'
-                className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em] lg:text-2xl'
               >
                 Bottom line
               </h2>
@@ -301,10 +357,30 @@ export default async function ComparisonProviderPage({
 
             <div className='h-px w-full bg-[var(--border)]' />
 
+            {relatedPosts.length > 0 ? (
+              <>
+                <section aria-labelledby='related-reading-heading'>
+                  <h2
+                    id='related-reading-heading'
+                    className='px-6 pt-10 pb-6 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em] lg:text-2xl'
+                  >
+                    Related reading
+                  </h2>
+                  <div className='h-px w-full bg-[var(--border)]' />
+                  <ContentRelatedPosts
+                    basePath={LIBRARY_SECTION.basePath}
+                    posts={relatedPosts}
+                    label='Related reading'
+                  />
+                </section>
+                <div className='h-px w-full bg-[var(--border)]' />
+              </>
+            ) : null}
+
             <section aria-labelledby='faq-heading' className='px-6 py-10'>
               <h2
                 id='faq-heading'
-                className='mb-4 text-[20px] text-[var(--text-primary)] leading-[100%] tracking-[-0.02em] lg:text-[24px]'
+                className='mb-4 text-[var(--text-primary)] text-xl leading-[100%] tracking-[-0.02em] lg:text-2xl'
               >
                 Frequently asked questions
               </h2>
@@ -317,10 +393,6 @@ export default async function ComparisonProviderPage({
 
         <div className='-mt-px h-px w-full bg-[var(--border)]' />
       </main>
-
-      <div className='py-16'>
-        <Cta />
-      </div>
     </>
   )
 }

@@ -8,9 +8,6 @@ export const PEEK_OPEN_DELAY_MS = 90
 /** Grace period after the pointer leaves, so a small overshoot doesn't retract the card. */
 export const PEEK_CLOSE_DELAY_MS = 180
 
-/** How long the card stays mounted while its exit animation runs. */
-export const PEEK_EXIT_DURATION_MS = 150
-
 /** Floor between pointer hit-tests, so a fast drag doesn't measure rects every event. */
 export const PEEK_POINTER_SAMPLE_MS = 16
 
@@ -43,19 +40,13 @@ const POPPER_SELECTOR = '[data-radix-popper-content-wrapper]'
  */
 const OPEN_POPPER_SELECTOR = `${POPPER_SELECTOR} [data-state="open"]`
 
-type PeekPhase = 'closed' | 'open' | 'exiting'
+type PeekPhase = 'closed' | 'open'
 
 function clearTimer(ref: React.MutableRefObject<ReturnType<typeof setTimeout> | null>) {
   if (ref.current) {
     clearTimeout(ref.current)
     ref.current = null
   }
-}
-
-function prefersReducedMotion(): boolean {
-  return (
-    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  )
 }
 
 /**
@@ -77,8 +68,6 @@ function containsPoint(element: Element | null, x: number, y: number, pad: numbe
 export interface SidebarPeekResult {
   /** Card is mounted as a floating overlay — drives positioning, chrome, and the expanded width. */
   isPeekActive: boolean
-  /** Card is settled open. Goes false first on exit, so the exit animation can play. */
-  isPeekOpen: boolean
   /** Attach to the floating card so the pointer hit-test can recognise it. */
   cardRef: React.RefObject<HTMLDivElement | null>
   /**
@@ -96,9 +85,6 @@ export interface SidebarPeekResult {
  * floats the collapsed sidebar in over the content, and it retracts once the pointer
  * leaves. Clicking that same control still docks the sidebar for good.
  *
- * The `exiting` phase keeps the card mounted for {@link PEEK_EXIT_DURATION_MS} so its
- * exit animation can play; unmounting immediately would snap it away mid-animation.
- *
  * Retraction is detected from a document-level `pointermove` hit-test rather than
  * `mouseleave`, because the menus and tooltips the sidebar opens live in body
  * portals. A `mouseleave`-driven peek would retract the instant the pointer crossed
@@ -114,28 +100,18 @@ export function useSidebarPeek(enabled: boolean, dismissed = false): SidebarPeek
   const triggerRef = useRef<HTMLDivElement | null>(null)
   const openTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const exitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [phase, setPhase] = useState<PeekPhase>('closed')
 
   const open = useCallback(() => {
     clearTimer(closeTimerRef)
-    clearTimer(exitTimerRef)
     setPhase('open')
   }, [])
 
   const close = useCallback(() => {
     clearTimer(openTimerRef)
     clearTimer(closeTimerRef)
-    clearTimer(exitTimerRef)
-    setPhase((current) => (current === 'open' ? 'exiting' : current))
-    exitTimerRef.current = setTimeout(
-      () => {
-        exitTimerRef.current = null
-        setPhase('closed')
-      },
-      prefersReducedMotion() ? 0 : PEEK_EXIT_DURATION_MS
-    )
+    setPhase('closed')
   }, [])
 
   const onTriggerEnter = useCallback(() => {
@@ -145,37 +121,21 @@ export function useSidebarPeek(enabled: boolean, dismissed = false): SidebarPeek
     if (!enabled || dismissed) return
     clearTimer(closeTimerRef)
     clearTimer(openTimerRef)
-    // Still on screen and animating out: snap it back instead of waiting out another
-    // dwell, which the pending exit timer would win — unmounting the card and then
-    // re-mounting it, a visible flicker with the pointer never leaving the toggle.
-    if (phase === 'exiting') {
-      open()
-      return
-    }
     openTimerRef.current = setTimeout(() => {
       openTimerRef.current = null
       open()
     }, PEEK_OPEN_DELAY_MS)
-  }, [dismissed, enabled, open, phase])
+  }, [dismissed, enabled, open])
 
   const onTriggerLeave = useCallback(() => {
     clearTimer(openTimerRef)
   }, [])
 
-  /**
-   * Drop the card outright — no exit animation — the moment the peek stops being
-   * available (⌘B, fullscreen) or a modal takes the screen.
-   *
-   * Unconditional rather than gated on the current phase, because every phase needs
-   * clearing: a pending dwell would otherwise fire and mount the card over the modal,
-   * and an in-flight exit would keep animating on top of it. Instant is also right
-   * visually — the modal's own scrim covers the card's position on the same frame.
-   */
+  /** Clear pending hover work when the peek is unavailable or a modal owns the screen. */
   useEffect(() => {
     if (enabled && !dismissed) return
     clearTimer(openTimerRef)
     clearTimer(closeTimerRef)
-    clearTimer(exitTimerRef)
     setPhase('closed')
   }, [dismissed, enabled])
 
@@ -242,14 +202,14 @@ export function useSidebarPeek(enabled: boolean, dismissed = false): SidebarPeek
     () => () => {
       clearTimer(openTimerRef)
       clearTimer(closeTimerRef)
-      clearTimer(exitTimerRef)
     },
     []
   )
 
+  const isPeekVisible = phase === 'open' && enabled && !dismissed
+
   return {
-    isPeekActive: phase !== 'closed' && enabled,
-    isPeekOpen: phase === 'open' && enabled,
+    isPeekActive: isPeekVisible,
     cardRef,
     triggerRef,
     onTriggerEnter,

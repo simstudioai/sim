@@ -1,57 +1,37 @@
-/**
- * @vitest-environment node
- */
+import { collectStream } from '@sim/testing/helpers/async'
+import {
+  providersConversationHistoryMock,
+  providersConversationHistoryMockFns,
+} from '@sim/testing/mocks/providers-conversation-history.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createGeminiStreamingToolLoopStream } from '@/providers/gemini/streaming-tool-loop'
-import type { AgentStreamEvent } from '@/providers/stream-events'
 import { resetLocalToolIdCounterForTests } from '@/providers/tool-call-id'
 
-async function collectEvents(
-  stream: ReadableStream<AgentStreamEvent>
-): Promise<AgentStreamEvent[]> {
-  const events: AgentStreamEvent[] = []
-  const reader = stream.getReader()
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    events.push(value)
-  }
-  return events
-}
+const mockCapture = providersConversationHistoryMockFns.mockCaptureProviderConversationStep
 
-const { mockExecuteTool } = vi.hoisted(() => ({
-  mockExecuteTool: vi.fn(),
+const mockExecuteTool = toolsMockFns.mockExecuteTool
+providersUtilsMockFns.mockPrepareToolExecution.mockReturnValue({
+  toolParams: { url: 'https://httpbin.org/get' },
+  executionParams: { url: 'https://httpbin.org/get' },
+})
+providersUtilsMockFns.mockCalculateCost.mockImplementation(() => ({
+  input: 0.01,
+  output: 0.02,
+  total: 0.03,
+  pricing: { input: 1, output: 2, updatedAt: new Date().toISOString() },
 }))
+providersUtilsMockFns.mockShouldBillModelUsage.mockReturnValue(true)
 
-vi.mock('@/tools', () => ({
-  executeTool: mockExecuteTool,
-}))
+vi.mock('@/providers/conversation-history', () => providersConversationHistoryMock)
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  prepareToolExecution: vi.fn(() => ({
-    toolParams: { url: 'https://httpbin.org/get' },
-    executionParams: { url: 'https://httpbin.org/get' },
-  })),
-  calculateCost: vi.fn(() => ({
-    input: 0.01,
-    output: 0.02,
-    total: 0.03,
-    pricing: { input: 1, output: 2, updatedAt: new Date().toISOString() },
-  })),
-  sumToolCosts: vi.fn(() => 0),
-  isGemini3Model: vi.fn(() => false),
-  shouldBillModelUsage: vi.fn(() => true),
-  trackForcedToolUsage: () => ({ hasUsedForcedTool: false, usedForcedTools: [] }),
-}))
+vi.mock('@/tools', () => toolsMock)
+
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 describe('createGeminiStreamingToolLoopStream', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockExecuteTool.mockResolvedValue({
       success: true,
       output: { ok: true, url: 'https://httpbin.org/get' },
@@ -69,8 +49,13 @@ describe('createGeminiStreamingToolLoopStream', () => {
             {
               content: {
                 parts: [
-                  { text: 'I should call the API. ', thought: true },
                   {
+                    text: 'I should call the API. ',
+                    thought: true,
+                    thoughtSignature: 'thinking-signature',
+                  },
+                  {
+                    thoughtSignature: 'call-signature',
                     functionCall: {
                       name: 'http_request',
                       args: { url: 'https://httpbin.org/get' },
@@ -138,7 +123,22 @@ describe('createGeminiStreamingToolLoopStream', () => {
       onComplete,
     })
 
-    const events = await collectEvents(stream)
+    const events = await collectStream(stream)
+
+    expect(mockCapture).toHaveBeenCalledTimes(2)
+    expect(mockCapture.mock.calls[0][2]).toEqual({
+      role: 'model',
+      parts: [
+        { text: 'I should call the API. ', thought: true, thoughtSignature: 'thinking-signature' },
+        {
+          thoughtSignature: 'call-signature',
+          functionCall: { name: 'http_request', args: { url: 'https://httpbin.org/get' } },
+        },
+      ],
+    })
+    expect(mockCapture.mock.invocationCallOrder[0]).toBeLessThan(
+      mockExecuteTool.mock.invocationCallOrder[0]
+    )
 
     expect(events.filter((e) => e.type === 'thinking_delta').map((e) => e.text)).toEqual([
       'I should call the API. ',
@@ -237,7 +237,7 @@ describe('createGeminiStreamingToolLoopStream', () => {
       onComplete,
     })
 
-    await expect(collectEvents(stream)).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(collectStream(stream)).rejects.toMatchObject({ name: 'AbortError' })
     expect(onComplete).toHaveBeenLastCalledWith(
       expect.objectContaining({ tokens: { input: 10, output: 5, cacheRead: 0, total: 15 } })
     )
@@ -323,7 +323,7 @@ describe('createGeminiStreamingToolLoopStream', () => {
       onComplete,
     })
 
-    const events = await collectEvents(stream)
+    const events = await collectStream(stream)
 
     expect(events).toContainEqual({ type: 'turn_end', turn: 'final' })
     expect(onComplete).toHaveBeenLastCalledWith(
@@ -380,7 +380,7 @@ describe('createGeminiStreamingToolLoopStream', () => {
       onComplete: vi.fn(),
     })
 
-    await expect(collectEvents(stream)).rejects.toThrow(
+    await expect(collectStream(stream)).rejects.toThrow(
       'Gemini stream ended with finish reason MAX_TOKENS'
     )
     expect(mockExecuteTool).not.toHaveBeenCalled()

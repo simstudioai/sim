@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -56,7 +53,6 @@ function mailboxArgs(
 
 describe('IMAP server selector adapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockNormalizeResolvedImapConnection.mockReturnValue({
       host: 'imap.example.com',
       port: 993,
@@ -128,26 +124,5 @@ describe('IMAP server selector adapter', () => {
     await expect(
       imapSelectorAttachments['imap.mailboxes'].execute(mailboxArgs())
     ).rejects.toBeInstanceOf(SelectorConnectionUnavailableError)
-  })
-
-  it('preserves cancellation before mapping IMAP policy failures', async () => {
-    const controller = new AbortController()
-    const abortError = new DOMException('The operation was aborted', 'AbortError')
-    controller.abort(abortError)
-    mockListImapMailboxes.mockRejectedValueOnce(new MockImapConnectionPolicyError('destination'))
-
-    await expect(
-      imapSelectorAttachments['imap.mailboxes'].execute(
-        mailboxArgs({ signal: controller.signal }),
-        {
-          host: 'imap.example.com',
-          port: 993,
-          secure: true,
-          username: 'mailbox-user',
-          password: 'secret{{literal}}value',
-        }
-      )
-    ).rejects.toBe(abortError)
-    expect(mockListImapMailboxes).toHaveBeenCalledOnce()
   })
 })

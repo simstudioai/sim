@@ -49,6 +49,10 @@ import {
 } from '@/lib/execution/durable-secret-provenance'
 import { WORKSPACE_ACCESS_TOKEN } from '@/lib/knowledge/access/types'
 import {
+  connectorIndexingCondition,
+  requiresConnectorIndexing,
+} from '@/lib/knowledge/connectors/indexing-policy'
+import {
   createKnowledgeDocumentSourceValue,
   type KnowledgeDocumentSourceValue,
   loadKnowledgeDocumentDurableSecretProvenance,
@@ -58,7 +62,7 @@ import {
 } from '@/lib/knowledge/secret-provenance'
 import { DEFAULT_TABLE_VIEW_NAME } from '@/lib/table/constants'
 import { generateTableId } from '@/lib/table/ids'
-import { nKeysBetween } from '@/lib/table/order-key'
+import { keyBetween } from '@/lib/table/order-key'
 import {
   classifyTableRowSecretProvenanceForCopy,
   TABLE_ROW_SECRET_PROVENANCE_VERSION,
@@ -75,7 +79,18 @@ import {
   recordKnowledgeBaseFileOwnership,
 } from '@/lib/uploads/server/metadata'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
+import {
+  type ForkReferenceResolver,
+  rewriteEnvRefsInText,
+} from '@/lib/workflows/references/remap-references'
 import { resolveForkFolderMapping } from '@/ee/workspace-forking/lib/copy/copy-workflows'
+import {
+  assertForkCopyActive,
+  bindForkCopyEmbeddings,
+  completeForkCopyResource,
+  type ForkCopyControl,
+  rethrowForkCopyInterruption,
+} from '@/ee/workspace-forking/lib/copy/progress'
 import {
   deleteCopiedResourceMappingsByTargets,
   type ForkMappingUpsert,
@@ -88,10 +103,6 @@ import {
   rewriteForkContentRefs,
   rewriteForkResourceUrls,
 } from '@/ee/workspace-forking/lib/remap/remap-content-refs'
-import {
-  type ForkReferenceResolver,
-  rewriteEnvRefsInText,
-} from '@/ee/workspace-forking/lib/remap/remap-references'
 import { remapForkTableWorkflowGroups } from '@/ee/workspace-forking/lib/remap/remap-table-groups'
 
 const logger = createLogger('WorkspaceForkCopyResources')
@@ -126,7 +137,7 @@ const KB_DOCUMENT_COPY_CONCURRENCY = 5
 export const FORK_DOCUMENT_ID_PATTERN = '^fork_document_[0-9a-f]{40}$'
 
 function deriveCopyIdentity(
-  kind: 'document' | 'embedding',
+  kind: 'document' | 'embedding' | 'table_row',
   targetId: string,
   sourceId: string
 ): string {
@@ -751,6 +762,7 @@ export async function copyForkResourceContainers(
         and(
           inArray(knowledgeBase.id, selection.knowledgeBases),
           eq(knowledgeBase.workspaceId, sourceWorkspaceId),
+          connectorIndexingCondition(),
           isNull(knowledgeBase.deletedAt)
         )
       )
@@ -944,17 +956,43 @@ export async function planForkMappedKbDocumentCopies(params: {
     .where(
       and(
         inArray(document.id, candidateIds),
+        exists(
+          tx
+            .select({ id: knowledgeBase.id })
+            .from(knowledgeBase)
+            .where(
+              and(
+                eq(knowledgeBase.id, document.knowledgeBaseId),
+                connectorIndexingCondition(),
+                isNull(knowledgeBase.deletedAt)
+              )
+            )
+        ),
         isNull(document.connectorId),
         isNull(document.deletedAt),
         isNull(document.archivedAt)
       )
     )
 
-  const planned = docs.flatMap((doc) => {
+  const candidates = docs.flatMap((doc) => {
     const targetKbId = resolver('knowledge-base', doc.knowledgeBaseId)
     if (targetKbId == null) return []
     return [{ doc, targetKbId, childDocId: deriveCopyIdentity('document', targetKbId, doc.id) }]
   })
+  if (candidates.length === 0) return { documents, docIdMap, mappingEntries }
+  const targets = await tx
+    .select({ id: knowledgeBase.id })
+    .from(knowledgeBase)
+    .where(
+      and(
+        inArray(knowledgeBase.id, [...new Set(candidates.map(({ targetKbId }) => targetKbId))]),
+        connectorIndexingCondition(),
+        isNull(knowledgeBase.deletedAt)
+      )
+    )
+    .for('share')
+  const targetIds = new Set(targets.map(({ id }) => id))
+  const planned = candidates.filter(({ targetKbId }) => targetIds.has(targetKbId))
   const existingTargets =
     planned.length === 0
       ? []
@@ -1073,8 +1111,9 @@ export async function copyForkResourceContent(params: {
   /** In-content reference maps for rewriting copied skill bodies post-commit (best-effort). */
   contentRefMaps?: ForkContentRefMaps
   requestId?: string
+  control?: ForkCopyControl
 }): Promise<{ copied: number; failed: number; failures: ForkFailedResource[] }> {
-  const { contentPlan, contentRefMaps, requestId = 'unknown' } = params
+  const { contentPlan, contentRefMaps, control, requestId = 'unknown' } = params
   const { childWorkspaceId, userId } = contentPlan
 
   let copiedResources = 0
@@ -1092,6 +1131,7 @@ export async function copyForkResourceContent(params: {
    * rethrown, since the caller is already reporting the document as failed.
    */
   const dropCopiedDocumentMapping = async (childDocumentId: string): Promise<void> => {
+    assertForkCopyActive(control)
     const mappingContext = contentPlan.documentMappingContext
     if (!mappingContext) return
     try {
@@ -1102,6 +1142,7 @@ export async function copyForkResourceContent(params: {
         targets: [{ resourceType: 'knowledge_document', resourceId: childDocumentId }],
       })
     } catch (mappingCleanupError) {
+      rethrowForkCopyInterruption(mappingCleanupError, control)
       logger.error(`[${requestId}] Failed to clean mapping for a failed copied document`, {
         childDocumentId,
         error: getErrorMessage(mappingCleanupError),
@@ -1149,6 +1190,7 @@ export async function copyForkResourceContent(params: {
       }
       return staleChildIds
     } catch (error) {
+      rethrowForkCopyInterruption(error, control)
       logger.error(
         `[${requestId}] Failed to reconcile fork placeholders planned for connector-managed documents`,
         {
@@ -1187,6 +1229,7 @@ export async function copyForkResourceContent(params: {
         skipped,
       })
     } catch (error) {
+      rethrowForkCopyInterruption(error, control)
       logger.warn(`[${requestId}] Failed to count the documents a copied knowledge base skipped`, {
         sourceKnowledgeBaseId: kb.sourceId,
         error: getErrorMessage(error),
@@ -1195,25 +1238,30 @@ export async function copyForkResourceContent(params: {
   }
 
   for (const table of contentPlan.tables) {
+    assertForkCopyActive(control)
+    if (control?.progress?.completed.includes(`table:${table.childId}`)) {
+      copiedResources++
+      continue
+    }
     try {
-      let copied = 0
-      let afterId: string | null = null
+      const saved = control?.progress?.tables[table.childId]
+      let copied = saved?.copied ?? 0
+      let afterId: string | null = saved?.afterId ?? null
       // `order_key` is nullable, and spreading `...row` would inherit NULLs into a
       // brand-new tableId that the one-shot backfill script-migration never revisits
       // (it snapshots the pending set up front) — leaving rows the keyset pager has to
       // special-case forever. Mint keys for the unkeyed ones instead. They sort last in
       // the source (NULLS LAST, id tiebreak) and this loop pages by id, so consuming a
       // pre-generated run appended after the source's max key preserves visual order.
-      const [{ maxKey = null, unkeyed = 0 } = {}] = await db
+      const [{ maxKey = null } = {}] = await db
         .select({
           maxKey: sql<string | null>`max(${userTableRows.orderKey})`,
-          unkeyed: sql<number>`count(*) filter (where ${userTableRows.orderKey} is null)`,
         })
         .from(userTableRows)
         .where(eq(userTableRows.tableId, table.sourceId))
-      const mintedKeys = unkeyed > 0 ? nKeysBetween(maxKey, null, Number(unkeyed)) : []
-      let mintedIdx = 0
+      let lastMintedKey = saved?.lastOrderKey ?? maxKey
       for (;;) {
+        assertForkCopyActive(control)
         const where: SQL<unknown> | undefined =
           afterId === null
             ? eq(userTableRows.tableId, table.sourceId)
@@ -1249,10 +1297,10 @@ export async function copyForkResourceContent(params: {
           return {
             row: {
               ...row,
-              id: generateId(),
+              id: deriveCopyIdentity('table_row', table.childId, row.id),
               tableId: table.childId,
               workspaceId: childWorkspaceId,
-              orderKey: row.orderKey ?? mintedKeys[mintedIdx++] ?? null,
+              orderKey: row.orderKey ?? (lastMintedKey = keyBetween(lastMintedKey, null)),
               secretProvenanceVersion:
                 classification.mode === 'legacy' ? null : TABLE_ROW_SECRET_PROVENANCE_VERSION,
               // Repoint resource-chip URLs in cell data at the child copies (no-op when no maps).
@@ -1262,7 +1310,11 @@ export async function copyForkResourceContent(params: {
           }
         })
         await db.transaction(async (trx) => {
-          await trx.insert(userTableRows).values(copiedRows.map((copy) => copy.row))
+          assertForkCopyActive(control)
+          await trx
+            .insert(userTableRows)
+            .values(copiedRows.map((copy) => copy.row))
+            .onConflictDoNothing({ target: userTableRows.id })
           const provenanceRows = copiedRows.flatMap((copy) =>
             copy.provenance
               ? [
@@ -1277,19 +1329,28 @@ export async function copyForkResourceContent(params: {
               : []
           )
           if (provenanceRows.length > 0) {
-            await trx.insert(userTableRowSecretProvenance).values(provenanceRows)
+            await trx
+              .insert(userTableRowSecretProvenance)
+              .values(provenanceRows)
+              .onConflictDoNothing({ target: userTableRowSecretProvenance.rowId })
           }
         })
         copied += rows.length
         afterId = rows[rows.length - 1].row.id
+        if (control?.progress && control.checkpoint) {
+          control.progress.tables[table.childId] = { afterId, copied, lastOrderKey: lastMintedKey }
+          await control.checkpoint(control.progress)
+        }
         if (rows.length < PROVENANCE_CONTENT_PAGE) break
       }
       await db
         .update(userTableDefinitions)
         .set({ rowCount: copied })
         .where(eq(userTableDefinitions.id, table.childId))
+      await completeForkCopyResource(control, `table:${table.childId}`)
       copiedResources += 1
     } catch (error) {
+      rethrowForkCopyInterruption(error, control)
       failedResources += 1
       failures.push({ kind: 'table', childId: table.childId })
       logger.warn(`[${requestId}] Failed to copy table rows during fork`, {
@@ -1300,6 +1361,11 @@ export async function copyForkResourceContent(params: {
   }
 
   for (const kb of contentPlan.knowledgeBases) {
+    assertForkCopyActive(control)
+    if (control?.progress?.completed.includes(`knowledge-base:${kb.childId}`)) {
+      copiedResources++
+      continue
+    }
     try {
       await logSkippedConnectorDocuments(kb)
       for (const childDocumentId of await reconcileStalePlannedDocuments(kb)) {
@@ -1308,6 +1374,7 @@ export async function copyForkResourceContent(params: {
       }
       let afterDocId: string | null = null
       for (;;) {
+        assertForkCopyActive(control)
         // Only copy LIVE documents - exclude soft-deleted and archived rows, matching
         // how the rest of the KB system treats them as gone (chunks/tags/search filter
         // both). A fork must not resurrect documents removed from the source base.
@@ -1350,10 +1417,7 @@ export async function copyForkResourceContent(params: {
         const documentsToCopy = documentCopies.filter(
           ({ childDocumentId }) => !activeTargetDocumentIds.has(childDocumentId)
         )
-        // Copy the page's documents with bounded concurrency. The mapper never rejects
-        // (it captures its error), so all in-flight work settles before this resolves and a
-        // captured error is rethrown after to keep the KB ALL-OR-NOTHING (any failed doc fails
-        // the whole KB -> cleanup below).
+        /** Drain every worker before propagating interruptions or rolling back the knowledge base. */
         if (documentsToCopy.length > 0) {
           const resolvedBillingContext = await getBillingContext()
           const docErrors = await mapWithConcurrency(
@@ -1363,6 +1427,7 @@ export async function copyForkResourceContent(params: {
               try {
                 await copyKbDocument({
                   source,
+                  control,
                   childDocumentId,
                   childKnowledgeBaseId: kb.childId,
                   childWorkspaceId,
@@ -1375,12 +1440,14 @@ export async function copyForkResourceContent(params: {
               }
             }
           )
+          for (const error of docErrors) rethrowForkCopyInterruption(error, control)
           const docError = docErrors.find((error) => error != null)
           if (docError) throw docError
         }
         const mappingContext = contentPlan.documentMappingContext
         if (mappingContext) {
           await db.transaction(async (tx) => {
+            assertForkCopyActive(control)
             await persistCopiedResourceMappings({
               executor: tx,
               edgeChildWorkspaceId: mappingContext.edgeChildWorkspaceId,
@@ -1392,16 +1459,20 @@ export async function copyForkResourceContent(params: {
                 childResourceId: childDocumentId,
               })),
             })
+            assertForkCopyActive(control)
           })
         }
         afterDocId = docs[docs.length - 1].id
         if (docs.length < CONTENT_PAGE) break
       }
+      await completeForkCopyResource(control, `knowledge-base:${kb.childId}`)
       copiedResources += 1
     } catch (error) {
+      rethrowForkCopyInterruption(error, control)
       try {
-        await rollbackCopiedKbDocuments(kb.childId, childWorkspaceId)
+        await rollbackCopiedKbDocuments(kb.childId, childWorkspaceId, control)
       } catch (rollbackError) {
+        rethrowForkCopyInterruption(rollbackError, control)
         logger.error(`[${requestId}] Failed to roll back copied KB storage accounting`, {
           childKnowledgeBaseId: kb.childId,
           error: getErrorMessage(rollbackError),
@@ -1415,9 +1486,11 @@ export async function copyForkResourceContent(params: {
         try {
           await deleteFailedKnowledgeBaseDocumentMappings(
             kb.childId,
-            contentPlan.documentMappingContext
+            contentPlan.documentMappingContext,
+            control
           )
         } catch (mappingCleanupError) {
+          rethrowForkCopyInterruption(mappingCleanupError, control)
           logger.error(`[${requestId}] Failed to clean mappings for a failed copied KB`, {
             childKnowledgeBaseId: kb.childId,
             error: getErrorMessage(mappingCleanupError),
@@ -1443,12 +1516,18 @@ export async function copyForkResourceContent(params: {
   // embeddings cascade) and clears its `document-selector` references - the existing KB and its
   // own documents are never touched.
   for (const docEntry of contentPlan.documents) {
+    assertForkCopyActive(control)
+    if (control?.progress?.completed.includes(`document:${docEntry.childDocId}`)) {
+      copiedResources++
+      continue
+    }
     try {
       const active = await isActiveTargetDocument({
         childDocumentId: docEntry.childDocId,
         childKnowledgeBaseId: docEntry.childKnowledgeBaseId,
       })
       if (active) {
+        await completeForkCopyResource(control, `document:${docEntry.childDocId}`)
         copiedResources += 1
         continue
       }
@@ -1478,14 +1557,17 @@ export async function copyForkResourceContent(params: {
       const resolvedBillingContext = await getBillingContext()
       await copyKbDocument({
         source,
+        control,
         childDocumentId: docEntry.childDocId,
         childKnowledgeBaseId: docEntry.childKnowledgeBaseId,
         childWorkspaceId,
         userId,
         billingContext: resolvedBillingContext,
       })
+      await completeForkCopyResource(control, `document:${docEntry.childDocId}`)
       copiedResources += 1
     } catch (error) {
+      rethrowForkCopyInterruption(error, control)
       await dropCopiedDocumentMapping(docEntry.childDocId)
       failedResources += 1
       failures.push({ kind: 'knowledge-document', childId: docEntry.childDocId })
@@ -1505,6 +1587,7 @@ export async function copyForkResourceContent(params: {
     const childSkillIds = contentPlan.skills.map((entry) => entry.childId)
     let afterId: string | null = null
     for (;;) {
+      assertForkCopyActive(control)
       const where: SQL<unknown> | undefined =
         afterId === null
           ? inArray(skill.id, childSkillIds)
@@ -1521,11 +1604,15 @@ export async function copyForkResourceContent(params: {
       // logged and the body keeps its source links rather than failing a resource.
       await mapWithConcurrency(rows, SKILL_REWRITE_CONCURRENCY, async (row): Promise<void> => {
         try {
+          assertForkCopyActive(control)
+          if (control?.progress?.completed.includes(`skill:${row.id}`)) return
           const rewritten = rewriteForkContentRefs(row.content, contentRefMaps)
           if (rewritten !== row.content) {
             await db.update(skill).set({ content: rewritten }).where(eq(skill.id, row.id))
           }
+          await completeForkCopyResource(control, `skill:${row.id}`)
         } catch (error) {
+          rethrowForkCopyInterruption(error, control)
           logger.warn(
             `[${requestId}] Failed to rewrite copied skill content; keeping source links`,
             {
@@ -1612,6 +1699,7 @@ async function ensureKbDocumentPlaceholder(
  * the transaction that activates it receives a row from `RETURNING` and charges.
  */
 async function finalizeKbDocument(params: {
+  control?: ForkCopyControl
   childDocumentId: string
   childKnowledgeBaseId: string
   billingContext: StorageBillingContext
@@ -1633,12 +1721,19 @@ async function finalizeKbDocument(params: {
   } = params
   return db.transaction(async (tx) => {
     const [lockedKnowledgeBase] = await tx
-      .select({ workspaceId: knowledgeBase.workspaceId })
+      .select({
+        workspaceId: knowledgeBase.workspaceId,
+        isSearchIndex: knowledgeBase.isSearchIndex,
+      })
       .from(knowledgeBase)
       .where(eq(knowledgeBase.id, childKnowledgeBaseId))
       .for('update')
+    assertForkCopyActive(params.control)
     if (!lockedKnowledgeBase) {
       throw new Error(`Copied document knowledge base ${childKnowledgeBaseId} is missing`)
+    }
+    if (!requiresConnectorIndexing(lockedKnowledgeBase.isSearchIndex)) {
+      throw new Error('Retired Search documents cannot be activated by a workspace copy')
     }
     if (lockedKnowledgeBase.workspaceId !== billingContext.workspaceId) {
       throw new Error(
@@ -1705,6 +1800,7 @@ async function finalizeKbDocument(params: {
           tx
         )
       }
+      assertForkCopyActive(params.control)
       return active.storageKey
     }
 
@@ -1722,6 +1818,7 @@ async function finalizeKbDocument(params: {
     }
 
     await incrementStorageUsageForBillingContextInTx(tx, billingContext, bytes)
+    assertForkCopyActive(params.control)
     return fileOwnership?.key ?? null
   })
 }
@@ -1732,6 +1829,7 @@ async function finalizeKbDocument(params: {
  * step, so a failed copy leaves only a non-billable archived placeholder.
  */
 async function copyKbDocument(params: {
+  control?: ForkCopyControl
   source: typeof document.$inferSelect
   childDocumentId: string
   childKnowledgeBaseId: string
@@ -1747,6 +1845,25 @@ async function copyKbDocument(params: {
     userId,
     billingContext,
   } = params
+  assertForkCopyActive(params.control)
+  const bases = await db
+    .select({ id: knowledgeBase.id, isSearchIndex: knowledgeBase.isSearchIndex })
+    .from(knowledgeBase)
+    .where(
+      and(
+        inArray(knowledgeBase.id, [source.knowledgeBaseId, childKnowledgeBaseId]),
+        isNull(knowledgeBase.deletedAt)
+      )
+    )
+  const basesById = new Map(bases.map((base) => [base.id, base]))
+  if (
+    [source.knowledgeBaseId, childKnowledgeBaseId].some((id) => {
+      const base = basesById.get(id)
+      return !base || !requiresConnectorIndexing(base.isSearchIndex)
+    })
+  ) {
+    throw new Error('Workspace copies require active ordinary knowledge bases')
+  }
   const sourceSecretContext = await loadKnowledgeDocumentDurableSecretProvenance(source.id)
   const sourceSnapshotHash = hashDurableSecretProvenanceValue(
     createKnowledgeDocumentSourceValue(source)
@@ -1755,10 +1872,42 @@ async function copyKbDocument(params: {
   if (!sourceSnapshotHash || sourceSnapshotHash !== provenanceSnapshotHash) {
     throw new Error(`Knowledge document ${source.id} changed while preparing its fork copy`)
   }
+  const sourceRevision = sha256Hex(
+    JSON.stringify({
+      sourceSnapshotHash,
+      storageKey: source.storageKey,
+      fileSize: source.fileSize,
+      chunkCount: source.chunkCount,
+      processingStatus: source.processingStatus,
+      processingQueueToken: source.processingQueueToken,
+      processingStartedAt: source.processingStartedAt,
+      processingCompletedAt: source.processingCompletedAt,
+    })
+  )
+  const afterEmbeddingId = await bindForkCopyEmbeddings(
+    params.control,
+    childDocumentId,
+    childKnowledgeBaseId,
+    sourceRevision
+  )
   await ensureKbDocumentPlaceholder(source, childDocumentId, childKnowledgeBaseId, userId)
 
-  const blob = await copyKbDocumentBlob(source, childWorkspaceId, userId, childDocumentId)
-  await copyDocumentEmbeddings(source.id, childDocumentId, childKnowledgeBaseId)
+  assertForkCopyActive(params.control)
+  const blob = await copyKbDocumentBlob(
+    source,
+    childWorkspaceId,
+    userId,
+    childDocumentId,
+    params.control
+  )
+  assertForkCopyActive(params.control)
+  await copyDocumentEmbeddings(
+    source.id,
+    childDocumentId,
+    childKnowledgeBaseId,
+    afterEmbeddingId,
+    params.control
+  )
   const copiedValues = {
     ...omit(source, ['id', 'knowledgeBaseId']),
     knowledgeBaseId: childKnowledgeBaseId,
@@ -1773,7 +1922,9 @@ async function copyKbDocument(params: {
     acl: [WORKSPACE_ACCESS_TOKEN],
   }
   const copiedSource = createKnowledgeDocumentSourceValue(copiedValues)
+  assertForkCopyActive(params.control)
   const finalizedStorageKey = await finalizeKbDocument({
+    control: params.control,
     childDocumentId,
     childKnowledgeBaseId,
     billingContext,
@@ -1803,6 +1954,7 @@ async function copyKbDocument(params: {
       : {}),
   })
   if (blob && finalizedStorageKey !== blob.storageKey) {
+    assertForkCopyActive(params.control)
     try {
       await deleteFile({ key: blob.storageKey, context: 'knowledge-base' })
     } catch (error) {
@@ -1823,7 +1975,8 @@ async function copyKbDocument(params: {
  */
 async function rollbackCopiedKbDocuments(
   childKnowledgeBaseId: string,
-  childWorkspaceId: string
+  childWorkspaceId: string,
+  control?: ForkCopyControl
 ): Promise<void> {
   const billingContext = await resolveStorageBillingContext(childWorkspaceId)
   await db.transaction(async (tx) => {
@@ -1832,6 +1985,7 @@ async function rollbackCopiedKbDocuments(
       .from(knowledgeBase)
       .where(eq(knowledgeBase.id, childKnowledgeBaseId))
       .for('update')
+    assertForkCopyActive(control)
     if (!lockedKnowledgeBase || lockedKnowledgeBase.workspaceId !== childWorkspaceId) {
       throw new Error(
         `Copied knowledge base ${childKnowledgeBaseId} moved from workspace ${childWorkspaceId}; refusing stale storage rollback`
@@ -1851,6 +2005,7 @@ async function rollbackCopiedKbDocuments(
         )
       )
     const bytes = Number(usage?.total ?? 0)
+    assertForkCopyActive(control)
     await decrementStorageUsageForBillingContextInTx(tx, billingContext, bytes)
     await tx
       .update(workspaceFiles)
@@ -1891,6 +2046,7 @@ async function rollbackCopiedKbDocuments(
           isNull(document.archivedAt)
         )
       )
+    assertForkCopyActive(control)
   })
 }
 
@@ -1902,10 +2058,12 @@ async function rollbackCopiedKbDocuments(
  */
 async function deleteFailedKnowledgeBaseDocumentMappings(
   childKnowledgeBaseId: string,
-  mappingContext: ForkDocumentMappingContext
+  mappingContext: ForkDocumentMappingContext,
+  control?: ForkCopyControl
 ): Promise<void> {
   let afterId: string | null = null
   for (;;) {
+    assertForkCopyActive(control)
     const rows = await db
       .select({ id: document.id })
       .from(document)
@@ -1924,6 +2082,7 @@ async function deleteFailedKnowledgeBaseDocumentMappings(
       .orderBy(asc(document.id))
       .limit(CONTENT_PAGE)
     if (rows.length === 0) break
+    assertForkCopyActive(control)
     await deleteCopiedResourceMappingsByTargets({
       executor: db,
       edgeChildWorkspaceId: mappingContext.edgeChildWorkspaceId,
@@ -1941,10 +2100,13 @@ async function deleteFailedKnowledgeBaseDocumentMappings(
 async function copyDocumentEmbeddings(
   sourceDocumentId: string,
   childDocumentId: string,
-  childKnowledgeBaseId: string
+  childKnowledgeBaseId: string,
+  afterEmbeddingId: string | null,
+  control?: ForkCopyControl
 ): Promise<void> {
-  let afterId: string | null = null
+  let afterId = afterEmbeddingId
   for (;;) {
+    assertForkCopyActive(control)
     const where: SQL<unknown> | undefined =
       afterId === null
         ? eq(embedding.documentId, sourceDocumentId)
@@ -1975,6 +2137,7 @@ async function copyDocumentEmbeddings(
       documentId: childDocumentId,
       knowledgeBaseId: childKnowledgeBaseId,
     }))
+    assertForkCopyActive(control)
     await db.insert(embedding).values(targetRows).onConflictDoNothing({ target: embedding.id })
     const targetSidecars = rows.flatMap((row, index) => {
       if (row.secretProvenanceVersion !== 1) return []
@@ -2006,6 +2169,10 @@ async function copyDocumentEmbeddings(
         .onConflictDoNothing({ target: embeddingSecretProvenance.embeddingId })
     }
     afterId = rows[rows.length - 1].id
+    if (control?.progress && control.checkpoint) {
+      control.progress.embeddings[childDocumentId].afterId = afterId
+      await control.checkpoint(control.progress)
+    }
     if (rows.length < PROVENANCE_CONTENT_PAGE) break
   }
 }
@@ -2028,7 +2195,8 @@ async function copyKbDocumentBlob(
   doc: { storageKey: string | null; filename: string; mimeType: string; fileSize: number },
   childWorkspaceId: string,
   userId: string,
-  childDocumentId: string
+  childDocumentId: string,
+  control?: ForkCopyControl
 ): Promise<{ storageKey: string; fileUrl: string } | null> {
   if (!doc.storageKey) return null
   const buffer = await downloadFile({
@@ -2036,6 +2204,7 @@ async function copyKbDocumentBlob(
     context: 'knowledge-base',
     maxBytes: MAX_FILE_SIZE,
   })
+  assertForkCopyActive(control)
   const targetKey = deriveKbDocumentStorageKey(childDocumentId, sha256Hex(buffer))
   await recordKnowledgeBaseFileOwnership({
     key: targetKey,
@@ -2046,6 +2215,7 @@ async function copyKbDocumentBlob(
     size: doc.fileSize,
   })
   const existing = await headObject(targetKey, 'knowledge-base')
+  assertForkCopyActive(control)
   if (!existing) {
     await uploadFile({
       file: buffer,

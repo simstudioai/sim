@@ -1,8 +1,8 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import type { InternalToolOperationImplementation } from '@/lib/internal/tool-operations/types'
 import type { CbInsightsListBusinessRelationshipsParams } from '@/tools/cbinsights/list_business_relationships'
 import {
   asArray,
-  asString,
   cbInsightsRequest,
   compactBody,
   parseOptionalStringParam,
@@ -21,6 +21,6 @@ export const executeCbinsightsListBusinessRelationshipsOperation: InternalToolOp
         nextPageToken: parseOptionalStringParam(params.nextPageToken, 'nextPageToken'),
       }),
     },
-    (data) => ({ orgs: asArray(data.orgs), nextPageToken: asString(data.nextPageToken) }),
+    (data) => ({ orgs: asArray(data.orgs), nextPageToken: toStringOrNull(data.nextPageToken) }),
     signal
   )

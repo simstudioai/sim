@@ -550,6 +550,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
                           <Loader className='size-4 text-[var(--text-muted)]' animate />
                         ) : (
                           <Button
+                            aria-label='Remove file'
                             type='button'
                             variant='ghost'
                             className='size-4 p-0'

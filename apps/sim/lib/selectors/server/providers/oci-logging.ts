@@ -34,18 +34,20 @@ function requireId(value: string | undefined): string {
 
 async function prepareDestination(args: ExecuteServerSelectorArgs): Promise<OciLoggingDestination> {
   args.signal?.throwIfAborted()
+  const workspaceId = args.workspaceId
+  if (!workspaceId) throw new SelectorContextUnavailableError()
   const access = args.credential?.access
   if (
     !access?.ok ||
     access.credentialType !== 'service_account' ||
     !access.resolvedCredentialId ||
-    access.workspaceId !== args.workspaceId
+    access.workspaceId !== workspaceId
   ) {
     throw new SelectorConnectionUnavailableError()
   }
   const client = await createOciClient({
     credentialId: access.resolvedCredentialId,
-    workspaceId: args.workspaceId,
+    workspaceId,
     serviceId: OCI_LOGGING_SERVICE_ID,
     region: args.context.region || undefined,
   })

@@ -3,7 +3,7 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Badge,
-  Button,
+  Chip,
   ChipConfirmModal,
   type ChipConfirmTextSegment,
   ChipDatePicker,
@@ -16,7 +16,6 @@ import {
   cellIconNodeClass,
   chipContentGap,
   chipContentLabelClass,
-  chipVariants,
   cn,
   FloatingTooltip,
   isTextClipped,
@@ -27,6 +26,7 @@ import {
   CircleAlert,
   Database,
   DatabaseX,
+  Download,
   Loader,
   Pencil,
   Plus,
@@ -41,42 +41,49 @@ import { format } from 'date-fns'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
+import { getDocumentIcon } from '@/components/icons/document-icons'
 import {
   ALL_TAG_SLOTS,
   type AllTagSlot,
   getFieldTypeForSlot,
   KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS,
 } from '@/lib/knowledge/constants'
-import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
+import {
+  type DocumentSortField,
+  getDocumentIndexingStatus,
+  type SortOrder,
+} from '@/lib/knowledge/documents/types'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import type { DocumentData } from '@/lib/knowledge/types'
 import { captureEvent } from '@/lib/posthog/client'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
-import type {
-  BreadcrumbItem,
-  FilterTag,
-  ResourceAction,
-  ResourceCell,
-  ResourceRow,
-  SelectableConfig,
-  SortConfig,
-} from '@/app/workspace/[workspaceId]/components'
-import {
-  FILTER_SECTION_LABEL_CLASS,
-  FloatingOverflowText,
-  isResourceListEmpty,
-  Resource,
-  ResourceNotFound,
-  SearchHighlight,
-} from '@/app/workspace/[workspaceId]/components'
 import {
   FOLDERED_RESOURCE_HEADERS,
   folderBreadcrumbItems,
   folderedResourceListHref,
   useFolderAncestors,
 } from '@/app/workspace/[workspaceId]/components/folders'
+import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import { DocumentsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+import type {
+  BreadcrumbItem,
+  ResourceAction,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
+import type {
+  FilterTag,
+  SortConfig,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+import { FILTER_SECTION_LABEL_CLASS } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+import { isResourceListEmpty } from '@/app/workspace/[workspaceId]/components/resource/is-resource-list-empty'
+import type {
+  ResourceCell,
+  ResourceRow,
+  SelectableConfig,
+} from '@/app/workspace/[workspaceId]/components/resource/resource'
+import { Resource } from '@/app/workspace/[workspaceId]/components/resource/resource'
+import { ResourceNotFound } from '@/app/workspace/[workspaceId]/components/resource/resource-not-found'
+import { SearchHighlight } from '@/app/workspace/[workspaceId]/components/search-highlight/search-highlight'
 /**
  * Deep import on purpose: the `[documentId]/components` barrel also exports `ChunkEditor`,
  * which needs exact token counts and therefore `js-tiktoken` (~2.5 MB gzip of BPE rank
@@ -100,7 +107,7 @@ import {
   documentFiltersUrlKeys,
   kbDocumentSortParams,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/search-params'
-import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
+import { canDeleteKnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/permissions'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { BrandIcon } from '@/blocks/brand-icon'
@@ -118,6 +125,7 @@ import type { ConnectorData } from '@/hooks/queries/kb/connectors'
 import { isConnectorSyncingOrPending, useConnectorList } from '@/hooks/queries/kb/connectors'
 import type { DocumentTagFilter } from '@/hooks/queries/kb/knowledge'
 import {
+  downloadKnowledgeBaseExport,
   useBulkDocumentOperation,
   useDeleteDocument,
   useDeleteKnowledgeBase,
@@ -129,6 +137,7 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useUrlSort } from '@/hooks/use-url-sort'
 
 const logger = createLogger('KnowledgeBase')
@@ -172,7 +181,7 @@ const AnimatedLoader = ({ className }: { className?: string }) => (
 )
 
 const getStatusBadge = (doc: DocumentData) => {
-  switch (doc.processingStatus) {
+  switch (getDocumentIndexingStatus(doc)) {
     case 'pending':
       return (
         <Badge variant='gray' size='sm'>
@@ -183,6 +192,12 @@ const getStatusBadge = (doc: DocumentData) => {
       return (
         <Badge variant='purple' size='sm' icon={AnimatedLoader}>
           Processing
+        </Badge>
+      )
+    case 'skipped':
+      return (
+        <Badge variant='gray' size='sm'>
+          Skipped
         </Badge>
       )
     case 'failed':
@@ -313,6 +328,7 @@ export function KnowledgeBase({
 
   useOAuthReturnForKBConnectors(id)
   const userPermissions = useUserPermissionsContext()
+  const { config: permissionConfig } = usePermissionConfig()
 
   const { mutate: updateDocumentMutation, mutateAsync: updateDocumentAsync } = useUpdateDocument()
   const { mutate: deleteDocumentMutation } = useDeleteDocument()
@@ -422,7 +438,6 @@ export function KnowledgeBase({
   const {
     isOpen: isContextMenuOpen,
     position: contextMenuPosition,
-    menuRef,
     handleContextMenu: baseHandleContextMenu,
     closeMenu: closeContextMenu,
   } = useContextMenu()
@@ -432,6 +447,7 @@ export function KnowledgeBase({
     error: knowledgeBaseError,
     refresh: refreshKnowledgeBase,
   } = useKnowledgeBase(id)
+  const canDeleteBase = canDeleteKnowledgeBase(knowledgeBase, userPermissions)
 
   const { data: connectors = EMPTY_CONNECTORS, isLoading: isLoadingConnectors } =
     useConnectorList(id)
@@ -588,9 +604,6 @@ export function KnowledgeBase({
     )
   }
 
-  /**
-   * Handles retrying a failed document processing
-   */
   const handleRetryDocument = (docId: string) => {
     updateDocument(docId, {
       processingStatus: 'pending',
@@ -736,7 +749,7 @@ export function KnowledgeBase({
    * Handles deleting the entire knowledge base
    */
   const handleDeleteKnowledgeBase = () => {
-    if (!knowledgeBase) return
+    if (!knowledgeBase || !canDeleteBase) return
 
     deleteKnowledgeBaseMutation(
       { knowledgeBaseId: id },
@@ -981,13 +994,10 @@ export function KnowledgeBase({
                       disabled: !userPermissions.canEdit,
                       onClick: () => setShowTagsModal(true),
                     },
-                    {
-                      label: 'Delete',
-                      icon: Trash,
-                      disabled: !userPermissions.canEdit,
-                      onClick: () => setShowDeleteDialog(true),
-                    },
                   ]
+                : []),
+              ...(canDeleteBase
+                ? [{ label: 'Delete', icon: Trash, onClick: () => setShowDeleteDialog(true) }]
                 : []),
             ],
           },
@@ -1008,11 +1018,15 @@ export function KnowledgeBase({
       kbRename.startRename,
       userPermissions.canEdit,
       userPermissions.isLoading,
+      canDeleteBase,
     ]
   )
 
   const headerActions: ResourceAction[] = useMemo(
     () => [
+      ...(permissionConfig.disableKnowledgeBaseExport
+        ? []
+        : [{ text: 'Export', icon: Download, onSelect: () => downloadKnowledgeBaseExport(id) }]),
       ...(userPermissions.canEdit || userPermissions.isLoading
         ? [
             {
@@ -1032,6 +1046,8 @@ export function KnowledgeBase({
       },
     ],
     [
+      id,
+      permissionConfig.disableKnowledgeBaseExport,
       userPermissions.canEdit,
       userPermissions.isLoading,
       setShowAddConnectorModal,
@@ -1067,20 +1083,18 @@ export function KnowledgeBase({
     () => (
       <AutoWidthPanel>
         <div className='flex flex-col gap-2'>
-          <div className='flex h-5 items-center justify-between'>
+          <div className='flex items-center justify-between'>
             <span className={FILTER_SECTION_LABEL_CLASS}>Status</span>
             {enabledFilter !== 'all' && (
-              <Button
-                variant='ghost'
+              <Chip
                 onClick={() => {
                   setEnabledFilter('all')
                   setSelectedDocuments(new Set())
                   setIsSelectAllMode(false)
                 }}
-                className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-caption hover-hover:text-[var(--text-secondary)]'
               >
                 Clear
-              </Button>
+              </Chip>
             )}
           </div>
           <ChipDropdown
@@ -1119,35 +1133,34 @@ export function KnowledgeBase({
           const ConnectorIcon = def?.icon
           const syncInFlight = isConnectorSyncingOrPending(connector)
           return (
-            <button
+            <Chip
               key={connector.id}
-              type='button'
               onClick={() => setShowConnectorsModal(true)}
-              className={cn(chipVariants({ variant: 'filled' }), 'max-w-[180px]')}
+              className='max-w-[180px]'
+              leftAdornment={
+                <span className='relative flex size-[14px] shrink-0 items-center justify-center'>
+                  {syncInFlight ? (
+                    <Loader className='size-[14px]' animate />
+                  ) : (
+                    ConnectorIcon && <BrandIcon icon={ConnectorIcon} className='size-[14px]' />
+                  )}
+                  {connector.status !== 'active' && !syncInFlight && (
+                    <span
+                      className={cn(
+                        '-right-0.5 -top-0.5 absolute size-1.5 rounded-xs border border-[var(--surface-2)]',
+                        connector.status === 'error'
+                          ? 'bg-[var(--text-error)]'
+                          : connector.status === 'disabled'
+                            ? 'bg-[var(--caution)]'
+                            : 'bg-[var(--text-muted)]'
+                      )}
+                    />
+                  )}
+                </span>
+              }
             >
-              <span className='relative flex size-[14px] shrink-0 items-center justify-center'>
-                {syncInFlight ? (
-                  <Loader className='size-[14px]' animate />
-                ) : (
-                  ConnectorIcon && <BrandIcon icon={ConnectorIcon} className='size-[14px]' />
-                )}
-                {connector.status !== 'active' && !syncInFlight && (
-                  <span
-                    className={cn(
-                      '-right-0.5 -top-0.5 absolute size-1.5 rounded-xs border border-[var(--surface-2)]',
-                      connector.status === 'error'
-                        ? 'bg-[var(--text-error)]'
-                        : connector.status === 'disabled'
-                          ? 'bg-[var(--caution)]'
-                          : 'bg-[var(--text-muted)]'
-                    )}
-                  />
-                )}
-              </span>
-              <span className='truncate text-[var(--text-body)]'>
-                {def?.name || connector.connectorType}
-              </span>
-            </button>
+              {def?.name || connector.connectorType}
+            </Chip>
           )
         })}
       </>
@@ -1259,7 +1272,7 @@ export function KnowledgeBase({
                 </span>
               ),
             },
-            size: { label: formatFileSize(doc.fileSize) },
+            size: { label: formatFileSize(doc.fileSize, { includeBytes: true }) },
             tokens: {
               label:
                 doc.processingStatus === 'completed'
@@ -1451,16 +1464,16 @@ export function KnowledgeBase({
         open={showAddDocumentsModal}
         onOpenChange={setShowAddDocumentsModal}
         knowledgeBaseId={id}
-        chunkingConfig={knowledgeBase?.chunkingConfig}
       />
 
-      {showAddConnectorModal && (
+      {showAddConnectorModal && knowledgeBase && (
         <AddConnectorModal
           open
           onOpenChange={setShowAddConnectorModal}
           onConnectorTypeChange={updateAddConnectorParam}
           knowledgeBaseId={id}
           initialConnectorType={addConnectorType || undefined}
+          isSearchIndex={knowledgeBase?.isSearchIndex}
         />
       )}
 
@@ -1498,6 +1511,7 @@ export function KnowledgeBase({
             workspaceId={workspaceId}
             knowledgeBaseId={id}
             connectors={connectors}
+            isSearchIndex={knowledgeBase?.isSearchIndex}
             isLoading={isLoadingConnectors}
             canEdit={userPermissions.canEdit}
             className='mt-0'
@@ -1551,6 +1565,14 @@ export function KnowledgeBase({
         onViewTags={
           contextMenuDocument && selectedDocumentCount === 1 && userPermissions.canEdit
             ? () => handleViewDocumentTags(contextMenuDocument)
+            : undefined
+        }
+        onRetry={
+          contextMenuDocument &&
+          getDocumentIndexingStatus(contextMenuDocument) === 'failed' &&
+          selectedDocumentCount === 1 &&
+          userPermissions.canEdit
+            ? () => handleRetryDocument(contextMenuDocument.id)
             : undefined
         }
         onDelete={
@@ -1768,17 +1790,9 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
 
   return (
     <div className='mt-3 border-[var(--border-1)] border-t pt-3'>
-      <div className='flex h-5 items-center justify-between'>
+      <div className='flex items-center justify-between'>
         <span className={FILTER_SECTION_LABEL_CLASS}>Filter by tags</span>
-        {activeCount > 0 && (
-          <Button
-            variant='ghost'
-            className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-caption hover-hover:text-[var(--text-secondary)]'
-            onClick={() => onChange([])}
-          >
-            Clear all
-          </Button>
-        )}
+        {activeCount > 0 && <Chip onClick={() => onChange([])}>Clear all</Chip>}
       </div>
 
       <div
@@ -1825,14 +1839,11 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
                     />
                   )}
                 </div>
-                <Button
-                  variant='ghost'
-                  className='relative size-[30px] shrink-0 p-0 text-[var(--text-muted)] before:absolute before:inset-[-5px] before:content-[""] hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-error)]'
+                <Chip
                   onClick={() => removeFilter(entry.id)}
                   aria-label='Remove tag filter'
-                >
-                  <X className='size-[14px]' />
-                </Button>
+                  leftIcon={X}
+                />
               </div>
               {entry.tagSlot && (
                 <TagFilterValueControl
@@ -1845,14 +1856,11 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
         })}
       </div>
 
-      <Button
-        variant='ghost'
-        onClick={addFilter}
-        className='mt-2 h-[30px] w-full justify-start gap-2 px-2 text-[var(--text-secondary)] text-caption hover-hover:text-[var(--text-primary)]'
-      >
-        <Plus className='size-[14px]' />
-        Add filter
-      </Button>
+      <div className='mt-2'>
+        <Chip fullWidth leftIcon={Plus} onClick={addFilter}>
+          Add filter
+        </Chip>
+      </div>
     </div>
   )
 }

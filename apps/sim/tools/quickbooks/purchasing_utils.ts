@@ -21,6 +21,8 @@ import type {
 import {
   assertQuickBooksSparseUpdate,
   optionalQuickBooksString,
+  quickBooksCurrencyRef,
+  quickBooksGlobalTaxCalculation,
   quickBooksReference,
   requiredQuickBooksString,
   validateQuickBooksDate,
@@ -188,7 +190,7 @@ function parseQuickBooksPurchasingLinesInternal(
       parsedLine = {
         lineType: 'item',
         amount,
-        itemId: requiredStringValue(line.itemId, `${itemName}.itemId`),
+        itemId: optionalStringValue(line.itemId, `${itemName}.itemId`),
         description: optionalStringValue(line.description, `${itemName}.description`),
         quantity,
         unitPrice,
@@ -262,7 +264,7 @@ function buildQuickBooksPurchasingLine(
     Description: line.description,
     DetailType: 'ItemBasedExpenseLineDetail',
     ItemBasedExpenseLineDetail: filterUndefined({
-      ItemRef: quickBooksReference(line.itemId!, 'itemId'),
+      ItemRef: line.itemId ? quickBooksReference(line.itemId, 'itemId') : undefined,
       Qty: line.quantity,
       UnitPrice: line.unitPrice,
     }),
@@ -322,6 +324,18 @@ export function parseQuickBooksBillAllocations(
   })
 }
 
+/**
+ * Builds the BillPayment `Line` collection, emitting `[]` when no allocation is
+ * supplied so the unallocated total becomes vendor credit.
+ *
+ * Whether Intuit actually accepts an empty `Line` is UNVERIFIED. Intuit's own
+ * model contradicts itself: the property is keyed `Line [0..n]`, carries
+ * requiredFlag `Required`, and is described as "Individual line items
+ * representing zero or more Bill, VendorCredit, and JournalEntry objects linked
+ * to this BillPayment object". `[0..n]` and "zero or more" say empty is legal;
+ * `Required` says it is not. This has not been settled against a live company,
+ * so the behavior is left as-is rather than hardened on a guess.
+ */
 function buildBillPaymentLines(
   allocations: QuickBooksBillAllocationInput[] | undefined,
   totalAmount: number
@@ -344,6 +358,8 @@ function buildBillPaymentLines(
 function purchasingHeader(params: {
   vendorId?: string
   apAccountId?: string
+  currencyCode?: string
+  globalTaxCalculation?: string
   transactionDate?: string
   dueDate?: string
   documentNumber?: string
@@ -354,6 +370,8 @@ function purchasingHeader(params: {
     APAccountRef: params.apAccountId
       ? quickBooksReference(params.apAccountId, 'apAccountId')
       : undefined,
+    CurrencyRef: quickBooksCurrencyRef(params.currencyCode),
+    GlobalTaxCalculation: quickBooksGlobalTaxCalculation(params.globalTaxCalculation),
     TxnDate: validateQuickBooksDate(params.transactionDate, 'transactionDate'),
     DueDate: validateQuickBooksDate(params.dueDate, 'dueDate'),
     DocNumber: optionalQuickBooksString(params.documentNumber),
@@ -519,7 +537,12 @@ export function buildQuickBooksCreateBillPaymentBody(
     ...paymentDetails,
     Line: lines,
     ...filterUndefined({
+      APAccountRef: params.apAccountId
+        ? quickBooksReference(params.apAccountId, 'apAccountId')
+        : undefined,
+      CurrencyRef: quickBooksCurrencyRef(params.currencyCode),
       TxnDate: validateQuickBooksDate(params.transactionDate, 'transactionDate'),
+      DocNumber: optionalQuickBooksString(params.documentNumber),
       PrivateNote: optionalQuickBooksString(params.privateNote),
     }),
   }
@@ -579,6 +602,8 @@ export function buildQuickBooksCreatePurchaseBody(
     EntityRef: params.vendorId
       ? { ...quickBooksReference(params.vendorId, 'vendorId'), type: 'Vendor' }
       : undefined,
+    CurrencyRef: quickBooksCurrencyRef(params.currencyCode),
+    GlobalTaxCalculation: quickBooksGlobalTaxCalculation(params.globalTaxCalculation),
     Line: buildQuickBooksPurchasingLines(params.lines),
     TxnDate: validateQuickBooksDate(params.transactionDate, 'transactionDate'),
     DocNumber: optionalQuickBooksString(params.paymentReference),

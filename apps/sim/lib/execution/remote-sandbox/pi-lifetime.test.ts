@@ -1,17 +1,5 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockEnv } = vi.hoisted(() => ({
-  mockEnv: {
-    PI_SANDBOX_LIFETIME_MS: undefined as string | undefined,
-    SANDBOX_PROVIDER: undefined as string | undefined,
-  },
-}))
-
-vi.mock('@/lib/core/config/env', () => ({ env: mockEnv }))
-
+import { setEnv } from '@sim/testing/mocks/env.mock'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { createTimeoutAbortController } from '@/lib/core/execution-limits'
 import {
   PI_SANDBOX_MAX_LIFETIME_MS,
@@ -27,8 +15,7 @@ function resolveWith(options: { provider?: string; lifetimeMs?: string }): {
   min: number
   platformMax: number
 } {
-  mockEnv.PI_SANDBOX_LIFETIME_MS = options.lifetimeMs
-  mockEnv.SANDBOX_PROVIDER = options.provider
+  setEnv({ PI_SANDBOX_LIFETIME_MS: options.lifetimeMs, SANDBOX_PROVIDER: options.provider })
   return {
     lifetime: resolvePiSandboxLifetimeMs(),
     min: PI_SANDBOX_MIN_LIFETIME_MS,
@@ -37,8 +24,7 @@ function resolveWith(options: { provider?: string; lifetimeMs?: string }): {
 }
 
 beforeEach(() => {
-  mockEnv.PI_SANDBOX_LIFETIME_MS = undefined
-  mockEnv.SANDBOX_PROVIDER = undefined
+  setEnv({ PI_SANDBOX_LIFETIME_MS: undefined, SANDBOX_PROVIDER: undefined })
 })
 
 describe('resolvePiSandboxLifetimeMs', () => {
@@ -136,7 +122,7 @@ describe('resolvePiRunLifetimeMs', () => {
   })
 
   it('narrows Daytona to the remaining execution deadline', () => {
-    mockEnv.SANDBOX_PROVIDER = 'daytona'
+    setEnv({ SANDBOX_PROVIDER: 'daytona' })
     const timeout = createTimeoutAbortController(5 * 60 * 1000)
     const lifetime = resolvePiRunLifetimeMs(timeout.signal)
 
@@ -146,7 +132,7 @@ describe('resolvePiRunLifetimeMs', () => {
   })
 
   it('uses the platform ceiling for an untimed Daytona run', () => {
-    mockEnv.SANDBOX_PROVIDER = 'daytona'
+    setEnv({ SANDBOX_PROVIDER: 'daytona' })
 
     expect(resolvePiRunLifetimeMs()).toBe(PI_SANDBOX_MAX_LIFETIME_MS)
   })

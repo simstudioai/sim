@@ -19,6 +19,7 @@ import {
   getWorkspaceCreationPolicy,
   WorkspaceCreationCapabilityWithheldError,
   WorkspaceCreationContextChangedError,
+  WorkspaceOwnerMissingError,
 } from '@/lib/workspaces/policy'
 
 const logger = createLogger('Workspaces')
@@ -87,6 +88,10 @@ export const GET = withRouteHandler(async (request: Request) => {
         })
         return NextResponse.json(refreshedPayload)
       }
+      /** A cached session cookie outlived the account it belongs to. */
+      if (error instanceof WorkspaceOwnerMissingError) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
       throw error
     }
 
@@ -123,7 +128,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   try {
     const parsed = await parseRequest(createWorkspaceContract, req, {})
     if (!parsed.success) return parsed.response
-    const { name, color, skipDefaultWorkflow } = parsed.data.body
+    const { name, skipDefaultWorkflow } = parsed.data.body
     const activeOrganizationId = getActiveOrganizationId(session)
     const creationPolicy = await getWorkspaceCreationPolicy({
       userId: session.user.id,
@@ -153,7 +158,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       userId: session.user.id,
       name,
       skipDefaultWorkflow,
-      explicitColor: color,
       organizationId: creationPolicy.organizationId,
       workspaceMode: creationPolicy.workspaceMode,
       billedAccountUserId: creationPolicy.billedAccountUserId,
@@ -188,7 +192,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       description: `Created workspace "${newWorkspace.name}"`,
       metadata: {
         name: newWorkspace.name,
-        color: newWorkspace.color,
         workspaceMode: newWorkspace.workspaceMode,
         organizationId: newWorkspace.organizationId,
       },
@@ -208,6 +211,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         },
         { status: 409 }
       )
+    }
+    /** A cached session cookie outlived the account it belongs to. */
+    if (error instanceof WorkspaceOwnerMissingError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     /**
      * A lock timeout is contention, not a fault: creation serializes on the

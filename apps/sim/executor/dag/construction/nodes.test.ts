@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { BlockType } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'

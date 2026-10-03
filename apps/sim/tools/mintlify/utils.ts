@@ -1,3 +1,4 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import type {
   MintlifyAgentJobOutput,
   MintlifyTrafficRow,
@@ -109,11 +110,6 @@ export function toNullableNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
-/** Normalizes a nullable string field from a Mintlify response. */
-export function toNullableString(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
-}
-
 /**
  * Maps the `AgentJob` payload returned identically by create-job, get-job, and
  * send-message.
@@ -122,18 +118,18 @@ export function toAgentJobOutput(data: Record<string, unknown>): MintlifyAgentJo
   const source = data.source as Record<string, unknown> | undefined
 
   return {
-    id: toNullableString(data.id),
-    status: toNullableString(data.status),
+    id: toStringOrNull(data.id),
+    status: toStringOrNull(data.status),
     source: source
       ? {
-          repository: toNullableString(source.repository),
-          ref: toNullableString(source.ref),
+          repository: toStringOrNull(source.repository),
+          ref: toStringOrNull(source.ref),
         }
       : null,
-    model: toNullableString(data.model),
-    prLink: toNullableString(data.prLink),
-    createdAt: toNullableString(data.createdAt),
-    archivedAt: toNullableString(data.archivedAt),
+    model: toStringOrNull(data.model),
+    prLink: toStringOrNull(data.prLink),
+    createdAt: toStringOrNull(data.createdAt),
+    archivedAt: toStringOrNull(data.archivedAt),
   }
 }
 
@@ -154,7 +150,7 @@ export function toTrafficRows(value: unknown): MintlifyTrafficRow[] {
   return value.map((item) => {
     const row = (item ?? {}) as Record<string, unknown>
     return {
-      path: toNullableString(row.path),
+      path: toStringOrNull(row.path),
       human: toNullableNumber(row.human),
       ai: toNullableNumber(row.ai),
       total: toNullableNumber(row.total),

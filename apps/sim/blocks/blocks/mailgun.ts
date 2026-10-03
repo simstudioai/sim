@@ -1,9 +1,8 @@
 import { MailgunIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { SendMessageResult } from '@/tools/mailgun/types'
 
-export const MailgunBlock: BlockConfig<SendMessageResult> = {
+export const MailgunBlock: BlockConfig = {
   type: 'mailgun',
   name: 'Mailgun',
   description: 'Send emails and manage mailing lists with Mailgun',
@@ -69,6 +68,16 @@ export const MailgunBlock: BlockConfig<SendMessageResult> = {
       password: true,
       placeholder: 'Enter your Mailgun API key',
       required: true,
+    },
+    {
+      id: 'region',
+      title: 'Region',
+      type: 'dropdown',
+      options: [
+        { label: 'US', id: 'us' },
+        { label: 'EU', id: 'eu' },
+      ],
+      value: () => 'us',
     },
     {
       id: 'domain',
@@ -405,6 +414,7 @@ Return ONLY the JSON object - no explanations or markdown.`,
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     apiKey: { type: 'string', description: 'Mailgun API key' },
+    region: { type: 'string', description: 'Mailgun account region: "us" or "eu"' },
     domain: { type: 'string', description: 'Mailgun domain' },
     // Message inputs
     from: { type: 'string', description: 'Sender email address' },

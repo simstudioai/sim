@@ -35,6 +35,7 @@ import {
   setBrowserAppearanceTheme as setAgentBrowserTheme,
   setPanelFocused as setBrowserAgentPanelFocused,
 } from '@/main/browser-agent/session'
+import { attachClientInfo } from '@/main/client-info'
 import {
   APP_NAME_FOR_CHANNEL,
   channelForOrigin,
@@ -77,10 +78,12 @@ import {
   readSessionUserId,
   resolveStartRoute,
 } from '@/main/session-lifecycle'
+import { setShellTheme } from '@/main/shell-theme'
 import { attachTelemetryPolicy } from '@/main/telemetry-policy'
 import { TerminalRegistry } from '@/main/terminal/registry'
 import { installTray, type TrayHandle } from '@/main/tray'
 import { checkForUpdatesInteractive, initUpdater, type UpdaterHandle } from '@/main/updater'
+import { installBrowserUserAgent } from '@/main/user-agent'
 import { createMainWindow, setupPermissionHandlers } from '@/main/window'
 import { attachWindowOpenPolicy, isPopupContents } from '@/main/windows'
 
@@ -109,6 +112,7 @@ function main(): void {
 
   const userDataPath = app.getPath('userData')
   const config = createConfigStore(join(userDataPath, 'settings.json'))
+  setShellTheme(config.get('themeBackground'))
   initializeAccountDataRecovery(join(userDataPath, 'account-data-teardown-required.json'))
   const recoveryOrigin = getAccountDataTeardownOrigin()
   if (isAccountDataTeardownRequired() && recoveryOrigin && !config.isPersistenceAvailable()) {
@@ -265,6 +269,7 @@ function main(): void {
     setupPermissionHandlers(ses, appOrigin)
     attachLocalPageProtocol(ses)
     attachCspFallback(ses, appOrigin)
+    attachClientInfo(ses, appOrigin)
     attachDownloadHandling(ses, events)
     attachTelemetryPolicy(ses, config.get('blockThirdPartyAnalytics') ?? true)
     ses.setSpellCheckerLanguages(['en-US'])
@@ -715,8 +720,6 @@ function main(): void {
         onSessionStatus: (alive, scopeId) => {
           scopeEvents.sendBrowser(scopeId, 'browser-agent:session-status', alive, scopeId)
         },
-        sitePermissionPromptSupported: (scopeId) =>
-          scopeEvents.browserSitePermissionPromptSupported(scopeId),
         onFillAvailability: (available, scopeId) => {
           scopeEvents.sendBrowser(scopeId, 'browser-credentials:fill-availability', {
             available,
@@ -741,7 +744,9 @@ function main(): void {
       },
       {
         getDirectory: () => desktopSettings.getPreferences().browserDownloadDirectory,
-      }
+      },
+      { origin: processOrigin, session: ensureAppSession() },
+      localFilesystem
     )
     if (accountDataAvailable()) {
       await localFilesystem.initialize()
@@ -825,6 +830,8 @@ function main(): void {
         },
       },
       beginOAuthConnect: (providerId, scope) => connectFlow.beginConnectHandoff(providerId, scope),
+      prepareSourceConnect: () => handoff.prepareSourceConnect(),
+      cancelSourceConnect: (requestId) => handoff.cancelSourceConnect(requestId),
       updates: {
         getState: () => updater?.getState() ?? { status: 'idle' },
         check: () => updater?.check(),
@@ -861,6 +868,7 @@ function main(): void {
     updater = initUpdater({
       getWindow: getMainWindow,
       events,
+      installStatePath: join(userDataPath, 'update-install.json'),
       appOrigin,
       autoDownload: () => config.get('autoDownloadUpdates') ?? true,
       setRelaunchPending: (pending) => {
@@ -897,6 +905,7 @@ app.setName(APP_NAME_FOR_CHANNEL[channelForOrigin(DEFAULT_ORIGIN)])
 if (process.env.SIM_DESKTOP_USER_DATA) {
   app.setPath('userData', process.env.SIM_DESKTOP_USER_DATA)
 }
+installBrowserUserAgent()
 
 // The scheme the offline page and server picker load from must be declared
 // before the app is ready; the per-session handlers attach later.

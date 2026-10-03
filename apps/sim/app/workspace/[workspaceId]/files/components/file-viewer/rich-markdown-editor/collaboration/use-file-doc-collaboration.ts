@@ -5,9 +5,9 @@ import { FILE_DOC_EVENTS, type FileDocPresence } from '@sim/realtime-protocol/fi
 import { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
 import { getUserColor } from '@/lib/workspaces/colors'
+import { FileDocProvider } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-provider'
+import { useReportFileDocOthers } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-room-context'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
-import { FileDocProvider } from './file-doc-provider'
-import { useReportFileDocOthers } from './file-doc-room-context'
 
 /** The live collaboration binding the editor wires into TipTap's Collaboration
  * (the {@link Y.Doc}) and CollaborationCaret (the awareness). */
@@ -32,6 +32,7 @@ export interface FileDocCollaboration {
 }
 
 interface UseFileDocCollaborationParams {
+  workspaceId: string
   fileId: string
   userId: string
   userName: string
@@ -51,6 +52,7 @@ interface UseFileDocCollaborationParams {
  * realtime relay over the shared socket. Returns `null` while disabled.
  */
 export function useFileDocCollaboration({
+  workspaceId,
   fileId,
   userId,
   userName,
@@ -102,13 +104,16 @@ export function useFileDocCollaboration({
     // (see above), so this always binds the same doc/awareness the editor froze at mount.
     const doc = docRef.current as Y.Doc
     const awareness = awarenessRef.current as Awareness
-    const fileProvider = new FileDocProvider(socket, fileId, doc, awareness)
+    const fileProvider = new FileDocProvider(socket, fileId, doc, awareness, {
+      workspaceId,
+      userId,
+    })
     setProvider(fileProvider)
     return () => {
       fileProvider.destroy()
       setProvider(null)
     }
-  }, [enabled, socket, fileId])
+  }, [enabled, socket, fileId, workspaceId, userId])
 
   const reportOthers = useReportFileDocOthers()
   const reportOthersRef = useRef(reportOthers)

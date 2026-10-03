@@ -170,7 +170,7 @@ export function buildPiSearchProviderArgs(
     case 'serper':
       return { query, num: numResults }
     case 'parallel':
-      return { objective: query, max_results: numResults }
+      return { search_queries: [query], objective: query, max_results: numResults }
     case 'firecrawl':
       return { query, limit: numResults }
   }

@@ -141,6 +141,8 @@ export function buildSelectorContextFromValues(
         canonicalIndex.groupsById[dependency]?.canonicalId ??
         canonicalIndex.canonicalIdBySubBlockId[dependency]
       if (canonicalId) {
+        const group = canonicalIndex.groupsById[canonicalId]
+        if (![group.basicId, ...group.advancedIds].some((id) => id && configById.has(id))) continue
         if (resolvedGroups.has(canonicalId)) continue
         resolvedGroups.add(canonicalId)
         candidate[canonicalId] = resolveActiveCanonicalValue(

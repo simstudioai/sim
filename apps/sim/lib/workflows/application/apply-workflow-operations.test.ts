@@ -1,112 +1,99 @@
-/**
- * @vitest-environment node
- */
 import { WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { workflowAuthzMockFns } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  blockVisibilityMock,
+  blockVisibilityMockFns,
+} from '@sim/testing/mocks/block-visibility.mock'
+import {
+  customBlockOperationsMock,
+  customBlockOperationsMockFns,
+} from '@sim/testing/mocks/custom-block-operations.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import {
+  workflowDeploymentStatusMock,
+  workflowDeploymentStatusMockFns,
+} from '@sim/testing/mocks/workflow-deployment-status.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  recordAudit: vi.fn(),
-  resolveContext: vi.fn(),
-  resolvePermission: vi.fn(),
-  notify: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   replace: vi.fn(),
   validate: vi.fn(),
-  needsRedeployment: vi.fn(),
   applyOperations: vi.fn(),
-  loadNormalized: vi.fn(),
   normalizeState: vi.fn(),
-  sandboxAccess: vi.fn(),
-  blockVisibility: vi.fn(),
-  permissionConfig: vi.fn(),
   preValidate: vi.fn(),
   collectReferences: vi.fn(),
   collectToolReferences: vi.fn(),
   assertIdsUnclaimed: vi.fn(),
   collectGraphIds: vi.fn(),
+  lintGraph: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { WORKFLOW_UPDATED: 'workflow.updated' },
-  AuditResourceType: { WORKFLOW: 'workflow' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveContext,
-}))
-vi.mock('@/lib/realtime/notify', () => ({ notifyWorkflowUpdated: mocks.notify }))
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
+vi.mock('@/lib/workflows/custom-blocks/operations', () => customBlockOperationsMock)
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 vi.mock('@/lib/workflows/persistence/replace-normalized-state', () => ({
-  replaceWorkflowNormalizedState: mocks.replace,
-  assertWorkflowGraphIdsUnclaimed: mocks.assertIdsUnclaimed,
-  collectWorkflowGraphIds: mocks.collectGraphIds,
+  replaceWorkflowNormalizedState: hoisted.replace,
+  assertWorkflowGraphIdsUnclaimed: hoisted.assertIdsUnclaimed,
+  collectWorkflowGraphIds: hoisted.collectGraphIds,
 }))
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadWorkflowFromNormalizedTables: mocks.loadNormalized,
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 vi.mock('@/lib/workflows/sanitization/validation', () => ({
-  validateWorkflowState: mocks.validate,
+  validateWorkflowState: hoisted.validate,
   sanitizeAgentToolsInBlocks: (blocks: Record<string, unknown>) => ({ blocks, warnings: [] }),
 }))
-vi.mock('@/lib/workflows/deployment-status', () => ({
-  checkNeedsRedeployment: mocks.needsRedeployment,
-}))
+vi.mock('@/lib/workflows/deployment-status', () => workflowDeploymentStatusMock)
 vi.mock('@/lib/workflows/editing/engine', () => ({
-  applyOperationsToWorkflowState: mocks.applyOperations,
+  applyOperationsToWorkflowState: hoisted.applyOperations,
 }))
 vi.mock('@/lib/workflows/editing/validation', () => ({
-  collectUnresolvedAgentToolReferences: mocks.collectToolReferences,
-  collectUnresolvedReferences: mocks.collectReferences,
-  preValidateCredentialInputs: mocks.preValidate,
+  collectUnresolvedAgentToolReferences: hoisted.collectToolReferences,
+  collectUnresolvedReferences: hoisted.collectReferences,
+  preValidateCredentialInputs: hoisted.preValidate,
   UNRESOLVABLE_AT_LINT_NOTE: 'lint note',
 }))
 vi.mock('@/lib/workflows/editing/lint', () => ({
   collectWorkflowFieldIssues: () => [],
-  lintEditedWorkflowState: () => ({
-    sources: [],
-    sinks: [],
-    orphanBlocks: [],
-    emptyOutgoingPorts: [],
-    invalidBranchPorts: [],
-    invalidConnectionTargets: [],
-  }),
+  collectDanglingBlockOutputReferences: () => [],
+  lintEditedWorkflowState: hoisted.lintGraph,
 }))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  hasWorkspaceSandboxAccess: mocks.sandboxAccess,
-}))
-vi.mock('@/lib/core/config/block-visibility', () => ({ getBlockVisibility: mocks.blockVisibility }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: mocks.permissionConfig,
-  /**
-   * The use case passes the organization it already loaded, so the resolver
-   * takes its verified-context branch rather than looking the workspace up
-   * again.
-   */
-  resolveVerifiedUserAccessControlContext: async (
-    userId: string,
-    workspaceId: string,
-    _organizationId: string | null
-  ) => ({ config: await mocks.permissionConfig(userId, workspaceId) }),
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/core/config/block-visibility', () => blockVisibilityMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 vi.mock('@/blocks/visibility/server-context', () => ({
   withBlockVisibility: (_state: unknown, run: () => unknown) => run(),
 }))
-vi.mock('@/stores/workflows/workflow/utils', () => ({
+vi.mock('@sim/workflow-persistence/subflow-helpers', () => ({
   generateLoopBlocks: () => ({}),
   generateParallelBlocks: () => ({}),
 }))
 vi.mock('@/stores/workflows/workflow/validation', () => ({
-  normalizeWorkflowState: mocks.normalizeState,
+  normalizeWorkflowState: hoisted.normalizeState,
 }))
 vi.mock('@/lib/workflows/autolayout', () => ({
   applyTargetedLayout: vi.fn(),
@@ -120,8 +107,40 @@ vi.mock('@/lib/workflows/autolayout', () => ({
 
 import { ForbiddenOperationError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { applyWorkflowOperations } from '@/lib/workflows/application/apply-workflow-operations'
+import {
+  applyWorkflowOperations,
+  DRY_RUN_PREVIEW_BLOCK_IDS_WARNING,
+} from '@/lib/workflows/application/apply-workflow-operations'
 import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/workflow-operations-error'
+
+const mocks = {
+  ...hoisted,
+  needsRedeployment: workflowDeploymentStatusMockFns.mockCheckNeedsRedeployment,
+  blockVisibility: blockVisibilityMockFns.mockGetBlockVisibility as Mock,
+  customBlocks: customBlockOperationsMockFns.mockListCustomBlocksWithInputsForWorkspace,
+}
+
+const mockPermissionConfig = permissionGroupsResolveMockFns.mockGetUserPermissionConfig
+/**
+ * The use case passes the organization it already loaded, so the resolver takes its
+ * verified-context branch rather than looking the workspace up again.
+ */
+permissionGroupsResolveMockFns.mockResolveVerifiedUserAccessControlContext.mockImplementation(
+  async (...args: unknown[]) => ({
+    organizationId: null,
+    entitled: false,
+    permissionGroup: null,
+    config: (await mockPermissionConfig(args[0], args[1])) as Record<string, unknown> | null,
+  })
+)
+
+const mockLoadNormalized = workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
+const mockSandboxAccess = billingSubscriptionMockFns.mockHasWorkspaceSandboxAccess
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockResolveContext = workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
+const mockNotify = realtimeNotifyMockFns.mockNotifyWorkflowUpdated
 
 const BLOCK = {
   id: 'block-1',
@@ -142,7 +161,7 @@ const context = {
   billedAccountUserId: 'billing-owner-1',
 }
 
-const sessionPrincipal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+const sessionPrincipal = createSessionPrincipal()
 const copilotPrincipal = {
   kind: 'delegated' as const,
   serviceId: 'copilot' as const,
@@ -168,22 +187,33 @@ function graph(blocks: Record<string, unknown> = { 'block-1': BLOCK }) {
 
 const GRAPH_IDS = { blockIds: ['block-1'], edgeIds: [], subflowIds: [] }
 
+/** The graph lint with no findings, in the shape `lintEditedWorkflowState` returns. */
+const EMPTY_GRAPH_LINT = {
+  sources: [],
+  sinks: [],
+  orphanBlocks: [],
+  emptyOutgoingPorts: [],
+  invalidBranchPorts: [],
+  invalidConnectionTargets: [],
+}
+
 describe('applyWorkflowOperations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.resolveContext.mockResolvedValue(context)
-    mocks.resolvePermission.mockResolvedValue('write')
+    mocks.customBlocks.mockResolvedValue([])
+    mockResolveContext.mockResolvedValue(context)
+    mockResolvePermission.mockResolvedValue('write')
     workflowAuthzMockFns.mockAssertWorkflowMutable.mockResolvedValue(undefined)
-    mocks.sandboxAccess.mockResolvedValue(true)
+    mockSandboxAccess.mockResolvedValue(true)
     mocks.blockVisibility.mockResolvedValue({ revealed: [], disabled: [], previewTagged: [] })
-    mocks.permissionConfig.mockResolvedValue(null)
-    mocks.loadNormalized.mockResolvedValue(graph())
+    mockPermissionConfig.mockResolvedValue(null)
+    mockLoadNormalized.mockResolvedValue(graph())
     mocks.normalizeState.mockReturnValue({ state: graph(), warnings: [] })
     mocks.preValidate.mockResolvedValue({ filteredOperations: operations, errors: [] })
     mocks.applyOperations.mockReturnValue({
       state: graph(),
       validationErrors: [],
       skippedItems: [],
+      mintedBlockIds: {},
     })
     mocks.collectReferences.mockResolvedValue([])
     mocks.collectToolReferences.mockResolvedValue([])
@@ -192,64 +222,75 @@ describe('applyWorkflowOperations', () => {
     mocks.needsRedeployment.mockResolvedValue(true)
     mocks.collectGraphIds.mockReturnValue(GRAPH_IDS)
     mocks.assertIdsUnclaimed.mockResolvedValue(undefined)
-  })
-
-  it('writes once, through the shared persistence primitive', async () => {
-    const result = await applyWorkflowOperations.execute({
-      principal: sessionPrincipal,
-      input: { workflowId: 'workflow-1', operations },
-    })
-
-    expect(mocks.replace).toHaveBeenCalledTimes(1)
-    expect(mocks.replace).toHaveBeenCalledWith(
-      expect.objectContaining({ workflowId: 'workflow-1', workspaceId: 'workspace-1' })
-    )
-    expect(result.applied).toBe(1)
-    expect(result.needsRedeployment).toBe(true)
+    mocks.lintGraph.mockReturnValue(EMPTY_GRAPH_LINT)
   })
 
   /**
-   * Replacing a draft with `{ blocks: {}, edges: [] }` legitimately deletes
-   * every normalized block row. The workflow row still exists, so the next add
-   * must initialize that empty canvas rather than treating it as missing state.
+   * A delete is exactly when orphans and dangling references appear, so the
+   * report must be built from the post-delete graph even though the batch adds
+   * and edits nothing — never skipped or answered as `null`.
    */
-  it('adds the first block to a blockless workflow', async () => {
-    const emptyGraph = graph({})
-    const graphWithAddedBlock = graph({
-      'block-2': { ...BLOCK, id: 'block-2', type: 'agent', name: 'Triage' },
-    })
-    mocks.loadNormalized.mockResolvedValue(emptyGraph)
-    mocks.normalizeState.mockImplementation((state) => ({ state, warnings: [] }))
+  it('lints the post-delete graph for a delete-only batch', async () => {
+    const deleteOnly = [{ operation_type: 'delete' as const, block_id: 'block-2' }]
+    const orphan = { blockId: 'block-1', blockName: 'Start', blockType: 'starter' }
+    mocks.preValidate.mockResolvedValue({ filteredOperations: deleteOnly, errors: [] })
     mocks.applyOperations.mockReturnValue({
-      state: graphWithAddedBlock,
+      state: graph({ 'block-1': BLOCK }),
       validationErrors: [],
       skippedItems: [],
       mintedBlockIds: {},
     })
+    mocks.lintGraph.mockReturnValue({ ...EMPTY_GRAPH_LINT, orphanBlocks: [orphan] })
 
     const result = await applyWorkflowOperations.execute({
       principal: sessionPrincipal,
-      input: { workflowId: 'workflow-1', operations, atomic: true },
+      input: { workflowId: 'workflow-1', operations: deleteOnly },
     })
 
-    expect(mocks.normalizeState).toHaveBeenCalledWith(emptyGraph)
-    expect(mocks.applyOperations).toHaveBeenCalledWith(emptyGraph, operations, null)
-    expect(mocks.replace).toHaveBeenCalledTimes(1)
-    expect(result.graph.blocks).toEqual(graphWithAddedBlock.blocks)
+    expect(result.applied).toBe(1)
+    expect(mocks.lintGraph).toHaveBeenCalledTimes(1)
+    expect(mocks.lintGraph.mock.calls[0][0].blocks).not.toHaveProperty('block-2')
+    expect(result.lint).toEqual({
+      ...EMPTY_GRAPH_LINT,
+      orphanBlocks: [orphan],
+      fieldIssues: [],
+      unresolvedReferences: [],
+      tableFieldIssues: [],
+      notes: ['No entry block: nothing can start this workflow.'],
+    })
   })
 
   describe('dry run', () => {
-    it('runs the whole engine and stops at the write', async () => {
-      const result = await applyWorkflowOperations.execute({
+    /**
+     * The engine mints a UUID for every non-UUID `block_id` on each call, so a
+     * dry run's ids are never the ids the committed apply produces. Reporting
+     * them as `mintedBlockIds` made them look authoritative.
+     */
+    it('reports minted ids as previews, with a warning, instead of as minted', async () => {
+      mocks.applyOperations.mockReturnValue({
+        state: graph(),
+        validationErrors: [],
+        skippedItems: [],
+        mintedBlockIds: { triage: 'preview-uuid' },
+      })
+
+      const dry = await applyWorkflowOperations.execute({
         principal: sessionPrincipal,
         input: { workflowId: 'workflow-1', operations, dryRun: true },
       })
 
-      expect(result.dryRun).toBe(true)
-      expect(result.applied).toBe(1)
-      expect(mocks.replace).not.toHaveBeenCalled()
-      expect(mocks.recordAudit).not.toHaveBeenCalled()
-      expect(mocks.notify).not.toHaveBeenCalled()
+      expect(dry.mintedBlockIds).toEqual({})
+      expect(dry.previewBlockIds).toEqual({ triage: 'preview-uuid' })
+      expect(dry.warnings).toContain(DRY_RUN_PREVIEW_BLOCK_IDS_WARNING)
+
+      const committed = await applyWorkflowOperations.execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations },
+      })
+
+      expect(committed.mintedBlockIds).toEqual({ triage: 'preview-uuid' })
+      expect(committed.previewBlockIds).toBeUndefined()
+      expect(committed.warnings).not.toContain(DRY_RUN_PREVIEW_BLOCK_IDS_WARNING)
     })
 
     /**
@@ -289,36 +330,6 @@ describe('applyWorkflowOperations', () => {
           input: { workflowId: 'workflow-1', operations, dryRun: true },
         })
       ).rejects.toBe(conflict)
-    })
-
-    /**
-     * A committed apply reports `[...validation.warnings, ...persisted.warnings]`,
-     * the second half raised by the preparation step inside the write. A dry run
-     * that dropped that half would not tell a caller its dangling edge is about
-     * to disappear — the one thing a preview exists to say.
-     */
-    it('reports the preparation warnings the committed apply would', async () => {
-      mocks.applyOperations.mockReturnValue({
-        state: {
-          blocks: { 'block-1': BLOCK },
-          edges: [{ id: 'edge-9', source: 'block-1', target: 'block-missing' }],
-          loops: {},
-          parallels: {},
-        },
-        validationErrors: [],
-        skippedItems: [],
-      })
-      mocks.validate.mockReturnValue({ valid: true, errors: [], warnings: ['validation note'] })
-
-      const dry = await applyWorkflowOperations.execute({
-        principal: sessionPrincipal,
-        input: { workflowId: 'workflow-1', operations, dryRun: true },
-      })
-
-      expect(dry.warnings).toEqual([
-        'validation note',
-        'Dropped edge "edge-9": edge references a missing block',
-      ])
     })
 
     /** The preview is worthless if it does not carry the findings. */
@@ -409,8 +420,8 @@ describe('applyWorkflowOperations', () => {
     expect((failure as WorkflowOperationsNotAppliedError).code).toBe('conflict')
     expect((failure as WorkflowOperationsNotAppliedError).skipped).toHaveLength(1)
     expect(mocks.replace).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-    expect(mocks.notify).not.toHaveBeenCalled()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockNotify).not.toHaveBeenCalled()
   })
 
   /**
@@ -418,7 +429,7 @@ describe('applyWorkflowOperations', () => {
    * surface is an unclassified 500.
    */
   it('names the plan capability when the workspace cannot use sandboxes', async () => {
-    mocks.sandboxAccess.mockResolvedValue(false)
+    mockSandboxAccess.mockResolvedValue(false)
 
     const failure = await applyWorkflowOperations
       .execute({
@@ -450,16 +461,17 @@ describe('applyWorkflowOperations', () => {
       principal: copilotPrincipal,
       input: { workflowId: 'workflow-1', operations, baseGraph },
     })
-    expect(mocks.loadNormalized).not.toHaveBeenCalled()
-    expect(mocks.applyOperations).toHaveBeenCalledWith(baseGraph, operations, null)
+    expect(mockLoadNormalized).not.toHaveBeenCalled()
+    expect(mocks.applyOperations).toHaveBeenCalledWith(baseGraph, operations, null, true)
 
     vi.clearAllMocks()
-    mocks.resolveContext.mockResolvedValue(context)
-    mocks.resolvePermission.mockResolvedValue('write')
-    mocks.sandboxAccess.mockResolvedValue(true)
+    mocks.customBlocks.mockResolvedValue([])
+    mockResolveContext.mockResolvedValue(context)
+    mockResolvePermission.mockResolvedValue('write')
+    mockSandboxAccess.mockResolvedValue(true)
     mocks.blockVisibility.mockResolvedValue({ revealed: [], disabled: [], previewTagged: [] })
-    mocks.permissionConfig.mockResolvedValue(null)
-    mocks.loadNormalized.mockResolvedValue(graph())
+    mockPermissionConfig.mockResolvedValue(null)
+    mockLoadNormalized.mockResolvedValue(graph())
     mocks.normalizeState.mockReturnValue({ state: graph(), warnings: [] })
     mocks.preValidate.mockResolvedValue({ filteredOperations: operations, errors: [] })
     mocks.applyOperations.mockReturnValue({
@@ -477,8 +489,8 @@ describe('applyWorkflowOperations', () => {
       principal: sessionPrincipal,
       input: { workflowId: 'workflow-1', operations, baseGraph },
     })
-    expect(mocks.loadNormalized).toHaveBeenCalledWith('workflow-1')
-    expect(mocks.applyOperations).not.toHaveBeenCalledWith(baseGraph, operations, null)
+    expect(mockLoadNormalized).toHaveBeenCalledWith('workflow-1')
+    expect(mocks.applyOperations).not.toHaveBeenCalledWith(baseGraph, operations, null, true)
   })
 
   it('applies the block enablement slice and declines a locked block as a skipped item', async () => {
@@ -508,7 +520,7 @@ describe('applyWorkflowOperations', () => {
       input: { workflowId: 'workflow-1', operations },
     })
 
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
+    expect(mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'workflow.updated',
         resourceId: 'workflow-1',
@@ -522,7 +534,7 @@ describe('applyWorkflowOperations', () => {
         }),
       })
     )
-    expect(mocks.recordAudit).toHaveBeenCalledBefore(mocks.notify)
+    expect(mockRecordAudit).toHaveBeenCalledBefore(mockNotify)
   })
 
   it('refuses a locked workflow before loading the graph', async () => {
@@ -537,18 +549,18 @@ describe('applyWorkflowOperations', () => {
       })
     ).rejects.toMatchObject({ code: 'locked' })
 
-    expect(mocks.loadNormalized).not.toHaveBeenCalled()
+    expect(mockLoadNormalized).not.toHaveBeenCalled()
   })
 
   it('rejects a workspace API key, which this operation denies, before canonical loading', async () => {
     await expect(
       applyWorkflowOperations.execute({
-        principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'ws-key-1' },
+        principal: createWorkspaceApiKeyPrincipal({ keyId: 'ws-key-1' }),
         input: { workflowId: 'workflow-1', operations },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
 
-    expect(mocks.resolveContext).not.toHaveBeenCalled()
+    expect(mockResolveContext).not.toHaveBeenCalled()
   })
 
   it('rejects a graph the engine produced that does not validate, without writing', async () => {
@@ -566,7 +578,7 @@ describe('applyWorkflowOperations', () => {
     ).rejects.toMatchObject({ code: 'validation' })
 
     expect(mocks.replace).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 
   /**

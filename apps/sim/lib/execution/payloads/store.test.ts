@@ -1,6 +1,17 @@
-/**
- * @vitest-environment node
- */
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
+import {
+  largeValueMetadataMock,
+  largeValueMetadataMockFns,
+} from '@sim/testing/mocks/large-value-metadata.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
@@ -8,61 +19,34 @@ import {
   clearLargeValueCacheForTests,
   materializeLargeValueRefSync,
 } from '@/lib/execution/payloads/cache'
-import { MAX_DURABLE_LARGE_VALUE_BYTES } from '@/lib/execution/payloads/limits'
+import {
+  MAX_DURABLE_LARGE_VALUE_BYTES,
+  MAX_TRACE_ARCHIVE_BYTES,
+} from '@/lib/execution/payloads/limits'
 import {
   readLargeValueRefFromStorage,
   readUserFileContent,
 } from '@/lib/execution/payloads/materialization.server'
-import { materializeLargeValueRef, storeLargeValue } from '@/lib/execution/payloads/store'
+import {
+  materializeLargeValueRef,
+  storeExecutionTraceArchive,
+  storeLargeValue,
+} from '@/lib/execution/payloads/store'
 import { EXECUTION_RESOURCE_LIMIT_CODE } from '@/lib/execution/resource-errors'
 
-const {
-  mockAddLargeValueReference,
-  mockDeleteFileMetadata,
-  mockDeleteFiles,
-  mockDownloadFile,
-  mockRegisterLargeValueOwner,
-  mockUploadFile,
-  mockVerifyFileAccess,
-} = vi.hoisted(() => ({
-  mockAddLargeValueReference: vi.fn(),
-  mockDeleteFileMetadata: vi.fn(),
-  mockDeleteFiles: vi.fn(),
-  mockDownloadFile: vi.fn(),
-  mockRegisterLargeValueOwner: vi.fn(),
-  mockUploadFile: vi.fn(),
-  mockVerifyFileAccess: vi.fn(),
-}))
+const { mockAddLargeValueReference, mockRegisterLargeValueOwner } = largeValueMetadataMockFns
+const { mockDeleteFiles, mockDownloadFile, mockUploadFile } = storageServiceMockFns
+const { mockDeleteFileMetadata } = uploadsMetadataMockFns
+const { mockVerifyFileAccess } = filesAuthorizationMockFns
 
-vi.mock('@/lib/uploads', () => ({
-  StorageService: {
-    deleteFiles: mockDeleteFiles,
-    downloadFile: mockDownloadFile,
-    uploadFile: mockUploadFile,
-  },
-}))
-
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  uploadFile: mockUploadFile,
-  downloadFile: mockDownloadFile,
-}))
-
-vi.mock('@/app/api/files/authorization', () => ({
-  verifyFileAccess: mockVerifyFileAccess,
-}))
-
-vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
-  addLargeValueReference: mockAddLargeValueReference,
-  registerLargeValueOwner: mockRegisterLargeValueOwner,
-}))
-
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadata: mockDeleteFileMetadata,
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => largeValueMetadataMock)
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 describe('large execution payload store', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     clearLargeValueCacheForTests()
     mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
     mockAddLargeValueReference.mockResolvedValue(undefined)
@@ -248,6 +232,20 @@ describe('large execution payload store', () => {
     ).rejects.toThrow('Failed to persist large execution value: storage down')
   })
 
+  it('preserves the database cause when metadata persistence fails after an upload', async () => {
+    const cause = new Error('permission denied for table workspace_files')
+    const error = new Error('Failed query', { cause })
+    mockUploadFile.mockRejectedValueOnce(error)
+    await expect(
+      storeLargeValue({}, '{}', 2, {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        requireDurable: true,
+      })
+    ).rejects.toMatchObject({ cause: error })
+  })
+
   it('materializes object-storage refs through the server helper', async () => {
     mockDownloadFile.mockResolvedValueOnce(Buffer.from(JSON.stringify({ ok: true }), 'utf8'))
 
@@ -336,6 +334,51 @@ describe('large execution payload store', () => {
         requireDurable: true,
       })
     ).rejects.toMatchObject({ code: EXECUTION_RESOURCE_LIMIT_CODE })
+    expect(mockUploadFile).not.toHaveBeenCalled()
+  })
+
+  it('admits a trace archive at its separate size cap with durable ownership', async () => {
+    const ref = await storeExecutionTraceArchive({}, '{}', MAX_TRACE_ARCHIVE_BYTES, {
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      userId: 'user-1',
+    })
+
+    expect(mockUploadFile).toHaveBeenCalledOnce()
+    expect(mockRegisterLargeValueOwner).toHaveBeenCalledWith(
+      expect.objectContaining({ key: ref.key, size: MAX_TRACE_ARCHIVE_BYTES }),
+      []
+    )
+    expect(materializeLargeValueRefSync(ref, { executionId: 'execution-1' })).toBeUndefined()
+  })
+
+  it('rejects archives above the trace cap before upload or metadata writes', async () => {
+    await expect(
+      storeExecutionTraceArchive({}, '{}', MAX_TRACE_ARCHIVE_BYTES + 1, {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        userId: 'user-1',
+      })
+    ).rejects.toMatchObject({ code: EXECUTION_RESOURCE_LIMIT_CODE })
+    expect(mockUploadFile).not.toHaveBeenCalled()
+    expect(mockRegisterLargeValueOwner).not.toHaveBeenCalled()
+  })
+
+  it('requires durable storage for trace archives even if the caller disables it', async () => {
+    mockUploadFile.mockRejectedValueOnce(new Error('storage unavailable'))
+
+    await expect(
+      storeExecutionTraceArchive({}, '{}', 2, {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        userId: 'user-1',
+        requireDurable: false,
+      })
+    ).rejects.toThrow('storage unavailable')
+    expect(mockRegisterLargeValueOwner).not.toHaveBeenCalled()
   })
 
   it('bounds explicit server-side materialization', async () => {

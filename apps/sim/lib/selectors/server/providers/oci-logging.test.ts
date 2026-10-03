@@ -8,6 +8,7 @@ import { OciClientError } from '@/lib/internal/oci/errors'
 import { OCI_LOGGING_MANAGEMENT_POLICY } from '@/lib/internal/oci-logging/operations'
 import {
   SelectorConnectionUnavailableError,
+  SelectorContextUnavailableError,
   SelectorOptionsUnavailableError,
 } from '@/lib/selectors/server/errors'
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
@@ -50,7 +51,6 @@ function respond(value: unknown, headers: Record<string, string> = {}) {
 
 describe('OCI Logging selector adapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.create.mockResolvedValue({ request: mocks.request, prepareStaticEndpoint: mocks.prepare })
     mocks.prepare.mockResolvedValue({ origin: 'https://logging.us-phoenix-1.oci.oraclecloud.com' })
   })
@@ -80,8 +80,22 @@ describe('OCI Logging selector adapter', () => {
     expect(recordCredentialUse).toHaveBeenCalledWith('oci-logging')
   })
 
-  it('rejects missing authorized credentials before provider work', async () => {
+  it('rejects missing workspace context or authorized credentials before provider work', async () => {
     const recordCredentialUse = vi.fn()
+    await expect(
+      execute({
+        workspaceId: undefined,
+        credential: {
+          suppliedId: 'supplied',
+          access: {
+            ok: true,
+            credentialType: 'service_account',
+            resolvedCredentialId: 'resolved',
+          },
+        },
+        recordCredentialUse,
+      })
+    ).rejects.toBeInstanceOf(SelectorContextUnavailableError)
     await expect(execute({ credential: undefined, recordCredentialUse })).rejects.toBeInstanceOf(
       SelectorConnectionUnavailableError
     )

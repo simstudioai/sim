@@ -3,7 +3,7 @@
 import { type ReactNode, useState } from 'react'
 import { cn } from '@sim/emcn'
 import { ChevronDown } from '@sim/emcn/icons'
-import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components'
+import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 
 /**
  * One row of an activity/audit log. `details`, when present, renders inside the

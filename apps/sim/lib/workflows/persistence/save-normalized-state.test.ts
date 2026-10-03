@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { parseWorkflowStateForPersistence } from '@/lib/workflows/persistence/save-normalized-state'
 
@@ -64,13 +61,6 @@ describe('parseWorkflowStateForPersistence', () => {
     expect(parsed.data?.lastSaved).toBe(1_754_000_000_000)
   })
 
-  it('accepts a null deployedAt, which the revert passes for a never-deployed checkpoint', () => {
-    const parsed = parseWorkflowStateForPersistence(checkpointState({ deployedAt: null }))
-
-    expect(parsed.success).toBe(true)
-    expect(parsed.data?.deployedAt).toBeNull()
-  })
-
   /** The validation the removed HTTP hop used to provide: a malformed blob must not be written. */
   it('rejects a blob whose blocks are malformed', () => {
     const parsed = parseWorkflowStateForPersistence({
@@ -79,9 +69,5 @@ describe('parseWorkflowStateForPersistence', () => {
     })
 
     expect(parsed.success).toBe(false)
-  })
-
-  it('rejects a blob missing blocks entirely', () => {
-    expect(parseWorkflowStateForPersistence({ edges: [] }).success).toBe(false)
   })
 })

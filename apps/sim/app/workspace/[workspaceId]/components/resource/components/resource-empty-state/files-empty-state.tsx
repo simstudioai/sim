@@ -1,6 +1,6 @@
 import { Chip, cn } from '@sim/emcn'
 import { Upload } from '@sim/emcn/icons'
-import { EmptyState } from '@/components/empty-state/empty-state'
+import { EmptyState, type EmptyStateProps } from '@/components/empty-state/empty-state'
 import { EmptyStateDocsLink } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/docs-link'
 import { HAIRLINE } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/hairline'
 import { MASK_NO_REPEAT } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/mask'
@@ -64,25 +64,39 @@ function FilesGraphic() {
   )
 }
 
-interface FilesEmptyStateProps {
+interface UploadFilesEmptyStateProps {
   /** Opens the file picker — the same action the header's upload chip runs. */
   onUpload: () => void
   /** Mirrors the header chip's disabled state: no edit rights, or an upload in flight. */
   uploadDisabled?: boolean
 }
 
-/** Empty state for the files list when the workspace has none. */
-export function FilesEmptyState({ onUpload, uploadDisabled = false }: FilesEmptyStateProps) {
+type FilesEmptyStateProps = UploadFilesEmptyStateProps | Omit<EmptyStateProps, 'graphic'>
+
+/** Shared file illustration and actions for empty or unavailable files. */
+export function FilesEmptyState(props: FilesEmptyStateProps) {
+  const content = 'title' in props ? props : undefined
   return (
     <EmptyState
       graphic={<FilesGraphic />}
-      title='Files'
-      description='Upload files to share them across your team and every agent.'
+      title={content?.title ?? 'Files'}
+      description={
+        content?.description ?? 'Upload files to share them across your team and every agent.'
+      }
       action={
         <>
-          <Chip variant='primary' onClick={onUpload} disabled={uploadDisabled} leftIcon={Upload}>
-            Upload
-          </Chip>
+          {'onUpload' in props ? (
+            <Chip
+              variant='primary'
+              onClick={props.onUpload}
+              disabled={props.uploadDisabled}
+              leftIcon={Upload}
+            >
+              Upload
+            </Chip>
+          ) : (
+            content?.action
+          )}
           <EmptyStateDocsLink href={FILES_DOCS_URL} />
         </>
       }

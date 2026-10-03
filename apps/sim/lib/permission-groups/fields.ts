@@ -158,7 +158,7 @@ function booleanRestriction(
   enforcement: PermissionGroupEnforcement,
   feature: PlatformFeatureMeta
 ): BooleanRestrictionField {
-  const schema = z.boolean()
+  const schema = z.boolean().describe(feature.hint)
   return {
     kind: 'boolean-restriction',
     writeSchema: schema.optional(),
@@ -175,7 +175,12 @@ function allowlist<TItem extends z.ZodType>(
   enforcement: PermissionGroupEnforcement,
   phrasing: AllowlistPhrasing
 ): AllowlistField<TItem> {
-  const schema = z.array(item).nullable()
+  const schema = z
+    .array(item)
+    .nullable()
+    .describe(
+      `${phrasing.limited.replace(/effectiveConfig\.\w+/g, 'this list')} Null permits every value; an empty list permits none.`
+    )
   return {
     kind: 'allowlist',
     writeSchema: schema.optional(),
@@ -192,7 +197,7 @@ function denylist<TItem extends z.ZodType>(
   enforcement: PermissionGroupEnforcement,
   phrasing: string
 ): DenylistField<TItem> {
-  const schema = z.array(item)
+  const schema = z.array(item).describe(phrasing.replace(/effectiveConfig\.\w+/g, 'this list'))
   return {
     kind: 'denylist',
     writeSchema: schema.optional(),
@@ -464,7 +469,7 @@ export const PERMISSION_GROUP_FIELDS = {
     id: 'disable-cli-access',
     label: 'CLI Access',
     category: 'Credentials & Access',
-    hint: "Prevent approving a CLI login, which mints a key for the public API. A login naming one of this group's workspaces is refused; an account-level login names none, so it is read from the organization's default group.",
+    hint: "Prevent approving a CLI login or using Sim CLI OAuth tokens for the public API. A login naming one of this group's workspaces is refused; an account-level login names none, so it is read from the organization's default group.",
   }),
   disableWebhookTriggers: booleanRestriction('capability', {
     scope: 'workspace',
@@ -486,6 +491,20 @@ export const PERMISSION_GROUP_FIELDS = {
     label: 'Sandboxes',
     category: 'Modules',
     hint: 'Revoke the Sandboxes module. Members cannot view, create, or change a workspace sandbox.',
+  }),
+  disableOAuthAppAccess: booleanRestriction('capability', {
+    scope: 'workspace-or-organization',
+    id: 'disable-oauth-app-access',
+    label: 'OAuth App Access',
+    category: 'Credentials & Access',
+    hint: "Prevent OAuth apps from accessing this group's workspaces. The organization's default group also governs authorizing apps and refreshing their access.",
+  }),
+  disableKnowledgeBaseExport: booleanRestriction('capability', {
+    scope: 'workspace',
+    id: 'disable-knowledge-base-export',
+    label: 'Knowledge Base Export',
+    category: 'Knowledge Base',
+    hint: 'Prevent downloading a whole knowledge base as an archive.',
   }),
 } satisfies Record<string, PermissionGroupField>
 
@@ -579,24 +598,27 @@ type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false
 
 /**
  * Fails to compile unless `T` is exactly `true`, which is what makes the aliases
- * below load-bearing. They are deliberately unexported: the constraint is
- * checked where the alias is declared, so an export bought nothing but the
- * appearance of a consumer that never existed. Nothing may import them; they
- * are unused on purpose, and deleting one deletes the proof.
+ * below load-bearing. The constraint is checked where each alias is declared;
+ * they are exported only so the unused-variable lint treats them as live.
+ * Nothing imports them, and deleting one deletes the proof.
  */
 type Assert<T extends true> = T
 
-type AssertsAllowlistStaysPrecise = Assert<
+export type AssertsAllowlistStaysPrecise = Assert<
   Exact<PermissionGroupConfig['allowedIntegrations'], string[] | null>
 >
-type AssertsDenylistStaysPrecise = Assert<Exact<PermissionGroupConfig['deniedTools'], string[]>>
-type AssertsRestrictionStaysPrecise = Assert<Exact<PermissionGroupConfig['hideCopilot'], boolean>>
-type AssertsAuthTypesStayPrecise = Assert<
+export type AssertsDenylistStaysPrecise = Assert<
+  Exact<PermissionGroupConfig['deniedTools'], string[]>
+>
+export type AssertsRestrictionStaysPrecise = Assert<
+  Exact<PermissionGroupConfig['hideCopilot'], boolean>
+>
+export type AssertsAuthTypesStayPrecise = Assert<
   Exact<
     PermissionGroupConfig['allowedFileShareAuthTypes'],
     (typeof FILE_SHARE_AUTH_TYPES)[number][] | null
   >
 >
-type AssertsParserReturnsTheConfig = Assert<
+export type AssertsParserReturnsTheConfig = Assert<
   Exact<z.output<typeof tolerantConfigSchema>, PermissionGroupConfig>
 >

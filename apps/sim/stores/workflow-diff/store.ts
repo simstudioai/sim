@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { omit } from '@sim/utils/object'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { stripWorkflowDiffMarkers, WorkflowDiffEngine } from '@/lib/workflows/diff'
@@ -511,9 +512,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               ...state.remoteUpdateVersions,
               [workflowId]: (state.remoteUpdateVersions[workflowId] ?? 0) + 1,
             },
-            reconciliationErrors: Object.fromEntries(
-              Object.entries(state.reconciliationErrors).filter(([id]) => id !== workflowId)
-            ),
+            reconciliationErrors: omit(state.reconciliationErrors, [workflowId]),
           }))
         },
 
@@ -528,9 +527,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
               ...current.remoteUpdateVersions,
               [workflowId]: (current.remoteUpdateVersions[workflowId] ?? 0) + 1,
             },
-            reconciliationErrors: Object.fromEntries(
-              Object.entries(current.reconciliationErrors).filter(([id]) => id !== workflowId)
-            ),
+            reconciliationErrors: omit(current.reconciliationErrors, [workflowId]),
           })
         },
 

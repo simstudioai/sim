@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
-
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createRotatingEventSource,
   type EventSourceOpenReason,
@@ -60,10 +56,6 @@ describe('createRotatingEventSource', () => {
     MockEventSource.instances = []
     MockEventSource.failNextConstruction = false
     vi.stubGlobal('EventSource', MockEventSource)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('keeps the current source open until its replacement connects', () => {

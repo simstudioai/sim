@@ -16,6 +16,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useSession } from '@/lib/auth/auth-client'
+import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import type { OAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   ADD_CONNECTOR_SEARCH_PARAM,
@@ -35,12 +36,13 @@ import {
   useMicrosoftDataverseEnvironmentForm,
 } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal/microsoft-dataverse-environment'
 import { withBrandIcon } from '@/blocks/brand-icon'
-import { useCreateCredentialDraft, useWorkspaceCredentials } from '@/hooks/queries/credentials'
+import { useCreateCredentialDraft } from '@/hooks/queries/credentials'
 import {
   assertMicrosoftDataverseWebOAuthAvailable,
   useConnectMicrosoftDataverseOAuthService,
 } from '@/hooks/queries/oauth/microsoft-dataverse-connections'
 import { useConnectOAuthService } from '@/hooks/queries/oauth/oauth-connections'
+import { useScopedCredentials } from '@/hooks/queries/scoped-credentials'
 
 const logger = createLogger('ConnectOAuthModal')
 
@@ -105,6 +107,7 @@ interface ConnectOAuthModalBaseProps {
    */
   serviceName?: string
   serviceIcon?: ServiceIcon
+  docsUrl?: string
   /** Used to resolve display metadata and the provider id when not supplied directly. */
   provider?: OAuthProvider
   serviceId?: string
@@ -121,14 +124,17 @@ interface ConnectOAuthModalBaseProps {
  */
 type ConnectOAuthModalConnectProps = ConnectOAuthModalBaseProps & {
   mode: 'connect'
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   requiredScopes: readonly string[]
 } & (
-    | { origin: 'workflow'; workflowId: string }
+    | { origin: 'workflow'; workflowId: string; workspaceId: string; organizationId?: never }
     | {
         origin: 'kb-connectors'
         knowledgeBaseId: string
         connectorType?: string
+        connectorId?: string
+        sourceAccess?: 'members'
       }
     | { origin: 'integrations' }
   )
@@ -144,10 +150,15 @@ interface ConnectOAuthModalReauthorizeProps extends ConnectOAuthModalBaseProps {
   requiredScopes?: readonly string[]
   newScopes?: readonly string[]
   reconnectTarget?: {
-    workspaceId: string
+    workspaceId?: string
+    organizationId?: string
     credentialId: string
     displayName: string
   }
+  returnContext?: Pick<
+    Extract<OAuthReturnContext, { origin: 'kb-connectors' }>,
+    'origin' | 'knowledgeBaseId' | 'connectorType' | 'connectorId'
+  >
   onConnect?: () => Promise<void> | void
 }
 
@@ -163,7 +174,7 @@ export type ConnectOAuthModalProps =
  * context written here.
  */
 export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
-  const { open, onOpenChange, mode } = props
+  const { open, onOpenChange, mode, docsUrl } = props
   const isConnect = mode === 'connect'
 
   const declaredProviderId = useMemo(
@@ -216,15 +227,17 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
     return resolveService(provider, props.serviceId ?? providerId)
   }, [props.serviceName, props.serviceIcon, props.provider, props.serviceId, providerId])
 
-  const workspaceId = isConnect ? props.workspaceId : (props.reconnectTarget?.workspaceId ?? '')
+  const workspaceId = isConnect ? props.workspaceId : props.reconnectTarget?.workspaceId
+  const organizationId = isConnect ? props.organizationId : props.reconnectTarget?.organizationId
   const clientConfiguration = getServiceConfigByProviderId(providerId)?.clientConfiguration
   const oauthClientRedirectUri =
     clientConfiguration?.redirectPath && typeof window !== 'undefined'
       ? new URL(clientConfiguration.redirectPath, window.location.origin).toString()
       : null
-  const { data: credentials = [], isPending: credentialsLoading } = useWorkspaceCredentials({
+  const { data: credentials = [], isPending: credentialsLoading } = useScopedCredentials({
     workspaceId,
-    enabled: Boolean(workspaceId) && open,
+    organizationId,
+    enabled: Boolean(workspaceId || organizationId) && open,
   })
   const createDraft = useCreateCredentialDraft()
   const connectOAuthService = useConnectOAuthService()
@@ -346,7 +359,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
         }
 
         const draft = await createDraft.mutateAsync({
-          workspaceId,
+          ...resourceScopeFields(resourceScopeFromOwner({ workspaceId, organizationId })),
           providerId,
           displayName: trimmed,
           description: description.trim() || undefined,
@@ -371,23 +384,27 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
               accountId: credential.accountId,
               updatedAt: credential.updatedAt,
             })),
-          workspaceId,
+          ...resourceScopeFields(resourceScopeFromOwner({ workspaceId, organizationId })),
           requestedAt: Date.now(),
         }
 
         let returnContext: OAuthReturnContext
         if (props.origin === 'kb-connectors') {
-          connectorType = props.connectorType
+          connectorType = props.connectorId ? undefined : props.connectorType
           returnContext = {
             ...baseContext,
             origin: 'kb-connectors',
             knowledgeBaseId: props.knowledgeBaseId,
             connectorType: props.connectorType,
+            connectorId: props.connectorId,
+            sourceAccess: props.sourceAccess,
           }
         } else if (props.origin === 'workflow') {
           returnContext = {
             ...baseContext,
             origin: 'workflow',
+            workspaceId: props.workspaceId,
+            organizationId: undefined,
             workflowId: props.workflowId,
           }
         } else {
@@ -403,7 +420,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
       } else {
         if (props.reconnectTarget) {
           const draft = await createDraft.mutateAsync({
-            workspaceId: props.reconnectTarget.workspaceId,
+            ...resourceScopeFields(resourceScopeFromOwner(props.reconnectTarget)),
             providerId,
             credentialId: props.reconnectTarget.credentialId,
             displayName: props.reconnectTarget.displayName,
@@ -415,7 +432,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
             (credential) => credential.type === 'oauth' && credential.providerId === providerId
           )
           writeOAuthReturnContext({
-            origin: 'integrations',
+            ...(props.returnContext ?? { origin: 'integrations' as const }),
             displayName: props.reconnectTarget.displayName,
             providerId,
             preCount: providerCredentials.length,
@@ -424,7 +441,7 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
               accountId: credential.accountId,
               updatedAt: credential.updatedAt,
             })),
-            workspaceId: props.reconnectTarget.workspaceId,
+            ...resourceScopeFields(resourceScopeFromOwner(props.reconnectTarget)),
             reconnect: true,
             requestedAt: Date.now(),
           })
@@ -489,7 +506,16 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
       ? `An integration named "${existingCredential.displayName}" already exists.`
       : undefined)
 
-  const title = `Connect ${providerName}`
+  const isConnectorReconnect = !isConnect && props.returnContext?.origin === 'kb-connectors'
+  const connectLabel = isConnectorReconnect
+    ? newScopes.length > 0
+      ? 'Update access'
+      : 'Reconnect'
+    : 'Connect'
+  const title =
+    isConnectorReconnect && newScopes.length > 0
+      ? `Update ${providerName} access`
+      : `${connectLabel} ${providerName}`
 
   return (
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle={title}>
@@ -502,7 +528,11 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
       <ChipModalBody>
         {!isConnect && (
           <p className='text-[var(--text-tertiary)] text-caption'>
-            The "{props.toolName}" tool requires access to your account.
+            {isConnectorReconnect
+              ? newScopes.length > 0
+                ? 'Approve the requested permissions to continue syncing.'
+                : `Continue to ${providerName} to restore this connection.`
+              : `The "${props.toolName}" tool requires access to your account.`}
           </p>
         )}
 
@@ -623,8 +653,18 @@ export function ConnectOAuthModal(props: ConnectOAuthModalProps) {
       <ChipModalFooter
         onCancel={handleClose}
         cancelDisabled={isPending}
+        secondaryActions={
+          docsUrl
+            ? [
+                {
+                  label: 'Setup guide',
+                  onClick: () => window.open(docsUrl, '_blank', 'noopener,noreferrer'),
+                },
+              ]
+            : undefined
+        }
         primaryAction={{
-          label: isPending ? 'Connecting...' : 'Connect',
+          label: isPending ? 'Connecting...' : connectLabel,
           onClick: handleConnect,
           disabled: isDisabled,
         }}

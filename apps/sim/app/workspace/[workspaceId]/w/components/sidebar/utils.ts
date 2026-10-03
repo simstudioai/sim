@@ -1,8 +1,20 @@
-import type { MothershipResource } from '@/lib/copilot/resource-types'
+import type { MouseEvent } from 'react'
+import type { MothershipResource } from '@/lib/mothership/resource-types'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import type { FolderTreeNode } from '@/stores/folders/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+
+/** Distinguishes sidebar background clicks from controls and portaled overlays. */
+export function isSidebarBackgroundClick(event: MouseEvent<HTMLElement>): boolean {
+  return (
+    event.target instanceof Element &&
+    event.currentTarget.contains(event.target) &&
+    !event.target.closest(
+      'a, button, input, textarea, select, [role="button"], [contenteditable]:not([contenteditable="false"])'
+    )
+  )
+}
 
 /**
  * Builds a `MothershipResource` array from a sidebar drag selection so it can
