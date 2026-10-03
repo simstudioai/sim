@@ -32,7 +32,7 @@ export const GET = withRouteHandler(
   withMcpAuth(
     'read',
     'mcp_tools.use'
-  )(async (request: NextRequest, { userId, workspaceId, requestId, permission }) => {
+  )(async (_request: NextRequest, { workspaceId, requestId, permission }) => {
     try {
       logger.info(`[${requestId}] Listing MCP servers for workspace ${workspaceId}`)
 

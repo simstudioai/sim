@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
+import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import {
   assertDirectorySyncPayload,
   DIRECTORY_SYNC_CONCURRENCY,
@@ -14,9 +15,16 @@ const logger = createLogger('TriggerKnowledgeConnectorDirectorySync')
 export async function executeDirectorySyncJob(payload: unknown) {
   const { connectorId, requestId } = assertDirectorySyncPayload(payload)
   logger.info(`[${requestId}] Starting directory refresh: ${connectorId}`)
-  const outcome = await refreshConnectorDirectory(connectorId, requestId)
-  logger.info(`[${requestId}] Directory refresh finished`, { connectorId, outcome })
-  return { outcome }
+  try {
+    const outcome = await refreshConnectorDirectory(connectorId, requestId)
+    logger.info(`[${requestId}] Directory refresh finished`, { connectorId, outcome })
+    return { outcome }
+  } catch (error) {
+    const diagnostic = getConnectorFailureDiagnostic(error)
+    if (!diagnostic) throw error
+    logger.error(`[${requestId}] Directory refresh failed`, { connectorId, diagnostic })
+    throw new Error(diagnostic.message)
+  }
 }
 
 export const knowledgeConnectorDirectorySync = task({

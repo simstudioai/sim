@@ -193,10 +193,12 @@ install uses:
 
 | Install | What it runs |
 |---|---|
-| `docker-compose.prod.yml` | Refreshes its managed copy of the Compose file, then `docker compose pull` — the versions configured by `SIM_VERSION`, or `latest` when unset |
+| `docker-compose.prod.yml` | Refreshes its managed copy of the Compose file, writes `POSTGRES_PASSWORD` to `.env` if it is missing, then `docker compose pull` — the versions configured by `SIM_VERSION`, or `latest` when unset |
 | `docker-compose.local.yml` | `docker compose build --pull` — rebuilds from source against refreshed base images, no pull of published images |
 
 Inspect the result with `npx sim-setup logs`, which targets whichever Compose file the install uses.
+
+`docker-compose.prod.yml` requires `POSTGRES_PASSWORD`. If you manage the file yourself and Compose stops with `required variable POSTGRES_PASSWORD is missing a value`, your database was created with the password `postgres` — set exactly that in `.env`, not a new value, then see [Postgres on Compose](/platform/self-hosting/security#postgres-on-compose) to rotate it.
 
 The CLI detects only those two files. An install started from `docker-compose.ollama.yml` is invisible to it: `update`, `logs`, and `status` report no install, or — in a source checkout that also carries per-application env files — report that checkout's dev install instead. Upgrade that stack directly:
 

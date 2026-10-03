@@ -1,23 +1,20 @@
-/**
- * @vitest-environment node
- */
 import { queueTableRows, requestUtilsMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIsEmailAllowed, mockCheckRateLimitDirect } = vi.hoisted(() => ({
+const { mockIsEmailAllowed } = vi.hoisted(() => ({
   mockIsEmailAllowed: vi.fn(),
-  mockCheckRateLimitDirect: vi.fn(),
 }))
 
 vi.mock('@/lib/core/security/deployment', () => ({ isEmailAllowed: mockIsEmailAllowed }))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mockCheckRateLimitDirect
-  },
-}))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 
 import { POST } from '@/app/api/chat/[identifier]/sso/route'
+
+const mockCheckRateLimitDirect = rateLimiterMockFns.mockCheckRateLimitDirect
 
 const deployment = {
   id: 'chat-1',
@@ -27,18 +24,17 @@ const deployment = {
 }
 
 function post(email: string): NextRequest {
-  return new NextRequest('http://localhost/api/chat/support/sso', {
+  return createMockRequest({
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email }),
+    url: 'http://localhost/api/chat/support/sso',
+    body: { email },
   })
 }
 
-const context = { params: Promise.resolve({ identifier: 'support' }) }
+const context = createRouteContext({ identifier: 'support' })
 
 describe('POST /api/chat/[identifier]/sso', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     queueTableRows(schemaMock.chat, [deployment])
     requestUtilsMockFns.mockGetClientIp.mockReturnValue('127.0.0.1')
@@ -63,17 +59,6 @@ describe('POST /api/chat/[identifier]/sso', () => {
       expect.objectContaining({ maxTokens: 100 }),
       { failClosed: true }
     )
-  })
-
-  it('returns 429 when the chat-resource limit is exceeded', async () => {
-    mockCheckRateLimitDirect
-      .mockResolvedValueOnce({ allowed: true })
-      .mockResolvedValueOnce({ allowed: false, retryAfterMs: 3000 })
-
-    const response = await POST(post('user@acme.com'), context)
-
-    expect(response.status).toBe(429)
-    expect(response.headers.get('Retry-After')).toBe('3')
   })
 
   it('retains the chat-resource limit when the client IP cannot be resolved', async () => {

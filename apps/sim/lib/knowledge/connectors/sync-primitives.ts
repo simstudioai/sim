@@ -7,30 +7,46 @@ import {
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import { env, envNumber } from '@/lib/core/config/env'
+import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
+import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
+import { withDatabaseReadRetry } from '@/lib/db/read-retry'
 import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
+import {
+  type ConnectorFailureDiagnostic,
+  getConnectorFailureDiagnostic,
+} from '@/lib/knowledge/connectors/connector-error'
+import { SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 import { SyncLockLostException, type SyncRunLease } from '@/lib/knowledge/connectors/sync-lock'
 import {
   addDocument,
   type KnowledgeBaseOwner,
+  persistHashOnlyUpdates,
   persistSkippedDocuments,
-  persistSkippedRetryHashes,
+  resolveSourceMetadataFields,
+  type SourceMetadataFields,
   updateDocument,
 } from '@/lib/knowledge/connectors/sync-persistence'
+import { documentProcessingRecoveryCondition } from '@/lib/knowledge/documents/processing-recovery-policy'
+import {
+  DOCUMENT_LIVENESS_BATCH_SIZE,
+  documentProcessingSnapshotCondition,
+  findAbandonedDocumentProcessing,
+  processingSnapshotColumns,
+} from '@/lib/knowledge/documents/processing-recovery-queue'
 import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
-import { isTriggerAvailable, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
+import { processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
 import {
   type DocumentProcessingStatus,
   isDocumentProcessingStatus,
   MAX_PROCESSING_ATTEMPTS,
   QUEUED_DISPATCH_GRACE_MS,
 } from '@/lib/knowledge/documents/types'
-import { isRateLimitError } from '@/lib/knowledge/documents/utils'
+import { getRetryAfterMs, isRateLimitError } from '@/lib/knowledge/documents/utils'
 import type {
   ConnectorConfig,
   ExternalChange,
@@ -73,19 +89,11 @@ export const CONNECTOR_SYNC_MAX_SOURCE_PAYLOAD_BYTES = 256 * 1024 * 1024
 const PROCESSING_DISPATCH_BATCH_SIZE = 25
 
 /**
- * Bounds each sync's contribution to the shared processing queue. Oldest eligible
- * documents drain first; the remaining backlog stays eligible for subsequent syncs.
+ * Bounds each sync's contribution to this tenant's bulk processing queue. Oldest
+ * eligible documents drain first; the remaining backlog stays eligible for
+ * subsequent syncs.
  */
 export const STUCK_RETRY_MAX_CANDIDATES_PER_SYNC = 200
-
-/**
- * Concurrent `knowledge-process-document` runs, shared by every workspace.
- *
- * Read from the same env var the task itself is configured with rather than
- * restated, so the drain estimate below cannot describe a queue depth the
- * deployment does not actually run.
- */
-const PROCESSING_QUEUE_CONCURRENCY = envNumber(env.KB_CONFIG_CONCURRENCY_LIMIT, 20)
 
 export class ConnectorSyncCapacityError extends Error {}
 
@@ -239,9 +247,9 @@ export function shouldReplaceExistingWithSkippedDocument(
  *   content stays last-known-good unless the connector marks the skip authoritative.
  * - `drop`: empty, non-deferred content that cannot be indexed.
  * - `add` / `update` / `unchanged`: normal content reconciliation by content hash.
- * - A deferred listing always rehydrates an existing content-less placeholder,
- *   even when its listing hash is unchanged, so a prior hydration-time skip can
- *   recover when the source becomes indexable.
+ * - A deferred listing rehydrates an existing content-less placeholder unless
+ *   the connector explicitly guarantees its skip recovers only on source changes.
+ *   Source failures and explicit rehydration always retry.
  *
  * `forceRehydrate` (set on a full resync of a `rehydrateOnFullSync` connector) promotes
  * an otherwise-`unchanged` deferred document to `update` so its content is re-fetched —
@@ -258,9 +266,11 @@ export function classifyExternalDoc(
     | 'contentHash'
     | 'skippedReason'
     | 'skippedExistingDisposition'
+    | 'skippedRetryPolicy'
   >,
   existing: { id: string; contentHash: string | null; storageKey?: string | null } | undefined,
-  forceRehydrate = false
+  forceRehydrate = false,
+  matchContentHash?: ContentHashMatcher
 ): DocClassification {
   if (extDoc.skippedReason) {
     if (!existing) return { type: 'skip' }
@@ -274,16 +284,42 @@ export function classifyExternalDoc(
   if (!existing) {
     return { type: 'add' }
   }
-  if (existing.storageKey === null && extDoc.contentDeferred) {
+  if (
+    existing.storageKey === null &&
+    extDoc.contentDeferred &&
+    extDoc.skippedRetryPolicy !== 'source-change'
+  ) {
     return { type: 'update', existingId: existing.id }
   }
-  if (existing.contentHash !== extDoc.contentHash) {
+  if (!storedHashIsCurrent(existing.contentHash, extDoc.contentHash, matchContentHash)) {
     return { type: 'update', existingId: existing.id }
   }
   if (forceRehydrate && extDoc.contentDeferred) {
     return { type: 'update', existingId: existing.id }
   }
   return { type: 'unchanged' }
+}
+
+/** A connector's comparison of a new hash against the stored one; see `ConnectorConfig.matchContentHash`. */
+export type ContentHashMatcher = NonNullable<ConnectorConfig['matchContentHash']>
+
+/** Identical hashes always match; otherwise only a connector-owned comparison can match them. */
+export function contentHashMatch(
+  candidate: string,
+  stored: string,
+  matchContentHash?: ContentHashMatcher
+): 'current' | 'equivalent' | 'stale' {
+  if (candidate === stored) return 'current'
+  return matchContentHash?.(candidate, stored) ?? 'stale'
+}
+
+/** Whether stored content still stands for `candidate`; a missing hash never does. */
+export function storedHashIsCurrent(
+  stored: string | null | undefined,
+  candidate: string,
+  matchContentHash?: ContentHashMatcher
+): boolean {
+  return stored ? contentHashMatch(candidate, stored, matchContentHash) !== 'stale' : false
 }
 
 /**
@@ -313,8 +349,9 @@ export function mergeHydratedDocument(
  *
  * A skipped hydration did not verify indexable content, so its provider-specific
  * fallback hash cannot supersede the listing hash used by the next sync's change
- * classification. Keeping the listing hash makes a newly persisted skip stable
- * until the source metadata changes. A connector can explicitly provide
+ * classification. A source-change retry policy instead requires the hydrated
+ * version: a listing/hydration race must not cache a skip for an unverified version.
+ * A connector can explicitly provide
  * `skippedRetryContentHash` when the skip must be retried independently of that
  * metadata, such as a Notion nested block whose access changes without editing
  * its parent page.
@@ -325,12 +362,24 @@ export function mergeHydratedSkippedDocument(
 ): ExternalDocument {
   return {
     ...stub,
+    ...(hydrated.skippedExistingDisposition === 'replace'
+      ? {
+          title: hydrated.title,
+          sourceUrl: hydrated.sourceUrl,
+          acl: hydrated.acl,
+        }
+      : {}),
     content: '',
-    contentHash: hydrated.skippedRetryContentHash ?? stub.contentHash,
+    contentHash:
+      hydrated.skippedRetryContentHash ??
+      (stub.skippedRetryPolicy === 'source-change' ? hydrated.contentHash : stub.contentHash),
     contentDeferred: false,
     skippedReason: hydrated.skippedReason,
     skippedExistingDisposition: hydrated.skippedExistingDisposition,
-    metadata: { ...stub.metadata, ...hydrated.metadata },
+    metadata:
+      hydrated.skippedExistingDisposition === 'replace'
+        ? hydrated.metadata
+        : { ...stub.metadata, ...hydrated.metadata },
   }
 }
 
@@ -787,6 +836,14 @@ export async function runChangeFeedPass(input: ChangeFeedPassInput): Promise<Cha
   return result
 }
 
+/**
+ * Documents a listing that started at `startedAt` has not yet stamped seen: the absence test for
+ * EOF reconciliation, and the guard that keeps a stamp from rewriting an already-current row.
+ */
+export function staleSeen(startedAt: Date) {
+  return or(isNull(document.sourceSeenAt), lt(document.sourceSeenAt, startedAt))
+}
+
 interface OwnedDocument {
   id: string
   externalId: string | null
@@ -812,24 +869,26 @@ export async function loadPageCorpus(
   }
   const ids = [...new Set(externalIds)]
   for (let offset = 0; offset < ids.length; offset += 500) {
-    const rows = await db
-      .select({
-        id: document.id,
-        externalId: document.externalId,
-        contentHash: document.contentHash,
-        storageKey: document.storageKey,
-        userExcluded: document.userExcluded,
-        sourceSeenAt: document.sourceSeenAt,
-      })
-      .from(document)
-      .where(
-        and(
-          eq(document.connectorId, connectorId),
-          inArray(document.externalId, ids.slice(offset, offset + 500)),
-          isNull(document.archivedAt)
+    const rows = await withDatabaseReadRetry(async () =>
+      db
+        .select({
+          id: document.id,
+          externalId: document.externalId,
+          contentHash: document.contentHash,
+          storageKey: document.storageKey,
+          userExcluded: document.userExcluded,
+          sourceSeenAt: document.sourceSeenAt,
+        })
+        .from(document)
+        .where(
+          and(
+            eq(document.connectorId, connectorId),
+            inArray(document.externalId, ids.slice(offset, offset + 500)),
+            isNull(document.archivedAt)
+          )
         )
-      )
-      .limit(501)
+        .limit(501)
+    )
     if (rows.length > 500)
       throw new ConnectorSyncCapacityError('Connector has duplicate source identities')
     for (const row of rows) {
@@ -848,11 +907,18 @@ export interface SyncRunState {
   seenExternalIds: Set<string>
   /** Failed source refreshes cannot resurrect tombstones or authorize retained bytes. */
   failedExternalIds: Set<string>
+  /** Fixed diagnostics for one bounded provider page, never provider bodies or document content. */
+  sourceFailures: Map<string, ConnectorFailureDiagnostic>
 }
 
 /** Fresh bookkeeping for one provider page. */
 export function createSyncRunState(result: SyncResult): SyncRunState {
-  return { result, seenExternalIds: new Set<string>(), failedExternalIds: new Set<string>() }
+  return {
+    result,
+    seenExternalIds: new Set<string>(),
+    failedExternalIds: new Set<string>(),
+    sourceFailures: new Map(),
+  }
 }
 
 /**
@@ -865,6 +931,7 @@ export function classifyListing(input: {
   corpus: OwnedCorpus
   forceRehydrate: boolean
   state: SyncRunState
+  matchContentHash?: ContentHashMatcher
 }): DocOp[] {
   const { externalDocs, corpus, forceRehydrate } = input
   const { result, seenExternalIds, failedExternalIds } = input.state
@@ -880,7 +947,12 @@ export function classifyListing(input: {
     }
 
     const existing = corpus.priorByExternalId.get(extDoc.externalId)
-    const classification = classifyExternalDoc(extDoc, existing, forceRehydrate)
+    const classification = classifyExternalDoc(
+      extDoc,
+      existing,
+      forceRehydrate,
+      input.matchContentHash
+    )
 
     switch (classification.type) {
       case 'skip':
@@ -917,6 +989,8 @@ export function classifyListing(input: {
 
 /** How deferred content is fetched; each engine supplies the identity it fetches with. */
 export interface DocOpHydration {
+  /** Provider-specific bound within the shared memory and concurrency ceiling. */
+  concurrency?: number
   /** Runs once per batch that has deferred documents, before any of them is fetched. */
   beforeHydration?: () => Promise<void>
   getDocument: (externalId: string) => Promise<ExternalDocument | null>
@@ -934,6 +1008,7 @@ export interface ProcessDocOpsInput {
   forceRehydrate: boolean
   state: SyncRunState
   hydration: DocOpHydration
+  matchContentHash?: ContentHashMatcher
   lease: Pick<SyncRunLease, 'beatIfDue' | 'beatLive' | 'stillHeld'>
   /** Who may read the documents this pass writes. */
   documentAccess: ConnectorAccessMode
@@ -960,7 +1035,7 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
     documentAccess,
   } = input
   const { priorByExternalId } = input.corpus
-  const { result, failedExternalIds } = input.state
+  const { result, failedExternalIds, sourceFailures } = input.state
 
   const pendingDispatch: DocumentData[] = []
   const bufferDispatch = isTriggerAvailable()
@@ -975,6 +1050,7 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
         {},
         generateId(),
         billingAttribution,
+        'backfill',
         { connectorId, stillHeld: input.lease.stillHeld }
       )
       result.processingDispatch.accepted += dispatch.accepted
@@ -993,7 +1069,9 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
   const batches = chunkOpsByByteBudget(
     input.pendingOps,
     CONTENT_INFLIGHT_BUDGET_BYTES,
-    SYNC_BATCH_SIZE
+    Number.isInteger(input.hydration.concurrency)
+      ? Math.max(1, Math.min(SYNC_BATCH_SIZE, input.hydration.concurrency!))
+      : SYNC_BATCH_SIZE
   )
   try {
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
@@ -1016,15 +1094,19 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
       await input.lease.beatIfDue()
 
       const skipOps = rawBatch.filter((op) => op.type === 'skip')
-      const skippedRetryHashUpdates: Array<{
+      /** Skips retried by their own hash, and unchanged content moved to its current hash. */
+      const hashOnlyUpdates: Array<{
         existingId: string
         externalId: string
         contentHash: string
+        sourceMetadata?: SourceMetadataFields
       }> = []
 
       const contentOps = rawBatch.filter((op) => op.type !== 'skip')
       const deferredOps = contentOps.filter((op) => op.extDoc.contentDeferred)
       const readyOps = contentOps.filter((op) => !op.extDoc.contentDeferred)
+      let hydrationDeferral: unknown
+      const deferredExternalIds = new Set<string>()
 
       if (deferredOps.length > 0) {
         await input.hydration.beforeHydration?.()
@@ -1056,7 +1138,7 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
                   })
                 } else {
                   if (fullDoc.skippedRetryContentHash) {
-                    skippedRetryHashUpdates.push({
+                    hashOnlyUpdates.push({
                       existingId: op.existingId,
                       externalId: op.extDoc.externalId,
                       contentHash: fullDoc.skippedRetryContentHash,
@@ -1074,17 +1156,35 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
               return null
             }
             const hydratedHash = fullDoc.contentHash ?? op.extDoc.contentHash
+            const existing = priorByExternalId.get(op.extDoc.externalId)
             /**
              * Normally an update whose hydrated hash matches the stored hash is a
-             * no-op (content unchanged). On a forced re-hydration the hash is
-             * version-based and cannot reflect the rendered-dependency change we are
-             * refreshing for, so re-index unconditionally instead of skipping.
+             * no-op when stored content exists. Content-less placeholders must
+             * index newly recovered text even if the source version is unchanged.
+             * Forced rehydration also refreshes rendered dependencies whose changes
+             * are not represented by the parent version hash.
              */
-            if (
+            const match =
               op.type === 'update' &&
               !forceRehydrate &&
-              priorByExternalId.get(op.extDoc.externalId)?.contentHash === hydratedHash
-            ) {
+              existing?.storageKey !== null &&
+              existing?.contentHash
+                ? contentHashMatch(hydratedHash, existing.contentHash, input.matchContentHash)
+                : 'stale'
+            if (op.type === 'update' && match !== 'stale') {
+              /** The same content under an older hash only advances the hash the next listing compares. */
+              if (match === 'equivalent') {
+                hashOnlyUpdates.push({
+                  existingId: op.existingId,
+                  externalId: op.extDoc.externalId,
+                  contentHash: hydratedHash,
+                  sourceMetadata: resolveSourceMetadataFields(
+                    connector.connectorType,
+                    mergeHydratedDocument(op.extDoc, fullDoc, hydratedHash),
+                    sourceConfig
+                  ),
+                })
+              }
               result.docsUnchanged++
               return null
             }
@@ -1092,25 +1192,33 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
           })
         )
 
-        const rateLimitFailure = hydrated.find(
-          (outcome): outcome is PromiseRejectedResult =>
-            outcome.status === 'rejected' && isRateLimitError(outcome.reason)
-        )
-        if (rateLimitFailure) {
-          throw rateLimitFailure.reason
-        }
-
         for (let i = 0; i < hydrated.length; i++) {
           const outcome = hydrated[i]
           if (outcome.status === 'fulfilled' && outcome.value) {
             readyOps.push(outcome.value)
           } else if (outcome.status === 'rejected') {
+            if (
+              outcome.reason instanceof ProviderCapacityDeferredError ||
+              isRateLimitError(outcome.reason)
+            ) {
+              deferredExternalIds.add(deferredOps[i].extDoc.externalId)
+              if (
+                hydrationDeferral === undefined ||
+                (getRetryAfterMs(outcome.reason) ?? 0) > (getRetryAfterMs(hydrationDeferral) ?? 0)
+              ) {
+                hydrationDeferral = outcome.reason
+              }
+              continue
+            }
             result.docsFailed++
             failedExternalIds.add(deferredOps[i].extDoc.externalId)
+            const diagnostic = getConnectorFailureDiagnostic(outcome.reason)
+            if (diagnostic) sourceFailures.set(deferredOps[i].extDoc.externalId, diagnostic)
             logger.error('Failed to hydrate deferred document', {
               connectorId,
               externalId: deferredOps[i].extDoc.externalId,
-              error: getErrorMessage(outcome.reason),
+              error: diagnostic?.message ?? SOURCE_CONTENT_ERROR,
+              diagnostic,
             })
           }
         }
@@ -1125,24 +1233,24 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
        */
       await input.lease.beatLive()
 
-      if (skippedRetryHashUpdates.length > 0) {
+      if (hashOnlyUpdates.length > 0) {
         try {
-          const missedExternalIds = await persistSkippedRetryHashes(
+          const missedExternalIds = await persistHashOnlyUpdates(
             connector.knowledgeBaseId,
             connectorId,
-            skippedRetryHashUpdates,
+            hashOnlyUpdates,
             input.lease
           )
           if (missedExternalIds.length > 0) {
-            logger.warn('Skipped retry hashes were not persisted for detached documents', {
+            logger.warn('Hash-only updates were not persisted for detached documents', {
               connectorId,
               externalIds: missedExternalIds,
             })
           }
         } catch (error) {
-          logger.error('Failed to persist skipped document retry hashes', {
+          logger.error('Failed to persist hash-only document updates', {
             connectorId,
-            count: skippedRetryHashUpdates.length,
+            count: hashOnlyUpdates.length,
             error: toError(error).message,
           })
           throw error
@@ -1170,6 +1278,8 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
           result.docsFailed += skipOps.length
           for (const op of skipOps) {
             failedExternalIds.add(op.extDoc.externalId)
+            const diagnostic = getConnectorFailureDiagnostic(error)
+            if (diagnostic) sourceFailures.set(op.extDoc.externalId, diagnostic)
           }
           logger.error('Failed to record skipped documents', {
             connectorId,
@@ -1225,10 +1335,13 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
         } else {
           result.docsFailed++
           failedExternalIds.add(batch[j].extDoc.externalId)
+          const diagnostic = getConnectorFailureDiagnostic(outcome.reason)
+          if (diagnostic) sourceFailures.set(batch[j].extDoc.externalId, diagnostic)
           logger.error('Failed to process document', {
             connectorId,
             externalId: batch[j].extDoc.externalId,
-            error: getErrorMessage(outcome.reason),
+            error: diagnostic?.message ?? SOURCE_CONTENT_ERROR,
+            diagnostic,
           })
         }
       }
@@ -1238,7 +1351,12 @@ export async function processDocOps(input: ProcessDocOpsInput): Promise<boolean>
         if (pendingDispatch.length === PROCESSING_DISPATCH_BATCH_SIZE) await flushDispatch()
       }
       if (!bufferDispatch) await flushDispatch()
-      await input.onBatchComplete?.(rawBatch.map((op) => op.extDoc))
+      /** Persist completed siblings before yielding; deferred sources remain on this page for retry. */
+      const attempted = rawBatch
+        .filter((op) => !deferredExternalIds.has(op.extDoc.externalId))
+        .map((op) => op.extDoc)
+      if (attempted.length > 0) await input.onBatchComplete?.(attempted)
+      if (hydrationDeferral !== undefined) throw hydrationDeferral
     }
     return true
   } finally {
@@ -1274,67 +1392,20 @@ export async function sweepStuckDocuments(input: SweepStuckDocumentsInput): Prom
     input
 
   const sweepEvaluatedAt = new Date()
-  const queuedGraceCutoff = new Date(sweepEvaluatedAt.getTime() - QUEUED_DISPATCH_GRACE_MS)
-  const processingStaleCutoff = new Date(
-    sweepEvaluatedAt.getTime() - STALE_PROCESSING_MINUTES * 60 * 1000
-  )
   const sweepCandidates = await db
     .select({
-      id: document.id,
+      ...processingSnapshotColumns,
       fileUrl: document.fileUrl,
       filename: document.filename,
       fileSize: document.fileSize,
       mimeType: document.mimeType,
-      processingStatus: document.processingStatus,
-      processingQueuedAt: document.processingQueuedAt,
-      processingStartedAt: document.processingStartedAt,
-      processingDeferredUntil: document.processingDeferredUntil,
-      processingCompletedAt: document.processingCompletedAt,
-      uploadedAt: document.uploadedAt,
     })
     .from(document)
     .where(
       and(
         eq(document.connectorId, connectorId),
-        inArray(document.processingStatus, SWEEPABLE_PROCESSING_STATUSES),
-        isNotNull(document.contentHash),
-        or(
-          and(
-            eq(document.processingStatus, 'failed'),
-            sql`COALESCE(${document.processingCompletedAt}, ${document.processingQueuedAt}, ${document.uploadedAt}) < ${sql.param(queuedGraceCutoff, document.processingCompletedAt)}`
-          ),
-          and(
-            eq(document.processingStatus, 'pending'),
-            or(
-              and(
-                isNotNull(document.processingDeferredUntil),
-                lt(document.processingDeferredUntil, queuedGraceCutoff)
-              ),
-              and(
-                isNull(document.processingDeferredUntil),
-                sql`COALESCE(${document.processingQueuedAt}, ${document.uploadedAt}) < ${sql.param(queuedGraceCutoff, document.processingQueuedAt)}`
-              )
-            )
-          ),
-          and(
-            eq(document.processingStatus, 'processing'),
-            or(
-              isNull(document.processingStartedAt),
-              lt(document.processingStartedAt, processingStaleCutoff)
-            )
-          )
-        ),
-        /**
-         * Dead letters are left alone: past the budget, re-dispatching only
-         * re-bills a document that has failed the same way every time.
-         */
-        lt(document.processingAttempts, MAX_PROCESSING_ATTEMPTS),
-        lt(document.uploadedAt, syncStartedAt),
-        gt(document.uploadedAt, retryCutoff),
-        eq(document.userExcluded, false),
-        isNotNull(document.storageKey),
-        isNull(document.archivedAt),
-        isNull(document.deletedAt)
+        documentProcessingRecoveryCondition(sweepEvaluatedAt, retryCutoff),
+        lt(document.uploadedAt, syncStartedAt)
       )
     )
     .orderBy(
@@ -1347,8 +1418,9 @@ export async function sweepStuckDocuments(input: SweepStuckDocumentsInput): Prom
         END`),
       asc(document.id)
     )
-    .limit(STUCK_RETRY_MAX_CANDIDATES_PER_SYNC)
-  const stuckDocs = sweepCandidates.filter(
+    .limit(Math.min(STUCK_RETRY_MAX_CANDIDATES_PER_SYNC, DOCUMENT_LIVENESS_BATCH_SIZE))
+  const abandonedCandidates = await findAbandonedDocumentProcessing(sweepCandidates)
+  const stuckDocs = abandonedCandidates.filter(
     (row): row is typeof row & { processingStatus: DocumentProcessingStatus } =>
       isDocumentProcessingStatus(row.processingStatus)
   )
@@ -1371,7 +1443,7 @@ export async function sweepStuckDocuments(input: SweepStuckDocumentsInput): Prom
         .select({ id: knowledgeBase.id })
         .from(knowledgeBase)
         .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
-        .for('update')
+        .for('share')
       if (!activeKnowledgeBase) throw new SyncLockLostException(connectorId)
 
       const [heldSyncLock] = await tx
@@ -1383,30 +1455,20 @@ export async function sweepStuckDocuments(input: SweepStuckDocumentsInput): Prom
 
       const lockedCandidates = await tx
         .select({
-          id: document.id,
+          ...processingSnapshotColumns,
           fileUrl: document.fileUrl,
           filename: document.filename,
           fileSize: document.fileSize,
           mimeType: document.mimeType,
-          processingStatus: document.processingStatus,
-          processingQueuedAt: document.processingQueuedAt,
-          processingStartedAt: document.processingStartedAt,
-          processingDeferredUntil: document.processingDeferredUntil,
-          processingCompletedAt: document.processingCompletedAt,
-          uploadedAt: document.uploadedAt,
         })
         .from(document)
         .where(
           and(
             inArray(document.id, stuckDocIds),
+            or(...stuckDocs.map(documentProcessingSnapshotCondition)),
             eq(document.connectorId, connectorId),
-            inArray(document.processingStatus, SWEEPABLE_PROCESSING_STATUSES),
-            isNotNull(document.contentHash),
-            lt(document.processingAttempts, MAX_PROCESSING_ATTEMPTS),
-            eq(document.userExcluded, false),
-            isNotNull(document.storageKey),
-            isNull(document.archivedAt),
-            isNull(document.deletedAt)
+            documentProcessingRecoveryCondition(sweepEvaluatedAt, retryCutoff),
+            lt(document.uploadedAt, syncStartedAt)
           )
         )
         .orderBy(asc(document.id))
@@ -1494,6 +1556,7 @@ export async function sweepStuckDocuments(input: SweepStuckDocumentsInput): Prom
         {},
         generateId(),
         billingAttribution,
+        'backfill',
         { connectorId, stillHeld: input.lease.stillHeld }
       )
       result.processingDispatch.accepted += dispatch.accepted

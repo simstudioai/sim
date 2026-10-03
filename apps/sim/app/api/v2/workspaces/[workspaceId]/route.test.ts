@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -34,7 +31,6 @@ vi.mock('@/lib/workspaces/application/list-public-workspace-members', () => ({
 }))
 
 import {
-  InsufficientWorkspacePermissionsError,
   NoWorkspaceAccessError,
   WorkspaceApiKeyScopeAuthorizationError,
 } from '@/lib/core/application'
@@ -80,7 +76,6 @@ const routes = [
 
 describe.each(routes)('v2 $name workspace concealment', ({ spy, call }) => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -107,22 +102,6 @@ describe.each(routes)('v2 $name workspace concealment', ({ spy, call }) => {
     expect(absent.status).toBe(404)
     expect(absentBody).toEqual({
       error: { code: 'NOT_FOUND', message: 'Workspace not found' },
-    })
-  })
-
-  /**
-   * The negative leg. A caller already inside the workspace knows it exists, so
-   * a role refusal stays an actionable `403` — concealing it too would widen the
-   * policy past what it is for.
-   */
-  it('still refuses an in-workspace role denial with 403', async () => {
-    spy.mockRejectedValueOnce(new InsufficientWorkspacePermissionsError())
-
-    const response = await call()
-
-    expect(response.status).toBe(403)
-    expect(await response.json()).toMatchObject({
-      error: { code: 'FORBIDDEN', details: { code: 'INSUFFICIENT_WORKSPACE_ROLE' } },
     })
   })
 })

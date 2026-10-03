@@ -1,31 +1,40 @@
-/** @vitest-environment node */
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  credentialGroupsAvailabilityMock,
+  credentialGroupsAvailabilityMockFns,
+} from '@sim/testing/mocks/credential-groups-availability.mock'
+import {
+  credentialGroupsEnrollmentsMock,
+  credentialGroupsEnrollmentsMockFns,
+} from '@sim/testing/mocks/credential-groups-enrollments.mock'
+import {
+  credentialGroupsSelfEnrollmentMock,
+  credentialGroupsSelfEnrollmentMockFns,
+} from '@sim/testing/mocks/credential-groups-self-enrollment.mock'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  lock: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   evict: vi.fn(),
-  invite: vi.fn(),
-  available: vi.fn(),
 }))
-vi.mock('@/lib/credential-groups/enrollments', () => ({
-  lockCredentialGroupEnrollmentLifecycle: mocks.lock,
-}))
-vi.mock('@/lib/mcp/connection-pool', () => ({ evictMcpServerConnections: mocks.evict }))
-vi.mock('@/lib/credential-groups/self-enrollment', () => ({
-  createViewerCredentialGroupEnrollment: mocks.invite,
-}))
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: mocks.available,
-}))
+vi.mock('@/lib/credential-groups/enrollments', () => credentialGroupsEnrollmentsMock)
+vi.mock('@/lib/mcp/connection-pool', () => ({ evictMcpServerConnections: hoisted.evict }))
+vi.mock('@/lib/credential-groups/self-enrollment', () => credentialGroupsSelfEnrollmentMock)
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
 
 import {
   disconnectPersonalOrganizationAccount,
   listPersonalOrganizationAccounts,
   reconnectPersonalOrganizationAccount,
 } from '@/lib/credential-groups/application/personal-organization-accounts'
+
+const mocks = {
+  ...hoisted,
+  lock: credentialGroupsEnrollmentsMockFns.mockLockCredentialGroupEnrollmentLifecycle,
+  invite: credentialGroupsSelfEnrollmentMockFns.mockCreateViewerCredentialGroupEnrollment,
+  available: credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable,
+}
 
 const principal: SessionPrincipal = {
   kind: 'session',
@@ -51,10 +60,11 @@ const row = {
 
 describe('personal organization contributions', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.available.mockResolvedValue(true)
-    mocks.invite.mockResolvedValue({ invitationLink: 'https://sim.test/enroll/token' })
+    mocks.invite.mockResolvedValue({
+      invitationLink: 'https://sim.test/credential-groups/enroll/fixture-token',
+    })
   })
 
   it('lists only the stable signed-in identity without requiring org membership', async () => {
@@ -68,6 +78,20 @@ describe('personal organization contributions', () => {
       }),
     ])
     expect(eq).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment.userId, 'contributor')
+    expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.member)
+  })
+
+  it('returns OAuth contributors to the exact account in account settings', async () => {
+    queueTableRows(schemaMock.credential, [
+      { ...row, type: 'managed_oauth', optionId: 'gmail-option' },
+    ])
+    const result = await reconnectPersonalOrganizationAccount.execute({ principal, input })
+    const url = new URL(result.invitationLink)
+    expect(url.searchParams.get('optionId')).toBe('gmail-option')
+    expect(url.searchParams.get('returnTo')).toBe('accounts')
+    expect(result.authorizationUrl).toBe(
+      'https://sim.test/api/credential-groups/enroll/fixture-token/oauth/gmail-option?returnTo=accounts'
+    )
     expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.member)
   })
 

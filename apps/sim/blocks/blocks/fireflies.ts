@@ -4,12 +4,11 @@ import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file-utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { FirefliesResponse } from '@/tools/fireflies/types'
 import { getTrigger } from '@/triggers'
 
 const AUDIO_FILE_FIELD = ['audioFile', 'audioFileReference'] as const
 
-export const FirefliesBlock: BlockConfig<FirefliesResponse> = {
+export const FirefliesBlock: BlockConfig = {
   type: 'fireflies',
   name: 'Fireflies (Legacy)',
   description: 'Interact with Fireflies.ai meeting transcripts and recordings',
@@ -701,7 +700,7 @@ const firefliesV2SubBlocks = (FirefliesBlock.subBlocks || []).filter(
 )
 const firefliesV2Inputs = FirefliesBlock.inputs ? omit(FirefliesBlock.inputs, ['audioUrl']) : {}
 
-export const FirefliesV2Block: BlockConfig<FirefliesResponse> = {
+export const FirefliesV2Block: BlockConfig = {
   ...FirefliesBlock,
   sunset: undefined,
   type: 'fireflies_v2',

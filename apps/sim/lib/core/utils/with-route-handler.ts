@@ -1,10 +1,13 @@
 import { createLogger, runWithRequestContext } from '@sim/logger'
+import { resolveClientInfo } from '@sim/utils/client-info'
 import { describeError, findCause, getErrorMessage, redactBoundParameters } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { hasExternalApiCredentials } from '@/lib/api/server/credential-headers'
 import { getRateLimitHeaders } from '@/lib/api/server/rate-limit-context'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { MAX_CALL_CHAIN_DEPTH, parseCallChain, SIM_VIA_HEADER } from '@/lib/execution/call-chain'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 
 const logger = createLogger('RouteHandler')
@@ -88,6 +91,29 @@ function traceIdFromTraceparent(header: string | null | undefined): string | und
 }
 
 /**
+ * Which official client sent the request, resolved once here so every log line
+ * and analytics event in the request carries it. Attribution only: the value
+ * is caller-controlled and never feeds authorization.
+ */
+function clientInfoFor(request: NextRequest) {
+  const headers = request?.headers
+  if (!headers?.get) return undefined
+  return resolveClientInfo(headers, { hasExternalCredentials: hasExternalApiCredentials(headers) })
+}
+
+/**
+ * The workflow call chain the request arrived with, so a request one workflow
+ * makes to run another is attributed to the workflow that made it. Read here,
+ * not only in the execute routes that enforce its depth, because the events a
+ * nested run emits should know they were nested. Bounded by the same cap the
+ * execute routes apply; a chain past it is refused there and truncated here.
+ */
+function callChainFor(request: NextRequest): readonly string[] | undefined {
+  const chain = parseCallChain(request?.headers?.get?.(SIM_VIA_HEADER))
+  return chain.length > 0 ? chain.slice(0, MAX_CALL_CHAIN_DEPTH) : undefined
+}
+
+/**
  * What a wrapped error hides: a query failure from the database client carries
  * the driver's reason and the Postgres code on its cause, and only the outer
  * message names the query. The shared describer reads the deepest cause and
@@ -134,8 +160,16 @@ export function withRouteHandler<T>(
     const path =
       request?.nextUrl?.pathname ?? new URL(request?.url ?? '/', 'http://localhost').pathname
     const traceId = traceIdFromTraceparent(request?.headers?.get?.('traceparent'))
+    const requestContext = {
+      requestId,
+      method,
+      path,
+      traceId,
+      client: clientInfoFor(request),
+      callChain: callChainFor(request),
+    }
 
-    return runWithRequestContext({ requestId, method, path, traceId }, async () => {
+    return runWithRequestContext(requestContext, async () => {
       let response: NextResponse | Response
       try {
         response = await withPermissionGroupScope(() => handler(request, context))

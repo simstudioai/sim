@@ -120,7 +120,7 @@ export async function bindMemorySecretProvenanceToMessages(
   if (provenance.status === 'unknown' || provenance.entries.length === 0) return provenance
 
   const registry = new ResolvedSecretTraceRegistry()
-  if (!(await importDurableSecretProvenance(registry, provenance, messages, 'memory'))) {
+  if (!(await importDurableSecretProvenance(registry, provenance, messages))) {
     return { status: 'unknown' }
   }
   const entries = new Map<string, (typeof provenance.entries)[number]>()

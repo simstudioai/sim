@@ -33,7 +33,8 @@ export const logOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability: 'none',
-    principalKinds: PUBLIC_API_PRINCIPAL_KINDS,
+    principalKinds: [...PUBLIC_API_PRINCIPAL_KINDS, 'delegated'],
+    delegatedServices: ['copilot'],
   }),
   // permission-group-exempt: as with the list, the group projects trace spans and cost out of the response rather than refusing the read
   readDetail: defineWorkspaceOperation({

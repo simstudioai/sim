@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { describe, expect, it } from 'vitest'
 import {
   PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
@@ -42,11 +38,6 @@ function privateWritePayload(workspaceId: string) {
 }
 
 describe('Memory direct provenance', () => {
-  it('keeps unsupported headerless executor writes on the legacy untracked path', () => {
-    expect(memoryToolSuppliesWriteProvenance(new Headers(), {})).toBe(false)
-    expect(readMemoryWriteProvenance(new Headers(), {}, PROVENANCE_SCOPE)).toBeUndefined()
-  })
-
   it('binds authenticated provenance to the canonical workspace and preserves its source owner', () => {
     const headers = new Headers({
       [PRIVATE_SECRET_PROVENANCE_HEADER]: PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,

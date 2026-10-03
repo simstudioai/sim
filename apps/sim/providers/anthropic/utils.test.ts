@@ -1,35 +1,59 @@
 /**
- * @vitest-environment node
- *
  * Anthropic adapter emits AgentStreamEvent objects (thinking + text)
  * from Messages stream fixtures; tool_use deltas are handled by the tool loop.
  */
+import { collectStream } from '@sim/testing/helpers/async'
 import { describe, expect, it, vi } from 'vitest'
 import {
+  anthropicRedactedThinkingAssembledContent,
   anthropicRedactedThinkingExpectedText,
   anthropicRedactedThinkingExpectedTraceThinking,
   anthropicRedactedThinkingStreamEvents,
+  anthropicThinkingTextToolAssembledContent,
   anthropicThinkingTextToolExpectedText,
   anthropicThinkingTextToolExpectedThinking,
   anthropicThinkingTextToolStreamEvents,
 } from '@/providers/__fixtures__/anthropic'
 import { createReadableStreamFromAnthropicStream } from '@/providers/anthropic/utils'
-import type { AgentStreamEvent } from '@/providers/stream-events'
-
-async function collectEvents(
-  stream: ReadableStream<AgentStreamEvent>
-): Promise<AgentStreamEvent[]> {
-  const events: AgentStreamEvent[] = []
-  const reader = stream.getReader()
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    events.push(value)
-  }
-  return events
-}
 
 describe('createReadableStreamFromAnthropicStream', () => {
+  it('keeps citation deltas in the native text block', async () => {
+    const onComplete = vi.fn()
+    const citation = {
+      type: 'char_location' as const,
+      cited_text: 'fact',
+      document_index: 0,
+      document_title: 'Source',
+      start_char_index: 0,
+      end_char_index: 4,
+    }
+    await collectStream(
+      createReadableStreamFromAnthropicStream(
+        (async function* () {
+          yield {
+            type: 'content_block_start' as const,
+            index: 0,
+            content_block: { type: 'text' as const, text: '', citations: [] },
+          }
+          yield {
+            type: 'content_block_delta' as const,
+            index: 0,
+            delta: { type: 'text_delta' as const, text: 'Fact' },
+          }
+          yield {
+            type: 'content_block_delta' as const,
+            index: 0,
+            delta: { type: 'citations_delta' as const, citation },
+          }
+        })(),
+        onComplete
+      )
+    )
+    expect(onComplete.mock.calls[0][0].nativeContent).toEqual([
+      { type: 'text', text: 'Fact', citations: [citation] },
+    ])
+  })
+
   it('emits thinking_delta then text_delta and ignores tool_use (thinking+text+tool fixture)', async () => {
     const onComplete = vi.fn()
     const stream = createReadableStreamFromAnthropicStream(
@@ -39,7 +63,7 @@ describe('createReadableStreamFromAnthropicStream', () => {
       onComplete
     )
 
-    const events = await collectEvents(stream)
+    const events = await collectStream(stream)
 
     expect(events.filter((e) => e.type === 'thinking_delta').map((e) => e.text)).toEqual([
       'I should check the weather before answering. ',
@@ -57,6 +81,9 @@ describe('createReadableStreamFromAnthropicStream', () => {
     )
 
     expect(onComplete).toHaveBeenCalledTimes(1)
+    expect(onComplete.mock.calls[0][0].nativeContent).toContainEqual(
+      anthropicThinkingTextToolAssembledContent[0]
+    )
     expect(onComplete.mock.calls[0][0]).toMatchObject({
       content: anthropicThinkingTextToolExpectedText,
       thinking: anthropicThinkingTextToolExpectedThinking,
@@ -96,7 +123,7 @@ describe('createReadableStreamFromAnthropicStream', () => {
       onComplete
     )
 
-    await collectEvents(stream)
+    await collectStream(stream)
 
     expect(onComplete.mock.calls[0][0].usage).toEqual({
       input: 10,
@@ -116,7 +143,7 @@ describe('createReadableStreamFromAnthropicStream', () => {
       onComplete
     )
 
-    const events = await collectEvents(stream)
+    const events = await collectStream(stream)
     expect(events.filter((e) => e.type === 'thinking_delta').map((e) => e.text)).toEqual([
       'Visible follow-up reasoning after redaction.',
     ])
@@ -130,6 +157,7 @@ describe('createReadableStreamFromAnthropicStream', () => {
     expect(onComplete.mock.calls[0][0]).toMatchObject({
       content: anthropicRedactedThinkingExpectedText,
       thinking: anthropicRedactedThinkingExpectedTraceThinking,
+      nativeContent: anthropicRedactedThinkingAssembledContent,
     })
   })
 
@@ -144,6 +172,6 @@ describe('createReadableStreamFromAnthropicStream', () => {
       })() as AsyncIterable<any>
     )
 
-    await expect(collectEvents(stream)).rejects.toThrow('provider reset')
+    await expect(collectStream(stream)).rejects.toThrow('provider reset')
   })
 })

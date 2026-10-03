@@ -1,44 +1,72 @@
 import { type Context, context as otelContext, type Span, trace } from '@opentelemetry/api'
-import type { Principal } from '@sim/auth/principal'
+import type { SessionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotChatStreamContract } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
-import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
-import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
+import {
+  InternalUnauthenticatedError,
+  internalOrchestrationErrorPolicy,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import { encodeSSEComment } from '@/lib/core/utils/sse'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { MOTHERSHIP_STREAM_REPLAY_HEADER } from '@/lib/mothership/constants'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
-} from '@/lib/copilot/generated/mothership-stream-v1'
+} from '@/lib/mothership/generated/mothership-stream-v1'
 import {
   CopilotResumeOutcome,
   CopilotTransport,
-} from '@/lib/copilot/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
-import { contextFromRequestHeaders } from '@/lib/copilot/request/go/propagation'
-import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
-import { getCopilotTracer, markSpanForError } from '@/lib/copilot/request/otel'
+} from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { readChatStream } from '@/lib/mothership/request/application/recover-stream'
+import { contextFromRequestHeaders } from '@/lib/mothership/request/go/propagation'
+import { getCopilotTracer, markSpanForError } from '@/lib/mothership/request/otel'
 import {
-  checkForReplayGap,
   createEvent,
   encodeSSEEnvelope,
+  findReplayGap,
+  forwardRunReplay,
+  isTerminalStreamStatus,
+  openRunReplay,
+  RunReplayUnavailableError,
   readEvents,
   readFilePreviewSessions,
+  readRingPosition,
+  replayGapTerminal,
+  ringCanServe,
   SSE_RESPONSE_HEADERS,
-} from '@/lib/copilot/request/session'
-import { toStreamBatchEvent } from '@/lib/copilot/request/session/types'
-import { encodeSSEComment } from '@/lib/core/utils/sse'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/request/session'
+import { toReplayEnvelope, toStreamBatchEvent } from '@/lib/mothership/request/session/types'
 
 export const maxDuration = 3600
 
 const logger = createLogger('CopilotChatStreamAPI')
 const POLL_INTERVAL_MS = 250
+const POLL_INTERVAL_MAX_MS = 2_000
 const REPLAY_KEEPALIVE_INTERVAL_MS = 15_000
-const MAX_STREAM_MS = 60 * 60 * 1000
+/** How often a tail that is still flushing events checks that its ring can serve it. */
+const RING_CHECK_EVERY_BUSY_POLLS = 8
+/**
+ * One replay response stays open at most this long, inside the route's `maxDuration`.
+ * A run still going at the cap is not over: the response ends without a terminal
+ * event and the client re-attaches from its cursor.
+ */
+const MAX_STREAM_MS = 60 * 60 * 1000 - 60_000
+
+/**
+ * Whether ring events read after `cursor` start right after it. The ring can trim its
+ * head between a gap check and the read, and a read that starts later would silently
+ * skip part of the turn.
+ */
+function startsAfterCursor(events: readonly { seq: number }[], cursor: string): boolean {
+  return events.length === 0 || events[0].seq <= Number(cursor || '0') + 1
+}
 
 function extractCanonicalRequestId(value: unknown): string {
   return typeof value === 'string' && value.length > 0 ? value : ''
@@ -57,16 +85,6 @@ function extractRunRequestId(run: { requestContext?: unknown } | null | undefine
 
 function extractEnvelopeRequestId(envelope: { trace?: { requestId?: unknown } }): string {
   return extractCanonicalRequestId(envelope.trace?.requestId)
-}
-
-function isTerminalStatus(
-  status: string | null | undefined
-): status is MothershipStreamV1CompletionStatus {
-  return (
-    status === MothershipStreamV1CompletionStatus.complete ||
-    status === MothershipStreamV1CompletionStatus.error ||
-    status === MothershipStreamV1CompletionStatus.cancelled
-  )
 }
 
 function buildResumeTerminalEnvelopes(options: {
@@ -117,19 +135,19 @@ function buildResumeTerminalEnvelopes(options: {
 }
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const {
-    userId: authenticatedUserId,
-    isAuthenticated,
-    principal,
-  } = await authenticateCopilotRequestSessionOnly()
-
-  if (!isAuthenticated || !authenticatedUserId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  let principal: SessionPrincipal
+  try {
+    principal = await internalSessionAuth.authenticate()
+  } catch (error) {
+    if (error instanceof InternalUnauthenticatedError)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    throw error
   }
+  const authenticatedUserId = principal.userId
 
   const parsed = await parseRequest(copilotChatStreamContract, request, {})
   if (!parsed.success) return parsed.response
-  const { streamId, after: afterCursor, batch: batchMode } = parsed.data.query
+  const { streamId, after: afterCursor, batch: batchMode, source } = parsed.data.query
 
   if (!streamId) {
     return NextResponse.json({ error: 'streamId is required' }, { status: 400 })
@@ -173,7 +191,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         streamId,
         afterCursor,
         batchMode,
-        authenticatedUserId,
+        fromLog: source === 'log',
         principal,
         rootSpan,
         rootContext,
@@ -182,7 +200,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   } catch (err) {
     markSpanForError(rootSpan, err)
     rootSpan.end()
-    throw err
+    const errorResponse =
+      internalOrchestrationErrorPolicy.project(err) ?? internalOrchestrationErrorPolicy.unhandled!()
+    return NextResponse.json(errorResponse.body, {
+      status: errorResponse.status,
+      headers: errorResponse.headers,
+    })
   }
 })
 
@@ -191,7 +214,7 @@ async function handleResumeRequestBody({
   streamId,
   afterCursor,
   batchMode,
-  authenticatedUserId,
+  fromLog,
   principal,
   rootSpan,
   rootContext,
@@ -200,18 +223,18 @@ async function handleResumeRequestBody({
   streamId: string
   afterCursor: string
   batchMode: boolean
-  authenticatedUserId: string
-  principal?: Principal
+  /** The reader's cursor came from a log re-sync, so the ring never serves it. */
+  fromLog: boolean
+  principal: SessionPrincipal
   rootSpan: Span
   rootContext: Context
 }) {
-  const run = await getLatestRunForStream(streamId, authenticatedUserId).catch((err) => {
-    logger.warn('Failed to fetch latest run for stream', {
-      streamId,
-      error: getErrorMessage(err),
+  const readRun = () =>
+    readChatStream.execute({
+      principal,
+      input: { streamId },
     })
-    return null
-  })
+  const run = await readRun()
   logger.info('[Resume] Stream lookup', {
     streamId,
     afterCursor,
@@ -219,11 +242,7 @@ async function handleResumeRequestBody({
     hasRun: !!run,
     runStatus: run?.status,
   })
-  if (
-    !run ||
-    (run.chatId &&
-      !(await getAccessibleCopilotChatAuth(run.chatId, authenticatedUserId, { principal })))
-  ) {
+  if (!run) {
     rootSpan.setAttribute(TraceAttr.CopilotResumeOutcome, CopilotResumeOutcome.StreamNotFound)
     rootSpan.end()
     return NextResponse.json({ error: 'Stream not found' }, { status: 404 })
@@ -232,7 +251,8 @@ async function handleResumeRequestBody({
 
   if (batchMode) {
     const afterSeq = afterCursor || '0'
-    const [events, previewSessions] = await Promise.all([
+    const [gap, events, previewSessions] = await Promise.all([
+      fromLog ? null : findReplayGap(streamId, afterSeq, extractRunRequestId(run)),
       readEvents(streamId, afterSeq),
       readFilePreviewSessions(streamId).catch((error) => {
         logger.warn('Failed to read preview sessions for stream batch', {
@@ -242,7 +262,10 @@ async function handleResumeRequestBody({
         return []
       }),
     ])
-    const batchEvents = events.map(toStreamBatchEvent)
+    // A reader the ring cannot serve, or whose next event it trimmed after the gap check,
+    // is re-synced from the worker log by the live tail.
+    const batchEvents =
+      fromLog || gap || !startsAfterCursor(events, afterSeq) ? [] : events.map(toStreamBatchEvent)
     logger.info('[Resume] Batch response', {
       streamId,
       afterCursor: afterSeq,
@@ -269,10 +292,47 @@ async function handleResumeRequestBody({
   let totalEventsFlushed = 0
   let pollIterations = 0
 
+  /**
+   * A reader the ring cannot serve is re-synced from the worker's durable log for the
+   * rest of this response, never handed back to the ring: the log and the ring have
+   * no shared position to join on. The header tells the client to rebuild the turn
+   * from an empty response, since the replay's cursors restart at 1.
+   */
+  const ringGap = fromLog
+    ? null
+    : await findReplayGap(streamId, afterCursor || '0', extractRunRequestId(run))
+  // A finished run whose buffer expired answers its terminal; its transcript is persisted.
+  const gap =
+    ringGap && !(ringGap.latestSeq <= 0 && isTerminalStreamStatus(run.status)) ? ringGap : null
+  const resyncFromLog = fromLog || gap !== null
+  let replayBody: ReadableStream<Uint8Array> | null = null
+  /** Releases the worker's replay once this response ends; the request signal may never fire. */
+  const replayAbort = new AbortController()
+  const replaySignal = AbortSignal.any([request.signal, replayAbort.signal])
+  if (resyncFromLog && run.chatId) {
+    try {
+      replayBody = await openRunReplay({
+        streamId,
+        chatId: run.chatId,
+        userId: principal.userId,
+        signal: replaySignal,
+      })
+    } catch (error) {
+      if (!(error instanceof RunReplayUnavailableError)) throw error
+      logger.warn('Run replay unavailable; the client will retry', {
+        streamId,
+        error: getErrorMessage(error),
+      })
+      markSpanForError(rootSpan, error)
+      rootSpan.end()
+      return NextResponse.json({ error: 'Stream replay is unavailable' }, { status: 503 })
+    }
+  }
+
   const stream = new ReadableStream({
     async start(controller) {
       // Re-enter the root OTel context so any `withCopilotSpan` call below
-      // (inside flushEvents/checkForReplayGap/etc.) parents under
+      // (inside flushEvents/replayGapTerminal/etc.) parents under
       // copilot.resume.request instead of becoming an orphan.
       return otelContext.with(rootContext, () => startInner(controller))
     },
@@ -334,15 +394,13 @@ async function handleResumeRequestBody({
     }
     request.signal.addEventListener('abort', abortListener, { once: true })
 
-    const flushEvents = async () => {
-      if (
-        run?.chatId &&
-        !(await getAccessibleCopilotChatAuth(run.chatId, authenticatedUserId, { principal }))
-      ) {
-        closeController()
-        return
-      }
+    /** Delivers the ring's events after the cursor, or returns null if it trimmed the next one. */
+    const flushEvents = async (): Promise<number | null> => {
       const events = await readEvents(streamId, cursor)
+      if (!startsAfterCursor(events, cursor)) {
+        logger.warn('Replay ring trimmed past a reader cursor', { streamId, cursor })
+        return null
+      }
       if (events.length > 0) {
         logger.debug('[Resume] Flushing events', {
           streamId,
@@ -351,7 +409,7 @@ async function handleResumeRequestBody({
         })
       }
       for (const envelope of events) {
-        if (!enqueueEvent(envelope)) {
+        if (!enqueueEvent(toReplayEnvelope(envelope))) {
           break
         }
         totalEventsFlushed += 1
@@ -361,6 +419,7 @@ async function handleResumeRequestBody({
           sawTerminalEvent = true
         }
       }
+      return events.length
     }
 
     const emitTerminalIfMissing = (
@@ -389,12 +448,46 @@ async function handleResumeRequestBody({
       }
     }
 
+    /** Forwards the worker's replay, keeping the response alive while it waits. */
+    const streamRunReplay = async (body: ReadableStream<Uint8Array>) => {
+      const keepalive = setInterval(() => {
+        if (Date.now() - lastWriteTime < REPLAY_KEEPALIVE_INTERVAL_MS) return
+        if (!enqueueComment('keepalive')) replayAbort.abort()
+      }, REPLAY_KEEPALIVE_INTERVAL_MS)
+      try {
+        const end = await forwardRunReplay({
+          body,
+          streamId,
+          signal: replaySignal,
+          write: (envelope) => {
+            if (!enqueueEvent(envelope)) return false
+            totalEventsFlushed += 1
+            cursor = envelope.stream.cursor ?? cursor
+            if (envelope.type === MothershipStreamV1EventType.complete) sawTerminalEvent = true
+            return true
+          },
+          readRunStatus: async () => (await readRun().catch(() => null))?.status ?? null,
+          isClosed: () => controllerClosed,
+          deadlineAt: startTime + MAX_STREAM_MS,
+        })
+        logger.info('[Resume] Run replay ended', { streamId, end, eventCount: totalEventsFlushed })
+      } finally {
+        clearInterval(keepalive)
+        replayAbort.abort()
+      }
+    }
+
     try {
       enqueueComment('accepted')
 
-      const gap = await checkForReplayGap(streamId, afterCursor, currentRequestId)
-      if (gap) {
-        for (const envelope of gap.envelopes) {
+      if (replayBody) {
+        await streamRunReplay(replayBody)
+        return
+      }
+      if (resyncFromLog) {
+        const position = gap ?? (await readRingPosition(streamId, cursor))
+        const terminal = await replayGapTerminal(streamId, position, currentRequestId)
+        for (const envelope of terminal.envelopes) {
           if (!enqueueEvent(envelope)) {
             break
           }
@@ -407,19 +500,19 @@ async function handleResumeRequestBody({
         return
       }
 
-      await flushEvents()
+      let lastFlushed = await flushEvents()
+      if (lastFlushed === null) return
 
+      let pollDelayMs = POLL_INTERVAL_MS
       while (!controllerClosed && Date.now() - startTime < MAX_STREAM_MS) {
         pollIterations += 1
-        const currentRun = await getLatestRunForStream(streamId, authenticatedUserId).catch(
-          (err) => {
-            logger.warn('Failed to poll latest run for stream', {
-              streamId,
-              error: getErrorMessage(err),
-            })
-            return null
-          }
-        )
+        const currentRun = await readRun().catch((err) => {
+          logger.warn('Failed to poll latest run for stream', {
+            streamId,
+            error: getErrorMessage(err),
+          })
+          return null
+        })
         if (!currentRun) {
           emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {
             message: 'The stream could not be recovered because its run metadata is unavailable.',
@@ -428,15 +521,34 @@ async function handleResumeRequestBody({
           })
           break
         }
+        // The ring lost its head, restarted or expired under this live tail; the re-attach
+        // re-syncs, and a finished run answers its terminal instead. Only a quiet ring can
+        // restart or be re-sent into by a recovery, so a busy tail checks every few polls.
+        const checkRing = lastFlushed === 0 || pollIterations % RING_CHECK_EVERY_BUSY_POLLS === 0
+        if (
+          checkRing &&
+          !isTerminalStreamStatus(currentRun.status) &&
+          !ringCanServe(await readRingPosition(streamId, cursor))
+        ) {
+          logger.warn('Replay ring can no longer serve a live tail', { streamId, cursor })
+          break
+        }
 
         currentRequestId = extractRunRequestId(currentRun) || currentRequestId
 
-        await flushEvents()
+        const flushed = await flushEvents()
+        if (flushed === null) break
+        lastFlushed = flushed
+        /* Adaptive tail: 4 Hz only while events are actually flowing; a quiet stream
+           decays toward the cap so an attached client doesn't hammer Postgres + Redis
+           at 4 Hz for up to an hour. Any flushed event snaps back to full rate. */
+        pollDelayMs =
+          flushed > 0 ? POLL_INTERVAL_MS : Math.min(pollDelayMs * 2, POLL_INTERVAL_MAX_MS)
 
         if (controllerClosed) {
           break
         }
-        if (isTerminalStatus(currentRun.status)) {
+        if (isTerminalStreamStatus(currentRun.status)) {
           emitTerminalIfMissing(currentRun.status, {
             message:
               currentRun.status === MothershipStreamV1CompletionStatus.error
@@ -459,14 +571,7 @@ async function handleResumeRequestBody({
           enqueueComment('keepalive')
         }
 
-        await sleep(POLL_INTERVAL_MS)
-      }
-      if (!controllerClosed && Date.now() - startTime >= MAX_STREAM_MS) {
-        emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {
-          message: 'The stream recovery timed out before completion.',
-          code: 'resume_timeout',
-          reason: 'timeout',
-        })
+        await sleep(pollDelayMs)
       }
     } catch (error) {
       if (!controllerClosed && !request.signal.aborted) {
@@ -483,11 +588,13 @@ async function handleResumeRequestBody({
       markSpanForError(rootSpan, error)
     } finally {
       request.signal.removeEventListener('abort', abortListener)
+      // Read before closing: closing the controller here is this route ending, not the client.
+      const clientDisconnected = controllerClosed
       closeController()
       rootSpan.setAttributes({
         [TraceAttr.CopilotResumeOutcome]: sawTerminalEvent
           ? CopilotResumeOutcome.TerminalDelivered
-          : controllerClosed
+          : clientDisconnected
             ? CopilotResumeOutcome.ClientDisconnected
             : CopilotResumeOutcome.EndedWithoutTerminal,
         [TraceAttr.CopilotResumeEventCount]: totalEventsFlushed,
@@ -498,5 +605,9 @@ async function handleResumeRequestBody({
     }
   }
 
-  return new Response(stream, { headers: SSE_RESPONSE_HEADERS })
+  return new Response(stream, {
+    headers: replayBody
+      ? { ...SSE_RESPONSE_HEADERS, [MOTHERSHIP_STREAM_REPLAY_HEADER]: 'log' }
+      : SSE_RESPONSE_HEADERS,
+  })
 }

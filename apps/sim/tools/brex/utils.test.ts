@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { appendBrexArrayParam, appendBrexPagination, toBrexDateTime } from '@/tools/brex/utils'
 

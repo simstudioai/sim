@@ -3,7 +3,7 @@ import { document, embedding, knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
 import {
   type KeysetKey,
   keysetColumns,
@@ -14,6 +14,7 @@ import {
   searchFilter,
   textKey,
 } from '@/lib/api/list-query'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
@@ -123,7 +124,13 @@ export async function queryChunks(
    * keyset resume narrows the *page*, and folding it into the count would turn
    * a total into a remainder that shrinks with every page.
    */
-  const pageConditions = [...conditions, resumeKeyset(keys, cursorKeys, sortOrder)]
+  const pageConditions = [
+    ...conditions,
+    resumeKeyset(keys, cursorKeys, sortOrder),
+    filters.startChunkIndex === undefined
+      ? undefined
+      : gte(embedding.chunkIndex, filters.startChunkIndex),
+  ]
 
   const rows = await db
     .select({
@@ -233,9 +240,7 @@ export async function createChunk(
     await tx.execute(
       sql`select set_config('lock_timeout', ${`${KB_CHUNK_LOCK_TIMEOUT_MS}ms`}, true)`
     )
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${`kb_chunk_seq:${documentId}`}, 0))`
-    )
+    await acquireAdvisoryXactLock(tx, 'kb_chunk_seq', `kb_chunk_seq:${documentId}`)
 
     const activeDocument = await tx
       .select({ id: document.id })

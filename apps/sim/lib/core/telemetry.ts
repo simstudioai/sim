@@ -18,46 +18,39 @@
 
 import { context, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
-import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import type { TraceSpan } from '@/lib/logs/types'
 import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
+import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 
 /**
  * GenAI Semantic Convention Attributes
  */
 const GenAIAttributes = {
-  // System attributes
   SYSTEM: 'gen_ai.system',
   REQUEST_MODEL: 'gen_ai.request.model',
   RESPONSE_MODEL: 'gen_ai.response.model',
 
-  // Token usage
   USAGE_INPUT_TOKENS: 'gen_ai.usage.input_tokens',
   USAGE_OUTPUT_TOKENS: 'gen_ai.usage.output_tokens',
   USAGE_TOTAL_TOKENS: 'gen_ai.usage.total_tokens',
 
-  // Request/Response
   REQUEST_TEMPERATURE: 'gen_ai.request.temperature',
   REQUEST_TOP_P: 'gen_ai.request.top_p',
   REQUEST_MAX_TOKENS: 'gen_ai.request.max_tokens',
   RESPONSE_FINISH_REASON: 'gen_ai.response.finish_reason',
 
-  // Agent-specific
   AGENT_ID: 'gen_ai.agent.id',
   AGENT_NAME: 'gen_ai.agent.name',
   AGENT_TASK: 'gen_ai.agent.task',
 
-  // Workflow-specific
   WORKFLOW_ID: 'gen_ai.workflow.id',
   WORKFLOW_NAME: 'gen_ai.workflow.name',
   WORKFLOW_VERSION: 'gen_ai.workflow.version',
   WORKFLOW_EXECUTION_ID: 'gen_ai.workflow.execution_id',
 
-  // Tool-specific
   TOOL_NAME: 'gen_ai.tool.name',
   TOOL_DESCRIPTION: 'gen_ai.tool.description',
 
-  // Cost tracking
   COST_TOTAL: 'gen_ai.cost.total',
   COST_INPUT: 'gen_ai.cost.input',
   COST_OUTPUT: 'gen_ai.cost.output',
@@ -65,7 +58,6 @@ const GenAIAttributes = {
 
 const logger = createLogger('OTelIntegration')
 
-// Lazy-load tracer
 let _tracer: ReturnType<typeof trace.getTracer> | null = null
 
 function getTracer() {
@@ -400,36 +392,17 @@ export function trackPlatformEvent(
     })
     span.setStatus({ code: SpanStatusCode.OK })
     span.end()
-  } catch (error) {
+  } catch {
     // Silently fail
   }
 }
 
-// PLATFORM TELEMETRY EVENTS
-//
-// Naming Convention:
-//   Event:     platform.{resource}.{past_tense_action}
-//   Attribute: {resource}.{attribute_name}
-//
-// Examples:
-//   Event:     platform.user.signed_up
-//   Attribute: user.id, user.auth_method, workspace.id
-//
-// Categories:
-//   - User/Auth:      platform.user.*
-//   - Workspace:      platform.workspace.*
-//   - Workflow:       platform.workflow.*
-//   - Knowledge Base: platform.knowledge_base.*
-//   - MCP:            platform.mcp.*
-//   - API Keys:       platform.api_key.*
-//   - OAuth:          platform.oauth.*
-//   - Webhook:        platform.webhook.*
-//   - Billing:        platform.billing.*
-//   - Template:       platform.template.*
-
 /**
- * Platform Events - Typed event tracking helpers
- * These provide type-safe, consistent telemetry across the platform
+ * Typed platform event tracking helpers.
+ *
+ * Naming convention: events are `platform.{resource}.{past_tense_action}`
+ * (e.g. `platform.user.signed_up`); attributes are `{resource}.{attribute_name}`
+ * (e.g. `user.id`, `workspace.id`).
  */
 export const PlatformEvents = {
   /**

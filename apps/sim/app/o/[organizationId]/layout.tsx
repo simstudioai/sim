@@ -1,23 +1,31 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
 import { getSession } from '@/lib/auth'
-import { organizationRoutes } from '@/lib/navigation/paths'
+import { getActiveOrganizationId } from '@/lib/auth/session-response'
+import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
+import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
+import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
-import { prefetchUserProfile } from '@/lib/users/prefetch-user-profile'
+import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { OrganizationAccessDenied } from '@/app/o/[organizationId]/components/organization-access-denied'
 import { OrganizationSidebar } from '@/app/o/[organizationId]/components/organization-sidebar'
+import { prefetchOrganizationSidebar } from '@/app/o/[organizationId]/prefetch'
 import { OrganizationProvider } from '@/app/o/[organizationId]/providers/organization-provider'
+import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
+import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session-expired'
 import { WorkspaceChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
+import { FeatureFlagsProvider } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 
 /**
  * The organization surface: the viewer's own view of one organization, outside
- * any workspace. Membership in the routed organization is the whole gate — a
- * non-member gets an explicit denial rather than a redirect, so a stale link
- * never bounces someone into a different organization.
+ * any workspace. Requires membership and an available organization chat surface.
+ * Non-members get an explicit denial; members outside the rollout retain
+ * workspace settings, including when following a saved organization link.
  */
 export default async function OrganizationLayout({
   children,
@@ -41,31 +49,55 @@ export default async function OrganizationLayout({
   const [context, cookieStore] = await Promise.all([
     getOrganizationSurfaceContext(organizationId, session.user.id),
     cookies(),
-    /* The rail's footer renders the viewer, so the profile is layout data: seeded
-       here it paints hydrated, and a page hydrating the same key beneath finds it
-       populated rather than an empty query it cannot fill during render. */
-    prefetchUserProfile(queryClient, session.user.id),
   ])
   if (!context) {
     return <OrganizationAccessDenied />
   }
+  if (!context.mothershipAvailable && !context.searchAccess.memberScoped)
+    redirect(WORKSPACE_SETTINGS_PATH)
 
+  const [, tableRowTtlEnabled, modelSelectorEnabled, planModeEnabled, dashboardsEnabled] =
+    await Promise.all([
+      prefetchOrganizationSidebar(
+        queryClient,
+        organizationId,
+        { kind: 'session', userId: session.user.id, sessionId: session.session.id },
+        getActiveOrganizationId(session)
+      ),
+      isTableRowTtlEnabled(),
+      isMothershipModelSelectorEnabled(),
+      isPlanModeEnabled(),
+      isDashboardsEnabled(organizationId),
+    ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <OrganizationProvider context={context}>
-        <GlobalCommandsProvider>
-          <div className='workspace-root flex h-screen w-full flex-col overflow-hidden bg-[var(--surface-1)]'>
-            <WorkspaceChrome
-              sidebar={<OrganizationSidebar />}
-              initialSidebarCollapsed={initialSidebarCollapsed}
-            >
-              {children}
-            </WorkspaceChrome>
-          </div>
-        </GlobalCommandsProvider>
-      </OrganizationProvider>
+      <FeatureFlagsProvider
+        flags={{
+          dashboards: dashboardsEnabled,
+          'table-row-ttl': tableRowTtlEnabled,
+          'mothership-model-selector': modelSelectorEnabled,
+          'mothership-plan-mode': planModeEnabled,
+        }}
+      >
+        <OrganizationProvider context={context}>
+          <GlobalCommandsProvider>
+            <div className='workspace-root flex h-screen w-full flex-col overflow-hidden bg-[var(--surface-1)]'>
+              <ImpersonationBanner />
+              <SessionExpired />
+              <SettingsNavigationProvider>
+                <WorkspaceChrome
+                  sidebar={<OrganizationSidebar />}
+                  initialSidebarCollapsed={initialSidebarCollapsed}
+                >
+                  {children}
+                </WorkspaceChrome>
+              </SettingsNavigationProvider>
+            </div>
+          </GlobalCommandsProvider>
+        </OrganizationProvider>
+      </FeatureFlagsProvider>
     </HydrationBoundary>
   )
 }

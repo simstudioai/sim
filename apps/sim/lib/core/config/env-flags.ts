@@ -4,10 +4,16 @@
  */
 
 import {
+  hasEnvCapabilityValue,
+  inspectCapability,
+  SANDBOX_CAPABILITY,
+} from '@sim/deployment-config/env-capabilities'
+import {
   isImmutableDaytonaSnapshotRef,
   isImmutableE2BTemplateRef,
   isValidSandboxReleaseGeneration,
 } from '@sim/utils/sandbox-references'
+import { resolveCostMultiplier } from './cost-multiplier'
 import {
   ENTERPRISE_FEATURE_LEGACY_DEFAULTS,
   type EnterpriseFeature,
@@ -15,7 +21,6 @@ import {
   resolveSandboxFeatureAvailability,
 } from './enterprise-entitlements'
 import { env, envBoolean, envNumber, getEnv, isFalsy, isTruthy } from './env'
-import { hasEnvCapabilityValue, inspectCapability, SANDBOX_CAPABILITY } from './env-capabilities'
 
 /**
  * Is the application running in production mode
@@ -92,6 +97,14 @@ export const isStatusNoticePreviewEnabled = isTruthy(getEnv('NEXT_PUBLIC_STATUS_
  * used tools, so it is an opt-in change in how the product feels, not just a
  * safety toggle. With it off nothing is stamped, gated, or persisted, and an
  * approval stamp arriving from Go is cleared on the way to the client.
+ *
+ * The gate is a property of the lane, not only of the tool. Sim can hold a call
+ * for a decision on the dispatch lane, where a streaming context and a decision
+ * row exist. It cannot on the in-band route (`POST /api/copilot/tools/execute`),
+ * which the mothership drives for background lanes, so that route refuses a
+ * `requiresApproval` tool outright rather than running it ungated — see
+ * `toolRequiresApprovalLane`. Any new execution lane has to answer the same
+ * question before this flag is turned on.
  */
 export const isCopilotToolPermissionsEnabled = isTruthy(env.COPILOT_TOOL_PERMISSIONS_ENABLED)
 
@@ -709,5 +722,7 @@ export function getAllowedMcpDomainsFromEnv(): string[] | null {
  * fall back to 1.
  */
 export function getCostMultiplier(): number {
-  return isProd ? envNumber(env.COST_MULTIPLIER, 1) : 1
+  return resolveCostMultiplier(env.COST_MULTIPLIER, isProd)
 }
+
+/** Backend selector. Kept independent of enterprise entitlement overrides. */

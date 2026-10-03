@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef } from 'react'
+import { type CSSProperties, useEffect, useMemo, useRef } from 'react'
 import {
   ConnectionLineType,
   type Edge,
@@ -17,11 +17,9 @@ import '@xyflow/react/dist/style.css'
 import { cn } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import {
-  BLOCK_DIMENSIONS,
   BLOCK_Z_BASE,
   CANVAS_Z_INDEX_MODE,
   CONTAINER_CHILD_Z_BASE,
-  CONTAINER_DIMENSIONS,
   EDGE_Z_BASE,
   EDGE_Z_MAX,
   getEdgeZIndexForTarget,
@@ -29,78 +27,18 @@ import {
   useCanvasColorMode,
 } from '@sim/workflow-renderer'
 import { normalizeWorkflowEdgeHandles } from '@sim/workflow-types/workflow'
-import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
-import {
-  estimateBlockDimensions,
-  SUBFLOW_CHILD_NODE_CLASS,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
+import type { CanvasPort } from '@/lib/workflows/blocks/canvas-ports'
+import type { BlockDiffStatus, EdgeDiffStatus } from '@/lib/workflows/comparison'
+import { SUBFLOW_CHILD_NODE_CLASS } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { PreviewBlock } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/block'
 import { PreviewSubflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/subflow'
+import { getPreviewBlockDimensions } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/preview-dimensions'
+import { PreviewEdge } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/preview-edge'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
+import '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/preview-workflow.css'
 
 const logger = createLogger('PreviewWorkflow')
-
-/** Gets block dimensions, using stored values or defaults. */
-function getPreviewBlockDimensions(block: BlockState): { width: number; height: number } {
-  if (block.type === 'loop' || block.type === 'parallel') {
-    return {
-      width: block.data?.width
-        ? Math.max(block.data.width, CONTAINER_DIMENSIONS.MIN_WIDTH)
-        : CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
-      height: block.data?.height
-        ? Math.max(block.data.height, CONTAINER_DIMENSIONS.MIN_HEIGHT)
-        : CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
-    }
-  }
-
-  if (block.height) {
-    return {
-      width: BLOCK_DIMENSIONS.FIXED_WIDTH,
-      height: Math.max(block.height, BLOCK_DIMENSIONS.MIN_HEIGHT),
-    }
-  }
-
-  return estimateBlockDimensions(block.type)
-}
-
-/** Calculates container dimensions from child block positions. */
-function calculateContainerDimensions(
-  containerId: string,
-  blocks: Record<string, BlockState>
-): { width: number; height: number } {
-  const childBlocks = Object.values(blocks).filter((block) => block?.data?.parentId === containerId)
-
-  if (childBlocks.length === 0) {
-    return {
-      width: CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
-      height: CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
-    }
-  }
-
-  let maxRight = 0
-  let maxBottom = 0
-
-  for (const child of childBlocks) {
-    if (!child?.position) continue
-
-    const { width: childWidth, height: childHeight } = getPreviewBlockDimensions(child)
-
-    maxRight = Math.max(maxRight, child.position.x + childWidth)
-    maxBottom = Math.max(maxBottom, child.position.y + childHeight)
-  }
-
-  const width = Math.max(
-    CONTAINER_DIMENSIONS.DEFAULT_WIDTH,
-    maxRight + CONTAINER_DIMENSIONS.RIGHT_PADDING
-  )
-  const height = Math.max(
-    CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
-    maxBottom + CONTAINER_DIMENSIONS.BOTTOM_PADDING
-  )
-
-  return { width, height }
-}
 
 /** Finds the leftmost block ID, excluding subflow containers. */
 export function getLeftmostBlockId(workflowState: WorkflowState | null | undefined): string | null {
@@ -167,6 +105,13 @@ interface PreviewWorkflowProps {
   selectedBlockId?: string | null
   /** Skips expensive subblock computations for thumbnails/template previews */
   lightweight?: boolean
+  /** Per-block comparison status, keyed by block id, when previewing a version diff */
+  blockDiffStatus?: Record<string, BlockDiffStatus>
+  /** Per-edge comparison status, keyed by edge id, when previewing a version diff */
+  edgeDiffStatus?: Record<string, EdgeDiffStatus>
+  /** Sub-block ids that changed on a modified block, keyed by block id */
+  changedFieldsByBlock?: Record<string, string[]>
+  removedPortsByBlock?: Record<string, CanvasPort[]>
 }
 
 /** Preview node types using minimal, hook-free components. */
@@ -177,8 +122,8 @@ const previewNodeTypes: NodeTypes = {
 }
 
 const edgeTypes: EdgeTypes = {
-  default: WorkflowEdge,
-  workflowEdge: WorkflowEdge,
+  default: PreviewEdge,
+  workflowEdge: PreviewEdge,
 }
 
 interface FitViewOnChangeProps {
@@ -245,6 +190,10 @@ export function PreviewWorkflow({
   executedBlocks,
   selectedBlockId,
   lightweight = false,
+  blockDiffStatus,
+  edgeDiffStatus,
+  changedFieldsByBlock,
+  removedPortsByBlock,
 }: PreviewWorkflowProps) {
   const params = useParams<{ workspaceId: string }>()
   const workspaceId = propWorkspaceId ?? params.workspaceId
@@ -392,10 +341,14 @@ export function PreviewWorkflow({
   const errorSourceBlockKey = useMemo(() => {
     const ids = new Set<string>()
     for (const edge of workflowState.edges ?? []) {
-      if (edge.sourceHandle === 'error') ids.add(edge.source)
+      if (
+        edge.sourceHandle === 'error' &&
+        (edgeDiffStatus?.[edge.id] !== 'removed' || blockDiffStatus?.[edge.source] === 'removed')
+      )
+        ids.add(edge.source)
     }
     return [...ids].sort().join(',')
-  }, [workflowState.edges])
+  }, [workflowState.edges, edgeDiffStatus, blockDiffStatus])
 
   const nodes: Node[] = useMemo(() => {
     if (!isValidWorkflowState) return []
@@ -414,7 +367,11 @@ export function PreviewWorkflow({
 
       if (block.type === 'loop' || block.type === 'parallel') {
         const isSelected = selectedBlockId === blockId
-        const dimensions = calculateContainerDimensions(blockId, workflowState.blocks)
+        const dimensions = getPreviewBlockDimensions(
+          block,
+          workflowState.blocks,
+          removedPortsByBlock
+        )
 
         // Check for direct error on the subflow block itself (e.g., loop resolution errors)
         // before falling back to children-derived status
@@ -443,6 +400,8 @@ export function PreviewWorkflow({
             enabled: block.enabled ?? true,
             isPreviewSelected: isSelected,
             executionStatus: subflowExecutionStatus,
+            diffStatus: blockDiffStatus?.[blockId],
+            removedPorts: removedPortsByBlock?.[blockId],
             lightweight,
           },
         })
@@ -492,6 +451,9 @@ export function PreviewWorkflow({
           errorEnabled: block.errorEnabled === true,
           hasErrorConnection: blocksWithErrorEdge.has(blockId),
           lightweight,
+          diffStatus: blockDiffStatus?.[blockId],
+          changedFields: changedFieldsByBlock?.[blockId],
+          removedPorts: removedPortsByBlock?.[blockId],
         },
       })
     })
@@ -510,6 +472,9 @@ export function PreviewWorkflow({
     workflowLabelsReady,
     errorSourceBlockKey,
     lightweight,
+    blockDiffStatus,
+    changedFieldsByBlock,
+    removedPortsByBlock,
   ])
 
   const edges: Edge[] = useMemo(() => {
@@ -569,11 +534,28 @@ export function PreviewWorkflow({
      * whose handle matches no mounted handle, so without this the preview
      * renders the cards with no lines between them.
      */
-    return normalizeWorkflowEdgeHandles(workflowState.edges).map((edge) => {
+    /*
+     * Ghosts go first: edges sharing a z-index paint in array order, and a
+     * Loop/Parallel target gives its live and removed edges the same one, so
+     * order is what keeps a ghost under the live line into that container.
+     */
+    const ordered = normalizeWorkflowEdgeHandles(workflowState.edges)
+    const edgesInPaintOrder = [
+      ...ordered.filter((edge) => edgeDiffStatus?.[edge.id] === 'removed'),
+      ...ordered.filter((edge) => edgeDiffStatus?.[edge.id] !== 'removed'),
+    ]
+    return edgesInPaintOrder.map((edge) => {
       const status = getEdgeExecutionStatus(edge)
       const isErrorEdge = edge.sourceHandle === 'error'
-      const baseZIndex =
-        status === 'success' ? EDGE_Z_MAX : isErrorEdge ? EDGE_Z_BASE + 2 : EDGE_Z_BASE
+      const isGhost = edgeDiffStatus?.[edge.id] === 'removed'
+      /* A ghost sits under every live line so a rewired port shows the new edge on top. */
+      const baseZIndex = isGhost
+        ? EDGE_Z_BASE - 1
+        : status === 'success'
+          ? EDGE_Z_MAX
+          : isErrorEdge
+            ? EDGE_Z_BASE + 2
+            : EDGE_Z_BASE
       const targetBlock = workflowState.blocks[edge.target]
       const targetContainerZIndex =
         targetBlock?.type === 'loop' || targetBlock?.type === 'parallel'
@@ -588,6 +570,7 @@ export function PreviewWorkflow({
         targetHandle: edge.targetHandle,
         data: {
           ...(status ? { executionStatus: status } : {}),
+          ...(edgeDiffStatus?.[edge.id] ? { diffStatus: edgeDiffStatus[edge.id] } : {}),
           sourceHandle: edge.sourceHandle,
         },
         /* Inside the shared edge band, so a line clears the opaque container it
@@ -605,6 +588,7 @@ export function PreviewWorkflow({
     isValidWorkflowState,
     blockExecutionMap,
     getBlockExecutionStatus,
+    edgeDiffStatus,
   ])
 
   if (!isValidWorkflowState) {
@@ -627,35 +611,17 @@ export function PreviewWorkflow({
     <ReactFlowProvider>
       <div
         ref={containerRef}
-        style={{ height, width, backgroundColor: 'var(--bg)' }}
+        style={
+          {
+            height,
+            width,
+            backgroundColor: 'var(--bg)',
+            '--preview-cursor': cursorStyle,
+          } as CSSProperties
+        }
         className={cn('preview-mode', onNodeClick && 'interactive-nodes', className)}
+        data-preview-grab={cursorStyle === 'grab' ? '' : undefined}
       >
-        <style>{`
-          /* Canvas cursor - grab on the flow container and pane */
-          .preview-mode .react-flow { cursor: ${cursorStyle}; }
-          .preview-mode .react-flow__pane { cursor: ${cursorStyle} !important; }
-          .preview-mode .react-flow__selectionpane { cursor: ${cursorStyle} !important; }
-          .preview-mode .react-flow__renderer { cursor: ${cursorStyle}; }
-
-          /* Active/grabbing cursor when dragging */
-          ${
-            cursorStyle === 'grab'
-              ? `
-          .preview-mode .react-flow:active { cursor: grabbing; }
-          .preview-mode .react-flow__pane:active { cursor: grabbing !important; }
-          .preview-mode .react-flow__selectionpane:active { cursor: grabbing !important; }
-          .preview-mode .react-flow__renderer:active { cursor: grabbing; }
-          .preview-mode .react-flow__node:active { cursor: grabbing !important; }
-          .preview-mode .react-flow__node:active * { cursor: grabbing !important; }
-          `
-              : ''
-          }
-
-          /* Node cursor - pointer on nodes when onNodeClick is provided */
-          .preview-mode.interactive-nodes .react-flow__node { cursor: pointer !important; }
-          .preview-mode.interactive-nodes .react-flow__node > div { cursor: pointer !important; }
-          .preview-mode.interactive-nodes .react-flow__node * { cursor: pointer !important; }
-        `}</style>
         <ReactFlow
           colorMode={colorMode}
           zIndexMode={CANVAS_Z_INDEX_MODE}

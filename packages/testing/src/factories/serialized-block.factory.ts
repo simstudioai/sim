@@ -6,7 +6,7 @@
 /**
  * Serialized block structure used in executor tests.
  */
-export interface SerializedBlock {
+interface SerializedBlock {
   id: string
   position: { x: number; y: number }
   config: {
@@ -29,7 +29,7 @@ export interface SerializedBlock {
 /**
  * Serialized connection structure.
  */
-export interface SerializedConnection {
+interface SerializedConnection {
   source: string
   target: string
   sourceHandle?: string
@@ -50,7 +50,7 @@ export interface SerializedWorkflow {
 /**
  * Options for creating a serialized block.
  */
-export interface SerializedBlockFactoryOptions {
+interface SerializedBlockFactoryOptions {
   id?: string
   type?: string
   name?: string
@@ -70,13 +70,6 @@ let blockCounter = 0
  */
 function generateBlockId(prefix = 'block'): string {
   return `${prefix}-${++blockCounter}`
-}
-
-/**
- * Resets the block counter (useful for deterministic tests).
- */
-export function resetSerializedBlockCounter(): void {
-  blockCounter = 0
 }
 
 /**
@@ -108,107 +101,6 @@ export function createSerializedBlock(
       description: options.description,
     },
     enabled: options.enabled ?? true,
-  }
-}
-
-/**
- * Creates a serialized condition block.
- */
-export function createSerializedConditionBlock(
-  options: Omit<SerializedBlockFactoryOptions, 'type'> = {}
-): SerializedBlock {
-  return createSerializedBlock({
-    ...options,
-    type: 'condition',
-    name: options.name ?? 'Condition',
-    inputs: options.inputs ?? { conditions: 'json' },
-  })
-}
-
-/**
- * Creates a serialized router block.
- */
-export function createSerializedRouterBlock(
-  options: Omit<SerializedBlockFactoryOptions, 'type'> = {}
-): SerializedBlock {
-  return createSerializedBlock({
-    ...options,
-    type: 'router',
-    name: options.name ?? 'Router',
-    inputs: options.inputs ?? { prompt: 'string', model: 'string' },
-  })
-}
-
-/**
- * Creates a serialized evaluator block.
- */
-export function createSerializedEvaluatorBlock(
-  options: Omit<SerializedBlockFactoryOptions, 'type'> = {}
-): SerializedBlock {
-  return createSerializedBlock({
-    ...options,
-    type: 'evaluator',
-    name: options.name ?? 'Evaluator',
-    inputs: options.inputs ?? {
-      content: 'string',
-      metrics: 'json',
-      model: 'string',
-      temperature: 'number',
-    },
-  })
-}
-
-/**
- * Creates a serialized agent block.
- */
-export function createSerializedAgentBlock(
-  options: Omit<SerializedBlockFactoryOptions, 'type'> = {}
-): SerializedBlock {
-  return createSerializedBlock({
-    ...options,
-    type: 'agent',
-    name: options.name ?? 'Agent',
-  })
-}
-
-/**
- * Creates a serialized function block.
- */
-export function createSerializedFunctionBlock(
-  options: Omit<SerializedBlockFactoryOptions, 'type'> = {}
-): SerializedBlock {
-  return createSerializedBlock({
-    ...options,
-    type: 'function',
-    name: options.name ?? 'Function',
-  })
-}
-
-/**
- * Creates a serialized starter block.
- */
-export function createSerializedStarterBlock(
-  options: Omit<SerializedBlockFactoryOptions, 'type'> = {}
-): SerializedBlock {
-  return createSerializedBlock({
-    ...options,
-    type: 'starter',
-    name: options.name ?? 'Start',
-  })
-}
-
-/**
- * Creates a simple serialized connection.
- */
-export function createSerializedConnection(
-  source: string,
-  target: string,
-  sourceHandle?: string
-): SerializedConnection {
-  return {
-    source,
-    target,
-    sourceHandle,
   }
 }
 

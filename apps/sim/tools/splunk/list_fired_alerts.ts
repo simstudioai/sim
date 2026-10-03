@@ -1,3 +1,4 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type {
   SplunkListFiredAlertsParams,
@@ -5,7 +6,6 @@ import type {
 } from '@/tools/splunk/types'
 import {
   asNumber,
-  asString,
   buildSplunkHeaders,
   buildSplunkUrl,
   getEntryContent,
@@ -66,8 +66,8 @@ export const listFiredAlertsTool: ToolConfig<
           const content = getEntryContent(entry)
           return {
             name: getEntryName(entry),
-            id: asString(entry.id),
-            updated: asString(entry.updated),
+            id: toStringOrNull(entry.id),
+            updated: toStringOrNull(entry.updated),
             triggeredAlertCount: asNumber(content.triggered_alert_count),
           }
         }),

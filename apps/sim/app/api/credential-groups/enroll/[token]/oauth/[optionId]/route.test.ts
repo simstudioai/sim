@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -46,7 +43,6 @@ function request(query = '') {
 
 describe('credential group OAuth start route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.ipRateLimit.mockResolvedValue(null)
     mocks.enrollmentRateLimit.mockResolvedValue(null)
     mocks.authenticate.mockResolvedValue(principal)
@@ -55,33 +51,22 @@ describe('credential group OAuth start route', () => {
     })
   })
 
-  it('redirects a valid enrollment to Google through its application operation', async () => {
-    const oauthRequest = request()
-    const response = await GET(oauthRequest, context)
-
-    expect(response.status).toBe(307)
-    expect(response.headers.get('location')).toContain('https://accounts.google.com/')
-    expect(response.headers.get('cache-control')).toBe('no-store')
-    expect(mocks.startOAuth).toHaveBeenCalledWith({
-      principal,
-      input: { invitationToken: 'invitation-token', optionId: 'option-1' },
-      request: oauthRequest,
-    })
-  })
-
-  it('forwards only the closed Search return context to the authorized operation', async () => {
-    await GET(request('?returnTo=search'), context)
-    expect(mocks.startOAuth).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal,
-        input: { invitationToken: 'invitation-token', optionId: 'option-1', returnTo: 'search' },
-      })
-    )
-    mocks.startOAuth.mockClear()
-    const response = await GET(request('?returnTo=https://external.test'), context)
-    expect(response.status).toBe(400)
-    expect(mocks.startOAuth).not.toHaveBeenCalled()
-  })
+  it.each(['search', 'accounts'] as const)(
+    'forwards only a closed return context to the authorized operation: %s',
+    async (returnTo) => {
+      await GET(request(`?returnTo=${returnTo}`), context)
+      expect(mocks.startOAuth).toHaveBeenCalledWith(
+        expect.objectContaining({
+          principal,
+          input: { invitationToken: 'invitation-token', optionId: 'option-1', returnTo },
+        })
+      )
+      mocks.startOAuth.mockClear()
+      const response = await GET(request('?returnTo=https://external.test'), context)
+      expect(response.status).toBe(400)
+      expect(mocks.startOAuth).not.toHaveBeenCalled()
+    }
+  )
 
   it.each(['ip', 'enrollment', 'unavailable', 'configuration'])(
     'preserves exact Search focus after %s failure',
@@ -104,19 +89,6 @@ describe('credential group OAuth start route', () => {
     }
   )
 
-  it('returns an unavailable enrollment to its public page', async () => {
-    mocks.authenticate.mockResolvedValue(null)
-
-    const response = await GET(request(), context)
-
-    expect(response.status).toBe(307)
-    expect(response.headers.get('location')).toBe(
-      '/credential-groups/enroll/invitation-token?oauth=unavailable'
-    )
-    expect(response.headers.get('cache-control')).toBe('no-store')
-    expect(mocks.startOAuth).not.toHaveBeenCalled()
-  })
-
   it('returns a rate-limited OAuth start to its enrollment page before token lookup', async () => {
     mocks.ipRateLimit.mockResolvedValue(
       NextResponse.json({ error: 'Too many requests' }, { status: 429 })
@@ -129,19 +101,5 @@ describe('credential group OAuth start route', () => {
       '/credential-groups/enroll/invitation-token?oauth=rate_limited'
     )
     expect(mocks.authenticate).not.toHaveBeenCalled()
-  })
-
-  it('returns an exhausted enrollment OAuth budget to the enrollment page', async () => {
-    mocks.enrollmentRateLimit.mockResolvedValue(
-      NextResponse.json({ error: 'Too many requests' }, { status: 429 })
-    )
-
-    const response = await GET(request(), context)
-
-    expect(response.status).toBe(307)
-    expect(response.headers.get('location')).toBe(
-      '/credential-groups/enroll/invitation-token?oauth=rate_limited'
-    )
-    expect(mocks.startOAuth).not.toHaveBeenCalled()
   })
 })

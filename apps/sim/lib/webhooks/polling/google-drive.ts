@@ -93,7 +93,7 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
 
       // First poll (or re-seed after 410): seed page token, preserve any existing known file IDs.
       if (!config.pageToken) {
-        const startPageToken = await getStartPageToken(accessToken, config, requestId, logger)
+        const startPageToken = await getStartPageToken(accessToken, config)
         await updateWebhookProviderConfig(
           webhookId,
           { pageToken: startPageToken, knownFileIds: config.knownFileIds ?? [] },
@@ -106,12 +106,7 @@ export const googleDrivePollingHandler: PollingProviderHandler = {
         return 'success'
       }
 
-      const { changes, newStartPageToken } = await fetchChanges(
-        accessToken,
-        config,
-        requestId,
-        logger
-      )
+      const { changes, newStartPageToken } = await fetchChanges(accessToken, config)
 
       if (!changes.length) {
         await updateWebhookProviderConfig(webhookId, { pageToken: newStartPageToken }, logger)
@@ -208,9 +203,7 @@ function isDriveRateLimitError(status: number, errorData: Record<string, unknown
 
 async function getStartPageToken(
   accessToken: string,
-  config: GoogleDriveWebhookConfig,
-  requestId: string,
-  logger: Logger
+  config: GoogleDriveWebhookConfig
 ): Promise<string> {
   const params = new URLSearchParams()
   if (config.includeSharedDrives) {
@@ -241,9 +234,7 @@ async function getStartPageToken(
 
 async function fetchChanges(
   accessToken: string,
-  config: GoogleDriveWebhookConfig,
-  requestId: string,
-  logger: Logger
+  config: GoogleDriveWebhookConfig
 ): Promise<{ changes: DriveChangeEntry[]; newStartPageToken: string }> {
   const allChanges: DriveChangeEntry[] = []
   let currentPageToken = config.pageToken!

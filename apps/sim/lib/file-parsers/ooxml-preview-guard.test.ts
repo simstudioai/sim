@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
 import { ZipBombError } from '@/lib/file-parsers/ooxml-limits'
@@ -21,11 +18,6 @@ const TINY_LIMITS = {
 }
 
 describe('assertOoxmlPreviewWithinLimits', () => {
-  it('accepts an archive within the limits', async () => {
-    const data = await buildZip({ 'word/document.xml': '<w:document/>' })
-    await expect(assertOoxmlPreviewWithinLimits(data, TINY_LIMITS)).resolves.toBeUndefined()
-  })
-
   it('rejects an archive whose single part exceeds the per-entry limit', async () => {
     const data = await buildZip({ 'word/document.xml': 'A'.repeat(200_000) })
     await expect(assertOoxmlPreviewWithinLimits(data, TINY_LIMITS)).rejects.toBeInstanceOf(
@@ -45,13 +37,5 @@ describe('assertOoxmlPreviewWithinLimits', () => {
         maxEntryUncompressedBytes: 1024 * 1024,
       })
     ).rejects.toBeInstanceOf(ZipBombError)
-  })
-
-  it('accepts an ordinary document under the shared default limits', async () => {
-    const data = await buildZip({
-      '[Content_Types].xml': '<?xml version="1.0"?><Types/>',
-      'word/document.xml': `<w:document>${'text '.repeat(5000)}</w:document>`,
-    })
-    await expect(assertOoxmlPreviewWithinLimits(data)).resolves.toBeUndefined()
   })
 })

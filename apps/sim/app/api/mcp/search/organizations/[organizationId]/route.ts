@@ -2,7 +2,7 @@ import { createKnowledgeMcpHandlers } from '@/lib/knowledge/mcp/route-handler'
 
 export const dynamic = 'force-dynamic'
 
-const handlers = createKnowledgeMcpHandlers('organization')
+const handlers = createKnowledgeMcpHandlers()
 
 export const POST = handlers.POST
 export const GET = handlers.GET

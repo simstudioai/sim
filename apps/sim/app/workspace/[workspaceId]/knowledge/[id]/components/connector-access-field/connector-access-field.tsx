@@ -2,15 +2,18 @@
 
 import type { ReactNode } from 'react'
 import {
-  ButtonGroup,
-  ButtonGroupItem,
+  ChipButtonGroup,
+  ChipButtonGroupItem,
   ChipCombobox,
+  ChipDropdown,
   ChipLink,
   ChipModalField,
   type ComboboxOption,
+  Tooltip,
 } from '@sim/emcn'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { supportsConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import { slackSearchSetupHref } from '@/lib/sim-search/setup-navigation'
 import { connectorMemberProvider } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
 import {
@@ -42,15 +45,7 @@ export function ConnectorContentCredentialField({
   disabled,
 }: ConnectorContentCredentialFieldProps) {
   return (
-    <ChipModalField
-      type='custom'
-      title='Sync documents with'
-      hint={
-        credentialId
-          ? 'Sync documents from this account. Members connect their own accounts to confirm which documents they can access.'
-          : 'Sync documents from connected members. Each person sees only documents they can open in the source.'
-      }
-    >
+    <ChipModalField type='custom' title='Sync documents with'>
       <ChipCombobox
         value={credentialId ?? '__connected_members__'}
         options={[{ value: '__connected_members__', label: 'Connected members' }, ...options]}
@@ -72,6 +67,9 @@ interface ConnectorAccessFieldProps {
   /** Only an admin may move a connector out of workspace mode. */
   canAdmin: boolean
   disabled?: boolean
+  /** Existing Search sources retain the sync method chosen during setup. */
+  lockAccessMode?: boolean
+  isAvailabilityReady?: boolean
   /** Whether member accounts may be chosen; an existing selection remains visible for recovery. */
   allowMembers?: boolean
   /** Whether administrator access may be chosen; it needs a connector that mirrors source permissions. */
@@ -80,24 +78,8 @@ interface ConnectorAccessFieldProps {
   /** Rendered under the selection, for a caller that applies the change with its own control. */
   footer?: ReactNode
   searchSetupSource?: 'slack'
+  slackSetupOnly?: boolean
   onSetupNavigate?: () => void
-}
-
-function accessHint(mode: ConnectorAccessMode, connectorConfig: ConnectorMeta): string {
-  const sourceName = connectorConfig.name
-  if (mode === 'members') {
-    return (
-      connectorConfig.memberSetupHint ??
-      `Each teammate connects their ${sourceName} account. They see only documents they can open there.`
-    )
-  }
-  if (mode === 'admin') {
-    const identityHint = connectorConfig.requiresMemberIdentity
-      ? ` Teammates still connect their ${sourceName} accounts to confirm their identity.`
-      : ''
-    return `${connectorConfig.adminSetupHint ?? 'An admin or service account syncs documents and permissions.'}${identityHint} Each person sees only documents they can open in ${sourceName}.`
-  }
-  return 'Everyone in this workspace can search these documents.'
 }
 
 /** Chooses how a source connects while preserving its document permissions. */
@@ -109,11 +91,14 @@ export function ConnectorAccessField({
   onChange,
   canAdmin,
   disabled = false,
+  lockAccessMode = false,
+  isAvailabilityReady = true,
   allowMembers = true,
   allowAdmin = false,
   allowWorkspace = true,
   footer,
   searchSetupSource,
+  slackSetupOnly = false,
   onSetupNavigate,
 }: ConnectorAccessFieldProps) {
   const scope = explicitScope ?? resourceScopeFromOwner({ workspaceId })
@@ -145,14 +130,24 @@ export function ConnectorAccessField({
     { mode: 'members', label: 'Member accounts', allowed: membersSupported && allowMembers },
     {
       mode: 'admin',
-      label: isConnectorCredentialTypeAllowed(connectorConfig.auth, 'admin', 'oauth')
-        ? 'Admin or service account'
-        : 'Service account',
+      label:
+        !lockAccessMode && isConnectorCredentialTypeAllowed(connectorConfig.auth, 'admin', 'oauth')
+          ? 'Admin or service account'
+          : 'Service account',
       allowed: adminSupported && allowAdmin,
     },
   ]
+  for (const entry of modes)
+    entry.allowed &&= supportsConnectorAccessMode(connectorConfig, entry.mode)
+  if (
+    connectorConfig.supportedAccessModes?.filter((mode) => allowWorkspace || mode !== 'workspace')
+      .length === 1 &&
+    modes.some((entry) => entry.mode === value.accessMode && entry.allowed)
+  )
+    return canAdmin && footer ? <div className='px-2'>{footer}</div> : null
   /** Keep a retired current method visible so an admin can select an available replacement. */
   const visibleModes = modes.filter((entry) => entry.allowed || entry.mode === value.accessMode)
+  const currentMode = modes.find((entry) => entry.mode === value.accessMode)
   const showModeSelector =
     canAdmin && visibleModes.some((entry) => entry.allowed && entry.mode !== value.accessMode)
 
@@ -161,17 +156,34 @@ export function ConnectorAccessField({
   return (
     <ChipModalField
       type='custom'
-      title='Connection method'
+      title={slackSetupOnly ? 'Slack app' : allowWorkspace ? 'Connection method' : 'Sync using'}
       error={canAdmin && !showSlackSetup ? accountsQuery.error?.message : undefined}
       hint={
-        canAdmin && !modes.find((entry) => entry.mode === value.accessMode)?.allowed
+        canAdmin && isAvailabilityReady && !currentMode?.allowed
           ? `This connection method is not available in this ${scope.kind}.`
-          : accessHint(value.accessMode, connectorConfig)
+          : value.accessMode === 'workspace'
+            ? 'Everyone in this workspace can search these documents.'
+            : undefined
       }
     >
       <div className='flex flex-col gap-2'>
-        {showModeSelector ? (
-          <ButtonGroup
+        {slackSetupOnly ? null : lockAccessMode ? (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild tabIndex={0}>
+              <span className='inline-flex w-fit cursor-not-allowed'>
+                <ChipDropdown
+                  aria-label={`Sync using: ${currentMode?.label ?? 'Unavailable'}`}
+                  value={value.accessMode}
+                  options={visibleModes.map(({ mode, label }) => ({ value: mode, label }))}
+                  disabled
+                  className='pointer-events-none w-fit'
+                />
+              </span>
+            </Tooltip.Trigger>
+            <Tooltip.Content>Add a new connection to change the sync method.</Tooltip.Content>
+          </Tooltip.Root>
+        ) : showModeSelector ? (
+          <ChipButtonGroup
             value={value.accessMode}
             disabled={disabled}
             onValueChange={(mode) => {
@@ -180,11 +192,11 @@ export function ConnectorAccessField({
             }}
           >
             {visibleModes.map((entry) => (
-              <ButtonGroupItem key={entry.mode} value={entry.mode} disabled={!entry.allowed}>
+              <ChipButtonGroupItem key={entry.mode} value={entry.mode} disabled={!entry.allowed}>
                 {entry.label}
-              </ButtonGroupItem>
+              </ChipButtonGroupItem>
             ))}
-          </ButtonGroup>
+          </ChipButtonGroup>
         ) : (
           <p className='text-[var(--text-body)] text-small'>
             {modes.find((entry) => entry.mode === value.accessMode)?.label}
@@ -232,19 +244,12 @@ export function SlackMemberSetup({
 }: SlackMemberSetupProps) {
   const scope = explicitScope ?? resourceScopeFromOwner({ workspaceId })
   const href =
-    scope.kind === 'organization' || searchSetupSource
-      ? slackSearchSetupHref(scope, searchSetupSource ?? 'search')
+    scope.kind === 'organization'
+      ? slackSearchSetupHref(scope.organizationId, searchSetupSource ?? 'search')
       : `/workspace/${scope.workspaceId}/settings/credential-groups`
   return (
-    <div className='flex flex-col items-start gap-2'>
-      <p className='text-[var(--text-muted)] text-caption leading-snug'>
-        Set up your Slack app to continue.
-      </p>
-      <div className='flex flex-wrap items-center gap-2'>
-        <ChipLink href={href} onClick={onNavigate}>
-          Set up Slack
-        </ChipLink>
-      </div>
-    </div>
+    <ChipLink href={href} onClick={onNavigate}>
+      Set up Slack
+    </ChipLink>
   )
 }

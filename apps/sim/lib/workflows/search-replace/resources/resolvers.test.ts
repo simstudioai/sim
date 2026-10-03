@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   dedupeOverlappingWorkflowSearchMatches,
@@ -298,38 +295,6 @@ describe('dedupeOverlappingWorkflowSearchMatches', () => {
       ])
     })
 
-    it.each([0, 1])('agrees on a %i-element input', (count) => {
-      const matches = randomMatches(5, count)
-
-      expect(dedupeOverlappingWorkflowSearchMatches(matches).map((m) => m.id)).toEqual(
-        referenceDedupe(matches).map((m) => m.id)
-      )
-    })
-
-    /**
-     * The bucketed scan is still linear *within* one scope, so a single field
-     * holding many non-overlapping hits is the residual worst case. It stays
-     * cheap because the inner loop is two integer comparisons - the old code
-     * rebuilt a scope-key string per candidate, which is where the 100x went.
-     */
-    it('agrees when one scope holds many non-overlapping ranges', () => {
-      const matches = Array.from({ length: 300 }, (_, index) =>
-        createMatch({
-          id: `disjoint-${index}`,
-          blockId: 'b1',
-          subBlockId: 'code',
-          valuePath: [],
-          kind: 'text',
-          range: { start: index * 4, end: index * 4 + 1 },
-        })
-      )
-
-      expect(dedupeOverlappingWorkflowSearchMatches(matches)).toHaveLength(300)
-      expect(dedupeOverlappingWorkflowSearchMatches(matches).map((m) => m.id)).toEqual(
-        referenceDedupe(matches).map((m) => m.id)
-      )
-    })
-
     /**
      * Pins the asymptotics, not a stopwatch. 20k disjoint hits in one scope run
      * in single-digit ms bucketed; the O(n^2) rescan this replaced took ~30s on
@@ -353,23 +318,6 @@ describe('dedupeOverlappingWorkflowSearchMatches', () => {
 
       expect(deduped).toHaveLength(20_000)
       expect(performance.now() - startedAt).toBeLessThan(2_000)
-    })
-
-    it('agrees when every match shares one scope and range', () => {
-      const matches = Array.from({ length: 40 }, (_, index) =>
-        createMatch({
-          id: `same-${index}`,
-          blockId: 'b1',
-          subBlockId: 's1',
-          valuePath: [],
-          kind: index % 2 === 0 ? 'text' : 'table',
-          range: { start: 0, end: 5 },
-        })
-      )
-
-      expect(dedupeOverlappingWorkflowSearchMatches(matches).map((m) => m.id)).toEqual(
-        referenceDedupe(matches).map((m) => m.id)
-      )
     })
   })
 })

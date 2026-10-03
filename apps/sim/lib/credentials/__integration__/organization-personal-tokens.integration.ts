@@ -184,6 +184,10 @@ describe('organization personal tokens', () => {
     await db
       .delete(permissions)
       .where(inArray(permissions.entityId, [ids.first, ids.second, ids.foreign]))
+    await db
+      .delete(credentialGroup)
+      .where(inArray(credentialGroup.id, [ids.group, ids.legacyGroup]))
+    await db.delete(workspace).where(inArray(workspace.id, [ids.first, ids.second, ids.foreign]))
     await db.delete(organization).where(inArray(organization.id, [ids.org, ids.foreignOrg]))
     await db.delete(user).where(inArray(user.id, [ids.owner, ids.other]))
   })

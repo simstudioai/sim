@@ -20,12 +20,6 @@ export interface DiscordMessage {
   mention_everyone: boolean
 }
 
-interface DiscordAPIError {
-  code: number
-  message: string
-  errors?: Record<string, any>
-}
-
 export interface DiscordGuild {
   id: string
   name: string

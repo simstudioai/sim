@@ -2,6 +2,7 @@ import type { CredentialGroupEnrollmentPrincipal, Principal } from '@sim/auth/pr
 import { safeCompare } from '@sim/security/compare'
 import { sha256Hex } from '@sim/security/hash'
 import type { OperationUseCase } from '@/lib/core/application'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   resourceScopeFields,
@@ -31,6 +32,8 @@ import {
 import type { CredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
 import { CredentialGroupInvitationUnavailableError } from '@/lib/credential-groups/provider-adapter'
 import { fireCredentialGroupTrigger } from '@/lib/credential-groups/trigger'
+import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
+import { getOrganizationSettingsAccess } from '@/lib/organizations/settings-access'
 
 interface AuthorizedCredentialGroupEnrollmentUseCaseDefinition<O, I, C, R> {
   operation: O
@@ -89,7 +92,7 @@ function defineAuthorizedCredentialGroupEnrollmentUseCase<
     },
     async execute({ principal, input }) {
       const authorized = await authorize(principal, input)
-      return definition.execute(authorized)
+      return withResourceOutboundScope(authorized.context, () => definition.execute(authorized))
     },
   }
 }
@@ -143,8 +146,12 @@ export const readPublicCredentialGroupEnrollment = defineAuthorizedCredentialGro
       principal: CredentialGroupEnrollmentPrincipal
       input: { optionId?: string }
     }) => resolvePublicEnrollmentContext(principal, input.optionId),
-    async execute({ context }) {
-      return { enrollment: context.enrollment }
+    async execute({ context, principal }) {
+      const canSearch =
+        !context.organizationId ||
+        ((await getOrganizationSettingsAccess(context.organizationId, principal.userId)).isMember &&
+          (await isKnowledgeMemberAccessAvailable({ organizationId: context.organizationId })))
+      return { enrollment: context.enrollment, canSearch }
     },
   }
 )
@@ -173,7 +180,7 @@ export const completePublicCredentialGroupEnrollment =
 interface PublicCredentialGroupOAuthInput {
   invitationToken: string
   optionId: string
-  returnTo?: 'search'
+  returnTo?: 'search' | 'accounts'
 }
 
 interface PublicCredentialGroupOAuthContext extends PublicCredentialGroupEnrollmentIdentity {
@@ -350,7 +357,8 @@ export const completePublicCredentialGroupMcpOAuth =
         context.oauth,
         input.attempt.codeVerifier,
         input.code,
-        input.attempt.invitationToken
+        input.attempt.invitationToken,
+        input.attempt.configurationFingerprint
       )
       if (context.organizationId)
         await fireCredentialGroupTrigger({

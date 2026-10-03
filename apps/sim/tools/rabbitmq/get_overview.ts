@@ -1,3 +1,4 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import { toRecord } from '@sim/utils/object'
 import type { RabbitmqGetOverviewParams, RabbitmqGetOverviewResponse } from '@/tools/rabbitmq/types'
 import {
@@ -19,10 +20,6 @@ const EMPTY_OVERVIEW = {
   queueTotals: {},
   messageStats: {},
 } as const
-
-function asStringOrNull(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
-}
 
 export const rabbitmqGetOverviewTool: ToolConfig<
   RabbitmqGetOverviewParams,
@@ -54,12 +51,12 @@ export const rabbitmqGetOverviewTool: ToolConfig<
     return {
       success: true,
       output: {
-        rabbitmqVersion: asStringOrNull(data?.rabbitmq_version),
-        productName: asStringOrNull(data?.product_name),
-        productVersion: asStringOrNull(data?.product_version),
-        erlangVersion: asStringOrNull(data?.erlang_version),
-        clusterName: asStringOrNull(data?.cluster_name),
-        node: asStringOrNull(data?.node),
+        rabbitmqVersion: toStringOrNull(data?.rabbitmq_version),
+        productName: toStringOrNull(data?.product_name),
+        productVersion: toStringOrNull(data?.product_version),
+        erlangVersion: toStringOrNull(data?.erlang_version),
+        clusterName: toStringOrNull(data?.cluster_name),
+        node: toStringOrNull(data?.node),
         objectTotals: toRecord(data?.object_totals),
         queueTotals: toRecord(data?.queue_totals),
         messageStats: toRecord(data?.message_stats),

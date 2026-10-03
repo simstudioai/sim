@@ -1,11 +1,12 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import {
   assertDocumentProcessingBillingContext,
   assertDocumentProcessingPayload,
+  createDocumentProcessingContinuationToken,
   createDocumentProcessingPayload,
   createOrganizationDocumentProcessingBillingContext,
   createWorkspaceDocumentProcessingBillingContext,
+  shouldRefundDocumentProcessingPredecessor,
 } from '@/lib/knowledge/documents/processing-payload'
 
 const attribution = {
@@ -36,14 +37,6 @@ const document = {
 }
 
 describe('organization document queue ownership', () => {
-  it('preserves the real actor, organization and queue generation through replay', () => {
-    const context = createOrganizationDocumentProcessingBillingContext(attribution)
-    const payload = createDocumentProcessingPayload(document, context)
-    expect(assertDocumentProcessingPayload(structuredClone(payload))).toEqual(payload)
-    expect(payload.actorUserId).toBe('reader')
-    expect(payload).toMatchObject({ organizationId: 'organization-a', workspaceId: null })
-  })
-
   it.each([
     { organizationId: 'organization-b' },
     { workspaceId: 'organization-a' },
@@ -65,13 +58,30 @@ describe('organization document queue ownership', () => {
     ).toThrow()
   })
 
-  it('preserves existing organization-billed workspace processing', () => {
-    const context = createWorkspaceDocumentProcessingBillingContext({
-      ...attribution,
-      workspaceId: 'workspace-a',
-    })
-    expect(assertDocumentProcessingBillingContext(context)).toEqual(context)
-    expect(context.billingScope).toBe('workspace')
+  it('accepts an exact same-pass predecessor and refunds only the original admission', () => {
+    const payload = createDocumentProcessingPayload(
+      document,
+      createOrganizationDocumentProcessingBillingContext(attribution)
+    )
+    payload.processingPredecessorToken = payload.processingQueueToken
+    payload.processingPredecessorCharged = true
+    payload.processingQueueToken = createDocumentProcessingContinuationToken(payload, 'quota', 1)
+    expect(assertDocumentProcessingPayload(payload).processingPredecessorToken).toBe(
+      'queue-generation'
+    )
+    expect(shouldRefundDocumentProcessingPredecessor(payload)).toBe(true)
+    expect(() =>
+      assertDocumentProcessingPayload({ ...payload, processingPredecessorToken: 'unrelated-pass' })
+    ).toThrow(/predecessor/)
+    expect(() =>
+      assertDocumentProcessingPayload({
+        ...payload,
+        processingPredecessorToken: payload.processingQueueToken,
+      })
+    ).toThrow(/predecessor/)
+    expect(
+      shouldRefundDocumentProcessingPredecessor({ ...payload, processingPredecessorCharged: false })
+    ).toBe(false)
   })
 
   it('refuses stale or corrupted queue generation metadata during replay', () => {

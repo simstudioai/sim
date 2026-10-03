@@ -7,6 +7,7 @@ for production use.
 
 - **SSO (Single Sign-On)**: OIDC and SAML authentication integration
 - **Access Control**: Permission groups for fine-grained user access management
+- **Access Requests**: Members request restricted features or a higher credit cap; organization admins review and apply them. On for every entitled organization unless it opts out
 - **Whitelabeling**: Custom branding and theming for enterprise deployments
 - **Directory provisioning (SCIM)**: SCIM 2.0 user and group provisioning from Okta, Microsoft Entra, and other identity providers, with group-to-access mapping
 

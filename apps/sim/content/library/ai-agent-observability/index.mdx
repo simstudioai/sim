@@ -1,16 +1,15 @@
 ---
 slug: ai-agent-observability
-title: 'AI Agent Observability: Why It Is Essential'
-description: AI agent observability gives step-by-step visibility into how agents reason, call tools, and decide, so you can trace failures, control costs, and ship with confidence.
+title: 'What Is AI Agent Observability? Traces, Metrics, and Evals Explained'
+description: What AI agent observability is, why traditional monitoring misses agent failures, and what to instrument at each stage, from traces and logs to metrics and evaluations.
 date: 2026-07-19
-updated: 2026-07-19
+updated: 2026-09-30
 authors:
   - andrew
 readingTime: 9
 tags: [AI Agent Observability, Observability, AI Agents, Monitoring, Sim]
 ogImage: /library/ai-agent-observability/cover.jpg
 ogAlt: AI agent observability turning an agent from a black box into an inspectable glass box.
-canonical: https://www.sim.ai/library/ai-agent-observability
 draft: false
 faq:
   - q: "What is AI agent observability?"
@@ -125,10 +124,12 @@ Here are some practical first steps you can take immediately:
 
 Plan for common challenges too: trace volume at scale, alert fatigue, fragmented visibility across systems, and privacy or PII handling in telemetry.
 
+If you decide you need a dedicated platform, our comparison of the [best AI observability tools for production agents](/library/6-best-ai-observability-tools-for-production-agents-in-2026) weighs Braintrust, Galileo, Langfuse, Arize AX, Datadog, and PostHog on tracing, evaluations, and CI/CD checks.
+
 Building in a workspace with native logging removes much of the complexity of this process. When you manage observability from the environment where you build and deploy agents, you get execution logs, trace spans, and per-model cost tracking without assembling a separate stack. Sim's Logs module works this way, giving full workflow logs, trace spans, and cost breakdowns per model and token type inside the visual workflow builder itself. If you are still assembling that workflow, [how to build AI agents with Sim](/library/how-to-create-an-ai-agent) walks through the first one.
 
 ## The Bottom Line
 
 If your agents touch production, treat observability as a launch requirement, not a later add-on, because you cannot debug, cost-control, or trust what you cannot see. The fastest way to start is to instrument at the decision layer today and route those traces somewhere you can query them.
 
-[Create your next agent in a workspace with built-in observability](https://sim.ai), so execution logs, trace spans, and per-model cost tracking come standard from your very first run.
+[Create your next agent in a workspace with built-in observability](https://www.sim.ai), so execution logs, trace spans, and per-model cost tracking come standard from your very first run.

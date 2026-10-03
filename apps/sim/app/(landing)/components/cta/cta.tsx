@@ -1,6 +1,7 @@
 import { cn } from '@sim/emcn'
 import Image from 'next/image'
 import styles from '@/app/(landing)/components/cta/cta.module.css'
+import { FOOTER_ARTWORK } from '@/app/(landing)/components/cta/footer-artwork.generated'
 import { HeroCta } from '@/app/(landing)/components/hero-cta'
 import {
   HOME_TYPE,
@@ -10,10 +11,13 @@ import {
 
 /** One shared closing statement, with a deliberate line break between sentences. */
 const CTA_HEADLINE = ['Every agent your company runs.', 'All in one place.'] as const
+const ARTWORK_SIZES = '(max-width: 639px) 112vw, 100vw'
 
 /**
  * Painted pre-footer CTA for every marketing page, mounted once by LandingShell.
  * Theme classes select the matching lazy-loaded painting without client state.
+ * Pre-encoded sources avoid request-time image optimization at every resolution.
+ * An embedded preview fills the scene while the full-resolution image loads.
  * The sky mask keeps the copy clear and the lower edge fades into the footer.
  */
 export function Cta() {
@@ -49,22 +53,29 @@ export function Cta() {
         aria-hidden='true'
         className='-mt-[clamp(96px,12.5vw,240px)] max-sm:-mt-6 pointer-events-none relative aspect-video w-full max-sm:aspect-[16/10]'
       >
-        <Image
-          src='/landing/cta-san-francisco-painted-light.webp'
-          alt=''
-          fill
-          quality={90}
-          sizes='(max-width: 639px) 112vw, 100vw'
-          className={cn('object-cover object-center dark:hidden', styles.plate)}
-        />
-        <Image
-          src='/landing/cta-san-francisco-painted-dark.webp'
-          alt=''
-          fill
-          quality={90}
-          sizes='(max-width: 639px) 112vw, 100vw'
-          className={cn('hidden object-cover object-center dark:block', styles.plate)}
-        />
+        {Object.entries(FOOTER_ARTWORK).map(([theme, artwork]) => (
+          <picture
+            key={theme}
+            className={cn(
+              'absolute inset-0',
+              theme === 'light' ? 'block dark:hidden' : 'hidden dark:block'
+            )}
+          >
+            <source type='image/avif' srcSet={artwork.avifSrcSet} sizes={ARTWORK_SIZES} />
+            <source type='image/webp' srcSet={artwork.webpSrcSet} sizes={ARTWORK_SIZES} />
+            <Image
+              src={artwork.src}
+              alt=''
+              fill
+              unoptimized
+              placeholder='blur'
+              blurDataURL={artwork.blurDataURL}
+              fetchPriority='high'
+              sizes={ARTWORK_SIZES}
+              className={cn('object-cover object-center', styles.plate)}
+            />
+          </picture>
+        ))}
       </div>
     </section>
   )

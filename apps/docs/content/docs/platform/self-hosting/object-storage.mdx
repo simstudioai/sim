@@ -416,7 +416,8 @@ Sim works with any S3-compatible store by pointing the S3 client at a custom end
   **The endpoint must be reachable from your users' browsers, and the bucket needs CORS.** Uploads use presigned `PUT` requests sent **directly from the browser** to `S3_ENDPOINT` (downloads are proxied back through the app, so they only need server-side reachability). This means:
 
   - A purely internal endpoint (e.g. `https://minio.internal:9000` that only the app pods can resolve) will let the server start cleanly but **uploads will fail in the browser**. Use an endpoint your users can reach.
-  - Configure a **CORS policy** on the bucket that allows your Sim origin (`PUT`, `GET`, and the `Authorization` / `Content-Type` / `x-amz-*` headers). This applies to AWS S3 too — R2 and MinIO are no different.
+  - Configure a **CORS policy** on the bucket that allows your Sim origin with `PUT` and `GET`, and `AllowedHeaders: ["*"]`. With a custom endpoint, the browser sends the upload's metadata as signed `x-amz-meta-*` headers alongside `Content-Type` and `If-None-Match`, because many S3-compatible stores ignore metadata passed in the URL. If you list headers individually, include all of them. MinIO applies its own server-wide CORS and needs no bucket rule.
+  - Sim adds the `S3_ENDPOINT` origin (and its bucket subdomains, unless `S3_FORCE_PATH_STYLE` is set) to its Content Security Policy, so the browser may upload there.
 </Callout>
 
 <Tabs items={['Cloudflare R2', 'MinIO', 'RustFS']}>

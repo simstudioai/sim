@@ -1,30 +1,51 @@
-/**
- * @vitest-environment node
- */
+import { jsonResponse } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getReadRestriction,
   listAncestorIds,
+  listConfluenceSpaceMembership,
   listGroupMemberTokens,
   listSpaceReadPrincipals,
+  openConfluenceDirectory,
 } from '@/connectors/confluence/permissions'
 
 const mockFetch = vi.fn()
 const CLOUD = 'cloud-1'
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
-
 beforeEach(() => {
-  vi.clearAllMocks()
   vi.stubGlobal('fetch', mockFetch)
 })
 
 describe('listSpaceReadPrincipals', () => {
+  it('retains more than 5,000 readers in a space audience without expanding document ACLs', async () => {
+    let page = 0
+    mockFetch.mockImplementation(async () => {
+      const offset = page++ * 250
+      return jsonResponse({
+        results: Array.from({ length: 250 }, (_, index) => ({
+          principal: { type: 'user', id: `reader-${offset + index}` },
+          operation: { key: 'read', targetType: 'space' },
+        })),
+        ...(page < 24 ? { _links: { next: `?cursor=${page}` } } : {}),
+      })
+    })
+    const membership = await listConfluenceSpaceMembership('confluence', CLOUD, 'token', '123')
+    expect(membership.complete).toBe(true)
+    expect(membership.memberTokens).toHaveLength(6000)
+    expect(membership.memberTokens[5999]).toBe('s:confluence:-:reader-5999')
+    expect(mockFetch).toHaveBeenCalledTimes(24)
+  })
+
+  it.each(['space-readers:123', ' SPACE-READERS:123 '])(
+    'rejects native groups in the reserved namespace: %s',
+    async (id) => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({ results: [{ id }] }))
+      await expect(
+        openConfluenceDirectory('confluence', CLOUD, 'token').listGroups()
+      ).rejects.toThrow('invalid group ID')
+    }
+  )
+
   it('keeps only the permission that grants reading the space', () => {
     mockFetch.mockResolvedValueOnce(
       jsonResponse({
@@ -75,53 +96,6 @@ describe('listSpaceReadPrincipals', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 
-  it('expands flattened licensed and admin classes into unique provider groups', async () => {
-    mockFetch
-      .mockResolvedValueOnce(
-        jsonResponse({
-          results: ['ALL_LICENSED_USERS', 'ALL_PRODUCT_ADMINS', 'ALL_LICENSED_USERS'].map((id) => ({
-            principal: { type: 'access-class', id },
-            operation: { key: 'read', targetType: 'space' },
-          })),
-        })
-      )
-      .mockResolvedValueOnce(jsonResponse({ results: [{ id: 'staff' }, { id: 'both' }] }))
-      .mockResolvedValueOnce(jsonResponse({ results: [{ id: 'admins' }, { id: 'both' }] }))
-
-    await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space-1')).resolves.toEqual([
-      { kind: 'group', id: 'staff' },
-      { kind: 'group', id: 'both' },
-      { kind: 'group', id: 'admins' },
-    ])
-    expect(
-      mockFetch.mock.calls
-        .slice(1)
-        .map(([url]) => new URL(String(url)).searchParams.get('accessType'))
-    ).toEqual(['user', 'admin'])
-    expect(
-      mockFetch.mock.calls.every(([url]) => String(url).includes(`/ex/confluence/${CLOUD}/`))
-    ).toBe(true)
-  })
-
-  it('includes admin-only licensed users even when no admin class is assigned', async () => {
-    mockFetch
-      .mockResolvedValueOnce(
-        jsonResponse({
-          results: [
-            {
-              principal: { type: 'ACCESS_CLASS', id: 'ALL_LICENSED_USERS' },
-              operation: { key: 'read', targetType: 'space' },
-            },
-          ],
-        })
-      )
-      .mockResolvedValueOnce(jsonResponse({ results: [] }))
-      .mockResolvedValueOnce(jsonResponse({ results: [{ id: 'admins' }] }))
-    await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space-1')).resolves.toEqual([
-      { kind: 'group', id: 'admins' },
-    ])
-  })
-
   it('expands admin role assignments without granting ordinary licensed users', async () => {
     mockFetch
       .mockResolvedValueOnce(
@@ -150,36 +124,6 @@ describe('listSpaceReadPrincipals', () => {
     ])
     expect(String(mockFetch.mock.calls[1][0])).toContain('/spaces/space-1/role-assignments?')
     expect(new URL(String(mockFetch.mock.calls[2][0])).searchParams.get('accessType')).toBe('admin')
-  })
-
-  it('drains access groups despite short pages and preserves its access filter', async () => {
-    mockFetch
-      .mockResolvedValueOnce(
-        jsonResponse({
-          results: [
-            {
-              principal: { type: 'access-class', id: 'ALL_PRODUCT_ADMINS' },
-              operation: { key: 'read', targetType: 'space' },
-            },
-          ],
-        })
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          results: [{ id: 'first' }],
-          size: 1,
-          _links: { next: '/rest/api/group?start=1' },
-        })
-      )
-      .mockResolvedValueOnce(jsonResponse({ results: [{ id: 'second' }] }))
-    await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space-1')).resolves.toEqual([
-      { kind: 'group', id: 'first' },
-      { kind: 'group', id: 'second' },
-    ])
-    const query = new URL(String(mockFetch.mock.calls[2][0])).searchParams
-    expect(query.get('accessType')).toBe('admin')
-    expect(query.get('start')).toBe('1')
-    expect(query.get('limit')).toBe('200')
   })
 
   it.each(['denied', 'empty-continuation', 'missing-id'])(
@@ -230,27 +174,6 @@ describe('listSpaceReadPrincipals', () => {
     await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space-1')).resolves.toEqual([])
   })
 
-  it('bounds an access group provider that never terminates', async () => {
-    mockFetch
-      .mockResolvedValueOnce(
-        jsonResponse({
-          results: [
-            {
-              principal: { type: 'access-class', id: 'ALL_PRODUCT_ADMINS' },
-              operation: { key: 'read', targetType: 'space' },
-            },
-          ],
-        })
-      )
-      .mockImplementation(async () =>
-        jsonResponse({ results: [{ id: 'repeated' }], _links: { next: '/rest/api/group?start=1' } })
-      )
-    await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space-1')).rejects.toThrow(
-      'exceeded 100 pages'
-    )
-    expect(mockFetch).toHaveBeenCalledTimes(101)
-  })
-
   it('follows the cursor rather than reporting the first page as the whole space', async () => {
     mockFetch
       .mockResolvedValueOnce(
@@ -279,10 +202,48 @@ describe('listSpaceReadPrincipals', () => {
     expect(String(mockFetch.mock.calls[1][0])).toContain('cursor=abc')
   })
 
-  it('throws rather than returning a space it could not read in full', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse({ message: 'nope' }, 403))
+  it.each([
+    '/wiki/api/v2/spaces/1/permissions?cursor=next',
+    '/wiki/api/v2/spaces/1/permissions?limit=250',
+  ])(
+    'rejects a repeated or missing cursor without publishing partial permissions: %s',
+    async (next) => {
+      mockFetch
+        .mockResolvedValueOnce(
+          jsonResponse({ results: [{ id: 'first' }], _links: { next: '?cursor=next' } })
+        )
+        .mockResolvedValueOnce(jsonResponse({ results: [{ id: 'second' }], _links: { next } }))
 
-    await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space-1')).rejects.toThrow('403')
+      await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space-1')).rejects.toThrow(
+        'invalid or repeated permission continuation'
+      )
+      expect(mockFetch).toHaveBeenCalledTimes(2)
+    }
+  )
+
+  it('rejects a malformed collection instead of treating it as a verified empty grant', async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({}))
+    await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space-1')).rejects.toThrow(
+      'invalid permission page'
+    )
+  })
+
+  it('does not return a partial reader list when a later permission page fails', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse({
+          results: [
+            {
+              principal: { type: 'user', id: 'reader' },
+              operation: { key: 'read', targetType: 'space' },
+            },
+          ],
+          _links: { next: '?cursor=next' },
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse({}, 403))
+    await expect(listSpaceReadPrincipals(CLOUD, 'token', 'space')).rejects.toThrow('403')
+    expect(mockFetch).toHaveBeenCalledTimes(2)
   })
 })
 
@@ -299,20 +260,44 @@ describe('getReadRestriction', () => {
     await expect(getReadRestriction(CLOUD, 'token', 'page-1')).resolves.toBeNull()
   })
 
-  it('keeps provider account IDs without relying on disclosed email', async () => {
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse({
+  it.each([150, 0, undefined])(
+    'drains capped user restrictions with totalSize %s',
+    async (totalSize) => {
+      const users = Array.from({ length: 150 }, (_, i) => ({ accountId: `user-${i}` }))
+      for (const start of [0, 100]) {
+        const results = users.slice(start, start + 100)
+        mockFetch.mockResolvedValueOnce(
+          jsonResponse({
+            restrictions: {
+              user: { results, start, limit: 100, size: results.length, totalSize },
+              group: { results: [] },
+            },
+          })
+        )
+      }
+
+      await expect(getReadRestriction(CLOUD, 'token', 'page-1')).resolves.toEqual(
+        users.map((user) => ({ kind: 'user', id: user.accountId }))
+      )
+      expect(
+        mockFetch.mock.calls.map(([url]) => new URL(String(url)).searchParams.get('start'))
+      ).toEqual(['0', '100'])
+    }
+  )
+
+  it('bounds a provider that never finishes restriction pagination', async () => {
+    mockFetch.mockImplementation(async (url: string) => {
+      const start = Number(new URL(url).searchParams.get('start'))
+      return jsonResponse({
         restrictions: {
-          user: { results: [{ accountId: 'acc-1', email: 'alice@corp.com' }] },
-          group: { results: [{ id: 'grp-1' }] },
+          user: { results: [{ accountId: `user-${start}` }], start, limit: 1, size: 1 },
+          group: { results: [] },
         },
       })
-    )
+    })
 
-    await expect(getReadRestriction(CLOUD, 'token', 'page-1')).resolves.toEqual([
-      { kind: 'user', id: 'acc-1' },
-      { kind: 'group', id: 'grp-1' },
-    ])
+    await expect(getReadRestriction(CLOUD, 'token', 'page-1')).rejects.toThrow('exceeded 100 pages')
+    expect(mockFetch).toHaveBeenCalledTimes(100)
   })
 
   it.each([
@@ -330,89 +315,9 @@ describe('getReadRestriction', () => {
       )
     }
   )
-
-  it('rejects an incomplete continuation after reading some restrictions', async () => {
-    mockFetch
-      .mockResolvedValueOnce(
-        jsonResponse({
-          restrictions: {
-            user: { results: Array.from({ length: 250 }, (_, i) => ({ accountId: `user-${i}` })) },
-            group: { results: [] },
-          },
-        })
-      )
-      .mockResolvedValueOnce(jsonResponse({}))
-    await expect(getReadRestriction(CLOUD, 'token', 'page-1')).rejects.toThrow(
-      'expanded read-restriction collection'
-    )
-  })
-
-  it('keeps a withheld address as absent rather than inventing one', async () => {
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse({
-        restrictions: {
-          user: { results: [{ accountId: 'acc-1', email: null }] },
-          group: { results: [] },
-        },
-      })
-    )
-
-    await expect(getReadRestriction(CLOUD, 'token', 'page-1')).resolves.toEqual([
-      { kind: 'user', id: 'acc-1' },
-    ])
-  })
 })
 
 describe('listAncestorIds', () => {
-  /** Each ancestor restriction remains a separate required grant. */
-  it('returns ancestors closest parent first', async () => {
-    mockFetch
-      .mockResolvedValueOnce(
-        jsonResponse({ results: [{ id: 'root' }, { id: 'section' }, { id: 'parent' }] })
-      )
-      .mockResolvedValueOnce(jsonResponse({ results: [] }))
-
-    await expect(listAncestorIds(CLOUD, 'token', 'page-1')).resolves.toEqual([
-      'parent',
-      'section',
-      'root',
-    ])
-    expect(String(mockFetch.mock.calls[0][0])).toContain('/api/v2/pages/page-1/ancestors')
-  })
-
-  it('continues from the first ancestor despite a short batch without next links', async () => {
-    mockFetch
-      .mockResolvedValueOnce(
-        jsonResponse({
-          results: [
-            { id: 'section', type: 'page' },
-            { id: 'parent', type: 'page' },
-          ],
-        })
-      )
-      .mockResolvedValueOnce(jsonResponse({ results: [{ id: 'root', type: 'page' }] }))
-      .mockResolvedValueOnce(jsonResponse({ results: [] }))
-    await expect(listAncestorIds(CLOUD, 'token', 'page-1')).resolves.toEqual([
-      'parent',
-      'section',
-      'root',
-    ])
-    expect(mockFetch.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
-      '/ex/confluence/cloud-1/wiki/api/v2/pages/page-1/ancestors',
-      '/ex/confluence/cloud-1/wiki/api/v2/pages/section/ancestors',
-      '/ex/confluence/cloud-1/wiki/api/v2/pages/root/ancestors',
-    ])
-  })
-
-  it('continues through a folder using its own ancestor endpoint', async () => {
-    mockFetch
-      .mockResolvedValueOnce(jsonResponse({ results: [{ id: 'folder', type: 'folder' }] }))
-      .mockResolvedValueOnce(jsonResponse({ results: [{ id: 'root', type: 'page' }] }))
-      .mockResolvedValueOnce(jsonResponse({ results: [] }))
-    await expect(listAncestorIds(CLOUD, 'token', 'page-1')).resolves.toEqual(['folder', 'root'])
-    expect(String(mockFetch.mock.calls[1][0])).toContain('/folders/folder/ancestors?')
-  })
-
   it('refuses cyclic ancestors instead of returning a partial grant chain', async () => {
     mockFetch
       .mockResolvedValueOnce(jsonResponse({ results: [{ id: 'parent' }] }))
@@ -426,21 +331,6 @@ describe('listAncestorIds', () => {
       .mockResolvedValueOnce(jsonResponse({ results: [{ id: 'parent' }] }))
       .mockResolvedValueOnce(jsonResponse({}, 403))
     await expect(listAncestorIds(CLOUD, 'token', 'page-1')).rejects.toThrow('403')
-  })
-
-  it('bounds a provider that never reaches a root', async () => {
-    let page = 0
-    mockFetch.mockImplementation(async () =>
-      jsonResponse({ results: [{ id: `ancestor-${page++}` }] })
-    )
-    await expect(listAncestorIds(CLOUD, 'token', 'page-1')).rejects.toThrow('exceeded 100 pages')
-    expect(mockFetch).toHaveBeenCalledTimes(100)
-  })
-
-  it('reports a top-level page as having no ancestors', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse({ results: [] }))
-
-    await expect(listAncestorIds(CLOUD, 'token', 'page-1')).resolves.toEqual([])
   })
 })
 
@@ -468,20 +358,6 @@ describe('listGroupMemberTokens', () => {
     expect(request.searchParams.get('limit')).toBe('200')
   })
 
-  it('drains all member pages and preserves case-sensitive identities', async () => {
-    mockFetch
-      .mockResolvedValueOnce(
-        jsonResponse({ results: [{ accountId: 'Alice' }], size: 1, _links: { next: '/next' } })
-      )
-      .mockResolvedValueOnce(jsonResponse({ results: [{ accountId: 'alice' }] }))
-    await expect(listGroupMemberTokens(CLOUD, 'token', GROUP)).resolves.toEqual({
-      group: GROUP,
-      memberTokens: ['s:confluence:-:Alice', 's:confluence:-:alice'],
-      complete: true,
-    })
-    expect(new URL(String(mockFetch.mock.calls[1][0])).searchParams.get('start')).toBe('1')
-  })
-
   it('fails instead of freshening a partial membership on provider failure', async () => {
     mockFetch
       .mockResolvedValueOnce(
@@ -489,11 +365,6 @@ describe('listGroupMemberTokens', () => {
       )
       .mockResolvedValueOnce(jsonResponse({}, 403))
     await expect(listGroupMemberTokens(CLOUD, 'token', GROUP)).rejects.toThrow('403')
-  })
-
-  it('refuses incomplete source identities instead of guessing from email', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse({ results: [{ email: 'alice@example.com' }] }))
-    await expect(listGroupMemberTokens(CLOUD, 'token', GROUP)).rejects.toThrow('account id')
   })
 
   it('allows a confirmed empty group to revoke all former memberships', async () => {

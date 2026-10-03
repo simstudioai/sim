@@ -18,6 +18,6 @@ export const GET = defineInternalJsonRoute({
   errorPolicy: internalKnowledgeErrorPolicies.connectors,
   mapInput: ({ query }) => query,
   useCase: listSearchSources,
-  present: ({ sources }) => ({ success: true as const, data: sources }),
+  present: (page) => ({ success: true as const, data: page }),
   staticResponseHeaders: { 'Cache-Control': 'private, no-store' },
 })

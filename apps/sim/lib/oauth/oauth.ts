@@ -1,3 +1,8 @@
+import {
+  type OAuthClientCapabilityField,
+  type OAuthClientCapabilityId,
+  requireOAuthClientCapability,
+} from '@sim/deployment-config/env-capabilities'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import {
@@ -11,6 +16,7 @@ import {
   CalComIcon,
   ClaudeIcon,
   ClickUpIcon,
+  CodaIcon,
   ConfluenceIcon,
   DocuSignIcon,
   DropboxIcon,
@@ -50,6 +56,7 @@ import {
   NotionIcon,
   OutlookIcon,
   PipedriveIcon,
+  PowerBIIcon,
   QuickBooksIcon,
   RedditIcon,
   SalesforceIcon,
@@ -68,11 +75,6 @@ import {
   ZoomIcon,
 } from '@/components/icons'
 import { env } from '@/lib/core/config/env'
-import {
-  type OAuthClientCapabilityField,
-  type OAuthClientCapabilityId,
-  requireOAuthClientCapability,
-} from '@/lib/core/config/env-capabilities'
 import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
 import { redactExactSensitiveValues } from '@/lib/core/security/redaction'
 import {
@@ -80,6 +82,7 @@ import {
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
+import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 import {
   GITHUB_TOKEN_URL,
   parseGitHubRepositoriesTokenResponse,
@@ -119,6 +122,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         name: 'GitHub',
         description: 'Search repository files through your GitHub App access.',
         providerId: 'github-repositories',
+        serviceAccountProviderId: GITHUB_INSTALLATION_PROVIDER_ID,
         icon: GithubIcon,
         baseProviderIcon: GithubIcon,
         scopes: [],
@@ -439,6 +443,22 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'Group.ReadWrite.All',
           'Group.Read.All',
           'Tasks.ReadWrite',
+          'offline_access',
+        ],
+      },
+      'microsoft-powerbi': {
+        name: 'Power BI',
+        description: 'Connect to Power BI and query semantic models, reports, and refresh history.',
+        providerId: 'microsoft-powerbi',
+        icon: PowerBIIcon,
+        baseProviderIcon: MicrosoftIcon,
+        scopes: [
+          'https://analysis.windows.net/powerbi/api/Workspace.Read.All',
+          'https://analysis.windows.net/powerbi/api/Report.Read.All',
+          'https://analysis.windows.net/powerbi/api/Dataset.ReadWrite.All',
+          'openid',
+          'profile',
+          'email',
           'offline_access',
         ],
       },
@@ -1317,6 +1337,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'hubspot',
   },
+  coda: {
+    name: 'Coda',
+    icon: CodaIcon,
+    services: {
+      coda: {
+        name: 'Coda',
+        description: 'Read and write Coda docs, pages, and tables.',
+        providerId: 'coda',
+        serviceAccountProviderId: 'coda-service-account',
+        icon: CodaIcon,
+        baseProviderIcon: CodaIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'coda',
+  },
   harmonic: {
     name: 'Harmonic',
     icon: HarmonicIcon,
@@ -1627,7 +1664,8 @@ function getProviderAuthConfig(
         tokenEndpoint: 'https://auth.atlassian.com/oauth/token',
         clientId,
         clientSecret,
-        useBasicAuth: true,
+        useBasicAuth: false,
+        useJsonBody: true,
         supportsRefreshTokenRotation: true,
       }
     }
@@ -1641,7 +1679,8 @@ function getProviderAuthConfig(
         tokenEndpoint: 'https://auth.atlassian.com/oauth/token',
         clientId,
         clientSecret,
-        useBasicAuth: true,
+        useBasicAuth: false,
+        useJsonBody: true,
         supportsRefreshTokenRotation: true,
       }
     }
@@ -2230,7 +2269,7 @@ function safeOAuthErrorCode(value: unknown, secrets: string[]): string | undefin
  * Without this bound a hung endpoint would wedge every joiner on that key until
  * the undici socket defaults (~5 min) gave up.
  */
-const TOKEN_REFRESH_TIMEOUT_MS = 15_000
+export const TOKEN_REFRESH_TIMEOUT_MS = 15_000
 
 function parseOAuthResponse(responseText: string): unknown {
   try {
@@ -2323,6 +2362,11 @@ export async function refreshOAuthToken(
     }
 
     const { headers, bodyParams, useJsonBody } = buildAuthRequest(config, refreshToken)
+
+    // Microsoft refresh tokens are resource-independent. Keep the Power BI audience explicit.
+    if (providerId === 'microsoft-powerbi') {
+      bodyParams.scope = OAUTH_PROVIDERS.microsoft.services['microsoft-powerbi'].scopes.join(' ')
+    }
 
     const response = await fetch(config.tokenEndpoint, {
       method: 'POST',

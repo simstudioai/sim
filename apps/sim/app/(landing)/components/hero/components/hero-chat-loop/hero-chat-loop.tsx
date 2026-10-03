@@ -179,7 +179,7 @@ export function HeroChatLoop({
 
   return (
     <div
-      className='relative flex h-full w-full flex-col bg-[var(--bg)]'
+      className='relative flex size-full flex-col bg-[var(--bg)]'
       data-chat-view={welcome ? 'welcome' : 'conversation'}
       data-chat-phase={phase}
     >
@@ -208,7 +208,7 @@ export function HeroChatLoop({
           )}
         >
           {showThinking && (
-            <PendingTagIndicator label={phase === 'dispatching' ? 'Dispatching…' : 'Thinking…'} />
+            <PendingTagIndicator label={phase === 'dispatching' ? 'Dispatching…' : 'Thinking'} />
           )}
           {showBuilding && (
             <AgentGroupView
@@ -217,7 +217,6 @@ export function HeroChatLoop({
               agentLabel='Workflow Agent'
               items={WORKFLOW_AGENT_BUILDING_ITEMS}
               isStreaming
-              isCurrentSection
               isLaneOpen
               defaultExpanded
               autoScrollActivity={false}
@@ -237,7 +236,6 @@ export function HeroChatLoop({
                 agentName='mothership'
                 agentLabel='Sim'
                 items={SIM_ITEMS}
-                defaultExpanded
               />
               <HeroChatReply
                 content={replyComplete ? replyMessage : replyWords.slice(0, revealedWords).join('')}
@@ -256,8 +254,6 @@ export function HeroChatLoop({
       </div>
 
       <div
-        data-preview-outline='frame'
-        data-preview-composer=''
         className={cn(
           'mx-auto w-[calc(100%-48px)] max-w-chat rounded-2xl border border-[var(--border)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
           showWelcome

@@ -5,6 +5,7 @@ import {
   knowledgeBase,
   knowledgeConnector,
   mcpServers,
+  permissions,
   resourcePolicy,
   user,
   workspace,
@@ -28,13 +29,6 @@ vi.mock('@/lib/credential-groups/provider-registry', () => ({
   }),
 }))
 vi.mock('@/lib/knowledge/connectors/member-queue', () => ({ dispatchMemberSync: fixture.dispatch }))
-vi.mock('@/lib/knowledge/application/connector-access', () => ({
-  startKnowledgeConnectorMemberEnrollment: {
-    execute: async ({ input }: { input: { connectorId: string } }) => ({
-      url: `https://fixture.test/enroll/${input.connectorId}`,
-    }),
-  },
-}))
 vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {
     google_drive: {
@@ -59,11 +53,7 @@ import {
   seedKnowledgeMemberFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { createKnowledgeConnector } from '@/lib/knowledge/application/connectors'
-import {
-  connectSimSearchConnector,
-  prepareSearchSource,
-  readSearchIndex,
-} from '@/lib/knowledge/application/sim-search'
+import { prepareSearchSource, readSearchIndex } from '@/lib/knowledge/application/sim-search'
 import { performCreateKnowledgeConnector } from '@/lib/knowledge/orchestration/connectors'
 import { createWorkspaceInTransaction } from '@/lib/workspaces/create'
 
@@ -116,6 +106,7 @@ describe('Search source identity and concurrent creation', () => {
         id: ids.knowledgeBaseId,
         name: 'Renamed company index',
         workspaceId: ids.workspaceId,
+        isSearchIndex: true,
       },
       connectorType: 'google_drive',
       sourceConfig: { folderId },
@@ -139,13 +130,13 @@ describe('Search source identity and concurrent creation', () => {
     })
   }
 
-  it('creates connected accounts and its policy atomically with a new workspace', async () => {
+  it('creates a workspace and owner permission without an eager accounts container', async () => {
     const created = await db.transaction((tx) =>
       createWorkspaceInTransaction(tx, {
         userId: ids.aliceId,
         observedOrganizationId: null,
         governingPermissionGroupOrganizationId: null,
-        name: 'Connected accounts atomic fixture',
+        name: 'Workspace atomic fixture',
         skipDefaultWorkflow: true,
         organizationId: null,
         workspaceMode: 'personal',
@@ -153,71 +144,99 @@ describe('Search source identity and concurrent creation', () => {
       })
     )
     try {
+      const [storedWorkspace] = await db
+        .select()
+        .from(workspace)
+        .where(eq(workspace.id, created.id))
+      expect(storedWorkspace).toMatchObject({
+        ownerId: ids.aliceId,
+        organizationId: null,
+        workspaceMode: 'personal',
+        billedAccountUserId: ids.aliceId,
+      })
+      const ownerPermissions = await db
+        .select()
+        .from(permissions)
+        .where(eq(permissions.entityId, created.id))
+      expect(ownerPermissions).toEqual([
+        expect.objectContaining({
+          userId: ids.aliceId,
+          entityType: 'workspace',
+          permissionType: 'admin',
+        }),
+      ])
       const groups = await db
         .select()
         .from(credentialGroup)
         .where(eq(credentialGroup.workspaceId, created.id))
-      expect(groups).toHaveLength(1)
-      expect(groups[0]).toMatchObject({
-        name: 'Connected accounts',
-        options: [],
-        createdBy: ids.aliceId,
-      })
-      const [policy] = await db
+      expect(groups).toHaveLength(0)
+      const policies = await db
         .select()
         .from(resourcePolicy)
-        .where(eq(resourcePolicy.resourceId, groups[0]!.id))
-      expect(policy!.document).toEqual(
-        compileCredentialGroupWorkflowAccessPolicy({
-          credentialGroupId: groups[0]!.id,
-          allowedWorkflowIds: [],
-        })
-      )
+        .where(eq(resourcePolicy.workspaceId, created.id))
+      expect(policies).toHaveLength(0)
     } finally {
+      await db.delete(permissions).where(eq(permissions.entityId, created.id))
       await db.delete(workspace).where(eq(workspace.id, created.id))
     }
   })
 
-  it('rolls back the workspace, account container, and policy together', async () => {
+  it('rolls back the workspace and owner permission without creating account resources', async () => {
     let workspaceId = ''
-    let groupId = ''
+    let permissionId = ''
     await expect(
       db.transaction(async (tx) => {
         const created = await createWorkspaceInTransaction(tx, {
           userId: ids.aliceId,
           observedOrganizationId: null,
           governingPermissionGroupOrganizationId: null,
-          name: 'Connected accounts rollback fixture',
+          name: 'Workspace rollback fixture',
           skipDefaultWorkflow: true,
           organizationId: null,
           workspaceMode: 'personal',
           billedAccountUserId: ids.aliceId,
         })
         workspaceId = created.id
-        const [group] = await tx
+        const ownerPermissions = await tx
+          .select()
+          .from(permissions)
+          .where(eq(permissions.entityId, workspaceId))
+        expect(ownerPermissions).toEqual([
+          expect.objectContaining({
+            userId: ids.aliceId,
+            entityType: 'workspace',
+            permissionType: 'admin',
+          }),
+        ])
+        permissionId = ownerPermissions[0]!.id
+        const groups = await tx
           .select()
           .from(credentialGroup)
           .where(eq(credentialGroup.workspaceId, created.id))
-        groupId = group!.id
+        expect(groups).toHaveLength(0)
         const policies = await tx
           .select()
           .from(resourcePolicy)
-          .where(eq(resourcePolicy.resourceId, groupId))
-        expect(policies).toHaveLength(1)
+          .where(eq(resourcePolicy.workspaceId, workspaceId))
+        expect(policies).toHaveLength(0)
         throw new Error('Abort workspace creation fixture')
       })
     ).rejects.toThrow('Abort workspace creation fixture')
     expect(workspaceId).not.toBe('')
+    expect(permissionId).not.toBe('')
     expect(await db.select().from(workspace).where(eq(workspace.id, workspaceId))).toHaveLength(0)
     expect(
-      await db.select().from(credentialGroup).where(eq(credentialGroup.id, groupId))
+      await db.select().from(permissions).where(eq(permissions.id, permissionId))
     ).toHaveLength(0)
     expect(
-      await db.select().from(resourcePolicy).where(eq(resourcePolicy.resourceId, groupId))
+      await db.select().from(credentialGroup).where(eq(credentialGroup.workspaceId, workspaceId))
+    ).toHaveLength(0)
+    expect(
+      await db.select().from(resourcePolicy).where(eq(resourcePolicy.workspaceId, workspaceId))
     ).toHaveLength(0)
   })
 
-  it('adopts a legacy index only during admin setup and persists its canonical identity', async () => {
+  it('preserves ordinary KB name collisions and creates one explicit Search configuration', async () => {
     await db
       .update(knowledgeBase)
       .set({ name: 'Sim Search' })
@@ -239,18 +258,40 @@ describe('Search source identity and concurrent creation', () => {
         principal: { kind: 'session', userId: other.aliceId, sessionId: 'fixture-admin' },
         input,
       })
-    const results = await Promise.all([prepare(), prepare()])
-    expect(results.map((result) => result.knowledgeBaseId)).toEqual([
-      other.knowledgeBaseId,
-      other.knowledgeBaseId,
-    ])
+    await expect(prepare()).rejects.toMatchObject({ code: 'conflict' })
+    expect(
+      await db
+        .select({ name: knowledgeBase.name, isSearchIndex: knowledgeBase.isSearchIndex })
+        .from(knowledgeBase)
+        .where(eq(knowledgeBase.id, other.knowledgeBaseId))
+    ).toEqual([{ name: 'Sim Search', isSearchIndex: false }])
     await db
       .update(knowledgeBase)
-      .set({ name: 'Renamed adopted index' })
+      .set({ name: 'Ordinary knowledge' })
       .where(eq(knowledgeBase.id, other.knowledgeBaseId))
+    const results = await Promise.all([prepare(), prepare()])
+    const searchId = results[0].knowledgeBaseId
+    expect(searchId).not.toBe(other.knowledgeBaseId)
+    expect(results[1].knowledgeBaseId).toBe(searchId)
+    expect(
+      await db
+        .select({ id: knowledgeBase.id })
+        .from(knowledgeBase)
+        .where(
+          and(
+            eq(knowledgeBase.workspaceId, other.workspaceId),
+            eq(knowledgeBase.isSearchIndex, true)
+          )
+        )
+    ).toEqual([{ id: searchId }])
+    await db
+      .update(knowledgeBase)
+      .set({ name: 'Renamed Search configuration' })
+      .where(eq(knowledgeBase.id, searchId))
     await expect(readSearchIndex.execute({ principal: reader, input })).resolves.toMatchObject({
-      knowledgeBaseId: other.knowledgeBaseId,
+      knowledgeBaseId: searchId,
     })
+    await expect(prepare()).resolves.toMatchObject({ knowledgeBaseId: searchId })
   })
 
   it('serializes matching creates across independent database transactions and keeps one grant', async () => {
@@ -259,7 +300,7 @@ describe('Search source identity and concurrent creation', () => {
     const successful = results.filter((result) => result.success)
     expect(new Set(successful.map((result) => result.connector.id)).size).toBe(1)
     expect(successful.filter((result) => result.reused)).toHaveLength(1)
-    expect(fixture.dispatch).toHaveBeenCalledTimes(1)
+    expect(fixture.dispatch).not.toHaveBeenCalled()
     sourceIds.push(successful[0]!.connector.id)
     const [policy] = await db
       .select()
@@ -280,57 +321,12 @@ describe('Search source identity and concurrent creation', () => {
     expect(rows.filter((row) => row.id !== member.connectorId)).toHaveLength(1)
   })
 
-  it('keeps distinct source settings separate and allows readers to select the exact source', async () => {
+  it('keeps distinct source settings separate', async () => {
     const second = await createSource('other-folder')
     expect(second.success).toBe(true)
     if (!second.success) throw new Error(second.error)
     sourceIds.push(second.connector.id)
     expect(second.connector.id).not.toBe(sourceIds[0])
-    const result = await connectSimSearchConnector.execute({
-      principal: { kind: 'session', userId: ids.bobId, sessionId: 'fixture-reader' },
-      input: {
-        workspaceId: ids.workspaceId,
-        connectorType: 'google_drive',
-        connectorId: second.connector.id,
-      },
-    })
-    expect(result.connectorId).toBe(second.connector.id)
-    expect(result.knowledgeBaseId).toBe(ids.knowledgeBaseId)
-  })
-
-  it('rejects stale settings, different providers, foreign sources, and noncanonical knowledge bases', async () => {
-    const noncanonical = generateId()
-    const extraSource = generateId()
-    await db.insert(knowledgeBase).values({
-      id: noncanonical,
-      name: 'Ordinary base',
-      userId: ids.aliceId,
-      workspaceId: ids.workspaceId,
-    })
-    await db.insert(knowledgeConnector).values({
-      id: extraSource,
-      knowledgeBaseId: noncanonical,
-      connectorType: 'google_drive',
-      sourceConfig: {},
-      accessMode: 'members',
-    })
-    for (const input of [
-      {
-        connectorType: 'google_drive',
-        connectorId: sourceIds[0],
-        sourceConfig: { folderId: 'changed-folder' },
-      },
-      { connectorType: 'confluence', connectorId: sourceIds[0] },
-      { connectorType: 'google_drive', connectorId: other.connectorId },
-      { connectorType: 'google_drive', connectorId: extraSource },
-    ]) {
-      await expect(
-        connectSimSearchConnector.execute({
-          principal: { kind: 'session', userId: ids.bobId, sessionId: 'fixture-reader' },
-          input: { workspaceId: ids.workspaceId, ...input },
-        })
-      ).rejects.toMatchObject({ code: 'not_found' })
-    }
   })
   it('provisions one workspace container with optional provider options under concurrent setup', async () => {
     const [previousPolicy] = await db
@@ -454,32 +450,6 @@ describe('Search source identity and concurrent creation', () => {
       provider: 'google-drive',
       required: false,
     })
-  })
-
-  it('uses the same accounts option through actual first-source application setup', async () => {
-    const results = await Promise.all(
-      [1, 2].map(() =>
-        connectSimSearchConnector.execute({
-          principal: { kind: 'session', userId: ids.aliceId, sessionId: 'fixture-admin' },
-          input: {
-            workspaceId: ids.workspaceId,
-            connectorType: 'google_drive',
-            sourceConfig: { folderId: 'search-account-folder' },
-          },
-        })
-      )
-    )
-    expect(results[0]!.connectorId).toBe(results[1]!.connectorId)
-    const [source] = await db
-      .select()
-      .from(knowledgeConnector)
-      .where(eq(knowledgeConnector.id, results[0]!.connectorId))
-    expect(source!.credentialGroupId).toBe(searchGroupId)
-    const groups = await db
-      .select()
-      .from(credentialGroup)
-      .where(eq(credentialGroup.workspaceId, ids.workspaceId))
-    expect(groups).toHaveLength(1)
   })
 
   it('refuses automatic provider expansion when a concurrent workflow grant commits first', async () => {

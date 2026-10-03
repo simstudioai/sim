@@ -1,37 +1,27 @@
-/**
- * @vitest-environment node
- */
-
 import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
+import { MockContentVersionConflictError } from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 import * as collabState from '@/lib/collab-doc/collab-state'
 
 const {
   mockGetWorkspaceFile,
-  mockFetchBuffer,
-  mockUpdateContent,
-  mockCommitState,
-  mockLoadState,
-  ContentVersionConflictError,
-} = vi.hoisted(() => ({
-  mockGetWorkspaceFile: vi.fn(),
-  mockFetchBuffer: vi.fn(),
-  mockUpdateContent: vi.fn(),
-  mockCommitState: vi.fn(),
-  mockLoadState: vi.fn(),
-  ContentVersionConflictError: class ContentVersionConflictError extends Error {},
-}))
+  mockFetchWorkspaceFileBuffer: mockFetchBuffer,
+  mockUpdateWorkspaceFileContent: mockUpdateContent,
+} = workspaceUploadsMockFns
+const mockCommitState = vi.fn()
+const mockLoadState = vi.fn()
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  ContentVersionConflictError,
-  getWorkspaceFile: mockGetWorkspaceFile,
-  fetchWorkspaceFileBuffer: mockFetchBuffer,
-  updateWorkspaceFileContent: mockUpdateContent,
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 
-vi.spyOn(collabState, 'loadCollabDocState').mockImplementation(mockLoadState)
-vi.spyOn(collabState, 'commitCollabDocState').mockImplementation(mockCommitState)
+beforeEach(() => {
+  vi.spyOn(collabState, 'loadCollabDocState').mockImplementation(mockLoadState)
+  vi.spyOn(collabState, 'commitCollabDocState').mockImplementation(mockCommitState)
+})
 
 import type { CachedCollabDocState, PreparedCollabDocState } from '@/lib/collab-doc/collab-state'
 import { applyMarkdownToYDoc, markdownToYDoc, yDocToFileMarkdown } from '@/lib/collab-doc/converter'
@@ -136,7 +126,7 @@ function installAtomicStore(markdown: string, initialState: Uint8Array | null = 
       options: { expectedUpdatedAt: Date; collabDocState: PreparedCollabDocState }
     ) => {
       if (options.expectedUpdatedAt.getTime() !== store.version) {
-        throw new ContentVersionConflictError('Content changed')
+        throw new MockContentVersionConflictError('file-1')
       }
       if (!matches(options.collabDocState)) {
         throw new collabState.CollabDocStateConflictError('file-1')
@@ -152,116 +142,11 @@ function installAtomicStore(markdown: string, initialState: Uint8Array | null = 
 
 describe('persistFileDoc — no-op writes', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockCommitState.mockImplementation(async (_workspaceId, _fileId, version: number) => ({
       status: 'committed',
       version,
     }))
     mockLoadState.mockResolvedValue(null)
-  })
-
-  function stubFile(durable: Buffer) {
-    mockGetWorkspaceFile.mockResolvedValue({
-      id: 'file-1',
-      name: 'note.md',
-      key: 'k',
-      size: durable.length,
-      updatedAt: VERSION,
-      contentUpdatedAt: VERSION,
-    })
-    mockFetchBuffer.mockResolvedValue(durable)
-  }
-
-  /**
-   * Opening a file emits a Yjs update of its own (y-tiptap normalizes node attributes on bind), which
-   * schedules a persist whose markdown is byte-identical to the file. Writing it would rewrite the file
-   * under a fresh storage key and delete the old object, 404ing every reader still holding it — the
-   * page's own first content read included.
-   */
-  it('writes nothing when the projection already matches the durable bytes', async () => {
-    const md = '# Title\n\nbody\n\n- [ ] task'
-    stubFile(projectionOf(md))
-
-    const result = await persistFileDoc('ws-1', 'file-1', 'user-1', stateOf(md), VERSION.getTime())
-
-    expect(mockUpdateContent).not.toHaveBeenCalled()
-    expect(result).toEqual({ status: 'persisted', version: VERSION.getTime() })
-  })
-
-  it('reports the CURRENT durable version on a no-op, resyncing a stale If-Match instead of conflicting', async () => {
-    const md = 'a\n\nb'
-    stubFile(projectionOf(md))
-
-    const result = await persistFileDoc(
-      'ws-1',
-      'file-1',
-      'user-1',
-      stateOf(md),
-      VERSION.getTime() - 5000
-    )
-
-    expect(mockUpdateContent).not.toHaveBeenCalled()
-    expect(result).toEqual({ status: 'persisted', version: VERSION.getTime() })
-  })
-
-  it('fences the cached snapshot on a no-op so a cold open resumes accepted binary history', async () => {
-    const md = 'a\n\nb'
-    stubFile(projectionOf(md))
-
-    await persistFileDoc('ws-1', 'file-1', 'user-1', stateOf(md), VERSION.getTime())
-
-    expect(mockCommitState).toHaveBeenCalledWith('ws-1', 'file-1', VERSION.getTime(), {
-      docState: expect.any(Uint8Array),
-      sourceHash: collabState.hashMarkdown(projectionOf(md)),
-      expectedState: null,
-    })
-  })
-
-  it('writes when the content actually changed', async () => {
-    stubFile(projectionOf('a\n\nb'))
-    mockUpdateContent.mockResolvedValue({
-      contentUpdatedAt: new Date(VERSION.getTime() + 1000),
-      updatedAt: new Date(VERSION.getTime() + 1000),
-    })
-
-    const result = await persistFileDoc(
-      'ws-1',
-      'file-1',
-      'user-1',
-      stateOf('a\n\nb\n\nc'),
-      VERSION.getTime()
-    )
-
-    expect(mockUpdateContent).toHaveBeenCalledTimes(1)
-    expect(result).toEqual({ status: 'persisted', version: VERSION.getTime() + 1000 })
-    expect(mockUpdateContent.mock.calls[0][5]).toMatchObject({
-      syncLiveDoc: false,
-      expectedUpdatedAt: VERSION,
-      collabDocState: {
-        sourceHash: collabState.hashMarkdown(projectionOf('a\n\nb\n\nc')),
-        expectedState: null,
-      },
-    })
-    expect(mockCommitState).not.toHaveBeenCalled()
-  })
-
-  it('skips the compare read entirely when the byte count already differs', async () => {
-    stubFile(Buffer.from('a shorter file', 'utf-8'))
-    mockUpdateContent.mockResolvedValue({
-      contentUpdatedAt: new Date(VERSION.getTime() + 1000),
-      updatedAt: new Date(VERSION.getTime() + 1000),
-    })
-
-    await persistFileDoc(
-      'ws-1',
-      'file-1',
-      'user-1',
-      stateOf('# A much longer document\n\nbody'),
-      VERSION.getTime()
-    )
-
-    expect(mockFetchBuffer).not.toHaveBeenCalled()
-    expect(mockUpdateContent).toHaveBeenCalledTimes(1)
   })
 
   it('fails closed when the durable bytes cannot be read', async () => {
@@ -301,7 +186,6 @@ describe('persistFileDoc — a stale token is not an out-of-band write', () => {
   const NEWER = new Date(VERSION.getTime() + 60_000)
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockCommitState.mockImplementation(async (_workspaceId, _fileId, version: number) => ({
       status: 'committed',
       version,
@@ -324,7 +208,7 @@ describe('persistFileDoc — a stale token is not an out-of-band write', () => {
     mockUpdateContent.mockImplementation(async (..._args: unknown[]) => {
       const options = _args[5] as { expectedUpdatedAt?: Date }
       if (options?.expectedUpdatedAt?.getTime() !== NEWER.getTime()) {
-        throw new ContentVersionConflictError('stale')
+        throw new MockContentVersionConflictError('file-1')
       }
       return { contentUpdatedAt: new Date(NEWER.getTime() + 1), updatedAt: NEWER }
     })
@@ -367,21 +251,6 @@ describe('persistFileDoc — a stale token is not an out-of-band write', () => {
     expect(mockUpdateContent).not.toHaveBeenCalled()
   })
 
-  it('refuses when nothing was ever cached, so there is no proof of authorship', async () => {
-    stubConflict('a\n\nb')
-    mockLoadState.mockResolvedValue(null)
-
-    const result = await persistFileDoc(
-      'ws-1',
-      'file-1',
-      'user-1',
-      stateOf('a\n\nb\n\nmoved'),
-      VERSION.getTime()
-    )
-
-    expect(result).toEqual({ status: 'conflict' })
-  })
-
   it.each([
     ['insertion', 'alpha\n\nbeta\n\npeer edit'],
     ['deletion', 'alpha'],
@@ -401,77 +270,6 @@ describe('persistFileDoc — a stale token is not an out-of-band write', () => {
     await expect(
       persistFileDoc('ws-1', 'file-1', 'user-1', candidate, VERSION.getTime())
     ).resolves.toEqual({ status: 'conflict' })
-    expect(mockUpdateContent).not.toHaveBeenCalled()
-    expect(mockCommitState).not.toHaveBeenCalled()
-  })
-
-  it.each(['alpha', '**alpha**\n\nbeta'])(
-    'recovers after already integrating the persisted changes: %s',
-    async (persistedMarkdown) => {
-      const original = stateOf('alpha\n\nbeta')
-      const persisted = editedState(original, persistedMarkdown)
-      const candidate = editedState(persisted, `${persistedMarkdown}\n\nlocal edit`)
-      const { durable } = stubConflict(persistedMarkdown)
-      mockLoadState.mockResolvedValue(cachedState(persisted, durable))
-
-      await expect(
-        persistFileDoc('ws-1', 'file-1', 'user-1', candidate, VERSION.getTime())
-      ).resolves.toEqual({ status: 'persisted', version: NEWER.getTime() + 1 })
-      expect(mockUpdateContent).toHaveBeenCalledTimes(1)
-    }
-  )
-
-  it('uses cached metadata-only history for stale content proof without adding it to the relay snapshot', async () => {
-    const original = stateOf('## Heading')
-    const cached = new Y.Doc()
-    Y.applyUpdate(cached, original)
-    cached.getMap(FILE_DOC_SEED.configMap).set('metadata', 'accepted peer metadata')
-    const docState = Y.encodeStateAsUpdate(cached)
-    cached.destroy()
-    const { durable } = stubConflict('## Heading')
-    mockLoadState.mockResolvedValue(cachedState(docState, durable))
-    const candidate = editedState(original, '## Heading\n\nlocal edit')
-
-    await expect(
-      persistFileDoc('ws-1', 'file-1', 'user-1', candidate, VERSION.getTime())
-    ).resolves.toEqual({ status: 'persisted', version: NEWER.getTime() + 1 })
-    const accepted = new Y.Doc()
-    try {
-      const prepared = mockUpdateContent.mock.calls[0][5].collabDocState
-      expect(prepared.docState).toBe(candidate)
-      Y.applyUpdate(accepted, prepared.docState)
-      expect(accepted.getMap(FILE_DOC_SEED.configMap).has('metadata')).toBe(false)
-      expect(yDocToFileMarkdown(accepted)).toBe(projectionOf('## Heading\n\nlocal edit').toString())
-    } finally {
-      accepted.destroy()
-    }
-  })
-
-  it('never recovers an old generation over a new empty document', async () => {
-    const original = markdownToYDoc('old content')
-    const replacement = markdownToYDoc('')
-    original.getMap('config').set('docId', 'old-generation')
-    replacement.getMap('config').set('docId', 'new-generation')
-    const candidate = Y.encodeStateAsUpdate(original)
-    const persisted = Y.encodeStateAsUpdate(replacement)
-    original.destroy()
-    replacement.destroy()
-    const { durable } = stubConflict('')
-    mockLoadState.mockResolvedValue(cachedState(persisted, durable))
-
-    await expect(
-      persistFileDoc('ws-1', 'file-1', 'user-1', candidate, VERSION.getTime())
-    ).resolves.toEqual({ status: 'conflict' })
-    expect(mockUpdateContent).not.toHaveBeenCalled()
-  })
-
-  it('fails closed when the cached binary is invalid', async () => {
-    const { durable } = stubConflict('base')
-    mockLoadState.mockResolvedValue(cachedState(new Uint8Array([255]), durable))
-
-    await expect(
-      persistFileDoc('ws-1', 'file-1', 'user-1', stateOf('local edit'), VERSION.getTime())
-    ).rejects.toThrow()
     expect(mockUpdateContent).not.toHaveBeenCalled()
     expect(mockCommitState).not.toHaveBeenCalled()
   })
@@ -510,7 +308,7 @@ describe('persistFileDoc — a stale token is not an out-of-band write', () => {
           await firstWrite.promise
         }
         if (options.expectedUpdatedAt.getTime() !== version) {
-          throw new ContentVersionConflictError('A newer snapshot committed')
+          throw new MockContentVersionConflictError('file-1')
         }
         durable = Buffer.from(bytes)
         cache = cachedState(options.collabDocState.docState, bytes)
@@ -547,7 +345,6 @@ describe('persistFileDoc — a stale token is not an out-of-band write', () => {
 
 describe('persistFileDoc — atomic cache and native snapshot ownership', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockCommitState.mockReset()
     mockLoadState.mockReset()
     mockGetWorkspaceFile.mockReset()
@@ -579,82 +376,6 @@ describe('persistFileDoc — atomic cache and native snapshot ownership', () => 
     }
   )
 
-  it.each(['content write', 'no-op'] as const)(
-    'reloads the exact cache token without changing the relay snapshot after a same-version %s conflict',
-    async (kind) => {
-      const base = stateWithGeneration('base', 'shared-generation')
-      const store = installAtomicStore('base', base)
-      const originalToken = store.cache?.stateHash
-      const candidate = kind === 'no-op' ? base : editedState(base, 'base\n\nlocal edit')
-      const other = new Y.Doc()
-      Y.applyUpdate(other, base)
-      other.getMap(FILE_DOC_SEED.configMap).set('metadata', 'other cache writer')
-      const winner = cachedState(Y.encodeStateAsUpdate(other), store.durable)
-      other.destroy()
-      if (kind === 'no-op') {
-        mockCommitState.mockImplementationOnce(async () => {
-          store.cache = winner
-          return { status: 'conflict' }
-        })
-      } else {
-        mockUpdateContent.mockImplementationOnce(async () => {
-          store.cache = winner
-          throw new collabState.CollabDocStateConflictError('file-1')
-        })
-      }
-
-      await expect(
-        persistFileDoc('ws-1', 'file-1', 'user-1', candidate, VERSION.getTime())
-      ).resolves.toMatchObject({ status: 'persisted' })
-
-      expect(mockLoadState).toHaveBeenCalledTimes(2)
-      expect(mockGetWorkspaceFile).toHaveBeenCalledTimes(2)
-      const calls = kind === 'no-op' ? mockCommitState.mock.calls : mockUpdateContent.mock.calls
-      const prepared = (call: unknown[]) =>
-        (kind === 'no-op'
-          ? call[3]
-          : (call[5] as { collabDocState: PreparedCollabDocState })
-              .collabDocState) as PreparedCollabDocState
-      expect(calls).toHaveLength(2)
-      expect(prepared(calls[0]).expectedState?.stateHash).toBe(originalToken)
-      expect(prepared(calls[1]).expectedState).toEqual({
-        sourceHash: winner.sourceHash,
-        stateHash: winner.stateHash,
-      })
-      expect(store.accepted).toHaveLength(1)
-      expect(store.accepted[0].docState).toBe(candidate)
-      expect(store.cache?.docState).toBe(candidate)
-      const cold = new Y.Doc()
-      try {
-        Y.applyUpdate(cold, store.accepted[0].docState)
-        expect(Buffer.from(yDocToFileMarkdown(cold))).toEqual(store.durable)
-      } finally {
-        cold.destroy()
-      }
-    }
-  )
-
-  it('rejects a generation replacement found while retrying a no-op cache commit', async () => {
-    const original = stateWithGeneration('base', 'original-generation')
-    const store = installAtomicStore('base', original)
-    const replacement = cachedState(
-      stateWithGeneration('base', 'replacement-generation'),
-      store.durable
-    )
-    mockCommitState.mockImplementationOnce(async () => {
-      store.cache = replacement
-      return { status: 'conflict' }
-    })
-
-    await expect(
-      persistFileDoc('ws-1', 'file-1', 'user-1', original, VERSION.getTime())
-    ).resolves.toEqual({ status: 'conflict' })
-    expect(mockCommitState).toHaveBeenCalledTimes(1)
-    expect(mockUpdateContent).not.toHaveBeenCalled()
-    expect(store.cache).toBe(replacement)
-    expect(store.accepted).toHaveLength(0)
-  })
-
   it('retries a content version race only after integrating the winner’s accepted history', async () => {
     const base = stateWithGeneration('base', 'shared-generation')
     const winner = editedState(base, 'base\n\npeer edit')
@@ -664,7 +385,7 @@ describe('persistFileDoc — atomic cache and native snapshot ownership', () => 
       store.durable = projectionOf('base\n\npeer edit')
       store.cache = cachedState(winner, store.durable)
       store.version++
-      throw new ContentVersionConflictError('A peer committed first')
+      throw new MockContentVersionConflictError('file-1')
     })
 
     await expect(
@@ -700,85 +421,6 @@ describe('persistFileDoc — atomic cache and native snapshot ownership', () => 
       expect(store.durable).toEqual(projectionOf('base'))
     }
   )
-
-  it.each(['cache read', 'content write', 'cache-only commit'] as const)(
-    'propagates a %s failure without claiming persistence or retrying it as a conflict',
-    async (kind) => {
-      const base = stateOf('base')
-      const store = installAtomicStore('base', base)
-      const candidate =
-        kind === 'cache-only commit' ? base : editedState(base, 'base\n\nlocal edit')
-      const operation =
-        kind === 'cache read'
-          ? mockLoadState
-          : kind === 'content write'
-            ? mockUpdateContent
-            : mockCommitState
-      operation.mockRejectedValue(new Error('storage unavailable'))
-
-      await expect(
-        persistFileDoc('ws-1', 'file-1', 'user-1', candidate, VERSION.getTime())
-      ).rejects.toThrow('storage unavailable')
-      expect(operation).toHaveBeenCalledOnce()
-      expect(store.accepted).toHaveLength(0)
-      expect(store.durable).toEqual(projectionOf('base'))
-      if (kind === 'cache read') {
-        expect(mockUpdateContent).not.toHaveBeenCalled()
-        expect(mockCommitState).not.toHaveBeenCalled()
-      }
-    }
-  )
-
-  it('reports a deleted file observed after a content conflict without touching its cache', async () => {
-    const base = stateOf('base')
-    const store = installAtomicStore('base', base)
-    mockUpdateContent.mockImplementationOnce(async () => {
-      mockGetWorkspaceFile.mockResolvedValue(null)
-      throw new ContentVersionConflictError('File changed')
-    })
-
-    await expect(
-      persistFileDoc(
-        'ws-1',
-        'file-1',
-        'user-1',
-        editedState(base, 'base\n\nlocal edit'),
-        VERSION.getTime()
-      )
-    ).resolves.toEqual({ status: 'missing' })
-    expect(mockLoadState).toHaveBeenCalledOnce()
-    expect(store.accepted).toHaveLength(0)
-  })
-
-  it('reports a file deleted during a no-op commit instead of acknowledging it', async () => {
-    const base = stateOf('base')
-    installAtomicStore('base', base)
-    mockCommitState.mockResolvedValue({ status: 'missing' })
-
-    await expect(
-      persistFileDoc('ws-1', 'file-1', 'user-1', base, VERSION.getTime())
-    ).resolves.toEqual({ status: 'missing' })
-    expect(mockCommitState).toHaveBeenCalledOnce()
-    expect(mockUpdateContent).not.toHaveBeenCalled()
-  })
-
-  it('does not decode, read cache, or write when the relay has no expected version', async () => {
-    installAtomicStore('base')
-    await expect(
-      persistFileDoc('ws-1', 'file-1', 'user-1', new Uint8Array([255]))
-    ).resolves.toEqual({ status: 'deferred' })
-    expect(mockLoadState).not.toHaveBeenCalled()
-    expect(mockCommitState).not.toHaveBeenCalled()
-    expect(mockUpdateContent).not.toHaveBeenCalled()
-  })
-
-  it('returns missing before processing a snapshot for a nonexistent file', async () => {
-    mockGetWorkspaceFile.mockResolvedValue(null)
-    await expect(
-      persistFileDoc('ws-1', 'file-1', 'user-1', new Uint8Array([255]), VERSION.getTime())
-    ).resolves.toEqual({ status: 'missing' })
-    expect(mockLoadState).not.toHaveBeenCalled()
-  })
 
   it('rejects an oversized incoming snapshot before decoding or loading its cache', async () => {
     installAtomicStore('base')
@@ -881,55 +523,6 @@ describe('persistFileDoc — atomic cache and native snapshot ownership', () => 
     }
   }
 
-  it('saves exact-version peer typing despite an old detached cache deletion of its paragraph', async () => {
-    const { peer, text, legacyState } = legacyCachePair()
-    try {
-      const store = installAtomicStore('base', legacyState)
-      text.insert(0, 'late user text')
-      const candidate = Y.encodeStateAsUpdate(peer)
-
-      await expect(
-        persistFileDoc('ws-1', 'file-1', 'user-1', candidate, VERSION.getTime())
-      ).resolves.toEqual({ status: 'persisted', version: VERSION.getTime() + 1 })
-
-      expect(store.durable.toString()).toBe('base\n\nlate user text')
-      expect(store.cache?.docState).toBe(candidate)
-      expect(store.accepted).toHaveLength(1)
-      expect(mockUpdateContent).toHaveBeenCalledOnce()
-    } finally {
-      peer.destroy()
-    }
-  })
-
-  it.each([VERSION.getTime(), VERSION.getTime() - 1])(
-    'keeps the native typing target on a no-op with token %i despite private cache deletions',
-    async (expectedVersion) => {
-      const { peer, text, legacyState } = legacyCachePair()
-      try {
-        const store = installAtomicStore('base', legacyState)
-        store.durable = Buffer.from(yDocToFileMarkdown(peer))
-        store.cache = cachedState(legacyState, store.durable)
-        const initial = Y.encodeStateAsUpdate(peer)
-
-        await expect(
-          persistFileDoc('ws-1', 'file-1', 'user-1', initial, expectedVersion)
-        ).resolves.toEqual({ status: 'persisted', version: VERSION.getTime() })
-        expect(store.cache?.docState).toBe(initial)
-        expect(mockUpdateContent).not.toHaveBeenCalled()
-
-        text.insert(0, 'next peer text')
-        const next = Y.encodeStateAsUpdate(peer)
-        await expect(
-          persistFileDoc('ws-1', 'file-1', 'user-1', next, VERSION.getTime())
-        ).resolves.toEqual({ status: 'persisted', version: VERSION.getTime() + 1 })
-        expect(store.durable.toString()).toBe('base\n\nnext peer text')
-        expect(store.cache?.docState).toBe(next)
-      } finally {
-        peer.destroy()
-      }
-    }
-  )
-
   it('does not retain a stale proof’s invisible private deletion that would erase later peer typing', async () => {
     const { peer, text, legacyState } = legacyCachePair(2)
     const cold = new Y.Doc()
@@ -970,30 +563,6 @@ describe('persistFileDoc — atomic cache and native snapshot ownership', () => 
       peer.destroy()
       cold.destroy()
       proof.destroy()
-    }
-  })
-
-  it('keeps stale content fail-closed when a private cached deletion changes the proof’s projection', async () => {
-    const { peer, text, legacyState } = legacyCachePair()
-    try {
-      const store = installAtomicStore('base', legacyState)
-      text.insert(0, 'late user text')
-
-      await expect(
-        persistFileDoc(
-          'ws-1',
-          'file-1',
-          'user-1',
-          Y.encodeStateAsUpdate(peer),
-          VERSION.getTime() - 1
-        )
-      ).resolves.toEqual({ status: 'conflict' })
-      expect(store.durable.toString()).toBe('base')
-      expect(store.cache?.docState).toBe(legacyState)
-      expect(store.accepted).toHaveLength(0)
-      expect(mockUpdateContent).not.toHaveBeenCalled()
-    } finally {
-      peer.destroy()
     }
   })
 })

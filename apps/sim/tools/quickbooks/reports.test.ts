@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { getQuickBooksReportTypesSupporting } from '@/tools/quickbooks/report-metadata'
 import {

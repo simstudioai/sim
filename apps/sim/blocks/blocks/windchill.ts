@@ -3,7 +3,6 @@ import { WindchillIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { WindchillResponse } from '@/tools/windchill/types'
 
 const SINGLE_DOCUMENT_OPERATIONS = [
   'windchill_get_document',
@@ -121,7 +120,7 @@ function coerceBoolean(value: unknown): boolean | undefined {
   throw new Error('Boolean values must be true or false')
 }
 
-export const WindchillBlock: BlockConfig<WindchillResponse> = {
+export const WindchillBlock: BlockConfig = {
   type: 'windchill',
   name: 'Windchill',
   description: 'Manage documents, revisions, and content in PTC Windchill',

@@ -18,9 +18,13 @@ import type { Cursor, DrainSource, SourcePageInput } from '@/lib/data-drains/typ
  *
  * `planArtifact` is omitted too: the column still exists only until a
  * follow-up migration can safely drop it, and nothing writes it any more, so
- * draining it would ship a dead field to every export consumer.
+ * draining it would ship a dead field to every export consumer. External
+ * conversation bindings are internal routing metadata and are not exported.
  */
-type CopilotChatRow = Omit<typeof copilotChats.$inferSelect, 'messages' | 'planArtifact'> & {
+type CopilotChatRow = Omit<
+  typeof copilotChats.$inferSelect,
+  'messages' | 'planArtifact' | 'externalConversationKey' | 'externalConversationMetadata'
+> & {
   messages: unknown[]
 }
 

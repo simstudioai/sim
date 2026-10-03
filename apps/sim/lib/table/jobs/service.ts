@@ -244,26 +244,6 @@ export async function releaseJobClaim(tableId: string, jobId: string): Promise<v
     )
 }
 
-/** Releases only the active claim in the canonical workspace and reports no-op races. */
-export async function releaseJobClaimInWorkspace(
-  tableId: string,
-  workspaceId: string,
-  jobId: string
-): Promise<boolean> {
-  const released = await db
-    .delete(tableJobs)
-    .where(
-      and(
-        eq(tableJobs.id, jobId),
-        eq(tableJobs.tableId, tableId),
-        eq(tableJobs.workspaceId, workspaceId),
-        eq(tableJobs.status, 'running')
-      )
-    )
-    .returning({ id: tableJobs.id })
-  return released.length > 0
-}
-
 /**
  * Records job progress (rows processed so far) and bumps `updated_at` so the stale-job janitor
  * (`cleanup-stale-executions`) sees a live heartbeat.
@@ -460,24 +440,6 @@ export async function listWorkspaceExportJobs(workspaceId: string): Promise<Work
       error: r.error,
     }
   })
-}
-
-/** Reads one job row (type/status/payload) scoped to its table. Null when absent. */
-export async function getTableJob(
-  tableId: string,
-  jobId: string
-): Promise<{ id: string; type: string; status: string; payload: unknown } | null> {
-  const [job] = await db
-    .select({
-      id: tableJobs.id,
-      type: tableJobs.type,
-      status: tableJobs.status,
-      payload: tableJobs.payload,
-    })
-    .from(tableJobs)
-    .where(and(eq(tableJobs.id, jobId), eq(tableJobs.tableId, tableId)))
-    .limit(1)
-  return job ?? null
 }
 
 /** Stamps an export result only while the canonical workspace-scoped job is active. */

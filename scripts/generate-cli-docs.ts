@@ -44,7 +44,9 @@ export const GUIDE_PAGES = [
   'configuration',
   'output',
   'scripting',
+  'workflow-sync',
   'troubleshooting',
+  'usage-data',
 ] as const
 
 /** Generated page holding the global options and the commands that take no resource. */

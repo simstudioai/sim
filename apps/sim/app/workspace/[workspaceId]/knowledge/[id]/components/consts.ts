@@ -1,10 +1,6 @@
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { effectiveConnectorSyncIntervalMinutes } from '@/lib/knowledge/connectors/access-modes'
 
-/** Under the account picker of a per-member connector, whose account only browses. */
-export const BROWSE_WITH_HINT =
-  'Only used to choose what to sync below. It does not change who indexes documents or who can read them.'
-
 /** Explain when permission refresh requires a more frequent pass than content indexing. */
 export function connectorSyncFrequencyHint(
   accessMode: ConnectorAccessMode,
@@ -16,7 +12,7 @@ export function connectorSyncFrequencyHint(
     return 'Content and permissions update only when you sync. Documents become unavailable after 24 hours without a successful permission check.'
   }
   if (effectiveConnectorSyncIntervalMinutes(accessMode, syncInterval) === syncInterval) {
-    return 'Permissions are checked on every sync.'
+    return undefined
   }
   return accessMode === 'members' && hasContentCredential
     ? 'Content follows this schedule. Member permissions are checked every hour.'

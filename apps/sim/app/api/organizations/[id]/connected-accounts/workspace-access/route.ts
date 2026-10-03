@@ -36,5 +36,5 @@ export const PUT = defineInternalJsonRoute({
   errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ params, body }) => ({ organizationId: params.id, ...body }),
   useCase: updateOrganizationAccountWorkspaceAccess,
-  present: ({ revision, workspaceIds }) => ({ revision, workspaceIds }),
+  present: ({ revision, grants }) => ({ revision, grants }),
 })

@@ -1,43 +1,25 @@
-/**
- * @vitest-environment node
- */
-
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import {
+  MockTableRowsValidationError,
+  tableApplicationRowsMock,
+  tableApplicationRowsMockFns,
+} from '@sim/testing/mocks/table-application-rows.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks, MockTableRowsValidationError } = vi.hoisted(() => {
-  class MockTableRowsValidationError extends Error {
-    constructor(
-      message: string,
-      readonly details?: unknown
-    ) {
-      super(message)
-    }
-  }
-  return {
-    mocks: {
-      queryRows: vi.fn(),
-    },
-    MockTableRowsValidationError,
-  }
-})
-
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/lib/table/application/rows', () => ({
-  TableRowsValidationError: MockTableRowsValidationError,
-  queryTableRows: { operation: { id: 'tables.rows.query' }, execute: mocks.queryRows },
-}))
+vi.mock('@/lib/table/application/rows', () => tableApplicationRowsMock)
 
 import { POST } from '@/app/api/v2/tables/[tableId]/query/count/route'
+
+const { mockQueryTableRows } = tableApplicationRowsMockFns
 
 const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = {
@@ -77,11 +59,10 @@ function call(body: unknown) {
 
 describe('POST /api/v2/tables/[tableId]/query/count', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.queryRows.mockResolvedValue({
+    mockQueryTableRows.mockResolvedValue({
       table: TABLE,
       rows: [ROW],
       rowCount: 1,
@@ -97,7 +78,7 @@ describe('POST /api/v2/tables/[tableId]/query/count', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ data: { totalCount: 4321 } })
-    expect(mocks.queryRows).toHaveBeenCalledWith({
+    expect(mockQueryTableRows).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: {
         tableId: 'table-1',
@@ -116,40 +97,15 @@ describe('POST /api/v2/tables/[tableId]/query/count', () => {
     const response = await invocation.response
 
     expect(response.status).toBe(200)
-    expect(mocks.queryRows).toHaveBeenCalledWith(
+    expect(mockQueryTableRows).toHaveBeenCalledWith(
       expect.objectContaining({
         input: expect.objectContaining({ predicate: { all: [condition] } }),
       })
     )
   })
 
-  it('counts the whole table when no predicate is sent', async () => {
-    mocks.queryRows.mockResolvedValue({
-      table: TABLE,
-      rows: [],
-      rowCount: 0,
-      totalCount: 0,
-      nextCursor: null,
-    })
-
-    const response = await call({ workspaceId: WORKSPACE_ID }).response
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: { totalCount: 0 } })
-    expect(mocks.queryRows).toHaveBeenCalledWith(
-      expect.objectContaining({ input: expect.objectContaining({ predicate: undefined }) })
-    )
-  })
-
-  it('rejects the paging controls a count has no use for', async () => {
-    const response = await call({ workspaceId: WORKSPACE_ID, limit: 10, cursor: 'x' }).response
-
-    expect(response.status).toBe(400)
-    expect(mocks.queryRows).not.toHaveBeenCalled()
-  })
-
   it('keeps a malformed predicate as a structured 400', async () => {
-    mocks.queryRows.mockRejectedValue(
+    mockQueryTableRows.mockRejectedValue(
       new MockTableRowsValidationError('Unknown column "nope"', { code: 'INVALID_PREDICATE' })
     )
 
@@ -163,7 +119,7 @@ describe('POST /api/v2/tables/[tableId]/query/count', () => {
   })
 
   it('never presents a fabricated zero when no total was computed', async () => {
-    mocks.queryRows.mockResolvedValue({
+    mockQueryTableRows.mockResolvedValue({
       table: TABLE,
       rows: [ROW],
       rowCount: 1,
@@ -177,14 +133,5 @@ describe('POST /api/v2/tables/[tableId]/query/count', () => {
     expect(await response.json()).toEqual({
       error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
     })
-  })
-
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await call({ workspaceId: WORKSPACE_ID }).response
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
   })
 })

@@ -18,7 +18,7 @@ A **snapshot** is an immutable copy of your workflow taken at the moment you dep
 
 Each snapshot is recorded as a numbered **version** (v1, v2, and so on) in the Versions table, tagged with who deployed it and when. Versions are independent: one is live at a time, marked with a green dot, and the rest stay available to rename, describe, load back to the canvas, or promote. You publish v1 with **Deploy** and every later **Update** adds the next version.
 
-<Image src="/static/api-deployment/api-versions-menu.png" alt="Versions table with v2 live and the v1 menu open on Promote to live" width={700} height={303} />
+<Image src="/static/api-deployment/api-versions-menu.png" alt="Versions table with v2 live and the v1 menu open on Promote to live" width={700} height={303} className="mx-auto h-auto w-full max-w-xl" />
 
 ### Live version
 
@@ -37,6 +37,23 @@ After you change the canvas on a deployed workflow, an **Update deployment** bad
 ## The surfaces
 
 Every surface runs the same live snapshot. You manage them from the tabs of the deploy modal.
+
+The most common surface is the **API**. Once deployed, your workflow answers at:
+
+```
+POST https://www.sim.ai/api/v2/workflows/{workflow-id}/execute
+```
+
+Send the workflow's [Input Format](/workflows/triggers/start) as the request body's `input` value. The response includes workflow output and execution metadata; see [API deployment](/workflows/deployment/api) for response modes.
+
+```bash
+curl -X POST https://www.sim.ai/api/v2/workflows/{workflow-id}/execute \
+  -H "X-API-Key: $SIM_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "input": { "message": "Refund request from customer #4821" } }'
+```
+
+{/* VISUAL: deploy modal tab bar. General · API · MCP · Chat. */}
 
 <Cards>
   <Card title="API" href="/workflows/deployment/api" description="A REST endpoint any application can call, with sync, streaming, and async modes." />

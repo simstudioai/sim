@@ -7,6 +7,7 @@ import {
   credentialGroupEnrollment,
   user,
 } from '@sim/db/schema'
+import { isValidEmailSyntax } from '@sim/utils/string'
 import { and, asc, eq, gt, inArray, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
@@ -35,6 +36,10 @@ export interface CredentialGroupCredentialReference {
   providerId: string
   providerSubjectId: string
   providerTenantId: string | null
+}
+
+export interface OrganizationAccountCredentialReference extends CredentialGroupCredentialReference {
+  accountEmail: string
 }
 
 /**
@@ -186,13 +191,6 @@ export async function loadCredentialGroupCredentialListContext(
   return loadCredentialGroupContext(eq(credentialGroup.id, credentialGroupId))
 }
 
-/** Loads the workspace's single accounts container without decrypting provider settings. */
-export async function loadWorkspaceAccountsCredentialListContext(
-  workspaceId: string
-): Promise<CredentialGroupCredentialListContext | null> {
-  return loadCredentialGroupContext(eq(credentialGroup.workspaceId, workspaceId))
-}
-
 async function loadCredentialGroupContext(
   scope: SQL
 ): Promise<CredentialGroupCredentialListContext | null> {
@@ -285,6 +283,7 @@ export async function loadManagedCredentialGroupBinding(
 interface CredentialReferencePageRow {
   id: string
   email: string
+  accountEmail: string | null
   displayName: string
   providerId: string | null
   providerSubjectId: string | null
@@ -325,6 +324,7 @@ async function pageCredentialReferences(
     .select({
       id: credential.id,
       email: credentialGroupEnrollment.email,
+      accountEmail: sql<string | null>`${credential.providerMetadata}->>'email'`,
       displayName: credential.displayName,
       providerId: credential.providerId,
       providerSubjectId: credential.providerSubjectId,
@@ -396,7 +396,7 @@ export async function listCredentialGroupCredentialReferences({
   credentialProviderIds,
   credentialGroupOptionIds,
 }: ListCredentialGroupCredentialReferencesInput): Promise<{
-  credentials: CredentialGroupCredentialReference[]
+  credentials: OrganizationAccountCredentialReference[]
   nextCursor: string | null
 }> {
   if (credentialGroupOptionIds.length === 0) {
@@ -426,7 +426,15 @@ export async function listCredentialGroupCredentialReferences({
     limit,
     cursor
   )
-  return { credentials: page.rows.map(toCredentialReference), nextCursor: page.nextCursor }
+  return {
+    credentials: page.rows.map((row) => {
+      if (!row.accountEmail || !isValidEmailSyntax(row.accountEmail)) {
+        throw new Error(`Managed credential ${row.id} has no valid provider account email`)
+      }
+      return { ...toCredentialReference(row), accountEmail: row.accountEmail }
+    }),
+    nextCursor: page.nextCursor,
+  }
 }
 
 /**

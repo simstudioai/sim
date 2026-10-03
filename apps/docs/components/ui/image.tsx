@@ -1,8 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { Lightbox } from '@sim/emcn'
 import NextImage, { type ImageProps as NextImageProps } from 'next/image'
-import { Lightbox } from '@/components/ui/lightbox'
 import { cn } from '@/lib/utils'
 
 interface ImageProps extends Omit<NextImageProps, 'className'> {
@@ -17,9 +16,7 @@ export function Image({
   src,
   ...props
 }: ImageProps) {
-  const [isLightboxOpen, setIsLightboxOpen] = useState(false)
-
-  const openLightbox = () => setIsLightboxOpen(true)
+  const lightboxSrc = typeof src === 'string' ? src : 'default' in src ? src.default.src : src.src
 
   const image = (
     <NextImage
@@ -34,30 +31,17 @@ export function Image({
     />
   )
 
-  return (
-    <>
-      {enableLightbox ? (
-        <button
-          type='button'
-          onClick={openLightbox}
-          aria-label={`Open ${alt} in media viewer`}
-          className='group contents'
-        >
-          {image}
-        </button>
-      ) : (
-        image
-      )}
+  if (!enableLightbox) return image
 
-      {enableLightbox && (
-        <Lightbox
-          isOpen={isLightboxOpen}
-          onClose={() => setIsLightboxOpen(false)}
-          src={typeof src === 'string' ? src : String(src)}
-          alt={alt}
-          type='image'
-        />
-      )}
-    </>
+  return (
+    <Lightbox src={lightboxSrc} alt={alt}>
+      <button
+        type='button'
+        aria-label={`Open ${alt || 'image'} in media viewer`}
+        className='group contents'
+      >
+        {image}
+      </button>
+    </Lightbox>
   )
 }

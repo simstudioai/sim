@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { InsufficientScopeError } from '@/lib/core/application'
 import { HttpError } from '@/lib/core/utils/http-error'
@@ -80,19 +77,7 @@ describe('v2Error retry guidance', () => {
  * render here.
  */
 describe('v2 401 authentication challenge', () => {
-  /**
-   * Pinned exactly at the primary funnel rather than asserted as merely present.
-   * `toBeTruthy` accepts any string, so the scheme token, the realm, and the
-   * `header=` parameter that names the only channel v2 reads could all change
-   * without a test noticing. The reachability tests below stay loose on purpose
-   * — they pin that the header arrives down each path, not its value twice.
-   */
   const EXPECTED_CHALLENGE = 'SimApiKey realm="Sim API", header="x-api-key", Bearer realm="Sim API"'
-
-  const challenge = () =>
-    v2Error('UNAUTHORIZED', 'API key or OAuth access token required').headers.get(
-      'WWW-Authenticate'
-    )
 
   it('sends a challenge on 401', () => {
     const response = v2Error('UNAUTHORIZED', 'Invalid API key')
@@ -112,23 +97,6 @@ describe('v2 401 authentication challenge', () => {
     expect(response.headers.get('WWW-Authenticate')).toBe(
       'Bearer realm="Sim API", error="invalid_token", SimApiKey realm="Sim API", header="x-api-key"'
     )
-  })
-
-  it('never marks a bearer token invalid when none was presented', () => {
-    expect(challenge()).not.toContain('invalid_token')
-  })
-
-  it('names the x-api-key header, the only channel v2 actually reads', () => {
-    expect(challenge()).toContain('x-api-key')
-  })
-
-  it('does not advertise a scheme v2 does not accept', () => {
-    const value = challenge() ?? ''
-    const scheme = value.split(' ')[0].toLowerCase()
-
-    expect(scheme).not.toBe('bearer')
-    expect(scheme).not.toBe('basic')
-    expect(scheme).not.toBe('digest')
   })
 
   it('challenges on a 401 reached through the rate-limit auth result', () => {

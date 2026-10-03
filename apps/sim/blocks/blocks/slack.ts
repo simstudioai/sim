@@ -1,10 +1,23 @@
 import { BookOpen, ClipboardList, File, Table, Users } from '@sim/emcn/icons'
+import { omit } from '@sim/utils/object'
 import { GoogleTranslateIcon, GreptileIcon, SlackIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
+import {
+  getSlackWorkflowOperation,
+  getSlackWorkflowSubBlocks,
+  mapSlackWorkflowParams,
+  SLACK_WORKFLOW_INPUTS,
+  SLACK_WORKFLOW_OPERATIONS,
+  SLACK_WORKFLOW_SENTENCES,
+} from '@/blocks/blocks/slack-workflow-operations'
 import type { BlockConfig, BlockMeta, SubBlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
-import type { SlackResponse } from '@/tools/slack/types'
+import {
+  normalizeFileInput,
+  parseOptionalBooleanInput,
+  parseOptionalJsonInput,
+  parseOptionalNumberInput,
+} from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -21,7 +34,21 @@ const SLACK_V2_AGENT_OPERATIONS = [
   'rename_agent_session',
 ] as const
 
-const SLACK_V2_SESSION_OPERATIONS = ['set_agent_session_status', 'rename_agent_session'] as const
+const SLACK_V2_LIST_OPERATIONS = [
+  'create_list',
+  'rename_list',
+  'share_list',
+  'list_items',
+  'get_list_item',
+  'create_list_item',
+  'update_list_items',
+  'delete_list_item',
+] as const
+
+const SLACK_V2_CUSTOM_BOT_OPERATIONS = [
+  ...SLACK_V2_AGENT_OPERATIONS,
+  ...SLACK_V2_LIST_OPERATIONS,
+] as const
 
 const CHANNEL_FIELD = ['channel', 'manualChannel'] as const
 
@@ -42,7 +69,7 @@ const MESSAGE_BODY_FIELD = ['text', 'blocks'] as const
  */
 const SLACK_TRIGGER_CHANNEL_FIELD = ['channelFilter', 'manualChannelFilter'] as const
 
-export const SlackBlock: BlockConfig<SlackResponse> = {
+export const SlackBlock: BlockConfig = {
   type: 'slack',
   name: 'Slack',
   description:
@@ -711,7 +738,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
       mode: 'advanced',
       required: false,
     },
-    // Canvas specific fields
     {
       id: 'title',
       title: 'Canvas Title',
@@ -734,7 +760,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
       },
       required: true,
     },
-    // Message Reader specific fields
     {
       id: 'limit',
       title: 'Message Limit',
@@ -745,7 +770,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
         value: 'read',
       },
     },
-    // List Channels specific fields
     {
       id: 'includePrivate',
       title: 'Include Private Channels',
@@ -771,7 +795,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
       },
       mode: 'advanced',
     },
-    // List Members specific fields
     {
       id: 'memberLimit',
       title: 'Member Limit',
@@ -782,7 +805,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
         value: 'list_members',
       },
     },
-    // List Users specific fields
     {
       id: 'includeDeleted',
       title: 'Include Deactivated Users',
@@ -807,7 +829,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
         value: 'list_users',
       },
     },
-    // Pagination cursor (shared across list_channels, list_members, list_users)
     {
       id: 'paginationCursor',
       title: 'Pagination Cursor',
@@ -819,7 +840,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
       },
       mode: 'advanced',
     },
-    // Get User specific fields
     {
       id: 'userId',
       title: 'User',
@@ -850,7 +870,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
       },
       required: true,
     },
-    // Get Message specific fields
     {
       id: 'getMessageTimestamp',
       title: 'Message Timestamp',
@@ -876,7 +895,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         generationType: 'timestamp',
       },
     },
-    // Get Thread specific fields
     {
       id: 'getThreadTimestamp',
       title: 'Thread Timestamp',
@@ -918,7 +936,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         value: 'get_thread',
       },
     },
-    // Set Assistant Status specific fields
     {
       id: 'status',
       title: 'Status Text',
@@ -941,7 +958,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       required: false,
     },
-    // Set Assistant Title specific fields
     {
       id: 'assistantTitle',
       title: 'Thread Title',
@@ -953,7 +969,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       required: true,
     },
-    // Set Suggested Prompts specific fields
     {
       id: 'suggestedPrompts',
       title: 'Suggested Prompts',
@@ -991,7 +1006,6 @@ Return ONLY the JSON array - no explanations, no quotes around the array, no ext
       mode: 'advanced',
       required: false,
     },
-    // Get Channel History / Get Thread Replies shared pagination fields
     {
       id: 'historyOldest',
       title: 'Oldest Timestamp',
@@ -1090,7 +1104,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         generationType: 'timestamp',
       },
     },
-    // Download File specific fields
     {
       id: 'fileId',
       title: 'File ID',
@@ -1113,7 +1126,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         value: 'download',
       },
     },
-    // Update Message specific fields
     {
       id: 'updateTimestamp',
       title: 'Message Timestamp',
@@ -1141,7 +1153,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         and: { field: 'messageFormat', value: 'blocks', not: true },
       },
     },
-    // Delete Message specific fields
     {
       id: 'deleteTimestamp',
       title: 'Message Timestamp',
@@ -1153,7 +1164,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       required: true,
     },
-    // Add Reaction specific fields
     {
       id: 'reactionTimestamp',
       title: 'Message Timestamp',
@@ -1176,7 +1186,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       required: true,
     },
-    // Get Channel Info specific fields
     {
       id: 'includeNumMembers',
       title: 'Include Member Count',
@@ -1191,7 +1200,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         value: 'get_channel_info',
       },
     },
-    // Get User Presence specific fields
     {
       id: 'presenceUserId',
       title: 'User',
@@ -1222,7 +1230,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       required: true,
     },
-    // Edit Canvas specific fields
     {
       id: 'editCanvasId',
       title: 'Canvas ID',
@@ -1243,7 +1250,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         { label: 'Insert at End', id: 'insert_at_end' },
         { label: 'Insert After Section', id: 'insert_after' },
         { label: 'Insert Before Section', id: 'insert_before' },
-        { label: 'Replace Section', id: 'replace' },
+        { label: 'Replace Canvas or Section', id: 'replace' },
         { label: 'Delete Section', id: 'delete' },
         { label: 'Rename Canvas', id: 'rename' },
       ],
@@ -1273,7 +1280,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       id: 'sectionId',
       title: 'Section ID',
       type: 'short-input',
-      placeholder: 'Section ID to target',
+      placeholder: 'Section ID (leave empty to replace the entire canvas)',
       condition: {
         field: 'operation',
         value: 'edit_canvas',
@@ -1282,7 +1289,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
           value: ['insert_after', 'insert_before', 'replace', 'delete'],
         },
       },
-      required: true,
+      required: { field: 'canvasOperation', value: ['insert_after', 'insert_before', 'delete'] },
     },
     {
       id: 'canvasTitle',
@@ -1296,7 +1303,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       required: true,
     },
-    // Create Channel Canvas specific fields
     {
       id: 'channelCanvasTitle',
       title: 'Canvas Title',
@@ -1317,7 +1323,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         value: 'create_channel_canvas',
       },
     },
-    // Get Canvas specific fields
     {
       id: 'getCanvasId',
       title: 'Canvas ID',
@@ -1329,7 +1334,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       required: true,
     },
-    // List Canvases specific fields
     {
       id: 'canvasListCount',
       title: 'Canvas Limit',
@@ -1396,7 +1400,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       mode: 'advanced',
     },
-    // Lookup Canvas Sections specific fields
     {
       id: 'lookupCanvasId',
       title: 'Canvas ID',
@@ -1420,7 +1423,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       required: true,
     },
-    // Delete Canvas specific fields
     {
       id: 'deleteCanvasId',
       title: 'Canvas ID',
@@ -1432,7 +1434,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       required: true,
     },
-    // Create Conversation specific fields
     {
       id: 'conversationName',
       title: 'Channel Name',
@@ -1469,7 +1470,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       mode: 'advanced',
     },
-    // Invite to Conversation specific fields
     {
       id: 'inviteUsers',
       title: 'User IDs',
@@ -1496,7 +1496,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       mode: 'advanced',
     },
-    // Open View / Push View specific fields
     {
       id: 'viewTriggerId',
       title: 'Trigger ID',
@@ -1519,7 +1518,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       mode: 'advanced',
     },
-    // Update View specific fields
     {
       id: 'viewId',
       title: 'View ID',
@@ -1540,7 +1538,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         value: 'update_view',
       },
     },
-    // Update View / Publish View hash field
     {
       id: 'viewHash',
       title: 'View Hash',
@@ -1552,7 +1549,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       mode: 'advanced',
     },
-    // Publish View specific fields
     {
       id: 'publishUserId',
       title: 'User',
@@ -1583,7 +1579,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
       required: true,
     },
-    // View payload (shared across all view operations)
     {
       id: 'viewPayload',
       title: 'View Payload',
@@ -1648,7 +1643,6 @@ Do not include any explanations, markdown formatting, or other text outside the 
         placeholder: 'Describe the view/modal you want to create...',
       },
     },
-    // Schedule Message specific fields
     {
       id: 'scheduleAt',
       title: 'Send At',
@@ -1674,7 +1668,6 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
         generationType: 'timestamp',
       },
     },
-    // List Scheduled Messages specific fields
     {
       id: 'scheduledLimit',
       title: 'Message Limit',
@@ -1699,7 +1692,6 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
       mode: 'advanced',
       required: false,
     },
-    // Delete Scheduled Message specific fields
     {
       id: 'scheduledMessageId',
       title: 'Scheduled Message ID',
@@ -1711,7 +1703,6 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
       },
       required: true,
     },
-    // Rename Conversation specific fields
     {
       id: 'renameChannelName',
       title: 'New Channel Name',
@@ -1723,7 +1714,6 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
       },
       required: true,
     },
-    // Set Conversation Topic specific fields
     {
       id: 'conversationTopic',
       title: 'Topic',
@@ -1735,7 +1725,6 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
       },
       required: true,
     },
-    // Set Conversation Purpose specific fields
     {
       id: 'conversationPurpose',
       title: 'Purpose',
@@ -1971,7 +1960,6 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
           renameChannelName,
           conversationTopic,
           conversationPurpose,
-          ...rest
         } = params
 
         const isDM = destinationType === 'dm'
@@ -1991,9 +1979,8 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
           baseParams.channel = effectiveChannel
         }
 
-        // Handle authentication based on method. Custom Bot resolves to a token
-        // server-side: v2 selects a reusable bot credential; v1 pastes a raw
-        // token (kept for back-compat).
+        // Custom Bot resolves to a token server-side: v2 selects a reusable bot
+        // credential; v1 pastes a raw token (kept for back-compat).
         if (authMethod === 'bot_token') {
           if (botCredential) {
             baseParams.credential = botCredential
@@ -2001,7 +1988,6 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
             baseParams.accessToken = botToken
           }
         } else {
-          // Default to OAuth
           baseParams.credential = oauthCredential
         }
 
@@ -2226,18 +2212,14 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
             break
 
           case 'list_canvases':
-            if (canvasListCount) {
-              const parsedCount = Number.parseInt(canvasListCount, 10)
-              if (!Number.isNaN(parsedCount) && parsedCount > 0) {
-                baseParams.count = parsedCount
-              }
-            }
-            if (canvasListPage) {
-              const parsedPage = Number.parseInt(canvasListPage, 10)
-              if (!Number.isNaN(parsedPage) && parsedPage > 0) {
-                baseParams.page = parsedPage
-              }
-            }
+            baseParams.count = parseOptionalNumberInput(canvasListCount, 'Canvas Limit', {
+              integer: true,
+              min: 1,
+            })
+            baseParams.page = parseOptionalNumberInput(canvasListPage, 'Canvas Page', {
+              integer: true,
+              min: 1,
+            })
             if (canvasListUser) {
               baseParams.user = String(canvasListUser).trim()
             }
@@ -2390,7 +2372,6 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
     oldest: { type: 'string', description: 'Oldest timestamp' },
     fileId: { type: 'string', description: 'File ID to download' },
     fileName: { type: 'string', description: 'File name override for download (canonical param)' },
-    // Update/Delete/React operation inputs
     updateTimestamp: { type: 'string', description: 'Message timestamp for update' },
     updateText: { type: 'string', description: 'New text for update' },
     deleteTimestamp: { type: 'string', description: 'Message timestamp for delete' },
@@ -2400,47 +2381,35 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
     name: { type: 'string', description: 'Emoji name' },
     threadTs: { type: 'string', description: 'Thread timestamp' },
     thread_ts: { type: 'string', description: 'Thread timestamp for reply' },
-    // List Channels inputs
     includePrivate: { type: 'string', description: 'Include private channels (true/false)' },
     channelLimit: { type: 'string', description: 'Conversations to request per Slack page' },
-    // List Members inputs
     memberLimit: { type: 'string', description: 'Maximum number of members to return' },
-    // List Users inputs
     includeDeleted: { type: 'string', description: 'Include deactivated users (true/false)' },
     userLimit: { type: 'string', description: 'Maximum number of users to return' },
-    // Shared pagination input
     paginationCursor: {
       type: 'string',
       description: 'Pagination cursor (nextCursor) for list_channels/list_members/list_users',
     },
-    // Ephemeral message inputs
     ephemeralUser: { type: 'string', description: 'User ID who will see the ephemeral message' },
     blocks: { type: 'json', description: 'Block Kit layout blocks as a JSON array' },
-    // Get User inputs
     userId: { type: 'string', description: 'User ID to look up' },
-    // Get Message inputs
     getMessageTimestamp: { type: 'string', description: 'Message timestamp to retrieve' },
-    // Get Thread inputs
     getThreadTimestamp: { type: 'string', description: 'Thread timestamp to retrieve' },
     threadLimit: {
       type: 'string',
       description: 'Maximum number of messages to return from thread',
     },
-    // Set Assistant Status inputs
     status: { type: 'string', description: 'Status text to display (empty clears the status)' },
     loadingMessages: {
       type: 'json',
       description: 'Optional array of phrases to animate as a loading indicator (max 10)',
     },
-    // Set Assistant Title inputs
     assistantTitle: { type: 'string', description: 'Title to display for the assistant thread' },
-    // Set Suggested Prompts inputs
     suggestedPrompts: {
       type: 'json',
       description: 'Array of { title, message } prompt objects (max 4)',
     },
     promptsTitle: { type: 'string', description: 'Optional heading for the prompt list' },
-    // Get Channel History / Get Thread Replies inputs
     historyOldest: {
       type: 'string',
       description: 'Only include messages after this Unix timestamp',
@@ -2456,20 +2425,15 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
       type: 'string',
       description: 'Include messages matching oldest/latest (true/false)',
     },
-    // Get Channel Info inputs
     includeNumMembers: { type: 'string', description: 'Include member count (true/false)' },
-    // Get User Presence inputs
     presenceUserId: { type: 'string', description: 'User ID to check presence for' },
-    // Edit Canvas inputs
     editCanvasId: { type: 'string', description: 'Canvas ID to edit' },
     canvasOperation: { type: 'string', description: 'Canvas edit operation' },
     canvasContent: { type: 'string', description: 'Markdown content for canvas edit' },
     sectionId: { type: 'string', description: 'Canvas section ID to target' },
     canvasTitle: { type: 'string', description: 'New canvas title for rename' },
-    // Create Channel Canvas inputs
     channelCanvasTitle: { type: 'string', description: 'Title for channel canvas' },
     channelCanvasContent: { type: 'string', description: 'Content for channel canvas' },
-    // Canvas management inputs
     getCanvasId: { type: 'string', description: 'Canvas ID to retrieve' },
     canvasListCount: { type: 'string', description: 'Maximum number of canvases to return' },
     canvasListPage: { type: 'string', description: 'Canvas list page number' },
@@ -2486,14 +2450,11 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
     lookupCanvasId: { type: 'string', description: 'Canvas ID to search for sections' },
     sectionCriteria: { type: 'json', description: 'Canvas section lookup criteria' },
     deleteCanvasId: { type: 'string', description: 'Canvas ID to delete' },
-    // Create Conversation inputs
     conversationName: { type: 'string', description: 'Name for the new channel' },
     isPrivate: { type: 'string', description: 'Create as private channel (true/false)' },
     teamId: { type: 'string', description: 'Encoded team ID for org tokens' },
-    // Invite to Conversation inputs
     inviteUsers: { type: 'string', description: 'Comma-separated user IDs to invite' },
     inviteForce: { type: 'string', description: 'Skip invalid users (true/false)' },
-    // View operation inputs
     viewTriggerId: { type: 'string', description: 'Trigger ID from interaction payload' },
     viewInteractivityPointer: {
       type: 'string',
@@ -2510,31 +2471,24 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
       description: 'User ID to publish Home tab view to',
     },
     viewPayload: { type: 'json', description: 'View payload object with type, title, and blocks' },
-    // Schedule Message inputs
     scheduleAt: {
       type: 'string',
       description: 'Unix timestamp (seconds) for when the scheduled message should post',
     },
-    // List Scheduled Messages inputs
     scheduledLimit: {
       type: 'string',
       description: 'Maximum number of scheduled messages to return',
     },
     scheduledCursor: { type: 'string', description: 'Pagination cursor for scheduled messages' },
-    // Delete Scheduled Message inputs
     scheduledMessageId: { type: 'string', description: 'Scheduled message ID to delete' },
-    // Rename Conversation inputs
     renameChannelName: { type: 'string', description: 'New name for the channel' },
-    // Set Conversation Topic inputs
     conversationTopic: { type: 'string', description: 'New channel topic (max 250 characters)' },
-    // Set Conversation Purpose inputs
     conversationPurpose: {
       type: 'string',
       description: 'New channel purpose/description (max 250 characters)',
     },
   },
   outputs: {
-    // slack_message outputs (send operation)
     message: {
       type: 'json',
       description:
@@ -2549,13 +2503,11 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
     },
     files: { type: 'file[]', description: 'Files attached to the message' },
 
-    // slack_ephemeral_message outputs (ephemeral operation)
     messageTs: {
       type: 'string',
       description: 'Timestamp of the ephemeral message (cannot be used to update or delete)',
     },
 
-    // slack_canvas outputs
     canvas_id: { type: 'string', description: 'Canvas identifier for created canvases' },
     title: { type: 'string', description: 'Canvas title' },
     canvas: {
@@ -2587,14 +2539,12 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
       description: 'Agent session status recorded by Slack',
     },
 
-    // slack_message_reader outputs (read operation)
     messages: {
       type: 'json',
       description:
         'Array of message objects with comprehensive properties: text, user, timestamp, reactions, threads, files, attachments, blocks, stars, pins, and edit history',
     },
 
-    // slack_get_thread outputs (get_thread operation)
     parentMessage: {
       type: 'json',
       description: 'The thread parent message with all properties',
@@ -2613,7 +2563,6 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
         'Whether more thread messages or provider pages remain beyond the fetched window',
     },
 
-    // slack_get_channel_history / slack_get_thread_replies pagination outputs
     pages: {
       type: 'number',
       description: 'Number of provider pages fetched during a paginated read',
@@ -2623,13 +2572,11 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
       description: 'Thread timestamp an assistant status/title/prompts op was set on',
     },
 
-    // slack_get_permalink outputs (get_permalink operation)
     permalink: {
       type: 'string',
       description: 'Permalink URL to the message',
     },
 
-    // slack_list_channels outputs (list_channels operation)
     channels: {
       type: 'json',
       description:
@@ -2644,47 +2591,40 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
       description: 'Cursor for the next page (null when there are no more pages)',
     },
 
-    // slack_list_members outputs (list_members operation)
     members: {
       type: 'json',
       description: 'Array of user IDs who are members of the channel',
     },
 
-    // slack_list_users outputs (list_users operation)
     users: {
       type: 'json',
       description:
         'Array of user objects with properties: id, name, real_name, display_name, is_bot, is_admin, deleted, timezone, avatar, status_text, status_emoji',
     },
 
-    // slack_get_user outputs (get_user operation)
     user: {
       type: 'json',
       description:
         'Detailed user object with properties: id, name, real_name, display_name, first_name, last_name, title, is_bot, is_admin, deleted, timezone, avatars, status',
     },
 
-    // slack_download outputs
     file: {
       type: 'file',
       description: 'Downloaded file stored in execution files',
     },
 
-    // slack_update_message outputs (update operation)
     content: { type: 'string', description: 'Success message for update operation' },
     metadata: {
       type: 'json',
       description: 'Updated message metadata (legacy, use message object instead)',
     },
 
-    // slack_get_channel_info outputs (get_channel_info operation)
     channelInfo: {
       type: 'json',
       description:
         'Detailed channel object with properties: id, name, is_private, is_archived, is_member, num_members, topic, purpose, created, creator',
     },
 
-    // slack_get_user_presence outputs (get_user_presence operation)
     presence: {
       type: 'string',
       description: 'User presence status: "active" or "away"',
@@ -2714,21 +2654,18 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
         'Unix timestamp of last detected activity (only available when checking own presence)',
     },
 
-    // View operation outputs (open_view, update_view, push_view, publish_view)
     view: {
       type: 'json',
       description:
         'View object with properties: id, team_id, type, title, submit, close, blocks, private_metadata, callback_id, external_id, state, hash, clear_on_close, notify_on_close, root_view_id, previous_view_id, app_id, bot_id',
     },
 
-    // slack_invite_to_conversation outputs (invite_to_conversation operation)
     errors: {
       type: 'json',
       description:
         'Array of per-user error objects when force is true and some invitations failed (user, ok, error)',
     },
 
-    // slack_schedule_message outputs (schedule_message operation)
     scheduledMessageId: {
       type: 'string',
       description: 'Identifier of the scheduled message (used to delete it before it posts)',
@@ -2738,14 +2675,12 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
       description: 'Unix timestamp when a scheduled message will post',
     },
 
-    // slack_list_scheduled_messages outputs (list_scheduled_messages operation)
     scheduledMessages: {
       type: 'json',
       description:
         'Array of pending scheduled message objects with properties: id, channel_id, post_at, date_created, text',
     },
 
-    // slack_set_conversation_purpose outputs (set_conversation_purpose operation)
     purpose: {
       type: 'string',
       description: 'The purpose/description that was set on the channel',
@@ -2962,14 +2897,14 @@ function adaptSubBlockForV2(sb: SubBlockConfig): SubBlockConfig {
         serviceAccountGroup: 'Custom bots',
         serviceAccountConnect: 'Set up a custom bot',
       },
-      condition: { field: 'operation', value: [...SLACK_V2_AGENT_OPERATIONS], not: true },
+      condition: { field: 'operation', value: [...SLACK_V2_CUSTOM_BOT_OPERATIONS], not: true },
     }
   }
   if (sb.id === 'manualCredential') {
     return {
       ...rest,
       placeholder: 'Enter credential ID',
-      condition: { field: 'operation', value: [...SLACK_V2_AGENT_OPERATIONS], not: true },
+      condition: { field: 'operation', value: [...SLACK_V2_CUSTOM_BOT_OPERATIONS], not: true },
     }
   }
   if (sb.id === 'channel' || sb.id === 'manualChannel') {
@@ -2977,8 +2912,8 @@ function adaptSubBlockForV2(sb: SubBlockConfig): SubBlockConfig {
       ...sb,
       dependsOn: ['credential'],
       condition: (values?: Record<string, unknown>) => {
-        if (SLACK_V2_AGENT_OPERATIONS.includes(values?.operation as never)) {
-          return { field: 'operation', value: [...SLACK_V2_AGENT_OPERATIONS], not: true }
+        if (SLACK_V2_CUSTOM_BOT_OPERATIONS.includes(values?.operation as never)) {
+          return { field: 'operation', value: [...SLACK_V2_CUSTOM_BOT_OPERATIONS], not: true }
         }
         if (typeof condition !== 'function') {
           throw new Error(`Slack ${sb.id} condition must be a function`)
@@ -2987,7 +2922,7 @@ function adaptSubBlockForV2(sb: SubBlockConfig): SubBlockConfig {
       },
       required: {
         field: 'operation',
-        value: ['list_canvases', 'list_scheduled_messages', ...SLACK_V2_AGENT_OPERATIONS],
+        value: ['list_canvases', 'list_scheduled_messages', ...SLACK_V2_CUSTOM_BOT_OPERATIONS],
         not: true,
       },
     }
@@ -3164,17 +3099,343 @@ function getSlackV2AgentSubBlocks(): SubBlockConfig[] {
   ]
 }
 
+function mapSlackListParams(params: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {
+    credential: params.listCredentialId,
+    listId: params.listId,
+  }
+  const optional = (field: string) => {
+    const value = params[field]
+    return value === '' || value === null ? undefined : value
+  }
+  const boolean = (field: string) => {
+    const value = optional(field)
+    const parsed = parseOptionalBooleanInput(value)
+    if (parsed === undefined && value !== undefined) throw new Error(`${field} must be a boolean`)
+    return parsed
+  }
+  switch (params.operation) {
+    case 'create_list':
+      result.name = params.listName
+      result.schema = parseOptionalJsonInput(params.listSchema, 'Column Schema')
+      result.description = optional('listDescription')
+      result.todoMode = boolean('listTodoMode')
+      break
+    case 'rename_list':
+      result.name = optional('listName')
+      result.description = optional('listDescription')
+      if (params.listUpdateTodoMode && params.listUpdateTodoMode !== 'unchanged') {
+        result.todoMode = boolean('listUpdateTodoMode')
+      }
+      break
+    case 'share_list':
+      result.accessLevel = params.listAccessLevel ?? 'read'
+      switch (params.listShareTarget ?? 'users') {
+        case 'users':
+          result.userIds = parseOptionalJsonInput(params.listShareUserIds, 'User IDs')
+          break
+        case 'channels':
+          result.channelIds = parseOptionalJsonInput(params.listShareChannelIds, 'Channel IDs')
+          break
+        default:
+          throw new Error('Share With must be users or channels')
+      }
+      break
+    case 'list_items':
+      result.limit = parseOptionalNumberInput(params.listLimit, 'Page Size', {
+        integer: true,
+        min: 1,
+      })
+      result.cursor = optional('listCursor')
+      result.archived = boolean('listArchived')
+      result.includeList = boolean('listIncludeSchema')
+      break
+    case 'get_list_item':
+    case 'delete_list_item':
+      result.itemId = params.listItemId
+      break
+    case 'create_list_item':
+      result.initialFields = parseOptionalJsonInput(params.listInitialFields, 'Initial Fields')
+      result.parentItemId = optional('listParentItemId')
+      result.duplicatedItemId = optional('listDuplicatedItemId')
+      break
+    case 'update_list_items':
+      result.cells = parseOptionalJsonInput(params.listCells, 'Cells')
+      break
+    default:
+      throw new Error(`Invalid Slack List operation: ${params.operation}`)
+  }
+  return result
+}
+
+function getSlackV2ListSubBlocks(): SubBlockConfig[] {
+  return [
+    {
+      id: 'listBotCredential',
+      title: 'Custom Slack Bot',
+      type: 'oauth-input',
+      canonicalParamId: 'listCredentialId',
+      serviceId: 'slack',
+      credentialKind: 'service-account',
+      requiredScopes: getScopesForService('slack'),
+      placeholder: 'Select custom Slack bot',
+      credentialLabels: {
+        serviceAccountGroup: 'Custom bots',
+        serviceAccountConnect: 'Set up a custom bot',
+      },
+      condition: { field: 'operation', value: [...SLACK_V2_LIST_OPERATIONS] },
+      required: true,
+      mode: 'basic',
+    },
+    {
+      id: 'manualListBotCredential',
+      title: 'Custom Slack Bot Credential ID',
+      type: 'short-input',
+      canonicalParamId: 'listCredentialId',
+      placeholder: 'Enter custom bot credential ID',
+      condition: { field: 'operation', value: [...SLACK_V2_LIST_OPERATIONS] },
+      required: true,
+      mode: 'advanced',
+    },
+    {
+      id: 'listId',
+      title: 'List ID',
+      type: 'short-input',
+      placeholder: 'F0123456789 (from the Slack List URL)',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: [
+          'rename_list',
+          'share_list',
+          'list_items',
+          'get_list_item',
+          'create_list_item',
+          'update_list_items',
+          'delete_list_item',
+        ],
+      },
+    },
+    {
+      id: 'listShareTarget',
+      title: 'Share With',
+      type: 'dropdown',
+      options: [
+        { label: 'Users', id: 'users' },
+        { label: 'Channels', id: 'channels' },
+      ],
+      value: () => 'users',
+      required: true,
+      condition: { field: 'operation', value: 'share_list' },
+    },
+    {
+      id: 'listShareUserIds',
+      title: 'User IDs',
+      type: 'code',
+      language: 'json',
+      placeholder: '["U0123456789"]',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: 'share_list',
+        and: { field: 'listShareTarget', value: 'users' },
+      },
+    },
+    {
+      id: 'listShareChannelIds',
+      title: 'Channel IDs',
+      type: 'code',
+      language: 'json',
+      placeholder: '["C0123456789"]',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: 'share_list',
+        and: { field: 'listShareTarget', value: 'channels' },
+      },
+    },
+    {
+      id: 'listAccessLevel',
+      title: 'Access Level',
+      type: 'dropdown',
+      dependsOn: ['listShareTarget'],
+      options: ({ values } = { values: {} }) => [
+        { label: 'Can view', id: 'read' },
+        { label: 'Can edit', id: 'write' },
+        ...(values.listShareTarget === 'channels'
+          ? []
+          : [{ label: 'Owner (users only)', id: 'owner' }]),
+      ],
+      value: () => 'read',
+      required: true,
+      condition: { field: 'operation', value: 'share_list' },
+    },
+    {
+      id: 'listName',
+      title: 'Name',
+      type: 'short-input',
+      required: { field: 'operation', value: 'create_list' },
+      condition: { field: 'operation', value: ['create_list', 'rename_list'] },
+    },
+    {
+      id: 'listItemId',
+      title: 'Row ID',
+      type: 'short-input',
+      placeholder: 'Rec0123456789',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: ['get_list_item', 'delete_list_item'],
+      },
+    },
+    {
+      id: 'listInitialFields',
+      title: 'Initial Fields',
+      type: 'code',
+      language: 'json',
+      placeholder:
+        '[{"column_id":"Col...","rich_text":[{"type":"rich_text","elements":[{"type":"rich_text_section","elements":[{"type":"text","text":"New task"}]}]}]}]',
+      condition: { field: 'operation', value: 'create_list_item' },
+      wandConfig: {
+        enabled: true,
+        generationType: 'json-object',
+        prompt:
+          'Return a JSON array of Slack List initial_fields. Use real column_id values supplied by the user or schema. Text cells use Block Kit rich_text arrays, number/date/select/user are arrays, checkbox is a boolean. Never invent column IDs.',
+      },
+    },
+    {
+      id: 'listCells',
+      title: 'Cells',
+      type: 'code',
+      language: 'json',
+      required: true,
+      placeholder: '[{"row_id":"Rec...","column_id":"Col...","checkbox":true}]',
+      condition: { field: 'operation', value: 'update_list_items' },
+      wandConfig: {
+        enabled: true,
+        generationType: 'json-object',
+        prompt:
+          'Return a JSON array of Slack List cell updates. Each needs a real row_id, column_id and one typed value. Text uses Block Kit rich_text arrays; checkbox is a boolean. Never invent IDs.',
+      },
+    },
+    {
+      id: 'listSchema',
+      title: 'Column Schema',
+      type: 'code',
+      language: 'json',
+      placeholder: '[{"key":"title","name":"Title","type":"text","is_primary_column":true}]',
+      condition: { field: 'operation', value: 'create_list' },
+      wandConfig: {
+        enabled: true,
+        generationType: 'json-object',
+        prompt:
+          'Return Slack List column definitions as a JSON array with key, name, type, optional is_primary_column and options. Only one text column may be primary. Select options use choices with value, label and color.',
+      },
+    },
+    {
+      id: 'listDescription',
+      title: 'Description',
+      type: 'long-input',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_list', 'rename_list'] },
+    },
+    {
+      id: 'listUpdateTodoMode',
+      title: 'Task Tracking Fields',
+      type: 'dropdown',
+      options: [
+        { id: 'unchanged', label: 'Leave unchanged' },
+        { id: 'true', label: 'Enable' },
+        { id: 'false', label: 'Disable' },
+      ],
+      value: () => 'unchanged',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'rename_list' },
+    },
+    {
+      id: 'listTodoMode',
+      title: 'Task Tracking Fields',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_list' },
+    },
+    {
+      id: 'listParentItemId',
+      title: 'Parent Row ID',
+      type: 'short-input',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_list_item' },
+    },
+    {
+      id: 'listDuplicatedItemId',
+      title: 'Duplicate Row ID',
+      type: 'short-input',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'create_list_item' },
+    },
+    {
+      id: 'listLimit',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '100',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_items' },
+    },
+    {
+      id: 'listCursor',
+      title: 'Cursor',
+      type: 'short-input',
+      placeholder: 'nextCursor from the previous page',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_items' },
+    },
+    {
+      id: 'listArchived',
+      title: 'Archived Rows',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_items' },
+    },
+    {
+      id: 'listIncludeSchema',
+      title: 'Include List Schema',
+      type: 'switch',
+      defaultValue: true,
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_items' },
+    },
+  ]
+}
+
 export function getSlackV2ActionSubBlocks(): SubBlockConfig[] {
   const sharedSubBlocks = SlackBlock.subBlocks.flatMap((sb) => {
     if (SLACK_WEBHOOK_TRIGGER_SUBBLOCK_IDS.has(sb.id)) return []
     if (sb.id === 'operation' || sb.id === 'authMethod') return []
-    return [adaptSubBlockForV2(sb)]
+    const adapted = adaptSubBlockForV2(sb)
+    const originalCondition = adapted.condition
+    return [
+      {
+        ...adapted,
+        condition: (values?: Record<string, unknown>) => {
+          const exclusion = {
+            field: 'operation',
+            value: SLACK_WORKFLOW_OPERATIONS.map(({ id }) => id),
+            not: true,
+          }
+          if (getSlackWorkflowOperation(values?.operation)) return exclusion
+          return typeof originalCondition === 'function'
+            ? originalCondition(values)
+            : (originalCondition ?? exclusion)
+        },
+      },
+    ]
   })
-  return [...sharedSubBlocks, ...getSlackV2AgentSubBlocks()]
-}
-
-export function getSlackV2ToolAccess(): string[] {
-  return [...SlackV2Block.tools.access]
+  return [
+    ...sharedSubBlocks,
+    ...getSlackV2AgentSubBlocks(),
+    ...getSlackV2ListSubBlocks(),
+    ...getSlackWorkflowSubBlocks(),
+  ]
 }
 
 export function getSlackV2OperationSentences() {
@@ -3184,6 +3445,28 @@ export function getSlackV2OperationSentences() {
   }
   return {
     ...operationSentences,
+    ...SLACK_WORKFLOW_SENTENCES,
+    create_list: [{ text: 'Create list', field: 'listName', core: true }],
+    rename_list: [
+      { text: 'Update list', field: 'listId', core: true },
+      { text: 'to', field: 'listName' },
+    ],
+    share_list: [
+      { text: 'Share list', field: 'listId', core: true },
+      { text: 'with', field: ['listShareUserIds', 'listShareChannelIds'], core: true },
+    ],
+    list_items: [{ text: 'Read rows from', field: 'listId', core: true }],
+    get_list_item: [
+      { text: 'Read row', field: 'listItemId', core: true },
+      { text: 'in', field: 'listId', core: true },
+    ],
+    create_list_item: [{ text: 'Create a row in', field: 'listId', core: true }],
+    update_list_items: [{ text: 'Update cells in', field: 'listId', core: true }],
+    delete_list_item: [
+      { text: 'Delete row', field: 'listItemId', core: true },
+      { text: 'from', field: 'listId', core: true },
+    ],
+
     set_agent_suggested_prompts: [
       {
         text: 'Set agent suggested prompts in',
@@ -3211,19 +3494,15 @@ const {
 } = SlackBlock.inputs
 
 /**
- * slack_v2 — the go-forward Slack action block. Identical operations, tools, and
- * outputs to v1 (shared by reference), but auth is a single credential picker
- * listing Sim OAuth accounts and reusable custom bots together — the credential's
- * kind is resolved server-side, so no auth-method choice is needed. Also hosts
- * the redesigned slack_oauth trigger (v1 keeps the legacy slack_webhook).
+ * Slack actions and triggers with reusable credentials. App-scoped operations use
+ * custom bots with the required scopes.
  */
-export const SlackV2Block: BlockConfig<SlackResponse> = {
+export const SlackV2Block: BlockConfig = {
   ...SlackBlock,
   type: 'slack_v2',
-  description:
-    'Send and manage Slack messages, Agent Sessions, streamed replies, views, reactions, conversations, and canvases',
+  description: 'Manage Slack messages, channels, users, files, Lists, canvases, and Agent Sessions',
   longDescription:
-    'Integrate Slack messaging and administration into a workflow. Custom Slack bots can manage Agent Sessions, stream incremental Markdown or structured chunks, react to Agent Session events, and configure Agent View suggested prompts. Standard messaging and management operations support both the Sim app and custom bot credentials.',
+    'Build Slack workflows with messages, conversations, files, reactions, pins, bookmarks, user groups, profiles, Lists, canvases, and Agent Sessions. Operations that need additional app scopes use custom Slack bots. Lists require lists:read/lists:write and a paid Slack plan. Native Sim connections retain their existing permissions. Page through list outputs explicitly.',
   hideFromToolbar: false,
   sunset: undefined,
   canvasPresentation: {
@@ -3290,6 +3569,15 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
         { label: 'List Canvases', id: 'list_canvases' },
         { label: 'Lookup Canvas Sections', id: 'lookup_canvas_sections' },
         { label: 'Delete Canvas', id: 'delete_canvas' },
+        { label: 'Create List', id: 'create_list' },
+        { label: 'Update List', id: 'rename_list' },
+        { label: 'Share List', id: 'share_list' },
+        { label: 'Read List Items', id: 'list_items' },
+        { label: 'Get List Item', id: 'get_list_item' },
+        { label: 'Create List Item', id: 'create_list_item' },
+        { label: 'Update List Items', id: 'update_list_items' },
+        { label: 'Delete List Item', id: 'delete_list_item' },
+
         { label: 'Create Conversation', id: 'create_conversation' },
         { label: 'Invite to Conversation', id: 'invite_to_conversation' },
         { label: 'Open View', id: 'open_view' },
@@ -3303,6 +3591,48 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
         { label: 'Rename Conversation', id: 'rename_conversation' },
         { label: 'Set Conversation Topic', id: 'set_conversation_topic' },
         { label: 'Set Conversation Purpose', id: 'set_conversation_purpose' },
+        { label: 'Revoke List Access', id: 'revoke_list_access' },
+        { label: 'Start List Export', id: 'start_list_export' },
+        { label: 'Get List Export', id: 'get_list_export' },
+        { label: 'Delete List Items', id: 'delete_list_items' },
+        { label: 'Share Canvas', id: 'share_canvas' },
+        { label: 'Revoke Canvas Access', id: 'revoke_canvas_access' },
+        { label: 'Join Conversation', id: 'join_conversation' },
+        { label: 'Leave Conversation', id: 'leave_conversation' },
+        { label: 'Remove User from Conversation', id: 'kick_conversation' },
+        { label: 'Unarchive Conversation', id: 'unarchive_conversation' },
+        { label: 'Close Conversation', id: 'close_conversation' },
+        { label: 'Mark Conversation Read', id: 'mark_conversation_read' },
+        { label: 'Open Conversation', id: 'open_conversation' },
+        { label: 'Find User by Email', id: 'lookup_user_by_email' },
+        { label: 'List User Conversations', id: 'list_user_conversations' },
+        { label: 'Get User Profile', id: 'get_user_profile' },
+        { label: 'Set Bot Presence', id: 'set_user_presence' },
+        { label: 'Get File Info', id: 'get_file_info' },
+        { label: 'List Files', id: 'list_files' },
+        { label: 'Delete File', id: 'delete_file' },
+        { label: 'Get Reactions', id: 'get_reactions' },
+        { label: 'List Reactions', id: 'list_reactions' },
+        { label: 'Pin Message', id: 'pin_message' },
+        { label: 'Unpin Message', id: 'unpin_message' },
+        { label: 'List Pins', id: 'list_pins' },
+        { label: 'Add Bookmark', id: 'add_bookmark' },
+        { label: 'Edit Bookmark', id: 'edit_bookmark' },
+        { label: 'List Bookmarks', id: 'list_bookmarks' },
+        { label: 'Remove Bookmark', id: 'remove_bookmark' },
+        { label: 'Create User Group', id: 'create_user_group' },
+        { label: 'Update User Group', id: 'update_user_group' },
+        { label: 'Enable User Group', id: 'enable_user_group' },
+        { label: 'Disable User Group', id: 'disable_user_group' },
+        { label: 'List User Groups', id: 'list_user_groups' },
+        { label: 'List User Group Members', id: 'list_user_group_members' },
+        { label: 'Update User Group Members', id: 'update_user_group_members' },
+        { label: 'Get Do Not Disturb Info', id: 'get_dnd_info' },
+        { label: 'Get Team Do Not Disturb Info', id: 'get_team_dnd_info' },
+        { label: 'List Custom Emoji', id: 'list_emoji' },
+        { label: 'Get Workspace Info', id: 'get_team_info' },
+        { label: 'Get Workspace Profile Fields', id: 'get_team_profile' },
+        { label: 'Unfurl Links', id: 'unfurl_links' },
       ],
       value: () => 'send',
     },
@@ -3344,6 +3674,15 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
       'slack_list_canvases',
       'slack_lookup_canvas_sections',
       'slack_delete_canvas',
+      'slack_lists_create',
+      'slack_lists_update',
+      'slack_lists_access_set',
+      'slack_lists_items_list',
+      'slack_lists_items_info',
+      'slack_lists_items_create',
+      'slack_lists_items_update',
+      'slack_lists_items_delete',
+
       'slack_create_conversation',
       'slack_invite_to_conversation',
       'slack_open_view',
@@ -3357,10 +3696,71 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
       'slack_rename_conversation',
       'slack_set_conversation_topic',
       'slack_set_conversation_purpose',
+      'slack_lists_access_delete',
+      'slack_lists_download_start',
+      'slack_lists_download_get',
+      'slack_lists_items_delete_multiple',
+      'slack_share_canvas',
+      'slack_revoke_canvas_access',
+      'slack_join_conversation',
+      'slack_leave_conversation',
+      'slack_kick_conversation',
+      'slack_unarchive_conversation',
+      'slack_close_conversation',
+      'slack_mark_conversation_read',
+      'slack_open_conversation',
+      'slack_lookup_user_by_email',
+      'slack_list_user_conversations',
+      'slack_get_user_profile',
+      'slack_set_user_presence',
+      'slack_get_file_info',
+      'slack_list_files',
+      'slack_delete_file',
+      'slack_get_reactions',
+      'slack_list_reactions',
+      'slack_pin_message',
+      'slack_unpin_message',
+      'slack_list_pins',
+      'slack_add_bookmark',
+      'slack_edit_bookmark',
+      'slack_list_bookmarks',
+      'slack_remove_bookmark',
+      'slack_create_user_group',
+      'slack_update_user_group',
+      'slack_enable_user_group',
+      'slack_disable_user_group',
+      'slack_list_user_groups',
+      'slack_list_user_group_members',
+      'slack_update_user_group_members',
+      'slack_get_dnd_info',
+      'slack_get_team_dnd_info',
+      'slack_list_emoji',
+      'slack_get_team_info',
+      'slack_get_team_profile',
+      'slack_unfurl_links',
     ],
     config: {
       tool: (params) => {
+        const operation = getSlackWorkflowOperation(params.operation)
+        if (operation) return operation.tool
         switch (params.operation) {
+          case 'create_list':
+            return 'slack_lists_create'
+          case 'rename_list':
+            return 'slack_lists_update'
+          case 'share_list':
+            return 'slack_lists_access_set'
+          case 'list_items':
+            return 'slack_lists_items_list'
+          case 'get_list_item':
+            return 'slack_lists_items_info'
+          case 'create_list_item':
+            return 'slack_lists_items_create'
+          case 'update_list_items':
+            return 'slack_lists_items_update'
+          case 'delete_list_item':
+            return 'slack_lists_items_delete'
+
           case 'set_suggested_prompts':
             return 'slack_set_suggested_prompts'
           case 'set_agent_suggested_prompts':
@@ -3377,6 +3777,11 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
         }
       },
       params: (params) => {
+        const operation = getSlackWorkflowOperation(params.operation)
+        if (operation) return mapSlackWorkflowParams(operation, params)
+        if (SLACK_V2_LIST_OPERATIONS.includes(params.operation as never)) {
+          return mapSlackListParams(params)
+        }
         const mapParams = SlackBlock.tools.config?.params
         if (!mapParams) throw new Error('Slack parameter mapper is required')
         const baseParams = mapParams(params)
@@ -3401,6 +3806,34 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
   },
   inputs: {
     ...slackV2Inputs,
+    ...SLACK_WORKFLOW_INPUTS,
+    listCredentialId: { type: 'string', description: 'Custom Slack bot credential' },
+    listId: { type: 'string', description: 'Slack List ID' },
+    listItemId: { type: 'string', description: 'Slack row ID' },
+    listName: { type: 'string', description: 'List name' },
+    listShareTarget: { type: 'string', description: 'Share with users or channels' },
+    listShareUserIds: { type: 'json', description: 'Slack user IDs to grant List access' },
+    listShareChannelIds: { type: 'json', description: 'Slack channel IDs to grant List access' },
+    listAccessLevel: {
+      type: 'string',
+      description: 'List access: read, write, or owner (users only)',
+    },
+    listSchema: { type: 'json', description: 'Column definitions' },
+    listInitialFields: { type: 'json', description: 'Initial typed cell values' },
+    listCells: { type: 'json', description: 'Typed cell updates with row_id and column_id' },
+    listDescription: { type: 'string', description: 'List description' },
+    listTodoMode: { type: 'boolean', description: 'Add task tracking columns' },
+    listUpdateTodoMode: {
+      type: 'string',
+      description: 'Leave task tracking unchanged, enable, or disable',
+    },
+    listParentItemId: { type: 'string', description: 'Parent row for a subtask' },
+    listDuplicatedItemId: { type: 'string', description: 'Row to copy' },
+    listLimit: { type: 'number', description: 'Page size' },
+    listCursor: { type: 'string', description: 'Pagination cursor' },
+    listArchived: { type: 'boolean', description: 'Read archived rows' },
+    listIncludeSchema: { type: 'boolean', description: 'Include List schema' },
+
     oauthCredential: { type: 'string', description: 'Slack credential (OAuth account or bot)' },
     agentCredentialId: { type: 'string', description: 'Custom Slack bot credential ID' },
     agentChannelId: { type: 'string', description: 'Agent session channel ID' },
@@ -3411,6 +3844,66 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
     agentIconEmoji: { type: 'string', description: 'Custom agent icon emoji' },
     agentIconUrl: { type: 'string', description: 'Custom agent icon URL' },
     agentUsername: { type: 'string', description: 'Custom agent display name' },
+  },
+  outputs: {
+    ...omit(SlackBlock.outputs, ['visualization']),
+    profile: { type: 'json', description: 'User profile or workspace custom profile fields' },
+    usergroups: { type: 'json', description: 'User groups' },
+    usergroup: { type: 'json', description: 'Created or updated user group' },
+    users: { type: 'json', description: 'User IDs or a map of user IDs to Do Not Disturb state' },
+    bookmarks: { type: 'json', description: 'Channel bookmarks' },
+    bookmark: { type: 'json', description: 'Created or edited bookmark' },
+    emoji: { type: 'json', description: 'Custom emoji names mapped to image URLs or aliases' },
+    team: { type: 'json', description: 'Workspace details' },
+    job_id: { type: 'string', description: 'List export job ID' },
+    status: { type: 'string', description: 'List export job status' },
+    download_url: { type: 'string', description: 'List export download URL when ready' },
+    response_metadata: { type: 'json', description: 'Pagination metadata including next_cursor' },
+    dnd_enabled: { type: 'boolean', description: 'Whether Do Not Disturb is enabled' },
+    next_dnd_start_ts: { type: 'number', description: 'Next Do Not Disturb start timestamp' },
+    next_dnd_end_ts: { type: 'number', description: 'Next Do Not Disturb end timestamp' },
+    snooze_enabled: { type: 'boolean', description: 'Whether notification snooze is enabled' },
+    snooze_endtime: { type: 'number', description: 'Snooze end timestamp' },
+    snooze_remaining: { type: 'number', description: 'Seconds remaining in snooze' },
+    snooze_is_indefinite: { type: 'boolean', description: 'Whether snooze is indefinite' },
+    type: { type: 'string', description: 'Type of reacted-to item' },
+    comment: { type: 'json', description: 'File comment with reactions' },
+    comments: {
+      type: 'json',
+      description: 'File comments (id, comment, user, created, timestamp)',
+    },
+    messages: {
+      type: 'json',
+      description: 'Conversation messages',
+    },
+    fileMetadata: {
+      type: 'json',
+      description: 'Slack file metadata (id, name, title, mimetype, permalink)',
+    },
+    conversation: {
+      type: 'json',
+      description: 'Opened or joined conversation details (id, name, is_im, is_mpim)',
+    },
+
+    listId: { type: 'string', description: 'Created List ID' },
+    schema: {
+      type: 'json',
+      description: 'Created column schema (id, key, name, type, options); null when Slack omits it',
+    },
+    list: {
+      type: 'json',
+      description: 'List metadata (id, title, schema); null when not included',
+    },
+    items: {
+      type: 'json',
+      description: 'List rows, pinned items, or reacted-to items, depending on the operation',
+    },
+    item: {
+      type: 'json',
+      description: 'One row (id, list_id, fields, timestamps, parent_record_id)',
+    },
+    nextCursor: { type: 'string', description: 'Continuation cursor; empty or null when finished' },
+    ok: { type: 'boolean', description: 'Whether Slack completed the operation' },
   },
   triggers: {
     enabled: true,

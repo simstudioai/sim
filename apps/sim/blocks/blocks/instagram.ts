@@ -3,7 +3,6 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { InstagramResponse } from '@/tools/instagram/types'
 
 const IG_USER_ID_OPS = [
   'instagram_list_media',
@@ -82,7 +81,7 @@ const STORY_MEDIA_FIELD = ['storyMediaUpload', 'storyMediaRef'] as const
 /** Carousel children, uploaded or referenced by URL. */
 const CAROUSEL_MEDIA_FIELD = ['carouselMediaUpload', 'carouselMediaRef'] as const
 
-export const InstagramBlock: BlockConfig<InstagramResponse> = {
+export const InstagramBlock: BlockConfig = {
   type: 'instagram',
   name: 'Instagram',
   description: 'Publish and download content, moderate comments, and manage Instagram DMs',

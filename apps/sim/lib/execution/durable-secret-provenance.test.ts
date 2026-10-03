@@ -1,19 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockIsEnforced, mockReport } = vi.hoisted(() => ({
-  mockIsEnforced: vi.fn(() => false),
-  mockReport: vi.fn(),
-}))
-
-vi.mock('@/lib/execution/durable-secret-provenance-enforcement', () => ({
-  DURABLE_SECRET_PROVENANCE_SURFACES: ['memory', 'table-row', 'knowledge'],
-  isDurableSecretProvenanceEnforced: mockIsEnforced,
-  reportUnrecordedDurableProvenance: mockReport,
-}))
-
+import { describe, expect, it, vi } from 'vitest'
 import {
   durableSecretProvenanceFromPrivateBundle,
   filterDurableSecretProvenanceBySourceValues,
@@ -273,39 +258,10 @@ describe('private durable provenance scope admission', () => {
 describe('importing unrecorded durable provenance', () => {
   const UNKNOWN = { status: 'unknown' } as const
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockIsEnforced.mockReturnValue(false)
-  })
-
-  it('warns and leaves the registry able to vouch when the surface is not enforced', async () => {
+  it('refuses unknown provenance at the shared import boundary', async () => {
     const registry = new ResolvedSecretTraceRegistry()
 
-    await expect(
-      importDurableSecretProvenance(registry, UNKNOWN, undefined, 'memory')
-    ).resolves.toBe(true)
-    expect(registry.isPermanentlyIncomplete()).toBe(false)
-    expect(mockReport).toHaveBeenCalledWith({
-      surface: 'memory',
-      cause: 'durable-provenance-unknown',
-    })
-  })
-
-  it('latches the registry once that surface is closed', async () => {
-    mockIsEnforced.mockReturnValue(true)
-    const registry = new ResolvedSecretTraceRegistry()
-
-    await expect(
-      importDurableSecretProvenance(registry, UNKNOWN, undefined, 'memory')
-    ).resolves.toBe(false)
-    expect(registry.isPermanentlyIncomplete()).toBe(true)
-    expect(mockReport).not.toHaveBeenCalled()
-  })
-
-  it('latches for a caller that has not declared a surface', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
-
-    await expect(importDurableSecretProvenance(registry, UNKNOWN)).resolves.toBe(false)
+    await expect(importDurableSecretProvenance(registry, UNKNOWN, undefined)).resolves.toBe(false)
     expect(registry.isPermanentlyIncomplete()).toBe(true)
   })
 
@@ -313,10 +269,7 @@ describe('importing unrecorded durable provenance', () => {
     const registry = new ResolvedSecretTraceRegistry()
     const malformed = { status: 'exact', entries: [{ encryptedValue: '' }] } as never
 
-    await expect(
-      importDurableSecretProvenance(registry, malformed, undefined, 'memory')
-    ).resolves.toBe(false)
+    await expect(importDurableSecretProvenance(registry, malformed, undefined)).resolves.toBe(false)
     expect(registry.isPermanentlyIncomplete()).toBe(true)
-    expect(mockReport).not.toHaveBeenCalled()
   })
 })

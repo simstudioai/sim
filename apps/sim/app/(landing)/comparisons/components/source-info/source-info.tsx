@@ -28,7 +28,7 @@ export function SourceLink({ source, children, className }: SourceLinkProps) {
           href={source.url}
           target='_blank'
           rel='noopener noreferrer'
-          className={cn('block min-w-0', className)}
+          className={cn('relative block min-w-0', className)}
         >
           {children}
           <span className='sr-only'> (source: {source.label}, opens in a new tab)</span>

@@ -71,6 +71,12 @@ Controls how long **Chat data** is kept, including:
 - Run checkpoints and async tool calls
 - Inbox tasks
 
+### Previous file versions
+
+Every change to a file's content keeps the previous content as a version you can read or revert to through the API, CLI, or MCP server. This setting controls how long a version is kept after a newer one replaces it. The newest ten versions of each file are always kept, whatever their age.
+
+Without a setting, previous versions are kept until a file reaches 500 of them. The setting isn't on the settings page yet: set `fileVersionRetentionHours` through the data retention API, either for the organization or in a workspace override.
+
 Each setting is independent. You can configure a short log retention period alongside a long soft deletion cleanup period, or any combination that fits your compliance requirements.
 
 ---
@@ -186,16 +192,17 @@ Once enabled, retention settings are configurable through **Settings → Organiz
 
 ### Scheduling the deletion pass
 
-`DATA_RETENTION_ENABLED` permits deletion; it does not perform it. Deletion runs when a scheduled request reaches one of three endpoints, each authenticated with a bearer token equal to `CRON_SECRET`:
+`DATA_RETENTION_ENABLED` permits deletion; it does not perform it. Deletion runs when a scheduled request reaches one of four endpoints, each authenticated with a bearer token equal to `CRON_SECRET`:
 
 | Category | Endpoint |
 |----------|----------|
 | Execution and job logs | `GET /api/logs/cleanup` |
 | Soft-deleted resources | `GET /api/cron/cleanup-soft-deletes` |
 | Chats and Chat runs | `GET /api/cron/cleanup-tasks` |
+| Previous file versions | `GET /api/cron/cleanup-file-versions` |
 
 <Callout type="warn">
-Neither shipped deployment schedules these three endpoints — not the Helm chart, not Docker Compose's `cron` service. An operator who sets `DATA_RETENTION_ENABLED=true` alone still deletes nothing. Add them to `cronjobs.jobs`, or call them daily from an external scheduler.
+Neither shipped deployment schedules these four endpoints — not the Helm chart, not Docker Compose's `cron` service. An operator who sets `DATA_RETENTION_ENABLED=true` alone still deletes nothing. Add them to `cronjobs.jobs`, or call them daily from an external scheduler.
 </Callout>
 
 ```bash
