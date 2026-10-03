@@ -66,6 +66,8 @@ export { ChipSelect, type ChipSelectOption } from './chip-select/chip-select'
 export { ChipSwitch } from './chip-switch/chip-switch'
 export { ChipTag, chipTagVariants } from './chip-tag/chip-tag'
 export { ChipTextarea } from './chip-textarea/chip-textarea'
+/** @public The documented time sibling of `ChipDatePicker`; consumers import it from the barrel. */
+export { ChipTimePicker } from './chip-time-picker/chip-time-picker'
 export {
   CODE_LINE_HEIGHT_PX,
   Code,
