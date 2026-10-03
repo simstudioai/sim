@@ -1,9 +1,9 @@
 import type { ToolResponse } from '@/tools/types'
 
 /**
- * User-selectable token hosts, mirroring `SAP_CONCUR_ALLOWED_DATACENTERS` in
- * `app/api/tools/sap_concur/shared.ts`. Every datacenter is published twice — the bare
- * host and its `www-` twin — except GLZ, which has no twin.
+ * User-selectable token hosts, mirroring `SAP_CONCUR_ALLOWED_DATACENTERS` in the direct
+ * operation schema. Every datacenter is published twice — the bare host and its `www-`
+ * twin — except GLZ, which has no twin.
  */
 export type SapConcurDatacenter =
   | 'us.api.concursolutions.com'
@@ -37,13 +37,13 @@ export interface SapConcurBaseParams {
   companyUuid?: string
 }
 
-interface ProxyOutput {
+interface SapConcurOutput {
   status: number
   data: unknown
 }
 
-export interface SapConcurProxyResponse extends ToolResponse {
-  output: ProxyOutput
+export interface SapConcurResponse extends ToolResponse {
+  output: SapConcurOutput
 }
 
 export interface ListExpenseReportsParams extends SapConcurBaseParams {

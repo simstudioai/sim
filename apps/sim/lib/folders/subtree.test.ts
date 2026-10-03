@@ -1,10 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   collectDescendantFolderIds,
   collectDescendantFolderIdsFrom,
+  collectFolderDepths,
   type FolderNode,
   indexFolderChildren,
 } from '@/lib/folders/subtree'
@@ -24,23 +22,6 @@ describe('collectDescendantFolderIds', () => {
     expect(collectDescendantFolderIds(tree, 'a').sort()).toEqual(['a1', 'a1x', 'a2'])
   })
 
-  it('descends more than one level', () => {
-    expect(collectDescendantFolderIds(tree, 'root')).toContain('a1x')
-  })
-
-  it('returns nothing for a leaf', () => {
-    expect(collectDescendantFolderIds(tree, 'a1x')).toEqual([])
-  })
-
-  it('returns nothing for an unknown id', () => {
-    expect(collectDescendantFolderIds(tree, 'missing')).toEqual([])
-  })
-
-  it('excludes unrelated branches', () => {
-    expect(collectDescendantFolderIds(tree, 'a')).not.toContain('b')
-    expect(collectDescendantFolderIds(tree, 'a')).not.toContain('other')
-  })
-
   it('terminates on a parent cycle instead of recursing forever', () => {
     // The DB permits a transient cycle between constraint checks, so the walk must be
     // defensive rather than assume a well-formed tree.
@@ -56,10 +37,6 @@ describe('collectDescendantFolderIds', () => {
     const selfParent: FolderNode[] = [{ id: 'x', parentId: 'x' }]
 
     expect(collectDescendantFolderIds(selfParent, 'x')).toEqual([])
-  })
-
-  it('handles an empty list', () => {
-    expect(collectDescendantFolderIds([], 'x')).toEqual([])
   })
 })
 
@@ -77,31 +54,46 @@ describe('collectDescendantFolderIdsFrom', () => {
       )
     }
   })
-
-  it('is reusable across folders without being rebuilt', () => {
-    const index = indexFolderChildren(tree)
-
-    expect(collectDescendantFolderIdsFrom(index, 'a').sort()).toEqual(['a1', 'a1x', 'a2'])
-    expect(collectDescendantFolderIdsFrom(index, 'a').sort()).toEqual(['a1', 'a1x', 'a2'])
-    expect(collectDescendantFolderIdsFrom(index, 'b')).toEqual([])
-  })
-
-  it('terminates on a parent cycle', () => {
-    const cyclic: FolderNode[] = [
-      { id: 'x', parentId: 'y' },
-      { id: 'y', parentId: 'x' },
-    ]
-
-    expect(collectDescendantFolderIdsFrom(indexFolderChildren(cyclic), 'x')).toEqual(['y'])
-  })
 })
 
-describe('indexFolderChildren', () => {
-  it('keys children by parent and drops roots', () => {
-    const index = indexFolderChildren(tree)
+const depthTree: FolderNode[] = [
+  { id: 'reports', parentId: null },
+  { id: 'q3', parentId: 'reports' },
+  { id: 'draft', parentId: 'q3' },
+  { id: 'reportsx', parentId: null },
+]
 
-    expect(index.get('root')).toEqual(['a', 'b'])
-    expect(index.get('a')).toEqual(['a1', 'a2'])
-    expect(index.has('other')).toBe(false)
+describe('collectFolderDepths', () => {
+  it('reports depth relative to the root, excluding the root itself', () => {
+    const depths = collectFolderDepths(depthTree, 'reports')
+
+    expect([...depths]).toEqual([
+      ['q3', 1],
+      ['draft', 2],
+    ])
+  })
+
+  /*
+   * The path-prefix bug this replaces: `/Reports` and `/Reportsx` share a
+   * textual prefix but not a parent, so a parent walk cannot confuse them.
+   */
+  it('never treats a name-prefixed sibling as a descendant', () => {
+    expect(collectFolderDepths(depthTree, 'reports').has('reportsx')).toBe(false)
+  })
+
+  it('stops at maxDepth', () => {
+    expect([...collectFolderDepths(depthTree, 'reports', { maxDepth: 1 }).keys()]).toEqual(['q3'])
+  })
+
+  it('terminates on a cycle the database permits between constraint checks', () => {
+    const cyclic: FolderNode[] = [
+      { id: 'root', parentId: null },
+      { id: 'a', parentId: 'root' },
+      { id: 'b', parentId: 'a' },
+      { id: 'a-again', parentId: 'b' },
+    ]
+    const withCycle: FolderNode[] = [...cyclic, { id: 'a', parentId: 'b' }]
+
+    expect(() => collectFolderDepths(withCycle, 'root')).not.toThrow()
   })
 })

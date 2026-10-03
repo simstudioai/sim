@@ -1,7 +1,7 @@
 import type { MySQLResponse, MySQLUpdateParams } from '@/tools/mysql/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const updateTool: ToolConfig<MySQLUpdateParams, MySQLResponse> = {
+export const updateTool: InternalToolConfig<MySQLUpdateParams, MySQLResponse> = {
   id: 'mysql_update',
   name: 'MySQL Update',
   description: 'Update existing records in MySQL database',
@@ -64,13 +64,8 @@ export const updateTool: ToolConfig<MySQLUpdateParams, MySQLResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/mysql/update',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

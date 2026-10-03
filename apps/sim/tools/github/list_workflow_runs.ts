@@ -12,7 +12,7 @@ export const listWorkflowRunsTool: ToolConfig<ListWorkflowRunsParams, ListWorkfl
   id: 'github_list_workflow_runs',
   name: 'GitHub List Workflow Runs',
   description:
-    'List workflow runs for a repository. Supports filtering by actor, branch, event, and status. Returns run details including status, conclusion, and links.',
+    'List workflow runs for a repository, or for a single workflow when a workflow ID or filename is given. Supports filtering by actor, branch, event, and status. Returns run details including status, conclusion, and links.',
   version: '1.0.0',
 
   params: {
@@ -27,6 +27,13 @@ export const listWorkflowRunsTool: ToolConfig<ListWorkflowRunsParams, ListWorkfl
       required: true,
       visibility: 'user-or-llm',
       description: 'Repository name',
+    },
+    workflow_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'The ID of the workflow. You can also pass the workflow file name as a string (e.g., ci.yml). Omit to list runs across the whole repository.',
     },
     actor: {
       type: 'string',
@@ -76,8 +83,20 @@ export const listWorkflowRunsTool: ToolConfig<ListWorkflowRunsParams, ListWorkfl
 
   request: {
     url: (params) => {
+      /**
+       * A workflow id or filename selects the per-workflow endpoint
+       * `GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}/runs`, which
+       * accepts the same query filters as the repository-wide `/actions/runs`.
+       */
+      const workflowId =
+        params.workflow_id === undefined || params.workflow_id === null
+          ? ''
+          : String(params.workflow_id).trim()
+      const basePath = `https://api.github.com/repos/${params.owner}/${params.repo}/actions`
       const url = new URL(
-        `https://api.github.com/repos/${params.owner}/${params.repo}/actions/runs`
+        workflowId === ''
+          ? `${basePath}/runs`
+          : `${basePath}/workflows/${encodeURIComponent(workflowId)}/runs`
       )
       if (params.actor) {
         url.searchParams.append('actor', params.actor)

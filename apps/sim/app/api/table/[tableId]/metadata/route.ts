@@ -35,7 +35,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
     const { tableId } = parsed.data.params
     const validated = parsed.data.body
 
-    const result = await checkAccess(tableId, authResult.userId, 'write')
+    const result = await checkAccess(tableId, { kind: 'user', userId: authResult.userId }, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     const { table } = result

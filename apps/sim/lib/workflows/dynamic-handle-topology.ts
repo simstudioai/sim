@@ -11,6 +11,13 @@ export interface RouterRow {
   value: string
 }
 
+/** A branch's persisted source handle and the row that names it. */
+export interface DynamicHandleRow {
+  handleId: string
+  title: string
+  value: string
+}
+
 function parseStructuredValue(value: unknown): unknown[] | null {
   if (typeof value === 'string') {
     try {
@@ -90,6 +97,29 @@ export function getRouterRows(blockId: string, value: unknown): RouterRow[] {
   }
 
   return [{ id: `${blockId}-route1`, value: '' }]
+}
+
+/** Resolves branch handles and labels from one snapshot, before any comparison. */
+export function getDynamicHandleRows(
+  block: Pick<BlockState, 'id' | 'type'> & {
+    subBlocks: Record<string, { value: unknown }>
+  }
+): DynamicHandleRow[] {
+  if (block.type === 'condition') {
+    return getConditionRows(block.id, block.subBlocks.conditions?.value).map((row) => ({
+      handleId: `condition-${row.id}`,
+      title: row.title,
+      value: row.value,
+    }))
+  }
+  if (block.type === 'router_v2') {
+    return getRouterRows(block.id, block.subBlocks.routes?.value).map((row, index) => ({
+      handleId: `router-${row.id}`,
+      title: `Route ${index + 1}`,
+      value: row.value,
+    }))
+  }
+  return []
 }
 
 export function getDynamicHandleTopologySignature(block: BlockState): string | null {

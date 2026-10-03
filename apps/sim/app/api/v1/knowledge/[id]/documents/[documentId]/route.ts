@@ -1,6 +1,3 @@
-import { db } from '@sim/db'
-import { document, knowledgeConnector } from '@sim/db/schema'
-import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   v1DeleteKnowledgeDocumentContract,
@@ -12,8 +9,14 @@ import {
   statusForOrchestrationError,
 } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getKnowledgeDocument } from '@/lib/knowledge/documents/service'
 import { performDeleteKnowledgeDocument } from '@/lib/knowledge/orchestration'
-import { handleError, resolveKnowledgeBase, serializeDate } from '@/app/api/v1/knowledge/utils'
+import {
+  handleError,
+  resolveKnowledgeBase,
+  resolveV1KnowledgeReadAccess,
+  serializeDate,
+} from '@/app/api/v1/knowledge/utils'
 import { authenticateRequest, v1ValidationErrorResponse } from '@/app/api/v1/middleware'
 
 export const dynamic = 'force-dynamic'
@@ -41,48 +44,20 @@ export const GET = withRouteHandler(
         knowledgeBaseId,
         parsed.data.query.workspaceId,
         userId,
-        rateLimit
+        rateLimit,
+        'knowledge.use'
       )
       if (result instanceof NextResponse) return result
 
-      const docs = await db
-        .select({
-          id: document.id,
-          knowledgeBaseId: document.knowledgeBaseId,
-          filename: document.filename,
-          fileSize: document.fileSize,
-          mimeType: document.mimeType,
-          processingStatus: document.processingStatus,
-          processingError: document.processingError,
-          processingStartedAt: document.processingStartedAt,
-          processingCompletedAt: document.processingCompletedAt,
-          chunkCount: document.chunkCount,
-          tokenCount: document.tokenCount,
-          characterCount: document.characterCount,
-          enabled: document.enabled,
-          uploadedAt: document.uploadedAt,
-          connectorId: document.connectorId,
-          connectorType: knowledgeConnector.connectorType,
-          sourceUrl: document.sourceUrl,
-        })
-        .from(document)
-        .leftJoin(knowledgeConnector, eq(document.connectorId, knowledgeConnector.id))
-        .where(
-          and(
-            eq(document.id, documentId),
-            eq(document.knowledgeBaseId, knowledgeBaseId),
-            eq(document.userExcluded, false),
-            isNull(document.archivedAt),
-            isNull(document.deletedAt)
-          )
-        )
-        .limit(1)
+      const doc = await getKnowledgeDocument(
+        knowledgeBaseId,
+        documentId,
+        await resolveV1KnowledgeReadAccess(userId, rateLimit, parsed.data.query.workspaceId)
+      )
 
-      if (docs.length === 0) {
+      if (!doc) {
         return NextResponse.json({ error: 'Document not found' }, { status: 404 })
       }
-
-      const doc = docs[0]
 
       return NextResponse.json({
         success: true,
@@ -133,25 +108,18 @@ export const DELETE = withRouteHandler(
         parsed.data.query.workspaceId,
         userId,
         rateLimit,
+        'knowledge.use',
         'write'
       )
       if (result instanceof NextResponse) return result
 
-      const docs = await db
-        .select({ id: document.id, filename: document.filename })
-        .from(document)
-        .where(
-          and(
-            eq(document.id, documentId),
-            eq(document.knowledgeBaseId, knowledgeBaseId),
-            eq(document.userExcluded, false),
-            isNull(document.archivedAt),
-            isNull(document.deletedAt)
-          )
-        )
-        .limit(1)
+      const doc = await getKnowledgeDocument(
+        knowledgeBaseId,
+        documentId,
+        await resolveV1KnowledgeReadAccess(userId, rateLimit, parsed.data.query.workspaceId)
+      )
 
-      if (docs.length === 0) {
+      if (!doc) {
         return NextResponse.json({ error: 'Document not found' }, { status: 404 })
       }
 
@@ -161,7 +129,7 @@ export const DELETE = withRouteHandler(
           name: result.kb.name,
           workspaceId: parsed.data.query.workspaceId,
         },
-        document: { id: documentId, filename: docs[0].filename },
+        document: { id: documentId, filename: doc.filename },
         userId,
         source: 'api',
         requestId,

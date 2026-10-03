@@ -13,7 +13,7 @@ import type {
   SpanProcessor,
 } from '@opentelemetry/sdk-trace-base'
 import { createLogger } from '@sim/logger'
-import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { env } from './lib/core/config/env'
 import { parseOtlpHeaders } from './lib/monitoring/otlp'
 
@@ -259,8 +259,7 @@ async function initializeOpenTelemetry() {
     exporter.export = (spans, resultCallback) => {
       origExport(spans, (result) => {
         if (result?.code !== 0) {
-          // eslint-disable-next-line no-console
-          console.error('[OTEL] exporter export failed', {
+          logger.error('Exporter export failed', {
             endpoint: telemetryConfig.endpoint,
             resultCode: result?.code,
             error: result?.error?.message,
@@ -294,14 +293,14 @@ async function initializeOpenTelemetry() {
     // /v1/logs). Every @sim/logger line fans out through the global Logs API
     // (see packages/logger), which the NodeSDK wires to this processor — the
     // stdout JSON lines continue to CloudWatch unchanged.
-    const logRecordProcessor = new BatchLogRecordProcessor(
-      new OTLPLogExporter({
+    const logRecordProcessor = new BatchLogRecordProcessor({
+      exporter: new OTLPLogExporter({
         url: normalizeOtlpLogsUrl(telemetryConfig.endpoint),
         headers: otlpHeaders,
         timeoutMillis: Math.min(telemetryConfig.batchSettings.exportTimeoutMillis, 10000),
         keepAlive: false,
-      })
-    )
+      }),
+    })
 
     // Must be unique per process: replicas sharing one instance id collapse
     // into a single Prometheus series, so their independent cumulative
@@ -380,6 +379,12 @@ async function initializeOpenTelemetry() {
 }
 
 export async function register() {
+  // Builds the egress policies from EGRESS_ALLOWED_HOSTS and EGRESS_ALLOWED_IP_RANGES so a
+  // malformed entry stops the process here, naming the setting, rather than surfacing as a
+  // 500 on whichever request first happens to touch an outbound path.
+  const { resolveEgressPolicy } = await import('./lib/core/security/egress/profiles')
+  resolveEgressPolicy('requestTarget')
+
   await initializeOpenTelemetry()
 
   const shutdownPostHog = async () => {
@@ -397,4 +402,16 @@ export async function register() {
 
   const { startMemoryTelemetry } = await import('./lib/monitoring/memory-telemetry')
   startMemoryTelemetry()
+
+  // Not awaited: the connection is warmed in the background so the first request
+  // that needs Redis does not pay the handshake inside its own command deadline,
+  // but boot never waits on Redis to serve requests that do not touch it.
+  const { warmRedisConnection } = await import('@/lib/core/config/redis')
+  void warmRedisConnection()
+
+  const { startSimReceivers } = await import('./lib/mothership/transport/receiver')
+  await startSimReceivers()
+
+  const { startServiceUsageReplay } = await import('./lib/mothership/billing/service-delivery')
+  startServiceUsageReplay()
 }

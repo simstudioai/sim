@@ -14,6 +14,7 @@ export const boxConnectorMeta: ConnectorMeta = {
     requiredScopes: ['root_readwrite'],
   },
 
+  permissionScopedListing: { capFieldIds: ['maxFiles'] },
   configFields: [
     {
       id: 'folderId',

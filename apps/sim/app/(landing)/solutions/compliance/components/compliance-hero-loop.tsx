@@ -15,6 +15,7 @@ import type { EnterpriseLoopContent } from '@/app/(landing)/enterprise/component
  */
 const COMPLIANCE_LOOP_CONTENT: EnterpriseLoopContent = {
   workspaceName: 'Brightwave GRC',
+  profileName: 'Dana',
   greeting: 'What should we get done, Dana?',
   placeholder: 'Ask Sim to automate a process.',
   prompt:

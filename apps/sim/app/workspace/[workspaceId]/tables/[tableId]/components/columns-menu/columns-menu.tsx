@@ -7,6 +7,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuItemLabel,
   DropdownMenuTrigger,
 } from '@sim/emcn'
 import { Columns3, Eye, EyeOff } from '@sim/emcn/icons'
@@ -166,11 +167,10 @@ function ColumnToggleRow({ label, visible, partial, indented, onToggle }: Column
           )}
         />
       </span>
-      <span
-        className={cn('min-w-0 flex-1 truncate text-left', !showing && 'text-[var(--text-muted)]')}
-      >
-        {label}
-      </span>
+      <DropdownMenuItemLabel
+        label={label}
+        className={cn('text-left', !showing && 'text-[var(--text-muted)]')}
+      />
     </DropdownMenuItem>
   )
 }

@@ -1,7 +1,7 @@
 import type { DynamoDBUpdateParams, DynamoDBUpdateResponse } from '@/tools/dynamodb/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const updateTool: ToolConfig<DynamoDBUpdateParams, DynamoDBUpdateResponse> = {
+export const updateTool: InternalToolConfig<DynamoDBUpdateParams, DynamoDBUpdateResponse> = {
   id: 'dynamodb_update',
   name: 'DynamoDB Update',
   description: 'Update an item in a DynamoDB table',
@@ -68,13 +68,8 @@ export const updateTool: ToolConfig<DynamoDBUpdateParams, DynamoDBUpdateResponse
     },
   },
 
-  request: {
-    url: '/api/tools/dynamodb/update',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

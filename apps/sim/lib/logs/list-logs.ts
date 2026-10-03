@@ -38,36 +38,61 @@ import {
   decodeLogSortCursor,
   encodeLogSortCursor,
 } from '@/lib/logs/sort-cursor'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
-export type ListLogsParams = z.output<typeof listLogsQuerySchema>
+/** What a caller asks for: the contract's query, plus cancellation. */
+export type ListLogsParams = z.output<typeof listLogsQuerySchema> & {
+  signal?: AbortSignal
+}
+
+/**
+ * What the query actually runs with — the request, plus the viewer's spend
+ * projection.
+ *
+ * `hideCostInfo` is required and lives on this type rather than on
+ * {@link ListLogsParams} for two reasons that pull the same way. It is resolved
+ * by the application use case and never read off the query, so a client cannot
+ * ask for a row it is not entitled to; and being required rather than defaulted
+ * to `false`, a caller of this read that forgets it fails to compile instead of
+ * quietly disclosing every run's cost.
+ */
+export type ReadLogsParams = ListLogsParams & {
+  hideCostInfo: boolean
+}
 
 type SortBy = 'date' | 'duration' | 'cost' | 'status'
 type SortOrder = 'asc' | 'desc'
 
 /**
- * Shared logs list query used by the `/api/logs` route and the copilot `query_logs`
- * tool. Builds the workflow + job execution-log query (cursor pagination, sort,
- * level running/pending logic, job-log merge) from the shared filter params. The
- * caller is responsible for authenticating `userId`; this function enforces
- * workspace permission via the `permissions` join.
+ * Canonical logs list query after workspace authorization.
  */
-export async function listLogs(params: ListLogsParams, userId: string): Promise<ListLogsResponse> {
-  const access = await checkWorkspaceAccess(params.workspaceId, userId)
-  if (!access.hasAccess) {
-    return { data: [], nextCursor: null }
+export async function readLogs(params: ReadLogsParams): Promise<ListLogsResponse> {
+  params.signal?.throwIfAborted()
+  const folderIds = params.folderIds
+    ? await expandFolderIdsWithDescendants(params.workspaceId, params.folderIds)
+    : params.folderIds
+  const resolvedParams = { ...params, folderIds }
+  params.signal?.throwIfAborted()
+  if (params.includeRevision) {
+    return dbReplica.transaction((tx) => readLogsWithDatabase(resolvedParams, tx), {
+      isolationLevel: 'repeatable read',
+      accessMode: 'read only',
+    })
   }
+  return readLogsWithDatabase(resolvedParams, dbReplica)
+}
 
+async function readLogsWithDatabase(
+  params: ReadLogsParams,
+  database: Pick<typeof dbReplica, 'select'>
+): Promise<ListLogsResponse> {
+  params.signal?.throwIfAborted()
+  const snapshotAt = params.snapshotAt === 'now' ? new Date().toISOString() : params.snapshotAt
+  const { hideCostInfo } = params
   const sortBy = params.sortBy as SortBy
   const sortOrder = params.sortOrder as SortOrder
   const cursor = params.cursor ? decodeLogSortCursor(params.cursor) : null
 
-  // Expand selected folders to include descendants (matches the route behavior),
-  // without mutating the caller's params object.
-  const folderIds = params.folderIds
-    ? await expandFolderIdsWithDescendants(params.workspaceId, params.folderIds)
-    : params.folderIds
-  const p: ListLogsParams = { ...params, folderIds }
+  const p = params
 
   const workflowSortExpr: SQL<unknown> = (() => {
     switch (sortBy) {
@@ -107,6 +132,12 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
 
   // Build workflow log conditions
   const workflowConditions: SQL[] = [eq(workflowExecutionLogs.workspaceId, p.workspaceId)]
+  if (snapshotAt) {
+    workflowConditions.push(lte(workflowExecutionLogs.startedAt, new Date(snapshotAt)))
+  }
+  if (p.startedAfter) {
+    workflowConditions.push(gt(workflowExecutionLogs.startedAt, new Date(p.startedAfter)))
+  }
 
   if (p.level && p.level !== 'all') {
     const levels = p.level.split(',').filter(Boolean)
@@ -174,50 +205,60 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
     levelList.length > 0 && !levelList.some((l) => l === 'error' || l === 'info')
   const includeJobLogs = !hasWorkflowSpecificFilters && !triggersExcludeJobs && !levelExcludesJobs
 
-  const workflowQuery = dbReplica
-    .select({
-      id: workflowExecutionLogs.id,
-      workflowId: workflowExecutionLogs.workflowId,
-      executionId: workflowExecutionLogs.executionId,
-      deploymentVersionId: workflowExecutionLogs.deploymentVersionId,
-      level: workflowExecutionLogs.level,
-      status: workflowExecutionLogs.status,
-      trigger: workflowExecutionLogs.trigger,
-      startedAt: workflowExecutionLogs.startedAt,
-      endedAt: workflowExecutionLogs.endedAt,
-      totalDurationMs: workflowExecutionLogs.totalDurationMs,
-      costTotal: workflowExecutionLogs.costTotal,
-      createdAt: workflowExecutionLogs.createdAt,
-      workflowName: workflow.name,
-      workflowDescription: workflow.description,
-      workflowFolderId: workflow.folderId,
-      workflowUserId: workflow.userId,
-      workflowWorkspaceId: workflow.workspaceId,
-      workflowCreatedAt: workflow.createdAt,
-      workflowUpdatedAt: workflow.updatedAt,
-      pausedStatus: pausedExecutions.status,
-      pausedTotalPauseCount: pausedExecutions.totalPauseCount,
-      pausedResumedCount: pausedExecutions.resumedCount,
-      deploymentVersion: workflowDeploymentVersion.version,
-      deploymentVersionName: workflowDeploymentVersion.name,
-      executionOrigin: workflowExecutionOriginSql().as('execution_origin'),
-      sortValue: sql<unknown>`${workflowSortExpr}`.as('sort_value'),
-    })
-    .from(workflowExecutionLogs)
-    .leftJoin(pausedExecutions, eq(pausedExecutions.executionId, workflowExecutionLogs.executionId))
-    .leftJoin(
-      workflowDeploymentVersion,
-      eq(workflowDeploymentVersion.id, workflowExecutionLogs.deploymentVersionId)
-    )
-    .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
-    .where(and(...workflowConditions))
-    .orderBy(orderByClause(workflowSortExpr), dir(workflowExecutionLogs.id))
-    .limit(fetchSize)
+  const workflowQuery = p.countOnly
+    ? Promise.resolve([])
+    : database
+        .select({
+          id: workflowExecutionLogs.id,
+          workflowId: workflowExecutionLogs.workflowId,
+          executionId: workflowExecutionLogs.executionId,
+          deploymentVersionId: workflowExecutionLogs.deploymentVersionId,
+          level: workflowExecutionLogs.level,
+          status: workflowExecutionLogs.status,
+          trigger: workflowExecutionLogs.trigger,
+          startedAt: workflowExecutionLogs.startedAt,
+          endedAt: workflowExecutionLogs.endedAt,
+          totalDurationMs: workflowExecutionLogs.totalDurationMs,
+          costTotal: workflowExecutionLogs.costTotal,
+          createdAt: workflowExecutionLogs.createdAt,
+          workflowName: workflow.name,
+          workflowDescription: workflow.description,
+          workflowFolderId: workflow.folderId,
+          workflowWorkspaceId: workflow.workspaceId,
+          workflowCreatedAt: workflow.createdAt,
+          workflowUpdatedAt: workflow.updatedAt,
+          pausedStatus: pausedExecutions.status,
+          pausedTotalPauseCount: pausedExecutions.totalPauseCount,
+          pausedResumedCount: pausedExecutions.resumedCount,
+          deploymentVersion: workflowDeploymentVersion.version,
+          deploymentVersionName: workflowDeploymentVersion.name,
+          executionOrigin: workflowExecutionOriginSql().as('execution_origin'),
+          sortValue: sql<unknown>`${workflowSortExpr}`.as('sort_value'),
+        })
+        .from(workflowExecutionLogs)
+        .leftJoin(
+          pausedExecutions,
+          eq(pausedExecutions.executionId, workflowExecutionLogs.executionId)
+        )
+        .leftJoin(
+          workflowDeploymentVersion,
+          eq(workflowDeploymentVersion.id, workflowExecutionLogs.deploymentVersionId)
+        )
+        .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+        .where(and(...workflowConditions))
+        .orderBy(orderByClause(workflowSortExpr), dir(workflowExecutionLogs.id))
+        .limit(fetchSize)
 
   const jobConditions: SQL[] = [eq(jobExecutionLogs.workspaceId, p.workspaceId)]
   let jobFilterConditions: SQL[] = jobConditions
 
   if (includeJobLogs) {
+    if (snapshotAt) {
+      jobConditions.push(lte(jobExecutionLogs.startedAt, new Date(snapshotAt)))
+    }
+    if (p.startedAfter) {
+      jobConditions.push(gt(jobExecutionLogs.startedAt, new Date(p.startedAfter)))
+    }
     if (p.level && p.level !== 'all') {
       const levels = p.level.split(',').filter(Boolean)
       const jobLevelConditions: SQL[] = []
@@ -292,29 +333,31 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
     if (jobCursorCond) jobConditions.push(jobCursorCond)
   }
 
-  const jobQuery = includeJobLogs
-    ? dbReplica
-        .select({
-          id: jobExecutionLogs.id,
-          executionId: jobExecutionLogs.executionId,
-          level: jobExecutionLogs.level,
-          status: jobExecutionLogs.status,
-          trigger: jobExecutionLogs.trigger,
-          startedAt: jobExecutionLogs.startedAt,
-          endedAt: jobExecutionLogs.endedAt,
-          totalDurationMs: jobExecutionLogs.totalDurationMs,
-          cost: jobExecutionLogs.cost,
-          createdAt: jobExecutionLogs.createdAt,
-          jobTitle: sql<string | null>`${jobExecutionLogs.executionData}->'trigger'->>'source'`,
-          sortValue: sql<unknown>`${jobSortExpr}`.as('sort_value'),
-        })
-        .from(jobExecutionLogs)
-        .where(and(...jobConditions))
-        .orderBy(orderByClause(jobSortExpr), dir(jobExecutionLogs.id))
-        .limit(fetchSize)
-    : Promise.resolve([])
+  const jobQuery =
+    includeJobLogs && !p.countOnly
+      ? database
+          .select({
+            id: jobExecutionLogs.id,
+            executionId: jobExecutionLogs.executionId,
+            level: jobExecutionLogs.level,
+            status: jobExecutionLogs.status,
+            trigger: jobExecutionLogs.trigger,
+            startedAt: jobExecutionLogs.startedAt,
+            endedAt: jobExecutionLogs.endedAt,
+            totalDurationMs: jobExecutionLogs.totalDurationMs,
+            cost: jobExecutionLogs.cost,
+            createdAt: jobExecutionLogs.createdAt,
+            jobTitle: sql<string | null>`${jobExecutionLogs.executionData}->'trigger'->>'source'`,
+            sortValue: sql<unknown>`${jobSortExpr}`.as('sort_value'),
+          })
+          .from(jobExecutionLogs)
+          .where(and(...jobConditions))
+          .orderBy(orderByClause(jobSortExpr), dir(jobExecutionLogs.id))
+          .limit(fetchSize)
+      : Promise.resolve([])
 
   const [workflowRows, jobRows] = await Promise.all([workflowQuery, jobQuery])
+  params.signal?.throwIfAborted()
 
   type RowWithSort = {
     id: string
@@ -348,7 +391,6 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
             name: log.workflowName,
             description: log.workflowDescription,
             folderId: log.workflowFolderId,
-            userId: log.workflowUserId,
             workspaceId: log.workflowWorkspaceId,
             createdAt: log.workflowCreatedAt?.toISOString() ?? null,
             updatedAt: log.workflowUpdatedAt?.toISOString() ?? null,
@@ -357,7 +399,7 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
       jobTitle: null,
       // List cost is the cost_total projection (faithful ledger sum). Null until
       // completion (running) or until the one-time legacy backfill populates it.
-      cost: log.costTotal != null ? { total: Number(log.costTotal) } : null,
+      cost: hideCostInfo || log.costTotal == null ? null : { total: Number(log.costTotal) },
       pauseSummary: {
         status: log.pausedStatus ?? null,
         total: totalPauseCount,
@@ -384,7 +426,7 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
       createdAt: log.startedAt.toISOString(),
       workflow: null,
       jobTitle: log.jobTitle ?? null,
-      cost: jobCostTotal(log.cost),
+      cost: hideCostInfo ? null : jobCostTotal(log.cost),
       pauseSummary: { status: null, total: 0, resumed: 0 },
       hasPendingPause: false,
     }
@@ -437,33 +479,64 @@ export async function listLogs(params: ListLogsParams, userId: string): Promise<
   }
 
   let total: number | undefined
-  if (p.includeTotal) {
-    const workflowCountQuery = dbReplica
-      .select({ count: sql<number>`COUNT(*)` })
+  let revision: string | undefined
+  if (p.includeTotal || p.countOnly || p.includeRevision) {
+    const workflowRevisionValue =
+      sortBy === 'date'
+        ? sql`${workflowExecutionLogs.id}`
+        : sql`concat_ws(':', ${workflowExecutionLogs.id}, ${workflowSortExpr})`
+    const jobRevisionValue =
+      sortBy === 'date'
+        ? sql`${jobExecutionLogs.id}`
+        : sql`concat_ws(':', ${jobExecutionLogs.id}, ${jobSortExpr})`
+    const workflowCountBase = database
+      .select({
+        count: sql<number>`COUNT(*)`,
+        revision: p.includeRevision
+          ? sql<string>`COALESCE(bit_xor(hashtextextended(${workflowRevisionValue}, 0)), 0)::text`
+          : sql<null>`NULL`,
+      })
       .from(workflowExecutionLogs)
-      .leftJoin(
-        pausedExecutions,
-        eq(pausedExecutions.executionId, workflowExecutionLogs.executionId)
-      )
-      .leftJoin(
-        workflowDeploymentVersion,
-        eq(workflowDeploymentVersion.id, workflowExecutionLogs.deploymentVersionId)
-      )
-      .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
-      .where(and(...workflowFilterConditions))
+    const workflowCountWithPauses = levelList.includes('pending')
+      ? workflowCountBase.leftJoin(
+          pausedExecutions,
+          eq(pausedExecutions.executionId, workflowExecutionLogs.executionId)
+        )
+      : workflowCountBase
+    const workflowCountWithFilters = hasWorkflowSpecificFilters
+      ? workflowCountWithPauses.leftJoin(
+          workflow,
+          eq(workflowExecutionLogs.workflowId, workflow.id)
+        )
+      : workflowCountWithPauses
+    const workflowCountQuery = workflowCountWithFilters.where(and(...workflowFilterConditions))
     const jobCountQuery = includeJobLogs
-      ? dbReplica
-          .select({ count: sql<number>`COUNT(*)` })
+      ? database
+          .select({
+            count: sql<number>`COUNT(*)`,
+            revision: p.includeRevision
+              ? sql<string>`COALESCE(bit_xor(hashtextextended(${jobRevisionValue}, 0)), 0)::text`
+              : sql<null>`NULL`,
+          })
           .from(jobExecutionLogs)
           .where(and(...jobFilterConditions))
-      : Promise.resolve([{ count: 0 }])
+      : Promise.resolve([{ count: 0, revision: '0' }])
     const [workflowCount, jobCount] = await Promise.all([workflowCountQuery, jobCountQuery])
-    total = Number(workflowCount[0]?.count ?? 0) + Number(jobCount[0]?.count ?? 0)
+    params.signal?.throwIfAborted()
+    const workflowTotal = Number(workflowCount[0]?.count ?? 0)
+    const jobTotal = Number(jobCount[0]?.count ?? 0)
+    if (p.includeTotal || p.countOnly) total = workflowTotal + jobTotal
+    if (p.includeRevision) {
+      revision = `${workflowTotal}:${workflowCount[0]?.revision ?? '0'}:${jobTotal}:${jobCount[0]?.revision ?? '0'}`
+    }
   }
 
+  params.signal?.throwIfAborted()
   return {
     data: page.map((row) => row.summary),
     nextCursor,
+    ...(snapshotAt ? { snapshotAt } : {}),
+    ...(revision !== undefined ? { revision } : {}),
     ...(total !== undefined ? { total } : {}),
   }
 }

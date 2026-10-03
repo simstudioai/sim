@@ -3,9 +3,9 @@ import type {
   MicrosoftWordReadResponse,
   MicrosoftWordToolParams,
 } from '@/tools/microsoft_word/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const readTool: ToolConfig<MicrosoftWordToolParams, MicrosoftWordReadResponse> = {
+export const readTool: InternalToolConfig<MicrosoftWordToolParams, MicrosoftWordReadResponse> = {
   id: 'microsoft_word_read',
   name: 'Read Microsoft Word Document',
   description:
@@ -40,11 +40,8 @@ export const readTool: ToolConfig<MicrosoftWordToolParams, MicrosoftWordReadResp
     },
   },
 
-  request: {
-    url: '/api/tools/microsoft_word/read',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       documentId: params.documentId,
       driveId: params.driveId,

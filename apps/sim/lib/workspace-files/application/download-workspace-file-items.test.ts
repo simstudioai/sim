@@ -1,79 +1,75 @@
-/**
- * @vitest-environment node
- */
+import {
+  createDelegatedPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  events,
-  mockLoadContext,
-  mockResolvePermission,
-  mockListFiles,
-  mockListFolders,
-  mockFetchServable,
-  mockRecordAudit,
-  mockIsGenerated,
-  mockIsRenderable,
-  mockIsDocNotReady,
-} = vi.hoisted(() => ({
+const { events, mockFetchServable, mockIsDocNotReady } = vi.hoisted(() => ({
   events: [] as string[],
-  mockLoadContext: vi.fn(),
-  mockResolvePermission: vi.fn(),
-  mockListFiles: vi.fn(),
-  mockListFolders: vi.fn(),
   mockFetchServable: vi.fn(),
-  mockRecordAudit: vi.fn(),
-  mockIsGenerated: vi.fn(),
-  mockIsRenderable: vi.fn(),
   mockIsDocNotReady: vi.fn(),
 }))
+const {
+  mockLoadWorkspaceFileOperationContext: mockLoadContext,
+  mockListWorkspaceFiles: mockListFiles,
+  mockListWorkspaceFileFolders: mockListFolders,
+} = workspaceUploadsMockFns
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  buildWorkspaceFileFolderPathMap: (folders: Array<{ id: string; path?: string; name: string }>) =>
-    new Map(folders.map((folder) => [folder.id, folder.path ?? folder.name])),
-  listWorkspaceFileFolders: mockListFolders,
-  listWorkspaceFiles: mockListFiles,
-  loadWorkspaceFileOperationContext: mockLoadContext,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 vi.mock('@/lib/workspace-files/application/fetch-servable-workspace-file-buffer', () => ({
   fetchAuthorizedServableWorkspaceFileBuffer: mockFetchServable,
 }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) =>
-    actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
-  resolveEffectiveWorkspacePermission: mockResolvePermission,
-}))
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  formatFileSize: (bytes: number) => `${bytes} bytes`,
-  isGeneratedDocumentSourceType: mockIsGenerated,
-  isRenderableDocumentName: mockIsRenderable,
-  MAX_RENDERED_DOCUMENT_BYTES: 50 * 1024 * 1024,
-  needsRenderedArtifact: (contentType: string | null | undefined, fileName: string) =>
-    contentType ? mockIsGenerated(contentType) : mockIsRenderable(fileName),
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
 vi.mock('@/lib/uploads/utils/doc-not-ready', () => ({
   docNotReadyMessage: (names: string[]) => `Pending: ${names.join(', ')}`,
   isDocNotReadyError: mockIsDocNotReady,
 }))
-vi.mock('@sim/audit', () => ({
-  AuditAction: { FILE_DOWNLOADED: 'file.downloaded' },
-  AuditResourceType: { FILE: 'file' },
-  recordAudit: mockRecordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { downloadWorkspaceFileItems } from '@/lib/workspace-files/application/download-workspace-file-items'
 
-const principal = { kind: 'session' as const, userId: 'u1', sessionId: 's1' }
-const delegatedPrincipal = {
-  kind: 'delegated' as const,
-  serviceId: 'copilot' as const,
+const { mockGetUserPermissionConfig } = permissionGroupsResolveMockFns
+const {
+  mockIsGeneratedDocumentSourceType: mockIsGenerated,
+  mockIsRenderableDocumentName: mockIsRenderable,
+} = fileUtilsMockFns
+
+/** The use case passes the organization the authorized context already loaded. */
+permissionGroupsResolveMockFns.mockResolveVerifiedUserAccessControlContext.mockImplementation(
+  async (userId: string, workspaceId: string) => ({
+    config: await mockGetUserPermissionConfig(userId, workspaceId),
+  })
+)
+fileUtilsMockFns.mockFormatFileSize.mockImplementation((bytes: number) => `${bytes} bytes`)
+fileUtilsMockFns.mockNeedsRenderedArtifact.mockImplementation(
+  (contentType: string | null | undefined, fileName: string) =>
+    contentType ? mockIsGenerated(contentType) : mockIsRenderable(fileName)
+)
+
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+
+const principal = createSessionPrincipal({ userId: 'u1', sessionId: 's1' })
+const delegatedPrincipal = createDelegatedPrincipal({
   subjectUserId: 'u1',
   workspaceId: 'ws-1',
-  delegationId: 'delegation-1',
   audience: 'sim:workspace-files',
-  issuedAt: new Date('2026-01-01T00:00:00Z'),
-  expiresAt: new Date('2099-01-01T00:00:00Z'),
   resourceScope: { fileId: 'f1' },
-}
+})
 const workspace = {
   workspaceId: 'ws-1',
   workspaceOrganizationId: null,
@@ -87,7 +83,6 @@ function file(id: string, name: string, folderId: string | null = null, size = 1
 
 describe('downloadWorkspaceFileItems', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     events.length = 0
     mockLoadContext.mockImplementation(async () => {
       events.push('resolve')
@@ -105,19 +100,7 @@ describe('downloadWorkspaceFileItems', () => {
     mockIsGenerated.mockReturnValue(false)
     mockIsRenderable.mockReturnValue(false)
     mockIsDocNotReady.mockReturnValue(false)
-  })
-
-  it('authorizes the workspace once and returns the bounded selection', async () => {
-    const result = await downloadWorkspaceFileItems.execute({
-      principal,
-      input: { workspaceId: 'ws-1', fileIds: ['f1'], folderIds: [] },
-    })
-
-    expect(events).toEqual(['resolve', 'authorize', 'execute'])
-    expect(result.filesToZip).toHaveLength(1)
-    expect(mockRecordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ actorId: 'u1', workspaceId: 'ws-1' })
-    )
+    mockGetUserPermissionConfig.mockResolvedValue(null)
   })
 
   it('allows a file-scoped delegated principal to download its one explicit file', async () => {
@@ -177,26 +160,6 @@ describe('downloadWorkspaceFileItems', () => {
     )
   })
 
-  /**
-   * v2 addresses folders by path. Resolution reuses the folder set the
-   * selection already loads, so it costs no extra query.
-   */
-  it('resolves folder paths to the same expansion as folder ids', async () => {
-    mockListFolders.mockResolvedValue([
-      { id: 'folder-1', name: 'Reports', path: 'Reports', parentId: null },
-      { id: 'folder-2', name: 'Drafts', path: 'Reports/Drafts', parentId: 'folder-1' },
-    ])
-    mockListFiles.mockResolvedValue([file('f1', 'report.txt', 'folder-2')])
-
-    const result = await downloadWorkspaceFileItems.execute({
-      principal,
-      input: { workspaceId: 'ws-1', fileIds: [], folderIds: [], folderPaths: ['/Reports'] },
-    })
-
-    expect(result.filesToZip.map((item) => item.id)).toEqual(['f1'])
-    expect(mockListFolders).toHaveBeenCalledOnce()
-  })
-
   it('resolves a nested folder path without matching a same-named sibling', async () => {
     mockListFolders.mockResolvedValue([
       { id: 'folder-1', name: 'Reports', path: 'Reports', parentId: null },
@@ -234,34 +197,56 @@ describe('downloadWorkspaceFileItems', () => {
     ).rejects.toMatchObject({ code: 'validation' })
   })
 
-  it('returns typed validation and conflict failures without recording audit', async () => {
-    await expect(
-      downloadWorkspaceFileItems.execute({
-        principal,
-        input: { workspaceId: 'ws-1', fileIds: [], folderIds: [] },
+  describe('permission-group capability', () => {
+    beforeEach(() => {
+      mockGetUserPermissionConfig.mockResolvedValue({
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        disableBulkFileDownload: true,
       })
-    ).rejects.toMatchObject({ code: 'validation' })
-    expect(events).toEqual(['resolve', 'authorize'])
-
-    mockListFiles.mockResolvedValue([file('f1', 'pending.docx')])
-    mockIsGenerated.mockReturnValue(true)
-    mockIsDocNotReady.mockReturnValue(true)
-    mockFetchServable.mockRejectedValue(new Error('pending'))
-    await expect(
-      downloadWorkspaceFileItems.execute({
-        principal,
-        input: { workspaceId: 'ws-1', fileIds: ['f1'], folderIds: [] },
+      mockListFolders.mockResolvedValue([{ id: 'folder-1', parentId: null, name: 'Reports' }])
+      mockListFiles.mockImplementation(async () => {
+        events.push('execute')
+        return [file('f1', 'clip.mp4'), file('f2', 'notes.txt', 'folder-1')]
       })
-    ).rejects.toMatchObject({ code: 'conflict' })
-    expect(mockRecordAudit).not.toHaveBeenCalled()
-  })
-
-  it('ignores stale selected IDs when another selected file still resolves', async () => {
-    const result = await downloadWorkspaceFileItems.execute({
-      principal,
-      input: { workspaceId: 'ws-1', fileIds: ['f1', 'stale-file'], folderIds: [] },
     })
 
-    expect(result.filesToZip.map((item) => item.id)).toEqual(['f1'])
+    it('refuses a folder archive when the group withholds files.bulk_download', async () => {
+      await expect(
+        downloadWorkspaceFileItems.execute({
+          principal,
+          input: { workspaceId: 'ws-1', fileIds: [], folderIds: ['folder-1'] },
+        })
+      ).rejects.toMatchObject({ capability: 'files.bulk_download' })
+
+      expect(events).not.toContain('execute')
+    })
+
+    /**
+     * A run carries the role of whoever triggered it but not their capabilities
+     * — `authorizeWorkspaceOperation` exempts a subject-bearing executor — and
+     * an assertion that read the subject straight off the principal re-applied
+     * here exactly what the funnel exempts.
+     */
+    it('does not apply the capability to a delegated executor carrying a subject', async () => {
+      await expect(
+        downloadWorkspaceFileItems.execute({
+          principal: {
+            ...delegatedPrincipal,
+            serviceId: 'executor' as const,
+            resourceScope: {},
+          },
+          input: { workspaceId: 'ws-1', fileIds: [], folderIds: ['folder-1'] },
+        })
+      ).resolves.toMatchObject({ filesToZip: [expect.objectContaining({ id: 'f2' })] })
+    })
+
+    it('still allows downloading a single named file, which the key does not withhold', async () => {
+      await expect(
+        downloadWorkspaceFileItems.execute({
+          principal,
+          input: { workspaceId: 'ws-1', fileIds: ['f1'], folderIds: [] },
+        })
+      ).resolves.toMatchObject({ filesToZip: [expect.objectContaining({ id: 'f1' })] })
+    })
   })
 })

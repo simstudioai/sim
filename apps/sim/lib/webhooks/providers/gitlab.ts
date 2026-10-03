@@ -34,6 +34,7 @@ async function cleanupGitLabHookByUrl(
   host: unknown
 ): Promise<void> {
   const res = await secureFetchWithValidation(gitlabProjectHooksUrl(projectId, host), {
+    profile: 'configuredEndpoint',
     headers: { 'PRIVATE-TOKEN': accessToken },
   }).catch(() => null)
   if (!res || !res.ok) return
@@ -46,6 +47,7 @@ async function cleanupGitLabHookByUrl(
       .filter((hook) => hook.url === url && hook.id != null)
       .map((hook) =>
         secureFetchWithValidation(`${gitlabProjectHooksUrl(projectId, host)}/${hook.id}`, {
+          profile: 'configuredEndpoint',
           method: 'DELETE',
           headers: { 'PRIVATE-TOKEN': accessToken },
         }).catch(() => null)
@@ -198,6 +200,7 @@ export const gitlabHandler: WebhookProviderHandler = {
     const { getGitLabEventFlags } = await import('@/triggers/gitlab/utils')
     const secretToken = generateId()
     const res = await secureFetchWithValidation(gitlabProjectHooksUrl(projectId, host), {
+      profile: 'configuredEndpoint',
       method: 'POST',
       headers: { 'PRIVATE-TOKEN': accessToken, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -269,10 +272,7 @@ export const gitlabHandler: WebhookProviderHandler = {
 
     const res = await secureFetchWithValidation(
       `${gitlabProjectHooksUrl(projectId, host)}/${externalId}`,
-      {
-        method: 'DELETE',
-        headers: { 'PRIVATE-TOKEN': accessToken },
-      }
+      { profile: 'configuredEndpoint', method: 'DELETE', headers: { 'PRIVATE-TOKEN': accessToken } }
     )
 
     if (!res.ok && res.status !== 404) {

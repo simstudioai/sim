@@ -1,10 +1,10 @@
 import { AuditAction, AuditResourceType, recordAuditBatch } from '@sim/audit'
-import type { Principal, SessionPrincipal } from '@sim/auth/principal'
 import { normalizeEmail } from '@sim/utils/string'
 import type { AccountDeletionPlan } from '@/lib/api/contracts/user'
 import type { OperationUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { deleteUserAccount, getAccountDeletionPlan } from '@/lib/users/account-deletion'
+import { requireUserAccountPrincipal } from '@/lib/users/application/authorization'
 import { userAccountOperations } from '@/lib/users/application/operations'
 import { getUserProfile } from '@/lib/users/queries'
 
@@ -14,12 +14,6 @@ import { getUserProfile } from '@/lib/users/queries'
  * key or a delegated service must never be able to erase the human behind it.
  * Defence in depth: the route's `internalSessionAuth` already returns nothing else.
  */
-function requireSelf(principal: Principal): asserts principal is SessionPrincipal {
-  if (principal.kind !== 'session') {
-    throw new OrchestrationError('forbidden', 'Session authentication required')
-  }
-}
-
 export const previewAccountDeletionUseCase: OperationUseCase<
   typeof userAccountOperations.previewDeletion,
   Record<string, never>,
@@ -27,7 +21,7 @@ export const previewAccountDeletionUseCase: OperationUseCase<
 > = {
   operation: userAccountOperations.previewDeletion,
   async execute({ principal }) {
-    requireSelf(principal)
+    requireUserAccountPrincipal(principal, userAccountOperations.previewDeletion)
     return getAccountDeletionPlan(principal.userId)
   },
 }
@@ -44,7 +38,7 @@ export const deleteAccountUseCase: OperationUseCase<
 > = {
   operation: userAccountOperations.delete,
   async execute({ principal, input }) {
-    requireSelf(principal)
+    requireUserAccountPrincipal(principal, userAccountOperations.delete)
 
     const profile = await getUserProfile(principal.userId)
     if (!profile) throw new OrchestrationError('not_found', 'Account not found')

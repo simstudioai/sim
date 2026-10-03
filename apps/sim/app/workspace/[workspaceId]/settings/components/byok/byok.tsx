@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { ChipTag } from '@sim/emcn'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import {
@@ -23,6 +24,7 @@ import {
   HunterIOIcon,
   IcypeasIcon,
   JinaAIIcon,
+  KieIcon,
   KimiIcon,
   LeadMagicIcon,
   LinkupIcon,
@@ -36,7 +38,9 @@ import {
   PerplexityIcon,
   ProspeoIcon,
   SerperIcon,
+  TinyFishIcon,
   TogetherIcon,
+  TypeSafeIcon,
   WizaIcon,
   xAIIcon,
   ZaiIcon,
@@ -44,7 +48,7 @@ import {
 } from '@/components/icons'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
 import { type BYOKProviderId, MAX_BYOK_KEYS_PER_PROVIDER } from '@/lib/api/contracts/byok-keys'
-import { isHosted } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -58,6 +62,7 @@ import {
   type BYOKManagerProvider,
   type BYOKProviderSection,
 } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-key-manager'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import {
@@ -128,6 +133,13 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
     placeholder: 'sk-...',
   },
   {
+    id: 'typesafe',
+    name: 'TypeSafe',
+    icon: TypeSafeIcon,
+    description: 'Jev evaluation models',
+    placeholder: 'Enter your TypeSafe API key',
+  },
+  {
     id: 'fireworks',
     name: 'Fireworks',
     icon: FireworksIcon,
@@ -156,6 +168,13 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
     placeholder: 'Enter your Ollama API key',
   },
   {
+    id: 'kie',
+    name: 'Kie',
+    icon: KieIcon,
+    description: 'LLM calls',
+    placeholder: 'Enter your Kie API key',
+  },
+  {
     id: 'falai',
     name: 'Fal.ai',
     icon: FalIcon,
@@ -182,6 +201,13 @@ const PROVIDERS: (BYOKManagerProvider & { id: BYOKProviderId })[] = [
     icon: ContextDevIcon,
     description: 'Web scraping, crawling, search, and brand intelligence',
     placeholder: 'Enter your Context.dev API key',
+  },
+  {
+    id: 'tinyfish',
+    name: 'TinyFish',
+    icon: TinyFishIcon,
+    description: 'Web agent automation, search, and page fetching',
+    placeholder: 'Enter your TinyFish API key',
   },
   {
     id: 'serper',
@@ -342,10 +368,12 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
       'cohere',
       'xai',
       'kimi',
+      'typesafe',
       'fireworks',
       'together',
       'baseten',
       'ollama-cloud',
+      'kie',
       'falai',
     ],
   },
@@ -355,6 +383,7 @@ const PROVIDER_SECTIONS: BYOKProviderSection[] = [
       'firecrawl',
       'exa',
       'context_dev',
+      'tinyfish',
       'serper',
       'linkup',
       'parallel_ai',
@@ -389,10 +418,11 @@ export function BYOK() {
   const workspaceId = (params?.workspaceId as string) || ''
   const hostContext = useWorkspaceHostContext()
   const workspacePermissions = useUserPermissionsContext()
+  const { hosted } = useDeploymentShape()
   const canManageWorkspace = canMutateWorkspaceSettingsSection('byok', workspacePermissions)
   const hostOrganizationId = hostContext.hostOrganizationId
   const canSelectOrganization = Boolean(
-    isHosted && hostOrganizationId && hostContext.viewer.isHostOrganizationAdmin
+    hosted && hostOrganizationId && hostContext.viewer.isHostOrganizationAdmin
   )
   const [requestedScope, setRequestedScope] = useQueryState(byokScopeParam.key, {
     ...byokScopeParam.parser,
@@ -404,7 +434,7 @@ export function BYOK() {
   const isOrganizationScope = effectiveScope === 'organization'
   const organizationQueryId = isOrganizationScope ? (hostOrganizationId ?? undefined) : undefined
   const inheritedStatusWorkspaceId =
-    !isOrganizationScope && isHosted && hostOrganizationId ? workspaceId : undefined
+    !isOrganizationScope && hosted && hostOrganizationId ? workspaceId : undefined
 
   const workspaceKeys = useBYOKKeys(workspaceId)
   const organizationKeys = useOrganizationBYOKKeys(organizationQueryId, {
@@ -416,8 +446,10 @@ export function BYOK() {
   const upsertOrganizationKey = useUpsertOrganizationBYOKKey()
   const deleteOrganizationKey = useDeleteOrganizationBYOKKey()
 
-  const activeKeys = isOrganizationScope ? organizationKeys.data?.keys : workspaceKeys.data?.keys
+  const activeQueryData = isOrganizationScope ? organizationKeys.data : workspaceKeys.data
+  const activeKeys = activeQueryData?.keys
   const isLoading = isOrganizationScope ? organizationKeys.isLoading : workspaceKeys.isLoading
+  const keysError = isOrganizationScope ? organizationKeys.error : workspaceKeys.error
   const isSaving = isOrganizationScope
     ? upsertOrganizationKey.isPending
     : upsertWorkspaceKey.isPending
@@ -506,60 +538,66 @@ export function BYOK() {
           : undefined
       }
     >
-      <BYOKKeyManager
-        key={`${workspaceId}:${effectiveScope}:${hostOrganizationId ?? 'none'}`}
-        multiKey
-        providers={providers}
-        sections={PROVIDER_SECTIONS}
-        keysByProvider={keysByProvider}
-        maxKeysPerProvider={MAX_BYOK_KEYS_PER_PROVIDER}
-        isLoading={isLoading}
-        isSaving={isSaving}
-        isDeleting={isDeleting}
-        capabilities={capabilities}
-        description={description}
-        scopeLabel={isOrganizationScope ? 'this organization' : 'this workspace'}
-        keyUsageDescription={keyUsageDescription}
-        lastKeyDeleteMessage={lastKeyDeleteMessage}
-        searchTerm={searchTerm}
-        onSearchTermChange={setSearchTerm}
-        onSaveKey={async ({ providerId, apiKey, keyId, name }) => {
-          if (isOrganizationScope && organizationQueryId) {
-            await upsertOrganizationKey.mutateAsync({
-              organizationId: organizationQueryId,
+      {keysError && activeQueryData === undefined ? (
+        <SettingsEmptyState tone='error'>
+          {getErrorMessage(keysError, 'Failed to load provider keys')}
+        </SettingsEmptyState>
+      ) : (
+        <BYOKKeyManager
+          key={`${workspaceId}:${effectiveScope}:${hostOrganizationId ?? 'none'}`}
+          multiKey
+          providers={providers}
+          sections={PROVIDER_SECTIONS}
+          keysByProvider={keysByProvider}
+          maxKeysPerProvider={MAX_BYOK_KEYS_PER_PROVIDER}
+          isLoading={isLoading}
+          isSaving={isSaving}
+          isDeleting={isDeleting}
+          capabilities={capabilities}
+          description={description}
+          scopeLabel={isOrganizationScope ? 'this organization' : 'this workspace'}
+          keyUsageDescription={keyUsageDescription}
+          lastKeyDeleteMessage={lastKeyDeleteMessage}
+          searchTerm={searchTerm}
+          onSearchTermChange={setSearchTerm}
+          onSaveKey={async ({ providerId, apiKey, keyId, name }) => {
+            if (isOrganizationScope && organizationQueryId) {
+              await upsertOrganizationKey.mutateAsync({
+                organizationId: organizationQueryId,
+                providerId: providerId as BYOKProviderId,
+                apiKey,
+                keyId,
+                name,
+              })
+              return
+            }
+
+            await upsertWorkspaceKey.mutateAsync({
+              workspaceId,
               providerId: providerId as BYOKProviderId,
               apiKey,
               keyId,
               name,
             })
-            return
-          }
+          }}
+          onDeleteKey={async (providerId, keyId) => {
+            if (isOrganizationScope && organizationQueryId) {
+              await deleteOrganizationKey.mutateAsync({
+                organizationId: organizationQueryId,
+                providerId: providerId as BYOKProviderId,
+                keyId,
+              })
+              return
+            }
 
-          await upsertWorkspaceKey.mutateAsync({
-            workspaceId,
-            providerId: providerId as BYOKProviderId,
-            apiKey,
-            keyId,
-            name,
-          })
-        }}
-        onDeleteKey={async (providerId, keyId) => {
-          if (isOrganizationScope && organizationQueryId) {
-            await deleteOrganizationKey.mutateAsync({
-              organizationId: organizationQueryId,
+            await deleteWorkspaceKey.mutateAsync({
+              workspaceId,
               providerId: providerId as BYOKProviderId,
               keyId,
             })
-            return
-          }
-
-          await deleteWorkspaceKey.mutateAsync({
-            workspaceId,
-            providerId: providerId as BYOKProviderId,
-            keyId,
-          })
-        }}
-      />
+          }}
+        />
+      )}
     </SettingsPanel>
   )
 }

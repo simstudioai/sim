@@ -1,7 +1,7 @@
 import type { JsmReopenFormParams, JsmReopenFormResponse } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmReopenFormTool: ToolConfig<JsmReopenFormParams, JsmReopenFormResponse> = {
+export const jsmReopenFormTool: InternalToolConfig<JsmReopenFormParams, JsmReopenFormResponse> = {
   id: 'jsm_reopen_form',
   name: 'JSM Reopen Form',
   description: 'Reopen a submitted form on a Jira issue or JSM request, allowing further edits',
@@ -45,13 +45,8 @@ export const jsmReopenFormTool: ToolConfig<JsmReopenFormParams, JsmReopenFormRes
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/forms/reopen',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

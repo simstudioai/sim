@@ -2,9 +2,9 @@ import type {
   CloudFormationUpdateStackParams,
   CloudFormationUpdateStackResponse,
 } from '@/tools/cloudformation/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const updateStackTool: ToolConfig<
+export const updateStackTool: InternalToolConfig<
   CloudFormationUpdateStackParams,
   CloudFormationUpdateStackResponse
 > = {
@@ -75,13 +75,8 @@ export const updateStackTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/cloudformation/update-stack',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

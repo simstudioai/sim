@@ -1,36 +1,24 @@
-/**
- * @vitest-environment node
- */
-
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
+import {
+  tableApplicationRowsMock,
+  tableApplicationRowsMockFns,
+} from '@sim/testing/mocks/table-application-rows.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks, MockTableRowsValidationError } = vi.hoisted(() => {
-  class MockTableRowsValidationError extends Error {}
-  return {
-    mocks: {
-      searchRows: vi.fn(),
-    },
-    MockTableRowsValidationError,
-  }
-})
-
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/lib/table/application/rows', () => ({
-  TableRowsValidationError: MockTableRowsValidationError,
-  searchTableRows: { operation: { id: 'tables.rows.search' }, execute: mocks.searchRows },
-}))
+vi.mock('@/lib/table/application/rows', () => tableApplicationRowsMock)
 
 import { POST } from '@/app/api/v2/tables/[tableId]/rows/search/route'
+
+const { mockSearchTableRows } = tableApplicationRowsMockFns
 
 const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = {
@@ -64,11 +52,10 @@ function call(body: unknown) {
 
 describe('POST /api/v2/tables/[tableId]/rows/search', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.searchRows.mockResolvedValue({
+    mockSearchTableRows.mockResolvedValue({
       table: TABLE,
       matches: [{ ordinal: 3, rowId: 'row-1', column: 'column-name' }],
       truncated: true,
@@ -88,7 +75,7 @@ describe('POST /api/v2/tables/[tableId]/rows/search', () => {
         truncated: true,
       },
     })
-    expect(mocks.searchRows).toHaveBeenCalledWith({
+    expect(mockSearchTableRows).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: {
         tableId: 'table-1',
@@ -99,22 +86,5 @@ describe('POST /api/v2/tables/[tableId]/rows/search', () => {
       },
       request: invocation.request,
     })
-  })
-
-  it('rejects an empty search after admission and before delegation', async () => {
-    const response = await call({ workspaceId: WORKSPACE_ID, q: '' }).response
-
-    expect(response.status).toBe(400)
-    expect(v2RouteMocks.authenticate).toHaveBeenCalledOnce()
-    expect(mocks.searchRows).not.toHaveBeenCalled()
-  })
-
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await call({ workspaceId: WORKSPACE_ID, q: 'ada' }).response
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
   })
 })

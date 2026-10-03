@@ -1,7 +1,7 @@
 # ========================================
 # Base Stage: Alpine Linux with Bun
 # ========================================
-FROM oven/bun:1.3.14-alpine AS base
+FROM oven/bun:1.4.2-alpine AS base
 
 RUN apk add --no-cache libc6-compat curl
 
@@ -11,11 +11,10 @@ RUN apk add --no-cache libc6-compat curl
 FROM base AS pruner
 WORKDIR /app
 
-RUN bun add -g turbo
-
 COPY . .
 
-RUN turbo prune @sim/realtime --docker
+RUN TURBO_VERSION="$(bun -e "console.log(require('./package.json').devDependencies.turbo)")" && \
+    bunx --bun "turbo@${TURBO_VERSION}" prune @sim/realtime --docker
 
 # ========================================
 # Dependencies Stage: Install Dependencies
@@ -27,7 +26,7 @@ COPY --from=pruner /app/out/json/ ./
 COPY --from=pruner /app/out/bun.lock ./bun.lock
 
 RUN --mount=type=cache,id=bun-cache,target=/root/.bun/install/cache \
-    bun install --linker=hoisted --omit=dev --ignore-scripts
+    bun install --frozen-lockfile --linker=hoisted --omit=dev --ignore-scripts
 
 # ========================================
 # Runner Stage: Run the Socket Server

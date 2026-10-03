@@ -3,9 +3,9 @@ import {
   type MSSQLIntrospectParams,
   type MSSQLIntrospectResponse,
 } from '@/tools/mssql/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const introspectTool: ToolConfig<MSSQLIntrospectParams, MSSQLIntrospectResponse> = {
+export const introspectTool: InternalToolConfig<MSSQLIntrospectParams, MSSQLIntrospectResponse> = {
   id: 'mssql_introspect',
   name: 'Microsoft SQL Server Introspect',
   description:
@@ -72,13 +72,8 @@ export const introspectTool: ToolConfig<MSSQLIntrospectParams, MSSQLIntrospectRe
     },
   },
 
-  request: {
-    url: '/api/tools/mssql/introspect',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port) || 1433,
       database: params.database,

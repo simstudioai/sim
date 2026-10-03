@@ -48,8 +48,7 @@ export const workflowsUpdateTool: ToolConfig<WorkflowsUpdateParams, WorkflowsUpd
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'When to run the workflow: newly_created, newly_created_and_active, active, or all',
+      description: 'When to run the workflow: newly_created or newly_created_and_active',
     },
     runs_on_incident_modes: {
       type: 'string',

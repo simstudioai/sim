@@ -28,7 +28,7 @@ export const GET = defineV2JsonRoute({
     uploadToken: headers['upload-token'],
   }),
   useCase: readWorkspaceFileUploadOperation,
-  present: async (session) => ({ data: await toV2FileUpload(session, null) }),
+  present: async ({ session, file }) => ({ data: await toV2FileUpload(session, file) }),
 })
 
 export const DELETE = defineV2JsonRoute({

@@ -7,7 +7,7 @@ import { fileWriteTool } from '@/tools/file/write'
 describe('fileWriteTool', () => {
   it('passes nested relative paths through the existing fileName parameter', () => {
     expect(
-      fileWriteTool.request.body?.({
+      fileWriteTool.operation.input({
         fileName: 'Reports/2026/report.md',
         content: 'report',
         workspaceId: 'workspace-1',

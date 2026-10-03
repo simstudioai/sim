@@ -9,8 +9,15 @@ import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/co
 import { formatCsvValue, toCsvRow } from '@/lib/core/utils/csv'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
+import { withheldSpendData } from '@/lib/logs/fetch-log-detail'
 import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
 import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
+import { logQuerySelectsCost } from '@/lib/logs/log-projection'
+import {
+  capabilityDeniedBy,
+  capabilityRefusal,
+} from '@/lib/permission-groups/capability-assertions'
+import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('LogsExportAPI')
@@ -94,6 +101,54 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
+    /**
+     * permission-group-enforced: logs.export — one download carries every
+     * execution payload the workspace ever recorded, including a trace-span
+     * column, so this is the widest read in the product and the one most worth
+     * withholding separately from reading a single log.
+     *
+     * Checked here rather than in an application use case because this route
+     * queries directly and predates that boundary; migrating it is worth doing,
+     * and is not a reason to leave the export ungoverned meanwhile.
+     *
+     * No admin exemption, unlike `organization.member_directory`. That one is
+     * organization-scoped: it reads the org *default* group, which governs the
+     * admins too, and the page it withholds is the roster an admin needs open to
+     * change the setting — an exemption there breaks a bootstrap loop. This
+     * capability has neither half. It resolves the caller's own workspace group,
+     * so an admin who wants the export edits the group that withheld it, on a
+     * settings page this refusal does not touch. Exempting admins would instead
+     * make `disableLogExport` unable to say what it says — that nobody in this
+     * group downloads the whole workspace's execution payloads — for exactly the
+     * accounts whose export is widest.
+     */
+    const permissionConfig = await resolvePermissionGroupConfig(
+      userId,
+      params.workspaceId,
+      undefined
+    )
+    if (capabilityDeniedBy('logs.export', permissionConfig)) {
+      return NextResponse.json({ error: capabilityRefusal('logs.export') }, { status: 403 })
+    }
+
+    const hideTraceSpans = capabilityDeniedBy('logs.trace_spans', permissionConfig)
+    /**
+     * permission-group-enforced: logs.cost — the `costTotal` column is the same
+     * run spend the detail view withholds, and a whole-workspace CSV of it is
+     * the widest disclosure of the two. The column stays in the header so the
+     * file shape does not depend on who downloaded it; only its values go.
+     */
+    const hideCostInfo = capabilityDeniedBy('logs.cost', permissionConfig)
+    /**
+     * The same filter the list refuses. Blanking the column while still
+     * answering `costOperator`/`costValue` faithfully would leave the CSV itself
+     * a bisection oracle over the figures it just withheld — one download per
+     * probe, with the row count as the answer.
+     */
+    if (hideCostInfo && logQuerySelectsCost(params)) {
+      return NextResponse.json({ error: capabilityRefusal('logs.cost') }, { status: 403 })
+    }
+
     const encoder = new TextEncoder()
     const csvChunks = (async function* () {
       yield encoder.encode(`${header}\n`)
@@ -135,18 +190,31 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
           for (let index = 0; index < chunk.length; index++) {
             const row = chunk[index]
-            const executionData = materialized[index]
+            const materializedRow = materialized[index]
+            const executionData = hideCostInfo
+              ? withheldSpendData(materializedRow)
+              : materializedRow
             let message: unknown = ''
             let tracesJson = ''
             try {
-              if (executionData.finalOutput) {
+              /**
+               * `finalOutput` is one of the payloads the log-detail projection
+               * deletes for this viewer, so exporting it here would hand back in
+               * bulk exactly what the detail view withholds one run at a time.
+               */
+              if (executionData.finalOutput && !hideTraceSpans) {
                 message =
                   typeof executionData.finalOutput === 'string'
                     ? executionData.finalOutput
                     : (JSON.stringify(executionData.finalOutput) ?? '')
               }
               if (executionData.message) message = executionData.message
-              if (executionData.traceSpans) {
+              /**
+               * The same projection the log detail applies. A group that
+               * withholds trace spans in the UI would otherwise hand them over
+               * in bulk here, which is the larger disclosure of the two.
+               */
+              if (executionData.traceSpans && !hideTraceSpans) {
                 tracesJson = JSON.stringify(executionData.traceSpans) ?? ''
               }
             } catch (rowError) {
@@ -161,7 +229,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
               formatCsvValue(row.workflowName),
               formatCsvValue(row.trigger),
               formatCsvValue(row.totalDurationMs ?? ''),
-              formatCsvValue(row.costTotal ?? ''),
+              formatCsvValue(hideCostInfo ? '' : (row.costTotal ?? '')),
               formatCsvValue(row.workflowId ?? ''),
               formatCsvValue(row.executionId),
               formatCsvValue(message),

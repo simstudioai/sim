@@ -26,10 +26,12 @@ import {
   tableLockErrorResponse,
 } from '@/app/api/table/utils'
 import {
+  capabilityGovernedUserId,
   checkRateLimit,
   checkWorkspaceScope,
   createRateLimitResponse,
-  resolveWorkspaceRequestActor,
+  requireWorkspaceRequestActor,
+  tableAccessPrincipal,
   v1ValidationErrorResponse,
   v1ValidationErrorResponseFromError,
 } from '@/app/api/v1/middleware'
@@ -53,7 +55,6 @@ export const GET = withRouteHandler(async (request: NextRequest, context: RowRou
       return createRateLimitResponse(rateLimit)
     }
 
-    const userId = rateLimit.userId!
     const parsed = await parseRequest(v1GetTableRowContract, request, context, {
       validationErrorResponse: () =>
         NextResponse.json({ error: 'workspaceId query parameter is required' }, { status: 400 }),
@@ -65,7 +66,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: RowRou
     const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
     if (scopeError) return scopeError
 
-    const result = await checkAccess(tableId, userId, 'read')
+    const result = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'read')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     if (result.table.workspaceId !== workspaceId) {
@@ -125,7 +126,6 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
       return createRateLimitResponse(rateLimit)
     }
 
-    const userId = rateLimit.userId!
     const parsed = await parseRequest(v1UpdateTableRowContract, request, context, {
       validationErrorResponse: v1ValidationErrorResponse,
     })
@@ -133,14 +133,13 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     const { tableId, rowId } = parsed.data.params
     const validated = parsed.data.body
 
-    const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId, 'write')
     if (scopeError) return scopeError
-    const actorUserId = await resolveWorkspaceRequestActor(rateLimit, validated.workspaceId)
-    if (!actorUserId) {
-      throw new Error(`Unable to resolve system actor for workspace ${validated.workspaceId}`)
-    }
+    const actor = await requireWorkspaceRequestActor(rateLimit, validated.workspaceId)
+    if (!actor.ok) return actor.response
+    const actorUserId = actor.actorUserId
 
-    const result = await checkAccess(tableId, userId, 'write')
+    const result = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     const { table } = result
@@ -159,6 +158,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
         data: patchData,
         workspaceId: validated.workspaceId,
         actorUserId,
+        capabilityGovernedUserId: capabilityGovernedUserId(rateLimit),
         secretProvenance: createExactEmptyTableRowSecretProvenance(patchData),
       },
       table,
@@ -219,7 +219,6 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
       return createRateLimitResponse(rateLimit)
     }
 
-    const userId = rateLimit.userId!
     const parsed = await parseRequest(v1DeleteTableRowContract, request, context, {
       validationErrorResponse: () =>
         NextResponse.json({ error: 'workspaceId query parameter is required' }, { status: 400 }),
@@ -228,10 +227,10 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
     const { tableId, rowId } = parsed.data.params
     const { workspaceId } = parsed.data.query
 
-    const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, workspaceId, 'write')
     if (scopeError) return scopeError
 
-    const result = await checkAccess(tableId, userId, 'write')
+    const result = await checkAccess(tableId, tableAccessPrincipal(rateLimit), 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
 
     if (result.table.workspaceId !== workspaceId) {

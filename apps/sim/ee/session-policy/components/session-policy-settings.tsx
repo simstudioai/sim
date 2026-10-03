@@ -9,7 +9,7 @@ import {
   MIN_IDLE_TIMEOUT_HOURS,
   MIN_SESSION_LIFETIME_HOURS,
 } from '@/lib/api/contracts/organization'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
@@ -40,13 +40,11 @@ function HourField({ id, title, hint, value, onChange }: HourFieldProps) {
       </Label>
       <ChipInput
         id={id}
-        type='number'
         inputMode='numeric'
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder='No limit'
         className='w-[220px]'
-        inputClassName='[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
       />
       <p className='text-[var(--text-muted)] text-caption'>{hint}</p>
     </div>
@@ -65,6 +63,7 @@ interface SessionPolicyFormProps extends SessionPolicySettingsProps {
 
 function SessionPolicyForm({ organizationId, initialData }: SessionPolicyFormProps) {
   const updatePolicy = useUpdateOrganizationSessionPolicy()
+  const { billingEnabled } = useDeploymentShape()
   const revokeSessions = useRevokeOrganizationSessions()
 
   const initialMaxSessionHours = initialData.configured.maxSessionHours?.toString() ?? ''
@@ -153,7 +152,7 @@ function SessionPolicyForm({ organizationId, initialData }: SessionPolicyFormPro
     }),
   ]
 
-  if (isBillingEnabled && !initialData.isEnterprise) {
+  if (billingEnabled && !initialData.isEnterprise) {
     return (
       <SettingsPanel>
         <SettingsEmptyState>

@@ -1,5 +1,10 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import { buildFolderPath, FolderPathError, MAX_FOLDER_PATH_BYTES } from '@/lib/folders/paths'
+import {
+  buildFolderPath,
+  FolderPathError,
+  MAX_FOLDER_PATH_BYTES,
+  parseFolderPath,
+} from '@/lib/folders/paths'
 import { normalizeWorkspaceFileItemName } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/vfs/path'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
@@ -16,7 +21,10 @@ function encodedByteLength(value: string): number {
   return new TextEncoder().encode(value).length
 }
 
-function parseWorkspaceFileSegments(segments: string[]): ParsedWorkspaceFileCreatePath {
+function parseWorkspaceFileSegments(
+  segments: string[],
+  parentFolderSegments: string[] = []
+): ParsedWorkspaceFileCreatePath {
   if (segments.length === 0) {
     throw new FolderPathError('Workspace file path must include a file name')
   }
@@ -25,9 +33,10 @@ function parseWorkspaceFileSegments(segments: string[]): ParsedWorkspaceFileCrea
   let folderSegments: string[]
   try {
     fileName = normalizeWorkspaceFileItemName(segments.at(-1) ?? '', 'File')
-    folderSegments = segments
-      .slice(0, -1)
-      .map((segment) => normalizeWorkspaceFileItemName(segment, 'Folder'))
+    folderSegments = [
+      ...parentFolderSegments,
+      ...segments.slice(0, -1).map((segment) => normalizeWorkspaceFileItemName(segment, 'Folder')),
+    ]
   } catch (error) {
     throw new FolderPathError(getErrorMessage(error, 'Invalid workspace file path'))
   }
@@ -51,9 +60,13 @@ function parseWorkspaceFileSegments(segments: string[]): ParsedWorkspaceFileCrea
 /**
  * Parses the relative path accepted by file-writing surfaces. Empty slash segments are ignored
  * for compatibility with existing File block workflows, while each effective segment is validated
- * before callers create any folders.
+ * before callers create any folders. An optional canonical folder path supplies the parent scope,
+ * and the complete destination is validated together.
  */
-export function parseRelativeWorkspaceFileCreatePath(path: string): ParsedWorkspaceFileCreatePath {
+export function parseRelativeWorkspaceFileCreatePath(
+  path: string,
+  folderPath?: string
+): ParsedWorkspaceFileCreatePath {
   if (path.includes('\\')) {
     throw new FolderPathError('Workspace file paths cannot contain backslashes')
   }
@@ -64,7 +77,7 @@ export function parseRelativeWorkspaceFileCreatePath(path: string): ParsedWorksp
     .map((segment) => segment.trim())
     .filter(Boolean)
 
-  return parseWorkspaceFileSegments(segments)
+  return parseWorkspaceFileSegments(segments, folderPath ? parseFolderPath(folderPath) : [])
 }
 
 /** Builds the canonical VFS path for a persisted workspace file record. */

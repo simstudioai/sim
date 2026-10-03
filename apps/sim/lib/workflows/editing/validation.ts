@@ -1,26 +1,52 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { omit } from '@sim/utils/object'
+import { generateShortId } from '@sim/utils/id'
+import { isPlainRecord, omit } from '@sim/utils/object'
 import { isHosted as isHostedDeployment } from '@/lib/core/config/env-flags'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
+import { mcpOperationPolicySchema } from '@/lib/mcp/operation-policy'
+import { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
-import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
+import { resolveAccessControlBlockType } from '@/lib/permission-groups/integration-allowlist'
+import {
+  FALLBACK_TUNING_KNOBS,
+  FALLBACK_TUNING_LABELS,
+  getTuningOptionsForModel,
+  isTuningValueValidForModel,
+  isWholeEnvVarReference,
+  MAX_FALLBACK_MODELS,
+  normalizeTuningValues,
+} from '@/lib/workflows/blocks/fallback-models'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
-import { validateSelectorIds } from '@/lib/workflows/editing/selector-validator'
+import {
+  type ReferenceValidationOptions,
+  type SelectorReference,
+  validateSelectorIds,
+} from '@/lib/workflows/editing/selector-validator'
+import { containsReference } from '@/lib/workflows/sanitization/references'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import {
   buildCanonicalIndex,
   buildSubBlockValues,
+  evaluateSubBlockCondition,
   getCanonicalSubBlocksForSurface,
   isCanonicalPair,
   resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
+import { validateToolBindingAuthoring } from '@/lib/workflows/tool-input/authoring'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getModelOptions } from '@/blocks/utils'
 import { overlayVisibility } from '@/blocks/visibility/context'
 import { BlockType, EDGE, normalizeName } from '@/executor/constants'
-import { isAutoModel, isKnownModelId, suggestModelIdsForUnknownModel } from '@/providers/models'
+import {
+  getHostedModels,
+  isAutoModel,
+  isCustomModelId,
+  isKnownModelId,
+  suggestModelIdsForUnknownModel,
+} from '@/providers/models'
 import { isPiByokOnlyMode } from '@/providers/pi-providers'
 import { getTool } from '@/tools/utils'
 import {
@@ -82,7 +108,9 @@ function isContainerBlockType(blockType: string): blockType is 'loop' | 'paralle
 export function validateInputsForBlock(
   blockType: string,
   inputs: Record<string, any>,
-  blockId: string
+  blockId: string,
+  existingValues: Record<string, unknown> = {},
+  enforceToolBindingContract = false
 ): ValidationResult {
   const errors: ValidationError[] = []
 
@@ -139,11 +167,13 @@ export function validateInputsForBlock(
   }
 
   const validatedInputs: Record<string, any> = {}
-  const subBlockMap = new Map<string, SubBlockConfig>()
+  const subBlockMap = new Map<string, SubBlockConfig[]>()
+  const conditionValues = { ...existingValues, ...inputs }
 
-  // Build map of subBlock id -> config
   for (const subBlock of blockConfig.subBlocks) {
-    subBlockMap.set(subBlock.id, subBlock)
+    const variants = subBlockMap.get(subBlock.id) ?? []
+    variants.push(subBlock)
+    subBlockMap.set(subBlock.id, variants)
   }
 
   for (const [key, value] of Object.entries(inputs)) {
@@ -152,7 +182,15 @@ export function validateInputsForBlock(
       continue
     }
 
-    const subBlockConfig = subBlockMap.get(key)
+    const variants = subBlockMap.get(key)
+    let subBlockConfig = variants?.at(-1)
+    if (variants && variants.length > 1) {
+      for (const variant of variants) {
+        if (evaluateSubBlockCondition(variant.condition, conditionValues)) {
+          subBlockConfig = variant
+        }
+      }
+    }
 
     // If subBlock doesn't exist in config, report it rather than dropping it
     if (!subBlockConfig) {
@@ -190,10 +228,19 @@ export function validateInputsForBlock(
       continue
     }
 
-    // Note: We do NOT check subBlockConfig.condition here.
-    // Conditions are for UI display logic (show/hide fields in the editor).
-    // For API/Copilot, any valid field in the block schema should be accepted.
-    // The runtime will use the relevant fields based on the actual operation.
+    /**
+     * Conditions choose the schema when an ID has multiple declarations. Keep
+     * accepting dormant fields: if no variant matches, use the existing last
+     * declaration fallback. Missing selector values are not inferred defaults.
+     */
+
+    if (enforceToolBindingContract && subBlockConfig.type === 'tool-input') {
+      const error = validateToolBindingAuthoring(blockType, value, existingValues[key])
+      if (error) {
+        errors.push({ blockId, blockType, field: key, value, error })
+        continue
+      }
+    }
 
     // Validate value based on subBlock type
     const validationResult = validateValueForSubBlockType(
@@ -252,6 +299,14 @@ function validateAgentToolEntry(item: any, index: number): string | null {
     return `${where} is missing a string "type". Custom tools require "type":"custom-tool" (without it the tool will not attach or show its icon); use "mcp" for MCP tools or an integration block type (e.g. "exa") otherwise`
   }
 
+  if (
+    type === MCP_SERVER_ADVANCED_TOOL_TYPE &&
+    item.operationPolicy !== undefined &&
+    !mcpOperationPolicySchema.safeParse(item.operationPolicy).success
+  ) {
+    return `${where} has an invalid MCP operations access policy`
+  }
+
   if (type === 'custom-tool') {
     const hasReference = typeof item.customToolId === 'string' && item.customToolId.trim() !== ''
     const fn = item.schema?.function
@@ -277,6 +332,14 @@ function validateAgentToolEntry(item: any, index: number): string | null {
       toolName.trim() !== ''
     if (!ok) {
       return `${where} (mcp) must include params.serverId and params.toolName`
+    }
+    return null
+  }
+
+  if (type === MCP_SERVER_ADVANCED_TOOL_TYPE) {
+    const serverId = item.params?.serverId
+    if (typeof serverId !== 'string' || !serverId.trim()) {
+      return `${where} (${MCP_SERVER_ADVANCED_TOOL_TYPE}) must include params.serverId`
     }
     return null
   }
@@ -352,6 +415,103 @@ function validateAgentSkillEntry(item: any, index: number): string | null {
   return null
 }
 
+/** Parses a JSON-string array input; any other value passes through to the array check. */
+function parseArrayInput(value: unknown): unknown {
+  if (typeof value !== 'string') return value
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
+const ROUTER_ROUTE_KEYS: ReadonlySet<string> = new Set(['id', 'title', 'value'])
+const ROUTER_ROUTE_SHAPE =
+  'a route is {id?, title, value}; "value" holds the description the model reads'
+
+/**
+ * Validates one router route against the shape the runtime reads.
+ *
+ * `generateRouterV2Prompt` shows the model each route's `value` as its
+ * description, so a route that carries the description under another key
+ * (`description`, `prompt`) is stored intact yet presented as having no
+ * description at all, and every request falls through to the first route.
+ * The stray key is named so the caller can see what to rename; `id` is
+ * optional because the engine rewrites route ids on write.
+ *
+ * Unknown keys are only named when `value` is unusable: the editor persists
+ * its own UI state (`showTags`, cursor position) beside the three keys, so a
+ * stored route echoed back must not be refused for carrying it.
+ */
+function validateRouterRouteEntry(route: unknown, index: number): string | null {
+  const where = `Invalid route at index ${index}`
+  if (route === null || typeof route !== 'object' || Array.isArray(route)) {
+    return `${where}: expected an object — ${ROUTER_ROUTE_SHAPE}`
+  }
+
+  const record = route as Record<string, unknown>
+  const problems: string[] = []
+  if (typeof record.title !== 'string' || record.title.trim() === '') {
+    problems.push('"title" must be a non-empty string')
+  }
+  if (typeof record.value !== 'string' || record.value.trim() === '') {
+    problems.push(
+      record.value === undefined ? 'missing "value"' : '"value" must be a non-empty string'
+    )
+    const unknownKeys = Object.keys(record).filter((key) => !ROUTER_ROUTE_KEYS.has(key))
+    if (unknownKeys.length > 0) {
+      const keys = unknownKeys.map((key) => `"${key}"`).join(', ')
+      problems.push(`unknown ${unknownKeys.length === 1 ? 'key' : 'keys'} ${keys}`)
+    }
+  }
+  if (problems.length === 0) return null
+  return `${where}: ${problems.join(', ')} — ${ROUTER_ROUTE_SHAPE}`
+}
+
+/**
+ * Validates one fallback-model row. Returns an error string or null when valid.
+ *
+ * Refuses rather than repairs: an unknown model, sim-auto, or a raw key is an
+ * authoring mistake the caller must see. A missing React-key `id` is the one
+ * thing filled in, since it carries no meaning.
+ */
+function validateFallbackModelEntry(item: any, index: number): string | null {
+  const where = `fallbackModels[${index}]`
+  if (item === null || typeof item !== 'object' || Array.isArray(item)) {
+    return `${where} must be an object { model, apiKey? }`
+  }
+  const model = typeof item.model === 'string' ? item.model.trim() : ''
+  if (model === '') {
+    return `${where} is missing a string "model"`
+  }
+  if (isAutoModel(model)) {
+    return `${where}: sim-auto cannot be a fallback model; it already routes and falls back on its own`
+  }
+  if (!isKnownModelId(model) && !isCustomModelId(model)) {
+    const suggestions = suggestModelIdsForUnknownModel(model)
+    const suggestionText =
+      suggestions.length > 0 ? ` Valid options include: ${suggestions.join(', ')}.` : ''
+    return `${where}: unknown model id "${model}".${suggestionText}`
+  }
+  if (item.apiKey !== undefined && item.apiKey !== null && item.apiKey !== '') {
+    if (!isWholeEnvVarReference(item.apiKey)) {
+      return `${where}.apiKey must be a whole {{ENV_VAR}} reference; put the key in an environment variable instead of pasting it`
+    }
+  }
+  for (const knob of FALLBACK_TUNING_KNOBS) {
+    const value = item[knob]
+    if (value === undefined || value === null || value === '') continue
+    if (typeof value !== 'string' || !isTuningValueValidForModel(model, knob, value)) {
+      const options = getTuningOptionsForModel(model, knob)
+      const hint = options
+        ? ` Valid options: ${options.join(', ')}.`
+        : ` ${model} has no such setting.`
+      return `${where}.${knob}: "${String(value)}" is not a ${FALLBACK_TUNING_LABELS[knob].toLowerCase()} option for ${model}.${hint}`
+    }
+  }
+  return null
+}
+
 /**
  * Validates a value against its expected subBlock type
  * Returns validation result with the value or an error
@@ -379,7 +539,10 @@ export function validateValueForSubBlockType(
           : subBlockConfig.options
       if (options && Array.isArray(options)) {
         const validIds = options.map((opt) => opt.id)
-        if (!validIds.includes(value)) {
+        const values = subBlockConfig.multiSelect && Array.isArray(value) ? value : [value]
+        const isEmptyRequiredMultiSelect =
+          subBlockConfig.multiSelect && subBlockConfig.required && values.length === 0
+        if (isEmptyRequiredMultiSelect || values.some((item) => !validIds.includes(item))) {
           return {
             valid: false,
             error: {
@@ -490,21 +653,44 @@ export function validateValueForSubBlockType(
       return { valid: true, value }
     }
 
+    case 'router-input': {
+      const parsedValue = parseArrayInput(value)
+      if (!Array.isArray(parsedValue)) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid ${type} value for field "${fieldName}" - expected a JSON array`,
+          },
+        }
+      }
+
+      const routeErrors = parsedValue
+        .map((route: unknown, index: number) => validateRouterRouteEntry(route, index))
+        .filter((err): err is string => err !== null)
+      if (routeErrors.length > 0) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: routeErrors.join('; '),
+          },
+        }
+      }
+
+      return { valid: true, value }
+    }
+
     case 'condition-input':
-    case 'router-input':
     case 'knowledge-tag-filters':
     case 'document-tag-entry': {
-      const parsedValue =
-        typeof value === 'string'
-          ? (() => {
-              try {
-                return JSON.parse(value)
-              } catch {
-                return null
-              }
-            })()
-          : value
-
+      const parsedValue = parseArrayInput(value)
       if (!Array.isArray(parsedValue)) {
         return {
           valid: false,
@@ -553,6 +739,57 @@ export function validateValueForSubBlockType(
       return { valid: true, value }
     }
 
+    case 'model-fallback-list': {
+      if (!Array.isArray(value)) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid model-fallback-list value for field "${fieldName}" - expected an array of { model, apiKey? } objects`,
+          },
+        }
+      }
+      if (value.length > MAX_FALLBACK_MODELS) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `"${fieldName}" allows at most ${MAX_FALLBACK_MODELS} fallback models`,
+          },
+        }
+      }
+      const fallbackErrors = value
+        .map((item, index) => validateFallbackModelEntry(item, index))
+        .filter((err): err is string => err !== null)
+      if (fallbackErrors.length > 0) {
+        return {
+          valid: false,
+          error: {
+            blockId,
+            blockType,
+            field: fieldName,
+            value,
+            error: `Invalid fallback ${fallbackErrors.length === 1 ? 'entry' : 'entries'} in "${fieldName}": ${fallbackErrors.join('; ')}`,
+          },
+        }
+      }
+      return {
+        valid: true,
+        value: value.map((item: Record<string, unknown> & { model: string }) => ({
+          id: typeof item.id === 'string' && item.id ? item.id : generateShortId(),
+          model: item.model.trim(),
+          ...(isWholeEnvVarReference(item.apiKey) ? { apiKey: item.apiKey.trim() } : {}),
+          ...normalizeTuningValues(item),
+        })),
+      }
+    }
+
     case 'skill-input': {
       // Should be an array of skill reference objects ({ skillId, name? })
       if (!Array.isArray(value)) {
@@ -586,6 +823,12 @@ export function validateValueForSubBlockType(
     }
 
     case 'code': {
+      // A JSON-language code field holds a document, and callers naturally hand
+      // that document over as an object or array; store the JSON text the editor
+      // shows and the block's runtime parses.
+      if (subBlockConfig.language === 'json' && typeof value === 'object') {
+        return { valid: true, value: JSON.stringify(value) }
+      }
       // Code must be a string (content can be JS, Python, JSON, SQL, HTML, etc.)
       if (typeof value !== 'string') {
         return {
@@ -657,7 +900,7 @@ export function validateValueForSubBlockType(
         if (trimmed !== '' && isAutoModel(trimmed) && isHostedDeployment) {
           return { valid: true, value: trimmed.toLowerCase() }
         }
-        if (trimmed !== '' && !isKnownModelId(trimmed)) {
+        if (trimmed !== '' && !isKnownModelId(trimmed) && !isCustomModelId(trimmed)) {
           const suggestions = suggestModelIdsForUnknownModel(trimmed)
           const suggestionText =
             suggestions.length > 0 ? ` Valid options include: ${suggestions.join(', ')}.` : ''
@@ -668,7 +911,7 @@ export function validateValueForSubBlockType(
               blockType,
               field: fieldName,
               value,
-              error: `Unknown model id "${trimmed}" for block "${blockType}". Read components/blocks/${blockType}.json (the model.options array) for valid ids; prefer entries with recommended: true and avoid deprecated: true. For user-configured models (Ollama, Ollama Cloud, vLLM, LiteLLM, OpenRouter, Fireworks, Together AI, Baseten), prefix the id with the provider slash, e.g. "ollama/llama3.1:8b" or "ollama-cloud/gpt-oss:120b".${suggestionText}`,
+              error: `Unknown model id "${trimmed}" for block "${blockType}". Read components/blocks/${blockType}.json (the model.options array) for valid ids; prefer entries with recommended: true and avoid deprecated: true. For user-configured models, use a supported provider namespace, e.g. "azure/my-deployment", "azure-anthropic/my-deployment", "bedrock/my-inference-profile", "vertex/my-model", "ollama/llama3.1:8b", or "openrouter/provider/model".${suggestionText}`,
             },
           }
         }
@@ -1000,7 +1243,16 @@ export function validateTargetHandle(targetHandle: string): EdgeHandleValidation
 }
 
 /**
- * Checks if a block type is allowed by the permission group config
+ * Whether a block may be added to a graph by this viewer.
+ *
+ * Two questions, not one: whether the viewer can see the block at all
+ * (deployment visibility — an unrevealed preview block, a kill-switched type)
+ * and whether their permission group's integration allowlist permits it.
+ * Refusing to *add* something a viewer cannot see is right.
+ *
+ * Refusing to *store* it is not, which is why the persist-time guard in
+ * `@/lib/workflows/persistence/block-access-guard` checks the allowlist alone:
+ * a graph exported before a block was gated must still save.
  */
 export function isBlockTypeAllowed(
   blockType: string,
@@ -1013,7 +1265,9 @@ export function isBlockTypeAllowed(
   if (!permissionConfig || permissionConfig.allowedIntegrations === null) {
     return true
   }
-  return permissionConfig.allowedIntegrations.includes(blockType.toLowerCase())
+  return permissionConfig.allowedIntegrations.includes(
+    resolveAccessControlBlockType(blockType).toLowerCase()
+  )
 }
 
 /**
@@ -1039,26 +1293,20 @@ export interface UnresolvedSelectorReference {
 export const UNRESOLVABLE_AT_LINT_NOTE =
   'Credential/resource resolution covers oauth credentials, knowledge bases, documents, workflows, and MCP servers. External selector IDs (Slack channels, Drive files, Jira projects, folders, MCP tools) are validated only at run time.'
 
-interface SelectorFieldToValidate {
-  blockId: string
-  blockType: string
-  blockName?: string
-  fieldName: string
-  selectorType: string
-  value: string | string[]
-}
-
 /**
  * Walk a workflow state and collect selector/credential fields to validate.
  * For canonical pairs only the ACTIVE member is collected (an intentionally-empty
  * inactive member is never flagged). oauth-input credentials are included only
- * when `options.includeCredentials` is set.
+ * when `options.includeCredentials` is set. Complete standalone diagnostics also
+ * inspect active manual inputs using their canonical selector's resource type and
+ * ignore fields whose operation condition is inactive. Advisory writes retain their
+ * existing selector-only behavior.
  */
 function collectSelectorFields(
   workflowState: any,
-  options: { includeCredentials?: boolean } = {}
-): SelectorFieldToValidate[] {
-  const fields: SelectorFieldToValidate[] = []
+  options: { includeCredentials?: boolean; requireComplete?: boolean } = {}
+): SelectorReference[] {
+  const fields: SelectorReference[] = []
 
   for (const [blockId, block] of Object.entries(workflowState.blocks || {})) {
     const blockData = block as any
@@ -1080,16 +1328,28 @@ function collectSelectorFields(
     const canonicalModeOverrides = blockData.data?.canonicalModes
 
     for (const subBlockConfig of activeSubBlocks) {
-      if (!SELECTOR_TYPES.has(subBlockConfig.type)) continue
+      const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlockConfig.id]
+      const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
+      const basicMember =
+        options.requireComplete && group?.basicId
+          ? activeSubBlocks.find((config) => config.id === group.basicId)
+          : undefined
+      const selectorType = SELECTOR_TYPES.has(subBlockConfig.type)
+        ? subBlockConfig.type
+        : basicMember?.type
+      if (!selectorType || !SELECTOR_TYPES.has(selectorType)) continue
+      if (
+        options.requireComplete &&
+        !evaluateSubBlockCondition(subBlockConfig.condition, allValues)
+      )
+        continue
 
       // oauth-input credentials are only validated when explicitly requested
       // (the edit path pre-validates them separately; the lint opts in).
-      if (subBlockConfig.type === 'oauth-input' && !options.includeCredentials) continue
+      if (selectorType === 'oauth-input' && !options.includeCredentials) continue
 
       // For canonical pairs, only validate the active member's value so an
       // intentionally-empty inactive member is never flagged.
-      const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlockConfig.id]
-      const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
       if (group && isCanonicalPair(group)) {
         const mode = resolveCanonicalMode(group, allValues, canonicalModeOverrides)
         const isActiveMember =
@@ -1116,7 +1376,7 @@ function collectSelectorFields(
         blockType,
         blockName: blockData.name,
         fieldName: subBlockConfig.id,
-        selectorType: subBlockConfig.type,
+        selectorType,
         value: values,
       })
     }
@@ -1126,81 +1386,24 @@ function collectSelectorFields(
 }
 
 /**
- * Validates selector IDs in the workflow state exist in the database.
- * Returns validation errors for any invalid selector IDs.
- *
- * `options.includeCredentials` controls whether oauth-input credential fields
- * are validated (the edit path defaults to skipping them since they are
- * pre-validated; the lint opts in to close that gap).
- */
-export async function validateWorkflowSelectorIds(
-  workflowState: any,
-  context: { userId: string; workspaceId?: string },
-  options: { includeCredentials?: boolean } = {}
-): Promise<ValidationError[]> {
-  const logger = createLogger('EditWorkflowSelectorValidation')
-  const errors: ValidationError[] = []
-
-  const selectorsToValidate = collectSelectorFields(workflowState, options)
-
-  if (selectorsToValidate.length === 0) {
-    return errors
-  }
-
-  logger.info('Validating selector IDs', {
-    selectorCount: selectorsToValidate.length,
-    userId: context.userId,
-    workspaceId: context.workspaceId,
-  })
-
-  // Validate each selector field
-  for (const selector of selectorsToValidate) {
-    const result = await validateSelectorIds(selector.selectorType, selector.value, context)
-
-    if (result.invalid.length > 0) {
-      // Include warning info (like available credentials) in the error message for better LLM feedback
-      const warningInfo = result.warning ? `. ${result.warning}` : ''
-      errors.push({
-        blockId: selector.blockId,
-        blockType: selector.blockType,
-        field: selector.fieldName,
-        value: selector.value,
-        error: `Invalid ${selector.selectorType} ID(s): ${result.invalid.join(', ')} — they do not exist in this workspace or you lack access. Discover valid ids first (glob/read the matching workspace resource, e.g. environment/credentials.json, knowledgebases/*/meta.json, tables/*/meta.json) instead of guessing${warningInfo}`,
-      })
-    } else if (result.warning) {
-      // Log warnings that don't have errors (shouldn't happen for credentials but may for other selectors)
-      logger.warn(result.warning, {
-        blockId: selector.blockId,
-        fieldName: selector.fieldName,
-      })
-    }
-  }
-
-  if (errors.length > 0) {
-    logger.warn('Found invalid selector IDs', {
-      errorCount: errors.length,
-      errors: errors.map((e) => ({ blockId: e.blockId, field: e.field, error: e.error })),
-    })
-  }
-
-  return errors
-}
-
-/**
  * Lint-facing Tier-2 resolution: validate every ACTIVE credential/resource
  * member (including oauth-input) against the workspace and return the references
  * that do not resolve to an accessible entity. This is the "set in basic mode
  * but the dropdown shows nothing" check, using the same resolver the dropdown
- * options come from. Best-effort: per-field resolution failures are skipped.
+ * options come from. Advisory callers skip failed lookups; complete diagnostics propagate them.
  */
 export async function collectUnresolvedReferences(
   workflowState: any,
-  context: { userId: string; workspaceId?: string }
+  context: { userId: string; workspaceId?: string },
+  options: ReferenceValidationOptions = {}
 ): Promise<UnresolvedSelectorReference[]> {
   const logger = createLogger('EditWorkflowResolutionLint')
   const references: UnresolvedSelectorReference[] = []
 
-  const selectorsToValidate = collectSelectorFields(workflowState, { includeCredentials: true })
+  const selectorsToValidate = collectSelectorFields(workflowState, {
+    includeCredentials: true,
+    requireComplete: options.requireComplete,
+  })
   if (selectorsToValidate.length === 0) {
     return references
   }
@@ -1208,13 +1411,16 @@ export async function collectUnresolvedReferences(
   for (const selector of selectorsToValidate) {
     let result: Awaited<ReturnType<typeof validateSelectorIds>>
     try {
-      result = await validateSelectorIds(selector.selectorType, selector.value, context)
+      result = options.resolveSelector
+        ? await options.resolveSelector(selector)
+        : await validateSelectorIds(selector.selectorType, selector.value, context, options)
     } catch (error) {
-      logger.warn('Selector resolution failed; skipping field', {
+      logger.warn('Selector resolution failed', {
         blockId: selector.blockId,
         fieldName: selector.fieldName,
         error: toError(error).message,
       })
+      if (options.requireComplete) throw error
       continue
     }
 
@@ -1236,119 +1442,116 @@ export async function collectUnresolvedReferences(
   return references
 }
 
+export interface AgentToolReference {
+  blockId: string
+  blockName?: string
+  blockType: 'agent'
+  field: 'tools' | 'skills'
+  value: string
+  kind: 'custom-tool' | 'mcp-tool' | 'skill'
+}
+
+export interface AgentToolReferenceValidationOptions extends ReferenceValidationOptions {
+  /** Undefined means no missing-reference finding; the caller owns unchecked notes. */
+  resolveAgentTool?: (reference: AgentToolReference) => Promise<string | undefined>
+}
+
 /**
- * Lint-facing existence check for agent-block tool/skill references. Walks every
- * agent block and verifies that reference-format custom tools (`customToolId`),
- * MCP tools (`params.serverId`), and skills (`skillId`) resolve to real
- * workspace/builtin entities. A well-shaped entry whose id does not resolve
- * passes shape validation but is silently dropped at runtime (the agent never
- * sees the tool/skill), so surface it through the lint channel. Best-effort:
- * per-entry resolution failures are skipped rather than failing the edit.
+ * Walk attached references once. Standalone diagnostics resolve through authorized
+ * application reads; advisory writes keep their existing best-effort lookups.
+ * Inline custom tools can execute their schema when the stored ID is unavailable.
  */
 export async function collectUnresolvedAgentToolReferences(
-  workflowState: any,
-  context: { userId: string; workspaceId?: string }
+  workflowState: unknown,
+  context: { userId: string; workspaceId?: string },
+  options: AgentToolReferenceValidationOptions = {}
 ): Promise<UnresolvedSelectorReference[]> {
-  const logger = agentToolLintLogger
   const references: UnresolvedSelectorReference[] = []
-  const { userId, workspaceId } = context
-
-  for (const [blockId, block] of Object.entries(workflowState.blocks || {})) {
-    const blockData = block as any
-    if (blockData?.type !== 'agent') continue
-    const blockName = blockData.name as string | undefined
-
-    const tools = blockData.subBlocks?.tools?.value
-    if (Array.isArray(tools)) {
-      for (const tool of tools) {
-        if (!tool || typeof tool !== 'object') continue
-
-        // Reference-format custom tools must resolve to a DB row. Inline tools
-        // (those carrying their own schema) are self-contained, so skip them.
-        // Gated on workspaceId (like the MCP/skill paths below): without a
-        // workspace, getCustomToolById only sees legacy tools and would
-        // false-positive on every workspace-scoped tool.
-        if (tool.type === 'custom-tool' && !tool.schema && workspaceId) {
-          const toolId = tool.customToolId
-          if (typeof toolId !== 'string' || toolId.trim() === '') continue
-          try {
-            const found = await getCustomToolById({ toolId, userId, workspaceId })
-            if (!found) {
-              references.push({
-                blockId,
-                blockName,
-                blockType: 'agent',
-                field: 'tools',
-                value: toolId,
-                kind: 'custom-tool',
-                reason: `custom tool id "${toolId}" does not resolve to a custom tool in this workspace - create it with manage_custom_tool and use the returned id, otherwise the agent will not see the tool`,
-              })
-            }
-          } catch (error) {
-            logger.warn('Custom tool resolution failed; skipping', {
-              blockId,
-              toolId,
-              error: toError(error).message,
-            })
-          }
-        } else if (tool.type === 'mcp' && workspaceId) {
-          const serverId = tool.params?.serverId
-          if (typeof serverId !== 'string' || serverId.trim() === '') continue
-          try {
-            const result = await validateSelectorIds('mcp-server-selector', serverId, context)
-            if (result.invalid.length > 0) {
-              references.push({
-                blockId,
-                blockName,
-                blockType: 'agent',
-                field: 'tools',
-                value: serverId,
-                kind: 'mcp-tool',
-                reason: `MCP server "${serverId}" does not resolve to an enabled MCP server in this workspace`,
-              })
-            }
-          } catch (error) {
-            logger.warn('MCP server resolution failed; skipping', {
-              blockId,
-              serverId,
-              error: toError(error).message,
-            })
-          }
+  if (
+    !context.workspaceId ||
+    !isPlainRecord(workflowState) ||
+    !isPlainRecord(workflowState.blocks)
+  ) {
+    return references
+  }
+  for (const [blockId, block] of Object.entries(workflowState.blocks)) {
+    if (!isPlainRecord(block) || block.type !== 'agent' || !isPlainRecord(block.subBlocks)) continue
+    const blockName = typeof block.name === 'string' ? block.name : undefined
+    for (const field of ['tools', 'skills'] as const) {
+      const subBlock = block.subBlocks[field]
+      if (!isPlainRecord(subBlock) || !Array.isArray(subBlock.value)) continue
+      for (const entry of subBlock.value) {
+        if (!isPlainRecord(entry)) continue
+        let kind: AgentToolReference['kind']
+        let value: unknown
+        if (field === 'skills') {
+          kind = 'skill'
+          value = entry.skillId
+        } else if (entry.type === 'custom-tool' && !entry.schema) {
+          kind = 'custom-tool'
+          value = entry.customToolId
+        } else if (
+          (entry.type === 'mcp' || entry.type === MCP_SERVER_ADVANCED_TOOL_TYPE) &&
+          isPlainRecord(entry.params)
+        ) {
+          kind = 'mcp-tool'
+          value = entry.params.serverId
+        } else continue
+        if (typeof value !== 'string' || value.trim() === '') continue
+        if (kind === 'mcp-tool' && containsReference(value)) continue
+        const reference: AgentToolReference = {
+          blockId,
+          blockName,
+          blockType: 'agent',
+          field,
+          value,
+          kind,
         }
-      }
-    }
-
-    const skills = blockData.subBlocks?.skills?.value
-    if (Array.isArray(skills) && workspaceId) {
-      for (const skillEntry of skills) {
-        if (!skillEntry || typeof skillEntry !== 'object') continue
-        const skillId = skillEntry.skillId
-        if (typeof skillId !== 'string' || skillId.trim() === '') continue
         try {
-          const found = await getSkillById({ skillId, workspaceId })
-          if (!found) {
-            references.push({
-              blockId,
-              blockName,
-              blockType: 'agent',
-              field: 'skills',
-              value: skillId,
-              kind: 'skill',
-              reason: `skill id "${skillId}" does not resolve to a builtin or workspace skill - use manage_skill (operation "list") to get valid ids`,
-            })
-          }
+          const reason = options.resolveAgentTool
+            ? await options.resolveAgentTool(reference)
+            : await resolveAdvisoryAgentToolReference(
+                reference,
+                { userId: context.userId, workspaceId: context.workspaceId },
+                options
+              )
+          if (reason) references.push({ ...reference, reason })
         } catch (error) {
-          logger.warn('Skill resolution failed; skipping', {
+          agentToolLintLogger.warn('Agent tool reference resolution failed', {
             blockId,
-            skillId,
+            kind,
+            value,
             error: toError(error).message,
           })
+          if (options.requireComplete) throw error
         }
       }
     }
   }
-
   return references
+}
+
+/** Existing write-time observations remain advisory and keep their public result wording. */
+async function resolveAdvisoryAgentToolReference(
+  reference: AgentToolReference,
+  context: { userId: string; workspaceId: string },
+  options: ReferenceValidationOptions
+): Promise<string | undefined> {
+  const { value, kind } = reference
+  if (kind === 'custom-tool') {
+    const found = await getCustomToolById({ toolId: value, ...context })
+    if (!found)
+      return `custom tool id "${value}" does not resolve to a custom tool in this workspace - create it with manage_custom_tool and use the returned id, otherwise the agent will not see the tool`
+  } else if (kind === 'mcp-tool') {
+    const result = await validateSelectorIds('mcp-server-selector', value, context, options)
+    if (result.invalid.length > 0)
+      return `MCP server "${value}" does not resolve to an enabled MCP server in this workspace`
+  } else {
+    const found = await getSkillById({ skillId: value, workspaceId: context.workspaceId })
+    if (!found)
+      return `skill id "${value}" does not resolve to a builtin or workspace skill - use manage_skill (operation "list") to get valid ids`
+  }
+  return undefined
 }
 
 /**
@@ -1368,7 +1571,6 @@ export async function preValidateCredentialInputs(
   workflowState?: Record<string, unknown>
 ): Promise<{ filteredOperations: EditWorkflowOperation[]; errors: ValidationError[] }> {
   const { isHosted } = await import('@/lib/core/config/env-flags')
-  const { getHostedModels } = await import('@/providers/utils')
 
   const logger = createLogger('PreValidateCredentials')
   const errors: ValidationError[] = []

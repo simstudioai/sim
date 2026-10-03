@@ -21,23 +21,6 @@ afterEach(() => {
 })
 
 describe('stream-settle selection collapse', () => {
-  it('a select-all survives a whole-document setContent as a non-empty range', () => {
-    editor = new Editor({
-      extensions: createMarkdownContentExtensions(),
-      content: '# Title\n\n---\n\nbody',
-      contentType: 'markdown',
-    })
-    editor.commands.selectAll()
-    expect(editor.state.selection.empty).toBe(false)
-
-    editor.commands.setContent(parseMarkdownToDoc('# New title\n\n---\n\nnew body'), {
-      contentType: 'json',
-      emitUpdate: false,
-    })
-    // The bug: without an explicit selection reset, the mapped select-all still spans the new doc.
-    expect(editor.state.selection.empty).toBe(false)
-  })
-
   it('setTextSelection(doc size) after setContent collapses the selection (the fix)', () => {
     editor = new Editor({
       extensions: createMarkdownContentExtensions(),

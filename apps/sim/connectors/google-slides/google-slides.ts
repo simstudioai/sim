@@ -1,13 +1,16 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { googleSlidesConnectorMeta } from '@/connectors/google-slides/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
   buildDriveParentsClause,
   CONNECTOR_MAX_FILE_BYTES,
   ConnectorFileTooLargeError,
+  isListingScopeUnavailableError,
   joinTagArray,
+  listingRequestError,
   markSkipped,
   parseMultiValue,
   parseTagDate,
@@ -286,6 +289,8 @@ function buildQuery(sourceConfig: Record<string, unknown>, lastSyncAt?: Date): s
 export const googleSlidesConnector: ConnectorConfig = {
   ...googleSlidesConnectorMeta,
 
+  isListingScopeUnavailableError: isListingScopeUnavailableError,
+
   listDocuments: async (
     accessToken: string,
     sourceConfig: Record<string, unknown>,
@@ -339,7 +344,7 @@ export const googleSlidesConnector: ConnectorConfig = {
         status: response.status,
         error: errorText,
       })
-      throw new Error(`Failed to list Google Slides presentations: ${response.status}`)
+      throw listingRequestError('Failed to list Google Slides presentations', response.status)
     }
 
     const data = await response.json()

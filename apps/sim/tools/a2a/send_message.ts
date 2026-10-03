@@ -7,9 +7,9 @@ import {
   type A2ASendMessageParams,
   type A2ATaskResponse,
 } from '@/tools/a2a/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const a2aSendMessageTool: ToolConfig<A2ASendMessageParams, A2ATaskResponse> = {
+export const a2aSendMessageTool: InternalToolConfig<A2ASendMessageParams, A2ATaskResponse> = {
   id: 'a2a_send_message',
   name: 'A2A Send Message',
   description: 'Send a message to an external A2A agent and return its response.',
@@ -60,7 +60,7 @@ export const a2aSendMessageTool: ToolConfig<A2ASendMessageParams, A2ATaskRespons
     },
   },
 
-  request: {
+  operation: {
     modelInput: {
       mode: 'project',
       select: (params) => {
@@ -84,15 +84,12 @@ export const a2aSendMessageTool: ToolConfig<A2ASendMessageParams, A2ATaskRespons
           : {}),
       }),
     },
-    url: '/api/tools/a2a/send-message',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+    input: (params) => {
       const body: Record<string, unknown> = {
         agentUrl: params.agentUrl,
         message: params.message,
       }
-      if (params.data) body.data = params.data
+      if (params.data !== undefined) body.data = params.data
       if (params.files) body.files = params.files
       if (params.taskId) body.taskId = params.taskId
       if (params.contextId) body.contextId = params.contextId

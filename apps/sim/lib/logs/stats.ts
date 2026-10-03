@@ -11,32 +11,64 @@ export interface LogStatsWindow {
   segmentMs: number
 }
 
+/** Requested window and clock overrides for {@link resolveLogStatsWindow}. */
+export interface ResolveLogStatsWindowOptions {
+  /** Caller-supplied left edge, when the request named one. */
+  requestedStart?: Date
+  /** Caller-supplied right edge, when the request named one. */
+  requestedEnd?: Date
+  /** Wall clock, injectable so the fallbacks are deterministic under test. */
+  now?: Date
+}
+
+/** An unparseable bound is treated as absent rather than as `Invalid Date`. */
+function usableBound(bound: Date | undefined): Date | undefined {
+  return bound && Number.isFinite(bound.getTime()) ? bound : undefined
+}
+
 /**
- * The window the segments span, derived from the rows that exist rather than
- * from a caller-supplied range.
+ * The window the segments span.
  *
- * A workspace with no runs still has to answer with a window, because
+ * An edge the caller named wins outright: no run outside it can be counted, so
+ * deriving the span from anything else stamps trailing buckets the query has
+ * already excluded and computes `segmentMs` over a width nobody asked for.
+ *
+ * An omitted edge still falls back to the rows that exist — the oldest matching
+ * run on the left, and on the right the later of the newest matching run and
+ * `now`, so a live dashboard's right edge is the present rather than the last
+ * thing that happened.
+ *
+ * A workspace with no matching runs still has to answer with a window, because
  * `segmentMs` and every segment timestamp are computed from one — hence the
- * trailing-24-hour fallback. The end is pushed to `now` whenever the newest run
- * is older than that, so a live dashboard's right edge is the present rather
- * than the last thing that happened.
+ * 24-hour fallback. It is measured back from the right edge, so an empty result
+ * with no bounds reports the trailing 24 hours, and an empty result with only
+ * an `endDate` reports the 24 hours preceding that date.
  */
 export function resolveLogStatsWindow(
   bounds: LogStatsBounds,
   segmentCount: number,
-  now: Date = new Date()
+  options: ResolveLogStatsWindowOptions = {}
 ): LogStatsWindow {
+  const requestedStart = usableBound(options.requestedStart)
+  const requestedEnd = usableBound(options.requestedEnd)
+  const now = options.now ?? new Date()
+
   let startTime: Date
   let endTime: Date
 
   if (!bounds.minTime || !bounds.maxTime) {
-    endTime = now
-    startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+    endTime = requestedEnd ?? now
+    startTime = requestedStart ?? new Date(endTime.getTime() - 24 * 60 * 60 * 1000)
   } else {
-    startTime = new Date(bounds.minTime)
-    endTime = new Date(Math.max(new Date(bounds.maxTime).getTime(), now.getTime()))
+    startTime = requestedStart ?? new Date(bounds.minTime)
+    endTime = requestedEnd ?? new Date(Math.max(new Date(bounds.maxTime).getTime(), now.getTime()))
   }
 
+  /**
+   * A crossed pair reaches here from the first-party dashboard, whose query
+   * schema carries no `startDate <= endDate` refinement, so the floor is what
+   * keeps `segmentMs` positive instead of zero or negative.
+   */
   const totalMs = Math.max(1, endTime.getTime() - startTime.getTime())
   return {
     startTime,
@@ -47,10 +79,26 @@ export function resolveLogStatsWindow(
 
 export interface BuildDashboardStatsOptions {
   /**
+   * Whether `handledErrorRuns` is published. Only meaningful when the rows were
+   * read with the count; otherwise it would publish a zero that means "not
+   * counted", which reads as "none".
+   */
+  includeHandledErrors?: boolean
+  /**
    * Largest number of per-workflow series to return. Omitted means every
    * workflow, which is what the first-party dashboard reads.
    */
   maxWorkflows?: number
+  /**
+   * Whether buckets with no runs are materialized. Defaults to `true`, the
+   * dense series the first-party dashboard charts. `false` publishes only the
+   * buckets that hold at least one run — never more than `segmentCount` of
+   * them — so a handful of runs on a wide window is a handful of entries rather
+   * than `segmentCount` near-identical zero rows. The totals, `segmentMs`, and
+   * each bucket's `timestamp` are unaffected: an omitted bucket contributed
+   * nothing to any of them.
+   */
+  includeEmpty?: boolean
 }
 
 export interface DashboardStatsResult {
@@ -83,6 +131,7 @@ export function buildDashboardStats(
   options: BuildDashboardStatsOptions = {}
 ): DashboardStatsResult {
   const { startTime, endTime, segmentMs } = window
+  const includeEmpty = options.includeEmpty !== false
   const segmentTimestamp = (index: number) =>
     new Date(startTime.getTime() + index * segmentMs).toISOString()
 
@@ -159,6 +208,8 @@ export function buildDashboardStats(
   let totalErrors = 0
   let weightedLatencySum = 0
   let latencyCount = 0
+  /** Summed straight from the rows: it is a total, not a series. */
+  const handledErrorRuns = rows.reduce((sum, row) => sum + Number(row.handledErrorRuns || 0), 0)
 
   for (let i = 0; i < segmentCount; i++) {
     let segTotal = 0
@@ -188,6 +239,7 @@ export function buildDashboardStats(
     weightedLatencySum += segWeightedLatency
     latencyCount += segLatencyCount
 
+    if (segTotal === 0 && !includeEmpty) continue
     aggregateSegments.push({
       timestamp: segmentTimestamp(i),
       totalExecutions: segTotal,
@@ -209,14 +261,18 @@ export function buildDashboardStats(
   const workflows: WorkflowStats[] = retained.map((wf) => {
     const segments: SegmentStats[] = []
     for (let i = 0; i < segmentCount; i++) {
-      segments.push(
-        wf.segments.get(i) ?? {
-          timestamp: segmentTimestamp(i),
-          totalExecutions: 0,
-          successfulExecutions: 0,
-          avgDurationMs: 0,
-        }
-      )
+      const segment = wf.segments.get(i)
+      if (segment) {
+        segments.push(segment)
+        continue
+      }
+      if (!includeEmpty) continue
+      segments.push({
+        timestamp: segmentTimestamp(i),
+        totalExecutions: 0,
+        successfulExecutions: 0,
+        avgDurationMs: 0,
+      })
     }
     return {
       workflowId: wf.workflowId,
@@ -235,6 +291,7 @@ export function buildDashboardStats(
       aggregateSegments,
       totalRuns,
       totalErrors,
+      ...(options.includeHandledErrors ? { handledErrorRuns } : {}),
       avgLatency: latencyCount > 0 ? weightedLatencySum / latencyCount : 0,
       timeBounds: { start: startTime.toISOString(), end: endTime.toISOString() },
       segmentMs,

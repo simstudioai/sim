@@ -1,3 +1,5 @@
+import { escapeRegExp } from '@sim/utils/string'
+
 interface SearchHighlightProps {
   text: string
   searchQuery: string
@@ -18,7 +20,7 @@ export function SearchHighlight({ text, searchQuery, className = '' }: SearchHig
     .trim()
     .split(/\s+/)
     .filter((term) => term.length > 0)
-    .map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .map(escapeRegExp)
 
   if (searchTerms.length === 0) {
     return <span className={className}>{text}</span>

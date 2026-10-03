@@ -282,7 +282,7 @@ export function ChunkEditor({
                     ? 'This chunk is synced from a connector and cannot be edited'
                     : 'Read-only view'
             }
-            className='mx-auto block min-h-full w-full max-w-[48rem] resize-none overflow-hidden border-0 bg-transparent px-8 py-6 font-sans text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-subtle)]'
+            className='mx-auto block min-h-full w-full max-w-[48rem] resize-none overflow-hidden border-0 bg-transparent px-8 py-6 font-sans text-[var(--text-body)] text-sm outline-hidden placeholder:text-[var(--text-subtle)]'
             disabled={!canEdit}
             readOnly={!canEdit}
             spellCheck={false}

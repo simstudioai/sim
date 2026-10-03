@@ -1,7 +1,8 @@
 import { db } from '@sim/db'
 import { usageLog } from '@sim/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, notInArray } from 'drizzle-orm'
 import type { CostLedger } from '@/lib/api/contracts/logs'
+import { UNBILLED_USAGE_CATEGORIES } from '@/lib/billing/core/usage-log'
 
 /**
  * The itemized billing lines for one run, or `null` when the run has no ledger.
@@ -16,6 +17,10 @@ import type { CostLedger } from '@/lib/api/contracts/logs'
  * row per billed event and a run can bill the same model many times; token
  * counts take the maximum rather than the sum, matching how they are reported
  * per call rather than accumulated.
+ *
+ * Unbilled categories are excluded: this is what the run *cost*, so a BYOK model
+ * — which Sim does not charge for — is not a line here. That usage is reported by
+ * the organization usage panel instead.
  */
 export async function buildCostLedger(executionId: string): Promise<CostLedger | null> {
   const rows = await db
@@ -26,7 +31,13 @@ export async function buildCostLedger(executionId: string): Promise<CostLedger |
       metadata: usageLog.metadata,
     })
     .from(usageLog)
-    .where(and(eq(usageLog.executionId, executionId), eq(usageLog.source, 'workflow')))
+    .where(
+      and(
+        eq(usageLog.executionId, executionId),
+        eq(usageLog.source, 'workflow'),
+        notInArray(usageLog.category, [...UNBILLED_USAGE_CATEGORIES])
+      )
+    )
 
   if (rows.length === 0) return null
 

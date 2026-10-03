@@ -10,6 +10,11 @@ import {
   type WorkflowStateContractOutput,
   workflowStateSchema,
 } from '@/lib/api/contracts/workflows'
+import {
+  asOrchestrationError,
+  messageForOrchestrationError,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
 import {
   replaceWorkflowNormalizedState,
@@ -96,6 +101,15 @@ export async function saveWorkflowNormalizedState(params: {
       workflowId,
       workspaceId: workflowData.workspaceId ?? null,
       attributedUserId: userId,
+      /**
+       * This door authorizes by bare `userId`, so the writer and the governed
+       * subject are the same person. The integration allowlist that used to be
+       * checked inline here now lives on the shared write, which refuses a
+       * withheld block type as a `forbidden` `OrchestrationError` — read below
+       * by the same `asOrchestrationError` branch that classifies the rest, and
+       * rendered as the identical 403 and message.
+       */
+      subjectUserId: userId,
       state: {
         blocks: state.blocks as Record<string, BlockState>,
         edges: state.edges as WorkflowState['edges'],
@@ -113,6 +127,26 @@ export async function saveWorkflowNormalizedState(params: {
         status: 500,
         error: 'Failed to save workflow state',
         details: error.detail,
+      }
+    }
+    /**
+     * The shared write classifies its own caller-fixable refusals — a graph id
+     * another workflow already owns is a `conflict`, a workflow archived since
+     * the authorization check is a `not_found`. Reading them here is what keeps
+     * this door's statuses identical to the ones `replaceWorkflowState` returns
+     * for the same refusal, rather than collapsing them into the caller's
+     * generic 500. Read through the cause chain because the throw happens
+     * inside the transaction callback, which drizzle wraps.
+     */
+    const classified = asOrchestrationError(error)
+    if (classified) {
+      return {
+        success: false,
+        status: statusForOrchestrationError(classified.code),
+        error: messageForOrchestrationError(
+          { error: classified.message, errorCode: classified.code },
+          'Failed to save workflow state'
+        ),
       }
     }
     throw error

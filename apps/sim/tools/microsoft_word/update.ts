@@ -3,9 +3,11 @@ import type {
   MicrosoftWordToolParams,
   MicrosoftWordUpdateResponse,
 } from '@/tools/microsoft_word/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const updateTool: ToolConfig<MicrosoftWordToolParams, MicrosoftWordUpdateResponse> = {
+type UpdateToolConfig = InternalToolConfig<MicrosoftWordToolParams, MicrosoftWordUpdateResponse>
+
+export const updateTool: UpdateToolConfig = {
   id: 'microsoft_word_update',
   name: 'Update Microsoft Word Document',
   description:
@@ -47,11 +49,8 @@ export const updateTool: ToolConfig<MicrosoftWordToolParams, MicrosoftWordUpdate
     },
   },
 
-  request: {
-    url: '/api/tools/microsoft_word/update',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       documentId: params.documentId,
       content: params.content,

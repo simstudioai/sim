@@ -1,75 +1,37 @@
-/**
- * @vitest-environment node
- */
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckWorkspaceAccess, mockGetUsersWithPermissions, dbState, makeChain, dbMock } =
-  vi.hoisted(() => {
-    const state = { results: [] as unknown[][] }
-    const chainFactory = () => {
-      const resolve = () => Promise.resolve(state.results.shift() ?? [])
-      const chain: any = {}
-      chain.from = vi.fn(() => chain)
-      chain.innerJoin = vi.fn(() => chain)
-      chain.where = vi.fn(() => chain)
-      chain.set = vi.fn(() => chain)
-      chain.limit = vi.fn(() => resolve())
-      chain.returning = vi.fn(() => resolve())
-      chain.then = (onFulfilled: any, onRejected: any) => resolve().then(onFulfilled, onRejected)
-      return chain
-    }
-    return {
-      mockCheckWorkspaceAccess: vi.fn(),
-      mockGetUsersWithPermissions: vi.fn(),
-      dbState: state,
-      makeChain: chainFactory,
-      dbMock: {
-        select: vi.fn(() => chainFactory()),
-        update: vi.fn(() => chainFactory()),
-      },
-    }
-  })
+const { dbState, makeChain } = vi.hoisted(() => {
+  const state = { results: [] as unknown[][] }
+  const chainFactory = () => {
+    const resolve = () => Promise.resolve(state.results.shift() ?? [])
+    const chain: any = {}
+    chain.from = vi.fn(() => chain)
+    chain.innerJoin = vi.fn(() => chain)
+    chain.where = vi.fn(() => chain)
+    chain.set = vi.fn(() => chain)
+    chain.limit = vi.fn(() => resolve())
+    chain.returning = vi.fn(() => resolve())
+    chain.then = (onFulfilled: any, onRejected: any) => resolve().then(onFulfilled, onRejected)
+    return chain
+  }
+  return { dbState: state, makeChain: chainFactory }
+})
 
-vi.mock('@sim/db', () => ({
-  db: dbMock,
-}))
-
-vi.mock('@sim/db/schema', () => ({
-  skill: {
-    id: 'skill.id',
-    workspaceId: 'skill.workspaceId',
-    name: 'skill.name',
-  },
-  skillMember: {
-    id: 'skillMember.id',
-    skillId: 'skillMember.skillId',
-    userId: 'skillMember.userId',
-  },
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: vi.fn((...args: unknown[]) => ({ and: args })),
-  eq: vi.fn((a: unknown, b: unknown) => ({ eq: [a, b] })),
-  inArray: vi.fn((a: unknown, b: unknown) => ({ inArray: [a, b] })),
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-  getUsersWithPermissions: mockGetUsersWithPermissions,
-  resolveWorkspaceAccess: vi.fn(async (workspaceId: string, userId: string, provided?: any) =>
-    provided && provided.workspace?.id === workspaceId
-      ? provided
-      : mockCheckWorkspaceAccess(workspaceId, userId)
-  ),
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import {
-  checkSkillsUpdateAccess,
   getEditableSkillIds,
   getSkillActorContext,
   listSkillEditors,
   removeWorkspaceSkillMembershipsTx,
 } from '@/lib/skills/access'
+
+const { mockCheckWorkspaceAccess, mockGetUsersWithPermissions } = permissionsMockFns
+const dbMock = { select: dbChainMockFns.select, update: dbChainMockFns.update }
+dbMock.select.mockImplementation(() => makeChain())
+dbMock.update.mockImplementation(() => makeChain())
 
 const wsAdmin = { hasAccess: true, canWrite: true, canAdmin: true, workspace: { id: 'ws' } }
 const wsWrite = { hasAccess: true, canWrite: true, canAdmin: false, workspace: { id: 'ws' } }
@@ -77,7 +39,6 @@ const wsRead = { hasAccess: true, canWrite: false, canAdmin: false, workspace: {
 const wsNone = { hasAccess: false, canWrite: false, canAdmin: false, workspace: null }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   dbState.results = []
   mockGetUsersWithPermissions.mockResolvedValue([])
 })
@@ -215,48 +176,6 @@ describe('listSkillEditors', () => {
 
     expect(editors).toHaveLength(1)
     expect(editors[0]).toMatchObject({ id: 'row-1', userId: 'boss', isWorkspaceAdmin: true })
-  })
-})
-
-describe('checkSkillsUpdateAccess', () => {
-  it('returns nothing for an empty id list without querying', async () => {
-    const result = await checkSkillsUpdateAccess({ workspaceId: 'ws', userId: 'u', skillIds: [] })
-    expect(result.existingIds.size).toBe(0)
-    expect(result.denied).toEqual([])
-    expect(dbMock.select).not.toHaveBeenCalled()
-  })
-
-  it('partitions resolvable ids and denies skills without an editor row', async () => {
-    dbState.results = [
-      [
-        { id: 's-mine', name: 'mine' },
-        { id: 's-other', name: 'other' },
-      ],
-      [{ skillId: 's-mine' }],
-    ]
-    mockCheckWorkspaceAccess.mockResolvedValue(wsWrite)
-
-    const result = await checkSkillsUpdateAccess({
-      workspaceId: 'ws',
-      userId: 'u',
-      skillIds: ['s-mine', 's-other', 's-create'],
-    })
-
-    expect(result.existingIds).toEqual(new Set(['s-mine', 's-other']))
-    expect(result.denied).toEqual([{ id: 's-other', name: 'other' }])
-  })
-
-  it('denies nothing for workspace admins', async () => {
-    dbState.results = [[{ id: 's-any', name: 'any' }], []]
-    mockCheckWorkspaceAccess.mockResolvedValue(wsAdmin)
-
-    const result = await checkSkillsUpdateAccess({
-      workspaceId: 'ws',
-      userId: 'admin-user',
-      skillIds: ['s-any'],
-    })
-
-    expect(result.denied).toEqual([])
   })
 })
 

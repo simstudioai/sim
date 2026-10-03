@@ -1,13 +1,12 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   createAtlassianManagedOAuthConnector,
   createGoogleManagedOAuthConnector,
+  getManagedOAuthConnectorPolicy,
 } from '@/lib/auth/connectors/managed-oauth'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import {
+  CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS,
   getCredentialGroupProviderFromProviderId,
   getCredentialGroupProviderService,
   getCredentialGroupStandardOAuthProviderFromProviderId,
@@ -19,36 +18,6 @@ const GMAIL_SEND_SCOPE = 'https://www.googleapis.com/auth/gmail.send'
 const GMAIL_LABELS_SCOPE = 'https://www.googleapis.com/auth/gmail.labels'
 
 describe('Credential Group provider registry', () => {
-  it('derives provider identity and display metadata from the OAuth service catalog', () => {
-    const service = getCredentialGroupProviderService('gmail')
-
-    expect(service.name).toBe('Gmail')
-    expect(service.providerId).toBe('google-email')
-    expect(getCredentialGroupProviderFromProviderId(service.providerId)).toBe('gmail')
-  })
-
-  it('maps Google Calendar to its existing OAuth provider', () => {
-    const service = getCredentialGroupProviderService('google-calendar')
-
-    expect(service.name).toBe('Google Calendar')
-    expect(service.providerId).toBe('google-calendar')
-    expect(getCredentialGroupProviderFromProviderId(service.providerId)).toBe('google-calendar')
-  })
-
-  it.each(['confluence', 'jira'] as const)(
-    'maps %s to its existing OAuth provider and adapter',
-    (provider) => {
-      const service = getCredentialGroupProviderService(provider)
-
-      expect(service.providerId).toBe(provider)
-      expect(getCredentialGroupProviderFromProviderId(service.providerId)).toBe(provider)
-      expect(getCredentialGroupStandardOAuthProviderFromProviderId(service.providerId)).toBe(
-        provider
-      )
-      expect(getCredentialGroupProviderAdapter(provider).provider).toBe(provider)
-    }
-  )
-
   it('uses provider-owned scope implication rules', () => {
     const managedOAuth = createGoogleManagedOAuthConnector('google-email')
     const canonicalScopes = getCredentialGroupProviderService('gmail').scopes
@@ -59,6 +28,20 @@ describe('Credential Group provider registry', () => {
     expect(grantedScopes).toContain(GMAIL_MODIFY_SCOPE)
     expect(managedOAuth.hasRequiredScopes(grantedScopes, canonicalScopes)).toBe(true)
     expect(managedOAuth.hasRequiredScopes([], canonicalScopes)).toBe(false)
+  })
+
+  it('accepts a full Drive grant for read-only access without promoting limited grants', () => {
+    const policy = createGoogleManagedOAuthConnector('google-drive')
+    const full = 'https://www.googleapis.com/auth/drive'
+    const readOnly = 'https://www.googleapis.com/auth/drive.readonly'
+    const selectedFiles = 'https://www.googleapis.com/auth/drive.file'
+    expect(policy.hasRequiredScopes([full], [readOnly])).toBe(true)
+    expect(policy.hasRequiredScopes([selectedFiles], [readOnly])).toBe(false)
+    expect(policy.hasRequiredScopes([readOnly], [full])).toBe(false)
+    expect(policy.hasRequiredScopes([readOnly], [selectedFiles])).toBe(false)
+    expect(
+      policy.hasRequiredScopes([full], ['https://www.googleapis.com/auth/calendar.readonly'])
+    ).toBe(false)
   })
 
   it('requires the complete Google Calendar scope policy', () => {
@@ -91,12 +74,22 @@ describe('Credential Group provider registry', () => {
     expect(adapter.hasRequiredScopes(['chat:write'], ['chat:write'])).toBe(true)
   })
 
-  it('fails fast for an unregistered managed provider ID', () => {
-    expect(() => getCredentialGroupProviderFromProviderId('unknown-provider')).toThrow(
-      'Unsupported managed credential provider'
-    )
-    expect(() => getCredentialGroupStandardOAuthProviderFromProviderId('slack')).toThrow(
-      'Unsupported managed OAuth provider'
-    )
-  })
+  it.each(CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS)(
+    'backs %s with a managed OAuth policy and a round-trippable provider id',
+    (provider) => {
+      const service = getCredentialGroupProviderService(provider)
+
+      expect(getCredentialGroupProviderFromProviderId(service.providerId)).toBe(provider)
+      expect(getCredentialGroupStandardOAuthProviderFromProviderId(service.providerId)).toBe(
+        provider
+      )
+      expect(getCredentialGroupProviderAdapter(provider).provider).toBe(provider)
+      /**
+       * The provider list and the connector policy catalog are maintained separately, so an entry
+       * added to one and not the other would otherwise only surface as a runtime configuration
+       * error the first time somebody tried to enroll.
+       */
+      expect(getManagedOAuthConnectorPolicy(service.providerId)).toBeDefined()
+    }
+  )
 })

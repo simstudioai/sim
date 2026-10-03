@@ -352,7 +352,13 @@ export const v2ListWorkflowMcpServersContract = defineRouteContract({
   query: v2ListWorkflowMcpServersQuerySchema,
   response: {
     mode: 'json',
-    schema: v2CursorListResponse(v2WorkflowMcpServerListItemSchema),
+    schema: v2CursorListResponse(v2WorkflowMcpServerListItemSchema).extend({
+      toolNamesTruncated: z
+        .boolean()
+        .describe(
+          'Whether the page-wide tool-name limit left some inventories incomplete. Use List Workflow MCP Tools for one server and check its `truncated` flag before treating the inventory as complete. `nextCursor` paginates servers, not tool names.'
+        ),
+    }),
   },
 })
 
@@ -374,20 +380,34 @@ export const v2CreateWorkflowMcpServerContract = defineRouteContract({
   },
 })
 
+export const v2WorkflowMcpToolStatusSchema = z
+  .enum(['active', 'inactive'])
+  .describe(
+    'Whether MCP clients can call the tool. `inactive` is a registration that undeploying its workflow archived: it is not callable and its name stays reserved on the server, and the next deploy of the workflow makes it `active` again. Unpublishing an inactive tool removes it for good.'
+  )
+export type V2WorkflowMcpToolStatus = z.output<typeof v2WorkflowMcpToolStatusSchema>
+
 /**
  * A published tool as a read returns it.
  *
  * `updated` is omitted deliberately: it reports whether a *publish* replaced an
  * existing tool, which is a fact about that request, not about the tool.
  * Publishing it here would force every read to answer a question it cannot.
+ *
+ * `status` is a read-only fact: an undeploy archives the workflow's
+ * registrations rather than deleting them, and a list that omitted those rows
+ * showed an undeployed workflow's tools as silently unpublished.
  */
 export const v2WorkflowMcpToolListItemSchema = v2WorkflowMcpToolSchema
   .omit({ updated: true })
+  .extend({ status: v2WorkflowMcpToolStatusSchema })
   .meta({
     id: 'WorkflowMcpToolListItem',
     title: 'Workflow MCP tool list item',
-    description: 'A tool a server publishes, as returned by a read.',
+    description:
+      'A tool a server publishes, as returned by a read. Archived registrations are included with `status: "inactive"`.',
   })
+
 export type V2WorkflowMcpToolListItem = z.output<typeof v2WorkflowMcpToolListItemSchema>
 
 export const v2GetWorkflowMcpServerContract = defineRouteContract({
@@ -408,7 +428,13 @@ export const v2ListWorkflowMcpToolsContract = defineRouteContract({
   params: v2WorkflowMcpServerParamsSchema,
   response: {
     mode: 'json',
-    schema: v2CursorListResponse(v2WorkflowMcpToolListItemSchema, { paged: false }),
+    schema: v2CursorListResponse(v2WorkflowMcpToolListItemSchema, { paged: false }).extend({
+      truncated: z
+        .boolean()
+        .describe(
+          'Whether the tool limit left this inventory incomplete. The list is unpaginated and `nextCursor` remains null even when truncated. Do not treat a truncated inventory as the complete set of published tools.'
+        ),
+    }),
   },
 })
 

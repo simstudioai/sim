@@ -1,6 +1,6 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const s3PutObjectTool: ToolConfig = {
+export const s3PutObjectTool: InternalToolConfig = {
   id: 's3_put_object',
   name: 'S3 Put Object',
   description: 'Upload a file to an AWS S3 bucket',
@@ -63,13 +63,8 @@ export const s3PutObjectTool: ToolConfig = {
     },
   },
 
-  request: {
-    url: '/api/tools/s3/put-object',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,
       region: params.region,

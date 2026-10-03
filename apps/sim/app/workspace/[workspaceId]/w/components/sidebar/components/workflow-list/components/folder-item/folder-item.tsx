@@ -1,15 +1,25 @@
 'use client'
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { chipContentIconClass, chipVariants, cn, disclosureChevronClass, toast } from '@sim/emcn'
+import {
+  chipContentIconClass,
+  chipVariants,
+  cn,
+  disclosureChevronClass,
+  OverflowText,
+  RowActions,
+  rowActionsGroupClass,
+  toast,
+} from '@sim/emcn'
 import { ChevronRight, Folder, FolderOpen, Lock, MoreHorizontal } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { useRouter } from 'next/navigation'
-import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
+import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { generateSubfolderName } from '@/lib/workspaces/naming'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { SidebarRowAction } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import {
@@ -378,16 +388,13 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
     [handleToggleExpanded, shouldPreventClickRef, isEditing, onFolderClick, folder.id]
   )
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>) => {
-      if (isEditing) {
-        handleRenameKeyDown(e)
-      } else {
-        handleExpandKeyDown(e)
-      }
-    },
-    [isEditing, handleRenameKeyDown, handleExpandKeyDown]
-  )
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (isEditing) {
+      handleRenameKeyDown(e)
+    } else if (e.target === e.currentTarget) {
+      handleExpandKeyDown(e)
+    }
+  }
 
   const handleMorePointerDown = useCallback(() => {
     if (isContextMenuOpen) {
@@ -496,6 +503,7 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
         aria-label={`${folder.name} folder, ${isExpanded ? 'expanded' : 'collapsed'}`}
         className={cn(
           chipVariants({ active: isSelected || isContextMenuOpen, fullWidth: true }),
+          rowActionsGroupClass,
           (isDragging || (isAnyDragActive && isSelected)) && 'opacity-50'
         )}
         onClick={handleFolderSelect}
@@ -521,7 +529,7 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={handleRenameKeyDown}
             onBlur={handleInputBlur}
-            className='min-w-0 flex-1 border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+            className='min-w-0 flex-1 border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-hidden focus:outline-hidden focus:ring-0 focus-visible:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0'
             maxLength={50}
             disabled={isRenaming}
             onClick={(e) => {
@@ -535,42 +543,34 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
           />
         ) : (
           <div className='flex min-w-0 flex-1 items-center gap-2'>
-            <div className='flex min-w-0 flex-1 items-center gap-1'>
-              <span
-                className='min-w-0 truncate text-[var(--text-body)]'
-                onDoubleClick={handleDoubleClick}
-              >
-                {folder.name}
-              </span>
+            <div
+              className='flex min-w-0 flex-1 items-center gap-1'
+              onDoubleClick={handleDoubleClick}
+            >
+              <OverflowText label={folder.name} className='flex-1 text-[var(--text-body)]' />
             </div>
-            <div className='relative size-[18px] flex-shrink-0'>
-              {folder.locked && (
-                <span
-                  role='img'
-                  aria-label='Folder is locked'
-                  className={cn(
-                    'pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity',
-                    !isAnyDragActive && 'group-hover:opacity-0',
-                    isContextMenuOpen && 'opacity-0'
-                  )}
-                >
-                  <Lock className='size-[14px] text-[var(--text-icon)]' aria-hidden='true' />
-                </span>
-              )}
-              <button
-                type='button'
+            <RowActions
+              open={isContextMenuOpen}
+              revealOnHover={!isAnyDragActive}
+              indicator={
+                folder.locked ? (
+                  <Lock
+                    className='size-[14px] text-[var(--text-icon)]'
+                    role='img'
+                    aria-label='Folder is locked'
+                    aria-hidden={false}
+                  />
+                ) : undefined
+              }
+            >
+              <SidebarRowAction
                 aria-label='Folder options'
                 onPointerDown={handleMorePointerDown}
                 onClick={handleMoreClick}
-                className={cn(
-                  'pointer-events-none absolute inset-0 flex items-center justify-center rounded-sm opacity-0 transition-opacity',
-                  !isAnyDragActive && 'group-hover:pointer-events-auto group-hover:opacity-100',
-                  isContextMenuOpen && 'pointer-events-auto opacity-100'
-                )}
               >
                 <MoreHorizontal className='size-[16px] text-[var(--text-icon)]' />
-              </button>
-            </div>
+              </SidebarRowAction>
+            </RowActions>
           </div>
         )}
       </div>

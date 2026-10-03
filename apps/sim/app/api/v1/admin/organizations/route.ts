@@ -19,6 +19,10 @@
  *   - ownerId: string - User ID of the organization owner (required)
  *
  * Response: AdminSingleResponse<AdminOrganization & { memberId: string }>
+ *
+ * Creates the organization and its owner membership, and nothing else. Attaching
+ * or creating a workspace for it is deliberately not done here — see the note on
+ * `adminV1CreateOrganizationContract`.
  */
 
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
@@ -81,7 +85,6 @@ export const GET = withRouteHandler(
             logo: organization.logo,
             orgUsageLimit: organization.orgUsageLimit,
             storageUsedBytes: organization.storageUsedBytes,
-            departedMemberUsage: organization.departedMemberUsage,
             createdAt: organization.createdAt,
             updatedAt: organization.updatedAt,
           })

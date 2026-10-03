@@ -3,9 +3,9 @@ import type {
   MicrosoftWordReplaceTextResponse,
   MicrosoftWordToolParams,
 } from '@/tools/microsoft_word/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const replaceTextTool: ToolConfig<
+export const replaceTextTool: InternalToolConfig<
   MicrosoftWordToolParams,
   MicrosoftWordReplaceTextResponse
 > = {
@@ -62,11 +62,8 @@ export const replaceTextTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/microsoft_word/replace-text',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       documentId: params.documentId,
       findText: params.findText,

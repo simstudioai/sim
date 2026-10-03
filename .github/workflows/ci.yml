@@ -76,7 +76,7 @@ jobs:
   # (/api/desktop/update) starts offering automatically.
   detect-desktop-changes:
     name: Detect Desktop Changes
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/staging')
     outputs:
@@ -103,7 +103,7 @@ jobs:
             echo "ℹ️ No comparable base commit; skipping desktop prerelease"
             exit 0
           fi
-          if git diff --name-only "$BEFORE" HEAD | grep -qE '^(apps/desktop/|packages/desktop-bridge/|packages/browser-protocol/)'; then
+          if git diff --name-only "$BEFORE" HEAD | grep -qE '^(apps/desktop/|packages/desktop-bridge/|packages/browser-protocol/|\.github/workflows/(ci|desktop-release)\.yml$)'; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
             echo "✅ Desktop shell code changed"
           else
@@ -141,10 +141,9 @@ jobs:
       environment: dev
     secrets: inherit
 
-  # Dev: build all 3 images for ECR only (no GHCR, no ARM64)
+  # Dev: build immutable images alongside the schema push and Trigger upload.
   build-dev:
     name: Build Dev ECR
-    needs: [detect-version, migrate-dev]
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && matrix.bs_runner || matrix.gh_runner }}
     timeout-minutes: 30
@@ -165,7 +164,15 @@ jobs:
           # build` ~260s). The same `next build` runs on 16 vCPU in the separate
           # Build App verification job, which does not gate anything; this one
           # was doing comparable work on half the cores.
+          #
+          # cache_mb is the layer cache the post-job prune retains, and it is the
+          # only reason the sticky disks stay bounded — see docker-build's
+          # action.yml. Rows that omit it take the small-image default there. The
+          # app image overrides because it carries ~34 layers plus apt and bun
+          # cache mounts for the whole monorepo; 100 GB is several builds' worth
+          # of headroom over that working set.
           - dockerfile: ./docker/app.Dockerfile
+            cache_mb: '102400'
             ecr_repo_secret: ECR_APP
             gh_runner: linux-x64-8-core
             bs_runner: blacksmith-16vcpu-ubuntu-2404
@@ -176,11 +183,11 @@ jobs:
           - dockerfile: ./docker/realtime.Dockerfile
             ecr_repo_secret: ECR_REALTIME
             gh_runner: ubuntu-latest
-            bs_runner: blacksmith-4vcpu-ubuntu-2404
+            bs_runner: blacksmith-2vcpu-ubuntu-2404
           - dockerfile: ./docker/pii.Dockerfile
             ecr_repo_secret: ECR_PII
             gh_runner: ubuntu-latest
-            bs_runner: blacksmith-4vcpu-ubuntu-2404
+            bs_runner: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -213,17 +220,24 @@ jobs:
           provider: ${{ vars.CI_PROVIDER }}
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
-          tags: ${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}:dev
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}:${{ github.sha }}-dev
+          build-args: |
+            MSHIP_PLAN_MODE_DEFAULT=true
+          max-cache-size-mb: ${{ matrix.cache_mb }}
 
-  # Dev: deploy Trigger.dev background tasks to the preview "dev-sim" branch.
-  # Gated after migrate-dev for the same reason as build-dev — the new task
-  # code runs against the dev DB, so the schema must be pushed first.
-  deploy-trigger-dev:
-    name: Deploy Trigger.dev (Dev)
-    needs: [migrate-dev]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+  # Staging/production coordinate task releases with app traffic cutover.
+  # Dev tasks deploy independently in deploy-trigger-dev.yml.
+  prepare-trigger:
+    name: Prepare Trigger.dev
+    if: >-
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
-    timeout-minutes: 15
+    timeout-minutes: 30
+    outputs:
+      version: ${{ steps.deploy.outputs.deploymentVersion }}
+      environment: ${{ steps.target.outputs.environment }}
+      preview_branch: ${{ steps.target.outputs.preview_branch }}
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -231,7 +245,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.3.14
+          bun-version: 1.4.2
 
       - name: Cache Bun dependencies
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
@@ -247,17 +261,45 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
 
-      - name: Deploy to Trigger.dev
+      - name: Select Trigger environment
+        id: target
+        run: |
+          case "$GITHUB_REF" in
+            refs/heads/main) TRIGGER_ENV=prod; TRIGGER_BRANCH='' ;;
+            refs/heads/staging) TRIGGER_ENV=staging; TRIGGER_BRANCH='' ;;
+            *) echo "ERROR: unsupported Trigger release ref: $GITHUB_REF" >&2; exit 1 ;;
+          esac
+          echo "environment=$TRIGGER_ENV" >> "$GITHUB_OUTPUT"
+          echo "preview_branch=$TRIGGER_BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Trigger.dev version without promotion
+        id: deploy
         working-directory: ./apps/sim
         env:
-          TRIGGER_ACCESS_TOKEN: ${{ secrets.DEV_TRIGGER_ACCESS_TOKEN }}
+          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
           TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
+          TRIGGER_ENV: ${{ steps.target.outputs.environment }}
+          TRIGGER_BRANCH: ${{ steps.target.outputs.preview_branch }}
         run: |
+          set -eo pipefail
           if [ -z "$TRIGGER_ACCESS_TOKEN" ] || [ -z "$TRIGGER_PROJECT_ID" ]; then
-            echo "ERROR: DEV_TRIGGER_ACCESS_TOKEN and TRIGGER_PROJECT_ID repo secrets must both be set" >&2
+            echo "ERROR: TRIGGER_ACCESS_TOKEN and TRIGGER_PROJECT_ID repo secrets must both be set" >&2
             exit 1
           fi
-          bunx trigger.dev@4.5.7 deploy --env preview --branch dev-sim
+          TARGET_ARGS=(--env "$TRIGGER_ENV")
+          if [ -n "$TRIGGER_BRANCH" ]; then
+            TARGET_ARGS+=(--branch "$TRIGGER_BRANCH")
+          fi
+          bunx trigger.dev@4.5.16 deploy "${TARGET_ARGS[@]}" --skip-promotion
+
+      - name: Validate deployment version output
+        env:
+          VERSION: ${{ steps.deploy.outputs.deploymentVersion }}
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]{8}\.[0-9]+$ ]]; then
+            echo "ERROR: Trigger.dev did not report a valid deploymentVersion output" >&2
+            exit 1
+          fi
 
   # Main/staging: build AMD64 images and push sha-tagged images to ECR + GHCR.
   # Runs in parallel with tests — only immutable sha tags are pushed here, and
@@ -280,6 +322,7 @@ jobs:
       matrix:
         include:
           - dockerfile: ./docker/app.Dockerfile
+            cache_mb: '102400'
             ghcr_image: ghcr.io/simstudioai/simstudio
             ecr_repo_secret: ECR_APP
             gh_runner: linux-x64-8-core
@@ -293,12 +336,12 @@ jobs:
             ghcr_image: ghcr.io/simstudioai/realtime
             ecr_repo_secret: ECR_REALTIME
             gh_runner: ubuntu-latest
-            bs_runner: blacksmith-4vcpu-ubuntu-2404
+            bs_runner: blacksmith-2vcpu-ubuntu-2404
           - dockerfile: ./docker/pii.Dockerfile
             ghcr_image: ghcr.io/simstudioai/pii
             ecr_repo_secret: ECR_PII
             gh_runner: ubuntu-latest
-            bs_runner: blacksmith-4vcpu-ubuntu-2404
+            bs_runner: blacksmith-2vcpu-ubuntu-2404
           # No ECR repo is provisioned for cron, so it publishes to GHCR only.
           # The tag step below omits the ECR tag when the repo name is empty.
           - dockerfile: ./docker/cron.Dockerfile
@@ -382,34 +425,56 @@ jobs:
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
+          max-cache-size-mb: ${{ matrix.cache_mb }}
 
-  # Promote the sha-tagged ECR images to the deploy tags once tests and
-  # migrations pass. Pushing the ECR latest/staging tag is what triggers
+  # Promote the sha-tagged ECR images once their build and migrations pass.
+  # Staging/production also require the Trigger upload; dev never waits for it.
+  # Pushing the ECR latest/staging/dev tag is what triggers
   # CodePipeline, so this seconds-long manifest retag is the deploy gate —
   # the image builds themselves run in parallel with the tests. A single job
   # (not a matrix) so all four sha manifests are verified before any tag
   # moves; a missing image can't produce a partial mixed-version deploy.
   promote-images:
     name: Promote Images
-    needs: [migrate, build-amd64]
+    needs: [migrate, build-amd64, prepare-trigger, migrate-dev, build-dev]
     # Explicit results: see migrate's comment.
     if: >-
-      !cancelled() &&
-      needs.migrate.result == 'success' &&
-      needs.build-amd64.result == 'success' &&
-      github.event_name == 'push' &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')
+      !cancelled() && github.event_name == 'push' &&
+      (
+        ((github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') &&
+          needs.prepare-trigger.result == 'success' &&
+          needs.migrate.result == 'success' &&
+          needs.build-amd64.result == 'success') ||
+        (github.ref == 'refs/heads/dev' &&
+          needs.migrate-dev.result == 'success' &&
+          needs.build-dev.result == 'success')
+      )
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 10
     permissions:
       contents: read
       id-token: write
+    outputs:
+      # Whether the deploy tag was actually moved (false on a stale-run guard
+      # skip). promote-trigger keys off this so tasks are never promoted when
+      # the app itself wasn't.
+      promoted: ${{ steps.guard.outputs.fresh }}
+      # Epoch when the deploy tag was retagged (this push's ECS pipeline trigger).
+      # promote-trigger passes it to the poll script so a stale pipeline execution
+      # reusing the same image digest can't satisfy the cutover gate.
+      retag_epoch: ${{ steps.promote.outputs.retag_epoch }}
+      # Unchanged tags verify the latest execution's cutover without an epoch bound.
+      app_image_changed: ${{ steps.promote.outputs.app_image_changed }}
+      app_image_digest: ${{ steps.promote.outputs.app_image_digest }}
     steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
-          role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
-          aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || secrets.STAGING_AWS_REGION }}
+          role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || github.ref == 'refs/heads/dev' && secrets.DEV_AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || github.ref == 'refs/heads/dev' && secrets.DEV_AWS_REGION || secrets.STAGING_AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -432,36 +497,153 @@ jobs:
             echo "fresh=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Promote images to deploy tags
+      # Fail before moving tags if the live cutover observer lacks permission.
+      # Requires codepipeline:GetPipelineState on the app pipeline.
+      - name: Verify pipeline state access
         if: steps.guard.outputs.fresh == 'true'
         env:
+          PIPELINE: sim-${{ github.ref == 'refs/heads/main' && 'production' || github.ref == 'refs/heads/dev' && 'dev' || 'staging' }}-us-east-1-app-deployment
+        run: aws codepipeline get-pipeline-state --name "$PIPELINE" --query pipelineName --output text > /dev/null
+
+      - name: Promote images to deploy tags
+        id: promote
+        if: steps.guard.outputs.fresh == 'true'
+        env:
+          SOURCE_TAG: ${{ github.ref == 'refs/heads/dev' && format('{0}-dev', github.sha) || github.sha }}
           ECR_REPOS: >-
-            ${{ secrets.ECR_APP }}
             ${{ secrets.ECR_MIGRATIONS }}
             ${{ secrets.ECR_REALTIME }}
             ${{ secrets.ECR_PII }}
+            ${{ secrets.ECR_APP }}
         run: |
           REGISTRY="${{ steps.login-ecr.outputs.registry }}"
 
           if [ "${{ github.ref }}" = "refs/heads/main" ]; then
             ECR_TAG="latest"
+          elif [ "${{ github.ref }}" = "refs/heads/dev" ]; then
+            ECR_TAG="dev"
           else
             ECR_TAG="staging"
           fi
 
+          APP_REPO="${{ secrets.ECR_APP }}"
+
           # Verify every sha image exists before moving any deploy tag, so a
           # missing/expired image aborts the whole promotion up front.
           for repo in $ECR_REPOS; do
-            echo "🔍 Verifying ${repo}:${{ github.sha }}"
-            docker buildx imagetools inspect "${REGISTRY}/${repo}:${{ github.sha }}" > /dev/null
+            echo "🔍 Verifying ${repo}:${SOURCE_TAG}"
+            docker buildx imagetools inspect "${REGISTRY}/${repo}:${SOURCE_TAG}" > /dev/null
           done
 
+          # Move the app last so a preceding tag failure cannot start app rollout
+          # and then skip the downstream Trigger promotion job.
           for repo in $ECR_REPOS; do
-            echo "🚀 Promoting ${repo}:${{ github.sha }} to ${ECR_TAG}"
-            docker buildx imagetools create \
-              -t "${REGISTRY}/${repo}:${ECR_TAG}" \
-              "${REGISTRY}/${repo}:${{ github.sha }}"
+            echo "🚀 Promoting ${repo}:${SOURCE_TAG} to ${ECR_TAG}"
+            if [ "$repo" = "$APP_REPO" ]; then
+              bash .github/scripts/promote-app-image.sh "$REGISTRY" "$APP_REPO" "$SOURCE_TAG" "$ECR_TAG"
+            else
+              docker buildx imagetools create \
+                -t "${REGISTRY}/${repo}:${ECR_TAG}" \
+                "${REGISTRY}/${repo}:${SOURCE_TAG}"
+            fi
           done
+
+  # Staging/production: promote the parked Trigger.dev version after observing the ECS
+  # traffic cutover (CodeDeploy AllowTraffic on every target). The image retag
+  # triggers the ECS pipeline; this job correlates it via the digest + retag epoch
+  # (rejecting a stale execution reusing the digest) and promotes at cutover.
+  # Skipped when promote-images skipped the tag move (stale run) — tasks then
+  # correctly stay on the old version. If the app deploy fails or never cuts over,
+  # promote never fires and this job fails visibly.
+  promote-trigger:
+    name: Promote Trigger.dev
+    needs: [promote-images, prepare-trigger]
+    # Explicit results also suppress skip propagation from optional ancestors.
+    if: >-
+      !cancelled() &&
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging') &&
+      needs.promote-images.result == 'success' &&
+      needs.prepare-trigger.result == 'success' &&
+      needs.promote-images.outputs.promoted == 'true'
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    # Leave setup/promotion headroom above the 70-minute cutover poll.
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+            **/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
+        with:
+          role-to-assume: ${{ github.ref == 'refs/heads/main' && secrets.AWS_ROLE_TO_ASSUME || github.ref == 'refs/heads/dev' && secrets.DEV_AWS_ROLE_TO_ASSUME || secrets.STAGING_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ github.ref == 'refs/heads/main' && secrets.AWS_REGION || github.ref == 'refs/heads/dev' && secrets.DEV_AWS_REGION || secrets.STAGING_AWS_REGION }}
+          role-duration-seconds: 5400
+
+      # An unchanged tag may belong to a failed or still-running earlier deploy.
+      # Verify its latest cutover rather than treating tag equality as success.
+      - name: Wait for ECS traffic cutover
+        env:
+          OVERALL_TIMEOUT: 4200
+          APP_IMAGE_CHANGED: ${{ needs.promote-images.outputs.app_image_changed }}
+          DIGEST: ${{ needs.promote-images.outputs.app_image_digest }}
+          PIPELINE: sim-${{ github.ref == 'refs/heads/main' && 'production' || github.ref == 'refs/heads/dev' && 'dev' || 'staging' }}-us-east-1-app-deployment
+          RETAG_EPOCH: ${{ needs.promote-images.outputs.retag_epoch }}
+        run: |
+          set -eo pipefail
+          case "$APP_IMAGE_CHANGED" in
+            true) ;;
+            false) RETAG_EPOCH=0 ;;
+            *) echo "ERROR: invalid app image change metadata" >&2; exit 1 ;;
+          esac
+          bash .github/scripts/wait-for-ecs-cutover.sh "$PIPELINE" "$DIGEST" "$RETAG_EPOCH"
+
+      - name: Promote Trigger.dev version
+        working-directory: ./apps/sim
+        env:
+          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
+          TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
+          TRIGGER_ENV: ${{ needs.prepare-trigger.outputs.environment }}
+          TRIGGER_BRANCH: ${{ needs.prepare-trigger.outputs.preview_branch }}
+          VERSION: ${{ needs.prepare-trigger.outputs.version }}
+        run: |
+          set -eo pipefail
+          if [ -z "$TRIGGER_ACCESS_TOKEN" ] || [ -z "$TRIGGER_PROJECT_ID" ]; then
+            echo "ERROR: TRIGGER_ACCESS_TOKEN and TRIGGER_PROJECT_ID repo secrets must both be set" >&2
+            exit 1
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "ERROR: no deployed version passed from prepare-trigger" >&2
+            exit 1
+          fi
+          echo "Promoting Trigger.dev version $VERSION ($TRIGGER_ENV)"
+          TARGET_ARGS=(--env "$TRIGGER_ENV")
+          if [ -n "$TRIGGER_BRANCH" ]; then
+            TARGET_ARGS+=(--branch "$TRIGGER_BRANCH")
+          fi
+          bunx trigger.dev@4.5.16 promote "$VERSION" "${TARGET_ARGS[@]}"
 
   # Build ARM64 images for GHCR (main branch only, runs in parallel with
   # tests). Pushes only the immutable sha tag — latest-arm64/version-arm64
@@ -484,9 +666,10 @@ jobs:
         # hang a release in `queued` rather than fail a PR.
         include:
           - dockerfile: ./docker/app.Dockerfile
+            cache_mb: '102400'
             image: ghcr.io/simstudioai/simstudio
             gh_runner: linux-arm64-8-core
-            bs_runner: blacksmith-8vcpu-ubuntu-2404-arm
+            bs_runner: blacksmith-16vcpu-ubuntu-2404-arm
           - dockerfile: ./docker/db.Dockerfile
             image: ghcr.io/simstudioai/migrations
             gh_runner: ubuntu-24.04-arm
@@ -522,6 +705,7 @@ jobs:
           file: ${{ matrix.dockerfile }}
           platforms: linux/arm64
           tags: ${{ matrix.image }}:${{ github.sha }}-arm64
+          max-cache-size-mb: ${{ matrix.cache_mb }}
 
   # Publish all mutable GHCR tags (latest, latest-amd64/arm64, version tags)
   # and the multi-arch manifests from the immutable sha tags — only on main,
@@ -541,6 +725,11 @@ jobs:
     permissions:
       contents: read
       packages: write
+    # Every matrix leg evaluates the same guard against the same commit, so the
+    # value is identical whichever leg reports it last. attest-subjects needs it
+    # to tell "the guard withheld latest" from "the registry read was stale".
+    outputs:
+      latest_fresh: ${{ steps.guard.outputs.fresh }}
     strategy:
       matrix:
         include:
@@ -598,6 +787,280 @@ jobs:
               "${IMAGE}:${SHA}-amd64" "${IMAGE}:${SHA}-arm64"
           fi
 
+  # Sign the published images and attach SLSA provenance and an SBOM to each.
+  #
+  # This runs after create-ghcr-manifests rather than inside the build because
+  # buildx's own provenance/sbom attestations stay off (see the note in
+  # .github/actions/docker-build): the extra manifests they add to an index
+  # break the `imagetools create` retagging that promote-images depends on.
+  # Attaching attestations here instead leaves the index itself untouched — they
+  # are stored as separate referrer manifests that point at it.
+  #
+  # Resolve the set of digests that actually got published, so the attestation
+  # job below covers every tag a customer can pull.
+  #
+  # A static list is not enough. `imagetools create` always writes an INDEX, so
+  # `:<version>-amd64` is a single-entry index whose digest differs from the
+  # `:<sha>-amd64` manifest it wraps — attesting the manifest leaves the tag
+  # people actually pin unverifiable. Which tags exist also varies per run:
+  # version tags only on a release, and the latest tags only when the monotonic
+  # guard in create-ghcr-manifests passed. Resolving tag -> digest here and
+  # de-duplicating is what keeps the two in step without hardcoding that logic
+  # twice.
+  attest-subjects:
+    name: Resolve Attestation Subjects
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    needs: [create-ghcr-manifests, detect-version]
+    if: >-
+      !cancelled() &&
+      needs.create-ghcr-manifests.result == 'success' &&
+      needs.detect-version.result == 'success' &&
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      subjects: ${{ steps.resolve.outputs.subjects }}
+      count: ${{ steps.resolve.outputs.count }}
+    steps:
+      - name: Login to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve published tags to digests
+        id: resolve
+        env:
+          IS_RELEASE: ${{ needs.detect-version.outputs.is_release }}
+          VERSION: ${{ needs.detect-version.outputs.version }}
+          SHA: ${{ github.sha }}
+          LATEST_FRESH: ${{ needs.create-ghcr-manifests.outputs.latest_fresh }}
+        run: |
+          set -euo pipefail
+
+          IMAGES="simstudio migrations realtime pii cron"
+
+          # Prints the digest, or nothing when the tag is genuinely absent.
+          #
+          # An absent tag and a registry hiccup both make `inspect` fail, and
+          # treating them alike is how a published image silently ends up
+          # unsigned while this job still goes green. So: retry, and only report
+          # "absent" when the registry actually says the manifest is unknown.
+          # Anything else fails the step.
+          digest_of() {
+            local ref="$1" attempt raw err absent=0
+            for attempt in 1 2 3; do
+              if raw="$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}' 2>/tmp/inspect.err)"; then
+                printf '%s' "$raw" | jq -r '.digest // empty'
+                return 0
+              fi
+              err="$(cat /tmp/inspect.err)"
+              # Absence is retried like any other failure: GHCR can report a
+              # just-published alias as unknown for a moment, and accepting that
+              # on the first attempt would skip a tag this run did publish.
+              case "$err" in
+                *"not found"*|*MANIFEST_UNKNOWN*|*"no such manifest"*|*"NAME_UNKNOWN"*) absent=1 ;;
+                *) absent=0 ;;
+              esac
+              if [ "$attempt" -lt 3 ]; then
+                sleep "$((attempt * 3))"
+              fi
+            done
+            # Only call it absent if the registry said so on the final attempt.
+            if [ "$absent" -eq 1 ]; then
+              return 0
+            fi
+            echo "::error::Could not inspect ${ref} after 3 attempts: ${err}" >&2
+            return 1
+          }
+
+          # Records a subject. `platform` tells the attestation job whether this
+          # digest is a single-architecture image, which is the only case where
+          # a Syft SBOM describes what the puller actually gets.
+          emit() {
+            jq -nc --arg image "$1" --arg digest "$2" --arg platform "$3" \
+              '{image: $image, digest: $digest, platform: $platform}' >> /tmp/subjects.jsonl
+          }
+
+          : > /tmp/subjects.jsonl
+          for name in $IMAGES; do
+            image="ghcr.io/simstudioai/${name}"
+
+            # The sha tags are this run's own output. All three must resolve —
+            # a missing one means the publish did not complete, not that the tag
+            # is optional.
+            seen=""
+            sha_index=""
+            for tag in "${SHA}" "${SHA}-amd64" "${SHA}-arm64"; do
+              digest="$(digest_of "${image}:${tag}")"
+              if [ -z "$digest" ]; then
+                echo "::error::${image}:${tag} was not published by this run"
+                exit 1
+              fi
+              case "$tag" in
+                *-amd64) platform=amd64 ;;
+                *-arm64) platform=arm64 ;;
+                *) platform=index; sha_index="$digest" ;;
+              esac
+              seen="$seen $digest"
+              emit "$image" "$digest" "$platform"
+            done
+
+            # A moving alias is only taken when it resolves to the same index
+            # digest this run published — content identity, which is what a
+            # digest can prove. create-ghcr-manifests holds the latest tags back when
+            # its monotonic guard sees a newer commit, and they then still point
+            # at an older build — attesting those would put this run's signature
+            # and provenance on an image it did not produce. The per-arch
+            # aliases are published in the same guarded block as `latest`, so
+            # that one comparison gates all three.
+            alias_groups="latest"
+            if [ "${IS_RELEASE}" = "true" ]; then
+              alias_groups="${alias_groups} ${VERSION}"
+            fi
+
+            for alias in $alias_groups; do
+              # A mismatch has two very different causes: the guard deliberately
+              # held the tag back, or GHCR is still serving the previous digest
+              # moments after this run wrote it. Re-read before concluding the
+              # former, or a read landing a second early silently drops three
+              # subjects from the matrix.
+              alias_index=""
+              for alias_attempt in 1 2 3; do
+                alias_index="$(digest_of "${image}:${alias}")"
+                [ "$alias_index" = "$sha_index" ] && break
+                [ "$alias_attempt" -lt 3 ] && sleep 5 || true
+              done
+
+              if [ "$alias_index" != "$sha_index" ]; then
+                # `latest` is allowed to lag, but only when the guard actually
+                # withheld it. If the guard published latest this run, a mismatch
+                # here is a stale read, not a deliberate skip — and silently
+                # dropping it would leave a published tag unsigned.
+                if [ "$alias" = "latest" ]; then
+                  if [ "${LATEST_FRESH}" = "true" ]; then
+                    echo "::error::${image}:latest was published by this run but resolves to ${alias_index:-nothing}"
+                    exit 1
+                  fi
+                  echo "Skipping latest* for ${image}: the monotonic guard withheld it this run."
+                  continue
+                fi
+                # A version tag has no such carve-out. This run published it, so
+                # a release must not ship a version image nothing has attested.
+                echo "::error::${image}:${alias} does not resolve to this run's index (${sha_index:-none}); refusing to publish an unattested release image"
+                exit 1
+              fi
+              for tag in "${alias}" "${alias}-amd64" "${alias}-arm64"; do
+                digest="$(digest_of "${image}:${tag}")"
+                if [ -z "$digest" ]; then
+                  echo "::error::${image}:${tag} is missing though ${image}:${alias} is current"
+                  exit 1
+                fi
+                case " $seen " in *" $digest "*) continue ;; esac
+                seen="$seen $digest"
+                case "$tag" in
+                  *-amd64) emit "$image" "$digest" amd64 ;;
+                  *-arm64) emit "$image" "$digest" arm64 ;;
+                  *) emit "$image" "$digest" index ;;
+                esac
+              done
+            done
+          done
+
+          if [ ! -s /tmp/subjects.jsonl ]; then
+            echo "::error::Resolved no image digests to attest"
+            exit 1
+          fi
+
+          echo "Resolved $(wc -l < /tmp/subjects.jsonl) distinct subjects:"
+          cat /tmp/subjects.jsonl
+          echo "subjects=$(jq -sc . /tmp/subjects.jsonl)" >> "$GITHUB_OUTPUT"
+          echo "count=$(wc -l < /tmp/subjects.jsonl | tr -d ' ')" >> "$GITHUB_OUTPUT"
+
+  # One leg per distinct published digest. Attesting each subject separately is
+  # also what makes the SBOMs truthful: the amd64 and arm64 images contain
+  # different packages, and one SBOM attached to the index cannot describe both.
+  attest-images:
+    name: Attest Images
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    needs: [attest-subjects]
+    if: >-
+      !cancelled() &&
+      needs.attest-subjects.result == 'success'
+    permissions:
+      contents: read
+      packages: write
+      # Sigstore signs against the runner's OIDC identity; no key material is stored.
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.attest-subjects.outputs.subjects) }}
+
+    steps:
+      - name: Login to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Skipped for index subjects: Syft resolves an index to one platform, so
+      # the SBOM it produces would describe amd64 while the index also serves
+      # arm64. The per-arch subjects below carry an accurate SBOM each, and the
+      # index still gets a signature and provenance.
+      #
+      # Scanned by the `<sha>-<arch>` tag rather than by `matrix.digest`. Half
+      # the per-arch subjects are single-entry INDEXES (`imagetools create`
+      # writes an index even from one manifest), and Syft resolves an index
+      # against the RUNNER's platform — so an arm64-only index fails outright on
+      # an amd64 runner with "no child with platform linux/arm64". The sha tag is
+      # the plain manifest that index wraps: identical content, no platform
+      # resolution, and one pull shared by both subjects instead of two.
+      - name: Generate SBOM
+        if: matrix.platform != 'index'
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          image: ${{ matrix.image }}:${{ github.sha }}-${{ matrix.platform }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+          # The action's own release upload is for workflows triggered by a
+          # release; these attach to the image instead.
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Attest SBOM
+        if: matrix.platform != 'index'
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-name: ${{ matrix.image }}
+          subject-digest: ${{ matrix.digest }}
+          sbom-path: sbom.spdx.json
+          # Stored alongside the image so a mirrored registry carries the
+          # attestation with it, rather than only being retrievable from GitHub.
+          push-to-registry: true
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ matrix.image }}
+          subject-digest: ${{ matrix.digest }}
+          push-to-registry: true
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      # The attestations above prove how the image was built; this is the plain
+      # signature that admission controllers (Kyverno, the Sigstore policy
+      # controller) verify before admitting a pod.
+      - name: Sign image
+        run: cosign sign --yes "${{ matrix.image }}@${{ matrix.digest }}"
+
   # Check if docs changed
   # Smallest runner on purpose: a depth-2 checkout plus a path filter, no
   # install and no build.
@@ -617,7 +1080,7 @@ jobs:
         with:
           filters: |
             docs:
-              - 'apps/docs/content/docs/en/**'
+              - 'apps/docs/content/docs/**'
               - 'apps/sim/scripts/process-docs.ts'
               - 'apps/sim/lib/chunkers/**'
 
@@ -639,11 +1102,22 @@ jobs:
     name: Create GitHub Release
     runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 10
-    needs: [create-ghcr-manifests, detect-version]
-    # Explicit results: see migrate's comment.
+    needs: [create-ghcr-manifests, attest-subjects, attest-images, detect-version]
+    # Explicit results: see migrate's comment. attest-images is a gate, not just
+    # an ordering edge — a release must not advertise images whose signature or
+    # attestation failed to publish. The count check is belt and braces: today
+    # attest-subjects already fails on an empty subject set, so this only bites
+    # if that guard is ever removed.
+    #
+    # Note this gates the GitHub release, not the production deploy: CodePipeline
+    # fires from the ECR tags moved by promote-images, upstream of this job, and
+    # only the GHCR mirrors are attested.
     if: >-
       !cancelled() &&
       needs.create-ghcr-manifests.result == 'success' &&
+      needs.attest-subjects.result == 'success' &&
+      needs.attest-subjects.outputs.count != '0' &&
+      needs.attest-images.result == 'success' &&
       needs.detect-version.result == 'success' &&
       needs.detect-version.outputs.is_release == 'true'
     permissions:
@@ -657,7 +1131,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.3.14
+          bun-version: 1.4.2
 
       - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
@@ -675,7 +1149,7 @@ jobs:
   # Job-level `if:` cannot read the secrets context, hence the probe job.
   check-desktop-signing:
     name: Check Desktop Signing Secrets
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 2
     needs: [detect-version, detect-desktop-changes]
     # !cancelled(): detect-desktop-changes is skipped on main (and
@@ -719,17 +1193,21 @@ jobs:
   # release-only simstudioai/sim-desktop-releases repository. Keeping these
   # builds out of this source repository prevents its followers from receiving
   # every internal shell release. Each environment's /api/desktop/update feed
-  # still offers only its own stream. Unlike stable releases, prereleases build
-  # before the Apple signing secrets exist — unsigned, so the update pipeline
-  # remains testable end to end with a manual download.
+  # still offers only its own signed stream.
   create-desktop-prerelease:
     name: Create Desktop Prerelease
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     needs: [detect-desktop-changes, check-desktop-signing]
     # Requires the signing probe to have actually succeeded (not just "not
     # cancelled") so a probe failure can't produce a release with no build.
-    if: ${{ !cancelled() && needs.detect-desktop-changes.outputs.changed == 'true' && needs.check-desktop-signing.result == 'success' }}
+    if: >-
+      ${{
+        !cancelled() &&
+        needs.detect-desktop-changes.outputs.changed == 'true' &&
+        needs.check-desktop-signing.result == 'success' &&
+        needs.check-desktop-signing.outputs.configured == 'true'
+      }}
     permissions:
       contents: read
     outputs:
@@ -745,13 +1223,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PRERELEASE_REPOSITORY: simstudioai/sim-desktop-releases
           SOURCE_REPOSITORY: ${{ github.repository }}
-          SIGNED: ${{ needs.check-desktop-signing.outputs.configured }}
         run: |
           if [ -z "$DESKTOP_RELEASE_TOKEN" ]; then
             echo "::error::DESKTOP_RELEASE_TOKEN is required to publish desktop prereleases."
             exit 1
           fi
-          if [ "$GITHUB_REF" = "refs/heads/dev" ]; then CHANNEL=dev; APP_NAME="Sim Dev"; else CHANNEL=staging; APP_NAME="Sim Staging"; fi
+          if [ "$GITHUB_REF" = "refs/heads/dev" ]; then CHANNEL=dev; else CHANNEL=staging; fi
           # Prerelease core = next patch after the latest stable release, so
           # channel builds always outrank the stable they are built on top of
           # and are always superseded by the next stable. The run-attempt
@@ -773,11 +1250,6 @@ jobs:
           IFS='.' read -r MAJOR MINOR PATCH <<< "${LATEST#v}"
           TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))-${CHANNEL}.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
           NOTES="Automated ${CHANNEL}-channel desktop build from ${GITHUB_REF_NAME} @ ${GITHUB_SHA::7}."
-          if [ "$SIGNED" != "true" ]; then
-            NOTES="$NOTES
-
-          ⚠️ Unsigned test build (Apple signing secrets not configured). Gatekeeper will quarantine a downloaded copy: right-click → Open, or clear the flag with \`xattr -dr com.apple.quarantine \"/Applications/${APP_NAME}.app\"\`."
-          fi
           # Draft until the build uploads its artifacts: drafts are invisible
           # to the update feed, so a failed or in-flight build can never take
           # the channel down with an assetless release. The release-only repo
@@ -805,7 +1277,7 @@ jobs:
     with:
       version: ${{ needs.create-desktop-prerelease.outputs.version }}
       publish: true
-      sign: ${{ needs.check-desktop-signing.outputs.configured == 'true' }}
+      sign: true
     secrets: inherit
 
   # The draft only becomes visible to the update feed once its artifacts are
@@ -813,7 +1285,7 @@ jobs:
   # point of view.
   publish-desktop-prerelease:
     name: Publish Desktop Prerelease
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     needs: [create-desktop-prerelease, desktop-prerelease]
     permissions:
@@ -837,26 +1309,32 @@ jobs:
   # are always garbage by this point — the current run's release is published.
   prune-desktop-prereleases:
     name: Prune Desktop Prereleases
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-2vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
-    needs: [publish-desktop-prerelease]
+    needs: [create-desktop-prerelease, publish-desktop-prerelease]
     permissions:
       contents: read
     env:
       GH_TOKEN: ${{ secrets.DESKTOP_RELEASE_TOKEN }}
       GH_REPO: simstudioai/sim-desktop-releases
+      CURRENT_TAG: ${{ needs.create-desktop-prerelease.outputs.version }}
     steps:
       - name: Delete stale prereleases
         run: |
+          set -euo pipefail
+          : "${CURRENT_TAG:?Current publication tag is required before pruning}"
           if [ -z "$GH_TOKEN" ]; then
             echo "::error::DESKTOP_RELEASE_TOKEN is required to prune desktop prereleases."
             exit 1
           fi
           if [ "$GITHUB_REF" = "refs/heads/dev" ]; then CHANNELS='(dev|alpha)'; else CHANNELS='(staging|beta)'; fi
-          gh release list --limit 100 --json tagName,isPrerelease,isDraft,createdAt \
-            --jq "[.[] | select(.isPrerelease and (.isDraft | not) and (.tagName | test(\"-${CHANNELS}\\\\.\")))] | sort_by(.createdAt) | reverse | .[5:] | .[].tagName" |
+          # createdAt follows the tag's commit: published releases in the release-only
+          # repository can all share it. Retain by publication time, with deterministic ties.
+          gh release list --limit 100 --json tagName,isPrerelease,isDraft,publishedAt \
+            --jq "[.[] | select(.isPrerelease and (.isDraft | not) and (.tagName | test(\"-${CHANNELS}\\\\.\")))] | sort_by(.publishedAt, .tagName) | reverse | .[5:] | .[].tagName" |
           while read -r TAG; do
             [ -n "$TAG" ] || continue
+            [ "$TAG" != "$CURRENT_TAG" ] || continue
             echo "Deleting stale prerelease $TAG"
             gh release delete "$TAG" --cleanup-tag --yes
           done

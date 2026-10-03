@@ -104,10 +104,22 @@ export const v2ListSecretsQuerySchema = z
   .strict()
 export type V2ListSecretsQuery = z.output<typeof v2ListSecretsQuerySchema>
 
-export const v2SecretParamsSchema = z.object({
-  name: v2SecretNameSchema.describe('Secret to create, replace, or delete.'),
+/**
+ * The secret a path addresses, named for what the route does to it.
+ *
+ * `PUT` and `DELETE` sit on the same path but are not the same operation, and the
+ * OpenAPI document already publishes them as two components (`SetSecretParams`,
+ * `DeleteSecretParams`). One shared `describe()` forced both to read "create,
+ * replace, or delete", so `sim secrets delete` documented writes the route cannot
+ * perform.
+ */
+export const v2SetSecretParamsSchema = z.object({
+  name: v2SecretNameSchema.describe('Secret to create or replace.'),
 })
-export type V2SecretParams = z.output<typeof v2SecretParamsSchema>
+
+export const v2DeleteSecretParamsSchema = z.object({
+  name: v2SecretNameSchema.describe('Secret to delete.'),
+})
 
 export const v2SetSecretBodySchema = z
   .object({
@@ -119,7 +131,10 @@ export const v2SetSecretBodySchema = z
       .string()
       .min(1, 'value is required')
       .max(65_536, 'value is too long')
-      .describe('Write-only secret value. It is never returned.')
+      .optional()
+      .describe(
+        'Write-only secret value. It is never returned. Omit it on a workspace secret to change description or unredacted alone, leaving the stored value untouched; the secret must already exist. Always required for a personal secret, which carries no other writable field.'
+      )
       .meta({ writeOnly: true }),
     description: z
       .string()
@@ -137,19 +152,49 @@ export const v2SetSecretBodySchema = z
       ),
   })
   .strict()
+  /**
+   * `value` is optional on the schema so a workspace secret's redaction policy can
+   * be flipped back without re-transmitting the plaintext — restoring redaction is
+   * the safe direction and must not cost more than leaving it off. Two refinements
+   * keep that from over-relaxing the request: a personal secret has no metadata
+   * field at all, so a value-less personal write would be a silent no-op rather
+   * than an update; and a body carrying none of the three writable fields is
+   * rejected outright instead of resolving to an empty write.
+   */
   .superRefine((data, ctx) => {
-    if (data.scope === 'personal' && data.description !== undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['description'],
-        message: 'description is only supported for a workspace secret',
-      })
+    if (data.scope === 'personal') {
+      if (data.value === undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['value'],
+          message: 'value is required for a personal secret',
+        })
+      }
+      if (data.description !== undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['description'],
+          message: 'description is only supported for a workspace secret',
+        })
+      }
+      if (data.unredacted !== undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['unredacted'],
+          message: 'unredacted is only supported for a workspace secret',
+        })
+      }
+      return
     }
-    if (data.scope === 'personal' && data.unredacted !== undefined) {
+    if (
+      data.value === undefined &&
+      data.description === undefined &&
+      data.unredacted === undefined
+    ) {
       ctx.addIssue({
         code: 'custom',
-        path: ['unredacted'],
-        message: 'unredacted is only supported for a workspace secret',
+        path: ['value'],
+        message: 'value, description, or unredacted is required',
       })
     }
   })
@@ -180,12 +225,17 @@ export const v2ListSecretsContract = defineRouteContract({
   },
 })
 
-/** Creates or replaces a secret value without returning it. */
+/**
+ * Creates or replaces a secret value without returning it, or — for a workspace
+ * secret sent without a value — updates its description and redaction policy
+ * alone. A value-less write never creates: it answers 404 when the secret is
+ * absent.
+ */
 export const v2SetSecretContract = defineRouteContract({
   method: 'PUT',
   path: '/api/v2/secrets/[name]',
   query: noInputSchema,
-  params: v2SecretParamsSchema,
+  params: v2SetSecretParamsSchema,
   body: v2SetSecretBodySchema,
   response: {
     mode: 'json',
@@ -197,7 +247,7 @@ export const v2SetSecretContract = defineRouteContract({
 export const v2DeleteSecretContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/secrets/[name]',
-  params: v2SecretParamsSchema,
+  params: v2DeleteSecretParamsSchema,
   query: v2DeleteSecretQuerySchema,
   response: {
     mode: 'json',

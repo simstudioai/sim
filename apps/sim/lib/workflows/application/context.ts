@@ -1,6 +1,12 @@
 import { db } from '@sim/db'
-import { pausedExecutions, resumeQueue, workflow, workflowExecutionLogs } from '@sim/db/schema'
-import { and, eq, isNull } from 'drizzle-orm'
+import {
+  pausedExecutions,
+  resumeQueue,
+  workflow,
+  workflowDeploymentVersion,
+  workflowExecutionLogs,
+} from '@sim/db/schema'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { WORKFLOW_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/execution-job-ids'
@@ -17,6 +23,16 @@ export interface ActiveWorkflowApplicationContext {
 
 export interface ActiveWorkflowRunApplicationContext extends ActiveWorkflowApplicationContext {
   runId: string
+}
+
+export interface ActiveWorkflowExecutionApplicationContext
+  extends ActiveWorkflowRunApplicationContext {
+  deploymentVersionId: string | null
+}
+
+export interface ActiveWorkflowDeploymentVersionApplicationContext
+  extends ActiveWorkflowApplicationContext {
+  deploymentVersionId: string
 }
 
 export async function resolveActiveWorkflowApplicationContext(input: {
@@ -133,4 +149,99 @@ export async function resolveActiveWorkflowRunApplicationContext(input: {
     assertedWorkspaceId: input.assertedWorkspaceId,
   })
   return { ...context, runId: input.runId }
+}
+
+/** Resolves an execution that is currently running or waiting to resume from its durable log. */
+export async function resolveActiveWorkflowExecutionApplicationContext(input: {
+  runId: string
+  assertedWorkflowId?: string
+}): Promise<ActiveWorkflowExecutionApplicationContext> {
+  const projection = {
+    workflowId: workflowExecutionLogs.workflowId,
+    workspaceId: workflowExecutionLogs.workspaceId,
+    deploymentVersionId: workflowExecutionLogs.deploymentVersionId,
+  }
+  const [directRows, resumedRows] = await Promise.all([
+    db
+      .select(projection)
+      .from(workflowExecutionLogs)
+      .where(
+        and(
+          eq(workflowExecutionLogs.executionId, input.runId),
+          inArray(workflowExecutionLogs.status, ['running', 'pending', 'paused'])
+        )
+      )
+      .limit(1),
+    db
+      .select(projection)
+      .from(resumeQueue)
+      .innerJoin(
+        workflowExecutionLogs,
+        eq(resumeQueue.parentExecutionId, workflowExecutionLogs.executionId)
+      )
+      .where(
+        and(
+          eq(resumeQueue.newExecutionId, input.runId),
+          eq(resumeQueue.status, 'claimed'),
+          inArray(workflowExecutionLogs.status, ['running', 'pending', 'paused'])
+        )
+      )
+      .limit(1),
+  ])
+  const direct = directRows[0]
+  const resumed = resumedRows[0]
+  if (
+    direct &&
+    resumed &&
+    (resumed.workflowId !== direct.workflowId ||
+      resumed.workspaceId !== direct.workspaceId ||
+      resumed.deploymentVersionId !== direct.deploymentVersionId)
+  ) {
+    throw new Error(`Execution ${input.runId} has conflicting durable authority bindings`)
+  }
+  const run = direct ?? resumed
+
+  if (
+    !run?.workflowId ||
+    (input.assertedWorkflowId !== undefined && input.assertedWorkflowId !== run.workflowId)
+  ) {
+    throw new OrchestrationError('not_found', 'Run not found')
+  }
+
+  const context = await resolveActiveWorkflowApplicationContext({
+    workflowId: run.workflowId,
+    assertedWorkspaceId: run.workspaceId,
+  })
+  return {
+    ...context,
+    runId: input.runId,
+    deploymentVersionId: run.deploymentVersionId,
+  }
+}
+
+/** Resolves an immutable deployment version without requiring it to remain active. */
+export async function resolveActiveWorkflowDeploymentVersionApplicationContext(input: {
+  workflowId: string
+  deploymentVersionId: string
+  assertedWorkspaceId: string
+}): Promise<ActiveWorkflowDeploymentVersionApplicationContext> {
+  const context = await resolveActiveWorkflowApplicationContext({
+    workflowId: input.workflowId,
+    assertedWorkspaceId: input.assertedWorkspaceId,
+  })
+  const [version] = await db
+    .select({ deploymentVersionId: workflowDeploymentVersion.id })
+    .from(workflowDeploymentVersion)
+    .where(
+      and(
+        eq(workflowDeploymentVersion.id, input.deploymentVersionId),
+        eq(workflowDeploymentVersion.workflowId, context.workflowId)
+      )
+    )
+    .limit(1)
+
+  if (!version) {
+    throw new OrchestrationError('not_found', 'Workflow deployment version not found')
+  }
+  return { ...context, deploymentVersionId: version.deploymentVersionId }
 }

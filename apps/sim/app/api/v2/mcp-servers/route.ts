@@ -1,3 +1,4 @@
+import { isUserCredentialPrincipal } from '@sim/auth/principal'
 import {
   v2CreateMcpServerContract,
   v2ListMcpServersContract,
@@ -68,7 +69,7 @@ export const POST = defineV2JsonRoute({
   mapInput: ({ body }) => ({ ...body, source: 'api' as const }),
   useCase: createMcpServerUseCase,
   onSuccess: ({ principal, input, result }) => {
-    if (principal.kind !== 'personal_api_key' || result.updated) return
+    if (!isUserCredentialPrincipal(principal) || result.updated) return
     captureServerEvent(
       principal.userId,
       'mcp_server_connected',

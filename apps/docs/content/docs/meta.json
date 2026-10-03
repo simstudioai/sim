@@ -1,0 +1,28 @@
+{
+  "title": "Sim Documentation",
+  "pages": [
+    "---Get Started---",
+    "./introduction/index",
+    "./getting-started/index",
+    "./desktop/index",
+    "---Build---",
+    "chat",
+    "workflows",
+    "agents",
+    "---Workspace---",
+    "search",
+    "knowledgebase",
+    "tables",
+    "files",
+    "logs-debugging",
+    "---Administration---",
+    "platform",
+    "platform/enterprise",
+    "platform/self-hosting",
+    "---Reference---",
+    "integrations",
+    "./quick-reference/index",
+    "./keyboard-shortcuts/index"
+  ],
+  "defaultOpen": false
+}

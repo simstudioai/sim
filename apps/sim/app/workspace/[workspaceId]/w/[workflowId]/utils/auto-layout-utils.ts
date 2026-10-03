@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import type { Edge } from 'reactflow'
+import type { Edge } from '@xyflow/react'
 import { requestJson } from '@/lib/api/client/request'
 import {
   putWorkflowNormalizedStateContract,

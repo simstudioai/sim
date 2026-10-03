@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -11,15 +7,14 @@ import {
 } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-already-terminal-error'
 
 const mocks = vi.hoisted(() => ({
   cancel: vi.fn(),
-  capture: vi.fn(),
 }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
 vi.mock('@/lib/workflows/application/cancel-run', () => ({
   cancelWorkflowRun: { operation: { id: 'workflows.runs.cancel' }, execute: mocks.cancel },
 }))
@@ -58,6 +53,7 @@ function serviceResult(overrides: Record<string, unknown>) {
     redisAvailable: true,
     locallyAborted: false,
     pausedCancelled: false,
+    cancelled: true,
     workflowId: WORKFLOW_ID,
     workspaceId: WORKSPACE_ID,
     ...overrides,
@@ -66,52 +62,68 @@ function serviceResult(overrides: Record<string, unknown>) {
 
 describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/cancel', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
   })
 
-  it('reports a durable write when an active run is cancelled', async () => {
+  /**
+   * `success: true` with every action flag false told a caller its cancel had
+   * done something. A run that was already terminal is a `200` no-op — not an
+   * error — answered with `success: false` and the `already_*` reason.
+   */
+  it('answers an already-cancelled run as a no-op that cancelled nothing', async () => {
     mocks.cancel.mockResolvedValue(
-      serviceResult({ success: true, durablyRecorded: true, reason: 'recorded' })
+      serviceResult({
+        success: true,
+        cancelled: false,
+        durablyRecorded: false,
+        reason: 'already_cancelled',
+      })
     )
 
     const response = await POST(request(), context)
 
     expect(response.status).toBe(200)
-    expect((await response.json()).data).toEqual({
-      success: true,
-      runId: RUN_ID,
-      redisAvailable: true,
-      durablyRecorded: true,
-      locallyAborted: false,
-      pausedCancelled: false,
-      reason: 'recorded',
-    })
-  })
-
-  /**
-   * The published outcome of a cancel against a run that had already finished.
-   * `durablyRecorded: true` here is the defect this suite pins: nothing was
-   * written, so a caller reconciling on that flag would trust a write that never
-   * happened.
-   */
-  it.each([
-    ['cancelled', 'already_cancelled'],
-    ['completed', 'already_completed'],
-    ['failed', 'already_failed'],
-  ])('reports a terminal %s run as a no-op the caller can tell apart', async (_status, reason) => {
-    mocks.cancel.mockResolvedValue(serviceResult({ success: true, durablyRecorded: false, reason }))
-
-    const response = await POST(request(), context)
-
-    expect(response.status).toBe(200)
     expect((await response.json()).data).toMatchObject({
-      success: true,
+      success: false,
       runId: RUN_ID,
       durablyRecorded: false,
-      reason,
+      locallyAborted: false,
+      pausedCancelled: false,
+      reason: 'already_cancelled',
     })
   })
+
+  it.each([
+    ['completed', 'already_completed'],
+    ['failed', 'already_failed'],
+  ] as const)(
+    'answers a 200 no-op with success false when a standalone run is already %s',
+    async (executionStatus, reason) => {
+      mocks.cancel.mockRejectedValue(
+        new WorkflowRunAlreadyTerminalError({
+          executionId: RUN_ID,
+          executionStatus,
+          redisAvailable: true,
+          locallyAborted: false,
+        })
+      )
+
+      const response = await POST(request(), context)
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toEqual({
+        data: {
+          success: false,
+          runId: RUN_ID,
+          redisAvailable: true,
+          durablyRecorded: false,
+          locallyAborted: false,
+          pausedCancelled: false,
+          reason,
+        },
+      })
+    }
+  )
 })

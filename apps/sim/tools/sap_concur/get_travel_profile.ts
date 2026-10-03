@@ -1,18 +1,17 @@
-import type { GetTravelProfileParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { GetTravelProfileParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
+  baseSapConcurInput,
   buildListQuery,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  transformSapConcurResponse,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 /**
  * Travel Profile v2 serves this endpoint as XML only (Content-Type: application/xml, schema
- * TravelUserProfile.xsd) — there is no JSON representation. The shared proxy therefore surfaces
+ * TravelUserProfile.xsd) — there is no JSON representation. The direct operation therefore surfaces
  * the payload as a raw XML string in `data`, which downstream blocks are expected to parse.
  */
-export const getTravelProfileTool: ToolConfig<GetTravelProfileParams, SapConcurProxyResponse> = {
+export const getTravelProfileTool: InternalToolConfig<GetTravelProfileParams, SapConcurResponse> = {
   id: 'sap_concur_get_travel_profile',
   name: 'SAP Concur Get Travel Profile',
   description:
@@ -74,17 +73,14 @@ export const getTravelProfileTool: ToolConfig<GetTravelProfileParams, SapConcurP
       description: 'Identifier value (login id, xml sync id, or UUID)',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const query = buildListQuery({
         userid_type: params.useridType,
         userid_value: params.useridValue,
       })
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: '/api/travelprofile/v2.0/profile',
         method: 'GET',
         accept: 'application/xml',
@@ -92,7 +88,7 @@ export const getTravelProfileTool: ToolConfig<GetTravelProfileParams, SapConcurP
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

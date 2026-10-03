@@ -1,13 +1,12 @@
-import type { IssueCashAdvanceParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { IssueCashAdvanceParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const issueCashAdvanceTool: ToolConfig<IssueCashAdvanceParams, SapConcurProxyResponse> = {
+export const issueCashAdvanceTool: InternalToolConfig<IssueCashAdvanceParams, SapConcurResponse> = {
   id: 'sap_concur_issue_cash_advance',
   name: 'SAP Concur Issue Cash Advance',
   description: 'Issue a cash advance (POST /cashadvance/v4.1/cashadvances/{cashAdvanceId}/issue).',
@@ -69,21 +68,18 @@ export const issueCashAdvanceTool: ToolConfig<IssueCashAdvanceParams, SapConcurP
         'Optional request body. All documented fields are optional: accountCode, comment, and exchangeRate.',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const cashAdvanceId = trimRequired(params.cashAdvanceId, 'cashAdvanceId')
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/cashadvance/v4.1/cashadvances/${encodeURIComponent(cashAdvanceId)}/issue`,
         method: 'POST',
         body: params.body ?? {},
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

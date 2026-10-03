@@ -14,15 +14,6 @@ export const POST = withRouteHandler(
     if (!session?.user?.id || !session.user.email) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     }
-    if (!session.user.emailVerified) {
-      return NextResponse.json(
-        {
-          error: 'email-unverified',
-          message: 'Verify the invited email before accepting Enterprise ownership.',
-        },
-        { status: 403 }
-      )
-    }
     const parsed = await parseRequest(acceptEnterpriseOwnerClaimContract, request, context)
     if (!parsed.success) return parsed.response
     const result = await acceptEnterpriseOwnerClaim({

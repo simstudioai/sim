@@ -15,6 +15,7 @@ import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import {
   listActiveFolderRows,
   loadActiveFolderPathIndex,
+  resolveFolderPathFilter,
   resolveFolderPathFromIndex,
 } from '@/lib/folders/queries'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
@@ -133,15 +134,10 @@ export const listWorkflowFolders = defineAuthorizedWorkflowUseCase({
     const index = await loadActiveFolderPathIndex(context.workspaceId, 'workflow', undefined, {
       maxRows: MAX_FOLDERS_PER_WORKSPACE,
     })
-    const parentId =
-      input.parentPath === undefined
-        ? undefined
-        : resolveFolderPathFromIndex(index, input.parentPath)
-    if (input.parentPath !== undefined && parentId === undefined) {
-      throw new OrchestrationError('not_found', 'Folder not found')
-    }
+    const parentFilter = resolveFolderPathFilter(index, input.parentPath)
+    if (parentFilter.kind === 'noMatch') return { folders: [], index }
     const folders = await listActiveFolderRows(context.workspaceId, 'workflow', {
-      parentId,
+      parentId: parentFilter.kind === 'folder' ? parentFilter.folderId : undefined,
       search: input.search,
       sortBy: input.sortBy,
       sortOrder: input.sortOrder,
@@ -207,15 +203,17 @@ export const relocateWorkflowFolder = defineAuthorizedWorkflowUseCase({
     return { folder: result.folder, index }
   },
   projectAudit({ input, result }) {
+    /** Where the folder landed — inside an existing destination, or at the root, rather than the path as typed. */
+    const destinationPath = result.index.pathById.get(result.folder.id) ?? input.destinationPath
     return {
       action: AuditAction.FOLDER_MOVED,
       resourceType: AuditResourceType.FOLDER,
       resourceId: result.folder.id,
       resourceName: result.folder.name,
-      description: `Moved workflow folder to "${input.destinationPath}"`,
+      description: `Moved workflow folder to "${destinationPath}"`,
       metadata: {
         sourcePath: input.path,
-        destinationPath: input.destinationPath,
+        destinationPath,
         folderResourceType: 'workflow',
       },
     }

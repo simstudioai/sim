@@ -33,7 +33,7 @@ export const oktaClearUserSessionsTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'User ID or login whose sessions will be revoked',
+      description: 'Okta user ID (not a login or email) whose sessions will be revoked',
     },
     oauthTokens: {
       type: 'boolean',

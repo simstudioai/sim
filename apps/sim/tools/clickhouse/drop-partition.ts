@@ -2,9 +2,9 @@ import type {
   ClickHouseDropPartitionParams,
   ClickHouseMessageResponse,
 } from '@/tools/clickhouse/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const dropPartitionTool: ToolConfig<
+export const dropPartitionTool: InternalToolConfig<
   ClickHouseDropPartitionParams,
   ClickHouseMessageResponse
 > = {
@@ -64,13 +64,8 @@ export const dropPartitionTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/clickhouse/drop-partition',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

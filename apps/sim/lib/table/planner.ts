@@ -53,12 +53,17 @@ async function setReadGuards(trx: DbTransaction, seqscanOff: boolean): Promise<v
  */
 export async function withReadGuards<T>(
   fn: (trx: DbTransaction) => Promise<T>,
-  opts?: { seqscanOff?: boolean }
+  opts?: { seqscanOff?: boolean; repeatableRead?: boolean }
 ): Promise<T> {
-  return db.transaction(async (trx) => {
-    await setReadGuards(trx, opts?.seqscanOff ?? false)
-    return fn(trx)
-  })
+  return db.transaction(
+    async (trx) => {
+      await setReadGuards(trx, opts?.seqscanOff ?? false)
+      return fn(trx)
+    },
+    opts?.repeatableRead
+      ? { isolationLevel: 'repeatable read', accessMode: 'read only' }
+      : undefined
+  )
 }
 
 /**
@@ -67,9 +72,9 @@ export async function withReadGuards<T>(
  * (`->>` extraction, `@>` containment, lateral `jsonb_each_text`) are opaque to
  * the planner — it estimates a handful of matching rows and picks a parallel
  * seq scan over the entire shared `user_table_rows` relation (every tenant's
- * rows) instead of the tenant's own index. Measured on a 1M-row table inside a
- * 12M-row relation: filtered count 12.7s → 1.0s, sorted page 9.7s → 0.76s,
- * filtered bulk select 14.4s → tenant-bounded. The flag only penalizes the plan
+ * rows) instead of the tenant's own index. Measured on a large tenant inside a
+ * far larger shared relation: filtered count 12.7s → 1.0s, sorted page
+ * 9.7s → 0.76s, filtered bulk select 14.4s → tenant-bounded. The flag only penalizes the plan
  * shape: if no index plan exists, the seq scan still runs (and the timeout caps it).
  */
 export async function withSeqscanOff<T>(fn: (trx: DbTransaction) => Promise<T>): Promise<T> {

@@ -11,21 +11,17 @@
  */
 
 import type { ComponentType } from 'react'
-import integrationsJson from '@sim/deployment-config/integrations.json'
+import { getIntegrationTypesForOAuthServiceId } from '@sim/deployment-config/integration-availability'
+import {
+  INTEGRATION_METADATA,
+  type IntegrationMetadata,
+} from '@sim/deployment-config/integration-metadata'
+import { GitlabIcon } from '@/components/icons'
 import { getServiceAccountConnectNoun } from '@/lib/credentials/service-account-provider-ids'
 import { CANONICAL_SERVICE_ACCOUNT_SLUGS } from '@/lib/integrations/oauth-service'
-import type { Integration } from '@/lib/integrations/types'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import type { OAuthProvider, OAuthServiceConfig } from '@/lib/oauth/types'
-import {
-  credentialProviderMatchesService,
-  getServiceConfigByProviderId,
-  getServiceConfigByServiceId,
-  parseProvider,
-} from '@/lib/oauth/utils'
-
-const INTEGRATIONS_DATA: readonly Integration[] =
-  integrationsJson.integrations as readonly Integration[]
+import { getServiceConfigByProviderId, parseProvider } from '@/lib/oauth/utils'
 
 /**
  * Above this many covered integrations the subtitle states a count instead of
@@ -39,13 +35,16 @@ const MAX_ENUMERATED_INTEGRATIONS = 3
  * inline per credential per render on the integrations surfaces, so its lookups
  * must be O(1) rather than scanning the full catalog each time.
  */
-const INTEGRATION_BY_SLUG: ReadonlyMap<string, Integration> = new Map(
-  INTEGRATIONS_DATA.map((i) => [i.slug, i])
+const INTEGRATION_BY_SLUG: ReadonlyMap<string, IntegrationMetadata> = new Map(
+  INTEGRATION_METADATA.map((i) => [i.slug, i])
+)
+const INTEGRATION_BY_TYPE: ReadonlyMap<string, IntegrationMetadata> = new Map(
+  INTEGRATION_METADATA.map((integration) => [integration.type, integration])
 )
 
 /** Keyed by lowercased display name, matching how OAuth services are named. */
-const INTEGRATION_BY_LOWER_NAME: ReadonlyMap<string, Integration> = new Map(
-  INTEGRATIONS_DATA.map((i) => [i.name.toLowerCase(), i])
+const INTEGRATION_BY_LOWER_NAME: ReadonlyMap<string, IntegrationMetadata> = new Map(
+  INTEGRATION_METADATA.map((i) => [i.name.toLowerCase(), i])
 )
 
 /** Every provider id that some service designates as its service-account id. */
@@ -63,36 +62,48 @@ const SERVICE_ACCOUNT_PROVIDER_IDS: ReadonlySet<string> = new Set(
  * `OAUTH_PROVIDERS`, which is wasted work to repeat per lookup (same reasoning
  * as `SERVICE_ACCOUNT_INTEGRATIONS` in `oauth-service.ts`).
  *
- * Indexing under every id a service answers to — its OAuth provider id, its
- * service-account provider id, and any additional authorization server — is
- * the predicate {@link credentialProviderMatchesService} expressed as a map,
- * so the two can never disagree.
+ * The deployment service mapping also covers Search-only OAuth credentials
+ * whose corresponding workflow integration uses an API key.
  */
-const INTEGRATIONS_BY_CREDENTIAL_PROVIDER: ReadonlyMap<string, readonly Integration[]> = (() => {
-  const index = new Map<string, Integration[]>()
-  const add = (providerId: string | undefined, integration: Integration) => {
-    if (!providerId) return
-    const existing = index.get(providerId)
-    if (existing) existing.push(integration)
-    else index.set(providerId, [integration])
-  }
-
-  for (const integration of INTEGRATIONS_DATA) {
-    if (integration.authType !== 'oauth' || !integration.oauthServiceId) continue
-    const service = getServiceConfigByServiceId(integration.oauthServiceId)
-    if (!service) continue
-    add(service.providerId, integration)
-    add(service.serviceAccountProviderId, integration)
-    for (const extraProviderId of service.additionalProviderIds ?? []) {
-      add(extraProviderId, integration)
+const INTEGRATIONS_BY_CREDENTIAL_PROVIDER: ReadonlyMap<string, readonly IntegrationMetadata[]> =
+  (() => {
+    const index = new Map<string, IntegrationMetadata[]>()
+    const add = (providerId: string | undefined, integration: IntegrationMetadata) => {
+      if (!providerId) return
+      const existing = index.get(providerId)
+      if (existing) existing.push(integration)
+      else index.set(providerId, [integration])
     }
-  }
 
-  return index
-})()
+    for (const provider of Object.values(OAUTH_PROVIDERS)) {
+      for (const [serviceId, service] of Object.entries(provider.services)) {
+        for (const integrationType of getIntegrationTypesForOAuthServiceId(serviceId)) {
+          const integration = INTEGRATION_BY_TYPE.get(integrationType)
+          if (!integration) continue
+          add(service.providerId, integration)
+          add(service.serviceAccountProviderId, integration)
+          for (const extraProviderId of service.additionalProviderIds ?? []) {
+            add(extraProviderId, integration)
+          }
+        }
+      }
+    }
+
+    const catalogOrder = new Map(
+      INTEGRATION_METADATA.map((integration, order) => [integration.type, order])
+    )
+    for (const covered of index.values()) {
+      covered.sort(
+        (left, right) => (catalogOrder.get(left.type) ?? 0) - (catalogOrder.get(right.type) ?? 0)
+      )
+    }
+    return index
+  })()
 
 /** Catalog integrations a credential of this provider id can authenticate. */
-export function getIntegrationsForCredentialProvider(providerId: string): readonly Integration[] {
+export function getIntegrationsForCredentialProvider(
+  providerId: string
+): readonly IntegrationMetadata[] {
   return INTEGRATIONS_BY_CREDENTIAL_PROVIDER.get(providerId) ?? []
 }
 
@@ -145,6 +156,9 @@ export function getServiceAccountCoverageSentence(providerId: string): string | 
   const familyName = getServiceAccountFamilyName(providerId)
   if (!familyName) return null
   const covered = getIntegrationsForCredentialProvider(providerId)
+  if (providerId === 'atlassian-service-account') {
+    return `Reuse one token across ${formatList(covered.map((i) => i.name))}. Each product requires its own scopes and app access.`
+  }
   if (covered.length > MAX_ENUMERATED_INTEGRATIONS) {
     return `One token works across all ${covered.length} ${familyName} integrations.`
   }
@@ -173,7 +187,7 @@ export interface CredentialDisplay {
    * service account this is the family's canonical integration, since no single
    * product owns the credential.
    */
-  integration: Integration | null
+  integration: IntegrationMetadata | null
   /** `integration.type`, or '' — drives the brand tile background. */
   blockType: string
   /** Mark to render: the family's corporate icon, else the service's own. */
@@ -181,7 +195,7 @@ export interface CredentialDisplay {
   /** Vendor name when this is a family service account, else null. */
   familyName: string | null
   /** Catalog integrations this credential authenticates, in catalog order. */
-  coveredIntegrations: readonly Integration[]
+  coveredIntegrations: readonly IntegrationMetadata[]
   /**
    * Generated sentence describing the credential's service and reach. Never the
    * user's own description — list surfaces prefer `credential.description` and
@@ -207,6 +221,20 @@ export interface CredentialDisplay {
 export function resolveCredentialDisplay(credential: DisplayableCredential): CredentialDisplay {
   const providerId = credential.providerId
   const isServiceAccount = credential.type === 'service_account'
+  if (credential.type === 'personal_token' && providerId === 'gitlab') {
+    const integration = INTEGRATION_BY_SLUG.get('gitlab') ?? null
+    return {
+      service: null,
+      integration,
+      blockType: 'gitlab',
+      icon: GitlabIcon,
+      familyName: null,
+      coveredIntegrations: integration ? [integration] : [],
+      subtitle: 'Your personal GitLab account',
+      detailTitle: 'GitLab',
+      detailSubtitle: 'Only you can use this connection.',
+    }
+  }
 
   if (!providerId) {
     return {
@@ -265,7 +293,7 @@ function resolveCatalogIntegration(
   providerId: string,
   service: OAuthServiceConfig | null,
   isFamily: boolean
-): Integration | null {
+): IntegrationMetadata | null {
   if (isFamily) {
     const slug = CANONICAL_SERVICE_ACCOUNT_SLUGS[providerId]
     const canonical = slug ? INTEGRATION_BY_SLUG.get(slug) : undefined
@@ -283,7 +311,7 @@ interface SubtitleArgs {
   providerId: string
   service: OAuthServiceConfig | null
   familyName: string | null
-  coveredIntegrations: readonly Integration[]
+  coveredIntegrations: readonly IntegrationMetadata[]
   isServiceAccount: boolean
 }
 

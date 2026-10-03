@@ -2,13 +2,14 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { type Attributes, type Client, type SFTPWrapper, utils as ssh2Utils } from 'ssh2'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { decodeTextBuffer } from '@/lib/file-parsers/utils'
 import {
   createSftpConnection,
   getFileType,
   getSftp,
   isPathSafe,
   readSftpFileCapped,
-} from '@/app/api/tools/sftp/utils'
+} from '@/lib/internal/sftp/client'
 import { sftpConnectorMeta } from '@/connectors/sftp/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
@@ -332,7 +333,7 @@ async function withSftpSession<T>(
   let client: Client | undefined
   let timer: NodeJS.Timeout | undefined
   try {
-    client = await createSftpConnection({
+    const connection = await createSftpConnection({
       host: ctx.host,
       port: ctx.port,
       username: ctx.username,
@@ -342,8 +343,8 @@ async function withSftpSession<T>(
       readyTimeout: READY_TIMEOUT_MS,
       keepaliveInterval: KEEPALIVE_INTERVAL_MS,
     })
-    const sftp = await getSftp(client)
-    const connection = client
+    client = connection
+    const sftp = await getSftp(connection)
     const deadline = new Promise<never>((_, reject) => {
       timer = setTimeout(() => {
         /**
@@ -779,7 +780,7 @@ export const sftpConnector: ConnectorConfig = {
         return markSkipped(stub, 'File appears to be binary and was not indexed')
       }
 
-      const raw = buffer.toString('utf-8')
+      const raw = decodeTextBuffer(buffer).text
       const content = HTML_EXTENSIONS.has(getExtension(remotePath)) ? htmlToPlainText(raw) : raw
       if (!content.trim()) return null
 

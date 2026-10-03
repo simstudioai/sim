@@ -1,23 +1,5 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockWarn } = vi.hoisted(() => ({ mockWarn: vi.fn() }))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: mockWarn,
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-  logger: { info: vi.fn(), warn: mockWarn, error: vi.fn(), debug: vi.fn() },
-  runWithRequestContext: <T>(_context: unknown, fn: () => T): T => fn(),
-  getRequestContext: () => undefined,
-  setRequestTraceId: vi.fn(),
-}))
-
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { describe, expect, it } from 'vitest'
 import { deriveDeliveryKey } from '@/lib/core/http/derive-key'
 import { squareCreateCatalogImageTool } from '@/tools/square/create_catalog_image'
 import { squareCreateCustomerTool } from '@/tools/square/create_customer'
@@ -29,6 +11,8 @@ import { squarePublishInvoiceTool } from '@/tools/square/publish_invoice'
 import { squareRefundPaymentTool } from '@/tools/square/refund_payment'
 import { squareUpsertCatalogObjectTool } from '@/tools/square/upsert_catalog_object'
 import type { ToolConfig } from '@/tools/types'
+
+const { warn: mockWarn } = getMockLogger('SquareIdempotency')
 
 /** A complete execution identity, as the executor is expected to inject it. */
 const CONTEXT = {
@@ -89,10 +73,6 @@ const BODY_PLACEMENT_SITES: ReadonlyArray<{
 ]
 
 describe('square idempotency keys', () => {
-  beforeEach(() => {
-    mockWarn.mockClear()
-  })
-
   describe.each(BODY_PLACEMENT_SITES.map((site) => [site.tool.id, site] as const))(
     '%s',
     (_id, site) => {
@@ -159,12 +139,12 @@ describe('square idempotency keys', () => {
     const params = () => ({ apiKey: 'k', file: { key: 'f' }, fileName: 'a.png' })
 
     it('resolves the token on the tool side, where the execution identity exists', () => {
-      const body = buildBody(squareCreateCatalogImageTool, {
+      const input = squareCreateCatalogImageTool.operation.input({
         ...params(),
         _context: { ...CONTEXT },
       })
 
-      expect(body.idempotencyKey).toBe(
+      expect(input.idempotencyKey).toBe(
         deriveDeliveryKey(
           { ...CONTEXT, toolId: squareCreateCatalogImageTool.id },
           squareCreateCatalogImageTool.id
@@ -172,12 +152,12 @@ describe('square idempotency keys', () => {
       )
     })
 
-    it('sends the same token to the proxy route when tool preparation is re-entered', () => {
-      const first = buildBody(squareCreateCatalogImageTool, {
+    it('sends the same token to the operation when input projection is re-entered', () => {
+      const first = squareCreateCatalogImageTool.operation.input({
         ...params(),
         _context: { ...CONTEXT },
       })
-      const second = buildBody(squareCreateCatalogImageTool, {
+      const second = squareCreateCatalogImageTool.operation.input({
         ...params(),
         _context: { ...CONTEXT },
       })

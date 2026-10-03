@@ -1,9 +1,11 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
+import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { setRecordValue } from '@/lib/core/utils/records'
 import {
   getPersonalEnvCredentialMetadata,
   getWorkspaceEnvKeyAdminAccess,
@@ -16,15 +18,17 @@ import {
 import {
   deletePersonalSecret,
   deleteWorkspaceSecret,
-  readWorkspaceSecretValues,
   setPersonalSecret,
   setWorkspaceSecret,
+  updateWorkspaceSecretMetadata,
 } from '@/lib/credentials/secret-values'
+import { getEffectiveEnvironmentSnapshot } from '@/lib/environment/utils'
 import { secretOperations } from '@/lib/secrets/application/operations'
 import { scanSecretReferences } from '@/lib/secrets/references/scan'
 import { getSecretUsage } from '@/lib/secrets/usage/queries'
 import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { createResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export type SecretScope = 'workspace' | 'personal'
 export type SecretSortBy = 'name' | 'createdAt' | 'updatedAt'
@@ -42,10 +46,8 @@ async function resolveWorkspaceContext(workspaceId: string): Promise<SecretWorks
   return context
 }
 
-function principalUserId(
-  principal: Extract<Principal, { kind: 'session' | 'personal_api_key' }>
-): string {
-  return principal.userId
+function principalUserId(principal: Principal): string {
+  return requirePrincipalSubjectUserId(principal)
 }
 
 function credentialTypes(scope?: SecretScope) {
@@ -207,7 +209,7 @@ async function getPersonalSecretMetadata(params: {
   }
 }
 
-const authorizationOptions = {}
+const authorizationOptions = { delegation: { audience: 'sim:secrets', isWithinScope: () => true } }
 
 export interface ListSecretsInput {
   workspaceId: string
@@ -242,17 +244,26 @@ export const listSecretsUseCase = defineAuthorizedWorkspaceUseCase({
     })
     /**
      * The one place a secret value rides a read response: rows the workspace marked
-     * visible (unredacted) — whose values already print into every run log this
-     * caller can open — so external agents don't have to scrape logs for them.
-     * Bounded by the page, and read from one environment row.
+     * visible (unredacted), provided the shared registry also permits that value.
+     * A visible alias must not expose the literal of a protected secret. Returned
+     * values remain bounded by the metadata page.
      */
     const visibleNames = page.data.flatMap((row) =>
       row.type === 'env_workspace' && row.unredacted && row.envKey ? [row.envKey] : []
     )
-    const values = await readWorkspaceSecretValues({
-      workspaceId: context.workspaceId,
-      names: visibleNames,
-    })
+    const values: Record<string, string> = {}
+    if (visibleNames.length > 0) {
+      const snapshot = await getEffectiveEnvironmentSnapshot(userId, context.workspaceId)
+      const registry = await createResolvedSecretTraceRegistry({
+        ...snapshot,
+        scope: { userId, workspaceId: context.workspaceId },
+      })
+      const visible = new Set(registry.getUnredactedSecretNames())
+      for (const name of visibleNames) {
+        if (visible.has(name) && Object.hasOwn(snapshot.workspaceDecrypted, name))
+          setRecordValue(values, name, snapshot.workspaceDecrypted[name])
+      }
+    }
     return {
       secrets: page.data,
       values,
@@ -268,7 +279,12 @@ export interface SetSecretInput {
   workspaceId: string
   name: string
   scope: SecretScope
-  value: string
+  /**
+   * Omitted for a workspace-scope metadata-only write, which updates `description`
+   * and `unredacted` alone and never re-encrypts or replaces the stored value.
+   * Required for personal scope, which has no other writable field.
+   */
+  value?: string
   /**
    * Workspace scope only, and rejected at the contract for personal scope: an
    * `env_personal` row is a per-workspace mirror of one user-global secret, so a
@@ -307,6 +323,50 @@ export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
     }
 
     if (input.scope === 'workspace') {
+      /**
+       * A value-less workspace write takes the update-only manager: no encryption,
+       * no variables rewrite, and no credential insert, so it cannot create a
+       * secret and cannot cost the caller a re-transmission of the plaintext. A
+       * miss is a 404, and `created: false` keeps the route answering 200 for
+       * something it did not create.
+       */
+      if (input.value === undefined) {
+        /**
+         * A write that names none of the three writable fields would still issue
+         * the UPDATE, stamping `updatedAt` and dropping the workspace's env cache
+         * entry for nothing. The contract rejects it; this repeats the guard for
+         * every other surface that reaches the use case directly.
+         */
+        if (input.description === undefined && input.unredacted === undefined) {
+          throw new OrchestrationError(
+            'validation',
+            'value, description, or unredacted is required'
+          )
+        }
+
+        const metadata = await updateWorkspaceSecretMetadata({
+          workspaceId: context.workspaceId,
+          name: input.name,
+          description: input.description,
+          unredacted: input.unredacted,
+        })
+        if (!metadata) throw new OrchestrationError('not_found', 'Secret not found')
+        /**
+         * The response read is a second statement, so a delete committed between
+         * the two leaves nothing to report back. That is the same disappearance
+         * the miss above answers, so it answers the same way rather than raising
+         * the unclassified fault a "must exist" read would.
+         */
+        const updated = await findSecretMetadata({
+          workspaceId: context.workspaceId,
+          userId,
+          scope: 'workspace',
+          name: input.name,
+        })
+        if (!updated) throw new OrchestrationError('not_found', 'Secret not found')
+        return { secret: updated, userId, created: false }
+      }
+
       const mutation = await setWorkspaceSecret({
         workspaceId: context.workspaceId,
         name: input.name,
@@ -323,6 +383,15 @@ export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
       return { secret, userId, created: mutation.created }
     }
 
+    /**
+     * Personal scope has no metadata field, so a value-less write here could only be
+     * a silent no-op. The contract rejects it; this repeats the guard for every
+     * other surface that reaches the use case directly.
+     */
+    if (input.value === undefined) {
+      throw new OrchestrationError('validation', 'value is required for a personal secret')
+    }
+
     const mutation = await setPersonalSecret({ userId, name: input.name, value: input.value })
     const secret = await getPersonalSecretMetadata({
       workspaceId: context.workspaceId,
@@ -337,7 +406,10 @@ export const setSecretUseCase = defineAuthorizedWorkspaceUseCase({
     resourceType: AuditResourceType.ENVIRONMENT,
     resourceId: `${input.scope}:${input.name}`,
     resourceName: input.name,
-    description: `Set ${input.scope} secret "${input.name}"`,
+    description:
+      input.value === undefined
+        ? `Updated ${input.scope} secret "${input.name}" metadata`
+        : `Set ${input.scope} secret "${input.name}"`,
     metadata: {
       scope: input.scope,
       name: input.name,

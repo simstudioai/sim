@@ -1,0 +1,95 @@
+import { inputValidationMock } from '@sim/testing/mocks/input-validation.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockReadResponseTextWithLimit } = vi.hoisted(() => ({
+  mockReadResponseTextWithLimit: vi.fn(),
+}))
+
+vi.mock('@/lib/core/utils/stream-limits', () => {
+  class PayloadSizeLimitError extends Error {
+    observedBytes?: number
+    constructor(message: string, observedBytes?: number) {
+      super(message)
+      this.name = 'PayloadSizeLimitError'
+      this.observedBytes = observedBytes
+    }
+  }
+  return {
+    PayloadSizeLimitError,
+    readResponseTextWithLimit: mockReadResponseTextWithLimit,
+  }
+})
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
+import { readConcurApiBody, readConcurUploadBody } from '@/lib/internal/sap-concur/client'
+
+/** Minimal response shape both helpers accept. */
+function uploadResponse(status: number): Parameters<typeof readConcurUploadBody>[0] {
+  return {
+    status,
+    headers: new Headers(),
+    body: null,
+  }
+}
+
+function apiResponse(
+  status: number,
+  text: () => Promise<string>
+): Parameters<typeof readConcurApiBody>[0] {
+  return { status, text }
+}
+
+beforeEach(() => {
+  mockReadResponseTextWithLimit.mockReset()
+})
+
+/**
+ * Both helpers make the same success/error split, so the cases are declared once and run
+ * against each helper. `readConcurUploadBody` reads through the mocked
+ * `readResponseTextWithLimit`; `readConcurApiBody` reads through `response.text()`.
+ */
+const helpers = [
+  {
+    name: 'readConcurUploadBody',
+    read: (status: number, result: Promise<string>) => {
+      mockReadResponseTextWithLimit.mockReturnValue(result)
+      return readConcurUploadBody(uploadResponse(status))
+    },
+  },
+  {
+    name: 'readConcurApiBody',
+    read: (status: number, result: Promise<string>) =>
+      readConcurApiBody(apiResponse(status, () => result)),
+  },
+] as const
+
+describe.each(helpers)('$name response body reads', ({ read }) => {
+  it('propagates a read failure on a success status', async () => {
+    const failure = new Error('Concur upload response exceeded 10485760 bytes')
+    await expect(read(201, Promise.reject(failure))).rejects.toBe(failure)
+  })
+
+  it('resolves with the body text on an error status', async () => {
+    await expect(read(400, Promise.resolve('{"message":"Invalid userId"}'))).resolves.toBe(
+      '{"message":"Invalid userId"}'
+    )
+  })
+
+  it('swallows a read failure on a 5xx status', async () => {
+    await expect(read(503, Promise.reject(new Error('stream aborted')))).resolves.toBe('')
+  })
+
+  /**
+   * The source compares `status >= 200 && status < 300`, so 200 and 299 take the strict
+   * path and 199 and 300 take the tolerant one.
+   */
+  it.each([200, 299])('treats %i as a success status', async (status) => {
+    const failure = new Error('read failed')
+    await expect(read(status, Promise.reject(failure))).rejects.toBe(failure)
+  })
+
+  it.each([199, 300])('treats %i as a non-success status', async (status) => {
+    await expect(read(status, Promise.reject(new Error('read failed')))).resolves.toBe('')
+  })
+})

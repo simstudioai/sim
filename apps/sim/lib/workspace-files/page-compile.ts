@@ -3,6 +3,13 @@ import { truncate } from '@sim/utils/string'
 import { JSON_SCHEMA, load } from 'js-yaml'
 import { marked } from 'marked'
 import { z } from 'zod'
+import {
+  createYamlExpansionBudget,
+  isYamlExpansionBudgetExhausted,
+  measureYamlExpansion,
+  type YamlExpansionBudget,
+  type YamlExpansionLimits,
+} from '@/lib/file-parsers/yaml-limits'
 
 /**
  * Compiler for agent-authored `.html` pages.
@@ -246,8 +253,53 @@ export function resolveSimResourceLinks(html: string, workspaceId: string, baseU
   )
 }
 
-function loadYaml(body: string): unknown {
-  return load(body, { schema: JSON_SCHEMA })
+/**
+ * What ONE compile may expand its YAML to, counted across the frontmatter and
+ * every `sim:` fence together — a request pays for their sum, so they share one
+ * budget rather than each getting the full allowance.
+ *
+ * The ceiling has to sit on the EXPANDED value, not on the source: `load`
+ * resolves aliases into shared references, so a payload of a few kilobytes
+ * (`columns: &c [...]` plus a row list of aliases to it) parses into a small DAG
+ * that the renderers then walk as a tree, one `marked.parseInline` per cell.
+ * Cells grow with the product of the two alias lists while the source grows with
+ * their sum, so bounding source length bounds nothing. These values clear a
+ * 100x100 table — far past any page a person writes — and cap a compile's
+ * rendering work at roughly a tenth of a second.
+ */
+const PAGE_YAML_LIMITS: YamlExpansionLimits = {
+  maxNodes: 50_000,
+  maxSerializedBytes: 2 * 1024 * 1024,
+  maxDepth: 64,
+}
+
+type PageYamlResult = { ok: true; value: unknown } | { ok: false; reason: string }
+
+/**
+ * Parses one YAML region of a page — the frontmatter or a `sim:` fence payload —
+ * and charges its expanded size to the compile's budget. On failure `reason` is
+ * the clause a block-skipped diagnostic appends; the frontmatter callers only
+ * read `ok`.
+ */
+function loadYaml(body: string, budget: YamlExpansionBudget): PageYamlResult {
+  if (isYamlExpansionBudgetExhausted(budget)) {
+    return {
+      ok: false,
+      reason: 'the page spent its whole structured-block budget on earlier blocks',
+    }
+  }
+  let value: unknown
+  try {
+    value = load(body, { schema: JSON_SCHEMA })
+  } catch (err) {
+    const message = truncate(getErrorMessage(err, 'invalid YAML'), 160)
+    return { ok: false, reason: `its payload is not valid YAML/JSON — ${message}` }
+  }
+  const measured = measureYamlExpansion(value, PAGE_YAML_LIMITS, budget)
+  if (!measured.within) {
+    return { ok: false, reason: `its payload is too large to render — ${measured.reason}` }
+  }
+  return { ok: true, value }
 }
 
 type FenceRenderer = (payload: unknown) => string | null
@@ -360,11 +412,8 @@ export function isSimPageSource(content: string): boolean {
   if (!trimmed.startsWith('---\n')) return false
   const end = trimmed.indexOf('\n---', 3)
   if (end === -1) return false
-  try {
-    return frontmatterSchema.safeParse(loadYaml(trimmed.slice(4, end)) ?? {}).success
-  } catch {
-    return false
-  }
+  const parsed = loadYaml(trimmed.slice(4, end), createYamlExpansionBudget(PAGE_YAML_LIMITS))
+  return parsed.ok && frontmatterSchema.safeParse(parsed.value ?? {}).success
 }
 
 /**
@@ -373,7 +422,7 @@ export function isSimPageSource(content: string): boolean {
  * page helps nobody); the skip is reported through `diagnostics` instead,
  * which the file-editing tool surfaces back to the authoring agent.
  */
-function compileBody(source: string, diagnostics?: string[]): string {
+function compileBody(source: string, budget: YamlExpansionBudget, diagnostics?: string[]): string {
   const lines = source.split('\n')
   const html: string[] = []
   let prose: string[] = []
@@ -407,16 +456,12 @@ function compileBody(source: string, diagnostics?: string[]): string {
         }
       } else {
         const renderer = FENCE_RENDERERS[kind]
-        let payload: unknown
         let rendered: string | null = null
-        let parseError: string | null = null
+        let loadError: string | null = null
         if (renderer) {
-          try {
-            payload = loadYaml(body)
-          } catch (err) {
-            parseError = getErrorMessage(err, 'invalid YAML')
-          }
-          if (parseError === null) rendered = renderer(payload)
+          const parsed = loadYaml(body, budget)
+          if (parsed.ok) rendered = renderer(parsed.value)
+          else loadError = parsed.reason
         }
         if (rendered !== null) {
           html.push(rendered)
@@ -425,9 +470,7 @@ function compileBody(source: string, diagnostics?: string[]): string {
           // of the same kind, and a bare "a table is malformed" sends the
           // fixing agent hunting through all of them.
           const preview = truncate(body.trim().split('\n')[0] ?? '', 80)
-          const reason = parseError
-            ? `its payload is not valid YAML/JSON — ${truncate(parseError, 160)}`
-            : 'its payload did not match the expected shape'
+          const reason = loadError ?? 'its payload did not match the expected shape'
           diagnostics?.push(`sim:${kind} block starting "${preview}" skipped: ${reason}`)
         }
       }
@@ -486,12 +529,17 @@ function compileSimPageDocument(source: string, diagnostics?: string[]): string 
   const end = trimmed.indexOf('\n---', 3)
   const frontmatterText = trimmed.slice(4, end)
   const rest = trimmed.slice(end + 4).replace(/^-*\n?/, '')
+  // One budget for the whole document: the frontmatter and every fence draw
+  // from it, so a page cannot buy more rendering by splitting across blocks.
+  const budget = createYamlExpansionBudget(PAGE_YAML_LIMITS)
+  const frontmatter = loadYaml(frontmatterText, budget)
+  // isSimPageSource gates on parseable frontmatter; this is a safety net.
+  if (!frontmatter.ok) return compileBody(source, budget, diagnostics)
   let meta: z.infer<typeof frontmatterSchema>
   try {
-    meta = frontmatterSchema.parse(loadYaml(frontmatterText) ?? {})
+    meta = frontmatterSchema.parse(frontmatter.value ?? {})
   } catch {
-    // isSimPageSource gates on parseable frontmatter; this is a safety net.
-    return compileBody(source, diagnostics)
+    return compileBody(source, budget, diagnostics)
   }
 
   // Two or more top-level `# ` headings turn the body into IN-DOCUMENT tabs:
@@ -517,14 +565,14 @@ function compileSimPageDocument(source: string, diagnostics?: string[]): string 
     ...(meta.lede ? [`<p class="lede">${escapeHtml(meta.lede)}</p>`] : []),
     ...(multiTab
       ? [
-          ...(intro.trim() ? [compileBody(intro, diagnostics)] : []),
+          ...(intro.trim() ? [compileBody(intro, budget, diagnostics)] : []),
           ...docTabs.map(
             (tab, i) =>
-              `<section class="doc-tab-panel${i === 0 ? ' is-active' : ''}" id="doc-tab-${i}" data-tab-panel>${compileBody(tab.body, diagnostics)}</section>`
+              `<section class="doc-tab-panel${i === 0 ? ' is-active' : ''}" id="doc-tab-${i}" data-tab-panel>${compileBody(tab.body, budget, diagnostics)}</section>`
           ),
           DOC_TABS_SCRIPT,
         ]
-      : [compileBody(rest, diagnostics)]),
+      : [compileBody(rest, budget, diagnostics)]),
     '</div>',
     '</body>',
     '</html>',

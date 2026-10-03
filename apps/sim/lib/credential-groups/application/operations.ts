@@ -1,99 +1,140 @@
-import { defineWorkspaceOperation } from '@/lib/core/application'
+import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 
+/**
+ * Workspace admins configure connected accounts. Copilot can read configuration
+ * for the acting admin; enrollment details and setup remain session-only.
+ * Workflow operations retain their enrolled-identity and resource-policy checks.
+ */
 export const credentialGroupOperations = {
-  listSettings: defineWorkspaceOperation({
-    id: 'credential_groups.settings.list',
+  // permission-group-exempt: workspace admin already decides this, and no group key names the credential-groups section
+  workspaceSettings: defineWorkspaceOperation({
+    id: 'credential_groups.workspace.read',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
-    principalKinds: ['session'],
+    capability: 'none',
+    principalKinds: ['session', 'delegated'],
+    delegatedServices: ['copilot'],
   }),
-  create: defineWorkspaceOperation({
-    id: 'credential_groups.create',
+  // permission-group-exempt: workspace account setup requires the same admin role as account settings
+  ensureWorkspaceAccounts: defineWorkspaceOperation({
+    id: 'credential_groups.workspace.ensure',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'none',
     principalKinds: ['session'],
   }),
+  // permission-group-exempt: workspace admin already decides this, and no group key names the credential-groups section
   readSettings: defineWorkspaceOperation({
     id: 'credential_groups.settings.read',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'none',
     principalKinds: ['session'],
   }),
+  // permission-group-exempt: workspace admin already decides this, and no group key names the credential-groups section
   update: defineWorkspaceOperation({
     id: 'credential_groups.update',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'none',
     principalKinds: ['session'],
   }),
-  delete: defineWorkspaceOperation({
-    id: 'credential_groups.delete',
+  // permission-group-exempt: workspace admin already decides this, and no group key names the credential-groups section
+  readAccess: defineWorkspaceOperation({
+    id: 'credential_groups.access.read',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'none',
     principalKinds: ['session'],
   }),
+  // permission-group-exempt: workspace admin already decides this, and no group key names the credential-groups section
+  updateAccess: defineWorkspaceOperation({
+    id: 'credential_groups.access.update',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    capability: 'none',
+    principalKinds: ['session'],
+  }),
+  // permission-group-exempt: workspace admin already decides this, and no group key names the credential-groups section
+  createMcpConnector: defineWorkspaceOperation({
+    id: 'credential_groups.mcp_connectors.create',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    capability: 'none',
+    principalKinds: ['session'],
+  }),
+  // permission-group-exempt: workspace admin already decides this, and no group key names the credential-groups section
+  updateMcpConnector: defineWorkspaceOperation({
+    id: 'credential_groups.mcp_connectors.update',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    capability: 'none',
+    principalKinds: ['session'],
+  }),
+  // permission-group-exempt: workspace admin already decides this, and no group key names the credential-groups section
+  deleteMcpConnector: defineWorkspaceOperation({
+    id: 'credential_groups.mcp_connectors.delete',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    capability: 'none',
+    principalKinds: ['session'],
+  }),
+  // permission-group-exempt: workspace admin already decides this, and no group key names the credential-groups section
   inviteBatch: defineWorkspaceOperation({
     id: 'credential_groups.invites.send_batch',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'none',
     principalKinds: ['session'],
   }),
+  // permission-group-exempt: workspace admin already decides this, and no group key names the credential-groups section
   resendEnrollment: defineWorkspaceOperation({
     id: 'credential_groups.enrollments.resend',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'none',
     principalKinds: ['session'],
   }),
+  // permission-group-exempt: workspace admin already decides this, and no group key names the credential-groups section
   deleteEnrollment: defineWorkspaceOperation({
     id: 'credential_groups.enrollments.delete',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'none',
     principalKinds: ['session'],
   }),
+  // permission-group-exempt: read by the executor to resolve an enrolled person's credential; the group's enrollment rows are the gate, and no group key names them
   listCredentials: defineWorkspaceOperation({
     id: 'credential_groups.credentials.list',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'none',
     principalKinds: ['delegated'],
     delegatedServices: ['executor'],
   }),
-  listGroups: defineWorkspaceOperation({
-    id: 'credential_groups.list',
+  // permission-group-exempt: read by the executor to resolve an enrolled person's MCP connection; use is enforced by the Credential Group policy
+  listMcpConnections: defineWorkspaceOperation({
+    id: 'credential_groups.mcp_connections.list',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
+    capability: 'none',
     principalKinds: ['delegated'],
     delegatedServices: ['executor'],
   }),
-  listPeople: defineWorkspaceOperation({
-    id: 'credential_groups.people.list',
-    minimumRole: 'read',
-    workspaceApiKey: 'deny',
-    principalKinds: ['delegated'],
-    delegatedServices: ['executor'],
-  }),
-  sendInvite: defineWorkspaceOperation({
-    id: 'credential_groups.invites.send',
-    minimumRole: 'admin',
-    workspaceApiKey: 'deny',
-    principalKinds: ['delegated'],
-    delegatedServices: ['executor'],
-  }),
-  createInviteLink: defineWorkspaceOperation({
-    id: 'credential_groups.invites.link.create',
-    minimumRole: 'admin',
-    workspaceApiKey: 'deny',
-    principalKinds: ['delegated'],
-    delegatedServices: ['executor'],
-  }),
+  // permission-group-exempt: workspace admin already decides this, and no group key names the credential-groups section
   startSlackConfiguration: defineWorkspaceOperation({
     id: 'credential_groups.slack_configuration.start',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'none',
     principalKinds: ['session'],
   }),
+  // permission-group-exempt: workspace admin already decides this, and no group key names the credential-groups section
   completeSlackConfiguration: defineWorkspaceOperation({
     id: 'credential_groups.slack_configuration.complete',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
+    capability: 'none',
     principalKinds: ['session'],
   }),
 } as const

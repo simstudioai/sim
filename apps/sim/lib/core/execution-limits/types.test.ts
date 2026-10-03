@@ -1,7 +1,5 @@
-/**
- * @vitest-environment node
- */
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { mockEnvObject } from '@sim/testing/mocks/env.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -9,15 +7,15 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
  * the billing-disabled opt-in check reads the env at call time. Seeding here
  * mirrors production, where both reads observe the same process env.
  */
-const { mockEnv } = vi.hoisted(() => ({
-  mockEnv: {
+await vi.hoisted(async () => {
+  const { setEnv } = await import('@sim/testing/mocks/env.mock')
+  setEnv({
     EXECUTION_TIMEOUT_FREE: '120',
     EXECUTION_TIMEOUT_ASYNC_FREE: '240',
     EXECUTION_TIMEOUT_ASYNC_ENTERPRISE: '604801',
-  } as Record<string, string | undefined>,
-}))
+  })
+})
 
-vi.mock('@/lib/core/config/env', () => ({ env: mockEnv }))
 /**
  * Query-suffixed import gives this file a private instance of the module under
  * test (the barrel's `./types` source, so the fresh evaluation bakes the mocked
@@ -43,6 +41,8 @@ import {
   resolveAsyncExecutionTimeout,
   toTriggerMaxDurationSeconds,
 } from '@/lib/core/execution-limits/types?execution-limits-test'
+
+const mockEnv = mockEnvObject
 
 afterAll(resetEnvFlagsMock)
 

@@ -1,11 +1,24 @@
 import { createHash } from 'node:crypto'
 import { db, dbReplica } from '@sim/db'
-import { usageLog, workflow } from '@sim/db/schema'
+import { subscription as subscriptionTable, usageLog, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { toNumberOrNull } from '@sim/utils/coerce'
+import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, desc, eq, gte, inArray, lt, lte, or, sql } from 'drizzle-orm'
+import { toRecordOrNull } from '@sim/utils/object'
+import { and, desc, eq, gte, inArray, lt, lte, notInArray, or, sql } from 'drizzle-orm'
+import {
+  type CursorKey,
+  keysetColumns,
+  keysetPage,
+  type ListSortOrder,
+  listOrderBy,
+  resumeKeyset,
+  textKey,
+  timestampKey,
+} from '@/lib/api/list-query'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
+import { readLedgerBounded } from '@/lib/billing/core/ledger-read'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import {
   resolveSubscriptionUsagePeriod,
@@ -16,14 +29,18 @@ import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import type { InternalUsageLogSource } from '@/lib/billing/usage-sources'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { HttpError } from '@/lib/core/utils/http-error'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbClient, DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('UsageLog')
 
 /**
- * Usage log category types
+ * Usage log category types.
+ *
+ * `model_unbilled` is reporting-only — see {@link UNBILLED_USAGE_CATEGORIES}. Code
+ * that means "a charge" must not treat it as one.
  */
-export type UsageLogCategory = 'model' | 'fixed' | 'tool'
+export type UsageLogCategory = 'model' | 'fixed' | 'tool' | 'model_unbilled'
 
 /**
  * Usage log source types
@@ -41,6 +58,26 @@ export const COPILOT_USAGE_SOURCES: UsageLogSource[] = [
   'mcp_copilot',
   'mothership_block',
 ]
+
+/**
+ * Categories that record usage Sim does not charge for. Their `cost` is always `0`
+ * and their value is the token counts in `metadata`, so usage reporting can show
+ * volume that the billing ledger has no reason to know about.
+ *
+ * These are the only categories exempt from {@link recordUsage}'s `cost > 0` filter.
+ * Every billing aggregate over usage_log is `SUM(cost)`, so zero-cost rows leave
+ * every existing total unchanged.
+ */
+export const UNBILLED_USAGE_CATEGORIES = [
+  'model_unbilled',
+] as const satisfies readonly UsageLogCategory[]
+
+const UNBILLED_USAGE_CATEGORY_SET: ReadonlySet<string> = new Set(UNBILLED_USAGE_CATEGORIES)
+
+/** True for a category whose rows are recorded for reporting rather than billing. */
+export function isUnbilledUsageCategory(category: UsageLogCategory): boolean {
+  return UNBILLED_USAGE_CATEGORY_SET.has(category)
+}
 
 /**
  * Metadata for 'model' category charges
@@ -205,12 +242,14 @@ export async function getBillingPeriodUsageCost(
     )
   }
 
-  const [row] = await executor
-    .select({
-      cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
-    })
-    .from(usageLog)
-    .where(and(...conditions))
+  const [row] = await readLedgerBounded(executor, (tx) =>
+    tx
+      .select({
+        cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
+      })
+      .from(usageLog)
+      .where(and(...conditions))
+  )
 
   return Number.parseFloat(row?.cost ?? '0')
 }
@@ -219,35 +258,50 @@ export async function getBillingPeriodUsageCost(
  * Counts distinct workflow executions that produced billable ledger entries in
  * an attributed billing period. Multiple line items for one execution count as
  * one run; executions with no billable usage are intentionally excluded.
+ *
+ * The category filter is what keeps that last clause true now that unbilled rows
+ * exist. A BYOK-only run whose base charge is zero writes nothing but a
+ * `model_unbilled` row, and without this it would newly appear in a count that
+ * feeds the enterprise billing preview — a customer-facing number moving because
+ * of a reporting-only row.
  */
 export async function getBillingPeriodWorkflowRunCount(
   billingEntity: BillingEntity,
   billingPeriod: UsageQueryPeriod,
   executor: DbClient = db
 ): Promise<number> {
-  const [row] = await executor
-    .select({
-      workflowRuns:
-        sql<number>`COUNT(DISTINCT ${usageLog.executionId}) FILTER (WHERE ${usageLog.source} = 'workflow')`.mapWith(
-          Number
-        ),
-    })
-    .from(usageLog)
-    .where(
-      and(
-        eq(usageLog.billingEntityType, billingEntity.type),
-        eq(usageLog.billingEntityId, billingEntity.id),
-        ...(billingPeriod.source === 'reporting'
-          ? [
-              gte(usageLog.createdAt, billingPeriod.start),
-              lt(usageLog.createdAt, billingPeriod.end),
-            ]
-          : [
-              eq(usageLog.billingPeriodStart, billingPeriod.start),
-              eq(usageLog.billingPeriodEnd, billingPeriod.end),
-            ])
+  const [row] = await readLedgerBounded(executor, (tx) =>
+    tx
+      .select({
+        /**
+         * The exclusion goes through `notInArray`, not `<> ALL(${array})`. Interpolating
+         * a JavaScript array into a `sql` template emits parenthesized scalar binds —
+         * `ALL(($1))` — which Postgres rejects outright with "op ANY/ALL (array)
+         * requires array on right side". Unit tests cannot catch it, because `@sim/db`
+         * is mocked and no statement is ever rendered.
+         */
+        workflowRuns:
+          sql<number>`COUNT(DISTINCT ${usageLog.executionId}) FILTER (WHERE ${usageLog.source} = 'workflow' AND ${notInArray(usageLog.category, [...UNBILLED_USAGE_CATEGORIES])})`.mapWith(
+            Number
+          ),
+      })
+      .from(usageLog)
+      .where(
+        and(
+          eq(usageLog.billingEntityType, billingEntity.type),
+          eq(usageLog.billingEntityId, billingEntity.id),
+          ...(billingPeriod.source === 'reporting'
+            ? [
+                gte(usageLog.createdAt, billingPeriod.start),
+                lt(usageLog.createdAt, billingPeriod.end),
+              ]
+            : [
+                eq(usageLog.billingPeriodStart, billingPeriod.start),
+                eq(usageLog.billingPeriodEnd, billingPeriod.end),
+              ])
+        )
       )
-    )
+  )
 
   return row?.workflowRuns ?? 0
 }
@@ -265,27 +319,29 @@ export async function getBillingPeriodUsageCostWithSourceSubset(
   source: UsageLogSource[],
   executor: DbClient = db
 ): Promise<{ total: number; subset: number }> {
-  const [row] = await executor
-    .select({
-      total: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
-      subset: sql<string>`COALESCE(SUM(${usageLog.cost}) FILTER (WHERE ${inArray(usageLog.source, source)}), 0)`,
-    })
-    .from(usageLog)
-    .where(
-      and(
-        eq(usageLog.billingEntityType, billingEntity.type),
-        eq(usageLog.billingEntityId, billingEntity.id),
-        ...(billingPeriod.source === 'reporting'
-          ? [
-              gte(usageLog.createdAt, billingPeriod.start),
-              lt(usageLog.createdAt, billingPeriod.end),
-            ]
-          : [
-              eq(usageLog.billingPeriodStart, billingPeriod.start),
-              eq(usageLog.billingPeriodEnd, billingPeriod.end),
-            ])
+  const [row] = await readLedgerBounded(executor, (tx) =>
+    tx
+      .select({
+        total: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
+        subset: sql<string>`COALESCE(SUM(${usageLog.cost}) FILTER (WHERE ${inArray(usageLog.source, source)}), 0)`,
+      })
+      .from(usageLog)
+      .where(
+        and(
+          eq(usageLog.billingEntityType, billingEntity.type),
+          eq(usageLog.billingEntityId, billingEntity.id),
+          ...(billingPeriod.source === 'reporting'
+            ? [
+                gte(usageLog.createdAt, billingPeriod.start),
+                lt(usageLog.createdAt, billingPeriod.end),
+              ]
+            : [
+                eq(usageLog.billingPeriodStart, billingPeriod.start),
+                eq(usageLog.billingPeriodEnd, billingPeriod.end),
+              ])
+        )
       )
-    )
+  )
 
   return {
     total: Number.parseFloat(row?.total ?? '0'),
@@ -321,14 +377,16 @@ export async function getBillingPeriodUsageCostByUser(
   }
   if (userIds) conditions.push(inArray(usageLog.userId, [...userIds]))
 
-  const rows = await executor
-    .select({
-      userId: usageLog.userId,
-      cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
-    })
-    .from(usageLog)
-    .where(and(...conditions))
-    .groupBy(usageLog.userId)
+  const rows = await readLedgerBounded(executor, (tx) =>
+    tx
+      .select({
+        userId: usageLog.userId,
+        cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
+      })
+      .from(usageLog)
+      .where(and(...conditions))
+      .groupBy(usageLog.userId)
+  )
 
   return new Map(rows.map((row) => [row.userId, Number.parseFloat(row.cost ?? '0')]))
 }
@@ -362,14 +420,16 @@ export async function getStampedPeriodRangeUsageCostByUser(
     )
   }
 
-  const rows = await executor
-    .select({
-      userId: usageLog.userId,
-      cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
-    })
-    .from(usageLog)
-    .where(and(...conditions))
-    .groupBy(usageLog.userId)
+  const rows = await readLedgerBounded(executor, (tx) =>
+    tx
+      .select({
+        userId: usageLog.userId,
+        cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
+      })
+      .from(usageLog)
+      .where(and(...conditions))
+      .groupBy(usageLog.userId)
+  )
 
   return new Map(rows.map((row) => [row.userId, Number.parseFloat(row.cost ?? '0')]))
 }
@@ -397,7 +457,12 @@ export async function recordUsage(params: RecordUsageParams): Promise<void> {
     tx,
   } = params
 
-  const validEntries = entries.filter((e) => e.cost > 0)
+  // An unbilled row is admitted only at exactly zero cost. The category's whole
+  // safety argument is that every billing aggregate is `SUM(cost)` and these rows
+  // contribute nothing; a nonzero one would quietly move real money.
+  const validEntries = entries.filter((e) =>
+    isUnbilledUsageCategory(e.category) ? e.cost === 0 : e.cost > 0
+  )
 
   if (validEntries.length === 0) {
     return
@@ -520,6 +585,23 @@ export interface RecordCumulativeUsageParams {
   /** Stable per-request key; the single ledger row is keyed on this. */
   eventKey: string
   metadata?: UsageLogMetadata
+  /**
+   * The Stripe-period subscription that pays for this request. When given, a top-up that
+   * arrives after that subscription has moved past the period of the request's latest row is
+   * recorded in a new row stamped with the subscription's current period, so a request that
+   * outlives its billing period is invoiced by the period it was spent in rather than topping up
+   * a period that has already been closed. A charge into a period the subscription's close marker
+   * has already passed (its terminal settlement) throws {@link CumulativeUsagePeriodClosedError}.
+   * Omit it for reporting-window and free payers.
+   *
+   * Mixed versions: code that predates period rows reads only the request key. If such code
+   * (during a deploy, or after a rollback) handles a later callback for a request that already
+   * has period rows, it re-adds those rows' amount to the first row. That only double-counts
+   * when it lands between the rollover and that period's close, which waits at least an hour,
+   * and only for runs spanning a rollover; the exposure is one run's post-rollover spend, cents
+   * to dollars.
+   */
+  payerSubscriptionId?: string
 }
 
 export interface RecordCumulativeUsageResult {
@@ -529,6 +611,57 @@ export interface RecordCumulativeUsageResult {
   delta: number
   /** The request's recorded cumulative cost after this flush. */
   total: number
+  /** The billing period of the row this flush wrote to, or of the request's latest row. */
+  billingPeriod: { start: Date; end: Date }
+}
+
+/**
+ * The most period rows one request may span: its first row plus one per later billing period.
+ * A request still billing twelve periods after it started is refused rather than scanned.
+ */
+const MAX_CUMULATIVE_PERIOD_ROWS = 12
+
+/**
+ * The ledger key of the `index`-th period a cumulative request rolled into; 0 is the request key.
+ * The cost callback refuses a request key containing `@`, so these never collide with another
+ * request's.
+ */
+function cumulativePeriodEventKey(eventKey: string, index: number): string {
+  return index === 0 ? eventKey : `${eventKey}@${index}`
+}
+
+/** Decimal places kept when period row costs are summed or subtracted as floats. */
+const PERIOD_COST_DECIMALS = 12
+
+function sumLedgerCost(rows: readonly { cost: string }[]): number {
+  if (rows.length <= 1) return rows[0] ? Number.parseFloat(rows[0].cost) : 0
+  const total = rows.reduce((sum, row) => sum + Number.parseFloat(row.cost), 0)
+  return Number(total.toFixed(PERIOD_COST_DECIMALS))
+}
+
+const CUMULATIVE_TOKEN_FIELDS = ['inputTokens', 'outputTokens'] as const
+
+/**
+ * A period row's share of a cumulative callback's token counts: the cumulative counts minus what
+ * the request's other rows already hold, so summing the rows never counts a token twice.
+ */
+function periodUsageMetadata(
+  metadata: UsageLogMetadata | undefined,
+  otherRows: readonly { metadata: unknown }[]
+): UsageLogMetadata | undefined {
+  const cumulative = toRecordOrNull(metadata)
+  if (!cumulative || otherRows.length === 0) return metadata
+  const share: Record<string, unknown> = { ...cumulative }
+  for (const field of CUMULATIVE_TOKEN_FIELDS) {
+    const total = toNumberOrNull(cumulative[field])
+    if (total === null) continue
+    const recorded = otherRows.reduce(
+      (sum, row) => sum + (toNumberOrNull(toRecordOrNull(row.metadata)?.[field]) ?? 0),
+      0
+    )
+    share[field] = Math.max(0, total - recorded)
+  }
+  return share
 }
 
 export type CumulativeUsageContextField =
@@ -549,6 +682,23 @@ export class CumulativeUsageContextMismatchError extends Error {
   }
 }
 
+/**
+ * A cumulative charge whose billing period the payer has already settled: the subscription ended
+ * and its final invoice summed that period. The charge is refused rather than recorded where no
+ * invoice will ever read it.
+ */
+export class CumulativeUsagePeriodClosedError extends Error {
+  constructor(
+    readonly eventKey: string,
+    readonly billingPeriod: { start: Date; end: Date }
+  ) {
+    super(
+      `Cumulative usage event "${eventKey}" targets a billing period that has already been settled`
+    )
+    this.name = 'CumulativeUsagePeriodClosedError'
+  }
+}
+
 interface CumulativeUsageLedgerBinding {
   userId: string
   workspaceId: string | null
@@ -565,6 +715,11 @@ function assertCumulativeUsageLedgerBinding(
     workspaceId?: string
     billingContext: BillingContext
     eventKey: string
+    /**
+     * A request whose first charge landed after its period closed, or after an anchor reset moved
+     * its start forward, is stamped with a later one.
+     */
+    allowLaterPeriod?: boolean
   }
 ): void {
   const mismatchedFields: CumulativeUsageContextField[] = []
@@ -580,11 +735,16 @@ function assertCumulativeUsageLedgerBinding(
   ) {
     mismatchedFields.push('billing entity')
   }
-  if (
-    existing.billingPeriodStart?.getTime() !==
-      expected.billingContext.billingPeriod.start.getTime() ||
-    existing.billingPeriodEnd?.getTime() !== expected.billingContext.billingPeriod.end.getTime()
-  ) {
+  const frozenPeriod = expected.billingContext.billingPeriod
+  const samePeriod =
+    existing.billingPeriodStart?.getTime() === frozenPeriod.start.getTime() &&
+    existing.billingPeriodEnd?.getTime() === frozenPeriod.end.getTime()
+  // The same forward-only rule that rolls a charge into a new period row.
+  const laterPeriod =
+    expected.allowLaterPeriod === true &&
+    existing.billingPeriodStart !== null &&
+    existing.billingPeriodStart.getTime() > frozenPeriod.start.getTime()
+  if (!samePeriod && !laterPeriod) {
     mismatchedFields.push('billing period')
   }
 
@@ -594,14 +754,18 @@ function assertCumulativeUsageLedgerBinding(
 }
 
 /**
- * Bounds the wait for the per-event-key advisory lock (and any row/index lock
- * waits inside the critical section). The Go mothership gives each UpdateCost
- * POST a 5s deadline, retries 3x with backoff, then dead-letters the charge
- * keyed on the same idempotency key — so a stuck lock holder must surface as
- * a fast, retryable failure (SQLSTATE 55P03) within that budget rather than
- * an unbounded wait that pins pooled connections.
+ * PostgreSQL 17+ bounds the entire transaction below the callback's five-second
+ * deadline. Older supported servers instead bound each idle interval between
+ * statements, alongside the per-statement budget. Both policies release an idle
+ * lock holder without waiting for its application process to resume; only the
+ * newer policy also limits total elapsed transaction time.
  */
+const CUMULATIVE_FLUSH_TRANSACTION_TIMEOUT_MS = 4_000
+const CUMULATIVE_FLUSH_STATEMENT_TIMEOUT_MS = 3_500
 const CUMULATIVE_FLUSH_LOCK_TIMEOUT_MS = 3_000
+const CUMULATIVE_FLUSH_SLOW_MS = 1_000
+
+type CumulativeUsageStage = 'pool' | 'configure' | 'lock' | 'read' | 'write' | 'commit'
 
 /**
  * Record a request's CUMULATIVE cost idempotently with monotonic top-up.
@@ -614,8 +778,9 @@ const CUMULATIVE_FLUSH_LOCK_TIMEOUT_MS = 3_000
  * An existing row must match the incoming actor, workspace, payer, and billing
  * period before either a duplicate no-op or a top-up is accepted.
  * The billing context is resolved BEFORE the transaction and the lock wait is
- * bounded by `lock_timeout`, keeping the critical section to one SELECT plus
- * one INSERT/UPDATE on a single pooled connection.
+ * bounded by `lock_timeout`. A server-enforced transaction deadline, or idle
+ * transaction deadline on older PostgreSQL, releases a stalled holder. The
+ * critical section uses one SELECT plus one INSERT/UPDATE on a single connection.
  *
  * Because every leg flushes its cumulative and this converges to the max,
  * there is no under-billing if the request recovers after a partial flush, no
@@ -635,6 +800,7 @@ export async function recordCumulativeUsage(
     cost,
     eventKey,
     metadata,
+    payerSubscriptionId,
   } = params
 
   if (workspaceId && (!billingEntity || !billingPeriod)) {
@@ -643,95 +809,255 @@ export async function recordCumulativeUsage(
 
   const billingContext = await resolveBillingContext(userId, billingEntity, billingPeriod)
 
-  return db.transaction(async (tx) => {
-    // Serialize all flushes for this request (lock auto-releases at tx end),
-    // with a bounded wait so a pathological holder fails this flush fast and
-    // lets the caller retry instead of hanging the connection.
-    await tx.execute(
-      sql`select set_config('lock_timeout', ${`${CUMULATIVE_FLUSH_LOCK_TIMEOUT_MS}ms`}, true)`
-    )
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${eventKey}, 0))`)
+  const startedAt = Date.now()
+  let stage: CumulativeUsageStage = 'pool'
+  let stageStartedAt = startedAt
+  const stageDurationsMs: Partial<Record<CumulativeUsageStage, number>> = {}
+  let succeeded = false
+  let pgCode: string | undefined
+  const enterStage = (nextStage: CumulativeUsageStage) => {
+    const now = Date.now()
+    stageDurationsMs[stage] = now - stageStartedAt
+    stage = nextStage
+    stageStartedAt = now
+  }
 
-    const [existing] = await tx
-      .select({
-        id: usageLog.id,
-        cost: usageLog.cost,
-        userId: usageLog.userId,
-        workspaceId: usageLog.workspaceId,
-        billingEntityType: usageLog.billingEntityType,
-        billingEntityId: usageLog.billingEntityId,
-        billingPeriodStart: usageLog.billingPeriodStart,
-        billingPeriodEnd: usageLog.billingPeriodEnd,
-      })
-      .from(usageLog)
-      .where(eq(usageLog.eventKey, eventKey))
-      .limit(1)
+  try {
+    const result = await db.transaction(async (tx) => {
+      enterStage('configure')
+      await tx.execute(sql`
+        select
+          set_config(
+            case when current_setting('transaction_timeout', true) is null
+              then 'idle_in_transaction_session_timeout'
+              else 'transaction_timeout'
+            end,
+            ${`${CUMULATIVE_FLUSH_TRANSACTION_TIMEOUT_MS}ms`},
+            true
+          ),
+          set_config('statement_timeout', ${`${CUMULATIVE_FLUSH_STATEMENT_TIMEOUT_MS}ms`}, true),
+          set_config('lock_timeout', ${`${CUMULATIVE_FLUSH_LOCK_TIMEOUT_MS}ms`}, true)
+      `)
+      enterStage('lock')
+      await acquireAdvisoryXactLock(tx, 'usage_log_event', eventKey)
 
-    if (existing) {
-      assertCumulativeUsageLedgerBinding(existing, {
-        userId,
-        workspaceId,
-        billingContext,
-        eventKey,
-      })
-    }
+      enterStage('read')
+      const rows = await tx
+        .select({
+          id: usageLog.id,
+          eventKey: usageLog.eventKey,
+          cost: usageLog.cost,
+          metadata: usageLog.metadata,
+          userId: usageLog.userId,
+          workspaceId: usageLog.workspaceId,
+          billingEntityType: usageLog.billingEntityType,
+          billingEntityId: usageLog.billingEntityId,
+          billingPeriodStart: usageLog.billingPeriodStart,
+          billingPeriodEnd: usageLog.billingPeriodEnd,
+        })
+        .from(usageLog)
+        .where(
+          payerSubscriptionId
+            ? inArray(
+                usageLog.eventKey,
+                Array.from({ length: MAX_CUMULATIVE_PERIOD_ROWS }, (_, index) =>
+                  cumulativePeriodEventKey(eventKey, index)
+                )
+              )
+            : eq(usageLog.eventKey, eventKey)
+        )
+        .limit(MAX_CUMULATIVE_PERIOD_ROWS)
 
-    const recorded = existing ? Number.parseFloat(existing.cost) : 0
-    const { shouldBill, delta, newTotal } = resolveCumulativeTopUp(recorded, cost)
+      // Period rows are written in order under this lock, so they are the keys 0..n-1.
+      const chain = payerSubscriptionId
+        ? Array.from({ length: rows.length }, (_, index) =>
+            rows.find((row) => row.eventKey === cumulativePeriodEventKey(eventKey, index))
+          ).filter((row) => row !== undefined)
+        : rows.slice(0, 1)
+      if (payerSubscriptionId && chain.length !== rows.length) {
+        throw new Error(`Cumulative usage event "${eventKey}" has a gap in its period rows`)
+      }
+      const [anchor] = chain
+      if (anchor) {
+        assertCumulativeUsageLedgerBinding(anchor, {
+          userId,
+          workspaceId,
+          billingContext,
+          eventKey,
+          allowLaterPeriod: Boolean(payerSubscriptionId),
+        })
+      }
 
-    if (!shouldBill) {
-      return { billed: false, delta: 0, total: recorded }
-    }
+      const latest = chain.at(-1)
+      const latestPeriod =
+        latest?.billingPeriodStart && latest.billingPeriodEnd
+          ? { start: latest.billingPeriodStart, end: latest.billingPeriodEnd }
+          : billingContext.billingPeriod
+      const recorded = sumLedgerCost(chain)
+      const { shouldBill, delta, newTotal } = resolveCumulativeTopUp(recorded, cost)
 
-    if (existing) {
-      // Top up the single row to the new (higher) cumulative; the
-      // period total is SUM(usage_log.cost), so this lifts it by the delta.
-      await tx
-        .update(usageLog)
-        .set({ cost: newTotal.toString(), metadata: metadata ?? null })
-        .where(eq(usageLog.id, existing.id))
-    } else {
-      // First flush for this request: insert the canonical row with the
-      // pre-resolved billing context. Runs in the same tx + advisory lock.
+      if (!shouldBill) {
+        enterStage('commit')
+        return { billed: false, delta: 0, total: recorded, billingPeriod: latestPeriod }
+      }
+
+      // The payer's current period and close marker, share-locked so a change to either (a
+      // rollover, an anchor reset inside the old period, or a terminal settlement) waits for this
+      // write to commit, and whatever a close later sums for the old period is final.
+      const [currentPeriod] = payerSubscriptionId
+        ? await tx
+            .select({
+              start: subscriptionTable.periodStart,
+              end: subscriptionTable.periodEnd,
+              closedThrough: subscriptionTable.lastClosedPeriodStart,
+            })
+            .from(subscriptionTable)
+            .where(eq(subscriptionTable.id, payerSubscriptionId))
+            .for('share')
+            .limit(1)
+        : []
+
+      // Only ever forward: a subscription period that does not start after the latest row's
+      // keeps topping up that row, whatever the wall clock or a replayed webhook says. A start
+      // that moved forward inside the old period (anchor reset, resync) still rolls, so the old
+      // period's close is never topped up after the fact.
+      const rolledPeriod =
+        currentPeriod?.start &&
+        currentPeriod.end &&
+        currentPeriod.start.getTime() > latestPeriod.start.getTime()
+          ? { start: currentPeriod.start, end: currentPeriod.end }
+          : null
+      if (rolledPeriod && latest && chain.length >= MAX_CUMULATIVE_PERIOD_ROWS) {
+        throw new Error(`Cumulative usage event "${eventKey}" spans too many billing periods`)
+      }
+      // A marker at or past the target period's end means that period is already settled — a
+      // terminal settlement marks it whatever the subscription's bounds — so nothing would
+      // ever invoice this charge.
+      const targetPeriod = rolledPeriod ?? latestPeriod
+      if (
+        currentPeriod?.closedThrough &&
+        currentPeriod.closedThrough.getTime() >= targetPeriod.end.getTime()
+      ) {
+        throw new CumulativeUsagePeriodClosedError(eventKey, targetPeriod)
+      }
+
+      enterStage('write')
+      if (latest && !rolledPeriod) {
+        const otherRows = chain.slice(0, -1)
+        const latestCost =
+          otherRows.length === 0
+            ? newTotal
+            : Number((newTotal - sumLedgerCost(otherRows)).toFixed(PERIOD_COST_DECIMALS))
+        await tx
+          .update(usageLog)
+          .set({
+            cost: latestCost.toString(),
+            metadata: periodUsageMetadata(metadata, otherRows) ?? null,
+          })
+          .where(eq(usageLog.id, latest.id))
+        enterStage('commit')
+        return { billed: true, delta, total: newTotal, billingPeriod: latestPeriod }
+      }
+
+      const rowMetadata = periodUsageMetadata(metadata, chain)
       await recordUsage({
         userId,
         workspaceId,
         tx,
         billingEntity: billingContext.billingEntity,
-        billingPeriod: billingContext.billingPeriod,
+        billingPeriod: targetPeriod,
         entries: [
           {
             category: 'model',
             source,
             description: model,
-            cost: newTotal,
-            eventKey,
+            cost: chain.length === 0 ? newTotal : Number(delta.toFixed(PERIOD_COST_DECIMALS)),
+            eventKey: cumulativePeriodEventKey(eventKey, chain.length),
             sourceReference: eventKey,
-            ...(metadata ? { metadata } : {}),
+            ...(rowMetadata ? { metadata: rowMetadata } : {}),
           },
         ],
       })
+      enterStage('commit')
+      return {
+        billed: true,
+        delta,
+        total: newTotal,
+        billingPeriod: { start: targetPeriod.start, end: targetPeriod.end },
+      }
+    })
+    succeeded = true
+    return result
+  } catch (error) {
+    pgCode = getPostgresErrorCode(error)
+    throw error
+  } finally {
+    const now = Date.now()
+    stageDurationsMs[stage] = now - stageStartedAt
+    const durationMs = now - startedAt
+    if (!succeeded || durationMs >= CUMULATIVE_FLUSH_SLOW_MS) {
+      logger.warn('Cumulative usage transaction did not complete promptly', {
+        eventKey,
+        succeeded,
+        stage,
+        durationMs,
+        stageDurationsMs,
+        ...(pgCode ? { pgCode } : {}),
+      })
     }
-
-    return { billed: true, delta, total: newTotal }
-  })
+  }
 }
 
 interface UsageLogFilter {
   source?: UsageLogSource | UsageLogSource[]
   workspaceId?: string
   startDate?: Date
+  /**
+   * Inclusive by default, which is what the personal credit-usage surfaces have
+   * always meant by it.
+   */
   endDate?: Date
+  /**
+   * Treat {@link endDate} as exclusive instead.
+   *
+   * Analytics windows are half-open `[start, end)` — a billing period's end
+   * instant is the next period's start — so a row stamped exactly on the
+   * boundary belongs to the next window. Without this the event list and the
+   * export counted it while the summary and breakdowns did not, and the two
+   * disagreed by one row at exactly the moment a period rolls over.
+   */
+  endDateExclusive?: boolean
+  /**
+   * Match the stamped billing period instead of a `created_at` range.
+   *
+   * A stripe or default period is what rows are *stamped* with, and that is the
+   * predicate every analytics read uses for it. Filtering the same window on
+   * `created_at` selects a different set — a row created inside the period but
+   * stamped to another, or the reverse — so the event list and the CSV covered
+   * different rows than the totals above them. Mutually exclusive with
+   * {@link startDate}/{@link endDate}; a reporting period and a plain range still
+   * use those, exactly as `buildUsageAnalyticsScope` does.
+   */
+  billingPeriod?: { start: Date; end: Date }
 }
 
-type UsageLogScope = { kind: 'user'; userId: string } | { kind: 'workspace'; workspaceId: string }
+type UsageLogScope =
+  | { kind: 'user'; userId: string }
+  | { kind: 'workspace'; workspaceId: string }
+  /** Every event billed to a payer, regardless of which actor or workspace produced it. */
+  | { kind: 'billingEntity'; entity: BillingEntity }
+
+function scopeCondition(scope: UsageLogScope) {
+  if (scope.kind === 'user') return eq(usageLog.userId, scope.userId)
+  if (scope.kind === 'workspace') return eq(usageLog.workspaceId, scope.workspaceId)
+  return and(
+    eq(usageLog.billingEntityType, scope.entity.type),
+    eq(usageLog.billingEntityId, scope.entity.id)
+  )
+}
 
 function buildUsageLogConditions(scope: UsageLogScope, filter: UsageLogFilter) {
-  const conditions = [
-    scope.kind === 'user'
-      ? eq(usageLog.userId, scope.userId)
-      : eq(usageLog.workspaceId, scope.workspaceId),
-  ]
+  const conditions = [scopeCondition(scope)]
   if (filter.source) {
     conditions.push(
       Array.isArray(filter.source)
@@ -740,8 +1066,21 @@ function buildUsageLogConditions(scope: UsageLogScope, filter: UsageLogFilter) {
     )
   }
   if (filter.workspaceId) conditions.push(eq(usageLog.workspaceId, filter.workspaceId))
+  if (filter.billingPeriod) {
+    conditions.push(
+      eq(usageLog.billingPeriodStart, filter.billingPeriod.start),
+      eq(usageLog.billingPeriodEnd, filter.billingPeriod.end)
+    )
+    return conditions
+  }
   if (filter.startDate) conditions.push(gte(usageLog.createdAt, filter.startDate))
-  if (filter.endDate) conditions.push(lte(usageLog.createdAt, filter.endDate))
+  if (filter.endDate) {
+    conditions.push(
+      filter.endDateExclusive
+        ? lt(usageLog.createdAt, filter.endDate)
+        : lte(usageLog.createdAt, filter.endDate)
+    )
+  }
   return conditions
 }
 
@@ -823,8 +1162,19 @@ export interface GetUsageLogsOptions {
   workspaceId?: string
   /** Start date (inclusive) */
   startDate?: Date
-  /** End date (inclusive) */
+  /** End date (inclusive, unless {@link endDateExclusive}) */
   endDate?: Date
+  /**
+   * Treat {@link endDate} as exclusive, matching a half-open analytics window.
+   * See {@link UsageLogFilter.endDateExclusive}.
+   */
+  endDateExclusive?: boolean
+  /**
+   * Match the stamped billing period instead of a `created_at` range, so a
+   * ledger listing covers the same rows an analytics read of the same window
+   * does. See {@link UsageLogFilter.billingPeriod}.
+   */
+  billingPeriod?: { start: Date; end: Date }
   /** Maximum number of results */
   limit?: number
   /** Cursor for pagination (log ID) */
@@ -835,6 +1185,7 @@ export interface GetUsageLogsOptions {
    * Skips the row lookup that would otherwise resolve it from `cursor`.
    */
   cursorCreatedAt?: Date
+  keyset?: { sortOrder: ListSortOrder; cursorKeys?: CursorKey[] }
   /**
    * Whether to compute the full-filter `summary` aggregate (default `true`).
    * A cursor-paginated caller collecting every page (e.g. a CSV export) only
@@ -875,9 +1226,15 @@ export interface UsageLogsResult {
   }
   pagination: {
     nextCursor?: string
+    nextCursorKeys?: CursorKey[] | null
     hasMore: boolean
   }
 }
+
+const USAGE_LOG_KEYS = [
+  timestampKey(usageLog.createdAt, (row: { createdAt: Date; id: string }) => row.createdAt),
+  textKey(usageLog.id, (row: { createdAt: Date; id: string }) => row.id),
+]
 
 /**
  * Gets one bounded usage-log page for an explicit actor or workspace scope.
@@ -891,16 +1248,29 @@ async function getUsageLogs(
     workspaceId,
     startDate,
     endDate,
+    endDateExclusive,
+    billingPeriod,
     limit = 50,
     cursor,
     cursorCreatedAt,
+    keyset,
     includeSummary = true,
   } = options
 
   try {
-    const conditions = buildUsageLogConditions(scope, { source, workspaceId, startDate, endDate })
+    const conditions = buildUsageLogConditions(scope, {
+      source,
+      workspaceId,
+      startDate,
+      endDate,
+      endDateExclusive,
+      billingPeriod,
+    })
 
-    if (cursor) {
+    if (keyset) {
+      const after = resumeKeyset(USAGE_LOG_KEYS, keyset.cursorKeys, keyset.sortOrder)
+      if (after) conditions.push(after)
+    } else if (cursor) {
       let resolvedCursorCreatedAt = cursorCreatedAt
 
       if (!resolvedCursorCreatedAt) {
@@ -943,11 +1313,16 @@ async function getUsageLogs(
       .from(usageLog)
       .leftJoin(workflow, eq(usageLog.workflowId, workflow.id))
       .where(and(...conditions))
-      .orderBy(desc(usageLog.createdAt), desc(usageLog.id))
+      .orderBy(
+        ...(keyset
+          ? listOrderBy(keysetColumns(USAGE_LOG_KEYS), keyset.sortOrder)
+          : [desc(usageLog.createdAt), desc(usageLog.id)])
+      )
       .limit(limit + 1)
 
     const hasMore = logs.length > limit
-    const resultLogs = hasMore ? logs.slice(0, limit) : logs
+    const page = keyset ? keysetPage(USAGE_LOG_KEYS, logs, limit) : undefined
+    const resultLogs = page?.data ?? (hasMore ? logs.slice(0, limit) : logs)
 
     const transformedLogs: UsageLogEntry[] = resultLogs.map((log) => ({
       id: log.id,
@@ -972,6 +1347,8 @@ async function getUsageLogs(
         workspaceId,
         startDate,
         endDate,
+        endDateExclusive,
+        billingPeriod,
       })
 
       const summaryResult = await dbReplica
@@ -997,6 +1374,7 @@ async function getUsageLogs(
         bySource,
       },
       pagination: {
+        ...(page ? { nextCursorKeys: page.nextCursorKeys } : {}),
         nextCursor:
           hasMore && resultLogs.length > 0 ? resultLogs[resultLogs.length - 1].id : undefined,
         hasMore,
@@ -1027,6 +1405,20 @@ export function getUserUsageLogs(
   options: GetUsageLogsOptions = {}
 ): Promise<UsageLogsResult> {
   return getUsageLogs({ kind: 'user', userId }, options)
+}
+
+/**
+ * Gets every usage event billed to a payer, regardless of actor or workspace.
+ *
+ * This is the organization-wide ledger the usage panel pages through. It reuses this
+ * module's keyset pagination, cursor handling, and workflow-name join rather than
+ * reimplementing them — the only thing it adds is the scope predicate.
+ */
+export function getBillingEntityUsageLogs(
+  entity: BillingEntity,
+  options: GetUsageLogsOptions = {}
+): Promise<UsageLogsResult> {
+  return getUsageLogs({ kind: 'billingEntity', entity }, options)
 }
 
 /** Gets usage logs attributed to the selected workspace, regardless of actor. */

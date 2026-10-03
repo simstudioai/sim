@@ -63,7 +63,7 @@ export const workflowsCreateTool: ToolConfig<WorkflowsCreateParams, WorkflowsCre
       required: false,
       visibility: 'user-or-llm',
       description:
-        'When to run the workflow: "newly_created" (only new incidents), "newly_created_and_active" (new and active incidents), "active" (only active incidents), or "all" (all incidents)',
+        'When to run the workflow: "newly_created" (only newly created incidents) or "newly_created_and_active" (newly created and already active incidents)',
       default: 'newly_created',
     },
     runs_on_incident_modes: {

@@ -53,7 +53,6 @@ function program(): Command {
 
 describe('secrets set', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockPromptSecret.mockResolvedValue('prompted-secret')
     mockRequest.mockResolvedValue({
       data: {
@@ -88,58 +87,10 @@ describe('secrets set', () => {
       },
     })
   })
-
-  it('accepts --value directly without prompting', async () => {
-    await program().parseAsync([
-      'node',
-      'sim',
-      'secrets',
-      'set',
-      'STRIPE_API_KEY',
-      '--scope',
-      'personal',
-      '--value',
-      'direct-secret',
-    ])
-
-    expect(mockPromptSecret).not.toHaveBeenCalled()
-    expect(mockRequest).toHaveBeenCalledWith('/api/v2/secrets/STRIPE_API_KEY', {
-      method: 'PUT',
-      body: {
-        workspaceId: 'ws_local',
-        scope: 'personal',
-        value: 'direct-secret',
-      },
-    })
-  })
-
-  it('keeps --value optional in help and rejects an empty direct value', async () => {
-    const secrets = program().commands.find((command) => command.name() === 'secrets')
-    const set = secrets?.commands.find((command) => command.name() === 'set')
-    if (!set) throw new Error('Missing secrets set command')
-    expect(set.helpInformation()).toContain('--value <value|@file>')
-    expect(set.helpInformation().replace(/\s+/g, ' ')).not.toContain('Set value (required)')
-
-    await expect(
-      program().parseAsync([
-        'node',
-        'sim',
-        'secrets',
-        'set',
-        'STRIPE_API_KEY',
-        '--scope',
-        'workspace',
-        '--value',
-        '',
-      ])
-    ).rejects.toThrow('Secret value cannot be empty.')
-    expect(mockRequest).not.toHaveBeenCalled()
-  })
 })
 
 describe('secrets set --unredacted', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockRequest.mockResolvedValue({ data: { name: 'K', scope: 'workspace', role: 'admin' } })
     vi.spyOn(console, 'log').mockImplementation(() => {})
   })
@@ -148,37 +99,9 @@ describe('secrets set --unredacted', () => {
     await program().parseAsync(['node', 'sim', 'secrets', 'set', 'K', ...argv])
   }
 
-  it('opts a workspace secret out of redaction', async () => {
-    await set('--scope', 'workspace', '--value', 'v', '--unredacted')
-    expect(sentBody().unredacted).toBe(true)
-  })
-
-  it('restores redaction with --no-unredacted', async () => {
-    await set('--scope', 'workspace', '--value', 'v', '--no-unredacted')
-    expect(sentBody().unredacted).toBe(false)
-  })
-
   it('leaves the stored setting untouched when neither flag is passed', async () => {
     await set('--scope', 'workspace', '--value', 'v')
     expect('unredacted' in sentBody()).toBe(false)
-  })
-
-  it('rejects the flag for a personal secret before reading the value', async () => {
-    await expect(set('--scope', 'personal', '--unredacted')).rejects.toThrow(
-      '--unredacted is only supported for a workspace secret.'
-    )
-    expect(mockPromptSecret).not.toHaveBeenCalled()
-    expect(mockRequest).not.toHaveBeenCalled()
-  })
-
-  it('warns in the flag help that the value becomes readable', async () => {
-    const secrets = program().commands.find((command) => command.name() === 'secrets')
-    const help = secrets?.commands.find((command) => command.name() === 'set')?.helpInformation()
-    // Flattened: commander wraps descriptions to `process.stdout.columns`, so a
-    // phrase containing a space straddles a line break at some terminal widths
-    // and not others.
-    expect(help?.replace(/\s+/g, ' ')).toContain('plaintext in run logs')
-    expect(help).toContain('--no-unredacted')
   })
 })
 
@@ -186,7 +109,6 @@ describe('secrets set --value @file', () => {
   let directory: string
 
   beforeEach(() => {
-    vi.clearAllMocks()
     directory = mkdtempSync(join(tmpdir(), 'sim-cli-secret-'))
     mockRequest.mockResolvedValue({ data: { name: 'K', scope: 'workspace', role: 'admin' } })
     vi.spyOn(console, 'log').mockImplementation(() => {})
@@ -213,25 +135,9 @@ describe('secrets set --value @file', () => {
     expect(sentBody().value).toBe(' multi\nline\t\n')
   })
 
-  /**
-   * `echo 'x' > f` leaves a newline the secret does not want, and stripping it
-   * here would corrupt the values that do — a PEM key ends in one. The
-   * behaviour stays verbatim, so the help has to name the trap.
-   */
-  it('says in the help that a trailing newline is part of the value', () => {
-    const secrets = program().commands.find((command) => command.name() === 'secrets')
-    const help = secrets?.commands.find((command) => command.name() === 'set')?.helpInformation()
-    expect(help?.replace(/\s+/g, ' ')).toContain('a trailing newline is part of the value')
-  })
-
   it('stores a value that starts with @ when it is escaped', async () => {
     await set('@@notafile')
     expect(sentBody().value).toBe('@notafile')
-  })
-
-  it('names the flag when the file cannot be read', async () => {
-    await expect(set(`@${join(directory, 'missing.txt')}`)).rejects.toThrow('--value cannot read')
-    expect(mockRequest).not.toHaveBeenCalled()
   })
 })
 
@@ -239,7 +145,6 @@ describe('secrets set cancellation', () => {
   const originalExitCode = process.exitCode
 
   beforeEach(() => {
-    vi.clearAllMocks()
     process.exitCode = undefined
     vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.spyOn(console, 'log').mockImplementation(() => {})

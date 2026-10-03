@@ -1,7 +1,7 @@
 import type { AsanaCreateProjectParams, AsanaProjectRecordResponse } from '@/tools/asana/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const asanaCreateProjectTool: ToolConfig<
+export const asanaCreateProjectTool: InternalToolConfig<
   AsanaCreateProjectParams,
   AsanaProjectRecordResponse
 > = {
@@ -42,13 +42,8 @@ export const asanaCreateProjectTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/asana/create-project',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       workspace: params.workspace,
       name: params.name,

@@ -51,9 +51,13 @@ function normalizeStoredOutputConfigs(raw: unknown): V2ChatDeploymentOutputConfi
   const configs: V2ChatDeploymentOutputConfig[] = []
   for (const entry of raw) {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue
-    const { blockId, path } = entry as Record<string, unknown>
+    const { workflowId, blockId, path } = entry as Record<string, unknown>
     if (typeof blockId !== 'string' || blockId.length === 0) continue
-    configs.push({ blockId, path: typeof path === 'string' ? path : '' })
+    configs.push({
+      ...(typeof workflowId === 'string' && workflowId.length > 0 ? { workflowId } : {}),
+      blockId,
+      path: typeof path === 'string' ? path : '',
+    })
   }
   return configs
 }
@@ -134,4 +138,14 @@ export function toV2ChatDeploymentListItem(
 
 export const chatDeploymentErrorPolicy = createV2ResourceConcealmentPolicy({
   notFoundMessage: 'Chat deployment not found',
+})
+
+/**
+ * The list is addressed by workspace, not by deployment, so a concealed
+ * cross-tenant denial must name the workspace the caller asked for. Concealment
+ * itself is unchanged — an unreachable workspace still answers 404 whether or
+ * not it holds any deployment.
+ */
+export const chatDeploymentWorkspaceErrorPolicy = createV2ResourceConcealmentPolicy({
+  notFoundMessage: 'Workspace not found',
 })

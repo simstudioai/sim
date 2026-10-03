@@ -41,6 +41,8 @@ export interface QueuedOperation {
   userId: string
 }
 
+export type WorkflowOperationsDrainResult = 'drained' | 'failed' | 'cancelled'
+
 export interface OperationQueueState {
   operations: QueuedOperation[]
   workflowOperationVersions: Record<string, number>
@@ -63,7 +65,10 @@ export interface OperationQueueState {
   handleOperationTimeout: (operationId: string) => void
   processNextOperation: () => void
   hasPendingOperations: (workflowId: string) => boolean
-  waitForWorkflowOperations: (workflowId: string, timeoutMs?: number) => Promise<boolean>
+  waitForWorkflowOperations: (
+    workflowId: string,
+    timeoutMs?: number
+  ) => Promise<WorkflowOperationsDrainResult>
   cancelOperationsForBlock: (blockId: string) => void
   cancelOperationsForVariable: (variableId: string) => void
 
@@ -71,4 +76,5 @@ export interface OperationQueueState {
 
   triggerOfflineMode: () => void
   clearError: () => void
+  reset: () => void
 }

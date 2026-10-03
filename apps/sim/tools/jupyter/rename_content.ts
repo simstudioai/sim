@@ -1,15 +1,15 @@
-import type {
-  JupyterRenameContentParams,
-  JupyterRenameContentResponse,
-} from '@/tools/jupyter/types'
 import {
   assertSafeJupyterPath,
   encodeJupyterPath,
   parseJupyterContentModel,
-} from '@/tools/jupyter/utils'
-import type { ToolConfig } from '@/tools/types'
+} from '@/lib/internal/jupyter/protocol'
+import type {
+  JupyterRenameContentParams,
+  JupyterRenameContentResponse,
+} from '@/tools/jupyter/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jupyterRenameContentTool: ToolConfig<
+export const jupyterRenameContentTool: InternalToolConfig<
   JupyterRenameContentParams,
   JupyterRenameContentResponse
 > = {
@@ -45,11 +45,8 @@ export const jupyterRenameContentTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/jupyter/proxy',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       serverUrl: params.serverUrl,
       token: params.token,
       method: 'PATCH',

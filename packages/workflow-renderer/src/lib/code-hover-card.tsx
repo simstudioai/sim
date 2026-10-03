@@ -17,6 +17,7 @@ const OPEN_DELAY_MS = 300
 const TRIGGER_EXIT_GRACE_MS = 600
 const CONTENT_EXIT_GRACE_MS = 120
 const CODE_TOOLTIP_MAX_HEIGHT_PX = 256
+const CODE_TOOLTIP_MAX_WIDTH = 'min(480px, calc(100vw - 2rem))'
 
 interface CodeHoverCardProps {
   preview: CodePreview
@@ -24,7 +25,7 @@ interface CodeHoverCardProps {
   children: ReactNode
 }
 
-/** Interactive, two-axis-scrollable source preview anchored to a canvas code chip. */
+/** Interactive, vertically scrollable source preview anchored to a canvas code chip. */
 export function CodeHoverCard({ preview, className, children }: CodeHoverCardProps) {
   const [open, setOpen] = useState(false)
   const contentId = useId()
@@ -164,6 +165,7 @@ export function CodeHoverCard({ preview, className, children }: CodeHoverCardPro
         collisionPadding={16}
         appearance='tooltip'
         maxHeight={CODE_TOOLTIP_MAX_HEIGHT_PX}
+        maxWidth={CODE_TOOLTIP_MAX_WIDTH}
         onPointerEnter={clearCloseTimer}
         onPointerLeave={() => scheduleClose(CONTENT_EXIT_GRACE_MS)}
         onFocus={clearCloseTimer}
@@ -174,9 +176,12 @@ export function CodeHoverCard({ preview, className, children }: CodeHoverCardPro
         <Code.Viewer
           code={preview.code}
           language={preview.language}
+          showGutter
+          wrapText
           density='compact'
+          paddingLeft={8}
           highlightWorkflowReferences
-          className='max-h-[min(16rem,calc(100vh-2rem))] min-h-0 rounded-none border-0 bg-[var(--bg)] shadow-none dark:bg-[var(--bg)]'
+          className='max-h-[min(16rem,calc(100vh-2rem))] min-h-0 overflow-x-hidden rounded-none border-0 bg-[var(--bg)] shadow-none dark:bg-[var(--bg)]'
         />
       </PopoverContent>
     </Popover>

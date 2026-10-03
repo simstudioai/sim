@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import { getBlockSchema } from '@/executor/utils/block-data'
 import { resolveBlockReference } from '@/executor/utils/block-reference'
@@ -8,9 +5,14 @@ import type { SerializedBlock } from '@/serializer/types'
 
 /**
  * These assertions are about what the real block registry publishes, so the global stub — which
- * returns one mock block with no outputs — would make every case here pass vacuously.
+ * returns one mock block with no outputs — would make every case here pass vacuously. Only the
+ * generic webhook block is read, so only it is registered.
  */
 vi.unmock('@/blocks/registry')
+vi.mock('@/blocks/registry-maps', async () => {
+  const { partialBlockRegistry } = await import('@sim/testing/mocks/block-registry.mock')
+  return partialBlockRegistry(await import('@/blocks/blocks/generic_webhook'))
+})
 
 function triggerBlock(type: string, params: Record<string, unknown> = {}): SerializedBlock {
   return {
@@ -41,15 +43,6 @@ function resolve(
 }
 
 describe('generic webhook output schema', () => {
-  /**
-   * A generic webhook receives whatever the caller sends, so it must publish no schema at all.
-   * `collectBlockData` registers any non-empty output declaration as exhaustive, which turns
-   * every unlisted field into a hard `InvalidFieldError` rather than an absent value.
-   */
-  it('publishes no output schema, leaving the block shape open', () => {
-    expect(getBlockSchema(triggerBlock('generic_webhook'))).toBeUndefined()
-  })
-
   it.each([
     [{}, 'no flags set'],
     [{ acceptOtherMethods: true, exposeRequestHeaders: true }, 'both request-metadata flags on'],

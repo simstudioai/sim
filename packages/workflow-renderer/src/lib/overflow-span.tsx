@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
-import { FloatingTooltip, isTextClipped, useFloatingTooltip } from '@sim/emcn'
+import { cn, OverflowText } from '@sim/emcn'
 import type { CodePreview } from '../types'
 import { CodeHoverCard } from './code-hover-card'
 
 interface OverflowSpanProps {
   value: string
+  /** Layout and typography only; the renderer owns its overflow treatment. */
   className: string
   /** Rich content shown instead of the plain value when this is clipped code. */
   codePreview?: CodePreview
@@ -26,7 +27,7 @@ interface OverflowSpanProps {
 export function OverflowSpan({ value, className, codePreview, children }: OverflowSpanProps) {
   if (codePreview) {
     return (
-      <CodeHoverCard preview={codePreview} className={className}>
+      <CodeHoverCard preview={codePreview} className={cn('truncate', className)}>
         {children ?? value}
       </CodeHoverCard>
     )
@@ -41,14 +42,9 @@ export function OverflowSpan({ value, className, codePreview, children }: Overfl
 
 /** Plain clipped text keeps the platform tooltip behavior unchanged. */
 function TextOverflowSpan({ value, className, children }: Omit<OverflowSpanProps, 'codePreview'>) {
-  const { state, handlers } = useFloatingTooltip(isTextClipped)
-
   return (
-    <>
-      <span className={className} {...handlers}>
-        {children ?? value}
-      </span>
-      <FloatingTooltip label={value} state={state} />
-    </>
+    <OverflowText label={value} className={className}>
+      {children}
+    </OverflowText>
   )
 }

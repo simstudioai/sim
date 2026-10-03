@@ -1,26 +1,20 @@
-/**
- * @vitest-environment node
- */
-import { NextRequest } from 'next/server'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { publicSharesMock, publicSharesMockFns } from '@sim/testing/mocks/public-shares.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
-const {
-  mockResolveActiveShareByToken,
-  mockEnforceRateLimit,
-  mockValidateDeploymentAuth,
-  mockDownloadFile,
-  mockResolveServableDoc,
-} = vi.hoisted(() => ({
-  mockResolveActiveShareByToken: vi.fn(),
-  mockEnforceRateLimit: vi.fn(),
-  mockValidateDeploymentAuth: vi.fn(),
-  mockDownloadFile: vi.fn(),
-  mockResolveServableDoc: vi.fn(),
-}))
+const { mockEnforceRateLimit, mockValidateDeploymentAuth, mockResolveServableDoc } = vi.hoisted(
+  () => ({
+    mockEnforceRateLimit: vi.fn(),
+    mockValidateDeploymentAuth: vi.fn(),
+    mockResolveServableDoc: vi.fn(),
+  })
+)
 
-vi.mock('@/lib/public-shares/share-manager', () => ({
-  resolveActiveShareByToken: mockResolveActiveShareByToken,
-}))
+vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
 
 vi.mock('@/lib/public-shares/rate-limit', () => ({
   enforcePublicFileRateLimit: mockEnforceRateLimit,
@@ -30,19 +24,21 @@ vi.mock('@/lib/core/security/deployment-auth', () => ({
   validateDeploymentAuth: mockValidateDeploymentAuth,
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFile: mockDownloadFile,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/copilot/tools/server/files/doc-compile', () => ({
+vi.mock('@/lib/mothership/tools/server/files/doc-compile', () => ({
   resolveServableDoc: mockResolveServableDoc,
 }))
 
 import { GET } from '@/app/api/files/public/[token]/content/route'
 
-const params = (token = 'tok_1') => ({ params: Promise.resolve({ token }) })
+const { mockResolveActiveShareByToken } = publicSharesMockFns
+
+const mockDownloadFile = storageServiceMockFns.mockDownloadFile
+
+const params = (token = 'tok_1') => createRouteContext({ token })
 const request = (token = 'tok_1') =>
-  new NextRequest(`http://localhost/api/files/public/${token}/content`)
+  createMockRequest({ url: `http://localhost/api/files/public/${token}/content` })
 
 const passwordShare = {
   share: { id: 'sh_1', token: 'tok_1', authType: 'password', password: 'enc:secret' },
@@ -52,7 +48,7 @@ const passwordShare = {
     workspaceId: 'ws-1',
     originalName: 'report.pdf',
     contentType: 'application/pdf',
-    size: 4,
+    sizeBytes: 4,
   },
   workspaceName: 'Acme',
   ownerName: 'Jane',
@@ -60,7 +56,6 @@ const passwordShare = {
 
 describe('GET /api/files/public/[token]/content', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockEnforceRateLimit.mockResolvedValue(null)
     mockResolveActiveShareByToken.mockResolvedValue(passwordShare)
     mockDownloadFile.mockResolvedValue(Buffer.from('data'))
@@ -78,13 +73,18 @@ describe('GET /api/files/public/[token]/content', () => {
     expect(mockDownloadFile).not.toHaveBeenCalled()
   })
 
-  it('serves the bytes once authorized', async () => {
+  it('answers 413 rather than 500 when the shared file is too large to serve resident', async () => {
     mockValidateDeploymentAuth.mockResolvedValueOnce({ authorized: true })
+    mockDownloadFile.mockRejectedValueOnce(
+      new PayloadSizeLimitError({
+        label: 'storage download',
+        maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+        observedBytes: 5 * 1024 * 1024 * 1024,
+      })
+    )
+
     const res = await GET(request(), params())
-    expect(res.status).toBe(200)
-    expect(mockDownloadFile).toHaveBeenCalledWith({
-      key: passwordShare.file.key,
-      context: 'workspace',
-    })
+
+    expect(res.status).toBe(413)
   })
 })

@@ -33,7 +33,7 @@ export const brightDataSyncScrapeTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'JSON array of URL objects to scrape, up to 20 (e.g., [{"url": "https://example.com/product"}])',
+        'JSON array of URL objects to scrape, up to 20 (e.g., [ { "url": "https://example.com/product" } ])',
     },
     format: {
       type: 'string',

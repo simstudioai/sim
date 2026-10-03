@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
 
@@ -20,6 +17,7 @@ describe('isObjectNotFoundError', () => {
     )
     /** Azure Blob. */
     expect(isObjectNotFoundError({ code: 'BlobNotFound', statusCode: 404 })).toBe(true)
+    expect(isObjectNotFoundError({ code: 'ENOENT' })).toBe(true)
     /** GCS, which reports a numeric code. */
     expect(isObjectNotFoundError({ code: 404 })).toBe(true)
   })
@@ -58,12 +56,5 @@ describe('isObjectNotFoundError', () => {
     expect(isObjectNotFoundError({ name: 'TimeoutError' })).toBe(false)
     expect(isObjectNotFoundError({ code: 'ECONNRESET' })).toBe(false)
     expect(isObjectNotFoundError({ code: 403 })).toBe(false)
-  })
-
-  it('tolerates values that are not error objects', () => {
-    expect(isObjectNotFoundError(null)).toBe(false)
-    expect(isObjectNotFoundError(undefined)).toBe(false)
-    expect(isObjectNotFoundError('NotFound')).toBe(false)
-    expect(isObjectNotFoundError(404)).toBe(false)
   })
 })

@@ -13,6 +13,7 @@ const USAGE = `Usage:
   sim-setup [--quick] [--dir <path>] [--mode compose|dev|k8s]
   sim-setup config                         show configured capabilities and integrations
   sim-setup add <feature>                  configure ${SETUP_FEATURES}
+  sim-setup desktop [--url <url>]          install the macOS desktop app against this deployment
   sim-setup doctor [--fix] [--json]        check your setup
   sim-setup start | stop | restart         bring your install up / down / cycle
   sim-setup update                         pull/rebuild and apply Compose images
@@ -44,6 +45,12 @@ async function main(): Promise<void> {
   if (invocation.kind === 'add') {
     const { runFeatureSetup } = await import('./feature-setup')
     await runFeatureSetup(invocation.feature, invocation.args)
+    return
+  }
+
+  if (invocation.kind === 'desktop') {
+    const { runDesktop } = await import('./desktop')
+    process.exitCode = await runDesktop({ url: invocation.url, noOpen: invocation.noOpen })
     return
   }
 

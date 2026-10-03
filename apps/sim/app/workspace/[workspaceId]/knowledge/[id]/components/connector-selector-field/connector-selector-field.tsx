@@ -1,124 +1,176 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { ChipCombobox, type ComboboxOption } from '@sim/emcn'
-import { Loader } from '@sim/emcn/icons'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ChipCombobox, type ChipModalFieldAria, type ComboboxOption } from '@sim/emcn'
+import { isEqual } from 'es-toolkit'
+import { useParams } from 'next/navigation'
+import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { projectSelectorContext } from '@/lib/selectors/context'
+import { getSelectorManifestEntry, type SelectorKey } from '@/lib/selectors/manifest'
+import type { SelectorContext } from '@/lib/selectors/types'
+import type { SourceSelectionLabel } from '@/lib/sim-search/source-identity'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
-import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
 import type {
   ConfigFieldMap,
   ConfigFieldValue,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import type { ConnectorConfigField } from '@/connectors/types'
-import { getSelectorDefinition } from '@/hooks/selectors/registry'
-import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
 import {
   useSelectorOptionDetail,
   useSelectorOptionDetails,
   useSelectorOptions,
-} from '@/hooks/selectors/use-selector-query'
+} from '@/hooks/queries/selectors'
 import { useDebounce } from '@/hooks/use-debounce'
 
 interface ConnectorSelectorFieldProps {
+  controlAria?: ChipModalFieldAria
+  scope?: ResourceScope
   field: ConnectorConfigField & { selectorKey: SelectorKey }
   value: ConfigFieldValue
-  onChange: (value: ConfigFieldValue) => void
+  onChange: (value: ConfigFieldValue, selectedOptions?: SourceSelectionLabel[]) => void
   credentialId: string | null
+  serviceAccountSubjectFieldId?: string
   sourceConfig: ConfigFieldMap
   configFields: ConnectorConfigField[]
   canonicalModes: Record<string, 'basic' | 'advanced'>
+  selectedLabels?: SourceSelectionLabel[]
   disabled?: boolean
 }
 
 export function ConnectorSelectorField({
+  controlAria,
+  scope: explicitScope,
   field,
   value,
   onChange,
   credentialId,
+  serviceAccountSubjectFieldId,
   sourceConfig,
   configFields,
   canonicalModes,
+  selectedLabels,
   disabled,
 }: ConnectorSelectorFieldProps) {
+  const params = useParams<{ workspaceId?: string; organizationId?: string }>()
+  const scope = explicitScope ?? resourceScopeFromOwner(params)
   const isMulti = Boolean(field.multi)
   const [searchTerm, setSearchTerm] = useState('')
+  const [bulkError, setBulkError] = useState<{ context: SelectorContext; message: string } | null>(
+    null
+  )
+  const bulkGenerationRef = useRef(0)
+
+  useEffect(
+    () => () => {
+      bulkGenerationRef.current += 1
+    },
+    []
+  )
 
   const context = useMemo<SelectorContext>(() => {
-    const ctx: SelectorContext = {}
-    if (credentialId) ctx.oauthCredential = credentialId
-    if (field.mimeType) ctx.mimeType = field.mimeType
+    const candidate: Record<string, string> = {}
+    if (credentialId) candidate.oauthCredential = credentialId
+    if (field.mimeType) candidate.mimeType = field.mimeType
+    const subject = serviceAccountSubjectFieldId
+      ? sourceConfig[serviceAccountSubjectFieldId]
+      : undefined
+    if (typeof subject === 'string' && subject.trim()) {
+      candidate.impersonateUserEmail = subject.trim()
+    }
 
     const fieldsById = new Map(configFields.map((f) => [f.id, f]))
     for (const depFieldId of getDependsOnFields(field.dependsOn)) {
       const depField = fieldsById.get(depFieldId)
       const canonicalId = depField?.canonicalParamId ?? depFieldId
       const depValue = resolveDepValue(depFieldId, configFields, canonicalModes, sourceConfig)
-      if (depValue && SELECTOR_CONTEXT_FIELDS.has(canonicalId as keyof SelectorContext)) {
-        ctx[canonicalId as keyof SelectorContext] = depValue
-      }
+      if (depValue) candidate[canonicalId] = depValue
     }
 
-    return ctx
-  }, [credentialId, field.mimeType, field.dependsOn, sourceConfig, configFields, canonicalModes])
+    return projectSelectorContext(field.selectorKey, candidate)
+  }, [
+    credentialId,
+    serviceAccountSubjectFieldId,
+    field.mimeType,
+    field.dependsOn,
+    field.selectorKey,
+    sourceConfig,
+    configFields,
+    canonicalModes,
+  ])
 
   const depsResolved = useMemo(() => {
     if (!field.dependsOn) return true
-    const deps = Array.isArray(field.dependsOn) ? field.dependsOn : (field.dependsOn.all ?? [])
-    return deps.every((depId) =>
+    const all = Array.isArray(field.dependsOn) ? field.dependsOn : (field.dependsOn.all ?? [])
+    const any = Array.isArray(field.dependsOn) ? [] : (field.dependsOn.any ?? [])
+    const hasValue = (depId: string) =>
       Boolean(resolveDepValue(depId, configFields, canonicalModes, sourceConfig)?.trim())
-    )
+    return all.every(hasValue) && (any.length === 0 || any.some(hasValue))
   }, [field.dependsOn, sourceConfig, configFields, canonicalModes])
 
   const isEnabled = !disabled && !!credentialId && depsResolved
+  const missingDependencyMessage = `Select ${getDependencyLabel(field, configFields)} first`
+  const debouncedSearch = useDebounce(searchTerm.trim(), SEARCH_DEBOUNCE_MS)
   const {
     data: options = [],
     isLoading,
+    isFetching,
     hasMore,
     isFetchingMore,
+    isLoadingAll,
     truncated,
+    loadMore,
+    loadAll,
+    refetch,
     error,
   } = useSelectorOptions(field.selectorKey, {
     context,
+    scope,
+    search: debouncedSearch,
     enabled: isEnabled,
+    surfaceId: `connector:${field.id}`,
   })
 
-  /**
-   * Label every selected value, including values restored from saved config that no
-   * in-session search would have resolved. Queries are keyed on `context`, so a label
-   * can never outlive the context that produced it, and they share keys with the
-   * speculative lookup below so an already-resolved id costs no extra request.
-   */
   const singleValue = Array.isArray(value) ? value[0] : value
   const selectedIds = useMemo(
-    () => (Array.isArray(value) ? value : value ? [value] : []).filter(Boolean),
-    [value]
+    () =>
+      (Array.isArray(value) ? value : value ? [value] : []).filter(
+        (id) => Boolean(id) && id !== field.selectAllValue
+      ),
+    [value, field.selectAllValue]
   )
-  const selectedOptions = useSelectorOptionDetails(field.selectorKey, {
-    context,
-    detailIds: isEnabled ? selectedIds : [],
-  })
+  const missingSelectedIds = useMemo(() => {
+    const loadedIds = new Set(options.map((option) => option.id))
+    /** The trigger displays at most two labels; additional selections are counted. */
+    return selectedIds.slice(0, 2).filter((id) => !loadedIds.has(id))
+  }, [options, selectedIds])
+  const { data: selectedOptions, isLoading: isLoadingSelectedOptions } = useSelectorOptionDetails(
+    field.selectorKey,
+    {
+      context,
+      scope,
+      detailIds: isEnabled ? missingSelectedIds : [],
+      surfaceId: `connector:${field.id}`,
+    }
+  )
 
   /**
-   * The option list fills by draining pages in the background and the combobox filters
-   * it client-side, so an option is only findable once its page has arrived. Where the
-   * selector's `fetchById` tolerates an unknown id, whatever the user typed is resolved
-   * directly so an exact key is selectable immediately. Gated on that flag because most
-   * implementations resolve a record by id, where a partial keystroke is a guaranteed
-   * failed upstream request rather than an empty result.
+   * Loaded pages are filtered client-side. Where `fetchById` tolerates an unknown id,
+   * resolve the typed value directly so an exact key is selectable before its page is
+   * loaded. Most implementations treat partial text as a record id, so this remains
+   * gated to selectors that explicitly support unknown-id resolution.
    */
-  const resolvesUnknownIds = Boolean(getSelectorDefinition(field.selectorKey).resolvesUnknownIds)
-  const debouncedSearch = useDebounce(searchTerm.trim(), SEARCH_DEBOUNCE_MS)
+  const resolvesUnknownIds = getSelectorManifestEntry(field.selectorKey).resolvesUnknownIds
   const { data: searchedOption } = useSelectorOptionDetail(field.selectorKey, {
     context,
+    scope,
     detailId:
       resolvesUnknownIds && isEnabled && debouncedSearch.length > 0 ? debouncedSearch : undefined,
+    surfaceId: `connector:${field.id}`,
   })
 
   const emptyMessage = getEmptyMessage(field.title.toLowerCase(), {
     error,
-    hasMore,
-    isFetchingMore,
     truncated,
   })
 
@@ -131,85 +183,170 @@ export function ConnectorSelectorField({
       seen.add(option.id)
       extras.push({ label: option.label, value: option.id })
     }
+    for (const option of selectedLabels ?? []) {
+      if (seen.has(option.id) || !selectedIds.includes(option.id)) continue
+      seen.add(option.id)
+      extras.push({ label: option.label, value: option.id, hidden: true })
+    }
     return extras.length > 0 ? [...extras, ...base] : base
-  }, [options, selectedOptions, searchedOption])
+  }, [options, selectedOptions, searchedOption, selectedLabels, selectedIds])
 
-  if (isLoading && isEnabled) {
-    return (
-      <div className='flex h-[30px] items-center gap-2 rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] px-2 text-[var(--text-muted)] text-small dark:bg-[var(--surface-4)]'>
-        <Loader className='size-3.5' animate />
-        Loading…
-      </div>
+  const handleChange = (nextValue: ConfigFieldValue) => {
+    if (Array.isArray(nextValue) && field.selectAllValue) {
+      nextValue = nextValue.filter((id) => id !== field.selectAllValue)
+    }
+    bulkGenerationRef.current += 1
+    setBulkError(null)
+    const ids = new Set(Array.isArray(nextValue) ? nextValue : nextValue ? [nextValue] : [])
+    const selected = comboboxOptions
+      .filter((option) => ids.has(option.value))
+      .map((option) => ({ id: option.value, label: option.label }))
+    onChange(nextValue, selected)
+  }
+
+  const handleSearchChange = (nextSearch: string) => {
+    bulkGenerationRef.current += 1
+    setBulkError(null)
+    setSearchTerm(nextSearch)
+  }
+
+  const hasSearch = searchTerm.trim().length > 0 || debouncedSearch.length > 0
+  const selectedIdSet = new Set(selectedIds)
+  const values = Array.isArray(value) ? value : [value]
+  const allSelected = field.selectAllValue
+    ? values.length === 1 && values[0] === field.selectAllValue
+    : !hasMore &&
+      !truncated &&
+      options.length > 0 &&
+      selectedIds.length === options.length &&
+      options.every((option) => selectedIdSet.has(option.id))
+  const selectAll = async () => {
+    if (!isEnabled || hasSearch || isFetching || isLoadingAll) return
+    if (allSelected) {
+      handleChange([])
+      return
+    }
+    if (field.selectAllValue) {
+      bulkGenerationRef.current += 1
+      setBulkError(null)
+      onChange([field.selectAllValue], [{ id: field.selectAllValue, label: 'All' }])
+      return
+    }
+    const generation = ++bulkGenerationRef.current
+    setBulkError(null)
+    const result = await loadAll()
+    if (bulkGenerationRef.current !== generation || result.status === 'cancelled') return
+    if (result.status !== 'complete') {
+      setBulkError({
+        context,
+        message:
+          result.status === 'partial'
+            ? 'There are too many results to select all. Select items individually or enter keys.'
+            : 'Could not load all options. Try again.',
+      })
+      return
+    }
+    onChange(
+      result.options.map((option) => option.id),
+      result.options.map((option) => ({ id: option.id, label: option.label }))
     )
   }
 
   if (isMulti) {
     const multiValues = Array.isArray(value) ? value : value ? [value] : []
     return (
-      <ChipCombobox
-        multiSelect
-        options={comboboxOptions}
-        multiSelectValues={multiValues}
-        onMultiSelectChange={onChange}
-        searchable
-        onSearchChange={setSearchTerm}
-        searchPlaceholder={`Search ${field.title.toLowerCase()}...`}
-        placeholder={
-          !credentialId
-            ? 'Connect an account first'
-            : !depsResolved
-              ? `Select ${getDependencyLabel(field, configFields)} first`
-              : field.placeholder || `Select ${field.title.toLowerCase()}`
-        }
-        disabled={disabled || !credentialId || !depsResolved}
-        emptyMessage={emptyMessage}
-      />
+      <div className='flex flex-col gap-1'>
+        <ChipCombobox
+          {...controlAria}
+          aria-label={field.title}
+          multiSelect
+          options={
+            field.allowSelectAll && (options.length > 0 || hasMore || allSelected)
+              ? [
+                  {
+                    value: field.selectAllValue ?? '',
+                    label: 'All',
+                    disabled: !isEnabled || hasSearch || isFetching || isLoadingAll,
+                    onSelect: () => void selectAll(),
+                    keepOpen: true,
+                    selected: allSelected,
+                  },
+                  ...comboboxOptions,
+                ]
+              : comboboxOptions
+          }
+          multiSelectValues={multiValues}
+          onMultiSelectChange={handleChange}
+          searchable
+          onSearchChange={handleSearchChange}
+          searchPlaceholder={`Search ${field.title.toLowerCase()}...`}
+          placeholder={
+            !credentialId
+              ? 'Connect an account first'
+              : !depsResolved
+                ? missingDependencyMessage
+                : field.placeholder || `Select ${field.title.toLowerCase()}`
+          }
+          disabled={disabled || !credentialId || !depsResolved}
+          isLoading={isEnabled && (isLoading || (options.length === 0 && isLoadingSelectedOptions))}
+          hasMore={hasMore || Boolean(error)}
+          isLoadingMore={isFetchingMore}
+          isLoadingAll={isLoadingAll}
+          truncated={truncated}
+          onLoadMore={error ? refetch : loadMore}
+          onLoadAll={error ? refetch : loadAll}
+          emptyMessage={emptyMessage}
+          error={error?.message}
+        />
+        {bulkError && isEqual(bulkError.context, context) && (
+          <p role='alert' className='text-[var(--text-error)] text-caption'>
+            {bulkError.message}
+          </p>
+        )}
+      </div>
     )
   }
 
   return (
     <ChipCombobox
+      {...controlAria}
+      aria-label={field.title}
       options={comboboxOptions}
       value={singleValue || undefined}
-      onChange={onChange}
+      onChange={handleChange}
       searchable
-      onSearchChange={setSearchTerm}
+      onSearchChange={handleSearchChange}
       searchPlaceholder={`Search ${field.title.toLowerCase()}...`}
       placeholder={
         !credentialId
           ? 'Connect an account first'
           : !depsResolved
-            ? `Select ${getDependencyLabel(field, configFields)} first`
+            ? missingDependencyMessage
             : field.placeholder || `Select ${field.title.toLowerCase()}`
       }
       disabled={disabled || !credentialId || !depsResolved}
+      isLoading={isEnabled && (isLoading || (options.length === 0 && isLoadingSelectedOptions))}
+      hasMore={hasMore || Boolean(error)}
+      isLoadingMore={isFetchingMore}
+      isLoadingAll={isLoadingAll}
+      truncated={truncated}
+      onLoadMore={error ? refetch : loadMore}
+      onLoadAll={error ? refetch : loadAll}
       emptyMessage={emptyMessage}
+      error={error?.message}
     />
   )
 }
 
-/**
- * Only visible once the first page has landed (`isLoading` renders a spinner
- * before that), so "no match" here means no match among the options drained
- * *so far* — a flat "none found" would wrongly read as "does not exist".
- *
- * `error` is checked before `hasMore`: a failed page halts the drain but leaves
- * `hasMore` set, which would otherwise claim to be loading forever.
- */
 function getEmptyMessage(
   noun: string,
   state: {
     error: Error | null
-    hasMore: boolean
-    isFetchingMore: boolean
     truncated: boolean
   }
 ): string {
-  if (state.error) return 'No match — the list failed to load. Try reopening'
-  if (state.hasMore || state.isFetchingMore) return 'No match yet — still loading…'
+  if (state.error) return 'Could not load options. Try again.'
   if (state.truncated) return 'No match — too many to list. Try a more exact term'
-  // `noun` is singular on some connectors ("Base") and plural on others ("Spaces"),
-  // so only this settled message puts it behind a quantifier.
   return `No ${noun} found`
 }
 

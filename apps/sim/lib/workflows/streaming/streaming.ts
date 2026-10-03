@@ -1,3 +1,4 @@
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike, omit } from '@sim/utils/object'
@@ -7,7 +8,7 @@ import {
   extractPathFromOutputId,
   parseOutputContentSafely,
 } from '@/lib/core/utils/response-format'
-import { encodeSSE } from '@/lib/core/utils/sse'
+import { encodeSSE, encodeSSEComment } from '@/lib/core/utils/sse'
 import {
   getInlineJsonByteLength,
   materializeInlineExecutionValue,
@@ -32,10 +33,12 @@ import {
   type ChatStreamChunkResetFrame,
   type ChatStreamErrorFrame,
   type ChatStreamFinalFrame,
+  type ChatStreamOutputFrame,
   type ChatStreamStreamErrorFrame,
   type ChatStreamThinkingFrame,
   type ChatStreamToolFrame,
   clientAcceptsAgentStreamProtocol,
+  clientAcceptsChatOutputProtocol,
 } from '@/lib/workflows/streaming/agent-stream-protocol'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
@@ -43,17 +46,10 @@ import { navigatePathAsync } from '@/executor/variables/resolvers/reference-asyn
 import type { ToolCallEndStatus } from '@/providers/stream-events'
 import { DEFAULT_MAX_THINKING_CHARS } from '@/providers/stream-pump'
 
-/**
- * Extended streaming execution type that includes blockId on the execution.
- * The runtime passes blockId but the base StreamingExecution type doesn't declare it.
- */
-interface StreamingExecutionWithBlockId extends Omit<StreamingExecution, 'execution'> {
-  execution?: StreamingExecution['execution'] & { blockId?: string }
-}
-
 const logger = createLogger('WorkflowStreaming')
 
 const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype']
+const STREAM_KEEPALIVE_INTERVAL_MS = 15_000
 const SELECTED_OUTPUT_TOO_LARGE_MESSAGE =
   'Selected output is too large to inline; select a nested field or use pagination/preview.'
 
@@ -88,7 +84,7 @@ interface StreamingConfig {
 
 export type StreamingExecutorFn = (callbacks: {
   onStream: (streamingExec: StreamingExecution) => Promise<void>
-  onBlockComplete: (blockId: string, output: unknown) => Promise<void>
+  onBlockComplete: (blockId: string, output: unknown, outputBlockId?: string) => Promise<void>
   abortSignal: AbortSignal
 }) => Promise<ExecutionResult>
 
@@ -103,6 +99,8 @@ export interface StreamingResponseOptions {
   workspaceId?: string
   workflowId?: string
   userId?: string
+  /** The principal behind the run; knowledge-base files in the output are read as them. */
+  principal?: WorkflowExecutionPrincipal
   /** Incoming fetch/request abort — combined with the stream timeout. */
   requestSignal?: AbortSignal
   /** Used with the independent event policies to negotiate agent-events SSE. */
@@ -132,6 +130,7 @@ interface StreamingState {
   processedOutputs: Set<string>
   streamCompletionTimes: Map<string, number>
   completedBlockIds: Set<string>
+  deferredOutputBlocks: Set<string>
   selectedOutputBytes: number
   streamedSelectedOutputKeys: Set<string>
   selectedOutputError?: string
@@ -163,6 +162,7 @@ type OutputExtractionContext = Pick<
   | 'fileKeys'
   | 'allowLargeValueWorkflowScope'
   | 'userId'
+  | 'principal'
 > & { base64MaxBytes?: number }
 
 async function extractOutputValue(
@@ -182,6 +182,7 @@ async function extractOutputValue(
           fileKeys: context.fileKeys,
           allowLargeValueWorkflowScope: context.allowLargeValueWorkflowScope,
           userId: context.userId,
+          principal: context.principal,
           metadata: { requestId: context.requestId },
           base64MaxBytes: context.base64MaxBytes,
         },
@@ -233,6 +234,7 @@ function buildMaterializationContext(
     fileKeys: context.fileKeys,
     allowLargeValueWorkflowScope: context.allowLargeValueWorkflowScope,
     userId: context.userId,
+    principal: context.principal,
   }
 }
 
@@ -514,6 +516,10 @@ export async function createStreamingResponse(
    */
   const emitThinking = clientAcceptsProtocol && streamConfig.includeThinking === true
   const emitToolCalls = clientAcceptsProtocol && streamConfig.includeToolCalls === true
+  const emitStructuredOutputs =
+    streamConfig.workflowTriggerType === 'chat' &&
+    Boolean(options.requestHeaders) &&
+    clientAcceptsChatOutputProtocol(options.requestHeaders!)
   const maxThinkingChars = DEFAULT_MAX_THINKING_CHARS
 
   let requestAborted = false
@@ -533,13 +539,32 @@ export async function createStreamingResponse(
     options.requestSignal?.removeEventListener('abort', onRequestAbort)
   }
 
+  let keepaliveId: ReturnType<typeof setInterval> | undefined
+  const stopKeepalive = () => {
+    if (keepaliveId) {
+      clearInterval(keepaliveId)
+      keepaliveId = undefined
+    }
+  }
+
   return new ReadableStream({
     async start(controller) {
+      /** Flush headers promptly and keep silent blocks alive through idle-limited proxies. */
+      controller.enqueue(encodeSSEComment('keepalive'))
+      keepaliveId = setInterval(() => {
+        try {
+          controller.enqueue(encodeSSEComment('keepalive'))
+        } catch {
+          stopKeepalive()
+        }
+      }, STREAM_KEEPALIVE_INTERVAL_MS)
+
       const state: StreamingState = {
         streamedChunks: new Map(),
         processedOutputs: new Set(),
         streamCompletionTimes: new Map(),
         completedBlockIds: new Set(),
+        deferredOutputBlocks: new Set(),
         selectedOutputBytes: 0,
         streamedSelectedOutputKeys: new Set(),
       }
@@ -602,12 +627,17 @@ export async function createStreamingResponse(
        * Subscribe synchronously before the first await so the executor pump
        * can attach sinks before pulling provider chunks.
        */
-      const onStreamCallback = async (streamingExec: StreamingExecutionWithBlockId) => {
-        const blockId = streamingExec.execution?.blockId
+      const onStreamCallback = async (streamingExec: StreamingExecution) => {
+        const blockId = streamingExec.blockId
         if (!blockId) {
           logger.warn(`[${requestId}] Streaming execution missing blockId`)
           return
         }
+
+        /** Response-format streams contain complete selected values; send their typed outputs once. */
+        const deferSelectedOutputs =
+          emitStructuredOutputs && streamingExec.clientStreamTransformed === true
+        if (deferSelectedOutputs) state.deferredOutputBlocks.add(blockId)
 
         /**
          * Negotiated clients get answer text live from the sink (pending deltas
@@ -618,8 +648,8 @@ export async function createStreamingResponse(
          * only writes once the turn is classified — correct for a consumer that
          * cannot retract, at the cost of arriving in one piece.
          *
-         * Response-format projections rewrite the bytes, so those blocks keep
-         * the byte stream as the frame source either way.
+         * Response-format projections rewrite the bytes. Typed-output clients
+         * receive those selections from onBlockComplete instead.
          */
         const sinkAnswerText =
           clientAcceptsProtocol &&
@@ -685,7 +715,7 @@ export async function createStreamingResponse(
             }
             state.streamedChunks.get(blockId)!.push(textChunk)
 
-            if (!sinkAnswerText) {
+            if (!sinkAnswerText && !deferSelectedOutputs) {
               emitAnswerChunk(textChunk)
             }
           }
@@ -708,19 +738,29 @@ export async function createStreamingResponse(
       const includeFileBase64 = streamConfig.includeFileBase64 ?? true
       const base64MaxBytes = streamConfig.base64MaxBytes
 
-      const onBlockCompleteCallback = async (blockId: string, output: unknown) => {
-        state.completedBlockIds.add(blockId)
+      const onBlockCompleteCallback = async (
+        blockId: string,
+        output: unknown,
+        outputBlockId?: string
+      ) => {
+        const selectedOutputBlockId = outputBlockId ?? blockId
+        state.completedBlockIds.add(selectedOutputBlockId)
 
         if (!streamConfig.selectedOutputs?.length) {
           return
         }
 
-        if (state.streamedChunks.has(blockId)) {
+        const hasStreamedText =
+          state.streamedChunks.has(selectedOutputBlockId) &&
+          !state.deferredOutputBlocks.has(selectedOutputBlockId)
+        if (hasStreamedText && !emitStructuredOutputs) {
           return
         }
 
         const matchingOutputs = getSelectedOutputDescriptors(streamConfig.selectedOutputs).filter(
-          (descriptor) => descriptor.blockId === blockId
+          (descriptor) =>
+            descriptor.blockId === selectedOutputBlockId &&
+            (!hasStreamedText || (descriptor.path !== '' && descriptor.path !== 'content'))
         )
 
         /**
@@ -751,6 +791,7 @@ export async function createStreamingResponse(
               fileKeys: options.fileKeys,
               allowLargeValueWorkflowScope: options.allowLargeValueWorkflowScope,
               userId: options.userId,
+              principal: options.principal,
               base64MaxBytes: Math.min(
                 base64MaxBytes ?? MAX_INLINE_MATERIALIZATION_BYTES,
                 getBase64DecodedByteBudget(remainingBytes)
@@ -784,6 +825,24 @@ export async function createStreamingResponse(
               await materializeInlineExecutionValue(hydratedOutput, materializationContext, {
                 maxBytes: getRemainingSelectedOutputBytes(state.selectedOutputBytes),
               })
+              if (emitStructuredOutputs && typeof hydratedOutput !== 'string') {
+                const nextSelectedOutputBytes =
+                  state.selectedOutputBytes + (getInlineJsonByteLength(hydratedOutput) ?? 0)
+                assertInlineMaterializationSize(
+                  nextSelectedOutputBytes,
+                  MAX_INLINE_MATERIALIZATION_BYTES
+                )
+                const frame: ChatStreamOutputFrame = {
+                  blockId: selectedOutputBlockId,
+                  event: 'output',
+                  data: hydratedOutput,
+                }
+                controller.enqueue(encodeSSE(frame))
+                state.selectedOutputBytes = nextSelectedOutputBytes
+                state.streamedSelectedOutputKeys.add(descriptor.key)
+                state.processedOutputs.add(selectedOutputBlockId)
+                continue
+              }
               const formattedOutput =
                 typeof hydratedOutput === 'string'
                   ? hydratedOutput
@@ -792,14 +851,14 @@ export async function createStreamingResponse(
                 getInlineJsonByteLength(hydratedOutput) ?? 0,
                 Buffer.byteLength(formattedOutput, 'utf8')
               )
-              sendChunk(blockId, formattedOutput, {
+              sendChunk(selectedOutputBlockId, formattedOutput, {
                 selectedOutputKey: descriptor.key,
                 selectedOutputBytes,
               })
             }
           } catch (error) {
             logger.warn(`[${requestId}] Failed to materialize selected output`, {
-              blockId,
+              blockId: selectedOutputBlockId,
               outputId: descriptor.outputId,
               ...projectResolvedSecretDiagnosticError(error, undefined),
             })
@@ -807,7 +866,7 @@ export async function createStreamingResponse(
             state.selectedOutputError ??= errorMessage
             const frame: ChatStreamErrorFrame = {
               event: 'error',
-              blockId,
+              blockId: selectedOutputBlockId,
               error: errorMessage,
             }
             controller.enqueue(encodeSSE(frame))
@@ -841,7 +900,7 @@ export async function createStreamingResponse(
           timeoutController.timeoutMs &&
           !requestAborted
         ) {
-          const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+          const timeoutErrorMessage = getTimeoutErrorMessage(timeoutController.timeoutMs)
           logger.info(`[${requestId}] Streaming execution timed out`, {
             timeoutMs: timeoutController.timeoutMs,
           })
@@ -882,6 +941,7 @@ export async function createStreamingResponse(
                 fileKeys: result.metadata?.fileKeys ?? options.fileKeys,
                 allowLargeValueWorkflowScope: options.allowLargeValueWorkflowScope,
                 userId: options.userId,
+                principal: options.principal,
                 redactToolPayloads: streamConfig.isSecureMode === true,
               }
             )
@@ -925,6 +985,7 @@ export async function createStreamingResponse(
 
         controller.close()
       } finally {
+        stopKeepalive()
         cleanupRequestAbort()
         timeoutController.cleanup()
       }
@@ -935,6 +996,7 @@ export async function createStreamingResponse(
         projectResolvedSecretDiagnosticError(reason, undefined)
       )
       requestAborted = true
+      stopKeepalive()
       timeoutController.abort()
       cleanupRequestAbort()
       timeoutController.cleanup()

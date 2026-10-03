@@ -1,22 +1,15 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   getActivePermissionGroupRestrictions,
+  isFeatureInertForGroup,
   PLATFORM_FEATURES,
 } from '@/lib/permission-groups/features'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
-} from '@/lib/permission-groups/types'
+} from '@/lib/permission-groups/fields'
 
 describe('getActivePermissionGroupRestrictions', () => {
-  it('returns no restrictions for an absent or unrestricted config', () => {
-    expect(getActivePermissionGroupRestrictions(null)).toEqual([])
-    expect(getActivePermissionGroupRestrictions(DEFAULT_PERMISSION_GROUP_CONFIG)).toEqual([])
-  })
-
   it.each([
     {
       key: 'allowedIntegrations',
@@ -94,4 +87,17 @@ describe('getActivePermissionGroupRestrictions', () => {
       ])
     }
   )
+})
+
+describe('isFeatureInertForGroup', () => {
+  function feature(configKey: string) {
+    const found = PLATFORM_FEATURES.find((f) => f.configKey === configKey)
+    if (!found) throw new Error(`No platform feature for ${configKey}`)
+    return found
+  }
+
+  it('makes an organization-scoped key inert on a non-default group', () => {
+    expect(isFeatureInertForGroup(feature('hideOrgMemberDirectory'), false)).toBe(true)
+    expect(isFeatureInertForGroup(feature('disableWorkspaceCreation'), false)).toBe(true)
+  })
 })

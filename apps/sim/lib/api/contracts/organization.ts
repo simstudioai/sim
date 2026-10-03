@@ -4,11 +4,19 @@ import {
   type PiiRedactionSettings,
   piiRedactionSettingsSchema,
   retentionOverridesSchema,
+  workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
 import { organizationBillingDataSchema } from '@/lib/api/contracts/subscription'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { workspacePermissionSchema } from '@/lib/api/contracts/workspaces'
+import { memberCreditLimitUpdateSchema } from '@/lib/billing/application/usage-limit-validation'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
+import {
+  organizationRosterSchema as domainOrganizationRosterSchema,
+  rosterMemberSchema as domainRosterMemberSchema,
+  rosterPendingInvitationSchema as domainRosterPendingInvitationSchema,
+  rosterWorkspaceAccessSchema as domainRosterWorkspaceAccessSchema,
+} from '@/lib/organizations/application/member-roster-schema'
+import { addOrganizationDomainBodySchema } from '@/lib/organizations/domain-validation'
 
 const numericResponseSchema = z.preprocess((value) => {
   if (typeof value !== 'string') return value
@@ -72,6 +80,7 @@ export const updateOrganizationDataRetentionBodySchema = z.object({
   logRetentionHours: organizationDataRetentionHoursSchema,
   softDeleteRetentionHours: organizationDataRetentionHoursSchema,
   taskCleanupHours: organizationDataRetentionHoursSchema,
+  fileVersionRetentionHours: organizationDataRetentionHoursSchema,
   piiRedaction: piiRedactionSettingsSchema.optional(),
   retentionOverrides: retentionOverridesSchema.optional(),
 })
@@ -84,6 +93,7 @@ const organizationRetentionValuesSchema = z.object({
   logRetentionHours: z.number().int().nullable(),
   softDeleteRetentionHours: z.number().int().nullable(),
   taskCleanupHours: z.number().int().nullable(),
+  fileVersionRetentionHours: z.number().int().nullable(),
   piiRedaction: piiRedactionSettingsSchema.nullable(),
   retentionOverrides: retentionOverridesSchema.nullable(),
 })
@@ -156,16 +166,36 @@ export const organizationSessionPolicyResponseSchema = z.object({
   data: organizationSessionPolicyDataSchema,
 })
 
-export const MAX_ORGANIZATION_DOMAINS = 25
+export const updateOrganizationSsoPolicyBodySchema = z.object({
+  requireSso: z.boolean(),
+})
+
+export type UpdateOrganizationSsoPolicyBody = z.input<typeof updateOrganizationSsoPolicyBodySchema>
+
+const organizationSsoPolicyDataSchema = z.object({
+  /** The stored setting. */
+  requireSso: z.boolean(),
+  /** Whether an identity provider could satisfy the requirement today. */
+  hasVerifiedProvider: z.boolean(),
+  /** Whether sign-in actually enforces it — false once the organization cannot satisfy it. */
+  isEnforced: z.boolean(),
+})
+
+export type OrganizationSsoPolicy = z.output<typeof organizationSsoPolicyDataSchema>
+
+export const organizationSsoPolicyResponseSchema = z.object({
+  success: z.boolean(),
+  data: organizationSsoPolicyDataSchema,
+})
+
+export { MAX_ORGANIZATION_DOMAINS } from '@/lib/organizations/domain-validation'
 
 export const organizationDomainParamsSchema = z.object({
   id: z.string().min(1),
   domainId: z.string().min(1),
 })
 
-export const addOrganizationDomainBodySchema = z.object({
-  domain: z.string().min(1, 'Domain is required').max(253, 'Domain is too long'),
-})
+export { addOrganizationDomainBodySchema } from '@/lib/organizations/domain-validation'
 
 export type AddOrganizationDomainBody = z.input<typeof addOrganizationDomainBodySchema>
 
@@ -253,48 +283,10 @@ export const transferOwnershipBodySchema = z.object({
   alsoLeave: z.boolean().optional().default(false),
 })
 
-export const rosterWorkspaceAccessSchema = z.object({
-  workspaceId: z.string(),
-  workspaceName: z.string(),
-  permission: workspacePermissionSchema,
-  /**
-   * Why this role is fixed, when it is. Carried so the roster can disable the
-   * controls the workspace-permissions route refuses, the way the teammates list
-   * already does — without them it offers an edit that can only fail.
-   */
-  roleSource: z.enum(['owner', 'explicit', 'org-admin']),
-  isBilledAccount: z.boolean(),
-})
-
-export const rosterMemberSchema = z.object({
-  memberId: z.string(),
-  userId: z.string(),
-  role: z.enum(['owner', 'admin', 'member', 'external']),
-  createdAt: z.string(),
-  name: z.string(),
-  email: z.string(),
-  image: z.string().nullable(),
-  workspaces: z.array(rosterWorkspaceAccessSchema),
-})
-
-export const rosterPendingInvitationSchema = z.object({
-  id: z.string(),
-  email: z.string(),
-  role: z.string(),
-  kind: z.enum(['organization', 'workspace']),
-  membershipIntent: z.enum(['internal', 'external']).optional(),
-  createdAt: z.string(),
-  expiresAt: z.string(),
-  inviteeName: z.string().nullable(),
-  inviteeImage: z.string().nullable(),
-  workspaces: z.array(rosterWorkspaceAccessSchema),
-})
-
-export const organizationRosterSchema = z.object({
-  members: z.array(rosterMemberSchema),
-  pendingInvitations: z.array(rosterPendingInvitationSchema),
-  workspaces: z.array(z.object({ id: z.string(), name: z.string() })),
-})
+export const rosterWorkspaceAccessSchema = domainRosterWorkspaceAccessSchema
+export const rosterMemberSchema = domainRosterMemberSchema
+export const rosterPendingInvitationSchema = domainRosterPendingInvitationSchema
+export const organizationRosterSchema = domainOrganizationRosterSchema
 
 export const organizationMemberUsageSchema = z
   .object({
@@ -446,14 +438,7 @@ export const getOrganizationMemberUsageLimitContract = defineRouteContract({
   },
 })
 
-export const updateOrganizationMemberUsageLimitBodySchema = z.object({
-  /** New cap in credits; `null` clears the per-member cap. */
-  creditLimit: z
-    .number()
-    .int('Credit limit must be a whole number of credits')
-    .min(0, 'Credit limit cannot be negative')
-    .nullable(),
-})
+export const updateOrganizationMemberUsageLimitBodySchema = memberCreditLimitUpdateSchema
 
 export const updateOrganizationMemberUsageLimitContract = defineRouteContract({
   method: 'PUT',
@@ -489,6 +474,42 @@ export const transferOwnershipContract = defineRouteContract({
       })
       .passthrough(),
   },
+})
+
+export const organizationSeatInfoSchema = z.object({
+  organizationId: z.string(),
+  organizationName: z.string(),
+  currentSeats: z.number(),
+  maxSeats: z.number(),
+  availableSeats: z.number(),
+  subscriptionPlan: z.string(),
+  canAddSeats: z.boolean(),
+})
+export const getOrganizationQuerySchema = z.object({ include: z.string().max(100).optional() })
+export type GetOrganizationQuery = z.input<typeof getOrganizationQuerySchema>
+export const getOrganizationResponseSchema = z.object({
+  success: z.literal(true),
+  data: z.object({
+    id: z.string(),
+    name: z.string(),
+    slug: z.string(),
+    logo: z.string().nullable(),
+    metadata: z.unknown().describe('Organization-defined JSON metadata.'),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+    seats: organizationSeatInfoSchema.optional(),
+    seatAnalytics: organizationSeatInfoSchema.extend({ utilizationRate: z.number() }).optional(),
+  }),
+  userRole: organizationRoleSchema,
+  hasAdminAccess: z.boolean(),
+})
+export type GetOrganizationResponse = z.output<typeof getOrganizationResponseSchema>
+export const getOrganizationContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]',
+  params: organizationParamsSchema,
+  query: getOrganizationQuerySchema,
+  response: { mode: 'json', schema: getOrganizationResponseSchema },
 })
 
 export const updateOrganizationContract = defineRouteContract({
@@ -552,6 +573,27 @@ export const updateOrganizationSessionPolicyContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: organizationSessionPolicyResponseSchema,
+  },
+})
+
+export const getOrganizationSsoPolicyContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/sso-policy',
+  params: organizationParamsSchema,
+  response: {
+    mode: 'json',
+    schema: organizationSsoPolicyResponseSchema,
+  },
+})
+
+export const updateOrganizationSsoPolicyContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/organizations/[id]/sso-policy',
+  params: organizationParamsSchema,
+  body: updateOrganizationSsoPolicyBodySchema,
+  response: {
+    mode: 'json',
+    schema: organizationSsoPolicyResponseSchema,
   },
 })
 
@@ -630,13 +672,24 @@ const organizationWhitelabelEnvelopeResponseSchema = z.object({
   data: organizationWhitelabelSettingsResponseSchema,
 })
 
+/**
+ * The read also carries the entitlement the update enforces, so the settings page can gate on it
+ * without a separate billing read. It sits beside `data` rather than inside it: `data` keeps the
+ * settings shape clients already parse, so a client from before this field reads the same response.
+ * It is optional so a client reading a server from before this field still parses the settings.
+ */
+const organizationWhitelabelReadResponseSchema =
+  organizationWhitelabelEnvelopeResponseSchema.extend({
+    isEnterprise: z.boolean().optional(),
+  })
+
 export const getOrganizationWhitelabelContract = defineRouteContract({
   method: 'GET',
   path: '/api/organizations/[id]/whitelabel',
   params: organizationParamsSchema,
   response: {
     mode: 'json',
-    schema: organizationWhitelabelEnvelopeResponseSchema,
+    schema: organizationWhitelabelReadResponseSchema,
   },
 })
 
@@ -661,6 +714,41 @@ export const createOrganizationContract = defineRouteContract({
       success: z.boolean(),
       organizationId: z.string(),
       created: z.boolean(),
+    }),
+  },
+})
+
+export const organizationBillingSummarySchema = z.object({
+  organizationId: z.string().min(1),
+  subscriptionState: z.enum(['active', 'free', 'lapsed']),
+  subscriptionPlan: z.string().min(1),
+  subscriptionStatus: z.string().nullable(),
+  creditBalance: z.number(),
+  billingInterval: z.enum(['month', 'year']),
+  cancelAtPeriodEnd: z.boolean(),
+  totalSeats: z.number().int().min(0),
+  totalCurrentUsage: z.number().min(0),
+  totalUsageLimit: z.number().min(0),
+  minimumBillingAmount: z.number().min(0),
+  billingPeriodEnd: z.string().nullable(),
+  billingBlocked: z.boolean(),
+  billingBlockedReason: z.enum(['payment_failed', 'dispute']).nullable(),
+  blockedByOrgOwner: z.boolean(),
+  upgradeWorkspaceId: workspaceIdSchema.nullable(),
+  userRole: z.enum(['admin', 'owner']),
+})
+
+export type OrganizationBillingSummary = z.output<typeof organizationBillingSummarySchema>
+
+export const getOrganizationBillingSummaryContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/billing-summary',
+  params: organizationParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.literal(true),
+      data: organizationBillingSummarySchema,
     }),
   },
 })

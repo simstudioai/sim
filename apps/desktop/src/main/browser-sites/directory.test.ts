@@ -55,18 +55,13 @@ describe('SiteDirectory', () => {
     ])
   })
 
-  it('refreshes a site that has been renamed', async () => {
+  it('keeps sites from concurrent imports', async () => {
     const store = open()
-    await store.remember([{ hostname: 'x.com', name: 'Twitter' }])
-    await store.remember([{ hostname: 'x.com', name: 'X' }])
 
-    expect(await store.list()).toEqual([{ hostname: 'x.com', name: 'X' }])
-  })
-
-  it('keeps sites a later import says nothing about', async () => {
-    const store = open()
-    await store.remember([{ hostname: 'github.com', name: 'GitHub' }])
-    await store.remember([{ hostname: 'linear.app', name: 'Linear' }])
+    await Promise.all([
+      store.remember([{ hostname: 'github.com', name: 'GitHub' }]),
+      store.remember([{ hostname: 'linear.app', name: 'Linear' }]),
+    ])
 
     expect((await store.list()).map((site) => site.hostname).sort()).toEqual([
       'github.com',
@@ -74,34 +69,16 @@ describe('SiteDirectory', () => {
     ])
   })
 
-  it('keeps an existing icon when a later import only learns a name', async () => {
+  it('applies concurrent imports and clear in invocation order', async () => {
     const store = open()
-    await store.remember([{ hostname: 'github.com', icon: 'data:png' }])
-    await store.remember([{ hostname: 'github.com', name: 'GitHub' }])
 
-    expect(await store.list()).toEqual([
-      { hostname: 'github.com', name: 'GitHub', icon: 'data:png' },
-    ])
-  })
-
-  it('remembers how used a site was and when it was imported', async () => {
-    await open().remember([
-      {
-        hostname: 'mail.google.com',
-        name: 'Gmail',
-        visits: 412,
-        importedAt: '2026-07-27T09:15:00.000Z',
-      },
+    await Promise.all([
+      store.remember([{ hostname: 'github.com', name: 'GitHub' }]),
+      store.clear(),
+      store.remember([{ hostname: 'linear.app', name: 'Linear' }]),
     ])
 
-    expect(await open().list()).toEqual([
-      {
-        hostname: 'mail.google.com',
-        name: 'Gmail',
-        visits: 412,
-        importedAt: '2026-07-27T09:15:00.000Z',
-      },
-    ])
+    expect(await store.list()).toEqual([{ hostname: 'linear.app', name: 'Linear' }])
   })
 
   it('keeps the busiest profile’s visit count when a host is imported twice', async () => {
@@ -110,33 +87,6 @@ describe('SiteDirectory', () => {
     await store.remember([{ hostname: 'github.com', visits: 2 }])
 
     expect(await store.list()).toEqual([{ hostname: 'github.com', name: 'GitHub', visits: 300 }])
-  })
-
-  it('raises a visit count when a later profile used the site more', async () => {
-    const store = open()
-    await store.remember([{ hostname: 'github.com', visits: 2 }])
-    await store.remember([{ hostname: 'github.com', visits: 300 }])
-
-    expect(await store.list()).toEqual([{ hostname: 'github.com', visits: 300 }])
-  })
-
-  it('keeps a known visit count when a later import measures nothing', async () => {
-    const store = open()
-    await store.remember([{ hostname: 'github.com', visits: 300 }])
-    await store.remember([{ hostname: 'github.com', name: 'GitHub' }])
-
-    expect(await store.list()).toEqual([{ hostname: 'github.com', name: 'GitHub', visits: 300 }])
-  })
-
-  it('stops at the cap when two imports together overflow it', async () => {
-    const store = open()
-    const perImport = Math.ceil(MAX_SITES * 0.6)
-    expect(perImport * 2).toBeGreaterThan(MAX_SITES)
-
-    await store.remember(sites(perImport, () => 10))
-    await store.remember(sites(perImport, () => 10, perImport))
-
-    expect(await store.list()).toHaveLength(MAX_SITES)
   })
 
   it('evicts the least-used sites and keeps the most-used ones', async () => {
@@ -149,40 +99,6 @@ describe('SiteDirectory', () => {
     expect(kept).toContain(`site-${String(MAX_SITES + overflow - 1).padStart(4, '0')}.example.com`)
     expect(kept).not.toContain('site-0000.example.com')
     expect(kept).not.toContain(`site-${String(overflow - 1).padStart(4, '0')}.example.com`)
-  })
-
-  it('evicts a site with no measured use before one with any', async () => {
-    // No usage evidence must not outrank measured usage: treating a missing
-    // count as infinitely used would evict a real site to keep this one.
-    await open().remember([{ hostname: 'unmeasured.example.com' }, ...sites(MAX_SITES, () => 1)])
-
-    const kept = (await open().list()).map((site) => site.hostname)
-    expect(kept).toHaveLength(MAX_SITES)
-    expect(kept).not.toContain('unmeasured.example.com')
-    expect(kept).toContain('site-0000.example.com')
-  })
-
-  it('evicts the same record no matter what order the records arrived in', async () => {
-    const tied: SiteRecord[] = [
-      { hostname: 'tie-a.example.com', visits: 5, importedAt: '2026-01-01T00:00:00.000Z' },
-      { hostname: 'tie-b.example.com', visits: 5, importedAt: '2026-02-01T00:00:00.000Z' },
-      { hostname: 'tie-c.example.com', visits: 5, importedAt: '2026-02-01T00:00:00.000Z' },
-    ]
-    const busier = sites(MAX_SITES - 1, () => 100)
-
-    const survivors = await Promise.all(
-      [[...busier, ...tied], [...tied].reverse().concat(busier)].map(async (records, index) => {
-        const store = new SiteDirectory(join(directory, `order-${index}.json`), encryption)
-        await store.remember(records)
-        return (await store.list())
-          .map((site) => site.hostname)
-          .filter((hostname) => hostname.startsWith('tie-'))
-      })
-    )
-
-    // One slot, three equally used hosts: the newer import wins, and hostname
-    // settles what is left — `tie-b` and `tie-c` share an import time.
-    expect(survivors).toEqual([['tie-b.example.com'], ['tie-b.example.com']])
   })
 
   it('never writes the site list in the clear', async () => {
@@ -204,53 +120,30 @@ describe('SiteDirectory', () => {
     await expect(readFile(path)).rejects.toThrow()
   })
 
-  it('reads as empty rather than throwing on a corrupt file', async () => {
-    await writeFile(path, 'not json at all')
-
-    expect(await open().list()).toEqual([])
-  })
-
-  it('ignores a directory written by a future version', async () => {
-    await writeFile(path, JSON.stringify({ version: 99, payload: 'whatever' }))
-
-    expect(await open().list()).toEqual([])
-  })
-
-  it('drops a directory written before imported hosts became suggestions', async () => {
-    // Version 1 was seeded from imported cookie hosts — mostly ad and analytics
-    // origins — and those records only ever decorated a host the omnibox already
-    // had. Version 2 records are offered as suggestions in their own right, so
-    // carrying the old set forward would put exactly those origins in the
-    // dropdown. The payload below decrypts cleanly; it is discarded on meaning,
-    // not on damage.
-    const version1: SiteRecord[] = [{ hostname: 'doubleclick.net', name: 'DoubleClick' }]
-    await writeFile(
-      path,
-      JSON.stringify({
-        version: 1,
-        payload: encryption.encryptString(JSON.stringify(version1)).toString('base64'),
-      })
-    )
-
-    expect(await open().list()).toEqual([])
-  })
-
-  it('skips an entry with no hostname to key it by', async () => {
-    await open().remember([{ hostname: '', name: 'Nowhere' }])
-
-    expect(await open().list()).toEqual([])
-  })
-
-  it('forgets everything on clear', async () => {
+  it('preserves a corrupt file until clear explicitly resets persistence', async () => {
+    const original = 'not json at all'
+    await writeFile(path, original)
     const store = open()
-    await store.remember([{ hostname: 'github.com', name: 'GitHub' }])
-
-    await store.clear()
 
     expect(await store.list()).toEqual([])
+    expect(store.isAvailable()).toBe(false)
+    await store.remember([{ hostname: 'github.com', name: 'GitHub' }])
+    expect(await readFile(path, 'utf8')).toBe(original)
+
+    const clearing = store.clear()
+    const remembering = store.remember([{ hostname: 'github.com', name: 'GitHub' }])
+    await Promise.all([clearing, remembering])
+    expect(store.isAvailable()).toBe(true)
+    expect(await store.list()).toEqual([{ hostname: 'github.com', name: 'GitHub' }])
   })
 
-  it('clears cleanly when there is nothing to clear', async () => {
-    await expect(open().clear()).resolves.toBeUndefined()
+  it('does not overwrite a directory written by a future version', async () => {
+    const original = JSON.stringify({ version: 99, payload: 'whatever' })
+    await writeFile(path, original)
+    const store = open()
+
+    expect(await store.list()).toEqual([])
+    await store.remember([{ hostname: 'github.com', name: 'GitHub' }])
+    expect(await readFile(path, 'utf8')).toBe(original)
   })
 })

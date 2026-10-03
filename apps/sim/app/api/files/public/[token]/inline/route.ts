@@ -6,19 +6,30 @@ import { getPublicInlineFileContract } from '@/lib/api/contracts/public-shares'
 import { parseRequest } from '@/lib/api/server'
 import { validateDeploymentAuth } from '@/lib/core/security/deployment-auth'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
 import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
-import { extractEmbeddedFileRefs } from '@/lib/uploads/server/embedded-image-refs'
+import { hasEmbeddedFileRef } from '@/lib/uploads/server/embedded-image-refs'
 import { resolveWorkspaceInlineImage } from '@/lib/uploads/server/inline-image'
-import { storedFileId } from '@/lib/uploads/utils/embedded-image-ref'
 import { serveInlineImage } from '@/app/api/files/serve-inline-image'
 import { createErrorResponse, FileNotFoundError } from '@/app/api/files/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('PublicInlineFileAPI')
+
+/**
+ * Ceiling on the shared document read for the referenced-by-doc gate below.
+ *
+ * Far tighter than the ceiling on a file this route SERVES, because these bytes are
+ * never served — they are scanned for image references and discarded, and scanning
+ * decodes them to UTF-16 on top of the buffer, so the resident cost is roughly double
+ * the read. A share can point at any workspace file, admitted at 5 GB, and this route
+ * is anonymous; nothing a person writes as a document approaches even this bound.
+ */
+const MAX_INLINE_REF_SCAN_BYTES = 10 * 1024 * 1024
 
 /**
  * GET /api/files/public/[token]/inline?key=<cloudKey>|fileId=<id>
@@ -42,7 +53,7 @@ export const GET = withRouteHandler(
     const requestId = generateRequestId()
 
     try {
-      const limited = await enforcePublicFileRateLimit(request, 'content')
+      const limited = await enforcePublicFileRateLimit(request, 'inline')
       if (limited) return limited
 
       const parsed = await parseRequest(getPublicInlineFileContract, request, context)
@@ -72,12 +83,23 @@ export const GET = withRouteHandler(
       }
 
       // Referenced-by-doc gate: the share grants exactly the images the document embeds.
-      const docText = (await downloadFile({ key: doc.key, context: 'workspace' })).toString('utf-8')
-      const { keys, ids } = extractEmbeddedFileRefs(docText)
-      const referenced = ref.fileId
-        ? ids.some((id) => storedFileId(id) === ref.fileId)
-        : keys.includes(ref.key as string)
-      if (!referenced) {
+      // A document too large to scan fails the gate like any other unverifiable
+      // reference — the grant cannot be extended to an embed we were unable to confirm.
+      let docText: string
+      try {
+        const docBuffer = await downloadFile({
+          key: doc.key,
+          context: 'workspace',
+          maxBytes: MAX_INLINE_REF_SCAN_BYTES,
+        })
+        docText = docBuffer.toString('utf-8')
+      } catch (error) {
+        if (!isPayloadSizeLimitError(error)) throw error
+        logger.info('Shared document too large to scan for embedded references', { token })
+        throw new FileNotFoundError('Not found')
+      }
+      const target = ref.fileId ? { fileId: ref.fileId } : ref.key ? { key: ref.key } : null
+      if (!target || !hasEmbeddedFileRef(docText, target)) {
         throw new FileNotFoundError('Not found')
       }
 

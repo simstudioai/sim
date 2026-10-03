@@ -336,8 +336,12 @@ export interface TrayDeps {
 
 function chatMenuItem(chat: RecentChat, deps: TrayDeps): MenuItemConstructorOptions {
   const icon = statusDotImage(chat.status)
+  const statusLabel =
+    chat.status === 'active' ? 'running' : chat.status === 'unread' ? 'unread' : ''
+  const label = truncate(chat.title, 57, '…')
   return {
-    label: truncate(chat.title, 57, '…'),
+    label,
+    accessibilityLabel: statusLabel ? `${label}, ${statusLabel}` : label,
     ...(icon ? { icon } : {}),
     click: () => deps.openMainWindow(chatRoute(chat)),
   }

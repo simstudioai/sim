@@ -6,11 +6,17 @@ import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/
 import { LongInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/long-input/long-input'
 import { ShortInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/short-input/short-input'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
+import { useMcpBlockConfig } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-mcp-block-config'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
+import {
+  type JsonSchemaProperty,
+  jsonSchemaType,
+  subBlockTypeForJsonSchema,
+} from '@/tools/param-shape'
 import { formatParameterLabel } from '@/tools/params'
 
 const logger = createLogger('McpDynamicArgs')
@@ -36,8 +42,8 @@ function isPrimitiveEnum(
  */
 function requiresJsonValue(paramSchema: any): boolean {
   return (
-    paramSchema.type === 'object' ||
-    paramSchema.type === 'array' ||
+    jsonSchemaType(paramSchema) === 'object' ||
+    jsonSchemaType(paramSchema) === 'array' ||
     (Array.isArray(paramSchema.enum) && !isPrimitiveEnum(paramSchema.enum))
   )
 }
@@ -81,7 +87,7 @@ function createParamConfig(
   inputType: 'long-input' | 'short-input'
 ): SubBlockConfig {
   const placeholder =
-    paramSchema.type === 'array'
+    jsonSchemaType(paramSchema) === 'array'
       ? `Enter JSON array, e.g. ["item1", "item2"] or comma-separated values`
       : paramSchema.description || `Enter ${formatParameterLabel(paramName).toLowerCase()}`
 
@@ -105,18 +111,22 @@ export function McpDynamicArgs({
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const { mcpTools, isLoading } = useMcpTools(workspaceId)
-  const [toolFromStore] = useSubBlockValue(blockId, 'tool')
-  const selectedTool = previewContextValues
-    ? resolvePreviewContextValue(previewContextValues.tool)
-    : toolFromStore
   const [schemaFromStore] = useSubBlockValue(blockId, '_toolSchema')
+  const {
+    server: selectedServer,
+    tool: selectedTool,
+    argumentsMode,
+  } = useMcpBlockConfig({ blockId, previewContextValues })
   const cachedSchema = previewContextValues
     ? resolvePreviewContextValue(previewContextValues._toolSchema)
     : schemaFromStore
   const [toolArgs, setToolArgs] = useSubBlockValue(blockId, subBlockId)
 
-  const selectedToolConfig = mcpTools.find((tool) => tool.id === selectedTool)
-  const toolSchema = cachedSchema || selectedToolConfig?.inputSchema
+  const selectedToolConfig = mcpTools.find(
+    (tool) =>
+      tool.serverId === selectedServer && (tool.id === selectedTool || tool.name === selectedTool)
+  )
+  const toolSchema = selectedToolConfig?.inputSchema || cachedSchema
 
   /**
    * Draft text for JSON-value params (object/array/non-primitive-enum) whose current
@@ -127,8 +137,7 @@ export function McpDynamicArgs({
    * the live persisted value, so an external change to that value (undo/redo, a diff
    * baseline switch, a collaborator's edit) can't be shadowed by stale draft text.
    * Drafts also reset wholesale on either of two independent triggers:
-   *  - the selected tool or the cached `_toolSchema` snapshot changes (this pair
-   *    always drives `toolSchema` whenever a cached snapshot exists) — the live
+   *  - the selected tool or the cached `_toolSchema` snapshot changes — the live
    *    schema tracker is also re-baselined to the new tool's current signature
    *    here (even if still empty), so a tool switch never leaves the *previous*
    *    tool's signature behind to be misread as a "refresh" once the new tool's
@@ -215,24 +224,17 @@ export function McpDynamicArgs({
     [currentArgs, setToolArgs, disabled]
   )
 
-  const getInputType = (paramSchema: any) => {
-    if (Array.isArray(paramSchema.enum)) {
-      return isPrimitiveEnum(paramSchema.enum) ? 'dropdown' : 'long-input'
-    }
-    if (paramSchema.type === 'boolean') return 'switch'
-    if (paramSchema.type === 'number' || paramSchema.type === 'integer') {
-      if (paramSchema.minimum !== undefined && paramSchema.maximum !== undefined) {
-        return 'slider'
-      }
-      return 'short-input'
-    }
-    if (paramSchema.type === 'string') {
-      if (paramSchema.format === 'date-time') return 'short-input'
-      if (paramSchema.maxLength && paramSchema.maxLength > 100) return 'long-input'
-      return 'short-input'
-    }
-    if (paramSchema.type === 'array' || paramSchema.type === 'object') return 'long-input'
-    return 'short-input'
+  /**
+   * Which control collects a schema property, decided by the shared map so an MCP tool
+   * renders the same way here as it does in an agent block's tool row.
+   *
+   * `code` maps onto this surface's `long-input`: that branch carries JSON-draft
+   * handling built for storing every argument in one object, which a plain code editor
+   * would not preserve. The control differs; the decision does not.
+   */
+  const getInputType = (paramSchema: JsonSchemaProperty) => {
+    const type = subBlockTypeForJsonSchema(paramSchema)
+    return type === 'code' ? 'long-input' : type
   }
 
   const renderParameterInput = (paramName: string, paramSchema: any) => {
@@ -264,7 +266,12 @@ export function McpDynamicArgs({
           label: String(option),
           value: String(option),
         }))
-        const selectedLabel = value ? String(value) : ''
+        // Options are stringified members, so a decoded value has to be stringified back
+        // to match one. Presence of the key — not truthiness — decides whether anything is
+        // selected, because `0`, `false` and a literal `null` enum member are all real
+        // selections that would otherwise render as empty.
+        const dropdownValue = Object.hasOwn(current, paramName) ? String(value) : ''
+        const selectedLabel = dropdownValue
         const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
           activeSearchTarget,
           blockId,
@@ -277,14 +284,18 @@ export function McpDynamicArgs({
           <div key={`${paramName}-dropdown`}>
             <Combobox
               options={dropdownOptions}
-              value={value || ''}
-              selectedValue={value || ''}
+              value={dropdownValue}
+              selectedValue={dropdownValue}
               onChange={(selectedValue) => {
-                const matchedOption = dropdownOptions.find(
-                  (opt: { label: string; value: string }) => opt.value === selectedValue
+                // Persist the ENUM MEMBER, not the string the combobox works in. The
+                // options are stringified for display, so writing `selectedValue` back
+                // would send '1' for `1`, 'true' for `true` and 'null' for `null` — the
+                // server then rejects the argument or reads it as a different value.
+                const memberIndex = (paramSchema.enum as unknown[]).findIndex(
+                  (member) => String(member) === selectedValue
                 )
-                if (matchedOption) {
-                  updateParameter(paramName, selectedValue)
+                if (memberIndex !== -1) {
+                  updateParameter(paramName, (paramSchema.enum as unknown[])[memberIndex])
                 }
               }}
               placeholder={`Select ${formatParameterLabel(paramName).toLowerCase()}`}
@@ -315,11 +326,11 @@ export function McpDynamicArgs({
               value={[currentValue]}
               min={minValue}
               max={maxValue}
-              step={paramSchema.type === 'integer' ? 1 : 0.1}
+              step={jsonSchemaType(paramSchema) === 'integer' ? 1 : 0.1}
               onValueChange={(newValue) =>
                 updateParameter(
                   paramName,
-                  paramSchema.type === 'integer' ? Math.round(newValue[0]) : newValue[0]
+                  jsonSchemaType(paramSchema) === 'integer' ? Math.round(newValue[0]) : newValue[0]
                 )
               }
               disabled={disabled}
@@ -333,7 +344,7 @@ export function McpDynamicArgs({
                 top: '24px',
               }}
             >
-              {paramSchema.type === 'integer'
+              {jsonSchemaType(paramSchema) === 'integer'
                 ? Math.round(currentValue).toString()
                 : Number(currentValue).toFixed(1)}
             </div>
@@ -383,7 +394,7 @@ export function McpDynamicArgs({
                 updateParameter(paramName, JSON.parse(newValue))
                 clearDraft()
               } catch {
-                if (paramSchema.type === 'array' && !looksLikeJsonLiteral(newValue)) {
+                if (jsonSchemaType(paramSchema) === 'array' && !looksLikeJsonLiteral(newValue)) {
                   updateParameter(paramName, newValue)
                   clearDraft()
                   return
@@ -406,7 +417,8 @@ export function McpDynamicArgs({
           paramSchema.format === 'password' ||
           paramName.toLowerCase().includes('password') ||
           paramName.toLowerCase().includes('token')
-        const isNumeric = paramSchema.type === 'number' || paramSchema.type === 'integer'
+        const numericType = jsonSchemaType(paramSchema)
+        const isNumeric = numericType === 'number' || numericType === 'integer'
         const config = createParamConfig(paramName, paramSchema, 'short-input')
 
         return (
@@ -424,7 +436,7 @@ export function McpDynamicArgs({
 
               if (isNumeric && processedValue !== '' && !hasTag) {
                 processedValue =
-                  paramSchema.type === 'integer'
+                  jsonSchemaType(paramSchema) === 'integer'
                     ? Number.parseInt(processedValue)
                     : Number.parseFloat(processedValue)
 
@@ -443,6 +455,27 @@ export function McpDynamicArgs({
     }
   }
 
+  if (argumentsMode === 'json') {
+    return (
+      <div className='flex flex-col gap-[9px]'>
+        <Label>JSON arguments</Label>
+        <LongInput
+          blockId={blockId}
+          subBlockId={subBlockId}
+          config={{
+            id: subBlockId,
+            type: 'long-input',
+            title: 'JSON arguments',
+            placeholder: 'JSON arguments or an upstream reference',
+          }}
+          disabled={disabled}
+          isPreview={isPreview}
+          previewValue={previewValue}
+        />
+      </div>
+    )
+  }
+
   if (!selectedTool) {
     return (
       <div className='rounded-lg border p-8 text-center'>
@@ -451,16 +484,19 @@ export function McpDynamicArgs({
     )
   }
 
-  if (
-    selectedTool &&
-    !cachedSchema &&
-    !selectedToolConfig &&
-    (isLoading || mcpTools.length === 0)
-  ) {
+  if (selectedTool && !cachedSchema && !selectedToolConfig && isLoading) {
     return (
       <div className='rounded-lg border p-8 text-center'>
         <p className='text-muted-foreground text-sm'>Loading tool schema…</p>
       </div>
+    )
+  }
+
+  if (!toolSchema) {
+    return (
+      <p className='text-[var(--text-error)] text-small'>
+        Operation schema unavailable. Refresh or select an available operation.
+      </p>
     )
   }
 

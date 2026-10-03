@@ -1,7 +1,7 @@
 import type { ClickHouseExecuteParams, ClickHouseExecuteResponse } from '@/tools/clickhouse/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const executeTool: ToolConfig<ClickHouseExecuteParams, ClickHouseExecuteResponse> = {
+export const executeTool: InternalToolConfig<ClickHouseExecuteParams, ClickHouseExecuteResponse> = {
   id: 'clickhouse_execute',
   name: 'ClickHouse Execute',
   description: 'Execute raw SQL (DDL, mutations, or queries) on a ClickHouse database',
@@ -52,13 +52,8 @@ export const executeTool: ToolConfig<ClickHouseExecuteParams, ClickHouseExecuteR
     },
   },
 
-  request: {
-    url: '/api/tools/clickhouse/execute',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

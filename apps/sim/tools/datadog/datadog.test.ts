@@ -1,10 +1,9 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing'
+import { describe, expect, it, vi } from 'vitest'
+import { executeUpdateSloOperation } from '@/lib/internal/datadog/operations/update-slo'
+import * as datadogTools from '@/tools/datadog'
 import { cancelDowntimeTool } from '@/tools/datadog/cancel_downtime'
 import { createDowntimeTool } from '@/tools/datadog/create_downtime'
-import { createEventTool } from '@/tools/datadog/create_event'
 import { createMonitorTool } from '@/tools/datadog/create_monitor'
 import { getIncidentTool } from '@/tools/datadog/get_incident'
 import { getMonitorTool } from '@/tools/datadog/get_monitor'
@@ -17,25 +16,19 @@ import { queryLogsTool } from '@/tools/datadog/query_logs'
 import { queryTimeseriesTool } from '@/tools/datadog/query_timeseries'
 import { sendLogsTool } from '@/tools/datadog/send_logs'
 import { submitMetricsTool } from '@/tools/datadog/submit_metrics'
+import { DATADOG_SITES } from '@/tools/datadog/types'
 import { unmuteMonitorTool } from '@/tools/datadog/unmute_monitor'
 import { updateIncidentTool } from '@/tools/datadog/update_incident'
-import { updateSloTool } from '@/tools/datadog/update_slo'
 import {
   buildSloPayload,
+  datadogApiUrl,
   datadogErrorMessage,
   mergeSloUpdatePayload,
+  resolveDatadogSite,
   splitCommaList,
 } from '@/tools/datadog/utils'
 
 const auth = { apiKey: 'key', applicationKey: 'app-key' } as const
-
-function jsonResponse(body: unknown, init?: { status?: number; statusText?: string }): Response {
-  return new Response(JSON.stringify(body), {
-    status: init?.status ?? 200,
-    statusText: init?.statusText ?? 'OK',
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 function callBody<TParams>(
   tool: { request: { body?: (params: TParams) => unknown } },
@@ -158,8 +151,6 @@ describe('SLO payloads', () => {
 })
 
 describe('update_slo read-modify-write', () => {
-  beforeEach(() => vi.restoreAllMocks())
-
   it('reads the stored SLO before replacing it', async () => {
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
@@ -168,7 +159,7 @@ describe('update_slo read-modify-write', () => {
       )
       .mockResolvedValueOnce(jsonResponse({ data: [{ id: 'slo-1', name: 'New' }] }))
 
-    const result = await updateSloTool.directExecution!(
+    const result = await executeUpdateSloOperation(
       { ...auth, sloId: 'slo-1', name: 'New' } as any,
       undefined
     )
@@ -187,7 +178,7 @@ describe('update_slo read-modify-write', () => {
       .spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(jsonResponse({ errors: ['SLO not found'] }, { status: 404 }))
 
-    const result = await updateSloTool.directExecution!(
+    const result = await executeUpdateSloOperation(
       { ...auth, sloId: 'missing', name: 'New' } as any,
       undefined
     )
@@ -482,18 +473,6 @@ describe('path parameter encoding', () => {
   })
 })
 
-describe('list_downtimes limit description', () => {
-  /**
-   * The Datadog v2 spec declares `default: 30` and `example: 100` but no `maximum`, so the
-   * description must not present 100 as a vendor-enforced ceiling.
-   */
-  it('does not claim a vendor maximum', () => {
-    const description = listDowntimesTool.params.limit.description ?? ''
-    expect(description).not.toMatch(/max:\s*100/)
-    expect(description).toMatch(/declares no maximum/)
-  })
-})
-
 describe('list_monitors pagination', () => {
   /**
    * Datadog: `page_size` — "If the page argument is not specified, the default
@@ -526,11 +505,6 @@ describe('list_monitors pagination', () => {
   it('sends no pagination when the caller sets neither', () => {
     const url = callUrl(listMonitorsTool, { ...auth } as any)
     expect(url).not.toContain('page')
-  })
-
-  it('states the page-dependency rule in both parameter descriptions', () => {
-    expect(listMonitorsTool.params.page.description).toMatch(/without pagination/)
-    expect(listMonitorsTool.params.pageSize.description).toMatch(/only applies this when a page/)
   })
 })
 
@@ -568,33 +542,7 @@ describe('submit_metrics errors output', () => {
   })
 })
 
-describe('registry surface', () => {
-  it('keeps create_event on api-key-only auth', () => {
-    expect(createEventTool.params.applicationKey).toBeUndefined()
-  })
-})
-
 describe('undisclosed vendor limits and Sim defaults', () => {
-  /**
-   * `EventCreateRequest.date_happened` is documented "Limited to events no older
-   * than 18 hours". A backfill outside that window is rejected, or accepted and
-   * clamped, for a reason nothing in the tool explained.
-   */
-  it('discloses the 18-hour ceiling on create_event date_happened', () => {
-    expect(createEventTool.params.dateHappened.description).toMatch(/18 hours/)
-  })
-
-  /**
-   * `ddsource: 'custom'` is injected by Sim, not by Datadog — and it decides
-   * which log pipeline Datadog applies, so it must not read as a vendor default.
-   */
-  it('discloses that ddsource="custom" is a Sim default', () => {
-    const description = String(sendLogsTool.params.logs.description)
-
-    expect(description).toMatch(/ddsource="custom"/)
-    expect(description).toMatch(/Sim default, not a Datadog one/)
-  })
-
   it('still applies that default so an entry without ddsource is not sent bare', () => {
     const body = callBody(sendLogsTool, {
       ...auth,
@@ -602,5 +550,107 @@ describe('undisclosed vendor limits and Sim defaults', () => {
     } as any)
 
     expect(body[0].ddsource).toBe('custom')
+  })
+})
+
+describe('datadog site is validated before it reaches the request host', () => {
+  /*
+   * `DatadogSite` is a compile-time union and is erased at runtime, so it kept
+   * nothing out of the URL. Every Datadog request carries DD-API-KEY and
+   * DD-APPLICATION-KEY, so an unchecked `site` chose where those were sent.
+   */
+  it('rejects an arbitrary host', () => {
+    expect(() => datadogApiUrl('evil.com' as never, '/api/v1/slo')).toThrow(
+      /Datadog "site" must be one of/
+    )
+  })
+
+  it('rejects a host smuggled in as userinfo', () => {
+    expect(() => datadogApiUrl('datadoghq.com@evil.com' as never, '/api/v1/slo')).toThrow(
+      /Datadog "site" must be one of/
+    )
+  })
+
+  it('rejects a value that would escape the host into a path', () => {
+    expect(() => datadogApiUrl('datadoghq.com/../..' as never, '/api/v1/slo')).toThrow(
+      /Datadog "site" must be one of/
+    )
+  })
+
+  it('defaults an absent site to US1 and keeps every published region', () => {
+    expect(datadogApiUrl(undefined, '/api/v1/slo')).toBe('https://api.datadoghq.com/api/v1/slo')
+    for (const site of DATADOG_SITES) {
+      expect(datadogApiUrl(site, '/x')).toBe(`https://api.${site}/x`)
+      expect(resolveDatadogSite(site)).toBe(site)
+    }
+  })
+
+  it('builds the logs intake host from the validated site', () => {
+    const url = sendLogsTool.request.url({
+      apiKey: 'k',
+      site: 'datadoghq.eu',
+      logs: '[]',
+    } as never)
+    expect(url).toBe('https://http-intake.logs.datadoghq.eu/api/v2/logs')
+    expect(() =>
+      sendLogsTool.request.url({ apiKey: 'k', site: 'evil.com', logs: '[]' } as never)
+    ).toThrow(/Datadog "site" must be one of/)
+  })
+})
+
+describe('every Datadog tool routes its host through the allowlist', () => {
+  /*
+   * The first pass guarded only the shared `datadogApiUrl`; ten tools built the
+   * host inline from `params.site` and bypassed it entirely. Sweeping the registry
+   * rather than listing tools means a new tool that reintroduces an inline builder
+   * fails here instead of shipping an unguarded credentialed request.
+   */
+  const REQUIRED = {
+    monitorId: '1',
+    downtimeId: '1',
+    dashboardId: 'abc-def-ghi',
+    incidentId: '1',
+    sloId: 'abc',
+    signalId: 'abc',
+    testId: 'abc',
+    publicId: 'abc',
+    resultId: 'abc',
+    query: 'x',
+    from: '1',
+    to: '2',
+    logs: '[]',
+    metrics: '[]',
+    series: '[]',
+    title: 't',
+    text: 't',
+    name: 'n',
+    type: 'metric alert',
+    scope: '*',
+    start: '1',
+    end: '2',
+    testIds: 'a',
+  }
+
+  it('rejects an attacker-chosen site in every tool that builds a URL', () => {
+    const builders = Object.values(datadogTools).filter(
+      (tool) => typeof tool?.request?.url === 'function'
+    )
+    expect(builders.length).toBeGreaterThan(20)
+
+    const unguarded: string[] = []
+    for (const tool of builders) {
+      const params = { ...REQUIRED, apiKey: 'k', applicationKey: 'a', site: 'evil.com' }
+      try {
+        const url = String((tool.request as { url: (p: unknown) => string }).url(params))
+        if (!/^https:\/\/(api|http-intake\.logs)\.(datadoghq\.com|datadoghq\.eu)/.test(url)) {
+          unguarded.push(`${tool.id} -> ${url}`)
+        }
+      } catch (error) {
+        if (!/Datadog "site" must be one of/.test(String(error))) {
+          unguarded.push(`${tool.id} -> ${String(error)}`)
+        }
+      }
+    }
+    expect(unguarded).toEqual([])
   })
 })

@@ -1,13 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
+import { normalizeEmail } from '@sim/utils/string'
 import type { NextRequest } from 'next/server'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import {
   type DeploymentAuthKind,
+  type DeploymentAuthResource,
   deploymentAuthCookieName,
   isEmailAllowed,
-  validateAuthToken,
+  readDeploymentAuthToken,
 } from '@/lib/core/security/deployment'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { getClientIp } from '@/lib/core/utils/request'
@@ -49,18 +51,7 @@ function passwordRateLimitResult(
   }
 }
 
-/**
- * A password/email-gated resource (a deployed chat or a public file share). Only
- * the fields the auth check needs — the `password` is the encrypted secret.
- */
-export interface DeploymentAuthResource {
-  id: string
-  authType: string | null
-  password?: string | null
-  allowedEmails?: unknown
-}
-
-interface DeploymentAuthBody {
+export interface DeploymentAuthBody {
   password?: string
   email?: string
   input?: unknown
@@ -68,6 +59,7 @@ interface DeploymentAuthBody {
 
 export interface DeploymentAuthResult {
   authorized: boolean
+  authenticatedEmail?: string
   error?: string
   status?: number
   retryAfterMs?: number
@@ -92,14 +84,12 @@ export async function validateDeploymentAuth(
     return { authorized: true }
   }
 
-  if (authType !== 'sso') {
+  if (authType === 'password' || authType === 'email') {
     const authCookie = request.cookies.get(deploymentAuthCookieName(cookiePrefix, resource.id))
 
-    if (
-      authCookie &&
-      validateAuthToken(authCookie.value, resource.id, authType, resource.password)
-    ) {
-      return { authorized: true }
+    if (authCookie) {
+      const claims = await readDeploymentAuthToken({ token: authCookie.value, resource })
+      if (claims) return { authorized: true, ...claims }
     }
   }
 
@@ -196,9 +186,7 @@ export async function validateDeploymentAuth(
         return { authorized: false, error: 'Email is required' }
       }
 
-      const allowedEmails = (resource.allowedEmails as string[]) || []
-
-      if (isEmailAllowed(email, allowedEmails)) {
+      if (isEmailAllowed(email, resource.allowedEmails)) {
         return { authorized: false, error: 'otp_required' }
       }
 
@@ -227,10 +215,8 @@ export async function validateDeploymentAuth(
         return { authorized: false, error: 'SSO session does not contain email' }
       }
 
-      const allowedEmails = (resource.allowedEmails as string[]) || []
-
-      if (isEmailAllowed(userEmail, allowedEmails)) {
-        return { authorized: true }
+      if (isEmailAllowed(userEmail, resource.allowedEmails)) {
+        return { authorized: true, authenticatedEmail: normalizeEmail(userEmail) }
       }
 
       return { authorized: false, error: 'Your email is not authorized to access this resource' }

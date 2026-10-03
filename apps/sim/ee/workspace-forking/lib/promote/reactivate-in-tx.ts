@@ -8,6 +8,7 @@ import {
 } from '@/lib/workflows/deployment-outbox'
 import { prepareWorkflowVersionActivation } from '@/lib/workflows/persistence/deployment-operations'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { bindForkSyncRollback } from '@/ee/workspace-forking/lib/promote/sync-provenance'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 interface ReactivateDeployedVersionParams {
@@ -16,6 +17,7 @@ interface ReactivateDeployedVersionParams {
   version: number
   userId: string
   requestId: string
+  promoteRunId: string
 }
 
 export interface ReactivateDeployedVersionResult {
@@ -99,7 +101,20 @@ export async function reactivateDeployedVersionInTx(
     restoredState.variables = deployedState.variables || {}
   }
 
-  const saveResult = await saveWorkflowToNormalizedTables(workflowId, restoredState, tx)
+  const saveResult = await saveWorkflowToNormalizedTables(
+    workflowId,
+    restoredState,
+    {
+      /**
+       * Actorless. Promotion restores a draft the platform itself archived, so
+       * the graph is one the workspace already held rather than one a caller
+       * supplied.
+       */
+      workspaceId: null,
+      subjectUserId: null,
+    },
+    tx
+  )
   if (!saveResult.success) {
     throw new Error(saveResult.error || `Failed to restore draft for workflow ${workflowId}`)
   }
@@ -142,5 +157,6 @@ export async function reactivateDeployedVersionInTx(
   if (!prepared.success) {
     throw new Error(prepared.error)
   }
+  await bindForkSyncRollback(tx, params.promoteRunId, prepared.operation)
   return { deploymentVersionId: versionRow.id, operationId: prepared.operation.id, outboxEventId }
 }

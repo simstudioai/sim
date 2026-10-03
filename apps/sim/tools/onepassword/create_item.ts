@@ -3,9 +3,9 @@ import type {
   OnePasswordCreateItemResponse,
 } from '@/tools/onepassword/types'
 import { FULL_ITEM_OUTPUTS, transformFullItem } from '@/tools/onepassword/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createItemTool: ToolConfig<
+export const createItemTool: InternalToolConfig<
   OnePasswordCreateItemParams,
   OnePasswordCreateItemResponse
 > = {
@@ -72,11 +72,8 @@ export const createItemTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/onepassword/create-item',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       connectionMode: params.connectionMode,
       serviceAccountToken: params.serviceAccountToken,
       serverUrl: params.serverUrl,

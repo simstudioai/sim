@@ -25,7 +25,6 @@ export const adminV1OrganizationSchema = z.object({
   logo: z.string().nullable(),
   orgUsageLimit: z.string().nullable(),
   storageUsedBytes: z.number(),
-  departedMemberUsage: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
 })
@@ -210,6 +209,24 @@ export const adminV1ListOrganizationsContract = defineRouteContract({
   },
 })
 
+/**
+ * Creates the organization and its owner membership, and deliberately nothing else.
+ *
+ * Organization settings are reached through a workspace the organization owns, so a
+ * brand-new organization with none is not yet administrable. Closing that inside
+ * this call was tried and removed: attaching the owner's existing workspaces cannot
+ * join the creation transaction (it runs its own, under a lock order that exists to
+ * avoid deadlocking against invitation acceptance), so it could only ever be
+ * best-effort — leaving a committed organization, a response that could not honestly
+ * report the outcome, and a retry blocked by the existing-membership check.
+ *
+ * This codebase already solves it properly elsewhere. `AdminMemberOperationView`
+ * tracks workspace moves with `pending | processing | dead_letter | applied` and
+ * per-workspace retry, and the enterprise-owner-claim path creates the workspace and
+ * the organization in one transaction and enqueues an outbox event for the rest.
+ * Provisioning a workspace for an organization belongs on one of those paths, not
+ * inline here.
+ */
 export const adminV1CreateOrganizationContract = defineRouteContract({
   method: 'POST',
   path: '/api/v1/admin/organizations',

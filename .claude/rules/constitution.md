@@ -1,3 +1,7 @@
+---
+description: Sim product language, positioning, and tone guidelines
+---
+
 # Sim — Language & Positioning
 
 When editing user-facing copy (landing pages, docs, metadata, marketing), follow these rules.

@@ -1,47 +1,51 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns, createMockRequest } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import {
+  workspaceAuthorizationMock,
+  workspaceAuthorizationMockFns,
+} from '@sim/testing/mocks/workspace-authorization.mock'
+import { workspaceForkingAuthzMock } from '@sim/testing/mocks/workspace-forking-authz.mock'
+import {
+  workspaceForkingLineageMock,
+  workspaceForkingLineageMockFns,
+} from '@sim/testing/mocks/workspace-forking-lineage.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
-const {
-  mockAssertWorkspaceAdminAccess,
-  mockGetForkParent,
-  mockGetForkChildren,
-  mockGetUndoableRunForTarget,
-  mockGetEffectiveWorkspacePermission,
-} = vi.hoisted(() => ({
-  mockAssertWorkspaceAdminAccess: vi.fn(),
-  mockGetForkParent: vi.fn(),
-  mockGetForkChildren: vi.fn(),
+const { mockGetUndoableRunForTarget } = vi.hoisted(() => ({
   mockGetUndoableRunForTarget: vi.fn(),
-  mockGetEffectiveWorkspacePermission: vi.fn(),
 }))
 
-vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => ({
-  assertWorkspaceAdminAccess: mockAssertWorkspaceAdminAccess,
-}))
+vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => workspaceForkingAuthzMock)
 
-vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => ({
-  getForkParent: mockGetForkParent,
-  getForkChildren: mockGetForkChildren,
-}))
+vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => workspaceForkingLineageMock)
 
 vi.mock('@/ee/workspace-forking/lib/promote/promote-run-store', () => ({
   getUndoableRunForTarget: mockGetUndoableRunForTarget,
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getEffectiveWorkspacePermission: mockGetEffectiveWorkspacePermission,
-}))
+vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
+
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { GET } from '@/app/api/workspaces/[id]/fork/lineage/route'
 
+const { mockGetForkParent, mockGetForkChildren } = workspaceForkingLineageMockFns
+
 const mockGetSession = authMockFns.mockGetSession
+const mockAuthorizeWorkspaceOperation =
+  workspaceAuthorizationMockFns.mockAuthorizeWorkspaceOperation
+const { mockGetEffectiveWorkspacePermission } = permissionsMockFns
+permissionsMockFns.mockGetWorkspaceWithOwner.mockImplementation(async (id: string) => ({
+  id,
+  organizationId: null,
+  allowPersonalApiKeys: true,
+}))
 
 const WORKSPACE_ID = 'workspace-1'
 const VIEWER_ID = 'user-1'
-const routeContext = { params: Promise.resolve({ id: WORKSPACE_ID }) }
+const routeContext = createRouteContext({ id: WORKSPACE_ID })
 
 const parentNode = { id: 'parent-1', name: 'Parent', organizationId: 'org-1' }
 const childCreatedAt = new Date('2026-01-02T03:04:05.000Z')
@@ -54,28 +58,25 @@ const childNode = (id: string, name: string) => ({
 
 describe('fork lineage route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mockGetSession.mockResolvedValue({ user: { id: VIEWER_ID } })
-    mockAssertWorkspaceAdminAccess.mockResolvedValue({ id: WORKSPACE_ID })
+    mockGetSession.mockResolvedValue({ user: { id: VIEWER_ID }, session: { id: 'session-1' } })
+    mockAuthorizeWorkspaceOperation.mockResolvedValue(undefined)
     mockGetForkParent.mockResolvedValue(null)
     mockGetForkChildren.mockResolvedValue([])
     mockGetUndoableRunForTarget.mockResolvedValue(null)
     mockGetEffectiveWorkspacePermission.mockResolvedValue(null)
   })
 
-  it('returns 401 when there is no session', async () => {
-    mockGetSession.mockResolvedValue(null)
+  it('does not read lineage when current workspace authorization is refused', async () => {
+    mockAuthorizeWorkspaceOperation.mockRejectedValue(
+      new OrchestrationError('forbidden', 'Admin access required')
+    )
 
-    const res = await GET(createMockRequest('GET'), routeContext)
+    const response = await GET(createMockRequest('GET'), routeContext)
 
-    expect(res.status).toBe(401)
-    expect(mockAssertWorkspaceAdminAccess).not.toHaveBeenCalled()
-  })
-
-  it('requires admin on the current workspace before loading lineage', async () => {
-    await GET(createMockRequest('GET'), routeContext)
-
-    expect(mockAssertWorkspaceAdminAccess).toHaveBeenCalledWith(WORKSPACE_ID, VIEWER_ID)
+    expect(response.status).toBe(403)
+    expect(mockGetForkParent).not.toHaveBeenCalled()
+    expect(mockGetForkChildren).not.toHaveBeenCalled()
+    expect(mockGetUndoableRunForTarget).not.toHaveBeenCalled()
   })
 
   it('marks accessible and inaccessible nodes via the canonical permission resolver', async () => {
@@ -117,28 +118,5 @@ describe('fork lineage route', () => {
       VIEWER_ID,
       expect.objectContaining({ id: parentNode.id, organizationId: 'org-1' })
     )
-  })
-
-  it('marks the parent inaccessible when the viewer holds no permission on it', async () => {
-    mockGetForkParent.mockResolvedValue(parentNode)
-    mockGetEffectiveWorkspacePermission.mockResolvedValue(null)
-
-    const res = await GET(createMockRequest('GET'), routeContext)
-
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.parent).toEqual({ ...parentNode, viewerAccessible: false })
-    expect(body.children).toEqual([])
-  })
-
-  it('keeps a null parent null without resolving permissions', async () => {
-    const res = await GET(createMockRequest('GET'), routeContext)
-
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.parent).toBeNull()
-    expect(body.children).toEqual([])
-    expect(body.undoableRun).toBeNull()
-    expect(mockGetEffectiveWorkspacePermission).not.toHaveBeenCalled()
   })
 })

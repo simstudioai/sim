@@ -1,6 +1,6 @@
 import { Chip, cn } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
-import { EmptyState } from '@/components/empty-state/empty-state'
+import { EmptyState, type EmptyStateProps } from '@/components/empty-state/empty-state'
 import { EmptyStateDocsLink } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/docs-link'
 import { MASK_NO_REPEAT } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state/mask'
 
@@ -105,25 +105,40 @@ function TablesGraphic() {
 
 const TABLES_DOCS_URL = 'https://docs.sim.ai/tables'
 
-interface TablesEmptyStateProps {
+interface CreateTableEmptyStateProps {
   /** Creates a table — the same action the header's primary chip runs. */
   onCreate: () => void
   /** Mirrors the header chip's disabled state: no edit rights, or a create already in flight. */
   createDisabled?: boolean
 }
 
-/** Empty state for the tables list when the workspace has none. */
-export function TablesEmptyState({ onCreate, createDisabled = false }: TablesEmptyStateProps) {
+type TablesEmptyStateProps = CreateTableEmptyStateProps | Omit<EmptyStateProps, 'graphic'>
+
+/** Shared table illustration and actions for empty or unavailable tables. */
+export function TablesEmptyState(props: TablesEmptyStateProps) {
+  const content = 'title' in props ? props : undefined
   return (
     <EmptyState
       graphic={<TablesGraphic />}
-      title='Tables'
-      description='Create a table to store structured data your agents can read and write.'
+      title={content?.title ?? 'Tables'}
+      description={
+        content?.description ??
+        'Create a table to store structured data your agents can read and write.'
+      }
       action={
         <>
-          <Chip variant='primary' onClick={onCreate} disabled={createDisabled} leftIcon={Plus}>
-            New table
-          </Chip>
+          {'onCreate' in props ? (
+            <Chip
+              variant='primary'
+              onClick={props.onCreate}
+              disabled={props.createDisabled}
+              leftIcon={Plus}
+            >
+              New table
+            </Chip>
+          ) : (
+            content?.action
+          )}
           <EmptyStateDocsLink href={TABLES_DOCS_URL} />
         </>
       }

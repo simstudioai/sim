@@ -1,19 +1,31 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
-import { validateOpaqueModelInputProvenance } from '@/lib/execution/model-input-provenance'
-import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import {
-  applyProjectedModelVisibleFileNames,
-  selectModelBoundFileInputPaths,
-  selectModelVisibleFileNames,
-  selectPreferredModelBoundFileInputPaths,
-} from '@/lib/uploads/utils/model-input'
+  addModelInputProvenanceToRequest,
+  createModelInputProvenanceRequestMetadata,
+  markModelInputProjected,
+  validateOpaqueModelInputProvenance,
+} from '@/lib/execution/model-input-provenance'
+import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
+import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-import { a2aSendMessageTool } from '@/tools/a2a/send_message'
-import { prepareToolRequest } from '@/tools/request-transport'
+import { projectToolModelInputParams } from '@/tools/request-transport'
 import { visionTool } from '@/tools/vision/tool'
+
+function prepareVisionOperation(
+  params: Parameters<typeof visionTool.operation.input>[0],
+  registry?: ResolvedSecretTraceRegistry
+) {
+  const projected = projectToolModelInputParams(visionTool, params, registry)
+  const input = visionTool.operation.input(projected)
+  const inputPaths = visionTool.operation.modelInput?.privateInputPaths?.(projected)
+  const metadata = inputPaths
+    ? createModelInputProvenanceRequestMetadata(registry, inputPaths)
+    : undefined
+  const headers = new Headers()
+  const payload = addModelInputProvenanceToRequest(input, headers, metadata)
+  if (metadata) markModelInputProjected(headers)
+  return { headers, payload }
+}
 
 describe('model-bound file input selection', () => {
   it('omits internal storage keys and unrelated file metadata', () => {
@@ -45,30 +57,6 @@ describe('model-bound file input selection', () => {
         { includeInlineBase64: true }
       )
     ).toEqual([['file', 'base64']])
-  })
-
-  it('omits a path-first locator without selecting the unused upload', () => {
-    expect(
-      selectPreferredModelBoundFileInputPaths({
-        file: { key: 'unused-key', metadata: 'unused-secret' },
-        filePath: '  https://example.com/effective.pdf  ',
-        fileInputPath: ['file'],
-        filePathInputPath: ['filePath'],
-        prefer: 'path',
-      })
-    ).toEqual([])
-  })
-
-  it('mirrors file-first request precedence without selecting the unused path', () => {
-    expect(
-      selectPreferredModelBoundFileInputPaths({
-        file: { key: 'effective-key', metadata: 'unused-secret' },
-        filePath: 'https://example.com/unused.pdf',
-        fileInputPath: ['file'],
-        filePathInputPath: ['filePath'],
-        prefer: 'file',
-      })
-    ).toEqual([])
   })
 
   it('keeps only explicitly model-visible attachment metadata', () => {
@@ -130,52 +118,6 @@ describe('model-bound file input selection', () => {
       selectModelBoundFileInputPaths({ url: 'data:image/png;base64,c2VjcmV0' }, ['file'])
     ).toEqual([['file', 'url']])
   })
-
-  it('projects file names without rewriting locators or inline content', () => {
-    const original = [
-      {
-        key: 'workspace/ws-1/report.pdf',
-        url: 'https://storage.example/report.pdf?signature=private',
-        base64: 'raw-inline-content',
-        name: 'private-name.pdf',
-      },
-    ]
-
-    expect(selectModelVisibleFileNames(original)).toEqual([{ name: 'private-name.pdf' }])
-    expect(applyProjectedModelVisibleFileNames(original, [{ name: '{{FILE_NAME}}' }])).toEqual([
-      {
-        key: 'workspace/ws-1/report.pdf',
-        url: 'https://storage.example/report.pdf?signature=private',
-        base64: 'raw-inline-content',
-        name: '{{FILE_NAME}}',
-      },
-    ])
-  })
-
-  it('treats an optional undefined file name as absent', () => {
-    const original = [{ key: 'workspace/ws-1/report.pdf', name: undefined }]
-
-    expect(selectModelVisibleFileNames(original)).toEqual([{}])
-    expect(applyProjectedModelVisibleFileNames(original, [{}])).toEqual(original)
-  })
-
-  it('preserves an optional undefined file name through tool request projection', () => {
-    const prepared = prepareToolRequest(
-      a2aSendMessageTool,
-      {
-        agentUrl: 'https://agent.example',
-        message: 'Summarize the attachment',
-        files: [{ key: 'workspace/ws-1/report.pdf', name: undefined }],
-      },
-      new ResolvedSecretTraceRegistry()
-    )
-
-    expect(JSON.parse(prepared.body ?? '{}')).toEqual({
-      agentUrl: 'https://agent.example',
-      message: 'Summarize the attachment',
-      files: [{ key: 'workspace/ws-1/report.pdf' }],
-    })
-  })
 })
 
 describe('server-resolved model file provenance', () => {
@@ -195,12 +137,11 @@ describe('server-resolved model file provenance', () => {
       'https://files.example/document.png?token={{FILE_TOKEN}}'
     )
 
-    const prepared = prepareToolRequest(
-      visionTool,
+    const prepared = prepareVisionOperation(
       { apiKey: 'key', imageUrl: locator, prompt: 'Describe this image' },
       registry
     )
-    const payload = JSON.parse(prepared.body ?? '{}') as Record<string, unknown>
+    const { payload } = prepared
 
     expect(payload.imageUrl).toBe(locator)
     expect(payload[RESOLVED_SECRET_PROVENANCE_FIELD]).toEqual({
@@ -235,8 +176,7 @@ describe('server-resolved model file provenance', () => {
       '{{INLINE_BYTES}}'
     )
 
-    const prepared = prepareToolRequest(
-      visionTool,
+    const prepared = prepareVisionOperation(
       {
         apiKey: 'key',
         imageFile: {
@@ -250,7 +190,7 @@ describe('server-resolved model file provenance', () => {
       },
       registry
     )
-    const payload = JSON.parse(prepared.body ?? '{}') as Record<string, unknown>
+    const { payload } = prepared
 
     expect(
       validateOpaqueModelInputProvenance({
@@ -263,25 +203,5 @@ describe('server-resolved model file provenance', () => {
       error: 'Model input contains a resolved secret that cannot be safely projected',
       status: 400,
     })
-  })
-
-  it('keeps headerless legacy file requests unchanged', () => {
-    const locator = 'https://files.example/legacy.png'
-    const prepared = prepareToolRequest(visionTool, {
-      apiKey: 'key',
-      imageUrl: locator,
-      prompt: 'Describe this image',
-    })
-    const payload = JSON.parse(prepared.body ?? '{}') as Record<string, unknown>
-
-    expect(payload.imageUrl).toBe(locator)
-    expect(payload).not.toHaveProperty(RESOLVED_SECRET_PROVENANCE_FIELD)
-    expect(
-      validateOpaqueModelInputProvenance({
-        headers: prepared.headers,
-        payload,
-        isInternalRequest: true,
-      })
-    ).toEqual({ success: true })
   })
 })

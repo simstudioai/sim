@@ -1,4 +1,5 @@
 ---
+description: Shareable client view-state lives in the URL via nuqs
 paths:
   - "apps/sim/app/**/*.tsx"
   - "apps/sim/app/**/*.ts"
@@ -13,21 +14,12 @@ URL query state is managed with [`nuqs`](https://nuqs.dev). The `NuqsAdapter` is
 
 ## Decision framework — where does this state live?
 
-Pick exactly one home for each piece of state:
-
-- **React Query** → server/remote data. Unchanged; see `.claude/rules/sim-queries.md`.
-- **URL params (nuqs)** → client view-state worth putting in a link: active tab/panel, selected entity id, filters, search query, pagination, view mode (list/grid), an open "view" drawer/modal that represents a destination.
-- **Zustand** → cross-component client state that must NOT be in the URL: high-frequency, large, ephemeral, or socket-synced (canvas pan/zoom, cursor, drag state, resize widths, unsaved buffers, live collaborative selection).
-- **`useState`** → purely local, single-component UI.
-
-Put state in the URL **only** when it is *all* of: shareable, deep-linkable, bookmarkable, survives reload + back/forward — **and** is discrete, low-frequency, and small. If it fails any of those, it does not go in the URL.
-
-### When to use what (decision table)
+Pick exactly one home for each piece of state (table below). Put state in the URL **only** when it is *all* of: shareable, deep-linkable, bookmarkable, survives reload + back/forward — **and** is discrete, low-frequency, and small. If it fails any of those, it does not go in the URL.
 
 | Home | Trigger | Example |
 | --- | --- | --- |
 | **URL (nuqs)** | Client view-state worth a link: tab, filter, search, sort, pagination, selected-entity id, an open "view" modal/drawer that is a destination | `?tab=licenses`, `?category=Communication`, `?page=3`, `?skillId=abc` |
-| **React Query** | Server/remote data fetched from an endpoint | `useMcpServers(workspaceId)`, `useSkills(workspaceId)` |
+| **React Query** | Server/remote data fetched from an endpoint (hook rules: `.claude/rules/sim-queries.md`) | `useMcpServers(workspaceId)`, `useSkills(workspaceId)` |
 | **Zustand** | Cross-component client state that must NOT be in the URL: high-frequency, large, ephemeral, socket-synced | canvas pan/zoom, live cursor, drag state, resize widths, unsaved buffers |
 | **`useState`** | Purely local single-component UI; also the snappy mirror of a debounced URL search | a hover flag, a transient dialog target, the live text of a debounced search box |
 
@@ -45,6 +37,20 @@ These reads/mutations are **not** anti-patterns and stay as-is:
 - **Outbound URL builders** — `new URLSearchParams({...})` to construct a `href`, a download endpoint, an external WebSocket/API URL, or a `window.open(_, '_blank')` destination.
 - **Route navigations** — `router.push('/path/[id]?folderId=x')` that changes the route *path*, not just the current query. A nuqs setter only mutates the query on the current path; cross-path navigation stays on `router`.
 - **Read-once auth / redirect signals** — `token`, `callbackUrl`, `redirect`, `error`, `invite_flow`, `new` (invite signup flow), `upgraded`, `redirect_workflow`, etc. These are navigation signals consumed once (often read-then-strip), not synced view-state. Leave them on `useSearchParams`. Key names are per-surface: files' `new` is a genuine nuqs param (`files/search-params.ts`), while invite's `new` is a one-shot signup signal.
+
+### Remembered list-preference exception
+
+Files, Tables, and Knowledge may persist their last-used filter/sort snapshot through
+`useResourceListPreferences`. This is a fallback preference, not a second live source of truth:
+
+- nuqs remains authoritative while the module is open.
+- Zustand is consulted once on a clean module entry, after persisted state hydrates.
+- An explicit URL filter/sort parameter wins even when it resolves to the module default. The
+  complete resolved URL snapshot becomes the remembered value; omitted fields use URL defaults
+  rather than merging with storage.
+- Explicit filter/sort gestures commit the same complete snapshot to nuqs and Zustand together.
+- Never mirror subsequent URL changes with a synchronization effect or `popstate` listener.
+- Search and folder navigation remain URL-only and are excluded from the persisted snapshot.
 
 ## Per-feature `search-params.ts` — single source of truth
 
@@ -65,7 +71,7 @@ Conventions:
 ### Example — grouped filters (single source of truth)
 
 ```typescript
-// apps/sim/app/workspace/[workspaceId]/things/search-params.ts
+// apps/sim/app/workspace/[workspaceId]/<feature>/search-params.ts
 import { parseAsArrayOf, parseAsString, parseAsStringLiteral } from 'nuqs/server'
 
 const VIEW_MODES = ['list', 'grid'] as const
@@ -91,7 +97,7 @@ export const thingsUrlKeys = {
 'use client'
 
 import { useQueryStates } from 'nuqs'
-import { thingsParsers, thingsUrlKeys } from '@/app/workspace/[workspaceId]/things/search-params'
+import { thingsParsers, thingsUrlKeys } from '@/app/workspace/[workspaceId]/<feature>/search-params'
 
 export function useThingFilters() {
   const [filters, setFilters] = useQueryStates(thingsParsers, thingsUrlKeys)
@@ -114,7 +120,7 @@ When a Server Component or loader must read a param, build a cache from the **sa
 ```typescript
 // in a server component / page.tsx
 import { createSearchParamsCache } from 'nuqs/server'
-import { thingsParsers } from '@/app/workspace/[workspaceId]/things/search-params'
+import { thingsParsers } from '@/app/workspace/[workspaceId]/<feature>/search-params'
 
 const thingsCache = createSearchParamsCache(thingsParsers)
 

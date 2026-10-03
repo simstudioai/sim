@@ -1,3 +1,4 @@
+import { serializePrincipal, type WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
@@ -5,6 +6,7 @@ import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attr
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import { isAsyncJobEnqueueError } from '@/lib/core/async-jobs/types'
 import { toTriggerMaxDurationSeconds } from '@/lib/core/execution-limits'
+import { captureRequestAttribution } from '@/lib/core/utils/request-attribution'
 import { WORKFLOW_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/execution-job-ids'
 import { executeWorkflowJob, type WorkflowExecutionPayload } from '@/background/workflow-execution'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
@@ -22,6 +24,7 @@ export {
 export interface EnqueueWorkflowExecutionParams {
   requestId: string
   workflowId: string
+  principal: WorkflowExecutionPrincipal
   userId: string
   billingAttribution: BillingAttributionSnapshot
   workspaceId: string
@@ -69,6 +72,7 @@ export async function enqueueWorkflowExecution(
   const {
     requestId,
     workflowId,
+    principal,
     userId,
     billingAttribution,
     workspaceId,
@@ -102,6 +106,7 @@ export async function enqueueWorkflowExecution(
 
   const payload: WorkflowExecutionPayload = {
     workflowId,
+    principal: serializePrincipal(principal),
     userId,
     billingAttribution,
     workspaceId,
@@ -112,6 +117,7 @@ export async function enqueueWorkflowExecution(
     requestId,
     correlation,
     callChain,
+    attribution: captureRequestAttribution(),
     enforceCredentialAccess,
     isPublicApiAccess,
     executionMode: 'async',

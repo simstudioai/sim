@@ -1,13 +1,18 @@
+import type { Principal } from '@sim/auth/principal'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
+import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { isSupportedFileType } from '@/lib/file-parsers'
+import { getFileParserErrorCode } from '@/lib/file-parsers/errors'
 import {
-  type ActiveWorkspaceFileContext,
   fetchWorkspaceFileBuffer,
-  getWorkspaceFile,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
+import {
+  getBoundWorkspaceFileSecretProvenance,
+  type WorkspaceFileSecretProvenance,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   formatFileSize,
   getFileExtension,
@@ -15,14 +20,36 @@ import {
   needsRenderedArtifact,
 } from '@/lib/uploads/utils/file-utils'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
+import {
+  hasWorkspaceFileDeliveryObserver,
+  reportWorkspaceFileDelivery,
+} from '@/lib/workspace-files/application/file-delivery-observer'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveRenderedWorkspaceArtifact } from '@/lib/workspace-files/application/resolve-rendered-workspace-artifact'
-import { resolveActiveWorkspaceFileContext } from '@/lib/workspace-files/application/workspace-file-context'
+import {
+  type ReferencedWorkspaceFileContext,
+  resolveReferencedWorkspaceFileContext,
+} from '@/lib/workspace-files/application/resolve-workspace-file-reference'
+import { parseWorkspaceFileText } from '@/lib/workspace-files/text-extraction'
+import { workspaceFileTextFormat } from '@/lib/workspace-files/text-format'
+import { sliceFileTextLines } from '@/lib/workspace-files/text-lines'
 
 export interface ReadWorkspaceFileTextInput {
-  fileId: string
-  assertedWorkspaceId?: string
+  /** Workspace the reference is resolved in. */
+  workspaceId: string
+  /** File id, or its VFS path: `files/<folder>/<name>`, or `uploads/<name>` for a chat upload. */
+  reference: string
+  /** Internal Mothership upload namespace, absent from public request contracts. */
+  chatId?: string
   maxBytes?: number
+  /** First line to return, 1-based. Absent starts at the first line. */
+  offset?: number
+  /** How many lines to return from `offset`. Absent reads to the end. */
+  limit?: number
+  /** Private classification for runtime consumers, omitted from ordinary API reads. */
+  includeSecretProvenance?: boolean
+  /** Internal agent reads can decode plain source files identified by their MIME type. */
+  allowPlainText?: boolean
 }
 
 export interface ReadWorkspaceFileTextResult {
@@ -31,14 +58,22 @@ export interface ReadWorkspaceFileTextResult {
   /** True when a parser limit stopped extraction before the input was exhausted. */
   truncated: boolean
   /**
-   * True when no real extraction happened and `text` is best-effort scraped
-   * bytes or a placeholder rather than the document's content. Surfaced rather
-   * than converted into an error because the legacy `doc`/`ppt` parsers
-   * deliberately never throw, and that behavior is characterization-tested.
+   * True when no real extraction happened and `text` is a placeholder rather
+   * than the document's content — today only an all-blank workbook. Legacy
+   * formats raise typed parser errors instead of degrading.
    */
   degraded: boolean
   degradedReason: string | null
   byteCount: number
+  /** Present when `offset` or `limit` narrowed `text` to a window. */
+  lineRange?: {
+    offset: number
+    lineCount: number
+    totalLines: number
+    /** False when extraction was truncated, so `totalLines` is not the file's end. */
+    totalLinesExact: boolean
+  }
+  secretProvenance?: WorkspaceFileSecretProvenance
 }
 
 /**
@@ -48,33 +83,73 @@ export interface ReadWorkspaceFileTextResult {
  * before any bytes are fetched. It is NOT authoritative for a generation source,
  * which is why that path is bounded by the artifact ceiling instead.
  */
-async function readSourceBuffer(file: WorkspaceFileRecord, maxBytes: number): Promise<Buffer> {
+async function readSourceBuffer(
+  file: WorkspaceFileRecord,
+  maxBytes: number,
+  signal?: AbortSignal
+): Promise<Buffer> {
   if (file.size > maxBytes) {
+    /**
+     * Sizes render with `includeBytes` because a caller-supplied `maxBytes` is
+     * routinely under 1 KB, and the default formatting collapses every sub-1 KB
+     * value to "0 Bytes" — naming neither the real size nor the limit to raise.
+     */
     throw new OrchestrationError(
       'payload_too_large',
-      `"${file.name}" is ${formatFileSize(file.size)}, above the ${formatFileSize(maxBytes)} text-extraction limit; download the raw bytes with GET /api/v2/files/${file.id}`
+      `"${file.name}" is ${formatFileSize(file.size, { includeBytes: true })}, above the ${formatFileSize(maxBytes, { includeBytes: true })} text-extraction limit; download the raw bytes instead of extracting text`
     )
   }
-  return fetchWorkspaceFileBuffer(file, { maxBytes })
+  return fetchWorkspaceFileBuffer(file, { maxBytes, signal })
 }
 
 async function executeReadWorkspaceFileText({
   input,
   context,
   principal,
+  request,
 }: AuthorizedWorkspaceUseCaseContext<
   typeof fileOperations.readContent,
   ReadWorkspaceFileTextInput,
-  ActiveWorkspaceFileContext
+  ReferencedWorkspaceFileContext
 >): Promise<ReadWorkspaceFileTextResult> {
-  const file = await getWorkspaceFile(context.workspaceId, context.fileId, { throwOnError: true })
-  if (!file) throw new OrchestrationError('not_found', 'File not found')
+  const signal = request?.signal
+  signal?.throwIfAborted()
+  return extractWorkspaceFileRecordText(context.file, input, principal, signal)
+}
 
-  const extension = getFileExtension(file.name)
+/**
+ * Extracts the text of the bytes a record points at. Version reads pass a record whose key, size,
+ * and type describe a previous version, so both surfaces extract through one path.
+ */
+export async function extractWorkspaceFileRecordText(
+  file: WorkspaceFileRecord,
+  input: Pick<
+    ReadWorkspaceFileTextInput,
+    'maxBytes' | 'offset' | 'limit' | 'allowPlainText' | 'includeSecretProvenance'
+  >,
+  principal: Principal,
+  signal?: AbortSignal,
+  sourceProvenance?: WorkspaceFileSecretProvenance
+): Promise<ReadWorkspaceFileTextResult> {
+  const secretProvenance =
+    sourceProvenance ??
+    (input.includeSecretProvenance || hasWorkspaceFileDeliveryObserver()
+      ? await getBoundWorkspaceFileSecretProvenance(file.workspaceId, {
+          fileId: file.id,
+          key: file.key,
+          context: file.storageContext ?? 'workspace',
+          contentUpdatedAt: file.contentUpdatedAt ?? undefined,
+        })
+      : undefined)
+  await reportWorkspaceFileDelivery(secretProvenance)
+
+  const extension = input.allowPlainText
+    ? (workspaceFileTextFormat(file) ?? getFileExtension(file.name))
+    : getFileExtension(file.name)
   if (!isSupportedFileType(extension)) {
     throw new OrchestrationError(
       'validation',
-      `Text extraction is not supported for "${file.name}"; download the raw bytes with GET /api/v2/files/${file.id}`
+      `Text extraction is not supported for "${file.name}"; download the raw bytes instead of extracting text`
     )
   }
 
@@ -92,31 +167,35 @@ async function executeReadWorkspaceFileText({
     ? (
         await resolveRenderedWorkspaceArtifact(file, principal, {
           maxBytes,
+          signal,
           tooLargeMessage: (limit) =>
-            `"${file.name}" renders to more than ${limit}, above the text-extraction limit; download the raw bytes with GET /api/v2/files/${file.id}`,
+            `"${file.name}" renders to more than ${limit}, above the text-extraction limit; download the raw bytes instead of extracting text`,
         })
       ).buffer
-    : await readSourceBuffer(file, maxBytes)
-  const parsed = await parseFileText(content, extension, file.name)
+    : await readSourceBuffer(file, maxBytes, signal)
+  const parsed = await parseFileText(content, extension, file.name, signal)
   const metadata = parsed.metadata ?? {}
+
+  const truncated = metadata.truncated === true
+  const { text, lineRange } = sliceFileTextLines(
+    parsed.content,
+    input.offset,
+    input.limit,
+    truncated
+  )
 
   return {
     file,
-    text: parsed.content,
-    truncated: metadata.truncated === true,
+    text,
+    truncated,
     degraded: metadata.degraded === true,
     degradedReason: metadata.degraded === true ? (metadata.warning ?? null) : null,
     byteCount: content.byteLength,
+    ...(input.includeSecretProvenance && secretProvenance ? { secretProvenance } : {}),
+    ...(lineRange ? { lineRange } : {}),
   }
 }
 
-/**
- * Extracts a workspace file's text.
- *
- * Runs on `files.read_content` unchanged: extracting text reads exactly the
- * bytes that operation already authorizes, and turning them into text grants
- * no further reach. No audit is projected, matching the existing content read.
- */
 /**
  * Turns stored bytes into text without ever answering `500`.
  *
@@ -132,13 +211,29 @@ async function executeReadWorkspaceFileText({
  * well formed, it is the stored bytes that cannot become the representation
  * being asked for, and the caller needs to know that retrying will not help.
  */
-async function parseFileText(content: Buffer, extension: string, fileName: string) {
+export async function parseFileText(
+  content: Buffer,
+  extension: string,
+  fileName: string,
+  signal?: AbortSignal
+) {
+  signal?.throwIfAborted()
   if (content.byteLength === 0) {
     return { content: '', metadata: {} }
   }
   try {
-    return await parseBuffer(content, extension)
+    return await parseWorkspaceFileText(content, extension, {
+      maxTextBytes: MAX_TEXT_EXTRACTION_BYTES,
+      signal,
+    })
   } catch (error) {
+    signal?.throwIfAborted()
+    if (isPayloadSizeLimitError(error) || getFileParserErrorCode(error) === 'complexity_limit') {
+      throw new OrchestrationError(
+        'payload_too_large',
+        `"${fileName}" exceeds complete text extraction limits`
+      )
+    }
     throw new OrchestrationError(
       'conflict',
       `"${fileName}" could not be read as text: ${getErrorMessage(error, 'the stored bytes could not be parsed')}`
@@ -146,8 +241,20 @@ async function parseFileText(content: Buffer, extension: string, fileName: strin
   }
 }
 
+/**
+ * Extracts a workspace file's text.
+ *
+ * Runs on `files.read_content` unchanged: extracting text reads exactly the
+ * bytes that operation already authorizes, and turning them into text grants
+ * no further reach. No audit is projected, matching the existing content read.
+ *
+ * The file is addressed by reference rather than id so a chat upload — which no
+ * listing shows — is readable by the `uploads/<name>` path its upload notice
+ * names, and any file by the `files/…` path `glob` prints.
+ */
 export const readWorkspaceFileText = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.readContent,
-  resolveContext: ({ input }) => resolveActiveWorkspaceFileContext(input),
+  resolveContext: ({ principal, input }) =>
+    resolveReferencedWorkspaceFileContext(principal, input, { includeChatUploads: true }),
   execute: executeReadWorkspaceFileText,
 })

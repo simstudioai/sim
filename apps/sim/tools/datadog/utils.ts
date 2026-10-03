@@ -4,6 +4,7 @@ import type {
   SecuritySignalTriageData,
   UpdateSloParams,
 } from '@/tools/datadog/types'
+import { DATADOG_SITES } from '@/tools/datadog/types'
 
 /**
  * Builds a fully-qualified Datadog API URL for the caller's site/region.
@@ -11,7 +12,37 @@ import type {
  * `ddog-gov.com`, ...), so every request must be built from the configured site.
  */
 export function datadogApiUrl(site: DatadogSite | undefined, path: string): string {
-  return `https://api.${site || 'datadoghq.com'}${path}`
+  return `https://api.${resolveDatadogSite(site)}${path}`
+}
+
+/**
+ * Resolves the caller's `site` to one of Datadog's published regional hosts.
+ *
+ * `DatadogSite` is a compile-time union, so it constrains nothing at runtime: the
+ * value is interpolated into the request host, and every Datadog request carries
+ * `DD-API-KEY` and `DD-APPLICATION-KEY`. An unchecked value therefore decides where
+ * the workspace's Datadog credentials are sent — `evil.com` addresses `api.evil.com`,
+ * and `datadoghq.com@evil.com` addresses `evil.com` with the expected host as
+ * userinfo. The block renders `site` as a dropdown and the param is `user-only`, so
+ * neither the editor nor a model can reach this today; the check exists because the
+ * value survives in stored workflow state, which imports and programmatic edits write
+ * without passing through that dropdown.
+ *
+ * Typed `unknown` rather than `DatadogSite`: the declared type is exactly what this
+ * cannot trust, and a stored workflow can hand over a blank string or a non-string.
+ *
+ * @param site - The caller-supplied site, or `undefined`/blank for the default region.
+ * @returns The validated site host.
+ * @throws If the value is present but is not a published Datadog site.
+ */
+export function resolveDatadogSite(site: unknown): DatadogSite {
+  if (site === undefined || site === null || site === '') return 'datadoghq.com'
+  if (typeof site !== 'string' || !(DATADOG_SITES as readonly string[]).includes(site)) {
+    throw new Error(
+      `Datadog "site" must be one of ${DATADOG_SITES.join(', ')}, but was ${String(site)}`
+    )
+  }
+  return site as DatadogSite
 }
 
 /**

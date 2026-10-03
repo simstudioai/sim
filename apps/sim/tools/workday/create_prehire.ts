@@ -1,10 +1,10 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import type {
   WorkdayCreatePrehireParams,
   WorkdayCreatePrehireResponse,
 } from '@/tools/workday/types'
 
-export const createPrehireTool: ToolConfig<
+export const createPrehireTool: InternalToolConfig<
   WorkdayCreatePrehireParams,
   WorkdayCreatePrehireResponse
 > = {
@@ -71,13 +71,8 @@ export const createPrehireTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/workday/create-prehire',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => params,
+  operation: {
+    input: (params) => params,
   },
 
   transformResponse: async (response: Response) => {

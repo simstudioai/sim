@@ -1,9 +1,11 @@
 import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
+import { TABLE_ID_PARAM } from '@/tools/table/params'
+import { tableSuccess } from '@/tools/table/response'
 import type { TableRowInsertParams, TableRowResponse } from '@/tools/table/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const tableInsertRowTool: ToolConfig<TableRowInsertParams, TableRowResponse> = {
+export const tableInsertRowTool: InternalToolConfig<TableRowInsertParams, TableRowResponse> = {
   id: 'table_insert_row',
   name: 'Insert Row',
   description:
@@ -17,12 +19,7 @@ export const tableInsertRowTool: ToolConfig<TableRowInsertParams, TableRowRespon
   },
 
   params: {
-    tableId: {
-      type: 'string',
-      required: true,
-      description: 'Table ID',
-      visibility: 'user-only',
-    },
+    tableId: TABLE_ID_PARAM,
     data: {
       type: 'object',
       required: true,
@@ -31,23 +28,19 @@ export const tableInsertRowTool: ToolConfig<TableRowInsertParams, TableRowRespon
     },
   },
 
-  request: {
+  operation: {
     secretProvenance: {
       request: (params) => selectTableRowSecretProvenance([params.data]),
       response: { incomplete: 'propagate' },
     },
-    url: (params: TableRowInsertParams) => `/api/table/${params.tableId}/rows`,
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: TableRowInsertParams) => {
+    input: (params: TableRowInsertParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
         throw new Error('Workspace ID is required in execution context')
       }
 
       return {
+        tableId: params.tableId,
         data: params.data,
         workspaceId,
       }
@@ -58,13 +51,10 @@ export const tableInsertRowTool: ToolConfig<TableRowInsertParams, TableRowRespon
     const result = await response.json()
     const data = result.data || result
 
-    return {
-      success: true,
-      output: {
-        row: data.row,
-        message: data.message || 'Row inserted successfully',
-      },
-    }
+    return tableSuccess({
+      row: data.row,
+      message: data.message || 'Row inserted successfully',
+    })
   },
 
   outputs: {

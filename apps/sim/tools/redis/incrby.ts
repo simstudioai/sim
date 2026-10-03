@@ -1,7 +1,7 @@
 import type { RedisIncrbyParams, RedisIncrbyResponse } from '@/tools/redis/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const redisIncrbyTool: ToolConfig<RedisIncrbyParams, RedisIncrbyResponse> = {
+export const redisIncrbyTool: InternalToolConfig<RedisIncrbyParams, RedisIncrbyResponse> = {
   id: 'redis_incrby',
   name: 'Redis INCRBY',
   description: 'Increment the integer value of a key by a given amount in Redis.',
@@ -28,11 +28,8 @@ export const redisIncrbyTool: ToolConfig<RedisIncrbyParams, RedisIncrbyResponse>
     },
   },
 
-  request: {
-    url: '/api/tools/redis/execute',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       url: params.url,
       command: 'INCRBY',
       args: [params.key, params.increment],

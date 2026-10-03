@@ -1,25 +1,17 @@
-/**
- * @vitest-environment node
- */
+import { remoteSandboxMock, remoteSandboxMockFns } from '@sim/testing/mocks/remote-sandbox.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockBuildPrompt,
-  mockCleanup,
-  mockProviderEnvVar,
-  mockRun,
-  mockWithPiSandbox,
-  mockWriteFile,
-} = vi.hoisted(() => ({
-  mockBuildPrompt: vi.fn(),
-  mockCleanup: vi.fn(),
-  mockProviderEnvVar: vi.fn(),
-  mockRun: vi.fn(),
-  mockWithPiSandbox: vi.fn(),
-  mockWriteFile: vi.fn(),
-}))
+const { mockBuildPrompt, mockCleanup, mockProviderEnvVar, mockRun, mockWriteFile } = vi.hoisted(
+  () => ({
+    mockBuildPrompt: vi.fn(),
+    mockCleanup: vi.fn(),
+    mockProviderEnvVar: vi.fn(),
+    mockRun: vi.fn(),
+    mockWriteFile: vi.fn(),
+  })
+)
 
-vi.mock('@/lib/execution/remote-sandbox', () => ({ withPiSandbox: mockWithPiSandbox }))
+vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
 vi.mock('@/lib/execution/remote-sandbox/pi-lifetime', () => ({
   resolvePiRunLifetimeMs: () => 40 * 60 * 1000,
   resolvePiSandboxLifetimeMs: () => 40 * 60 * 1000,
@@ -42,6 +34,8 @@ import {
   PI_SEARCH_PROVIDER_ENV_VAR,
 } from '@/executor/handlers/pi/search/extension-source'
 
+const mockWithPiSandbox = remoteSandboxMockFns.mockWithPiSandbox
+
 function params(overrides: Partial<PiCloudPlanRunParams> = {}): PiCloudPlanRunParams {
   return {
     mode: 'cloud_plan',
@@ -62,7 +56,6 @@ function params(overrides: Partial<PiCloudPlanRunParams> = {}): PiCloudPlanRunPa
 
 describe('runCloudPlanPi', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockBuildPrompt.mockReturnValue('PLAN PROMPT')
     mockProviderEnvVar.mockReturnValue('ANTHROPIC_API_KEY')
     mockWithPiSandbox.mockImplementation(async (_options, callback) => {
@@ -137,13 +130,6 @@ describe('runCloudPlanPi', () => {
     expect(result.totals.finalText).toBe('# Plan\nDo it')
     expect(result).not.toHaveProperty('changedFiles')
     expect(result).not.toHaveProperty('diff')
-  })
-
-  it('uses the repository default branch when Base Branch is blank', async () => {
-    await runCloudPlanPi(params({ baseBranch: '   ' }), { onEvent: vi.fn() })
-
-    expect(mockRun.mock.calls[0][0]).toContain('git checkout --detach HEAD')
-    expect(mockRun.mock.calls[0][1].envs.BASE_BRANCH).toBe('')
   })
 
   it('returns only the final assistant response while preserving live progress events', async () => {

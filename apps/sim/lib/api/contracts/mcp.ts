@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 import { v2TimestampSchema } from '@/lib/api/contracts/v2/shared'
+import { MANAGED_MCP_CONNECTOR_IDS } from '@/lib/credential-groups/managed-mcp-connectors'
 import type { McpToolSchema, McpToolSchemaProperty } from '@/lib/mcp/types'
 
 const MAX_MCP_REFRESH_SERVER_IDS = 100
@@ -53,6 +54,7 @@ export const mcpTransportSchema = z.enum(['streamable-http'])
 const mcpTransportResponseSchema = mcpTransportSchema.catch('streamable-http')
 
 export const mcpAuthTypeSchema = z.enum(['none', 'headers', 'oauth'])
+export const managedMcpConnectorIdSchema = z.enum(MANAGED_MCP_CONNECTOR_IDS)
 
 const consecutiveFailuresSchema = z.preprocess(
   (value) => (typeof value === 'number' ? value : undefined),
@@ -96,7 +98,9 @@ export const mcpToolSchema = z.object({
   description: z.string().optional(),
   inputSchema: mcpToolInputSchema,
   serverId: z.string(),
+  canonicalServerId: z.string().optional(),
   serverName: z.string(),
+  managedConnectorId: managedMcpConnectorIdSchema.optional(),
 })
 
 export const storedMcpToolSchema = z.object({
@@ -111,6 +115,8 @@ export const storedMcpToolSchema = z.object({
 export const mcpServerSchema = z
   .object({
     id: z.string(),
+    canonicalServerId: z.string().optional(),
+    canonicalServerName: z.string().optional(),
     workspaceId: z.string(),
     name: z.string(),
     description: optionalStringFromNullableSchema,
@@ -143,9 +149,21 @@ export const mcpServerSchema = z
     deletedAt: optionalDateStringFromNullableSchema,
     oauthClientId: optionalStringFromNullableSchema,
     hasOauthClientSecret: z.boolean().optional(),
+    credentialGroupId: optionalStringFromNullableSchema,
+    managedConnectorId: z.preprocess(
+      (value) => (value === null ? undefined : value),
+      managedMcpConnectorIdSchema.optional()
+    ),
   })
   .passthrough()
 export type McpServer = z.output<typeof mcpServerSchema>
+
+export const managedMcpCatalogSchema = z.object({
+  servers: z.array(mcpServerSchema).max(500),
+  tools: z.array(mcpToolSchema).max(500_000),
+})
+
+export type ManagedMcpCatalog = z.output<typeof managedMcpCatalogSchema>
 
 export const mcpWorkspaceQuerySchema = z.object({
   workspaceId: z.string().min(1),
@@ -170,6 +188,7 @@ export const createMcpServerBodySchema = z
     workspaceId: z.string().optional(),
     oauthClientId: z.string().nullable().optional(),
     oauthClientSecret: z.string().nullable().optional(),
+    managedConnectorId: z.never().optional(),
   })
   .passthrough()
 
@@ -219,16 +238,6 @@ export const mcpToolDiscoveryQuerySchema = z.object({
   refresh: z.string().optional(),
 })
 
-export const mcpToolExecutionBodySchema = z
-  .object({
-    serverId: z.string().min(1),
-    toolName: z.string().min(1),
-    arguments: z.record(z.string(), z.unknown()).optional(),
-    workflowId: z.string().optional(),
-  })
-  .passthrough()
-export type McpToolExecutionBody = z.input<typeof mcpToolExecutionBodySchema>
-
 export const mcpToolResultSchema = z
   .object({
     content: z.array(z.unknown()).optional(),
@@ -236,13 +245,6 @@ export const mcpToolResultSchema = z
     structuredContent: z.unknown().optional(),
   })
   .passthrough()
-
-export const mcpToolExecutionResultSchema = z.object({
-  success: z.boolean(),
-  output: mcpToolResultSchema.optional(),
-  error: z.string().optional(),
-})
-export type McpToolExecutionResult = z.output<typeof mcpToolExecutionResultSchema>
 
 export const mcpJsonRpcRequestSchema = z
   .object({
@@ -332,6 +334,16 @@ export const listMcpServersContract = defineRouteContract({
         servers: z.array(mcpServerSchema),
       })
     ),
+  },
+})
+
+export const listManagedMcpCatalogContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/mcp/managed-connections',
+  query: mcpWorkspaceQuerySchema,
+  response: {
+    mode: 'json',
+    schema: managedMcpCatalogSchema,
   },
 })
 export type ListMcpServersResponse = ContractJsonResponse<typeof listMcpServersContract>
@@ -433,17 +445,6 @@ export const testMcpServerConnectionContract = defineRouteContract({
     schema: mcpSuccessResponseSchema(mcpServerTestResultSchema),
   },
 })
-
-export const executeMcpToolContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/mcp/tools/execute',
-  body: mcpToolExecutionBodySchema,
-  response: {
-    mode: 'json',
-    schema: mcpSuccessResponseSchema(mcpToolExecutionResultSchema),
-  },
-})
-export type ExecuteMcpToolResponse = ContractJsonResponse<typeof executeMcpToolContract>
 
 export const startMcpOauthQuerySchema = z.object({
   serverId: z.string().min(1, 'serverId is required'),

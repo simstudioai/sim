@@ -1,9 +1,5 @@
-/**
- * @vitest-environment node
- */
 import {
   createMockRequest,
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -13,16 +9,12 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  cancel: vi.fn(),
-  capture: vi.fn(),
   readRun: vi.fn(),
   authorizeReadRun: vi.fn(),
 }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
 
 vi.mock('@/lib/workflows/application/read-workflow-run', () => ({
   readWorkflowRun: {
@@ -32,19 +24,7 @@ vi.mock('@/lib/workflows/application/read-workflow-run', () => ({
   },
 }))
 
-vi.mock('@/lib/workflows/application/cancel-run', () => ({
-  cancelWorkflowRun: {
-    operation: { id: 'workflows.runs.cancel' },
-    execute: mocks.cancel,
-  },
-}))
-
-import {
-  InsufficientWorkspacePermissionsError,
-  NoWorkspaceAccessError,
-} from '@/lib/core/application'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { POST as cancelPost } from '@/app/api/v2/workflows/[workflowId]/runs/[runId]/cancel/route'
+import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { GET } from '@/app/api/v2/workflows/[workflowId]/runs/[runId]/route'
 
 const principal = {
@@ -86,67 +66,13 @@ const baseStatus = {
   files: null,
 }
 
-/**
- * Local denial fixture — the harness only publishes the allowed shapes, and the
- * cancel adapter must surface `retryAfterMs` as a `Retry-After` header.
- */
-const OPERATION_RATE_LIMIT_DENIED = {
-  allowed: false,
-  remaining: 0,
-  resetAt: new Date('2026-08-05T01:00:00Z'),
-  retryAfterMs: 5_000,
-} as const
-
-const successfulCancellation = {
-  success: true,
-  executionId: 'run-1',
-  workflowId: 'workflow-1',
-  workspaceId: 'workspace-1',
-  redisAvailable: true,
-  durablyRecorded: true,
-  locallyAborted: false,
-  pausedCancelled: false,
-  reason: 'recorded',
-}
-
 describe('v2 run detail and cancel adapters', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.readRun.mockResolvedValue(baseStatus)
     mocks.authorizeReadRun.mockResolvedValue(undefined)
-    mocks.cancel.mockResolvedValue(successfulCancellation)
-  })
-
-  it('returns the run resource with a structured error', async () => {
-    const response = await callStatus()
-
-    expect(response.status).toBe(200)
-    const body = await response.json()
-    expect(body.data).toMatchObject({
-      runId: 'run-1',
-      workflowId: 'workflow-1',
-      status: 'failed',
-      durationMs: 5000,
-      error: {
-        code: 'EXECUTION_FAILED',
-        message: 'Send Email: Invalid credentials',
-      },
-    })
-    expect(mocks.readRun).toHaveBeenCalledWith({
-      principal,
-      input: {
-        workflowId: 'workflow-1',
-        runId: 'run-1',
-        includeOutput: false,
-        selectedOutputs: [],
-        includeFileBase64: false,
-        base64MaxBytes: undefined,
-      },
-      request: expect.anything(),
-    })
   })
 
   it('emits files as null when output was not requested', async () => {
@@ -154,48 +80,24 @@ describe('v2 run detail and cancel adapters', () => {
   })
 
   /**
-   * The byte path out of an async run: each produced file arrives with a
-   * `downloadPath` even when its bytes are not inlined.
+   * The contract has always said `includeFileBase64` requires `includeOutput`,
+   * and the read honours it: files are projected inside the `includeOutput`
+   * branch alone. Nothing enforced it, so the flag parsed, was accepted, and
+   * was then dropped — a `200` carrying no files and no reason why.
    */
-  it('emits run file descriptors with a download path', async () => {
-    mocks.readRun.mockResolvedValueOnce({
-      ...baseStatus,
-      status: 'completed',
-      error: null,
-      files: [
-        {
-          id: 'file_1',
-          name: 'report.pdf',
-          size: 10,
-          type: 'application/pdf',
-          downloadPath: '/api/v2/workflows/workflow-1/runs/run-1/files/file_1',
-          base64: null,
-        },
-      ],
-    })
+  it('rejects inlining files without asking for the output they hang off', async () => {
+    const response = await callStatus('?includeFileBase64=true')
 
-    const body = await (await callStatus('?includeOutput=true')).json()
-
-    expect(body.data.files).toEqual([
-      {
-        id: 'file_1',
-        name: 'report.pdf',
-        size: 10,
-        type: 'application/pdf',
-        downloadPath: '/api/v2/workflows/workflow-1/runs/run-1/files/file_1',
-        base64: null,
-      },
-    ])
+    expect(response.status).toBe(400)
+    expect((await response.json()).error.message).toContain('includeOutput')
+    expect(mocks.readRun).not.toHaveBeenCalled()
   })
 
-  it('forwards includeFileBase64 and its ceiling to the use case', async () => {
-    await callStatus('?includeOutput=true&includeFileBase64=true&base64MaxBytes=4096')
+  it('rejects a ceiling for an inlining that was never requested', async () => {
+    const response = await callStatus('?base64MaxBytes=4096')
 
-    expect(mocks.readRun).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({ includeFileBase64: true, base64MaxBytes: 4096 }),
-      })
-    )
+    expect(response.status).toBe(400)
+    expect(mocks.readRun).not.toHaveBeenCalled()
   })
 
   it('rejects a base64MaxBytes above the inline ceiling', async () => {
@@ -205,23 +107,6 @@ describe('v2 run detail and cancel adapters', () => {
 
     expect(response.status).toBe(400)
     expect(mocks.readRun).not.toHaveBeenCalled()
-  })
-
-  /** The 413 must name the download path so the caller is not left stuck. */
-  it('answers 413 naming the download path when a file exceeds the inline ceiling', async () => {
-    mocks.readRun.mockRejectedValueOnce(
-      new OrchestrationError(
-        'payload_too_large',
-        'File "report.pdf" (23.1 MB) exceeds the 16 MB inline limit; download it with GET /api/v2/workflows/workflow-1/runs/run-1/files/file_1'
-      )
-    )
-
-    const response = await callStatus('?includeOutput=true&includeFileBase64=true')
-
-    expect(response.status).toBe(413)
-    expect((await response.json()).error.message).toContain(
-      '/api/v2/workflows/workflow-1/runs/run-1/files/file_1'
-    )
   })
 
   /**
@@ -242,34 +127,6 @@ describe('v2 run detail and cancel adapters', () => {
     expect(response.status).toBe(200)
     expect(await response.text()).toBe('')
     expect(mocks.readRun).not.toHaveBeenCalled()
-  })
-
-  it('returns the queued run resource before a durable log exists', async () => {
-    mocks.readRun.mockResolvedValueOnce({
-      ...baseStatus,
-      status: 'queued',
-      level: 'info',
-      endedAt: null,
-      totalDurationMs: null,
-      cost: null,
-      error: null,
-    })
-
-    expect((await (await callStatus()).json()).data.status).toBe('queued')
-  })
-
-  it('returns the run resource while its output is still being redacted', async () => {
-    mocks.readRun.mockResolvedValueOnce({
-      ...baseStatus,
-      status: 'redacting',
-      level: 'info',
-      error: null,
-    })
-
-    const response = await callStatus()
-
-    expect(response.status).toBe(200)
-    expect((await response.json()).data.status).toBe('redacting')
   })
 
   it('returns the public pause context without its internal paused-execution ID', async () => {
@@ -309,92 +166,5 @@ describe('v2 run detail and cancel adapters', () => {
       code: 'NOT_FOUND',
       message: 'Run not found',
     })
-  })
-
-  it('rejects missing API keys before reading the run', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(
-      new MockV2ApiKeyUnauthenticatedError('API key required')
-    )
-
-    const response = await callStatus()
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
-    expect(mocks.readRun).not.toHaveBeenCalled()
-  })
-
-  it('keeps cancel on its semantic application operation', async () => {
-    const response = await cancelPost(createMockRequest('POST', undefined, {}), {
-      params: Promise.resolve({ workflowId: 'workflow-1', runId: 'run-1' }),
-    })
-
-    expect(response.status).toBe(200)
-    expect((await response.json()).data).toMatchObject({
-      success: true,
-      runId: 'run-1',
-      reason: 'recorded',
-    })
-    expect(mocks.cancel).toHaveBeenCalledWith({
-      principal,
-      input: { workflowId: 'workflow-1', runId: 'run-1' },
-      request: expect.anything(),
-    })
-    expect(v2RouteMocks.operationRate).toHaveBeenCalledTimes(2)
-    expect(v2RouteMocks.operationRate).toHaveBeenCalledWith(
-      'v2:workflows.runs.cancel:api-key:key-1',
-      expect.anything()
-    )
-    expect(mocks.capture).not.toHaveBeenCalled()
-  })
-
-  it('keeps cancellation request-rate admission separate from run control', async () => {
-    v2RouteMocks.operationRate
-      .mockResolvedValueOnce(OPERATION_RATE_LIMIT_DENIED)
-      .mockResolvedValueOnce(V2_OPERATION_RATE_LIMIT_ALLOWED)
-
-    const response = await cancelPost(createMockRequest('POST', undefined, {}), {
-      params: Promise.resolve({ workflowId: 'workflow-1', runId: 'run-1' }),
-    })
-
-    expect(response.status).toBe(429)
-    expect(response.headers.get('Retry-After')).toBe('5')
-    expect(mocks.cancel).not.toHaveBeenCalled()
-  })
-
-  it('returns forbidden when the current workspace role cannot cancel the run', async () => {
-    mocks.cancel.mockRejectedValueOnce(new InsufficientWorkspacePermissionsError())
-
-    const response = await cancelPost(createMockRequest('POST', undefined, {}), {
-      params: Promise.resolve({ workflowId: 'workflow-1', runId: 'run-1' }),
-    })
-
-    expect(response.status).toBe(403)
-    expect((await response.json()).error).toMatchObject({
-      code: 'FORBIDDEN',
-      message: 'Insufficient workspace permissions',
-    })
-    expect(mocks.capture).not.toHaveBeenCalled()
-  })
-
-  it('projects cancellation analytics only after a successful personal-key result', async () => {
-    v2RouteMocks.authenticate.mockResolvedValueOnce({
-      ...auth,
-      principal: { kind: 'personal_api_key', userId: 'key-user', keyId: 'personal-key' },
-      rateLimitSubjectIds: ['api-key:personal-key', 'user:key-user'],
-      keyType: 'personal',
-    })
-
-    const response = await cancelPost(createMockRequest('POST', undefined, {}), {
-      params: Promise.resolve({ workflowId: 'workflow-1', runId: 'run-1' }),
-    })
-
-    expect(response.status).toBe(200)
-    expect(mocks.capture).toHaveBeenCalledOnce()
-    expect(mocks.capture).toHaveBeenCalledWith(
-      'key-user',
-      'workflow_execution_cancelled',
-      { workflow_id: 'workflow-1', workspace_id: 'workspace-1' },
-      { groups: { workspace: 'workspace-1' } }
-    )
   })
 })

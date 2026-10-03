@@ -2,9 +2,9 @@ import type {
   AppConfigListHostedConfigurationVersionsParams,
   AppConfigListHostedConfigurationVersionsResponse,
 } from '@/tools/appconfig/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listHostedConfigurationVersionsTool: ToolConfig<
+export const listHostedConfigurationVersionsTool: InternalToolConfig<
   AppConfigListHostedConfigurationVersionsParams,
   AppConfigListHostedConfigurationVersionsResponse
 > = {
@@ -58,11 +58,8 @@ export const listHostedConfigurationVersionsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/appconfig/list-hosted-configuration-versions',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,
