@@ -191,7 +191,7 @@ export const kalshiCreateOrderTool: ToolConfig<KalshiCreateOrderParams, KalshiCr
       const data = await response.json()
 
       if (!response.ok) {
-        handleKalshiError(data, response.status, 'create_order')
+        handleKalshiError(data, 'create_order')
       }
 
       return {
@@ -461,7 +461,7 @@ export const kalshiCreateOrderV2Tool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      handleKalshiError(data, response.status, 'create_order_v2')
+      handleKalshiError(data, 'create_order_v2')
     }
 
     const order = data.order || {}

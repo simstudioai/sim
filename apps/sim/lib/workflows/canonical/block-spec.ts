@@ -2,6 +2,9 @@ import type { CanonicalFieldSpec } from '@/lib/workflows/canonical/subblock-valu
 import { getBlock } from '@/blocks'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
+import { getTrigger } from '@/triggers'
+import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
+import { resolveBlockTriggerId } from '@/triggers/webhook-url'
 
 /** The declared shape of one block type, indexed for O(1) lookup per subblock. */
 export interface CanonicalBlockSpec {
@@ -18,7 +21,7 @@ interface BlockSpecVariants {
 /**
  * Keyed on the config's identity rather than its block type, because `getBlock`
  * falls back to the custom-block overlay, whose configs are replaced at runtime.
- * A type-keyed cache would keep serving a published block's old field defaults
+ * A type-keyed cache would keep serving a published block's old field shapes
  * after an update; keying on identity re-derives when the object is swapped and
  * lets the old entry be collected. Built-in configs are module-scope singletons,
  * so they resolve to one stable entry for the life of the process.
@@ -35,11 +38,8 @@ function isTriggerDeclaration(subBlock: SubBlockConfig): boolean {
  * A subblock id can be declared twice on the same block, once for its action
  * form and once for its trigger form — Gmail declares `includeAttachments` as an
  * unconditioned action switch and, via the spread of its poller's subblocks, as
- * a trigger switch defaulting to `false`. Only one of them governs the value
- * being compared, so the declaration matching the block's mode wins and mere
- * declaration order does not decide it. Taking the first declaration made the
- * trigger's default invisible, and the round-trip property test caught it on
- * seven blocks.
+ * a trigger switch. The declaration matching the block's mode governs shaping;
+ * deployment defaults are resolved separately from the selected trigger.
  */
 function buildVariant(config: BlockConfig, preferTrigger: boolean): CanonicalBlockSpec {
   const fields = new Map<string, CanonicalFieldSpec>()
@@ -56,7 +56,6 @@ function buildVariant(config: BlockConfig, preferTrigger: boolean): CanonicalBlo
     if (matches) matchedPreferredMode.add(subBlock.id)
     fields.set(subBlock.id, {
       type: subBlock.type,
-      defaultValue: subBlock.defaultValue,
       emptyIsValid: subBlock.emptyIsValid,
     })
   }
@@ -67,10 +66,10 @@ function buildVariant(config: BlockConfig, preferTrigger: boolean): CanonicalBlo
 /**
  * Resolves the declared field specs governing a block's stored values.
  *
- * Returns `undefined` for a type the registry does not know (a deleted custom
- * block, a state written by a newer version). Callers must treat that as "no
- * declared defaults", which degrades the canonical form to blank-collapsing
- * only — never to reporting a change it would otherwise have suppressed.
+ * Only the selected trigger's deployment fields carry implicit defaults:
+ * `buildProviderConfig` substitutes them when a field is unset. Action defaults
+ * initialize editor values but are not substituted by the serializer or executor.
+ * Unknown block types have no declared spec.
  */
 export function resolveCanonicalBlockSpec(block: BlockState): CanonicalBlockSpec | undefined {
   const config = getBlock(block.type)
@@ -90,5 +89,20 @@ export function resolveCanonicalBlockSpec(block: BlockState): CanonicalBlockSpec
    * trigger-mode without the block carrying the flag.
    */
   const inTriggerMode = block.triggerMode === true || config.category === 'triggers'
-  return inTriggerMode ? variants.trigger : variants.action
+  const variant = inTriggerMode ? variants.trigger : variants.action
+  const triggerId = resolveBlockTriggerId(block)
+  if (!triggerId) return variant
+
+  const fields = new Map(variant.fields)
+  for (const subBlock of getTrigger(triggerId).subBlocks) {
+    if (!isTriggerDeclaration(subBlock) || SYSTEM_SUBBLOCK_IDS.includes(subBlock.id)) continue
+
+    fields.set(subBlock.id, {
+      type: subBlock.type,
+      defaultValue: subBlock.defaultValue,
+      emptyIsValid: subBlock.emptyIsValid,
+    })
+  }
+
+  return { fields }
 }

@@ -2,7 +2,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { MicrosoftSqlIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
-import type { MSSQLResponse } from '@/tools/mssql/types'
 
 const MSSQL_WAND_PROMPT = `You are an expert Microsoft SQL Server developer. Write T-SQL queries based on the user's request.
 
@@ -66,7 +65,7 @@ Return ONLY the SQL query. Do not include any explanations, markdown formatting,
 ### REMEMBER
 Return ONLY the SQL query - no explanations, no markdown, no extra text.`
 
-export const MSSQLBlock: BlockConfig<MSSQLResponse> = {
+export const MSSQLBlock: BlockConfig = {
   type: 'mssql',
   name: 'Microsoft SQL Server',
   description: 'Connect to Microsoft SQL Server database',

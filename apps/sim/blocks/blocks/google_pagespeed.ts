@@ -1,8 +1,7 @@
 import { GooglePagespeedIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { GooglePagespeedAnalyzeResponse } from '@/tools/google_pagespeed/types'
 
-export const GooglePagespeedBlock: BlockConfig<GooglePagespeedAnalyzeResponse> = {
+export const GooglePagespeedBlock: BlockConfig = {
   type: 'google_pagespeed',
   name: 'Google PageSpeed',
   description: 'Analyze webpage performance with Google PageSpeed Insights',

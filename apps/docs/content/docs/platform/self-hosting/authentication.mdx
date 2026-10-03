@@ -4,7 +4,6 @@ description: Login providers, SSO, and controlling who can sign up
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { FAQ } from '@/components/ui/faq'
 
 ## Required configuration
 
@@ -57,7 +56,7 @@ DISABLE_MICROSOFT_AUTH=true
 ```
 
 <Callout type="info">
-  `GOOGLE_CLIENT_ID` and `MICROSOFT_CLIENT_ID` are shared with the integration connectors. One app registration can serve both login and integrations — just register both sets of redirect URIs. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth).
+  `GOOGLE_CLIENT_ID` and `MICROSOFT_CLIENT_ID` are shared with the integration connectors. One app registration can serve both login and integrations — register that provider's own login callback — `/api/auth/callback/google` for Google, `/api/auth/callback/microsoft` for Microsoft — alongside the connector callbacks (`/api/auth/oauth2/callback/google-email` and friends) on the same OAuth client. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth).
 </Callout>
 
 ## SSO (SAML and OIDC)
@@ -76,9 +75,67 @@ SSO_ENABLED=true
 NEXT_PUBLIC_SSO_ENABLED=true
 ```
 
-Providers are then registered in the app under **Settings → Enterprise → Single Sign-On**. A provider can be scoped to an organization or registered without one. Most other enterprise features do read their settings from the organization that owns a workspace, so a deployment using them still needs an organization model — set `INSTANCE_ORG_NAME` to place every user in one shared organization, or provision organizations through the Admin API.
+Providers are then registered in the app under **Settings → Organization → SSO**. A provider can be scoped to an organization or registered without one. Most other enterprise features do read their settings from the organization that owns a workspace, so a deployment using them still needs an organization model — set `INSTANCE_ORG_NAME` to place every user in one shared organization, or provision organizations through the Admin API.
 
 See the [SSO guide](/platform/enterprise/sso) for identity-provider setup and the [self-hosted enterprise guide](/platform/enterprise/self-hosted) for the organization patterns.
+
+## Sign in with Sim
+
+Your deployment acts as an OAuth 2.0 authorization server using authorization
+code with PKCE. OAuth sign-in is available whenever authentication is enabled;
+see [CLI authentication](/cli/authentication).
+
+Apply database migrations before deploying a new app version. When upgrading
+from a version without the OAuth token-family lifecycle, drain older app
+instances before accepting OAuth traffic so every instance enforces the same
+refresh and revocation rules.
+
+`DISABLE_AUTH=true` disables OAuth sign-in and discovery because authorization
+requires a real Better Auth user session. Older servers without OAuth support
+return 404 from `/.well-known/oauth-authorization-server`, and the CLI falls
+back to the pairing-code handoff.
+
+Access tokens are opaque and last an hour; refresh tokens rotate on every use.
+Each login has a fixed thirty-day lifetime that refreshing does not extend.
+Token validation checks current grants, so revoking a grant under
+**Settings → General → Authorized apps** stops the app on its very next request.
+Scheduled OAuth token cleanup runs independently of sign-in activity.
+
+Organization admins can restrict **OAuth App Access** under **Credentials & Access**
+in [permission groups](/platform/enterprise/access-control). Workspace requests use
+the group governing that workspace. Authorizing apps, issuing and refreshing tokens,
+and account-level billing and audit reads use the organization's default group.
+**CLI Access** also applies to the Sim CLI. Members can still review and revoke
+existing grants when OAuth app access is restricted.
+
+### Registering an app
+
+Dynamic client registration is switched off, so clients are created by an
+operator. Both `db:migrate` and the development `db:push` command install the
+OAuth lifecycle triggers and register the Sim CLI. Repeating either command
+preserves existing grants and client customizations. Register other apps with:
+
+```bash
+DATABASE_URL=… \
+BETTER_AUTH_SECRET=… \
+OAUTH_CLIENT_ID=my-app \
+OAUTH_CLIENT_NAME="My App" \
+OAUTH_REDIRECT_URIS=https://my-app.example/callback \
+OAUTH_SCOPES=api:read \
+bun run apps/sim/scripts/create-oauth-client.ts
+```
+
+Add `OAUTH_CLIENT_PUBLIC=true` for a native or CLI app that cannot keep a
+secret; it then authenticates with PKCE alone. The provider exposes
+`offline_access`, `api:read`, and `api:write` for API authorization; it does not
+expose OpenID Connect identity scopes or issue ID tokens. A confidential
+client's secret is printed once and cannot be read back. Confidential clients
+use `client_secret_basic`; the registration command prints the token
+authentication method alongside the client ID.
+
+Redirect URIs must be `https`, or `http` on a loopback address, and are matched
+exactly — except a loopback URI, where any port matches, because a native app
+cannot know its port in advance.
 
 ## Controlling who can sign up
 
@@ -86,14 +143,16 @@ See the [SSO guide](/platform/enterprise/sso) for identity-provider setup and th
 |---|---|
 | `DISABLE_REGISTRATION=true` | Blocks all new accounts — email/password, email OTP, and social sign-in. Only existing accounts can sign in, including to accept a workspace invitation. SSO is unaffected |
 | `DISABLE_EMAIL_SIGNUP=true` | Blocks new email/password registrations; existing email login keeps working |
+| `EMAIL_PASSWORD_SIGNUP_ENABLED=false` | Disables the whole email path — sign-in, signup, and email OTP — for existing users too. Use `DISABLE_EMAIL_SIGNUP` to block only new accounts |
 | `ALLOWED_LOGIN_DOMAINS` | Comma-separated domain allowlist, e.g. `acme.com,acme.co.uk`. Gates email sign-**in** as well as signup |
 | `ALLOWED_LOGIN_EMAILS` | Comma-separated address allowlist, applied the same way |
 | `BLOCKED_SIGNUP_DOMAINS` | Comma-separated domain blocklist |
+| `BLOCKED_EMAILS` | Comma-separated address blocklist. Bans the address from the platform outright — signup, sign-in, and workflow executions |
 | `SIGNUP_MX_VALIDATION_ENABLED=true` | Reject domains with no MX record or a denylisted mail backend |
 | `BLOCKED_EMAIL_MX_HOSTS` | MX-host substrings to block; used only with the above |
 
 <Callout type="warn">
-  `ALLOWED_LOGIN_DOMAINS`, `ALLOWED_LOGIN_EMAILS`, and `SIGNUP_MX_VALIDATION_ENABLED` gate the **email/password** path only. A first-time sign-in through Google, GitHub, or Microsoft creates an account through the social provider and is not filtered by them. To restrict who may sign in through a social provider, disable the ones you have not vetted (`DISABLE_GOOGLE_AUTH`, `DISABLE_GITHUB_AUTH`, `DISABLE_MICROSOFT_AUTH`) or restrict membership at the identity provider and use SSO.
+  `ALLOWED_LOGIN_DOMAINS`, `ALLOWED_LOGIN_EMAILS`, and `SIGNUP_MX_VALIDATION_ENABLED` gate the **email/password** path only — and `SIGNUP_MX_VALIDATION_ENABLED` narrower still, running on email signup alone, not on email sign-in or email OTP. A first-time sign-in through Google, GitHub, or Microsoft creates an account through the social provider and is not filtered by them. To restrict who may sign in through a social provider, disable the ones you have not vetted (`DISABLE_GOOGLE_AUTH`, `DISABLE_GITHUB_AUTH`, `DISABLE_MICROSOFT_AUTH`) or restrict membership at the identity provider and use SSO.
 
   `DISABLE_REGISTRATION` and `BLOCKED_SIGNUP_DOMAINS` apply to every path, social included.
 </Callout>
@@ -140,10 +199,3 @@ Bypasses authentication and creates an anonymous session for every request.
 | `ADMIN_API_KEY` | Enables the Admin API for GitOps operations and organization provisioning |
 
 The `NEXT_PUBLIC_` twin controls what the UI shows; the server-side variable enforces it. Set both.
-
-<FAQ items={[
-  { question: "Sign-in redirects in a loop. What is wrong?", answer: "BETTER_AUTH_URL or NEXT_PUBLIC_APP_URL does not match the origin users are browsing. Both must be the exact public URL including scheme, with no trailing slash. This is the single most common authentication misconfiguration."},
-  { question: "Realtime rejects my session even though I am logged in.", answer: "BETTER_AUTH_SECRET differs between the app and realtime services. They share sessions through the database, so the secret must be byte-identical on both."},
-  { question: "Can I use one Google app for both login and the Gmail integration?", answer: "Yes. GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET power both. Register the login callback (/api/auth/callback/google) alongside the connector callbacks (/api/auth/oauth2/callback/google-email and friends) on the same OAuth client."},
-  { question: "Why do some settings have a NEXT_PUBLIC_ twin?", answer: "The server-side variable enforces the behavior; the NEXT_PUBLIC_ variable tells the browser UI what to render. Setting only one produces a UI that disagrees with the server, so set both." },
-]} />

@@ -5,6 +5,7 @@ import {
   MIN_CHAT_HEIGHT,
   MIN_CHAT_WIDTH,
 } from '@/stores/chat/utils'
+import { CONTENT_WINDOW_GAP } from '@/stores/constants'
 
 interface UseFloatResizeProps {
   position: { x: number; y: number }
@@ -40,9 +41,6 @@ type ResizeDirection =
  * Edge detection threshold in pixels (matches sidebar/panel resize handle width)
  */
 const EDGE_THRESHOLD = 8
-
-/** Inset gap between the viewport edge and the content window */
-const CONTENT_WINDOW_GAP = 8
 
 /**
  * Hook for handling multi-directional resize functionality of floating panels.

@@ -5,6 +5,7 @@ import type { CompetitorProfile } from '@/lib/compare/data/types'
 export const langchainProfile: CompetitorProfile = {
   id: 'langchain',
   name: 'LangChain',
+  mentions: ['LangChain', 'LangGraph'],
   website: 'https://www.langchain.com',
   isWorkflowBuilder: false,
   brand: {

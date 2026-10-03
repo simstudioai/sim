@@ -25,7 +25,7 @@ export function classifyWorkflowCellTerminalResult(
     if (timeout.timedOut) {
       return {
         status: 'error',
-        error: getTimeoutErrorMessage(null, timeout.timeoutMs),
+        error: getTimeoutErrorMessage(timeout.timeoutMs),
       }
     }
     return { status: 'cancelled', error: 'Cancelled' }

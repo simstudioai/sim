@@ -1,4 +1,5 @@
 import {
+  FILE_SEARCH_CANDIDATE_LITERAL_CHARS,
   FILE_SEARCH_PATTERN_LITERAL_CAP,
   FILE_SEARCH_PATTERN_MAX_DEPTH,
   FILE_SEARCH_PATTERN_MAX_REPEAT,
@@ -26,6 +27,8 @@ export interface FileSearchRegexAnalysis {
   literals: string
   /** Whether `^` or `$` appears outside a character class. */
   anchored: boolean
+  /** Every match contains at least one of these literals; null means no safe prefilter. */
+  candidateLiterals: string[] | null
 }
 
 /**
@@ -44,6 +47,7 @@ interface LiteralGuarantee {
   suffix: string
   best: number
   zeroWidth: boolean
+  seeds: string[] | null
 }
 
 const EMPTY: LiteralGuarantee = {
@@ -52,6 +56,7 @@ const EMPTY: LiteralGuarantee = {
   suffix: '',
   best: 0,
   zeroWidth: true,
+  seeds: null,
 }
 
 const OPAQUE: LiteralGuarantee = {
@@ -60,6 +65,7 @@ const OPAQUE: LiteralGuarantee = {
   suffix: '',
   best: 0,
   zeroWidth: false,
+  seeds: null,
 }
 
 /** PostgreSQL bracket expressions, by the character that opens them after `[`. */
@@ -88,11 +94,7 @@ const POSTGRES_ONLY_ESCAPES: Record<string, string | null> = {
   Z: '$',
 }
 
-/**
- * A run is measured in characters, because that is what `pg_trgm` indexes. The
- * parser walks UTF-16 units, so an astral character arrives as two surrogate
- * atoms whose concatenation is one character — counting units would score it two.
- */
+/** PostgreSQL trigrams and fragment overlap count Unicode characters, not UTF-16 units. */
 function runLength(text: string): number {
   return [...text].length
 }
@@ -107,15 +109,11 @@ function boundedRun(text: string): number {
 }
 
 function head(text: string): string {
-  return text.length > FILE_SEARCH_PATTERN_LITERAL_CAP
-    ? text.slice(0, FILE_SEARCH_PATTERN_LITERAL_CAP)
-    : text
+  return [...text].slice(0, FILE_SEARCH_PATTERN_LITERAL_CAP).join('')
 }
 
 function tail(text: string): string {
-  return text.length > FILE_SEARCH_PATTERN_LITERAL_CAP
-    ? text.slice(text.length - FILE_SEARCH_PATTERN_LITERAL_CAP)
-    : text
+  return [...text].slice(-FILE_SEARCH_PATTERN_LITERAL_CAP).join('')
 }
 
 function literal(character: string): LiteralGuarantee {
@@ -125,7 +123,22 @@ function literal(character: string): LiteralGuarantee {
     suffix: character,
     best: runLength(character),
     zeroWidth: false,
+    seeds: seed(character),
   }
+}
+
+/** A three-character seed fits across the two-character fragment overlap. */
+function seed(text: string): string[] | null {
+  const characters = [...text]
+  return characters.length >= FILE_SEARCH_CANDIDATE_LITERAL_CHARS
+    ? [characters.slice(0, FILE_SEARCH_CANDIDATE_LITERAL_CHARS).join('')]
+    : null
+}
+
+function bestSeeds(...options: Array<string[] | null>): string[] | null {
+  let best: string[] | null = null
+  for (const option of options) if (option && (!best || option.length < best.length)) best = option
+  return best
 }
 
 /**
@@ -136,11 +149,17 @@ function literal(character: string): LiteralGuarantee {
 function concatenate(left: LiteralGuarantee, right: LiteralGuarantee): LiteralGuarantee {
   const joined = tail(left.suffix) + head(right.prefix)
   return {
-    exact: left.exact !== null && right.exact !== null ? head(left.exact + right.exact) : null,
+    exact:
+      left.exact !== null &&
+      right.exact !== null &&
+      runLength(left.exact + right.exact) <= FILE_SEARCH_PATTERN_LITERAL_CAP
+        ? left.exact + right.exact
+        : null,
     prefix: head(left.exact !== null ? left.exact + right.prefix : left.prefix),
     suffix: tail(right.exact !== null ? left.suffix + right.exact : right.suffix),
     best: Math.max(left.best, right.best, boundedRun(joined)),
     zeroWidth: left.zeroWidth && right.zeroWidth,
+    seeds: bestSeeds(left.seeds, right.seeds, seed(joined)),
   }
 }
 
@@ -149,29 +168,28 @@ function concatenate(left: LiteralGuarantee, right: LiteralGuarantee): LiteralGu
  * the weaker branch is the run of the alternation.
  */
 function alternate(left: LiteralGuarantee, right: LiteralGuarantee): LiteralGuarantee {
+  const leftPrefix = [...left.prefix]
+  const rightPrefix = [...right.prefix]
+  const leftSuffix = [...left.suffix]
+  const rightSuffix = [...right.suffix]
   let prefixLength = 0
-  while (
-    prefixLength < left.prefix.length &&
-    prefixLength < right.prefix.length &&
-    left.prefix[prefixLength] === right.prefix[prefixLength]
-  ) {
-    prefixLength += 1
-  }
+  while (prefixLength < leftPrefix.length && leftPrefix[prefixLength] === rightPrefix[prefixLength])
+    prefixLength++
   let suffixLength = 0
   while (
-    suffixLength < left.suffix.length &&
-    suffixLength < right.suffix.length &&
-    left.suffix[left.suffix.length - 1 - suffixLength] ===
-      right.suffix[right.suffix.length - 1 - suffixLength]
-  ) {
-    suffixLength += 1
-  }
+    suffixLength < leftSuffix.length &&
+    suffixLength < rightSuffix.length &&
+    leftSuffix[leftSuffix.length - 1 - suffixLength] ===
+      rightSuffix[rightSuffix.length - 1 - suffixLength]
+  )
+    suffixLength++
   return {
     exact: left.exact !== null && left.exact === right.exact ? left.exact : null,
-    prefix: left.prefix.slice(0, prefixLength),
-    suffix: suffixLength === 0 ? '' : left.suffix.slice(left.suffix.length - suffixLength),
+    prefix: leftPrefix.slice(0, prefixLength).join(''),
+    suffix: suffixLength === 0 ? '' : leftSuffix.slice(-suffixLength).join(''),
     best: Math.min(left.best, right.best),
     zeroWidth: left.zeroWidth && right.zeroWidth,
+    seeds: left.seeds && right.seeds ? [...new Set([...left.seeds, ...right.seeds])] : null,
   }
 }
 
@@ -203,6 +221,7 @@ function repeat(atom: LiteralGuarantee, min: number, max: number): LiteralGuaran
       suffix: tail(expanded),
       best: Math.min(FILE_SEARCH_PATTERN_LITERAL_CAP, runLength(atom.exact) * min),
       zeroWidth: false,
+      seeds: seed(expanded),
     }
   }
   /**
@@ -217,6 +236,7 @@ function repeat(atom: LiteralGuarantee, min: number, max: number): LiteralGuaran
     suffix: atom.suffix,
     best: Math.max(atom.best, acrossCopies),
     zeroWidth: atom.zeroWidth,
+    seeds: bestSeeds(atom.seeds, min >= 2 ? seed(tail(atom.suffix) + head(atom.prefix)) : null),
   }
 }
 
@@ -262,6 +282,7 @@ class FileSearchRegexParser {
       longestLiteralRun: guarantee.best,
       literals: this.literalCharacters.join(''),
       anchored: this.anchored,
+      candidateLiterals: guarantee.seeds,
     }
   }
 
@@ -347,9 +368,10 @@ class FileSearchRegexParser {
         `Unbalanced ")" at position ${this.index + 1} in the search pattern`
       )
     }
-    this.index += 1
-    this.literalCharacters.push(character as string)
-    return literal(character as string)
+    const codePoint = String.fromCodePoint(this.source.codePointAt(this.index)!)
+    this.index += codePoint.length
+    this.literalCharacters.push(codePoint)
+    return literal(codePoint)
   }
 
   private parseGroup(): LiteralGuarantee {

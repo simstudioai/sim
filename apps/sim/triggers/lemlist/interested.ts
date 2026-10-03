@@ -23,7 +23,7 @@ export const lemlistInterestedTrigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'lemlist_interested',
     triggerOptions: lemlistTriggerOptions,
-    setupInstructions: lemlistSetupInstructions('interested'),
+    setupInstructions: lemlistSetupInstructions(),
     extraFields: buildLemlistExtraFields('lemlist_interested'),
   }),
 

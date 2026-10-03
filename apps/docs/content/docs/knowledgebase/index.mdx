@@ -1,5 +1,5 @@
 ---
-title: Overview
+title: Knowledge Base
 description: A store of documents your agents can search by meaning.
 ---
 
@@ -22,6 +22,8 @@ When you upload a document, Sim processes it in the background:
 3. **Embed** each chunk as a vector so it can be matched by meaning, not just keywords.
 
 A document is searchable once its status reads `completed`. Open any document to view, edit, merge, or split its chunks.
+
+Every knowledge base records the embedding model and the vector width it was built with, and keeps them for its lifetime. Two bases built differently cannot be searched in one request — vectors are only comparable when they come from the same model at the same size — so search them separately, or rebuild one to match. On Sim Cloud every base uses `text-embedding-3-small` at 1,536 dimensions; self-hosted deployments choose both with [`KB_EMBEDDING_MODEL` and `EMBEDDING_OUTPUT_DIMS`](/platform/self-hosting/environment-variables), including models on their own Ollama.
 
 ## What you can upload
 
@@ -47,11 +49,6 @@ To keep a base in sync with an outside source like Google Drive, use a [connecto
 </Cards>
 
 <FAQ items={[
-  { question: "What file types are supported?", answer: "PDF, Word (DOC/DOCX), plain text (TXT), Markdown (MD), HTML, Excel (XLS/XLSX), PowerPoint (PPT/PPTX), CSV, JSON, and YAML files." },
-  { question: "Is there a file size limit?", answer: "Files can be up to 100 MB each, with best performance under 50 MB." },
-  { question: "Can I edit chunks after processing?", answer: "Yes. You can view, edit, merge, split, and add metadata to individual chunks once a document is processed." },
-  { question: "How does semantic search work?", answer: "Documents are embedded as vectors. When you search, your query is embedded too and compared against the document vectors to find conceptually similar content, even when the exact keywords don't match." },
   { question: "Does it support scanned PDFs?", answer: "Yes. With Azure or Mistral OCR configured, Sim extracts text from image-based and scanned PDF pages." },
   { question: "Can I search across multiple knowledge bases?", answer: "Each Knowledge block searches one knowledge base. Use multiple Knowledge blocks in a workflow to search across several." },
-  { question: "How do I control chunk size?", answer: "When you create a knowledge base, you can set the max chunk size (100 to 4,000 tokens), min chunk size (100 to 2,000 characters), and overlap (0 to 500 tokens). See chunking strategies for details." },
 ]} />

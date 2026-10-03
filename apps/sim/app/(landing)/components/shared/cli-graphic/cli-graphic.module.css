@@ -1,0 +1,209 @@
+.scene {
+  position: absolute;
+  inset: 0;
+  container-type: size;
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  isolation: isolate;
+  overflow: hidden;
+}
+.graph {
+  position: absolute;
+  left: 50%;
+  top: 18px;
+  width: 900px;
+  height: 280px;
+  transform: translateX(-50%);
+  transform-origin: top center;
+}
+.runIcon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  transform: translate(8px, 1px);
+}
+.windowDots {
+  display: flex;
+  gap: 6px;
+}
+.windowDots i {
+  width: 9px;
+  height: 9px;
+  background: var(--text-subtle);
+  border-radius: 50%;
+}
+.inputFlag {
+  padding-left: 16px;
+  animation: arguments 12s steps(20, end) infinite;
+}
+.response {
+  margin-top: 10px;
+  color: var(--text-secondary);
+}
+.response > span {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  white-space: nowrap;
+}
+.started {
+  margin: 0;
+  animation: response-first 12s steps(34, end) infinite;
+}
+.running {
+  animation: response-second 12s steps(33, end) infinite;
+}
+.completed {
+  animation: response-third 12s steps(37, end) infinite;
+}
+@keyframes response-first {
+  0%,
+  41%,
+  100% {
+    clip-path: inset(0 100% 0 0);
+  }
+  51%,
+  94% {
+    clip-path: inset(0);
+  }
+}
+@keyframes response-second {
+  0%,
+  52%,
+  100% {
+    clip-path: inset(0 100% 0 0);
+  }
+  62%,
+  94% {
+    clip-path: inset(0);
+  }
+}
+@keyframes response-third {
+  0%,
+  63%,
+  100% {
+    clip-path: inset(0 100% 0 0);
+  }
+  72%,
+  94% {
+    clip-path: inset(0);
+  }
+}
+
+.terminal {
+  position: absolute;
+  z-index: 10;
+  right: 16px;
+  bottom: 16px;
+  left: 16px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+  box-shadow: var(--shadow-medium);
+}
+
+.titlebar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-1);
+}
+
+.transcript {
+  padding: 16px;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 20px;
+}
+
+.command,
+.arguments {
+  display: block;
+  white-space: nowrap;
+  clip-path: inset(0 0 0 0);
+}
+
+.command {
+  animation: command 12s steps(19, end) infinite;
+}
+
+.arguments {
+  width: max-content;
+  animation: arguments 12s steps(23, end) infinite;
+}
+
+.completed {
+  color: var(--text-primary);
+}
+
+@keyframes command {
+  0%,
+  8% {
+    clip-path: inset(0 100% 0 0);
+  }
+  24%,
+  94% {
+    clip-path: inset(0 0 0 0);
+  }
+  100% {
+    clip-path: inset(0 100% 0 0);
+  }
+}
+
+@keyframes arguments {
+  0%,
+  24% {
+    clip-path: inset(0 100% 0 0);
+  }
+  40%,
+  94% {
+    clip-path: inset(0 0 0 0);
+  }
+  100% {
+    clip-path: inset(0 100% 0 0);
+  }
+}
+
+@container (max-height: 350px) {
+  .graph {
+    top: 10px;
+    transform: translateX(-50%) scale(0.7);
+  }
+  .terminal {
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+  }
+  .titlebar {
+    padding: 0 10px;
+    gap: 6px;
+  }
+  .windowDots {
+    gap: 4px;
+  }
+  .windowDots i {
+    width: 7px;
+    height: 7px;
+  }
+  .transcript {
+    padding: 10px;
+    font-size: 10px;
+    line-height: 17px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scene *,
+  .scene *::after {
+    animation: none;
+  }
+}

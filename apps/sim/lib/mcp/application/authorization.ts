@@ -19,7 +19,8 @@ export const mcpServerExecutionDelegationPolicy = {
   isWithinScope: (
     principal: Extract<Principal, { kind: 'delegated' }>,
     context: McpServerContext
-  ) => principal.resourceScope?.mcpServerId === context.server.id,
+  ) =>
+    principal.serviceId === 'copilot' || principal.resourceScope?.mcpServerId === context.server.id,
 } satisfies WorkspaceDelegationPolicy<McpServerContext>
 
 /**

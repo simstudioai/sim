@@ -2,18 +2,28 @@ import { useEffect } from 'react'
 import { createLogger } from '@sim/logger'
 import type { QueryClient } from '@tanstack/react-query'
 import { useQueryClient } from '@tanstack/react-query'
-import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
-import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { suspendDesktopChatScopes } from '@/lib/desktop/chat-scope'
 import { createRotatingEventSource } from '@/lib/events/rotating-event-source'
-import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
+import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
+import {
+  type MothershipChatHistory,
+  type MothershipChatOwner,
+  mothershipChatKeys,
+} from '@/hooks/queries/mothership-chats'
 
 const logger = createLogger('MothershipChatEvents')
 
-/** Workspaces this process has subscribed to before, so a re-subscribe can be told from a first one. */
+/** Owner scopes this process subscribed to, so returning to a scope reconciles missed events. */
 const everSubscribed = new Set<string>()
 
-const CHAT_STATUS_TYPES = ['started', 'completed', 'created', 'deleted', 'renamed'] as const
+const CHAT_STATUS_TYPES = [
+  'started',
+  'completed',
+  'created',
+  'deleted',
+  'renamed',
+  'updated',
+] as const
 type ChatStatusEventType = (typeof CHAT_STATUS_TYPES)[number]
 const CHAT_STATUS_TYPE_SET = new Set<string>(CHAT_STATUS_TYPES)
 
@@ -22,12 +32,6 @@ interface ChatStatusEventPayload {
   type?: ChatStatusEventType
   streamId?: string
 }
-
-const DETAIL_INVALIDATING_CHAT_STATUS_TYPES = new Set<ChatStatusEventType>([
-  'started',
-  'completed',
-  'renamed',
-])
 
 function isChatStatusEventType(value: unknown): value is ChatStatusEventType {
   return typeof value === 'string' && CHAT_STATUS_TYPE_SET.has(value)
@@ -59,7 +63,6 @@ function shouldSkipDetailInvalidationForStreamEvent(
   current: MothershipChatHistory | undefined,
   payload: ChatStatusEventPayload
 ) {
-  if (payload.type !== 'started' && payload.type !== 'completed') return false
   if (!current?.activeStreamId) return false
   if (!payload.streamId) return isLocalOptimisticActiveStream(current)
   if (payload.type === 'started' && current.activeStreamId === payload.streamId) return true
@@ -98,7 +101,7 @@ function parseChatStatusEventPayload(data: unknown): ChatStatusEventPayload | nu
 
 export function handleMothershipChatStatusEvent(
   queryClient: Pick<QueryClient, 'getQueryData' | 'invalidateQueries' | 'removeQueries'>,
-  workspaceId: string,
+  owner: MothershipChatOwner,
   data: unknown
 ): void {
   const payload = parseChatStatusEventPayload(data)
@@ -107,9 +110,8 @@ export function handleMothershipChatStatusEvent(
     return
   }
 
-  // workspaceLists covers both the active and archived (Recently Deleted)
-  // lists: delete/restore events move chats between the two scopes.
-  queryClient.invalidateQueries({ queryKey: mothershipChatKeys.workspaceLists(workspaceId) })
+  /** Delete and restore move chats between active and archived owner lists. */
+  queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })
   if (!payload.chatId) return
   if (payload.type === 'deleted') {
     // A task may be deleted from another window, browser, or device. Stop its
@@ -119,17 +121,37 @@ export function handleMothershipChatStatusEvent(
     queryClient.removeQueries({ queryKey: mothershipChatKeys.detail(payload.chatId) })
     return
   }
-  if (payload.type === 'started' || payload.type === 'completed') {
-    const current = queryClient.getQueryData<MothershipChatHistory>(
-      mothershipChatKeys.detail(payload.chatId)
-    )
-    if (shouldSkipDetailInvalidationForStreamEvent(current, payload)) {
-      return
-    }
+  if (payload.type === 'renamed') {
+    /**
+     * The lists invalidated above carry the title every surface renders; the
+     * detail only needs marking stale, not a full transcript reload.
+     */
+    queryClient.invalidateQueries({
+      queryKey: mothershipChatKeys.detail(payload.chatId),
+      refetchType: 'none',
+    })
+    return
   }
-  if (payload.type && DETAIL_INVALIDATING_CHAT_STATUS_TYPES.has(payload.type)) {
-    queryClient.invalidateQueries({ queryKey: mothershipChatKeys.detail(payload.chatId) })
-  }
+  if (payload.type !== 'started' && payload.type !== 'completed') return
+  const current = queryClient.getQueryData<MothershipChatHistory>(
+    mothershipChatKeys.detail(payload.chatId)
+  )
+  if (shouldSkipDetailInvalidationForStreamEvent(current, payload)) return
+  /**
+   * A completion of the cached live stream only marks the detail stale. The
+   * server persists the turn before closing the stream, so a surface rendering
+   * it refetches through its own finalization; the live message alone cannot
+   * tell this tab's stream from a server-loaded mid-stream snapshot, so any
+   * other cached copy reloads the saved transcript on its next mount.
+   */
+  const completesCachedLiveStream =
+    payload.type === 'completed' &&
+    current?.activeStreamId === payload.streamId &&
+    isLocalOptimisticActiveStream(current)
+  queryClient.invalidateQueries({
+    queryKey: mothershipChatKeys.detail(payload.chatId),
+    ...(completesCachedLiveStream ? { refetchType: 'none' as const } : {}),
+  })
 }
 
 /**
@@ -149,9 +171,9 @@ export function handleMothershipChatStatusEvent(
  */
 export function resyncMothershipChatCaches(
   queryClient: Pick<QueryClient, 'invalidateQueries'>,
-  workspaceId: string
+  owner: MothershipChatOwner
 ): void {
-  queryClient.invalidateQueries({ queryKey: mothershipChatKeys.workspaceLists(workspaceId) })
+  queryClient.invalidateQueries({ queryKey: mothershipChatKeys.ownerLists(owner) })
 }
 
 /**
@@ -162,37 +184,46 @@ export function resyncMothershipChatCaches(
  * without the guard every session would hold an open connection to an endpoint
  * that cannot serve it.
  */
-export function useMothershipChatEvents(workspaceId: string | undefined) {
+export function useMothershipChatEvents(
+  owner: MothershipChatOwner | undefined,
+  chatEnabled: boolean
+) {
   const queryClient = useQueryClient()
+  const workspaceId = typeof owner === 'string' ? owner : undefined
+  const organizationId = typeof owner === 'object' ? owner.organizationId : undefined
 
   useEffect(() => {
-    if (!workspaceId || !isChatEnabled) return
+    if ((!workspaceId && !organizationId) || !chatEnabled) return
 
-    const isResubscribe = everSubscribed.has(workspaceId)
-    everSubscribed.add(workspaceId)
+    const eventOwner = organizationId ? { organizationId } : workspaceId!
+    const ownerParam = organizationId
+      ? `organizationId=${encodeURIComponent(organizationId)}`
+      : `workspaceId=${encodeURIComponent(workspaceId!)}`
+    const isResubscribe = everSubscribed.has(ownerParam)
+    everSubscribed.add(ownerParam)
     const connection = createRotatingEventSource({
-      url: `/api/mothership/events?workspaceId=${encodeURIComponent(workspaceId)}`,
+      url: `/api/mothership/events?${ownerParam}`,
       events: {
         task_status: (event) => {
           handleMothershipChatStatusEvent(
             queryClient,
-            workspaceId,
+            eventOwner,
             event instanceof MessageEvent ? event.data : undefined
           )
         },
       },
       onOpen: (reason) => {
         if (reason === 'reconnect' || (reason === 'initial' && isResubscribe)) {
-          resyncMothershipChatCaches(queryClient, workspaceId)
+          resyncMothershipChatCaches(queryClient, eventOwner)
         }
       },
       onError: () => {
-        logger.warn(`SSE connection error for workspace ${workspaceId}`)
+        logger.warn('Chat status SSE connection error')
       },
     })
 
     return () => {
       connection.close()
     }
-  }, [workspaceId, queryClient])
+  }, [workspaceId, organizationId, queryClient, chatEnabled])
 }

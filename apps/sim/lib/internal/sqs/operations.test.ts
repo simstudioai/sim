@@ -1,60 +1,61 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCreateSqsClient, mockDestroy, mockSendMessage } = vi.hoisted(() => ({
+const { mockCreateSqsClient, mockDestroy, mockSend } = vi.hoisted(() => ({
   mockCreateSqsClient: vi.fn(),
   mockDestroy: vi.fn(),
-  mockSendMessage: vi.fn(),
+  mockSend: vi.fn(),
 }))
 
 vi.mock('@/lib/internal/sqs/client', () => ({
   createSqsClient: mockCreateSqsClient,
-  sendMessage: mockSendMessage,
 }))
 
-import { executeSqsSend } from '@/lib/internal/sqs/operations'
+import {
+  executeSqsDeleteMessageBatch,
+  executeSqsListDeadLetterSourceQueues,
+} from '@/lib/internal/sqs/operations'
 
-const INPUT = {
+const CONNECTION = {
   region: 'us-east-1',
   accessKeyId: 'access-key',
   secretAccessKey: 'secret-key',
-  queueUrl: 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue',
-  data: { action: 'process' },
-  messageGroupId: 'group-1',
-  messageDeduplicationId: 'message-1',
 }
+
+const QUEUE_URL = 'https://sqs.us-east-1.amazonaws.com/123456789012/test-queue'
 
 describe('SQS operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mockCreateSqsClient.mockReturnValue({ destroy: mockDestroy })
+    mockCreateSqsClient.mockReturnValue({ send: mockSend, destroy: mockDestroy })
   })
 
-  it('forwards cancellation and destroys the AWS client after success', async () => {
-    const controller = new AbortController()
-    mockSendMessage.mockResolvedValue({ id: 'message-id' })
-
-    await expect(executeSqsSend(INPUT, controller.signal)).resolves.toEqual({
-      message: `Message sent to SQS queue ${INPUT.queueUrl}`,
-      id: 'message-id',
+  it('reports partial batch failures rather than throwing', async () => {
+    mockSend.mockResolvedValue({
+      Successful: [{ Id: 'msg-1' }],
+      Failed: [{ Id: 'msg-2', SenderFault: true, Code: 'ReceiptHandleIsInvalid' }],
     })
-    expect(mockSendMessage).toHaveBeenCalledWith(
-      { destroy: mockDestroy },
-      INPUT.queueUrl,
-      INPUT.data,
-      INPUT.messageGroupId,
-      INPUT.messageDeduplicationId,
-      controller.signal
-    )
-    expect(mockDestroy).toHaveBeenCalledOnce()
+
+    await expect(
+      executeSqsDeleteMessageBatch({
+        ...CONNECTION,
+        queueUrl: QUEUE_URL,
+        entries: [
+          { id: 'msg-1', receiptHandle: 'handle-1' },
+          { id: 'msg-2', receiptHandle: 'handle-2' },
+        ],
+      })
+    ).resolves.toMatchObject({
+      successful: [{ id: 'msg-1' }],
+      failed: [{ id: 'msg-2', senderFault: true, code: 'ReceiptHandleIsInvalid', message: null }],
+      successCount: 1,
+      failureCount: 1,
+    })
   })
 
-  it('destroys the AWS client when provider execution fails', async () => {
-    mockSendMessage.mockRejectedValue(new Error('provider failure'))
+  it('reads the lowercase queueUrls field ListDeadLetterSourceQueues returns', async () => {
+    mockSend.mockResolvedValue({ queueUrls: [QUEUE_URL], NextToken: 'next' })
 
-    await expect(executeSqsSend(INPUT)).rejects.toThrow('provider failure')
-    expect(mockDestroy).toHaveBeenCalledOnce()
+    await expect(
+      executeSqsListDeadLetterSourceQueues({ ...CONNECTION, queueUrl: QUEUE_URL })
+    ).resolves.toEqual({ queueUrls: [QUEUE_URL], nextToken: 'next', count: 1 })
   })
 })

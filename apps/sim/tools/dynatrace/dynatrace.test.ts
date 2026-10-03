@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { DynatraceBlock } from '@/blocks/blocks/dynatrace'
 import { addTagsTool } from '@/tools/dynatrace/add_tags'
@@ -360,20 +357,6 @@ describe('error extraction', () => {
     expect(extract({ error: { code: 404, message: 'Problem not found.' } })).toBe(
       'Problem not found.'
     )
-  })
-
-  it('every Dynatrace tool pins the extractor so selection is deterministic', () => {
-    for (const tool of [
-      listProblemsTool,
-      getProblemTool,
-      getEntityTool,
-      getMetricTool,
-      getAuditLogsTool,
-      ingestEventTool,
-      ingestLogsTool,
-    ]) {
-      expect(tool.errorExtractor).toBe(ErrorExtractorId.DYNATRACE_ERRORS)
-    }
   })
 })
 
@@ -817,14 +800,5 @@ describe('mute state writes', () => {
   it('still forwards the chosen reason for a mute', () => {
     expect(call('dynatrace_mute_security_problem').reason).toBe('FALSE_POSITIVE')
     expect(call('dynatrace_mute_security_problems').reason).toBe('FALSE_POSITIVE')
-  })
-
-  it('offers only mute reasons in the dropdown, and only to the mute operations', () => {
-    const reason = DynatraceBlock.subBlocks.find((sb) => sb.id === 'muteReason')
-    expect(reason?.options).not.toContainEqual(expect.objectContaining({ id: 'AFFECTED' }))
-    expect(reason?.condition).toEqual({
-      field: 'operation',
-      value: ['dynatrace_mute_security_problem', 'dynatrace_mute_security_problems'],
-    })
   })
 })

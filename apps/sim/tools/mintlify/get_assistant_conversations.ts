@@ -1,3 +1,4 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import type {
   MintlifyConversation,
   MintlifyGetAssistantConversationsParams,
@@ -9,7 +10,6 @@ import {
   mintlifyHeaders,
   pathSegment,
   readMintlifyJson,
-  toNullableString,
 } from '@/tools/mintlify/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -20,20 +20,20 @@ function toConversations(value: unknown): MintlifyConversation[] {
     const sources = Array.isArray(conversation.sources) ? conversation.sources : []
 
     return {
-      id: toNullableString(conversation.id),
-      timestamp: toNullableString(conversation.timestamp),
-      query: toNullableString(conversation.query),
-      response: toNullableString(conversation.response),
+      id: toStringOrNull(conversation.id),
+      timestamp: toStringOrNull(conversation.timestamp),
+      query: toStringOrNull(conversation.query),
+      response: toStringOrNull(conversation.response),
       sources: sources.map((entry) => {
         const source = (entry ?? {}) as Record<string, unknown>
         return {
-          title: toNullableString(source.title),
-          url: toNullableString(source.url),
+          title: toStringOrNull(source.title),
+          url: toStringOrNull(source.url),
         }
       }),
-      resolutionStatus: toNullableString(conversation.resolutionStatus),
-      queryCategory: toNullableString(conversation.queryCategory),
-      pageUrl: toNullableString(conversation.pageUrl),
+      resolutionStatus: toStringOrNull(conversation.resolutionStatus),
+      queryCategory: toStringOrNull(conversation.queryCategory),
+      pageUrl: toStringOrNull(conversation.pageUrl),
     }
   })
 }
@@ -109,7 +109,7 @@ export const mintlifyGetAssistantConversationsTool: ToolConfig<
       success: true,
       output: {
         conversations: toConversations(data.conversations),
-        nextCursor: toNullableString(data.nextCursor),
+        nextCursor: toStringOrNull(data.nextCursor),
         hasMore: data.hasMore === true,
       },
     }

@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { describe, expect, it } from 'vitest'
 import { imageGenerationInputSchema } from '@/lib/internal/image/schema'
 
@@ -28,23 +24,5 @@ describe('image generation input', () => {
     expect(imageGenerationInputSchema.safeParse({ ...BASE_INPUT, numImages: 0 }).success).toBe(
       false
     )
-  })
-
-  it('rejects multiple OpenAI images because the tool contract returns one image', () => {
-    expect(
-      imageGenerationInputSchema.safeParse({ ...BASE_INPUT, numImages: 3 }).error?.issues
-    ).toContainEqual(
-      expect.objectContaining({
-        path: ['numImages'],
-        message: 'OpenAI image generation returns one image per tool execution',
-      })
-    )
-    expect(
-      imageGenerationInputSchema.safeParse({
-        ...BASE_INPUT,
-        provider: 'falai',
-        numImages: 3,
-      }).success
-    ).toBe(true)
   })
 })

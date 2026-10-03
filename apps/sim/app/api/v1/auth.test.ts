@@ -1,16 +1,12 @@
-/**
- * @vitest-environment node
- */
-
-import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createWorkspaceApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   authenticateApiKey: vi.fn(),
   updateLastUsed: vi.fn(),
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({ isAuthDisabled: false }))
 vi.mock('@/lib/api-key/service', () => ({
   authenticateApiKeyFromHeader: mocks.authenticateApiKey,
   updateApiKeyLastUsed: mocks.updateLastUsed,
@@ -19,10 +15,6 @@ vi.mock('@/lib/api-key/service', () => ({
 import { authenticateV1Request } from '@/app/api/v1/auth'
 
 describe('v1 API key authentication', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('constructs a personal API-key Principal from canonical key identity', async () => {
     mocks.authenticateApiKey.mockResolvedValue({
       success: true,
@@ -33,7 +25,8 @@ describe('v1 API key authentication', () => {
 
     await expect(
       authenticateV1Request(
-        new NextRequest('http://localhost/api/v1/files', {
+        createMockRequest({
+          url: 'http://localhost/api/v1/files',
           headers: { 'x-api-key': 'secret' },
         })
       )
@@ -53,16 +46,13 @@ describe('v1 API key authentication', () => {
     })
 
     const result = await authenticateV1Request(
-      new NextRequest('http://localhost/api/v1/files', {
+      createMockRequest({
+        url: 'http://localhost/api/v1/files',
         headers: { 'x-api-key': 'secret' },
       })
     )
 
-    expect(result.principal).toEqual({
-      kind: 'workspace_api_key',
-      workspaceId: 'workspace-1',
-      keyId: 'key-1',
-    })
+    expect(result.principal).toEqual(createWorkspaceApiKeyPrincipal())
     expect(result.principal).not.toHaveProperty('userId')
   })
 
@@ -76,7 +66,8 @@ describe('v1 API key authentication', () => {
 
     await expect(
       authenticateV1Request(
-        new NextRequest('http://localhost/api/v1/files', {
+        createMockRequest({
+          url: 'http://localhost/api/v1/files',
           headers: { 'x-api-key': 'secret' },
         })
       )

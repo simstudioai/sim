@@ -13,7 +13,7 @@ const DEFAULT_CONTRACT_PATH = resolve(
   ROOT,
   '../copilot/copilot/contracts/vfs-snapshot-v1.schema.json'
 )
-const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/copilot/generated/vfs-snapshot-v1.ts')
+const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/mothership/generated/vfs-snapshot-v1.ts')
 
 async function main() {
   const checkOnly = process.argv.includes('--check')

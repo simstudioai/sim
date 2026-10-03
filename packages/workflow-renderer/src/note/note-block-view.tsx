@@ -1017,7 +1017,7 @@ export function NoteBlockView({
                     }
                   }}
                   className={cn(
-                    'nodrag nopan nowheel h-7 w-full min-w-0 select-text border-none bg-transparent px-0 text-[17px] text-current caret-current outline-none focus-visible:outline-none',
+                    'nodrag nopan nowheel h-7 w-full min-w-0 select-text border-none bg-transparent px-0 text-[17px] text-current caret-current outline-hidden focus-visible:outline-hidden',
                     colorOption.selectionClassName,
                     !isEnabled && 'opacity-50'
                   )}
@@ -1029,7 +1029,7 @@ export function NoteBlockView({
                   onPointerDown={(event) => recordEditPointerStart(event, 'title')}
                   onClick={(event) => startEditing(event, 'title')}
                   className={cn(
-                    'min-w-0 flex-1 cursor-text rounded-sm bg-transparent text-left outline-offset-1 focus-visible:outline-2 focus-visible:outline-current/50',
+                    'min-w-0 flex-1 cursor-text rounded-sm bg-transparent text-left',
                     !isEnabled && 'opacity-50'
                   )}
                 >
@@ -1066,14 +1066,14 @@ export function NoteBlockView({
                           'absolute inset-0 size-[14px] transition-[opacity,scale,filter] duration-200 [transition-timing-function:cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none',
                           isExpanded
                             ? 'scale-[0.25] opacity-0 blur-[4px]'
-                            : 'scale-100 opacity-100 blur-0'
+                            : 'scale-100 opacity-100 blur-none'
                         )}
                       />
                       <ChevronsDownUp
                         className={cn(
                           'absolute inset-0 size-[14px] transition-[opacity,scale,filter] duration-200 [transition-timing-function:cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none',
                           isExpanded
-                            ? 'scale-100 opacity-100 blur-0'
+                            ? 'scale-100 opacity-100 blur-none'
                             : 'scale-[0.25] opacity-0 blur-[4px]'
                         )}
                       />
@@ -1180,7 +1180,7 @@ export function NoteBlockView({
                     aria-label='Edit note content'
                     onPointerDown={(event) => recordEditPointerStart(event, 'content')}
                     onClick={(event) => startEditing(event, 'content')}
-                    className='absolute inset-0 z-20 w-full cursor-text rounded-sm bg-transparent outline-offset-1 focus-visible:outline-2 focus-visible:outline-current/50'
+                    className='absolute inset-0 z-20 w-full cursor-text rounded-sm bg-transparent'
                   />
                 )}
                 <div

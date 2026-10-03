@@ -4,6 +4,7 @@ import {
   isPayloadSizeLimitError,
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
+import { decodeTextBuffer } from '@/lib/file-parsers/utils'
 import { MAX_FILE_SIZE as KB_DOCUMENT_MAX_BYTES } from '@/lib/uploads/utils/validation'
 import type { ExternalDocument } from '@/connectors/types'
 
@@ -338,11 +339,11 @@ function decodeCharacterReference(raw: string, code: number): string {
  * A false positive therefore does not merely pass text through untouched — it
  * deletes the bracketed span and flattens the document's line structure. Plain
  * text routinely contains angle brackets that are not markup: an email address
- * (`Reply from John <john@acme.com>`), a markdown autolink
+ * (`Reply from John <john@acme.com>`, or `<a@acme.com>`, whose name is a tag's), a markdown autolink
  * (`<https://acme.com>`), or a placeholder (`<redacted>`).
  */
 const HTML_TAG_PATTERN =
-  /<\/?(?:p|div|br|hr|ul|ol|li|h[1-6]|table|thead|tbody|tr|td|th|span|strong|em|b|i|u|a|code|pre|blockquote|img|figure)\b[^>]*>/i
+  /<\/?(?:p|div|br|hr|ul|ol|li|h[1-6]|table|thead|tbody|tr|td|th|span|strong|em|b|i|u|a|code|pre|blockquote|img|figure)(?=[\s/>])[^>]*>/i
 
 /**
  * Reports whether a value carries real HTML markup and is therefore worth routing
@@ -361,15 +362,25 @@ export function looksLikeHtml(value: string): boolean {
  * punctuation as numeric references, which previously reached the index verbatim.
  */
 export function htmlToPlainText(html: string): string {
-  const text = html
-    .replace(/<[^>]*>/g, ' ')
-    .replace(HTML_ENTITY_PATTERN, (raw: string, hex?: string, decimal?: string, named?: string) => {
+  return decodeHtmlEntities(html.replace(/<[^>]*>/g, ' '))
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * Decodes HTML character references without touching markup or whitespace. Use for text a
+ * provider HTML-escapes but does not mark up, such as Gmail message snippets.
+ */
+export function decodeHtmlEntities(text: string): string {
+  return text.replace(
+    HTML_ENTITY_PATTERN,
+    (raw: string, hex?: string, decimal?: string, named?: string) => {
       if (named !== undefined) return NAMED_ENTITIES[named] ?? raw
       if (hex !== undefined) return decodeCharacterReference(raw, Number.parseInt(hex, 16))
       if (decimal !== undefined) return decodeCharacterReference(raw, Number.parseInt(decimal, 10))
       return raw
-    })
-  return text.replace(/\s+/g, ' ').trim()
+    }
+  )
 }
 
 /**
@@ -416,7 +427,7 @@ const CONNECTOR_TEXT_EXTENSIONS = [
  * declaration, so a provider that omits or mislabels it cannot strand a PDF on
  * the non-OCR path.
  */
-const PIPELINE_PARSED_MIME_TYPES = new Map<string, string>([
+export const PIPELINE_PARSED_MIME_TYPES: ReadonlyMap<string, string> = new Map([
   ['pdf', 'application/pdf'],
   ['doc', 'application/msword'],
   ['docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
@@ -427,7 +438,6 @@ const PIPELINE_PARSED_MIME_TYPES = new Map<string, string>([
   ['xlsm', 'application/vnd.ms-excel.sheet.macroEnabled.12'],
   ['xlsb', 'application/vnd.ms-excel.sheet.binary.macroEnabled.12'],
   ['xltx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.template'],
-  ['ppt', 'application/vnd.ms-powerpoint'],
   ['pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
   ['pptm', 'application/vnd.ms-powerpoint.presentation.macroEnabled.12'],
   ['potx', 'application/vnd.openxmlformats-officedocument.presentationml.template'],
@@ -497,16 +507,18 @@ export function pipelineParsedMimeType(fileName: string): string | undefined {
  *
  * Only for formats that are already text — anything the shared parsers handle is
  * delivered to them verbatim instead, via {@link pipelineParsedMimeType}. HTML is
- * additionally reduced to plain text; everything else is a UTF-8 decode.
+ * additionally reduced to plain text; everything else is decoded with the shared
+ * BOM/UTF-8/Windows-1252 detection so a Latin-1 file never indexes as mojibake.
  */
 export function extractConnectorText(buffer: Buffer, fileName: string): string {
   const extension = connectorFileExtension(fileName)
+  const { text } = decodeTextBuffer(buffer)
 
   if (extension === 'html' || extension === 'htm') {
-    return htmlToPlainText(buffer.toString('utf8'))
+    return htmlToPlainText(text)
   }
 
-  return buffer.toString('utf8')
+  return text
 }
 
 /**
@@ -779,6 +791,36 @@ export function isPerMemberListing(syncContext: Record<string, unknown> | undefi
   return syncContext?.perMemberListing === true
 }
 
+function memberDocumentPrefix(syncContext: Record<string, unknown> | undefined): string {
+  const memberId = syncContext?.memberId
+  if (typeof memberId !== 'string' || !memberId.trim()) {
+    throw new Error('Per-member document identity requires a connector member ID')
+  }
+  return `member:${encodeURIComponent(memberId)}:`
+}
+
+/** Keeps credential-specific representations separate in the connector's shared document corpus. */
+export function memberDocumentId(
+  externalId: string,
+  syncContext: Record<string, unknown> | undefined
+): string {
+  return isPerMemberListing(syncContext)
+    ? `${memberDocumentPrefix(syncContext)}${externalId}`
+    : externalId
+}
+
+/** Refuses to hydrate another member's representation using the current member's credential. */
+export function sourceDocumentId(
+  externalId: string,
+  syncContext: Record<string, unknown> | undefined
+): string | null {
+  if (!isPerMemberListing(syncContext)) return externalId
+  const prefix = memberDocumentPrefix(syncContext)
+  return externalId.startsWith(prefix) && externalId.length > prefix.length
+    ? externalId.slice(prefix.length)
+    : null
+}
+
 /**
  * Whether a folder request that failed while walking a Microsoft Graph drive
  * can be left out of the listing: under a member's own token a descendant
@@ -806,39 +848,96 @@ export function isSkippableMicrosoftGraphFolderError(
  */
 export const CONNECTOR_TEXT_DOCUMENT_MAX_BYTES = 12 * 1024 * 1024
 
-const TRUNCATION_NOTICE = '[Truncated: the indexed text reached the size limit]'
+const TRAILING_TRUNCATION_NOTICE = '[Truncated: the indexed text reached the size limit]'
+const LEADING_TRUNCATION_NOTICE = '[Truncated: earlier text was left out to fit the size limit]'
 
 /**
- * Accumulates newline-joined text under a byte ceiling. A record is appended
- * whole or not at all, so a truncated document never ends mid-message, and the
- * output carries a notice when something was left out.
+ * Which end of the stream survives when it does not fit: `first` keeps what
+ * was pushed first and refuses the rest (a mail thread, whose root message is
+ * the context), `last` keeps what was pushed last and lets older records go
+ * (a chat transcript, whose newest messages are the ones people search for).
+ */
+export type BoundedLinesKeep = 'first' | 'last'
+
+interface BoundedRecord {
+  lines: string[]
+  bytes: number
+}
+
+function byteSize(lines: readonly string[]): number {
+  let size = 0
+  for (const line of lines) size += Buffer.byteLength(line, 'utf8') + 1
+  return size
+}
+
+/**
+ * Accumulates newline-joined text under a byte ceiling. A record is kept
+ * whole or not at all, so a truncated document never ends mid-message, and
+ * the output carries a notice where something was left out.
  */
 export class BoundedLines {
-  private readonly lines: string[] = []
-  private bytes = 0
+  private readonly pinned: string[] = []
+  private readonly records: BoundedRecord[] = []
+  private pinnedBytes = 0
+  private recordBytes = 0
   private truncated = false
 
-  constructor(private readonly maxBytes = CONNECTOR_TEXT_DOCUMENT_MAX_BYTES) {}
+  constructor(
+    private readonly maxBytes = CONNECTOR_TEXT_DOCUMENT_MAX_BYTES,
+    private readonly keep: BoundedLinesKeep = 'first'
+  ) {}
+
+  /** Lines that open the document and are never let go, such as its header; counted against the ceiling. */
+  pin(...lines: string[]): void {
+    this.pinned.push(...lines)
+    this.pinnedBytes += byteSize(lines)
+  }
+
+  /** Records currently kept. */
+  get count(): number {
+    return this.records.length
+  }
 
   /**
-   * Appends the lines together when they fit; otherwise marks the document
-   * truncated, appends nothing, and returns false so the caller stops.
+   * Appends the lines as one record and returns whether it was kept. Keeping
+   * the first, a record that does not fit is refused, and so is every later
+   * one, so a caller can stop. Keeping the last, a record is refused only when
+   * it cannot fit on its own, and appending it lets the oldest records go
+   * until the rest fits, so a caller carries on.
    */
   push(...lines: string[]): boolean {
-    if (this.truncated) return false
-    let size = 0
-    for (const line of lines) size += Buffer.byteLength(line, 'utf8') + 1
-    if (this.bytes + size > this.maxBytes) {
+    const bytes = byteSize(lines)
+    if (this.keep === 'first') {
+      if (this.truncated) return false
+      if (this.pinnedBytes + this.recordBytes + bytes > this.maxBytes) {
+        this.truncated = true
+        return false
+      }
+      this.records.push({ lines, bytes })
+      this.recordBytes += bytes
+      return true
+    }
+    if (this.pinnedBytes + bytes > this.maxBytes) {
       this.truncated = true
       return false
     }
-    this.lines.push(...lines)
-    this.bytes += size
+    this.records.push({ lines, bytes })
+    this.recordBytes += bytes
+    while (this.pinnedBytes + this.recordBytes > this.maxBytes) {
+      const oldest = this.records.shift()
+      if (!oldest) break
+      this.recordBytes -= oldest.bytes
+      this.truncated = true
+    }
     return true
   }
 
-  /** Joins the accepted lines, ending with the truncation notice when a push was refused. */
+  /** Joins the kept lines, with the truncation notice where records were left out. */
   join(): string {
-    return this.truncated ? [...this.lines, TRUNCATION_NOTICE].join('\n') : this.lines.join('\n')
+    const body = this.records.flatMap((record) => record.lines)
+    if (!this.truncated) return [...this.pinned, ...body].join('\n')
+    return this.keep === 'first'
+      ? [...this.pinned, ...body, TRAILING_TRUNCATION_NOTICE].join('\n')
+      : [...this.pinned, LEADING_TRUNCATION_NOTICE, ...body].join('\n')
   }
 }

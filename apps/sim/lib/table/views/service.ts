@@ -15,6 +15,7 @@ import { tableViews } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, asc, count, eq, ne, sql } from 'drizzle-orm'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import {
   buildColumnIdByName,
   getColumnId,
@@ -404,9 +405,7 @@ async function withTableViewsLock<T>(
 ): Promise<T> {
   return db.transaction(async (trx) => {
     await setTableTxTimeouts(trx)
-    await trx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_views:${tableId}`}, 0))`
-    )
+    await acquireAdvisoryXactLock(trx, 'user_table_views', `user_table_views:${tableId}`)
     return write(trx)
   })
 }
@@ -418,6 +417,12 @@ export interface CreateTableViewData {
   config: TableViewConfig
   userId: string
   columns: ColumnDefinition[]
+  /**
+   * Make the new view the table's default, demoting the previous default in the
+   * same transaction. The first view on a table is the default regardless — a
+   * table that has views always keeps one.
+   */
+  isDefault?: boolean
   /**
    * Whether to refuse a filter, sort, or column-layout reference naming no live
    * column. Set by the `/api/v2` surface only, whose caller authored the config
@@ -471,6 +476,21 @@ export async function createTableView(data: CreateTableViewData): Promise<TableV
       )
     }
 
+    // Demote before inserting — the partial unique index rejects a second
+    // default, and the views lock keeps a concurrent promote from interleaving.
+    if (data.isDefault === true && existingTotal > 0) {
+      await trx
+        .update(tableViews)
+        .set({ isDefault: false, updatedAt: new Date() })
+        .where(
+          and(
+            eq(tableViews.tableId, data.tableId),
+            eq(tableViews.workspaceId, data.workspaceId),
+            eq(tableViews.isDefault, true)
+          )
+        )
+    }
+
     const [created] = await trx
       .insert(tableViews)
       .values({
@@ -479,7 +499,7 @@ export async function createTableView(data: CreateTableViewData): Promise<TableV
         workspaceId: data.workspaceId,
         name,
         config,
-        isDefault: existingTotal === 0,
+        isDefault: data.isDefault === true || existingTotal === 0,
         createdBy: data.userId,
       })
       .returning()
@@ -519,9 +539,16 @@ export interface UpdateTableViewData {
  * The config is normalized inside the transaction, against the stored row, so
  * the references that row already carries stay writable — see
  * {@link normalizeViewConfigForStorage}.
+ *
+ * Every explicit default-state change contends with {@link createTableView}'s
+ * default-on-create path, so promotions and demotions serialize on the same
+ * per-table views lock. Plain patches (layout autosave, renames) touch only
+ * their own row and skip the lock.
  */
 export async function updateTableView(data: UpdateTableViewData): Promise<TableView | null> {
-  const outcome = await db.transaction(async (tx) => {
+  const runWrite = <T>(write: (trx: DbTransaction) => Promise<T>): Promise<T> =>
+    data.isDefault !== undefined ? withTableViewsLock(data.tableId, write) : db.transaction(write)
+  const outcome = await runWrite(async (tx) => {
     // Confirm the target exists BEFORE demoting. The demotion has to run first —
     // the partial unique index rejects a second default — but on a PATCH naming a
     // missing view the target update matches nothing, so without this the demote
@@ -667,86 +694,4 @@ export async function deleteTableView(
     signalTableViewsChanged(tableId)
   }
   return deleted
-}
-
-/**
- * All of a workspace's views in one query, keyed by tableId — the snapshot
- * materializer's shape (per-table listTableViews would be N queries). Configs
- * are returned RAW (id-domain, unpruned); callers translate/prune with each
- * table's own columns.
- */
-export async function listTableViewsByWorkspace(
-  workspaceId: string
-): Promise<Map<string, Array<typeof tableViews.$inferSelect>>> {
-  const rows = await db
-    .select()
-    .from(tableViews)
-    .where(eq(tableViews.workspaceId, workspaceId))
-    .orderBy(asc(tableViews.createdAt), asc(tableViews.id))
-  const byTable = new Map<string, Array<typeof tableViews.$inferSelect>>()
-  for (const row of rows) {
-    const list = byTable.get(row.tableId) ?? []
-    list.push(row)
-    byTable.set(row.tableId, list)
-  }
-  return byTable
-}
-
-function mapPredicateFields(
-  node: PredicateNode,
-  mapField: (field: string) => string
-): PredicateNode {
-  if ('all' in node) return { all: node.all.map((child) => mapPredicateFields(child, mapField)) }
-  if ('any' in node) return { any: node.any.map((child) => mapPredicateFields(child, mapField)) }
-  const leaf = node as Predicate
-  return { ...leaf, field: mapField(leaf.field) }
-}
-
-/**
- * Stored (id-domain) view config → the column-NAME domain agents speak.
- * Unknown ids pass through unchanged, mirroring pruneViewConfig's philosophy
- * for filters: surfacing a stale reference beats silently widening the view.
- */
-export function viewConfigIdsToNames(
-  config: TableViewConfig,
-  columns: ColumnDefinition[]
-): TableViewConfig {
-  const nameById = new Map(columns.map((col) => [getColumnId(col), col.name]))
-  const toName = (field: string) => nameById.get(field) ?? field
-  const out: TableViewConfig = { ...config }
-  if (config.filter) out.filter = mapPredicateFields(config.filter, toName) as typeof config.filter
-  if (config.sort) out.sort = config.sort.map((s) => ({ ...s, field: toName(s.field) }))
-  if (config.hiddenColumns) out.hiddenColumns = config.hiddenColumns.map(toName)
-  return out
-}
-
-/**
- * Agent-supplied (name-domain) view config → the id-domain stored shape.
- * Unknown column names are an error — a saved view with a dangling reference
- * is exactly the artifact this translation exists to prevent.
- */
-export function viewConfigNamesToIds(
-  config: TableViewConfig,
-  columns: ColumnDefinition[]
-): TableViewConfig {
-  const idByName = new Map(columns.map((col) => [col.name, getColumnId(col)]))
-  const unknown = new Set<string>()
-  const toId = (field: string) => {
-    const id = idByName.get(field)
-    if (!id) {
-      unknown.add(field)
-      return field
-    }
-    return id
-  }
-  const out: TableViewConfig = { ...config }
-  if (config.filter) out.filter = mapPredicateFields(config.filter, toId) as typeof config.filter
-  if (config.sort) out.sort = config.sort.map((s) => ({ ...s, field: toId(s.field) }))
-  if (config.hiddenColumns) out.hiddenColumns = config.hiddenColumns.map(toId)
-  if (unknown.size > 0) {
-    throw new TableViewValidationError(
-      `Unknown column(s): ${[...unknown].join(', ')}. Use exact column names from get_schema.`
-    )
-  }
-  return out
 }

@@ -1,3 +1,4 @@
+import { toRecord } from '@sim/utils/object'
 import type {
   JotformFormPropertiesResponse,
   JotformGetFormPropertiesParams,
@@ -5,7 +6,6 @@ import type {
 import {
   buildJotformHeaders,
   buildJotformUrl,
-  isRecord,
   parseJotformResponse,
   requireValue,
   trimOrUndefined,
@@ -70,7 +70,7 @@ export const getFormPropertiesTool: ToolConfig<
     return {
       success: true,
       output: {
-        properties: isRecord(envelope.content) ? envelope.content : {},
+        properties: toRecord(envelope.content),
       },
     }
   },

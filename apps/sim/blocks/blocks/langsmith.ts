@@ -1,9 +1,8 @@
 import { toError } from '@sim/utils/errors'
 import { LangsmithIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { LangsmithResponse } from '@/tools/langsmith/types'
 
-export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
+export const LangsmithBlock: BlockConfig = {
   type: 'langsmith',
   name: 'LangSmith',
   description: 'Forward workflow runs to LangSmith for observability',

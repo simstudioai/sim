@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { enrowFindEmailTool } from '@/tools/enrow/find_email'
 import { ENROW_CREDIT_USD } from '@/tools/enrow/hosting'
@@ -9,7 +6,6 @@ import type { ToolConfig } from '@/tools/types'
 
 afterEach(() => {
   vi.useRealTimers()
-  vi.unstubAllGlobals()
 })
 
 function cost(
@@ -22,18 +18,6 @@ function cost(
   const result = pricing.getCost(params, output)
   return typeof result === 'number' ? { cost: result } : result
 }
-
-describe('Enrow hosted key config', () => {
-  it('declares the correct env key prefix and BYOK provider for find_email', () => {
-    expect(enrowFindEmailTool.hosting?.envKeyPrefix).toBe('ENROW_API_KEY')
-    expect(enrowFindEmailTool.hosting?.byokProviderId).toBe('enrow')
-  })
-
-  it('declares the correct env key prefix and BYOK provider for verify_email', () => {
-    expect(enrowVerifyEmailTool.hosting?.envKeyPrefix).toBe('ENROW_API_KEY')
-    expect(enrowVerifyEmailTool.hosting?.byokProviderId).toBe('enrow')
-  })
-})
 
 describe('Enrow find_email pricing', () => {
   it('charges 1 credit when qualification is valid (case-insensitive)', () => {

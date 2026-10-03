@@ -1,9 +1,9 @@
 {
   "title": "Self-Hosting",
   "pages": [
-    "index",
     "architecture",
     "---Install---",
+    "reference-architectures",
     "docker",
     "kubernetes",
     "platforms",
@@ -17,6 +17,7 @@
     "background-jobs",
     "networking",
     "security",
+    "sandboxes",
     "verify",
     "desktop",
     "---Operate---",

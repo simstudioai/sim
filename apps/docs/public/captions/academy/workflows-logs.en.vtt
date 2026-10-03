@@ -1,0 +1,74 @@
+WEBVTT
+
+NOTE
+Automatic English captions. Generated locally and checked with additional audio decodes; not fully audited by listening.
+
+00:00:00.000 --> 00:00:05.740
+When a workflow runs, the output only
+tells you where it ended up. The log tells
+
+00:00:05.740 --> 00:00:10.360
+you how it got there. It shows which
+blocks ran, what each one received, what
+
+00:00:10.360 --> 00:00:15.360
+it returned, how long it took, where a
+value originally came from. That matters
+
+00:00:15.360 --> 00:00:19.600
+when something looks wrong because
+debugging a workflow usually means tracing
+
+00:00:19.600 --> 00:00:24.880
+one bad result backwards until you find
+the step that caused it. Let's take a look
+
+00:00:24.880 --> 00:00:30.500
+at a real run and read the log. Here's a
+workflow processing a support ticket. Four
+
+00:00:30.500 --> 00:00:35.180
+blocks start to finish. Every time a
+workflow runs, Sim records exactly what
+
+00:00:35.180 --> 00:00:37.300
+happened. That record is called a log.
+
+00:00:38.560 --> 00:00:43.360
+The log lists every block in the order it
+ran, along with its timing, so you can see
+
+00:00:43.360 --> 00:00:46.240
+exactly where the 12 seconds of this run
+were spent.
+
+00:00:48.820 --> 00:00:53.800
+Selecting a block shows everything it
+actually did. This agent made three tool
+
+00:00:53.800 --> 00:00:57.500
+calls, a customer lookup, and two
+knowledge searches, and the log records
+
+00:00:57.500 --> 00:01:03.220
+each call, along with the tokens it used.
+The log also shows where every value came
+
+00:01:03.220 --> 00:01:07.320
+from. This row was built from the
+function's result. The function read the
+
+00:01:07.320 --> 00:01:11.760
+agent's answer, and the agent read the
+customer's message. To debug a workflow,
+
+00:01:12.020 --> 00:01:16.540
+you read the log backwards from the wrong
+value step -by -step to its source.
+
+00:01:20.660 --> 00:01:25.480
+Every run produces a log automatically.
+When a workflow does something unexpected,
+
+00:01:25.800 --> 00:01:27.540
+the log is the first place to look.
