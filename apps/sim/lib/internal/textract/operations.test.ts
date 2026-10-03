@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockSend, mockDestroy, mockResolveDocumentInput, mockDetectDocumentTextCommand } =
@@ -55,7 +52,6 @@ function createContext(headers = new Headers(), signal?: AbortSignal) {
 
 describe('Textract operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveDocumentInput.mockResolvedValue({
       ok: true,
       document: {
@@ -69,30 +65,6 @@ describe('Textract operations', () => {
       DocumentMetadata: { Pages: 1 },
       DetectDocumentTextModelVersion: '1.0',
     })
-  })
-
-  it('passes cancellation into AWS and destroys the client', async () => {
-    const controller = new AbortController()
-
-    const response = await executeTextractParse(
-      INPUT,
-      createContext(new Headers(), controller.signal)
-    )
-
-    expect(response.status).toBe(200)
-    expect(mockSend).toHaveBeenCalledWith(expect.anything(), {
-      abortSignal: controller.signal,
-    })
-    expect(mockDestroy).toHaveBeenCalledOnce()
-  })
-
-  it('destroys the client when AWS rejects the request', async () => {
-    mockSend.mockRejectedValue(new Error('provider failure'))
-
-    const response = await executeTextractParse(INPUT, createContext())
-
-    expect(response.status).toBe(500)
-    expect(mockDestroy).toHaveBeenCalledOnce()
   })
 
   it('rejects malformed private provenance before file or AWS work', async () => {

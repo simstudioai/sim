@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,13 +21,15 @@ const { session, consent, settings, start, stop } = vi.hoisted(() => {
   }
 })
 
-vi.mock('@/lib/auth/auth-client', () => ({ useSession: () => session }))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 vi.mock('@/lib/consent/tracking-consent', () => ({ useTrackingConsent: () => consent }))
 vi.mock('@/hooks/queries/general-settings', () => ({ useGeneralSettings: () => settings }))
 vi.mock('@/lib/telemetry/browser', () => ({ startBrowserTelemetry: start }))
 
 import { setBrowserTelemetryPreference } from '@/lib/telemetry/browser-preference'
 import { BrowserTelemetry } from '@/app/_shell/providers/browser-telemetry'
+
+authClientMockFns.mockUseSession.mockImplementation(() => session)
 
 let root: Root
 let container: HTMLDivElement
@@ -53,7 +56,6 @@ afterEach(() => {
   settings.isError = false
   setBrowserTelemetryPreference(true)
   localStorage.clear()
-  vi.clearAllMocks()
 })
 
 describe('BrowserTelemetry permission boundary', () => {

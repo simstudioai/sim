@@ -1,9 +1,11 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
+import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { setRecordValue } from '@/lib/core/utils/records'
 import {
   getPersonalEnvCredentialMetadata,
   getWorkspaceEnvKeyAdminAccess,
@@ -16,16 +18,17 @@ import {
 import {
   deletePersonalSecret,
   deleteWorkspaceSecret,
-  readWorkspaceSecretValues,
   setPersonalSecret,
   setWorkspaceSecret,
   updateWorkspaceSecretMetadata,
 } from '@/lib/credentials/secret-values'
+import { getEffectiveEnvironmentSnapshot } from '@/lib/environment/utils'
 import { secretOperations } from '@/lib/secrets/application/operations'
 import { scanSecretReferences } from '@/lib/secrets/references/scan'
 import { getSecretUsage } from '@/lib/secrets/usage/queries'
 import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { createResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export type SecretScope = 'workspace' | 'personal'
 export type SecretSortBy = 'name' | 'createdAt' | 'updatedAt'
@@ -43,10 +46,8 @@ async function resolveWorkspaceContext(workspaceId: string): Promise<SecretWorks
   return context
 }
 
-function principalUserId(
-  principal: Extract<Principal, { kind: 'session' | 'personal_api_key' | 'oauth_access_token' }>
-): string {
-  return principal.userId
+function principalUserId(principal: Principal): string {
+  return requirePrincipalSubjectUserId(principal)
 }
 
 function credentialTypes(scope?: SecretScope) {
@@ -208,7 +209,7 @@ async function getPersonalSecretMetadata(params: {
   }
 }
 
-const authorizationOptions = {}
+const authorizationOptions = { delegation: { audience: 'sim:secrets', isWithinScope: () => true } }
 
 export interface ListSecretsInput {
   workspaceId: string
@@ -243,17 +244,26 @@ export const listSecretsUseCase = defineAuthorizedWorkspaceUseCase({
     })
     /**
      * The one place a secret value rides a read response: rows the workspace marked
-     * visible (unredacted) — whose values already print into every run log this
-     * caller can open — so external agents don't have to scrape logs for them.
-     * Bounded by the page, and read from one environment row.
+     * visible (unredacted), provided the shared registry also permits that value.
+     * A visible alias must not expose the literal of a protected secret. Returned
+     * values remain bounded by the metadata page.
      */
     const visibleNames = page.data.flatMap((row) =>
       row.type === 'env_workspace' && row.unredacted && row.envKey ? [row.envKey] : []
     )
-    const values = await readWorkspaceSecretValues({
-      workspaceId: context.workspaceId,
-      names: visibleNames,
-    })
+    const values: Record<string, string> = {}
+    if (visibleNames.length > 0) {
+      const snapshot = await getEffectiveEnvironmentSnapshot(userId, context.workspaceId)
+      const registry = await createResolvedSecretTraceRegistry({
+        ...snapshot,
+        scope: { userId, workspaceId: context.workspaceId },
+      })
+      const visible = new Set(registry.getUnredactedSecretNames())
+      for (const name of visibleNames) {
+        if (visible.has(name) && Object.hasOwn(snapshot.workspaceDecrypted, name))
+          setRecordValue(values, name, snapshot.workspaceDecrypted[name])
+      }
+    }
     return {
       secrets: page.data,
       values,

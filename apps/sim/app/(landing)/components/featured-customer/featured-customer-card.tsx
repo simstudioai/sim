@@ -34,10 +34,16 @@ interface FeaturedCustomerCardProps {
   story: FeaturedCustomerStory
   active: boolean
   emphasized: boolean
+  preload: boolean
 }
 
 /** Shared media and editorial caption treatment for each featured-customer slide. */
-export function FeaturedCustomerCard({ story, active, emphasized }: FeaturedCustomerCardProps) {
+export function FeaturedCustomerCard({
+  story,
+  active,
+  emphasized,
+  preload,
+}: FeaturedCustomerCardProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const reducedMotion = usePrefersReducedMotion()
   const isFilm = story.media.kind === 'video'
@@ -51,10 +57,9 @@ export function FeaturedCustomerCard({ story, active, emphasized }: FeaturedCust
     }
 
     /**
-     * The film streams only while the slide is on screen in a visible tab:
-     * `play()` defeats `preload='none'`, so calling it at mount would pull
-     * the whole file for a section well below the fold. Autoplay may still be
-     * blocked, in which case the poster remains the fallback.
+     * Preload prepares neighboring films when the carousel reaches the viewport.
+     * Playback is restricted to the active, visible slide in a visible tab.
+     * If autoplay is blocked, the poster remains the fallback.
      */
     const canObserve = typeof IntersectionObserver !== 'undefined'
     let inView = !canObserve
@@ -103,7 +108,7 @@ export function FeaturedCustomerCard({ story, active, emphasized }: FeaturedCust
             loop
             muted
             playsInline
-            preload='none'
+            preload={preload && !reducedMotion ? 'auto' : 'none'}
             src={story.media.src}
             tabIndex={-1}
             className='pointer-events-none absolute inset-0 size-full rounded-[inherit] object-cover motion-reduce:hidden'

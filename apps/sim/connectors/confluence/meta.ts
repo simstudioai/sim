@@ -1,4 +1,5 @@
 import { ConfluenceIcon } from '@/components/icons'
+import { ALL_SOURCE_ITEMS } from '@/connectors/selection'
 import type { ConnectorMeta } from '@/connectors/types'
 
 export const confluenceConnectorMeta: ConnectorMeta = {
@@ -13,6 +14,8 @@ export const confluenceConnectorMeta: ConnectorMeta = {
   auth: {
     mode: 'oauth',
     provider: 'confluence',
+    adminCredentialType: 'service_account',
+    /** Attachment access is optional so older credentials can keep syncing parent content. */
     requiredScopes: [
       'read:confluence-content.all',
       'read:page:confluence',
@@ -27,6 +30,7 @@ export const confluenceConnectorMeta: ConnectorMeta = {
       'read:confluence-content.all',
       'read:page:confluence',
       'read:blogpost:confluence',
+      'read:attachment:confluence',
       'read:space:confluence',
       'read:label:confluence',
       'search:confluence',
@@ -63,7 +67,7 @@ export const confluenceConnectorMeta: ConnectorMeta = {
   configFields: [
     {
       id: 'domain',
-      title: 'Confluence Domain',
+      title: 'Confluence site',
       type: 'short-input',
       placeholder: 'yoursite.atlassian.net',
       required: true,
@@ -76,6 +80,9 @@ export const confluenceConnectorMeta: ConnectorMeta = {
       canonicalParamId: 'spaceKey',
       mode: 'basic',
       multi: true,
+      allowSelectAll: true,
+      selectAllValue: ALL_SOURCE_ITEMS,
+      preserveValueOnModeChange: true,
       dependsOn: ['domain'],
       placeholder: 'Select one or more spaces',
       required: true,

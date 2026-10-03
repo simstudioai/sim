@@ -96,10 +96,10 @@ export function useUpdateScopedCredential() {
             workspaceId?: string
             organizationId?: never
           })
-        | UpdateOrganizationCredentialBody
+        | (UpdateOrganizationCredentialBody & { workspaceId?: never })
       )
     ) => {
-      const { credentialId, ...body } = input
+      const { credentialId, workspaceId, ...body } = input
       if ('organizationId' in body && body.organizationId)
         return requestJson(updateOrganizationCredentialContract, {
           params: { id: credentialId },
@@ -108,7 +108,7 @@ export function useUpdateScopedCredential() {
       return requestJson(updateWorkspaceCredentialContract, {
         params: { id: credentialId },
         body,
-        query: { workspaceId: 'workspaceId' in input ? input.workspaceId : undefined },
+        query: { workspaceId },
       })
     },
     onSuccess: reconcile,

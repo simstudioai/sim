@@ -2,6 +2,11 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { deploymentShapeMock } from '@sim/testing/mocks/deployment-shape.mock'
+import {
+  kbConnectorsQueriesMock,
+  kbConnectorsQueriesMockFns,
+} from '@sim/testing/mocks/kb-connectors-queries.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
@@ -13,10 +18,9 @@ const mocks = vi.hoisted(() => ({
   accessPending: false,
 }))
 
-vi.mock('@/hooks/queries/kb/connectors', () => ({
-  useUpdateConnector: () => ({ mutate: mocks.update, isPending: mocks.settingsPending }),
-  useUpdateConnectorAccess: () => ({ mutate: mocks.applyAccess, isPending: mocks.accessPending }),
-}))
+vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
+
+vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
 vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope', () => ({
   useConnectorScope: () => ({
     scope: { kind: 'organization', organizationId: 'org-1' },
@@ -32,7 +36,10 @@ vi.mock('@/hooks/use-permission-config', () => ({
       ['slack', { oauthAvailable: true, state: 'ready' }],
       ['slack_v2', { oauthAvailable: true, state: 'ready' }],
     ]),
-    oauthServiceAvailability: new Map(),
+    oauthServiceAvailability: new Map([
+      ['github-repositories', true],
+      ['confluence', true],
+    ]),
     isIntegrationAvailabilityReady: true,
     isIntegrationAvailabilityFetching: false,
     integrationAvailabilityError: null,
@@ -41,6 +48,15 @@ vi.mock('@/hooks/use-permission-config', () => ({
 }))
 
 import { useConnectorSettingsForm } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-form'
+
+kbConnectorsQueriesMockFns.mockUseUpdateConnector.mockImplementation(() => ({
+  mutate: mocks.update,
+  isPending: mocks.settingsPending,
+}))
+kbConnectorsQueriesMockFns.mockUseUpdateConnectorAccess.mockImplementation(() => ({
+  mutate: mocks.applyAccess,
+  isPending: mocks.accessPending,
+}))
 
 function connector(overrides: Partial<ConnectorData> = {}): ConnectorData {
   return {
@@ -96,7 +112,6 @@ describe('shared connector settings form', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.settingsPending = false
     mocks.accessPending = false
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -134,69 +149,36 @@ describe('shared connector settings form', () => {
     expect(form.dirty).toBe(true)
   })
 
-  it('keeps a new member Gmail source clean and preserves its derived listing cap on save', () => {
-    const sourceConfig = {
-      label: ['INBOX'],
-      dateRange: '7d',
-      query: 'subject:SIM-SEARCH-QA',
-      _canonicalModes: { label: 'advanced' },
-      maxThreads: 0,
-    }
-    render(connector({ connectorType: 'gmail', sourceConfig }), 'gmail-members')
-
-    const capField = form.fieldsProps.connectorConfig?.configFields.find(
-      (field) => field.id === 'maxThreads'
-    )!
-    expect(capField).toBeDefined()
-    expect(form.fieldsProps.isFieldVisible(capField)).toBe(false)
-    expect(form.dirty).toBe(false)
-    expect(form.canSave).toBe(false)
-
-    act(() => form.fieldsProps.onFieldChange('query', 'subject:updated'))
-    expect(form.dirty).toBe(true)
+  it('saves an account replacement and source edits together and retains the draft on rejection', () => {
+    const row = connector({
+      connectorType: 'confluence',
+      accessMode: 'admin',
+      credentialId: 'old-account',
+      sourceConfig: { domain: 'example.atlassian.net', spaceKey: ['ENG'] },
+    })
+    render(row, 'replacement')
+    act(() => form.fieldsProps.onWorkspaceCredentialChange('new-account'))
+    act(() => form.fieldsProps.onFieldChange('labelFilter', 'published'))
     expect(form.canSave).toBe(true)
     act(() => form.save())
-    expect(mocks.update).toHaveBeenCalledWith(
-      {
-        knowledgeBaseId: 'kb-search',
-        connectorId: baseline.id,
-        updates: { sourceConfig: { ...sourceConfig, query: 'subject:updated' } },
-      },
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.applyAccess).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        access: expect.objectContaining({
+          accessMode: 'admin',
+          credentialId: 'new-account',
+          sourceConfig: expect.objectContaining({ labelFilter: 'published' }),
+        }),
+      }),
       expect.any(Object)
     )
-  })
-
-  it('keeps general knowledge-base listing caps editable and includes their changes on save', () => {
-    const sourceConfig = {
-      label: ['INBOX'],
-      _canonicalModes: { label: 'basic' },
-      maxThreads: '100',
-    }
-    render(
-      connector({ connectorType: 'gmail', accessMode: 'workspace', sourceConfig }),
-      'gmail-workspace',
-      false
+    act(() =>
+      mocks.applyAccess.mock.calls[0][1].onError(new Error('Account cannot access this space'))
     )
-
-    const capField = form.fieldsProps.connectorConfig?.configFields.find(
-      (field) => field.id === 'maxThreads'
-    )!
-    expect(capField).toBeDefined()
-    expect(form.fieldsProps.isFieldVisible(capField)).toBe(true)
-    expect(form.dirty).toBe(false)
-
-    act(() => form.fieldsProps.onFieldChange('maxThreads', '200'))
-    expect(form.dirty).toBe(true)
+    expect(form.fieldsProps.workspaceCredentialId).toBe('new-account')
+    expect(form.fieldsProps.sourceConfig.labelFilter).toBe('published')
     expect(form.canSave).toBe(true)
-    act(() => form.save())
-    expect(mocks.update).toHaveBeenCalledWith(
-      {
-        knowledgeBaseId: 'kb-search',
-        connectorId: baseline.id,
-        updates: { sourceConfig: { ...sourceConfig, maxThreads: '200' } },
-      },
-      expect.any(Object)
-    )
+    expect(onSaved).not.toHaveBeenCalled()
   })
 
   it('guards access drafts separately from a settings save', () => {
@@ -217,68 +199,49 @@ describe('shared connector settings form', () => {
     expect(form.dirty).toBe(false)
   })
 
-  it('returns the canonical saved row for an explicit editor reset', () => {
-    act(() => form.fieldsProps.onFieldChange('excludeChannels', 'legal'))
-    act(() => form.save())
-    expect(mocks.update).toHaveBeenCalledWith(
-      {
-        knowledgeBaseId: 'kb-search',
-        connectorId: baseline.id,
-        updates: {
-          sourceConfig: { excludeChannels: 'legal', _canonicalModes: { channel: 'basic' } },
-        },
-      },
-      expect.any(Object)
+  it('preserves the GitHub repository and pending connection after an incompatible replacement is refused', () => {
+    const sourceConfig = { repository: 'acme/platform' }
+    render(
+      connector({
+        connectorType: 'github',
+        credentialId: 'installation-1',
+        sourceConfig: { ...sourceConfig, githubRepositoryId: '123' },
+      }),
+      'github-replacement'
     )
-    expect(mocks.applyAccess).not.toHaveBeenCalled()
-    const saved = connector({
-      sourceConfig: { excludeChannels: 'legal', _canonicalModes: { channel: 'basic' } },
-    })
-    act(() => mocks.update.mock.calls[0][1].onSuccess(saved))
-    expect(onSaved).toHaveBeenCalledExactlyOnceWith(saved)
+    act(() => form.fieldsProps.onContentCredentialChange('installation-1'))
+    expect(form.fieldsProps.accessDirty).toBe(false)
+    expect(form.fieldsProps.sourceConfig).toMatchObject(sourceConfig)
+    expect(form.fieldsProps.usesGitHubInstallation).toBe(true)
 
-    render(saved, 'saved')
-    expect(form.fieldsProps.sourceConfig.excludeChannels).toBe('legal')
-    expect(form.dirty).toBe(false)
+    act(() => form.fieldsProps.onFieldChange('pathPrefix', 'docs/'))
+    act(() => form.fieldsProps.onContentCredentialChange('installation-2'))
+    expect(form.fieldsProps.sourceConfig).toMatchObject({ ...sourceConfig, pathPrefix: 'docs/' })
+    expect(form.fieldsProps.accessDirty).toBe(true)
     expect(form.canSave).toBe(false)
-  })
-
-  it('applies indexing account changes through the separate access operation', () => {
-    act(() => form.fieldsProps.onContentCredentialChange('indexing-account'))
     act(() => form.fieldsProps.onApplyAccess())
-    expect(mocks.applyAccess).toHaveBeenCalledWith(
+    expect(mocks.applyAccess).toHaveBeenCalledExactlyOnceWith(
       {
         knowledgeBaseId: 'kb-search',
-        connectorId: baseline.id,
-        access: { accessMode: 'members', credentialId: 'indexing-account' },
+        connectorId: 'connector-1',
+        access: { accessMode: 'members', credentialId: 'installation-2' },
       },
       expect.any(Object)
     )
-    expect(mocks.update).not.toHaveBeenCalled()
-    const saved = connector({ credentialId: 'indexing-account' })
-    act(() => mocks.applyAccess.mock.calls[0][1].onSuccess(saved))
-    expect(onSaved).toHaveBeenCalledExactlyOnceWith(saved)
-  })
-
-  it('keeps a failed settings draft editable without signaling a save', () => {
-    act(() => form.fieldsProps.onFieldChange('excludeChannels', 'legal'))
-    act(() => form.save())
-    act(() => mocks.update.mock.calls[0][1].onError(new Error('Source update failed')))
-    expect(form.fieldsProps.error).toBe('Source update failed')
-    expect(form.dirty).toBe(true)
-    expect(form.canSave).toBe(true)
+    const message =
+      "This GitHub connection cannot access this source's repository. Choose a connection with access to the same repository, or add a new source for a different repository."
+    act(() => mocks.applyAccess.mock.calls[0][1].onError(new Error(message)))
+    expect(form.fieldsProps.error).toBe(message)
+    expect(form.fieldsProps.contentCredentialId).toBe('installation-2')
+    expect(form.fieldsProps.sourceConfig).toMatchObject({ ...sourceConfig, pathPrefix: 'docs/' })
+    expect(form.fieldsProps.accessDirty).toBe(true)
     expect(onSaved).not.toHaveBeenCalled()
-  })
+    expect(mocks.update).not.toHaveBeenCalled()
 
-  it.each(['settingsPending', 'accessPending'] as const)(
-    'blocks page saving while %s is pending',
-    (pending) => {
-      act(() => form.fieldsProps.onFieldChange('excludeChannels', 'legal'))
-      mocks[pending] = true
-      render()
-      expect(form.saving).toBe(true)
-      expect(form.canSave).toBe(false)
-      expect(form.dirty).toBe(true)
-    }
-  )
+    act(() => form.fieldsProps.onResetAccess())
+    expect(form.fieldsProps.contentCredentialId).toBe('installation-1')
+    expect(form.fieldsProps.accessDirty).toBe(false)
+    expect(form.fieldsProps.sourceConfig).toMatchObject({ ...sourceConfig, pathPrefix: 'docs/' })
+    expect(form.canSave).toBe(true)
+  })
 })

@@ -13,7 +13,7 @@ import { and, count, eq, sql } from 'drizzle-orm'
 import type { ScimGroupMappingView } from '@/lib/api/contracts/organization-scim'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbTransaction } from '@/lib/db/types'
 import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
 import {
   assertWorkspaceInOrganization,
@@ -147,7 +147,7 @@ async function requireGroup(connectionId: string, groupId: string) {
 }
 
 async function assertPermissionGroupTarget(
-  tx: DbOrTx,
+  tx: DbTransaction,
   organizationId: string,
   permissionGroupId: string
 ) {

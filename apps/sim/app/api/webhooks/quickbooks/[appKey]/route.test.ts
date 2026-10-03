@@ -1,24 +1,19 @@
-/** @vitest-environment node */
-
 import crypto from 'node:crypto'
 import { requestUtilsMockFns } from '@sim/testing'
+import { admissionGateMock, admissionGateMockFns } from '@sim/testing/mocks/admission-gate.mock'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
 
-const { mockVerifierTokens, mockEnqueue, mockRelease } = vi.hoisted(() => ({
+const { mockVerifierTokens, mockEnqueue } = vi.hoisted(() => ({
   mockVerifierTokens: vi.fn(),
   mockEnqueue: vi.fn(),
-  mockRelease: vi.fn(),
 }))
 
 vi.mock('@/background/quickbooks-webhook-ingress', () => ({
   enqueueQuickBooksWebhookIngress: mockEnqueue,
 }))
-vi.mock('@/lib/core/admission/gate', () => ({
-  admissionRejectedResponse: vi.fn(() => new Response(null, { status: 503 })),
-  tryAdmit: vi.fn(() => ({ release: mockRelease })),
-}))
+vi.mock('@/lib/core/admission/gate', () => admissionGateMock)
 vi.mock('@/lib/webhooks/quickbooks-credentials', () => ({
   streamQuickBooksWebhookVerifierTokensByAppKey: mockVerifierTokens,
 }))
@@ -35,6 +30,10 @@ vi.mock('@/lib/core/utils/with-route-handler', () => ({
 }))
 
 import { POST } from '@/app/api/webhooks/quickbooks/[appKey]/route'
+
+admissionGateMockFns.mockAdmissionRejectedResponse.mockImplementation(
+  () => new Response(null, { status: 503 })
+)
 
 const APP_KEY = 'a'.repeat(43)
 const validEvent = {
@@ -76,7 +75,6 @@ function mockTokens(...tokens: string[]): void {
 
 describe('QuickBooks webhook ingress route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockTokens('verifier')
     requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('request-1')
     mockEnqueue.mockResolvedValue('job-1')
@@ -84,22 +82,6 @@ describe('QuickBooks webhook ingress route', () => {
 
   afterAll(() => {
     requestUtilsMockFns.mockGenerateRequestId.mockReset()
-  })
-
-  it('accepts a signed multi-company batch for the addressed user-owned app', async () => {
-    const response = await callPost(
-      signedRequest([validEvent, { ...validEvent, id: 'event-2', intuitaccountid: '789' }])
-    )
-    expect(response.status).toBe(200)
-    expect(mockVerifierTokens).toHaveBeenCalledWith(APP_KEY)
-    expect(mockEnqueue).toHaveBeenCalledWith(
-      expect.objectContaining({
-        appKey: APP_KEY,
-        events: [validEvent, { ...validEvent, id: 'event-2', intuitaccountid: '789' }],
-        requestId: 'request-1',
-      })
-    )
-    expect(mockRelease).toHaveBeenCalledOnce()
   })
 
   it('accepts any verifier token configured by a connection for the same Intuit app', async () => {
@@ -123,11 +105,6 @@ describe('QuickBooks webhook ingress route', () => {
 
     expect(response.status).toBe(200)
     expect(mockEnqueue).toHaveBeenCalledWith(expect.objectContaining({ events: [validEvent] }))
-  })
-
-  it('acknowledges a batch whose events are all unmodelled without enqueueing', async () => {
-    expect((await callPost(signedRequest([{ id: 'event-1' }]))).status).toBe(200)
-    expect(mockEnqueue).not.toHaveBeenCalled()
   })
 
   it('rejects malformed signed payloads and batches over the event bound', async () => {

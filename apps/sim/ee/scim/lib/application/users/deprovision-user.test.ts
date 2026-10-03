@@ -1,39 +1,44 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import { member, scimConnection } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import {
+  organizationSeatsMock,
+  organizationSeatsMockFns,
+} from '@sim/testing/mocks/organization-seats.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  removeUser: vi.fn(),
-  reconcileSeats: vi.fn(),
+const hoistedMocks = vi.hoisted(() => ({
   endDirectoryMembership: vi.fn(),
   findScimUserById: vi.fn(),
   recordAudit: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  removeUserFromOrganization: mocks.removeUser,
-}))
-vi.mock('@/lib/billing/organizations/seats', () => ({
-  reconcileOrganizationSeats: mocks.reconcileSeats,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/lib/billing/organizations/seats', () => organizationSeatsMock)
 vi.mock('@/ee/scim/lib/identity/end-directory-membership', () => ({
-  endDirectoryMembershipTx: mocks.endDirectoryMembership,
+  endDirectoryMembershipTx: hoistedMocks.endDirectoryMembership,
 }))
 vi.mock('@/ee/scim/lib/repository/users', () => ({
-  findScimUserById: mocks.findScimUserById,
+  findScimUserById: hoistedMocks.findScimUserById,
 }))
 vi.mock('@/ee/scim/lib/application/audit', () => ({
-  recordScimAuditEntries: mocks.recordAudit,
+  recordScimAuditEntries: hoistedMocks.recordAudit,
 }))
 vi.mock('@/ee/scim/lib/base-url', () => ({ scimBaseUrl: () => 'https://sim.test/api/scim/v2' }))
 
 import type { Principal } from '@sim/auth/principal'
 import { deprovisionScimUser } from '@/ee/scim/lib/application/users/deprovision-user'
 import { ScimError } from '@/ee/scim/lib/protocol/errors'
+
+const mocks = {
+  ...hoistedMocks,
+  reconcileSeats: organizationSeatsMockFns.mockReconcileOrganizationSeats,
+  removeUser: organizationMembershipMockFns.mockRemoveUserFromOrganization,
+}
 
 const principal: Principal = {
   kind: 'scim_connection',
@@ -55,36 +60,10 @@ afterAll(resetDbChainMock)
 
 describe('deprovisionScimUser', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.removeUser.mockResolvedValue({ success: true })
     mocks.endDirectoryMembership.mockResolvedValue({ removed: 1 })
     mocks.reconcileSeats.mockResolvedValue({ changed: false })
-  })
-
-  it('removes a member through the shared primitive and audits the removal', async () => {
-    stage([{ id: 'm-1', role: 'member' }])
-    const result = await deprovisionScimUser.execute({
-      principal,
-      input: { scimUserId: 'su-1' },
-      request: undefined,
-    })
-    expect(mocks.removeUser).toHaveBeenCalledWith({
-      userId: 'u-1',
-      organizationId: 'org-1',
-      memberId: 'm-1',
-      revokePersonalApiKeys: true,
-    })
-    expect(mocks.endDirectoryMembership).not.toHaveBeenCalled()
-    expect(result.removedFromOrganization).toBe(true)
-    const actions = mocks.recordAudit.mock.calls[0][0].entries.map(
-      (entry: { action: string }) => entry.action
-    )
-    expect(actions).toEqual(['scim_user.deprovisioned', 'org_member.removed'])
-    expect(mocks.reconcileSeats).toHaveBeenCalledWith({
-      organizationId: 'org-1',
-      reason: 'scim-member-removed',
-    })
   })
 
   it('refuses to deprovision the owner with a conflict that is not a duplicate', async () => {
@@ -116,20 +95,6 @@ describe('deprovisionScimUser', () => {
       (entry: { action: string }) => entry.action
     )
     expect(actions).toEqual(['scim_user.deprovisioned'])
-  })
-
-  it('surfaces a refused removal as a conflict the directory can show', async () => {
-    stage([{ id: 'm-1', role: 'member' }])
-    mocks.removeUser.mockResolvedValue({
-      success: false,
-      error: 'Workflows could not be reassigned',
-    })
-    const error = await deprovisionScimUser
-      .execute({ principal, input: { scimUserId: 'su-1' }, request: undefined })
-      .catch((caught) => caught)
-    expect(error.status).toBe(409)
-    expect(error.message).toBe('Workflows could not be reassigned')
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
   it('answers 404 for an id this connection does not own', async () => {

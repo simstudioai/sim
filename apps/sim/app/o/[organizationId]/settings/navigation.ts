@@ -1,6 +1,7 @@
 import {
   ACCOUNT_SETTINGS_ITEMS,
   type AccountSettingsSection,
+  getSettingsSectionMeta,
   isOrganizationSettingsSectionAvailable,
   ORGANIZATION_SETTINGS_GROUPS,
   ORGANIZATION_SETTINGS_ITEMS,
@@ -9,7 +10,9 @@ import {
   parseSettingsPathSection,
   resolveOrganizationSectionAccess,
   type SettingsNavigationItem,
+  toSettingsHeaderMeta,
 } from '@/components/settings/navigation'
+import type { SettingsHeaderMeta } from '@/components/settings/settings-header'
 
 /**
  * A section on the organization surface's settings, tagged with the plane that
@@ -37,7 +40,13 @@ export function resolveOrganizationSettingsSection(
     path,
     items: ORGANIZATION_SETTINGS_ITEMS,
     defaultSection: null,
-    aliases: { organization: 'members', team: 'members', subscription: 'billing', domains: 'sso' },
+    aliases: {
+      organization: 'members',
+      team: 'members',
+      subscription: 'billing',
+      domains: 'sso',
+      sessions: 'security',
+    },
   })
 }
 
@@ -58,6 +67,18 @@ export function resolveOrganizationSurfaceSection(
   return account ? { plane: 'account', section: account } : null
 }
 
+/** The heading an organization-surface section path renders with, or null for an unknown path. */
+export function resolveOrganizationSurfaceHeaderMeta(path: string): SettingsHeaderMeta | null {
+  const resolved = resolveOrganizationSurfaceSection(path)
+  const item =
+    resolved?.plane === 'organization'
+      ? ORGANIZATION_SETTINGS_ITEMS.find(({ id }) => id === resolved.section)
+      : resolved
+        ? getSettingsSectionMeta('account', resolved.section)
+        : null
+  return item ? toSettingsHeaderMeta(item) : null
+}
+
 export function organizationSettingsNavigation(
   isAdmin: boolean,
   features: OrganizationSettingsFeatures,
@@ -65,9 +86,9 @@ export function organizationSettingsNavigation(
 ) {
   return ORGANIZATION_SETTINGS_ITEMS.filter(
     (item) =>
-      (item.id !== 'connected-accounts' ||
-        (availability.connectedAccounts && !availability.search)) &&
-      ((item.id !== 'search-mcp' && item.id !== 'integrations') || availability.search) &&
+      (item.id !== 'connected-accounts' || availability.connectedAccounts) &&
+      ((item.id !== 'search-mcp' && item.id !== 'search-slack' && item.id !== 'integrations') ||
+        availability.search) &&
       resolveOrganizationSectionAccess({
         section: item.id,
         isTargetOrganizationMember: true,

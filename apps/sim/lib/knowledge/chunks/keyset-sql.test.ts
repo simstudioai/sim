@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
@@ -55,7 +52,6 @@ const ENABLED_CASE = 'case when "embedding"."enabled" then 1 else 0 end'
 
 describe('chunk list generated SQL', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -108,7 +104,7 @@ describe('chunk list generated SQL', () => {
     expect(where.sql).toContain('"document"."acl" && ARRAY[$2, $3]::text[]')
     expect(where.sql).toContain('required_clause.tokens ?| ARRAY[$4, $5]::text[]')
     expect(where.sql).toContain(
-      '"knowledge_connector_member"."subject_token" = ANY(ARRAY[$7, $8]::text[])'
+      '"knowledge_connector_member"."subject_token" = ANY(ARRAY[$8, $9]::text[])'
     )
     expect(where.params).toEqual([
       'document-1',
@@ -116,6 +112,7 @@ describe('chunk list generated SQL', () => {
       'ws',
       'pub',
       'ws',
+      'github-app-installation',
       SOURCE_ACL_MAX_AGE_MS,
       'pub',
       'ws',

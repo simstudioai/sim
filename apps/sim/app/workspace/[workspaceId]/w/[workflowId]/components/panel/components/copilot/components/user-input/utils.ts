@@ -1,8 +1,4 @@
-import {
-  FOLDER_CONFIGS,
-  type MentionFolderId,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/constants'
-import type { MentionDataReturn } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-mention-data'
+import { escapeRegExp } from '@sim/utils/string'
 import type { ChatContext } from '@/stores/panel'
 
 /**
@@ -22,15 +18,6 @@ export const SKILL_CHIP_TRIGGER = '\u2003'
  */
 export function restoreSkillTriggerText(text: string): string {
   return text.replaceAll(SKILL_CHIP_TRIGGER, '/')
-}
-
-/**
- * Escapes special regex characters in a string
- * @param value - String to escape
- * @returns Escaped string safe for use in RegExp
- */
-export function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 /**
@@ -107,7 +94,7 @@ export function computeMentionHighlightRanges(
   if (!tokens.length || !text) return []
 
   const longestFirstTokens = [...new Set(tokens)].sort((a, b) => b.length - a.length)
-  const pattern = new RegExp(`(${longestFirstTokens.map(escapeRegex).join('|')})`, 'g')
+  const pattern = new RegExp(`(${longestFirstTokens.map(escapeRegExp).join('|')})`, 'g')
   const ranges: MentionHighlightRange[] = []
   let match: RegExpExecArray | null
 
@@ -120,31 +107,6 @@ export function computeMentionHighlightRanges(
   }
 
   return ranges
-}
-
-/**
- * Gets the data array for a folder ID from mentionData.
- * Uses FOLDER_CONFIGS as the source of truth for key mapping.
- * Returns any[] since item types vary by folder and are used with dynamic config.filterFn
- */
-export function getFolderData(mentionData: MentionDataReturn, folderId: MentionFolderId): any[] {
-  const config = FOLDER_CONFIGS[folderId]
-  return (mentionData[config.dataKey as keyof MentionDataReturn] as any[]) || []
-}
-
-/**
- * Gets the ensure loaded function for a folder ID from mentionData.
- * Uses FOLDER_CONFIGS as the source of truth for key mapping.
- */
-export function getFolderEnsureLoaded(
-  mentionData: MentionDataReturn,
-  folderId: MentionFolderId
-): (() => Promise<void>) | undefined {
-  const config = FOLDER_CONFIGS[folderId]
-  if (!config.ensureLoadedKey) return undefined
-  return mentionData[config.ensureLoadedKey as keyof MentionDataReturn] as
-    | (() => Promise<void>)
-    | undefined
 }
 
 /**
@@ -187,6 +149,9 @@ function sameIds(a: string[] | undefined, b: string[] | undefined): boolean {
  * Assumes c.kind === context.kind (must be checked before calling).
  */
 export function areContextsEqual(c: ChatContext, context: ChatContext): boolean {
+  const owner = 'workspaceId' in c ? c.workspaceId : undefined
+  const otherOwner = 'workspaceId' in context ? context.workspaceId : undefined
+  if (owner !== otherOwner) return false
   switch (c.kind) {
     case 'past_chat': {
       const ctx = context as PastChatContext
@@ -226,6 +191,8 @@ export function areContextsEqual(c: ChatContext, context: ChatContext): boolean 
       return context.kind === 'folder' && c.folderId === context.folderId
     case 'filefolder':
       return context.kind === 'filefolder' && c.fileFolderId === context.fileFolderId
+    case 'workspace':
+      return true // The owner comparison above is the whole identity.
     // Selection kinds scope to part of a resource, so equality is the selected
     // range — not the file/table — or re-selecting a different passage of an
     // already-referenced file would be swallowed as a duplicate.

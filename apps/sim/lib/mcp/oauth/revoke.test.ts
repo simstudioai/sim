@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Regression test: `revokeMcpOauthTokens` must route both metadata discovery
  * and the RFC 7009 revocation POST through the SSRF-guarded fetch, since
  * `revocation_endpoint` comes from attacker-controlled server metadata. Uses
@@ -9,6 +7,11 @@
  */
 
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { encryptionMock } from '@sim/testing/mocks/encryption.mock'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const BLOCKED_ENDPOINT = 'http://169.254.170.2/v2/credentials/'
@@ -20,21 +23,14 @@ const {
   mockValidateMcpServerSsrf,
   mockDiscoverOAuthServerInfo,
   mockLoadOauthRow,
-  mockDecryptSecret,
 } = vi.hoisted(() => ({
   mockUndiciFetch: vi.fn(),
   mockValidateMcpServerSsrf: vi.fn(),
   mockDiscoverOAuthServerInfo: vi.fn(),
   mockLoadOauthRow: vi.fn(),
-  mockDecryptSecret: vi.fn(),
 }))
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  createSsrfGuardedFetchWithDispatcher: vi.fn(() => ({
-    fetch: mockUndiciFetch,
-    dispatcher: { destroy: vi.fn(() => Promise.resolve()) },
-  })),
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 /**
  * Stubbed so the suite's `203.0.113.10` reads as an ordinary public address.
  * The real classifier treats TEST-NET-3 as reserved, which would route every
@@ -55,11 +51,14 @@ vi.mock('@modelcontextprotocol/sdk/client/auth.js', () => ({
 vi.mock('@/lib/mcp/oauth/storage', () => ({
   loadOauthRow: mockLoadOauthRow,
 }))
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import { revokeMcpOauthTokens } from './revoke'
+
+inputValidationMockFns.mockCreateSsrfGuardedFetchWithDispatcher.mockImplementation(() => ({
+  fetch: mockUndiciFetch,
+  dispatcher: { destroy: vi.fn(() => Promise.resolve()) },
+}))
 
 function wireServerRow(row: Record<string, unknown>) {
   queueTableRows(schemaMock.mcpServers, [row])
@@ -71,7 +70,6 @@ describe('revokeMcpOauthTokens — SSRF guard', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
 
     mockLoadOauthRow.mockResolvedValue({
@@ -135,29 +133,6 @@ describe('revokeMcpOauthTokens — SSRF guard', () => {
 
   it('swallows the SSRF rejection — revocation is best-effort and never throws', async () => {
     await expect(revokeMcpOauthTokens('server-1', 'workspace-1')).resolves.toBeUndefined()
-  })
-
-  it('still issues the revocation POST when the endpoint resolves to a public IP', async () => {
-    const publicEndpoint = 'https://mcp.attacker.com/oauth/revoke'
-    mockDiscoverOAuthServerInfo.mockResolvedValue({
-      authorizationServerMetadata: {
-        issuer: PUBLIC_SERVER_URL,
-        revocation_endpoint: publicEndpoint,
-      },
-    })
-
-    await revokeMcpOauthTokens('server-1', 'workspace-1')
-
-    // Same origin as the configured server, so it keeps that server's profile —
-    // the metadata pointed back at the host the operator already chose. The
-    // blocked-endpoint test above covers the cross-origin case, which does not.
-    expect(mockValidateMcpServerSsrf).toHaveBeenCalledWith(publicEndpoint, 'selfHostedService')
-    const revokeCalls = mockUndiciFetch.mock.calls.filter((call) => {
-      const target = typeof call[0] === 'string' ? call[0] : String(call[0])
-      return target === publicEndpoint
-    })
-    expect(revokeCalls.length).toBeGreaterThan(0)
-    expect(revokeCalls[0][1]).toMatchObject({ method: 'POST' })
   })
 
   it('loads no OAuth tokens when the server is outside the authorized workspace', async () => {

@@ -85,7 +85,7 @@ export function ConnectorSyncGraphic() {
         data-feature-graphic='connectors'
         className='absolute inset-0 flex justify-center p-5 [container-type:inline-size]'
       >
-        <div className='flex h-full w-full flex-col'>
+        <div className='flex size-full flex-col'>
           <div className='mb-5 flex items-center justify-between'>
             <span className='text-[var(--text-primary)] text-base'>Connectors</span>
             <ChipTag variant='mono'>Auto-sync</ChipTag>

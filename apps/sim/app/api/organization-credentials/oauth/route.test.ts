@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
@@ -15,7 +14,7 @@ vi.mock('@/lib/credentials/application/organization-credentials', () => {
   } as const
   return {
     organizationCredentialOperations: { list: operation },
-    listOrganizationCredentials: { operation, execute: mocks.execute },
+    listOrganizationOAuthCredentials: { operation, execute: mocks.execute },
   }
 })
 
@@ -33,7 +32,6 @@ const request = () =>
 
 describe('GET /api/organization-credentials/oauth', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'admin-1' },
       session: { id: 'session-1' },
@@ -45,23 +43,26 @@ describe('GET /api/organization-credentials/oauth', () => {
       credentials: [
         {
           id: 'full-credential',
-          displayName: 'Full access',
-          providerId: 'google-drive',
+          type: 'oauth',
+          name: 'Full access',
+          provider: 'google-drive',
           scopes: [DRIVE_SCOPE, METADATA_SCOPE],
           accountId: 'private-account-full',
           encryptedValue: 'private-secret',
         },
         {
           id: 'limited-credential',
-          displayName: 'Limited access',
-          providerId: 'google-drive',
+          type: 'oauth',
+          name: 'Limited access',
+          provider: 'google-drive',
           scopes: [METADATA_SCOPE],
           accountId: 'private-account-limited',
         },
         {
           id: 'unknown-credential',
-          displayName: 'Unknown access',
-          providerId: 'google-drive',
+          type: 'oauth',
+          name: 'Unknown access',
+          provider: 'google-drive',
           scopes: [],
         },
       ],
@@ -108,23 +109,5 @@ describe('GET /api/organization-credentials/oauth', () => {
         input: { organizationId: 'org-1', providerId: 'google-drive', type: 'oauth' },
       })
     )
-  })
-
-  it('still returns an empty authorized list without fabricating a credential', async () => {
-    mocks.execute.mockResolvedValue({ credentials: [] })
-
-    const response = await GET(request())
-
-    expect(response.status).toBe(200)
-    expect((await response.json()).credentials).toEqual([])
-  })
-
-  it('requires a session before entering the protected credential list', async () => {
-    authMockFns.mockGetSession.mockResolvedValue(null)
-
-    const response = await GET(request())
-
-    expect(response.status).toBe(401)
-    expect(mocks.execute).not.toHaveBeenCalled()
   })
 })

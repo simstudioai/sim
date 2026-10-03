@@ -1,33 +1,40 @@
-/**
- * @vitest-environment node
- */
-import { describe, expect, it, vi } from 'vitest'
-
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.example' }))
-
+import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { afterAll, describe, expect, it } from 'vitest'
 import {
   bindOAuthIssuedResource,
   getOAuthIssuedResource,
   InvalidOAuthResourceError,
   oauthResourcePlugin,
-  parseOAuthSearchResource,
+  parseOAuthResource,
   withOAuthResourceIssuance,
 } from '@/lib/auth/oauth-resource'
 
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.example')
+afterAll(resetUrlsMock)
+
 const resource = 'https://sim.example/api/mcp/search/organizations/org-one'
+const simMcpResource = 'https://sim.example/api/mcp'
 const otherResource = 'https://sim.example/api/mcp/search/organizations/org-two'
+const workflowMcpResource = 'https://sim.example/api/mcp/serve/server-one'
 const scopes = ['search:read', 'offline_access']
 
 describe('OAuth resource binding', () => {
-  it('accepts exact organization Search endpoints and an absent API audience', () => {
-    expect(parseOAuthSearchResource(resource)).toBe(resource)
-    expect(parseOAuthSearchResource(null)).toBeNull()
+  it('accepts exact organization Search endpoints, the Sim MCP server, and an absent API audience', () => {
+    expect(parseOAuthResource(resource)).toEqual({ kind: 'search', url: resource })
+    expect(parseOAuthResource(simMcpResource)).toEqual({ kind: 'api', url: simMcpResource })
+    expect(parseOAuthResource(null)).toBeNull()
+  })
+
+  it('accepts exact workflow MCP server endpoints as Sim API audiences', () => {
+    expect(parseOAuthResource(workflowMcpResource)).toEqual({
+      kind: 'api',
+      url: workflowMcpResource,
+    })
   })
 
   it.each([
     '',
     'https://sim.example/api/mcp/search/workspace-one',
-    'https://sim.example/api/mcp/search/workspace-one?organizationId=org-one',
     'https://attacker.example/api/mcp/search/organizations/org-one',
     'http://sim.example/api/mcp/search/organizations/org-one',
     'https://user@sim.example/api/mcp/search/organizations/org-one',
@@ -36,11 +43,11 @@ describe('OAuth resource binding', () => {
     'https://sim.example/api/mcp/search/organizations/org-one/',
     'https://sim.example/api/mcp/search/organizations/%6frg-one',
     'https://sim.example/api/mcp/search/organizations/a/../org-one',
-    'https://sim.example/api/mcp/search/organizations',
-    'https://sim.example/api/v2/workspaces',
     'https://sim.example:443/api/mcp/search/organizations/org-one',
+    'https://sim.example/api/mcp/serve',
+    'https://sim.example/api/mcp/serve/server-one/',
   ])('rejects noncanonical or unsupported resources: %s', (value) => {
-    expect(() => parseOAuthSearchResource(value)).toThrow(InvalidOAuthResourceError)
+    expect(() => parseOAuthResource(value)).toThrow(InvalidOAuthResourceError)
   })
 
   it('binds only the resource from the verified authorization request before insertion', async () => {
@@ -82,19 +89,32 @@ describe('OAuth resource binding', () => {
     [resource, ['api:read']],
     [resource, ['search:read', 'api:read']],
     [null, ['search:read']],
-  ])(
-    'requires search scope and resource together without wider API authority',
-    async (target, granted) => {
-      await expect(
-        withOAuthResourceIssuance(target, async () =>
-          bindOAuthIssuedResource({
-            verificationValue: { query: { resource: target ?? undefined } },
-            scopes: granted,
-          })
-        )
-      ).rejects.toMatchObject({ body: { error: 'invalid_scope' } })
-    }
-  )
+    [simMcpResource, ['search:read']],
+    [simMcpResource, ['api:write', 'search:read']],
+    [simMcpResource, ['offline_access']],
+  ])('grants each resource only its own scope family: %s %j', async (target, granted) => {
+    await expect(
+      withOAuthResourceIssuance(target, async () =>
+        bindOAuthIssuedResource({
+          verificationValue: { query: { resource: target ?? undefined } },
+          scopes: granted,
+        })
+      )
+    ).rejects.toMatchObject({ body: { error: 'invalid_scope' } })
+  })
+
+  it('binds Sim API grants to the Sim MCP server', async () => {
+    const apiScopes = ['api:write', 'offline_access']
+    await withOAuthResourceIssuance(simMcpResource, async () => {
+      expect(
+        bindOAuthIssuedResource({
+          verificationValue: { query: { resource: simMcpResource } },
+          scopes: apiScopes,
+        })
+      ).toEqual({})
+      expect(getOAuthIssuedResource(apiScopes)).toBe(simMcpResource)
+    })
+  })
 
   it('preserves existing API issuance and refuses direct Search provider calls', async () => {
     expect(bindOAuthIssuedResource({ scopes: ['api:read'] })).toEqual({})

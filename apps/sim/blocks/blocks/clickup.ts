@@ -3,7 +3,6 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { ClickUpResponse } from '@/tools/clickup/types'
 import { getTrigger } from '@/triggers'
 
 const TIMESTAMP_WAND_PROMPT = `Generate a Unix timestamp in milliseconds based on the user's description.
@@ -104,7 +103,7 @@ const LIST_PARENT_FIELD = [
 /** Attachment payload, whichever upload mode the user picked. */
 const ATTACHMENT_FIELD = ['attachmentFile', 'fileReference'] as const
 
-export const ClickUpBlock: BlockConfig<ClickUpResponse> = {
+export const ClickUpBlock: BlockConfig = {
   type: 'clickup',
   name: 'ClickUp',
   description: 'Interact with ClickUp',

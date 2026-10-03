@@ -1,8 +1,4 @@
 import type { Sql } from 'postgres'
-import {
-  backfillWorkspaceFileSizeBytes,
-  createPostgresWorkspaceFileSizeBytesBackfillStore,
-} from './0008_backfill_workspace_file_size_bytes'
 import type { ScriptMigration } from './types'
 
 export const WORKSPACE_STORAGE_RECONCILIATION_BATCH_SIZE = 250
@@ -156,13 +152,22 @@ export function createPostgresStorageReconciliationStore(sql: Sql): StorageRecon
             GROUP BY workspace_id
           ),
           document_totals AS (
-            SELECT kb.workspace_id, sum(d.file_size)::bigint AS bytes
-            FROM document d
-            JOIN knowledge_base kb ON kb.id = d.knowledge_base_id
-            WHERE kb.workspace_id = ANY(${workspaceIds}::text[])
-              AND d.connector_id IS NULL
-              AND d.deleted_at IS NULL
-            GROUP BY kb.workspace_id
+            SELECT workspace_id, sum(bytes)::bigint AS bytes
+            FROM (
+              SELECT kb.workspace_id, d.file_size::bigint AS bytes
+              FROM document d
+              JOIN knowledge_base kb ON kb.id = d.knowledge_base_id
+              WHERE kb.workspace_id = ANY(${workspaceIds}::text[])
+                AND d.connector_id IS NULL
+                AND d.deleted_at IS NULL
+              UNION ALL
+              SELECT kb.workspace_id, kc.detach_reserved_bytes AS bytes
+              FROM knowledge_connector kc
+              JOIN knowledge_base kb ON kb.id = kc.knowledge_base_id
+              WHERE kb.workspace_id = ANY(${workspaceIds}::text[])
+                AND kc.detached_at IS NOT NULL
+            ) knowledge_bytes
+            GROUP BY workspace_id
           )
           UPDATE workspace w
           SET storage_used_bytes =
@@ -251,7 +256,6 @@ export function createPostgresStorageReconciliationStore(sql: Sql): StorageRecon
 export const backfillWorkspaceStorageUsage: ScriptMigration = {
   name: '0003_backfill_workspace_storage_usage',
   async up(sql) {
-    await backfillWorkspaceFileSizeBytes(createPostgresWorkspaceFileSizeBytesBackfillStore(sql))
     /**
      * Expand phase: seed only the additive workspace shadow ledger. Payer
      * aggregates remain under the old application's ownership until all old

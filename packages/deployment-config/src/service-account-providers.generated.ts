@@ -10,6 +10,7 @@ export const SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID = {
   calcom: 'calcom-service-account',
   'claude-platform': 'claude-platform-service-account',
   clickup: 'clickup-service-account',
+  coda: 'coda-service-account',
   confluence: 'atlassian-service-account',
   gmail: 'google-service-account',
   'google-bigquery': 'google-service-account',

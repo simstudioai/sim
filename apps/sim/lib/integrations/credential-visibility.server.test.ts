@@ -1,23 +1,20 @@
-/**
- * @vitest-environment node
- */
-
+import {
+  integrationsAvailabilityMock,
+  integrationsAvailabilityMockFns,
+} from '@sim/testing/mocks/integrations-availability.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IntegrationAvailability } from '@/lib/integrations/availability'
 import type { OAuthServiceMetadata } from '@/lib/oauth/types'
 
-const { getBlockMock, getIntegrationAvailabilityMock } = vi.hoisted(() => ({
-  getBlockMock: vi.fn(),
-  getIntegrationAvailabilityMock: vi.fn(),
-}))
+vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 
-vi.mock('@/blocks/registry', () => ({ getBlock: getBlockMock }))
-vi.mock('@/lib/integrations/availability.server', () => ({
-  getIntegrationAvailability: getIntegrationAvailabilityMock,
-  isOAuthServiceDeploymentAvailable: vi.fn(() => true),
-}))
-
+import { resolveIntegrationAvailability } from '@/lib/integrations/availability'
 import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
+import { getBlock } from '@/blocks/registry'
+
+const getBlockMock = vi.mocked(getBlock)
+const getIntegrationAvailabilityMock =
+  integrationsAvailabilityMockFns.mockGetIntegrationAvailability
 
 const SERVICES: readonly OAuthServiceMetadata[] = [
   {
@@ -57,8 +54,7 @@ function availability(
 
 describe('integration credential visibility', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    getBlockMock.mockImplementation((type: string) => ({ type }))
+    getBlockMock.mockImplementation((type: string) => ({ type }) as never)
     getIntegrationAvailabilityMock.mockReturnValue([
       availability('notion_v2', 'limited', {
         oauthAvailable: false,
@@ -71,53 +67,72 @@ describe('integration credential visibility', () => {
     ])
   })
 
-  /**
-   * `blockType` is the id the allowlist and the kill switch are keyed by, and it
-   * differs from the service id for Claude Platform — the real catalog decides
-   * that mapping here, since `getIntegrationTypesForOAuthServiceId` is not mocked.
-   */
   it.each([
-    { serviceId: 'netsuite', blockType: 'netsuite' },
-    { serviceId: 'snowflake', blockType: 'snowflake' },
-    { serviceId: 'harmonic', blockType: 'harmonic' },
-    { serviceId: 'claude-platform', blockType: 'managed_agent' },
+    {
+      serviceId: 'netsuite',
+      providerId: 'netsuite-service-account',
+      blockType: 'netsuite',
+      name: 'NetSuite',
+    },
+    {
+      serviceId: 'snowflake',
+      providerId: 'snowflake-service-account',
+      blockType: 'snowflake',
+      name: 'Snowflake',
+    },
+    {
+      serviceId: 'harmonic',
+      providerId: 'harmonic-service-account',
+      blockType: 'harmonic',
+      name: 'Harmonic',
+    },
+    {
+      serviceId: 'coda',
+      providerId: 'coda-service-account',
+      blockType: 'coda',
+      name: 'Coda',
+    },
+    {
+      serviceId: 'claude-platform',
+      providerId: 'claude-platform-service-account',
+      blockType: 'managed_agent',
+      name: 'Claude Platform',
+    },
   ])(
-    'applies allowlists and block visibility to $serviceId stored credentials',
-    ({ serviceId, blockType }) => {
-      const providerId = `${serviceId}-service-account`
+    'exposes $name token credentials without OAuth while honoring integration policy and visibility',
+    ({ serviceId, providerId, blockType, name }) => {
+      const catalog = resolveIntegrationAvailability({})
+      expect(catalog.find((entry) => entry.type === blockType)).toMatchObject({
+        state: 'ready',
+        oauthAvailable: false,
+        serviceAccountAvailable: true,
+      })
+      getIntegrationAvailabilityMock.mockReturnValue(catalog)
       const service: OAuthServiceMetadata = {
         serviceId,
-        providerId,
+        providerId: serviceId,
         serviceAccountProviderId: providerId,
-        name: serviceId,
-        description: serviceId,
-        baseProvider: serviceId,
         authType: 'service_account',
+        name,
+        description: `${name} token`,
+        baseProvider: serviceId,
       }
-      getIntegrationAvailabilityMock.mockReturnValue([
-        availability(blockType, 'ready', { oauthAvailable: false, serviceAccountAvailable: true }),
-      ])
-      const visible = (allowed: string[], hidden = false) =>
+      const identity = { providerId, type: 'service_account' } as const
+      const visibility = (allowed: ReadonlySet<string> | null, disabled: boolean) =>
         createIntegrationCredentialVisibility({
-          allowedIntegrationTypes: new Set(allowed),
-          blockVisibility: hidden
-            ? { revealed: new Set(), disabled: new Set([blockType]), previewTagged: new Set() }
-            : null,
+          allowedIntegrationTypes: allowed,
           oauthServices: [service],
+          blockVisibility: {
+            revealed: new Set(),
+            previewTagged: new Set(),
+            disabled: new Set(disabled ? [blockType] : []),
+          },
         })
-      expect(
-        visible([blockType]).isCredentialVisible({ providerId, type: 'service_account' })
-      ).toBe(true)
-      expect(visible(['jira']).isCredentialVisible({ providerId, type: 'service_account' })).toBe(
-        false
-      )
-      expect(
-        visible([blockType], true).isCredentialVisible({ providerId, type: 'service_account' })
-      ).toBe(false)
-      getBlockMock.mockImplementation((type: string) => ({ type, preview: true }))
-      expect(
-        visible([blockType]).isCredentialVisible({ providerId, type: 'service_account' })
-      ).toBe(false)
+      expect(visibility(new Set([blockType]), false).isCredentialVisible(identity)).toBe(true)
+      expect(visibility(new Set(['slack_v2']), false).isCredentialVisible(identity)).toBe(false)
+      expect(visibility(null, true).isCredentialVisible(identity)).toBe(false)
+      getBlockMock.mockReturnValue({ type: blockType, preview: true } as never)
+      expect(visibility(null, false).isCredentialVisible(identity)).toBe(false)
     }
   )
 

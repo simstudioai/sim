@@ -1,29 +1,31 @@
-/** @vitest-environment node */
-import type {
-  OAuthAccessTokenPrincipal,
-  OrganizationDelegatedPrincipal,
-  SessionPrincipal,
-} from '@sim/auth/principal'
+import type { OAuthAccessTokenPrincipal, OrganizationDelegatedPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ membership: vi.fn(), config: vi.fn() }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
-const principal: SessionPrincipal = { kind: 'session', userId: 'member', sessionId: 'session' }
+const mocks = {
+  membership: vi.fn(),
+  config: permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization,
+}
+const principal = createSessionPrincipal({ userId: 'member', sessionId: 'session' })
 const operation = defineOrganizationOperation({
   id: 'search.read',
   minimumRole: 'member',
   principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'organization_delegated'],
   oauthScope: 'api:read',
   delegationAudience: 'sim:knowledge',
+  delegatedServices: ['copilot'],
   capability: 'knowledge.use',
 })
 const delegated: OrganizationDelegatedPrincipal = {
@@ -47,7 +49,6 @@ const oauth: OAuthAccessTokenPrincipal = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.membership.mockResolvedValue([{ role: 'member' }])
   mocks.config.mockResolvedValue(null)
   const query = { from: vi.fn(), where: vi.fn(), limit: mocks.membership }
@@ -57,6 +58,83 @@ beforeEach(() => {
 })
 
 describe('organization operation authorization', () => {
+  it('rechecks a transaction member role on its own executor and locks it', async () => {
+    const query = {
+      from: vi.fn(),
+      where: vi.fn(),
+      for: vi.fn(),
+      limit: vi.fn().mockResolvedValue([{ role: 'member' }]),
+    }
+    query.from.mockReturnValue(query)
+    query.where.mockReturnValue(query)
+    query.for.mockReturnValue(query)
+    const select = vi.fn().mockReturnValue(query)
+    const executor = new Proxy(db, {
+      get: (target, key, receiver) =>
+        key === 'select' ? select : Reflect.get(target, key, receiver),
+    })
+    const review = defineOrganizationOperation({
+      id: 'access_requests.resolve',
+      minimumRole: 'admin',
+      principalKinds: ['session'],
+      /** permission-group-exempt: review must remain reachable when a requested capability is denied. */
+      capability: 'none',
+    })
+    await expect(
+      authorizeOrganizationOperation(
+        principal,
+        review,
+        { organizationId: 'org' },
+        { executor, forUpdate: true }
+      )
+    ).rejects.toThrow('Organization administrator access is required')
+    expect(query.for).toHaveBeenCalledExactlyOnceWith('update')
+    expect(db.select).not.toHaveBeenCalled()
+    expect(mocks.config).not.toHaveBeenCalled()
+  })
+  it('does not acquire another pooled connection for capability-exempt session authorization', async () => {
+    const review = defineOrganizationOperation({
+      id: 'access_requests.list_mine',
+      minimumRole: 'member',
+      principalKinds: ['session'],
+      /** permission-group-exempt: own request history is available independently of capability restrictions. */
+      capability: 'none',
+    })
+    await expect(
+      authorizeOrganizationOperation(principal, review, { organizationId: 'org' })
+    ).resolves.toMatchObject({ userId: principal.userId })
+    expect(mocks.config).not.toHaveBeenCalled()
+  })
+  it('admits Slack delegation only when the operation explicitly allows that service', async () => {
+    const issuedAt = new Date()
+    const slack: OrganizationDelegatedPrincipal = {
+      ...delegated,
+      issuedAt,
+      expiresAt: new Date(issuedAt.getTime() + 60_000),
+      serviceId: 'slack-search',
+      resourceScope: { installationId: 'installation', eventId: 'event' },
+    }
+    await expect(
+      authorizeOrganizationOperation(slack, operation, { organizationId: 'org' })
+    ).rejects.toThrow('delegation')
+    expect(mocks.membership).not.toHaveBeenCalled()
+    const search = defineOrganizationOperation({
+      ...operation,
+      delegatedServices: ['copilot', 'slack-search'],
+    })
+    await expect(
+      authorizeOrganizationOperation(slack, search, { organizationId: 'org' })
+    ).resolves.toMatchObject({ userId: 'member' })
+    mocks.membership.mockResolvedValue([])
+    await expect(
+      authorizeOrganizationOperation(slack, search, { organizationId: 'org' })
+    ).rejects.toThrow('Organization not found')
+  })
+  it('requires an explicit service policy whenever an organization delegation is allowed', () => {
+    expect(() => defineOrganizationOperation({ ...operation, delegatedServices: [] })).toThrow(
+      'delegated services'
+    )
+  })
   it('requires consent and current membership for OAuth organization reads', async () => {
     await expect(
       authorizeOrganizationOperation(oauth, operation, { organizationId: 'org' })

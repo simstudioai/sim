@@ -20,7 +20,7 @@ import {
   type ManagedMcpConnectorId,
   requireManagedMcpConnectorUrl,
 } from '@/lib/credential-groups/managed-mcp-connectors'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import {
   McpDnsResolutionError,
   McpDomainNotAllowedError,
@@ -28,7 +28,9 @@ import {
   validateMcpDomain,
   validateMcpServerSsrf,
 } from '@/lib/mcp/domain-check'
+import { getSharedHubSpotMcpClient, getSharedZoomMcpClient } from '@/lib/mcp/oauth/shared-clients'
 import { generateMcpServerId } from '@/lib/mcp/utils'
+import { isSearchProviderEnabled } from '@/lib/sim-search/live/provider-rollout'
 
 export class ManagedMcpConnectorError extends Error {
   constructor(
@@ -50,7 +52,7 @@ export interface ManagedMcpConnectorSummary {
 }
 
 export type CreateManagedMcpConnectorInput =
-  | { connectorId: 'fireflies' | 'granola' }
+  | { connectorId: Exclude<ManagedMcpConnectorId, 'databricks'> }
   | {
       connectorId: 'databricks'
       name: string
@@ -130,6 +132,37 @@ async function validateServerUrl(url: string): Promise<void> {
   }
 }
 
+/** A connector input whose URL passed the MCP domain and SSRF checks. */
+export interface ValidatedManagedMcpConnectorInput {
+  input: CreateManagedMcpConnectorInput
+  url: string
+}
+
+/**
+ * Resolves and checks a connector's URL. The SSRF check resolves DNS, so a caller that joins its
+ * own transaction runs this before opening it rather than while holding that transaction's locks.
+ */
+export async function validateManagedMcpConnectorInput(
+  input: CreateManagedMcpConnectorInput
+): Promise<ValidatedManagedMcpConnectorInput> {
+  if (input.connectorId === 'hubspot' && !getSharedHubSpotMcpClient())
+    throw new ManagedMcpConnectorError(
+      'HubSpot sign-in is not configured. Ask your Sim administrator to configure the HubSpot MCP OAuth client.',
+      'validation'
+    )
+  if (input.connectorId === 'zoom' && !getSharedZoomMcpClient())
+    throw new ManagedMcpConnectorError(
+      'Zoom sign-in is not configured. Ask your Sim administrator to configure the Zoom MCP OAuth client.',
+      'validation'
+    )
+  const url = resolveManagedMcpConnectorUrl(
+    input.connectorId,
+    input.connectorId === 'databricks' ? input.url : undefined
+  )
+  await validateServerUrl(url)
+  return { input, url }
+}
+
 function resolveManagedMcpConnectorUrl(
   connectorId: ManagedMcpConnectorId,
   rawUrl?: string
@@ -176,39 +209,54 @@ async function retireManagedMcpCredentials(
   return retired.map((row) => row.id)
 }
 
-export async function createManagedMcpConnector(params: {
+interface ManagedMcpConnectorTarget {
   workspaceId?: string
   organizationId?: string
   credentialGroupId: string
   userId: string
-  input: CreateManagedMcpConnectorInput
-}): Promise<ManagedMcpConnectorMutationResult> {
+}
+
+export function createManagedMcpConnector(
+  params: ManagedMcpConnectorTarget & { input: CreateManagedMcpConnectorInput }
+): Promise<ManagedMcpConnectorMutationResult>
+/** Joins the caller's transaction with an input validated before that transaction opened. */
+export function createManagedMcpConnector(
+  params: ManagedMcpConnectorTarget & { validated: ValidatedManagedMcpConnectorInput },
+  executor: DbTransaction
+): Promise<ManagedMcpConnectorMutationResult>
+export async function createManagedMcpConnector(
+  params: ManagedMcpConnectorTarget &
+    ({ input: CreateManagedMcpConnectorInput } | { validated: ValidatedManagedMcpConnectorInput }),
+  executor?: DbTransaction
+): Promise<ManagedMcpConnectorMutationResult> {
   const scope = resourceScopeFromOwner(params)
-  const connector = getManagedMcpConnector(params.input.connectorId)
-  const url = resolveManagedMcpConnectorUrl(
-    connector.id,
-    params.input.connectorId === 'databricks' ? params.input.url : undefined
-  )
-  await validateServerUrl(url)
+  const requested = 'validated' in params ? params.validated.input : params.input
+  if (requested.connectorId === 'zoom' && !(await isSearchProviderEnabled('zoom', scope)))
+    throw new ManagedMcpConnectorError(
+      'Zoom Search is not available for this organization',
+      'forbidden'
+    )
+  const { input, url } =
+    'validated' in params ? params.validated : await validateManagedMcpConnectorInput(params.input)
+  const connector = getManagedMcpConnector(input.connectorId)
   const serverId = generateMcpServerId(
     scope.kind === 'workspace' ? scope.workspaceId : resourceScopeKey(scope),
     url
   )
-  const oauthClientId =
-    params.input.connectorId === 'databricks' ? params.input.oauthClientId.trim() : null
+  const oauthClientId = input.connectorId === 'databricks' ? input.oauthClientId.trim() : null
   const oauthClientSecret =
-    params.input.connectorId === 'databricks' && params.input.oauthClientSecret
-      ? (await encryptSecret(params.input.oauthClientSecret)).encrypted
+    input.connectorId === 'databricks' && input.oauthClientSecret
+      ? (await encryptSecret(input.oauthClientSecret)).encrypted
       : null
-  const name = params.input.connectorId === 'databricks' ? params.input.name.trim() : connector.name
+  const name = input.connectorId === 'databricks' ? input.name.trim() : connector.name
   if (!name)
     throw new ManagedMcpConnectorError('Managed MCP connector name is required', 'validation')
-  if (params.input.connectorId === 'databricks' && !oauthClientId) {
+  if (input.connectorId === 'databricks' && !oauthClientId) {
     throw new ManagedMcpConnectorError('Databricks OAuth Client ID is required', 'validation')
   }
 
   try {
-    const mcpServer = await db.transaction(async (tx) => {
+    const create = async (tx: DbOrTx) => {
       const [group] = await tx
         .select({ id: credentialGroup.id })
         .from(credentialGroup)
@@ -321,7 +369,8 @@ export async function createManagedMcpConnector(params: {
         .returning()
       if (!created) throw new Error('Managed MCP server insert returned no row')
       return created
-    })
+    }
+    const mcpServer = executor ? await create(executor) : await db.transaction(create)
     return {
       mcpServer: toSummary(mcpServer),
       retiredMcpConnectionIds: [],

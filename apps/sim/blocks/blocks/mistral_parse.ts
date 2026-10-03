@@ -8,12 +8,8 @@ import {
   type SubBlockType,
 } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
-import type { MistralParserOutput } from '@/tools/mistral/types'
 
-const DOCUMENT_FIELD = ['fileUpload', 'filePath'] as const
-const DOCUMENT_REFERENCE_FIELD = ['fileUpload', 'fileReference'] as const
-
-export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
+export const MistralParseBlock: BlockConfig = {
   type: 'mistral_parse',
   name: 'Mistral Parser (Legacy)',
   description: 'Extract text from PDF documents',
@@ -172,7 +168,7 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
  * V2 Block - Restored from main branch for backwards compatibility
  * Hidden from toolbar, uses filePath subblock ID for advanced mode
  */
-export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
+export const MistralParseV2Block: BlockConfig = {
   ...MistralParseBlock,
   type: 'mistral_parse_v2',
   name: 'Mistral Parser',
@@ -303,7 +299,7 @@ export const MistralParseV2Block: BlockConfig<MistralParserOutput> = {
  * V3 Block - New file handling pattern with UserFile normalization
  * Uses fileReference subblock ID with canonicalParamId for proper file handling
  */
-export const MistralParseV3Block: BlockConfig<MistralParserOutput> = {
+export const MistralParseV3Block: BlockConfig = {
   ...MistralParseBlock,
   sunset: undefined,
   type: 'mistral_parse_v3',

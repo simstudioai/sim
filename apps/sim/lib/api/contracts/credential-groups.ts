@@ -278,8 +278,8 @@ export const startSlackCredentialGroupConfigurationBodySchema = z
       .regex(/^T[A-Z0-9]+$/, 'Enter the Slack workspace ID')
       .max(64)
       .optional(),
-    clientId: z.string().trim().min(1, 'Slack Client ID is required').max(256),
-    clientSecret: z.string().trim().min(1, 'Slack Client Secret is required').max(512),
+    clientId: z.string().trim().min(1, 'Slack Client ID is required').max(256).optional(),
+    clientSecret: z.string().trim().min(1, 'Slack Client Secret is required').max(512).optional(),
     requiredScopes: z.array(z.string().trim().min(1).max(255)).min(1).max(100).optional(),
   })
   .strict()
@@ -369,6 +369,11 @@ export type UpdateCredentialGroupBody = z.input<typeof updateCredentialGroupBody
 export const createCredentialGroupMcpConnectorBodySchema = z.discriminatedUnion('connectorId', [
   z.object({ connectorId: z.literal('fireflies') }).strict(),
   z.object({ connectorId: z.literal('granola') }).strict(),
+  z.object({ connectorId: z.literal('notion') }).strict(),
+  z.object({ connectorId: z.literal('coda') }).strict(),
+  z.object({ connectorId: z.literal('hubspot') }).strict(),
+  z.object({ connectorId: z.literal('lucid') }).strict(),
+  z.object({ connectorId: z.literal('zoom') }).strict(),
   z
     .object({
       connectorId: z.literal('databricks'),
@@ -407,6 +412,7 @@ export const workspaceAccountsSettingsSchema = z.object({
    * so an admin is never shown an account type nobody could finish connecting.
    */
   availableProviders: z.array(credentialGroupProviderSchema),
+  availableMcpConnectors: z.array(managedMcpConnectorIdSchema),
 })
 
 export type WorkspaceAccountsSettings = z.output<typeof workspaceAccountsSettingsSchema>

@@ -1,4 +1,5 @@
-import type { Principal, SessionPrincipal } from '@sim/auth/principal'
+import { describePrincipalAuth, type Principal, type SessionPrincipal } from '@sim/auth/principal'
+import { setRequestAuth } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import {
@@ -90,6 +91,7 @@ export function defineInternalBinaryRoute<
         }
         throw error
       }
+      setRequestAuth(describePrincipalAuth(principal))
 
       await options.rateLimit.enforce(request, principal)
       const parsed = await parseRequest(options.contract, request, context ?? {})

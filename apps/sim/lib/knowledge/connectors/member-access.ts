@@ -42,7 +42,10 @@ import {
   rejectManagedOAuthToken,
   resolveManagedOAuthToken,
 } from '@/lib/credentials/managed-oauth'
-import { MEMBER_LOCKABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
+import {
+  connectorIsLive,
+  MEMBER_LOCKABLE_CONNECTOR_STATUSES,
+} from '@/lib/knowledge/connectors/sync-lock'
 import {
   CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION,
   type ResourcePolicyBindingFor,
@@ -53,6 +56,7 @@ import {
   requireResourcePolicy,
   writeResourcePolicy,
 } from '@/lib/resource-policies/repository'
+import { getConnectorRequiredScopes } from '@/connectors/auth'
 import type { ConnectorMeta } from '@/connectors/types'
 
 const logger = createLogger('KnowledgeConnectorMemberAccess')
@@ -287,8 +291,7 @@ export async function assertKnowledgeConnectorCredentialAccess(
           resourceScopeCondition(knowledgeBase, scope),
           resourceScopeCondition(credentialGroup, scope),
           isNull(knowledgeBase.deletedAt),
-          isNull(knowledgeConnector.archivedAt),
-          isNull(knowledgeConnector.deletedAt)
+          connectorIsLive()
         )
       )
       .limit(1)
@@ -298,6 +301,15 @@ export async function assertKnowledgeConnectorCredentialAccess(
       )
     }
     return
+  }
+  /** The policy grant outlives a removal until its revocation lands; the connector row does not. */
+  const [liveConnector] = await db
+    .select({ id: knowledgeConnector.id })
+    .from(knowledgeConnector)
+    .where(and(eq(knowledgeConnector.id, binding.connectorId), connectorIsLive()))
+    .limit(1)
+  if (!liveConnector) {
+    throw new KnowledgeConnectorMemberAccessDeniedError('Knowledge connector has been removed')
   }
   const policy = await requireResourcePolicy(
     policyTarget({ ...binding, workspaceId: scope.workspaceId })
@@ -554,7 +566,12 @@ export function validateKnowledgeConnectorMembersBinding(input: {
     }
   }
   const adapter = getCredentialGroupProviderAdapter(option.provider)
-  if (!adapter.hasRequiredScopes(option.requiredScopes, connectorMeta.auth.requiredScopes ?? [])) {
+  if (
+    !adapter.hasRequiredScopes(
+      option.requiredScopes,
+      getConnectorRequiredScopes(connectorMeta.auth, input.sourceConfig)
+    )
+  ) {
     return {
       ok: false,
       message: `Credential option does not request every permission ${connectorMeta.name} needs to read the source`,

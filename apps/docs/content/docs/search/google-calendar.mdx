@@ -1,110 +1,71 @@
 ---
 title: Google Calendar
-description: Search calendar events using each teammate's own Google access
+description: Search events live with each member's calendar access
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { Image } from '@/components/ui/image'
+Google Calendar supports **Member accounts** and **Service account**. Every reader connects Google Calendar in Integrations. Search queries event APIs with the connected member's account, preserving the details Google permits that person to see.
 
-Search meetings and event details available to your Google account. An organization admin enables the source; every teammate connects their own account. Google controls which calendar and event details each person can read.
+## Member accounts
 
-Admin setup uses your organization's **Settings → Sources** page. Teammates connect from **Integrations** in the main sidebar. For workspace Search, use **Search → Add source** instead; **Create & Invite** is the workspace equivalent of **Add source**.
+Add **Google Calendar** under **Settings → Sources**, choose **Member accounts**, and save. Members authorize **Google Calendar** under **Integrations**. There are no organization calendar or date-window filters in member mode. A query can target a calendar or request an agenda for a date range.
 
-## Set up the source
+Connecting does not ingest events or build permission records. Changes appear according to Google's API responses.
 
-These steps require a Sim organization admin.
+## Set up a central service account
 
-<Steps>
-<Step>
+1. Enable **Google Calendar API** and **Admin SDK API** in Google Cloud. Create a service account and download its JSON key.
+2. Authorize domain-wide delegation for its numeric client ID in Google Workspace Admin with all three scopes:
 
-### Add Google Calendar
+```text
+https://www.googleapis.com/auth/calendar.events.readonly
+https://www.googleapis.com/auth/calendar.readonly
+https://www.googleapis.com/auth/admin.directory.user.readonly
+```
 
-Open **Settings → Sources → Add integration** and choose **Google Calendar**. On its **Sources** tab, select **Add source**. If it is already listed, open it directly. Search uses member accounts; an admin or service account cannot connect on behalf of everyone.
+Search reads events with `calendar.events.readonly`. The calendar picker also needs `calendar.readonly` to list the delegated administrator's calendars. See [CalendarList authorization](https://developers.google.com/workspace/calendar/api/v3/reference/calendarList/list).
 
-</Step>
-<Step>
+3. In **Settings → Sources → Google Calendar**, choose **Service account**, then **Add connection**. Add or select the Google credential and set **Delegated administrator** to an active Workspace administrator with Directory user-read access.
+4. Select calendars, users, a date range, and optional event-text and attendee settings. Save and select this connection as the service source.
+5. Members connect their personal Calendar accounts in **Integrations**.
 
-### Choose the calendars
+The picker browses the delegated administrator's calendars. The `primary` choice is saved as an alias for each connected member's primary calendar. A specific shared-calendar ID must be accessible to the member and through the source's delegation.
 
-Leave **Calendars** empty to search each person's primary calendar. To include specific shared calendars, select an **Account for browsing** and choose calendars, or switch to **Calendar IDs** and enter their IDs.
+## How filtering works
 
-**Account for browsing** only helps you choose calendars. It does not connect your account for Search or grant teammates access.
+Sim verifies the connected account's primary-calendar identity and its active Directory identity in the source's Workspace customer. If Users is selected, that member must be included. The service credential then delegates to that same member, not to another user's calendar view.
 
-</Step>
-<Step>
+Search incorporates selected calendars and date bounds into the provider request. Each result must still exist through the delegated source credential, belong to an allowed calendar, be non-cancelled, and overlap the configured rolling window. The default source window is 30 days before and after the request. A source text query is independently verified against the exact event.
 
-### Create the source
+Recurring events expand within the search window. All-day events use the calendar's timezone. `Include Attendees` controls attendee details, and the member's provider access still limits private event details. Reads repeat these checks.
 
-Keep the default date range for the previous and next 30 days. **More options** contains **Search Query**, **Include Attendees**, and **Metadata tags**. Click **Add source**, then connect your own account from **Integrations** in the main sidebar.
-
-</Step>
-</Steps>
-
-<Image src="/static/search/google-calendar-setup.jpg" alt="Google Calendar Search source configuration" width={520} height={397} />
-
-<Callout type="info">
-  `primary` means the connected person's main calendar. A calendar selected from the list is a specific calendar ID, even when it is your main calendar. That same ID applies to every member, and only members with access to it can search its events.
-</Callout>
-
-## Connect your account
-
-1. Join the Sim organization and verify your Sim email. Open **Integrations** and click **Connect account** beside Google Calendar.
-2. In the connection tab, choose the Google account whose verified email matches your Sim email. Grant the requested permissions.
-3. Return to Integrations to see indexing status and your searchable document count.
-
-Teammates repeat only these connection steps after joining the organization. They do not need to configure the source. An admin can send connection requests from **Settings → Sources → Google Calendar → Accounts → Request connections**. These requests do not grant organization membership. Connecting Gmail or Google Drive does not replace the Calendar connection.
-
-## Source options
-
-An admin opens **Settings → Sources → Google Calendar → Sources → [source] → Settings** to change these options. **Documents** shows indexed events and **Sync history** shows recent runs.
-
-| Option | Behavior |
-| --- | --- |
-| Calendars / Calendar IDs | Empty defaults to each member's `primary` calendar. Explicit IDs restrict the source to those calendars. Multiple IDs are comma-separated; combine `primary` with shared calendar IDs if needed. |
-| Date Range | Previous and next 30 days by default. Alternatives are the previous 30 days, next 30 days, or 90 days in each direction. The window moves forward on later syncs. |
-| Search Query | Optional text filter applied by Google to event titles, descriptions, locations, and organizer or attendee names and emails. Leave empty to include all matching events in the date range. |
-| Include Attendees | **Yes** by default. **No** omits organizer and attendee identity fields and keeps the attendee count. It does not redact names written into titles or descriptions. |
-
-In the add-source form, **More options** contains optional **Metadata tags**. Search hides sync frequency and the general knowledge-base **Max Events** setting.
-
-## What gets indexed
-
-Sim indexes event titles, descriptions, times, locations, and the selected attendee information. All-day events and individual occurrences of recurring meetings are supported. Results link back to Google Calendar.
-
-Cancelled events, attachment contents, meeting recordings, and transcripts are not indexed. Events outside the selected date window are excluded. Private event details that Google withholds are not available in Search; see [Google's calendar sharing rules](https://developers.google.com/workspace/calendar/api/concepts/sharing).
-
-Search schedules syncs hourly. Event edits, cancellations, access changes, and events moving outside the date window are reconciled during background sync. The first sync may take longer, and results appear as indexing progresses.
+Sim does not copy the organizer's richer event details into an attendee's view or separately ingest attachments, recordings, or transcripts. Provider limits and bounded calendar traversal can produce incomplete coverage.
 
 ## Troubleshooting
 
-| What you see | What to do |
+| Problem | Next step |
 | --- | --- |
-| No events | Check the date range, search query, and calendar IDs. Use an empty calendar selection or `primary` for each person's own calendar. |
-| A shared calendar is missing | Confirm the connected Google account can read its events. Selecting a calendar in Sim does not share it in Google. |
-| Busy times without event details | Google may expose only availability or hide private details. Ask the calendar owner to review sharing if more access is appropriate. |
-| A different email is requested | Choose the Google account matching your verified Sim email. |
-| Reconnect | Click **Reconnect** and complete Google authorization again. Allow pop-ups if the connection tab does not open. |
-| Unavailable or needs admin attention | Ask your Sim admin to check source status and the deployment's Google OAuth configuration. |
+| Calendar picker fails | Include `calendar.readonly` in delegation, along with the other scopes above. |
+| A member gets no matches | Check their personal connection, primary Workspace identity, Users selection, calendars, and source date window. |
+| Shared calendar is missing | Confirm both the member and delegated source identity can access that calendar ID. |
+| Event is outside the configured range | Adjust the service source's range or narrow the user's query to its allowed window. |
+| Google rejects delegation | Verify client ID, key, Directory administrator access, and Workspace approval. |
 
 ## Self-hosted operator setup
 
-The deployment operator configures Google OAuth once; teammates then use the normal connection flow.
+Configure the deployment’s Google OAuth client for every member’s personal connection, including members using a service-account source. This is separate from domain-wide delegation.
 
 1. In [Google Cloud Console](https://console.cloud.google.com/), select your project. Open **APIs & Services → Library**, find **Google Calendar API**, and enable it.
 2. Open **Google Auth platform → Branding** and configure the app name and contact details. Under **Audience**, choose **Internal** for your Google Workspace organization only, or **External** for other users. Add test users while an external app is testing. Review **Data Access → Add or remove scopes** using the current Sim scopes below. See Google's [consent and verification guidance](https://developers.google.com/workspace/guides/configure-oauth-consent).
 3. Open **Google Auth platform → Clients → Create client**, choose **Web application**, and add the URI below under **Authorized redirect URIs**. Add it to the existing Google client if the instance already uses one. See [Google's credential setup](https://developers.google.com/workspace/guides/create-credentials#web-application).
-4. Save the client ID and secret as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Set `NEXT_PUBLIC_APP_URL` to the same Sim origin used in the callback, then restart Sim. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth).
+4. Save the client ID and secret as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Set `NEXT_PUBLIC_APP_URL` to the same Sim origin used in the callback, then restart Sim. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth). If you change an existing deployment's OAuth client or scopes, an organization admin updates the provider configuration and affected teammates reconnect.
 
 ```text
 https://<your-sim-domain>/api/auth/oauth2/callback/google-calendar
 ```
 
-<Image src="/static/search/google-oauth-web-client.png" alt="Google Cloud Web application client form with Sim's Gmail, Calendar, and Drive callback URLs" width={768} height={929} />
+One OAuth client can register callbacks for all three Google services. Use your exact Sim origin and add only the callbacks for services you enable.
 
-This Google Cloud example uses one client for all three services. Replace `https://sim.example.com` with your Sim origin and add only the callbacks for services you enable.
-
-The current Sim Calendar connection uses these scopes:
+The member-account OAuth connection uses these scopes:
 
 ```text
 openid
@@ -113,6 +74,4 @@ https://www.googleapis.com/auth/userinfo.profile
 https://www.googleapis.com/auth/calendar
 ```
 
-<Callout type="info">
-  Search's reads can use `calendar.events.readonly`, `calendar.calendarlist.readonly`, and `calendar.calendars.readonly` for events, the calendar list, and calendar details. Sim currently shares its Calendar OAuth connection with workflow actions and requires the broader `calendar` scope above. Do not replace it with read-only scopes in this setup. Search does not change calendars or events. See [Google's scope descriptions](https://developers.google.com/workspace/calendar/api/auth).
-</Callout>
+The personal OAuth connection also supports workflow actions, so its declared scopes can be broader than Search’s read-only requests. The service credential uses the separate delegation scopes above.

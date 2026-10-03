@@ -1109,6 +1109,14 @@ export const OAUTH_CLIENT_SETUP_FIELDS = {
     HUBSPOT_CLIENT_ID: { input: 'text' },
     HUBSPOT_CLIENT_SECRET: { input: 'secret' },
   },
+  'zoom-mcp': {
+    ZOOM_MCP_CLIENT_ID: { input: 'text' },
+    ZOOM_MCP_CLIENT_SECRET: { input: 'secret' },
+  },
+  'hubspot-mcp': {
+    HUBSPOT_MCP_CLIENT_ID: { input: 'text' },
+    HUBSPOT_MCP_CLIENT_SECRET: { input: 'secret' },
+  },
   linkedin: {
     LINKEDIN_CLIENT_ID: { input: 'text' },
     LINKEDIN_CLIENT_SECRET: { input: 'secret' },

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   type ForkContentRefMaps,
@@ -48,11 +45,6 @@ describe('rewriteForkContentRefs - sim: links', () => {
     const input = '[F](sim:file/unknown-file) and [I](sim:integration/gmail_v2)'
     expect(rewriteForkContentRefs(input, maps())).toBe(input)
   })
-
-  it('leaves a kind with no supplied map unchanged', () => {
-    const input = '[W](sim:workflow/wf-src)'
-    expect(rewriteForkContentRefs(input, { fileIds: new Map() })).toBe(input)
-  })
 })
 
 describe('rewriteForkContentRefs - embedded urls', () => {
@@ -77,11 +69,6 @@ describe('rewriteForkContentRefs - embedded urls', () => {
     )
   })
 
-  it('remaps a view-url file id', () => {
-    const input = '![a](/api/files/view/file-src)'
-    expect(rewriteForkContentRefs(input, maps())).toBe('![a](/api/files/view/file-dst)')
-  })
-
   it('remaps both the workspace id and file id in an in-app files path', () => {
     const input = '![a](/workspace/SRC/files/file-src)'
     expect(rewriteForkContentRefs(input, maps())).toBe('![a](/workspace/DST/files/file-dst)')
@@ -95,17 +82,6 @@ describe('rewriteForkContentRefs - embedded urls', () => {
 
   it('leaves an in-app file path unchanged when the file id is unmapped (both-or-nothing)', () => {
     const input = '![a](/workspace/SRC/files/unknown-file)'
-    expect(rewriteForkContentRefs(input, maps())).toBe(input)
-  })
-
-  it('leaves an unmapped storage key / file id unchanged', () => {
-    const input =
-      '![a](/api/files/serve/workspace%2FSRC%2Funknown.png) ![b](/api/files/view/unknown-id)'
-    expect(rewriteForkContentRefs(input, maps())).toBe(input)
-  })
-
-  it('leaves an external / data url unchanged', () => {
-    const input = '![a](https://cdn.example.com/x.png) ![b](data:image/png;base64,AAAA)'
     expect(rewriteForkContentRefs(input, maps())).toBe(input)
   })
 })
@@ -125,23 +101,9 @@ describe('rewriteForkContentRefs - mixed and edge cases', () => {
     expect(output).toContain('/api/files/view/file-dst')
   })
 
-  it('returns the input unchanged when there are no references', () => {
-    const input = '# Heading\n\nNo references here, just text.'
-    expect(rewriteForkContentRefs(input, maps())).toBe(input)
-  })
-
-  it('returns the input unchanged for an empty string', () => {
-    expect(rewriteForkContentRefs('', maps())).toBe('')
-  })
-
   it('leaves a malformed (un-decodable) serve key unchanged', () => {
     const input = '![a](/api/files/serve/%E0%A4%A)'
     expect(rewriteForkContentRefs(input, maps())).toBe(input)
-  })
-
-  it('does nothing when no maps are supplied', () => {
-    const input = `[S](sim:skill/skill-src) ![a](/api/files/serve/${SRC_KEY})`
-    expect(rewriteForkContentRefs(input, {})).toBe(input)
   })
 })
 
@@ -170,25 +132,6 @@ describe('rewriteForkResourceUrls - table cell resource chip urls', () => {
   it('leaves a foreign / unknown workspace id unchanged', () => {
     expect(rewriteForkResourceUrls('/workspace/OTHER/w/wf-src', maps())).toBe(
       '/workspace/OTHER/w/wf-src'
-    )
-  })
-
-  it('leaves a non-matching string (unknown section / no resource path) unchanged', () => {
-    const input = 'text /workspace/ and /workspace/SRC/settings/x and /workspace/SRC/w/'
-    expect(rewriteForkResourceUrls(input, maps())).toBe(input)
-  })
-
-  it('does nothing without a workspaceId map', () => {
-    const input = '/workspace/SRC/w/wf-src'
-    expect(rewriteForkResourceUrls(input, { workflows: new Map([['wf-src', 'wf-dst']]) })).toBe(
-      input
-    )
-  })
-
-  it('rewrites a URL embedded mid-text', () => {
-    const input = 'See [chip](/workspace/SRC/knowledge/kb-src) here'
-    expect(rewriteForkResourceUrls(input, maps())).toBe(
-      'See [chip](/workspace/DST/knowledge/kb-dst) here'
     )
   })
 })

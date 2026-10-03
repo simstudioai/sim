@@ -1,6 +1,9 @@
+import {
+  INTEGRATION_METADATA,
+  type IntegrationMetadata,
+} from '@sim/deployment-config/integration-metadata'
 import type { EnvCapabilityValues } from './env-capabilities'
 import { inspectOAuthClientCapability, resolveOAuthClientCapabilityId } from './env-capabilities'
-import integrationsJson from './integrations.json'
 import { getServiceAccountMetadata } from './service-account-metadata'
 import { CREDENTIAL_CONFIGURED_OAUTH_SERVICE_IDS } from './service-account-providers.generated'
 
@@ -17,35 +20,34 @@ export interface IntegrationAvailability {
   setupCommand?: string
 }
 
-interface DeploymentIntegration {
-  type: string
-  slug: string
-  name: string
-  authType: 'oauth' | 'api-key' | 'none'
-  oauthServiceId?: string
-  serviceAccountServiceId?: string
-}
-
-const integrations = integrationsJson.integrations as readonly DeploymentIntegration[]
 const credentialConfiguredOAuthServiceIds = new Set<string>(CREDENTIAL_CONFIGURED_OAUTH_SERVICE_IDS)
 const deploymentGatedIntegrationTypes = new Set(
-  integrations
-    .filter(
-      (integration) => integration.authType === 'oauth' || integration.serviceAccountServiceId
-    )
-    .map((integration) => integration.type.toLowerCase())
+  INTEGRATION_METADATA.filter(
+    (integration) => integration.authType === 'oauth' || integration.serviceAccountServiceId
+  ).map((integration) => integration.type.toLowerCase())
 )
 const integrationTypesByOAuthServiceId = new Map<string, readonly string[]>()
 /** Search authorization shares GitHub's integration policy while its workflow tools retain PAT auth. */
 integrationTypesByOAuthServiceId.set('github-repositories', ['github_v2'])
+/** Stored API-token credentials for api-key blocks are available without a deployment OAuth client. */
+const tokenCredentialIntegrationTypes = new Map([
+  ['coda', 'coda'],
+  ['claude-platform', 'managed_agent'],
+])
+for (const [serviceId, integrationType] of tokenCredentialIntegrationTypes) {
+  integrationTypesByOAuthServiceId.set(serviceId, [integrationType])
+}
+const tokenCredentialTypes = new Set(tokenCredentialIntegrationTypes.values())
 const previewServiceAccountProvidersByIntegrationType = new Map<string, string>()
-for (const integration of integrations) {
+for (const integration of INTEGRATION_METADATA) {
   const credentialServiceId = integration.serviceAccountServiceId ?? integration.oauthServiceId
   if (!credentialServiceId) continue
   const serviceId = credentialServiceId.toLowerCase()
   const current = integrationTypesByOAuthServiceId.get(serviceId) ?? []
   const integrationType = integration.type.toLowerCase()
-  integrationTypesByOAuthServiceId.set(serviceId, [...current, integrationType])
+  if (!current.includes(integrationType)) {
+    integrationTypesByOAuthServiceId.set(serviceId, [...current, integrationType])
+  }
 
   const serviceAccount = getServiceAccountMetadata(serviceId)
   if (serviceAccount?.deploymentRequirement !== 'preview-gated') continue
@@ -80,7 +82,7 @@ export function getPreviewServiceAccountProviderId(integrationType: string): str
 }
 
 function resolveOAuthIntegrationAvailability(
-  integration: DeploymentIntegration,
+  integration: IntegrationMetadata,
   values: EnvCapabilityValues
 ): IntegrationAvailability {
   const { oauthServiceId } = integration
@@ -143,7 +145,7 @@ function resolveOAuthIntegrationAvailability(
 export function resolveIntegrationAvailability(
   values: EnvCapabilityValues
 ): readonly IntegrationAvailability[] {
-  return integrations.map((integration) => {
+  return INTEGRATION_METADATA.map((integration) => {
     if (integration.authType === 'oauth') {
       return resolveOAuthIntegrationAvailability(integration, values)
     }
@@ -177,7 +179,7 @@ export function resolveIntegrationAvailability(
       name: integration.name,
       state: 'ready',
       oauthAvailable: false,
-      serviceAccountAvailable: false,
+      serviceAccountAvailable: tokenCredentialTypes.has(integration.type),
       missingFields: [],
     }
   })

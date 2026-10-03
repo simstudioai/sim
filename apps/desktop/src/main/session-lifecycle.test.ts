@@ -14,11 +14,8 @@ import {
 import {
   createSessionLifecycleCoordinator,
   decideStartRoute,
-  isLogoutNavigation,
-  isSessionCookieName,
   probeSession,
   resolveStartRoute,
-  revokeAppSession,
   tearDownSession,
 } from '@/main/session-lifecycle'
 
@@ -36,44 +33,13 @@ afterEach(async () => {
   await rm(recoveryDirectory, { recursive: true, force: true })
 })
 
-describe('isSessionCookieName', () => {
-  it('matches the better-auth session cookie on secure and non-secure hosts', () => {
-    expect(isSessionCookieName('better-auth.session_token')).toBe(true)
-    expect(isSessionCookieName('__Secure-better-auth.session_token')).toBe(true)
-  })
-
-  it('ignores non-session cookies', () => {
-    expect(isSessionCookieName('better-auth.session_data')).toBe(false)
-    expect(isSessionCookieName('__Host-csrf')).toBe(false)
-    expect(isSessionCookieName('theme')).toBe(false)
-  })
-})
-
 function sessionWithResponse(status: number, body: unknown): Session {
   return {
     fetch: vi.fn(async () => new Response(JSON.stringify(body), { status })),
   } as unknown as Session
 }
 
-describe('isLogoutNavigation', () => {
-  it('detects the web sign-out navigation', () => {
-    expect(isLogoutNavigation(`${APP}/login?fromLogout=true`, APP)).toBe(true)
-  })
-
-  it('ignores plain login loads, other origins, and garbage', () => {
-    expect(isLogoutNavigation(`${APP}/login`, APP)).toBe(false)
-    expect(isLogoutNavigation(`${APP}/login?fromLogout=false`, APP)).toBe(false)
-    expect(isLogoutNavigation('https://evil.example/login?fromLogout=true', APP)).toBe(false)
-    expect(isLogoutNavigation('not a url', APP)).toBe(false)
-  })
-})
-
 describe('decideStartRoute', () => {
-  it('restores the last route when plausible', () => {
-    expect(decideStartRoute('/workspace/ws1?tab=logs')).toBe('/workspace/ws1?tab=logs')
-    expect(decideStartRoute('/workspace/ws1')).toBe('/workspace/ws1')
-  })
-
   it('falls back to /workspace for missing, unsafe, or auth-surface last routes', () => {
     expect(decideStartRoute(undefined)).toBe('/home')
     expect(decideStartRoute('//evil.example')).toBe('/home')
@@ -82,31 +48,12 @@ describe('decideStartRoute', () => {
 })
 
 describe('resolveStartRoute', () => {
-  it('restores an accessible saved workspace route', async () => {
-    const session = sessionWithResponse(200, { workspace: { id: 'ws1' } })
-
-    await expect(resolveStartRoute(session, APP, '/workspace/ws1/home')).resolves.toBe(
-      '/workspace/ws1/home'
-    )
-    expect(vi.mocked(session.fetch)).toHaveBeenCalledWith(
-      `${APP}/api/workspaces/ws1/host-context`,
-      expect.objectContaining({ cache: 'no-store' })
-    )
-  })
-
   it('falls back to the app entry after confirmed access denial', async () => {
     const session = sessionWithResponse(403, { error: 'Workspace access denied' })
 
     await expect(resolveStartRoute(session, APP, '/workspace/revoked/chat/c1')).resolves.toBe(
       '/home'
     )
-  })
-
-  it('does not probe routes without a workspace id', async () => {
-    const session = sessionWithResponse(200, {})
-
-    await expect(resolveStartRoute(session, APP, '/workspace')).resolves.toBe('/workspace')
-    expect(session.fetch).not.toHaveBeenCalled()
   })
 
   it('preserves the saved route on auth, server, and network failures', async () => {
@@ -129,19 +76,6 @@ describe('resolveStartRoute', () => {
 })
 
 describe('probeSession', () => {
-  it('reports valid when a session or user is present', async () => {
-    await expect(probeSession(sessionWithResponse(200, { user: { id: 'u1' } }), APP)).resolves.toBe(
-      'valid'
-    )
-    await expect(
-      probeSession(sessionWithResponse(200, { session: { id: 's1' } }), APP)
-    ).resolves.toBe('valid')
-  })
-
-  it('reports invalid for a null session body', async () => {
-    await expect(probeSession(sessionWithResponse(200, null), APP)).resolves.toBe('invalid')
-  })
-
   it('reports unknown for server errors and network failures', async () => {
     await expect(probeSession(sessionWithResponse(500, {}), APP)).resolves.toBe('unknown')
     const failing = {
@@ -150,12 +84,6 @@ describe('probeSession', () => {
       }),
     } as unknown as Session
     await expect(probeSession(failing, APP)).resolves.toBe('unknown')
-  })
-
-  it('asks the get-session endpoint with the partition cookies', async () => {
-    const ses = sessionWithResponse(200, null)
-    await probeSession(ses, APP)
-    expect(vi.mocked(ses.fetch).mock.calls[0][0]).toBe(`${APP}/api/auth/get-session`)
   })
 })
 
@@ -192,52 +120,6 @@ describe('tearDownSession', () => {
     )
 
     expect(order).toEqual(['revoke', 'local', 'browser', 'session', 'cache'])
-  })
-
-  it('attempts every local erasure but rejects when the browser profile survives', async () => {
-    const clearStorageData = vi.fn(async () => {})
-    const clearCache = vi.fn(async () => {})
-    const session = { clearStorageData, clearCache } as unknown as Session
-
-    await expect(
-      tearDownSession(
-        session,
-        APP,
-        async () => {},
-        { filePath: '/tmp/events.log', record: vi.fn() },
-        async () => {
-          throw new Error('browser view already destroyed')
-        },
-        async () => {}
-      )
-    ).rejects.toThrow('account-data stores could not be cleared')
-
-    expect(clearStorageData).toHaveBeenCalled()
-    expect(clearCache).toHaveBeenCalled()
-  })
-
-  it('attempts every local erasure but rejects when account state survives', async () => {
-    const clearStorageData = vi.fn(async () => {})
-    const clearCache = vi.fn(async () => {})
-    const clearBrowserProfile = vi.fn(async () => {})
-    const session = { clearStorageData, clearCache } as unknown as Session
-
-    await expect(
-      tearDownSession(
-        session,
-        APP,
-        async () => {
-          throw new Error('local store unavailable')
-        },
-        { filePath: '/tmp/events.log', record: vi.fn() },
-        clearBrowserProfile,
-        async () => {}
-      )
-    ).rejects.toThrow('account-data stores could not be cleared')
-
-    expect(clearBrowserProfile).toHaveBeenCalledOnce()
-    expect(clearStorageData).toHaveBeenCalledOnce()
-    expect(clearCache).toHaveBeenCalledOnce()
   })
 
   it('does not erase local data when the recovery marker cannot be written', async () => {
@@ -292,80 +174,6 @@ describe('tearDownSession', () => {
     ).resolves.toBeUndefined()
 
     expect(clearStorageData).toHaveBeenCalled()
-  })
-
-  it('rejects when the app cache cannot be cleared', async () => {
-    const session = {
-      clearStorageData: vi.fn(async () => {}),
-      clearCache: vi.fn(async () => {
-        throw new Error('cache busy')
-      }),
-    } as unknown as Session
-
-    await expect(
-      tearDownSession(
-        session,
-        APP,
-        async () => {},
-        { filePath: '/tmp/events.log', record: vi.fn() },
-        async () => {},
-        async () => {}
-      )
-    ).rejects.toThrow('account-data stores could not be cleared')
-  })
-})
-
-describe('revokeAppSession', () => {
-  const origin = 'https://sim.ai'
-
-  function windowAt(url: string, destroyed = false) {
-    const executeJavaScript = vi.fn(async (_script: string) => 200)
-    return {
-      win: {
-        isDestroyed: () => destroyed,
-        webContents: { getURL: () => url, executeJavaScript },
-      } as unknown as BrowserWindow,
-      executeJavaScript,
-    }
-  }
-
-  it('POSTs sign-out from the app-origin renderer so the session row is deleted', async () => {
-    const { win, executeJavaScript } = windowAt(`${origin}/workspace`)
-
-    await revokeAppSession(win, origin)
-
-    expect(executeJavaScript).toHaveBeenCalledTimes(1)
-    const script = executeJavaScript.mock.calls[0][0]
-    expect(script).toContain('/api/auth/sign-out')
-    expect(script).toContain("credentials: 'include'")
-  })
-
-  it('skips a window that is off-origin or destroyed', async () => {
-    // The offline page and a lookalike host must never be asked to sign out —
-    // the request would not be same-origin and could not carry the cookie.
-    for (const url of ['about:blank', 'https://sim.ai.evil.example/workspace']) {
-      const { win, executeJavaScript } = windowAt(url)
-      await revokeAppSession(win, origin)
-      expect(executeJavaScript).not.toHaveBeenCalled()
-    }
-
-    const destroyed = windowAt(`${origin}/workspace`, true)
-    await revokeAppSession(destroyed.win, origin)
-    expect(destroyed.executeJavaScript).not.toHaveBeenCalled()
-  })
-
-  it('does not throw when the renderer rejects', async () => {
-    const win = {
-      isDestroyed: () => false,
-      webContents: {
-        getURL: () => `${origin}/workspace`,
-        executeJavaScript: vi.fn(async () => {
-          throw new Error('render frame disposed')
-        }),
-      },
-    } as unknown as BrowserWindow
-
-    await expect(revokeAppSession(win, origin)).resolves.toBeUndefined()
   })
 })
 

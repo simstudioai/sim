@@ -1,3 +1,4 @@
+import { INTEGRATION_COUNT_LABEL } from '@/lib/landing/constants'
 import {
   PlatformHeroVisual,
   SolutionsPage,
@@ -38,10 +39,8 @@ const SALES_CONFIG: SolutionsPageConfig = {
   hero: {
     eyebrow: 'Sales',
     heading: 'Automate lead research, outreach, and CRM updates with AI agents in Sim.',
-    description:
-      'Sim is the open-source AI workspace where sales teams build AI agents for lead research, outreach, and CRM updates. Agents wire into Salesforce, HubSpot, and hundreds of integrations to keep the pipeline current.',
-    summary:
-      'Sim is the open-source AI workspace where sales teams build, deploy, and manage AI agents for lead research, personalized outreach, and CRM updates. Agents wire into Salesforce, HubSpot, and hundreds of integrations so the pipeline stays current.',
+    description: `Sim is the open-source AI workspace where sales teams build AI agents for lead research, outreach, and CRM updates. Agents wire into Salesforce, HubSpot, and ${INTEGRATION_COUNT_LABEL} integrations to keep the pipeline current.`,
+    summary: `Sim is the open-source AI workspace where sales teams build, deploy, and manage AI agents for lead research, personalized outreach, and CRM updates. Agents wire into Salesforce, HubSpot, and ${INTEGRATION_COUNT_LABEL} integrations so the pipeline stays current.`,
     visual: (
       <PlatformHeroVisual>
         <SalesHeroLoop />

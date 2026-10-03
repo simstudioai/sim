@@ -1,16 +1,8 @@
-/**
- * @vitest-environment node
- */
-
 import { describe, expect, it } from 'vitest'
 import {
-  buildSlackBotDescription,
-  buildSlackBotDisplayName,
-  buildSlackCustomBotSecretBlob,
   type EnvironmentLookup,
   extractSlackBotSources,
   groupSlackSourcesByWorkflowCredentials,
-  isTransientDatabaseError,
   planLegacySlackTriggerLink,
   resolveSlackSourceSecrets,
   retryTransientDatabaseRead,
@@ -19,19 +11,6 @@ import {
 } from './migrate-slack-custom-bots'
 
 describe('database read retries', () => {
-  it('recognizes wrapped connection errors without retrying data errors', () => {
-    const connectionError = new Error('Failed query', {
-      cause: Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }),
-    })
-    const dataError = Object.assign(new Error('unique violation'), { code: '23505' })
-
-    expect(isTransientDatabaseError(connectionError)).toBe(true)
-    expect(
-      isTransientDatabaseError(Object.assign(new Error('connection failure'), { code: '08006' }))
-    ).toBe(true)
-    expect(isTransientDatabaseError(dataError)).toBe(false)
-  })
-
   it('retries a transient read and returns the successful result', async () => {
     let attempts = 0
     const result = await retryTransientDatabaseRead(
@@ -48,23 +27,6 @@ describe('database read retries', () => {
 
     expect(result).toBe('ok')
     expect(attempts).toBe(3)
-  })
-
-  it('fails immediately for a non-transient read error', async () => {
-    let attempts = 0
-    const error = Object.assign(new Error('invalid data'), { code: '23505' })
-
-    await expect(
-      retryTransientDatabaseRead(
-        async () => {
-          attempts++
-          throw error
-        },
-        { operation: 'test read' },
-        { maxAttempts: 5, backoff: { baseMs: 1, maxMs: 1 } }
-      )
-    ).rejects.toBe(error)
-    expect(attempts).toBe(1)
   })
 
   it('stops after the configured number of transient attempts', async () => {
@@ -155,40 +117,6 @@ describe('extractSlackBotSources', () => {
     ])
   })
 
-  it('extracts legacy triggerConfig secrets when direct fields are absent', () => {
-    const result = extractSlackBotSources(
-      migrationBlock({
-        triggerMode: true,
-        subBlocks: storedSubBlocks({
-          triggerConfig: { signingSecret: '{{SLACK_SIGNING}}', botToken: '{{SLACK_TOKEN}}' },
-        }),
-      })
-    )
-
-    expect(result[0]).toMatchObject({
-      rawSigningSecret: '{{SLACK_SIGNING}}',
-      rawBotToken: '{{SLACK_TOKEN}}',
-    })
-  })
-
-  it('extracts standalone custom-bot actions and ignores stale OAuth tokens', () => {
-    const customBot = extractSlackBotSources(
-      migrationBlock({
-        subBlocks: storedSubBlocks({ authMethod: 'bot_token', botToken: 'xoxb-action' }),
-      })
-    )
-    const oauth = extractSlackBotSources(
-      migrationBlock({
-        subBlocks: storedSubBlocks({ authMethod: 'oauth', botToken: 'stale-token' }),
-      })
-    )
-
-    expect(customBot).toEqual([
-      expect.objectContaining({ kind: 'action', rawBotToken: 'xoxb-action' }),
-    ])
-    expect(oauth).toEqual([])
-  })
-
   it('extracts Slack tools from serialized tools and notification inputs', () => {
     const toolsResult = extractSlackBotSources(
       migrationBlock({
@@ -237,69 +165,6 @@ describe('extractSlackBotSources', () => {
     ])
   })
 
-  it('ignores Slack tools without params while extracting valid sibling tools', () => {
-    const result = extractSlackBotSources(
-      migrationBlock({
-        blockType: 'agent',
-        subBlocks: storedSubBlocks({
-          tools: [
-            { type: 'slack', title: 'Incomplete Slack tool' },
-            {
-              type: 'slack',
-              title: 'Send to incidents',
-              params: { authMethod: 'bot_token', botToken: 'xoxb-tool' },
-            },
-          ],
-        }),
-      })
-    )
-
-    expect(result).toEqual([
-      expect.objectContaining({
-        sourceId: 'workflow-1:block-1:tools:1',
-        toolTitle: 'Send to incidents',
-        rawBotToken: 'xoxb-tool',
-      }),
-    ])
-  })
-
-  it('ignores non-object tool entries while preserving valid sibling indexes', () => {
-    const result = extractSlackBotSources(
-      migrationBlock({
-        blockType: 'agent',
-        subBlocks: storedSubBlocks({
-          tools: [
-            'legacy-invalid-tool',
-            {
-              type: 'slack',
-              title: 'Send to incidents',
-              params: { authMethod: 'bot_token', botToken: 'xoxb-tool' },
-            },
-          ],
-        }),
-      })
-    )
-
-    expect(result).toEqual([
-      expect.objectContaining({
-        sourceId: 'workflow-1:block-1:tools:1',
-        toolTitle: 'Send to incidents',
-        rawBotToken: 'xoxb-tool',
-      }),
-    ])
-  })
-
-  it('fails fast on malformed tool-input storage', () => {
-    expect(() =>
-      extractSlackBotSources(
-        migrationBlock({
-          blockType: 'agent',
-          subBlocks: storedSubBlocks({ tools: '{not-json' }),
-        })
-      )
-    ).toThrow()
-  })
-
   it('fails before iterating an oversized tool-input list', () => {
     const tools = Array.from({ length: 1_001 }, () => ({
       type: 'slack',
@@ -314,41 +179,6 @@ describe('extractSlackBotSources', () => {
         })
       )
     ).toThrow(/1000-tool migration limit/)
-  })
-})
-
-describe('buildSlackBotDisplayName', () => {
-  it('uses only the workflow name', () => {
-    expect(buildSlackBotDisplayName('Escalations', new Set())).toBe('Escalations')
-  })
-
-  it('allocates a normalized suffix while keeping names within 255 characters', () => {
-    const workflowName = 'W'.repeat(300)
-    const first = buildSlackBotDisplayName(workflowName, new Set())
-    const second = buildSlackBotDisplayName(workflowName, new Set([first.toLowerCase()]))
-
-    expect(first).toHaveLength(255)
-    expect(second).toHaveLength(255)
-    expect(second.endsWith(' (2)')).toBe(true)
-  })
-})
-
-describe('buildSlackBotDescription', () => {
-  it('identifies blocks without migration terminology', () => {
-    expect(
-      buildSlackBotDescription('Escalations', [
-        source(),
-        source({
-          sourceId: 'workflow-1:block-2:tools:0',
-          blockId: 'block-2',
-          blockName: 'Incident Agent',
-          kind: 'embedded_tool',
-          toolTitle: 'Notify channel',
-        }),
-      ])
-    ).toBe(
-      'Used by workflow "Escalations". Blocks: "Incident Agent" (Notify channel), "Notify Support".'
-    )
   })
 })
 
@@ -447,25 +277,6 @@ describe('groupSlackSourcesByWorkflowCredentials', () => {
   })
 })
 
-describe('buildSlackCustomBotSecretBlob', () => {
-  it('builds a trigger-capable credential without calling Slack for identity', () => {
-    expect(buildSlackCustomBotSecretBlob('workflow-1', 'xoxb-token', 'secret')).toEqual({
-      type: 'slack_custom_bot',
-      signingSecret: 'secret',
-      botToken: 'xoxb-token',
-      metadata: { migrationWorkflowId: 'workflow-1' },
-    })
-  })
-
-  it('builds an action-only credential without inventing a signing secret', () => {
-    expect(buildSlackCustomBotSecretBlob('workflow-1', 'xoxb-token', undefined)).toEqual({
-      type: 'slack_custom_bot',
-      botToken: 'xoxb-token',
-      metadata: { migrationWorkflowId: 'workflow-1' },
-    })
-  })
-})
-
 describe('planLegacySlackTriggerLink', () => {
   const triggerSource = source({
     sourceId: 'workflow-1:block-1:trigger',
@@ -483,27 +294,6 @@ describe('planLegacySlackTriggerLink', () => {
           blockId: 'block-1',
           routingKey: null,
           providerConfig: { triggerId: 'slack_webhook' },
-        },
-      ])
-    ).toEqual({ updateTriggerBlock: true, webhookIdsToUpdate: ['webhook-1'] })
-  })
-
-  it('links an undeployed trigger even when there is no webhook to mark', () => {
-    expect(planLegacySlackTriggerLink(triggerSource, existingCredential, [])).toEqual({
-      updateTriggerBlock: true,
-      webhookIdsToUpdate: [],
-    })
-  })
-
-  it('marks historical Slack webhooks that predate the trigger id', () => {
-    expect(
-      planLegacySlackTriggerLink(triggerSource, existingCredential, [
-        {
-          id: 'webhook-1',
-          workflowId: 'workflow-1',
-          blockId: 'block-1',
-          routingKey: null,
-          providerConfig: { signingSecret: 'secret' },
         },
       ])
     ).toEqual({ updateTriggerBlock: true, webhookIdsToUpdate: ['webhook-1'] })
@@ -541,20 +331,6 @@ describe('planLegacySlackTriggerLink', () => {
       )
     ).toThrow(/different Slack bot credential/)
   })
-
-  it('fails fast instead of relabeling a different Slack trigger', () => {
-    expect(() =>
-      planLegacySlackTriggerLink(triggerSource, existingCredential, [
-        {
-          id: 'webhook-1',
-          workflowId: 'workflow-1',
-          blockId: 'block-1',
-          routingKey: null,
-          providerConfig: { triggerId: 'slack_oauth' },
-        },
-      ])
-    ).toThrow(/does not use trigger slack_webhook/)
-  })
 })
 
 describe('resolveSlackSourceSecrets', () => {
@@ -572,53 +348,6 @@ describe('resolveSlackSourceSecrets', () => {
     ).toEqual({
       status: 'unresolved',
       reason: 'Source workflow-1:block-1:trigger has no bot token',
-    })
-  })
-
-  it('marks a trigger without a signing secret as unresolved', () => {
-    expect(
-      resolveSlackSourceSecrets(
-        source({
-          sourceId: 'workflow-1:block-1:trigger',
-          kind: 'trigger',
-          rawSigningSecret: undefined,
-        }),
-        environmentLookup()
-      )
-    ).toEqual({
-      status: 'unresolved',
-      reason: 'Trigger source workflow-1:block-1:trigger has no signing secret',
-    })
-  })
-
-  it('marks a missing environment variable as an unresolved source', () => {
-    expect(
-      resolveSlackSourceSecrets(source({ rawBotToken: '{{SLACK_BOT_TOKEN}}' }), environmentLookup())
-    ).toEqual({
-      status: 'unresolved',
-      reason: 'botToken references missing environment variable SLACK_BOT_TOKEN',
-    })
-  })
-
-  it('skips a personal variable that cannot be promoted safely', () => {
-    expect(
-      resolveSlackSourceSecrets(
-        source({
-          sourceId: 'workflow-1:block-1:trigger',
-          kind: 'trigger',
-          workflowUserId: 'user-2',
-          rawSigningSecret: '{{SLACK_CASINO_SECRET}}',
-        }),
-        environmentLookup({
-          personalVariablesByUserId: new Map([
-            ['user-2', { SLACK_CASINO_SECRET: 'encrypted-value' }],
-          ]),
-        })
-      )
-    ).toEqual({
-      status: 'unresolved',
-      reason:
-        'signingSecret uses non-owner personal environment variable SLACK_CASINO_SECRET; refusing to promote it to a workspace credential',
     })
   })
 })

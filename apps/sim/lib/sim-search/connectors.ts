@@ -10,7 +10,7 @@ import {
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 
-/** The workspace knowledge base Sim Search indexes into, one per workspace, created on first connect. */
+/** The knowledge-base shell that holds live Search source configuration. */
 export const SIM_SEARCH_KNOWLEDGE_BASE_NAME = 'Sim Search'
 
 /**
@@ -115,14 +115,6 @@ export function personalSetupFields(meta: ConnectorMeta): ConnectorConfigField[]
   )
 }
 
-/** The setup fields a source config leaves empty. */
-export function missingSetupFields(
-  meta: ConnectorMeta,
-  sourceConfig: Record<string, string>
-): ConnectorConfigField[] {
-  return personalSetupFields(meta).filter((field) => !sourceConfig[field.id]?.trim())
-}
-
 /** The name a connector shows, from its registry entry. */
 export function connectorDisplayName(connectorType: string): string {
   return CONNECTOR_META_REGISTRY[connectorType]?.name ?? connectorType
@@ -131,15 +123,6 @@ export function connectorDisplayName(connectorType: string): string {
 export interface OAuthServiceAvailabilityContext {
   oauthServiceAvailability: ReadonlyMap<string, boolean>
   isIntegrationAvailabilityReady: boolean
-}
-
-export interface SearchConnectorAvailabilityContext extends OAuthServiceAvailabilityContext {
-  /** Whether per-member access is on for the workspace. */
-  memberAccessAvailable: boolean
-  /** Whether someone already connected this source in the workspace. */
-  hasConnection: boolean
-  /** Whether the viewer may turn a source on for the workspace; the first connect needs an admin. */
-  canCreate: boolean
 }
 
 type SearchIntegrationAvailability = Pick<IntegrationAvailabilityResponse, 'oauthAvailable'> &
@@ -193,23 +176,6 @@ export function getConnectorAccessAvailability(
     ),
     members: Boolean(meta.permissionScopedListing && identityAvailable),
   }
-}
-
-/** Why a source cannot be connected on this surface right now; null when it can. */
-export function searchConnectorUnavailableReason(
-  connector: SearchConnector,
-  integrationAvailability: ReadonlyMap<string, SearchIntegrationAvailability>,
-  context: SearchConnectorAvailabilityContext
-): string | null {
-  if (!context.isIntegrationAvailabilityReady) return 'Source availability is not loaded yet'
-  if (!isSearchConnectorAvailable(connector, integrationAvailability, context)) {
-    return `${connector.meta.name} is unavailable in this deployment`
-  }
-  if (!context.memberAccessAvailable) return 'Per-member access is not available in this workspace'
-  if (!context.hasConnection && !context.canCreate) {
-    return `Ask a workspace admin to connect ${connector.meta.name} first`
-  }
-  return null
 }
 
 /**

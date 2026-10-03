@@ -1,3 +1,4 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import type { SplunkBaseParams, SplunkMessage, SplunkSavedSearch } from '@/tools/splunk/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -301,7 +302,8 @@ export async function readSplunkDispatchJson(response: Response): Promise<unknow
  * workflow a null sid that only breaks two blocks later.
  */
 export function requireSplunkSid(data: unknown): string {
-  const sid = asString((data as { sid?: unknown })?.sid) ?? getEntryName(getSplunkEntries(data)[0])
+  const sid =
+    toStringOrNull((data as { sid?: unknown })?.sid) ?? getEntryName(getSplunkEntries(data)[0])
   if (!sid) {
     throw new Error(
       'Splunk did not return a search ID for this request. Verify the search dispatched successfully; exec_mode=oneshot returns results instead of a search ID.'
@@ -382,10 +384,6 @@ export function getEntryAuthor(entry: SplunkAtomEntry | undefined): string | nul
   return author?.name ?? null
 }
 
-export function asString(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
-}
-
 export function asNumber(value: unknown): number | null {
   if (typeof value === 'number') return Number.isFinite(value) ? value : null
   if (typeof value === 'string' && value.trim() !== '') {
@@ -411,7 +409,7 @@ export function mapSplunkMessages(value: unknown): SplunkMessage[] {
   if (!Array.isArray(value)) return []
   return value.map((message) => {
     const record = (message ?? {}) as Record<string, unknown>
-    return { type: asString(record.type), text: asString(record.text) }
+    return { type: toStringOrNull(record.type), text: toStringOrNull(record.text) }
   })
 }
 
@@ -451,20 +449,20 @@ export function mapSavedSearchEntry(entry: unknown): SplunkSavedSearch {
   const content = getEntryContent(atomEntry)
   return {
     name: getEntryName(atomEntry),
-    id: asString(atomEntry?.id),
+    id: toStringOrNull(atomEntry?.id),
     author: getEntryAuthor(atomEntry),
-    updated: asString(atomEntry?.updated),
-    search: asString(content.search),
-    qualifiedSearch: asString(content.qualifiedSearch),
-    description: asString(content.description),
+    updated: toStringOrNull(atomEntry?.updated),
+    search: toStringOrNull(content.search),
+    qualifiedSearch: toStringOrNull(content.qualifiedSearch),
+    description: toStringOrNull(content.description),
     disabled: asBoolean(content.disabled),
     isScheduled: asBoolean(content.is_scheduled),
     isVisible: asBoolean(content.is_visible),
-    cronSchedule: asString(content.cron_schedule),
-    nextScheduledTime: asString(content.next_scheduled_time),
-    alertType: asString(content.alert_type),
-    dispatchEarliestTime: asString(content['dispatch.earliest_time']),
-    dispatchLatestTime: asString(content['dispatch.latest_time']),
+    cronSchedule: toStringOrNull(content.cron_schedule),
+    nextScheduledTime: toStringOrNull(content.next_scheduled_time),
+    alertType: toStringOrNull(content.alert_type),
+    dispatchEarliestTime: toStringOrNull(content['dispatch.earliest_time']),
+    dispatchLatestTime: toStringOrNull(content['dispatch.latest_time']),
   }
 }
 

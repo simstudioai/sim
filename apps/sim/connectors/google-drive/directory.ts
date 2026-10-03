@@ -16,6 +16,7 @@ import {
   fetchGoogleDriveWithRetry,
   GoogleDriveApiError,
 } from '@/connectors/google-drive/google-drive-errors'
+import { ConnectorDirectoryGroupAccessError } from '@/connectors/source-error'
 import type {
   ConnectorDirectory,
   ConnectorDirectoryGroup,
@@ -62,32 +63,37 @@ export async function validateGoogleDirectoryAccess(
   adminEmail: unknown
 ): Promise<void> {
   if (!googleWorkspaceDomain(adminEmail)) {
-    throw new Error(
-      'Enter a Google Workspace administrator in Crawl as to mirror Drive permissions.'
-    )
+    throw new Error('Enter a Directory administrator email to mirror Drive permissions.')
   }
 
-  const probe = async (path: string) =>
+  const probe = async (path: string, operation: string) =>
     fetchGoogleDriveWithRetry(
       `${DIRECTORY_BASE}/${path}`,
       { headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' } },
-      VALIDATE_RETRY_OPTIONS
+      VALIDATE_RETRY_OPTIONS,
+      operation
     )
 
   try {
-    const groupsResponse = await probe('groups?customer=my_customer&maxResults=1&fields=groups(id)')
+    const groupsResponse = await probe(
+      'groups?customer=my_customer&maxResults=1&fields=groups(id)',
+      'directory.groups.list'
+    )
     const groups = (await groupsResponse.json()) as { groups?: { id?: string }[] }
-    await probe('customer/my_customer/domains?fields=domains(domainName)')
+    await probe('customer/my_customer/domains?fields=domains(domainName)', 'directory.domains.list')
     const groupId = groups.groups?.[0]?.id
     if (groupId) {
-      await probe(`groups/${encodeURIComponent(groupId)}/members?maxResults=1&fields=members(id)`)
+      await probe(
+        `groups/${encodeURIComponent(groupId)}/members?maxResults=1&fields=members(id)`,
+        'directory.members.list'
+      )
     }
   } catch (error) {
     const guidance =
       error instanceof GoogleDriveApiError &&
       (error.status === 401 || error.status === 403) &&
       !error.rateLimited
-        ? ' The Crawl as account must have permission to read Workspace groups, memberships, and domains. Check its administrator privileges and the service account’s delegated Directory scopes.'
+        ? ' The Directory administrator must have permission to read Workspace users, groups, memberships, and domains. Check its administrator privileges and the service account’s delegated Directory scopes.'
         : ''
     throw new Error(
       `Google Workspace directory access failed: ${getErrorMessage(error)}.${guidance}`,
@@ -98,15 +104,20 @@ export async function validateGoogleDirectoryAccess(
   }
 }
 
-function directoryFetch(url: string, accessToken: string): Promise<Response> {
-  return fetchGoogleDriveWithRetry(url, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
-  })
+function directoryFetch(url: string, accessToken: string, operation: string): Promise<Response> {
+  return fetchGoogleDriveWithRetry(
+    url,
+    {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    },
+    {},
+    operation
+  )
 }
 
 async function getJson<T>(url: string, accessToken: string): Promise<T> {
-  const response = await directoryFetch(url, accessToken)
+  const response = await directoryFetch(url, accessToken, 'directory.domains.list')
   return (await response.json()) as T
 }
 
@@ -130,7 +141,7 @@ async function listAll<T>(
       if (pageToken) query.set('pageToken', pageToken)
       return `${url}?${query.toString()}`
     },
-    fetch: (pageUrl) => directoryFetch(pageUrl, accessToken),
+    fetch: (pageUrl) => directoryFetch(pageUrl, accessToken, `directory.${itemsKey}.list`),
     parseError: (response) => response.json().catch(() => null),
     getItems: (body) => body[itemsKey] as T[] | undefined,
     getNextPageToken: (body) => body.nextPageToken as string | undefined,
@@ -239,7 +250,28 @@ async function listGroupMembers(
       return
     }
 
-    for (const member of await membersOf(groupId)) {
+    let members: RawMember[]
+    try {
+      members = await membersOf(groupId)
+    } catch (error) {
+      const groupDomain = emailDomain(groupId)
+      if (
+        depth > 0 &&
+        groupDomain &&
+        !customerDomains.includes(groupDomain) &&
+        error instanceof GoogleDriveApiError &&
+        error.reasonsComplete &&
+        ((error.status === 403 && error.reasons.length === 1 && error.reasons[0] === 'forbidden') ||
+          (error.status === 404 && error.reasons.length === 1 && error.reasons[0] === 'notFound'))
+      ) {
+        throw new ConnectorDirectoryGroupAccessError('An external nested group cannot be read', {
+          cause: error,
+        })
+      }
+      throw error
+    }
+
+    for (const member of members) {
       if (member.status && member.status.toUpperCase() !== 'ACTIVE') continue
       const type = member.type?.toUpperCase()
 
@@ -298,6 +330,13 @@ export function openGoogleDirectory(
       return members
     } catch (error) {
       const failure = toError(error)
+      if (failure instanceof GoogleDriveApiError) {
+        logger.warn('Failed to read Google group membership', {
+          groupId,
+          status: failure.status,
+          ...failure.diagnostic,
+        })
+      }
       directMembers.set(groupId, failure)
       throw failure
     }

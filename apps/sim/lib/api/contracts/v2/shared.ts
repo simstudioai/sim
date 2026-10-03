@@ -99,7 +99,7 @@ import {
  *
  * ## Which lists are paged
  *
- * The authoritative split is pinned in `v2/__tests__/list-pagination.test.ts`,
+ * The authoritative split is pinned in `v2/list-pagination.test.ts`,
  * not restated here. A full-set list returns `nextCursor: null` on every
  * response — its OpenAPI description says so explicitly, so a caller never
  * writes a pagination loop that can only ever run once.
@@ -148,7 +148,7 @@ import {
  * is documented on `cursorScopeKey` in `lib/api/cursor-binding.ts`.
  *
  * The authoritative per-list binding is pinned in
- * `v2/__tests__/list-pagination.test.ts`, which fails when a list gains a param
+ * `v2/list-pagination.test.ts`, which fails when a list gains a param
  * that is neither bound nor explicitly exempted. The two lists whose token is
  * minted by a domain codec (`GET /audit-logs`, `GET /billing/logs`) get the same
  * binding by wrapping that token in a query-stamped envelope.
@@ -544,7 +544,8 @@ export const v2NonRootFolderPathSchema = canonicalFolderPathSchema(requireNonRoo
   maxLength: MAX_FOLDER_PATH_BYTES,
 })
 
-function normalizeFolderPathInput(path: string): string {
+/** Adds the leading slash a folder path may omit; validation stays with the canonical schemas. */
+export function normalizeFolderPathInput(path: string): string {
   return path.length === 0 || path.startsWith('/') ? path : `/${path}`
 }
 
@@ -621,8 +622,8 @@ export const v2RelocateFolderBodySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace containing the folder.'),
     path: v2NonRootFolderPathInputSchema.describe('Current folder path.'),
-    destinationPath: v2NonRootFolderPathInputSchema.describe(
-      'New full path for the folder and its descendants.'
+    destinationPath: v2FolderPathInputSchema.describe(
+      'Where the folder lands, with `mv` semantics. A path naming an existing folder receives the source as a child under its current name; `/` moves it to the workspace root under its current name; any other path becomes the folder’s new full path (a rename, a relocation, or both).'
     ),
   })
   .strict()

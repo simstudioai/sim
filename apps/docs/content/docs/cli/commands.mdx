@@ -31,6 +31,8 @@ These apply to every command, and may be written before or after it.
 | Group | Description |
 | --- | --- |
 | [`sim profiles`](/cli/profiles) | List profiles or add a workspace profile that shares a stored login |
+| [`sim telemetry`](/cli/telemetry) | Control anonymous usage reporting |
+| [`sim cli`](/cli/cli) | Discover commands in this CLI |
 | [`sim audit-logs`](/cli/audit-logs) | Manage audit logs |
 | [`sim billing`](/cli/billing) | Manage billing |
 | [`sim blocks`](/cli/blocks) | Manage blocks |
@@ -43,8 +45,11 @@ These apply to every command, and may be written before or after it.
 | [`sim logs`](/cli/logs) | Manage logs |
 | [`sim mcp-servers`](/cli/mcp-servers) | Manage mcp servers |
 | [`sim meta`](/cli/meta) | Manage meta |
+| [`sim organizations`](/cli/organizations) | Manage organizations |
+| [`sim permission-groups`](/cli/permission-groups) | Manage permission groups |
 | [`sim sandboxes`](/cli/sandboxes) | Manage sandboxes |
 | [`sim secrets`](/cli/secrets) | Manage secrets |
+| [`sim selectors`](/cli/selectors) | Manage selectors |
 | [`sim skills`](/cli/skills) | Manage skills |
 | [`sim tables`](/cli/tables) | Manage tables |
 | [`sim tools`](/cli/tools) | Manage tools |
@@ -52,7 +57,7 @@ These apply to every command, and may be written before or after it.
 | [`sim workflows`](/cli/workflows) | Manage workflows |
 | [`sim workspaces`](/cli/workspaces) | Manage workspaces |
 
-## Sign in through the browser and store the login for the profile
+## Log in through the browser and store the login for the profile
 
 ```bash
 sim login [options]
@@ -104,7 +109,7 @@ sim whoami [options]
 
 </CommandTable>
 
-## Set a profile's endpoint, default workspace, or output format
+## Switch a profile's default workspace, or set its endpoint or output format
 
 ```bash
 sim configure [options]
@@ -120,6 +125,22 @@ sim configure [options]
 | `--set-workspace <id>` | No | Default workspace for workspace-scoped commands. |
 | `--set-output <format>` | No | Default output format (table \| json \| yaml \| text). |
 | `--unset <key...>` | No | Remove settings (endpoint, workspace, output). |
+
+</CommandTable>
+
+## Update this global CLI installation to the newest release on its channel
+
+```bash
+sim update [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--package-manager <manager>` | No | Package manager that installed this copy. Accepted values: `npm`, `pnpm`, `bun`, `yarn`. |
 
 </CommandTable>
 

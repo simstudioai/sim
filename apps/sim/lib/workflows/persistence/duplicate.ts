@@ -20,6 +20,7 @@ import {
 import { and, eq } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
+import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import {
   remapConditionIdsInSubBlocks,
   remapVariableIdsInSubBlocks,
@@ -199,36 +200,30 @@ export async function duplicateWorkflow(
       tx
     )
 
-    await tx.insert(workflow).values({
-      id: newWorkflowId,
-      userId,
-      workspaceId: targetWorkspaceId,
-      folderId: targetFolderId,
-      sortOrder,
-      name: deduplicatedName,
-      description: description || source.description,
-      lastSynced: now,
-      createdAt: now,
-      updatedAt: now,
-      isDeployed: false,
-      runCount: 0,
-      locked: false,
-      // Duplicate variables with new IDs and new workflowId
-      variables: (() => {
-        const sourceVars = (source.variables as Record<string, Variable>) || {}
-        const remapped: Record<string, Variable> = {}
-        for (const [oldVarId, variable] of Object.entries(sourceVars) as [string, Variable][]) {
-          const newVarId = generateId()
-          varIdMapping.set(oldVarId, newVarId)
-          remapped[newVarId] = {
-            ...variable,
-            id: newVarId,
-            workflowId: newWorkflowId,
-          }
-        }
-        return remapped
-      })(),
-    })
+    // Duplicate variables with new IDs and new workflowId
+    const variables: Record<string, Variable> = {}
+    const sourceVars = (source.variables as Record<string, Variable>) || {}
+    for (const [oldVarId, variable] of Object.entries(sourceVars) as [string, Variable][]) {
+      const newVarId = generateId()
+      varIdMapping.set(oldVarId, newVarId)
+      variables[newVarId] = { ...variable, id: newVarId, workflowId: newWorkflowId }
+    }
+
+    // A duplicate is a new workflow, so it takes the workspace's fork-sync policy rather
+    // than inheriting the source's participation, and starts unlocked like any new one.
+    await tx.insert(workflow).values(
+      await buildNewWorkflowRow(tx, {
+        id: newWorkflowId,
+        userId,
+        workspaceId: targetWorkspaceId,
+        folderId: targetFolderId,
+        sortOrder,
+        name: deduplicatedName,
+        description: description || source.description,
+        now,
+        variables,
+      })
+    )
 
     // Copy all blocks from source workflow with new IDs
     const sourceBlocks = await tx

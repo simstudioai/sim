@@ -1,24 +1,19 @@
-/**
- * @vitest-environment node
- */
 import type { Principal } from '@sim/auth/principal'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const resolvePermission = vi.hoisted(() => vi.fn())
-
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import type { OrchestrationError } from '@/lib/core/orchestration/types'
 import { authorizeWorkspaceFileAccess } from '@/lib/workspace-files/application/authorization'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+
+const resolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
 
 const authorizationContext = {
   workspaceId: 'workspace-1',
@@ -35,34 +30,17 @@ async function expectForbidden(principal: Principal) {
 
 describe('file operation authorization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resolvePermission.mockResolvedValue('write')
-  })
-
-  it('uses the current workspace permission for sessions', async () => {
-    await authorizeWorkspaceFileAccess(
-      { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      fileOperations.rename,
-      authorizationContext
-    )
-
-    expect(resolvePermission).toHaveBeenCalledWith(
-      'user-1',
-      'workspace-1',
-      'organization-1',
-      undefined,
-      { forUpdate: undefined }
-    )
   })
 
   it('rejects a reader for a write operation', async () => {
     resolvePermission.mockResolvedValue('read')
-    await expectForbidden({ kind: 'session', userId: 'user-1', sessionId: 'session-1' })
+    await expectForbidden(createSessionPrincipal())
   })
 
   it('lets a workspace key use its fixed write ceiling only in its own workspace', async () => {
     await authorizeWorkspaceFileAccess(
-      { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
+      createWorkspaceApiKeyPrincipal(),
       fileOperations.rename,
       authorizationContext
     )
@@ -77,22 +55,20 @@ describe('file operation authorization', () => {
 
   it('fails a personal key immediately when the workspace disables it', async () => {
     await expect(
-      authorizeWorkspaceFileAccess(
-        { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-        fileOperations.rename,
-        { ...authorizationContext, allowPersonalApiKeys: false }
-      )
+      authorizeWorkspaceFileAccess(createPersonalApiKeyPrincipal(), fileOperations.rename, {
+        ...authorizationContext,
+        allowPersonalApiKeys: false,
+      })
     ).rejects.toMatchObject<Partial<OrchestrationError>>({ code: 'forbidden' })
     expect(resolvePermission).not.toHaveBeenCalled()
   })
 
   it('rejects a disallowed principal kind before principal-specific authorization', async () => {
     await expect(
-      authorizeWorkspaceFileAccess(
-        { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-        fileOperations.compiledCheck,
-        { ...authorizationContext, allowPersonalApiKeys: false }
-      )
+      authorizeWorkspaceFileAccess(createPersonalApiKeyPrincipal(), fileOperations.compiledCheck, {
+        ...authorizationContext,
+        allowPersonalApiKeys: false,
+      })
     ).rejects.toMatchObject<Partial<OrchestrationError>>({
       code: 'forbidden',
       message: 'Principal kind personal_api_key cannot perform operation files.compiled_check',

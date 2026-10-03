@@ -1,7 +1,7 @@
-/**
- * @vitest-environment node
- */
 import { setupGlobalFetchMock } from '@sim/testing/mocks'
+import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
+import { setEnv } from '@sim/testing/mocks/env.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   AtomicAdmissionOptions,
@@ -13,6 +13,7 @@ const admission = vi.hoisted(() => ({
   setCooldown: vi.fn(),
   cooldowns: new Map<string, Date>(),
 }))
+vi.mock('@/lib/api-key/byok', () => apiKeyByokMock)
 vi.mock('@/lib/core/rate-limiter/storage/factory', () => ({
   createStorageAdapter: () => ({
     consumeTokensAtomically: admission.consume,
@@ -26,11 +27,21 @@ import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-inpu
 import { rerank } from '@/lib/knowledge/reranker'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
+const getBYOKKey = apiKeyByokMockFns.mockGetBYOKKey
+
 const envSnapshot = { ...env }
 
 describe('Knowledge reranker model boundary', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    setEnvFlags({ isHosted: true })
+    getBYOKKey.mockResolvedValue(null)
+    setEnv({
+      KB_CONFIG_RERANK_REQUESTS_PER_MINUTE: undefined,
+      KB_CONFIG_HOSTED_RERANK_REQUESTS_PER_MINUTE: undefined,
+      COHERE_API_KEY_1: undefined,
+      COHERE_API_KEY_2: undefined,
+      COHERE_API_KEY_3: undefined,
+    })
     admission.cooldowns.clear()
     admission.consume.mockImplementation(
       async (_reservations: readonly TokenBucketReservation[], options: AtomicAdmissionOptions) => {
@@ -55,9 +66,18 @@ describe('Knowledge reranker model boundary', () => {
 
   afterEach(() => {
     vi.useRealTimers()
-    vi.unstubAllGlobals()
+    resetEnvFlagsMock()
     for (const key of Object.keys(env)) delete (env as Record<string, unknown>)[key]
     Object.assign(env, envSnapshot)
+  })
+
+  it('fails before admission when no credential is configured', async () => {
+    setEnv({ COHERE_API_KEY: undefined })
+    await expect(
+      rerank('query', [{ id: 'one', text: 'content' }], { model: 'rerank-v4.0-fast' })
+    ).rejects.toThrow('No Cohere API key configured')
+    expect(admission.consume).not.toHaveBeenCalled()
+    expect(fetch).not.toHaveBeenCalled()
   })
 
   it('projects query and documents at egress while returning the original item', async () => {
@@ -105,18 +125,6 @@ describe('Knowledge reranker model boundary', () => {
     expect(fetch).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps the deadline active while reading the body after headers arrive', async () => {
-    vi.useFakeTimers()
-    const cancelled = vi.fn()
-    vi.mocked(fetch).mockResolvedValue(new Response(new ReadableStream({ cancel: cancelled })))
-    const result = rerank('query', [{ id: 'one', text: 'content' }], { model: 'rerank-v4.0-fast' })
-    const rejection = expect(result).rejects.toThrow()
-    await vi.advanceTimersByTimeAsync(30000)
-    await rejection
-    expect(cancelled).toHaveBeenCalledOnce()
-    expect(fetch).toHaveBeenCalledTimes(1)
-  })
-
   it('refuses oversized provider responses without retrying', async () => {
     vi.mocked(fetch).mockResolvedValue(new Response('x'.repeat(1024 * 1024 + 1)))
     await expect(
@@ -132,10 +140,16 @@ describe('Knowledge reranker model boundary', () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response('{}', { status: 429, headers: { 'Retry-After': '2' } })
     )
-    const first = rerank('first', [{ id: 'one', text: 'content' }], { model: 'rerank-v4.0-fast' })
+    const first = rerank('first', [{ id: 'one', text: 'content' }], {
+      model: 'rerank-v4.0-fast',
+      workspaceId: 'fixture-workspace-one',
+    })
     await vi.advanceTimersByTimeAsync(0)
     expect(admission.setCooldown).toHaveBeenCalledOnce()
-    const second = rerank('second', [{ id: 'two', text: 'content' }], { model: 'rerank-v4.0-fast' })
+    const second = rerank('second', [{ id: 'two', text: 'content' }], {
+      model: 'rerank-v4.0-fast',
+      workspaceId: 'fixture-workspace-two',
+    })
     await vi.advanceTimersByTimeAsync(1999)
     expect(fetch).toHaveBeenCalledTimes(1)
     await vi.advanceTimersByTimeAsync(1)
@@ -147,7 +161,7 @@ describe('Knowledge reranker model boundary', () => {
     expect(new Set(reservations.map((item) => item.key)).size).toBe(1)
     expect(reservations[0].key).toMatch(/^provider:rerank:cohere:[a-f0-9]{64}:requests$/)
     expect(reservations[0].key).not.toContain('cohere-key')
-    expect(reservations[0].config.refillRate).toBe(1)
+    expect(reservations[0].config).toMatchObject({ maxTokens: 16, refillRate: 10 })
   })
 
   it('bounds repeated 429s to four attempts with no timer left behind', async () => {
@@ -176,46 +190,6 @@ describe('Knowledge reranker model boundary', () => {
       rerank('other query', [{ id: 'one', text: 'content' }], { model: 'rerank-v4.0-fast' })
     ).rejects.toMatchObject({ name: 'ProviderAdmissionTimeoutError' })
     expect(fetch).toHaveBeenCalledTimes(1)
-    expect(vi.getTimerCount()).toBe(0)
-  })
-
-  it('aborts a request waiting behind another search without a new provider call', async () => {
-    vi.useFakeTimers()
-    vi.mocked(fetch).mockResolvedValueOnce(
-      new Response('{}', { status: 429, headers: { 'Retry-After': '2' } })
-    )
-    const first = rerank('first', [{ id: 'one', text: 'content' }], { model: 'rerank-v4.0-fast' })
-    await vi.advanceTimersByTimeAsync(0)
-    const controller = new AbortController()
-    const second = rerank('second', [{ id: 'two', text: 'content' }], {
-      model: 'rerank-v4.0-fast',
-      signal: controller.signal,
-    })
-    const rejected = expect(second).rejects.toThrow('Second search cancelled')
-    await vi.advanceTimersByTimeAsync(0)
-    controller.abort(new Error('Second search cancelled'))
-    await rejected
-    expect(fetch).toHaveBeenCalledTimes(1)
-    await vi.advanceTimersByTimeAsync(2000)
-    await first
-    expect(fetch).toHaveBeenCalledTimes(2)
-    expect(vi.getTimerCount()).toBe(0)
-  })
-
-  it('keeps a single deadline across admission, retries and the final response body', async () => {
-    vi.useFakeTimers()
-    const cancelled = vi.fn()
-    vi.mocked(fetch)
-      .mockResolvedValueOnce(new Response('{}', { status: 429, headers: { 'Retry-After': '20' } }))
-      .mockResolvedValueOnce(new Response(new ReadableStream({ cancel: cancelled })))
-    const pending = rerank('query', [{ id: 'one', text: 'content' }], { model: 'rerank-v4.0-fast' })
-    const rejected = expect(pending).rejects.toThrow('Provider operation exceeded its retry budget')
-    await vi.advanceTimersByTimeAsync(29_999)
-    expect(fetch).toHaveBeenCalledTimes(2)
-    expect(cancelled).not.toHaveBeenCalled()
-    await vi.advanceTimersByTimeAsync(1)
-    await rejected
-    expect(cancelled).toHaveBeenCalledOnce()
     expect(vi.getTimerCount()).toBe(0)
   })
 

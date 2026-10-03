@@ -19,22 +19,36 @@ import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { prepareProviderAttachments } from '@/providers/attachments'
 import {
-  checkForForcedToolUsage,
-  createReadableStreamFromAzureOpenAIStream,
   extractApiVersionFromUrl,
   extractBaseUrl,
   extractDeploymentFromUrl,
   isChatCompletionsEndpoint,
   isResponsesEndpoint,
 } from '@/providers/azure-openai/utils'
+import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
+import {
+  captureProviderConversationStep,
+  recordProviderConversationToolError,
+} from '@/providers/conversation-history'
+import {
+  getNativeConversationMessage,
+  retainConversationMessageSource,
+} from '@/providers/conversation-metadata'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { executeResponsesProviderRequest } from '@/providers/openai/core'
+import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
+import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
+import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
+import { openAICompatTransport } from '@/providers/transport'
 import type {
   FunctionCallResponse,
   ProviderConfig,
@@ -45,6 +59,7 @@ import type {
 import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
+  checkForForcedToolUsageOpenAI,
   isFunctionToolCall,
   prepareToolExecution,
   prepareToolsWithUsageControl,
@@ -84,6 +99,7 @@ async function executeChatCompletionsRequest(
     apiKey: request.apiKey!,
     apiVersion: azureApiVersion,
     endpoint: azureEndpoint,
+    ...openAICompatTransport(),
     ...(pinnedFetch ? { fetch: pinnedFetch } : {}),
   })
 
@@ -105,6 +121,16 @@ async function executeChatCompletionsRequest(
 
   if (request.messages) {
     for (const message of request.messages) {
+      const nativeMessage = getNativeConversationMessage(message, 'chat-completions')
+      if (nativeMessage && typeof nativeMessage === 'object' && !Array.isArray(nativeMessage)) {
+        allMessages.push(
+          retainConversationMessageSource(message, {
+            ...message,
+            ...nativeMessage,
+          } as ChatCompletionMessageParam)
+        )
+        continue
+      }
       if (!message.files?.length || message.role !== 'user') {
         allMessages.push(message as ChatCompletionMessageParam)
         continue
@@ -124,7 +150,12 @@ async function executeChatCompletionsRequest(
         parts.push({ type: 'image_url', image_url: { url: a.remoteUrl ?? a.dataUrl ?? '' } })
       }
       const { files: _files, ...rest } = message
-      allMessages.push({ ...rest, content: parts } as ChatCompletionMessageParam)
+      allMessages.push(
+        retainConversationMessageSource(message, {
+          ...rest,
+          content: parts,
+        } as ChatCompletionMessageParam)
+      )
     }
   }
 
@@ -146,14 +177,7 @@ async function executeChatCompletionsRequest(
     payload.verbosity = request.verbosity as ChatCompletionVerbosity
 
   if (request.responseFormat) {
-    payload.response_format = {
-      type: 'json_schema',
-      json_schema: {
-        name: request.responseFormat.name || 'response_schema',
-        schema: request.responseFormat.schema || request.responseFormat,
-        strict: request.responseFormat.strict !== false,
-      },
-    }
+    payload.response_format = buildJsonSchemaResponseFormat(request.responseFormat)
 
     logger.info('Added JSON schema response format to Azure OpenAI request')
   }
@@ -198,7 +222,7 @@ async function executeChatCompletionsRequest(
         stream_options: { include_usage: true },
       }
       const streamResponse = await azureOpenAI.chat.completions.create(
-        streamingParams,
+        await prepareConversationGeneration(request, 'chat-completions', streamingParams),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
 
@@ -211,26 +235,30 @@ async function executeChatCompletionsRequest(
         initialCost: { input: 0, output: 0, total: 0 },
         streamFormat: 'agent-events-v1',
         createStream: ({ output, finalizeTiming }) =>
-          createReadableStreamFromAzureOpenAIStream(streamResponse, (content, usage) => {
-            output.content = content
-            output.tokens = {
-              input: usage.prompt_tokens,
-              output: usage.completion_tokens,
-              total: usage.total_tokens,
-            }
+          createOpenAICompatibleAgentEventStream(streamResponse, {
+            providerName: 'Azure OpenAI',
+            request,
+            onComplete: ({ content, usage }) => {
+              output.content = content
+              output.tokens = {
+                input: usage.prompt_tokens,
+                output: usage.completion_tokens,
+                total: usage.total_tokens,
+              }
 
-            const costResult = calculateCost(
-              request.model,
-              usage.prompt_tokens,
-              usage.completion_tokens
-            )
-            output.cost = {
-              input: costResult.input,
-              output: costResult.output,
-              total: costResult.total,
-            }
+              const costResult = calculateCost(
+                request.model,
+                usage.prompt_tokens,
+                usage.completion_tokens
+              )
+              output.cost = {
+                input: costResult.input,
+                output: costResult.output,
+                total: costResult.total,
+              }
 
-            finalizeTiming()
+              finalizeTiming()
+            },
           }),
       })
 
@@ -243,9 +271,17 @@ async function executeChatCompletionsRequest(
     let usedForcedTools: string[] = []
 
     let currentResponse = (await azureOpenAI.chat.completions.create(
-      payload,
+      await prepareConversationGeneration(request, 'chat-completions', payload),
       request.abortSignal ? { signal: request.abortSignal } : undefined
     )) as ChatCompletion
+    if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+      await captureProviderConversationStep(
+        request,
+        'chat-completions',
+        currentResponse.choices[0]?.message,
+        getChatCompletionConversationUsage(currentResponse.usage)
+      )
+    }
     const firstResponseTime = Date.now() - initialCallTime
 
     let content = currentResponse.choices[0]?.message?.content || ''
@@ -279,12 +315,13 @@ async function executeChatCompletionsRequest(
       { model: request.model, provider: 'azure_openai' }
     )
 
-    const firstCheckResult = checkForForcedToolUsage(
+    const firstCheckResult = checkForForcedToolUsageOpenAI(
       currentResponse,
       originalToolChoice ?? 'auto',
-      logger,
+      'Azure OpenAI',
       forcedTools,
-      usedForcedTools
+      usedForcedTools,
+      logger
     )
     hasUsedForcedTool = firstCheckResult.hasUsedForcedTool
     usedForcedTools = firstCheckResult.usedForcedTools
@@ -306,6 +343,12 @@ async function executeChatCompletionsRequest(
 
       const toolsStartTime = Date.now()
 
+      await captureProviderConversationStep(
+        request,
+        'chat-completions',
+        currentResponse.choices[0]?.message,
+        getChatCompletionConversationUsage(currentResponse.usage)
+      )
       const toolExecutionPromises = toolCallsInResponse.map(async (toolCall) => {
         const toolCallStartTime = Date.now()
         const toolName = toolCall.function.name
@@ -315,6 +358,12 @@ async function executeChatCompletionsRequest(
           const tool = request.tools?.find((t) => t.id === toolName)
 
           if (!tool) {
+            await recordProviderConversationToolError(
+              request,
+              toolCall.id,
+              toolName,
+              `Tool "${toolName}" is not available`
+            )
             const toolCallEndTime = Date.now()
             return {
               toolCall,
@@ -360,6 +409,12 @@ async function executeChatCompletionsRequest(
           if (isAbortError(error) || request.abortSignal?.aborted) {
             throw error
           }
+          await recordProviderConversationToolError(
+            request,
+            toolCall.id,
+            toolName,
+            getErrorMessage(error, 'Tool execution failed')
+          )
           const toolCallEndTime = Date.now()
           logger.error('Error processing tool call:', { error, toolName })
 
@@ -471,16 +526,25 @@ async function executeChatCompletionsRequest(
 
       const nextModelStartTime = Date.now()
       currentResponse = (await azureOpenAI.chat.completions.create(
-        nextPayload,
+        await prepareConversationGeneration(request, 'chat-completions', nextPayload),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )) as ChatCompletion
+      if (!currentResponse.choices[0]?.message?.tool_calls?.length) {
+        await captureProviderConversationStep(
+          request,
+          'chat-completions',
+          currentResponse.choices[0]?.message,
+          getChatCompletionConversationUsage(currentResponse.usage)
+        )
+      }
 
-      const nextCheckResult = checkForForcedToolUsage(
+      const nextCheckResult = checkForForcedToolUsageOpenAI(
         currentResponse,
         nextPayload.tool_choice ?? 'auto',
-        logger,
+        'Azure OpenAI',
         forcedTools,
-        usedForcedTools
+        usedForcedTools,
+        logger
       )
       hasUsedForcedTool = nextCheckResult.hasUsedForcedTool
       usedForcedTools = nextCheckResult.usedForcedTools
@@ -529,12 +593,20 @@ async function executeChatCompletionsRequest(
       const { tools: _tools, tool_choice: _toolChoice, ...synthesisPayload } = payload
       const synthesisStartTime = Date.now()
       const synthesisResponse = (await azureOpenAI.chat.completions.create(
-        {
+        await prepareConversationGeneration(request, 'chat-completions', {
           ...synthesisPayload,
           messages: currentMessages,
-        },
+        }),
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )) as ChatCompletion
+      if (!synthesisResponse.choices[0]?.message?.tool_calls?.length) {
+        await captureProviderConversationStep(
+          request,
+          'chat-completions',
+          synthesisResponse.choices[0]?.message,
+          getChatCompletionConversationUsage(synthesisResponse.usage)
+        )
+      }
       const synthesisEndTime = Date.now()
 
       timeSegments.push({
@@ -637,7 +709,7 @@ async function executeChatCompletionsRequest(
       duration: totalDuration,
     })
 
-    if (isAbortError(error) || request.abortSignal?.aborted) {
+    if (isAbortError(error) || request.abortSignal?.aborted || isConversationContextError(error)) {
       throw error
     }
 
@@ -703,7 +775,7 @@ export const azureOpenAIProvider: ProviderConfig = {
 
       // Try to extract deployment from URL, fall back to model name
       const urlDeployment = extractDeploymentFromUrl(azureEndpoint)
-      const deploymentName = urlDeployment || request.model.replace('azure/', '')
+      const deploymentName = urlDeployment || request.model.replace(/^azure\//i, '')
 
       // Try to extract api-version from URL, fall back to request param or env or default
       const urlApiVersion = extractApiVersionFromUrl(azureEndpoint)
@@ -721,7 +793,7 @@ export const azureOpenAIProvider: ProviderConfig = {
       })
 
       return executeChatCompletionsRequest(
-        { ...request, apiKey },
+        request,
         baseUrl,
         azureApiVersion,
         deploymentName,
@@ -733,41 +805,14 @@ export const azureOpenAIProvider: ProviderConfig = {
     if (isResponsesEndpoint(azureEndpoint)) {
       logger.info('Detected full responses endpoint URL, using it directly')
 
-      const deploymentName = request.model.replace('azure/', '')
+      const deploymentName = request.model.replace(/^azure\//i, '')
 
       // Use the URL as-is since it's already complete
-      return executeResponsesProviderRequest(
-        { ...request, apiKey },
-        {
-          providerId: 'azure-openai',
-          providerLabel: 'Azure OpenAI',
-          modelName: deploymentName,
-          endpoint: azureEndpoint,
-          headers: {
-            'Content-Type': 'application/json',
-            'OpenAI-Beta': 'responses=v1',
-            'api-key': apiKey,
-          },
-          logger,
-          fetch: pinnedFetch,
-        }
-      )
-    }
-
-    // Default: base URL provided, construct the responses API URL
-    logger.info('Using base endpoint, constructing Responses API URL')
-    const azureApiVersion =
-      request.azureApiVersion || env.AZURE_OPENAI_API_VERSION || '2024-07-01-preview'
-    const deploymentName = request.model.replace('azure/', '')
-    const apiUrl = `${azureEndpoint.replace(/\/$/, '')}/openai/v1/responses?api-version=${azureApiVersion}`
-
-    return executeResponsesProviderRequest(
-      { ...request, apiKey },
-      {
+      return executeResponsesProviderRequest(request, {
         providerId: 'azure-openai',
         providerLabel: 'Azure OpenAI',
         modelName: deploymentName,
-        endpoint: apiUrl,
+        endpoint: azureEndpoint,
         headers: {
           'Content-Type': 'application/json',
           'OpenAI-Beta': 'responses=v1',
@@ -775,7 +820,28 @@ export const azureOpenAIProvider: ProviderConfig = {
         },
         logger,
         fetch: pinnedFetch,
-      }
-    )
+      })
+    }
+
+    // Default: base URL provided, construct the responses API URL
+    logger.info('Using base endpoint, constructing Responses API URL')
+    const azureApiVersion =
+      request.azureApiVersion || env.AZURE_OPENAI_API_VERSION || '2024-07-01-preview'
+    const deploymentName = request.model.replace(/^azure\//i, '')
+    const apiUrl = `${azureEndpoint.replace(/\/$/, '')}/openai/v1/responses?api-version=${azureApiVersion}`
+
+    return executeResponsesProviderRequest(request, {
+      providerId: 'azure-openai',
+      providerLabel: 'Azure OpenAI',
+      modelName: deploymentName,
+      endpoint: apiUrl,
+      headers: {
+        'Content-Type': 'application/json',
+        'OpenAI-Beta': 'responses=v1',
+        'api-key': apiKey,
+      },
+      logger,
+      fetch: pinnedFetch,
+    })
   },
 }

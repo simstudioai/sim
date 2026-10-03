@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { INTEGRATIONS } from '@/lib/integrations'
 import { IntegrationBlockDetail } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-block-detail'
 import { IntegrationBlockDetailFallback } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-block-detail-fallback'
+import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 
 export async function generateMetadata({
   params,
@@ -27,8 +28,10 @@ export default async function IntegrationBlockPage({
   if (!integration) notFound()
 
   return (
-    <Suspense fallback={<IntegrationBlockDetailFallback workspaceId={workspaceId} />}>
-      <IntegrationBlockDetail integration={integration} workspaceId={workspaceId} />
-    </Suspense>
+    <PermissionAccessBoundary configKey='hideIntegrationsTab'>
+      <Suspense fallback={<IntegrationBlockDetailFallback workspaceId={workspaceId} />}>
+        <IntegrationBlockDetail integration={integration} workspaceId={workspaceId} />
+      </Suspense>
+    </PermissionAccessBoundary>
   )
 }

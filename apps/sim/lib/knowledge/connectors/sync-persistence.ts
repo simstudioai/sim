@@ -3,9 +3,9 @@ import { document, embedding, knowledgeBase, knowledgeConnector } from '@sim/db/
 import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { and, eq, exists, inArray, isNull, sql } from 'drizzle-orm'
+import { truncateAtCodePoint } from '@sim/utils/string'
+import { and, eq, exists, inArray, isNull, lt, not, or, type SQL, sql } from 'drizzle-orm'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import type { DbOrTx } from '@/lib/db/types'
 import { textArrayLiteral } from '@/lib/knowledge/access/predicate'
 import {
   EMPTY_ACL,
@@ -14,15 +14,27 @@ import {
 } from '@/lib/knowledge/access/tokens'
 import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
 import { aclIsDerived, type ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
+import type { ConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import {
-  claimConnectorUploadForAttachment,
-  uploadConnectorArtifact,
-} from '@/lib/knowledge/connectors/connector-upload'
+  pagesByProjectionRows,
+  rewriteConnectorDocumentAcls,
+  writeProjectionPages,
+} from '@/lib/knowledge/connectors/member-observations'
 import { resolveSourceModifiedAt } from '@/lib/knowledge/connectors/source-modified-at'
-import { SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
-import { assertSyncLeaseHeldInTx, type SyncWriteLease } from '@/lib/knowledge/connectors/sync-lock'
+import { ACL_WRITE_BATCH_SIZE, SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
+import {
+  assertSyncLeaseHeldInTx,
+  type LeaseTransaction,
+  leaseTransaction,
+  type SyncWriteLease,
+} from '@/lib/knowledge/connectors/sync-lock'
+import { MAX_DOCUMENT_INDEXED_TEXT_LENGTH } from '@/lib/knowledge/constants'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import { enqueueKnowledgeStorageCleanup } from '@/lib/knowledge/documents/storage-cleanup'
+import {
+  claimKnowledgeUploadForAttachment,
+  uploadKnowledgeArtifact,
+} from '@/lib/knowledge/documents/storage-upload'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import { getFileMetadataByKeys } from '@/lib/uploads/server/metadata'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
@@ -44,43 +56,37 @@ function updatedDocumentAcl(access: ConnectorAccessMode) {
  * The workspace-mode invariant, applied after every successful content sync:
  * a document a workspace-mode connector owns is readable by the workspace,
  * whatever a mode switch or an interrupted rewrite left behind. Idempotent and
- * a no-op on a healthy connector.
+ * a no-op on a healthy connector. Paged in short transactions that each prove
+ * the connector is still in workspace mode, so it never holds the connector row
+ * across the projection fan-out of a large restore. Stops between pages once
+ * `deadlineAt` passes and reports it unfinished; a later walk resumes by
+ * rewriting whatever is still off the workspace ACL.
  */
 export async function restoreWorkspaceDocumentAcls(
-  executor: DbOrTx,
-  connectorId: string
-): Promise<number> {
-  const workspaceAcl = textArrayLiteral(WORKSPACE_ACL)
-  const restored = await executor
-    .update(document)
-    .set({ acl: [...WORKSPACE_ACL], aclRequirements: [], aclVerifiedAt: null })
-    .where(
-      and(
-        eq(document.connectorId, connectorId),
-        sql`(${document.acl} <> ${workspaceAcl} OR ${document.aclRequirements} <> '[]'::jsonb OR ${document.aclVerifiedAt} IS NOT NULL)`,
-        exists(
-          executor
-            .select({ one: sql`1` })
-            .from(knowledgeConnector)
-            .where(
-              and(
-                eq(knowledgeConnector.id, connectorId),
-                eq(knowledgeConnector.accessMode, 'workspace')
-              )
-            )
+  connectorId: string,
+  transaction: LeaseTransaction,
+  options: { beforePage?: () => Promise<void>; deadlineAt?: number } = {}
+): Promise<{ restored: number; finished: boolean }> {
+  const { rewritten, finished } = await rewriteConnectorDocumentAcls({
+    connectorId,
+    target: WORKSPACE_ACL,
+    transaction,
+    beforePage: options.beforePage,
+    deadlineAt: options.deadlineAt,
+    guard: exists(
+      db
+        .select({ one: sql`1` })
+        .from(knowledgeConnector)
+        .where(
+          and(
+            eq(knowledgeConnector.id, connectorId),
+            eq(knowledgeConnector.accessMode, 'workspace')
+          )
         )
-      )
-    )
-    .returning({ id: document.id })
-  return restored.length
+    ),
+  })
+  return { restored: rewritten, finished }
 }
-
-/**
- * Documents whose ACL is rewritten per statement. Documents are grouped by
- * identical ACL first — files under one folder overwhelmingly share theirs — so
- * a crawl of thousands usually resolves to a handful of statements.
- */
-const ACL_WRITE_BATCH_SIZE = 500
 
 export interface DocumentAclWriteResult {
   /** Documents whose ACL or authoritative evidence timestamp was refreshed. */
@@ -91,20 +97,31 @@ export interface DocumentAclWriteResult {
 
 /**
  * Permission-only changes must not trigger re-embedding. Unchanged ACLs still refresh
- * their evidence timestamp; failed fetches cannot extend it. Malformed or oversized
- * ACLs are stored as unreadable so the previous grant cannot survive failed verification.
+ * their evidence timestamp, without assigning `acl`: every assignment fires the
+ * projection trigger, which rewrites any chunk row whose copy differs, including one
+ * the projection backfill has not filled yet. Failed fetches cannot extend it.
+ * Malformed or oversized ACLs are stored as unreadable so the previous grant cannot
+ * survive failed verification.
+ * An unresolved duplicate may retain evidence verified during this durable crawl,
+ * without refreshing its timestamp; explicit empty ACLs always revoke access.
+ * Every batch is its own `transaction`, which proves the run's lease when it has one: a
+ * connector row lock held across every batch outlasted the statement timeout and rolled back
+ * the batches that had landed. Batches are idempotent, so a retry rewrites only what is stale.
  */
 export async function persistDocumentAcls(
   connectorId: string,
   acls: ReadonlyMap<string, MirroredDocumentAcl>,
-  executor: DbOrTx = db
+  transaction: LeaseTransaction = leaseTransaction(connectorId),
+  evidence?: {
+    unresolvedExternalIds: ReadonlySet<string>
+    generationStartedAt: Date
+  }
 ): Promise<DocumentAclWriteResult> {
   const byAcl = new Map<
     string,
-    { acl: string[]; requirements: string[][]; externalIds: string[] }
+    { acl: string[]; requirements: string[][]; externalIds: string[]; unresolved: boolean }
   >()
   let rejected = 0
-  const verifiedAt = new Date()
 
   for (const [externalId, value] of acls) {
     const validation = validateMirroredDocumentAcl(value)
@@ -126,32 +143,150 @@ export async function persistDocumentAcls(
       validation.valid && validation.requirements.length > 0
         ? [acl, ...validation.requirements]
         : []
-    const key = JSON.stringify([acl, requirements])
+    const unresolved = Boolean(
+      evidence?.unresolvedExternalIds.has(externalId) && validation.valid && acl.length === 0
+    )
+    const key = JSON.stringify([acl, requirements, unresolved])
     const group = byAcl.get(key)
     if (group) group.externalIds.push(externalId)
-    else byAcl.set(key, { acl, requirements, externalIds: [externalId] })
+    else byAcl.set(key, { acl, requirements, externalIds: [externalId], unresolved })
   }
 
   let updated = 0
-  for (const { acl, requirements, externalIds } of byAcl.values()) {
-    for (const batch of chunkArray(externalIds, ACL_WRITE_BATCH_SIZE)) {
-      const rows = await executor
-        .update(document)
-        .set({
-          acl,
-          aclRequirements: requirements,
-          aclVerifiedAt: acl.length > 0 ? verifiedAt : null,
-        })
-        .where(and(eq(document.connectorId, connectorId), inArray(document.externalId, batch)))
-        .returning({ id: document.id })
-      updated += rows.length
+  for (const { acl, requirements, externalIds, unresolved } of byAcl.values()) {
+    const aclVerifiedAt = acl.length > 0 ? sql`statement_timestamp() AT TIME ZONE 'UTC'` : null
+    const evidenceGuard =
+      unresolved && evidence
+        ? or(
+            isNull(document.aclVerifiedAt),
+            lt(document.aclVerifiedAt, evidence.generationStartedAt)
+          )
+        : undefined
+    const stored = sql`(${document.acl} IS NOT DISTINCT FROM ${textArrayLiteral(acl)} AND ${document.aclRequirements} IS NOT DISTINCT FROM ${JSON.stringify(requirements)}::jsonb)`
+    const target = (batch: string[], unchanged: boolean) =>
+      and(
+        eq(document.connectorId, connectorId),
+        inArray(document.externalId, batch),
+        unchanged ? stored : not(stored),
+        evidenceGuard
+      )
+    /**
+     * Each window's evidence refresh and its read of the documents whose ACL changes share one
+     * transaction; the refresh reports the documents it matched, so an unchanged crawl costs one
+     * transaction per window and the change pages below see only what actually changes. Refreshed
+     * first, so a row a change page then rewrites is never counted twice.
+     */
+    for (const window of chunkArray(externalIds, ACL_WRITE_BATCH_SIZE)) {
+      const { refreshed, changed } = await transaction(async (tx) => {
+        const refreshed = await tx
+          .update(document)
+          .set({ aclVerifiedAt })
+          .where(target(window, true))
+          .returning({ externalId: document.externalId })
+        const matched = new Set(refreshed.map((row) => row.externalId))
+        const remaining = window.filter((externalId) => !matched.has(externalId))
+        const changed =
+          remaining.length === 0
+            ? []
+            : await tx
+                .select({ id: document.id, chunkCount: document.chunkCount })
+                .from(document)
+                .where(target(remaining, false))
+        return { refreshed: refreshed.length, changed }
+      })
+      updated += refreshed
+      for (const page of pagesByProjectionRows(changed)) {
+        const { written } = await writeProjectionPages(
+          page,
+          transaction,
+          async (tx, locked) =>
+            (
+              await tx
+                .update(document)
+                .set({ acl, aclRequirements: requirements, aclVerifiedAt })
+                .where(and(inArray(document.id, locked), target(window, false)))
+                .returning({ id: document.id })
+            ).length
+        )
+        updated += written
+      }
     }
   }
 
   return { updated, rejected }
 }
 
+/**
+ * Revokes every grant on the documents `target` selects from `ids`, leaving each readable by
+ * nobody with its permission evidence cleared. Only a document that still grants someone has
+ * `acl` assigned, in pages bounded by their chunks' projection rows: the projection trigger fires on every
+ * assignment of `acl`, changed or not, and each document costs a rewrite of its chunks'
+ * projection rows. A document already readable by nobody only has leftover evidence cleared,
+ * which fires no fan-out. Each batch is its own `transaction`, so a lease lost between batches
+ * stops the rest and every committed batch stays revoked. It runs to completion rather than to a
+ * deadline, because callers record the documents as revoked only once it returns; `beforePage`
+ * runs ahead of every transaction, for the lease heartbeat.
+ */
+export async function revokeDocumentAcls(
+  transaction: LeaseTransaction,
+  ids: string[],
+  target: (batch: string[]) => SQL | undefined,
+  options: { beforePage?: () => Promise<void> } = {}
+): Promise<void> {
+  const grants = sql`cardinality(${document.acl}) > 0`
+  for (const window of chunkArray(ids, ACL_WRITE_BATCH_SIZE)) {
+    await options.beforePage?.()
+    const granting = await transaction(async (tx) => {
+      await tx
+        .update(document)
+        .set({ aclRequirements: [], aclVerifiedAt: null })
+        .where(
+          and(
+            target(window),
+            not(grants),
+            sql`(${document.aclRequirements} <> '[]'::jsonb OR ${document.aclVerifiedAt} IS NOT NULL)`
+          )
+        )
+      return tx
+        .select({ id: document.id, chunkCount: document.chunkCount })
+        .from(document)
+        .where(and(target(window), grants))
+    })
+    for (const page of pagesByProjectionRows(granting)) {
+      await writeProjectionPages(
+        page,
+        transaction,
+        async (tx, locked) => {
+          await tx
+            .update(document)
+            .set({ acl: [], aclRequirements: [], aclVerifiedAt: null })
+            .where(and(target(window), inArray(document.id, locked), grants))
+          return 0
+        },
+        { beforePage: options.beforePage }
+      )
+    }
+  }
+}
+
 const MAX_SAFE_TITLE_LENGTH = 200
+
+/** The suffix a cut value carries, counted inside {@link MAX_DOCUMENT_INDEXED_TEXT_LENGTH}. */
+const INDEXED_TEXT_CUT_SUFFIX = '...'
+
+/**
+ * Source titles and mapped tag values are untrusted machine input with no caller to refuse them,
+ * so they are cut to {@link MAX_DOCUMENT_INDEXED_TEXT_LENGTH} code units, suffix included, and
+ * never inside a surrogate pair. The result always passes the document APIs' own bound.
+ */
+function boundIndexedText(value: string): string {
+  if (value.length <= MAX_DOCUMENT_INDEXED_TEXT_LENGTH) return value
+  return truncateAtCodePoint(
+    value,
+    MAX_DOCUMENT_INDEXED_TEXT_LENGTH - INDEXED_TEXT_CUT_SUFFIX.length,
+    INDEXED_TEXT_CUT_SUFFIX
+  )
+}
 
 function sanitizeStorageTitle(title: string): string {
   return title.replace(/[^a-zA-Z0-9.-]/g, '_').slice(0, MAX_SAFE_TITLE_LENGTH)
@@ -189,18 +324,22 @@ function connectorStoredArtifact(extDoc: ExternalDocument): {
     mimeType: 'text/plain',
   }
 }
-type KnowledgeBaseLockingTx = Pick<typeof db, 'execute' | 'select'>
+type KnowledgeBaseLockingTx = Pick<typeof db, 'select'>
 
+/**
+ * Holds an active KB through commit without serializing independent document saves.
+ * SHARE blocks soft deletion's NO KEY UPDATE but permits other saves and FK checks.
+ * Callers acquire this before connector/document locks and must not update the KB.
+ */
 async function isKnowledgeBaseActiveInTx(
   tx: KnowledgeBaseLockingTx,
   knowledgeBaseId: string
 ): Promise<boolean> {
-  await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${knowledgeBaseId} FOR UPDATE`)
-
   const rows = await tx
     .select({ id: knowledgeBase.id })
     .from(knowledgeBase)
     .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
+    .for('share')
     .limit(1)
 
   return rows.length > 0
@@ -226,7 +365,8 @@ export function resolveTagMapping(
   const result: Partial<DocumentTags> = {}
   for (const [semanticKey, slot] of Object.entries(mapping)) {
     const value = semanticTags[semanticKey]
-    ;(result as Record<string, unknown>)[slot] = value != null ? value : null
+    ;(result as Record<string, unknown>)[slot] =
+      typeof value === 'string' ? boundIndexedText(value) : (value ?? null)
   }
   return result
 }
@@ -238,7 +378,7 @@ export interface KnowledgeBaseOwner {
   userId: string
 }
 
-/** Builds a content-less `failed` document row for a skipped (e.g. oversized) file. */
+/** Builds a content-less document row for an intentional source exclusion. */
 function buildSkippedDocumentRow(
   knowledgeBaseId: string,
   connectorId: string,
@@ -254,7 +394,7 @@ function buildSkippedDocumentRow(
   return {
     id: generateId(),
     knowledgeBaseId,
-    filename: extDoc.title,
+    filename: boundIndexedText(extDoc.title),
     fileUrl: '',
     storageKey: null,
     /** No artifact was stored; a provider's reported source size is not local storage usage. */
@@ -275,7 +415,7 @@ function buildSkippedDocumentRow(
 }
 
 /**
- * Records source files that were intentionally not indexed as content-less `failed`
+ * Records source files that were intentionally not indexed as content-less
  * documents. New rows are inserted in bulk; authoritative skips replace stale rows.
  * This keeps the files visible in the knowledge base UI — with `processingError`
  * explaining why — instead of silently dropping them. The rows have no storage key,
@@ -411,15 +551,41 @@ export async function persistSkippedDocuments(
   return persisted
 }
 
+/** Source-derived fields that can change without the indexed text changing. */
+export type SourceMetadataFields = Partial<DocumentTags> & {
+  sourceUrl: string | null
+  sourceModifiedAt: Date | null
+}
+
+/** The source-derived fields a refreshed document carries, as a full update writes them. */
+export function resolveSourceMetadataFields(
+  connectorType: string,
+  extDoc: Pick<ExternalDocument, 'sourceUrl' | 'metadata'>,
+  sourceConfig: Record<string, unknown>
+): SourceMetadataFields {
+  return {
+    sourceUrl: extDoc.sourceUrl ?? null,
+    sourceModifiedAt: resolveSourceModifiedAt(extDoc.metadata),
+    ...(extDoc.metadata ? resolveTagMapping(connectorType, extDoc.metadata, sourceConfig) : {}),
+  }
+}
+
 /**
- * Persists only connector-owned retry hashes for skipped refreshes of existing
- * documents. Indexed content and processing state stay last-known-good while the
- * hash guarantees that unchanged listing metadata still re-enters hydration.
+ * Persists only a new hash for existing documents, leaving indexed content and
+ * processing state as they are: a connector-owned retry hash for a skipped
+ * refresh, so unchanged listing metadata still re-enters hydration, or the
+ * current hash of content that hydration found unchanged under an older one,
+ * together with that hydration's source metadata, which can move on its own.
  */
-export async function persistSkippedRetryHashes(
+export async function persistHashOnlyUpdates(
   knowledgeBaseId: string,
   connectorId: string,
-  updates: Array<{ existingId: string; externalId: string; contentHash: string }>,
+  updates: Array<{
+    existingId: string
+    externalId: string
+    contentHash: string
+    sourceMetadata?: SourceMetadataFields
+  }>,
   lease: SyncWriteLease
 ): Promise<string[]> {
   if (updates.length === 0) return []
@@ -436,7 +602,7 @@ export async function persistSkippedRetryHashes(
     for (const update of updates) {
       const persisted = await tx
         .update(document)
-        .set({ contentHash: update.contentHash })
+        .set({ contentHash: update.contentHash, ...update.sourceMetadata })
         .where(connectorDocumentSyncTarget(update.existingId, knowledgeBaseId, connectorId))
         .returning({ id: document.id })
       if (persisted.length === 0) {
@@ -455,6 +621,7 @@ export async function persistSourceDocumentFailures(input: {
   connectorType: string
   documents: readonly ExternalDocument[]
   failedExternalIds: ReadonlySet<string>
+  sourceFailures?: ReadonlyMap<string, ConnectorFailureDiagnostic>
   priorByExternalId: ReadonlyMap<string, { id: string }>
   sourceConfig: Record<string, unknown>
   access: ConnectorAccessMode
@@ -472,31 +639,38 @@ export async function persistSourceDocumentFailures(input: {
     if (!(await isKnowledgeBaseActiveInTx(tx, input.knowledgeBaseId)))
       throw new Error('Knowledge base was deleted')
     await assertSyncLeaseHeldInTx(tx, input.connectorId, input.lease)
-    const existingIds = failed.flatMap((item) => {
+    const existingIdsByError = new Map<string, string[]>()
+    for (const item of failed) {
       const existing = input.priorByExternalId.get(item.externalId)
-      return existing ? [existing.id] : []
-    })
-    for (let offset = 0; offset < existingIds.length; offset += 500) {
-      await tx
-        .update(document)
-        .set({
-          contentHash: null,
-          processingStatus: 'failed',
-          processingError: SOURCE_CONTENT_ERROR,
-          processingQueuedAt: null,
-          processingQueueToken: null,
-          processingDeferredUntil: null,
-          processingCompletedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(document.connectorId, input.connectorId),
-            eq(document.knowledgeBaseId, input.knowledgeBaseId),
-            inArray(document.id, existingIds.slice(offset, offset + 500)),
-            eq(document.userExcluded, false),
-            isNull(document.archivedAt)
+      if (!existing) continue
+      const message = input.sourceFailures?.get(item.externalId)?.message ?? SOURCE_CONTENT_ERROR
+      const ids = existingIdsByError.get(message) ?? []
+      ids.push(existing.id)
+      existingIdsByError.set(message, ids)
+    }
+    for (const [message, existingIds] of existingIdsByError) {
+      for (let offset = 0; offset < existingIds.length; offset += 500) {
+        await tx
+          .update(document)
+          .set({
+            contentHash: null,
+            processingStatus: 'failed',
+            processingError: message,
+            processingQueuedAt: null,
+            processingQueueToken: null,
+            processingDeferredUntil: null,
+            processingCompletedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(document.connectorId, input.connectorId),
+              eq(document.knowledgeBaseId, input.knowledgeBaseId),
+              inArray(document.id, existingIds.slice(offset, offset + 500)),
+              eq(document.userExcluded, false),
+              isNull(document.archivedAt)
+            )
           )
-        )
+      }
     }
     const newItems = failed.filter((item) => !input.priorByExternalId.has(item.externalId))
     for (let offset = 0; offset < newItems.length; offset += 500) {
@@ -506,7 +680,11 @@ export async function persistSourceDocumentFailures(input: {
             input.knowledgeBaseId,
             input.connectorId,
             input.connectorType,
-            { ...item, skippedReason: SOURCE_CONTENT_ERROR },
+            {
+              ...item,
+              skippedReason:
+                input.sourceFailures?.get(item.externalId)?.message ?? SOURCE_CONTENT_ERROR,
+            },
             input.sourceConfig,
             input.access
           ),
@@ -536,7 +714,7 @@ export async function addDocument(
   const artifact = connectorStoredArtifact(extDoc)
   const customKey = `kb/${buildStorageKeySegment(`${Date.now()}-${documentId}-`, artifact.fileName)}`
 
-  const fileInfo = await uploadConnectorArtifact({
+  const fileInfo = await uploadKnowledgeArtifact({
     documentId,
     key: customKey,
     owner: kbOwner,
@@ -549,7 +727,7 @@ export async function addDocument(
     ? resolveTagMapping(connectorType, extDoc.metadata, sourceConfig)
     : undefined
   await db.transaction(async (tx) => {
-    await claimConnectorUploadForAttachment(tx, fileInfo.cleanupEventId)
+    await claimKnowledgeUploadForAttachment(tx, fileInfo.cleanupEventId)
     const isActive = await isKnowledgeBaseActiveInTx(tx, knowledgeBaseId)
     if (!isActive) {
       throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
@@ -568,7 +746,7 @@ export async function addDocument(
     await tx.insert(document).values({
       id: documentId,
       knowledgeBaseId,
-      filename: extDoc.title,
+      filename: boundIndexedText(extDoc.title),
       fileUrl,
       storageKey: fileInfo.key,
       fileSize: artifact.bytes.length,
@@ -639,7 +817,7 @@ export async function updateDocument(
   const artifact = connectorStoredArtifact(extDoc)
   const customKey = `kb/${buildStorageKeySegment(`${Date.now()}-${generateId()}-`, artifact.fileName)}`
 
-  const fileInfo = await uploadConnectorArtifact({
+  const fileInfo = await uploadKnowledgeArtifact({
     documentId: existingDocId,
     key: customKey,
     owner: kbOwner,
@@ -652,7 +830,7 @@ export async function updateDocument(
     ? resolveTagMapping(connectorType, extDoc.metadata, sourceConfig)
     : undefined
   await db.transaction(async (tx) => {
-    await claimConnectorUploadForAttachment(tx, fileInfo.cleanupEventId)
+    await claimKnowledgeUploadForAttachment(tx, fileInfo.cleanupEventId)
     const isActive = await isKnowledgeBaseActiveInTx(tx, knowledgeBaseId)
     if (!isActive) {
       throw new Error(`Knowledge base ${knowledgeBaseId} is deleted`)
@@ -683,7 +861,7 @@ export async function updateDocument(
     await tx
       .update(document)
       .set({
-        filename: extDoc.title,
+        filename: boundIndexedText(extDoc.title),
         fileUrl,
         storageKey: fileInfo.key,
         fileSize: artifact.bytes.length,

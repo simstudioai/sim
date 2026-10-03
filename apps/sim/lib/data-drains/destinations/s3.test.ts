@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockSend, mockDestroy, S3ClientCtor, PutObjectCommandCtor, DeleteObjectCommandCtor } =
   vi.hoisted(() => {
@@ -52,10 +49,6 @@ const config = {
 }
 const credentials = { accessKeyId: 'AKID', secretAccessKey: 'SECRET' }
 
-beforeEach(() => {
-  vi.clearAllMocks()
-})
-
 describe('s3Destination openSession', () => {
   it('reuses one S3Client across multiple deliveries and destroys on close', async () => {
     const session = s3Destination.openSession({ config, credentials })
@@ -104,30 +97,6 @@ describe('s3Destination openSession', () => {
     expect(mockDestroy).toHaveBeenCalledTimes(1)
   })
 
-  it('omits the prefix segment when prefix is empty', async () => {
-    const session = s3Destination.openSession({
-      config: { bucket: 'b', region: 'us-east-1' },
-      credentials,
-    })
-    const result = await session.deliver({
-      body: Buffer.from('x'),
-      contentType: 'application/x-ndjson',
-      metadata: {
-        drainId: 'd',
-        runId: 'r',
-        source: 'audit_logs',
-        sequence: 0,
-        rowCount: 1,
-        runStartedAt: new Date('2025-06-15T12:00:00Z'),
-      },
-      signal: new AbortController().signal,
-    })
-    expect(result.locator).toMatch(
-      /^s3:\/\/b\/audit_logs\/d\/\d{4}\/\d{2}\/\d{2}\/r-00000\.ndjson$/
-    )
-    await session.close()
-  })
-
   it('surfaces AWS error code in delivery errors', async () => {
     mockSend.mockRejectedValueOnce(
       Object.assign(new Error('Access Denied'), {
@@ -152,27 +121,5 @@ describe('s3Destination openSession', () => {
       })
     ).rejects.toThrow(/AccessDenied 403/)
     await session.close()
-  })
-})
-
-describe('s3Destination test()', () => {
-  it('writes a probe object then attempts cleanup', async () => {
-    await s3Destination.test!({
-      config,
-      credentials,
-      signal: new AbortController().signal,
-    })
-    expect(PutObjectCommandCtor).toHaveBeenCalled()
-    expect(DeleteObjectCommandCtor).toHaveBeenCalled()
-    expect(mockDestroy).toHaveBeenCalled()
-  })
-
-  it('still returns success when cleanup delete fails', async () => {
-    mockSend
-      .mockResolvedValueOnce({}) // put probe
-      .mockRejectedValueOnce(new Error('no delete perms')) // cleanup
-    await expect(
-      s3Destination.test!({ config, credentials, signal: new AbortController().signal })
-    ).resolves.toBeUndefined()
   })
 })

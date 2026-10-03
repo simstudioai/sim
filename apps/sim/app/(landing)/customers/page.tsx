@@ -13,6 +13,10 @@ import { CustomerStoryCard } from '@/app/(landing)/customers/components/customer
 
 export const revalidate = 86400
 
+/** Two columns with a 32px gap inside HOME_INSET; below md the cards fill the gutter. */
+const CARD_IMAGE_SIZES =
+  '(min-width: 1728px) 671px, (min-width: 1280px) calc((100vw - 80px) * 5 / 12 - 16px), (min-width: 1024px) calc((100vw - 72px) * 5 / 12 - 16px), (min-width: 768px) calc(50vw - 48px), calc(100vw - 56px)'
+
 export async function generateMetadata(): Promise<Metadata> {
   const published = await getAllCustomerStoryMeta()
   return {
@@ -52,9 +56,19 @@ export default async function Page() {
           <h2 id='customer-stories-heading' className='sr-only'>
             Featured customer stories
           </h2>
-          {stories.map(({ story, post }) =>
-            post ? <CustomerStoryCard key={story.slug} story={story} post={post} /> : null
-          )}
+          {stories
+            .filter(({ post }) => post)
+            .map(({ story, post }, index) =>
+              post ? (
+                <CustomerStoryCard
+                  key={story.slug}
+                  story={story}
+                  post={post}
+                  priority={index === 0}
+                  sizes={CARD_IMAGE_SIZES}
+                />
+              ) : null
+            )}
         </section>
       </div>
     </main>

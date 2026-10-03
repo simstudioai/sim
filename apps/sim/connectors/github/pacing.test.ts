@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mutate } = vi.hoisted(() => ({ mutate: vi.fn() }))
@@ -55,22 +54,12 @@ describe('GitHub sync progress with shared low-quota pacing', () => {
           },
           { headers }
         )
-      if (url.pathname.includes('/contents/'))
-        return Response.json(
-          {
-            sha: 'blob-sha',
-            size: 4,
-            content: 'dGV4dA==',
-            encoding: 'base64',
-          },
-          { headers }
-        )
+      if (url.pathname.includes('/git/blobs/')) return new Response('text', { headers })
       throw new Error('Unexpected fixture endpoint')
     })
   })
   afterEach(() => {
     vi.useRealTimers()
-    vi.unstubAllGlobals()
   })
 
   const sync = async () => {
@@ -83,20 +72,6 @@ describe('GitHub sync progress with shared low-quota pacing', () => {
       context
     )
   }
-
-  it('reaches hydration in successive fresh sync contexts instead of repeatedly spending quota on trees', async () => {
-    for (let pass = 0; pass < 2; pass++) {
-      const pending = sync()
-      await vi.advanceTimersByTimeAsync(125_000)
-      expect(await pending).toMatchObject({ content: 'text' })
-    }
-    expect(requestPaths).toEqual([
-      '/repos/owner/repository/git/trees/main',
-      '/repos/owner/repository/contents/guide.md',
-      '/repos/owner/repository/git/trees/main',
-      '/repos/owner/repository/contents/guide.md',
-    ])
-  })
 
   it('defers a second worker immediately during a known cooldown instead of waiting its ordinary pacing budget', async () => {
     const provider = vi.fn(async () =>

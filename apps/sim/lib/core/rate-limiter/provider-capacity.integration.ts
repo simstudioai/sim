@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { createServer } from 'node:http'
 import { db } from '@sim/db'
 import { rateLimitBucket } from '@sim/db/schema'
+import { readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
@@ -25,18 +26,7 @@ import {
 import { mutateProviderCapacity } from '@/lib/core/rate-limiter/provider-capacity-store'
 import { fetchGitHubWithRetry } from '@/connectors/github/request'
 
-const redisUrl = process.env.KNOWLEDGE_ACL_TEST_REDIS_URL
-if (redisUrl) {
-  const target = new URL(redisUrl)
-  if (
-    target.protocol !== 'redis:' ||
-    !['localhost', '127.0.0.1'].includes(target.hostname) ||
-    target.username ||
-    target.password
-  ) {
-    throw new Error('Provider capacity tests require an explicitly configured local Redis')
-  }
-}
+const redisUrl = readTestRedisUrl()
 const CONFIG: ProviderCapacityConfig = {
   requestsPerMinute: 60,
   pagesPerMinute: 1000,
@@ -427,7 +417,10 @@ describe.each(['database', 'redis'] as const)('%s weighted provider capacity', (
           } else {
             expect(await (await request()).text()).toBe('complete source content')
           }
-          await expect(request()).rejects.toMatchObject({ rateLimited: true })
+          await expect(request()).rejects.toMatchObject({
+            rateLimited: scenario === 'secondary-throttle',
+            reason: scenario === 'secondary-throttle' ? 'rate_limit' : 'admission_timeout',
+          })
           expect(requests).toBe(1)
           const saved = await read()
           expect(saved.leases).toHaveLength(0)

@@ -19,13 +19,12 @@ import {
   getColumnId,
   remapGroupColumnRefs,
 } from '@/lib/table/column-keys'
-import { deriveOutputColumnName } from '@/lib/table/column-naming'
 import { NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { assertColumnDestructive, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import { stripGroupExecutions } from '@/lib/table/rows/executions'
 import { updateTableRowsWithDerivedSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { assertValidSchema } from '@/lib/table/schema-invariants'
-import { getTableById, withLockedTable } from '@/lib/table/service'
+import { withLockedTable } from '@/lib/table/service'
 import { assertTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import type {
@@ -41,6 +40,7 @@ import type {
 } from '@/lib/table/types'
 import { runWorkflowColumn } from '@/lib/table/workflow-columns'
 import { stripGroupDeps } from '@/lib/table/workflow-group-deps'
+import { resolveWorkflowGroupDeploymentMode } from '@/lib/table/workflow-groups/deployment-mode'
 
 const logger = createLogger('TableWorkflowGroupsService')
 /**
@@ -157,7 +157,43 @@ export async function addWorkflowGroup(
         )
       }
 
-      const existingNames = new Set(schema.columns.map((c) => c.name.toLowerCase()))
+      /**
+       * An output column the table already has is attached to the group rather
+       * than created again — the group takes the column over, so the column
+       * must be free (no owning group) and eligible (a workflow output can be
+       * neither required nor unique, per the schema invariants). Keyed by
+       * column id, valued by the ref the caller wrote, so the id remap below
+       * resolves that ref however it was cased.
+       */
+      const existingByName = new Map(schema.columns.map((c) => [c.name.toLowerCase(), c]))
+      const attached = new Map<string, string>()
+      const attach = (
+        existing: ColumnDefinition,
+        ref: string,
+        requestedType?: ColumnDefinition['type']
+      ) => {
+        if (existing.workflowGroupId) {
+          throw new OrchestrationError(
+            'validation',
+            `Column "${existing.name}" already belongs to workflow group "${existing.workflowGroupId}"`
+          )
+        }
+        if (existing.required || existing.unique) {
+          throw new OrchestrationError(
+            'validation',
+            `Column "${existing.name}" cannot become a workflow output because it is ${existing.required ? 'required' : 'unique'}`
+          )
+        }
+        if (requestedType !== undefined && requestedType !== existing.type) {
+          throw new OrchestrationError(
+            'validation',
+            `Column "${existing.name}" already exists with type "${existing.type}"; omit it from outputColumns or match its type`
+          )
+        }
+        attached.set(getColumnId(existing), ref)
+      }
+
+      const newColumns: ColumnDefinition[] = []
       for (const col of data.outputColumns) {
         if (!NAME_PATTERN.test(col.name)) {
           throw new OrchestrationError(
@@ -165,27 +201,50 @@ export async function addWorkflowGroup(
             `Invalid output column name "${col.name}". Must satisfy ${NAME_PATTERN.source}.`
           )
         }
-        if (existingNames.has(col.name.toLowerCase())) {
-          throw new OrchestrationError('validation', `Column "${col.name}" already exists`)
+        const existing = existingByName.get(col.name.toLowerCase())
+        if (existing) {
+          attach(existing, col.name, col.type)
+          continue
+        }
+        // Assign stable ids to the new output columns so outputs/deps/inputMappings
+        // key on ids — matching the row-data storage key and surviving future renames.
+        newColumns.push(col.id ? col : { ...col, id: generateColumnId() })
+      }
+
+      // An output may name an existing column with no `outputColumns` entry at all.
+      const newNames = new Set(newColumns.map((c) => c.name.toLowerCase()))
+      for (const output of data.group.outputs) {
+        if (newNames.has(output.columnName.toLowerCase())) continue
+        const existing = schema.columns.find((c) => columnMatchesRef(c, output.columnName))
+        if (existing && !attached.has(getColumnId(existing))) {
+          attach(existing, output.columnName)
         }
       }
 
-      if (schema.columns.length + data.outputColumns.length > TABLE_LIMITS.MAX_COLUMNS_PER_TABLE) {
+      if (schema.columns.length + newColumns.length > TABLE_LIMITS.MAX_COLUMNS_PER_TABLE) {
         throw new OrchestrationError(
           'validation',
-          `Adding ${data.outputColumns.length} columns would exceed the maximum (${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE}).`
+          `Adding ${newColumns.length} columns would exceed the maximum (${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE}).`
         )
       }
 
-      // Assign stable ids to the new output columns, then rewrite the group's
-      // column refs from name → id so outputs/deps/inputMappings key on ids —
-      // matching the row-data storage key and surviving future renames.
-      const outputColumns = data.outputColumns.map((col) =>
-        col.id ? col : { ...col, id: generateColumnId() }
-      )
-      const updatedColumns = [...schema.columns, ...outputColumns]
+      const updatedColumns = [
+        ...schema.columns.map((c) =>
+          attached.has(getColumnId(c)) ? { ...c, workflowGroupId: data.group.id } : c
+        ),
+        ...newColumns,
+      ]
+      // Rewrite the group's column refs from name → id.
       const idByName = new Map(updatedColumns.map((c) => [c.name, getColumnId(c)]))
-      const group = remapGroupColumnRefs(data.group, idByName)
+      for (const [columnId, ref] of attached) idByName.set(ref, columnId)
+      // A workflow-backed group is stored with its effective mode so no later
+      // reader has to guess what an absent value meant at creation time.
+      const group = remapGroupColumnRefs(
+        data.group.workflowId
+          ? { ...data.group, deploymentMode: resolveWorkflowGroupDeploymentMode(data.group) }
+          : data.group,
+        idByName
+      )
 
       const updatedSchema: TableSchema = {
         ...schema,
@@ -199,7 +258,7 @@ export async function addWorkflowGroup(
       let updatedMetadata = table.metadata
       if (existingOrder && existingOrder.length > 0) {
         const known = new Set(existingOrder)
-        const append = outputColumns.map(getColumnId).filter((id) => !known.has(id))
+        const append = newColumns.map(getColumnId).filter((id) => !known.has(id))
         if (append.length > 0) {
           updatedMetadata = { ...table.metadata, columnOrder: [...existingOrder, ...append] }
         }
@@ -219,7 +278,7 @@ export async function addWorkflowGroup(
         )
 
       logger.info(
-        `[${requestId}] Added workflow group "${data.group.id}" with ${data.outputColumns.length} output column(s) to table ${data.tableId}`
+        `[${requestId}] Added workflow group "${data.group.id}" with ${newColumns.length} new and ${attached.size} attached output column(s) to table ${data.tableId}`
       )
 
       return {
@@ -619,356 +678,6 @@ export async function updateWorkflowGroup(
   }
 
   return updatedTable
-}
-
-/**
- * Adds a single output to an existing workflow group. Mirrors `addTableColumn`
- * for plain columns: one canonical op, one column created, type inferred from
- * the workflow's flattened outputs (`leafType` for `(blockId, path)`). The
- * column is spliced into the group's contiguous run so the table renders the
- * new output next to its siblings.
- */
-export async function addWorkflowGroupOutput(
-  data: {
-    tableId: string
-    /** Canonical workspace derived by the authorized caller. */
-    workspaceId?: string
-    groupId: string
-    blockId: string
-    path: string
-    /** Optional override; defaults to a slug derived from `path`. */
-    columnName?: string
-    /** The member adding the output — the billing attribution for the backfill's
-     *  row writes. Not the gate: see `capabilityGovernedUserId`. */
-    actorUserId?: string | null
-    /** Person whose permission group gates any cell the backfill's writes
-     *  cascade into; `null` when the change has no acting person. Required; see
-     *  {@link InsertRowData.capabilityGovernedUserId} in `@/lib/table/types`. */
-    capabilityGovernedUserId: string | null
-    resolvedOutput: {
-      workflowId: string
-      columnType: ColumnDefinition['type']
-      order: Array<{
-        blockId: string
-        path: string
-        executionDistance: number
-        discoveryIndex: number
-      }>
-    }
-  },
-  requestId: string
-): Promise<TableDefinition> {
-  if (data.resolvedOutput.columnType === 'ttl') await assertTableRowTtlEnabled()
-
-  // Phase 1 (no lock): validate the authorized workflow metadata against the
-  // group's current workflow. Phase 2 re-validates the same binding under the
-  // table lock before applying the mutation.
-  const preTable = await getTableById(data.tableId)
-  if (!preTable || (data.workspaceId && preTable.workspaceId !== data.workspaceId)) {
-    throw new OrchestrationError('not_found', 'Table not found')
-  }
-  const preGroup = (preTable.schema.workflowGroups ?? []).find((g) => g.id === data.groupId)
-  if (!preGroup) {
-    throw new OrchestrationError('not_found', `Workflow group "${data.groupId}" not found`)
-  }
-  const workflowId = preGroup.workflowId
-  if (data.resolvedOutput.workflowId !== workflowId) {
-    throw new OrchestrationError('not_found', 'Workflow not found')
-  }
-  const newColumnType = data.resolvedOutput.columnType
-  const resolvedOrder = new Map(
-    data.resolvedOutput.order.map((output) => [
-      `${output.blockId}::${output.path}`,
-      [output.executionDistance, output.discoveryIndex] as const,
-    ])
-  )
-
-  // Phase 2 (locked): re-read fresh, validate against the current schema, and
-  // write. The critical section holds no I/O — just the in-memory splice + the
-  // schema UPDATE — so concurrent adders queue behind it quickly.
-  const { updatedTable, newOutput } = await withLockedTable(
-    data.tableId,
-    async (table, trx) => {
-      assertSchemaMutable(table)
-      const schema = table.schema
-      const groups = schema.workflowGroups ?? []
-      const groupIndex = groups.findIndex((g) => g.id === data.groupId)
-      if (groupIndex === -1) {
-        throw new OrchestrationError('not_found', `Workflow group "${data.groupId}" not found`)
-      }
-      const group = groups[groupIndex]
-      if (group.workflowId !== workflowId) {
-        throw new OrchestrationError(
-          'conflict',
-          `Workflow group "${data.groupId}" was remapped to a different workflow concurrently; retry the add.`
-        )
-      }
-
-      if (group.outputs.some((o) => o.blockId === data.blockId && o.path === data.path)) {
-        throw new OrchestrationError(
-          'validation',
-          `Workflow group "${data.groupId}" already has an output at ${data.blockId}::${data.path}`
-        )
-      }
-
-      const taken = new Set(schema.columns.map((c) => c.name))
-      const columnName = data.columnName ?? deriveOutputColumnName(data.path, taken)
-      if (!NAME_PATTERN.test(columnName)) {
-        throw new OrchestrationError(
-          'validation',
-          `Invalid column name "${columnName}". Must satisfy ${NAME_PATTERN.source}.`
-        )
-      }
-      if (taken.has(columnName)) {
-        throw new OrchestrationError('validation', `Column "${columnName}" already exists`)
-      }
-      if (schema.columns.length + 1 > TABLE_LIMITS.MAX_COLUMNS_PER_TABLE) {
-        throw new OrchestrationError(
-          'validation',
-          `Adding a column would exceed the maximum (${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE}).`
-        )
-      }
-
-      const newColDef: ColumnDefinition = {
-        id: generateColumnId(),
-        name: columnName,
-        type: newColumnType,
-        required: false,
-        unique: false,
-        workflowGroupId: data.groupId,
-      }
-      const newColumnId = getColumnId(newColDef)
-      const newOutput: WorkflowGroupOutput = {
-        blockId: data.blockId,
-        path: data.path,
-        columnName: newColumnId,
-      }
-
-      // Sort all of the group's outputs (existing + new) in workflow execution
-      // order: BFS distance from the start block ASC, with discovery order as
-      // tiebreak. This matches what the column-sidebar does at create time, so
-      // columns from the same workflow always read in the order their blocks run
-      // — regardless of whether they were added at create time or one-by-one.
-      const groupColIdsBefore = new Set(group.outputs.map((o) => o.columnName))
-      const orderKey = (o: { blockId: string; path: string }) => {
-        return (
-          resolvedOrder.get(`${o.blockId}::${o.path}`) ??
-          ([Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY] as const)
-        )
-      }
-      const allGroupOutputs = [...group.outputs, newOutput].sort((a, b) => {
-        const [da, ia] = orderKey(a)
-        const [db, ib] = orderKey(b)
-        return da !== db ? da - db : ia - ib
-      })
-      const invalidOutput = allGroupOutputs.find(
-        (output) => !resolvedOrder.has(`${output.blockId}::${output.path}`)
-      )
-      if (invalidOutput) {
-        throw new OrchestrationError(
-          'conflict',
-          `Workflow group "${data.groupId}" mappings changed concurrently; retry the add.`
-        )
-      }
-      const orderedGroupColIds = allGroupOutputs.map((o) => o.columnName)
-      const updatedGroup: WorkflowGroup = {
-        ...group,
-        outputs: allGroupOutputs,
-      }
-      const nextGroups = groups.map((g, i) => (i === groupIndex ? updatedGroup : g))
-
-      // Splice the new column run into nextColumns: keep the columns outside the
-      // group where they were, replace the group's contiguous run with the
-      // BFS-ordered list. Anchor at the position of the first existing sibling
-      // (or append if the group was empty).
-      const colById = new Map(schema.columns.map((c) => [getColumnId(c), c]))
-      const orderedGroupCols: ColumnDefinition[] = orderedGroupColIds.map((id) => {
-        if (id === newColumnId) return newColDef
-        const existing = colById.get(id)
-        if (!existing) {
-          throw new Error(`Internal: column "${id}" missing while splicing group outputs`)
-        }
-        return existing
-      })
-      const remainingCols = schema.columns.filter((c) => !groupColIdsBefore.has(getColumnId(c)))
-      const firstGroupIdx = schema.columns.findIndex((c) => groupColIdsBefore.has(getColumnId(c)))
-      const colAnchor = firstGroupIdx === -1 ? remainingCols.length : firstGroupIdx
-      const nextColumns = [
-        ...remainingCols.slice(0, colAnchor),
-        ...orderedGroupCols,
-        ...remainingCols.slice(colAnchor),
-      ]
-
-      const updatedSchema: TableSchema = {
-        ...schema,
-        columns: nextColumns,
-        workflowGroups: nextGroups,
-      }
-
-      const updatedColumnOrder = table.metadata?.columnOrder
-        ? (() => {
-            const orderWithoutGroup = table.metadata!.columnOrder!.filter(
-              (id) => !groupColIdsBefore.has(id)
-            )
-            const firstGroupOrderIdx = table.metadata!.columnOrder!.findIndex((id) =>
-              groupColIdsBefore.has(id)
-            )
-            const orderAnchor =
-              firstGroupOrderIdx === -1 ? orderWithoutGroup.length : firstGroupOrderIdx
-            return [
-              ...orderWithoutGroup.slice(0, orderAnchor),
-              ...orderedGroupColIds,
-              ...orderWithoutGroup.slice(orderAnchor),
-            ]
-          })()
-        : undefined
-
-      assertValidSchema(updatedSchema, updatedColumnOrder)
-
-      const updatedMetadata: TableMetadata | null =
-        updatedColumnOrder && table.metadata
-          ? { ...table.metadata, columnOrder: updatedColumnOrder }
-          : table.metadata
-            ? { ...table.metadata }
-            : null
-
-      const now = new Date()
-      await trx
-        .update(userTableDefinitions)
-        .set({ schema: updatedSchema, metadata: updatedMetadata, updatedAt: now })
-        .where(
-          and(
-            eq(userTableDefinitions.id, data.tableId),
-            eq(userTableDefinitions.workspaceId, table.workspaceId)
-          )
-        )
-
-      logger.info(
-        `[${requestId}] Added output "${columnName}" (${newColDef.type}) to workflow group "${data.groupId}" in table ${data.tableId}`
-      )
-
-      const updatedTable: TableDefinition = {
-        ...table,
-        schema: updatedSchema,
-        metadata: updatedMetadata,
-        updatedAt: now,
-      }
-      return { updatedTable, newOutput }
-    },
-    { expectedWorkspaceId: data.workspaceId }
-  )
-
-  // Backfill from saved execution logs — same flow `updateWorkflowGroup`
-  // uses for added outputs. Reads each row's saved trace spans for the
-  // group's executionId and writes the new output's value back. Existing
-  // rows that have hand-edited values are left alone (overwrite: false).
-  // Cheap compared to re-running the workflow on every row, which is what
-  // an earlier version of this code did — that mistakenly fanned out N
-  // workflow-group-cell jobs and burned compute the user didn't ask for.
-  // Small tables backfill inline; large ones run as a background job.
-  // Lazy import: backfill-runner closes a cycle back to this module.
-  try {
-    const { maybeBackfillGroupOutputs } = await import('@/lib/table/backfill-runner')
-    await maybeBackfillGroupOutputs({
-      table: updatedTable,
-      groupId: data.groupId,
-      outputs: [newOutput],
-      overwrite: false,
-      requestId,
-      actorUserId: data.actorUserId,
-      capabilityGovernedUserId: data.capabilityGovernedUserId,
-    })
-  } catch (err) {
-    logger.warn(
-      `[${requestId}] Backfill from execution logs failed for ${data.tableId} group ${data.groupId} after adding output "${newOutput.columnName}":`,
-      err
-    )
-  }
-
-  return updatedTable
-}
-
-/**
- * Removes a single output from a workflow group. Drops the bound column and
- * strips the value from every row's `data` JSONB. If the output is the
- * group's last, the empty group is left in place — drop it explicitly with
- * `deleteWorkflowGroup` if needed.
- */
-export async function deleteWorkflowGroupOutput(
-  data: { tableId: string; workspaceId?: string; groupId: string; columnName: string },
-  requestId: string
-): Promise<TableDefinition> {
-  return withLockedTable(
-    data.tableId,
-    async (table, trx) => {
-      assertColumnDestructive(table)
-      const schema = table.schema
-      const groups = schema.workflowGroups ?? []
-      const groupIndex = groups.findIndex((g) => g.id === data.groupId)
-      if (groupIndex === -1) {
-        throw new OrchestrationError('not_found', `Workflow group "${data.groupId}" not found`)
-      }
-      const group = groups[groupIndex]
-      // `data.columnName` may be a column id (first-party) or display name
-      // (mothership/legacy); resolve to the stable id used everywhere below.
-      const targetColumn = schema.columns.find((c) => columnMatchesRef(c, data.columnName))
-      const columnId = targetColumn ? getColumnId(targetColumn) : data.columnName
-      if (!group.outputs.some((o) => o.columnName === columnId)) {
-        throw new OrchestrationError(
-          'not_found',
-          `Workflow group "${data.groupId}" has no output bound to column "${data.columnName}"`
-        )
-      }
-
-      const updatedGroup: WorkflowGroup = {
-        ...group,
-        outputs: group.outputs.filter((o) => o.columnName !== columnId),
-      }
-      const nextGroups = groups.map((g, i) => (i === groupIndex ? updatedGroup : g))
-      const nextColumns = schema.columns.filter((c) => getColumnId(c) !== columnId)
-      const updatedSchema: TableSchema = {
-        ...schema,
-        columns: nextColumns,
-        workflowGroups: nextGroups,
-      }
-
-      const updatedColumnOrder = table.metadata?.columnOrder?.filter((id) => id !== columnId)
-      assertValidSchema(updatedSchema, updatedColumnOrder)
-
-      const updatedMetadata: TableMetadata | null =
-        updatedColumnOrder && table.metadata
-          ? { ...table.metadata, columnOrder: updatedColumnOrder }
-          : table.metadata
-            ? { ...table.metadata }
-            : null
-
-      const now = new Date()
-      await setTableTxTimeouts(trx, { statementMs: 60_000 })
-      await trx
-        .update(userTableDefinitions)
-        .set({ schema: updatedSchema, metadata: updatedMetadata, updatedAt: now })
-        .where(
-          and(
-            eq(userTableDefinitions.id, data.tableId),
-            eq(userTableDefinitions.workspaceId, table.workspaceId)
-          )
-        )
-      await updateTableRowsWithDerivedSecretProvenance(trx, {
-        rowWhere: and(
-          eq(userTableRows.tableId, data.tableId),
-          eq(userTableRows.workspaceId, table.workspaceId)
-        )!,
-        transformation: { mode: 'remove-columns', columnIds: [columnId] },
-      })
-
-      logger.info(
-        `[${requestId}] Removed output "${data.columnName}" from workflow group "${data.groupId}" in table ${data.tableId}`
-      )
-
-      return { ...table, schema: updatedSchema, metadata: updatedMetadata, updatedAt: now }
-    },
-    { expectedWorkspaceId: data.workspaceId }
-  )
 }
 
 /**

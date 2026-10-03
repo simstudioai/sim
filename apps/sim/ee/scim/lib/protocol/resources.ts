@@ -1,4 +1,5 @@
 import type { ScimUserAttributes } from '@sim/db/schema'
+import { isRecordLike } from '@sim/utils/object'
 import {
   SCIM_ENTERPRISE_USER_SCHEMA,
   SCIM_GROUP_SCHEMA,
@@ -7,11 +8,7 @@ import {
   SCIM_USER_SCHEMA,
 } from '@/ee/scim/lib/protocol/constants'
 import { invalidValue } from '@/ee/scim/lib/protocol/errors'
-import {
-  isRecord,
-  isScimPasswordAttribute,
-  normalizeAttributePath,
-} from '@/ee/scim/lib/protocol/normalize'
+import { isScimPasswordAttribute, normalizeAttributePath } from '@/ee/scim/lib/protocol/normalize'
 
 export interface ScimResourceMeta {
   resourceType: 'User' | 'Group'
@@ -291,7 +288,7 @@ function projectAttribute(
       .filter((entry) => entry !== undefined)
     return included || projected.length > 0 ? projected : undefined
   }
-  if (!isRecord(value)) return included ? value : undefined
+  if (!isRecordLike(value)) return included ? value : undefined
   const projected: Record<string, unknown> = {}
   for (const [key, nested] of Object.entries(value)) {
     const selected = projectAttribute(

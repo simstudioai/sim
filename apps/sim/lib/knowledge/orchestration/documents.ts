@@ -15,8 +15,11 @@ import {
   markDocumentAsFailedTimeout,
   type ProcessingOptions,
   retryDocumentProcessing,
-  updateDocument,
 } from '@/lib/knowledge/documents/service'
+import type {
+  DocumentProcessingOutcome,
+  DocumentProcessingStatus,
+} from '@/lib/knowledge/documents/types'
 import {
   auditActorFields,
   classifyKnowledgeFailure,
@@ -65,7 +68,7 @@ export type CreatedKnowledgeDocument = Omit<
   'processingStatus'
 > & {
   /** New documents are pending; idempotent completion may return a later persisted state. */
-  processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
+  processingStatus: DocumentProcessingStatus
 }
 
 export interface PerformUploadKnowledgeDocumentParams extends KnowledgeOperationContext {
@@ -368,61 +371,6 @@ export async function performUploadKnowledgeDocuments(
   return { success: true, documents: created }
 }
 
-export interface PerformUpdateKnowledgeDocumentParams extends KnowledgeOperationContext {
-  knowledgeBase: KnowledgeBaseTarget
-  document: { id: string; filename: string }
-  updates: Parameters<typeof updateDocument>[1]
-}
-
-export type PerformUpdateKnowledgeDocumentResult = KnowledgeOrchestrationResult<{
-  document: Awaited<ReturnType<typeof updateDocument>>
-}>
-
-/** Renames a document, toggles it, or edits its tags, and records the change. */
-export async function performUpdateKnowledgeDocument(
-  params: PerformUpdateKnowledgeDocumentParams
-): Promise<PerformUpdateKnowledgeDocumentResult> {
-  const { knowledgeBase, document, updates, request, source } = params
-  const requestId = params.requestId ?? generateRequestId()
-
-  const updatedFields = Object.keys(updates).filter(
-    (key) => updates[key as keyof typeof updates] !== undefined
-  )
-  if (updatedFields.length === 0) {
-    return fail('No updates specified', 'validation')
-  }
-
-  let updated: Awaited<ReturnType<typeof updateDocument>>
-  try {
-    updated = await updateDocument(document.id, updates, requestId)
-  } catch (error) {
-    return classifyKnowledgeFailure(error, requestId, `Update document ${document.id}`)
-  }
-
-  const filename = updates.filename ?? document.filename
-
-  recordAudit({
-    workspaceId: knowledgeBase.workspaceId,
-    ...auditActorFields(params),
-    action: AuditAction.DOCUMENT_UPDATED,
-    resourceType: AuditResourceType.DOCUMENT,
-    resourceId: document.id,
-    resourceName: filename,
-    description: `Updated document "${filename}" in knowledge base "${knowledgeBase.name ?? knowledgeBase.id}"`,
-    metadata: {
-      source,
-      knowledgeBaseId: knowledgeBase.id,
-      knowledgeBaseName: knowledgeBase.name,
-      fileName: filename,
-      updatedFields,
-      ...(updates.enabled !== undefined && { enabled: updates.enabled }),
-    },
-    ...(request ? { request } : {}),
-  })
-
-  return { success: true, document: updated }
-}
-
 export interface PerformDeleteKnowledgeDocumentParams extends KnowledgeOperationContext {
   knowledgeBase: KnowledgeBaseTarget
   document: { id: string; filename: string; fileSize?: number; mimeType?: string }
@@ -546,6 +494,7 @@ export interface PerformRetryKnowledgeDocumentParams {
     fileSize: number
     mimeType: string
     processingStatus: string
+    processingOutcome?: DocumentProcessingOutcome
     connectorId?: string | null
     contentHash?: string | null
   }
@@ -559,6 +508,13 @@ export async function performRetryKnowledgeDocumentProcessing(
 ): Promise<PerformKnowledgeDocumentProcessingResult> {
   const { knowledgeBaseId, document, billingAttribution } = params
   const requestId = params.requestId ?? generateRequestId()
+
+  if (document.processingOutcome === 'skipped') {
+    return fail(
+      'This source file was intentionally skipped. Sync the connector after changing the source.',
+      'validation'
+    )
+  }
 
   if (document.connectorId && document.contentHash === null) {
     return fail(
@@ -603,7 +559,7 @@ export async function performRetryKnowledgeDocumentProcessing(
     // got off the ground leaves a dead document, and reporting that as success
     // paints the UI green over it.
     if (!result.success) {
-      return fail(result.message, 'internal')
+      return fail(result.message, result.status === 'skipped' ? 'validation' : 'internal')
     }
     return { success: true, status: result.status, message: result.message }
   } catch (error) {

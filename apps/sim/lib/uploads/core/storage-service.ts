@@ -98,7 +98,9 @@ async function insertFileMetadataHelper(
   fileName: string,
   contentType: string,
   fileSize: number,
-  uploadId?: string
+  uploadId?: string,
+  cleanupOnMetadataFailure = false,
+  metadataId?: string
 ): Promise<void> {
   const { insertFileMetadata, insertImmutableFileMetadata } = await import(
     '@/lib/uploads/server/metadata'
@@ -107,6 +109,7 @@ async function insertFileMetadataHelper(
     context === 'knowledge-base' ? insertImmutableFileMetadata : insertFileMetadata
   try {
     await insertMetadata({
+      ...(metadataId ? { id: metadataId } : {}),
       key,
       userId: metadata.userId,
       workspaceId: metadata.workspaceId || null,
@@ -131,6 +134,18 @@ async function insertFileMetadataHelper(
           error: cleanupError,
         })
       }
+    } else if (cleanupOnMetadataFailure) {
+      try {
+        await deleteFile({ key, context })
+        const { deleteFileMetadata } = await import('@/lib/uploads/server/metadata')
+        await deleteFileMetadata(key)
+      } catch (cleanupError) {
+        logger.error('Failed to clean up an unpublished tool output upload', {
+          key,
+          context,
+          error: getErrorMessage(cleanupError),
+        })
+      }
     }
     throw error
   }
@@ -149,12 +164,21 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
     customKey,
     metadata,
     persistMetadata = true,
+    metadataId,
+    createOnly = false,
+    cleanupOnMetadataFailure = false,
     createOnlyUploadId,
     signal,
   } = options
   signal?.throwIfAborted()
   if (createOnlyUploadId && (context !== 'knowledge-base' || !metadata)) {
     throw new Error('Reserved create-only uploads require knowledge-base ownership metadata')
+  }
+  if (
+    cleanupOnMetadataFailure &&
+    ((context !== 'execution' && context !== 'copilot') || !preserveKey || !customKey)
+  ) {
+    throw new Error('Upload cleanup requires a newly allocated execution or Copilot key')
   }
 
   logger.info(`Uploading file to ${context} storage: ${fileName}`)
@@ -178,7 +202,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       file.length,
       preserveKey,
       objectMetadata,
-      Boolean(uploadId),
+      Boolean(uploadId) || createOnly,
       signal
     )
 
@@ -190,7 +214,9 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
         fileName,
         contentType,
         file.length,
-        uploadId
+        uploadId,
+        cleanupOnMetadataFailure,
+        metadataId
       )
     }
 
@@ -207,7 +233,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       file.length,
       preserveKey,
       objectMetadata,
-      Boolean(uploadId),
+      Boolean(uploadId) || createOnly,
       signal
     )
 
@@ -219,7 +245,9 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
         fileName,
         contentType,
         file.length,
-        uploadId
+        uploadId,
+        cleanupOnMetadataFailure,
+        metadataId
       )
     }
 
@@ -236,7 +264,7 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       file.length,
       preserveKey,
       objectMetadata,
-      Boolean(uploadId),
+      Boolean(uploadId) || createOnly,
       signal
     )
 
@@ -248,7 +276,9 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
         fileName,
         contentType,
         file.length,
-        uploadId
+        uploadId,
+        cleanupOnMetadataFailure,
+        metadataId
       )
     }
 
@@ -282,6 +312,17 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       metadata: objectMetadata ?? {},
       signal,
     })
+  } else if (createOnly) {
+    /** Publish only complete bytes; link is atomic and refuses an existing winner. */
+    const { link, rm } = await import('fs/promises')
+    const temporary = `${filesystemPath}.${generateId()}.tmp`
+    try {
+      await writeFile(temporary, file, { signal, flag: 'wx' })
+      signal?.throwIfAborted()
+      await link(temporary, filesystemPath)
+    } finally {
+      await rm(temporary, { force: true })
+    }
   } else {
     await writeFile(filesystemPath, file, { signal })
   }
@@ -295,7 +336,9 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
       fileName,
       contentType,
       file.length,
-      uploadId
+      uploadId,
+      cleanupOnMetadataFailure,
+      metadataId
     )
   }
 
@@ -804,28 +847,4 @@ export async function generatePresignedDownloadUrl(
  */
 export function hasCloudStorage(): boolean {
   return USE_BLOB_STORAGE || USE_S3_STORAGE || USE_GCS_STORAGE
-}
-
-/**
- * Get S3 bucket and key information for a storage key
- * Useful for services that need direct S3 access (e.g., AWS Textract async)
- */
-export function getS3InfoForKey(
-  key: string,
-  context: StorageContext
-): { bucket: string; key: string } {
-  if (!USE_S3_STORAGE) {
-    throw new Error('S3 storage is not configured. Cannot retrieve S3 info for key.')
-  }
-
-  const config = getStorageConfig(context)
-
-  if (!config.bucket) {
-    throw new Error(`S3 bucket not configured for context: ${context}`)
-  }
-
-  return {
-    bucket: config.bucket,
-    key,
-  }
 }

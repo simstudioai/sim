@@ -40,6 +40,11 @@ export class ManagedMcpOauthProvider implements OAuthClientProvider {
     this.onSaveTokens = onSaveTokens
   }
 
+  /** Deployment registrations may restrict consent even when discovery advertises more tools. */
+  get authorizationScope(): string | undefined {
+    return this.preregistered?.scope
+  }
+
   get redirectUrl(): string {
     return `${getBaseUrl().replace(/\/$/, '')}/api/mcp/oauth/callback`
   }
@@ -47,10 +52,13 @@ export class ManagedMcpOauthProvider implements OAuthClientProvider {
   get clientMetadata(): OAuthClientMetadata {
     return {
       client_name: 'Sim',
+      ...(this.preregistered?.scope ? { scope: this.preregistered.scope } : {}),
       redirect_uris: [this.redirectUrl],
       grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],
-      token_endpoint_auth_method: this.preregistered?.clientSecret ? 'client_secret_post' : 'none',
+      token_endpoint_auth_method:
+        this.preregistered?.tokenEndpointAuthMethod ??
+        (this.preregistered?.clientSecret ? 'client_secret_post' : 'none'),
     }
   }
 
@@ -60,15 +68,16 @@ export class ManagedMcpOauthProvider implements OAuthClientProvider {
   }
 
   clientInformation(): OAuthClientInformationMixed | undefined {
-    if (this.clientRow.clientInformation) return this.clientRow.clientInformation
-    if (!this.preregistered) return undefined
+    if (!this.preregistered) return this.clientRow.clientInformation ?? undefined
     return {
       client_id: this.preregistered.clientId,
       client_secret: this.preregistered.clientSecret,
       redirect_uris: [this.redirectUrl],
       grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],
-      token_endpoint_auth_method: this.preregistered.clientSecret ? 'client_secret_post' : 'none',
+      token_endpoint_auth_method:
+        this.preregistered.tokenEndpointAuthMethod ??
+        (this.preregistered.clientSecret ? 'client_secret_post' : 'none'),
     }
   }
 

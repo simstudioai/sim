@@ -1,4 +1,3 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { foldedEmail, member, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -14,7 +13,6 @@ import {
 } from '@/lib/billing/organizations/membership'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import {
   cancelPendingInvitation,
   createPendingInvitation,
@@ -66,13 +64,20 @@ export async function createOrganizationInvitation({
   context,
   email,
   role,
-  request,
 }: {
   context: OrganizationInvitationContext
   email: string
   role: 'member' | 'admin'
-  request?: OrchestrationRequestContext
-}): Promise<WorkspaceInvitationResult> {
+}): Promise<
+  WorkspaceInvitationResult & {
+    organizationId: string
+    role: 'member' | 'admin'
+    kind: 'organization'
+    status: 'pending'
+    createdAt: Date
+    expiresAt: Date
+  }
+> {
   const normalizedEmail = normalizeEmail(email)
   const validation = quickValidateEmail(normalizedEmail)
   if (!validation.isValid) {
@@ -187,25 +192,14 @@ export async function createOrganizationInvitation({
       email: normalizedEmail,
     })
   }
-  recordAudit({
-    actorId: context.inviterId,
-    actorName: context.inviterName,
-    actorEmail: context.inviterEmail,
-    action: AuditAction.MEMBER_INVITED,
-    resourceType: AuditResourceType.ORGANIZATION,
-    resourceId: organizationId,
-    resourceName: normalizedEmail,
-    description: `Invited ${normalizedEmail} as an organization ${role}`,
-    metadata: {
-      organizationId,
-      invitationId: pending.invitationId,
-      targetEmail: normalizedEmail,
-      organizationRole: role,
-    },
-    request,
-  })
   return {
     id: pending.invitationId,
+    organizationId,
+    role,
+    kind: 'organization',
+    status: 'pending',
+    createdAt: pending.mutationUpdatedAt,
+    expiresAt: pending.expiresAt,
     email: normalizedEmail,
     workspaceIds: [],
     permission: 'read',

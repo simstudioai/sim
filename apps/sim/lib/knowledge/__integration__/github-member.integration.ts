@@ -3,7 +3,8 @@
  * connector registry, member sync, storage, chunking, and application authorization.
  * Provider replies and embeddings are deterministic; no live GitHub account is used.
  */
-import { createHash } from 'node:crypto'
+
+import { createHash, generateKeyPairSync, verify } from 'node:crypto'
 import { posix } from 'node:path'
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
@@ -11,17 +12,21 @@ import {
   credential,
   credentialGroup,
   credentialGroupEnrollment,
+  credentialMember,
   document,
   embedding,
   knowledgeBase,
   knowledgeConnector,
   knowledgeConnectorMember,
   knowledgeDocumentObservation,
+  member,
+  organization,
   rateLimitBucket,
   resourcePolicy,
   user,
   workspace,
 } from '@sim/db/schema'
+import { readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
@@ -40,11 +45,16 @@ vi.mock('@/lib/embeddings', async () => ({
   }),
 }))
 
-import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
+import {
+  resolveBillingAttribution,
+  resolveOrganizationBillingAttribution,
+} from '@/lib/billing/core/billing-attribution'
 import { env } from '@/lib/core/config/env'
 import { closeRedisConnection, getRedisClient } from '@/lib/core/config/redis'
+import { encryptSecret } from '@/lib/core/security/encryption'
 import { resetStorageMethod } from '@/lib/core/storage'
 import { compileCredentialGroupWorkflowAccessPolicy } from '@/lib/credential-groups/application/workflow-access-policy'
+import { buildOrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
 import {
   completeCredentialGroupEnrollment,
   getCredentialGroupOAuthContext,
@@ -65,43 +75,42 @@ import {
   seedKnowledgeAclFixture,
   seedKnowledgeMemberFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
+import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import { subjectToken } from '@/lib/knowledge/access/tokens'
 import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'
 import { listKnowledgeChunks } from '@/lib/knowledge/application/chunks'
+import {
+  createKnowledgeConnector,
+  listKnowledgeConnectorDocuments,
+} from '@/lib/knowledge/application/connectors'
 import { readKnowledgeDocument } from '@/lib/knowledge/application/documents'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
-import { listSearchSources } from '@/lib/knowledge/application/search-sources'
 import { grantKnowledgeConnectorCredentialAccess } from '@/lib/knowledge/connectors/member-access'
-import { executeMemberSync } from '@/lib/knowledge/connectors/member-sync-engine'
+import * as memberSyncEngine from '@/lib/knowledge/connectors/member-sync-engine'
 import {
   MEMBER_SUSPENDED_PURGE_DAYS,
   MEMBER_TOMBSTONE_PURGE_DAYS,
 } from '@/lib/knowledge/connectors/sync-limits'
+import { getDocuments } from '@/lib/knowledge/documents/service'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 
-const redisUrl = process.env.KNOWLEDGE_ACL_TEST_REDIS_URL
-if (redisUrl) {
-  const target = new URL(redisUrl)
-  if (
-    target.protocol !== 'redis:' ||
-    !['localhost', '127.0.0.1'].includes(target.hostname) ||
-    target.username ||
-    target.password
-  ) {
-    throw new Error('GitHub OAuth integration tests require an explicitly configured local Redis')
-  }
-}
+const redisUrl = readTestRedisUrl()
 
 /** Private repositories require the intersection of installation access and member access. */
 interface RepositoryFixture {
+  id: number
+  public: boolean
   installed: boolean
+  stallRef: boolean
   readers: Set<string>
   defaultBranch: string
   files: Map<string, string>
   symlinks: Map<string, string>
   deniedStatus: 403 | 404
   throttledReaders: Set<string>
+  throttledBlobReaders: Set<string>
+  failedBlobs: Set<string>
   truncated: boolean
 }
 
@@ -116,7 +125,22 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
     id: env.GITHUB_APP_CLIENT_ID,
     secret: env.GITHUB_APP_CLIENT_SECRET,
     redis: env.REDIS_URL,
+    appId: env.GITHUB_APP_ID,
+    privateKey: env.GITHUB_APP_PRIVATE_KEY,
+    slug: env.GITHUB_APP_SLUG,
   }
+  const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
+  let organizationSource = false
+  let installationSuspended = false
+  const installation = () => ({
+    id: 42,
+    app_id: 1,
+    client_id: 'github-fixture-client',
+    account: { id: 90, login: 'fixture', type: 'Organization' },
+    repository_selection: 'selected',
+    permissions: { contents: 'read', metadata: 'read' },
+    suspended_at: installationSuspended ? new Date().toISOString() : null,
+  })
   let oauthStateKey: string | undefined
   let oauthVerification: { codeVerifier: string; redirectUri: string } | undefined
   const tokenFor = (userId: string) => `ghu_fixture_${userId}`
@@ -136,7 +160,10 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
 
   function repository(name: string, readers = [ids.aliceId, ids.bobId]) {
     const value: RepositoryFixture = {
+      id: 9001 + repositories.size,
+      public: false,
       installed: true,
+      stallRef: false,
       readers: new Set(readers),
       defaultBranch: 'trunk',
       files: new Map([
@@ -148,6 +175,8 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
       symlinks: new Map(),
       deniedStatus: 404,
       throttledReaders: new Set(),
+      throttledBlobReaders: new Set(),
+      failedBlobs: new Set(),
       truncated: false,
     }
     repositories.set(name, value)
@@ -192,18 +221,72 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
         refresh_token_expires_in: 15897600,
       })
     }
-    if (url.origin !== 'https://api.github.com' || request.method !== 'GET')
+    if (url.origin !== 'https://api.github.com')
       throw new Error(`Unexpected outbound request: ${request.method} ${url.origin}${url.pathname}`)
+    const bearer = request.headers.get('authorization')?.slice(7) ?? ''
+    if (url.pathname.startsWith('/app/installations/') || url.pathname.endsWith('/installation')) {
+      const [header, payload, signature] = bearer.split('.')
+      expect(
+        verify(
+          'RSA-SHA256',
+          Buffer.from(`${header}.${payload}`),
+          publicKey,
+          Buffer.from(signature, 'base64url')
+        )
+      ).toBe(true)
+      expect(JSON.parse(Buffer.from(payload, 'base64url').toString()).iss).toBe(
+        'github-fixture-client'
+      )
+      requests.push({ userId: 'app', path: url.pathname })
+      if (url.pathname === '/app/installations/42/access_tokens') {
+        expect(request.method).toBe('POST')
+        const body = await request.json()
+        const contentToken = body.permissions.contents === 'read'
+        expect(body.permissions).toEqual(
+          contentToken ? { contents: 'read', metadata: 'read' } : { metadata: 'read' }
+        )
+        if (contentToken) expect(body.repository_ids).toHaveLength(1)
+        else expect(body.repositories).toHaveLength(1)
+        const repositoryId = contentToken
+          ? body.repository_ids[0]
+          : repositories.get(body.repositories[0])?.id
+        expect(
+          [...repositories.values()].some(
+            (repository) => repository.id === repositoryId && repository.installed
+          )
+        ).toBe(true)
+        return Response.json({
+          token: `ghs_fixture_${contentToken ? 'installation' : 'metadata'}_${repositoryId}`,
+          expires_at: new Date(Date.now() + 60 * 60_000).toISOString(),
+          permissions: body.permissions,
+          repositories: [{ id: repositoryId }],
+        })
+      }
+      expect(request.method).toBe('GET')
+      const repositoryInstallation = url.pathname.match(/^\/repos\/fixture\/([^/]+)\/installation$/)
+      if (repositoryInstallation && !repositories.get(repositoryInstallation[1])?.installed)
+        return Response.json({ message: 'Not Found' }, { status: 404 })
+      expect(url.pathname === '/app/installations/42' || Boolean(repositoryInstallation)).toBe(true)
+      return Response.json(installation())
+    }
+    if (request.method !== 'GET') throw new Error(`Unexpected GitHub method: ${request.method}`)
+    const installationRepository = bearer.match(
+      /^ghs_fixture_(?:installation|metadata)_(\d+)$/
+    )?.[1]
+    const metadataToken = bearer.startsWith('ghs_fixture_metadata_')
+    const installationToken = Boolean(installationRepository)
     const member = enrolled.members.find((candidate) =>
       [tokenFor(candidate.userId), `${tokenFor(candidate.userId)}_refreshed`].some(
         (token) => request.headers.get('authorization') === `Bearer ${token}`
       )
     )
-    if (!member) throw new Error('GitHub request did not use an enrolled member token')
+    if (!member && !installationToken)
+      throw new Error('GitHub request did not use an enrolled member or installation token')
+    const actingId = installationToken ? 'installation' : member!.userId
     expect(request.headers.get('x-github-api-version')).toBe('2022-11-28')
-    requests.push({ userId: member.userId, path: `${url.pathname}${url.search}` })
+    requests.push({ userId: actingId, path: `${url.pathname}${url.search}` })
     if (url.pathname === '/user') {
-      expect(member.userId).toBe(ids.aliceId)
+      expect(actingId).toBe(ids.aliceId)
       return Response.json({
         id: 101,
         login: 'github-fixture-alice',
@@ -216,29 +299,62 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
       expect(url.searchParams.get('page')).toBe('1')
       return Response.json([
         { email: 'personal@github-fixture.test', primary: true, verified: true },
-        { email: `${member.userId}@fixture.test`, primary: false, verified: true },
+        { email: `${actingId}@fixture.test`, primary: false, verified: true },
       ])
     }
     const match = url.pathname.match(/^\/repos\/fixture\/([^/]+)(.*)$/)
     if (!match) throw new Error(`Unexpected GitHub endpoint: ${url.pathname}`)
     const source = repositories.get(match[1])
     if (!source) throw new Error('Unexpected GitHub repository')
-    if (source.throttledReaders.has(member.userId))
+    if (installationToken) expect(installationRepository).toBe(String(source.id))
+    if (source.throttledReaders.has(actingId))
       return Response.json(
         { message: 'You have exceeded a secondary rate limit.' },
         { status: 403 }
       )
-    if (!source.installed || !source.readers.has(member.userId))
+    if (
+      (installationToken && !source.installed) ||
+      (!installationToken && !source.public && (!source.installed || !source.readers.has(actingId)))
+    )
       return Response.json(
         { message: 'Resource not accessible by integration' },
         { status: source.deniedStatus }
       )
-    if (!match[2]) return Response.json({ private: true, default_branch: source.defaultBranch })
+    if (!match[2])
+      return Response.json({
+        id: source.id,
+        owner: { id: 90 },
+        full_name: `fixture/${match[1]}`,
+        private: !source.public,
+        default_branch: source.defaultBranch,
+      })
+    expect(metadataToken).toBe(false)
+    if (match[2].startsWith('/branches/')) {
+      const branch = decodeURIComponent(match[2].slice('/branches/'.length))
+      return branch === source.defaultBranch
+        ? Response.json({ name: branch, commit: { sha: shaFor(branch) }, protected: false })
+        : Response.json({ message: 'Not Found' }, { status: 404 })
+    }
+    if (match[2].startsWith('/git/ref/heads/')) {
+      if (source.stallRef)
+        return new Promise<Response>((_resolve, reject) => {
+          request.signal.addEventListener('abort', () => reject(request.signal.reason), {
+            once: true,
+          })
+        })
+      const ref = decodeURIComponent(match[2].slice('/git/ref/heads/'.length))
+      return ref === source.defaultBranch
+        ? Response.json({ ref: `refs/heads/${ref}`, object: { type: 'commit', sha: shaFor(ref) } })
+        : Response.json({ message: 'Not Found' }, { status: 404 })
+    }
     if (match[2].startsWith('/git/trees/')) {
-      expect(decodeURIComponent(match[2].slice('/git/trees/'.length))).toBe(source.defaultBranch)
+      const ref = decodeURIComponent(match[2].slice('/git/trees/'.length))
+      const treeSha = shaFor(JSON.stringify([[...source.files], [...source.symlinks]]))
+      if (ref !== source.defaultBranch && ref !== treeSha)
+        return Response.json({ message: 'Not Found' }, { status: 404 })
       expect(url.searchParams.get('recursive')).toBe('1')
       return Response.json({
-        sha: shaFor(JSON.stringify([[...source.files], [...source.symlinks]])),
+        sha: treeSha,
         tree: [
           ...[...source.files].map(([filePath, content]) => ({
             path: filePath,
@@ -259,7 +375,18 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
       })
     }
     if (match[2].startsWith('/git/blobs/')) {
+      if (source.throttledBlobReaders.has(actingId))
+        return Response.json(
+          { message: 'You have exceeded a secondary rate limit.' },
+          { status: 403 }
+        )
       const sha = decodeURIComponent(match[2].slice('/git/blobs/'.length))
+      if (source.failedBlobs.has(sha)) {
+        return Response.json(
+          { message: 'Fixture provider unavailable' },
+          { status: 503, headers: { 'Retry-After': '3600' } }
+        )
+      }
       const content = [...source.files.values(), ...source.symlinks.values()].find(
         (value) => shaFor(value) === sha
       )
@@ -301,6 +428,8 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
     repositories.clear()
     requests.length = 0
     refreshedUsers.clear()
+    organizationSource = false
+    installationSuspended = false
     oauthStateKey = undefined
     oauthVerification = undefined
     Object.assign(env, {
@@ -309,10 +438,6 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
     })
     ids = createKnowledgeAclFixtureIds()
     await seedKnowledgeAclFixture(ids)
-    await db
-      .update(knowledgeBase)
-      .set({ isSearchIndex: true })
-      .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
     enrolled = await seedKnowledgeMemberFixture(ids)
     const policy = await getCredentialGroupProviderAdapter('github-repositories').getPolicy(
       undefined,
@@ -425,7 +550,9 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
         )
       )
       await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+      await db.delete(organization).where(eq(organization.id, ids.organizationId))
       await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
+      vi.restoreAllMocks()
       vi.unstubAllGlobals()
     }
   })
@@ -433,6 +560,9 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
     Object.assign(env, {
       GITHUB_APP_CLIENT_ID: previousClient.id,
       GITHUB_APP_CLIENT_SECRET: previousClient.secret,
+      GITHUB_APP_ID: previousClient.appId,
+      GITHUB_APP_PRIVATE_KEY: previousClient.privateKey,
+      GITHUB_APP_SLUG: previousClient.slug,
     })
     await db.$client.end()
   })
@@ -469,7 +599,7 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
       .update(knowledgeConnectorMember)
       .set({ nextAttemptAt: new Date(0) })
       .where(eq(knowledgeConnectorMember.connectorId, connectorId))
-    return executeMemberSync(connectorId, {
+    return memberSyncEngine.executeMemberSync(connectorId, {
       billingAttribution: billing,
       forceContentRefresh,
     })
@@ -483,14 +613,16 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
       .orderBy(document.externalId)
   }
 
-  async function search(principal: Principal) {
+  async function search(principal: Principal, searchMode: 'hybrid' | 'vector' = 'hybrid') {
     const result = await searchKnowledge.execute({
       principal,
       input: {
-        workspaceId: ids.workspaceId,
+        ...(organizationSource
+          ? { organizationId: ids.organizationId }
+          : { workspaceId: ids.workspaceId }),
         knowledgeBaseIds: [ids.knowledgeBaseId],
         query: 'Orion',
-        searchMode: 'hybrid',
+        searchMode,
         topK: 20,
       },
     })
@@ -517,6 +649,246 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
       )
     }
   }
+
+  async function useOrganizationInstallation() {
+    organizationSource = true
+    Object.assign(env, {
+      GITHUB_APP_ID: '1',
+      GITHUB_APP_PRIVATE_KEY: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+      GITHUB_APP_SLUG: 'github-fixture',
+    })
+    await db.insert(member).values([
+      { id: generateId(), organizationId: ids.organizationId, userId: ids.aliceId, role: 'owner' },
+      { id: generateId(), organizationId: ids.organizationId, userId: ids.bobId, role: 'member' },
+    ])
+    await db
+      .update(knowledgeBase)
+      .set({ workspaceId: null, organizationId: ids.organizationId, isSearchIndex: true })
+      .where(eq(knowledgeBase.id, ids.knowledgeBaseId))
+    await db
+      .update(credentialGroup)
+      .set({ workspaceId: null, organizationId: ids.organizationId })
+      .where(eq(credentialGroup.id, enrolled.groupId))
+    await db
+      .update(resourcePolicy)
+      .set({
+        workspaceId: null,
+        organizationId: ids.organizationId,
+        document: buildOrganizationAccountAccessPolicy(enrolled.groupId, []),
+      })
+      .where(
+        and(
+          eq(resourcePolicy.resourceType, 'credential_group'),
+          eq(resourcePolicy.resourceId, enrolled.groupId)
+        )
+      )
+    await db
+      .update(credential)
+      .set({ workspaceId: null, organizationId: ids.organizationId })
+      .where(
+        inArray(
+          credential.id,
+          enrolled.members.map((entry) => entry.credentialId)
+        )
+      )
+    await db
+      .update(knowledgeConnectorMember)
+      .set({ workspaceId: null, organizationId: ids.organizationId })
+      .where(eq(knowledgeConnectorMember.connectorId, enrolled.connectorId))
+    const installationCredentialId = generateId()
+    const { encrypted } = await encryptSecret(
+      JSON.stringify({
+        type: 'github_app_installation',
+        version: 1,
+        appId: '1',
+        appClientId: 'github-fixture-client',
+        installationId: '42',
+        accountId: '90',
+        accountType: 'Organization',
+        accountLogin: 'fixture',
+        repositorySelection: 'selected',
+      })
+    )
+    await db.insert(credential).values({
+      id: installationCredentialId,
+      organizationId: ids.organizationId,
+      type: 'service_account',
+      providerId: 'github-app-installation',
+      providerSubjectId: '42',
+      providerTenantId: '90',
+      encryptedServiceAccountKey: encrypted,
+      displayName: 'GitHub fixture installation',
+      createdBy: ids.aliceId,
+    })
+    await db.insert(credentialMember).values({
+      id: generateId(),
+      credentialId: installationCredentialId,
+      userId: ids.aliceId,
+      role: 'admin',
+      status: 'active',
+    })
+    await db
+      .update(knowledgeConnector)
+      .set({
+        credentialId: installationCredentialId,
+        sourceConfig: { repository: 'fixture/shared', githubRepositoryId: '9001', maxFiles: 0 },
+      })
+      .where(eq(knowledgeConnector.id, enrolled.connectorId))
+    billing = await resolveOrganizationBillingAttribution({
+      actorUserId: ids.aliceId,
+      organizationId: ids.organizationId,
+    })
+    return installationCredentialId
+  }
+
+  it('creates a live installation source without indexing or replacing connected member accounts', async () => {
+    const installationCredentialId = await useOrganizationInstallation()
+    const enrollmentsBefore = await db
+      .select({
+        id: credentialGroupEnrollment.id,
+        userId: credentialGroupEnrollment.userId,
+        status: credentialGroupEnrollment.status,
+      })
+      .from(credentialGroupEnrollment)
+      .where(eq(credentialGroupEnrollment.credentialGroupId, enrolled.groupId))
+      .orderBy(credentialGroupEnrollment.id)
+    const credentialsBefore = await db
+      .select({
+        id: credential.id,
+        enrollmentId: credential.credentialGroupEnrollmentId,
+        subjectId: credential.providerSubjectId,
+      })
+      .from(credential)
+      .where(eq(credential.credentialGroupOptionId, enrolled.optionId))
+      .orderBy(credential.id)
+    const later = repository('later', [ids.aliceId])
+    const input = {
+      knowledgeBaseId: ids.knowledgeBaseId,
+      assertedOrganizationId: ids.organizationId,
+      connectorType: 'github',
+      accessMode: 'members' as const,
+      credentialId: installationCredentialId,
+      sourceConfig: { repository: 'fixture/later' },
+      syncIntervalMinutes: 0,
+    }
+    await expect(
+      createKnowledgeConnector.execute({ principal: actor(ids.bobId), input })
+    ).rejects.toThrow()
+    const { connector } = await createKnowledgeConnector.execute({
+      principal: actor(ids.aliceId),
+      input,
+    })
+    const connectorId = connector.id
+    expect(connector).toMatchObject({
+      credentialGroupId: enrolled.groupId,
+      credentialGroupOptionId: enrolled.optionId,
+      sourceConfig: { repository: 'fixture/later', githubRepositoryId: String(later.id) },
+    })
+    const [current] = await db
+      .select()
+      .from(knowledgeConnector)
+      .where(eq(knowledgeConnector.id, connectorId))
+    expect(current).toMatchObject({ lastMemberSyncAt: null, nextMemberSyncAt: null })
+    expect(
+      await db
+        .select({
+          id: credentialGroupEnrollment.id,
+          userId: credentialGroupEnrollment.userId,
+          status: credentialGroupEnrollment.status,
+        })
+        .from(credentialGroupEnrollment)
+        .where(eq(credentialGroupEnrollment.credentialGroupId, enrolled.groupId))
+        .orderBy(credentialGroupEnrollment.id)
+    ).toEqual(enrollmentsBefore)
+    expect(
+      await db
+        .select({
+          id: credential.id,
+          enrollmentId: credential.credentialGroupEnrollmentId,
+          subjectId: credential.providerSubjectId,
+        })
+        .from(credential)
+        .where(eq(credential.credentialGroupOptionId, enrolled.optionId))
+        .orderBy(credential.id)
+    ).toEqual(credentialsBefore)
+    expect(await rows(connectorId)).toEqual([])
+    expect(
+      await db
+        .select({ id: embedding.id })
+        .from(embedding)
+        .where(eq(embedding.knowledgeBaseId, ids.knowledgeBaseId))
+    ).toEqual([])
+    expect(requests.filter((entry) => entry.path.includes('/git/blobs/'))).toEqual([])
+  })
+
+  it('keeps actual skips, legacy skips, and provider failures distinct in authorized document lists', async () => {
+    const source = repositories.get('shared')!
+    source.readers.delete(ids.bobId)
+    source.files.set('empty.txt', '')
+    source.files.set('image.png', 'binary\0contents')
+    expect((await sync()).error).toBeUndefined()
+    const initial = await rows()
+    const empty = initial.find((row) => row.externalId === 'empty.txt')!
+    const binary = initial.find((row) => row.externalId === 'image.png')!
+    expect(empty).toMatchObject({ processingStatus: 'failed', storageKey: null })
+    expect(binary).toMatchObject({ processingStatus: 'failed', storageKey: null })
+    expect(empty.contentHash).not.toBeNull()
+    await db.update(document).set({ processingStatus: 'failed' }).where(eq(document.id, empty.id))
+    source.files.set('unavailable.txt', 'Orion content whose blob cannot be fetched.')
+    source.failedBlobs.add(shaFor(source.files.get('unavailable.txt')!))
+    await sync()
+    await db.update(document).set({ processingStatus: 'failed' }).where(eq(document.id, empty.id))
+    const failed = (await rows()).find((row) => row.externalId === 'unavailable.txt')!
+    expect(failed).toMatchObject({
+      processingStatus: 'failed',
+      storageKey: null,
+      contentHash: null,
+    })
+    for (const userId of [ids.aliceId, ids.bobId]) {
+      const provider = createKnowledgeAccessProvider(actor(userId), {
+        workspaceId: ids.workspaceId,
+        knowledgeBaseIds: [ids.knowledgeBaseId],
+      })
+      const listed = await getDocuments(ids.knowledgeBaseId, {}, 'github-skip-outcomes', provider)
+      expect(listed.pagination.total).toBe(userId === ids.aliceId ? 4 : 0)
+      if (userId === ids.aliceId) {
+        expect(listed.documents).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: empty.id,
+              processingStatus: 'failed',
+              processingOutcome: 'skipped',
+            }),
+            expect.objectContaining({
+              id: binary.id,
+              processingStatus: 'failed',
+              processingOutcome: 'skipped',
+            }),
+            expect.objectContaining({ id: failed.id, processingStatus: 'failed' }),
+          ])
+        )
+      }
+      for (const filter of ['failed', 'skipped'] as const) {
+        const outcomes = await listKnowledgeConnectorDocuments.execute({
+          principal: actor(userId),
+          input: {
+            connectorId: enrolled.connectorId,
+            knowledgeBaseId: ids.knowledgeBaseId,
+            filter,
+          },
+        })
+        expect(outcomes.counts).toMatchObject({
+          failed: userId === ids.aliceId ? 1 : 0,
+          skipped: userId === ids.aliceId ? 2 : 0,
+        })
+        expect(outcomes.documents.map((row) => row.id).sort()).toEqual(
+          userId === ids.aliceId
+            ? (filter === 'failed' ? [failed.id] : [empty.id, binary.id]).sort()
+            : []
+        )
+      }
+    }
+  })
 
   it.runIf(Boolean(redisUrl))(
     'completes a PKCE OAuth attempt through Redis and persists a searchable scopeless credential',
@@ -665,7 +1037,7 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
     const [privateFile] = await rows(privateId)
     expect(await rows(blockedId)).toEqual([])
     expect(
-      requests.filter((request) => request.path.startsWith('/repos/fixture/shared/contents/'))
+      requests.filter((request) => request.path.startsWith('/repos/fixture/shared/git/blobs/'))
     ).toHaveLength(1)
     expect(shared.acl).toEqual(
       expect.arrayContaining(enrolled.members.map((member) => member.subjectToken))
@@ -673,24 +1045,6 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
     expect(privateFile.acl).toEqual([enrolled.members[0].subjectToken])
     expect(await search(actor(ids.aliceId))).toEqual([shared.id, privateFile.id].sort())
     expect(await search(actor(ids.bobId))).toEqual([shared.id])
-    for (const userId of [ids.aliceId, ids.bobId]) {
-      const summaries = await listSearchSources.execute({
-        principal: actor(userId),
-        input: { workspaceId: ids.workspaceId },
-      })
-      expect(
-        summaries.sources.map((source) => ({
-          connectorId: source.connectorId,
-          viewerDocumentCount: source.viewerDocumentCount,
-        }))
-      ).toEqual(
-        expect.arrayContaining([
-          { connectorId: enrolled.connectorId, viewerDocumentCount: 1 },
-          { connectorId: privateId, viewerDocumentCount: userId === ids.aliceId ? 1 : 0 },
-          { connectorId: blockedId, viewerDocumentCount: 0 },
-        ])
-      )
-    }
     expect(await search(workspaceKey())).toEqual([])
     await assertAccess(actor(ids.bobId), shared, true)
     await assertAccess(actor(ids.bobId), privateFile, false)
@@ -727,7 +1081,9 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
     const [shared] = await rows()
     const source = repositories.get('shared')!
     source.throttledReaders.add(ids.bobId)
-    expect((await sync()).error).toMatch(/403|rate limit|provider capacity/i)
+    const throttled = await sync()
+    expect(throttled.error).toBeUndefined()
+    expect(throttled.deferred).toMatchObject({ reason: 'rate_limit', providerId: 'github-rest' })
     expect(await search(actor(ids.bobId))).toEqual([shared.id])
     const [bob] = await db
       .select()
@@ -835,8 +1191,8 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
       true
     )
     expect(
-      requests.some((request) =>
-        request.path.includes('/contents/docs/readme.md?ref=release%2Fcurrent')
+      requests.some(
+        (request) => request.path === `/repos/fixture/shared/git/blobs/${shaFor(content)}`
       )
     ).toBe(true)
     const [tombstone] = await db.select().from(document).where(eq(document.id, removed.id))
@@ -852,6 +1208,68 @@ describe('fixture-backed GitHub member search in PostgreSQL', () => {
     expect(await db.select().from(embedding).where(eq(embedding.documentId, removed.id))).toEqual(
       []
     )
+  })
+
+  it('restarts an expired pinned tree on the current default branch and rechecks member repository access', async () => {
+    const source = repositories.get('shared')!
+    source.files.set('docs/deleted.md', 'Orion obsolete documentation.')
+    await sync()
+    const before = await rows()
+    const updated = before.find((row) => row.externalId === 'docs/readme.md')!
+    const removed = before.find((row) => row.externalId === 'docs/deleted.md')!
+    source.files.set('docs/readme.md', 'Orion intermediate revision awaiting provider capacity.')
+    const expiredTreeSha = shaFor(JSON.stringify([[...source.files], [...source.symlinks]]))
+    source.throttledBlobReaders.add(ids.aliceId)
+    await db
+      .update(knowledgeConnectorMember)
+      .set({ lastStartedAt: new Date(0) })
+      .where(eq(knowledgeConnectorMember.id, enrolled.members[0].id))
+    expect((await sync()).deferred).toMatchObject({ reason: 'rate_limit' })
+    const [paused] = await db
+      .select({ checkpoint: knowledgeConnectorMember.listingCheckpoint })
+      .from(knowledgeConnectorMember)
+      .where(eq(knowledgeConnectorMember.id, enrolled.members[0].id))
+    expect(paused.checkpoint).toMatchObject({
+      complete: false,
+      listedCount: 0,
+      cursor: JSON.stringify({ version: 1, treeSha: expiredTreeSha, branch: 'trunk', offset: 0 }),
+    })
+    expect(await search(actor(ids.aliceId))).toEqual(before.map((row) => row.id).sort())
+    expect(await search(actor(ids.bobId))).toEqual(before.map((row) => row.id).sort())
+    source.throttledBlobReaders.clear()
+    source.defaultBranch = 'release/current'
+    const content = 'Orion current release documentation remains accessible to Alice.'
+    source.files.set('docs/readme.md', content)
+    source.files.delete('docs/deleted.md')
+    source.readers.delete(ids.bobId)
+    await db
+      .update(rateLimitBucket)
+      .set({
+        capacityState: sql`${rateLimitBucket.capacityState} || ${JSON.stringify({ cooldownUntil: 0, nextRequestAt: 0 })}::jsonb`,
+      })
+      .where(eq(rateLimitBucket.key, capacityKeyFor(tokenFor(ids.aliceId))))
+    const requestOffset = requests.length
+    const resumed = await sync()
+    expect(resumed.error).toBeUndefined()
+    expect(resumed.deferred).toBeUndefined()
+    expect(resumed.membersFailed).toBe(0)
+    const [current] = await rows()
+    expect(current).toMatchObject({
+      id: updated.id,
+      contentHash: `git-sha:${shaFor(content)}`,
+      acl: [enrolled.members[0].subjectToken],
+    })
+    expect(await search(actor(ids.aliceId))).toEqual([updated.id])
+    expect(await search(actor(ids.bobId))).toEqual([])
+    await assertAccess(actor(ids.aliceId), current, true)
+    await assertAccess(actor(ids.bobId), current, false)
+    const [tombstone] = await db.select().from(document).where(eq(document.id, removed.id))
+    expect(tombstone.deletedAt).toBeInstanceOf(Date)
+    const resumedPaths = requests.slice(requestOffset).map((request) => request.path)
+    expect(resumedPaths).toContain(`/repos/fixture/shared/git/trees/${expiredTreeSha}?recursive=1`)
+    expect(resumedPaths).toContain('/repos/fixture/shared/git/trees/release%2Fcurrent?recursive=1')
+    expect(resumedPaths).not.toContain('/repos/fixture/shared/git/trees/trunk?recursive=1')
+    expect(resumedPaths).toContain(`/repos/fixture/shared/git/blobs/${shaFor(content)}`)
   })
 
   it('updates linked target content, skips unchanged hydration, and removes old chunks after target deletion', async () => {

@@ -47,6 +47,7 @@ import {
 } from '@/lib/credentials/service-account-secret'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { invalidateEffectiveDecryptedEnvCache } from '@/lib/environment/utils'
+import { findSlackSearchInstallation } from '@/lib/knowledge/application/slack-search/repository'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -336,10 +337,17 @@ export async function updateCredentialRecord(
           providerId === SLACK_CUSTOM_BOT_PROVIDER_ID
             ? await listSlackCredentialGroupConfigurationsForBot({
                 workspaceId: params.credential.workspaceId,
+                ...(params.credential.organizationId
+                  ? { organizationId: params.credential.organizationId }
+                  : {}),
                 slackBotCredentialId: params.credential.id,
               })
             : []
-        if (slackConfigurations.length > 0) {
+        const searchInstallation =
+          providerId === SLACK_CUSTOM_BOT_PROVIDER_ID
+            ? await findSlackSearchInstallation(params.credential.id)
+            : null
+        if (slackConfigurations.length > 0 || searchInstallation) {
           if (!params.botToken) {
             throw new ServiceAccountSecretError(
               'Bot token is required to reconnect a managed-user Slack app'
@@ -348,6 +356,9 @@ export async function updateCredentialRecord(
           try {
             const identity = await verifySlackCustomBotAppIdentity(params.botToken)
             if (
+              (searchInstallation &&
+                (identity.appId !== searchInstallation.appId ||
+                  identity.teamId !== searchInstallation.teamId)) ||
               slackConfigurations.some(
                 (configuration) =>
                   identity.appId !== configuration.appId || identity.teamId !== configuration.teamId
@@ -591,11 +602,8 @@ export async function deleteCredentialRecord(
      * Same read-modify-write on the personal map, under the same lock its
      * other writers take, with the mirrors removed in the same transaction.
      *
-     * Targeted rather than a reconcile: the reconcile prunes every mirror
-     * absent from a caller-supplied key list, so a secret added between the
-     * read and the prune lost its mirror while its value survived. Deleting
-     * this one key's mirrors cannot strand another secret, and the lock order
-     * — map, then user identity — is the one `setPersonalSecret` already takes.
+     * Delete only this key's mirrors across every workspace. The lock order
+     * — map, then user identity — matches `setPersonalSecret` and bulk sync.
      */
     await db.transaction(async (tx) => {
       await lockPersonalEnvMap(tx, envOwnerUserId)

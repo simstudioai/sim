@@ -27,6 +27,7 @@ import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import { CredentialGroupProviderTile } from '@/ee/credential-groups/components/credential-group-provider-tile'
 
 export type OrganizationAccountProviderChoice =
   | { kind: 'oauth'; provider: CredentialGroupProvider }
@@ -35,6 +36,7 @@ export type OrganizationAccountProviderChoice =
 interface OrganizationAccountProviderCatalogProps {
   group: NonNullable<OrganizationAccountsSettings['credentialGroup']>
   availableProviders: CredentialGroupProvider[]
+  availableMcpConnectors?: readonly ManagedMcpConnectorId[]
   pending: boolean
   error: string | undefined
   onClose: () => void
@@ -44,6 +46,7 @@ interface OrganizationAccountProviderCatalogProps {
 export function OrganizationAccountProviderCatalog({
   group,
   availableProviders,
+  availableMcpConnectors = MANAGED_MCP_CONNECTOR_IDS,
   pending,
   error,
   onClose,
@@ -58,16 +61,21 @@ export function OrganizationAccountProviderCatalog({
         ...getCredentialGroupProviderService(provider),
         choice: { kind: 'oauth', provider } as const,
       })),
-    ...MANAGED_MCP_CONNECTOR_IDS.filter(
-      (id) =>
-        !group.mcpServers.some(
-          (server) => server.managedConnectorId === id && (id !== 'databricks' || server.enabled)
-        )
-    ).map((connectorId) => ({
-      name: MANAGED_MCP_CONNECTORS[connectorId].name,
-      icon: getManagedMcpConnectorIcon(connectorId),
-      choice: { kind: 'mcp', connectorId } as const,
-    })),
+    ...availableMcpConnectors
+      .filter(
+        (id) =>
+          !group.mcpServers.some(
+            (server) => server.managedConnectorId === id && (id !== 'databricks' || server.enabled)
+          )
+      )
+      .map((connectorId) => ({
+        name:
+          connectorId === 'hubspot' || connectorId === 'zoom'
+            ? `${MANAGED_MCP_CONNECTORS[connectorId].name} (member access)`
+            : MANAGED_MCP_CONNECTORS[connectorId].name,
+        icon: getManagedMcpConnectorIcon(connectorId),
+        choice: { kind: 'mcp', connectorId } as const,
+      })),
   ]
     .filter((provider) => provider.name.toLowerCase().includes(query))
     .sort((left, right) => left.name.localeCompare(right.name))
@@ -104,8 +112,18 @@ export function OrganizationAccountProviderCatalog({
             <div className={RESOURCE_LIST_STACK}>
               {providers.map(({ name, icon: Icon, choice }) => (
                 <SettingsResourceRow
-                  key={choice.kind === 'oauth' ? choice.provider : choice.connectorId}
-                  icon={<Icon aria-hidden />}
+                  key={
+                    choice.kind === 'oauth'
+                      ? `oauth:${choice.provider}`
+                      : `mcp:${choice.connectorId}`
+                  }
+                  iconVariant='custom'
+                  icon={
+                    <CredentialGroupProviderTile
+                      provider={choice.kind === 'oauth' ? choice.provider : choice.connectorId}
+                      icon={Icon}
+                    />
+                  }
                   title={name}
                   trailing={
                     <Chip

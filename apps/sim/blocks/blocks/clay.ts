@@ -1,8 +1,7 @@
 import { ClayIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { ClayPopulateResponse } from '@/tools/clay/types'
 
-export const ClayBlock: BlockConfig<ClayPopulateResponse> = {
+export const ClayBlock: BlockConfig = {
   type: 'clay',
   name: 'Clay',
   description: 'Populate Clay workbook',

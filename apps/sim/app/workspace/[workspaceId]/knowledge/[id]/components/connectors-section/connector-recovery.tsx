@@ -4,11 +4,15 @@ import { useEffect, useState } from 'react'
 import { Chip } from '@sim/emcn'
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
+import {
+  CREDENTIAL_REMOVED_SYNC_ERROR,
+  CREDENTIAL_REVOKED_SYNC_ERROR,
+} from '@/lib/knowledge/connectors/sync-limits'
 import { getCanonicalScopesForProvider, getProviderIdFromServiceId } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
+import { getConnectorRequiredScopes, isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
@@ -36,8 +40,9 @@ export function ConnectorRecovery({
   const connectorDef = CONNECTOR_META_REGISTRY[connector.connectorType]
   const serviceId = connectorDef?.auth.mode === 'oauth' ? connectorDef.auth.provider : undefined
   const providerId = serviceId ? getProviderIdFromServiceId(serviceId) : undefined
-  const requiredScopes =
-    connectorDef?.auth.mode === 'oauth' ? (connectorDef.auth.requiredScopes ?? []) : []
+  const requiredScopes = connectorDef
+    ? getConnectorRequiredScopes(connectorDef.auth, connector.sourceConfig)
+    : []
   const {
     data: credentials,
     isFetching: credentialsLoading,
@@ -47,7 +52,8 @@ export function ConnectorRecovery({
   const requiresAccountSettings =
     (connectorDef &&
       !isConnectorCredentialTypeAllowed(connectorDef.auth, connector.accessMode, 'oauth')) ||
-    selectedCredential?.type === 'service_account'
+    selectedCredential?.type === 'service_account' ||
+    Boolean(connector.credentialId && !selectedCredential && !credentialsLoading)
   const missingScopes = selectedCredential
     ? getMissingRequiredScopes(selectedCredential, requiredScopes)
     : []
@@ -59,20 +65,10 @@ export function ConnectorRecovery({
   )
 
   useEffect(() => {
-    if (
-      showOAuthModal &&
-      (requiresAccountSettings ||
-        (connector.credentialId && !selectedCredential && !credentialsLoading))
-    ) {
+    if (showOAuthModal && requiresAccountSettings) {
       setShowOAuthModal(false)
     }
-  }, [
-    showOAuthModal,
-    connector.credentialId,
-    selectedCredential,
-    credentialsLoading,
-    requiresAccountSettings,
-  ])
+  }, [showOAuthModal, requiresAccountSettings])
 
   function openReconnect() {
     if (!canEdit || disabled || requiresAccountSettings) return
@@ -87,6 +83,14 @@ export function ConnectorRecovery({
   }
 
   const docsUrl = isSearchIndex ? connectorDef?.searchDocsUrl : undefined
+  const credentialRemoved =
+    connector.lastSyncError === CREDENTIAL_REMOVED_SYNC_ERROR && !connector.credentialId
+  const credentialRevoked =
+    connector.lastSyncError === CREDENTIAL_REVOKED_SYNC_ERROR && Boolean(connector.credentialId)
+  const reconnectRequired = credentialRemoved || credentialRevoked
+  const pausedTitle = reconnectRequired
+    ? 'Reconnect to resume syncing'
+    : 'Sync paused after repeated failures'
 
   return (
     <>
@@ -99,15 +103,16 @@ export function ConnectorRecovery({
           }
         />
       )}
-      {connector.status === 'disabled' ? (
+      {connector.status === 'disabled' || reconnectRequired ? (
         <SettingsResourceRow
-          title='Sync paused after repeated failures'
-          description={
-            requiresAccountSettings
-              ? 'Update the source account in Settings, then resume syncing.'
-              : serviceId
-                ? 'Reconnect the source account to resume syncing.'
-                : 'Resume the source to retry syncing.'
+          title={
+            !canEdit
+              ? pausedTitle
+              : requiresAccountSettings
+                ? 'Update the source account, then resume syncing'
+                : serviceId
+                  ? 'Reconnect to resume syncing'
+                  : pausedTitle
           }
           trailing={
             canEdit && requiresAccountSettings && onEdit ? (

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toRecord } from '@sim/utils/object'
 import type {
   EventMatchContext,
   FormatInputContext,
@@ -60,7 +61,7 @@ export const azureDevOpsHandler: WebhookProviderHandler = {
 
   async formatInput({ body, webhook, requestId }: FormatInputContext): Promise<FormatInputResult> {
     const b = body as Record<string, unknown>
-    const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
+    const providerConfig = toRecord(webhook.providerConfig)
     const triggerId = providerConfig.triggerId as string | undefined
     const eventType = b.eventType as string | undefined
 

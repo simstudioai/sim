@@ -15,14 +15,8 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { getAllOAuthServices } from '../apps/sim/lib/oauth/utils'
-import integrationsJson from '../packages/deployment-config/src/integrations.json'
+import { INTEGRATION_METADATA } from '../packages/deployment-config/src/integration-metadata'
 import { formatGeneratedSource } from './format-generated-source'
-
-interface DeploymentIntegration {
-  authType: 'oauth' | 'api-key' | 'none'
-  oauthServiceId?: string
-  serviceAccountServiceId?: string
-}
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
@@ -54,7 +48,7 @@ function buildOAuthDeploymentFacts(): CanonicalOAuthDeploymentFacts {
 
   const catalogServiceIds = new Set<string>()
   const oauthServiceIds = new Set<string>()
-  for (const integration of integrationsJson.integrations as readonly DeploymentIntegration[]) {
+  for (const integration of INTEGRATION_METADATA) {
     if (integration.authType === 'oauth' && !integration.oauthServiceId) {
       throw new Error(
         'Generated integration catalog contains an OAuth entry without oauthServiceId'

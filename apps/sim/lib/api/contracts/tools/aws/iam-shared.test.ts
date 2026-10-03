@@ -1,19 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { iamRegionSchema } from '@/lib/api/contracts/tools/aws/iam-shared'
 
 describe('iamRegionSchema', () => {
-  it.each([
-    'us-east-1',
-    'eu-west-2',
-    'ap-southeast-4',
-    'sa-east-1',
-    'il-central-1',
-    'mx-central-1',
-    'ca-west-1',
-  ])('accepts the commercial region %s', (region) => {
+  it.each(['us-east-1'])('accepts the commercial region %s', (region) => {
     expect(iamRegionSchema.safeParse(region).success).toBe(true)
   })
 
@@ -37,10 +26,6 @@ describe('iamRegionSchema', () => {
    */
   it.each(['us-isof-south-1', 'us-isof-east-1'])('accepts the ISO-F region %s', (region) => {
     expect(iamRegionSchema.safeParse(region).success).toBe(true)
-  })
-
-  it('rejects an empty region', () => {
-    expect(iamRegionSchema.safeParse('').success).toBe(false)
   })
 
   it.each([

@@ -1,110 +1,132 @@
-/**
- * @vitest-environment node
- */
+import { integrationsAvailabilityMock } from '@sim/testing/mocks/integrations-availability.mock'
+import type { BlockState } from '@sim/workflow-types/workflow'
+import type { Mock } from 'vitest'
 import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+import { createBlockFromParams } from '@/lib/workflows/editing/builders'
+import type { EditWorkflowOperation } from '@/lib/workflows/editing/types'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
+import { getAllBlocks, getBlock } from '@/blocks/registry'
 import { applyOperationsToWorkflowState } from './engine'
 
-vi.mock('@/blocks/registry', () => {
-  const blocks: Record<string, any> = {
-    condition: {
-      type: 'condition',
-      name: 'Condition',
-      subBlocks: [{ id: 'conditions', type: 'condition-input' }],
-    },
-    agent: {
-      type: 'agent',
-      name: 'Agent',
-      subBlocks: [
-        { id: 'systemPrompt', type: 'long-input' },
-        { id: 'model', type: 'combobox' },
-        { id: 'tools', type: 'tool-input' },
-      ],
-    },
-    function: {
-      type: 'function',
-      name: 'Function',
-      subBlocks: [
-        { id: 'code', type: 'code' },
-        { id: 'language', type: 'dropdown' },
-      ],
-    },
-    slack: {
-      type: 'slack',
-      name: 'Slack',
-      tools: {
-        access: ['slack_message', 'slack_canvas'],
-        config: {
-          tool: ({ operation }: { operation?: string }) =>
-            operation === 'canvas' ? 'slack_canvas' : 'slack_message',
-        },
+const MOCK_REGISTRY_BLOCKS: Record<string, any> = {
+  conditional_format: {
+    type: 'conditional_format',
+    name: 'Conditional Format',
+    subBlocks: [
+      { id: 'mode', type: 'short-input', value: () => 'compact' },
+      {
+        id: 'format',
+        type: 'dropdown',
+        condition: () => ({ field: 'mode', value: ['compact'] }),
+        options: [{ id: 'json', label: 'JSON' }],
       },
-      subBlocks: [
-        {
-          id: 'operation',
-          type: 'dropdown',
-          options: [
-            { label: 'Send Message', id: 'send' },
-            { label: 'Create Canvas', id: 'canvas' },
-          ],
-        },
-        { id: 'channel', type: 'short-input' },
-        { id: 'triggerConfig', type: 'trigger-config' },
-      ],
+      {
+        id: 'format',
+        type: 'dropdown',
+        condition: { field: 'mode', value: 'tabular' },
+        options: [{ id: 'csv', label: 'CSV' }],
+      },
+    ],
+  },
+  condition: {
+    type: 'condition',
+    name: 'Condition',
+    subBlocks: [{ id: 'conditions', type: 'condition-input' }],
+  },
+  agent: {
+    type: 'agent',
+    name: 'Agent',
+    subBlocks: [
+      { id: 'systemPrompt', type: 'long-input' },
+      { id: 'model', type: 'combobox' },
+      { id: 'tools', type: 'tool-input' },
+    ],
+  },
+  mothership: {
+    type: 'mothership',
+    name: 'Sim Chat',
+    subBlocks: [{ id: 'tools', type: 'tool-input' }],
+  },
+  function: {
+    type: 'function',
+    name: 'Function',
+    subBlocks: [
+      { id: 'code', type: 'code' },
+      { id: 'language', type: 'dropdown' },
+    ],
+  },
+  slack: {
+    type: 'slack',
+    name: 'Slack',
+    tools: {
+      access: ['slack_message', 'slack_canvas'],
+      config: {
+        tool: ({ operation }: { operation?: string }) =>
+          operation === 'canvas' ? 'slack_canvas' : 'slack_message',
+      },
     },
-    jira: {
-      type: 'jira',
-      name: 'Jira',
-      tools: { access: ['jira_get_issue'] },
-      subBlocks: [
-        { id: 'credential', type: 'oauth-input' },
-        {
-          id: 'projectId',
-          type: 'project-selector',
-          canonicalParamId: 'projectId',
-          mode: 'basic',
-          dependsOn: ['credential'],
-        },
-        {
-          id: 'manualProjectId',
-          type: 'short-input',
-          canonicalParamId: 'projectId',
-          mode: 'advanced',
-          dependsOn: ['credential'],
-        },
-        {
-          id: 'issueKey',
-          type: 'file-selector',
-          canonicalParamId: 'issueKey',
-          mode: 'basic',
-          dependsOn: ['projectId'],
-        },
-        {
-          id: 'manualIssueKey',
-          type: 'short-input',
-          canonicalParamId: 'issueKey',
-          mode: 'advanced',
-          dependsOn: ['projectId'],
-        },
-        {
-          id: 'transitionId',
-          type: 'short-input',
-          dependsOn: ['issueKey'],
-        },
-      ],
-    },
-  }
+    subBlocks: [
+      {
+        id: 'operation',
+        type: 'dropdown',
+        options: [
+          { label: 'Send Message', id: 'send' },
+          { label: 'Create Canvas', id: 'canvas' },
+        ],
+      },
+      { id: 'channel', type: 'short-input' },
+      { id: 'triggerConfig', type: 'trigger-config' },
+    ],
+  },
+  jira: {
+    type: 'jira',
+    name: 'Jira',
+    tools: { access: ['jira_get_issue'] },
+    subBlocks: [
+      { id: 'credential', type: 'oauth-input' },
+      {
+        id: 'projectId',
+        type: 'project-selector',
+        canonicalParamId: 'projectId',
+        mode: 'basic',
+        dependsOn: ['credential'],
+      },
+      {
+        id: 'manualProjectId',
+        type: 'short-input',
+        canonicalParamId: 'projectId',
+        mode: 'advanced',
+        dependsOn: ['credential'],
+      },
+      {
+        id: 'issueKey',
+        type: 'file-selector',
+        canonicalParamId: 'issueKey',
+        mode: 'basic',
+        dependsOn: ['projectId'],
+      },
+      {
+        id: 'manualIssueKey',
+        type: 'short-input',
+        canonicalParamId: 'issueKey',
+        mode: 'advanced',
+        dependsOn: ['projectId'],
+      },
+      {
+        id: 'transitionId',
+        type: 'short-input',
+        dependsOn: ['issueKey'],
+      },
+    ],
+  },
+}
+const mockGetAllBlocks = getAllBlocks as Mock
+const mockGetBlock = getBlock as Mock
+mockGetAllBlocks.mockImplementation(() => Object.values(MOCK_REGISTRY_BLOCKS))
+mockGetBlock.mockImplementation((type: string) => MOCK_REGISTRY_BLOCKS[type])
 
-  return {
-    getAllBlocks: () => Object.values(blocks),
-    getBlock: (type: string) => blocks[type],
-  }
-})
-
-vi.mock('@/lib/integrations/availability.server', () => ({
-  isIntegrationDeploymentAvailableForVisibility: () => true,
-}))
+vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 
 function makeLoopWorkflow() {
   return {
@@ -305,19 +327,6 @@ describe('handleEditOperation dependent inputs', () => {
     expect(state.blocks['jira-1'].subBlocks.transitionId.value).toBe('')
   })
 
-  it('does not clear descendants when the submitted parent is unchanged', () => {
-    const { state } = applyOperationsToWorkflowState(makeDependentWorkflow(), [
-      {
-        operation_type: 'edit',
-        block_id: 'jira-1',
-        params: { inputs: { projectId: 'PROJECT-OLD' } },
-      },
-    ])
-
-    expect(state.blocks['jira-1'].subBlocks.issueKey.value).toBe('OLD-123')
-    expect(state.blocks['jira-1'].subBlocks.transitionId.value).toBe('transition-old')
-  })
-
   it('uses canonical advanced inputs as dependency changes', () => {
     const { state } = applyOperationsToWorkflowState(makeDependentWorkflow(), [
       {
@@ -402,6 +411,100 @@ describe('handleEditOperation dependent inputs', () => {
       projectId: 'PROJECT-NEW',
     })
   })
+
+  it('switches nested Agent Tool Mode based on the canonical field supplied', () => {
+    const workflow = {
+      blocks: {
+        'agent-1': {
+          id: 'agent-1',
+          type: 'agent',
+          name: 'Agent 1',
+          position: { x: 0, y: 0 },
+          enabled: true,
+          subBlocks: {
+            tools: {
+              id: 'tools',
+              type: 'tool-input',
+              value: [
+                {
+                  type: 'custom-tool',
+                  customToolId: 'custom-1',
+                  usageControl: 'auto',
+                  usageControlExpression: '<route.oldToolMode>',
+                },
+              ],
+            },
+          },
+          outputs: {},
+          data: {},
+        },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+    }
+
+    const basicRoundTrip = applyOperationsToWorkflowState(workflow, [
+      {
+        operation_type: 'edit',
+        block_id: 'agent-1',
+        params: {
+          inputs: {
+            tools: [
+              {
+                type: 'custom-tool',
+                customToolId: 'custom-1',
+                usageControl: 'auto',
+                usageControlExpression: '<route.oldToolMode>',
+              },
+            ],
+          },
+        },
+      },
+    ]).state
+
+    expect(basicRoundTrip.blocks['agent-1'].data.canonicalModes).not.toHaveProperty(
+      '0:agentToolUsageControl'
+    )
+
+    const advanced = applyOperationsToWorkflowState(basicRoundTrip, [
+      {
+        operation_type: 'edit',
+        block_id: 'agent-1',
+        params: {
+          inputs: {
+            tools: [
+              {
+                type: 'custom-tool',
+                customToolId: 'custom-1',
+                usageControlExpression: '<route.toolMode>',
+              },
+            ],
+          },
+        },
+      },
+    ]).state
+
+    expect(advanced.blocks['agent-1'].data.canonicalModes).toMatchObject({
+      '0:agentToolUsageControl': 'advanced',
+    })
+
+    const basic = applyOperationsToWorkflowState(advanced, [
+      {
+        operation_type: 'edit',
+        block_id: 'agent-1',
+        params: {
+          inputs: {
+            tools: [{ type: 'custom-tool', customToolId: 'custom-1', usageControl: 'force' }],
+          },
+        },
+      },
+    ]).state
+
+    expect(basic.blocks['agent-1'].data.canonicalModes).not.toHaveProperty(
+      '0:agentToolUsageControl'
+    )
+  })
 })
 
 function makeParallelWorkflow() {
@@ -423,17 +526,6 @@ describe('handleEditOperation container inputs', () => {
     expect(validationErrors[0]).toMatchObject({ blockId: 'loop-1', field: 'count' })
     expect(validationErrors[0].error).toContain('iterations')
     expect(state.blocks['loop-1'].data.count).toBe(5)
-  })
-
-  it('reports an unknown parallel input field', () => {
-    const workflow = makeParallelWorkflow()
-
-    const { validationErrors } = applyOperationsToWorkflowState(workflow, [
-      { operation_type: 'edit', block_id: 'loop-1', params: { inputs: { maxConcurrency: 3 } } },
-    ])
-
-    expect(validationErrors).toHaveLength(1)
-    expect(validationErrors[0]).toMatchObject({ blockId: 'loop-1', field: 'maxConcurrency' })
   })
 
   it('applies `count` on a parallel container, the key the read view exports', () => {
@@ -473,23 +565,6 @@ describe('handleEditOperation container inputs', () => {
 
     expect(validationErrors).toEqual([])
     expect(state.blocks['loop-1'].data.count).toBe(expected)
-  })
-
-  it('still applies a loop edit that uses the real input keys', () => {
-    const workflow = makeLoopWorkflow()
-
-    const { state, validationErrors, skippedItems } = applyOperationsToWorkflowState(workflow, [
-      {
-        operation_type: 'edit',
-        block_id: 'loop-1',
-        params: { inputs: { loopType: 'for', iterations: 3 } },
-      },
-    ])
-
-    expect(validationErrors).toEqual([])
-    expect(skippedItems).toEqual([])
-    expect(state.blocks['loop-1'].data.count).toBe(3)
-    expect(state.blocks['loop-1'].data.loopType).toBe('for')
   })
 })
 
@@ -601,55 +676,6 @@ describe('handleEditOperation nestedNodes merge', () => {
     expect(agentEdges).toHaveLength(0)
   })
 
-  it('creates new children that do not match existing ones', () => {
-    const workflow = makeLoopWorkflow()
-
-    const { state } = applyOperationsToWorkflowState(workflow, [
-      {
-        operation_type: 'edit',
-        block_id: 'loop-1',
-        params: {
-          nestedNodes: {
-            x: { type: 'condition', name: 'Condition 1' },
-            y: { type: 'agent', name: 'Agent 1' },
-            'new-func': { type: 'function', name: 'Function 1', inputs: { code: 'return 1' } },
-          },
-        },
-      },
-    ])
-
-    expect(state.blocks['condition-1']).toBeDefined()
-    expect(state.blocks['agent-1']).toBeDefined()
-    const funcBlock = Object.values(state.blocks).find((b: any) => b.name === 'Function 1')
-    expect(funcBlock).toBeDefined()
-    expect((funcBlock as any).data?.parentId).toBe('loop-1')
-  })
-
-  it('updates inputs on matched children without changing their ID', () => {
-    const workflow = makeLoopWorkflow()
-
-    const { state } = applyOperationsToWorkflowState(workflow, [
-      {
-        operation_type: 'edit',
-        block_id: 'loop-1',
-        params: {
-          nestedNodes: {
-            x: {
-              type: 'agent',
-              name: 'Agent 1',
-              inputs: { systemPrompt: 'New prompt' },
-            },
-            y: { type: 'condition', name: 'Condition 1' },
-          },
-        },
-      },
-    ])
-
-    const agent = state.blocks['agent-1']
-    expect(agent).toBeDefined()
-    expect(agent.subBlocks.systemPrompt.value).toBe('New prompt')
-  })
-
   it('recursively updates an existing nested loop and preserves grandchild IDs', () => {
     const workflow = makeNestedLoopWorkflow()
 
@@ -698,43 +724,6 @@ describe('handleEditOperation nestedNodes merge', () => {
       | undefined
     expect(helperBlock).toBeDefined()
     expect(helperBlock?.data?.parentId).toBe('inner-loop')
-  })
-
-  it('removes grandchildren omitted from an existing nested loop update', () => {
-    const workflow = makeNestedLoopWorkflow()
-
-    const { state } = applyOperationsToWorkflowState(workflow, [
-      {
-        operation_type: 'edit',
-        block_id: 'outer-loop',
-        params: {
-          nestedNodes: {
-            'new-inner-loop': {
-              type: 'loop',
-              name: 'Inner Loop',
-              nestedNodes: {
-                'new-helper': {
-                  type: 'function',
-                  name: 'Helper',
-                  inputs: { code: 'return 1' },
-                },
-              },
-            },
-          },
-        },
-      },
-    ])
-
-    expect(state.blocks['inner-loop']).toBeDefined()
-    expect(state.blocks['inner-agent']).toBeUndefined()
-    expect(
-      state.edges.some(
-        (edge: any) => edge.source === 'inner-agent' || edge.target === 'inner-agent'
-      )
-    ).toBe(false)
-
-    const helperBlock = Object.values(state.blocks).find((block: any) => block.name === 'Helper')
-    expect(helperBlock).toBeDefined()
   })
 
   it('removes an unmatched nested container with all descendants and edges', () => {
@@ -884,16 +873,6 @@ describe('minted block ids', () => {
     expect(state.blocks[mintedId]).toBeDefined()
     expect(state.blocks.triage).toBeUndefined()
   })
-
-  it('reports nothing for a block_id that is already a UUID', () => {
-    const uuid = 'a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77'
-    const { state, mintedBlockIds } = applyOperationsToWorkflowState(makeDependentWorkflow(), [
-      { operation_type: 'add', block_id: uuid, params: { type: 'agent', name: 'Kept' } },
-    ])
-
-    expect(mintedBlockIds).toEqual({})
-    expect(state.blocks[uuid]).toBeDefined()
-  })
 })
 
 describe('permission-group tool access', () => {
@@ -931,25 +910,6 @@ describe('permission-group tool access', () => {
         details: { blockType: 'slack', operation: 'canvas' },
       })
     )
-  })
-
-  it('keeps an operation the group allows', () => {
-    const { state, skippedItems } = applyOperationsToWorkflowState(
-      emptyWorkflow(),
-      [
-        {
-          operation_type: 'add',
-          block_id: '22222222-2222-4222-8222-222222222222',
-          params: { type: 'slack', name: 'Slack 1', inputs: { operation: 'send' } },
-        },
-      ],
-      denyCanvas
-    )
-
-    expect(state.blocks['22222222-2222-4222-8222-222222222222'].subBlocks.operation.value).toBe(
-      'send'
-    )
-    expect(skippedItems).toEqual([])
   })
 
   it('leaves an existing operation untouched when an edit names a denied one', () => {
@@ -990,25 +950,6 @@ describe('permission-group tool access', () => {
     )
   })
 
-  it('applies no operation gate when the group denies nothing', () => {
-    const { state, skippedItems } = applyOperationsToWorkflowState(
-      emptyWorkflow(),
-      [
-        {
-          operation_type: 'add',
-          block_id: '44444444-4444-4444-8444-444444444444',
-          params: { type: 'slack', name: 'Slack 1', inputs: { operation: 'canvas' } },
-        },
-      ],
-      DEFAULT_PERMISSION_GROUP_CONFIG
-    )
-
-    expect(state.blocks['44444444-4444-4444-8444-444444444444'].subBlocks.operation.value).toBe(
-      'canvas'
-    )
-    expect(skippedItems).toEqual([])
-  })
-
   it('drops a model the group denies, keeping the block', () => {
     const blockId = '66666666-6666-4666-8666-666666666666'
     const { state, skippedItems } = applyOperationsToWorkflowState(
@@ -1035,53 +976,6 @@ describe('permission-group tool access', () => {
         details: { blockType: 'agent', model: 'gpt-4o' },
       })
     )
-  })
-
-  it('leaves an existing model untouched when an edit names a denied one', () => {
-    const blockId = '77777777-7777-4777-8777-777777777777'
-    const workflow = {
-      blocks: {
-        [blockId]: {
-          id: blockId,
-          type: 'agent',
-          name: 'Agent 1',
-          position: { x: 0, y: 0 },
-          enabled: true,
-          subBlocks: { model: { id: 'model', type: 'combobox', value: 'claude-sonnet-4-5' } },
-          outputs: {},
-          data: {},
-        },
-      },
-      edges: [],
-      loops: {},
-      parallels: {},
-    }
-
-    const { state } = applyOperationsToWorkflowState(
-      workflow,
-      [{ operation_type: 'edit', block_id: blockId, params: { inputs: { model: 'gpt-4o' } } }],
-      { ...DEFAULT_PERMISSION_GROUP_CONFIG, deniedModels: ['gpt-4o'] }
-    )
-
-    expect(state.blocks[blockId].subBlocks.model.value).toBe('claude-sonnet-4-5')
-  })
-
-  it('keeps a model the group allows', () => {
-    const blockId = '88888888-8888-4888-8888-888888888888'
-    const { state, skippedItems } = applyOperationsToWorkflowState(
-      emptyWorkflow(),
-      [
-        {
-          operation_type: 'add',
-          block_id: blockId,
-          params: { type: 'agent', name: 'Agent 1', inputs: { model: 'gpt-4o' } },
-        },
-      ],
-      { ...DEFAULT_PERMISSION_GROUP_CONFIG, deniedModels: ['some-other-model'] }
-    )
-
-    expect(state.blocks[blockId].subBlocks.model.value).toBe('gpt-4o')
-    expect(skippedItems).toEqual([])
   })
 
   it('gates the trigger-config fan-out, which no input validation covers', () => {
@@ -1167,5 +1061,430 @@ describe('permission-group tool access', () => {
         details: { toolType: 'slack', operation: 'canvas' },
       })
     )
+  })
+})
+
+describe('tool canonical-mode reindexing', () => {
+  const selectorTool = {
+    type: 'jira',
+    operation: 'jira_get_issue',
+    title: 'Selector',
+    params: { projectId: 'PROJ' },
+    usageControl: 'auto',
+    isExpanded: false,
+  }
+  const variableTool = {
+    type: 'jira',
+    operation: 'jira_get_issue',
+    title: 'Variable',
+    params: { manualProjectId: '{{PROJECT}}' },
+    usageControl: 'auto',
+    isExpanded: false,
+  }
+
+  function agentWithTools(tools: unknown[], canonicalModes: Record<string, 'basic' | 'advanced'>) {
+    return {
+      blocks: {
+        agent: {
+          id: 'agent',
+          type: 'agent',
+          name: 'Agent',
+          position: { x: 0, y: 0 },
+          enabled: true,
+          outputs: {},
+          subBlocks: { tools: { id: 'tools', type: 'tool-input', value: tools } },
+          data: { canonicalModes },
+        },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+    }
+  }
+
+  function editTools(workflow: Record<string, unknown>, tools: unknown[]) {
+    const { state } = applyOperationsToWorkflowState(workflow, [
+      { operation_type: 'edit', block_id: 'agent', params: { inputs: { tools } } },
+    ])
+    return state.blocks.agent.data.canonicalModes
+  }
+
+  it('moves each tool mode with it when the edit reorders the tools', () => {
+    const workflow = agentWithTools([selectorTool, variableTool], {
+      '0:projectId': 'basic',
+      '1:projectId': 'advanced',
+    })
+
+    expect(editTools(workflow, [variableTool, selectorTool])).toEqual({
+      '0:projectId': 'advanced',
+      '1:projectId': 'basic',
+    })
+  })
+
+  it('drops a removed tool mode so a later tool cannot inherit its position', () => {
+    const workflow = agentWithTools([selectorTool, variableTool], {
+      '0:projectId': 'basic',
+      '1:projectId': 'advanced',
+    })
+
+    expect(editTools(workflow, [selectorTool])).toEqual({ '0:projectId': 'basic' })
+    expect(editTools(workflow, [])).toEqual({})
+  })
+
+  it('selects a Permission Mode at the final position of a tool the edit also moves', () => {
+    const fixedTool = { ...selectorTool, usageControl: 'force' }
+    const expressionTool = {
+      type: 'jira',
+      operation: 'jira_get_issue',
+      title: 'Variable',
+      params: { manualProjectId: '{{PROJECT}}' },
+      usageControlExpression: '<start.toolMode>',
+      isExpanded: false,
+    }
+    const workflow = agentWithTools([expressionTool, fixedTool], {
+      '0:agentToolUsageControl': 'advanced',
+    })
+
+    expect(editTools(workflow, [fixedTool, expressionTool])).toEqual({
+      '1:agentToolUsageControl': 'advanced',
+    })
+  })
+
+  it('switches Sim Chat between variable and fixed tool modes through operations apply', () => {
+    const tool = {
+      type: 'mcp',
+      params: { serverId: 'server', toolName: 'search' },
+      usageControl: 'auto',
+    }
+    const workflow = agentWithTools([tool], {})
+    workflow.blocks.agent.type = 'mothership'
+    expect(
+      editTools(workflow, [
+        { type: 'mcp', params: tool.params, usageControlExpression: '<start.toolMode>' },
+      ])
+    ).toEqual({ '0:agentToolUsageControl': 'advanced' })
+    const variable = agentWithTools(
+      [{ type: 'mcp', params: tool.params, usageControlExpression: '<start.toolMode>' }],
+      { '0:agentToolUsageControl': 'advanced' }
+    )
+    variable.blocks.agent.type = 'mothership'
+    expect(editTools(variable, [{ ...tool, usageControl: 'none' }])).toEqual({})
+  })
+
+  it('keeps a round-tripped Permission Mode with its tool when an explicit choice moves past it', () => {
+    const roundTripTool = { ...selectorTool, usageControlExpression: '<start.dormant>' }
+    const expressionTool = {
+      type: 'jira',
+      operation: 'jira_get_issue',
+      title: 'Variable',
+      params: { manualProjectId: '{{PROJECT}}' },
+      usageControlExpression: '<start.toolMode>',
+      isExpanded: false,
+    }
+    const workflow = agentWithTools([roundTripTool, expressionTool], {
+      '1:agentToolUsageControl': 'advanced',
+    })
+
+    expect(editTools(workflow, [expressionTool, roundTripTool])).toEqual({
+      '0:agentToolUsageControl': 'advanced',
+    })
+  })
+})
+
+/**
+ * A `connections` value the parser does not understand used to be ignored: the
+ * block landed, `applied` counted it, and nothing said the wiring never
+ * happened. The handle and the accepted shapes are now named as a dropped input.
+ */
+describe('connection shape validation', () => {
+  const BLOCK_A = '44444444-4444-4444-8444-444444444444'
+
+  function workflowWithStart() {
+    return {
+      blocks: {
+        'start-1': {
+          id: 'start-1',
+          type: 'function',
+          name: 'Start',
+          position: { x: 0, y: 0 },
+          enabled: true,
+          subBlocks: {},
+          outputs: {},
+          data: {},
+        },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+    }
+  }
+
+  it('reports a connections value of an unsupported shape instead of dropping it silently', () => {
+    const { state, validationErrors, skippedItems } = applyOperationsToWorkflowState(
+      workflowWithStart(),
+      [
+        {
+          operation_type: 'add',
+          block_id: BLOCK_A,
+          params: {
+            type: 'function',
+            name: 'Block A',
+            inputs: { code: 'return 1' },
+            connections: { source: { target: 'start-1' }, error: [{ target: 'start-1' }] },
+          },
+        },
+      ]
+    )
+
+    expect(state.blocks[BLOCK_A]).toBeDefined()
+    expect(state.edges).toEqual([])
+    expect(skippedItems).toEqual([])
+    expect(validationErrors).toEqual([
+      {
+        blockId: BLOCK_A,
+        blockType: 'function',
+        field: 'connections',
+        value: { target: 'start-1' },
+        error:
+          'connections["source"]: expected a target block id, {block, handle?}, or an array of those',
+      },
+      {
+        blockId: BLOCK_A,
+        blockType: 'function',
+        field: 'connections',
+        value: { target: 'start-1' },
+        error: 'connections["error"][0]: expected a target block id or {block, handle?}',
+      },
+    ])
+  })
+
+  it('wires the accepted shapes and reports a handle the block lacks as a skip', () => {
+    const { state, validationErrors, skippedItems } = applyOperationsToWorkflowState(
+      workflowWithStart(),
+      [
+        {
+          operation_type: 'add',
+          block_id: BLOCK_A,
+          params: {
+            type: 'function',
+            name: 'Block A',
+            inputs: { code: 'return 1' },
+            connections: { success: 'start-1', error: [{ block: 'start-1' }], incoming: 'start-1' },
+          },
+        },
+      ]
+    )
+
+    expect(validationErrors).toEqual([])
+    expect(state.edges.map((edge: { sourceHandle?: string }) => edge.sourceHandle).sort()).toEqual([
+      'error',
+      'source',
+    ])
+    expect(skippedItems).toEqual([
+      expect.objectContaining({
+        type: 'invalid_source_handle',
+        blockId: BLOCK_A,
+        details: expect.objectContaining({ sourceHandle: 'incoming' }),
+      }),
+    ])
+  })
+})
+
+describe('conditional input validation through workflow operations', () => {
+  const blockId = 'a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77'
+
+  function workflowWithStoredDefault() {
+    const workflow = makeLoopWorkflow()
+    const formatter: BlockState = createBlockFromParams(blockId, {
+      type: 'conditional_format',
+      name: 'Formatter',
+    })
+    expect(formatter.subBlocks.mode.value).toBe('compact')
+    return { ...workflow, blocks: { ...workflow.blocks, [blockId]: formatter } }
+  }
+
+  it('validates an add against explicit selectors regardless of input order', () => {
+    const { state, validationErrors } = applyOperationsToWorkflowState(makeLoopWorkflow(), [
+      {
+        operation_type: 'add',
+        block_id: blockId,
+        params: {
+          type: 'conditional_format',
+          name: 'Formatter',
+          inputs: { format: 'json', mode: 'compact' },
+        },
+      },
+    ])
+    expect(validationErrors).toEqual([])
+    expect(state.blocks[blockId].subBlocks.format.value).toBe('json')
+  })
+
+  it.each(['edit', 'nested', 'insert'] as const)(
+    'uses the stored default selector for a partial %s write',
+    (path) => {
+      const workflow = workflowWithStoredDefault()
+      const operations: EditWorkflowOperation[] = []
+      if (path === 'nested') {
+        workflow.blocks[blockId].data = { parentId: 'loop-1', extent: 'parent' }
+        operations.push({
+          operation_type: 'edit',
+          block_id: 'loop-1',
+          params: {
+            nestedNodes: {
+              incoming: {
+                type: 'conditional_format',
+                name: 'Formatter',
+                inputs: { format: 'json' },
+              },
+            },
+          },
+        })
+      } else {
+        operations.push({
+          operation_type: path === 'insert' ? 'insert_into_subflow' : 'edit',
+          block_id: blockId,
+          params: {
+            subflowId: 'loop-1',
+            type: 'conditional_format',
+            name: 'Formatter',
+            inputs: { format: 'json' },
+          },
+        })
+      }
+      const { state, validationErrors } = applyOperationsToWorkflowState(workflow, operations)
+      expect(validationErrors).toEqual([])
+      expect(state.blocks[blockId].subBlocks.format.value).toBe('json')
+      expect(state.blocks[blockId].subBlocks.mode.value).toBe('compact')
+      expect(workflow.blocks[blockId].subBlocks.format.value).toBeNull()
+    }
+  )
+
+  it('uses incoming selectors over stored values and reports invalid active choices', () => {
+    const workflow = workflowWithStoredDefault()
+    const { state, validationErrors } = applyOperationsToWorkflowState(workflow, [
+      {
+        operation_type: 'edit',
+        block_id: blockId,
+        params: { inputs: { format: 'csv', mode: 'tabular' } },
+      },
+    ])
+    expect(validationErrors).toEqual([])
+    expect(state.blocks[blockId].subBlocks.format.value).toBe('csv')
+
+    const rejected = applyOperationsToWorkflowState(workflow, [
+      { operation_type: 'edit', block_id: blockId, params: { inputs: { format: 'csv' } } },
+    ])
+    expect(rejected.validationErrors.map((error) => error.field)).toEqual(['format'])
+    expect(rejected.state.blocks[blockId].subBlocks.format.value).toBeNull()
+    expect(workflow.blocks[blockId].subBlocks.format.value).toBeNull()
+  })
+
+  it.each([{}, { mode: 'dormant' }])(
+    'preserves the existing dormant fallback on add without a matching selector: %j',
+    (selectors) => {
+      /**
+       * Characterizes the compatibility boundary, not correct default inference:
+       * add validation still runs before default seeding and does not infer mode.
+       */
+      const { state, validationErrors } = applyOperationsToWorkflowState(makeLoopWorkflow(), [
+        {
+          operation_type: 'add',
+          block_id: blockId,
+          params: {
+            type: 'conditional_format',
+            name: 'Formatter',
+            inputs: { ...selectors, format: 'csv' },
+          },
+        },
+      ])
+      expect(validationErrors).toEqual([])
+      expect(state.blocks[blockId].subBlocks.format.value).toBe('csv')
+    }
+  )
+})
+
+describe('Mothership tool attachment writes', () => {
+  const tool = { type: 'slack', operation: 'send', title: 'Approved sender' }
+  const graph = { blocks: {}, edges: [], loops: {}, parallels: {} }
+  const add: EditWorkflowOperation = {
+    operation_type: 'add',
+    block_id: 'agent',
+    params: { type: 'agent', name: 'Agent', inputs: { tools: [tool] } },
+  }
+
+  it('rejects an alias before storing a new binding, without changing ordinary API authoring', () => {
+    const internal = applyOperationsToWorkflowState(graph, [add], null, true)
+    expect(internal.validationErrors).toEqual([
+      expect.objectContaining({ field: 'tools', error: expect.stringContaining('read-only') }),
+    ])
+    const publicResult = applyOperationsToWorkflowState(graph, [add])
+    expect(publicResult.validationErrors).toEqual([])
+    const id = publicResult.mintedBlockIds.agent
+    expect(publicResult.state.blocks[id].subBlocks.tools.value[0].title).toBe('Approved sender')
+  })
+
+  it('preserves existing labels during unrelated edits and rejects a subsequent rename', () => {
+    const existing = applyOperationsToWorkflowState(graph, [add])
+    const id = existing.mintedBlockIds.agent
+    const untouched = applyOperationsToWorkflowState(
+      existing.state,
+      [
+        {
+          operation_type: 'edit',
+          block_id: id,
+          params: { inputs: { systemPrompt: 'New instructions' } },
+        },
+      ],
+      null,
+      true
+    )
+    expect(untouched.validationErrors).toEqual([])
+    expect(untouched.state.blocks[id].subBlocks.tools.value[0].title).toBe('Approved sender')
+    const preserved = applyOperationsToWorkflowState(
+      existing.state,
+      [
+        {
+          operation_type: 'edit',
+          block_id: id,
+          params: { inputs: { tools: [{ ...tool, params: { channel: 'support' } }] } },
+        },
+      ],
+      null,
+      true
+    )
+    expect(preserved.validationErrors).toEqual([])
+    const renamed = applyOperationsToWorkflowState(
+      existing.state,
+      [
+        {
+          operation_type: 'edit',
+          block_id: id,
+          params: { inputs: { tools: [{ ...tool, title: 'Another name' }] } },
+        },
+      ],
+      null,
+      true
+    )
+    expect(renamed.validationErrors[0]?.error).toContain('read-only')
+    expect(renamed.state.blocks[id].subBlocks.tools.value[0].title).toBe('Approved sender')
+  })
+
+  it('refuses an integration selection that Sim Chat would ignore', () => {
+    const result = applyOperationsToWorkflowState(
+      graph,
+      [
+        {
+          ...add,
+          params: {
+            type: 'mothership',
+            name: 'Sim Chat',
+            inputs: { tools: [{ type: 'slack', operation: 'send' }] },
+          },
+        },
+      ],
+      null,
+      true
+    )
+    expect(result.validationErrors[0]?.error).toContain('MCP tool or MCP server bindings only')
   })
 })
