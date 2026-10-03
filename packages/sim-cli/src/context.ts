@@ -1,4 +1,5 @@
 import type { Command } from 'commander'
+import { refreshStoredOAuth } from './auth/refresh'
 import {
   type OutputFormat,
   type ProfileOverrides,
@@ -37,5 +38,5 @@ export function profileFrom(command: Command, extra: ProfileOverrides = {}): Res
 
 export function clientFrom(command: Command): { client: SimClient; profile: ResolvedProfile } {
   const profile = profileFrom(command)
-  return { client: new SimClient(profile), profile }
+  return { client: new SimClient(profile, { refreshOAuth: refreshStoredOAuth }), profile }
 }

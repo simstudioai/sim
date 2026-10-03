@@ -124,7 +124,11 @@ function DemoField({ label, htmlFor, required, error, children }: DemoFieldProps
       role={isGroup ? 'group' : undefined}
       aria-labelledby={isGroup ? labelId : undefined}
     >
-      <Label id={labelId} htmlFor={htmlFor} className='pl-0.5 font-normal text-[var(--text-muted)]'>
+      <Label
+        id={labelId}
+        htmlFor={htmlFor}
+        className='pl-0.5 font-normal text-[var(--text-secondary)]'
+      >
         {label}
         {required ? (
           <span aria-hidden className='ml-0.5 text-[var(--text-error)]'>
@@ -225,7 +229,7 @@ export function DemoForm({ onComplete }: DemoFormProps) {
       <h2 id='demo-form-heading' className='text-[var(--text-primary)] text-xl leading-[1.2]'>
         Book a demo now
       </h2>
-      <p className='mt-1.5 text-[var(--text-muted)] text-sm'>
+      <p className='mt-1.5 text-[var(--text-secondary)] text-sm'>
         Tell us about your team and we'll tailor your demo to what you're building.
       </p>
 

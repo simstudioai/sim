@@ -3,9 +3,9 @@ import { customTools, mcpServers, workflow, workflowBlocks } from '@sim/db/schem
 import { createLogger } from '@sim/logger'
 import { and, asc, eq, isNull, sql } from 'drizzle-orm'
 import type { SubBlockRecord } from '@/lib/workflows/persistence/remap-internal-ids'
+import { ENV_REF_PATTERN, remapSubBlocks } from '@/lib/workflows/references/remap-references'
 import type { CanonicalModeOverrides } from '@/lib/workflows/subblocks/visibility'
 import { isSyntheticToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
-import { ENV_REF_PATTERN, remapSubBlocks } from '@/ee/workspace-forking/lib/remap/remap-references'
 
 const logger = createLogger('SecretReferenceScan')
 

@@ -48,14 +48,8 @@ export function SidebarSection({
   children,
 }: SidebarSectionProps) {
   const [expanded, setExpanded] = useState(true)
-  /**
-   * Collapse animations are enabled only after the first user toggle, so sections
-   * render at full height on mount instead of replaying the open animation.
-   */
-  const [animationsEnabled, setAnimationsEnabled] = useState(false)
 
   const handleToggle = () => {
-    setAnimationsEnabled(true)
     setExpanded((prev) => !prev)
   }
 
@@ -68,7 +62,7 @@ export function SidebarSection({
 
   return (
     <div className={cn('group/section flex flex-col', className)}>
-      <div className='flex h-[18px] flex-shrink-0 items-center'>
+      <div className='flex h-[18px] shrink-0 items-center'>
         {railCollapsed ? (
           <div className={TITLE_ROW_CLASS}>{label}</div>
         ) : (
@@ -95,10 +89,12 @@ export function SidebarSection({
           </button>
         )}
         {/* Carries the gutter the row gave up so the toggle can reach the rail's edge. */}
-        {action ? <div className='flex flex-shrink-0 items-center pr-4'>{action}</div> : null}
+        {action ? <div className='flex shrink-0 items-center pr-4'>{action}</div> : null}
       </div>
+      {/* `animate-none!`: the disclosure opens and closes in one frame, like every
+          other change of the rail's shape. */}
       <Expandable expanded={railCollapsed || expanded}>
-        <ExpandableContent className={cn(!animationsEnabled && '!animate-none')}>
+        <ExpandableContent className='animate-none!'>
           {/* The header gap pads an inner wrapper rather than the animated element:
               `collapsible-up`/`-down` interpolate height alone, so a margin here would
               hold its full 6px for the whole close and then vanish on unmount, snapping

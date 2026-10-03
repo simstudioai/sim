@@ -11,6 +11,7 @@ import type {
 } from '@/lib/table'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { prunePredicateForColumns } from '@/lib/table/query-builder/converters'
+import { resolveWorkflowGroupDeploymentMode } from '@/lib/table/workflow-groups/deployment-mode'
 import type { FlattenOutputsBlockInput } from '@/lib/workflows/blocks/flatten-outputs'
 import { getBlock } from '@/blocks'
 import {
@@ -239,7 +240,7 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
       // `useWorkflowStates` only fetches the live draft, so we can only judge
       // "block missing" for live-mode groups. A deployed-mode group runs a
       // different graph we don't load client-side — don't risk a false badge.
-      const isLiveMode = group.deploymentMode !== 'deployed'
+      const isLiveMode = resolveWorkflowGroupDeploymentMode(group) === 'live'
       for (const out of group.outputs) {
         const block = blocks?.[out.blockId]
         const blockConfig = block?.type ? getBlock(block.type) : undefined

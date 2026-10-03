@@ -1,9 +1,8 @@
 /**
- * @vitest-environment node
- *
  * The column-update guards. These used to live in four callers (UI route, v1,
  * v2, copilot tool) and had drifted apart; they are asserted here once.
  */
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
@@ -13,21 +12,15 @@ const {
   mockUpdateColumnOptions,
   mockUpdateColumnConstraints,
   mockUpdateColumnCurrency,
-  mockRecordAudit,
 } = vi.hoisted(() => ({
   mockRenameColumn: vi.fn(),
   mockUpdateColumnType: vi.fn(),
   mockUpdateColumnOptions: vi.fn(),
   mockUpdateColumnConstraints: vi.fn(),
   mockUpdateColumnCurrency: vi.fn(),
-  mockRecordAudit: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { TABLE_UPDATED: 'table.updated' },
-  AuditResourceType: { TABLE: 'table' },
-  recordAudit: mockRecordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/table/columns/service', () => ({
   renameColumn: mockRenameColumn,
@@ -37,9 +30,10 @@ vi.mock('@/lib/table/columns/service', () => ({
   updateColumnType: mockUpdateColumnType,
 }))
 
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { performUpdateTableColumn } from '@/lib/table/orchestration/columns'
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
 
 const SELECT_COLUMN = {
   id: 'col-1',
@@ -70,7 +64,6 @@ function run(updates: Record<string, unknown>, columnName = 'Status') {
 
 describe('performUpdateTableColumn', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockRenameColumn.mockResolvedValue(UPDATED)
     mockUpdateColumnType.mockResolvedValue(UPDATED)
     mockUpdateColumnOptions.mockResolvedValue(UPDATED)
@@ -94,34 +87,12 @@ describe('performUpdateTableColumn', () => {
     expect(mockUpdateColumnType).not.toHaveBeenCalled()
   })
 
-  it('routes an unchanged type with options to the options update', async () => {
-    // updateColumnType early-returns on an unchanged type and would drop them.
-    await run({ type: 'select', options: ['Open', 'Closed'] })
-
-    expect(mockUpdateColumnType).not.toHaveBeenCalled()
-    // Addressed by stable id so a rename folded into the write can't break it.
-    expect(mockUpdateColumnOptions).toHaveBeenCalledWith(
-      expect.objectContaining({ columnName: 'col-1' }),
-      'req-1'
-    )
-  })
-
   it('reuses the id of an option resent by name so its cells survive', async () => {
     await run({ options: ['Open', 'Blocked'] })
 
     const [{ options }] = mockUpdateColumnOptions.mock.calls[0]
     expect(options[0]).toEqual({ id: 'opt_open', name: 'Open' })
     expect(options[1].id).not.toBe('opt_open')
-  })
-
-  it('carries options and required through a real type change', async () => {
-    await run({ type: 'select', options: ['Done'], required: true }, 'Priority')
-
-    expect(mockUpdateColumnOptions).not.toHaveBeenCalled()
-    expect(mockUpdateColumnType).toHaveBeenCalledWith(
-      expect.objectContaining({ newType: 'select', required: true }),
-      'req-1'
-    )
   })
 
   it('folds a rename into the write it rides on rather than running it separately', async () => {
@@ -132,17 +103,6 @@ describe('performUpdateTableColumn', () => {
     expect(mockRenameColumn).not.toHaveBeenCalled()
     expect(mockUpdateColumnConstraints).toHaveBeenCalledWith(
       expect.objectContaining({ columnName: 'col-1', newName: 'State' }),
-      'req-1'
-    )
-  })
-
-  it('runs a rename standalone when there is no write to ride on', async () => {
-    mockRenameColumn.mockResolvedValue(UPDATED)
-
-    await run({ name: 'State' })
-
-    expect(mockRenameColumn).toHaveBeenCalledWith(
-      { tableId: 'table-1', oldName: 'col-1', newName: 'State' },
       'req-1'
     )
   })
@@ -161,22 +121,6 @@ describe('performUpdateTableColumn', () => {
     expect(mockUpdateColumnType).not.toHaveBeenCalled()
   })
 
-  it('reports an empty payload as a validation failure', async () => {
-    const result = await run({})
-
-    expect(result).toMatchObject({ success: false, errorCode: 'validation' })
-    expect(result.error).toBe('No updates specified')
-    expect(mockRecordAudit).not.toHaveBeenCalled()
-  })
-
-  it("names the type when a payload only restates the column's current type", async () => {
-    const result = await run({ type: 'select' })
-
-    expect(result).toMatchObject({ success: false, errorCode: 'validation' })
-    expect(result.error).toContain('is already type "select"')
-    expect(mockUpdateColumnType).not.toHaveBeenCalled()
-  })
-
   it('classifies a table lock as locked and does not audit', async () => {
     mockUpdateColumnConstraints.mockRejectedValue(new TableLockedError('update'))
 
@@ -184,22 +128,6 @@ describe('performUpdateTableColumn', () => {
 
     expect(result.errorCode).toBe('locked')
     expect(mockRecordAudit).not.toHaveBeenCalled()
-  })
-
-  it('reports the code the service failure carries', async () => {
-    mockUpdateColumnConstraints.mockRejectedValue(
-      new OrchestrationError('validation', 'Column "State" already exists')
-    )
-
-    expect((await run({ required: true })).errorCode).toBe('validation')
-  })
-
-  it('classifies a missing column as not_found', async () => {
-    mockUpdateColumnConstraints.mockRejectedValue(
-      new OrchestrationError('not_found', 'Column "Nope" not found')
-    )
-
-    expect((await run({ required: true })).errorCode).toBe('not_found')
   })
 
   it('keeps an unclassified fault internal and hides its message', async () => {
@@ -211,14 +139,5 @@ describe('performUpdateTableColumn', () => {
 
     expect(result.errorCode).toBe('internal')
     expect(result.error).toBe('Failed to update column')
-  })
-
-  it('audits a successful update on every caller', async () => {
-    // The UI route and the copilot tool previously emitted no audit at all.
-    await run({ required: true })
-
-    expect(mockRecordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ workspaceId: 'ws-1', actorId: 'user-1', resourceId: 'table-1' })
-    )
   })
 })

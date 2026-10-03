@@ -89,7 +89,10 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
   }
 
   const workspaceId = request.context.workspaceId
-  if (!workspaceId || !request.context.executorDelegationOrigin) {
+  if (
+    !workspaceId ||
+    (!request.context.executorDelegationOrigin && !request.context.callerPrincipal)
+  ) {
     return Response.json({ success: false, error: 'Authentication required' }, { status: 401 })
   }
 
@@ -112,10 +115,13 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
     isParserTool || isSearchTool ? null : parseInternalToolInput(fileManageContract, request.input)
   if (manageInput && !manageInput.success) return manageInput.response
   try {
-    const principal = await createExecutorPrincipalFromExecutionContext({
-      context: request.context,
-      audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
-    })
+    const principal =
+      request.context.callerPrincipal && !request.context.executorDelegationOrigin
+        ? request.context.callerPrincipal
+        : await createExecutorPrincipalFromExecutionContext({
+            context: request.context,
+            audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+          })
     if (searchInput) {
       request.signal?.throwIfAborted()
       const result = await searchWorkspaceFileContent.execute({
@@ -166,6 +172,7 @@ export const executeFileTool: InternalToolOperationHandler = async (request) => 
         fileKeys: request.context.fileKeys,
         allowLargeValueWorkflowScope: request.context.allowLargeValueWorkflowScope,
         requestId: request.requestId,
+        headers: request.headers,
         signal: request.signal,
       })
     } else {

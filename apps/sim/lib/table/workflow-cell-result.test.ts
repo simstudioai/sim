@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { describe, expect, it } from 'vitest'
 import { classifyWorkflowCellTerminalResult } from '@/lib/table/workflow-cell-result'
 

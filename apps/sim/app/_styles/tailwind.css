@@ -1,0 +1,9 @@
+/**
+ * `source(none)` is the one Tailwind v4 construct Biome's CSS parser rejects,
+ * and a parse error aborts Biome for the whole file. Isolating it here costs one
+ * `biome.json` exclusion instead of un-linting all of `globals.css`.
+ *
+ * It disables automatic source detection; `globals.css` then lists every
+ * scanned path explicitly via `@source`.
+ */
+@import 'tailwindcss' source(none);

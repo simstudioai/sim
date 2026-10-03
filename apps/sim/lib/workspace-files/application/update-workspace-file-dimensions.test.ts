@@ -1,28 +1,24 @@
-/**
- * @vitest-environment node
- */
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadContext: vi.fn(),
-  updateDimensions: vi.fn(),
-  resolvePermission: vi.fn(),
-}))
-
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  loadActiveWorkspaceFileContext: mocks.loadContext,
-  updateWorkspaceFileDimensions: mocks.updateDimensions,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
 import { updateWorkspaceFileDimensionsOperation } from '@/lib/workspace-files/application/update-workspace-file-dimensions'
 
+const mocks = {
+  loadContext: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
+  updateDimensions: workspaceFileManagerMockFns.mockUpdateWorkspaceFileDimensions,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
+
 describe('updateWorkspaceFileDimensionsOperation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadContext.mockResolvedValue({
       fileId: 'file-1',
       workspaceId: 'workspace-1',
@@ -36,7 +32,7 @@ describe('updateWorkspaceFileDimensionsOperation', () => {
 
   it('preserves a stale-key write as a successful false result', async () => {
     const result = await updateWorkspaceFileDimensionsOperation.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       input: {
         fileId: 'file-1',
         assertedWorkspaceId: 'workspace-1',

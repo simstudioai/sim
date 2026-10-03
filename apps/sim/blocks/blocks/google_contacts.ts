@@ -3,9 +3,8 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks/utils'
-import type { GoogleContactsResponse } from '@/tools/google_contacts/types'
 
-export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
+export const GoogleContactsBlock: BlockConfig = {
   type: 'google_contacts',
   name: 'Google Contacts',
   description: 'Manage Google Contacts',

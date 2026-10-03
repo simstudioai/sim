@@ -21,44 +21,37 @@ import {
   resolveActiveCanonicalValue,
   scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
+import { resolveBlockToolId } from '@/lib/workflows/tool-input/identity'
 import { assembleCustomBlockInputMapping, isCustomBlockType } from '@/blocks/custom/build-config'
 import type { SubBlockConfig } from '@/blocks/types'
 import { isCustomTool } from '@/executor/constants'
 import {
+  findProviderFromModel,
   getComputerUseModels,
-  getEmbeddingModelPricing,
-  getHostedModels as getHostedModelsFromDefinitions,
-  getMaxOutputTokensForModel as getMaxOutputTokensForModelFromDefinitions,
-  getMaxTemperature as getMaxTempFromDefinitions,
-  getModelPricing as getModelPricingFromDefinitions,
+  getHostedModels,
   getModelsWithDeepResearch,
   getModelsWithoutMemory,
   getModelsWithPromptCaching,
   getModelsWithReasoningEffort,
-  getModelsWithTemperatureRange,
-  getModelsWithTemperatureSupport,
   getModelsWithThinking,
   getModelsWithVerbosity,
   getProviderDefaultModel as getProviderDefaultModelFromDefinitions,
-  getProviderModels as getProviderModelsFromDefinitions,
-  getProvidersWithToolUsageControl,
-  getReasoningEffortValuesForModel as getReasoningEffortValuesForModelFromDefinitions,
-  getThinkingLevelsForModel as getThinkingLevelsForModelFromDefinitions,
-  getVerbosityValuesForModel as getVerbosityValuesForModelFromDefinitions,
+  getProviderModels,
   isKnownModelLevelValue,
   PROVIDER_DEFINITIONS,
-  supportsTemperature as supportsTemperatureFromDefinitions,
-  supportsToolUsageControl as supportsToolUsageControlFromDefinitions,
   updateOllamaModels as updateOllamaModelsInDefinitions,
 } from '@/providers/models'
+import {
+  getModelPricing as getRegisteredModelPricing,
+  resolveModelTokenPricing,
+} from '@/providers/pricing'
 import { collectToolResourceBindings, registerProviderToolBindings } from '@/providers/tool-binding'
 import {
   getProviderToolInputProvenance,
   getProviderToolModelInputRegistry,
   registerPreparedProviderToolInputProvenance,
 } from '@/providers/tool-input-provenance'
-import type { ProviderId, ProviderToolConfig } from '@/providers/types'
-import { useProvidersStore } from '@/stores/providers/store'
+import type { ModelPricing, ProviderId, ProviderToolConfig } from '@/providers/types'
 import { mergeToolParameters } from '@/tools/merge-params'
 import { buildToolParamShapes, decodeToolParams } from '@/tools/param-shape'
 import type { WorkflowToolExecutionContext } from '@/tools/types'
@@ -128,7 +121,7 @@ function buildProviderMetadata(providerId: ProviderId): ProviderMetadata {
     name: def?.name || providerId,
     description: def?.description || '',
     version: '1.0.0',
-    models: getProviderModelsFromDefinitions(providerId),
+    models: getProviderModels(providerId),
     defaultModel: getProviderDefaultModelFromDefinitions(providerId),
     modelPatterns: def?.modelPatterns,
   }
@@ -146,7 +139,7 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   anthropic: {
     ...buildProviderMetadata('anthropic'),
     computerUseModels: getComputerUseModels().filter((model) =>
-      getProviderModelsFromDefinitions('anthropic').includes(model)
+      getProviderModels('anthropic').includes(model)
     ),
   },
   google: buildProviderMetadata('google'),
@@ -158,10 +151,12 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   cerebras: buildProviderMetadata('cerebras'),
   groq: buildProviderMetadata('groq'),
   sakana: buildProviderMetadata('sakana'),
+  typesafe: buildProviderMetadata('typesafe'),
   nvidia: buildProviderMetadata('nvidia'),
   meta: buildProviderMetadata('meta'),
   zai: buildProviderMetadata('zai'),
   kimi: buildProviderMetadata('kimi'),
+  kie: buildProviderMetadata('kie'),
   mistral: buildProviderMetadata('mistral'),
   bedrock: buildProviderMetadata('bedrock'),
   openrouter: buildProviderMetadata('openrouter'),
@@ -172,49 +167,49 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
 
 export function updateOllamaProviderModels(models: string[]): void {
   updateOllamaModelsInDefinitions(models)
-  providers.ollama.models = getProviderModelsFromDefinitions('ollama')
+  providers.ollama.models = getProviderModels('ollama')
 }
 
 export function updateVLLMProviderModels(models: string[]): void {
   const { updateVLLMModels } = require('@/providers/models')
   updateVLLMModels(models)
-  providers.vllm.models = getProviderModelsFromDefinitions('vllm')
+  providers.vllm.models = getProviderModels('vllm')
 }
 
 export function updateLiteLLMProviderModels(models: string[]): void {
   const { updateLiteLLMModels } = require('@/providers/models')
   updateLiteLLMModels(models)
-  providers.litellm.models = getProviderModelsFromDefinitions('litellm')
+  providers.litellm.models = getProviderModels('litellm')
 }
 
 export async function updateOpenRouterProviderModels(models: string[]): Promise<void> {
   const { updateOpenRouterModels } = await import('@/providers/models')
   updateOpenRouterModels(models)
-  providers.openrouter.models = getProviderModelsFromDefinitions('openrouter')
+  providers.openrouter.models = getProviderModels('openrouter')
 }
 
 export async function updateFireworksProviderModels(models: string[]): Promise<void> {
   const { updateFireworksModels } = await import('@/providers/models')
   updateFireworksModels(models)
-  providers.fireworks.models = getProviderModelsFromDefinitions('fireworks')
+  providers.fireworks.models = getProviderModels('fireworks')
 }
 
 export async function updateOllamaCloudProviderModels(models: string[]): Promise<void> {
   const { updateOllamaCloudModels } = await import('@/providers/models')
   updateOllamaCloudModels(models)
-  providers['ollama-cloud'].models = getProviderModelsFromDefinitions('ollama-cloud')
+  providers['ollama-cloud'].models = getProviderModels('ollama-cloud')
 }
 
 export async function updateTogetherProviderModels(models: string[]): Promise<void> {
   const { updateTogetherModels } = await import('@/providers/models')
   updateTogetherModels(models)
-  providers.together.models = getProviderModelsFromDefinitions('together')
+  providers.together.models = getProviderModels('together')
 }
 
 export async function updateBasetenProviderModels(models: string[]): Promise<void> {
   const { updateBasetenModels } = await import('@/providers/models')
   updateBasetenModels(models)
-  providers.baseten.models = getProviderModelsFromDefinitions('baseten')
+  providers.baseten.models = getProviderModels('baseten')
 }
 
 export function getBaseModelProviders(): Record<string, ProviderId> {
@@ -258,42 +253,6 @@ function filterBlacklistedModelsFromProviderMap(
   return filtered
 }
 
-export function getAllModelProviders(): Record<string, ProviderId> {
-  return Object.entries(providers).reduce(
-    (map, [providerId, config]) => {
-      config.models.forEach((model) => {
-        map[model.toLowerCase()] = providerId as ProviderId
-      })
-      return map
-    },
-    {} as Record<string, ProviderId>
-  )
-}
-
-/**
- * The provider that declares `model`, or `null` when none does.
- *
- * The non-guessing half of {@link getProviderFromModel}. A caller that *gates*
- * on the answer needs "unknown" to stay distinct from "ollama": this registry
- * holds chat models only, so every embedding, speech, image and video model id
- * would otherwise read as an Ollama model and be judged against an allowlist
- * that was never about it.
- */
-export function findProviderFromModel(model: string): ProviderId | null {
-  const normalizedModel = model.toLowerCase()
-
-  const declared = getAllModelProviders()[normalizedModel]
-  if (declared) return declared
-
-  for (const [id, config] of Object.entries(providers)) {
-    for (const pattern of config.modelPatterns ?? []) {
-      if (pattern.test(normalizedModel)) return id as ProviderId
-    }
-  }
-
-  return null
-}
-
 export function getProviderFromModel(model: string): ProviderId {
   const normalizedModel = model.toLowerCase()
 
@@ -320,21 +279,8 @@ export function getProvider(id: string): ProviderMetadata | undefined {
   return providers[providerId]
 }
 
-export function getProviderConfigFromModel(model: string): ProviderMetadata | undefined {
-  const providerId = getProviderFromModel(model)
-  return providers[providerId]
-}
-
-export function getAllModels(): string[] {
-  return Object.values(providers).flatMap((provider) => provider.models || [])
-}
-
 export function getAllProviderIds(): ProviderId[] {
   return Object.keys(providers) as ProviderId[]
-}
-
-export function getProviderModels(providerId: ProviderId): string[] {
-  return getProviderModelsFromDefinitions(providerId)
 }
 
 export function isProviderBlacklisted(providerId: string): boolean {
@@ -374,11 +320,6 @@ function isModelBlacklisted(model: string): boolean {
 
 export function filterBlacklistedModels(models: string[]): string[] {
   return models.filter((model) => !isModelBlacklisted(model))
-}
-
-export function getProviderIcon(model: string): React.ComponentType<{ className?: string }> | null {
-  const providerId = getProviderFromModel(model)
-  return PROVIDER_DEFINITIONS[providerId]?.icon || null
 }
 
 /**
@@ -659,6 +600,17 @@ export function buildBlockToolParamsTransform(config: {
 
         result = decodeToolParams(result, paramShapes, blockSubBlocks ?? [])
 
+        /** Use the executor's partial reference shape before upload-oriented block mappers. */
+        const toFileReference = (value: unknown) =>
+          typeof value === 'string' && value.length > 0 ? { id: value } : value
+        for (const [key, param] of Object.entries(toolParams ?? {})) {
+          if ((param.type === 'file' || param.type === 'file[]') && result[key] != null) {
+            result[key] = Array.isArray(result[key])
+              ? result[key].map(toFileReference)
+              : toFileReference(result[key])
+          }
+        }
+
         if (blockParamsFn) {
           const transformed = blockParamsFn(result)
           result = { ...result, ...transformed }
@@ -851,26 +803,15 @@ export async function transformBlockTool(
 
   let toolId: string | null = null
 
-  if ((blockDef.tools?.access?.length || 0) > 1) {
-    if (selectedOperation && blockDef.tools?.config?.tool) {
-      try {
-        toolId = blockDef.tools.config.tool({
-          ...block.params,
-          operation: selectedOperation,
-        })
-      } catch (error) {
-        logger.error('Error selecting tool for block', {
-          blockType: block.type,
-          operation: selectedOperation,
-          error,
-        })
-        return null
-      }
-    } else {
-      toolId = blockDef.tools.access[0]
-    }
-  } else {
-    toolId = blockDef.tools?.access?.[0] || null
+  try {
+    toolId = resolveBlockToolId(blockDef, block.params ?? {}, selectedOperation)
+  } catch (error) {
+    logger.error('Error selecting tool for block', {
+      blockType: block.type,
+      operation: selectedOperation,
+      error,
+    })
+    return null
   }
 
   if (!toolId) {
@@ -1009,11 +950,7 @@ export function calculateCost(
   inputMultiplier?: number,
   outputMultiplier?: number
 ) {
-  let pricing = getEmbeddingModelPricing(model)
-
-  if (!pricing) {
-    pricing = getModelPricingFromDefinitions(model)
-  }
+  const pricing = getRegisteredModelPricing(model)
 
   if (!pricing) {
     const defaultPricing = {
@@ -1030,13 +967,14 @@ export function calculateCost(
     }
   }
 
+  const tokenPricing = resolveModelTokenPricing(pricing, promptTokens)
   const inputCost =
     promptTokens *
-    (useCachedInput && pricing.cachedInput
-      ? pricing.cachedInput / 1_000_000
-      : pricing.input / 1_000_000)
+    (useCachedInput && tokenPricing.cachedInput
+      ? tokenPricing.cachedInput / 1_000_000
+      : tokenPricing.input / 1_000_000)
 
-  const outputCost = completionTokens * (pricing.output / 1_000_000)
+  const outputCost = completionTokens * (tokenPricing.output / 1_000_000)
   const finalInputCost = inputCost * (inputMultiplier ?? 1)
   const finalOutputCost = outputCost * (outputMultiplier ?? 1)
   const finalTotalCost = finalInputCost + finalOutputCost
@@ -1116,13 +1054,8 @@ export function sumToolCosts(toolResults?: Record<string, unknown>[]): number {
   return total
 }
 
-export function getModelPricing(modelId: string): any {
-  const embeddingPricing = getEmbeddingModelPricing(modelId)
-  if (embeddingPricing) {
-    return embeddingPricing
-  }
-
-  return getModelPricingFromDefinitions(modelId)
+export function getModelPricing(modelId: string): ModelPricing | null {
+  return getRegisteredModelPricing(modelId)
 }
 
 /**
@@ -1134,14 +1067,6 @@ export function getModelPricing(modelId: string): any {
  */
 export function formatCost(cost: number): string {
   return formatCreditCost(cost) ?? '—'
-}
-
-/**
- * Get the list of models that are hosted by the platform (don't require user API keys)
- * These are the models for which we hide the API key field in the hosted environment
- */
-export function getHostedModels(): string[] {
-  return getHostedModelsFromDefinitions()
 }
 
 /**
@@ -1169,27 +1094,20 @@ export const PROVIDER_PLACEHOLDER_KEY = 'provider-uses-own-credentials'
 export function getApiKey(provider: string, model: string, userProvidedKey?: string): string {
   const hasUserKey = !!userProvidedKey
 
-  const isOllamaModel =
-    provider === 'ollama' || useProvidersStore.getState().providers.ollama.models.includes(model)
-  if (isOllamaModel) {
+  if (provider === 'ollama') {
     return 'empty'
   }
 
-  const isVllmModel =
-    provider === 'vllm' || useProvidersStore.getState().providers.vllm.models.includes(model)
-  if (isVllmModel) {
+  if (provider === 'vllm') {
     return userProvidedKey || 'empty'
   }
 
-  const isLitellmModel =
-    provider === 'litellm' || useProvidersStore.getState().providers.litellm.models.includes(model)
-  if (isLitellmModel) {
+  if (provider === 'litellm') {
     return userProvidedKey || 'empty'
   }
 
-  // Bedrock uses its own credentials (bedrockAccessKeyId/bedrockSecretKey), not apiKey
-  const isBedrockModel = provider === 'bedrock' || model.startsWith('bedrock/')
-  if (isBedrockModel) {
+  /** Bedrock authenticates through its configured AWS credentials. */
+  if (provider === 'bedrock') {
     return PROVIDER_PLACEHOLDER_KEY
   }
 
@@ -1199,10 +1117,17 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
   const isZaiModel = provider === 'zai'
   const isXaiModel = provider === 'xai'
   const isKimiModel = provider === 'kimi'
+  const isTypeSafeModel = provider === 'typesafe'
 
   if (
     isHosted &&
-    (isOpenAIModel || isClaudeModel || isGeminiModel || isZaiModel || isXaiModel || isKimiModel)
+    (isOpenAIModel ||
+      isClaudeModel ||
+      isGeminiModel ||
+      isZaiModel ||
+      isXaiModel ||
+      isKimiModel ||
+      isTypeSafeModel)
   ) {
     const hostedModels = getHostedModels()
     const isModelHosted = hostedModels.some((m) => m.toLowerCase() === model.toLowerCase())
@@ -1513,21 +1438,12 @@ export function trackForcedToolUsage(
   }
 }
 
-export const MODELS_TEMP_RANGE_0_2 = getModelsWithTemperatureRange(2)
-export const MODELS_TEMP_RANGE_0_15 = getModelsWithTemperatureRange(1.5)
-export const MODELS_TEMP_RANGE_0_1 = getModelsWithTemperatureRange(1)
-export const MODELS_WITH_TEMPERATURE_SUPPORT = getModelsWithTemperatureSupport()
 export const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
 export const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
 export const MODELS_WITH_THINKING = getModelsWithThinking()
 export const MODELS_WITH_PROMPT_CACHING = getModelsWithPromptCaching()
 export const MODELS_WITH_DEEP_RESEARCH = getModelsWithDeepResearch()
 export const MODELS_WITHOUT_MEMORY = getModelsWithoutMemory()
-export const PROVIDERS_WITH_TOOL_USAGE_CONTROL = getProvidersWithToolUsageControl()
-
-export function supportsTemperature(model: string): boolean {
-  return supportsTemperatureFromDefinitions(model)
-}
 
 /**
  * Levels the pickers offer on top of what a model declares. `auto` means "say nothing" and
@@ -1575,53 +1491,14 @@ export function isDeepResearchModel(model: string): boolean {
 }
 
 export function isGemini3Model(model: string): boolean {
-  const normalized = model.toLowerCase().replace(/^vertex\//, '')
+  const normalized = model
+    .toLowerCase()
+    .replace(/^vertex\//, '')
+    .replace(
+      /^(?:google\/|(?:projects\/[^/]+\/locations\/[^/]+\/)?publishers\/google\/models\/)/,
+      ''
+    )
   return normalized.startsWith('gemini-3')
-}
-
-/**
- * Get the maximum temperature value for a model
- * @returns Maximum temperature value (1 or 2) or undefined if temperature not supported
- */
-export function getMaxTemperature(model: string): number | undefined {
-  return getMaxTempFromDefinitions(model)
-}
-
-export function supportsToolUsageControl(provider: string): boolean {
-  return supportsToolUsageControlFromDefinitions(provider)
-}
-
-/**
- * Get reasoning effort values for a specific model
- * Returns the valid options for that model, or null if the model doesn't support reasoning effort
- */
-export function getReasoningEffortValuesForModel(model: string): string[] | null {
-  return getReasoningEffortValuesForModelFromDefinitions(model)
-}
-
-/**
- * Get verbosity values for a specific model
- * Returns the valid options for that model, or null if the model doesn't support verbosity
- */
-export function getVerbosityValuesForModel(model: string): string[] | null {
-  return getVerbosityValuesForModelFromDefinitions(model)
-}
-
-/**
- * Get thinking levels for a specific model
- * Returns the valid levels for that model, or null if the model doesn't support thinking
- */
-export function getThinkingLevelsForModel(model: string): string[] | null {
-  return getThinkingLevelsForModelFromDefinitions(model)
-}
-
-/**
- * Get max output tokens for a specific model.
- *
- * @param model - The model ID
- */
-export function getMaxOutputTokensForModel(model: string): number {
-  return getMaxOutputTokensForModelFromDefinitions(model)
 }
 
 /**
@@ -1629,6 +1506,7 @@ export function getMaxOutputTokensForModel(model: string): number {
  */
 export function prepareToolExecution(
   tool: {
+    id?: string
     params?: Record<string, any>
     parameters?: Record<string, any>
     modelBlockedParams?: string[]
@@ -1636,6 +1514,10 @@ export function prepareToolExecution(
   },
   llmArgs: Record<string, any>,
   request: {
+    resolveToolInvocationId?: (
+      providerCallId: string | undefined,
+      toolId: string
+    ) => string | undefined
     workflowId?: string
     workspaceId?: string
     chatId?: string
@@ -1724,6 +1606,10 @@ export function prepareToolExecution(
     }
   }
 
+  const invocationId =
+    request.resolveToolInvocationId?.(toolCallId, tool.id ?? '') ??
+    toolCallId ??
+    request.invocationId
   const executionParams = {
     ...toolParams,
     ...(request.workflowId || request.billingAttribution
@@ -1739,9 +1625,7 @@ export function prepareToolExecution(
             ...(request.callChain ? { callChain: request.callChain } : {}),
             ...(request.executionId ? { executionId: request.executionId } : {}),
             ...(request.blockId ? { blockId: request.blockId } : {}),
-            ...((toolCallId ?? request.invocationId)
-              ? { invocationId: toolCallId ?? request.invocationId }
-              : {}),
+            ...(invocationId ? { invocationId } : {}),
             ...(request.billingAttribution
               ? { billingAttribution: request.billingAttribution }
               : {}),

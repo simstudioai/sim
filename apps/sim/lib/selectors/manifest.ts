@@ -34,7 +34,7 @@ function providerSelector(
       ...(options.sensitive ? { sensitive: options.sensitive } : {}),
       ...(options.sourceFields ? { sourceFields: options.sourceFields } : {}),
     },
-    scopeKinds: SERVER_SCOPE_KINDS,
+    scopeKinds: [...SERVER_SCOPE_KINDS, 'organization'],
     listMode: options.listMode ?? 'flat',
     supportsSearch: options.search ?? false,
     supportsDetail: options.detail ?? false,
@@ -125,6 +125,49 @@ export const selectorManifest = {
       any: ['folderId', 'spaceId', 'listSpaceId'],
     },
   }),
+  'coda.docs': providerSelector([], {
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+    staleTime: SEARCH_SELECTOR_STALE_TIME,
+  }),
+  'coda.pages': providerSelector(['docId'], {
+    readiness: { all: ['oauthCredential', 'docId'] },
+    detail: true,
+    unknownDetail: true,
+  }),
+  'coda.tables': providerSelector(['docId'], {
+    readiness: { all: ['oauthCredential', 'docId'] },
+    detail: true,
+    unknownDetail: true,
+  }),
+  'coda.columns': providerSelector(['docId', 'tableId'], {
+    readiness: { all: ['oauthCredential', 'docId', 'tableId'] },
+    detail: true,
+    unknownDetail: true,
+  }),
+  'coda.rows': providerSelector(['docId', 'tableId'], {
+    readiness: { all: ['oauthCredential', 'docId', 'tableId'] },
+    listMode: 'paginated',
+    detail: true,
+    unknownDetail: true,
+  }),
+  'coda.formulas': providerSelector(['docId'], {
+    readiness: { all: ['oauthCredential', 'docId'] },
+    detail: true,
+    unknownDetail: true,
+  }),
+  'coda.controls': providerSelector(['docId'], {
+    readiness: { all: ['oauthCredential', 'docId'] },
+    detail: true,
+    unknownDetail: true,
+  }),
+  'coda.folders': providerSelector([], { detail: true, unknownDetail: true }),
+  'coda.permissions': providerSelector(['docId'], {
+    readiness: { all: ['oauthCredential', 'docId'] },
+    detail: true,
+  }),
   'confluence.spaces': providerSelector(['domain'], {
     readiness: { all: ['oauthCredential', 'domain'] },
     listMode: 'paginated',
@@ -147,6 +190,10 @@ export const selectorManifest = {
     detail: true,
   }),
   'gmail.labels': providerSelector(['impersonateUserEmail']),
+  'github.installationRepositories': {
+    ...providerSelector([], { listMode: 'paginated', detail: true, unknownDetail: true }),
+    scopeKinds: ['organization'],
+  },
   'google.calendar': providerSelector(['impersonateUserEmail'], {
     listMode: 'paginated',
     detail: true,
@@ -298,6 +345,12 @@ export const selectorManifest = {
     search: true,
     detail: true,
   }),
+  'jira.projectKeys': providerSelector(['domain'], {
+    readiness: { all: ['oauthCredential', 'domain'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+  }),
   'linear.projects': providerSelector(['teamId'], {
     readiness: { all: ['oauthCredential', 'teamId'] },
     listMode: 'paginated',
@@ -320,6 +373,53 @@ export const selectorManifest = {
     detail: true,
     staleTime: SEARCH_SELECTOR_STALE_TIME,
   }),
+  'planetscale.databases': rawProviderSelector(['serviceTokenId', 'serviceToken', 'organization'], {
+    readiness: { all: ['serviceTokenId', 'serviceToken', 'organization'] },
+    sensitive: ['serviceTokenId', 'serviceToken'],
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+  }),
+  'powerbi.workspaces': providerSelector([], { listMode: 'paginated', detail: true }),
+  'powerbi.datasets': providerSelector(['groupId'], {
+    readiness: { all: ['oauthCredential', 'groupId'] },
+    detail: true,
+  }),
+  'powerbi.reports': providerSelector(['groupId'], {
+    readiness: { all: ['oauthCredential', 'groupId'] },
+    detail: true,
+  }),
+  'planetscale.branches': rawProviderSelector(
+    ['serviceTokenId', 'serviceToken', 'organization', 'database'],
+    {
+      readiness: { all: ['serviceTokenId', 'serviceToken', 'organization', 'database'] },
+      sensitive: ['serviceTokenId', 'serviceToken'],
+      listMode: 'paginated',
+      search: true,
+      detail: true,
+    }
+  ),
+  'planetscale.backups': rawProviderSelector(
+    ['serviceTokenId', 'serviceToken', 'organization', 'database', 'branch'],
+    {
+      sourceFields: { branch: ['branch', 'parentBranch'] },
+      readiness: { all: ['serviceTokenId', 'serviceToken', 'organization', 'database'] },
+      sensitive: ['serviceTokenId', 'serviceToken'],
+      listMode: 'paginated',
+      search: false,
+      detail: true,
+    }
+  ),
+  'planetscale.deployRequests': rawProviderSelector(
+    ['serviceTokenId', 'serviceToken', 'organization', 'database'],
+    {
+      readiness: { all: ['serviceTokenId', 'serviceToken', 'organization', 'database'] },
+      sensitive: ['serviceTokenId', 'serviceToken'],
+      listMode: 'paginated',
+      search: false,
+      detail: true,
+    }
+  ),
   'cloudwatch.logGroups': rawProviderSelector(
     ['awsAccessKeyId', 'awsSecretAccessKey', 'awsRegion'],
     {
@@ -408,6 +508,14 @@ export const selectorManifest = {
     unknownDetail: true,
     staleTime: 0,
   }),
+  'mcp.tools': rawProviderSelector(['mcpServerId'], {
+    readiness: { all: ['mcpServerId'] },
+    sourceFields: { mcpServerId: ['serverId', 'server'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    staleTime: 0,
+  }),
   'managedAgent.agents': providerSelector(),
   'managedAgent.environments': providerSelector(['environmentType']),
   'managedAgent.vaults': providerSelector(),
@@ -430,13 +538,14 @@ export const selectorManifest = {
     staleTime: 0,
   }),
   'workspace.credentialProviders': internalSelector([], { detail: true }),
-  'workspace.credentialGroups': internalSelector([], { detail: true }),
-  'workspace.credentialGroupProviders': internalSelector(['credentialGroupId'], {
+  'workspace.organizationMcpProviders': internalSelector([], { detail: true }),
+  'workspace.credentialGroupProviders': internalSelector([], {
     detail: true,
   }),
   'workspace.secretNames': internalSelector(),
   'workspace.rawSecretNames': internalSelector(),
   'workspace.sandboxes': internalSelector(['language'], { detail: true }),
+  'providers.ollamaEmbeddingModels': internalSelector(),
   'providers.openrouterEmbeddingModels': internalSelector(),
   'workspace.triggerTypes': {
     classification: 'local',

@@ -5,8 +5,8 @@ import { NextResponse } from 'next/server'
 import { buildFileDocSeedContract } from '@/lib/api/contracts/file-doc'
 import { parseRequest } from '@/lib/api/server'
 import { buildFileDocSeed } from '@/lib/collab-doc/seed'
-import { checkInternalApiKey, createUnauthorizedResponse } from '@/lib/copilot/request/http'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { checkInternalApiKey, createUnauthorizedResponse } from '@/lib/mothership/request/http'
 
 const logger = createLogger('FileDocSeedAPI')
 
@@ -25,7 +25,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   const { workspaceId, fileId } = parsed.data.body
 
   try {
-    const seed = await buildFileDocSeed(workspaceId, fileId)
+    const seed = await buildFileDocSeed(workspaceId, fileId, request.signal)
     return NextResponse.json({
       update: seed ? Buffer.from(seed.update).toString('base64') : null,
       version: seed ? seed.version : null,

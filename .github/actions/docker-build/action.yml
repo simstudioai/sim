@@ -19,6 +19,10 @@ inputs:
   tags:
     description: Comma-separated list of tags to push.
     required: true
+  build-args:
+    description: Newline-separated Docker build arguments.
+    required: false
+    default: ''
   max-cache-size-mb:
     description: >-
       Layer cache to retain after this action prunes, in MB. Must stay above one
@@ -72,6 +76,7 @@ runs:
         platforms: ${{ inputs.platforms }}
         push: true
         tags: ${{ inputs.tags }}
+        build-args: ${{ inputs.build-args }}
         provenance: false
         sbom: false
 
@@ -177,5 +182,6 @@ runs:
         platforms: ${{ inputs.platforms }}
         push: true
         tags: ${{ inputs.tags }}
+        build-args: ${{ inputs.build-args }}
         provenance: false
         sbom: false

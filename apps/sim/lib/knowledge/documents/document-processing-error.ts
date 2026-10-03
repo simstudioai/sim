@@ -71,10 +71,10 @@ export function isUsageLimitDocumentProcessingError(
 /**
  * Maximum vectors and embedding records retained before the atomic index swap.
  *
- * Each knowledge-base vector is 1,536 JavaScript numbers. The old 100,000-chunk
+ * At the supported maximum width, each vector contains 3,072 JavaScript numbers. The old 100,000-chunk
  * ceiling could retain well over a gigabyte before response JSON, array
  * overhead, chunk text, provenance, and insert records. Five thousand bounds
- * raw vector values to roughly 59 MiB while preserving the atomic replacement
+ * raw vector values to roughly 117 MiB while preserving the atomic replacement
  * behavior instead of silently truncating indexed content.
  */
 export const MAX_DOCUMENT_CHUNKS = 5_000
@@ -93,6 +93,38 @@ export function isPermanentDocumentProcessingError(
   return error instanceof PermanentDocumentProcessingError
 }
 
+/**
+ * A provider rejected the submitted OCR request. Repeating the same request is
+ * futile, but a rejection alone does not prove that the source file is corrupt:
+ * the provider's model or configuration may need to change instead. Preserve a
+ * separate terminal outcome and allow an explicit retry after remediation.
+ */
+export class OcrRequestRejectedError extends Error {
+  readonly code = 'ocr_request_rejected'
+
+  constructor(readonly status: number) {
+    super(
+      `The OCR provider rejected this file (HTTP ${status}). Re-export it as a valid PDF or image and retry. If the file opens correctly, check the OCR provider and model configuration before retrying.`
+    )
+    this.name = 'OcrRequestRejectedError'
+  }
+}
+
+/** Finds a safe terminal OCR rejection through bounded aggregate/cause wrappers. */
+export function getOcrRequestRejection(error: unknown): OcrRequestRejectedError | null {
+  const pending = [error]
+  const seen = new Set<unknown>()
+  while (pending.length > 0 && seen.size < 32) {
+    const current = pending.pop()
+    if (!(current instanceof Error) || seen.has(current)) continue
+    seen.add(current)
+    if (current instanceof OcrRequestRejectedError) return current
+    if (current.cause !== undefined) pending.push(current.cause)
+    if (current instanceof AggregateError) pending.push(...current.errors.slice(0, 32))
+  }
+  return null
+}
+
 const OFFICE_REPAIR_EXTENSIONS = new Set([
   'doc',
   'docx',
@@ -103,7 +135,6 @@ const OFFICE_REPAIR_EXTENSIONS = new Set([
   'xlsm',
   'xlsb',
   'xltx',
-  'ppt',
   'pptx',
   'pptm',
   'potx',

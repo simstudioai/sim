@@ -1,5 +1,6 @@
-import chalk from 'chalk'
 import { dump } from 'js-yaml'
+import { printLine } from '#sim-cli/output/io'
+import { styles } from '#sim-cli/output/presentation'
 import type { OutputFormat } from '../config/index'
 import { displayWidth } from './terminal-text'
 
@@ -10,9 +11,6 @@ export interface Column<T> {
 
 /** The glyph standing in for "no value", before colour is applied. */
 const EMPTY_GLYPH = '—'
-
-/** Cell text for values that have no useful rendering, kept visually quiet. */
-const EMPTY = chalk.dim(EMPTY_GLYPH)
 
 /**
  * Escape sequences and control characters that must never reach a terminal
@@ -75,13 +73,13 @@ export function safeOneLine(value: string): string {
 }
 
 export function text(value: unknown): string {
-  if (value === null || value === undefined || value === '') return EMPTY
+  if (value === null || value === undefined || value === '') return styles().dim(EMPTY_GLYPH)
   return sanitize(String(value))
 }
 
 /** ISO timestamps are the wire format everywhere; show them without the milliseconds. */
 export function timestamp(value: string | null | undefined): string {
-  if (!value) return EMPTY
+  if (!value) return styles().dim(EMPTY_GLYPH)
   const date = new Date(value)
   // Sanitized on the way out: an unparseable value is echoed verbatim, and it is
   // still server-supplied, so this branch was a way to smuggle control sequences
@@ -91,12 +89,12 @@ export function timestamp(value: string | null | undefined): string {
 }
 
 export function bool(value: boolean | null | undefined): string {
-  if (value === null || value === undefined) return EMPTY
-  return value ? chalk.green('yes') : chalk.dim('no')
+  if (value === null || value === undefined) return styles().dim(EMPTY_GLYPH)
+  return value ? styles().green('yes') : styles().dim('no')
 }
 
 export function bytes(value: number | null | undefined): string {
-  if (value === null || value === undefined) return EMPTY
+  if (value === null || value === undefined) return styles().dim(EMPTY_GLYPH)
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
   let size = value
   let unit = 0
@@ -108,7 +106,7 @@ export function bytes(value: number | null | undefined): string {
 }
 
 export function duration(ms: number | null | undefined): string {
-  if (ms === null || ms === undefined) return EMPTY
+  if (ms === null || ms === undefined) return styles().dim(EMPTY_GLYPH)
   // The API measures runs with a high-resolution clock, so a duration arrives as
   // `9.145596999907866`. Sub-millisecond precision is noise in a terminal and
   // the raw float is wider than every other cell in the row.
@@ -209,7 +207,7 @@ function clamp(value: string, width: number): string {
 }
 
 function renderTable<T>(rows: T[], columns: Column<T>[]): string {
-  if (rows.length === 0) return chalk.dim('No results.')
+  if (rows.length === 0) return styles().dim('No results.')
 
   // A header can be a user-defined column name (a table's own columns), so it is
   // remote content and gets the same treatment as a cell. Doing it here rather
@@ -223,7 +221,7 @@ function renderTable<T>(rows: T[], columns: Column<T>[]): string {
   )
 
   const header = headers
-    .map((label, index) => chalk.dim(pad(label.toUpperCase(), widths[index])))
+    .map((label, index) => styles().dim(pad(label.toUpperCase(), widths[index])))
     .join('  ')
     .trimEnd()
 
@@ -271,18 +269,18 @@ export function printList<T>(
 ): void {
   const machine = renderMachine(format, raw)
   if (machine !== null) {
-    console.log(machine)
+    printLine(machine)
     return
   }
 
   if (format === 'text') {
     for (const row of rows) {
-      console.log(columns.map((column) => oneLine(stripAnsi(column.value(row)))).join('\t'))
+      printLine(columns.map((column) => oneLine(stripAnsi(column.value(row)))).join('\t'))
     }
     return
   }
 
-  console.log(renderTable(rows, columns))
+  printLine(renderTable(rows, columns))
 }
 
 /**
@@ -295,7 +293,7 @@ export function printList<T>(
  * is honoured, because it round-trips.
  */
 export function printDocument(format: OutputFormat, raw: unknown): void {
-  console.log(
+  printLine(
     format === 'yaml' ? (renderMachine('yaml', raw) as string) : JSON.stringify(raw, null, 2)
   )
 }
@@ -307,7 +305,7 @@ export function printDocument(format: OutputFormat, raw: unknown): void {
 export function printRecord(format: OutputFormat, fields: Array<[string, string]>, raw: unknown) {
   const machine = renderMachine(format, raw)
   if (machine !== null) {
-    console.log(machine)
+    printLine(machine)
     return
   }
 
@@ -315,15 +313,15 @@ export function printRecord(format: OutputFormat, fields: Array<[string, string]
 
   if (format === 'text') {
     for (const [label, value] of safeFields) {
-      console.log(`${label}\t${oneLine(stripAnsi(value))}`)
+      printLine(`${label}\t${oneLine(stripAnsi(value))}`)
     }
     return
   }
 
   const width = Math.max(...safeFields.map(([label]) => visibleWidth(label)))
   for (const [label, value] of safeFields) {
-    console.log(
-      `${chalk.dim(pad(`${label}:`, width + 1))}  ${clamp(oneLine(value), MAX_RECORD_WIDTH)}`
+    printLine(
+      `${styles().dim(pad(`${label}:`, width + 1))}  ${clamp(oneLine(value), MAX_RECORD_WIDTH)}`
     )
   }
 }
