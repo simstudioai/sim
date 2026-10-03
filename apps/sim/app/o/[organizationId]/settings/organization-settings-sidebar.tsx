@@ -6,7 +6,10 @@ import { ORGANIZATION_SETTINGS_GROUPS } from '@/components/settings/navigation'
 import { SettingsSidebar } from '@/components/settings/settings-sidebar'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
-import { hasUsableSubscriptionAccess } from '@/lib/billing/subscriptions/utils'
+import {
+  hasPaidSubscriptionStatus,
+  hasUsableSubscriptionAccess,
+} from '@/lib/billing/subscriptions/utils'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import {
@@ -42,6 +45,16 @@ export function OrganizationSettingsSidebar(props: OrganizationSettingsSidebarPr
           isEnterprise(summary.data.subscriptionPlan) &&
           hasUsableSubscriptionAccess(summary.data.subscriptionStatus, summary.data.billingBlocked)
         : settingsFeatures.hasEnterprisePlan,
+    /**
+     * Refreshed from the same summary, or the item the plan gate just hid would reappear only on
+     * reload. Governance keeps its own rule — an entitled status, block state ignored — because a
+     * failing payment does not stop the organization's permission groups from applying.
+     */
+    governanceActive:
+      refreshPlan && summary
+        ? isEnterprise(summary.data.subscriptionPlan) &&
+          hasPaidSubscriptionStatus(summary.data.subscriptionStatus)
+        : settingsFeatures.governanceActive,
   }
 
   const routes = organizationRoutes(organization.id)

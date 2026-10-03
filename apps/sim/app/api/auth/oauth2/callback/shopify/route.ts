@@ -1,3 +1,4 @@
+import { EnvCapabilityConfigurationError } from '@sim/deployment-config/env-capabilities'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
@@ -7,7 +8,6 @@ import {
   shopifyShopDomainSchema,
 } from '@/lib/api/contracts/oauth-connections'
 import { getSession } from '@/lib/auth'
-import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
 import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'

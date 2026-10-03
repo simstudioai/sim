@@ -34,6 +34,7 @@ import {
   getTokenServiceAccountValidator,
   type TokenServiceAccountSecretBlob,
 } from '@/lib/credentials/token-service-accounts/server'
+import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
@@ -371,6 +372,11 @@ export async function verifyAndBuildServiceAccountSecret(
   providerId: string,
   fields: ServiceAccountSecretFields
 ): Promise<ServiceAccountSecretResult> {
+  if (providerId === GITHUB_INSTALLATION_PROVIDER_ID) {
+    throw new ServiceAccountSecretError(
+      'Connect a GitHub App installation through your organization’s Search integrations'
+    )
+  }
   const builder = Object.hasOwn(SERVICE_ACCOUNT_SECRET_BUILDERS, providerId)
     ? SERVICE_ACCOUNT_SECRET_BUILDERS[providerId]
     : undefined

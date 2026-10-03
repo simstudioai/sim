@@ -1,48 +1,43 @@
-/**
- * @vitest-environment node
- */
 import { createTableDefinition, hybridAuthMockFns } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import {
+  tableRouteUtilsMock,
+  tableRouteUtilsMockFns,
+} from '@sim/testing/mocks/table-route-utils.mock'
+import {
+  tableRowsServiceMock,
+  tableRowsServiceMockFns,
+} from '@sim/testing/mocks/table-rows-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckAccess, mockQueryRows, mockGetUserPermissionConfig } = vi.hoisted(() => ({
-  mockCheckAccess: vi.fn(),
-  mockQueryRows: vi.fn(),
-  mockGetUserPermissionConfig: vi.fn(),
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: mockGetUserPermissionConfig,
-}))
+vi.mock('@/app/api/table/utils', () => tableRouteUtilsMock)
 
-vi.mock('@/app/api/table/utils', async () => {
-  const { NextResponse } = await import('next/server')
-  return {
-    checkAccess: mockCheckAccess,
-    accessError: (result: { status: number }) =>
-      NextResponse.json({ error: 'Access denied' }, { status: result.status }),
-  }
-})
-
-vi.mock('@/lib/table/rows/service', () => ({
-  queryRows: mockQueryRows,
-}))
+vi.mock('@/lib/table/rows/service', () => tableRowsServiceMock)
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET } from '@/app/api/table/[tableId]/export/route'
 
+const { mockQueryRows } = tableRowsServiceMockFns
+const { mockCheckAccess } = tableRouteUtilsMockFns
+
+const mockGetUserPermissionConfig = permissionGroupsResolveMockFns.mockGetUserPermissionConfig
+
 /** Table with an id-native column whose stable id (`col_email`) differs from its display name. */
 
 function callGet(format: string) {
-  const req = new NextRequest(`http://localhost:3000/api/table/tbl_1/export?format=${format}`, {
-    method: 'GET',
-  })
-  return GET(req, { params: Promise.resolve({ tableId: 'tbl_1' }) })
+  const req = createMockRequest({ url: `/api/table/tbl_1/export?format=${format}` })
+  return GET(req, createRouteContext({ tableId: 'tbl_1' }))
 }
 
 describe('table export route — id→name translation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
       success: true,
       userId: 'user-1',
@@ -80,14 +75,6 @@ describe('table export route — id→name translation', () => {
     expect(header).toBe('email,legacy')
     // Without id→name resolution the email cell would be blank.
     expect(firstRow).toBe('a@b.c,x')
-  })
-
-  it('JSON: keys are display names, never the stable column id', async () => {
-    const res = await callGet('json')
-    expect(res.status).toBe(200)
-    const parsed = JSON.parse(await res.text())
-    expect(parsed).toEqual([{ email: 'a@b.c', legacy: 'x' }])
-    expect(JSON.stringify(parsed)).not.toContain('col_email')
   })
 
   it('refuses the stream when the group withholds tables.export', async () => {

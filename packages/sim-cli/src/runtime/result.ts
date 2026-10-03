@@ -1,4 +1,6 @@
-import chalk from 'chalk'
+import { writeStderr } from '#sim-cli/output/io'
+import { styles } from '#sim-cli/output/presentation'
+import { truncationMetadata } from '#sim-cli/output/truncation'
 import type { OutputFormat } from '../config/index'
 import type { ColumnSpec, CommandSpec } from '../contract/types'
 import type { V2OperationName } from '../generated/v2-api'
@@ -72,6 +74,13 @@ export function decodeFolderPath(value: string): string {
     .join('/')
 }
 
+/** A `{ id, email }` user by email, or by id once the account behind it is gone. */
+function personLabel(person: unknown): string {
+  const { id, email } = (person ?? {}) as { id?: unknown; email?: unknown }
+  if (typeof email === 'string' && email) return email
+  return typeof id === 'string' && id ? id : JSON.stringify(person)
+}
+
 function renderCell(
   value: unknown,
   format: ColumnSpec['format'],
@@ -92,6 +101,10 @@ function renderCell(
       return typeof value === 'number' ? value.toFixed(4) : text(null)
     case 'count':
       return Array.isArray(value) ? String(value.length) : text(null)
+    case 'people':
+      return Array.isArray(value) && value.length > 0
+        ? sanitize(value.map(personLabel).join(', '))
+        : text(null)
     case 'folder-path':
       return typeof value === 'string' ? text(decodeFolderPath(value)) : text(value)
     case 'trace-count': {
@@ -293,7 +306,7 @@ export function renderPage(
     format,
     page.data,
     spec.columns ? columnsFrom(spec.columns) : inferColumns(page.data, spec.expand),
-    page
+    { ...page, ...truncationMetadata(envelope) }
   )
 }
 
@@ -308,37 +321,13 @@ function writePageNote(spec: CommandSpec, envelope: unknown): void {
   if (!spec.pageNote) return
   const value = at(envelope, spec.pageNote.path)
   if (value === undefined || value === null) return
-  process.stderr.write(chalk.dim(`${spec.pageNote.label}: ${String(value)}\n`))
+  writeStderr(styles().dim(`${spec.pageNote.label}: ${String(value)}\n`))
 }
-
-/**
- * Response fields that state the server itself clipped what it returned.
- *
- * Matched by shape rather than listed per command, so a flag added to a route
- * envelope is surfaced the day it lands. Structured list output carries data
- * and nextCursor; truncation flags are reported separately.
- */
-const TRUNCATION_FLAG = /^truncated$|^[A-Za-z0-9]+Truncated$/
-
-/**
- * Negating prefixes whose `Truncated` suffix states the opposite.
- *
- * A bare `Truncated$` match also accepts `notTruncated` and `isNotTruncated`,
- * where `true` means the answer is whole, and a note about a clip that did not
- * happen is the worst thing this can print. These four prefixes are the
- * spellings worth anticipating rather than a decision procedure for English —
- * a field negated some other way slips through and has to be added here.
- */
-const NEGATED_TRUNCATION_FLAG = /^(?:not|un|non|never)Truncated$|(?:Not|Un|Non|Never)Truncated$/
 
 /** The flags one object raised, in the spelling the wire used. */
 function truncationFlags(container: unknown): string[] {
-  if (!container || typeof container !== 'object' || Array.isArray(container)) return []
-  return Object.entries(container)
-    .filter(
-      ([key, value]) =>
-        value === true && TRUNCATION_FLAG.test(key) && !NEGATED_TRUNCATION_FLAG.test(key)
-    )
+  return Object.entries(truncationMetadata(container))
+    .filter(([, value]) => value)
     .map(([key]) => key)
 }
 
@@ -368,12 +357,11 @@ function responseTruncationFlags(envelope: unknown): string[] {
  */
 export function foldPageEnvelope(current: unknown, page: unknown): unknown {
   if (current === undefined) return page
-  const raised = truncationFlags(page)
-  if (raised.length === 0 || !current || typeof current !== 'object') return current
-  return {
-    ...(current as Record<string, unknown>),
-    ...Object.fromEntries(raised.map((flag) => [flag, true])),
-  }
+  if (!current || typeof current !== 'object' || Array.isArray(current)) return current
+  const merged = { ...(current as Record<string, unknown>) }
+  for (const [key, value] of Object.entries(truncationMetadata(page)))
+    merged[key] = merged[key] === true || value
+  return merged
 }
 
 /** `toolNamesTruncated` as a reader says it. */
@@ -412,8 +400,8 @@ function clippedSubject(flag: string): string {
  */
 function writeEnvelopeTruncation(envelope: unknown): void {
   for (const flag of responseTruncationFlags(envelope)) {
-    process.stderr.write(
-      chalk.dim(
+    writeStderr(
+      styles().dim(
         `${spellOut(flag)}: the server clipped ${clippedSubject(flag)}, so the answer is incomplete\n`
       )
     )
@@ -438,7 +426,10 @@ export function renderResult(
     return
   }
 
-  const data = unwrapResource(raw)
+  // The single-key unwrap exists for the human table: `{ mcpServer: {...} }` rendered as-is
+  // printed nothing. Machine formats print the API's data verbatim, so `--output json`
+  // matches the OpenAPI shape the docs and the agent reference card are generated from.
+  const data = format === 'json' || format === 'yaml' ? raw : unwrapResource(raw)
   if (spec.itemsPath) {
     const items = at(data, spec.itemsPath)
     if (!Array.isArray(items)) {

@@ -100,8 +100,14 @@ export {
   getTargetedLayoutImpact,
 } from '@/lib/workflows/autolayout/change-set'
 export { applyTargetedLayout } from '@/lib/workflows/autolayout/targeted'
-export type { Edge, LayoutOptions, LayoutResult } from '@/lib/workflows/autolayout/types'
+export type {
+  BoundingBox,
+  Edge,
+  LayoutOptions,
+  LayoutResult,
+} from '@/lib/workflows/autolayout/types'
 export {
+  boxesOverlap,
   getBlockMetrics,
   isContainerType,
   shouldSkipAutoLayout,

@@ -27,17 +27,6 @@ const ALL_TABLE_TOOL_PRINCIPAL_POLICY = {
   delegatedServices: ['copilot', 'executor'],
 } as const
 
-const INTERNAL_EXECUTOR_PRINCIPAL_POLICY = {
-  principalKinds: [
-    'session',
-    'personal_api_key',
-    'oauth_access_token',
-    'workspace_api_key',
-    'delegated',
-  ],
-  delegatedServices: ['executor'],
-} as const
-
 function readOperation<const Id extends string>(id: Id) {
   return defineWorkspaceOperation({
     id,
@@ -94,7 +83,7 @@ function toolReadOperation<const Id extends string>(id: Id) {
   })
 }
 
-function internalExecutorReadOperation<const Id extends string>(
+function stagedReadOperation<const Id extends string>(
   id: Id,
   capability: OperationDeclarableCapability,
   oauthScope: 'api:read' | 'api:write'
@@ -105,65 +94,37 @@ function internalExecutorReadOperation<const Id extends string>(
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     capability,
-    ...INTERNAL_EXECUTOR_PRINCIPAL_POLICY,
+    ...ALL_TABLE_TOOL_PRINCIPAL_POLICY,
   })
 }
 
-function internalExecutorWriteOperation<const Id extends string>(id: Id) {
+function stagedWriteOperation<const Id extends string>(id: Id) {
   return defineWorkspaceOperation({
     id,
     oauthScope: 'api:write',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     capability: 'tables.use',
-    ...INTERNAL_EXECUTOR_PRINCIPAL_POLICY,
-  })
-}
-
-function delegatedWriteOperation<const Id extends string>(
-  id: Id,
-  capability: OperationDeclarableCapability
-) {
-  return defineWorkspaceOperation({
-    id,
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    capability,
-    principalKinds: ['delegated'],
-    delegatedServices: ['copilot'],
+    ...ALL_TABLE_TOOL_PRINCIPAL_POLICY,
   })
 }
 
 export const tableOperations = {
   list: toolReadOperation('tables.list'),
   read: toolReadOperation('tables.read'),
+  readSnapshot: defineWorkspaceOperation({
+    id: 'tables.snapshot.read',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'tables.use',
+    ...COPILOT_PRINCIPAL_POLICY,
+  }),
   create: toolWriteOperation('tables.create', 'tables.create'),
   update: writeOperation('tables.update'),
   delete: writeOperation('tables.delete'),
   restore: writeOperation('tables.restore'),
   bulkMove: writeOperation('tables.bulk_move'),
   bulkDelete: writeOperation('tables.bulk_delete'),
-  renameByVfsPath: defineWorkspaceOperation({
-    id: 'tables.vfs.rename',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    capability: 'tables.use',
-    ...COPILOT_PRINCIPAL_POLICY,
-  }),
-  moveByVfsPath: defineWorkspaceOperation({
-    id: 'tables.vfs.move',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    capability: 'tables.use',
-    ...COPILOT_PRINCIPAL_POLICY,
-  }),
-  deleteByVfsPath: defineWorkspaceOperation({
-    id: 'tables.vfs.delete',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    capability: 'tables.use',
-    ...COPILOT_PRINCIPAL_POLICY,
-  }),
   listFolders: readOperation('tables.folders.list'),
   createFolder: writeOperation('tables.folders.create'),
   updateFolder: writeOperation('tables.folders.update'),
@@ -173,6 +134,13 @@ export const tableOperations = {
   updateColumn: writeOperation('tables.columns.update'),
   deleteColumn: writeOperation('tables.columns.delete'),
   listRows: readOperation('tables.rows.list'),
+  analytics: defineWorkspaceOperation({
+    id: 'tables.rows.analytics',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'tables.use',
+    principalKinds: ['session'],
+  }),
   queryRows: toolReadOperation('tables.rows.query'),
   searchRows: readOperation('tables.rows.search'),
   readRow: toolReadOperation('tables.rows.read'),
@@ -196,34 +164,21 @@ export const tableOperations = {
   /** Reading the state of a run — including one you started — is a read. */
   readRun: readOperation('tables.runs.read'),
   cancelRuns: writeOperation('tables.runs.cancel'),
-  createImport: internalExecutorWriteOperation('tables.imports.create'),
-  createFromWorkspaceFile: delegatedWriteOperation(
-    'tables.imports.create_from_workspace_file',
-    'tables.create'
-  ),
-  importWorkspaceFile: delegatedWriteOperation('tables.imports.workspace_file', 'tables.use'),
-  readImport: internalExecutorReadOperation('tables.imports.read', 'tables.use', 'api:read'),
-  createImportParts: internalExecutorWriteOperation('tables.imports.create_parts'),
-  completeImport: internalExecutorWriteOperation('tables.imports.complete'),
-  cancelImport: internalExecutorWriteOperation('tables.imports.cancel'),
+  createImport: stagedWriteOperation('tables.imports.create'),
+  readImport: stagedReadOperation('tables.imports.read', 'tables.use', 'api:read'),
+  createImportParts: stagedWriteOperation('tables.imports.create_parts'),
+  completeImport: stagedWriteOperation('tables.imports.complete'),
+  cancelImport: stagedWriteOperation('tables.imports.cancel'),
   /**
    * Only generating the file and fetching it are extraction. Reading an
    * export's status carries no rows, and cancelling one stops an extraction
    * rather than performing it — gating either would strand a member with an
    * export they can neither watch nor stop after the group changed.
    */
-  createExport: internalExecutorReadOperation(
-    'tables.exports.create',
-    'tables.export',
-    'api:write'
-  ),
-  readExport: internalExecutorReadOperation('tables.exports.read', 'tables.use', 'api:read'),
-  cancelExport: internalExecutorReadOperation('tables.exports.cancel', 'tables.use', 'api:write'),
-  downloadExport: internalExecutorReadOperation(
-    'tables.exports.download',
-    'tables.export',
-    'api:read'
-  ),
+  createExport: stagedReadOperation('tables.exports.create', 'tables.export', 'api:write'),
+  readExport: stagedReadOperation('tables.exports.read', 'tables.use', 'api:read'),
+  cancelExport: stagedReadOperation('tables.exports.cancel', 'tables.use', 'api:write'),
+  downloadExport: stagedReadOperation('tables.exports.download', 'tables.export', 'api:read'),
 } as const
 
 export type TableOperation = (typeof tableOperations)[keyof typeof tableOperations]

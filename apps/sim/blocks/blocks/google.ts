@@ -1,9 +1,8 @@
 import { GoogleIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { GoogleSearchResponse } from '@/tools/google/types'
 
-export const GoogleSearchBlock: BlockConfig<GoogleSearchResponse> = {
+export const GoogleSearchBlock: BlockConfig = {
   type: 'google_search',
   name: 'Google Search',
   description: 'Search the web',

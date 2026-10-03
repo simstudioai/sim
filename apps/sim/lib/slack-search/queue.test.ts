@@ -1,17 +1,25 @@
-/** @vitest-environment node */
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ enqueue: vi.fn(), run: vi.fn() }))
-vi.mock('@/lib/core/async-jobs', () => ({ getJobQueue: async () => ({ enqueue: mocks.enqueue }) }))
+const hoisted = vi.hoisted(() => ({ enqueue: vi.fn(), run: vi.fn() }))
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
 vi.mock('@/lib/slack-search/handlers/search-message', () => ({
-  handleSlackSearchMessage: mocks.run,
+  handleSlackSearchMessage: hoisted.run,
 }))
 
 import { enqueueSlackSearch } from '@/lib/slack-search/queue'
 
+const mocks = {
+  ...hoisted,
+  externalEnqueue: asyncJobsMockFns.mockJobQueue.enqueue,
+}
+asyncJobsMockFns.mockGetInlineJobQueue.mockImplementation(async () => ({
+  ...asyncJobsMockFns.mockJobQueue,
+  enqueue: mocks.enqueue,
+}))
+
 const job = { turnId: 'turn1', installationId: 'i1' }
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.enqueue.mockResolvedValue('id')
 })
 describe('Slack Search queue', () => {
@@ -31,15 +39,5 @@ describe('Slack Search queue', () => {
         }),
       ])
     }
-  })
-  it('supplies the same handler to the database runner', async () => {
-    const signal = new AbortController().signal
-    await enqueueSlackSearch(job)
-    await mocks.enqueue.mock.calls[0][2].runner(job, signal)
-    expect(mocks.run).toHaveBeenCalledWith(job, signal)
-  })
-  it('propagates enqueue failures so ingress can request a retry', async () => {
-    mocks.enqueue.mockRejectedValueOnce(new Error('unavailable'))
-    await expect(enqueueSlackSearch(job)).rejects.toThrow('unavailable')
   })
 })

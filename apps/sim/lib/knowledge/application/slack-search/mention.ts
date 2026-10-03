@@ -19,10 +19,10 @@ export async function routeSlackSearchMentionToDm(
   input: { job: SlackSearchJob; turnId: string; leaseId: string; signal: AbortSignal }
 ): Promise<SlackSearchJob> {
   const { job, turnId, leaseId, signal } = input
-  if (job.message.channelId.startsWith('D')) return job
+  const command = job.message.command === '/query' && job.message.messageTs === null
+  if (job.message.channelId.startsWith('D') && !command) return job
   if (
-    !job.message.origin ||
-    job.message.origin.channelId !== job.message.channelId ||
+    (!command && (!job.message.origin || job.message.origin.channelId !== job.message.channelId)) ||
     principal.eventId !== job.message.eventId
   )
     throw new OrchestrationError('forbidden', 'Slack mention identity is inconsistent')
@@ -100,7 +100,12 @@ export async function routeSlackSearchMentionToDm(
       throw new Error('Could not create the private Slack question thread')
     const routed = slackSearchJobSchema.parse({
       ...job,
-      message: { ...job.message, channelId, threadTs },
+      message: {
+        ...job.message,
+        channelId,
+        threadTs,
+        messageTs: job.message.messageTs ?? threadTs,
+      },
     })
     await tx
       .update(slackSearchTurn)

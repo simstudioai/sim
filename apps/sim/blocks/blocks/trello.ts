@@ -3,7 +3,6 @@ import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { parseOptionalBooleanInput, parseOptionalNumberInput } from '@/blocks/utils'
-import type { TrelloResponse } from '@/tools/trello'
 
 function getTrimmedString(value: unknown): string | undefined {
   if (typeof value !== 'string') {
@@ -65,7 +64,7 @@ const ACTIVITY_SOURCE_FIELD = ['boardSelector', 'manualBoardId', 'cardId'] as co
  * Trello uses a custom token flow and non-UUID credential IDs, so the block keeps
  * the normal OAuth block UX while relying on the custom Trello auth routes.
  */
-export const TrelloBlock: BlockConfig<TrelloResponse> = {
+export const TrelloBlock: BlockConfig = {
   type: 'trello',
   name: 'Trello',
   description: 'Manage Trello lists, cards, checklists, and activity',

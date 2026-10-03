@@ -52,6 +52,8 @@ export interface OAuthAccessTokenPrincipal {
   kind: 'oauth_access_token'
   userId: string
   clientId: string
+  /** Admission-time display metadata only; never grants authority or enters workflow payloads. */
+  clientName?: string
   /** The `oauth_access_token` row id, never the token itself. */
   tokenId: string
   scopes: readonly string[]
@@ -142,6 +144,7 @@ interface DelegatedPrincipalBase {
     credentialId?: string
     credentialGroupId?: string
     mcpServerId?: string
+    mcpBlockId?: string
   }
 }
 
@@ -290,7 +293,7 @@ export type WorkflowExecutionPrincipal =
 type SerializedWorkflowExecutionPrincipal =
   | SessionPrincipal
   | PersonalApiKeyPrincipal
-  | (Omit<OAuthAccessTokenPrincipal, 'expiresAt'> & { expiresAt: string })
+  | (Omit<OAuthAccessTokenPrincipal, 'expiresAt' | 'clientName'> & { expiresAt: string })
   | WorkspaceApiKeyPrincipal
   | SystemPrincipal
   | (Omit<SubjectDelegatedPrincipal, 'issuedAt' | 'expiresAt'> & {
@@ -350,6 +353,7 @@ function parseResourceScope(value: unknown): DelegatedPrincipal['resourceScope']
     'credentialId',
     'credentialGroupId',
     'mcpServerId',
+    'mcpBlockId',
   ] as const
   requireExactKeys(scope, [], keys)
   const parsed: NonNullable<DelegatedPrincipal['resourceScope']> = {}
@@ -396,7 +400,10 @@ export function serializePrincipal(principal: WorkflowExecutionPrincipal): Seria
       return {
         version: 1,
         principal: {
-          ...principal,
+          kind: principal.kind,
+          userId: principal.userId,
+          clientId: principal.clientId,
+          tokenId: principal.tokenId,
           scopes: [...principal.scopes],
           expiresAt: principal.expiresAt.toISOString(),
         },
@@ -749,6 +756,27 @@ export function toPrincipalActor(principal: Principal): PrincipalActor {
   }
 }
 
+/**
+ * How a principal was authenticated, for request logs and analytics: its kind,
+ * plus the service behind a delegated or system principal and the OAuth client
+ * behind an access token. Identifiers that name a person, key, or token are
+ * deliberately left out — this describes the credential's kind, not the actor.
+ */
+export interface PrincipalAuthDescriptor {
+  kind: Principal['kind']
+  service?: string
+  clientId?: string
+}
+
+export function describePrincipalAuth(principal: Principal): PrincipalAuthDescriptor {
+  const actor = toPrincipalActor(principal)
+  return {
+    kind: actor.kind,
+    ...('serviceId' in actor ? { service: actor.serviceId } : {}),
+    ...('clientId' in actor ? { clientId: actor.clientId } : {}),
+  }
+}
+
 export function resolvePrincipalAuditAttribution(principal: Principal): PrincipalAuditAttribution {
   const actor = toPrincipalActor(principal)
 
@@ -819,3 +847,15 @@ export function resolvePrincipalAttribution(
       throw new PrincipalSubjectUserRequiredError(actor.kind)
   }
 }
+
+/** User ID every request acts as when `DISABLE_AUTH` is enabled. */
+export const ANONYMOUS_USER_ID = '00000000-0000-0000-0000-000000000000'
+
+/** The user record behind {@link ANONYMOUS_USER_ID}, shared by the app and the realtime server. */
+export const ANONYMOUS_USER = {
+  id: ANONYMOUS_USER_ID,
+  name: 'Anonymous',
+  email: 'anonymous@localhost',
+  emailVerified: true,
+  image: null,
+} as const

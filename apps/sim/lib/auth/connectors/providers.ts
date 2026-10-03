@@ -15,6 +15,7 @@ import {
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { exchangeAtlassianAuthorizationCode } from '@/lib/oauth/atlassian-token'
 import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
 import { createGitHubRepositoriesProvider } from '@/lib/oauth/github-repositories'
 import { getMicrosoftUserInfoFromIdToken } from '@/lib/oauth/microsoft'
@@ -870,6 +871,28 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
     },
 
     {
+      providerId: 'microsoft-powerbi',
+      clientId: env.MICROSOFT_CLIENT_ID as string,
+      clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
+      authorizationUrl: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize',
+      tokenUrl: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/token',
+      scopes: getCanonicalScopesForProvider('microsoft-powerbi'),
+      responseType: 'code',
+      accessType: 'offline',
+      authentication: 'basic',
+      pkce: true,
+      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/microsoft-powerbi`,
+      getUserInfo: async (tokens) => {
+        const canonicalScopes = getCanonicalScopesForProvider('microsoft-powerbi')
+        tokens.scopes = tokens.scopes?.map((scope) => {
+          const qualified = `https://analysis.windows.net/powerbi/api/${scope}`
+          return canonicalScopes.includes(qualified) ? qualified : scope
+        })
+        return getMicrosoftUserInfoFromIdToken(tokens, 'microsoft-powerbi')
+      },
+    },
+
+    {
       providerId: 'outlook',
       clientId: env.MICROSOFT_CLIENT_ID as string,
       clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
@@ -1572,10 +1595,19 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       responseType: 'code',
       pkce: true,
       accessType: 'offline',
-      authentication: 'basic',
+      authentication: 'post',
       prompt: 'consent',
       authorizationUrlParams: { audience: 'api.atlassian.com' },
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/confluence`,
+      getToken: ({ code, redirectURI, codeVerifier }) =>
+        exchangeAtlassianAuthorizationCode({
+          provider: 'confluence',
+          clientId: env.CONFLUENCE_CLIENT_ID as string,
+          clientSecret: env.CONFLUENCE_CLIENT_SECRET as string,
+          code,
+          redirectUri: redirectURI,
+          codeVerifier,
+        }),
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://api.atlassian.com/me', {
@@ -1624,10 +1656,19 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       responseType: 'code',
       pkce: true,
       accessType: 'offline',
-      authentication: 'basic',
+      authentication: 'post',
       prompt: 'consent',
       authorizationUrlParams: { audience: 'api.atlassian.com' },
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/jira`,
+      getToken: ({ code, redirectURI, codeVerifier }) =>
+        exchangeAtlassianAuthorizationCode({
+          provider: 'jira',
+          clientId: env.JIRA_CLIENT_ID as string,
+          clientSecret: env.JIRA_CLIENT_SECRET as string,
+          code,
+          redirectUri: redirectURI,
+          codeVerifier,
+        }),
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://api.atlassian.com/me', {

@@ -32,11 +32,11 @@ describe('Pi provider catalog', () => {
     )
   })
 
-  it('keeps persisted and selectable Sim models in the pinned Pi catalog', () => {
-    expect(resolvePiModelId('anthropic', 'claude-opus-4-1')).toBe('claude-opus-4-1')
-    expect(resolvePiModelId('cerebras', 'cerebras/zai-glm-4.7')).toBe('zai-glm-4.7')
-    expect(resolvePiModelId('zai', 'glm-5.1')).toBe('glm-5.1')
-    expect(resolvePiModelId('zai', 'glm-4.5-air')).toBe('glm-4.5-air')
+  it('rejects saved model IDs removed by Pi 1.0 without substituting another model', () => {
+    expect(resolvePiModelId('anthropic', 'claude-opus-4-1')).toBeUndefined()
+    expect(resolvePiModelId('cerebras', 'cerebras/zai-glm-4.7')).toBeUndefined()
+    expect(resolvePiModelId('zai', 'glm-5.1')).toBeUndefined()
+    expect(resolvePiModelId('zai', 'glm-4.5-air')).toBeUndefined()
   })
 
   it('rejects provider/model pairs absent from the installed Pi catalog', () => {

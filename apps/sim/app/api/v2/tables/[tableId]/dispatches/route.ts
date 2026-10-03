@@ -13,9 +13,11 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 /**
- * Every dispatch still in flight on one table. Unpaged: the dispatcher bounds
- * how many dispatches a table can have active, so `nextCursor` is always null
- * and there is no page for a `limit` to select.
+ * The dispatches on one table, most recent first, settled ones included — a
+ * run that finished between two polls is still listed next to the id its
+ * create returned. Unpaged: the use case caps the list at the most recent
+ * hundred, so `nextCursor` is always null and there is no page for a `limit`
+ * to select.
  */
 export const GET = defineV2JsonRoute({
   contract: v2ListTableDispatchesContract,

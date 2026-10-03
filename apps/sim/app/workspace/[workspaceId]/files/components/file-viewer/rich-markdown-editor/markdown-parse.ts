@@ -15,11 +15,19 @@ import {
  * `setContent`. Both are safe because all access is synchronous and single-threaded — each call fully
  * completes before the next — so no call ever observes another's partial state. One bounded instance
  * for the session, not a per-call allocation.
+ *
+ * It is never mounted: a mounted view renders every document into the DOM and its mutation observer
+ * schedules flush timers nothing can cancel, which fire after a jsdom test environment is torn down.
+ * TipTap installs extension plugins only when it mounts, so they are installed here the same way, keeping
+ * normalization such as the trailing paragraph identical to the live editor.
  */
 let parser: Editor | null = null
 
 function parserEditor(): Editor {
-  if (!parser) parser = new Editor({ extensions: createMarkdownContentExtensions() })
+  if (!parser) {
+    parser = new Editor({ element: null, extensions: createMarkdownContentExtensions() })
+    parser.view.updateState(parser.state.reconfigure({ plugins: parser.extensionManager.plugins }))
+  }
   return parser
 }
 
@@ -344,10 +352,11 @@ export function serializeMarkdownBody(body: string): string {
  * editor applies — output identical to `editor.getMarkdown()`. The server-side collab-doc converter
  * uses this to project a Yjs doc back to markdown through the exact client engine (parity by
  * construction), so it must stay the single serialize path (do not inline `getMarkdown` elsewhere).
+ * Nothing listens to the scratchpad, so it emits no update, which would only defer core bookkeeping.
  */
 export function serializeDocToMarkdown(doc: JSONContent): string {
   const editor = parserEditor()
-  editor.commands.setContent(doc, { contentType: 'json' })
+  editor.commands.setContent(doc, { contentType: 'json', emitUpdate: false })
   return editor.getMarkdown()
 }
 

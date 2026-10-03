@@ -1,3 +1,4 @@
+import { escapeRegExp } from '@sim/utils/string'
 import { Document, HeadingLevel, Packer, Paragraph, TextRun } from 'docx'
 import JSZip from 'jszip'
 import { DocxParser } from '@/lib/file-parsers/docx-parser'
@@ -275,11 +276,6 @@ function decodeXmlText(value: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
     .replace(/&amp;/g, '&')
-}
-
-/** Escapes a literal for embedding in a regular expression. */
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 interface TextNode {

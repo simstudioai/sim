@@ -21,7 +21,7 @@ sim files batch-delete [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--file-ids <value...>` | Yes | File identifiers to update. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--file-ids <value...>` | Yes | File identifiers to delete. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
@@ -174,6 +174,164 @@ sim files delete <fileId> [options]
 
 </CommandTable>
 
+## Permanently delete a previous version of a file
+
+```bash
+sim files versions delete <fileId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+| `version` | Yes | Version number. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+## Show the metadata of one version of a file
+
+```bash
+sim files versions describe <fileId> <version>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+| `version` | Yes | Version number. |
+
+</CommandTable>
+
+## List the recorded versions of a file
+
+```bash
+sim files versions list <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `version`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+## Read the text content of one version of a file as JSON or YAML
+
+```bash
+sim files versions read <fileId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+| `version` | Yes | Version number. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--max-bytes <value>` | No | Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit. |
+| `--offset <value>` | No | First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line. |
+| `--limit <value>` | No | How many lines to return from `offset`. Absent reads to the end. |
+
+</CommandTable>
+
+## Make a previous version of a file current again
+
+```bash
+sim files versions revert <fileId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+| `version` | Yes | Version number. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--expected-current-version <value>` | No | Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number, so prefer `expectedRevision` to guard content. |
+| `--expected-revision <value>` | No | Revert only while the file still holds the content this revision names, as returned by Get File Metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version. |
+
+</CommandTable>
+
+## Download the content of one version of a file
+
+```bash
+sim files versions download <fileId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+| `version` | Yes | Version number. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-o, --output-file <path>` | No | Write content to a file instead of stdout. |
+| `--force` | No | Overwrite --output-file if it already exists. |
+
+</CommandTable>
+
 ## Apply one exact or anchor-based edit to a text file
 
 ```bash
@@ -197,6 +355,7 @@ sim files edit <fileId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--edit <json\|@file>` | Yes | One edit object: &#123;"mode":"search_replace","search":"old","content":"new","replaceAll":false&#125;, &#123;"mode":"replace_between","beforeAnchor":"start line","afterAnchor":"end line","content":"new"&#125;, &#123;"mode":"insert_after","anchor":"line","content":"new"&#125;, or &#123;"mode":"delete_between","startAnchor":"first line deleted","endAnchor":"ending line kept"&#125;. Anchored modes also accept occurrence starting at 1 (JSON, or @path / @- to read a file or stdin). |
+| `--expected-revision <value>` | No | Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on. |
 
 </CommandTable>
 
@@ -268,7 +427,7 @@ Enable or disable sharing for a file (OAuth login or personal API key required)
 | --- | --- | --- |
 | `--is-active <true\|false>` | Yes | Whether the share should resolve. Disabling preserves the token and the whole access configuration, so re-enabling restores the share as it was; enabling rewrites the credentials the resulting mode does not use. Accepted values: `true`, `false`. |
 | `--auth-type <value>` | No | How access to the share is gated. The stored mode is kept when omitted. Enabling `public` clears the stored password and empties `allowedEmails`; `password` empties `allowedEmails`; `email` and `sso` clear the stored password. Accepted values: `public`, `password`, `email`, `sso`. |
-| `--password <value>` | No | Password for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400. |
+| `--password <value>` | No | Password of 15 to 1024 characters for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400. Taken literally, except that a request from the Sim agent resolves a whole-value `&#123;&#123;ENV_VAR&#125;&#125;` reference to that variable before the rules apply. |
 | `--allowed-emails <value...>` | No | Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 
 </CommandTable>
@@ -315,7 +474,7 @@ Also available as `sim files mv`.
 
 </CommandTable>
 
-## Read a file’s text content
+## Read a file’s text content as JSON or YAML
 
 ```bash
 sim files read <fileId> [options]
@@ -327,7 +486,7 @@ sim files read <fileId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `fileId` | Yes | File identifier. |
+| `fileId` | Yes | File identifier, or the file’s VFS path: `files/&lt;folder&gt;/&lt;name&gt;`, or `uploads/&lt;name&gt;` for a Chat upload. |
 
 </CommandTable>
 
@@ -338,7 +497,7 @@ sim files read <fileId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--max-bytes <value>` | No | Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit. |
-| `--offset <value>` | No | First line to return, 1-based. Absent starts at the first line. |
+| `--offset <value>` | No | First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line. |
 | `--limit <value>` | No | How many lines to return from `offset`. Absent reads to the end. |
 
 </CommandTable>
@@ -456,6 +615,7 @@ sim files set-content <fileId> [options]
 | --- | --- | --- |
 | `--content <value>` | Yes | Complete replacement content for the file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. |
 | `--encoding <value>` | No | Content encoding. Accepted values: `utf-8`, `base64`. |
+| `--expected-revision <value>` | No | Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on. |
 
 </CommandTable>
 
@@ -486,7 +646,7 @@ sim files upload <path> [options]
 
 </CommandTable>
 
-## Get a file’s content
+## Download a file’s content to stdout or a local file
 
 ```bash
 sim files get <fileId> [options]

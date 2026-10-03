@@ -25,7 +25,7 @@ export function FileViewer() {
       <DesktopTitleBarLane />
       <iframe
         src={serveUrl}
-        className='h-full w-full border-0'
+        className='size-full border-0'
         title={file.name}
         onError={() => {
           logger.error(`Failed to load file: ${file.name}`)

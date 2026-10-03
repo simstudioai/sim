@@ -1,15 +1,17 @@
-import { createLogger } from '@sim/logger'
-import { sha256Hex } from '@sim/security/hash'
-import { chunkArray } from '@sim/utils/helpers'
-import { getBYOKKey } from '@/lib/api-key/byok'
-import { getRotatingApiKey } from '@/lib/core/config/api-keys'
-import { env, envNumber } from '@/lib/core/config/env'
 import {
   type FallbackFactories,
   KNOWLEDGE_EMBEDDINGS_CAPABILITY,
   wireFallback,
-} from '@/lib/core/config/env-capabilities'
+} from '@sim/deployment-config/env-capabilities'
+import { createLogger } from '@sim/logger'
+import { sha256Hex } from '@sim/security/hash'
+import { chunkArray } from '@sim/utils/helpers'
+import { truncate } from '@sim/utils/string'
+import { getBYOKKey } from '@/lib/api-key/byok'
+import { getRotatingApiKey } from '@/lib/core/config/api-keys'
+import { env, envNumber } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/env-flags'
+import { isQuotaExhaustionBody } from '@/lib/core/errors/provider-quota'
 import {
   ProviderQuotaExhaustedError,
   recordProviderCooldown,
@@ -23,6 +25,7 @@ import {
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { getOllamaUrl } from '@/lib/core/utils/urls'
+import { EmbeddingAPIError } from '@/lib/embeddings/api-error'
 import {
   DEFAULT_EMBEDDING_MODEL,
   type EmbeddingModelInfo,
@@ -31,6 +34,8 @@ import {
   ollamaEmbeddingModelName,
   resolveDimensions,
 } from '@/lib/embeddings/catalog'
+import { EmbeddingConfigurationError } from '@/lib/embeddings/configuration-error'
+import { getEmbeddingResponseDiagnostic } from '@/lib/embeddings/error-diagnostics'
 import { resolveProviderKey } from '@/lib/embeddings/keys'
 import { isOllamaServerConfigured } from '@/lib/embeddings/ollama-model-catalog.server'
 import { DEFAULT_OPENROUTER_EMBEDDING_MODEL } from '@/lib/embeddings/openrouter-models'
@@ -70,11 +75,20 @@ const logger = createLogger('EmbeddingClient')
  * Embedding requests issued concurrently within a single embed call.
  *
  * A provider's rate limit is per API key, so this multiplies with however many
- * documents are being processed at once: the document-processing queue admits
- * {@link env.KB_CONFIG_CONCURRENCY_LIMIT} task runs, each reaching here. It was
- * previously read from that same variable, so one knob set both factors and the
- * product reached four figures of in-flight requests against one key — enough to
- * hold a provider at its limit indefinitely, which no retry policy can absorb.
+ * documents are being processed at once. That document count is no longer a
+ * single number: the processing queues admit
+ * {@link env.KB_CONFIG_CONCURRENCY_LIMIT} interactive and
+ * {@link env.KB_CONFIG_BACKFILL_CONCURRENCY_LIMIT} backfill runs *per tenant*,
+ * bounded in aggregate by the Trigger.dev environment concurrency limit, and
+ * each run reaches here. The product is held down instead by the durable
+ * per-credential token bucket in `waitForProviderAdmission`, which every one of
+ * those runs shares. This factor was previously read from the same variable as
+ * the queue depth, so one knob set both and the product reached four figures of
+ * in-flight requests against one key — enough to hold a provider at its limit
+ * indefinitely, which no retry policy can absorb.
+ *
+ * The `bulk` parameter below is a different axis: it marks document indexing as
+ * opposed to query-time embedding, and is true for an interactive upload too.
  */
 const DEFAULT_CONCURRENT_BATCHES = 8
 const MAX_ALLOWED_CONCURRENT_BATCHES = 16
@@ -147,30 +161,17 @@ export const EMBEDDING_MAX_RETRY_DELAY_MS = 30_000
  * is honored in full when it fits inside this deadline.
  */
 export const EMBEDDING_RETRY_BUDGET_MS = EMBEDDING_MAX_RETRIES * EMBEDDING_MAX_RETRY_DELAY_MS
-const KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS = 5000
 
-export class EmbeddingAPIError extends Error {
-  public status: number
-
-  /** True when the rejected request used a customer-managed credential. */
-  public readonly isBYOK: boolean
-
-  /** Rejected for an exhausted balance rather than a recoverable rate limit. */
-  public quotaExhausted?: boolean
-
-  /**
-   * Wait the provider asked for, read from the rejected response. Consumed by
-   * {@link retryWithExponentialBackoff}, which prefers it over its own backoff.
-   */
-  public retryAfterMs?: number
-
-  constructor(message: string, status: number, isBYOK = false) {
-    super(message)
-    this.name = 'EmbeddingAPIError'
-    this.status = status
-    this.isBYOK = isBYOK
-  }
-}
+/**
+ * How long a checkpointed indexing batch waits for the shared admission bucket
+ * before the document yields its slot. Twenty concurrent documents fanning out
+ * eight batches each can queue for a couple of minutes behind the configured
+ * per-minute budget; yielding after a few seconds turned every such wait into a
+ * full re-dispatch with a minute-or-more delay. A minute of idle waiting is far
+ * cheaper than that round trip, and the per-request retry budget still bounds
+ * the whole attempt. Interactive callers keep the full request budget.
+ */
+export const KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS = 60_000
 
 class EmbeddingResponseValidationError extends EmbeddingAPIError {
   constructor(message: string) {
@@ -211,12 +212,22 @@ export const BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE =
 export class EmbeddingQuotaExhaustedError extends EmbeddingAPIError {
   public readonly providerId: EmbeddingProviderKind
 
-  constructor(providerId: EmbeddingProviderKind, cause?: unknown) {
+  /**
+   * `isBYOK` must be passed when there is no provider response to read it from — an
+   * already-open quota pause or an admission refusal — so a workspace key's exhaustion
+   * is never reported as the platform's. Ollama takes no credential: its provider-level
+   * `isBYOK` only marks its tokens non-billable, so it never attributes to a customer key.
+   */
+  constructor(
+    providerId: EmbeddingProviderKind,
+    cause?: unknown,
+    isBYOK = cause instanceof EmbeddingAPIError && cause.isBYOK
+  ) {
     const status = cause instanceof EmbeddingAPIError ? cause.status : 429
     super(
       `The ${providerId} embedding credential has exhausted its available quota. Add credit or replace the credential before retrying.`,
       status,
-      cause instanceof EmbeddingAPIError && cause.isBYOK
+      isBYOK && providerId !== 'ollama'
     )
     this.name = 'EmbeddingQuotaExhaustedError'
     this.providerId = providerId
@@ -240,6 +251,18 @@ export function isEmbeddingQuotaExhaustion(error: unknown): boolean {
 }
 
 /**
+ * True when the operation failed on quota and a customer-managed credential is among
+ * the exhausted ones: adding credit to that key is what lets it run again, even when a
+ * platform fallback behind it is exhausted too.
+ */
+export function isBYOKEmbeddingQuotaExhaustion(error: unknown): boolean {
+  if (error instanceof AggregateError) {
+    return isEmbeddingQuotaExhaustion(error) && error.errors.some(isBYOKEmbeddingQuotaExhaustion)
+  }
+  return error instanceof EmbeddingAPIError && error.isBYOK && error.quotaExhausted === true
+}
+
+/**
  * True when a customer-managed embedding credential was rejected outright.
  * These failures require a key or permission change; retrying the same request
  * cannot recover. Quota failures are classified separately even when a provider
@@ -254,27 +277,7 @@ export function isBYOKEmbeddingCredentialRejection(error: unknown): error is Emb
   )
 }
 
-/**
- * True when a rejection body reports an exhausted balance rather than a rate
- * limit. OpenAI returns 429 for both, but only a rate limit reopens: a spent
- * account stands until someone adds credit, so retrying it cannot succeed.
- */
-function isQuotaExhaustionBody(errorText: string): boolean {
-  try {
-    const body = JSON.parse(errorText) as { error?: { type?: string; code?: string } }
-    const type = body.error?.type
-    const code = body.error?.code
-    return (
-      type === 'insufficient_quota' ||
-      code === 'insufficient_quota' ||
-      code === 'credit_balance_exhausted'
-    )
-  } catch {
-    return false
-  }
-}
-
-/** Reads a bounded provider body only for internal quota classification. */
+/** Reads a bounded provider body for internal diagnostics and quota classification. */
 async function readEmbeddingErrorBody(response: Response, signal?: AbortSignal): Promise<string> {
   try {
     return await readResponseTextWithLimit(response, {
@@ -374,7 +377,7 @@ async function resolveProvider(
       throw new Error(`OpenRouter transport does not support catalog provider: ${info.provider}`)
     }
     if (!options.apiKey) {
-      throw new Error('OPENROUTER_API_KEY is not configured')
+      throw new EmbeddingConfigurationError()
     }
     return {
       adapter: getAdapterFactory('openrouter')({
@@ -403,7 +406,7 @@ async function resolveProvider(
    */
   if (info.provider === 'ollama') {
     if (!isOllamaServerConfigured()) {
-      throw new Error('OLLAMA_URL must be configured for Ollama embeddings')
+      throw new EmbeddingConfigurationError()
     }
     const baseUrl = getOllamaUrl().replace(/\/+$/, '')
     const modelName = ollamaEmbeddingModelName(model)
@@ -523,6 +526,7 @@ async function callEmbeddingAPI(
   tokenizerProvider: string,
   taskType: EmbeddingTaskType,
   providerId: EmbeddingProviderKind,
+  modelName: string,
   quotaCircuitIdentity: EmbeddingQuotaCircuitIdentity,
   /**
    * The caller's explicit reduction, or undefined when none was requested. Kept
@@ -534,13 +538,15 @@ async function callEmbeddingAPI(
   expectedDimensions: number | undefined,
   isBYOK: boolean,
   signal?: AbortSignal,
-  admissionWaitMs = EMBEDDING_RETRY_BUDGET_MS
+  /** Bulk indexing waits briefly and is capped below the credential budget; everything else has a person waiting on it. */
+  bulk = false
 ): Promise<{ embeddings: number[][]; totalTokens: number; dimensions: number }> {
+  const admissionWaitMs = bulk ? KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS : EMBEDDING_RETRY_BUDGET_MS
   const admissionIdentity = embeddingAdmissionIdentity({ providerId, quotaCircuitIdentity, isBYOK })
   return retryWithExponentialBackoff(
     async (operationSignal, deadlineAt) => {
       if (await isEmbeddingQuotaCircuitOpen(admissionIdentity)) {
-        throw new EmbeddingQuotaExhaustedError(providerId)
+        throw new EmbeddingQuotaExhaustedError(providerId, undefined, isBYOK)
       }
 
       try {
@@ -553,10 +559,11 @@ async function callEmbeddingAPI(
           ),
           signal: operationSignal,
           maxWaitMs: Math.min(admissionWaitMs, Math.max(0, deadlineAt - Date.now())),
+          bulk,
         })
       } catch (error) {
         if (error instanceof ProviderQuotaExhaustedError)
-          throw new EmbeddingQuotaExhaustedError(providerId, error)
+          throw new EmbeddingQuotaExhaustedError(providerId, error, isBYOK)
         throw error
       }
 
@@ -583,6 +590,12 @@ async function callEmbeddingAPI(
 
         if (!response.ok) {
           const classificationBody = await readEmbeddingErrorBody(response, controller.signal)
+          logger.warn('Embedding provider request failed', {
+            providerId,
+            modelName: truncate(modelName, 256),
+            status: response.status,
+            ...getEmbeddingResponseDiagnostic(response.headers, classificationBody),
+          })
           const error = new EmbeddingAPIError(
             `Embedding API failed: ${response.status}`,
             response.status,
@@ -785,6 +798,7 @@ async function mapEmbeddingBatches<T, R>(
   return results.map((result) => result!.value)
 }
 
+/** Checkpoints mark the bulk indexing path; every other caller is interactive. */
 async function callCheckpointedEmbeddingBatch(
   batch: string[],
   batchIndex: number,
@@ -833,12 +847,13 @@ async function callCheckpointedEmbeddingBatch(
     provider.info.tokenizerProvider,
     taskType,
     provider.providerId,
+    provider.modelName,
     provider.quotaCircuitIdentity,
     requestedDimensions,
     provider.dimensions,
     provider.isBYOK,
     signal,
-    checkpoints ? KNOWLEDGE_EMBEDDING_ADMISSION_WAIT_MS : undefined
+    checkpoints !== undefined
   )
   if (identity) await checkpoints!.save(identity, result, signal)
   return result
@@ -1058,6 +1073,7 @@ export async function embedOpenRouter(
       limits.tokenizerProvider,
       'document',
       'openrouter',
+      model,
       quotaCircuitIdentity,
       options.dimensions,
       expectedDimensions,
@@ -1249,7 +1265,7 @@ export async function assertKnowledgeEmbeddingCapacityForDeployment(
     const exhausted = await isEmbeddingQuotaCircuitOpen(embeddingAdmissionIdentity(provider))
     options.signal?.throwIfAborted()
     if (!exhausted) return
-    errors.push(new EmbeddingQuotaExhaustedError(provider.providerId))
+    errors.push(new EmbeddingQuotaExhaustedError(provider.providerId, undefined, provider.isBYOK))
   }
   if (errors.length === 1) throw errors[0]
   throw new AggregateError(

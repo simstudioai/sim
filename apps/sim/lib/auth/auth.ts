@@ -4,7 +4,7 @@ import { sso } from '@better-auth/sso'
 import { stripe } from '@better-auth/stripe'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
+import { createLogger, setRequestAuth } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { type BetterAuthOptions, betterAuth, type User } from 'better-auth'
 import {
@@ -35,6 +35,8 @@ import {
   renderPasswordResetEmail,
   renderWelcomeEmail,
 } from '@/components/emails'
+import { FREEBUFF_CLICK_ID_COOKIE } from '@/lib/analytics/freebuff'
+import { reportFreebuffConversion } from '@/lib/analytics/freebuff.server'
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
@@ -50,10 +52,10 @@ import {
   OAUTH_ACCESS_TOKEN_PREFIX,
   OAUTH_ACCESS_TOKEN_TTL_SECONDS,
   OAUTH_CODE_TTL_SECONDS,
+  OAUTH_PUBLIC_REGISTRATION_SCOPES,
   OAUTH_REFRESH_TOKEN_PREFIX,
   OAUTH_REFRESH_TOKEN_TTL_SECONDS,
   OAUTH_SCOPES,
-  OAUTH_SEARCH_SCOPES,
   SIM_CLI_CLIENT_ID,
 } from '@/lib/auth/oauth-provider'
 import { bindOAuthIssuedResource, oauthResourcePlugin } from '@/lib/auth/oauth-resource'
@@ -101,6 +103,7 @@ import {
   handleSubscriptionCreated,
   handleSubscriptionDeleted,
 } from '@/lib/billing/webhooks/subscription'
+import { handleSubscriptionUsageUpdate } from '@/lib/billing/webhooks/subscription-usage'
 import { env } from '@/lib/core/config/env'
 import {
   isAuthDisabled,
@@ -309,10 +312,27 @@ export const auth = betterAuth({
           }
           return { data: user }
         },
-        after: async (user) => {
+        after: async (user, context) => {
           logger.info('[databaseHooks.user.create.after] User created, initializing stats', {
             userId: user.id,
           })
+
+          /**
+           * Only the marketing-consent-gated Freebuff tag writes the `bfcid`
+           * cookie, and `FreebuffClickIdGuard` deletes it once marketing consent
+           * is withdrawn or expires. Not awaited: the postback
+           * retries on its own and must never delay signup. The browser tag
+           * reports the same `eventId` on email signup and Freebuff dedupes.
+           */
+          const freebuffClickId = context?.getCookie(FREEBUFF_CLICK_ID_COOKIE)
+          if (freebuffClickId) {
+            void reportFreebuffConversion({
+              clickId: freebuffClickId,
+              eventType: 'signup_completed',
+              eventId: user.id,
+              occurredAt: user.createdAt,
+            })
+          }
 
           try {
             PlatformEvents.userSignedUp({
@@ -863,7 +883,7 @@ export const auth = betterAuth({
       ...additionalFields,
       id,
     }),
-    sendResetPassword: async ({ user, url, token }, request) => {
+    sendResetPassword: async ({ user, url }) => {
       const username = user.name || ''
 
       const html = await renderPasswordResetEmail(username, url)
@@ -1190,7 +1210,17 @@ export const auth = betterAuth({
       : []),
     admin(),
     oneTimeToken({
-      expiresIn: 24 * 60, // 24 hours in minutes (better-auth's expiresIn unit)
+      /**
+       * Minutes, and deliberately close to zero. A one-time token redeems through
+       * `/one-time-token/verify`, which answers with a session cookie for the session the
+       * token points at — so an unredeemed token is a bearer credential for that session
+       * until it expires, and its lifetime is the only thing bounding that. Nothing here
+       * needs a long one: the socket handshake mints a fresh token inside the Socket.IO
+       * `auth` callback and sends it in that same attempt, and the desktop handoff writes its
+       * own row with its own expiry, which `/one-time-token/verify` reads off the row rather
+       * than from this option (see lib/auth/desktop-handoff.ts).
+       */
+      expiresIn: 2,
     }),
     customSession(async ({ user, session }) => ({
       user,
@@ -1220,7 +1250,7 @@ export const auth = betterAuth({
             )
           }
 
-          const html = await renderOTPEmail(data.otp, data.email, data.type)
+          const html = await renderOTPEmail(data.otp, data.type)
 
           const result = await sendEmail({
             to: data.email,
@@ -1277,7 +1307,10 @@ export const auth = betterAuth({
      * earlier rotation. This is an OAuth API-authorization surface, not an
      * OpenID Connect identity provider; `disableJwtPlugin` keeps JWT/JWKS and
      * ID-token semantics out of the advertised protocol. Public registration
-     * is limited to read-only Search clients; other clients are operator-created.
+     * serves MCP clients: a registered client may request the Sim API and
+     * Search families, every grant is consented to, and a grant bound to an MCP
+     * resource is narrowed to the family that resource allows (see
+     * `oauth-resource.ts`). First-party clients are operator-created.
      */
     ...(!isAuthDisabled
       ? [
@@ -1295,8 +1328,8 @@ export const auth = betterAuth({
             allowPublicClientPrelogin: true,
             allowDynamicClientRegistration: true,
             allowUnauthenticatedClientRegistration: true,
-            clientRegistrationAllowedScopes: [...OAUTH_SEARCH_SCOPES],
-            clientRegistrationDefaultScopes: [...OAUTH_SEARCH_SCOPES],
+            clientRegistrationAllowedScopes: [...OAUTH_PUBLIC_REGISTRATION_SCOPES],
+            clientRegistrationDefaultScopes: [...OAUTH_PUBLIC_REGISTRATION_SCOPES],
             customTokenResponseFields: bindOAuthIssuedResource,
             /**
              * Client-management endpoints remain operator-only. Public registration
@@ -1349,9 +1382,10 @@ export const auth = betterAuth({
              * `email_verified` claim substitutes for the domain binding
              * entirely: an IdP could assert any address — including one from a
              * domain it does not own — and auto-link into that user's existing
-             * account. Since a provider row can be registered by any Enterprise
-             * org admin (and by any signed-in user when self-hosted), trusting
-             * the claim makes every account reachable from any tenant's IdP.
+             * account. Since a provider row can be registered by any
+             * organization owner or admin (or by an operator via the register
+             * script), trusting the claim makes every account reachable from
+             * any tenant's IdP.
              *
              * Turning it on only ever set `emailVerified` on the local row; it
              * was never what made linking work. Entra omits the claim, and SAML
@@ -1615,16 +1649,6 @@ export const auth = betterAuth({
                   throw orgError
                 }
 
-                try {
-                  await syncSubscriptionUsageLimits(resolvedSubscription)
-                } catch (error) {
-                  logger.error('[onSubscriptionUpdate] Failed to sync usage limits', {
-                    subscriptionId: resolvedSubscription.id,
-                    referenceId: resolvedSubscription.referenceId,
-                    error,
-                  })
-                }
-
                 if (isTeam(effectivePlanForTeamFeatures)) {
                   try {
                     const quantity = stripeSubscription.items?.data?.[0]?.quantity || 1
@@ -1703,6 +1727,7 @@ export const auth = betterAuth({
                   case 'customer.subscription.created':
                   case 'customer.subscription.updated': {
                     await handleManualEnterpriseSubscription(event)
+                    await handleSubscriptionUsageUpdate(event)
                     break
                   }
                   case 'checkout.session.expired': {
@@ -1765,13 +1790,25 @@ export const auth = betterAuth({
 async function getSessionImpl() {
   if (isAuthDisabled) {
     await ensureAnonymousUserExists()
-    return createAnonymousSession()
+    return recordSessionAuth(createAnonymousSession())
   }
 
   const hdrs = await headers()
-  return await auth.api.getSession({
-    headers: hdrs,
-  })
+  return recordSessionAuth(
+    await auth.api.getSession({
+      headers: hdrs,
+    })
+  )
+}
+
+/**
+ * Records a resolved session as the request's auth kind. Stamped here, where
+ * every session is resolved, so the many routes that authenticate by calling
+ * `getSession` directly are attributed without each one remembering to.
+ */
+function recordSessionAuth<T extends { user?: { id?: string } } | null>(session: T): T {
+  if (session?.user?.id) setRequestAuth({ kind: 'session' }, { preserveExisting: true })
+  return session
 }
 
 export const getSession = cache(getSessionImpl)

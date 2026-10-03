@@ -139,6 +139,7 @@ export const v2KnowledgeBaseSchema = knowledgeBaseDataSchema
       .describe('Knowledge base description, or null when none is set.')
       .meta({ examples: ['All product documentation and guides'] }),
     tokenCount: knowledgeBaseDataSchema.shape.tokenCount
+      .unwrap()
       .describe('Total tokens across indexed documents.')
       .meta({ examples: [48213] }),
     embeddingModel: knowledgeBaseDataSchema.shape.embeddingModel
@@ -382,8 +383,22 @@ export const v2KnowledgeSearchResultSchema = z
       .meta({ examples: [{ category: 'billing', priority: 2 }] }),
     similarity: z
       .number()
-      .describe('Similarity score for vector search; tag-only matches use 1.')
+      .describe(
+        'Cosine similarity between the query embedding and the chunk (1 - cosine distance), reported the same way in `vector` and `hybrid` mode; tag-only matches use 1. In `hybrid` mode results are not ordered by this value — see `rankScore`.'
+      )
       .meta({ examples: [0.8423] }),
+    rankScore: z
+      .number()
+      .describe(
+        'The retrieval score, or reranker score when reranked. In `vector` mode it equals `similarity`; in `hybrid` mode it is the reciprocal-rank-fusion score (a sum of 1/(60 + rank) over the lexical and vector legs, so a chunk both legs ranked first scores 2/61); when a reranker ordered the results it is `rerankerScore`. Recency boosting may reorder retrieval results without changing this score; `rank` always reflects returned order.'
+      )
+      .meta({ examples: [0.0328] }),
+    rank: z
+      .number()
+      .int()
+      .positive()
+      .describe('1-based position in the returned order.')
+      .meta({ examples: [1] }),
     rerankerScore: z
       .number()
       .optional()
@@ -1716,13 +1731,17 @@ export const v2CreateKnowledgeConnectorBodySchema = z
       .min(1)
       .max(255)
       .optional()
-      .describe('OAuth credential identifier for connectors that require OAuth.'),
+      .describe(
+        'OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types); omit it for `apiKey` connectors.'
+      ),
     apiKey: z
       .string()
       .min(1)
       .max(10_000)
       .optional()
-      .describe('Write-only API key for connectors that use API-key authentication.'),
+      .describe(
+        'Write-only API key for connector types whose `auth.mode` is `apiKey` (see connector types), or a personal access token for an OAuth connector that also accepts one, such as GitHub. Send it instead of `credentialId`. Pass a raw key, or a secret reference written as the whole value `{{SECRET_NAME}}`, which the server resolves; `$SECRET_NAME` is not a reference.'
+      ),
     sourceConfig: z
       .record(z.string(), z.unknown().describe('Connector-specific source configuration value.'))
       .describe('Connector-specific source selection and filtering configuration.'),

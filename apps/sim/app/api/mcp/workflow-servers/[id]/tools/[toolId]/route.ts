@@ -37,7 +37,7 @@ export const GET = withRouteHandler(
   withMcpAuth<RouteParams>(
     'read',
     'deploy.mcp'
-  )(async (request: NextRequest, { userId, workspaceId, requestId }, { params }) => {
+  )(async (_request: NextRequest, { workspaceId, requestId }, { params }) => {
     try {
       const { id: serverId, toolId } = workflowMcpToolParamsSchema.parse(await params)
 
@@ -153,7 +153,7 @@ export const DELETE = withRouteHandler(
     'deploy.mcp'
   )(
     async (
-      request: NextRequest,
+      _request: NextRequest,
       { userId, userName, userEmail, workspaceId, requestId },
       { params }
     ) => {
@@ -177,8 +177,6 @@ export const DELETE = withRouteHandler(
             mcpOrchestrationStatus(result.errorCode)
           )
         }
-        const deletedTool = result.tool
-
         logger.info(`[${requestId}] Successfully deleted tool ${toolId}`)
 
         return createMcpSuccessResponse({ message: `Tool ${toolId} deleted successfully` })

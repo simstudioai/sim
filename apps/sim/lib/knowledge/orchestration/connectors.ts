@@ -3,15 +3,15 @@ import { db } from '@sim/db'
 import {
   credentialGroup,
   document,
-  embedding,
   knowledgeBase,
   knowledgeBaseTagDefinitions,
   knowledgeConnector,
   knowledgeConnectorMember,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import { encryptApiKey } from '@/lib/api-key/crypto'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import {
@@ -32,6 +32,7 @@ import {
   resourceScopeFromOwner,
 } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
+import { redactKnownSensitiveValues } from '@/lib/core/security/redaction'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -44,14 +45,21 @@ import {
   type ConnectorAccessToken,
   syncContextForToken,
 } from '@/lib/knowledge/connectors/access-token'
+import { enqueueConnectorDeletion } from '@/lib/knowledge/connectors/deletion'
+import {
+  enqueueConnectorDetachment,
+  keptDocumentBytes,
+} from '@/lib/knowledge/connectors/detachment'
+import { requiresConnectorIndexing } from '@/lib/knowledge/connectors/indexing-policy'
 import {
   findListingCapViolation,
   grantKnowledgeConnectorCredentialAccess,
   revokeKnowledgeConnectorCredentialAccess,
   stripListingCapFields,
 } from '@/lib/knowledge/connectors/member-access'
+import type { PreparedConnectorPermissions } from '@/lib/knowledge/connectors/permission-config'
+import { connectorIsLive } from '@/lib/knowledge/connectors/sync-lock'
 import { allocateTagSlots } from '@/lib/knowledge/constants'
-import { enqueueKnowledgeStorageCleanup } from '@/lib/knowledge/documents/storage-cleanup'
 import {
   auditActorFields,
   classifyKnowledgeFailure,
@@ -59,10 +67,12 @@ import {
   type KnowledgeOperationContext,
   type KnowledgeOrchestrationResult,
 } from '@/lib/knowledge/orchestration/shared'
-import { cleanupUnusedTagDefinitions, createTagDefinition } from '@/lib/knowledge/tags/service'
+import { lockOrganizationSearchApproval } from '@/lib/knowledge/search/integration-policy'
+import { createTagDefinition } from '@/lib/knowledge/tags/service'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { searchSourceIdentity } from '@/lib/sim-search/source-identity'
 import { getConnectorApiKeyConfig } from '@/connectors/auth'
+import { findSourceSelectionError } from '@/connectors/selection'
 import { PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
 
 const logger = createLogger('KnowledgeConnectorOrchestration')
@@ -126,8 +136,15 @@ export async function lockCredentialGroupOption(
 /** A connector row exactly as stored, including its encrypted API key. */
 export type KnowledgeConnectorRow = typeof knowledgeConnector.$inferSelect
 type ConnectorRow = KnowledgeConnectorRow
-/** The connector row as it reaches every caller: never carrying the stored API key. */
-export type ConnectorWithoutSecret = Omit<ConnectorRow, 'encryptedApiKey'>
+/**
+ * The connector row as it reaches every caller: never carrying the stored API
+ * key, nor the members-mode reconcile cursors, which name documents the caller
+ * may not be able to read.
+ */
+export type ConnectorWithoutSecret = Omit<
+  ConnectorRow,
+  'encryptedApiKey' | 'memberTombstoneCursor' | 'memberResurrectionCursor'
+>
 
 /** A refused `sourceConfig`, with the failure class the caller wants surfaced. */
 export interface SourceConfigRejection {
@@ -141,10 +158,16 @@ export interface ConnectorKnowledgeBase {
   name: string
   workspaceId: string | null
   organizationId?: string | null
+  isSearchIndex?: boolean | null
 }
 
-function withoutSecret(row: ConnectorRow): ConnectorWithoutSecret {
-  const { encryptedApiKey: _encryptedApiKey, ...rest } = row
+export function withoutSecret(row: ConnectorRow): ConnectorWithoutSecret {
+  const {
+    encryptedApiKey: _encryptedApiKey,
+    memberTombstoneCursor: _tombstoneCursor,
+    memberResurrectionCursor: _resurrectionCursor,
+    ...rest
+  } = row
   return rest
 }
 
@@ -171,6 +194,7 @@ async function assertLiveSyncAllowed(
 }
 
 export interface PerformCreateKnowledgeConnectorParams extends KnowledgeOperationContext {
+  permissionChange?: PreparedConnectorPermissions
   knowledgeBase: ConnectorKnowledgeBase
   connectorType: string
   credentialId?: string
@@ -250,6 +274,7 @@ export async function performCreateKnowledgeConnector(
   }
   const workspaceId = kb.workspaceId
   const owner = resourceScopeFields(resourceScopeFromOwner(kb))
+  const indexesContent = requiresConnectorIndexing(kb.isSearchIndex)
 
   const { CONNECTOR_REGISTRY } = await import('@/connectors/registry.server')
   const connectorConfig = CONNECTOR_REGISTRY[connectorType]
@@ -257,8 +282,11 @@ export async function performCreateKnowledgeConnector(
     return fail(`Unknown connector type: ${connectorType}`, 'validation')
   }
 
+  const selectionError = findSourceSelectionError(connectorConfig, sourceConfig)
+  if (selectionError) return fail(selectionError, 'validation')
+
   try {
-    await assertLiveSyncAllowed(resourceScopeFromOwner(kb), syncIntervalMinutes)
+    if (indexesContent) await assertLiveSyncAllowed(resourceScopeFromOwner(kb), syncIntervalMinutes)
   } catch (error) {
     return classifyKnowledgeFailure(error, requestId, `Create ${connectorType} connector`)
   }
@@ -320,15 +348,24 @@ export async function performCreateKnowledgeConnector(
   }
 
   if (accessToken !== null) {
-    const configValidation = await connectorConfig.validateConfig(accessToken, sourceConfig, {
+    const validationContext = {
       ...tokenContext,
       mirrorsSourceAcls: accessMode === 'admin',
       ...(accessMode === 'members' ? PER_MEMBER_LISTING_CONTEXT : {}),
-    })
+    }
+    params.permissionChange?.populateSyncContext(validationContext, 'setup')
+    const configValidation = await connectorConfig
+      .validateConfig(accessToken, sourceConfig, validationContext)
+      .catch((error: unknown) => {
+        const sanitized = toError(error)
+        sanitized.message = redactKnownSensitiveValues(sanitized.message, [accessToken])
+        throw sanitized
+      })
     if (!configValidation.valid) {
       return fail(
-        configValidation.error ||
-          `The ${connectorType} connector rejected sourceConfig without a reason — re-check its required fields in knowledgebases/connectors/${connectorType}.json before retrying; the same config will fail again.`,
+        (configValidation.error &&
+          redactKnownSensitiveValues(configValidation.error, [accessToken])) ||
+          `The ${connectorType} connector rejected sourceConfig without a reason — re-check its required fields with \`sim connector-types list --detail full\` (GET /api/v2/connector-types?detail=full) before retrying; the same config will fail again.`,
         'validation'
       )
     }
@@ -433,6 +470,7 @@ export async function performCreateKnowledgeConnector(
   let reused = false
   try {
     created = await db.transaction(async (tx) => {
+      if (owner.organizationId) await lockOrganizationSearchApproval(tx, owner.organizationId)
       await tx.execute(sql`SELECT 1 FROM knowledge_base WHERE id = ${kb.id} FOR UPDATE`)
 
       const activeKb = await tx
@@ -516,17 +554,17 @@ export async function performCreateKnowledgeConnector(
            * ownership token that make the queue entry recoverable come from that
            * later write, which is why it must not skip an already-`pending` row.
            *
-           * A members-mode connector is born `active`: its member run has its
-           * own queue state, and `pending` here would read as a content sync.
+           * Members-mode and federated sources start active. Members have their
+           * own queue state; federated sources do not queue content indexing.
            */
-          status: membersBinding ? 'active' : 'pending',
-          nextSyncAt: membersBinding ? null : nextSyncAt,
+          status: membersBinding || !indexesContent ? 'active' : 'pending',
+          nextSyncAt: membersBinding || !indexesContent ? null : nextSyncAt,
           ...(membersBinding
             ? {
                 accessMode: 'members',
                 credentialGroupId: membersBinding.credentialGroupId,
                 credentialGroupOptionId: membersBinding.credentialGroupOptionId,
-                nextMemberSyncAt: now,
+                nextMemberSyncAt: indexesContent ? now : null,
               }
             : /**
                * An admin-mode connector is a content-engine connector like a
@@ -539,6 +577,7 @@ export async function performCreateKnowledgeConnector(
         })
         .returning()
 
+      await params.permissionChange?.write(tx, connectorId)
       return row
     })
   } catch (error) {
@@ -614,6 +653,9 @@ export async function performCreateKnowledgeConnector(
    * initial sync is at stake — so a failed enqueue is reported on the connector,
    * not by failing the creation.
    */
+  if (!indexesContent)
+    return { success: true, connector: withoutSecret(created), initialSyncQueued: false }
+
   let initialSyncQueued = true
   try {
     const dispatch = membersBinding
@@ -641,15 +683,24 @@ export async function performCreateKnowledgeConnector(
 }
 
 export interface PerformUpdateKnowledgeConnectorParams extends KnowledgeOperationContext {
+  permissionChange?: PreparedConnectorPermissions
+  expectedUpdatedAt?: Date
   knowledgeBase: ConnectorKnowledgeBase
   connectorId: string
   updates: {
+    /** An authorized access operation has already validated this replacement. */
+    credentialId?: string | null
     sourceConfig?: Record<string, unknown>
     syncIntervalMinutes?: number
     status?: 'active' | 'paused'
   }
   /** Resolves the payer only when a source change will queue synchronization. */
   resolveBillingAttribution: () => Promise<BillingAttributionSnapshot>
+  /** Canonicalizes provider identities through the authorized application caller. */
+  prepareSourceConfig?: (
+    connector: KnowledgeConnectorRow,
+    sourceConfig: Record<string, unknown>
+  ) => Promise<Record<string, unknown>>
   /**
    * Validates a replacement `sourceConfig` against the live source. Supplied by
    * the caller because resolving the connector's token needs the requesting
@@ -679,8 +730,7 @@ export async function getKnowledgeConnector(
       and(
         eq(knowledgeConnector.id, connectorId),
         eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
-        isNull(knowledgeConnector.archivedAt),
-        isNull(knowledgeConnector.deletedAt)
+        connectorIsLive()
       )
     )
     .limit(1)
@@ -702,23 +752,28 @@ export async function performUpdateKnowledgeConnector(
     source,
   } = params
   const requestId = params.requestId ?? generateRequestId()
+  const indexesContent = requiresConnectorIndexing(kb.isSearchIndex)
 
   const updatedFields = Object.keys(updates).filter(
     (key) => updates[key as keyof typeof updates] !== undefined
   )
+  if (params.permissionChange) updatedFields.push('permissionConfig')
   if (updatedFields.length === 0) {
-    return fail(
-      'At least one of sourceConfig, syncIntervalMinutes, or status is required',
-      'validation'
-    )
+    return fail('At least one connector setting or permission change is required', 'validation')
   }
 
   const existing = await getKnowledgeConnector(kb.id, connectorId)
   if (!existing) {
     return fail('Connector not found', 'not_found')
   }
+  if (
+    params.expectedUpdatedAt &&
+    params.expectedUpdatedAt.getTime() !== existing.updatedAt.getTime()
+  ) {
+    return fail('Connector changed during the update; reload before saving.', 'conflict')
+  }
   /**
-   * A running sync owns the row, so no edit is applied while it holds the lock.
+   * A running sync owns the content configuration; membership-only updates may still commit.
    *
    * `performSyncKnowledgeConnector` already refuses on the same condition; this
    * is the other half. `status: 'active'` sets `nextSyncAt = new Date()`, which
@@ -727,7 +782,7 @@ export async function performUpdateKnowledgeConnector(
    * only two controls the UI leaves enabled on a wedged connector both pushed
    * its recovery out by another full TTL.
    *
-   * A non-status edit is refused too, not just a status flip. `sourceConfig` is
+   * Source-config and sync-interval edits are refused too. `sourceConfig` is
    * read once at the start of a run and threaded through it, so changing it
    * mid-flight yields a pass that lists against one config and reconciles
    * against another — and reconciliation hard-deletes. `syncIntervalMinutes`
@@ -735,7 +790,20 @@ export async function performUpdateKnowledgeConnector(
    * so allowing it would silently discard the change. Refusing is the only
    * answer that is honest about either.
    */
-  if (existing.status === 'syncing') {
+  const credentialChanged =
+    updates.credentialId !== undefined && updates.credentialId !== existing.credentialId
+  if (updates.credentialId !== undefined && existing.accessMode === 'members') {
+    return fail('Member account changes require the access operation', 'validation')
+  }
+  const membershipOnly = Boolean(
+    params.permissionChange &&
+      !params.permissionChange.requiresContentSync &&
+      !credentialChanged &&
+      updates.sourceConfig === undefined &&
+      updates.syncIntervalMinutes === undefined &&
+      updates.status === undefined
+  )
+  if (existing.status === 'syncing' && !membershipOnly) {
     return fail('Sync already in progress', 'conflict')
   }
   /**
@@ -749,7 +817,10 @@ export async function performUpdateKnowledgeConnector(
    */
   if (
     existing.status === 'pending' &&
-    (updates.sourceConfig !== undefined || updates.syncIntervalMinutes !== undefined)
+    (credentialChanged ||
+      updates.sourceConfig !== undefined ||
+      updates.syncIntervalMinutes !== undefined ||
+      params.permissionChange?.requiresContentSync)
   ) {
     return fail('Sync already in progress', 'conflict')
   }
@@ -793,12 +864,16 @@ export async function performUpdateKnowledgeConnector(
   let sourceConfigToStore = updates.sourceConfig
   if (updates.sourceConfig !== undefined) {
     const accessMode = existing.accessMode as ConnectorAccessMode
-    let nextSourceConfig = updates.sourceConfig
-    if (aclIsDerived(accessMode)) {
-      /** A derived-ACL mode has no listing cap; a save may refuse one, never store one. */
-      const { CONNECTOR_REGISTRY } = await import('@/connectors/registry.server')
-      const connectorConfig = CONNECTOR_REGISTRY[existing.connectorType]
-      if (connectorConfig) {
+    let nextSourceConfig = params.prepareSourceConfig
+      ? await params.prepareSourceConfig(existing, updates.sourceConfig)
+      : updates.sourceConfig
+    const { CONNECTOR_REGISTRY } = await import('@/connectors/registry.server')
+    const connectorConfig = CONNECTOR_REGISTRY[existing.connectorType]
+    if (connectorConfig) {
+      const selectionError = findSourceSelectionError(connectorConfig, nextSourceConfig)
+      if (selectionError) return fail(selectionError, 'validation')
+      if (aclIsDerived(accessMode)) {
+        /** A derived-ACL mode has no listing cap; a save may refuse one, never store one. */
         const capViolation = findListingCapViolation(connectorConfig, nextSourceConfig)
         if (capViolation) return fail(capViolation, 'validation')
         nextSourceConfig = stripListingCapFields(connectorConfig, nextSourceConfig)
@@ -818,9 +893,24 @@ export async function performUpdateKnowledgeConnector(
     }
   }
 
+  if (
+    params.permissionChange?.requiresContentSync &&
+    updates.sourceConfig === undefined &&
+    validateSourceConfig
+  ) {
+    const rejection = await validateSourceConfig(
+      existing,
+      existing.sourceConfig as Record<string, unknown>
+    )
+    if (rejection) return fail(rejection.message, rejection.errorCode)
+  }
+
   const resultingStatus = updates.status ?? existing.status
   const shouldDispatchSourceSync =
-    updates.sourceConfig !== undefined &&
+    indexesContent &&
+    (credentialChanged ||
+      updates.sourceConfig !== undefined ||
+      params.permissionChange?.requiresContentSync === true) &&
     resultingStatus !== 'paused' &&
     resultingStatus !== 'disabled'
   /**
@@ -847,6 +937,21 @@ export async function performUpdateKnowledgeConnector(
   const updateTimestamp = new Date()
   const values: Partial<typeof knowledgeConnector.$inferInsert> = {
     updatedAt: updateTimestamp,
+  }
+  if (credentialChanged) {
+    values.credentialId = updates.credentialId
+    values.lastSyncAt = null
+    values.listingCheckpoint = null
+    values.directoryCheckpoint = null
+    values.nextSyncAt = updateTimestamp
+  }
+  if (params.permissionChange?.encryptedApiKey)
+    values.encryptedApiKey = params.permissionChange.encryptedApiKey
+  if (params.permissionChange?.requiresAclReset) values.accessRewritePending = true
+  if (params.permissionChange?.requiresContentSync) {
+    values.lastSyncAt = null
+    values.listingCheckpoint = null
+    values.directoryCheckpoint = null
   }
   if (sourceConfigToStore !== undefined) {
     values.sourceConfig = sourceConfigToStore
@@ -899,16 +1004,25 @@ export async function performUpdateKnowledgeConnector(
   if (shouldDispatchSourceSync) {
     values[scheduleColumn] = updateTimestamp
   }
+  if (!indexesContent) {
+    values.nextSyncAt = null
+    values.nextMemberSyncAt = null
+  }
 
   let updated: ConnectorRow
   try {
     const updateConditions = [
       eq(knowledgeConnector.id, connectorId),
       eq(knowledgeConnector.knowledgeBaseId, kb.id),
-      isNull(knowledgeConnector.archivedAt),
-      isNull(knowledgeConnector.deletedAt),
+      connectorIsLive(),
     ]
     updateConditions.push(eq(knowledgeConnector.status, existing.status))
+    if (credentialChanged) {
+      updateConditions.push(isNull(knowledgeConnector.syncLockToken))
+      updateConditions.push(eq(knowledgeConnector.accessMode, existing.accessMode))
+    }
+    if (credentialChanged || sourceConfigToStore !== undefined || params.permissionChange)
+      updateConditions.push(eq(knowledgeConnector.updatedAt, existing.updatedAt))
     if (syncsPerMember) {
       updateConditions.push(eq(knowledgeConnector.memberSyncStatus, existing.memberSyncStatus))
     }
@@ -926,6 +1040,7 @@ export async function performUpdateKnowledgeConnector(
         .set(values)
         .where(and(...updateConditions))
         .returning()
+      if (updatedConnector) await params.permissionChange?.write(tx, connectorId)
       if (updatedConnector && syncsPerMember && sourceConfigToStore !== undefined) {
         await tx
           .update(knowledgeConnectorMember)
@@ -991,10 +1106,12 @@ export async function performUpdateKnowledgeConnector(
         requireRunnable: true,
       })
     } catch (error) {
-      return classifyKnowledgeFailure(
-        error,
-        requestId,
-        `Dispatch source-change member sync for connector ${connectorId}`
+      logger.error(
+        `[${requestId}] Saved connector; member sync remains due after dispatch failed`,
+        {
+          connectorId,
+          error,
+        }
       )
     }
   }
@@ -1008,11 +1125,10 @@ export async function performUpdateKnowledgeConnector(
         requireRunnable: true,
       })
     } catch (error) {
-      return classifyKnowledgeFailure(
+      logger.error(`[${requestId}] Saved connector; sync remains due after dispatch failed`, {
+        connectorId,
         error,
-        requestId,
-        `Dispatch source-change sync for connector ${connectorId}`
-      )
+      })
     }
   }
 
@@ -1023,8 +1139,8 @@ export interface PerformDeleteKnowledgeConnectorParams extends KnowledgeOperatio
   knowledgeBase: ConnectorKnowledgeBase
   connectorId: string
   /**
-   * Also hard-delete the documents the connector produced. Defaults to keeping
-   * them, which turns them into ordinary standalone knowledge base entries.
+   * Immediately hide the connector's documents and durably queue permanent cleanup.
+   * Defaults to keeping them as ordinary standalone knowledge base entries.
    */
   deleteDocuments?: boolean
   /** False only when an authorized application use case projects the semantic audit. */
@@ -1040,8 +1156,8 @@ export type PerformDeleteKnowledgeConnectorResult = KnowledgeOrchestrationResult
 }>
 
 /**
- * Hard-deletes a connector, either removing the documents it produced or
- * releasing them as standalone entries.
+ * Removes a connector, either tombstoning it for bounded background cleanup or
+ * releasing its documents as standalone entries before deleting the connector.
  *
  * Returns the counts so callers state what happened rather than assert it. The
  * copilot tool used to reach this through an internal HTTP self-call that sent
@@ -1098,7 +1214,15 @@ export async function performDeleteKnowledgeConnector(
         ? await resolveStorageBillingContext(owner.workspaceId)
         : undefined
 
+    /**
+     * Both outcomes only retire the connector and queue durable work; neither touches a document
+     * here. Releasing or deleting documents rewrites every search projection row of them, which
+     * grows with the source and cannot fit a request transaction.
+     */
     docCount = await db.transaction(async (tx) => {
+      await tx.execute(sql`SET LOCAL lock_timeout = '5s'`)
+      await tx.execute(sql`SET LOCAL statement_timeout = '10s'`)
+      if (owner.organizationId) await lockOrganizationSearchApproval(tx, owner.organizationId)
       /** Match source writes and document deletion: parent KB, connector, then storage ledgers. */
       const [lockedOwner] = await tx
         .select({
@@ -1108,7 +1232,7 @@ export async function performDeleteKnowledgeConnector(
         })
         .from(knowledgeBase)
         .where(and(eq(knowledgeBase.id, kb.id), isNull(knowledgeBase.deletedAt)))
-        .for('update')
+        .for('share')
         .limit(1)
       if (
         !lockedOwner ||
@@ -1119,14 +1243,16 @@ export async function performDeleteKnowledgeConnector(
         throw new OrchestrationError('conflict', 'Knowledge base ownership changed; retry deletion')
       }
       const [lockedConnector] = await tx
-        .select({ accessMode: knowledgeConnector.accessMode })
+        .select({
+          accessMode: knowledgeConnector.accessMode,
+          credentialGroupId: knowledgeConnector.credentialGroupId,
+        })
         .from(knowledgeConnector)
         .where(
           and(
             eq(knowledgeConnector.id, connectorId),
             eq(knowledgeConnector.knowledgeBaseId, kb.id),
-            isNull(knowledgeConnector.archivedAt),
-            isNull(knowledgeConnector.deletedAt)
+            connectorIsLive()
           )
         )
         .for('update')
@@ -1139,111 +1265,90 @@ export async function performDeleteKnowledgeConnector(
         )
       }
 
-      let count = 0
-      if (deleteDocuments) {
-        let afterId: string | undefined
-        for (;;) {
-          /** Archived rows also lose their connector FK and must not escape deletion or cleanup. */
-          const docs = await tx
-            .select({ id: document.id, fileUrl: document.fileUrl })
-            .from(document)
-            .where(
-              and(
-                eq(document.connectorId, connectorId),
-                eq(document.knowledgeBaseId, kb.id),
-                afterId ? gt(document.id, afterId) : undefined
-              )
-            )
-            .orderBy(asc(document.id))
-            .limit(250)
-          if (docs.length === 0) break
-          const documentIds = docs.map((doc) => doc.id)
-          await tx.delete(embedding).where(inArray(embedding.documentId, documentIds))
-          await tx.delete(document).where(inArray(document.id, documentIds))
-          await enqueueKnowledgeStorageCleanup(
-            tx,
-            docs.map((doc) => ({
-              ...doc,
-              workspaceId: owner.workspaceId,
-              organizationId: owner.organizationId,
-              userId: owner.userId,
-            })),
-            requestId
-          )
-          count += docs.length
-          afterId = docs.at(-1)?.id
-        }
-      } else {
-        /** Legacy skipped rows used remote size despite retaining no artifact. */
-        await tx
-          .update(document)
-          .set({ fileSize: 0 })
-          .where(
-            and(
-              eq(document.connectorId, connectorId),
-              eq(document.knowledgeBaseId, kb.id),
-              isNull(document.storageKey),
-              eq(document.fileUrl, '')
-            )
-          )
-        /**
-         * Connector bytes are unmetered until detachment. Count retained archived files too;
-         * live tombstones are resurrected below, while archived tombstones remain nonbillable.
-         */
-        const [totals] = await tx
-          .select({
-            count: sql<number>`COUNT(*)::integer`,
-            bytes: sql<string>`COALESCE(SUM(${document.fileSize}::bigint) FILTER (
-              WHERE ${document.archivedAt} IS NULL OR ${document.deletedAt} IS NULL
-            ), 0)::text`,
-          })
-          .from(document)
-          .where(and(eq(document.connectorId, connectorId), eq(document.knowledgeBaseId, kb.id)))
-        count = totals?.count ?? 0
-        const retainedBytes = Number(totals?.bytes ?? 0)
-        if (!Number.isSafeInteger(retainedBytes) || retainedBytes < 0) {
+      const [totals] = await tx
+        .select({
+          count: sql<number>`COUNT(*)::integer`,
+          keptBytes: sql<string>`COALESCE(SUM(${keptDocumentBytes()}), 0)::text`,
+        })
+        .from(document)
+        .where(and(eq(document.connectorId, connectorId), eq(document.knowledgeBaseId, kb.id)))
+      const count = totals?.count ?? 0
+      /**
+       * Kept bytes are admitted and charged now, against the locked ledger, where the user can
+       * still choose to delete instead. The connector carries the charge as a reservation that
+       * the release consumes page by page and settles when it finishes.
+       */
+      let reservedBytes = 0
+      if (storageContext) {
+        reservedBytes = Number(totals?.keptBytes ?? 0)
+        if (!Number.isSafeInteger(reservedBytes) || reservedBytes < 0) {
           throw new Error('Invalid retained connector storage size')
         }
-        if (retainedBytes > 0) {
-          if (storageContext) {
-            const updatedUsage = await incrementStorageUsageForBillingContextInTx(
-              tx,
-              storageContext,
-              retainedBytes
-            )
-            if (updatedUsage !== undefined)
-              storageNotification = { context: storageContext, updatedUsage }
-          }
+        const updatedUsage = await incrementStorageUsageForBillingContextInTx(
+          tx,
+          storageContext,
+          reservedBytes
+        )
+        if (updatedUsage !== undefined) {
+          storageNotification = { context: storageContext, updatedUsage }
         }
-        await tx
-          .update(document)
-          .set({ deletedAt: null })
-          .where(
-            and(
-              eq(document.connectorId, connectorId),
-              eq(document.knowledgeBaseId, kb.id),
-              isNull(document.archivedAt)
-            )
-          )
       }
 
-      const deletedConnectors = await tx
-        .delete(knowledgeConnector)
+      const retiredAt = new Date()
+      await tx
+        .update(knowledgeConnector)
+        .set({
+          ...(deleteDocuments
+            ? { deletedAt: retiredAt }
+            : { detachedAt: retiredAt, detachReservedBytes: reservedBytes }),
+          updatedAt: retiredAt,
+          status: 'disabled',
+          memberSyncStatus: 'disabled',
+          syncLockToken: null,
+          syncLockLeaseAt: null,
+          memberSyncLockToken: null,
+          memberSyncLockLeaseAt: null,
+          nextSyncAt: null,
+          nextMemberSyncAt: null,
+        })
         .where(
-          and(
-            eq(knowledgeConnector.id, connectorId),
-            eq(knowledgeConnector.knowledgeBaseId, kb.id),
-            isNull(knowledgeConnector.archivedAt),
-            isNull(knowledgeConnector.deletedAt)
-          )
+          and(eq(knowledgeConnector.id, connectorId), eq(knowledgeConnector.knowledgeBaseId, kb.id))
         )
-        .returning({ id: knowledgeConnector.id })
-      if (deletedConnectors.length === 0) {
-        throw new OrchestrationError('not_found', 'Connector not found')
+      const credentialAccess =
+        lockedConnector.credentialGroupId && owner.workspaceId
+          ? {
+              credentialAccess: {
+                workspaceId: owner.workspaceId,
+                credentialGroupId: lockedConnector.credentialGroupId,
+                actorUserId: params.userId,
+              },
+            }
+          : {}
+      if (deleteDocuments) {
+        await enqueueConnectorDeletion(tx, {
+          knowledgeBaseId: kb.id,
+          connectorId,
+          deletedAt: retiredAt.toISOString(),
+          ...credentialAccess,
+        })
+      } else {
+        await enqueueConnectorDetachment(tx, {
+          knowledgeBaseId: kb.id,
+          connectorId,
+          detachedAt: retiredAt.toISOString(),
+          ...credentialAccess,
+        })
       }
       return count
     })
   } catch (error) {
+    if (['55P03', '57014', '40P01'].includes(getPostgresErrorCode(error) ?? '')) {
+      logger.warn(`[${requestId}] Connector removal could not acquire or finish its transaction`, {
+        connectorId,
+        error,
+      })
+      return fail('Connection is busy. Try removing it again in a moment.', 'conflict')
+    }
     return classifyKnowledgeFailure(error, requestId, `Delete connector ${connectorId}`)
   }
 
@@ -1254,15 +1359,8 @@ export async function performDeleteKnowledgeConnector(
     )
   }
 
-  if (deleteDocuments) {
-    await Promise.all([
-      cleanupUnusedTagDefinitions(kb.id, requestId).catch((error) => {
-        logger.warn(`[${requestId}] Failed to cleanup tag definitions`, error)
-      }),
-    ])
-  }
-
-  if (existing.credentialGroupId && kb.workspaceId) {
+  /** The detach worker revokes durably once released; revoking now closes access immediately. */
+  if (!deleteDocuments && existing.credentialGroupId && kb.workspaceId) {
     await revokeKnowledgeConnectorCredentialAccess(
       {
         workspaceId: kb.workspaceId,
@@ -1271,7 +1369,7 @@ export async function performDeleteKnowledgeConnector(
       },
       params.userId
     ).catch((error) => {
-      logger.error(`[${requestId}] Failed to revoke the deleted connector's credential access`, {
+      logger.error(`[${requestId}] Failed to revoke the detached connector's credential access`, {
         connectorId,
         error,
       })
@@ -1355,6 +1453,8 @@ export async function performSyncKnowledgeConnector(
   if (!connector) {
     return fail('Connector not found', 'not_found')
   }
+  if (!requiresConnectorIndexing(kb.isSearchIndex))
+    return fail('This source is searched live and does not require indexing.', 'conflict')
   if (connector.status === 'syncing' || connector.status === 'pending') {
     return fail('Sync already in progress', 'conflict')
   }
@@ -1411,29 +1511,18 @@ export async function performSyncKnowledgeConnector(
    * outcome and both records describe what actually happened.
    */
   try {
-    /**
-     * A manual run is meant to list everyone now, so every active member is
-     * made due; otherwise each waits out its own interval and the run claims
-     * nobody.
-     */
-    if (connector.accessMode === 'members') {
-      await db
-        .update(knowledgeConnectorMember)
-        .set({ nextAttemptAt: new Date(), updatedAt: new Date() })
-        .where(
-          and(
-            eq(knowledgeConnectorMember.connectorId, connectorId),
-            eq(knowledgeConnectorMember.status, 'active')
-          )
-        )
-    }
     const dispatch =
       connector.accessMode === 'members'
-        ? await (await loadDispatchMemberSync())(connectorId, { billingAttribution, requestId })
+        ? await (await loadDispatchMemberSync())(connectorId, {
+            billingAttribution,
+            requestId,
+            manual: true,
+          })
         : await (await loadDispatchSync())(connectorId, {
             billingAttribution,
             requestId,
             rehydrate,
+            manual: true,
           })
     /**
      * A guard inside the dispatch declining to queue is reported as a failure

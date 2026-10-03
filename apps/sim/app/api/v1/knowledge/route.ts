@@ -11,7 +11,11 @@ import {
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performCreateKnowledgeBase } from '@/lib/knowledge/orchestration'
 import { getWorkspaceKnowledgeBases } from '@/lib/knowledge/service'
-import { formatKnowledgeBase, handleError } from '@/app/api/v1/knowledge/utils'
+import {
+  formatKnowledgeBase,
+  handleError,
+  resolveV1KnowledgeReadAccess,
+} from '@/app/api/v1/knowledge/utils'
 import {
   authenticateRequest,
   v1ValidationErrorResponse,
@@ -48,9 +52,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
     if (accessError) return accessError
 
-    /** Read only after `validateWorkspaceAccess` authorized this caller; same list the
-     *  internal surface serves, from the same place. */
-    const { data: knowledgeBases } = await getWorkspaceKnowledgeBases(workspaceId)
+    /** Read only after `validateWorkspaceAccess` authorized this caller, and totalled as the
+     *  caller reads, exactly as the v1 document routes list. */
+    const { data: knowledgeBases } = await getWorkspaceKnowledgeBases(workspaceId, 'active', {
+      countsFor: await resolveV1KnowledgeReadAccess(userId, rateLimit, workspaceId),
+    })
 
     return NextResponse.json({
       success: true,

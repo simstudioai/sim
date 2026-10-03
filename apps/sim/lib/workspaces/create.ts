@@ -1,10 +1,12 @@
 import { db } from '@sim/db'
 import { permissions, type WorkspaceMode, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { PlatformEvents } from '@/lib/core/telemetry'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbTransaction } from '@/lib/db/types'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
+import { buildNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
 import {
   getWorkspaceInvitePolicy,
@@ -12,7 +14,14 @@ import {
   resolveGoverningPermissionGroupOrganization,
   resolveInviteFlags,
   WORKSPACE_MODE,
+  WorkspaceOwnerMissingError,
 } from '@/lib/workspaces/policy'
+
+/** Foreign keys from `workspace` to `user`; a violation means the acting user's row is gone. */
+const WORKSPACE_USER_FK_CONSTRAINTS = new Set([
+  'workspace_owner_id_user_id_fk',
+  'workspace_billed_account_user_id_user_id_fk',
+])
 
 const logger = createLogger('WorkspaceCreate')
 
@@ -80,7 +89,7 @@ export interface TransactionalCreateWorkspaceParams extends CreateWorkspaceParam
  * permission and optional starter workflow atomically.
  */
 export async function createWorkspaceInTransaction(
-  tx: DbOrTx,
+  tx: DbTransaction,
   {
     userId,
     observedOrganizationId,
@@ -145,20 +154,17 @@ export async function createWorkspaceInTransaction(
   await tx.insert(permissions).values(permissionRows)
 
   if (defaultWorkflowArtifacts) {
-    await tx.insert(workflow).values({
-      id: workflowId,
-      userId,
-      workspaceId,
-      folderId: null,
-      name: 'default-agent',
-      description: 'Your first workflow - start building here!',
-      lastSynced: now,
-      createdAt: now,
-      updatedAt: now,
-      isDeployed: false,
-      runCount: 0,
-      variables: {},
-    })
+    await tx.insert(workflow).values(
+      await buildNewWorkflowRow(tx, {
+        id: workflowId,
+        userId,
+        workspaceId,
+        folderId: null,
+        name: 'default-agent',
+        description: 'Your first workflow - start building here!',
+        now,
+      })
+    )
     await saveWorkflowToNormalizedTables(
       workflowId,
       defaultWorkflowArtifacts.workflowState,
@@ -208,6 +214,13 @@ export async function createWorkspace(params: CreateWorkspaceParams) {
       createWorkspaceInTransaction(tx, { ...params, governingPermissionGroupOrganizationId })
     )
   } catch (error) {
+    if (
+      getPostgresErrorCode(error) === '23503' &&
+      WORKSPACE_USER_FK_CONSTRAINTS.has(getPostgresConstraintName(error) ?? '')
+    ) {
+      logger.warn('Workspace creation raced account deletion', { userId: params.userId })
+      throw new WorkspaceOwnerMissingError(params.userId)
+    }
     logger.error('Failed to create workspace', { userId: params.userId, error })
     throw error
   }
@@ -248,7 +261,7 @@ export async function createWorkspace(params: CreateWorkspaceParams) {
  * transaction already holds.
  */
 export async function createDefaultPersonalWorkspaceInTransaction(
-  tx: DbOrTx,
+  tx: DbTransaction,
   params: { userId: string; userName: string | null | undefined }
 ): Promise<CreatedWorkspace> {
   const firstName = params.userName?.split(' ')[0] || null

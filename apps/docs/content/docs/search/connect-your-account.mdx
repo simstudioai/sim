@@ -1,92 +1,48 @@
 ---
 title: Connect your account
-description: Join your team's Search sources and finish connecting your own accounts
+description: Connect your own provider accounts for live Search
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
-import { Step, Steps } from 'fumadocs-ui/components/steps'
-import { Image } from '@/components/ui/image'
+Your admin adds integrations under **Settings → Sources**. You connect your own accounts under **Integrations** in the main sidebar, including when you are the admin.
 
-Your admin adds the integration and can configure shared source filters. You connect your own account so Sim can establish what you are allowed to search. Admins connect their own accounts through the same flow.
+## Connect and search
 
-<Steps>
-<Step>
+1. Join the Sim organization through its invitation or SSO. Use the verified email required by your organization's provider connection.
+2. Open **Integrations**, find the provider, and select **Connect**.
+3. Complete the provider's authorization in the new tab. If a popup is blocked, allow it and start Connect again.
+4. Return to Sim and open **Search** or **Home**. Your account is usable after authorization completes; there is no initial indexing run.
 
-## Join your organization
+If a provider is missing, ask an organization admin to add it in Sources. If it shows **Not configured**, the provider's app or deployment setup needs an admin's attention before you can connect.
 
-Accept your Sim organization invitation or sign in through your organization's SSO. Use a verified Sim email that matches your account at the source. Organization Search does not require workspace access.
+You do not select repositories, channels, labels, or an indexing method while connecting. Member mode searches content your account can access. In service mode, the administrator's source settings further restrict the results.
 
-</Step>
-<Step>
+## Which accounts do I need?
 
-## Open Integrations
-
-Open **Integrations** in the main sidebar, find the provider or source, and select **Connect account**. Your first connection may ask for a GitHub repository, Confluence domain and space keys, or Jira domain and project keys. Enter the required fields and select **Connect**. If the provider is missing, ask an organization admin to add it under **Settings → Sources**.
-
-Use **Add source** beside **Add another [provider] source** when you need another supported repository, site, or project scope. Connecting an existing source does not ask you to configure it again.
-
-<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/connect-account.png" alt="Organization Integrations showing approved providers and Connect account actions" width={738} height={680} />
-
-
-</Step>
-<Step>
-
-## Authorize your account
-
-In the new tab, select **Connect** and complete the provider's authorization. Choose the account associated with your verified Sim email. The provider may require your organization's SSO or app approval.
-
-Return to Integrations when the connection completes, or select **Return to Search** to open your organization’s Search page. Your account is saved when authorization completes; there is no separate submit step. If the popup was blocked or closed, allow popups and select **Connect account** again. While authorization is pending, use **Open again**.
-
-<Image className="mx-auto h-auto w-full max-w-xl" src="/static/search/member-enrollment.jpg" alt="Gmail account connection with Connect and Return to Search actions" width={680} height={305} />
-
-</Step>
-<Step>
-
-## Start searching
-
-The source row shows indexing status and how many documents are available to you. Open **Search** in the organization sidebar and search for something you can already open in the source. Use **Home** to ask the assistant about your connected documents. The first sync may take time, especially for large accounts.
-
-</Step>
-</Steps>
-
-For a source configured inside a workspace, join that workspace and use its **Search** page instead. Organization and workspace sources are separate.
-
-## Do I always need to connect?
-
-| Source setup | Your next step |
+| Source setup | Personal connection |
 | --- | --- |
-| Member accounts | Connect your own account, including when you are the admin. |
-| Confluence admin/service account | Connect Confluence to verify your identity; the administrator's account handles the crawl. |
-| Google Drive delegated service account | No personal connection is needed for that source. Your verified Sim email is matched to Drive permissions. |
-| GitLab instance administrator | No personal connection is needed. Your verified Sim email must match a confirmed GitLab email. |
+| Member accounts | Connect your own provider account. |
+| GitHub App | Connect your GitHub account once. Each selected repository must be readable by both you and the installation. |
+| Google service account (Gmail, Calendar, Drive) | Connect the corresponding Google service. The source verifies your connected identity and resource access through delegation. |
+| Confluence service account | Connect your own Confluence account. Both connections must be able to read the selected content. |
+| Coda | Connect your personal Coda MCP account. In service mode, the source token also verifies the parent document. |
+| GitLab | No personal connection. Your verified Sim email must match current GitLab identity and permissions, or the administrator's CSV mapping and project grant. |
+| [Generic Secrets in Member mode](/search/generic-secrets) | Open the source in Integrations and save your own secrets. These are available to Build and Plan, not document search. |
 
-Connecting one Google service does not connect all of them. Gmail, Calendar, and Drive each have their own Search connection.
+Gmail, Calendar, and Drive are separate connections. Connecting one does not authorize the others. A service account is a resource boundary, not a replacement for your personal connection, except for GitLab's explicit permission model.
 
-## If you received a connection request
+## Manage connections
 
-Open the link from your admin and sign in to Sim with the invited email. A provider-specific request opens that provider's connection directly. Verify your Sim email if prompted, then reopen the original link and authorize the account.
+Use **Reconnect** when the provider's grant expires, is revoked, or needs additional scopes. A temporarily unavailable provider does not necessarily require reconnecting.
 
-An account connection request does not invite you into the Sim organization. You can contribute an account without organization membership, but you need membership and enabled Search access to search the organization's documents. The connection page offers **Return to Search** when you have that access; otherwise it offers **Your connected accounts**.
+Disconnecting an account stops future use of that grant. Shared credential-group connections can also be used by workflows, so review the connection's confirmation before removing it. It does not remove your Sim organization membership.
 
-## Manage your connected accounts
+If you received an account-connection request, sign in as the verified Sim user associated with the requested email and authorize the provider. A connection request does not invite you into the organization. You still need organization membership and Search access to search its sources.
 
-Select **Your accounts** on the main Integrations page to open your personal **Connected accounts** settings. Use **Reconnect** to renew an organization account connection or **Disconnect** to withdraw it. Disconnecting stops that account from being used for organization indexing and workflows, and removes Search access that depends on it.
+## If results are missing
 
-Admins can select **Manage sources** to open organization setup, then open an integration's **Sources** and **Accounts** tabs. This does not grant the admin access to every document.
+- Confirm the account is connected and can open the original document.
+- Check the source's service-account filters with an admin, when that mode is selected.
+- Check provider scope errors, rate limits, and any incomplete-coverage status returned by Search.
+- Try the same query in the provider's own search. Provider search limitations still apply.
 
-## If you get stuck
-
-| Status | What to do |
-| --- | --- |
-| **Connect account** | Complete the connection in the new tab. |
-| **Reconnect** | Authorize the same source account again. |
-| **Finish connecting in the other tab** | Finish authorization, or use **Open again**. Allow popups for Sim. |
-| No results | Check the source's filters and sync status with your admin. Confirm you can open the document at the source. |
-| **Verify email** | Verify your Sim email, then reopen the connection link. |
-| Expired or cancelled authorization | Return to the original connection page and start again. If the invitation itself expired, ask the admin for a new request. |
-| Access revoked | Ask the organization admin to restore your account contribution access before reconnecting. |
-| Needs admin attention | Ask your admin to open **Settings → Sources → [integration] → Sources → [source]** to inspect its error. |
-
-<Callout type="info">
-  Your Sim role does not override document access at the source. Connecting a different account or receiving a Search link does not share someone else's mailbox, private calendar, or restricted documents with you.
-</Callout>
+Do not wait for a Sim sync or retry document indexing: live Search calls the provider for each request. [Workspace knowledge bases](/knowledgebase/connectors) have a separate indexing workflow.

@@ -1,3 +1,5 @@
+import { escapeRegExp } from '@sim/utils/string'
+
 /** Characters of a document shown under a search result. */
 export const SNIPPET_LENGTH = 280
 /** Characters kept before the selected match, so the hit sits in context rather than at the edge. */
@@ -14,10 +16,6 @@ const HEADER_LINE = /^[A-Z][A-Za-z-]{1,15}: .*$/
  */
 const WORD_CHARACTER =
   /(?![\p{sc=Han}\p{sc=Hiragana}\p{sc=Katakana}\p{sc=Hangul}\p{sc=Thai}])[\p{L}\p{N}_]/u
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
 
 /**
  * The document text without the header block some connectors prefix (the
@@ -95,6 +93,45 @@ function codePointBefore(text: string, index: number): string | undefined {
 function alignToCodePoint(text: string, index: number): number {
   const unit = text.charCodeAt(index)
   return unit >= 0xdc00 && unit <= 0xdfff ? index - 1 : index
+}
+
+export interface PassageExcerpt {
+  content: string
+  /** Positions are UTF-16 code units in the input chunk. */
+  startOffset: number
+  endOffset: number
+  totalCharacters: number
+}
+
+/** A bounded, verbatim window; offsets make omitted text explicitly recoverable. */
+export function passageWindow(
+  content: string,
+  startOffset: number,
+  maxCharacters: number
+): PassageExcerpt {
+  const start = alignToCodePoint(content, Math.min(startOffset, content.length))
+  const end = alignToCodePoint(content, Math.min(start + maxCharacters, content.length))
+  return {
+    content: content.slice(start, end),
+    startOffset: start,
+    endOffset: end,
+    totalCharacters: content.length,
+  }
+}
+
+/** Search evidence preserves source formatting and anchors on the same matches as Search's UI. */
+export function matchPassage(
+  content: string,
+  query: string,
+  maxCharacters: number
+): PassageExcerpt {
+  if (content.length <= maxCharacters) return passageWindow(content, 0, maxCharacters)
+  const anchor = findTermMatches(content, queryTerms(query)).reduce<TermMatch | undefined>(
+    (best, match) => (!best || match.length > best.length ? match : best),
+    undefined
+  )
+  const start = anchor ? Math.max(0, anchor.index - Math.floor(maxCharacters / 3)) : 0
+  return passageWindow(content, start, maxCharacters)
 }
 
 /**

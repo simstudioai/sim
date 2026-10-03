@@ -300,15 +300,6 @@ interface ZoomMeeting {
   }>
 }
 
-interface ZoomMeetingListResponse {
-  page_count: number
-  page_number: number
-  page_size: number
-  total_records: number
-  next_page_token?: string
-  meetings: ZoomMeeting[]
-}
-
 // Create Meeting tool types
 export interface ZoomCreateMeetingParams extends ZoomBaseParams {
   userId: string

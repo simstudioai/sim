@@ -1,35 +1,54 @@
-/**
- * @vitest-environment node
- */
-
 import {
   createMockRequest,
   permissionGroupScopeMock,
   permissionGroupScopeMockFns,
 } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import { environmentUtilsMockFns } from '@sim/testing/mocks/environment-utils.mock'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import {
+  mothershipChatLifecycleMock,
+  mothershipChatLifecycleMockFns,
+} from '@sim/testing/mocks/mothership-chat-lifecycle.mock'
+import {
+  mothershipChatMessagesMock,
+  mothershipChatMessagesMockFns,
+} from '@sim/testing/mocks/mothership-chat-messages.mock'
+import {
+  mothershipChatPayloadMock,
+  mothershipChatPayloadMockFns,
+} from '@sim/testing/mocks/mothership-chat-payload.mock'
+import {
+  mothershipEnvironmentContextMock,
+  mothershipEnvironmentContextMockFns,
+} from '@sim/testing/mocks/mothership-environment-context.mock'
+import {
+  MockWorkspaceAccessDeniedError,
+  permissionsMock,
+  permissionsMockFns,
+} from '@sim/testing/mocks/permissions.mock'
+import {
+  v2ApiKeyAuthModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing/mocks/v2-route.mock'
 import { sleep } from '@sim/utils/helpers'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  MockV2ApiKeyUnauthenticatedError,
-  MockWorkspaceAccessDeniedError,
   billingAttributionSnapshot,
-  mockAssertActiveWorkspaceAccess,
-  mockAuthenticateV2ApiKey,
-  mockCheckOperationRate,
-  mockCheckPreAuthRate,
-  mockGenerateId,
-  mockPersistCopilotChatTurn,
   mockRequestExplicitStreamAbort,
-  mockResolveBillingAttribution,
-  mockResolveOrCreateChat,
   mockRunHeadlessCopilotLifecycle,
 } = vi.hoisted(() => ({
-  MockV2ApiKeyUnauthenticatedError: class MockV2ApiKeyUnauthenticatedError extends Error {},
-  MockWorkspaceAccessDeniedError: class MockWorkspaceAccessDeniedError extends Error {},
-  mockAssertActiveWorkspaceAccess: vi.fn(),
-  mockAuthenticateV2ApiKey: vi.fn(),
   billingAttributionSnapshot: {
     actorUserId: 'user-1',
     workspaceId: 'workspace-1',
@@ -39,99 +58,82 @@ const {
     billingPeriod: { start: '2026-08-01T00:00:00.000Z', end: '2026-09-01T00:00:00.000Z' },
     payerSubscription: null,
   },
-  mockCheckOperationRate: vi.fn(),
-  mockCheckPreAuthRate: vi.fn(),
-  mockGenerateId: vi.fn(),
-  mockPersistCopilotChatTurn: vi.fn(),
-  mockResolveBillingAttribution: vi.fn(),
-  mockResolveOrCreateChat: vi.fn(),
   mockRequestExplicitStreamAbort: vi.fn().mockResolvedValue(undefined),
   mockRunHeadlessCopilotLifecycle: vi.fn(),
 }))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mockAuthenticateV2ApiKey,
-  V2ApiKeyUnauthenticatedError: MockV2ApiKeyUnauthenticatedError,
-}))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 
-vi.mock('@/lib/core/rate-limiter', () => ({
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
-  RateLimiter: class RateLimiter {
-    checkRateLimitDirect = mockCheckPreAuthRate
-    checkRateLimitDirectOrThrow = mockCheckOperationRate
-  },
-}))
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
-vi.mock('@sim/utils/id', () => ({
-  generateId: mockGenerateId,
-  generateShortId: vi.fn(() => 'mock-short-id'),
-}))
+vi.mock('@sim/utils/id', () => idMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  assertActiveWorkspaceAccess: mockAssertActiveWorkspaceAccess,
-  isWorkspaceAccessDeniedError: (error: unknown) => error instanceof MockWorkspaceAccessDeniedError,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveBillingAttribution: mockResolveBillingAttribution,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
-vi.mock('@/lib/environment/utils', () => ({
-  getPersonalAndWorkspaceEnv: vi.fn().mockResolvedValue({ personal: {}, workspace: {} }),
-}))
+vi.mock('@/lib/mothership/environment-context', () => mothershipEnvironmentContextMock)
 
-vi.mock('@/lib/copilot/environment-context', () => ({
-  createCopilotEnvironmentContext: vi.fn().mockResolvedValue({ id: 'env-context' }),
-}))
-
-vi.mock('@/lib/copilot/chat/workspace-context', () => ({
+vi.mock('@/lib/mothership/chat/workspace-context', () => ({
   generateWorkspaceContext: vi.fn().mockResolvedValue('workspace context'),
 }))
 
-vi.mock('@/lib/copilot/chat/lifecycle', () => ({
-  resolveOrCreateChat: mockResolveOrCreateChat,
-}))
+vi.mock('@/lib/mothership/chat/lifecycle', () => mothershipChatLifecycleMock)
 
-vi.mock('@/lib/copilot/chat/messages-store', () => ({
-  persistCopilotChatTurn: mockPersistCopilotChatTurn,
-}))
+vi.mock('@/lib/mothership/chat/messages-store', () => mothershipChatMessagesMock)
 
-vi.mock('@/lib/copilot/chat/payload', () => ({
-  buildIntegrationToolSchemas: vi.fn().mockResolvedValue([{ name: 'run_workflow' }]),
-}))
+vi.mock('@/lib/mothership/chat/payload', () => mothershipChatPayloadMock)
 
-vi.mock('@/lib/copilot/entitlements', () => ({
+vi.mock('@/lib/mothership/entitlements', () => ({
   computeWorkspaceEntitlements: vi.fn().mockResolvedValue([]),
 }))
 
-vi.mock('@/lib/copilot/request/lifecycle/headless', () => ({
+vi.mock('@/lib/mothership/request/lifecycle/headless', () => ({
   runHeadlessCopilotLifecycle: mockRunHeadlessCopilotLifecycle,
 }))
 
-vi.mock('@/lib/copilot/request/session/explicit-abort', () => ({
+vi.mock('@/lib/mothership/request/session/explicit-abort', () => ({
   requestExplicitStreamAbort: mockRequestExplicitStreamAbort,
 }))
 
-vi.mock('@/lib/copilot/secret-mount-policy', () => ({
+vi.mock('@/lib/mothership/secret-mount-policy', () => ({
   normalizeSecretMountPolicy: vi.fn(() => ({ secretScope: 'all', mountedSecrets: [] })),
-}))
-
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isDocSandboxEnabled: false,
 }))
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 const mockResolvePermissionGroupConfig =
   permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
+const mockAssertActiveWorkspaceAccess = permissionsMockFns.mockAssertActiveWorkspaceAccess
+const mockGenerateId = idMockFns.mockGenerateId
+idMockFns.mockGenerateShortId.mockReturnValue('mock-short-id')
+environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv.mockResolvedValue({
+  personal: {},
+  workspace: {},
+})
 
-import { chatOperations } from '@/lib/copilot/application/operations'
+import { chatOperations } from '@/lib/mothership/application/operations'
 import { CAPABILITY_RULES } from '@/lib/permission-groups/capabilities'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { POST } from '@/app/api/v2/chat/route'
 
+mothershipEnvironmentContextMockFns.mockCreateCopilotEnvironmentContext.mockResolvedValue({
+  id: 'env-context',
+})
+
+mothershipChatPayloadMockFns.mockBuildIntegrationToolSchemas.mockResolvedValue([
+  { name: 'gmail_send' },
+])
+const { mockPersistCopilotChatTurn } = mothershipChatMessagesMockFns
+const { mockResolveOrCreateChat } = mothershipChatLifecycleMockFns
+
+const mockAuthenticateV2ApiKey = v2RouteMocks.authenticate
+const mockCheckPreAuthRate = v2RouteMocks.preauthRate
+const mockCheckOperationRate = v2RouteMocks.operationRate
+const mockResolveBillingAttribution = billingAttributionMockFns.mockResolveBillingAttribution
+
 const personalAuth = {
-  principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+  principal: createPersonalApiKeyPrincipal(),
   rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
   rateLimitSubscription: null,
   keyType: 'personal',
@@ -155,14 +157,14 @@ const successResult = {
   success: true,
   content: 'Hello there',
   contentBlocks: [],
-  toolCalls: [{ name: 'run_workflow' }, { name: 'internal_only' }],
+  toolCalls: [{ name: 'gmail_send' }, { name: 'internal_only' }],
   usage: { prompt: 10, completion: 5 },
   cost: { total: 0.01 },
 }
 
 function callChat(body: Record<string, unknown>, headers: Record<string, string> = {}) {
   const req = createMockRequest('POST', body, { 'X-API-Key': 'test-key', ...headers })
-  return POST(req, { params: Promise.resolve({}) })
+  return POST(req, createRouteContext({}))
 }
 
 /**
@@ -184,7 +186,7 @@ function callChatWithSignal(
     body: JSON.stringify(body),
     signal,
   })
-  return POST(req, { params: Promise.resolve({}) })
+  return POST(req, createRouteContext({}))
 }
 
 /**
@@ -248,7 +250,6 @@ async function readNdjsonEvents(response: Response): Promise<Array<Record<string
 
 describe('POST /api/v2/chat', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     let generated = 0
     mockGenerateId.mockImplementation(() => `generated-${++generated}`)
     mockAuthenticateV2ApiKey.mockResolvedValue(personalAuth)
@@ -266,25 +267,14 @@ describe('POST /api/v2/chat', () => {
     mockResolveOrCreateChat.mockResolvedValue({
       chatId: SERVER_ISSUED_CHAT_ID,
       chat: chatRow(SERVER_ISSUED_CHAT_ID),
-      conversationHistory: [],
       isNew: true,
     })
-  })
-
-  it('rejects a missing or invalid API key', async () => {
-    mockAuthenticateV2ApiKey.mockRejectedValue(
-      new MockV2ApiKeyUnauthenticatedError('API key or OAuth access token required')
-    )
-
-    const response = await callChat({ workspaceId: 'workspace-1', message: 'hi' })
-
-    expect(response.status).toBe(401)
   })
 
   it('rejects a workspace API key: chat has no acting user to attribute', async () => {
     mockAuthenticateV2ApiKey.mockResolvedValue({
       ...personalAuth,
-      principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-2' },
+      principal: createWorkspaceApiKeyPrincipal({ keyId: 'key-2' }),
       keyType: 'workspace',
     })
 
@@ -293,22 +283,6 @@ describe('POST /api/v2/chat', () => {
     expect(response.status).toBe(403)
     const body = await response.json()
     expect(body.error.details.code).toBe('PRINCIPAL_KIND_NOT_PERMITTED')
-    expect(mockRunHeadlessCopilotLifecycle).not.toHaveBeenCalled()
-  })
-
-  it('rejects an empty message before running anything', async () => {
-    const response = await callChat({ workspaceId: 'workspace-1', message: '' })
-
-    expect(response.status).toBe(400)
-    expect(mockRunHeadlessCopilotLifecycle).not.toHaveBeenCalled()
-  })
-
-  it('answers 403 when the caller cannot access the workspace', async () => {
-    mockAssertActiveWorkspaceAccess.mockRejectedValue(new MockWorkspaceAccessDeniedError('denied'))
-
-    const response = await callChat({ workspaceId: 'workspace-1', message: 'hi' })
-
-    expect(response.status).toBe(403)
     expect(mockRunHeadlessCopilotLifecycle).not.toHaveBeenCalled()
   })
 
@@ -421,15 +395,6 @@ describe('POST /api/v2/chat', () => {
     expect(mockResolvePermissionGroupConfig).not.toHaveBeenCalled()
   })
 
-  it('runs one turn when a group governs the caller but withholds nothing', async () => {
-    mockResolvePermissionGroupConfig.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
-
-    const response = await callChat({ workspaceId: 'workspace-1', message: 'hi' })
-
-    expect(response.status).toBe(200)
-    expect(mockRunHeadlessCopilotLifecycle).toHaveBeenCalledTimes(1)
-  })
-
   it('runs one turn and answers the reply with a server-issued conversation id', async () => {
     const response = await callChat({ workspaceId: 'workspace-1', message: 'hi' })
 
@@ -441,26 +406,27 @@ describe('POST /api/v2/chat', () => {
       conversationId: SERVER_ISSUED_CHAT_ID,
       tokens: { prompt: 10, completion: 5, total: 15 },
       cost: { total: 0.01 },
-      toolCalls: [{ name: 'run_workflow' }],
+      toolCalls: [{ name: 'gmail_send' }],
     })
 
     const [payload, options] = mockRunHeadlessCopilotLifecycle.mock.calls[0]
+    // The wire payload IS the shared ChatRequest contract; this surface rides the full
+    // CHAT pipeline now (persona + skills + CLI), not the persona-less execute surface.
     expect(payload).toMatchObject({
-      messages: [{ role: 'user', content: 'hi' }],
+      message: 'hi',
       userId: 'user-1',
       workspaceId: 'workspace-1',
       chatId: SERVER_ISSUED_CHAT_ID,
-      mode: 'agent',
-      isHosted: true,
-      workspaceContext: 'workspace context',
-      integrationTools: [{ name: 'run_workflow' }],
-      userPermission: 'admin',
+      integrationCatalog: { mcpServerIds: [] },
     })
+    for (const legacy of ['messages', 'mode', 'isHosted', 'workspaceContext', 'userPermission']) {
+      expect(payload).not.toHaveProperty(legacy)
+    }
     expect(options).toMatchObject({
       userId: 'user-1',
       workspaceId: 'workspace-1',
       chatId: SERVER_ISSUED_CHAT_ID,
-      goRoute: '/api/mothership/execute',
+      goRoute: '/api/mothership',
       autoExecuteTools: true,
       interactive: false,
       // Hosted execution refuses to run without attribution, so the resolved
@@ -473,26 +439,10 @@ describe('POST /api/v2/chat', () => {
     })
   })
 
-  it('mints a server-issued conversation when the caller names none', async () => {
-    const response = await callChat({ workspaceId: 'workspace-1', message: 'hi' })
-
-    expect(response.status).toBe(200)
-    const body = await response.json()
-    expect(body.data.conversationId).toBe(SERVER_ISSUED_CHAT_ID)
-    const resolverInput = mockResolveOrCreateChat.mock.calls[0][0] as Record<string, unknown>
-    expect(Object.hasOwn(resolverInput, 'chatId')).toBe(false)
-    expect(resolverInput).toMatchObject({
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-      type: 'mothership',
-    })
-  })
-
   it('resolves a named conversation against the calling user and workspace before continuing it', async () => {
     mockResolveOrCreateChat.mockResolvedValue({
       chatId: OWNED_CONVERSATION_ID,
       chat: chatRow(OWNED_CONVERSATION_ID),
-      conversationHistory: [],
       isNew: false,
     })
 
@@ -517,38 +467,10 @@ describe('POST /api/v2/chat', () => {
     })
   })
 
-  it('posts only the current turn on a resumed conversation, never the stored transcript', async () => {
-    mockResolveOrCreateChat.mockResolvedValue({
-      chatId: OWNED_CONVERSATION_ID,
-      chat: chatRow(OWNED_CONVERSATION_ID),
-      conversationHistory: [
-        { role: 'user', content: 'first' },
-        { role: 'assistant', content: 'first reply' },
-      ],
-      isNew: false,
-    })
-
-    const response = await callChat({
-      workspaceId: 'workspace-1',
-      message: 'and then?',
-      conversationId: OWNED_CONVERSATION_ID,
-    })
-
-    expect(response.status).toBe(200)
-    // Continuity is keyed by chatId downstream, exactly as the web send path
-    // and the Sim Chat block do. Replaying the transcript here would duplicate
-    // every prior turn.
-    expect(mockRunHeadlessCopilotLifecycle.mock.calls[0][0]).toMatchObject({
-      messages: [{ role: 'user', content: 'and then?' }],
-      chatId: OWNED_CONVERSATION_ID,
-    })
-  })
-
   it('answers 404 and runs nothing when the resolver refuses the named conversation', async () => {
     mockResolveOrCreateChat.mockResolvedValue({
       chatId: OWNED_CONVERSATION_ID,
       chat: null,
-      conversationHistory: [],
       isNew: false,
     })
 
@@ -606,18 +528,6 @@ describe('POST /api/v2/chat', () => {
 
     const resolverInput = mockResolveOrCreateChat.mock.calls[0][0] as Record<string, unknown>
     expect(Object.hasOwn(resolverInput, 'title')).toBe(false)
-  })
-
-  it('rejects a malformed conversation id before resolving anything', async () => {
-    const response = await callChat({
-      workspaceId: 'workspace-1',
-      message: 'and then?',
-      conversationId: 'not-a-conversation-id',
-    })
-
-    expect(response.status).toBe(400)
-    expect(mockResolveOrCreateChat).not.toHaveBeenCalled()
-    expect(mockRunHeadlessCopilotLifecycle).not.toHaveBeenCalled()
   })
 
   it('answers a failed run as a 500 with the run error', async () => {

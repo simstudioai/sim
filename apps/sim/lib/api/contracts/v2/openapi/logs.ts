@@ -38,6 +38,7 @@ const LOG_LIST_EXAMPLE = {
       endedAt: '2026-01-15T10:30:01.250Z',
       totalDurationMs: 1250,
       cost: { total: 0.0032 },
+      hasHandledErrors: false,
       files: [
         {
           id: 'f1c3a7d0-4b52-4a8e-9f61-2d7c8b3e5a04',
@@ -218,7 +219,7 @@ const declaredRoutes = [
       applicationOperation: logOperations.readStats,
       operationId: 'getLogStats',
       summary: 'Get Log Statistics',
-      description: `Get run counts, success and error counts, and latency by workspace or workflow. Default bounds span recorded runs, or the last 24 hours when empty. Buckets may extend past the end. Folder filters include descendants; \`workflowsTruncated\` affects series, not totals. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Get bucketed run counts, success rate, errors, and mean latency for the workspace and individual workflows. Query fields describe window selection and bucketing. Folder filters cover subtrees. ${RUN_RETENTION} ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'Bucketed execution statistics for the workspace.' },
     }),

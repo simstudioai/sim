@@ -38,8 +38,6 @@ import {
 } from './style-resolver'
 import { renderTextBody } from './text-renderer'
 
-// Shape blipFill (image fill) — resolve to blob URL for reuse (e.g. SVG/PNG in process diagrams)
-
 /** Resolve shape blipFill to a blob URL so we can render it (e.g. slide 23 process graphic). */
 function resolveShapeBlipUrl(blipFill: SafeXmlNode, ctx: RenderContext): string | null {
   const blip = blipFill.child('blip')
@@ -52,8 +50,6 @@ function resolveShapeBlipUrl(blipFill: SafeXmlNode, ctx: RenderContext): string 
   if (!data) return null
   return getOrCreateBlobUrl(mediaPath, data, ctx.mediaUrlCache)
 }
-
-// Line End Marker (Arrowhead) Helpers
 
 let markerIdCounter = 0
 let gradientIdCounter = 0
@@ -123,9 +119,7 @@ function angleToSvgGradientCoords(angleDeg: number): {
   y2: string
 } {
   // OOXML: 0° = left-to-right, 90° = top-to-bottom (clockwise)
-  // Convert to radians for trig
   const rad = (angleDeg * Math.PI) / 180
-  // Calculate direction vector
   const x2 = Math.round(50 + 50 * Math.cos(rad))
   const y2 = Math.round(50 + 50 * Math.sin(rad))
   const x1 = Math.round(50 - 50 * Math.cos(rad))
@@ -274,8 +268,6 @@ function getLineEndsFromLn(ln: SafeXmlNode): { headEnd?: LineEndInfo; tailEnd?: 
   return out
 }
 
-// Shape Rendering
-
 /**
  * Render a shape node into an absolutely-positioned HTML element with SVG geometry.
  */
@@ -311,7 +303,6 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
   wrapper.style.height = `${minH}px`
   if (node.size.w === 0) wrapper.style.width = `${minW}px`
   wrapper.style.overflow = 'visible'
-  // Apply transforms (rotation + flip)
   const transforms: string[] = []
   if (node.rotation !== 0) {
     transforms.push(`rotate(${node.rotation}deg)`)
@@ -334,12 +325,10 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
   const pathW = w
   const pathH = h
 
-  // Style references (needed for path fallback and line resolution)
   const styleNode = node.source.child('style')
   const lnRef = styleNode.exists() ? styleNode.child('lnRef') : undefined
   const fillRef = styleNode.exists() ? styleNode.child('fillRef') : undefined
 
-  // ---- Generate SVG path ----
   let pathD = ''
   let multiPaths: PresetSubPath[] | null = null
   if (node.presetGeometry) {
@@ -383,7 +372,6 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
     )
   }
 
-  // ---- Resolve fill and line styles ----
   const spPr = node.source.child('spPr')
   let fillCss = ''
   // Resolve structured gradient fill data (for SVG gradient elements)
@@ -465,13 +453,11 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
       strokeDashKind = lineStyle.dashKind
     }
 
-    // Line cap: a:ln@cap → SVG stroke-linecap
     const capAttr = effectiveLine.attr('cap')
     if (capAttr === 'rnd') strokeLinecap = 'round'
     else if (capAttr === 'sq') strokeLinecap = 'square'
     else if (capAttr === 'flat') strokeLinecap = 'butt'
 
-    // Line join: from child elements
     if (effectiveLine.child('round').exists()) strokeLinejoin = 'round'
     else if (effectiveLine.child('bevel').exists()) strokeLinejoin = 'bevel'
     else if (effectiveLine.child('miter').exists()) strokeLinejoin = 'miter'
@@ -504,7 +490,6 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
     }
   }
 
-  // ---- Create SVG element ----
   if (pathD) {
     const svgNs = 'http://www.w3.org/2000/svg'
     const svg = document.createElementNS(svgNs, 'svg')
@@ -544,7 +529,6 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
       wrapper.appendChild(svg)
       // Skip path fill/stroke/markers — image replaces fill
     } else {
-      // Create <defs> for gradients and markers
       const defs = document.createElementNS(svgNs, 'defs')
 
       const path = document.createElementNS(svgNs, 'path')
@@ -560,7 +544,6 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
         path.setAttribute('fill-rule', 'evenodd')
       }
 
-      // Fill
       if (fillCss) {
         if (gradientFillData && gradientFillData.stops.length > 0) {
           // Create SVG gradient definition for proper shape-clipped gradient fills
@@ -631,7 +614,6 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
             }
             defs.appendChild(vGrad)
 
-            // Use clipPath to constrain the blend group to the shape
             const clipId = `${fillGradId}-clip`
             const clipPath = document.createElementNS(svgNs, 'clipPath')
             clipPath.setAttribute('id', clipId)
@@ -695,7 +677,6 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
             }
             defs.appendChild(radialGrad)
           } else {
-            // Linear gradient
             const linearGrad = document.createElementNS(svgNs, 'linearGradient')
             linearGrad.setAttribute('id', fillGradId)
             linearGrad.setAttribute(
@@ -725,7 +706,6 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
           path.setAttribute('fill', 'none')
         } else if (fillCss.includes('gradient')) {
           // Fallback for gradients without structured data (shouldn't normally happen)
-          // Apply to wrapper as before
           wrapper.style.background = fillCss
           path.setAttribute('fill', 'transparent')
         } else {
@@ -809,11 +789,9 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
         )
         linearGrad.setAttribute('gradientUnits', 'userSpaceOnUse')
 
-        // Convert gradient angle to absolute coordinates in SVG user space
         const rad = (gradientStroke.angle * Math.PI) / 180
         const cos = Math.cos(rad)
         const sin = Math.sin(rad)
-        // Centre of the SVG viewBox
         const cx = svgW / 2
         const cy = svgH / 2
         // Half-extent along each axis (use max of both dimensions so the gradient covers the path)
@@ -865,7 +843,6 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
         path.setAttribute('stroke', 'none')
       }
 
-      // Line end markers (arrowheads)
       // Use gradient start colour for head (marker-start) and end colour for tail (marker-end)
       if (effectiveStrokeWidth > 0 && (effectiveHeadEnd || effectiveTailEnd)) {
         if (effectiveHeadEnd) {
@@ -911,7 +888,6 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
 
       svg.appendChild(path)
 
-      // --- Multi-path preset rendering ---
       // For complex shapes (scrolls, etc.) that have multiple sub-paths with different
       // fill modifiers (darkenLess for shadow areas, none for stroke-only detail lines).
       if (multiPaths && multiPaths.length > 1) {
@@ -1127,7 +1103,7 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
         path.removeAttribute('marker-end')
       }
 
-      // --- Action button icon overlay (legacy fallback) ---
+      // Action button icon overlay (legacy fallback)
       // Only used for action buttons that don't have multiPathPresets entries.
       // Shapes with multiPathPresets already include the icon in their darken sub-paths.
       if (node.presetGeometry && !multiPaths) {
@@ -1153,12 +1129,9 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
         }
       }
 
-      // (Can top ellipse overlay removed — now handled by multiPathPresets 'can' lighten sub-path)
-
       wrapper.appendChild(svg)
     }
   } else if (fillCss && fillCss !== 'transparent') {
-    // No geometry but has fill — apply as background color
     if (fillCss.includes('gradient')) {
       wrapper.style.background = fillCss
     } else {
@@ -1166,7 +1139,7 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
     }
   }
 
-  // ---- Render text overlay (only when there is visible text; skip for decorative shapes with empty txBody) ----
+  // Render text overlay (only when there is visible text; skip for decorative shapes with empty txBody)
   if (node.textBody && node.textBody.paragraphs.length > 0 && hasVisibleText(node.textBody)) {
     const textContainer = document.createElement('div')
     textContainer.style.position = 'absolute'
@@ -1230,7 +1203,6 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
       needsDynamicAutofit = true
     }
 
-    // Apply bodyPr (text body properties)
     // Use layout/master bodyPr as fallback for missing attributes
     {
       const bodyPr = node.textBody.bodyProperties
@@ -1281,7 +1253,6 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
       textContainer.style.paddingRight = `${rightPad}px`
       textContainer.style.paddingBottom = `${bottomPad}px`
 
-      // Vertical text support (bodyPr@vert)
       const vert =
         (bodyPr ? bodyPr.attr('vert') : null) || (fallbackBp ? fallbackBp.attr('vert') : null)
       if (vert === 'eaVert') {
@@ -1356,7 +1327,7 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
     }
   }
 
-  // ---- Effects (explicit effectLst or theme effectRef fallback) ----
+  // Effects (explicit effectLst or theme effectRef fallback)
   let effectiveEffectLst = spPr.child('effectLst')
   if (!effectiveEffectLst.exists()) {
     const effectRef = node.source.child('style').child('effectRef')
@@ -1386,7 +1357,6 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
       const offsetX = distPx * Math.cos((dirDeg * Math.PI) / 180)
       const offsetY = distPx * Math.sin((dirDeg * Math.PI) / 180)
 
-      // Resolve shadow color
       let shadowColor = 'rgba(0,0,0,0.4)'
       const { color: shdColor, alpha: shdAlpha } = resolveColor(outerShdw, ctx)
       if (shdColor) {
@@ -1444,11 +1414,9 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
           effectiveAlpha = shdAlpha * (spread / blurPx)
         }
 
-        // Skip shadow entirely if effective alpha is negligible
         if (effectiveAlpha >= 0.01) {
           const bsX = (offsetX + alignOffX).toFixed(1)
           const bsY = (offsetY + alignOffY).toFixed(1)
-          // Recompute shadow color with attenuated alpha
           let attenuatedColor = shadowColor
           if (shdColor) {
             const hex2 = shdColor.startsWith('#') ? shdColor : `#${shdColor}`
@@ -1479,11 +1447,9 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
     }
   }
 
-  // ---- Shape-level hyperlink / action button navigation ----
   if (node.hlinkClick && ctx.onNavigate) {
     const { action, rId } = node.hlinkClick
     if (action === 'ppaction://hlinksldjump' && rId) {
-      // Resolve slide target from relationship
       const rel = ctx.slide.rels.get(rId)
       if (rel) {
         // Target is like "slide28.xml" → slide index 27 (0-based)
@@ -1499,7 +1465,6 @@ export function renderShape(node: ShapeNodeData, ctx: RenderContext): HTMLElemen
         }
       }
     } else if (rId) {
-      // External URL link
       const rel = ctx.slide.rels.get(rId)
       if (rel && rel.targetMode === 'External' && isAllowedExternalUrl(rel.target)) {
         wrapper.style.cursor = 'pointer'

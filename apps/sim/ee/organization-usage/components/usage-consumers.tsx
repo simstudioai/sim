@@ -1,9 +1,8 @@
 'use client'
 
 import type { ComponentType } from 'react'
-import { cn, disclosureChevronClass } from '@sim/emcn'
+import { Avatar, cn, disclosureChevronClass, formatChartCompactNumber } from '@sim/emcn'
 import { ArrowRight, ChevronDown } from '@sim/emcn/icons'
-import { formatChartCompactNumber } from '@/components/charts'
 import {
   AnthropicIcon,
   AzureIcon,
@@ -14,6 +13,7 @@ import {
   FireworksIcon,
   GeminiIcon,
   GroqIcon,
+  KieIcon,
   KimiIcon,
   LitellmIcon,
   MetaIcon,
@@ -24,6 +24,7 @@ import {
   OpenRouterIcon,
   SakanaIcon,
   TogetherIcon,
+  TypeSafeIcon,
   VertexIcon,
   VllmIcon,
   xAIIcon,
@@ -64,6 +65,7 @@ const PROVIDER_ICONS: Readonly<Record<string, ComponentType<{ className?: string
   fireworks: FireworksIcon,
   google: GeminiIcon,
   groq: GroqIcon,
+  kie: KieIcon,
   kimi: KimiIcon,
   litellm: LitellmIcon,
   meta: MetaIcon,
@@ -75,6 +77,7 @@ const PROVIDER_ICONS: Readonly<Record<string, ComponentType<{ className?: string
   openrouter: OpenRouterIcon,
   sakana: SakanaIcon,
   together: TogetherIcon,
+  typesafe: TypeSafeIcon,
   vertex: VertexIcon,
   vllm: VllmIcon,
   xai: xAIIcon,
@@ -84,10 +87,10 @@ const PROVIDER_ICONS: Readonly<Record<string, ComponentType<{ className?: string
   'azure-openai': AzureIcon,
 }
 
-export const USAGE_PROVIDER_ICON_IDS = Object.keys(PROVIDER_ICONS)
-
 interface UsageConsumerRowProps {
   row: OrganizationUsageBreakdownRow
+  /** Member rows lead with the member's avatar where other rows show a provider mark. */
+  isMember: boolean
   /** BYOK rows carry no cost, so tokens are the only usage they can show. */
   showTokensOnly: boolean
   onSelect?: (row: OrganizationUsageBreakdownRow) => void
@@ -125,6 +128,7 @@ export const USAGE_ROW_CLASSES = 'flex w-full items-center gap-2.5 rounded-lg p-
  */
 function UsageConsumerRow({
   row,
+  isMember,
   showTokensOnly,
   onSelect,
   actions,
@@ -147,14 +151,18 @@ function UsageConsumerRow({
         onSelect && 'transition-colors hover-hover:bg-[var(--surface-active)]'
       )}
     >
-      {ProviderIcon && <ProviderIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />}
+      {isMember ? (
+        <Avatar size='xs' name={row.label} src={row.image} aria-hidden />
+      ) : (
+        ProviderIcon && <ProviderIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+      )}
       <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'>{row.label}</span>
       <div
         className='h-[4px] w-[64px] shrink-0 overflow-hidden rounded-full bg-[var(--border)]'
         aria-hidden='true'
       >
         <div
-          className='h-full rounded-full bg-[var(--indicator-seat-filled)]'
+          className='h-full rounded-full bg-[var(--brand-blue)]'
           style={{ width: `${Math.max(2, Math.round(row.share * 100))}%` }}
         />
       </div>
@@ -237,6 +245,7 @@ export function UsageConsumers({
         <UsageConsumerRow
           key={`${dimension}-${row.id}`}
           row={row}
+          isMember={dimension === 'member'}
           showTokensOnly={showTokensOnly}
           {...(onExpandOther && trailingSlot ? { reservedTrailing: trailingSlot } : {})}
           {...(onSelectRow && row.id ? { onSelect: onSelectRow } : {})}

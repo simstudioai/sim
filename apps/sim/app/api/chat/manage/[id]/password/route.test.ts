@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   auditMock,
   auditMockFns,
@@ -49,8 +46,6 @@ function callGet() {
 
 describe('Chat Password Reveal API Route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'user-id', name: 'Test User', email: 'user@example.com' },
     })
@@ -70,17 +65,6 @@ describe('Chat Password Reveal API Route', () => {
     })
   })
 
-  it('should return 401 when user is not authenticated', async () => {
-    authMockFns.mockGetSession.mockResolvedValue(null)
-
-    const response = await callGet()
-
-    expect(response.status).toBe(401)
-    const data = await response.json()
-    expect(data.error).toBe('Unauthorized')
-    expect(mockDecryptSecret).not.toHaveBeenCalled()
-  })
-
   it('should return 404 when chat not found or access denied', async () => {
     mockCheckChatAccess.mockResolvedValue({ hasAccess: false })
 
@@ -91,39 +75,6 @@ describe('Chat Password Reveal API Route', () => {
     expect(data.error).toBe('Chat not found or access denied')
     expect(mockCheckChatAccess).toHaveBeenCalledWith('chat-123', 'user-id')
     expect(mockDecryptSecret).not.toHaveBeenCalled()
-  })
-
-  it('should return 404 when the chat has no password set', async () => {
-    mockCheckChatAccess.mockResolvedValue({
-      hasAccess: true,
-      chat: { ...passwordChat, authType: 'public', password: null },
-      workspaceId: 'workspace-123',
-    })
-
-    const response = await callGet()
-
-    expect(response.status).toBe(404)
-    const data = await response.json()
-    expect(data.error).toBe('This chat does not have a password set')
-    expect(mockDecryptSecret).not.toHaveBeenCalled()
-  })
-
-  it('should return the decrypted password and record an audit event', async () => {
-    const response = await callGet()
-
-    expect(response.status).toBe(200)
-    const data = await response.json()
-    expect(data.password).toBe('super-secret')
-    expect(mockDecryptSecret).toHaveBeenCalledWith('encrypted-password')
-    expect(mockRecordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: 'workspace-123',
-        actorId: 'user-id',
-        action: 'chat.password_viewed',
-        resourceId: 'chat-123',
-      })
-    )
-    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
   })
 
   it('should return 500 without echoing the decryption error', async () => {

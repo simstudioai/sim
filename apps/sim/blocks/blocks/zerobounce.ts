@@ -1,8 +1,7 @@
 import { ZeroBounceIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { ZeroBounceResponse } from '@/tools/zerobounce/types'
 
-export const ZeroBounceBlock: BlockConfig<ZeroBounceResponse> = {
+export const ZeroBounceBlock: BlockConfig = {
   type: 'zerobounce',
   name: 'ZeroBounce',
   description: 'Validate email deliverability and check account credits',

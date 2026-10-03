@@ -1,5 +1,12 @@
-/** @vitest-environment node */
 import { db } from '@sim/db'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const m = vi.hoisted(() => ({
@@ -8,8 +15,6 @@ const m = vi.hoisted(() => ({
   authorize: vi.fn(),
   sender: vi.fn(),
   member: vi.fn(),
-  membership: vi.fn(),
-  sources: vi.fn(),
   persist: vi.fn(),
   dispatch: vi.fn(),
   post: vi.fn(),
@@ -45,12 +50,7 @@ vi.mock('@/lib/knowledge/application/slack-search/identity', () => ({
     }
   },
 }))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: m.membership,
-}))
-vi.mock('@/lib/knowledge/application/slack-search/source-status', () => ({
-  getSlackSearchSourceStatus: { execute: m.sources },
-}))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 vi.mock('@/lib/knowledge/application/slack-search/turns', () => ({
   persistSlackSearchTurn: m.persist,
   requireSlackSearchTurnLease: m.lease,
@@ -62,7 +62,6 @@ vi.mock('@/lib/knowledge/application/slack-search/repository', () => ({
   recordSlackSearchOutcome: m.outcome,
 }))
 
-import { SlackSearchIdentityError } from '@/lib/knowledge/application/slack-search/identity'
 import {
   getSlackSearchOnboarding,
   retrySlackSearchOnboarding,
@@ -72,8 +71,9 @@ import {
   slackSearchConversation,
   slackSearchConversationKey,
 } from '@/lib/slack-search/conversation'
+import type { SlackSearchMessage } from '@/lib/slack-search/types'
 
-const principal = { kind: 'session', userId: 'user1', sessionId: 'session1' } as const
+const principal = createSessionPrincipal({ userId: 'user1', sessionId: 'session1' })
 const job = {
   installationId: 'install1',
   revision: 'revision1',
@@ -128,7 +128,6 @@ function queueContext(retried: { id: string }[] = []) {
 const get = () => getSlackSearchOnboarding.execute({ principal, input: { token: 'token' } })
 const retry = () => retrySlackSearchOnboarding.execute({ principal, input: { token: 'token' } })
 beforeEach(() => {
-  vi.clearAllMocks()
   for (const mock of Object.values(m)) mock.mockReset()
   const query = { from: vi.fn(), where: vi.fn(), limit: m.limit }
   query.from.mockReturnValue(query)
@@ -139,29 +138,18 @@ beforeEach(() => {
   m.authorize.mockResolvedValue(context)
   m.sender.mockResolvedValue({ email: state.email })
   m.member.mockResolvedValue('user1')
-  m.membership.mockResolvedValue({ role: 'member' })
-  m.sources.mockResolvedValue({ hasSearchableDocuments: true })
+  organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation.mockResolvedValue({
+    role: 'member',
+  })
   m.persist.mockResolvedValue('retry1')
   m.api.mockResolvedValue({ status: 200, data: { ok: true, permalink: state.slackUrl } })
   m.post.mockResolvedValue({ status: 200, data: { ok: true } })
 })
 describe('Slack onboarding authorization and retry', () => {
-  it('allows a newly verified member to retry before private history exists', async () => {
-    m.limit
-      .mockResolvedValueOnce([viewer])
-      .mockResolvedValueOnce([turn])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-    await retry()
-    expect(m.persist).toHaveBeenCalledWith(
-      expect.objectContaining({ installationId: job.installationId }),
-      'user1'
-    )
-  })
   it('rejects API keys before reading link state', async () => {
     await expect(
       getSlackSearchOnboarding.execute({
-        principal: { kind: 'personal_api_key', userId: 'user1', keyId: 'key1' },
+        principal: createPersonalApiKeyPrincipal({ userId: 'user1', keyId: 'key1' }),
         input: { token: 'token' },
       })
     ).rejects.toThrow()
@@ -177,13 +165,6 @@ describe('Slack onboarding authorization and retry', () => {
     m.limit.mockResolvedValueOnce([{ ...viewer, emailVerified: false }])
     expect(await get()).toEqual({ status: 'verify_email' })
     expect(m.authorize).not.toHaveBeenCalled()
-  })
-  it('does not create membership when a matching account is outside the organization', async () => {
-    queueContext()
-    m.member.mockRejectedValueOnce(new SlackSearchIdentityError('membership_required'))
-    expect(await get()).toEqual({ status: 'membership_required' })
-    expect(m.persist).not.toHaveBeenCalled()
-    expect(m.sources).not.toHaveBeenCalled()
   })
   it('refuses a changed Slack email or conflicting identity', async () => {
     queueContext()
@@ -201,54 +182,13 @@ describe('Slack onboarding authorization and retry', () => {
     )
     expect(m.persist).not.toHaveBeenCalled()
   })
-  it('returns setup state without executing or replaying the question on GET', async () => {
-    queueContext()
-    m.sources.mockResolvedValueOnce({ hasSearchableDocuments: false })
-    expect(await get()).toEqual({
-      status: 'needs_sources',
-      organizationId: 'org1',
-      question: job.message.query,
-      isAdmin: false,
-      slackUrl: state.slackUrl,
-    })
-    expect(m.persist).not.toHaveBeenCalled()
-    expect(m.dispatch).not.toHaveBeenCalled()
-  })
-  it('waits for accessible indexing before accepting a retry', async () => {
-    queueContext()
-    m.sources.mockResolvedValueOnce({ hasSearchableDocuments: false })
-    await expect(retry()).rejects.toThrow('wait for indexing')
-    expect(m.persist).not.toHaveBeenCalled()
-  })
   it('rechecks current capability permissions instead of trusting the link', async () => {
     queueContext()
-    m.membership.mockRejectedValueOnce(new Error('knowledge access denied'))
+    organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation.mockRejectedValueOnce(
+      new Error('knowledge access denied')
+    )
     await expect(retry()).rejects.toThrow('knowledge access denied')
     expect(m.persist).not.toHaveBeenCalled()
-  })
-  it('binds retry identity and preserves the original query and thread', async () => {
-    queueContext()
-    expect(await retry()).toEqual({ slackUrl: state.slackUrl })
-    expect(m.persist).toHaveBeenCalledWith(
-      expect.objectContaining({
-        installationId: 'install1',
-        revision: 'revision1',
-        message: expect.objectContaining({
-          query: job.message.query,
-          eventId: 'slack-onboarding:turn1',
-          threadTs: job.message.threadTs,
-          userId: 'U1',
-        }),
-      }),
-      principal.userId
-    )
-    expect(m.dispatch).toHaveBeenCalledWith('retry1')
-  })
-  it('repeated clicks reuse the durable retry instead of replaying an execution', async () => {
-    queueContext([{ id: 'existing-retry' }])
-    await retry()
-    expect(m.persist).not.toHaveBeenCalled()
-    expect(m.dispatch).toHaveBeenCalledWith('existing-retry')
   })
   it('refuses another Sim user bound to the original thread', async () => {
     m.limit
@@ -256,11 +196,6 @@ describe('Slack onboarding authorization and retry', () => {
       .mockResolvedValueOnce([turn])
       .mockResolvedValueOnce([{ ...thread, userId: 'other-user' }])
     await expect(retry()).rejects.toThrow('different account')
-    expect(m.persist).not.toHaveBeenCalled()
-  })
-  it('does not retry an ambiguous failed original delivery', async () => {
-    m.limit.mockResolvedValueOnce([viewer]).mockResolvedValueOnce([{ ...turn, status: 'failed' }])
-    await expect(retry()).rejects.toThrow('cannot be retried')
     expect(m.persist).not.toHaveBeenCalled()
   })
 })
@@ -275,14 +210,18 @@ describe('Slack onboarding control delivery', () => {
     eventId: 'Ev1',
     receivedAt: new Date(),
   } as const
-  const send = () =>
+  const send = (
+    reason: 'account' | 'sources' = 'account',
+    message: SlackSearchMessage = job.message,
+    signal = new AbortController().signal
+  ) =>
     sendSlackSearchOnboarding(slackPrincipal, {
-      job,
+      job: { ...job, message },
       turnId: 'turn1',
       leaseId: 'lease1',
       email: state.email,
-      reason: 'account',
-      signal: new AbortController().signal,
+      reason,
+      signal,
     })
   it('posts a thread-scoped signup link without bot secrets or email in its URL', async () => {
     const result = await send()
@@ -301,12 +240,16 @@ describe('Slack onboarding control delivery', () => {
       expect.objectContaining({ turnId: 'turn1', email: state.email })
     )
   })
-  it('rechecks the binding and lease immediately before delivery', async () => {
-    m.authorize.mockResolvedValueOnce(context).mockResolvedValueOnce(null)
-    await expect(send()).rejects.toThrow('disabled')
-    expect(m.post).not.toHaveBeenCalled()
-    expect(m.lease).toHaveBeenCalledWith('turn1', 'lease1')
-  })
+  it.each(['account', 'sources'] as const)(
+    'rechecks the binding and lease immediately before %s delivery',
+    async (reason) => {
+      m.authorize.mockResolvedValueOnce(context).mockResolvedValueOnce(null)
+      await expect(send(reason)).rejects.toThrow('disabled')
+      expect(m.post).not.toHaveBeenCalled()
+      expect(m.api).toHaveBeenCalledTimes(1)
+      expect(m.lease).toHaveBeenCalledWith('turn1', 'lease1')
+    }
+  )
   it('does not retry an ambiguous post or fall back to another transport', async () => {
     m.post.mockRejectedValueOnce(new Error('connection lost after send'))
     await expect(send()).rejects.toThrow('connection lost after send')

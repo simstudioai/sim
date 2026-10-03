@@ -62,14 +62,6 @@ export const customToolOperations = {
     capability: 'custom_tools.use',
     ...ALL_PRINCIPAL_POLICY,
   }),
-  save: defineWorkspaceOperation({
-    id: 'custom_tools.save',
-    oauthScope: 'api:write',
-    minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    capability: 'custom_tools.use',
-    ...ALL_PRINCIPAL_POLICY,
-  }),
   update: defineWorkspaceOperation({
     id: 'custom_tools.update',
     oauthScope: 'api:write',
@@ -78,14 +70,6 @@ export const customToolOperations = {
     capability: 'custom_tools.use',
     ...ALL_PRINCIPAL_POLICY,
   }),
-  updateAvailable: defineWorkspaceOperation({
-    id: 'custom_tools.update_available',
-    oauthScope: 'api:write',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    capability: 'custom_tools.use',
-    ...HUMAN_PRINCIPAL_POLICY,
-  }),
   delete: defineWorkspaceOperation({
     id: 'custom_tools.delete',
     oauthScope: 'api:write',
@@ -93,14 +77,6 @@ export const customToolOperations = {
     workspaceApiKey: 'allow',
     capability: 'custom_tools.use',
     ...ALL_PRINCIPAL_POLICY,
-  }),
-  deleteAvailable: defineWorkspaceOperation({
-    id: 'custom_tools.delete_available',
-    oauthScope: 'api:write',
-    minimumRole: 'write',
-    workspaceApiKey: 'deny',
-    capability: 'custom_tools.use',
-    ...HUMAN_PRINCIPAL_POLICY,
   }),
 } as const
 

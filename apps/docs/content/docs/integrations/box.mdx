@@ -6,7 +6,7 @@ description: Manage files, folders, and e-signatures with Box
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard
-  type="box"
+  type="box_v2"
   color="#FFFFFF"
 />
 
@@ -63,7 +63,6 @@ Download a file from Box
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `file` | file | Downloaded file stored in execution files |
-| `content` | string | Base64 encoded file content |
 
 ### Box Get File Info
 
@@ -416,3 +415,17 @@ Resend a Box Sign request to signers who have not yet signed
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `message` | string | Success confirmation message |
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Box account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/box` |
+| Environment variables | `BOX_CLIENT_ID`, `BOX_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `root_readwrite` | Read and write all files and folders in Box account |
+| `sign_requests.readwrite` | Create and manage Box Sign e-signature requests |

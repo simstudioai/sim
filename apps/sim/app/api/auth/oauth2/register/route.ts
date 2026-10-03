@@ -1,8 +1,9 @@
 import { toNextJsHandler } from 'better-auth/next-js'
 import { type NextRequest, NextResponse } from 'next/server'
-import { registerSearchOAuthClientContract } from '@/lib/api/contracts/oauth-provider'
+import { registerOAuthClientContract } from '@/lib/api/contracts/oauth-provider'
 import { parseRequest } from '@/lib/api/server'
 import { auth } from '@/lib/auth'
+import { markPubliclyRegisteredOAuthClient } from '@/lib/auth/oauth-client-registration'
 import { isAuthDisabled } from '@/lib/core/config/env-flags'
 import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -36,7 +37,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return invalidMetadata('Client metadata must be sent as application/json.', 415)
   }
   const parsed = await parseRequest(
-    registerSearchOAuthClientContract,
+    registerOAuthClientContract,
     request,
     {},
     {
@@ -63,6 +64,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
   )
   if (!response.ok) return response
-  const body = registerSearchOAuthClientContract.response.schema.parse(await response.json())
+  const body = registerOAuthClientContract.response.schema.parse(await response.json())
+  await markPubliclyRegisteredOAuthClient(body.client_id)
   return NextResponse.json(body, { status: 201, headers: HEADERS })
 })

@@ -42,7 +42,10 @@ import {
   rejectManagedOAuthToken,
   resolveManagedOAuthToken,
 } from '@/lib/credentials/managed-oauth'
-import { MEMBER_LOCKABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
+import {
+  connectorIsLive,
+  MEMBER_LOCKABLE_CONNECTOR_STATUSES,
+} from '@/lib/knowledge/connectors/sync-lock'
 import {
   CREDENTIAL_GROUP_CREDENTIAL_USE_ACTION,
   type ResourcePolicyBindingFor,
@@ -288,8 +291,7 @@ export async function assertKnowledgeConnectorCredentialAccess(
           resourceScopeCondition(knowledgeBase, scope),
           resourceScopeCondition(credentialGroup, scope),
           isNull(knowledgeBase.deletedAt),
-          isNull(knowledgeConnector.archivedAt),
-          isNull(knowledgeConnector.deletedAt)
+          connectorIsLive()
         )
       )
       .limit(1)
@@ -299,6 +301,15 @@ export async function assertKnowledgeConnectorCredentialAccess(
       )
     }
     return
+  }
+  /** The policy grant outlives a removal until its revocation lands; the connector row does not. */
+  const [liveConnector] = await db
+    .select({ id: knowledgeConnector.id })
+    .from(knowledgeConnector)
+    .where(and(eq(knowledgeConnector.id, binding.connectorId), connectorIsLive()))
+    .limit(1)
+  if (!liveConnector) {
+    throw new KnowledgeConnectorMemberAccessDeniedError('Knowledge connector has been removed')
   }
   const policy = await requireResourcePolicy(
     policyTarget({ ...binding, workspaceId: scope.workspaceId })

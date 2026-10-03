@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentProps, memo, useCallback, useRef, useState } from 'react'
+import { type ComponentProps, memo, useRef, useState } from 'react'
 import { Chip, cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn'
 import { PanelLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
@@ -16,10 +16,7 @@ import {
   OrganizationHeader,
   WorkspacesSection,
 } from '@/app/o/[organizationId]/components/organization-sidebar/components'
-import {
-  useCollapsedTooltips,
-  useOrganizationChats,
-} from '@/app/o/[organizationId]/components/organization-sidebar/hooks'
+import { useOrganizationChats } from '@/app/o/[organizationId]/components/organization-sidebar/hooks'
 import { buildOrganizationNavItems } from '@/app/o/[organizationId]/components/organization-sidebar/navigation'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { OrganizationSettingsSidebar } from '@/app/o/[organizationId]/settings/organization-settings-sidebar'
@@ -27,6 +24,7 @@ import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/works
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
+  HelpModal,
   isNavItemActive,
   NavItemContextMenu,
   SidebarNavChip,
@@ -39,7 +37,9 @@ import {
   SIDEBAR_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { useSidebarResize } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { isSidebarBackgroundClick } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import { useContextMenu } from '@/hooks/use-context-menu'
+import { useFolderStore } from '@/stores/folders/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('OrganizationSidebar')
@@ -58,7 +58,9 @@ interface OrganizationChatsProps
 
 function OrganizationChats({ organizationId, ...props }: OrganizationChatsProps) {
   const { chats, isLoading } = useOrganizationChats(organizationId)
-  return <ChatsSection {...props} chats={chats} isLoading={isLoading} />
+  return (
+    <ChatsSection {...props} organizationId={organizationId} chats={chats} isLoading={isLoading} />
+  )
 }
 
 /**
@@ -78,24 +80,23 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
 
   const pathname = usePathname()
   const posthog = usePostHog()
-  const { organization, searchAccess } = useOrganizationContext()
+  const { organization, viewer, searchAccess, mothershipAvailable, canBuild } =
+    useOrganizationContext()
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
   const { handlePointerDown } = useSidebarResize()
-  const showCollapsedTooltips = useCollapsedTooltips(isCollapsed)
+  const showCollapsedTooltips = isCollapsed
   const scrollEdges = useScrollEdges(scrollContainerRef, {
     contentRef: scrollContentRef,
     enabled: !isCollapsed,
   })
 
   const isMac = isMacPlatform()
-  const navItems = buildOrganizationNavItems(organization.id, searchAccess.memberScoped)
+  const canUseHome = mothershipAvailable && (canBuild || searchAccess.memberScoped)
+  const navItems = buildOrganizationNavItems(organization.id, searchAccess.memberScoped, canUseHome)
   const settingsPath = organizationRoutes(organization.id).settings
   const isSettings = pathname === settingsPath || pathname?.startsWith(`${settingsPath}/`)
 
-  /**
-   * One menu serves every href-bearing row (nav items, workspaces, chats): the
-   * actions — open in a new tab, copy the link — only need the destination.
-   */
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false)
   const [menuHref, setMenuHref] = useState<string | null>(null)
   const {
     isOpen: isHrefMenuOpen,
@@ -105,32 +106,10 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
     closeMenu: closeHrefMenu,
   } = useContextMenu()
 
-  const handleHrefContextMenu = useCallback(
-    (e: React.MouseEvent, href: string) => {
-      setMenuHref(href)
-      openHrefMenu(e)
-    },
-    [openHrefMenu]
-  )
-
-  /** Anchors the menu to the row's options button rather than the pointer. */
-  const handleChatMoreClick = useCallback(
-    (e: React.MouseEvent<HTMLButtonElement>, href: string) => {
-      if (isHrefMenuOpen) {
-        closeHrefMenu()
-        return
-      }
-      const rect = e.currentTarget.getBoundingClientRect()
-      setMenuHref(href)
-      openHrefMenu({
-        preventDefault: () => {},
-        stopPropagation: () => {},
-        clientX: rect.right,
-        clientY: rect.top,
-      } as React.MouseEvent)
-    },
-    [isHrefMenuOpen, closeHrefMenu, openHrefMenu]
-  )
+  const handleHrefContextMenu = (e: React.MouseEvent, href: string) => {
+    setMenuHref(href)
+    openHrefMenu(e)
+  }
 
   const handleHrefMenuClose = () => {
     closeHrefMenu()
@@ -167,6 +146,11 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
     }
   }
 
+  const handleSidebarClick = (event: React.MouseEvent<HTMLElement>) => {
+    if (!isSidebarBackgroundClick(event)) return
+    useFolderStore.getState().clearChatSelection()
+  }
+
   useRegisterGlobalCommands(() =>
     createCommands([
       {
@@ -184,6 +168,7 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
         className='group/rail sidebar-container relative h-full overflow-hidden bg-[var(--surface-1)] [&_.group.cursor-pointer]:duration-0'
         data-collapsed={isCollapsed || undefined}
         aria-label='Organization sidebar'
+        onClick={handleSidebarClick}
       >
         <div className='flex h-full flex-col'>
           {/* The peek card already sits below the lane; reserving it again doubles the offset. */}
@@ -202,6 +187,8 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
           >
             <OrganizationHeader
               organization={organization}
+              canEditLogo={viewer.isAdmin}
+              canInviteMembers={viewer.canInviteMembers}
               isCollapsed={isCollapsed}
               onExpandSidebar={toggleCollapsed}
             />
@@ -283,16 +270,13 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
                     organizationId={organization.id}
                     isCollapsed={isCollapsed}
                     pathname={pathname}
-                    onContextMenu={handleHrefContextMenu}
                   />
-                  {searchAccess.memberScoped && (
+                  {canUseHome && (
                     <OrganizationChats
+                      key={organization.id}
                       organizationId={organization.id}
                       isCollapsed={isCollapsed}
                       pathname={pathname}
-                      menuOpenHref={isHrefMenuOpen ? menuHref : null}
-                      onContextMenu={handleHrefContextMenu}
-                      onMoreClick={handleChatMoreClick}
                     />
                   )}
                 </div>
@@ -305,6 +289,7 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
             showCollapsedTooltips={showCollapsedTooltips}
             onOpenDocs={handleOpenDocs}
             onJoinSlack={handleOpenSlackCommunity}
+            onContactSupport={() => setIsHelpModalOpen(true)}
           />
 
           <NavItemContextMenu
@@ -317,6 +302,8 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
           />
         </div>
       </aside>
+
+      <HelpModal open={isHelpModalOpen} onOpenChange={setIsHelpModalOpen} />
 
       {/* Not on the peek card: the resize hook writes an inline `--sidebar-width` that
           out-specifies the `[data-peek]` rule, stranding the card at a stale width. */}

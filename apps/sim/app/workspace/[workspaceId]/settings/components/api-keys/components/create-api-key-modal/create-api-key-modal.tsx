@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import {
-  ButtonGroup,
-  ButtonGroupItem,
+  ChipButtonGroup,
+  ChipButtonGroupItem,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -143,18 +143,18 @@ export function CreateApiKeyModal({
         <ChipModalBody>
           {canManageWorkspaceKeys && (
             <ChipModalField type='custom' title='Key type'>
-              <ButtonGroup
+              <ChipButtonGroup
                 value={keyType}
                 onValueChange={(value) => {
                   setKeyType(value as 'personal' | 'workspace')
                   if (createError) setCreateError(null)
                 }}
               >
-                <ButtonGroupItem value='personal' disabled={!allowPersonalApiKeys}>
+                <ChipButtonGroupItem value='personal' disabled={!allowPersonalApiKeys}>
                   Personal
-                </ButtonGroupItem>
-                <ButtonGroupItem value='workspace'>Workspace</ButtonGroupItem>
-              </ButtonGroup>
+                </ChipButtonGroupItem>
+                <ChipButtonGroupItem value='workspace'>Workspace</ChipButtonGroupItem>
+              </ChipButtonGroup>
             </ChipModalField>
           )}
           <ChipModalField

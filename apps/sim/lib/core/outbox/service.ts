@@ -1,16 +1,19 @@
 import { db } from '@sim/db'
 import { outboxEvent } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { describeError, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import { and, asc, desc, eq, inArray, lte, sql } from 'drizzle-orm'
+import { readyEventTypesQuery } from '@/lib/core/outbox/queries'
 
 const logger = createLogger('OutboxService')
 
 const DEFAULT_MAX_ATTEMPTS = 10
-const MAX_BULK_ENQUEUE_EVENTS = 1_000
+/** Most events one {@link enqueueOutboxEvents} call may insert. */
+export const MAX_BULK_ENQUEUE_EVENTS = 1_000
 const MAX_PERSISTED_ERROR_LENGTH = 500
+const MAX_REAPED_EVENTS = 1_000
 
 /**
  * Bounds a handler failure before persisting it to `last_error`. Driver
@@ -81,7 +84,8 @@ export interface DeferredOutboxHandlerResult {
    * Defaults to true for an external acknowledgement with a finite retry
    * budget. False is reserved for waits on an internal dependency whose own
    * outbox row independently reaches completed or dead-letter, and for
-   * bounded continuation after durable progress (`continueOutboxHandler`).
+   * bounded continuation after durable progress (`continueOutboxHandler`),
+   * or external polling with a separately persisted, finite poll allowance.
    */
   consumeAttempt?: boolean
 }
@@ -415,43 +419,81 @@ export async function hasInflightOutboxEvent(
 }
 
 /**
- * Process one batch of outbox events. Safe to call concurrently from
- * multiple workers — `SELECT FOR UPDATE SKIP LOCKED` serializes claims.
+ * Process a bounded batch, serving each ready event type once per round so
+ * bulk maintenance cannot monopolize delivery. Each type serves its earliest
+ * available events first. Safe to call concurrently from multiple workers —
+ * `SELECT FOR UPDATE SKIP LOCKED` serializes claims.
  */
 export async function processOutboxEvents(
   handlers: OutboxHandlerRegistry,
   options: { batchSize?: number; maxRuntimeMs?: number; minRemainingMs?: number } = {}
 ): Promise<ProcessOutboxResult> {
+  const startedAt = Date.now()
   const batchSize = options.batchSize ?? 10
-  const deadline = options.maxRuntimeMs ? Date.now() + options.maxRuntimeMs : undefined
+  const deadline = options.maxRuntimeMs ? startedAt + options.maxRuntimeMs : undefined
   const minRemainingMs = options.minRemainingMs ?? DEFAULT_HANDLER_TIMEOUT_MS + 5000
-
-  const reaped = await reapStuckProcessingRows()
-
+  let phase = 'reap'
+  let reaped = 0
   let processed = 0
   let retried = 0
   let deadLettered = 0
   let leaseLost = 0
 
-  for (let i = 0; i < batchSize; i++) {
-    if (deadline && Date.now() + minRemainingMs > deadline) break
+  try {
+    reaped = await reapStuckProcessingRows()
+    phase = 'discover'
+    const readyTypes = await db.execute<{ eventType: string }>(readyEventTypesQuery(new Date()))
+    const eligibleTypes = readyTypes.map(({ eventType }) => eventType)
+    let cursor = 0
+    let claimed = 0
 
-    const [event] = await claimBatch(1)
-    if (!event) break
+    while (claimed < batchSize && eligibleTypes.length > 0) {
+      if (deadline && Date.now() + minRemainingMs > deadline) break
+      if (cursor >= eligibleTypes.length) cursor = 0
 
-    const handlerTimeout = handlers[event.eventType]?.timeoutMs ?? DEFAULT_HANDLER_TIMEOUT_MS
-    if (deadline && Date.now() + handlerTimeout + 5000 > deadline) {
-      await updateIfLeaseHeld(event, { status: 'pending', lockedAt: null })
-      break
+      const eventType = eligibleTypes[cursor]
+      const handlerTimeout = handlers[eventType]?.timeoutMs ?? DEFAULT_HANDLER_TIMEOUT_MS
+      if (deadline && Date.now() + handlerTimeout + 5000 > deadline) {
+        eligibleTypes.splice(cursor, 1)
+        continue
+      }
+
+      phase = 'claim'
+      const [event] = await claimBatch(1, eventType)
+      if (!event) {
+        eligibleTypes.splice(cursor, 1)
+        continue
+      }
+      claimed++
+      if (deadline && Date.now() + handlerTimeout + 5000 > deadline) {
+        phase = 'release'
+        await updateIfLeaseHeld(event, { status: 'pending', lockedAt: null })
+        eligibleTypes.splice(cursor, 1)
+        continue
+      }
+      cursor++
+      phase = 'handle'
+      const result = await runHandler(event, handlers)
+      if (result === 'completed') processed++
+      else if (result === 'dead_letter') deadLettered++
+      else if (result === 'lease_lost') leaseLost++
+      else retried++
     }
-    const result = await runHandler(event, handlers)
-    if (result === 'completed') processed++
-    else if (result === 'dead_letter') deadLettered++
-    else if (result === 'lease_lost') leaseLost++
-    else retried++
-  }
 
-  return { processed, retried, deadLettered, leaseLost, reaped }
+    return { processed, retried, deadLettered, leaseLost, reaped }
+  } catch (error) {
+    logger.error('Outbox processing failed', {
+      phase,
+      durationMs: Date.now() - startedAt,
+      processed,
+      retried,
+      deadLettered,
+      leaseLost,
+      reaped,
+      error: describeError(error),
+    })
+    throw error
+  }
 }
 
 /**
@@ -508,10 +550,17 @@ export async function processOutboxEventById(
  */
 async function reapStuckProcessingRows(): Promise<number> {
   const stuckBefore = new Date(Date.now() - STUCK_PROCESSING_THRESHOLD_MS)
+  const stuckRows = db
+    .select({ id: outboxEvent.id })
+    .from(outboxEvent)
+    .where(and(eq(outboxEvent.status, 'processing'), lte(outboxEvent.lockedAt, stuckBefore)))
+    .orderBy(asc(outboxEvent.lockedAt), asc(outboxEvent.id))
+    .limit(MAX_REAPED_EVENTS)
+    .for('update', { skipLocked: true })
   const result = await db
     .update(outboxEvent)
     .set({ status: 'pending', lockedAt: null })
-    .where(and(eq(outboxEvent.status, 'processing'), lte(outboxEvent.lockedAt, stuckBefore)))
+    .where(inArray(outboxEvent.id, stuckRows))
     .returning({ id: outboxEvent.id })
 
   if (result.length > 0) {
@@ -531,14 +580,23 @@ async function reapStuckProcessingRows(): Promise<number> {
  * `processing` inside the same tx so the claim survives the lock
  * release — the status change becomes the out-of-band mutual exclusion.
  */
-async function claimBatch(batchSize: number): Promise<(typeof outboxEvent.$inferSelect)[]> {
+async function claimBatch(
+  batchSize: number,
+  eventType: string
+): Promise<(typeof outboxEvent.$inferSelect)[]> {
   const now = new Date()
   return db.transaction(async (tx) => {
     const rows = await tx
       .select()
       .from(outboxEvent)
-      .where(and(eq(outboxEvent.status, 'pending'), lte(outboxEvent.availableAt, now)))
-      .orderBy(asc(outboxEvent.createdAt))
+      .where(
+        and(
+          eq(outboxEvent.status, 'pending'),
+          lte(outboxEvent.availableAt, now),
+          eq(outboxEvent.eventType, eventType)
+        )
+      )
+      .orderBy(asc(outboxEvent.availableAt), asc(outboxEvent.createdAt), asc(outboxEvent.id))
       .limit(batchSize)
       .for('update', { skipLocked: true })
 

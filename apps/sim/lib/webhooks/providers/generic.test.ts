@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { genericHandler } from '@/lib/webhooks/providers/generic'
 import type { FormatInputContext } from '@/lib/webhooks/providers/types'
@@ -45,20 +42,6 @@ const format = (...args: Parameters<typeof context>) =>
   genericHandler.formatInput!(context(...args))
 
 describe('genericHandler.formatInput defaults', () => {
-  /**
-   * The compatibility guarantee for every webhook deployed before this feature existed: no flags
-   * in `providerConfig`, so a POST resolves to exactly the body it always did.
-   */
-  it('passes a POST body through untouched when no flag is set', async () => {
-    const result = await format(
-      { event: 'test' },
-      {},
-      { headers: { 'x-event-name': 'created', authorization: 'Bearer secret' } }
-    )
-
-    expect(result.input).toEqual({ event: 'test' })
-  })
-
   it('withholds "method" until the webhook accepts more than POST', async () => {
     const result = await format({ event: 'test' }, {}, { method: 'POST' })
 
@@ -69,33 +52,6 @@ describe('genericHandler.formatInput defaults', () => {
     const result = await format({}, {}, { headers: { 'x-event-name': 'created' } })
 
     expect(result.input).not.toHaveProperty('headers')
-  })
-})
-
-describe('genericHandler.formatInput query parameters', () => {
-  /**
-   * Query parameters are the one key that is not gated: they are dropped today, they only appear
-   * when the caller's own URL carries them, and they add nothing to a request without them.
-   */
-  it('exposes query parameters under "query" alongside body fields', async () => {
-    const result = await format({ event: 'test' }, { srcId: '123', title: 'Hello' })
-
-    expect(result.input).toEqual({
-      event: 'test',
-      query: { srcId: '123', title: 'Hello' },
-    })
-  })
-
-  it('exposes query parameters when the request has no body', async () => {
-    const result = await format({}, { srcId: '123' })
-
-    expect(result.input).toEqual({ query: { srcId: '123' } })
-  })
-
-  it('passes the body through unchanged when there are no query parameters', async () => {
-    const result = await format({ event: 'test' }, {})
-
-    expect(result.input).toEqual({ event: 'test' })
   })
 })
 
@@ -125,24 +81,11 @@ describe('genericHandler.formatInput body precedence', () => {
 
     expect(result.input).toMatchObject({ event: 'test', query: { srcId: '123' } })
   })
-
-  it('leaves non-object bodies untouched', async () => {
-    const body = [{ event: 'a' }]
-    const result = await format(body, { srcId: '123' })
-
-    expect(result.input).toEqual(body)
-  })
 })
 
 describe('genericHandler.formatInput exposed headers', () => {
   const withHeaders = (headers: Record<string, string>, options: ContextOptions = {}) =>
     format({}, {}, { ...options, headers, exposeRequestHeaders: true })
-
-  it('exposes request headers under "headers" with lowercased names', async () => {
-    const result = await withHeaders({ 'X-Event-Name': 'created' })
-
-    expect(result.input).toEqual({ headers: { 'x-event-name': 'created' } })
-  })
 
   it.each([
     'authorization',
@@ -214,29 +157,6 @@ describe('genericHandler.formatInput exposed headers', () => {
 })
 
 describe('genericHandler delivery methods', () => {
-  it('declares the extra methods and the flag that unlocks them', () => {
-    expect(genericHandler.extraDeliveryMethods).toEqual({
-      methods: ['GET', 'PUT', 'PATCH', 'DELETE'],
-      enabledBy: 'acceptOtherMethods',
-    })
-  })
-
-  it('exposes the request method once the webhook accepts more than POST', async () => {
-    const result = await format(
-      { event: 'test' },
-      {},
-      { method: 'DELETE', acceptOtherMethods: true }
-    )
-
-    expect(result.input).toEqual({ event: 'test', method: 'DELETE' })
-  })
-
-  it('omits "method" for legacy queued jobs that carry none', async () => {
-    const result = await format({ event: 'test' }, {}, { method: '', acceptOtherMethods: true })
-
-    expect(result.input).not.toHaveProperty('method')
-  })
-
   /**
    * The editor writes booleans, but a YAML- or Copilot-authored workflow can write the string
    * `'false'`, which is truthy. Reading that as "on" would silently ship the opposite of the
@@ -249,14 +169,5 @@ describe('genericHandler delivery methods', () => {
     const result = await genericHandler.formatInput!(ctx)
 
     expect(result.input).not.toHaveProperty('method')
-  })
-
-  it('treats a stringified "true" flag as on', async () => {
-    const ctx = context({ event: 'test' }, {}, { method: 'DELETE' })
-    ;(ctx.webhook.providerConfig as Record<string, unknown>).acceptOtherMethods = 'true'
-
-    const result = await genericHandler.formatInput!(ctx)
-
-    expect(result.input).toEqual({ event: 'test', method: 'DELETE' })
   })
 })

@@ -1,4 +1,4 @@
-import type { SessionPrincipal } from '@sim/auth/principal'
+import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { account, credential } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
@@ -6,7 +6,6 @@ import {
   authorizeCredentialUseForAuth,
   type CredentialAccessResult,
 } from '@/lib/auth/credential-access'
-import { AuthType } from '@/lib/auth/hybrid'
 import {
   authorizeOrganizationCredentialUse,
   resolveOrganizationCredentialTokenBundle,
@@ -18,6 +17,7 @@ import type {
   AuthorizedSelectorCredential,
   ResolvedSelectorReference,
   SelectorCredentialPolicy,
+  SelectorPrincipal,
   SelectorProtectedValues,
 } from '@/lib/selectors/server/types'
 import type { SelectorContext, SelectorScope } from '@/lib/selectors/types'
@@ -100,7 +100,7 @@ async function requireCredentialProviderBinding(
 }
 
 export async function authorizeSelectorCredential(input: {
-  principal: SessionPrincipal
+  principal: SelectorPrincipal
   context: SelectorContext
   scope: SelectorScope
   workspaceId?: string
@@ -113,13 +113,18 @@ export async function authorizeSelectorCredential(input: {
   if (!suppliedId) throw new SelectorConnectionUnavailableError()
 
   if (input.scope.kind === 'organization') {
-    if (input.workspaceId || input.organizationId !== input.scope.organizationId)
+    if (
+      input.principal.kind !== 'session' ||
+      input.workspaceId ||
+      input.organizationId !== input.scope.organizationId
+    )
       throw new SelectorConnectionUnavailableError()
     const { credential: row } = await authorizeOrganizationCredentialUse({
       principal: input.principal,
       organizationId: input.scope.organizationId,
       credentialId: suppliedId,
       requestId: 'selector-execution',
+      purpose: 'browsing',
     })
     if (
       !row.providerId ||
@@ -151,8 +156,7 @@ export async function authorizeSelectorCredential(input: {
   const access = await authorizeCredentialUseForAuth(
     {
       success: true,
-      userId: input.principal.userId,
-      authType: AuthType.SESSION,
+      userId: requirePrincipalSubjectUserId(input.principal),
     },
     {
       credentialId: suppliedId,
@@ -190,6 +194,7 @@ export async function resolveSelectorOAuthAccessToken(input: {
         ...input.credential.organization,
         credentialId: input.credential.suppliedId,
         requestId: 'selector-execution',
+        purpose: 'browsing',
         requiredScopes: input.scopes ? [...input.scopes] : undefined,
         impersonateEmail: input.impersonateEmail,
         expectedProviderId: input.credential.providerId,

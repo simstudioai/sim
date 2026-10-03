@@ -29,10 +29,13 @@ import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
-import { uploadConnectorArtifact } from '@/lib/knowledge/connectors/connector-upload'
 import { stillHoldsSyncLock } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument, updateDocument } from '@/lib/knowledge/connectors/sync-persistence'
 import * as cleanup from '@/lib/knowledge/documents/storage-cleanup'
+import {
+  claimKnowledgeUploadForAttachment,
+  uploadKnowledgeArtifact,
+} from '@/lib/knowledge/documents/storage-upload'
 import * as storage from '@/lib/uploads/core/storage-service'
 import { getFileMetadataByKeys } from '@/lib/uploads/server/metadata'
 import type { ExternalDocument } from '@/connectors/types'
@@ -96,7 +99,7 @@ describe('connector upload crash recovery', () => {
       .mockRejectedValueOnce(new Error('Synthetic outbox failure'))
     const upload = vi.spyOn(storage, 'uploadFile')
     try {
-      await expect(uploadConnectorArtifact(fixture)).rejects.toThrow('Synthetic outbox failure')
+      await expect(uploadKnowledgeArtifact(fixture)).rejects.toThrow('Synthetic outbox failure')
       expect(upload).not.toHaveBeenCalled()
       expect(
         await db
@@ -115,7 +118,7 @@ describe('connector upload crash recovery', () => {
 
   it('cleans an upload whose worker dies before the document attachment', async () => {
     const fixture = input()
-    const uploaded = await uploadConnectorArtifact(fixture)
+    const uploaded = await uploadKnowledgeArtifact(fixture)
     expect((await getFileMetadataByKeys([fixture.key], 'knowledge-base'))[0].id).toBe(
       uploaded.metadataId
     )
@@ -135,13 +138,92 @@ describe('connector upload crash recovery', () => {
       .spyOn(storage, 'uploadFile')
       .mockRejectedValueOnce(new Error('Synthetic worker stop'))
     try {
-      await expect(uploadConnectorArtifact(fixture)).rejects.toThrow('Synthetic worker stop')
+      await expect(uploadKnowledgeArtifact(fixture)).rejects.toThrow('Synthetic worker stop')
     } finally {
       upload.mockRestore()
     }
     expect(await getFileMetadataByKeys([fixture.key], 'knowledge-base')).toHaveLength(1)
     await runCleanup(fixture.documentId)
     expect(await getFileMetadataByKeys([fixture.key], 'knowledge-base')).toEqual([])
+  })
+
+  it('restores orphan cleanup when the attachment transaction rolls back', async () => {
+    const fixture = input()
+    const uploaded = await uploadKnowledgeArtifact(fixture)
+    events.push(uploaded.cleanupEventId)
+
+    await expect(
+      db.transaction(async (tx) => {
+        await claimKnowledgeUploadForAttachment(tx, uploaded.cleanupEventId)
+        throw new Error('Synthetic attachment failure')
+      })
+    ).rejects.toThrow('Synthetic attachment failure')
+
+    const [guard] = await db
+      .select({ status: outboxEvent.status, processedAt: outboxEvent.processedAt })
+      .from(outboxEvent)
+      .where(eq(outboxEvent.id, uploaded.cleanupEventId))
+    expect(guard).toEqual({ status: 'pending', processedAt: null })
+    await runCleanup(fixture.documentId)
+    expect(await getFileMetadataByKeys([fixture.key], 'knowledge-base')).toEqual([])
+    await expect(access(path.join(fixtureStorage.root, fixture.key))).rejects.toMatchObject({
+      code: 'ENOENT',
+    })
+  })
+
+  it('retires the new upload guard while preserving cleanup of replaced document bytes', async () => {
+    const source: ExternalDocument = {
+      externalId: generateId(),
+      title: 'Versioned source',
+      content: 'Original source content',
+      mimeType: 'text/plain',
+      contentHash: 'original-content',
+    }
+    const owner = { workspaceId: ids.workspaceId, userId: ids.aliceId }
+    const lease = { stillHeld: () => stillHoldsSyncLock(ids.connectorId, ids.lockId) }
+    const added = await addDocument(
+      ids.knowledgeBaseId,
+      ids.connectorId,
+      'confluence',
+      source,
+      owner,
+      undefined,
+      'workspace',
+      lease
+    )
+    const updated = await updateDocument(
+      added.documentId,
+      ids.knowledgeBaseId,
+      ids.connectorId,
+      'confluence',
+      { ...source, content: 'Replacement source content', contentHash: 'replacement-content' },
+      owner,
+      undefined,
+      'workspace',
+      lease
+    )
+    const oldKey = cleanup.getKnowledgeBaseStorageKey(added.fileUrl)
+    const newKey = cleanup.getKnowledgeBaseStorageKey(updated.fileUrl)
+    const rows = await db
+      .select()
+      .from(outboxEvent)
+      .where(sql`${outboxEvent.payload}->>'documentId' = ${added.documentId}`)
+    events.push(...rows.map((row) => row.id))
+    expect(rows).toHaveLength(3)
+    expect(rows.filter((row) => row.status === 'completed')).toHaveLength(2)
+    const pending = rows.filter((row) => row.status === 'pending')
+    expect(pending).toHaveLength(1)
+    expect(pending[0].payload).toMatchObject({ key: oldKey })
+
+    expect(
+      await processOutboxEventById(pending[0].id, {
+        [cleanup.KNOWLEDGE_STORAGE_CLEANUP_EVENT]: cleanup.cleanupKnowledgeStorage,
+      })
+    ).toBe('completed')
+    expect(await getFileMetadataByKeys([oldKey!], 'knowledge-base')).toEqual([])
+    expect(await readFile(path.join(fixtureStorage.root, newKey!), 'utf8')).toBe(
+      'Replacement source content'
+    )
   })
 
   it.each(['add', 'update'] as const)(
@@ -258,6 +340,12 @@ describe('connector upload crash recovery', () => {
         await blocker
         const result = await settled
         expect(result).toHaveProperty('value')
+        const [retired] = await db
+          .select({ status: outboxEvent.status, processedAt: outboxEvent.processedAt })
+          .from(outboxEvent)
+          .where(eq(outboxEvent.id, event.id))
+        expect(retired.status).toBe('completed')
+        expect(retired.processedAt).toBeInstanceOf(Date)
         expect(await processOutboxEventById(event.id, handlers)).toBe('completed')
         expect(await getFileMetadataByKeys([file.key], 'knowledge-base')).toHaveLength(1)
         expect(await readFile(path.join(fixtureStorage.root, file.key), 'utf8')).toBe(
@@ -285,7 +373,7 @@ describe('connector upload crash recovery', () => {
       persistMetadata: false,
       createOnlyUploadId: generateId(),
     })
-    await expect(uploadConnectorArtifact(fixture)).rejects.toThrow()
+    await expect(uploadKnowledgeArtifact(fixture)).rejects.toThrow()
     await runCleanup(fixture.documentId)
     expect(await readFile(path.join(fixtureStorage.root, fixture.key), 'utf8')).toBe(
       'Earlier upload content'

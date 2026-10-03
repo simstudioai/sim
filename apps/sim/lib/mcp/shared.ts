@@ -3,30 +3,10 @@
  * No server-side dependencies (database, fs, etc.) should be imported here.
  */
 
+import { normalizeMcpOperationPolicy } from '@/lib/mcp/operation-policy'
 import { isMcpTool, MCP } from '@/executor/constants'
 
 export const MCP_SERVER_ADVANCED_TOOL_TYPE = 'mcp-server-advanced' as const
-
-export interface McpServerAdvancedToolBinding {
-  type: typeof MCP_SERVER_ADVANCED_TOOL_TYPE
-  params: {
-    serverId: string
-  }
-  usageControl?: 'auto' | 'force' | 'none'
-}
-
-export function isMcpServerAdvancedToolBinding(
-  value: unknown
-): value is McpServerAdvancedToolBinding {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
-  const binding = value as { type?: unknown; params?: unknown }
-  if (binding.type !== MCP_SERVER_ADVANCED_TOOL_TYPE) return false
-  if (!binding.params || typeof binding.params !== 'object' || Array.isArray(binding.params)) {
-    return false
-  }
-  const serverId = (binding.params as { serverId?: unknown }).serverId
-  return typeof serverId === 'string' && serverId.trim().length > 0
-}
 
 /** Rejects ambiguous server-wide bindings while leaving legacy MCP entries untouched. */
 export function assertValidMcpServerToolBindings(value: unknown): void {
@@ -48,11 +28,12 @@ export function assertValidMcpServerToolBindings(value: unknown): void {
       continue
     }
     if (tool.type !== MCP_SERVER_ADVANCED_TOOL_TYPE) continue
+    normalizeMcpOperationPolicy((candidate as { operationPolicy?: unknown }).operationPolicy)
     const serverId = tool.params?.serverId
     if (typeof serverId !== 'string') {
       throw new Error('MCP Server (Advanced) requires params.serverId')
     }
-    if (!serverId.trim()) continue
+    if (!serverId.trim()) throw new Error('MCP Server (Advanced) requires params.serverId')
     if (advancedServerIds.has(serverId)) {
       throw new Error(`Duplicate MCP Server (Advanced) binding for ${serverId}`)
     }

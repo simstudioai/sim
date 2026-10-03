@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { SLACK_APP_CREATION_URL_MAX_LENGTH } from '@/lib/integrations/slack-manifest'
 
 export const slackSearchOrganizationQuerySchema = z.object({ organizationId: organizationIdSchema })
 export const slackSearchInstallationSchema = z.object({
@@ -9,12 +10,14 @@ export const slackSearchInstallationSchema = z.object({
   appId: z.string().min(1).max(200),
   teamId: z.string().min(1).max(200),
   teamName: z.string().min(1).max(200),
+  appKind: z.enum(['custom', 'shared']),
   enabled: z.boolean(),
   needsValidation: z.boolean(),
   lastOutcome: z.string().max(100).nullable(),
   lastEventAt: z.string().datetime().nullable(),
 })
 export const listSlackSearchResponseSchema = z.object({
+  sharedAppAvailable: z.boolean(),
   installations: z.array(slackSearchInstallationSchema).max(100),
   bots: z
     .array(z.object({ id: z.string().min(1).max(200), displayName: z.string().max(500) }))
@@ -64,16 +67,18 @@ export const prepareSlackSearchContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: z.object({
+      sharedAppId: z.string().min(1).max(200).nullable(),
       manifest: z.string().max(20_000),
       existingApp: z
         .object({ appId: z.string().min(1).max(200), teamId: z.string().min(1).max(200) })
         .nullable(),
-      createAppUrl: z.string().url().max(30_000),
+      createAppUrl: z.string().url().max(SLACK_APP_CREATION_URL_MAX_LENGTH),
     }),
   },
 })
 
 export const startSlackSearchOAuthBodySchema = prepareSlackSearchBodySchema.extend({
+  mode: z.enum(['custom', 'shared']).default('custom'),
   installationId: z.string().min(1).max(200).optional(),
   clientId: z.string().trim().min(1).max(200).optional(),
   clientSecret: z.string().trim().min(1).max(500).optional(),
@@ -87,8 +92,26 @@ export const startSlackSearchOAuthContract = defineRouteContract({
   response: { mode: 'json', schema: z.object({ authorizationUrl: z.string().url().max(4000) }) },
 })
 
+export const connectCustomSlackSearchBodySchema = startSlackSearchOAuthBodySchema
+  .omit({ mode: true })
+  .extend({
+    botToken: z
+      .string()
+      .trim()
+      .min(1, 'Bot User OAuth Token is required')
+      .max(2000)
+      .startsWith('xoxb-', 'Use a Bot User OAuth Token (xoxb-) with token rotation disabled.'),
+  })
+export type ConnectCustomSlackSearchBody = z.input<typeof connectCustomSlackSearchBodySchema>
+export const connectCustomSlackSearchContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/knowledge/slack/setup/connect',
+  body: connectCustomSlackSearchBodySchema,
+  response: { mode: 'json', schema: z.object({ organizationId: organizationIdSchema }) },
+})
+
 export const slackSearchOAuthCallbackQuerySchema = z.object({
-  state: z.string().min(1).max(200),
+  state: z.string().max(200).optional(),
   code: z.string().min(1).max(2000).optional(),
   error: z.string().min(1).max(200).optional(),
 })
@@ -97,7 +120,7 @@ export const slackSearchOAuthCallbackContract = defineRouteContract({
   method: 'GET',
   path: '/api/knowledge/slack/oauth/callback',
   query: slackSearchOAuthCallbackQuerySchema,
-  response: { mode: 'json', schema: z.object({ organizationId: organizationIdSchema }) },
+  response: { mode: 'redirect' },
 })
 
 export const slackSearchOnboardingInputSchema = z.object({ token: z.string().uuid() })

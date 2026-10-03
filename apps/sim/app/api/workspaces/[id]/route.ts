@@ -21,7 +21,7 @@ import {
 } from '@/lib/workspaces/permissions/utils'
 
 export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const { id } = await params
     const session = await getSession()
 

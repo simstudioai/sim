@@ -2,7 +2,6 @@ import { SpotifyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { ToolResponse } from '@/tools/types'
 
 /**
  * Canonical basic/advanced pair for the playlist cover art, shared by the card
@@ -18,7 +17,7 @@ const COVER_IMAGE_FIELD = ['coverImageFile', 'coverImageRef'] as const
  */
 const PLAYBACK_TARGET_FIELD = ['context_uri', 'playUris'] as const
 
-export const SpotifyBlock: BlockConfig<ToolResponse> = {
+export const SpotifyBlock: BlockConfig = {
   type: 'spotify',
   name: 'Spotify',
   description: 'Search music, manage playlists, control playback, and access your library',
@@ -293,12 +292,9 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       title: 'Operation',
       type: 'dropdown',
       options: [
-        // Search & Discovery
         { label: 'Search', id: 'spotify_search', group: 'Search & Discovery' },
-        // Tracks
         { label: 'Get Track', id: 'spotify_get_track', group: 'Tracks' },
         { label: 'Get Multiple Tracks', id: 'spotify_get_tracks', group: 'Tracks' },
-        // Albums
         { label: 'Get Album', id: 'spotify_get_album', group: 'Albums' },
         { label: 'Get Multiple Albums', id: 'spotify_get_albums', group: 'Albums' },
         { label: 'Get Album Tracks', id: 'spotify_get_album_tracks', group: 'Albums' },
@@ -306,7 +302,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
         { label: 'Save Albums', id: 'spotify_save_albums', group: 'Albums' },
         { label: 'Remove Saved Albums', id: 'spotify_remove_saved_albums', group: 'Albums' },
         { label: 'Check Saved Albums', id: 'spotify_check_saved_albums', group: 'Albums' },
-        // Artists
         { label: 'Get Artist', id: 'spotify_get_artist', group: 'Artists' },
         { label: 'Get Multiple Artists', id: 'spotify_get_artists', group: 'Artists' },
         { label: 'Get Artist Albums', id: 'spotify_get_artist_albums', group: 'Artists' },
@@ -315,7 +310,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
         { label: 'Unfollow Artists', id: 'spotify_unfollow_artists', group: 'Artists' },
         { label: 'Get Followed Artists', id: 'spotify_get_followed_artists', group: 'Artists' },
         { label: 'Check Following', id: 'spotify_check_following', group: 'Artists' },
-        // Shows (Podcasts)
         { label: 'Get Show', id: 'spotify_get_show', group: 'Podcasts' },
         { label: 'Get Multiple Shows', id: 'spotify_get_shows', group: 'Podcasts' },
         { label: 'Get Show Episodes', id: 'spotify_get_show_episodes', group: 'Podcasts' },
@@ -323,14 +317,12 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
         { label: 'Save Shows', id: 'spotify_save_shows', group: 'Podcasts' },
         { label: 'Remove Saved Shows', id: 'spotify_remove_saved_shows', group: 'Podcasts' },
         { label: 'Check Saved Shows', id: 'spotify_check_saved_shows', group: 'Podcasts' },
-        // Episodes
         { label: 'Get Episode', id: 'spotify_get_episode', group: 'Episodes' },
         { label: 'Get Multiple Episodes', id: 'spotify_get_episodes', group: 'Episodes' },
         { label: 'Get Saved Episodes', id: 'spotify_get_saved_episodes', group: 'Episodes' },
         { label: 'Save Episodes', id: 'spotify_save_episodes', group: 'Episodes' },
         { label: 'Remove Saved Episodes', id: 'spotify_remove_saved_episodes', group: 'Episodes' },
         { label: 'Check Saved Episodes', id: 'spotify_check_saved_episodes', group: 'Episodes' },
-        // Audiobooks
         { label: 'Get Audiobook', id: 'spotify_get_audiobook', group: 'Audiobooks' },
         { label: 'Get Multiple Audiobooks', id: 'spotify_get_audiobooks', group: 'Audiobooks' },
         {
@@ -350,7 +342,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
           id: 'spotify_check_saved_audiobooks',
           group: 'Audiobooks',
         },
-        // Playlists
         { label: 'Get Playlist', id: 'spotify_get_playlist', group: 'Playlists' },
         { label: 'Get Playlist Tracks', id: 'spotify_get_playlist_tracks', group: 'Playlists' },
         { label: 'Get Playlist Cover', id: 'spotify_get_playlist_cover', group: 'Playlists' },
@@ -385,7 +376,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
           id: 'spotify_check_playlist_followers',
           group: 'Playlists',
         },
-        // User Profile & Library
         { label: 'Get My Profile', id: 'spotify_get_current_user', group: 'User & Library' },
         { label: 'Get User Profile', id: 'spotify_get_user_profile', group: 'User & Library' },
         { label: 'Get My Top Tracks', id: 'spotify_get_top_tracks', group: 'User & Library' },
@@ -403,11 +393,9 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
           id: 'spotify_get_recently_played',
           group: 'User & Library',
         },
-        // Browse
         { label: 'Get New Releases', id: 'spotify_get_new_releases', group: 'Browse' },
         { label: 'Get Categories', id: 'spotify_get_categories', group: 'Browse' },
         { label: 'Get Available Markets', id: 'spotify_get_markets', group: 'Browse' },
-        // Player Controls
         { label: 'Get Playback State', id: 'spotify_get_playback_state', group: 'Player' },
         { label: 'Get Currently Playing', id: 'spotify_get_currently_playing', group: 'Player' },
         { label: 'Get Devices', id: 'spotify_get_devices', group: 'Player' },
@@ -445,7 +433,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       required: true,
     },
 
-    // === SEARCH ===
     {
       id: 'query',
       title: 'Search Query',
@@ -472,7 +459,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       condition: { field: 'operation', value: 'spotify_search' },
     },
 
-    // === TRACK IDs ===
     {
       id: 'trackId',
       title: 'Track ID',
@@ -498,7 +484,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       },
     },
 
-    // === ALBUM ID ===
     {
       id: 'albumId',
       title: 'Album ID',
@@ -524,7 +509,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       },
     },
 
-    // === ARTIST ID ===
     {
       id: 'artistId',
       title: 'Artist ID',
@@ -548,7 +532,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       },
     },
 
-    // === SHOW IDs ===
     {
       id: 'showId',
       title: 'Show ID',
@@ -574,7 +557,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       },
     },
 
-    // === EPISODE IDs ===
     {
       id: 'episodeId',
       title: 'Episode ID',
@@ -600,7 +582,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       },
     },
 
-    // === AUDIOBOOK IDs ===
     {
       id: 'audiobookId',
       title: 'Audiobook ID',
@@ -629,7 +610,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       },
     },
 
-    // === CHECK FOLLOWING ===
     {
       id: 'followType',
       title: 'Type',
@@ -650,7 +630,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       condition: { field: 'operation', value: 'spotify_check_following' },
     },
 
-    // === USER ID ===
     {
       id: 'userId',
       title: 'User ID',
@@ -660,7 +639,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       condition: { field: 'operation', value: 'spotify_get_user_profile' },
     },
 
-    // === PLAYLIST OPERATIONS ===
     {
       id: 'playlistId',
       title: 'Playlist ID',
@@ -721,7 +699,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       },
     },
 
-    // === CHECK PLAYLIST FOLLOWERS ===
     {
       id: 'userIds',
       title: 'User IDs',
@@ -731,7 +708,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       condition: { field: 'operation', value: 'spotify_check_playlist_followers' },
     },
 
-    // === PLAYLIST COVER ===
     {
       id: 'coverImageFile',
       title: 'Cover Image',
@@ -755,7 +731,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       condition: { field: 'operation', value: 'spotify_add_playlist_cover' },
     },
 
-    // === REORDER PLAYLIST ===
     {
       id: 'range_start',
       title: 'Range Start',
@@ -780,7 +755,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       condition: { field: 'operation', value: 'spotify_reorder_playlist_items' },
     },
 
-    // === ADD/REMOVE/REPLACE TRACKS FROM PLAYLIST ===
     {
       id: 'uris',
       title: 'Track URIs',
@@ -797,7 +771,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       },
     },
 
-    // === COUNTRY/LOCALE ===
     {
       id: 'country',
       title: 'Country',
@@ -809,7 +782,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       },
     },
 
-    // === TOP ITEMS TIME RANGE ===
     {
       id: 'time_range',
       title: 'Time Range',
@@ -826,7 +798,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       },
     },
 
-    // === PLAYER CONTROLS ===
     {
       id: 'device_id',
       title: 'Device ID',
@@ -880,7 +851,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       condition: { field: 'operation', value: 'spotify_set_volume' },
     },
 
-    // === SEEK ===
     {
       id: 'position_ms',
       title: 'Position (ms)',
@@ -890,7 +860,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       condition: { field: 'operation', value: 'spotify_seek' },
     },
 
-    // === REPEAT ===
     {
       id: 'state',
       title: 'Repeat Mode',
@@ -904,7 +873,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       condition: { field: 'operation', value: 'spotify_set_repeat' },
     },
 
-    // === SHUFFLE ===
     {
       id: 'shuffle_state',
       title: 'Shuffle',
@@ -914,7 +882,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       condition: { field: 'operation', value: 'spotify_set_shuffle' },
     },
 
-    // === TRANSFER PLAYBACK ===
     {
       id: 'target_device_id',
       title: 'Target Device ID',
@@ -924,7 +891,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       condition: { field: 'operation', value: 'spotify_transfer_playback' },
     },
 
-    // === COMMON: LIMIT ===
     {
       id: 'limit',
       title: 'Limit',
@@ -1061,10 +1027,8 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     oauthCredential: { type: 'string', description: 'Spotify OAuth credential' },
-    // Search
     query: { type: 'string', description: 'Search query' },
     type: { type: 'string', description: 'Search type' },
-    // IDs
     trackId: { type: 'string', description: 'Spotify track ID' },
     trackIds: { type: 'string', description: 'Comma-separated track IDs' },
     albumId: { type: 'string', description: 'Spotify album ID' },
@@ -1082,7 +1046,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
     userIds: { type: 'string', description: 'Comma-separated user IDs' },
     ids: { type: 'string', description: 'Comma-separated IDs' },
     followType: { type: 'string', description: 'Type to check (artist or user)' },
-    // Playlist
     name: { type: 'string', description: 'Playlist name' },
     newName: { type: 'string', description: 'New playlist name' },
     description: { type: 'string', description: 'Playlist description' },
@@ -1091,15 +1054,11 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
     range_start: { type: 'number', description: 'Start index for reorder' },
     insert_before: { type: 'number', description: 'Insert before index' },
     range_length: { type: 'number', description: 'Number of items to move' },
-    // Track URIs
     uris: { type: 'string', description: 'Comma-separated Spotify URIs' },
     playUris: { type: 'string', description: 'Track URIs to play' },
     uri: { type: 'string', description: 'Spotify URI' },
-    // Time range
     time_range: { type: 'string', description: 'Time range for top items' },
-    // Browse
     country: { type: 'string', description: 'ISO country code' },
-    // Player
     device_id: { type: 'string', description: 'Device ID for playback' },
     context_uri: { type: 'string', description: 'Context URI (album, playlist, artist)' },
     volume_percent: { type: 'number', description: 'Volume level (0-100)' },
@@ -1107,11 +1066,9 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
     state: { type: 'string', description: 'Repeat mode (off, track, context)' },
     shuffle_state: { type: 'boolean', description: 'Shuffle on/off' },
     target_device_id: { type: 'string', description: 'Target device ID for transfer' },
-    // Common
     limit: { type: 'number', description: 'Maximum number of results' },
   },
   outputs: {
-    // === SEARCH OUTPUTS ===
     tracks: {
       type: 'json',
       description: 'List of tracks',
@@ -1161,7 +1118,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       condition: { field: 'operation', value: ['spotify_search', 'spotify_get_user_playlists'] },
     },
 
-    // === SINGLE ITEM OUTPUTS ===
     id: {
       type: 'string',
       description: 'Spotify ID',
@@ -1250,7 +1206,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       },
     },
 
-    // === TRACK OUTPUTS ===
     album: {
       type: 'json',
       description: 'Album information',
@@ -1275,7 +1230,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       condition: { field: 'operation', value: 'spotify_get_track' },
     },
 
-    // === ALBUM OUTPUTS ===
     album_type: {
       type: 'string',
       description: 'Album type (album, single, compilation)',
@@ -1302,7 +1256,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       condition: { field: 'operation', value: ['spotify_get_album', 'spotify_get_artist'] },
     },
 
-    // === ARTIST OUTPUTS ===
     followers: {
       type: 'number',
       description: 'Number of followers',
@@ -1312,7 +1265,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       },
     },
 
-    // === PLAYLIST OUTPUTS ===
     description: {
       type: 'string',
       description: 'Description',
@@ -1358,7 +1310,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       },
     },
 
-    // === SHOW/PODCAST OUTPUTS ===
     publisher: {
       type: 'string',
       description: 'Publisher name',
@@ -1380,7 +1331,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       condition: { field: 'operation', value: ['spotify_get_show', 'spotify_get_audiobook'] },
     },
 
-    // === EPISODE OUTPUTS ===
     show: {
       type: 'json',
       description: 'Parent show information',
@@ -1395,7 +1345,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       },
     },
 
-    // === AUDIOBOOK OUTPUTS ===
     authors: {
       type: 'json',
       description: 'List of authors',
@@ -1425,7 +1374,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       condition: { field: 'operation', value: 'spotify_get_audiobook_chapters' },
     },
 
-    // === USER PROFILE OUTPUTS ===
     display_name: {
       type: 'string',
       description: 'User display name',
@@ -1450,7 +1398,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       condition: { field: 'operation', value: 'spotify_get_current_user' },
     },
 
-    // === PLAYER STATE OUTPUTS ===
     is_playing: {
       type: 'boolean',
       description: 'Whether playback is active',
@@ -1511,14 +1458,12 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       condition: { field: 'operation', value: 'spotify_get_queue' },
     },
 
-    // === RECENTLY PLAYED OUTPUTS ===
     items: {
       type: 'json',
       description: 'List of recently played items',
       condition: { field: 'operation', value: 'spotify_get_recently_played' },
     },
 
-    // === BROWSE OUTPUTS ===
     categories: {
       type: 'json',
       description: 'List of browse categories',
@@ -1530,7 +1475,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       condition: { field: 'operation', value: 'spotify_get_markets' },
     },
 
-    // === CHECK SAVED OUTPUTS ===
     results: {
       type: 'json',
       description: 'Check operation results (id and saved boolean)',
@@ -1558,7 +1502,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       condition: { field: 'operation', value: 'spotify_check_saved_tracks' },
     },
 
-    // === PAGINATION OUTPUTS ===
     total: {
       type: 'number',
       description: 'Total number of items',
@@ -1598,7 +1541,6 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
       },
     },
 
-    // === OPERATION RESULT OUTPUTS ===
     success: {
       type: 'boolean',
       description: 'Whether operation succeeded',

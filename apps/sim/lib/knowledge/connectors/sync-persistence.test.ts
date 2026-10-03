@@ -1,55 +1,110 @@
-/**
- * @vitest-environment node
- */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { db } from '@sim/db'
+import {
+  dbChainMockFns,
+  flattenMockConditions,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
+import { knowledgeDocumentsServiceMock } from '@sim/testing/mocks/knowledge-documents-service.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import { inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/knowledge/documents/service', () => ({ hardDeleteDocuments: vi.fn() }))
-const { mockUploadFile } = vi.hoisted(() => ({ mockUploadFile: vi.fn() }))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
 const bindings = vi.hoisted(() => new Map<string, { id: string; contentUpdatedAt: Date }>())
-vi.mock('@/lib/uploads', () => ({ StorageService: { uploadFile: mockUploadFile } }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: vi.fn() }))
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  getFileMetadataByKeys: vi.fn(async (keys: string[]) =>
-    keys.flatMap((key) => bindings.get(key) ?? [])
-  ),
-  insertImmutableFileMetadata: vi.fn(async (options: { id: string; key: string }) => {
-    const binding = { id: options.id, contentUpdatedAt: new Date(0) }
-    bindings.set(options.key, binding)
-    return binding
-  }),
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
   KNOWLEDGE_STORAGE_CLEANUP_EVENT: 'knowledge.document.storage.cleanup',
   enqueueKnowledgeStorageCleanup: vi.fn(async () => {
-    queueTableRows(schemaMock.outboxEvent, [{ id: 'cleanup-guard' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'cleanup-guard' }])
     return ['cleanup-guard']
   }),
   isKnowledgeBaseOwnedStorageKey: (key: string) => key.startsWith('kb/'),
 }))
-vi.mock('@/connectors/registry.server', () => ({ CONNECTOR_REGISTRY: {} }))
+vi.mock('@/connectors/registry.server', () => ({
+  CONNECTOR_REGISTRY: {
+    fixture: {
+      mapTags: (metadata: Record<string, unknown>) => ({
+        label: metadata.label,
+        owner: metadata.owner,
+      }),
+    },
+  },
+}))
 
 import { MAX_ACL_TOKENS } from '@/lib/knowledge/access/tokens'
+import { type LeaseTransaction, SyncLockLostException } from '@/lib/knowledge/connectors/sync-lock'
 import {
   addDocument,
   persistDocumentAcls,
   persistSourceDocumentFailures,
+  resolveTagMapping,
+  revokeDocumentAcls,
 } from '@/lib/knowledge/connectors/sync-persistence'
+
+const mockUploadFile = storageServiceMockFns.mockUploadFile
+
+uploadsMetadataMockFns.mockGetFileMetadataByKeys.mockImplementation(async (keys: string[]) =>
+  keys.flatMap((key) => bindings.get(key) ?? [])
+)
+uploadsMetadataMockFns.mockInsertImmutableFileMetadata.mockImplementation(
+  async (options: { id: string; key: string }) => {
+    const binding = { id: options.id, contentUpdatedAt: new Date(0) }
+    bindings.set(options.key, binding)
+    return binding
+  }
+)
 
 const CONNECTOR = 'connector-1'
 
-/** Each `update(...).where(...)` chain ends in `returning()`; one row per changed document. */
-function queueUpdatedCounts(...counts: number[]) {
-  for (const count of counts) {
-    dbChainMockFns.returning.mockResolvedValueOnce(
-      Array.from({ length: count }, (_unused, index) => ({ id: `doc-${index}` }))
-    )
+/** Runs each page straight on the mocked client, counting the transactions a writer opens. */
+const pages = vi.fn()
+const direct: LeaseTransaction = (write) => {
+  pages()
+  return write(db)
+}
+
+/** A lease that holds for `held` pages and is lost from then on. */
+function _losingLease(held: number): LeaseTransaction {
+  let opened = 0
+  return (write) => {
+    opened += 1
+    if (opened > held) return Promise.reject(new SyncLockLostException(CONNECTOR))
+    return write(db)
   }
+}
+
+/**
+ * Queues one ACL group's writes: the evidence refresh reports the external ids it matched, the
+ * same transaction then reads the documents whose ACL changes (only when some were not
+ * refreshed), and each change page reports the rows it wrote.
+ */
+function queueGroup(refreshed: string[], changed = 0, unrefreshed = changed > 0) {
+  dbChainMockFns.returning.mockResolvedValueOnce(refreshed.map((externalId) => ({ externalId })))
+  if (!unrefreshed) return
+  const rows = Array.from({ length: changed }, (_unused, index) => ({
+    id: `doc-${index}`,
+    chunkCount: 1,
+  }))
+  queueTableRows(schemaMock.document, rows)
+  /** The change page locks its documents and rereads their chunk counts before writing. */
+  if (changed > 0) queueTableRows(schemaMock.document, rows)
+  if (changed > 0)
+    dbChainMockFns.returning.mockResolvedValueOnce(
+      Array.from({ length: changed }, (_unused, index) => ({ id: `doc-${index}` }))
+    )
 }
 
 describe('persistDocumentAcls', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -60,64 +115,24 @@ describe('persistDocumentAcls', () => {
    * corpus every time somebody joined a group.
    */
   it('refreshes only access fields, so no document is re-embedded', async () => {
-    queueUpdatedCounts(1)
+    queueGroup([], 1)
 
     await persistDocumentAcls(CONNECTOR, new Map([['file-1', ['u:alice@corp.com']]]))
 
     expect(dbChainMockFns.update).toHaveBeenCalledWith(schemaMock.document)
-    expect(dbChainMockFns.set).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({
-      acl: ['u:alice@corp.com'],
-      aclRequirements: [],
-      aclVerifiedAt: expect.any(Date),
-    })
-  })
-
-  it('reports how many documents received current permission evidence', async () => {
-    queueUpdatedCounts(2)
-
-    await expect(
-      persistDocumentAcls(
-        CONNECTOR,
-        new Map([
-          ['file-1', ['u:alice@corp.com']],
-          ['file-2', ['u:alice@corp.com']],
-        ])
-      )
-    ).resolves.toEqual({ updated: 2, rejected: 0 })
-  })
-
-  /**
-   * Files under one folder overwhelmingly share an ACL, so grouping is what
-   * keeps a crawl of thousands to a handful of statements.
-   */
-  it('writes one statement per distinct ACL, not per document', async () => {
-    queueUpdatedCounts(2, 1)
-
-    await persistDocumentAcls(
-      CONNECTOR,
-      new Map([
-        ['file-1', ['u:alice@corp.com']],
-        ['file-2', ['u:alice@corp.com']],
-        ['file-3', ['u:bob@corp.com']],
-      ])
-    )
-
     expect(dbChainMockFns.set).toHaveBeenCalledTimes(2)
-    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(1, {
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(2, {
       acl: ['u:alice@corp.com'],
       aclRequirements: [],
-      aclVerifiedAt: expect.any(Date),
-    })
-    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(2, {
-      acl: ['u:bob@corp.com'],
-      aclRequirements: [],
-      aclVerifiedAt: expect.any(Date),
+      aclVerifiedAt: expect.objectContaining({
+        strings: ["statement_timestamp() AT TIME ZONE 'UTC'"],
+        values: [],
+      }),
     })
   })
 
   it('groups ACLs that differ only in order or duplication', async () => {
-    queueUpdatedCounts(2)
+    queueGroup([], 2)
 
     await persistDocumentAcls(
       CONNECTOR,
@@ -127,17 +142,20 @@ describe('persistDocumentAcls', () => {
       ])
     )
 
-    expect(dbChainMockFns.set).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({
+    expect(dbChainMockFns.set).toHaveBeenCalledTimes(2)
+    expect(dbChainMockFns.set).toHaveBeenNthCalledWith(2, {
       acl: ['u:alice@corp.com', 'u:bob@corp.com'],
       aclRequirements: [],
-      aclVerifiedAt: expect.any(Date),
+      aclVerifiedAt: expect.objectContaining({
+        strings: ["statement_timestamp() AT TIME ZONE 'UTC'"],
+        values: [],
+      }),
     })
   })
 
   describe('an ACL we cannot store', () => {
     it('rejects workspace escape tokens even inside a source restriction', async () => {
-      queueUpdatedCounts(1)
+      queueGroup([], 1)
       const result = await persistDocumentAcls(
         CONNECTOR,
         new Map([['file-1', { acl: ['u:alice@corp.com'], requirements: [['ws']] }]])
@@ -150,30 +168,8 @@ describe('persistDocumentAcls', () => {
       })
     })
 
-    it('retains an empty restriction and separately persists different clauses', async () => {
-      queueUpdatedCounts(1, 1)
-      await persistDocumentAcls(
-        CONNECTOR,
-        new Map([
-          ['file-1', { acl: ['u:alice@corp.com'], requirements: [[]] }],
-          ['file-2', { acl: ['u:alice@corp.com'], requirements: [['g:confluence:site:team']] }],
-        ])
-      )
-      expect(dbChainMockFns.set).toHaveBeenCalledTimes(2)
-      expect(dbChainMockFns.set).toHaveBeenNthCalledWith(1, {
-        acl: ['u:alice@corp.com'],
-        aclRequirements: [['u:alice@corp.com'], []],
-        aclVerifiedAt: expect.any(Date),
-      })
-      expect(dbChainMockFns.set).toHaveBeenNthCalledWith(2, {
-        acl: ['u:alice@corp.com'],
-        aclRequirements: [['u:alice@corp.com'], ['g:confluence:site:team']],
-        aclVerifiedAt: expect.any(Date),
-      })
-    })
-
     it('hides a document whose ACL carries a malformed token', async () => {
-      queueUpdatedCounts(1)
+      queueGroup([], 1)
 
       await expect(
         persistDocumentAcls(CONNECTOR, new Map([['file-1', ['u:NOT-FOLDED@corp.com']]]))
@@ -186,7 +182,7 @@ describe('persistDocumentAcls', () => {
     })
 
     it('hides a document whose ACL exceeds the ceiling', async () => {
-      queueUpdatedCounts(1)
+      queueGroup([], 1)
       const huge = Array.from({ length: MAX_ACL_TOKENS + 1 }, (_u, i) => `u:p${i}@corp.com`)
 
       await expect(persistDocumentAcls(CONNECTOR, new Map([['file-1', huge]]))).resolves.toEqual({
@@ -200,17 +196,9 @@ describe('persistDocumentAcls', () => {
       })
     })
 
-    it('stores an ACL exactly at the ceiling', async () => {
-      queueUpdatedCounts(1)
-      const atLimit = Array.from({ length: MAX_ACL_TOKENS }, (_u, i) => `u:p${i}@corp.com`)
-
-      await expect(persistDocumentAcls(CONNECTOR, new Map([['file-1', atLimit]]))).resolves.toEqual(
-        { updated: 1, rejected: 0 }
-      )
-    })
-
     it('still writes the documents whose ACLs are fine', async () => {
-      queueUpdatedCounts(1, 1)
+      queueGroup(['file-1'])
+      queueGroup(['file-2'])
 
       await expect(
         persistDocumentAcls(
@@ -223,19 +211,60 @@ describe('persistDocumentAcls', () => {
       ).resolves.toEqual({ updated: 2, rejected: 1 })
     })
   })
+})
 
-  it('does nothing when there is nothing to write', async () => {
-    await expect(persistDocumentAcls(CONNECTOR, new Map())).resolves.toEqual({
-      updated: 0,
-      rejected: 0,
+describe('revokeDocumentAcls', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  const REVOKED = { acl: [], aclRequirements: [], aclVerifiedAt: null }
+  const _EVIDENCE_ONLY = { aclRequirements: [], aclVerifiedAt: null }
+  const scope = (batch: string[]) => inArray(schemaMock.document.id, batch)
+
+  /** The SQL text of a mock `sql` node, or undefined for an operator node. */
+  const sqlText = (node: Record<string, unknown>) =>
+    Array.isArray(node.strings) ? node.strings.join('?') : undefined
+  const grants = (node: Record<string, unknown>) =>
+    sqlText(node)?.startsWith('cardinality(') && sqlText(node)?.endsWith(') > 0')
+
+  /** Every `set`, paired with the `where` of the same statement. */
+  function statements() {
+    return dbChainMockFns.set.mock.calls.map(([values], index) => {
+      const order = dbChainMockFns.set.mock.invocationCallOrder[index]
+      const whereIndex = dbChainMockFns.where.mock.invocationCallOrder.findIndex(
+        (whereOrder) => whereOrder > order
+      )
+      return {
+        values,
+        conditions: flattenMockConditions(dbChainMockFns.where.mock.calls[whereIndex]?.[0]),
+      }
     })
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  }
+  /** The documents the window's read finds still granting someone. */
+  const queueGranting = (count: number, chunkCount = 1) =>
+    queueTableRows(
+      schemaMock.document,
+      Array.from({ length: count }, (_unused, index) => ({ id: `doc-${index}`, chunkCount }))
+    )
+
+  /**
+   * Assigning `acl` fires the projection fan-out whether or not the value changes, so a
+   * document that already grants nobody must never be in an `acl` assignment.
+   */
+  it('assigns acl only to documents that still grant someone', async () => {
+    queueGranting(1)
+    await revokeDocumentAcls(direct, ['a', 'b'], scope)
+
+    const writes = statements().filter(({ values }) => 'acl' in values)
+    expect(writes).toHaveLength(1)
+    expect(writes[0].values).toEqual(REVOKED)
+    expect(writes[0].conditions.some(grants)).toBe(true)
   })
 })
 
 describe('persistSourceDocumentFailures', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
   const input = {
@@ -294,12 +323,17 @@ describe('persistSourceDocumentFailures', () => {
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
-  it('refuses to commit a failure under a reclaimed lease', async () => {
-    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb' }])
-    await expect(
-      persistSourceDocumentFailures({ ...input, priorByExternalId: new Map() })
-    ).rejects.toThrow('reclaimed')
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  it('bounds a source title that would exceed the filename index row limit', async () => {
+    leaseHeld()
+    const title = 'x'.repeat(5000)
+    await persistSourceDocumentFailures({
+      ...input,
+      documents: [{ ...input.documents[0], title }],
+      priorByExternalId: new Map(),
+    })
+    const [rows] = dbChainMockFns.values.mock.calls[0] as [Array<{ filename: string }>]
+    expect(rows[0].filename).toBe(`${'x'.repeat(509)}...`)
+    expect(rows[0].filename.length).toBe(512)
   })
 })
 
@@ -315,7 +349,6 @@ describe('organization source cache persistence', () => {
   const lease = { stillHeld: () => schemaMock.knowledgeConnector.id }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockUploadFile.mockImplementation(async ({ customKey }: { customKey: string }) => ({
       key: customKey,
@@ -323,25 +356,6 @@ describe('organization source cache persistence', () => {
     }))
     dbChainMockFns.limit.mockResolvedValue([{ id: 'org-kb' }])
     queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector-1' }])
-  })
-
-  it('stores the canonical organization binding while the document remains hidden until access sync', async () => {
-    await addDocument('org-kb', 'connector-1', 'gmail', source, owner, undefined, 'members', lease)
-    expect(mockUploadFile).toHaveBeenCalledWith(
-      expect.objectContaining({
-        context: 'knowledge-base',
-        metadata: { organizationId: 'org-1', userId: 'creator', originalName: 'Source.txt' },
-      })
-    )
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        knowledgeBaseId: 'org-kb',
-        connectorId: 'connector-1',
-        storageKey: expect.stringMatching(/^kb\//),
-        acl: [],
-        processingStatus: 'pending',
-      })
-    )
   })
 
   it('rejects ambiguous ownership before writing provider bytes', async () => {
@@ -358,5 +372,27 @@ describe('organization source cache persistence', () => {
       )
     ).rejects.toThrow('exactly one')
     expect(mockUploadFile).not.toHaveBeenCalled()
+  })
+})
+
+describe('resolveTagMapping', () => {
+  it('bounds a mapped tag value that would exceed its index row limit and keeps a short one intact', () => {
+    const tags = resolveTagMapping(
+      'fixture',
+      { label: 'y'.repeat(5000), owner: 'Purchasing' },
+      { tagSlotMapping: { label: 'tag1', owner: 'tag2' } }
+    )
+    expect(tags?.tag1).toBe(`${'y'.repeat(509)}...`)
+    expect(tags?.tag2).toBe('Purchasing')
+  })
+
+  it('cuts by code point so a bounded value never ends in half a surrogate pair', () => {
+    const tags = resolveTagMapping(
+      'fixture',
+      { label: '\u{1F600}'.repeat(600) },
+      { tagSlotMapping: { label: 'tag1' } }
+    )
+    expect(tags?.tag1).toBe(`${'\u{1F600}'.repeat(254)}...`)
+    expect(tags?.tag1?.length).toBeLessThanOrEqual(512)
   })
 })

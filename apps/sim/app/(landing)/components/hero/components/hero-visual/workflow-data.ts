@@ -1,11 +1,11 @@
 import type { ComponentType, SVGProps } from 'react'
+import { CsvIcon, DocxIcon, MarkdownIcon, PdfIcon } from '@sim/emcn/icons'
 import type {
   BLOCK_DIMENSIONS,
   CONNECTION_KNOB_PEAK_PX,
   HANDLE_POSITIONS,
 } from '@sim/workflow-renderer'
 import { AgentIcon, GithubIcon, JiraIcon } from '@/components/icons'
-import { CsvIcon, DocxIcon, MarkdownIcon, PdfIcon } from '@/components/icons/document-icons'
 
 /**
  * Shared data + geometry for the hero visual - the single source of truth the
@@ -162,7 +162,7 @@ export const BLOCKS: BlockDef[] = [
     bgColor: 'var(--text-primary)',
     sentence: {
       segments: ['Prompt', { subBlockId: 'model', noun: 'a model' }],
-      values: { model: 'claude-sonnet-5' },
+      values: { model: 'claude-sonnet-5-5' },
     },
     rows: [],
     x: 300,

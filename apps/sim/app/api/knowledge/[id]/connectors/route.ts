@@ -47,6 +47,7 @@ export const POST = defineInternalJsonRoute({
     connectorType: body.connectorType,
     credentialId: body.credentialId,
     apiKey: body.apiKey,
+    permissionConfig: body.permissionConfig,
     sourceConfig: body.sourceConfig,
     syncIntervalMinutes: body.syncIntervalMinutes,
     accessMode: body.accessMode,

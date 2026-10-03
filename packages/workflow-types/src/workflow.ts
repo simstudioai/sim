@@ -345,6 +345,14 @@ export const WORKFLOW_TARGET_HANDLE_ID = 'target'
 /** The output handle a block's error branch leaves through. */
 export const WORKFLOW_ERROR_HANDLE_ID = 'error'
 
+/** Persisted output handles shared by container renderers and snapshot topology. */
+export function getWorkflowSubflowHandleIds(kind: 'loop' | 'parallel'): {
+  start: string
+  end: string
+} {
+  return { start: `${kind}-start-source`, end: `${kind}-end-source` }
+}
+
 /**
  * Side-anchored handle ids (`source-right`, `target-left`, …) briefly existed
  * as a second vocabulary for the ports these two ids already name. They are

@@ -61,7 +61,7 @@ Insert a new row into a table. IMPORTANT: You must use the "data" parameter (not
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tableId` | string | Yes | Table ID |
+| `tableId` | string | Yes | Table ID in the execution workspace. In a workflow, the table must belong to the same workspace as the workflow. |
 | `data` | object | Yes | Row data as JSON object |
 
 #### Output
@@ -80,7 +80,7 @@ Insert multiple rows into a table at once (up to 1000 rows)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tableId` | string | Yes | Table ID |
+| `tableId` | string | Yes | Table ID in the execution workspace. In a workflow, the table must belong to the same workspace as the workflow. |
 | `rows` | array | Yes | Array of row data objects \(max 1000 rows\) |
 
 #### Output
@@ -100,7 +100,7 @@ Insert or update a row based on unique column constraints. If a row with matchin
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tableId` | string | Yes | Table ID |
+| `tableId` | string | Yes | Table ID in the execution workspace. In a workflow, the table must belong to the same workspace as the workflow. |
 | `data` | object | Yes | Row data to insert or update |
 | `conflictTarget` | string | No | Unique column to match on. Required only when the table has more than one unique column. |
 
@@ -121,7 +121,7 @@ Update an existing row in a table. Supports partial updates - only include the f
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tableId` | string | Yes | Table ID |
+| `tableId` | string | Yes | Table ID in the execution workspace. In a workflow, the table must belong to the same workspace as the workflow. |
 | `rowId` | string | Yes | Row ID to update |
 | `data` | object | Yes | Updated row data |
 
@@ -141,7 +141,7 @@ Update multiple rows that match filter criteria. Data is merged with existing ro
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tableId` | string | Yes | Table ID |
+| `tableId` | string | Yes | Table ID in the execution workspace. In a workflow, the table must belong to the same workspace as the workflow. |
 | `filter` | object | Yes | Filter criteria using operators like $eq, $ne, $gt, $lt, $contains, $ncontains, $startsWith, $endsWith, $in, $nin, $empty, etc. |
 | `data` | object | Yes | Fields to update \(merged with existing data\) |
 | `limit` | number | No | Maximum number of rows to update \(default: no limit, max: 1000\) |
@@ -163,7 +163,7 @@ Delete a row from a table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tableId` | string | Yes | Table ID |
+| `tableId` | string | Yes | Table ID in the execution workspace. In a workflow, the table must belong to the same workspace as the workflow. |
 | `rowId` | string | Yes | Row ID to delete |
 
 #### Output
@@ -182,7 +182,7 @@ Delete multiple rows that match filter criteria. Use with caution - supports opt
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tableId` | string | Yes | Table ID |
+| `tableId` | string | Yes | Table ID in the execution workspace. In a workflow, the table must belong to the same workspace as the workflow. |
 | `filter` | object | Yes | Filter criteria using operators like $eq, $ne, $gt, $lt, $contains, $ncontains, $startsWith, $endsWith, $in, $nin, $empty, etc. |
 | `limit` | number | No | Maximum number of rows to delete \(default: no limit, max: 1000\) |
 
@@ -203,7 +203,7 @@ Query rows with a typed predicate filter and cursor pagination. A single filter 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tableId` | string | Yes | Table ID |
+| `tableId` | string | Yes | Table ID in the execution workspace. In a workflow, the table must belong to the same workspace as the workflow. |
 | `filter` | json | No | Predicate condition, e.g. `\{"field":"wins","op":"gte","value":10\}`. Use `all` or `any` for multiple conditions; omit to match all rows. |
 | `columns` | array | No | Stable column IDs or table column names to include in each row data object. Omit or pass an empty array to return all columns. A reference that matches no column is ignored. |
 | `order` | json | No | Sort spec, e.g. `\[\{"field":"wins","direction":"desc"\}\]`. |
@@ -229,7 +229,7 @@ Get a single row by ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tableId` | string | Yes | Table ID |
+| `tableId` | string | Yes | Table ID in the execution workspace. In a workflow, the table must belong to the same workspace as the workflow. |
 | `rowId` | string | Yes | Row ID to retrieve |
 
 #### Output
@@ -248,7 +248,7 @@ Get the schema configuration of a table
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tableId` | string | Yes | Table ID |
+| `tableId` | string | Yes | Table ID in the execution workspace. In a workflow, the table must belong to the same workspace as the workflow. |
 
 #### Output
 

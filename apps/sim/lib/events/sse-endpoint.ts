@@ -5,6 +5,7 @@
  * and streams Server-Sent Events with heartbeats and cleanup.
  */
 
+import type { SessionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { randomFloat } from '@sim/utils/random'
@@ -58,11 +59,12 @@ export const ROTATION_GRACE_MS = 30_000
 export const MAX_UNDRAINED_CHUNKS = 16
 
 export function createWorkspaceSSE(config: WorkspaceSSEConfig) {
-  const logger = createLogger(`${config.label}-SSE`)
-
-  return async function GET(request: NextRequest): Promise<Response> {
-    const session = await getSession()
-    if (!session?.user?.id) {
+  return async function GET(
+    request: NextRequest,
+    authenticatedPrincipal?: SessionPrincipal
+  ): Promise<Response> {
+    const userId = authenticatedPrincipal?.userId ?? (await getSession())?.user?.id
+    if (!userId) {
       return new Response('Unauthorized', { status: 401 })
     }
 
@@ -72,115 +74,171 @@ export function createWorkspaceSSE(config: WorkspaceSSEConfig) {
       return new Response('Missing workspaceId query parameter', { status: 400 })
     }
 
-    const permissions = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
+    const permissions = await getUserEntityPermissions(userId, 'workspace', workspaceId)
     if (!permissions) {
       return new Response('Access denied to workspace', { status: 403 })
     }
 
-    const teardowns: Array<() => void> = []
-    let cleaned = false
+    return createSSEStream(request, {
+      label: `${config.label}:workspace:${workspaceId}`,
+      subscriptions: config.subscriptions.map((subscription) => ({
+        subscribe: (send) => subscription.subscribe(workspaceId, send),
+      })),
+    })
+  }
+}
 
-    const cleanup = (reason: string) => {
-      if (cleaned) return
-      cleaned = true
-      for (const teardown of teardowns.splice(0)) {
+interface SSEStreamConfig {
+  label: string
+  subscriptions: Array<{
+    subscribe(send: (eventName: string, data: Record<string, unknown>) => void): () => void
+  }>
+  /** Rechecks a long-lived authorization before each publication and on heartbeats. */
+  revalidate?: () => Promise<void>
+}
+
+/** Shared SSE transport; callers authorize their scope before opening the stream. */
+export function createSSEStream(request: NextRequest, config: SSEStreamConfig): Response {
+  const logger = createLogger(`${config.label}-SSE`)
+  const teardowns: Array<() => void> = []
+  let cleaned = false
+
+  const cleanup = (reason: string) => {
+    if (cleaned) return
+    cleaned = true
+    for (const teardown of teardowns.splice(0)) {
+      try {
+        teardown()
+      } catch (error) {
+        logger.warn(`SSE teardown failed for ${config.label}`, {
+          reason,
+          error: getErrorMessage(error),
+        })
+      }
+    }
+    logger.info(`SSE connection closed for ${config.label}`, { reason })
+  }
+
+  const stream = new ReadableStream({
+    start(controller) {
+      const close = (reason: string) => {
+        cleanup(reason)
         try {
-          teardown()
-        } catch (error) {
-          logger.warn(`SSE teardown failed for workspace ${workspaceId}`, {
-            reason,
-            error: getErrorMessage(error),
-          })
+          controller.close()
+        } catch {
+          // Already closed
         }
       }
-      logger.info(`SSE connection closed for workspace ${workspaceId}`, { reason })
-    }
 
-    const stream = new ReadableStream({
-      start(controller) {
-        const close = (reason: string) => {
-          cleanup(reason)
-          try {
-            controller.close()
-          } catch {
-            // Already closed
-          }
-        }
-
-        const enqueue = (payload: string): boolean => {
-          if (cleaned) return false
-          try {
-            controller.enqueue(encoder.encode(payload))
-            return true
-          } catch {
-            close('errored')
-            return false
-          }
-        }
-
-        const send = (eventName: string, data: Record<string, unknown>) => {
-          enqueue(`event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`)
-        }
-
+      const enqueue = (payload: string): boolean => {
+        if (cleaned) return false
         try {
-          for (const subscription of config.subscriptions) {
-            teardowns.push(subscription.subscribe(workspaceId, send))
+          controller.enqueue(encoder.encode(payload))
+          return true
+        } catch {
+          close('errored')
+          return false
+        }
+      }
+
+      let authorization: Promise<void> | undefined
+      const revalidate = (): Promise<void> => {
+        if (!config.revalidate) return Promise.resolve()
+        authorization ??= config.revalidate().finally(() => {
+          authorization = undefined
+        })
+        return authorization
+      }
+      let pendingEvents = 0
+      const send = (eventName: string, data: Record<string, unknown>) => {
+        if (cleaned) return
+        const payload = `event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`
+        if (!config.revalidate) {
+          enqueue(payload)
+          return
+        }
+        if (pendingEvents >= MAX_UNDRAINED_CHUNKS) {
+          close('authorization_backpressure')
+          return
+        }
+        pendingEvents += 1
+        void revalidate().then(
+          () => {
+            pendingEvents -= 1
+            enqueue(payload)
+          },
+          () => {
+            pendingEvents -= 1
+            close('authorization_lost')
+          }
+        )
+      }
+
+      try {
+        for (const subscription of config.subscriptions) {
+          teardowns.push(subscription.subscribe(send))
+        }
+
+        const rotationDeadline =
+          Date.now() + MAX_CONNECTION_MS + randomFloat() * MAX_CONNECTION_JITTER_MS
+        let rotationStartedAt: number | null = null
+
+        const heartbeat = setInterval(() => {
+          if (cleaned) {
+            clearInterval(heartbeat)
+            return
           }
 
-          const rotationDeadline =
-            Date.now() + MAX_CONNECTION_MS + randomFloat() * MAX_CONNECTION_JITTER_MS
-          let rotationStartedAt: number | null = null
+          const now = Date.now()
+          if (rotationStartedAt !== null && now - rotationStartedAt >= ROTATION_GRACE_MS) {
+            close('rotated')
+            return
+          }
+          if (rotationStartedAt === null && now >= rotationDeadline) {
+            if (enqueue('event: rotate\ndata: {}\n\n')) {
+              rotationStartedAt = now
+            }
+            return
+          }
 
-          const heartbeat = setInterval(() => {
-            if (cleaned) {
-              clearInterval(heartbeat)
-              return
-            }
-
-            const now = Date.now()
-            if (rotationStartedAt !== null && now - rotationStartedAt >= ROTATION_GRACE_MS) {
-              close('rotated')
-              return
-            }
-            if (rotationStartedAt === null && now >= rotationDeadline) {
-              if (enqueue('event: rotate\ndata: {}\n\n')) {
-                rotationStartedAt = now
-              }
-              return
-            }
-
-            const desiredSize = controller.desiredSize
-            if (desiredSize !== null && desiredSize <= -MAX_UNDRAINED_CHUNKS) {
-              close('unread')
-              return
-            }
+          const desiredSize = controller.desiredSize
+          if (desiredSize !== null && desiredSize <= -MAX_UNDRAINED_CHUNKS) {
+            close('unread')
+            return
+          }
+          if (config.revalidate) {
+            void revalidate().then(
+              () => enqueue(': heartbeat\n\n'),
+              () => close('authorization_lost')
+            )
+          } else {
             enqueue(': heartbeat\n\n')
-          }, HEARTBEAT_INTERVAL_MS)
-          teardowns.push(() => clearInterval(heartbeat))
+          }
+        }, HEARTBEAT_INTERVAL_MS)
+        teardowns.push(() => clearInterval(heartbeat))
 
-          const listenerScope = new AbortController()
-          request.signal.addEventListener('abort', () => close('aborted'), {
-            once: true,
-            signal: listenerScope.signal,
-          })
-          teardowns.push(() => listenerScope.abort())
+        const listenerScope = new AbortController()
+        request.signal.addEventListener('abort', () => close('aborted'), {
+          once: true,
+          signal: listenerScope.signal,
+        })
+        teardowns.push(() => listenerScope.abort())
 
-          logger.info(`SSE connection opened for workspace ${workspaceId}`)
-        } catch (error) {
-          cleanup('setup_failed')
-          logger.error(`Failed to open SSE connection for workspace ${workspaceId}`, {
-            error: getErrorMessage(error),
-          })
-          try {
-            controller.error(error)
-          } catch {}
-        }
-      },
-      cancel() {
-        cleanup('cancelled')
-      },
-    })
+        logger.info(`SSE connection opened for ${config.label}`)
+      } catch (error) {
+        cleanup('setup_failed')
+        logger.error(`Failed to open SSE connection for ${config.label}`, {
+          error: getErrorMessage(error),
+        })
+        try {
+          controller.error(error)
+        } catch {}
+      }
+    },
+    cancel() {
+      cleanup('cancelled')
+    },
+  })
 
-    return new Response(stream, { headers: SSE_HEADERS })
-  }
+  return new Response(stream, { headers: SSE_HEADERS })
 }

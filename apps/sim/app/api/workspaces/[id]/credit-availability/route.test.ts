@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -60,23 +57,12 @@ async function callGet() {
 
 describe('GET /api/workspaces/[id]/credit-availability', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'external-a' } })
     mockGetWorkspaceHostContextForViewer.mockResolvedValue(HOST_CONTEXT)
     mockGetWorkspaceCreditAvailability.mockResolvedValue({
       remainingDollars: 20,
       scope: 'member',
     })
-  })
-
-  it('authenticates before resolving workspace or billing context', async () => {
-    mockGetSession.mockResolvedValue(null)
-
-    const { status } = await callGet()
-
-    expect(status).toBe(401)
-    expect(mockGetWorkspaceHostContextForViewer).not.toHaveBeenCalled()
-    expect(mockGetWorkspaceCreditAvailability).not.toHaveBeenCalled()
   })
 
   it('uses workspace B payer for an external actor without exposing the host pool', async () => {

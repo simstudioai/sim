@@ -9,7 +9,7 @@
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
-    "bun": ">=1.4.1",
+    "bun": ">=1.4.2",
     "node": ">=20.0.0"
   },
   "exports": {
@@ -32,6 +32,14 @@
     "./formatted-text": {
       "types": "./src/formatted-text.tsx",
       "default": "./src/formatted-text.tsx"
+    },
+    "./workflow-type": {
+      "types": "./src/workflow-type.tsx",
+      "default": "./src/workflow-type.tsx"
+    },
+    "./tile-icon-color": {
+      "types": "./src/lib/tile-icon-color.ts",
+      "default": "./src/lib/tile-icon-color.ts"
     }
   },
   "scripts": {
@@ -69,6 +77,6 @@
     "remark-gfm": "^4.0.1",
     "streamdown": "2.5.0",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.0"
+    "vitest": "^5.0.1"
   }
 }

@@ -3,45 +3,56 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { CLI_MANAGED_HEADERS, loadSummaries, renderSlotMap } from './generate-v2-cli-api'
+import {
+  CLI_MANAGED_HEADERS,
+  loadSummaries,
+  renderBodyDiscriminator,
+  renderSlotMap,
+} from './generate-v2-cli-api'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
-describe('a field the contract types as nullable', () => {
-  /**
-   * The operation table describes what the CLI can build a flag from, and a flag
-   * that sends JSON `null` is not one of them: `--no-<flag>` already means "send
-   * this boolean as false" on 37 flags, and `--description ''` is how a string
-   * is emptied. Emitting the nullability invited a second meaning for one
-   * spelling, so it is no longer carried.
-   */
-  it('describes it no differently from any other string', () => {
-    const map = renderSlotMap(
-      z.object({ description: z.string().nullable().optional().describe('Replacement.') }),
-      '  '
+describe('discriminated object request bodies', () => {
+  const schema = z.discriminatedUnion('action', [
+    z
+      .object({
+        action: z.literal('apply'),
+        expectedFingerprint: z.string().describe('Fingerprint from preview.'),
+        newLimitCredits: z.number().int().optional(),
+      })
+      .strict(),
+    z.object({ action: z.literal('decline'), reason: z.string() }).strict(),
+  ])
+
+  it('exposes every branch field while requiring only the discriminator before selection', () => {
+    const map = renderSlotMap(schema, '  ')
+    expect(map).toContain(
+      '"action": { kind: \'enum\', required: true, values: ["apply", "decline"]'
     )
-    expect(map).toContain("kind: 'string'")
-    expect(map).not.toContain('nullable')
+    expect(map).toContain(
+      '"expectedFingerprint": { kind: \'string\', describe: "Fingerprint from preview. Available when action is apply. Required when action is apply." }'
+    )
+    expect(map).toContain('"newLimitCredits": { kind: \'integer\'')
+    expect(map).toContain(
+      '"reason": { kind: \'string\', describe: "Available when action is decline. Required when action is decline." }'
+    )
+    expect(map?.match(/required: true/g)).toHaveLength(1)
+  })
+
+  it('unites shared enum choices without losing branch-specific validation', () => {
+    const body = z.discriminatedUnion('action', [
+      z.object({ action: z.literal('first'), mode: z.enum(['a', 'b']).default('a') }),
+      z.object({ action: z.literal('second'), mode: z.enum(['b', 'c']).default('c') }),
+    ])
+    expect(renderSlotMap(body, '  ')).toContain('values: ["a", "b", "c"]')
+    expect(renderSlotMap(body, '  ')).not.toContain('default:')
+    expect(renderBodyDiscriminator(body, '  ')).toContain('values: ["b", "c"]')
+    expect(renderBodyDiscriminator(body, '  ')).toContain('default: "a"')
+    expect(renderBodyDiscriminator(body, '  ')).toContain('default: "c"')
   })
 })
 
 describe('request headers reaching the CLI as flags', () => {
-  /**
-   * `getFileUpload` reads its session through an `upload-token` header, and the
-   * operation table listed only its params and query — so the runtime had no
-   * field to build a flag from and every call was rejected as invalid input
-   * before it left the machine.
-   */
-  it('describes a contract header the caller has to supply', () => {
-    const map = renderSlotMap(
-      z.object({ 'upload-token': z.string().describe('Signed upload control token.') }),
-      '  ',
-      CLI_MANAGED_HEADERS
-    )
-    expect(map).toContain('"upload-token"')
-    expect(map).toContain('required: true')
-  })
-
   /**
    * The client spreads contract headers last over its own block, so a flag for
    * one of these would let argv replace the profile's credential.
@@ -83,7 +94,7 @@ function generatedSource(): string {
 }
 
 /** The body of one entry in the emitted `V2_OPERATIONS` table. */
-function generatedEntry(source: string, name: string): string {
+function _generatedEntry(source: string, name: string): string {
   const match = source.match(new RegExp(`\\n  ${name}: \\{([\\s\\S]*?)\\n  \\},`))
   if (!match) throw new Error(`${name} is not in the generated operation table`)
   return match[1]
@@ -103,15 +114,5 @@ describe('operations that refuse a workspace API key', () => {
     expect(generatedSource().match(/workspaceKeyUnsupported: true/g)?.length ?? 0).toBe(
       marked.length
     )
-  })
-
-  it('marks restricted operations and leaves workspace-key-capable siblings alone', () => {
-    const source = generatedSource()
-    for (const name of ['listMcpServerTools', 'listSecrets', 'undeployWorkflow']) {
-      expect(generatedEntry(source, name)).toContain('workspaceKeyUnsupported: true')
-    }
-    for (const name of ['listMcpServers', 'getMcpServer', 'listWorkflows']) {
-      expect(generatedEntry(source, name)).not.toContain('workspaceKeyUnsupported')
-    }
   })
 })

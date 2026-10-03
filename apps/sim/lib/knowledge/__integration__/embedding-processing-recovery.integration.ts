@@ -29,7 +29,10 @@ import { resolveBillingAttribution } from '@/lib/billing/core/billing-attributio
 import { env } from '@/lib/core/config/env'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
-import { resetHostedEmbeddingFixtureAdmission } from '@/lib/knowledge/__integration__/provider-fixture-state'
+import {
+  createFixtureOpenAIEmbedding,
+  resetHostedEmbeddingFixtureAdmission,
+} from '@/lib/knowledge/__integration__/provider-fixture-state'
 import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
@@ -60,7 +63,7 @@ describe('embedding progress survives a processing slice', () => {
       .where(eq(outboxEvent.eventType, EMBEDDING_CHECKPOINT_CLEANUP_EVENT))
       .limit(5000))
       priorCheckpointIds.add(row.id)
-    await seedKnowledgeAclFixture(ids)
+    await seedKnowledgeAclFixture(ids, { connectorType: 'google_drive' })
   })
   afterAll(async () => {
     vi.restoreAllMocks()
@@ -88,7 +91,7 @@ describe('embedding progress survives a processing slice', () => {
     const file = await addDocument(
       ids.knowledgeBaseId,
       ids.connectorId,
-      'confluence',
+      'google_drive',
       {
         externalId: 'large-text',
         title: 'Synthetic operations.txt',
@@ -158,19 +161,27 @@ describe('embedding progress survives a processing slice', () => {
       const url = new URL(input instanceof Request ? input.url : input)
       if (url.origin !== 'https://api.openai.com' || url.pathname !== '/v1/embeddings')
         throw new Error('Unexpected fixture request')
-      const body = JSON.parse(String(init?.body)) as { input: string[] }
+      const body = JSON.parse(String(init?.body)) as { input: string[]; encoding_format: string }
+      expect(body.encoding_format).toBe('base64')
       requests++
       suppliedVectors += body.input.length
       return Response.json({
         data: body.input.map((_, index) => ({
           index,
-          embedding: [1, ...Array<number>(1535).fill(0)],
+          embedding: createFixtureOpenAIEmbedding(),
         })),
         usage: { total_tokens: body.input.length * 25 },
       })
     })
     expect(
-      await processDocumentsWithQueue([file], ids.knowledgeBaseId, {}, requestId, billing)
+      await processDocumentsWithQueue(
+        [file],
+        ids.knowledgeBaseId,
+        {},
+        requestId,
+        billing,
+        'interactive'
+      )
     ).toMatchObject({ accepted: 1, failed: 0 })
     const [deferred] = await db.select().from(document).where(eq(document.id, file.documentId))
     expect(deferred).toMatchObject({

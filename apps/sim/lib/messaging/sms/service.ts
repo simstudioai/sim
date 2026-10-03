@@ -12,10 +12,6 @@ export interface SMSOptions {
   from?: string
 }
 
-interface BatchSMSOptions {
-  messages: SMSOptions[]
-}
-
 interface SMSResponseData {
   sid?: string
   status?: string
@@ -29,13 +25,6 @@ interface SMSResponseData {
 export interface SendSMSResult {
   success: boolean
   message: string
-  data?: SMSResponseData
-}
-
-interface BatchSendSMSResult {
-  success: boolean
-  message: string
-  results: SendSMSResult[]
   data?: SMSResponseData
 }
 

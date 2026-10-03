@@ -9,17 +9,10 @@ import {
   checkAttributedUsageLimits,
 } from '@/lib/billing/core/billing-attribution'
 import { authorizeWorkspaceOperation } from '@/lib/core/application'
-import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
-import {
-  BULK_DELETE_KNOWLEDGE_DOCUMENTS_COST_POLICY,
-  type KnowledgeBatchExecutionResult,
-  requireBoundedKnowledgeBatch,
-  rethrowKnowledgeBatchTerminalFailure,
-} from '@/lib/knowledge/application/batch-policy'
 import {
   KnowledgeUsageLimitExceededError,
   resolveKnowledgeAttributedUserId,
@@ -28,13 +21,13 @@ import {
 } from '@/lib/knowledge/application/billing'
 import {
   type ActiveKnowledgeDocumentContext,
-  type ActiveKnowledgeResourceBaseContext,
   resolveActiveKnowledgeBaseContext,
   resolveActiveKnowledgeDocumentContext,
   resolveActiveKnowledgeResourceContext,
   resolveCanonicalActiveKnowledgeDocumentContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { requiresConnectorIndexing } from '@/lib/knowledge/connectors/indexing-policy'
 import {
   ALL_TAG_SLOTS,
   type AllTagSlot,
@@ -61,6 +54,7 @@ import {
   performUploadKnowledgeDocument,
   performUploadKnowledgeDocuments,
 } from '@/lib/knowledge/orchestration/documents'
+import { knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 import type { KnowledgeDocumentWriteSecretProvenance } from '@/lib/knowledge/secret-provenance'
 import {
   type KnowledgeTagNameFilter,
@@ -68,7 +62,7 @@ import {
   toKnowledgeTagFilterConditions,
 } from '@/lib/knowledge/tags/filter-resolution'
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
-import { validateTagValue } from '@/lib/knowledge/tags/utils'
+import { validateTagValue, validateTagValueLength } from '@/lib/knowledge/tags/utils'
 import { StorageService } from '@/lib/uploads'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
 import { recordKnowledgeBaseFileOwnership } from '@/lib/uploads/server/metadata'
@@ -160,35 +154,6 @@ export interface DeleteKnowledgeDocumentInput extends ReadKnowledgeDocumentInput
   source?: string
 }
 
-export interface BulkDeleteKnowledgeDocumentsInput extends UploadKnowledgeDocumentAdmissionInput {
-  documentIds: string[]
-  cancellationSignal?: AbortSignal
-  source?: string
-}
-
-interface DeletedKnowledgeDocument {
-  id: string
-  filename: string
-  fileSize: number
-  mimeType: string
-}
-
-export interface BulkDeleteKnowledgeDocumentsResult {
-  knowledgeBaseId: string
-  deleted: string[]
-  failed: string[]
-  deletedDocuments: DeletedKnowledgeDocument[]
-  cancelled: boolean
-}
-
-interface BulkDeleteKnowledgeDocumentsExecutionResult
-  extends BulkDeleteKnowledgeDocumentsResult,
-    KnowledgeBatchExecutionResult {}
-
-type BulkDeleteKnowledgeDocumentsContext = ActiveKnowledgeResourceBaseContext & {
-  documentIds: string[]
-}
-
 export interface UpdateKnowledgeDocumentInput extends ReadKnowledgeDocumentInput {
   filename?: string
   enabled?: boolean
@@ -252,7 +217,9 @@ async function resolveKnowledgeDocumentTagValueUpdates(
         `Tag "${definition.displayName}" requires a value; use null to clear it`
       )
     }
-    const validationError = validateTagValue(definition.displayName, value, definition.fieldType)
+    const validationError =
+      validateTagValueLength(definition.displayName, value) ??
+      validateTagValue(definition.displayName, value, definition.fieldType)
     if (validationError) {
       throw new OrchestrationError('validation', validationError)
     }
@@ -329,7 +296,7 @@ export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
         tagFilters: tagFilters.length > 0 ? tagFilters : undefined,
       },
       generateRequestId(),
-      await context.access.get()
+      context.access
     )
     return {
       ...result,
@@ -673,36 +640,27 @@ export const upsertKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
      * Only a document the caller may read counts as the one being replaced:
      * a restricted document is neither confirmed to exist nor replaced.
      */
-    const access = await context.access.get()
+    const lookupConditions = [
+      eq(documentTable.knowledgeBaseId, context.knowledgeBaseId),
+      isNull(documentTable.deletedAt),
+      input.documentId
+        ? eq(documentTable.id, input.documentId)
+        : eq(documentTable.filename, input.filename),
+    ]
     let existingDocumentId: string | null = null
-    if (input.documentId) {
+    for await (const accessCondition of knowledgeReadAccessBatches(
+      context.access,
+      lookupConditions
+    )) {
       const [existing] = await db
         .select({ id: documentTable.id })
         .from(documentTable)
-        .where(
-          and(
-            eq(documentTable.id, input.documentId),
-            eq(documentTable.knowledgeBaseId, context.knowledgeBaseId),
-            isNull(documentTable.deletedAt),
-            knowledgeAccessCondition(access)
-          )
-        )
+        .where(and(...lookupConditions, accessCondition))
         .limit(1)
-      existingDocumentId = existing?.id ?? null
-    } else {
-      const [existing] = await db
-        .select({ id: documentTable.id })
-        .from(documentTable)
-        .where(
-          and(
-            eq(documentTable.filename, input.filename),
-            eq(documentTable.knowledgeBaseId, context.knowledgeBaseId),
-            isNull(documentTable.deletedAt),
-            knowledgeAccessCondition(access)
-          )
-        )
-        .limit(1)
-      existingDocumentId = existing?.id ?? null
+      if (existing) {
+        existingDocumentId = existing.id
+        break
+      }
     }
     const requestId = generateRequestId()
     const createdDocuments = await createDocumentRecords(
@@ -728,7 +686,7 @@ export const upsertKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
           context.knowledgeBaseId,
           existingDocumentId,
           requestId,
-          access
+          await context.access.getForDocuments([existingDocumentId])
         )
       } catch (error) {
         /**
@@ -837,105 +795,6 @@ export const deleteKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
   }),
 })
 
-export const bulkDeleteKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
-  operation: knowledgeOperations.bulkDeleteDocuments,
-  async resolveContext({
-    principal,
-    input,
-  }: {
-    principal: Principal
-    input: BulkDeleteKnowledgeDocumentsInput
-  }): Promise<BulkDeleteKnowledgeDocumentsContext> {
-    const documentIds = requireBoundedKnowledgeBatch(
-      input.documentIds,
-      'document IDs',
-      BULK_DELETE_KNOWLEDGE_DOCUMENTS_COST_POLICY.maxItems
-    )
-    return {
-      ...(await resolveActiveKnowledgeResourceContext(input, principal)),
-      documentIds,
-    }
-  },
-  async execute({
-    principal,
-    input,
-    context,
-  }): Promise<BulkDeleteKnowledgeDocumentsExecutionResult> {
-    const deletedDocuments: DeletedKnowledgeDocument[] = []
-    const failed: string[] = []
-    let terminalFailure: KnowledgeBatchExecutionResult['terminalFailure']
-
-    for (const documentId of context.documentIds) {
-      if (input.cancellationSignal?.aborted) break
-      try {
-        const canonical = await resolveCanonicalActiveKnowledgeDocumentContext(
-          {
-            knowledgeBaseId: context.knowledgeBaseId,
-            documentId,
-            assertedWorkspaceId: context.workspaceId,
-          },
-          principal
-        )
-        if (canonical.workspaceId) {
-          await authorizeWorkspaceOperation(
-            principal,
-            knowledgeOperations.bulkDeleteDocuments,
-            canonical,
-            { delegation: knowledgeDelegationPolicy }
-          )
-        }
-        if (input.cancellationSignal?.aborted) break
-        await deleteKnowledgeDocumentInKnowledgeBase(
-          canonical.knowledgeBaseId,
-          canonical.documentId,
-          generateRequestId(),
-          await context.access.get()
-        )
-        deletedDocuments.push({
-          id: canonical.documentId,
-          filename: canonical.document.filename,
-          fileSize: canonical.document.fileSize,
-          mimeType: canonical.document.mimeType,
-        })
-      } catch (error) {
-        const classified = asOrchestrationError(error)
-        if (classified && classified.code !== 'internal') {
-          failed.push(documentId)
-          continue
-        }
-        terminalFailure = { error }
-        break
-      }
-    }
-
-    return {
-      knowledgeBaseId: context.knowledgeBaseId,
-      deleted: deletedDocuments.map((document) => document.id),
-      failed,
-      deletedDocuments,
-      cancelled: input.cancellationSignal?.aborted ?? false,
-      ...(terminalFailure && { terminalFailure }),
-    }
-  },
-  projectAudit: ({ input, context, result }) =>
-    result.deletedDocuments.map((document) => ({
-      action: AuditAction.DOCUMENT_DELETED,
-      resourceType: AuditResourceType.DOCUMENT,
-      resourceId: document.id,
-      resourceName: document.filename,
-      description: `Deleted document "${document.filename}" from knowledge base "${context.knowledgeBase.name}"`,
-      metadata: {
-        source: input.source,
-        knowledgeBaseId: context.knowledgeBaseId,
-        knowledgeBaseName: context.knowledgeBase.name,
-        fileName: document.filename,
-        fileSize: document.fileSize,
-        mimeType: document.mimeType,
-      },
-    })),
-  afterSuccess: ({ result }) => rethrowKnowledgeBatchTerminalFailure(result),
-})
-
 export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.updateDocument,
   resolveContext: ({
@@ -979,6 +838,9 @@ export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
     const updates: KnowledgeDocumentUpdates = input.updates
       ? { ...input.updates }
       : { filename: input.filename, enabled: input.enabled }
+    if (updates.enabled && !requiresConnectorIndexing(context.knowledgeBase.isSearchIndex)) {
+      throw new OrchestrationError('validation', 'This search index is inactive; use Sim Search.')
+    }
     if (input.tagValues !== undefined) {
       Object.assign(
         updates,
@@ -1031,12 +893,18 @@ export const bulkUpdateKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
     input: BulkKnowledgeDocumentsInput
   }) => resolveActiveKnowledgeResourceContext(input, principal),
   async execute({ input, context }) {
+    if (
+      input.operation === 'enable' &&
+      !requiresConnectorIndexing(context.knowledgeBase.isSearchIndex)
+    ) {
+      throw new OrchestrationError('validation', 'This search index is inactive; use Sim Search.')
+    }
     const result = input.selectAll
       ? await bulkDocumentOperationByFilter(
           context.knowledgeBaseId,
           input.operation,
           input.enabledFilter,
-          await context.access.get(),
+          context.access,
           generateRequestId()
         )
       : input.documentIds?.length
@@ -1044,7 +912,7 @@ export const bulkUpdateKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
             context.knowledgeBaseId,
             input.operation,
             input.documentIds,
-            await context.access.get(),
+            context.access,
             generateRequestId()
           )
         : null

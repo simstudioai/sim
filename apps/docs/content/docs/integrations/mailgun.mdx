@@ -32,6 +32,7 @@ Send an email using Mailgun API
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailgun API key |
+| `region` | string | No | Mailgun account region: "us" \(default\) or "eu" |
 | `domain` | string | Yes | Mailgun sending domain \(e.g., mg.example.com\) |
 | `from` | string | Yes | Sender email address \(e.g., sender@example.com or "Name &lt;sender@example.com&gt;"\) |
 | `to` | string | Yes | Recipient email address \(e.g., user@example.com\). Use comma-separated values for multiple recipients |
@@ -59,6 +60,7 @@ Retrieve a stored message by its key
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailgun API key |
+| `region` | string | No | Mailgun account region: "us" \(default\) or "eu" |
 | `domain` | string | Yes | Mailgun domain for retrieving messages \(e.g., mg.example.com\) |
 | `messageKey` | string | Yes | Message storage key |
 
@@ -89,6 +91,7 @@ List events (logs) for messages sent through Mailgun
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailgun API key |
+| `region` | string | No | Mailgun account region: "us" \(default\) or "eu" |
 | `domain` | string | Yes | Mailgun domain for listing events \(e.g., mg.example.com\) |
 | `event` | string | No | Filter by event type \(accepted, delivered, failed, opened, clicked, etc.\) |
 | `limit` | number | No | Maximum number of events to return \(default: 100\) |
@@ -110,6 +113,7 @@ Create a new mailing list
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailgun API key |
+| `region` | string | No | Mailgun account region: "us" \(default\) or "eu" |
 | `address` | string | Yes | Mailing list address \(e.g., newsletter@mg.example.com\) |
 | `name` | string | No | Mailing list name |
 | `description` | string | No | Mailing list description |
@@ -132,6 +136,7 @@ Get details of a mailing list
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailgun API key |
+| `region` | string | No | Mailgun account region: "us" \(default\) or "eu" |
 | `address` | string | Yes | Mailing list address to retrieve \(e.g., newsletter@mg.example.com\) |
 
 #### Output
@@ -150,6 +155,7 @@ Add a member to a mailing list
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailgun API key |
+| `region` | string | No | Mailgun account region: "us" \(default\) or "eu" |
 | `listAddress` | string | Yes | Mailing list address \(e.g., list@mg.example.com\) |
 | `address` | string | Yes | Member email address to add \(e.g., user@example.com\) |
 | `name` | string | No | Member name |
@@ -173,6 +179,7 @@ List all domains for your Mailgun account
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailgun API key |
+| `region` | string | No | Mailgun account region: "us" \(default\) or "eu" |
 
 #### Output
 
@@ -191,6 +198,7 @@ Get details of a specific domain
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Mailgun API key |
+| `region` | string | No | Mailgun account region: "us" \(default\) or "eu" |
 | `domain` | string | Yes | Domain name to retrieve details for \(e.g., mg.example.com\) |
 
 #### Output

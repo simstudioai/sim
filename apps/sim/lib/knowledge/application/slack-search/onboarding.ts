@@ -21,7 +21,6 @@ import {
 } from '@/lib/knowledge/application/slack-search/identity'
 import { dispatchSlackSearchTurn } from '@/lib/knowledge/application/slack-search/outbox'
 import { recordSlackSearchOutcome } from '@/lib/knowledge/application/slack-search/repository'
-import { getSlackSearchSourceStatus } from '@/lib/knowledge/application/slack-search/source-status'
 import {
   persistSlackSearchTurn,
   requireSlackSearchTurnLease,
@@ -39,7 +38,11 @@ import {
   readSlackSearchOnboardingState,
   storeSlackSearchOnboardingState,
 } from '@/lib/slack-search/onboarding-state'
-import { type SlackSearchJob, slackSearchJobSchema } from '@/lib/slack-search/types'
+import {
+  type SlackSearchJob,
+  slackSearchJobSchema,
+  slackSearchThreadTimestamp,
+} from '@/lib/slack-search/types'
 
 export const slackSearchOnboardingOperations = {
   /**
@@ -85,7 +88,7 @@ export async function sendSlackSearchOnboarding(
     httpMethod: 'GET',
     query: {
       channel: job.message.channelId,
-      message_ts: job.message.threadTs ?? job.message.messageTs,
+      message_ts: slackSearchThreadTimestamp(job.message),
     },
     signal,
   })
@@ -100,7 +103,7 @@ export async function sendSlackSearchOnboarding(
     slackUrl.password
   )
     throw new Error('Slack returned an invalid question link')
-  slackUrl.searchParams.set('thread_ts', job.message.threadTs ?? job.message.messageTs)
+  slackUrl.searchParams.set('thread_ts', slackSearchThreadTimestamp(job.message))
   slackUrl.searchParams.set('cid', job.message.channelId)
   const token = await storeSlackSearchOnboardingState({
     turnId,
@@ -113,36 +116,67 @@ export async function sendSlackSearchOnboarding(
   await requireSlackSearchTurnLease(turnId, leaseId)
   if (!(await authorizeSlackSearchInstallation(principal, job)))
     throw new OrchestrationError('forbidden', 'Slack Search is disabled')
-  const response = await postSlackMessage(
-    context.secret.botToken,
-    {
-      channel: job.message.channelId,
-      thread_ts: job.message.threadTs ?? job.message.messageTs,
-      text,
-      unfurl_links: false,
-      unfurl_media: false,
-      blocks: [
-        { type: 'section', text: { type: 'plain_text', text } },
-        {
-          type: 'actions',
-          elements: [
-            {
-              type: 'button',
-              text: {
-                type: 'plain_text',
-                text: reason === 'account' ? 'Get started with Sim' : 'Connect sources',
-              },
-              url,
-              action_id: 'slack_search_onboarding',
+  const message = {
+    channel: job.message.channelId,
+    text,
+    blocks: [
+      { type: 'section', text: { type: 'plain_text', text } },
+      {
+        type: 'actions',
+        elements: [
+          {
+            type: 'button',
+            text: {
+              type: 'plain_text',
+              text: reason === 'account' ? 'Get started with Sim' : 'Connect sources',
             },
-          ],
-        },
-      ],
-    },
-    signal
-  )
+            url,
+            action_id: 'slack_search_onboarding',
+          },
+        ],
+      },
+    ],
+  }
+  /** Channel-level ephemeral prompts also display before the first persistent thread reply exists. */
+  const response =
+    reason === 'sources'
+      ? await requestSlackApi({
+          accessToken: context.secret.botToken,
+          method: 'chat.postEphemeral',
+          body: { ...message, user: job.message.userId },
+          signal,
+        })
+      : await postSlackMessage(
+          context.secret.botToken,
+          {
+            ...message,
+            thread_ts: slackSearchThreadTimestamp(job.message),
+            unfurl_links: false,
+            unfurl_media: false,
+          },
+          signal
+        )
   if (response.status !== 200 || response.data.ok !== true)
     throw new Error('Could not deliver Slack onboarding')
+  if (reason === 'sources') {
+    await requireSlackSearchTurnLease(turnId, leaseId)
+    if (!(await authorizeSlackSearchInstallation(principal, job)))
+      throw new OrchestrationError('forbidden', 'Slack Search is disabled')
+    signal.throwIfAborted()
+    const reply = await postSlackMessage(
+      context.secret.botToken,
+      {
+        channel: job.message.channelId,
+        thread_ts: slackSearchThreadTimestamp(job.message),
+        text: 'I don’t have any sources I can search for you yet. Check the “Connect sources” message in our DM to get set up, then retry this question.',
+        unfurl_links: false,
+        unfurl_media: false,
+      },
+      signal
+    )
+    if (reply.status !== 200 || reply.data.ok !== true)
+      throw new Error('Could not deliver the Slack sources notice')
+  }
   await recordSlackSearchOutcome(
     context.installation,
     reason === 'account' ? 'account_required' : 'sources_required'
@@ -232,7 +266,7 @@ async function resolveOnboarding(principal: Principal, token: string) {
   const conversationKey = slackSearchConversationKey(
     job.installationId,
     job.message.channelId,
-    job.message.threadTs ?? job.message.messageTs
+    slackSearchThreadTimestamp(job.message)
   )
   if (turn.conversationKey !== conversationKey)
     throw new OrchestrationError('forbidden', 'The Slack conversation binding changed')
@@ -251,7 +285,7 @@ async function resolveOnboarding(principal: Principal, token: string) {
       binding.installationId !== job.installationId ||
       binding.slackUserId !== job.message.userId ||
       binding.channelId !== job.message.channelId ||
-      binding.threadTs !== (job.message.threadTs ?? job.message.messageTs)
+      binding.threadTs !== slackSearchThreadTimestamp(job.message)
     )
       throw new OrchestrationError('forbidden', 'The Slack thread belongs to a different account')
   }
@@ -266,12 +300,8 @@ async function resolveOnboarding(principal: Principal, token: string) {
       )
     )
     .limit(1)
-  const sources = await getSlackSearchSourceStatus.execute({
-    principal,
-    input: { organizationId: context.installation.organizationId },
-  })
   const view: OnboardingReady = {
-    status: retried ? 'retried' : sources.hasSearchableDocuments ? 'ready' : 'needs_sources',
+    status: retried ? 'retried' : 'ready',
     organizationId: context.installation.organizationId,
     isAdmin: isOrgAdminRole(membership.role),
     question: job.message.query,
@@ -303,11 +333,6 @@ export const retrySlackSearchOnboarding: OperationUseCase<
     const resolved = await resolveOnboarding(principal, input.token)
     if (!resolved.job || !('slackUrl' in resolved.view))
       throw new OrchestrationError('forbidden', 'Complete your Sim account setup before retrying')
-    if (resolved.view.status === 'needs_sources')
-      throw new OrchestrationError(
-        'validation',
-        'Connect a source and wait for indexing before retrying'
-      )
     let turnId = resolved.retryTurnId
     if (!turnId) {
       const now = Date.now()
@@ -318,7 +343,7 @@ export const retrySlackSearchOnboarding: OperationUseCase<
           message: {
             ...resolved.job.message,
             eventId: resolved.retryEventId,
-            threadTs: resolved.job.message.threadTs ?? resolved.job.message.messageTs,
+            threadTs: slackSearchThreadTimestamp(resolved.job.message),
             messageTs: `${Math.floor(now / 1000)}.${String((now % 1000) * 1000).padStart(6, '0')}`,
           },
         },

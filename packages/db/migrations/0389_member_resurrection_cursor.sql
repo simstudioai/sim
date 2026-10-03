@@ -1,0 +1,1 @@
+ALTER TABLE "knowledge_connector" ADD COLUMN "member_resurrection_cursor" text;

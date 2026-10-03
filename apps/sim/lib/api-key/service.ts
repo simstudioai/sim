@@ -1,28 +1,12 @@
 import { db } from '@sim/db'
 import { apiKey as apiKeyTable, user as userTable } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
+import { createLogger, setRequestAuth } from '@sim/logger'
 import { and, eq, isNull, lt, or } from 'drizzle-orm'
 import { hashApiKey } from '@/lib/api-key/crypto'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceBillingSettings, type WorkspaceBillingSettings } from '@/lib/workspaces/utils'
 
 const logger = createLogger('ApiKeyService')
-
-export async function listApiKeys(workspaceId: string) {
-  return db
-    .select({
-      id: apiKeyTable.id,
-      name: apiKeyTable.name,
-      type: apiKeyTable.type,
-      lastUsed: apiKeyTable.lastUsed,
-      createdAt: apiKeyTable.createdAt,
-      expiresAt: apiKeyTable.expiresAt,
-      createdBy: apiKeyTable.createdBy,
-    })
-    .from(apiKeyTable)
-    .where(and(eq(apiKeyTable.workspaceId, workspaceId), eq(apiKeyTable.type, 'workspace')))
-    .orderBy(apiKeyTable.createdAt)
-}
 
 export interface ApiKeyAuthOptions {
   userId?: string
@@ -132,6 +116,10 @@ export async function authenticateApiKeyFromHeader(
     }
 
     logger.debug('API key matched via hash lookup', { keyId: record.id, keyType })
+    setRequestAuth(
+      { kind: keyType === 'personal' ? 'personal_api_key' : 'workspace_api_key' },
+      { preserveExisting: true }
+    )
 
     return {
       success: true,

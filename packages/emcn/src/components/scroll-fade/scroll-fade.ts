@@ -12,7 +12,7 @@ export interface ScrollEdgesX {
   right: boolean
 }
 
-/** Height of the fade band at an active edge, in pixels. */
+/** Default scroll-edge fade size in pixels, before an explicit override. */
 export const SCROLL_FADE_BAND_PX = 12
 
 /**
@@ -21,7 +21,8 @@ export const SCROLL_FADE_BAND_PX = 12
  * band at any edge that hides content, and stays fully opaque at every edge that
  * does not — so a list that fits, or sits at its top, is never fogged.
  *
- * The band is a fixed {@link SCROLL_FADE_BAND_PX}. A consumer whose top edge is
+ * The default band is {@link SCROLL_FADE_BAND_PX}; pair with `overflowFadeSizeClass`
+ * to match OverflowText. A consumer whose top edge is
  * covered by a floating control sets `--scroll-fade-inset` to that control's
  * height (e.g. `[--scroll-fade-inset:3rem]`) so the band starts beneath it.
  *

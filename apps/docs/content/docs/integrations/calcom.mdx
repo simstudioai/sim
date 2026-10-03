@@ -1132,3 +1132,13 @@ Trigger workflow on any Cal.com webhook event (configure event types in Cal.com)
 | `triggerEvent` | string | The webhook event type \(e.g., BOOKING_CREATED, MEETING_ENDED\) |
 | `createdAt` | string | When the webhook event was created \(ISO 8601\) |
 | `payload` | json | Complete webhook payload \(structure varies by event type\) |
+
+
+## OAuth Scopes
+
+Sim requests no OAuth scopes for Cal.com. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/calcom` |
+| Environment variables | `CALCOM_CLIENT_ID` |

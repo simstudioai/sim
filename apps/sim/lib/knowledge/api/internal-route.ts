@@ -29,7 +29,7 @@ import type {
   KnowledgeBaseResult,
 } from '@/lib/knowledge/application/knowledge-bases'
 import type { CreatedKnowledgeDocument } from '@/lib/knowledge/orchestration/documents'
-import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
+import type { KnowledgeBaseSummary } from '@/lib/knowledge/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 import type { UploadSessionRecord } from '@/lib/uploads/upload-session/service'
 
@@ -216,7 +216,7 @@ export function toInternalKnowledgeDocumentUpload(
   }
 }
 
-function toInternalKnowledgeBase(knowledgeBase: KnowledgeBaseWithCounts): KnowledgeBaseData {
+function toInternalKnowledgeBase(knowledgeBase: KnowledgeBaseSummary): KnowledgeBaseData {
   return {
     ...knowledgeBase,
     chunkingConfig: { ...knowledgeBase.chunkingConfig },
@@ -227,7 +227,7 @@ function toInternalKnowledgeBase(knowledgeBase: KnowledgeBaseWithCounts): Knowle
 }
 
 export const internalKnowledgePresenters = {
-  list({ knowledgeBases }: { knowledgeBases: KnowledgeBaseWithCounts[] }) {
+  list({ knowledgeBases }: { knowledgeBases: KnowledgeBaseSummary[] }) {
     return { success: true as const, data: knowledgeBases.map(toInternalKnowledgeBase) }
   },
   create({ knowledgeBase }: KnowledgeBaseResult) {
