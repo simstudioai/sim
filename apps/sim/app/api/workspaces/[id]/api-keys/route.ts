@@ -8,9 +8,19 @@ import { type NextRequest, NextResponse } from 'next/server'
 import {
   createWorkspaceApiKeyContract,
   deleteWorkspaceApiKeysContract,
+  listWorkspaceApiKeysContract,
 } from '@/lib/api/contracts/api-keys'
 import { parseRequest } from '@/lib/api/server'
-import { getApiKeyDisplayFormat } from '@/lib/api-key/auth'
+import {
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import {
+  listWorkspaceApiKeys,
+  workspaceApiKeyOperations,
+} from '@/lib/api-key/application/workspace-api-keys'
+import { workspaceApiKeyErrorPolicy } from '@/lib/api-key/management-error-policy'
 import { performCreateWorkspaceApiKey } from '@/lib/api-key/orchestration'
 import { getSession } from '@/lib/auth'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -21,80 +31,29 @@ import {
   isWorkspaceCapabilityWithheld,
 } from '@/lib/permission-groups/capability-assertions'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceApiKeysAPI')
 
-export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
-    const workspaceId = (await params).id
-
-    try {
-      const session = await getSession()
-      if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized workspace API keys access attempt`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const userId = session.user.id
-
-      const ws = await getWorkspaceById(workspaceId)
-      if (!ws) {
-        return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
-      }
-
-      const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-      if (!permission) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      // permission-group-enforced: api_keys.manage — raw handler with inline queries, which the authorization funnel never sees
-      if (await isWorkspaceCapabilityWithheld(userId, workspaceId, 'api_keys.manage')) {
-        return NextResponse.json({ error: capabilityRefusal('api_keys.manage') }, { status: 403 })
-      }
-
-      const workspaceKeys = await db
-        .select({
-          id: apiKey.id,
-          name: apiKey.name,
-          key: apiKey.key,
-          createdAt: apiKey.createdAt,
-          lastUsed: apiKey.lastUsed,
-          expiresAt: apiKey.expiresAt,
-          createdBy: apiKey.createdBy,
-        })
-        .from(apiKey)
-        .where(and(eq(apiKey.workspaceId, workspaceId), eq(apiKey.type, 'workspace')))
-        .orderBy(apiKey.createdAt)
-
-      const formattedWorkspaceKeys = await Promise.all(
-        workspaceKeys.map(async (key) => {
-          const displayFormat = await getApiKeyDisplayFormat(key.key)
-          return {
-            id: key.id,
-            name: key.name,
-            createdAt: key.createdAt,
-            lastUsed: key.lastUsed,
-            expiresAt: key.expiresAt,
-            createdBy: key.createdBy,
-            displayKey: displayFormat,
-          }
-        })
-      )
-
-      return NextResponse.json({
-        keys: formattedWorkspaceKeys,
-      })
-    } catch (error: unknown) {
-      logger.error(`[${requestId}] Workspace API keys GET error`, error)
-      return NextResponse.json(
-        { error: getErrorMessage(error, 'Failed to load API keys') },
-        { status: 500 }
-      )
-    }
-  }
-)
+export const GET = defineInternalJsonRoute({
+  contract: listWorkspaceApiKeysContract,
+  auth: internalSessionAuth,
+  operation: workspaceApiKeyOperations.list,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve existing workspace-key metadata admission',
+  }),
+  errorPolicy: workspaceApiKeyErrorPolicy('read'),
+  mapInput: ({ params }) => ({ workspaceId: params.id }),
+  useCase: listWorkspaceApiKeys,
+  present: ({ keys }) => ({
+    keys: keys.map((key) => ({
+      ...key,
+      createdAt: key.createdAt.toISOString(),
+      lastUsed: key.lastUsed?.toISOString() ?? null,
+      expiresAt: key.expiresAt?.toISOString() ?? null,
+    })),
+  }),
+})
 
 /**
  * Mints a workspace API key.

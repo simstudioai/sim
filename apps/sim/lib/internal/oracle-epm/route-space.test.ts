@@ -1,10 +1,10 @@
 /** @vitest-environment node */
-import { describe, expect, it } from 'vitest'
-import {
-  defineOracleEpmRouteSpace,
-  getOracleEpmRouteSpace,
-} from '@/lib/internal/oracle-epm/route-space'
-import type { OracleEpmRouteSpace } from '@/lib/internal/oracle-epm/types'
+import { inputValidationMock } from '@sim/testing/mocks/input-validation.mock'
+import { describe, expect, it, vi } from 'vitest'
+import { defineOracleEpmRouteSpace, type OracleEpmRouteSpace } from '@/lib/internal/oracle-epm'
+import { getOracleEpmRouteSpace } from '@/lib/internal/oracle-epm/route-space'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 describe('defineOracleEpmRouteSpace', () => {
   it('supports unrelated child contexts and case-sensitive versions without foundation edits', () => {

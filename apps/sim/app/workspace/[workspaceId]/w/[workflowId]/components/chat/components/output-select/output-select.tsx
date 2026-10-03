@@ -50,11 +50,13 @@ interface OutputSelectProps {
   maxHeight?: number
   disablePortal?: boolean
   /**
-   * Trigger chrome. `'sm'` is the compact pill used in inline toolbars;
-   * `'md'` is the 30px chip field, for stacking with `ChipInput` in a form.
+   * Trigger size. `'sm'` is compact for inline toolbars;
+   * `'md'` matches the editor's full-size fields.
    * @default 'sm'
    */
   size?: 'sm' | 'md'
+  /** Use chip chrome when embedding the selector in a chip-styled form. */
+  variant?: 'default' | 'chip'
   /** Additional class names to apply to the combobox trigger */
   className?: string
 }
@@ -71,6 +73,7 @@ interface OutputSelectMenuProps {
   maxHeight: number
   disablePortal: boolean
   size: 'sm' | 'md'
+  variant: 'default' | 'chip'
   className?: string
 }
 
@@ -129,6 +132,7 @@ function OutputSelectContent({
   maxHeight = 200,
   disablePortal = false,
   size = 'sm',
+  variant = 'default',
   className,
 }: OutputSelectProps) {
   const blocks = useWorkflowStore((state) => state.blocks)
@@ -233,6 +237,7 @@ function OutputSelectContent({
       maxHeight={maxHeight}
       disablePortal={disablePortal}
       size={size}
+      variant={variant}
       className={className}
     />
   )
@@ -250,6 +255,7 @@ function OutputSelectMenu({
   maxHeight,
   disablePortal,
   size,
+  variant,
   className,
 }: OutputSelectMenuProps) {
   const [menuPath, setMenuPath] = useState<string[]>([])
@@ -318,7 +324,7 @@ function OutputSelectMenu({
         ...activeMenuNode.children.map(outputGroup),
       ]
     : outputMenu.map(outputGroup)
-  const Trigger = size === 'md' ? ChipCombobox : Combobox
+  const Trigger = variant === 'chip' ? ChipCombobox : Combobox
 
   return (
     <Trigger

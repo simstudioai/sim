@@ -32,6 +32,8 @@ export const SLACK_CUSTOM_BOT_PROVIDER_ID = 'slack-custom-bot' as const
 export const SLACK_CUSTOM_BOT_SECRET_TYPE = 'slack_custom_bot' as const
 
 export type OAuthProvider =
+  | 'github-repositories'
+  | 'github-app-installation'
   | 'google'
   | 'google-email'
   | 'google-drive'
@@ -63,6 +65,7 @@ export type OAuthProvider =
   | 'microsoft-dataverse'
   | 'microsoft-excel'
   | 'microsoft-planner'
+  | 'microsoft-powerbi'
   | 'microsoft-teams'
   | 'microsoft-word'
   | 'outlook'
@@ -78,8 +81,10 @@ export type OAuthProvider =
   | 'asana'
   | 'attio'
   | 'pipedrive'
+  | 'quickbooks'
   | 'hubspot'
   | 'harmonic'
+  | 'coda'
   | 'salesforce'
   | 'linkedin'
   | 'instagram'
@@ -94,6 +99,7 @@ export type OAuthProvider =
 
 export type OAuthService =
   | 'oracle_epm_tax_reporting'
+  | 'github-repositories'
   | 'google'
   | 'google-email'
   | 'google-drive'
@@ -125,6 +131,7 @@ export type OAuthService =
   | 'microsoft-excel'
   | 'microsoft-teams'
   | 'microsoft-planner'
+  | 'microsoft-powerbi'
   | 'microsoft-word'
   | 'sharepoint'
   | 'outlook'
@@ -139,8 +146,10 @@ export type OAuthService =
   | 'asana'
   | 'attio'
   | 'pipedrive'
+  | 'quickbooks'
   | 'hubspot'
   | 'harmonic'
+  | 'coda'
   | 'salesforce'
   | 'linkedin'
   | 'instagram'
@@ -163,6 +172,15 @@ export interface OAuthProviderConfig {
 }
 
 export type OAuthAuthType = 'oauth' | 'service_account'
+
+export interface OAuthClientConfigurationField {
+  id: 'clientId' | 'clientSecret' | 'environment' | 'webhookVerifierToken'
+  label: string
+  placeholder: string
+  secret: boolean
+  options?: readonly { value: string; label: string }[]
+  hint?: string
+}
 
 export interface OAuthServiceConfig {
   name: string
@@ -199,6 +217,11 @@ export interface OAuthServiceConfig {
    * which does not hint that the environment was the problem.
    */
   providerIdPickerHint?: string
+  /** Write-only OAuth app fields a user must supply before provider authorization starts. */
+  clientConfiguration?: {
+    fields: readonly OAuthClientConfigurationField[]
+    redirectPath?: `/${string}`
+  }
 }
 
 /**
@@ -212,6 +235,7 @@ export interface OAuthServiceMetadata {
   name: string
   description: string
   baseProvider: string
+  clientConfiguration?: OAuthServiceConfig['clientConfiguration']
   authType: OAuthAuthType
 }
 
@@ -219,7 +243,7 @@ export interface Credential {
   id: string
   name: string
   provider: OAuthProvider
-  type?: 'oauth' | 'service_account'
+  type?: 'oauth' | 'service_account' | 'managed_oauth'
   serviceId?: string
   lastUsed?: string
   isDefault?: boolean

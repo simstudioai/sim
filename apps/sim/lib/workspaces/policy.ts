@@ -3,6 +3,7 @@ import { member, type WorkspaceMode, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, count, eq, isNull } from 'drizzle-orm'
+import type { OrganizationRole } from '@/lib/api/contracts/primitives'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import {
@@ -13,17 +14,36 @@ import type { PlanCategory } from '@/lib/billing/plan-helpers'
 import { getPlanType, isEnterprise, isMaxTier, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import {
+  capabilityDeniedBy,
   capabilityRefusal,
-  isOrganizationCapabilityWithheld,
+  isEntitledOrganizationCapabilityWithheld,
 } from '@/lib/permission-groups/capability-assertions'
+import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
+import { acquirePermissionGroupOrgLock } from '@/lib/permission-groups/locks'
+import { isOrganizationPermissionRegimeActive } from '@/lib/permission-groups/resolve.server'
 import {
   CONTACT_OWNER_TO_UPGRADE_REASON,
   UPGRADE_TO_INVITE_REASON,
 } from '@/lib/workspaces/policy-constants'
 
 const logger = createLogger('WorkspacePolicy')
+
+/** Permission only: quotas and subscription availability are enforced when a workspace is created. */
+export function canCreateOrganizationWorkspace(
+  role: OrganizationRole | null,
+  config: PermissionGroupConfig | null
+): boolean {
+  return (
+    organizationWorkspaceCreationRoleAllowed(role) &&
+    !capabilityDeniedBy('workspace.create', config)
+  )
+}
+
+function organizationWorkspaceCreationRoleAllowed(role: string | null | undefined): boolean {
+  return Boolean(role) && (!isBillingEnabled || isOrgAdminRole(role))
+}
 
 export const WORKSPACE_MODE = {
   PERSONAL: 'personal',
@@ -95,8 +115,30 @@ export interface WorkspaceCreationPolicy {
    * any membership as a mid-create join.
    */
   observedOrganizationId: string | null
+  /**
+   * The organization whose permission-group regime governed this decision, from
+   * {@link resolveGoverningPermissionGroupOrganization} (`null` for none).
+   *
+   * Carried on the policy so creation can reuse it instead of resolving the
+   * identical value a second time: React's `cache()` memo does not span these
+   * two calls (an App Route installs no cache dispatcher), so the entitlement
+   * read would otherwise be issued twice per request.
+   */
+  governingPermissionGroupOrganizationId: string | null
   /** Discriminant for blocked states the workspace mode cannot distinguish. */
   blockedReasonCode?: 'organization-subscription-inactive' | 'permission-group-denied'
+}
+
+/**
+ * The acting user's row is gone, so no workspace can reference it. Reached
+ * when a request still carrying a cached session cookie arrives after the
+ * account was deleted; the caller should answer as unauthenticated.
+ */
+export class WorkspaceOwnerMissingError extends Error {
+  constructor(userId: string) {
+    super(`User ${userId} no longer exists`)
+    this.name = 'WorkspaceOwnerMissingError'
+  }
 }
 
 export class WorkspaceCreationContextChangedError extends Error {
@@ -122,21 +164,78 @@ export class WorkspaceCreationCapabilityWithheldError extends WorkspaceCreationC
 }
 
 /**
- * Serializes the final creation-policy check with membership/ownership
- * mutations and row-locks the paid entitlement used by organization mode.
- * Returns the live billing owner. The caller must invoke this in the same
- * transaction as the workspace insert.
+ * The organization whose permission-group regime governs this creation, or
+ * `null` when none does — resolved BEFORE the transaction opens and passed into
+ * {@link lockWorkspaceCreationContext}.
+ *
+ * Falls back to `observedOrganizationId` so a personal workspace stays governed
+ * by the caller's own organization — see {@link getWorkspaceCreationPolicy} for
+ * why exempting it would defeat the gate. {@link lockWorkspaceCreationContext}
+ * refuses to commit unless live membership still equals that value, so a verdict
+ * reached here can never be applied to a different organization.
+ *
+ * This path settles entitlement during preflight. A concurrent entitlement
+ * lapse can keep the group's restrictions for this request; a concurrent grant
+ * can leave them inactive until the next request. The permission-group lock
+ * alone does not serialize subscription changes.
+ *
+ * The `forUpdate` subscription re-read below accepts Team *or* Enterprise; the
+ * permission-group regime is Enterprise-only, so it cannot stand in for this.
+ *
+ * The mutable half — the default group's `workspace.create` capability — is NOT
+ * decided here. It is re-read inside the transaction under the permission-group
+ * lock, which is what actually closes the revocation window.
+ */
+export async function resolveGoverningPermissionGroupOrganization(params: {
+  organizationId: string | null
+  observedOrganizationId: string | null
+}): Promise<string | null> {
+  const organizationId = params.organizationId ?? params.observedOrganizationId
+  if (!organizationId) return null
+  return (await isOrganizationPermissionRegimeActive(organizationId)) ? organizationId : null
+}
+
+/**
+ * Serializes the membership/ownership context with the workspace insert and
+ * row-locks the paid entitlement used by organization mode. Returns the live
+ * billing owner. The caller must invoke this in the same transaction as the
+ * insert.
+ *
+ * permission-group-enforced: workspace.create — the capability is re-read here,
+ * under `permission_group:<org>`, the same advisory lock every permission-group
+ * mutation takes. That is the whole point of doing it inside the transaction:
+ * reading it anywhere else leaves a window in which an admin's revocation
+ * commits between the check and the insert. The caller supplies
+ * `governingPermissionGroupOrganizationId` because the entitlement half of that
+ * decision cannot run on a transaction executor — see
+ * {@link resolveGoverningPermissionGroupOrganization}.
+ *
+ * LOCK ORDER: `organization-mutation:<org>` → `user-billing-identity:<user>` →
+ * `<user>:<org>` → `permission_group:<org>` (a leaf lock — see
+ * `lib/permission-groups/locks.ts`). The permission-group lock is taken LAST,
+ * and only AFTER live membership has been confirmed, so a caller who turns out
+ * not to belong to the organization never serializes against its admins.
+ *
+ * It is also taken after the organization's own revalidation — the `FOR UPDATE`
+ * subscription re-read and the owner lookup — so an org-wide key that every
+ * permission-group admin write contends on is not held across a blocking row
+ * lock that can wait out the full `lock_timeout`. Only the capability read and
+ * the caller's inserts need its protection. The refusal order shifts with it:
+ * an organization that BOTH lapsed and withholds the capability now reports the
+ * lapse, which is the condition the admin must fix first anyway.
  */
 export async function lockWorkspaceCreationContext(
-  tx: DbOrTx,
+  tx: DbTransaction,
   {
     userId,
     organizationId,
     observedOrganizationId,
+    governingPermissionGroupOrganizationId,
   }: {
     userId: string
     organizationId: string | null
     observedOrganizationId: string | null
+    governingPermissionGroupOrganizationId: string | null
   }
 ): Promise<{ billedAccountUserId: string }> {
   await acquireOrganizationUserMutationLocks(tx, {
@@ -151,47 +250,47 @@ export async function lockWorkspaceCreationContext(
     throw new WorkspaceCreationContextChangedError()
   }
 
-  /**
-   * permission-group-enforced: workspace.create — re-read under the lock because
-   * the preflight in `getWorkspaceCreationPolicy` and the insert are separate
-   * requests: a group that withheld creation in between would otherwise still
-   * let the in-flight create land, and a new workspace carries no
-   * `permissionGroupWorkspace` row to bring it back under the regime afterwards.
-   * Governed by the same organization the preflight used — the explicit one, or
-   * the caller's membership when the workspace would be personal — so a personal
-   * workspace stays as governed here as it is there.
-   */
-  const governingOrganizationId = organizationId ?? currentMembership?.organizationId ?? null
-  if (
-    governingOrganizationId &&
-    (await isOrganizationCapabilityWithheld(governingOrganizationId, 'workspace.create'))
-  ) {
-    throw new WorkspaceCreationCapabilityWithheldError()
+  let billedAccountUserId = userId
+  if (organizationId) {
+    if (isBillingEnabled) {
+      if (!currentMembership || !organizationWorkspaceCreationRoleAllowed(currentMembership.role)) {
+        throw new WorkspaceCreationContextChangedError()
+      }
+      const currentSubscription = await getOrganizationSubscription(organizationId, {
+        executor: tx,
+        onError: 'throw',
+        forUpdate: true,
+      })
+      if (
+        !currentSubscription ||
+        !hasUsableSubscriptionStatus(currentSubscription.status) ||
+        (!isTeam(currentSubscription.plan) && !isEnterprise(currentSubscription.plan))
+      ) {
+        throw new WorkspaceCreationContextChangedError()
+      }
+    }
+
+    const currentOwnerId = await getOrganizationOwnerId(organizationId, tx)
+    if (!currentOwnerId) throw new WorkspaceCreationContextChangedError()
+    billedAccountUserId = currentOwnerId
   }
 
-  if (!organizationId) return { billedAccountUserId: userId }
-
-  if (isBillingEnabled) {
-    if (!currentMembership || !isOrgAdminRole(currentMembership.role)) {
-      throw new WorkspaceCreationContextChangedError()
-    }
-    const currentSubscription = await getOrganizationSubscription(organizationId, {
-      executor: tx,
-      onError: 'throw',
-      forUpdate: true,
+  if (governingPermissionGroupOrganizationId) {
+    await acquirePermissionGroupOrgLock(tx, governingPermissionGroupOrganizationId, {
+      lockTimeoutAlreadyBounded: true,
     })
     if (
-      !currentSubscription ||
-      !hasUsableSubscriptionStatus(currentSubscription.status) ||
-      (!isTeam(currentSubscription.plan) && !isEnterprise(currentSubscription.plan))
+      await isEntitledOrganizationCapabilityWithheld(
+        governingPermissionGroupOrganizationId,
+        'workspace.create',
+        tx
+      )
     ) {
-      throw new WorkspaceCreationContextChangedError()
+      throw new WorkspaceCreationCapabilityWithheldError()
     }
   }
 
-  const currentOwnerId = await getOrganizationOwnerId(organizationId, tx)
-  if (!currentOwnerId) throw new WorkspaceCreationContextChangedError()
-  return { billedAccountUserId: currentOwnerId }
+  return { billedAccountUserId }
 }
 
 interface GetWorkspaceCreationPolicyParams {
@@ -237,10 +336,11 @@ export function isOrganizationWorkspace(
  * keep their access — this policy only governs *new* invitations.
  */
 export async function getWorkspaceInvitePolicy(
-  workspaceState: WorkspaceOwnershipState
+  workspaceState: WorkspaceOwnershipState,
+  executor: DbOrTx = db
 ): Promise<WorkspaceInvitePolicy> {
   const billedPlanCategory = isBillingEnabled
-    ? await resolveBilledPlanCategory(workspaceState)
+    ? await resolveBilledPlanCategory(workspaceState, executor)
     : 'free'
   return evaluateWorkspaceInvitePolicy(workspaceState, { billedPlanCategory })
 }
@@ -313,15 +413,16 @@ function blockInvite(organizationId: string | null): WorkspaceInvitePolicy {
 }
 
 async function resolveBilledPlanCategory(
-  workspaceState: WorkspaceOwnershipState
+  workspaceState: WorkspaceOwnershipState,
+  executor: DbOrTx
 ): Promise<PlanCategory> {
   if (
     workspaceState.workspaceMode === WORKSPACE_MODE.ORGANIZATION &&
     workspaceState.organizationId
   ) {
-    return getInvitePlanCategoryForOrganization(workspaceState.organizationId)
+    return getInvitePlanCategoryForOrganization(workspaceState.organizationId, executor)
   }
-  return getInvitePlanCategoryForUser(workspaceState.billedAccountUserId)
+  return getInvitePlanCategoryForUser(workspaceState.billedAccountUserId, executor)
 }
 
 /**
@@ -331,10 +432,11 @@ async function resolveBilledPlanCategory(
  * blocked consistently with accept-time provisioning.
  */
 export async function getInvitePlanCategoryForOrganization(
-  organizationId: string
+  organizationId: string,
+  executor: DbOrTx = db
 ): Promise<PlanCategory> {
   try {
-    const orgSub = await getOrganizationSubscription(organizationId)
+    const orgSub = await getOrganizationSubscription(organizationId, { executor })
     if (!orgSub || !hasUsableSubscriptionStatus(orgSub.status)) return 'free'
     return getPlanType(orgSub.plan)
   } catch (error) {
@@ -387,8 +489,15 @@ export async function getWorkspaceCreationPolicy({
               .limit(1)
           )[0]?.role
 
-  const governingOrganizationId = organizationId ?? membership?.organizationId ?? null
-  if (governingOrganizationId) {
+  /**
+   * Resolved once here and returned on the policy, so the creation call that
+   * follows in the same request does not re-issue the entitlement read.
+   */
+  const governingPermissionGroupOrganizationId = await resolveGoverningPermissionGroupOrganization({
+    organizationId,
+    observedOrganizationId: membership?.organizationId ?? null,
+  })
+  if (governingPermissionGroupOrganizationId) {
     /**
      * A new workspace carries no `permissionGroupWorkspace` row, so a member of
      * a scoped group would land in a workspace that group does not target — the
@@ -401,7 +510,13 @@ export async function getWorkspaceCreationPolicy({
      * so exempting it would leave the gate answering only the case it is not for.
      */
     // permission-group-enforced: workspace.create — no workspace exists yet, so the workspace-scoped funnel has nothing to resolve a group against
-    if (await isOrganizationCapabilityWithheld(governingOrganizationId, 'workspace.create')) {
+    if (
+      await isEntitledOrganizationCapabilityWithheld(
+        governingPermissionGroupOrganizationId,
+        'workspace.create',
+        db
+      )
+    ) {
       return {
         canCreate: false,
         workspaceMode:
@@ -417,6 +532,7 @@ export async function getWorkspaceCreationPolicy({
           'Your permission group does not allow creating workspaces. Ask an organization admin to change it.',
         status: 403,
         observedOrganizationId: membership?.organizationId ?? null,
+        governingPermissionGroupOrganizationId,
         blockedReasonCode: 'permission-group-denied',
       }
     }
@@ -435,6 +551,7 @@ export async function getWorkspaceCreationPolicy({
       reason: 'Only organization owners and admins can create organization workspaces.',
       status: 403,
       observedOrganizationId: membership?.organizationId ?? null,
+      governingPermissionGroupOrganizationId,
     }
   }
 
@@ -465,6 +582,7 @@ export async function getWorkspaceCreationPolicy({
         reason: null,
         status: 200,
         observedOrganizationId: membership?.organizationId ?? null,
+        governingPermissionGroupOrganizationId,
       }
     }
 
@@ -480,6 +598,7 @@ export async function getWorkspaceCreationPolicy({
       reason: null,
       status: 200,
       observedOrganizationId: membership?.organizationId ?? null,
+      governingPermissionGroupOrganizationId,
     }
   }
 
@@ -493,7 +612,7 @@ export async function getWorkspaceCreationPolicy({
     ) {
       const billedAccountUserId = await requireOrganizationOwnerId(organizationId)
 
-      if (!isOrgAdminRole(orgRole)) {
+      if (!organizationWorkspaceCreationRoleAllowed(orgRole)) {
         return {
           canCreate: false,
           workspaceMode: WORKSPACE_MODE.ORGANIZATION,
@@ -504,6 +623,7 @@ export async function getWorkspaceCreationPolicy({
           reason: 'Only organization owners and admins can create organization workspaces.',
           status: 403,
           observedOrganizationId: membership?.organizationId ?? null,
+          governingPermissionGroupOrganizationId,
         }
       }
 
@@ -517,6 +637,7 @@ export async function getWorkspaceCreationPolicy({
         reason: null,
         status: 200,
         observedOrganizationId: membership?.organizationId ?? null,
+        governingPermissionGroupOrganizationId,
       }
     }
 
@@ -529,7 +650,7 @@ export async function getWorkspaceCreationPolicy({
      * of the hierarchy, so there is no purview to escape, and after a
      * downgrade they are usually back on a personal plan they still pay for.
      */
-    if (!isOrgAdminRole(orgRole)) {
+    if (!organizationWorkspaceCreationRoleAllowed(orgRole)) {
       return {
         canCreate: false,
         workspaceMode: WORKSPACE_MODE.ORGANIZATION,
@@ -541,6 +662,7 @@ export async function getWorkspaceCreationPolicy({
           "Your organization's subscription is inactive. Ask an organization owner to reactivate it before creating workspaces.",
         status: 403,
         observedOrganizationId: membership?.organizationId ?? null,
+        governingPermissionGroupOrganizationId,
         blockedReasonCode: 'organization-subscription-inactive',
       }
     }
@@ -572,6 +694,7 @@ export async function getWorkspaceCreationPolicy({
       reason: `This plan supports up to ${maxWorkspaces} personal workspace${maxWorkspaces === 1 ? '' : 's'}.`,
       status: 403,
       observedOrganizationId: membership?.organizationId ?? null,
+      governingPermissionGroupOrganizationId,
     }
   }
 
@@ -585,6 +708,7 @@ export async function getWorkspaceCreationPolicy({
     reason: null,
     status: 200,
     observedOrganizationId: membership?.organizationId ?? null,
+    governingPermissionGroupOrganizationId,
   }
 }
 

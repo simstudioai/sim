@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useEffect } from 'react'
-import { Chip } from '@sim/emcn'
+import { Chip, pageHeadingClassName } from '@sim/emcn'
 import { TriangleAlert } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 
@@ -43,9 +43,7 @@ export function ErrorShell({ title, description, icon, children }: ErrorShellPro
           </div>
         </div>
         <div className='flex flex-col items-center gap-2'>
-          <h2 className='text-balance font-season text-[26px] text-[var(--text-primary)] leading-[1.15] tracking-[-0.01em] sm:text-[28px]'>
-            {title}
-          </h2>
+          <h2 className={pageHeadingClassName}>{title}</h2>
           <p className='max-w-[340px] text-[14px] text-[var(--text-tertiary)] leading-[1.55]'>
             {description}
           </p>

@@ -5,7 +5,7 @@ import { Chip, toast } from '@sim/emcn'
 import { Check, Plus } from '@sim/emcn/icons'
 import { usePostHog } from 'posthog-js/react'
 import { captureEvent } from '@/lib/posthog/client'
-import { SkillTile } from '@/app/workspace/[workspaceId]/components'
+import { SkillTile } from '@/app/workspace/[workspaceId]/components/skill-tile'
 import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
@@ -67,13 +67,14 @@ export function IntegrationSkillsSection({
   const createSkill = useCreateSkill()
   const skillsReady = !isPending && !isPlaceholderData
   const [pendingNames, setPendingNames] = useState<ReadonlySet<string>>(new Set())
-  const inFlightRef = useRef<Set<string>>(new Set())
+  const inFlightRef = useRef<Set<string> | null>(null)
+  const inFlight = (inFlightRef.current ??= new Set())
 
   const existingNames = useMemo(() => new Set(existingSkills.map((s) => s.name)), [existingSkills])
 
   const handleAdd = async (skill: SuggestedSkill, position: number) => {
-    if (inFlightRef.current.has(skill.name)) return
-    inFlightRef.current.add(skill.name)
+    if (inFlight.has(skill.name)) return
+    inFlight.add(skill.name)
     setPendingNames((prev) => new Set(prev).add(skill.name))
     try {
       await createSkill.mutateAsync({ workspaceId, skill })
@@ -94,7 +95,7 @@ export function IntegrationSkillsSection({
         toast.error(`Failed to add "${skill.name}" — please try again`)
       }
     } finally {
-      inFlightRef.current.delete(skill.name)
+      inFlight.delete(skill.name)
       setPendingNames((prev) => {
         const next = new Set(prev)
         next.delete(skill.name)

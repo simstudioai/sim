@@ -16,7 +16,6 @@ import { getPerRequestOAuthLinkScopes } from '@/lib/oauth/utils'
 const logger = createLogger('OAuthConnectionsQuery')
 
 export const OAUTH_CONNECTIONS_STALE_TIME = 30 * 1000
-export const OAUTH_CONNECTED_ACCOUNTS_STALE_TIME = 60 * 1000
 
 /**
  * Query key factory for OAuth connection queries.
@@ -186,6 +185,17 @@ export function useConnectOAuthService() {
         const returnUrl = encodeURIComponent(callbackURL)
         const draftQuery = draftId ? `&draftId=${encodeURIComponent(draftId)}` : ''
         window.location.href = `/api/auth/shopify/authorize?returnUrl=${returnUrl}${draftQuery}`
+        return { success: true }
+      }
+
+      if (providerId === 'quickbooks') {
+        if (!draftId) {
+          throw new Error('QuickBooks authorization requires a credential connection draft.')
+        }
+        const authorizeUrl = new URL('/api/auth/oauth2/authorize', window.location.origin)
+        authorizeUrl.searchParams.set('draftId', draftId)
+        authorizeUrl.searchParams.set('callbackURL', callbackURL)
+        window.location.href = authorizeUrl.toString()
         return { success: true }
       }
 

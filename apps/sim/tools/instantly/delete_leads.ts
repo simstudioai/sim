@@ -1,9 +1,9 @@
+import { toRecord } from '@sim/utils/object'
 import type {
   InstantlyDeleteLeadsParams,
   InstantlyDeleteLeadsResponse,
 } from '@/tools/instantly/types'
 import {
-  asRecord,
   compactBody,
   instantlyBaseParamFields,
   instantlyHeaders,
@@ -67,7 +67,7 @@ export const deleteLeadsTool: ToolConfig<InstantlyDeleteLeadsParams, InstantlyDe
     },
     transformResponse: async (response) => {
       const data = await parseInstantlyResponse(response)
-      const result = asRecord(data)
+      const result = toRecord(data)
 
       return {
         success: true,

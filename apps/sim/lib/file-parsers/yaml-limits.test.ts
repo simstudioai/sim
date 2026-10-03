@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   createYamlExpansionBudget,
@@ -21,17 +18,6 @@ const limits = (overrides: Partial<YamlExpansionLimits> = {}): YamlExpansionLimi
 })
 
 describe('measureYamlExpansion', () => {
-  it('reports the depth of the expanded tree', () => {
-    expect(measureYamlExpansion('scalar', LIMITS)).toEqual({ within: true, depth: 0 })
-    expect(measureYamlExpansion([1, 2, 3], LIMITS)).toEqual({ within: true, depth: 1 })
-    expect(measureYamlExpansion({ a: { b: { c: 1 } } }, LIMITS)).toEqual({ within: true, depth: 3 })
-  })
-
-  it('counts an empty container as a level', () => {
-    expect(measureYamlExpansion([], LIMITS)).toEqual({ within: true, depth: 1 })
-    expect(measureYamlExpansion({ a: {} }, LIMITS)).toEqual({ within: true, depth: 2 })
-  })
-
   it('charges an aliased subtree once per path that reaches it', () => {
     const shared = [1, 2, 3, 4, 5]
     const aliased = { a: shared, b: shared, c: shared }

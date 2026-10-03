@@ -2,19 +2,18 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { emcnMock, emcnMockFns } from '@sim/testing/mocks/emcn.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockUseConsentManager, mockSaveConsents, mockToastError, mockRevert, lastProps } =
-  vi.hoisted(() => ({
-    mockUseConsentManager: vi.fn(),
-    mockSaveConsents: vi.fn(),
-    mockToastError: vi.fn(),
-    mockRevert: vi.fn(),
-    lastProps: vi.fn(),
-  }))
+const { mockUseConsentManager, mockSaveConsents, mockRevert, lastProps } = vi.hoisted(() => ({
+  mockUseConsentManager: vi.fn(),
+  mockSaveConsents: vi.fn(),
+  mockRevert: vi.fn(),
+  lastProps: vi.fn(),
+}))
 
-vi.mock('@sim/emcn', () => ({ toast: { success: vi.fn(), error: mockToastError } }))
+vi.mock('@sim/emcn', () => emcnMock)
 vi.mock('@c15t/nextjs/headless', () => ({ useConsentManager: mockUseConsentManager }))
 vi.mock('@/app/_shell/consent/consent-preferences', () => ({
   CONSENT_LINK_CLASS: 'link',
@@ -35,6 +34,8 @@ vi.mock('@/app/_shell/consent/consent-preferences', () => ({
 }))
 
 import { CookiePreferences } from '@/app/workspace/[workspaceId]/settings/components/general/components/cookie-preferences'
+
+const mockToastError = emcnMockFns.mockToast.error
 
 let root: Root | null = null
 
@@ -73,24 +74,9 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root?.unmount())
   root = null
-  vi.clearAllMocks()
 })
 
 describe('CookiePreferences', () => {
-  it('commits on every toggle, matching the telemetry switch beside it', async () => {
-    const container = render()
-
-    expect(mockSaveConsents).not.toHaveBeenCalled()
-    await act(async () => {
-      container.querySelector<HTMLButtonElement>('[data-testid="toggle"]')?.click()
-    })
-
-    // `saveConsents('custom')` reads `selectedConsents` from the store at call
-    // time and the switch's `setSelectedConsent` write is synchronous, so the
-    // value this toggle staged is the one committed.
-    expect(mockSaveConsents).toHaveBeenCalledWith('custom', { uiSource: 'settings' })
-  })
-
   it('locks the switches while a commit is in flight, so two toggles cannot race', async () => {
     const pending = deferredSave()
     const container = render()

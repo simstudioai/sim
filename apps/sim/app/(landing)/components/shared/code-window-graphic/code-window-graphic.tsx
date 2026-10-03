@@ -1,108 +1,61 @@
-import type { ReactNode } from 'react'
 import { cn } from '@sim/emcn'
+import { TerminalWindow } from '@sim/emcn/icons'
 import styles from '@/app/(landing)/components/shared/code-window-graphic/code-window-graphic.module.css'
-import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
-import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics'
 
-/** One inline run of code text inside a {@link CodeWindowGraphic} line. */
-export interface CodeSegment {
-  /** Segment text. */
-  text: string
-  /** Ink treatment on the dark tile: `muted` scaffolding or `primary` payload. */
-  tone?: 'muted' | 'primary'
-}
+/** The compact preview sequences up to six visual command rows. */
+export type CodeWindowCommands =
+  | readonly [string]
+  | readonly [string, string]
+  | readonly [string, string, string]
+  | readonly [string, string, string, string]
+  | readonly [string, string, string, string, string]
+  | readonly [string, string, string, string, string, string]
 
 interface CodeWindowGraphicProps {
-  /**
-   * Title-bar mark, rendered inside the outlined `size-6` icon box - pass a
-   * `size-[14px]` icon in `--text-muted-inverse` to match the family.
-   */
-  icon: ReactNode
-  /** Filename shown beside the icon in the title bar. */
   filename: string
-  /** Code excerpt, one segment array per line - at most six lines animate. */
-  lines: readonly (readonly CodeSegment[])[]
+  commands: CodeWindowCommands
 }
 
-/** Per-line stamp-in classes - the stagger order is baked into each class's delay. */
-const LINE_STEP_CLASSES = [
-  styles.line0,
-  styles.line1,
-  styles.line2,
-  styles.line3,
-  styles.line4,
-  styles.line5,
-] as const
-
-/** Segment inks on the dark tile - the deploy tile's dark-surface palette. */
-const SEGMENT_TONE_CLASS = {
-  muted: 'text-[var(--text-muted-inverse)]',
-  primary: 'text-[var(--text-inverse)]',
-} as const
-
-/** Shared hairline ink for the window outline, header rule, and icon box. */
-const OUTLINE_INK = colorMixFallbacks.inverseBorder45
-
-/**
- * The dark-tile outlined editor window shared by the platform pages' "from
- * code" feature graphics (Workflows, Knowledge, Tables, Files): the
- * agent-code tile's exact slot geometry (`top-5`, `left-0`, bleeding off
- * the right and bottom edges, `rounded-tl-xl`) drawn as an outlined shell -
- * faint `--text-muted-inverse` hairlines with the dark tile showing
- * through, the deploy tile's browser-window vocabulary. Its `h-12` title
- * bar pairs the caller's icon (in an outlined `size-6` icon box, the
- * lifecycle header's treatment in dark ink) with the caller's filename
- * over a hairline rule.
- *
- * Inside, the caller's code excerpt sits settled in mono - scaffolding in
- * `--text-muted-inverse`, payload in `--text-inverse` - with a blinking
- * caret holding the last line. The lines stamp in top to bottom once (from
- * `code-window-graphic.module.css`, the audit tile's one-shot settle);
- * under `prefers-reduced-motion` the excerpt renders fully settled with no
- * caret blink.
- */
-export function CodeWindowGraphic({ icon, filename, lines }: CodeWindowGraphicProps) {
+/** A complete terminal window with sequentially typed, documentation-backed CLI examples. */
+export function CodeWindowGraphic({ filename, commands }: CodeWindowGraphicProps) {
   return (
-    <FeatureGraphicShell>
-      <div
-        aria-hidden='true'
-        className={cn(
-          'absolute top-5 right-0 bottom-0 left-0 rounded-tl-xl border-t border-l',
-          OUTLINE_INK
-        )}
-      >
-        <div className={cn('flex h-12 items-center gap-2 border-b px-4', OUTLINE_INK)}>
-          <span
-            className={cn('flex size-6 items-center justify-center rounded-md border', OUTLINE_INK)}
-          >
-            {icon}
-          </span>
-          <span className='text-[var(--text-inverse)] text-base'>{filename}</span>
+    <div className={styles.window}>
+      <div className={styles.titlebar}>
+        <div aria-hidden='true' className='flex items-center gap-1.5'>
+          <span className={styles.windowDot} />
+          <span className={styles.windowDot} />
+          <span className={styles.windowDot} />
         </div>
-
-        <div className='space-y-2 p-4 font-mono text-[var(--text-muted-inverse)] text-caption leading-[1.7]'>
-          {lines.map((line, index) => (
-            <div key={index} className={cn('flex gap-3', LINE_STEP_CLASSES[index])}>
-              <span className='w-3 select-none text-right text-[var(--text-muted-inverse)]'>
-                {index + 1}
-              </span>
-              <code className='truncate whitespace-pre'>
-                {line.map((segment, segmentIndex) => (
-                  <span
-                    key={segmentIndex}
-                    className={segment.tone && SEGMENT_TONE_CLASS[segment.tone]}
-                  >
-                    {segment.text}
-                  </span>
-                ))}
-                {index === lines.length - 1 && (
-                  <span className='ml-px inline-block h-[1.1em] w-px translate-y-[2px] animate-pulse bg-[var(--text-inverse)] align-text-bottom motion-reduce:animate-none' />
-                )}
-              </code>
-            </div>
-          ))}
+        <span className='flex items-center gap-2 text-[var(--text-secondary)] text-caption'>
+          <TerminalWindow className='size-[14px]' />
+          Terminal
+        </span>
+        <span className='text-[var(--text-muted)] text-xs'>zsh</span>
+      </div>
+      <div className={styles.body}>
+        <div className='mb-5 font-mono text-[var(--text-muted)] text-xs'>
+          ~/sim/{filename.replace(/\.sh$/, '')}
+        </div>
+        <div className='sr-only'>
+          <pre>{commands.join('\n')}</pre>
+        </div>
+        <div aria-hidden='true' className={styles.lines}>
+          {commands.map((command, index) => {
+            const continuation = index > 0 && commands[index - 1].trimEnd().endsWith('\\')
+            return (
+              <div
+                key={`${index}-${command}`}
+                className={cn(styles.row, !continuation && index > 0 && styles.commandGroup)}
+              >
+                <span className={cn(styles.prompt, continuation && styles.continuation)}>
+                  {continuation ? '›' : '$'}
+                </span>
+                <code className={styles.typed}>{command.trimStart()}</code>
+              </div>
+            )
+          })}
         </div>
       </div>
-    </FeatureGraphicShell>
+    </div>
   )
 }

@@ -1,7 +1,6 @@
 import {
   type ComponentType,
   type CSSProperties,
-  type HTMLAttributes,
   type ReactNode,
   type Ref,
   useCallback,
@@ -13,6 +12,7 @@ import {
 } from 'react'
 import { Badge, ChipTag, cn, handleKeyboardActivation, Switch, Tooltip } from '@sim/emcn'
 import { Ban, Lock } from '@sim/emcn/icons'
+import { WorkflowTypeTag } from '@sim/workflow-renderer/workflow-type'
 import {
   WORKFLOW_SOURCE_HANDLE_ID,
   WORKFLOW_TARGET_HANDLE_ID,
@@ -27,7 +27,6 @@ import {
 import { BLOCK_DIMENSIONS, HANDLE_POSITIONS } from '../dimensions'
 import { humanizeBlockName } from '../lib/humanize-block-name'
 import { OverflowSpan } from '../lib/overflow-span'
-import { isLightTileColor } from '../lib/tile-icon-color'
 import type { BlockRunStatus } from '../types'
 import {
   getCursorBranchSourceHandleId,
@@ -95,188 +94,6 @@ export function getNearestBranchCursorHandleId(
     Math.max(0, Math.round((cursorY - firstRowY) / HANDLE_POSITIONS.CONDITION_ROW_HEIGHT))
   )
   return getCursorBranchSourceHandleId(`${handlePrefix}-${rows[nearestIndex].id}`)
-}
-
-const WORKFLOW_ROLE_ACCENTS = {
-  agentic: { variant: 'workflow', tone: 'inverse' },
-  interface: { variant: 'workflow', tone: 'blue' },
-  logic: { variant: 'workflow', tone: 'orange' },
-  state: { variant: 'workflow', tone: 'yellow' },
-  flow: { variant: 'workflow', tone: 'ash' },
-  records: { variant: 'workflow', tone: 'green' },
-  identity: { variant: 'workflow', tone: 'identity' },
-  neutral: { variant: 'workflow', tone: 'neutral' },
-  generative: { variant: 'workflow', tone: 'purple' },
-  knowledge: { variant: 'workflow', tone: 'content' },
-} as const
-
-export type WorkflowTypeRole = keyof typeof WORKFLOW_ROLE_ACCENTS
-
-const WORKFLOW_TYPE_ROLES = {
-  a2a: 'neutral',
-  agent: 'agentic',
-  api: 'interface',
-  condition: 'logic',
-  credential: 'state',
-  credential_group: 'identity',
-  deployments: 'neutral',
-  enrichment: 'knowledge',
-  evaluator: 'logic',
-  file: 'knowledge',
-  file_v2: 'knowledge',
-  file_v3: 'knowledge',
-  file_v4: 'knowledge',
-  file_v5: 'knowledge',
-  function: 'logic',
-  generic_webhook: 'interface',
-  guardrails: 'logic',
-  human_in_the_loop: 'state',
-  image_generator: 'generative',
-  image_generator_v2: 'generative',
-  imap: 'interface',
-  knowledge: 'knowledge',
-  logs: 'records',
-  logs_v2: 'records',
-  loop: 'flow',
-  mcp: 'interface',
-  memory: 'state',
-  mothership: 'agentic',
-  note: 'neutral',
-  parallel: 'flow',
-  pi: 'agentic',
-  response: 'interface',
-  router: 'flow',
-  router_v2: 'flow',
-  rss: 'knowledge',
-  schedule: 'flow',
-  search: 'knowledge',
-  sim_workspace_event: 'interface',
-  start_trigger: 'flow',
-  starter: 'neutral',
-  stt: 'generative',
-  stt_v2: 'generative',
-  table: 'records',
-  table_v2: 'records',
-  thinking: 'agentic',
-  translate: 'generative',
-  tts: 'generative',
-  variables: 'state',
-  video_generator: 'generative',
-  video_generator_v2: 'generative',
-  video_generator_v3: 'generative',
-  vision: 'generative',
-  vision_v2: 'generative',
-  wait: 'flow',
-  webhook_request: 'interface',
-  workflow: 'interface',
-  workflow_input: 'interface',
-} as const satisfies Record<string, WorkflowTypeRole>
-
-const DEFAULT_WORKFLOW_TYPE_ROLE: WorkflowTypeRole = 'neutral'
-
-export const hasWorkflowTypeRole = (type: string): type is keyof typeof WORKFLOW_TYPE_ROLES =>
-  Object.hasOwn(WORKFLOW_TYPE_ROLES, type)
-
-export const getWorkflowTypeRole = (type: string): WorkflowTypeRole =>
-  WORKFLOW_TYPE_ROLES[type as keyof typeof WORKFLOW_TYPE_ROLES] ?? DEFAULT_WORKFLOW_TYPE_ROLE
-
-export const getWorkflowTypeAccent = (type: string) =>
-  WORKFLOW_ROLE_ACCENTS[getWorkflowTypeRole(type)]
-
-export interface WorkflowTypeIconProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'children'> {
-  type: string
-  Icon: ComponentType<{ className?: string }>
-  /** Overrides the glyph size when the chip is rendered at a non-default slot. */
-  iconClassName?: string
-}
-
-/** Shared compact core-block icon used by workflow discovery surfaces. */
-export function WorkflowTypeIcon({
-  type,
-  Icon,
-  className,
-  iconClassName,
-  ...props
-}: WorkflowTypeIconProps) {
-  const typeAccent = getWorkflowTypeAccent(type)
-
-  return (
-    <ChipTag
-      variant={typeAccent.variant}
-      tone={typeAccent.tone}
-      className={cn('size-[16px] shrink-0 justify-center p-0', className)}
-      data-workflow-type-icon={type}
-      {...props}
-    >
-      <Icon
-        className={cn(
-          'size-[10px] transition-transform duration-100 group-hover:scale-110',
-          iconClassName
-        )}
-      />
-    </ChipTag>
-  )
-}
-
-export interface WorkflowTypeTagProps {
-  type: string
-  typeLabel?: string
-  Icon: ComponentType<{ className?: string }>
-  iconBgColor: string
-  isIntegration?: boolean
-  isEnabled?: boolean
-}
-
-/** Shared provider/type tag used by editable and read-only workflow canvases. */
-export function WorkflowTypeTag({
-  type,
-  typeLabel,
-  Icon,
-  iconBgColor,
-  isIntegration = false,
-  isEnabled = true,
-}: WorkflowTypeTagProps) {
-  const typeAccent = getWorkflowTypeAccent(type)
-  const sharedClassName = cn(
-    'shrink-0 justify-center transition-opacity duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
-    !isEnabled && 'opacity-50'
-  )
-  /*
-   * The tag names the block's kind, and it says so whether or not the title
-   * happens to repeat it. Dropping the label when the two matched meant a card
-   * changed shape the moment it was renamed — a freshly dropped Wait showed a
-   * bare icon, its second copy showed "Wait" — so the tag read as a badge that
-   * came and went rather than as one fixed part of the header.
-   */
-  const label = typeLabel || null
-
-  if (isIntegration) {
-    return (
-      <ChipTag
-        variant='brand'
-        brandColor={iconBgColor}
-        brandForeground={isLightTileColor(iconBgColor) ? 'dark' : 'light'}
-        className={sharedClassName}
-        data-workflow-type-accent={type}
-        data-workflow-brand-tag=''
-      >
-        <Icon className='size-[14px] shrink-0' />
-        {label}
-      </ChipTag>
-    )
-  }
-
-  return (
-    <ChipTag
-      variant={typeAccent.variant}
-      tone={typeAccent.tone}
-      className={sharedClassName}
-      data-workflow-type-accent={type}
-    >
-      <Icon className='size-[14px] shrink-0' />
-      {label}
-    </ChipTag>
-  )
 }
 
 interface BlockStateIndicatorProps {
@@ -421,6 +238,8 @@ export interface WorkflowBlockViewProps {
   routerContextValue?: string
   /** Connection-cycle guard; reads fresh edge state on every call. */
   wouldCreateConnectionCycle: (source: string, target: string) => boolean
+  /** Whether edge hover mounts an interactive React Flow source handle. */
+  cursorConnectionsEnabled?: boolean
 
   /** Sunset badge — editor-only. `legacy` shows an amber "legacy" badge, `deprecated`
    * a red "deprecated" badge; clicking (gated on `canFixSunset`) invokes `onFixSunset`. */
@@ -454,7 +273,7 @@ export interface WorkflowBlockViewProps {
   onReactivateWebhook?: () => void
 
   /** Selects this block in the editor panel. */
-  onSelect: () => void
+  onSelect?: () => void
   /** Ref attached to the inner content container. */
   contentRef?: Ref<HTMLDivElement>
   /** Editor-only action bar; omit in read-only / preview contexts. */
@@ -529,6 +348,7 @@ export function WorkflowBlockView({
   routerRows,
   routerContextValue,
   wouldCreateConnectionCycle,
+  cursorConnectionsEnabled = true,
   sunsetStatus,
   sunsetTooltip,
   canFixSunset,
@@ -569,7 +389,8 @@ export function WorkflowBlockView({
     () => reactFlowStore.getState().connection.fromNode?.id ?? null,
     [reactFlowStore]
   )
-  const supportsCursorHandle = type !== 'response'
+  const supportsCursorSwell = type !== 'response'
+  const supportsCursorHandle = supportsCursorSwell && cursorConnectionsEnabled
   const cursorSourceHandleRef = useRef<HTMLDivElement>(null)
   const cursorSourceHandleKeyRef = useRef<string | null>(null)
   const [cursorSourceHandle, setCursorSourceHandle] = useState<WorkflowCursorSourceHandle | null>(
@@ -845,10 +666,10 @@ export function WorkflowBlockView({
       )}
       <div
         ref={contentRef}
-        role='button'
-        tabIndex={0}
+        role={onSelect ? 'button' : undefined}
+        tabIndex={onSelect ? 0 : undefined}
         onClick={onSelect}
-        onKeyDown={(event) => handleKeyboardActivation(event, onSelect)}
+        onKeyDown={onSelect ? (event) => handleKeyboardActivation(event, onSelect) : undefined}
         className={cn(
           'workflow-drag-handle relative z-[20] w-[250px] cursor-grab select-none rounded-2xl [&:active]:cursor-grabbing'
         )}
@@ -872,7 +693,7 @@ export function WorkflowBlockView({
           }
           isSelected={usesSelectedVisuals}
           height={blockHeight}
-          canStartConnection={supportsCursorHandle}
+          canStartConnection={supportsCursorSwell}
           canReceiveConnection={shouldShowDefaultHandles}
           onCursorHandleChange={supportsCursorHandle ? onCursorHandleChange : undefined}
           onActionMenuReadyChange={setActionMenuSwellReady}
@@ -1094,7 +915,7 @@ export function WorkflowBlockView({
             {/* {isActive && (
               <div className='mr-0.5 ml-2 flex size-[16px] items-center justify-center'>
                 <div
-                  className='h-full w-full animate-spin-slow rounded-full border-[2.5px] border-[rgba(255,102,0,0.25)] border-t-[var(--warning)]'
+                  className='size-full animate-spin-slow rounded-full border-[2.5px] border-[rgba(255,102,0,0.25)] border-t-[var(--warning)]'
                   aria-hidden='true'
                 />
               </div>
@@ -1142,7 +963,7 @@ export function WorkflowBlockView({
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => event.stopPropagation()}
               >
-                <span className='text-[var(--text-muted)] text-caption'>On error</span>
+                <span className='text-[var(--text-secondary)] text-caption'>On error</span>
                 <Switch
                   checked={errorOutputEnabled}
                   onCheckedChange={(next) => onToggleErrorOutput?.(next)}

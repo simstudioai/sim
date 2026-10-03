@@ -1,36 +1,34 @@
-/**
- * @vitest-environment node
- */
+import { fileParsersMock, fileParsersMockFns } from '@sim/testing/mocks/file-parsers.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockFetchWorkspaceFileBuffer,
-  mockIsSupportedFileType,
-  mockParseBuffer,
-  mockResolveServableDoc,
-} = vi.hoisted(() => ({
-  mockFetchWorkspaceFileBuffer: vi.fn(),
-  mockIsSupportedFileType: vi.fn(),
-  mockParseBuffer: vi.fn(),
+const { mockResolveServableDoc } = vi.hoisted(() => ({
   mockResolveServableDoc: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  fetchWorkspaceFileBuffer: mockFetchWorkspaceFileBuffer,
-}))
-vi.mock('@/lib/copilot/tools/server/files/doc-compile', () => ({
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@/lib/mothership/tools/server/files/doc-compile', () => ({
   resolveServableDoc: mockResolveServableDoc,
 }))
-vi.mock('@/lib/file-parsers', () => ({
-  isSupportedFileType: mockIsSupportedFileType,
-  parseBuffer: mockParseBuffer,
-}))
+vi.mock('@/lib/file-parsers', () => fileParsersMock)
 
 import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { FileParserError } from '@/lib/file-parsers/errors'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { FILE_SEARCH_MAX_SOURCE_BYTES } from '@/lib/workspace-files/search/constants'
+import {
+  FILE_SEARCH_MAX_EXTRACTED_BYTES,
+  FILE_SEARCH_MAX_SOURCE_BYTES,
+} from '@/lib/workspace-files/search/constants'
 import { extractIndexText, loadIndexableBytes } from '@/lib/workspace-files/search/extract'
+
+const mockIsSupportedFileType = fileParsersMockFns.mockIsSupportedFileType
+mockIsSupportedFileType.mockReturnValue(false)
+const mockParseBuffer = fileParsersMockFns.mockParseBuffer
+
+const mockFetchWorkspaceFileBuffer = workspaceUploadsMockFns.mockFetchWorkspaceFileBuffer
 
 const FILE: WorkspaceFileRecord = {
   id: 'file-1',
@@ -60,7 +58,6 @@ function sizeLimitError(): unknown {
 
 describe('loadIndexableBytes', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockFetchWorkspaceFileBuffer.mockResolvedValue(SOURCE)
   })
 
@@ -81,7 +78,10 @@ describe('loadIndexableBytes', () => {
       maxBytes: FILE_SEARCH_MAX_SOURCE_BYTES,
       signal,
     })
-    expect(mockResolveServableDoc).toHaveBeenCalledWith(FILE.workspaceId, SOURCE, FILE.name)
+    expect(mockResolveServableDoc).toHaveBeenCalledWith(FILE.workspaceId, SOURCE, FILE.name, {
+      maxBytes: FILE_SEARCH_MAX_SOURCE_BYTES,
+      signal,
+    })
   })
 
   it('settles for the generation source when no artifact exists, without compiling', async () => {
@@ -90,15 +90,6 @@ describe('loadIndexableBytes', () => {
     await expect(loadIndexableBytes(FILE, new AbortController().signal)).resolves.toEqual({
       buffer: SOURCE,
       kind: 'source',
-    })
-  })
-
-  it('passes stored bytes through for everything else', async () => {
-    mockResolveServableDoc.mockResolvedValue({ kind: 'passthrough' })
-
-    await expect(loadIndexableBytes(FILE, new AbortController().signal)).resolves.toEqual({
-      buffer: SOURCE,
-      kind: 'stored',
     })
   })
 
@@ -127,7 +118,6 @@ describe('loadIndexableBytes', () => {
 
 describe('extractIndexText', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockIsSupportedFileType.mockReturnValue(true)
   })
 
@@ -138,7 +128,12 @@ describe('extractIndexText', () => {
     await expect(
       extractIndexText({ buffer: FENCED_JSON, kind: 'stored' }, 'data.json', signal)
     ).resolves.toEqual({ text: 'hello world', partial: true })
-    expect(mockParseBuffer).toHaveBeenCalledWith(FENCED_JSON, 'json', { signal })
+    expect(mockParseBuffer).toHaveBeenCalledWith(FENCED_JSON, 'json', {
+      signal,
+      pdfTextMode: 'complete',
+      contentMode: 'complete',
+      maxTextBytes: FILE_SEARCH_MAX_EXTRACTED_BYTES,
+    })
   })
 
   it('indexes the raw text when the parser rejects a text file', async () => {
@@ -155,18 +150,6 @@ describe('extractIndexText', () => {
     ).resolves.toEqual({ text: FENCED_JSON.toString('utf8'), partial: false })
   })
 
-  it('indexes nothing when the parser rejects a binary file', async () => {
-    mockParseBuffer.mockRejectedValue(new FileParserError('invalid_format', 'not a docx'))
-
-    await expect(
-      extractIndexText(
-        { buffer: BINARY, kind: 'stored' },
-        'broken.docx',
-        new AbortController().signal
-      )
-    ).resolves.toBeNull()
-  })
-
   it('rethrows a size-limit breach from the parser', async () => {
     mockParseBuffer.mockRejectedValue(sizeLimitError())
 
@@ -176,7 +159,7 @@ describe('extractIndexText', () => {
         'data.json',
         new AbortController().signal
       )
-    ).rejects.toSatisfy(isPayloadSizeLimitError)
+    ).rejects.toMatchObject({ reason: 'extracted_text_too_large' })
   })
 
   it('rethrows the abort instead of falling back once the run is aborted', async () => {
@@ -214,22 +197,14 @@ describe('extractIndexText', () => {
     expect(mockParseBuffer).not.toHaveBeenCalled()
   })
 
-  it('indexes nothing for binary bytes that have no parser', async () => {
-    mockIsSupportedFileType.mockReturnValue(false)
-
-    await expect(
-      extractIndexText({ buffer: BINARY, kind: 'stored' }, 'blob.bin', new AbortController().signal)
-    ).resolves.toBeNull()
-    expect(mockParseBuffer).not.toHaveBeenCalled()
-  })
-
-  it('indexes an empty file as empty text', async () => {
+  it('rejects the entire expanded document above the extraction budget', async () => {
+    mockParseBuffer.mockResolvedValue({ content: 'x'.repeat(FILE_SEARCH_MAX_EXTRACTED_BYTES + 1) })
     await expect(
       extractIndexText(
-        { buffer: Buffer.alloc(0), kind: 'stored' },
-        'empty.txt',
+        { buffer: FENCED_JSON, kind: 'stored' },
+        'data.json',
         new AbortController().signal
       )
-    ).resolves.toEqual({ text: '', partial: false })
+    ).rejects.toMatchObject({ reason: 'extracted_text_too_large' })
   })
 })

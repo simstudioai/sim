@@ -14,8 +14,6 @@ import { cssFontStack } from '../utils/font-stack'
 import type { RenderContext } from './render-context'
 import { resolveColor } from './style-resolver'
 
-// Types
-
 interface SeriesData {
   name: string
   order: number // c:order val — used to sort series into correct sequence
@@ -73,8 +71,6 @@ type OoxmlChartType =
   | 'stockChart'
   | 'surface3DChart'
 
-// Chart Type Mapping
-
 const CHART_TYPE_ELEMENTS: OoxmlChartType[] = [
   'barChart',
   'bar3DChart',
@@ -91,8 +87,6 @@ const CHART_TYPE_ELEMENTS: OoxmlChartType[] = [
   'stockChart',
   'surface3DChart',
 ]
-
-// Data Extraction Helpers
 
 /**
  * Extract text values from a strRef or strCache structure.
@@ -160,7 +154,6 @@ function formatValue(value: number, formatCode: string | undefined): string {
 
   // Percentage format: the raw value is a fraction (e.g., 0.213 means 21.3%)
   if (formatCode.includes('%')) {
-    // Determine decimal places from the format code
     const match = formatCode.match(/0\.(0+)%/)
     const decimals = match ? match[1].length : 0
     const pctValue = value * 100
@@ -264,7 +257,6 @@ function extractSeriesName(txNode: SafeXmlNode): string {
       return pts[0].child('v').text()
     }
   }
-  // Try direct v element
   const v = txNode.child('v')
   if (v.exists()) return v.text()
   return ''
@@ -326,7 +318,6 @@ function extractSeriesColor(ser: SafeXmlNode, ctx: RenderContext): string | obje
   const spPr = ser.child('spPr')
   if (!spPr.exists()) return undefined
 
-  // Primary: solid fill
   const solidFill = spPr.child('solidFill')
   if (solidFill.exists()) {
     const hex = resolveColorToHex(solidFill, ctx)
@@ -372,7 +363,6 @@ function buildEChartsGradient(gradFill: SafeXmlNode, ctx: RenderContext): object
   for (const gs of gsLst.children('gs')) {
     const stop = resolveGradientStop(gs, ctx)
     if (stop) {
-      // Convert color + alpha to rgba string
       const hex = stop.color.replace('#', '')
       const r = Number.parseInt(hex.substring(0, 2), 16)
       const g = Number.parseInt(hex.substring(2, 4), 16)
@@ -386,7 +376,6 @@ function buildEChartsGradient(gradFill: SafeXmlNode, ctx: RenderContext): object
 
   if (stops.length < 2) return undefined
 
-  // Sort stops by offset
   stops.sort((a, b) => a.offset - b.offset)
 
   // Determine gradient direction from a:lin angle. Default: top-to-bottom (ang=5400000 = 90°)
@@ -484,7 +473,6 @@ function parseDataLabels(node: SafeXmlNode, ctx: RenderContext): DataLabelConfig
   const fontSize = txStyle?.fontSize
   const bold = txStyle?.bold
 
-  // If nothing is shown, return undefined
   if (!showVal && !showCatName && !showSerName && !showPercent) return undefined
 
   return { showVal, showCatName, showSerName, showPercent, position, color, fontSize, bold }
@@ -540,7 +528,6 @@ function parseExplosion(ser: SafeXmlNode, pointCount: number): number[] | undefi
   const explosions: number[] = new Array(pointCount).fill(0)
   let hasAny = false
 
-  // Series-level explosion
   const serExplosion = ser.child('explosion').numAttr('val') ?? 0
   if (serExplosion > 0) {
     explosions.fill(serExplosion)
@@ -639,8 +626,6 @@ function parseSeries(chartTypeNode: SafeXmlNode, ctx: RenderContext): SeriesData
   return seriesArr
 }
 
-// Chart Title
-
 /**
  * Extract chart title from chartSpace > chart > title.
  * Returns undefined when autoTitleDeleted val="1" (title was intentionally removed).
@@ -679,7 +664,6 @@ function extractChartTitle(chartNode: SafeXmlNode, seriesArr?: SeriesData[]): st
     if (parts.length > 0) return parts.join('')
   }
 
-  // Try strRef
   const strRef = tx.child('strRef')
   if (strRef.exists()) {
     const strCache = strRef.child('strCache')
@@ -761,8 +745,6 @@ function getChartThemeFontFamily(ctx: RenderContext): string | undefined {
     ctx.theme.majorFont.ea
   return family ? cssFontStack(family) : undefined
 }
-
-// Legend
 
 /** Parsed legend info including overlay flag. */
 interface LegendInfo {
@@ -1097,8 +1079,6 @@ function hasManualGrid(
   )
 }
 
-// Axis Parsing
-
 const DEFAULT_AXIS_INFO: AxisInfo = {
   deleted: false,
   tickLblPos: 'nextTo',
@@ -1237,7 +1217,6 @@ function applyAxisInfo(
     axisDef.axisLabel = { ...((axisDef.axisLabel as object) || {}), show: false }
   }
 
-  // Scaling min/max
   if (kind === 'value') {
     if (info.min !== undefined) axisDef.min = info.min
     if (info.max !== undefined) axisDef.max = info.max
@@ -1285,8 +1264,6 @@ function applyAxisInfo(
   }
 }
 
-// ECharts Option Builders
-
 /**
  * Convert OOXML data label position to ECharts bar label position.
  */
@@ -1316,11 +1293,9 @@ function buildBarChartOption(
   const grouping = groupingNode.exists() ? groupingNode.attr('val') || 'clustered' : 'clustered'
   const isHorizontal = barDir === 'bar'
 
-  // Layout parameters
   const gapWidth = chartTypeNode.child('gapWidth').numAttr('val')
   const overlap = chartTypeNode.child('overlap').numAttr('val')
 
-  // Use categories from the first series that has them
   const categories = seriesArr.find((s) => s.categories.length > 0)?.categories || []
 
   const title = extractChartTitle(chartNode, seriesArr)
@@ -1495,7 +1470,6 @@ function buildBarChartOption(
 }
 
 function buildLineChartOption(
-  chartTypeNode: SafeXmlNode,
   chartNode: SafeXmlNode,
   seriesArr: SeriesData[],
   ctx: RenderContext,
@@ -1640,7 +1614,6 @@ function buildPieChartOption(
     chartTypeNode.child('dLbls').exists()
   const dLblsExplicitlyOff = hasDLblsNode && !sharedLabels
 
-  // Parse explosion from the first c:ser element
   const explosions = firstSer ? parseExplosion(firstSer, firstSeries.categories.length) : undefined
 
   const pieData = firstSeries.categories.map((cat, i) => {
@@ -1649,7 +1622,6 @@ function buildPieChartOption(
       name: cat || `Item ${i + 1}`,
       value: firstSeries.values[i] ?? 0,
     }
-    // Per-point color
     if (firstSeries.dataPointColors?.[i]) {
       item.itemStyle = { color: firstSeries.dataPointColors[i] }
     }
@@ -1772,10 +1744,8 @@ function buildRadarChartOption(
   const legendOpt = legendInfo?.option
   const legendTextStyle = { fontSize: 10, ...(legendInfo?.textStyle ?? {}) }
 
-  // Categories come from the first series that has them
   const categories = seriesArr.find((s) => s.categories.length > 0)?.categories || []
 
-  // Read valAx scaling for explicit min/max on radar
   const plotArea = chartNode.child('plotArea')
   const { valueAxis } = parseAxes(plotArea, ctx)
 
@@ -1988,8 +1958,6 @@ function buildScatterChartOption(
   }
 }
 
-// Bubble Chart
-
 function buildBubbleChartOption(
   chartTypeNode: SafeXmlNode,
   chartNode: SafeXmlNode,
@@ -2090,8 +2058,6 @@ function buildBubbleChartOption(
     series,
   }
 }
-
-// Stock Chart (Candlestick)
 
 function buildStockChartOption(
   _chartTypeNode: SafeXmlNode,
@@ -2199,7 +2165,7 @@ function buildStockChartOption(
             seriesArr[2].values[i] ?? 0,
           ]),
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          renderItem: (params: any, api: any) => {
+          renderItem: (_params: any, api: any) => {
             const xValue = api.value(0)
             const high = api.value(1)
             const low = api.value(2)
@@ -2296,8 +2262,6 @@ function buildStockChartOption(
   }
 }
 
-// Data Table (c:dTable)
-
 /** Parsed c:dTable info for building the chart data table. */
 interface DataTableInfo {
   seriesArr: SeriesData[]
@@ -2387,8 +2351,6 @@ function buildDataTableElement(info: DataTableInfo, seriesColors?: string[]): HT
 
   return table
 }
-
-// Main Chart XML Parser
 
 /**
  * Extract background colors from chartSpace and plotArea.
@@ -2499,24 +2461,6 @@ function parseChartStyleId(chartXml: SafeXmlNode): number | undefined {
   return undefined
 }
 
-function clamp01(v: number): number {
-  if (v < 0) return 0
-  if (v > 1) return 1
-  return v
-}
-
-function tintHex(hex: string, amount: number): string {
-  const normalized = hex.startsWith('#') ? hex.slice(1) : hex
-  if (normalized.length !== 6) return hex.startsWith('#') ? hex : `#${hex}`
-  const r = Number.parseInt(normalized.slice(0, 2), 16)
-  const g = Number.parseInt(normalized.slice(2, 4), 16)
-  const b = Number.parseInt(normalized.slice(4, 6), 16)
-  if ([r, g, b].some((n) => Number.isNaN(n))) return hex.startsWith('#') ? hex : `#${hex}`
-  const a = clamp01(amount)
-  const mix = (c: number) => Math.round(c + (255 - c) * a)
-  return `#${[mix(r), mix(g), mix(b)].map((n) => n.toString(16).padStart(2, '0')).join('')}`
-}
-
 /**
  * Build a chart color palette from theme accents and chart style id.
  * This improves parity with Office chart styles when series colors are implicit.
@@ -2538,8 +2482,6 @@ function buildChartPalette(chartXml: SafeXmlNode, ctx: RenderContext): string[] 
   return accents
 }
 
-// Chart-Space Default Font Size + Legend Grid Adjustment
-
 /**
  * Apply chart-space default font size to all text elements in the ECharts option
  * that still use hardcoded small defaults. Only overrides when no explicit OOXML
@@ -2557,7 +2499,6 @@ function applyDefaultFontSizes(option: echarts.EChartsOption, defaultFs: number)
     }
   }
 
-  // Radar indicator font size
   if (opt.radar) {
     const radar = Array.isArray(opt.radar) ? opt.radar[0] : opt.radar
     if (radar?.name?.textStyle) {
@@ -2666,7 +2607,6 @@ function applyLegendGridMargins(
       }
       if (w > maxTextPx) maxTextPx = w
     }
-    // icon + gap + text + left/right padding
     const estimatedLegendPx = iconWidth + 8 + maxTextPx + 14
     const gridMarginPx = Math.max(84, Math.round(estimatedLegendPx + 18))
 
@@ -2785,13 +2725,11 @@ function applyNiceAxisRange(option: echarts.EChartsOption): void {
     const axes = Array.isArray(axis) ? axis : [axis]
     for (const ax of axes) {
       if (!ax || ax.type !== 'value') continue
-      // Skip if explicit min/max already set
       if (ax.min !== undefined && ax.max !== undefined) continue
 
       const dataMin = Math.min(...allValues)
       const dataMax = Math.max(...allValues)
 
-      // Only set max when not already specified
       if (ax.max === undefined) {
         ax.max = niceAxisMax(dataMax, dataMin)
       }
@@ -2852,30 +2790,6 @@ function extractChartDefaultFontSize(chartSpaceNode: SafeXmlNode): number | unde
     }
   }
   return undefined
-}
-
-/**
- * Estimate legend width as a percentage of chart width based on legend text length and font size.
- * Used to reserve grid space when legend is at right or left (non-overlay).
- */
-function estimateLegendWidthPct(
-  legendInfo: LegendInfo | undefined,
-  legendNames: string[],
-  baseFontSize: number
-): string {
-  if (!legendInfo || legendInfo.overlay) return '2%'
-  const opt = legendInfo.option as Record<string, unknown> | undefined
-  if (!opt) return '2%'
-  const isRight = opt.right !== undefined && opt.top !== undefined && opt.bottom === undefined
-  const isLeft = opt.left !== undefined && opt.top !== undefined && opt.bottom === undefined
-  if (!isRight && !isLeft) return '2%'
-  // Estimate based on longest label + icon + padding
-  const maxLen = Math.max(1, ...legendNames.map((n) => n.length))
-  // Approximate: each char ≈ 0.6 * fontSize, plus icon (≈ fontSize) and padding (≈ fontSize)
-  const estimatedPx = maxLen * baseFontSize * 0.6 + baseFontSize * 3
-  // Convert to percentage of typical chart width (assume ~600px as base)
-  const pct = Math.min(40, Math.max(15, Math.round((estimatedPx / 600) * 100)))
-  return `${pct}%`
 }
 
 function createLegendIcon(
@@ -3084,11 +2998,11 @@ function buildOptionForChartType(
       return buildBarChartOption(chartTypeNode, chartNode, seriesArr, ctx)
     case 'lineChart':
     case 'line3DChart':
-      return buildLineChartOption(chartTypeNode, chartNode, seriesArr, ctx, false)
+      return buildLineChartOption(chartNode, seriesArr, ctx, false)
     case 'areaChart':
     case 'area3DChart':
     case 'surface3DChart':
-      return buildLineChartOption(chartTypeNode, chartNode, seriesArr, ctx, true)
+      return buildLineChartOption(chartNode, seriesArr, ctx, true)
     case 'pieChart':
     case 'pie3DChart':
       return buildPieChartOption(chartTypeNode, chartNode, seriesArr, false, ctx)
@@ -3175,7 +3089,6 @@ export function parseChartXml(chartXml: SafeXmlNode, ctx: RenderContext): ParseC
     return { option: { title: { text: 'Unsupported chart', left: 'center' } } }
   }
 
-  // Extract background colors
   const { chartBg, plotAreaBg } = extractBackgroundColors(chartXml, chart, chartCtx)
 
   const chartTypeEntries = CHART_TYPE_ELEMENTS.map((typeName) => {
@@ -3226,13 +3139,11 @@ export function parseChartXml(chartXml: SafeXmlNode, ctx: RenderContext): ParseC
       applyDefaultFontFamily(option, defaultFontFamily)
     }
 
-    // Adjust grid margins for legend placement (non-overlay)
     applyLegendGridMargins(option, chart, defaultFs)
 
     // Apply PowerPoint-like nice axis range (adds headroom beyond data max)
     applyNiceAxisRange(option)
 
-    // Apply background colors
     if (chartBg) {
       option.backgroundColor = chartBg
     }
@@ -3255,7 +3166,6 @@ export function parseChartXml(chartXml: SafeXmlNode, ctx: RenderContext): ParseC
             .sort((a, b) => a.order - b.order)
         : entry.seriesArr
 
-    // Build data table info when c:dTable exists
     const dTableMeta = parseDataTable(plotArea)
     const dataTable: DataTableInfo | undefined = dTableMeta
       ? {
@@ -3274,8 +3184,6 @@ export function parseChartXml(chartXml: SafeXmlNode, ctx: RenderContext): ParseC
     },
   }
 }
-
-// Public Render Function
 
 /**
  * Render a chart node into an HTML element with an ECharts instance.
@@ -3312,7 +3220,6 @@ export function renderChart(node: ChartNodeData, ctx: RenderContext): HTMLElemen
   chartDiv.style.overflow = 'hidden'
   wrapper.appendChild(chartDiv)
 
-  // Parse chart data and create ECharts option
   const { option, dataTable } = parseChartXml(chartXml, ctx)
   const customLegend = buildCustomLegendOverlay(option, node.size)
   const legendOption = getLegendOptionObject(option.legend)
@@ -3321,7 +3228,6 @@ export function renderChart(node: ChartNodeData, ctx: RenderContext): HTMLElemen
     wrapper.appendChild(customLegend)
   }
 
-  // Append data table below chart when c:dTable exists
   if (dataTable) {
     const seriesColors = dataTable.seriesArr.map((s) => s.colorHex).filter(Boolean) as string[]
     const tableEl = buildDataTableElement(
@@ -3365,7 +3271,6 @@ function initChart(
     chart.setOption(option)
     chartInstances?.add(chart)
 
-    // Handle container resize
     const ro = new ResizeObserver(() => {
       if (container.isConnected) {
         chart.resize()

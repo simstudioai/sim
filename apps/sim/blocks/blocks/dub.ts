@@ -1,16 +1,18 @@
+import { omit } from '@sim/utils/object'
 import { DubIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { DubResponse } from '@/tools/dub/types'
 
 const GET_LINK_FIELD = ['linkId', 'getLinkExternalId', 'getLinkKey'] as const
 const BULK_UPDATE_TARGET_FIELD = ['bulkUpdateLinkIds', 'bulkUpdateExternalIds'] as const
 const ANALYTICS_LINK_FIELD = ['analyticsLinkId', 'analyticsExternalId'] as const
 const EVENTS_LINK_FIELD = ['eventsLinkId', 'eventsExternalId'] as const
 
-export const DubBlock: BlockConfig<DubResponse> = {
+export const DubBlock = {
   type: 'dub',
-  name: 'Dub',
+  name: 'Dub (Legacy)',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'dub_v2' },
   description: 'Link management with Dub',
   authMode: AuthMode.ApiKey,
   longDescription:
@@ -1277,6 +1279,28 @@ export const DubBlock: BlockConfig<DubResponse> = {
       condition: { field: 'operation', value: 'create_tag' },
     },
   },
+} satisfies BlockConfig
+
+export const DubV2Block: BlockConfig = {
+  ...DubBlock,
+  type: 'dub_v2',
+  name: 'Dub',
+  hideFromToolbar: false,
+  sunset: undefined,
+  tools: {
+    ...DubBlock.tools,
+    access: DubBlock.tools.access.map((toolId) =>
+      toolId === 'dub_get_qr_code' ? 'dub_get_qr_code_v2' : toolId
+    ),
+    config: {
+      ...DubBlock.tools.config,
+      tool: (params) => {
+        const toolId = DubBlock.tools.config.tool(params)
+        return toolId === 'dub_get_qr_code' ? 'dub_get_qr_code_v2' : toolId
+      },
+    },
+  },
+  outputs: omit(DubBlock.outputs, ['content']),
 }
 
 export const DubBlockMeta = {

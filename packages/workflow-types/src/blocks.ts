@@ -54,10 +54,13 @@ export type SubBlockType =
   | 'text'
   | 'router-input'
   | 'table-selector'
+  | 'model-fallback-list'
   | 'column-selector'
   | 'modal'
 
 export interface OutputCondition {
+  /** Keep the output selectable when the compared value is resolved at execution time. */
+  allowReference?: boolean
   field: string
   value: string | number | boolean | Array<string | number | boolean>
   not?: boolean

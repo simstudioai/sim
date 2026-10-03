@@ -2172,8 +2172,6 @@ List all project statuses in Linear
 |   ↳ `updatedAt` | string | Last updated timestamp \(ISO 8601\) |
 |   ↳ `archivedAt` | string | Archive timestamp \(ISO 8601\) |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -2954,4 +2952,20 @@ Trigger workflow from Linear events you select when creating the webhook in Line
 |   ↳ `url` | string | Actor profile URL in Linear \(distinct from the top-level subject entity `url`\) |
 | `data` | object | Complete entity data object |
 | `updatedFrom` | object | Previous values for changed fields \(only present on update\) |
+
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Linear account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/linear` |
+| Environment variables | `LINEAR_CLIENT_ID`, `LINEAR_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `read` | Read issues, projects, teams, and other workspace data |
+| `write` | Create and update issues, projects, comments, and other workspace data |
+
 

@@ -1,9 +1,18 @@
 'use client'
 
 import type React from 'react'
-import { memo } from 'react'
-import { Button, ChipInput } from '@sim/emcn'
-import { ChevronDown, ChevronUp, Loader, Search, X } from '@sim/emcn/icons'
+import { memo, useRef, useState } from 'react'
+import { Button, ChipInput, cn } from '@sim/emcn'
+import { ChevronDown, ChevronRight, ChevronUp, Loader, Search, X } from '@sim/emcn/icons'
+
+export interface FindReplaceControls {
+  value: string
+  onChange: (value: string) => void
+  onReplace: () => void
+  onReplaceAll: () => void
+  canReplace: boolean
+  canReplaceAll: boolean
+}
 
 export interface FindBarProps {
   /** Accessible name for the input, naming the surface: "Find in table", "Find in files". */
@@ -39,6 +48,7 @@ export interface FindBarProps {
   truncated: boolean
   isLoading: boolean
   inputRef: React.RefObject<HTMLInputElement | null>
+  replace?: FindReplaceControls
 }
 
 /**
@@ -67,8 +77,12 @@ export const FindBar = memo(function FindBar({
   truncated,
   isLoading,
   inputRef,
+  replace,
 }: FindBarProps) {
+  const replaceInputRef = useRef<HTMLInputElement>(null)
+  const [showReplace, setShowReplace] = useState(false)
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return
     if (e.key === 'Enter') {
       e.preventDefault()
       // Commit an unsearched term; otherwise step — but only once the results
@@ -80,10 +94,6 @@ export const FindBar = memo(function FindBar({
       else if (e.shiftKey) onPrev()
       else onNext()
       return
-    }
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      onClose()
     }
   }
 
@@ -100,82 +110,157 @@ export const FindBar = memo(function FindBar({
   }
 
   return (
-    <div className='absolute top-2 right-2 z-[20] flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-1)] p-1 shadow-medium'>
-      <ChipInput
-        ref={inputRef}
-        value={query}
-        placeholder='Search'
-        aria-label={ariaLabel}
-        spellCheck={false}
-        autoComplete='off'
-        icon={Search}
-        className='w-[200px]'
-        onChange={(e) => onQueryChange(e.target.value)}
-        onKeyDown={handleKeyDown}
-        // Untrimmed on purpose: whitespace searches nothing, but it is still
-        // text the user may want cleared.
-        endAdornment={
-          query.length > 0 ? (
-            <Button
-              type='button'
-              variant='ghost'
-              size='icon'
-              className='-mr-1 shrink-0'
-              aria-label='Clear search'
-              onClick={() => {
-                onQueryChange('')
-                inputRef.current?.focus()
-              }}
-            >
-              <X className='size-[13px]' />
-            </Button>
-          ) : undefined
-        }
-      />
-      {/* Always mounted, reserving its width: rendering it only once there is a
+    <div
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return
+        event.stopPropagation()
+        if (event.nativeEvent.isComposing || event.keyCode === 229) return
+        event.preventDefault()
+        onClose()
+      }}
+      className={cn(
+        'absolute top-2 right-2 z-[var(--z-dropdown)] flex max-w-[calc(100%_-_1rem)] flex-col gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface-1)] p-1 shadow-medium',
+        replace && 'w-[min(400px,calc(100%_-_1rem))]'
+      )}
+    >
+      <div className='flex items-center gap-1.5'>
+        {replace && (
+          <Button
+            type='button'
+            variant='ghost'
+            size='icon'
+            className='size-6 shrink-0'
+            aria-label={showReplace ? 'Hide replace' : 'Show replace'}
+            aria-expanded={showReplace}
+            onClick={() => setShowReplace((visible) => !visible)}
+          >
+            <ChevronRight className={showReplace ? 'size-[13px] rotate-90' : 'size-[13px]'} />
+          </Button>
+        )}
+        <ChipInput
+          ref={inputRef}
+          value={query}
+          placeholder='Search'
+          aria-label={ariaLabel}
+          spellCheck={false}
+          autoComplete='off'
+          icon={Search}
+          className={replace ? 'min-w-0 flex-1' : 'w-[200px]'}
+          onChange={(e) => onQueryChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          endAdornment={
+            query.length > 0 ? (
+              <Button
+                type='button'
+                variant='ghost'
+                size='icon'
+                className='-mr-1 shrink-0'
+                aria-label='Clear search'
+                onClick={() => {
+                  onQueryChange('')
+                  inputRef.current?.focus()
+                }}
+              >
+                <X className='size-[13px]' />
+              </Button>
+            ) : undefined
+          }
+        />
+        {/* Always mounted, reserving its width: rendering it only once there is a
           query would resize the bar on the first keystroke, and a live region
           inserted together with its text is announced unreliably. */}
-      <span
-        aria-live='polite'
-        className='flex min-w-[64px] shrink-0 items-center justify-end whitespace-nowrap px-1 text-[var(--text-muted)] text-caption tabular-nums'
-      >
-        {counterContent()}
-      </span>
-      <Button
-        type='button'
-        variant='ghost'
-        size='icon'
-        className='size-6 shrink-0'
-        aria-label='Previous match'
-        title='Previous match (Shift+Enter)'
-        disabled={!navEnabled}
-        onClick={onPrev}
-      >
-        <ChevronUp className='size-[13px]' />
-      </Button>
-      <Button
-        type='button'
-        variant='ghost'
-        size='icon'
-        className='size-6 shrink-0'
-        aria-label='Next match'
-        title='Next match (Enter)'
-        disabled={!navEnabled}
-        onClick={onNext}
-      >
-        <ChevronDown className='size-[13px]' />
-      </Button>
-      <Button
-        type='button'
-        variant='ghost'
-        size='icon'
-        className='size-6 shrink-0'
-        aria-label='Close find'
-        title='Close (Esc)'
-        onClick={onClose}
-      >
-        <X className='size-[13px]' />
-      </Button>
+        <span
+          aria-live='polite'
+          className='flex min-w-[64px] shrink-0 items-center justify-end whitespace-nowrap px-1 text-[var(--text-muted)] text-caption tabular-nums'
+        >
+          {counterContent()}
+        </span>
+        <Button
+          type='button'
+          variant='ghost'
+          size='icon'
+          className='size-6 shrink-0'
+          aria-label='Previous match'
+          title='Previous match (Shift+Enter)'
+          disabled={!navEnabled}
+          onClick={onPrev}
+        >
+          <ChevronUp className='size-[13px]' />
+        </Button>
+        <Button
+          type='button'
+          variant='ghost'
+          size='icon'
+          className='size-6 shrink-0'
+          aria-label='Next match'
+          title='Next match (Enter)'
+          disabled={!navEnabled}
+          onClick={onNext}
+        >
+          <ChevronDown className='size-[13px]' />
+        </Button>
+        <Button
+          type='button'
+          variant='ghost'
+          size='icon'
+          className='size-6 shrink-0'
+          aria-label='Close find'
+          title='Close (Esc)'
+          onClick={onClose}
+        >
+          <X className='size-[13px]' />
+        </Button>
+      </div>
+      {replace && showReplace && (
+        <div className='flex items-center gap-1.5'>
+          <span aria-hidden className='w-6 shrink-0' />
+          <ChipInput
+            ref={replaceInputRef}
+            value={replace.value}
+            placeholder='Replace'
+            aria-label='Replace in document'
+            spellCheck={false}
+            autoComplete='off'
+            className='min-w-0 flex-1'
+            onChange={(event) => replace.onChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing || event.keyCode === 229) return
+              if (event.key === 'Enter' && replace.canReplace) {
+                event.preventDefault()
+                replace.onReplace()
+              }
+            }}
+          />
+          <Button
+            type='button'
+            variant='quiet'
+            size='sm'
+            disabled={!replace.canReplace}
+            onClick={() => {
+              replace.onReplace()
+              replaceInputRef.current?.focus()
+            }}
+          >
+            Replace
+          </Button>
+          <Button
+            type='button'
+            variant='quiet'
+            size='sm'
+            title={
+              !replace.canReplaceAll && truncated ? 'Narrow the search to replace all' : undefined
+            }
+            disabled={!replace.canReplaceAll}
+            aria-label='Replace all matches'
+            onClick={() => {
+              replace.onReplaceAll()
+              replaceInputRef.current?.focus()
+            }}
+          >
+            All
+          </Button>
+        </div>
+      )}
     </div>
   )
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { envFlagsMockFns, resetEnvFlagsMock } from '@sim/testing'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { NormalizedBlockOutput } from '@/executor/types'
@@ -121,6 +118,31 @@ describe('priceModelUsage', () => {
     const tripled = priceModelUsage(PRICED_MODEL, usage, { billable: true, multiplier: 3 })
 
     expect(tripled.total).toBeCloseTo(single.total * 3, 8)
+  })
+
+  it('applies the highest matching input-size tier to every token bucket', () => {
+    const cost = priceModelUsage(
+      'gpt-5.6-terra',
+      {
+        input: 100_000,
+        output: 100_000,
+        cacheRead: 100_000,
+        cacheWrites: [{ tokens: 72_001, inputRateMultiplier: 1.25 }],
+      },
+      LIST_PRICE_POLICY
+    )
+
+    expect(cost).toMatchObject({ input: 0.800005, output: 1.8, total: 2.600005 })
+  })
+
+  it('preserves zero-cost behavior for unregistered dynamic models', () => {
+    const cost = priceModelUsage(
+      'dynamic-provider/model',
+      { input: 300_000, output: 100_000 },
+      LIST_PRICE_POLICY
+    )
+
+    expect(cost).toMatchObject({ input: 0, output: 0, total: 0 })
   })
 
   it('charges nothing when the policy is not billable', () => {

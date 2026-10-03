@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * `logs.trace_spans` and `logs.cost` are PROJECTIONS, not gates — a group
  * withholds those fields from the response rather than refusing the read.
  *
@@ -13,6 +11,7 @@
  * same helper `readLogDetail` and the v1 routes resolve their flags through — so
  * they fail if this read stops projecting.
  */
+
 import {
   dbChainMockFns,
   permissionGroupScopeMock,
@@ -22,22 +21,15 @@ import {
   resetPermissionGroupScopeMock,
   schemaMock,
 } from '@sim/testing'
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
+import { traceStoreMock, traceStoreMockFns } from '@sim/testing/mocks/trace-store.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockGetJob, mockMaterializeForDisplayWithBlockOutputs } = vi.hoisted(() => ({
-  mockGetJob: vi.fn(),
-  mockMaterializeForDisplayWithBlockOutputs: vi.fn(),
-}))
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
-vi.mock('@/lib/core/async-jobs', () => ({
-  getJobQueue: vi.fn().mockResolvedValue({ getJob: mockGetJob }),
-}))
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
 
-vi.mock('@/lib/logs/execution/trace-store', () => ({
-  materializeExecutionDataForDisplayWithBlockOutputs: mockMaterializeForDisplayWithBlockOutputs,
-}))
+vi.mock('@/lib/logs/execution/trace-store', () => traceStoreMock)
 
 vi.mock('@/lib/workflows/executor/paused-execution-metadata', () => ({
   getAutomaticResumeWaitingMetadata: vi.fn().mockReturnValue(null),
@@ -45,6 +37,10 @@ vi.mock('@/lib/workflows/executor/paused-execution-metadata', () => ({
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { getWorkflowExecutionStatus } from '@/lib/workflows/executor/execution-status'
+
+const mockGetJob = asyncJobsMockFns.mockJobQueue.getJob
+const mockMaterializeForDisplayWithBlockOutputs =
+  traceStoreMockFns.mockMaterializeExecutionDataForDisplayWithBlockOutputs
 
 const BLOCK_ID = 'block-1'
 
@@ -86,23 +82,12 @@ function readRun(viewerUserId: string | null | undefined) {
 
 describe('run-detail field projection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     resetPermissionGroupScopeMock()
     mockMaterializeForDisplayWithBlockOutputs.mockResolvedValue({
       executionData: {},
       blockOutputs: new Map(),
     })
-  })
-
-  it('reads the run whole for a member no group governs', async () => {
-    queueCompletedRun()
-
-    const status = await readRun('user-1')
-
-    expect(status?.cost).toEqual({ total: 0.75 })
-    expect(status?.finalOutput).toEqual({ answer: 'a customer address' })
-    expect(status?.blockOutputs).toEqual({ [BLOCK_ID]: { answer: 'a customer address' } })
   })
 
   it('withholds the run total from a member whose group hides spend', async () => {

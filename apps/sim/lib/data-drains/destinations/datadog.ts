@@ -1,9 +1,10 @@
 import { gzipSync } from 'node:zlib'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { z } from 'zod'
-import { parseNdjsonObjects, sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
+import { parseNdjsonObjects } from '@/lib/data-drains/destinations/utils'
 import type { DeliveryMetadata, DrainDestination } from '@/lib/data-drains/types'
 
 const logger = createLogger('DataDrainDatadogDestination')
@@ -184,7 +185,7 @@ async function postWithRetries(input: PostInput): Promise<Response> {
       await response.text().catch(() => '')
     }
     if (attempt < MAX_ATTEMPTS) {
-      await sleepUntilAborted(backoffWithJitter(attempt, retryAfterMs), input.signal)
+      await interruptibleSleep(backoffWithJitter(attempt, retryAfterMs), input.signal)
     }
   }
   throw lastError instanceof Error ? lastError : new Error('Datadog delivery failed after retries')

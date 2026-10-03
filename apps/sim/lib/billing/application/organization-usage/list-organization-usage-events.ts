@@ -1,8 +1,15 @@
+import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedOrganizationUsageUseCase } from '@/lib/billing/application/organization-usage/authorized-organization-usage-use-case'
+import {
+  readUsageEventCursor,
+  writeUsageEventCursor,
+} from '@/lib/billing/application/organization-usage/event-cursor'
+import { requireBoundedUsageWindow } from '@/lib/billing/application/organization-usage/limits'
 import { organizationUsageOperations } from '@/lib/billing/application/organization-usage/operations'
 import {
   resolveUsageAnalyticsWindow,
   type UsageWindowPreset,
+  usageWindowBounds,
   usageWindowLedgerFilter,
 } from '@/lib/billing/core/usage-analytics'
 import { getBillingEntityUsageLogs } from '@/lib/billing/core/usage-log'
@@ -19,12 +26,14 @@ export interface OrganizationUsageEventsInput {
   source?: InternalUsageLogSource[]
   limit: number
   cursor?: string
+  maxWindowDays?: number
+  keyset?: { sortOrder: ListSortOrder; cursorKeys?: CursorKey[] }
 }
 
 export interface OrganizationUsageEvent {
   id: string
   createdAt: string
-  source: string
+  source: InternalUsageLogSource
   description: string
   workflowName: string | null
   credits: number
@@ -34,6 +43,7 @@ export interface OrganizationUsageEvent {
 export interface OrganizationUsageEventsResult {
   events: OrganizationUsageEvent[]
   nextCursor?: string
+  nextCursorKeys?: CursorKey[] | null
   hasMore: boolean
 }
 
@@ -50,13 +60,23 @@ export const listOrganizationUsageEvents = defineAuthorizedOrganizationUsageUseC
   operation: organizationUsageOperations.listEvents,
   organizationId: (input: OrganizationUsageEventsInput) => input.organizationId,
   async execute({ input, context }): Promise<OrganizationUsageEventsResult> {
-    const window = resolveUsageAnalyticsWindow({
-      preset: input.preset,
-      period: context.period,
-      customStart: input.startDate,
-      customEnd: input.endDate,
-      timezone: input.timezone,
-    })
+    const resolveWindow = () =>
+      resolveUsageAnalyticsWindow({
+        preset: input.preset,
+        period: context.period,
+        customStart: input.startDate,
+        customEnd: input.endDate,
+        timezone: input.timezone,
+      })
+    const continuation = input.keyset?.cursorKeys
+      ? readUsageEventCursor(
+          input.keyset.cursorKeys,
+          input.maxWindowDays,
+          input.preset === 'custom' ? usageWindowBounds(resolveWindow()) : undefined
+        )
+      : undefined
+    const window = continuation?.window ?? resolveWindow()
+    requireBoundedUsageWindow(window, input.maxWindowDays)
     const result = await getBillingEntityUsageLogs(context.billingEntity, {
       // One derivation for both predicates, so this list covers exactly the rows the
       // summary and breakdowns aggregate over.
@@ -64,6 +84,9 @@ export const listOrganizationUsageEvents = defineAuthorizedOrganizationUsageUseC
       ...(input.source?.length ? { source: input.source } : {}),
       limit: input.limit,
       ...(input.cursor ? { cursor: input.cursor } : {}),
+      ...(input.keyset
+        ? { keyset: { sortOrder: input.keyset.sortOrder, cursorKeys: continuation?.cursorKeys } }
+        : {}),
       includeSummary: false,
     })
 
@@ -78,6 +101,11 @@ export const listOrganizationUsageEvents = defineAuthorizedOrganizationUsageUseC
         hasCost: log.cost > 0,
       })),
       ...(result.pagination.nextCursor ? { nextCursor: result.pagination.nextCursor } : {}),
+      ...(input.keyset
+        ? {
+            nextCursorKeys: writeUsageEventCursor(window, result.pagination.nextCursorKeys ?? null),
+          }
+        : {}),
       hasMore: result.pagination.hasMore,
     }
   },

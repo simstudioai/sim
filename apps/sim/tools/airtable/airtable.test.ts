@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { airtableCreateRecordsTool } from '@/tools/airtable/create_records'
 import { airtableUpdateMultipleRecordsTool } from '@/tools/airtable/update_multiple_records'

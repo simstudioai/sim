@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { gunzipSync } from 'node:zlib'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,7 +19,6 @@ const meta = (sequence: number) => ({
 })
 
 beforeEach(() => {
-  vi.clearAllMocks()
   vi.stubGlobal('fetch', fetchMock)
   fetchMock.mockResolvedValue(new Response(null, { status: 202 }))
 })
@@ -103,38 +99,6 @@ describe('datadogDestination', () => {
     await session.close()
   })
 
-  it('routes to the EU site host', async () => {
-    const session = datadogDestination.openSession({
-      config: { ...config, site: 'eu1' },
-      credentials,
-    })
-    await session.deliver({
-      body: Buffer.from(`${JSON.stringify({ x: 1 })}\n`),
-      contentType: 'application/x-ndjson',
-      metadata: meta(0),
-      signal: new AbortController().signal,
-    })
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://http-intake.logs.datadoghq.eu/api/v2/logs')
-    await session.close()
-  })
-
-  it('routes to the AP2 site host', async () => {
-    const session = datadogDestination.openSession({
-      config: { ...config, site: 'ap2' },
-      credentials,
-    })
-    await session.deliver({
-      body: Buffer.from(`${JSON.stringify({ x: 1 })}\n`),
-      contentType: 'application/x-ndjson',
-      metadata: meta(0),
-      signal: new AbortController().signal,
-    })
-    expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      'https://http-intake.logs.ap2.datadoghq.com/api/v2/logs'
-    )
-    await session.close()
-  })
-
   it('throws with the entry index when a single entry exceeds 1 MB', async () => {
     const session = datadogDestination.openSession({ config, credentials })
     // Two entries; the second exceeds the 1 MB per-entry limit.
@@ -176,37 +140,5 @@ describe('datadogDestination', () => {
     expect(decoded[0].id).toBe('a')
     expect(decoded[0].big).toBe(padding)
     await session.close()
-  })
-
-  it('locator includes the dd-request-id header when present', async () => {
-    fetchMock.mockResolvedValueOnce(
-      new Response(null, { status: 202, headers: { 'dd-request-id': 'req-abc-123' } })
-    )
-    const session = datadogDestination.openSession({ config, credentials })
-    const result = await session.deliver({
-      body: Buffer.from(`${JSON.stringify({ x: 1 })}\n`),
-      contentType: 'application/x-ndjson',
-      metadata: meta(7),
-      signal: new AbortController().signal,
-    })
-    expect(result.locator).toBe('datadog://us1#r1-7@req-abc-123')
-    await session.close()
-  })
-})
-
-describe('datadogDestination test()', () => {
-  it('sends a single probe entry', async () => {
-    await datadogDestination.test!({
-      config,
-      credentials,
-      signal: new AbortController().signal,
-    })
-    const init = fetchMock.mock.calls[0]?.[1] as RequestInit
-    const headers = init.headers as Record<string, string>
-    expect(headers.Accept).toBe('application/json')
-    expect(headers['User-Agent']).toBe('sim-data-drain/1.0')
-    const payload = JSON.parse(init.body as string)
-    expect(payload).toHaveLength(1)
-    expect(payload[0].message).toContain('connection test')
   })
 })

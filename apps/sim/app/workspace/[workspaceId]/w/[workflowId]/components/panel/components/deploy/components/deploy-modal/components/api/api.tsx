@@ -3,8 +3,8 @@
 import { useMemo, useState } from 'react'
 import {
   Button,
-  ButtonGroup,
-  ButtonGroupItem,
+  ChipButtonGroup,
+  ChipButtonGroupItem,
   Code,
   Combobox,
   Label,
@@ -416,19 +416,6 @@ console.log(limits);`
     }
   }
 
-  const getAsyncExampleTitle = () => {
-    switch (asyncExampleType) {
-      case 'execute':
-        return 'Start Execution'
-      case 'status':
-        return 'Check Status'
-      case 'rate-limits':
-        return 'Usage Limits'
-      default:
-        return 'Start Execution'
-    }
-  }
-
   const handleCopy = (key: keyof CopiedState, value: string) => {
     navigator.clipboard.writeText(value)
     setCopied((prev) => ({ ...prev, [key]: true }))
@@ -458,27 +445,28 @@ console.log(limits);`
     <div className='space-y-4'>
       <div>
         <div className='mb-[6.5px] flex items-center justify-between'>
-          <Label className='block pl-0.5 text-[var(--text-primary)] text-small'>Language</Label>
+          <Label className='block pl-0.5 text-small'>Language</Label>
         </div>
-        <ButtonGroup value={language} onValueChange={(val) => setLanguage(val as CodeLanguage)}>
+        <ChipButtonGroup value={language} onValueChange={(val) => setLanguage(val as CodeLanguage)}>
           {(Object.keys(LANGUAGE_LABELS) as CodeLanguage[]).map((lang) => (
-            <ButtonGroupItem key={lang} value={lang}>
+            <ChipButtonGroupItem key={lang} value={lang}>
               {LANGUAGE_LABELS[lang]}
-            </ButtonGroupItem>
+            </ChipButtonGroupItem>
           ))}
-        </ButtonGroup>
+        </ChipButtonGroup>
       </div>
 
       <div>
         <div className='mb-[6.5px] flex items-center justify-between'>
-          <Label className='block pl-0.5 text-[var(--text-primary)] text-small'>Run workflow</Label>
+          <Label className='block pl-0.5 text-small'>Run workflow</Label>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button
                 variant='ghost'
                 onClick={() => handleCopy('sync', getSyncCommand())}
                 aria-label='Copy command'
-                className='-my-1.5 p-1.5!'
+                iconPadding='md'
+                className='-my-1.5'
               >
                 {copied.sync ? <Check className='size-3' /> : <Clipboard className='size-3' />}
               </Button>
@@ -498,9 +486,7 @@ console.log(limits);`
 
       <div>
         <div className='mb-[6.5px] flex items-center justify-between'>
-          <Label className='block pl-0.5 text-[var(--text-primary)] text-small'>
-            Run workflow (stream response)
-          </Label>
+          <Label className='block pl-0.5 text-small'>Run workflow (stream response)</Label>
           <div className='flex items-center gap-1.5'>
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
@@ -508,7 +494,8 @@ console.log(limits);`
                   variant='ghost'
                   onClick={() => handleCopy('stream', getStreamCommand())}
                   aria-label='Copy command'
-                  className='-my-1.5 p-1.5!'
+                  iconPadding='md'
+                  className='-my-1.5'
                 >
                   {copied.stream ? <Check className='size-3' /> : <Clipboard className='size-3' />}
                 </Button>
@@ -538,9 +525,7 @@ console.log(limits);`
       {!info.isPublicApi && (
         <div>
           <div className='mb-[6.5px] flex items-center justify-between'>
-            <Label className='block pl-0.5 text-[var(--text-primary)] text-small'>
-              Run workflow (async)
-            </Label>
+            <Label className='block pl-0.5 text-small'>Run workflow (async)</Label>
             <div className='flex items-center gap-1.5'>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
@@ -548,7 +533,8 @@ console.log(limits);`
                     variant='ghost'
                     onClick={() => handleCopy('async', getAsyncCommand())}
                     aria-label='Copy command'
-                    className='-my-1.5 p-1.5!'
+                    iconPadding='md'
+                    className='-my-1.5'
                   >
                     {copied.async ? <Check className='size-3' /> : <Clipboard className='size-3' />}
                   </Button>

@@ -1,6 +1,6 @@
 import { isHumanInTheLoopBlock, isMetadataOnlyBlockType } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
-import { buildBranchNodeId } from '@/executor/utils/subflow-utils'
+import { buildBranchNodeId } from '@/executor/utils/subflow-node-id-codec'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 export class NodeConstructor {

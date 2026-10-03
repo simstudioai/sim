@@ -1,5 +1,4 @@
 import {
-  deleteCredentialGroupContract,
   getCredentialGroupContract,
   updateCredentialGroupContract,
 } from '@/lib/api/contracts/credential-groups'
@@ -9,7 +8,6 @@ import {
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import {
-  deleteCredentialGroupSettings,
   getCredentialGroupSettings,
   updateCredentialGroupSettings,
 } from '@/lib/credential-groups/application/manage-groups'
@@ -48,18 +46,4 @@ export const PATCH = defineInternalJsonRoute({
   }),
   useCase: updateCredentialGroupSettings,
   present: ({ credentialGroup }) => ({ credentialGroup }),
-})
-
-export const DELETE = defineInternalJsonRoute({
-  contract: deleteCredentialGroupContract,
-  auth: internalSessionAuth,
-  operation: credentialGroupOperations.delete,
-  rateLimit,
-  errorPolicy: createCredentialGroupInternalErrorPolicy('Failed to delete credential group'),
-  mapInput: ({ params }) => ({
-    assertedWorkspaceId: params.id,
-    credentialGroupId: params.groupId,
-  }),
-  useCase: deleteCredentialGroupSettings,
-  present: () => ({ success: true as const }),
 })

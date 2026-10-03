@@ -2,10 +2,9 @@ import { SalesforceIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { SalesforceResponse } from '@/tools/salesforce/types'
 import { getTrigger } from '@/triggers'
 
-export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
+export const SalesforceBlock: BlockConfig = {
   type: 'salesforce',
   name: 'Salesforce',
   description: 'Interact with Salesforce CRM',

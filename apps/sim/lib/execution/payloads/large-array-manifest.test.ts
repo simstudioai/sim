@@ -1,6 +1,5 @@
-/**
- * @vitest-environment node
- */
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import {
@@ -12,17 +11,9 @@ import {
 } from '@/lib/execution/payloads/large-array-manifest'
 import { EXECUTION_RESOURCE_LIMIT_CODE } from '@/lib/execution/resource-errors'
 
-const { mockDownloadFile, mockUploadFile } = vi.hoisted(() => ({
-  mockDownloadFile: vi.fn(),
-  mockUploadFile: vi.fn(),
-}))
+const { mockDownloadFile, mockUploadFile } = storageServiceMockFns
 
-vi.mock('@/lib/uploads', () => ({
-  StorageService: {
-    downloadFile: mockDownloadFile,
-    uploadFile: mockUploadFile,
-  },
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
 const TEST_CONTEXT = {
   workspaceId: 'workspace-1',
@@ -33,7 +24,6 @@ const TEST_CONTEXT = {
 
 describe('large array manifests', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     clearLargeValueCacheForTests()
     mockDownloadFile.mockReset()
     mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))

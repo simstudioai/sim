@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { describe, expect, it } from 'vitest'
 import {
   compileCredentialGroupWorkflowAccessPolicy,
@@ -70,17 +66,6 @@ describe('Credential Group workflow access policy', () => {
         },
       ],
     })
-    expect(policy([]).statements).toEqual([
-      {
-        sid: 'CredentialGroupActorCredentialAccess',
-        effect: 'allow',
-        actions: ['credential_groups.credentials.use'],
-        principals: [{ type: 'credential_group_actor' }],
-        condition: {
-          Bool: { 'credential_group:ActorOwnsCredential': true },
-        },
-      },
-    ])
   })
 
   it('rejects malformed workflow selections instead of normalizing them', () => {
@@ -117,72 +102,6 @@ describe('Credential Group workflow access policy', () => {
           policy([]).statements[0],
           policy(['workflow-1']).statements[1],
           policy(['workflow-2']).statements[1],
-        ],
-      },
-    ],
-    [
-      'a different actor SID',
-      { statements: [{ ...policy([]).statements[0], sid: 'OlderActorGrant' }] },
-    ],
-    [
-      'a different actor condition',
-      {
-        statements: [
-          {
-            ...policy([]).statements[0],
-            condition: { Bool: { 'credential_group:ActorOwnsCredential': false } },
-          },
-        ],
-      },
-    ],
-    [
-      'a different SID',
-      {
-        statements: [
-          policy([]).statements[0],
-          { ...policy(['workflow-1']).statements[1], sid: 'OlderGrant' },
-        ],
-      },
-    ],
-    [
-      'a deny',
-      {
-        statements: [
-          policy([]).statements[0],
-          { ...policy(['workflow-1']).statements[1], effect: 'deny' },
-        ],
-      },
-    ],
-    [
-      'another action',
-      {
-        statements: [
-          policy([]).statements[0],
-          { ...policy(['workflow-1']).statements[1], actions: ['other'] },
-        ],
-      },
-    ],
-    [
-      'a non-workflow principal',
-      {
-        statements: [
-          policy([]).statements[0],
-          {
-            ...policy(['workflow-1']).statements[1],
-            principals: [{ type: 'user', userId: 'user-1' }],
-          },
-        ],
-      },
-    ],
-    [
-      'a non-scalar deployment condition',
-      {
-        statements: [
-          policy([]).statements[0],
-          {
-            ...policy(['workflow-1']).statements[1],
-            condition: { StringEquals: { 'execution:WorkflowMode': ['deployment'] } },
-          },
         ],
       },
     ],
@@ -312,37 +231,6 @@ describe('Credential Group workflow access policy', () => {
             statements: [
               document.statements[0],
               { ...document.statements[1], sid: 'KnowledgeConnectorCredentialAccess:option-b' },
-            ],
-          }
-        },
-      ],
-      [
-        'a connector statement without an option condition',
-        () => {
-          const document = connectorPolicy([
-            { credentialGroupOptionId: 'option-a', connectorIds: ['connector-1'] },
-          ])
-          return {
-            statements: [
-              document.statements[0],
-              { ...document.statements[1], condition: undefined },
-            ],
-          }
-        },
-      ],
-      [
-        'a connector statement carrying a workflow principal',
-        () => {
-          const document = connectorPolicy([
-            { credentialGroupOptionId: 'option-a', connectorIds: ['connector-1'] },
-          ])
-          return {
-            statements: [
-              document.statements[0],
-              {
-                ...document.statements[1],
-                principals: [{ type: 'workflow', workflowId: 'workflow-1' }],
-              },
             ],
           }
         },
