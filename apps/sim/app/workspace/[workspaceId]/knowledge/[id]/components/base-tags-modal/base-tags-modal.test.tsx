@@ -2,8 +2,8 @@
  * @vitest-environment jsdom
  */
 import { act, type ReactNode, useState } from 'react'
-import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
 import { emcnMock } from '@sim/testing/mocks/emcn.mock'
+import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
