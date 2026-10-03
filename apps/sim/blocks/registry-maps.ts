@@ -255,6 +255,10 @@ import { OktaBlock, OktaBlockMeta } from '@/blocks/blocks/okta'
 import { OneDriveBlock, OneDriveBlockMeta } from '@/blocks/blocks/onedrive'
 import { OnePasswordBlock, OnePasswordBlockMeta } from '@/blocks/blocks/onepassword'
 import { OpenAIBlock, OpenAIBlockMeta } from '@/blocks/blocks/openai'
+import {
+  OracleFusionSalesBlock,
+  OracleFusionSalesBlockMeta,
+} from '@/blocks/blocks/oracle_fusion_sales'
 import { OtterBlock, OtterBlockMeta } from '@/blocks/blocks/otter'
 import { OutlookBlock, OutlookBlockMeta } from '@/blocks/blocks/outlook'
 import { PagerDutyBlock, PagerDutyBlockMeta } from '@/blocks/blocks/pagerduty'
@@ -602,6 +606,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   mysql: MySQLBlock,
   neo4j: Neo4jBlock,
   netsuite: NetSuiteBlock,
+  oracle_fusion_sales: OracleFusionSalesBlock,
   new_relic: NewRelicBlock,
   note: NoteBlock,
   notion: NotionBlock,
@@ -937,6 +942,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   mysql: MySQLBlockMeta,
   neo4j: Neo4jBlockMeta,
   netsuite: NetSuiteBlockMeta,
+  oracle_fusion_sales: OracleFusionSalesBlockMeta,
   neverbounce: NeverBounceBlockMeta,
   new_relic: NewRelicBlockMeta,
   notion: NotionBlockMeta,

@@ -49,6 +49,8 @@ export const selectorContextKeys = [
   'secure',
   'username',
   'password',
+  'businessUnitId',
+  'salesMethodId',
 ] as const
 
 export type SelectorContextKey = (typeof selectorContextKeys)[number]
