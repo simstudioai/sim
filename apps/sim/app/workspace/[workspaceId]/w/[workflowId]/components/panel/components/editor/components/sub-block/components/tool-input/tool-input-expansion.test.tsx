@@ -1,4 +1,5 @@
 /** @vitest-environment jsdom */
+import { act, type ComponentProps, type ReactNode, useState } from 'react'
 import { blocksMock } from '@sim/testing/mocks/blocks.mock'
 import { emcnMock } from '@sim/testing/mocks/emcn.mock'
 import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
@@ -8,7 +9,6 @@ import {
   resetWorkflowRegistryMockState,
   workflowRegistryStoreMock,
 } from '@sim/testing/mocks/workflow-registry-store.mock'
-import { act, type ComponentProps, type ReactNode, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { create } from 'zustand'
