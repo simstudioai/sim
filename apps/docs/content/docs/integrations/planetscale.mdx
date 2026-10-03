@@ -568,4 +568,693 @@ Close a deploy request (Vitess only)
 |   ↳ `deployedAt` | string | When the deploy request was deployed |
 |   ↳ `htmlUrl` | string | The PlanetScale app address for the deploy request |
 
+{/* MANUAL-CONTENT-START:notes */}
+## Webhook delivery and lifecycle limits
+
+Selected Events uses a nonempty array of production events. A fresh block defaults to `['branch.ready']`; select one or more events before deploying.
+
+PlanetScale registers webhooks when the workflow is deployed. Use an organization service token with `read_database` and `write_database` permissions for the database, and a publicly reachable HTTPS callback. Branch and backup events support the engines named in each event label; deploy-request events require Vitess. The Selected Events trigger also supports Postgres cluster storage, Vitess keyspace storage, and database access requests.
+
+PlanetScale permits five webhooks per database. Updating a deployed trigger creates the replacement before deleting the previous subscription, so the database temporarily needs one additional slot. Undeploy removes the subscription; failed cleanup remains retryable.
+
+Sim authenticates the original request body with the generated signing secret and fingerprints the signed payload, including its native event timestamp. Identical deliveries are deduplicated, while later events with otherwise identical resource snapshots remain distinct. PlanetScale documents neither an immutable delivery ID nor creation idempotency: retries whose payload changes can execute again, and creation failures without a returned ID cannot be recovered exactly. If a returned ID cannot be cleaned up after secret processing fails, inspect the database's webhooks and remove the unused subscription before retrying.
+
+Live PlanetScale testing is deferred. Before production use, verify token permissions, HTTPS reachability, event delivery for the intended engine, provider retries, subscription updates near the five-webhook limit, and undeploy cleanup using a disposable database.
+{/* MANUAL-CONTENT-END */}
+
+## Triggers
+
+A **Trigger** is a block that starts a workflow when an event happens in this service.
+
+### PlanetScale Backup Failed
+
+Run on PlanetScale backup failed events. Supports Vitess, Neki, and Postgres.
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerServiceTokenId` | string | Yes | Service Token ID |
+| `triggerServiceToken` | string | Yes | Service Token |
+| `triggerOrganization` | string | Yes | Organization |
+| `triggerDatabaseSelector` | file-selector | Yes | Database |
+| `triggerManualDatabase` | string | Yes | Database Name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Documented PlanetScale event name |
+| `timestamp` | number | Provider event time in Unix seconds |
+| `organization` | string | Organization slug |
+| `database` | string | Database name |
+| `payload` | json | Complete original signed webhook payload |
+| `resource` | object | resource output from the tool |
+|   ↳ `id` | string | Resource ID |
+|   ↳ `name` | string | Resource name |
+|   ↳ `state` | string | Current resource state |
+|   ↳ `createdAt` | string | Creation time, or null when unavailable |
+|   ↳ `updatedAt` | string | Update time, or null when unavailable |
+|   ↳ `size` | number | Backup size in bytes, or null |
+|   ↳ `protected` | boolean | Whether the backup is protected |
+|   ↳ `startedAt` | string | Start time, or null |
+|   ↳ `completedAt` | string | Completion time, or null |
+|   ↳ `expiresAt` | string | Expiry time, or null |
+|   ↳ `branch` | object | branch output from the tool |
+|     ↳ `id` | string | Database branch ID, or null |
+|     ↳ `name` | string | Database branch name, or null |
+
+
+---
+
+### PlanetScale Backup Succeeded
+
+Run on PlanetScale backup succeeded events. Supports Vitess, Neki, and Postgres.
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerServiceTokenId` | string | Yes | Service Token ID |
+| `triggerServiceToken` | string | Yes | Service Token |
+| `triggerOrganization` | string | Yes | Organization |
+| `triggerDatabaseSelector` | file-selector | Yes | Database |
+| `triggerManualDatabase` | string | Yes | Database Name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Documented PlanetScale event name |
+| `timestamp` | number | Provider event time in Unix seconds |
+| `organization` | string | Organization slug |
+| `database` | string | Database name |
+| `payload` | json | Complete original signed webhook payload |
+| `resource` | object | resource output from the tool |
+|   ↳ `id` | string | Resource ID |
+|   ↳ `name` | string | Resource name |
+|   ↳ `state` | string | Current resource state |
+|   ↳ `createdAt` | string | Creation time, or null when unavailable |
+|   ↳ `updatedAt` | string | Update time, or null when unavailable |
+|   ↳ `size` | number | Backup size in bytes, or null |
+|   ↳ `protected` | boolean | Whether the backup is protected |
+|   ↳ `startedAt` | string | Start time, or null |
+|   ↳ `completedAt` | string | Completion time, or null |
+|   ↳ `expiresAt` | string | Expiry time, or null |
+|   ↳ `branch` | object | branch output from the tool |
+|     ↳ `id` | string | Database branch ID, or null |
+|     ↳ `name` | string | Database branch name, or null |
+
+
+---
+
+### PlanetScale Branch Anomaly
+
+Run on PlanetScale branch anomaly events. Supports Vitess, Neki, and Postgres.
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerServiceTokenId` | string | Yes | Service Token ID |
+| `triggerServiceToken` | string | Yes | Service Token |
+| `triggerOrganization` | string | Yes | Organization |
+| `triggerDatabaseSelector` | file-selector | Yes | Database |
+| `triggerManualDatabase` | string | Yes | Database Name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Documented PlanetScale event name |
+| `timestamp` | number | Provider event time in Unix seconds |
+| `organization` | string | Organization slug |
+| `database` | string | Database name |
+| `payload` | json | Complete original signed webhook payload |
+| `resource` | object | resource output from the tool |
+|   ↳ `id` | string | Resource ID |
+|   ↳ `name` | string | Resource name |
+|   ↳ `state` | string | Current resource state |
+|   ↳ `createdAt` | string | Creation time, or null when unavailable |
+|   ↳ `updatedAt` | string | Update time, or null when unavailable |
+|   ↳ `ready` | boolean | Whether the branch is ready |
+|   ↳ `production` | boolean | Whether this is a production branch |
+|   ↳ `safeMigrations` | boolean | Whether safe migrations are enabled |
+|   ↳ `parentBranch` | string | Parent branch name, or null |
+|   ↳ `htmlUrl` | string | PlanetScale branch URL, or null |
+
+
+---
+
+### PlanetScale Branch Out of Memory
+
+Run on PlanetScale branch out of memory events. Supports Postgres.
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerServiceTokenId` | string | Yes | Service Token ID |
+| `triggerServiceToken` | string | Yes | Service Token |
+| `triggerOrganization` | string | Yes | Organization |
+| `triggerDatabaseSelector` | file-selector | Yes | Database |
+| `triggerManualDatabase` | string | Yes | Database Name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Documented PlanetScale event name |
+| `timestamp` | number | Provider event time in Unix seconds |
+| `organization` | string | Organization slug |
+| `database` | string | Database name |
+| `payload` | json | Complete original signed webhook payload |
+| `resource` | object | resource output from the tool |
+|   ↳ `id` | string | Resource ID |
+|   ↳ `name` | string | Resource name |
+|   ↳ `state` | string | Current resource state |
+|   ↳ `createdAt` | string | Creation time, or null when unavailable |
+|   ↳ `updatedAt` | string | Update time, or null when unavailable |
+|   ↳ `ready` | boolean | Whether the branch is ready |
+|   ↳ `production` | boolean | Whether this is a production branch |
+|   ↳ `safeMigrations` | boolean | Whether safe migrations are enabled |
+|   ↳ `parentBranch` | string | Parent branch name, or null |
+|   ↳ `htmlUrl` | string | PlanetScale branch URL, or null |
+
+
+---
+
+### PlanetScale Branch Primary Promoted
+
+Run on PlanetScale branch primary promoted events. Supports Postgres.
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerServiceTokenId` | string | Yes | Service Token ID |
+| `triggerServiceToken` | string | Yes | Service Token |
+| `triggerOrganization` | string | Yes | Organization |
+| `triggerDatabaseSelector` | file-selector | Yes | Database |
+| `triggerManualDatabase` | string | Yes | Database Name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Documented PlanetScale event name |
+| `timestamp` | number | Provider event time in Unix seconds |
+| `organization` | string | Organization slug |
+| `database` | string | Database name |
+| `payload` | json | Complete original signed webhook payload |
+| `resource` | object | resource output from the tool |
+|   ↳ `id` | string | Resource ID |
+|   ↳ `name` | string | Resource name |
+|   ↳ `state` | string | Current resource state |
+|   ↳ `createdAt` | string | Creation time, or null when unavailable |
+|   ↳ `updatedAt` | string | Update time, or null when unavailable |
+|   ↳ `ready` | boolean | Whether the branch is ready |
+|   ↳ `production` | boolean | Whether this is a production branch |
+|   ↳ `safeMigrations` | boolean | Whether safe migrations are enabled |
+|   ↳ `parentBranch` | string | Parent branch name, or null |
+|   ↳ `htmlUrl` | string | PlanetScale branch URL, or null |
+
+
+---
+
+### PlanetScale Branch Ready
+
+Run on PlanetScale branch ready events. Supports Vitess, Neki, and Postgres.
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerServiceTokenId` | string | Yes | Service Token ID |
+| `triggerServiceToken` | string | Yes | Service Token |
+| `triggerOrganization` | string | Yes | Organization |
+| `triggerDatabaseSelector` | file-selector | Yes | Database |
+| `triggerManualDatabase` | string | Yes | Database Name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Documented PlanetScale event name |
+| `timestamp` | number | Provider event time in Unix seconds |
+| `organization` | string | Organization slug |
+| `database` | string | Database name |
+| `payload` | json | Complete original signed webhook payload |
+| `resource` | object | resource output from the tool |
+|   ↳ `id` | string | Resource ID |
+|   ↳ `name` | string | Resource name |
+|   ↳ `state` | string | Current resource state |
+|   ↳ `createdAt` | string | Creation time, or null when unavailable |
+|   ↳ `updatedAt` | string | Update time, or null when unavailable |
+|   ↳ `ready` | boolean | Whether the branch is ready |
+|   ↳ `production` | boolean | Whether this is a production branch |
+|   ↳ `safeMigrations` | boolean | Whether safe migrations are enabled |
+|   ↳ `parentBranch` | string | Parent branch name, or null |
+|   ↳ `htmlUrl` | string | PlanetScale branch URL, or null |
+
+
+---
+
+### PlanetScale Branch Sleeping
+
+Run on PlanetScale branch sleeping events. Supports Vitess, Neki, and Postgres.
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerServiceTokenId` | string | Yes | Service Token ID |
+| `triggerServiceToken` | string | Yes | Service Token |
+| `triggerOrganization` | string | Yes | Organization |
+| `triggerDatabaseSelector` | file-selector | Yes | Database |
+| `triggerManualDatabase` | string | Yes | Database Name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Documented PlanetScale event name |
+| `timestamp` | number | Provider event time in Unix seconds |
+| `organization` | string | Organization slug |
+| `database` | string | Database name |
+| `payload` | json | Complete original signed webhook payload |
+| `resource` | object | resource output from the tool |
+|   ↳ `id` | string | Resource ID |
+|   ↳ `name` | string | Resource name |
+|   ↳ `state` | string | Current resource state |
+|   ↳ `createdAt` | string | Creation time, or null when unavailable |
+|   ↳ `updatedAt` | string | Update time, or null when unavailable |
+|   ↳ `ready` | boolean | Whether the branch is ready |
+|   ↳ `production` | boolean | Whether this is a production branch |
+|   ↳ `safeMigrations` | boolean | Whether safe migrations are enabled |
+|   ↳ `parentBranch` | string | Parent branch name, or null |
+|   ↳ `htmlUrl` | string | PlanetScale branch URL, or null |
+
+
+---
+
+### PlanetScale Branch Start Maintenance
+
+Run on PlanetScale branch start maintenance events. Supports Vitess, Neki, and Postgres.
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerServiceTokenId` | string | Yes | Service Token ID |
+| `triggerServiceToken` | string | Yes | Service Token |
+| `triggerOrganization` | string | Yes | Organization |
+| `triggerDatabaseSelector` | file-selector | Yes | Database |
+| `triggerManualDatabase` | string | Yes | Database Name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Documented PlanetScale event name |
+| `timestamp` | number | Provider event time in Unix seconds |
+| `organization` | string | Organization slug |
+| `database` | string | Database name |
+| `payload` | json | Complete original signed webhook payload |
+| `resource` | object | resource output from the tool |
+|   ↳ `id` | string | Resource ID |
+|   ↳ `name` | string | Resource name |
+|   ↳ `state` | string | Current resource state |
+|   ↳ `createdAt` | string | Creation time, or null when unavailable |
+|   ↳ `updatedAt` | string | Update time, or null when unavailable |
+|   ↳ `ready` | boolean | Whether the branch is ready |
+|   ↳ `production` | boolean | Whether this is a production branch |
+|   ↳ `safeMigrations` | boolean | Whether safe migrations are enabled |
+|   ↳ `parentBranch` | string | Parent branch name, or null |
+|   ↳ `htmlUrl` | string | PlanetScale branch URL, or null |
+
+
+---
+
+### PlanetScale Deploy Request Closed
+
+Run on PlanetScale deploy request closed events. Supports Vitess.
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerServiceTokenId` | string | Yes | Service Token ID |
+| `triggerServiceToken` | string | Yes | Service Token |
+| `triggerOrganization` | string | Yes | Organization |
+| `triggerDatabaseSelector` | file-selector | Yes | Database |
+| `triggerManualDatabase` | string | Yes | Database Name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Documented PlanetScale event name |
+| `timestamp` | number | Provider event time in Unix seconds |
+| `organization` | string | Organization slug |
+| `database` | string | Database name |
+| `payload` | json | Complete original signed webhook payload |
+| `resource` | object | resource output from the tool |
+|   ↳ `id` | string | Resource ID |
+|   ↳ `state` | string | Current resource state |
+|   ↳ `createdAt` | string | Creation time, or null when unavailable |
+|   ↳ `updatedAt` | string | Update time, or null when unavailable |
+|   ↳ `number` | number | Database-scoped deploy request number |
+|   ↳ `branch` | string | Source branch name |
+|   ↳ `intoBranch` | string | Target branch name |
+|   ↳ `deploymentState` | string | Current deployment state |
+|   ↳ `approved` | boolean | Whether the request is approved |
+|   ↳ `numComments` | number | Number of comments |
+|   ↳ `notes` | string | Deploy request notes |
+|   ↳ `closedAt` | string | Close time, or null |
+|   ↳ `deployedAt` | string | Deployment time, or null |
+|   ↳ `htmlUrl` | string | PlanetScale deploy request URL |
+
+
+---
+
+### PlanetScale Deploy Request Errored
+
+Run on PlanetScale deploy request errored events. Supports Vitess.
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerServiceTokenId` | string | Yes | Service Token ID |
+| `triggerServiceToken` | string | Yes | Service Token |
+| `triggerOrganization` | string | Yes | Organization |
+| `triggerDatabaseSelector` | file-selector | Yes | Database |
+| `triggerManualDatabase` | string | Yes | Database Name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Documented PlanetScale event name |
+| `timestamp` | number | Provider event time in Unix seconds |
+| `organization` | string | Organization slug |
+| `database` | string | Database name |
+| `payload` | json | Complete original signed webhook payload |
+| `resource` | object | resource output from the tool |
+|   ↳ `id` | string | Resource ID |
+|   ↳ `state` | string | Current resource state |
+|   ↳ `createdAt` | string | Creation time, or null when unavailable |
+|   ↳ `updatedAt` | string | Update time, or null when unavailable |
+|   ↳ `number` | number | Database-scoped deploy request number |
+|   ↳ `branch` | string | Source branch name |
+|   ↳ `intoBranch` | string | Target branch name |
+|   ↳ `deploymentState` | string | Current deployment state |
+|   ↳ `approved` | boolean | Whether the request is approved |
+|   ↳ `numComments` | number | Number of comments |
+|   ↳ `notes` | string | Deploy request notes |
+|   ↳ `closedAt` | string | Close time, or null |
+|   ↳ `deployedAt` | string | Deployment time, or null |
+|   ↳ `htmlUrl` | string | PlanetScale deploy request URL |
+
+
+---
+
+### PlanetScale Deploy Request In Progress
+
+Run on PlanetScale deploy request in progress events. Supports Vitess.
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerServiceTokenId` | string | Yes | Service Token ID |
+| `triggerServiceToken` | string | Yes | Service Token |
+| `triggerOrganization` | string | Yes | Organization |
+| `triggerDatabaseSelector` | file-selector | Yes | Database |
+| `triggerManualDatabase` | string | Yes | Database Name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Documented PlanetScale event name |
+| `timestamp` | number | Provider event time in Unix seconds |
+| `organization` | string | Organization slug |
+| `database` | string | Database name |
+| `payload` | json | Complete original signed webhook payload |
+| `resource` | object | resource output from the tool |
+|   ↳ `id` | string | Resource ID |
+|   ↳ `state` | string | Current resource state |
+|   ↳ `createdAt` | string | Creation time, or null when unavailable |
+|   ↳ `updatedAt` | string | Update time, or null when unavailable |
+|   ↳ `number` | number | Database-scoped deploy request number |
+|   ↳ `branch` | string | Source branch name |
+|   ↳ `intoBranch` | string | Target branch name |
+|   ↳ `deploymentState` | string | Current deployment state |
+|   ↳ `approved` | boolean | Whether the request is approved |
+|   ↳ `numComments` | number | Number of comments |
+|   ↳ `notes` | string | Deploy request notes |
+|   ↳ `closedAt` | string | Close time, or null |
+|   ↳ `deployedAt` | string | Deployment time, or null |
+|   ↳ `htmlUrl` | string | PlanetScale deploy request URL |
+
+
+---
+
+### PlanetScale Deploy Request Opened
+
+Run on PlanetScale deploy request opened events. Supports Vitess.
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerServiceTokenId` | string | Yes | Service Token ID |
+| `triggerServiceToken` | string | Yes | Service Token |
+| `triggerOrganization` | string | Yes | Organization |
+| `triggerDatabaseSelector` | file-selector | Yes | Database |
+| `triggerManualDatabase` | string | Yes | Database Name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Documented PlanetScale event name |
+| `timestamp` | number | Provider event time in Unix seconds |
+| `organization` | string | Organization slug |
+| `database` | string | Database name |
+| `payload` | json | Complete original signed webhook payload |
+| `resource` | object | resource output from the tool |
+|   ↳ `id` | string | Resource ID |
+|   ↳ `state` | string | Current resource state |
+|   ↳ `createdAt` | string | Creation time, or null when unavailable |
+|   ↳ `updatedAt` | string | Update time, or null when unavailable |
+|   ↳ `number` | number | Database-scoped deploy request number |
+|   ↳ `branch` | string | Source branch name |
+|   ↳ `intoBranch` | string | Target branch name |
+|   ↳ `deploymentState` | string | Current deployment state |
+|   ↳ `approved` | boolean | Whether the request is approved |
+|   ↳ `numComments` | number | Number of comments |
+|   ↳ `notes` | string | Deploy request notes |
+|   ↳ `closedAt` | string | Close time, or null |
+|   ↳ `deployedAt` | string | Deployment time, or null |
+|   ↳ `htmlUrl` | string | PlanetScale deploy request URL |
+
+
+---
+
+### PlanetScale Deploy Request Pending Cutover
+
+Run on PlanetScale deploy request pending cutover events. Supports Vitess.
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerServiceTokenId` | string | Yes | Service Token ID |
+| `triggerServiceToken` | string | Yes | Service Token |
+| `triggerOrganization` | string | Yes | Organization |
+| `triggerDatabaseSelector` | file-selector | Yes | Database |
+| `triggerManualDatabase` | string | Yes | Database Name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Documented PlanetScale event name |
+| `timestamp` | number | Provider event time in Unix seconds |
+| `organization` | string | Organization slug |
+| `database` | string | Database name |
+| `payload` | json | Complete original signed webhook payload |
+| `resource` | object | resource output from the tool |
+|   ↳ `id` | string | Resource ID |
+|   ↳ `state` | string | Current resource state |
+|   ↳ `createdAt` | string | Creation time, or null when unavailable |
+|   ↳ `updatedAt` | string | Update time, or null when unavailable |
+|   ↳ `number` | number | Database-scoped deploy request number |
+|   ↳ `branch` | string | Source branch name |
+|   ↳ `intoBranch` | string | Target branch name |
+|   ↳ `deploymentState` | string | Current deployment state |
+|   ↳ `approved` | boolean | Whether the request is approved |
+|   ↳ `numComments` | number | Number of comments |
+|   ↳ `notes` | string | Deploy request notes |
+|   ↳ `closedAt` | string | Close time, or null |
+|   ↳ `deployedAt` | string | Deployment time, or null |
+|   ↳ `htmlUrl` | string | PlanetScale deploy request URL |
+
+
+---
+
+### PlanetScale Deploy Request Queued
+
+Run on PlanetScale deploy request queued events. Supports Vitess.
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerServiceTokenId` | string | Yes | Service Token ID |
+| `triggerServiceToken` | string | Yes | Service Token |
+| `triggerOrganization` | string | Yes | Organization |
+| `triggerDatabaseSelector` | file-selector | Yes | Database |
+| `triggerManualDatabase` | string | Yes | Database Name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Documented PlanetScale event name |
+| `timestamp` | number | Provider event time in Unix seconds |
+| `organization` | string | Organization slug |
+| `database` | string | Database name |
+| `payload` | json | Complete original signed webhook payload |
+| `resource` | object | resource output from the tool |
+|   ↳ `id` | string | Resource ID |
+|   ↳ `state` | string | Current resource state |
+|   ↳ `createdAt` | string | Creation time, or null when unavailable |
+|   ↳ `updatedAt` | string | Update time, or null when unavailable |
+|   ↳ `number` | number | Database-scoped deploy request number |
+|   ↳ `branch` | string | Source branch name |
+|   ↳ `intoBranch` | string | Target branch name |
+|   ↳ `deploymentState` | string | Current deployment state |
+|   ↳ `approved` | boolean | Whether the request is approved |
+|   ↳ `numComments` | number | Number of comments |
+|   ↳ `notes` | string | Deploy request notes |
+|   ↳ `closedAt` | string | Close time, or null |
+|   ↳ `deployedAt` | string | Deployment time, or null |
+|   ↳ `htmlUrl` | string | PlanetScale deploy request URL |
+
+
+---
+
+### PlanetScale Deploy Request Reverted
+
+Run on PlanetScale deploy request reverted events. Supports Vitess.
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerServiceTokenId` | string | Yes | Service Token ID |
+| `triggerServiceToken` | string | Yes | Service Token |
+| `triggerOrganization` | string | Yes | Organization |
+| `triggerDatabaseSelector` | file-selector | Yes | Database |
+| `triggerManualDatabase` | string | Yes | Database Name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Documented PlanetScale event name |
+| `timestamp` | number | Provider event time in Unix seconds |
+| `organization` | string | Organization slug |
+| `database` | string | Database name |
+| `payload` | json | Complete original signed webhook payload |
+| `resource` | object | resource output from the tool |
+|   ↳ `id` | string | Resource ID |
+|   ↳ `state` | string | Current resource state |
+|   ↳ `createdAt` | string | Creation time, or null when unavailable |
+|   ↳ `updatedAt` | string | Update time, or null when unavailable |
+|   ↳ `number` | number | Database-scoped deploy request number |
+|   ↳ `branch` | string | Source branch name |
+|   ↳ `intoBranch` | string | Target branch name |
+|   ↳ `deploymentState` | string | Current deployment state |
+|   ↳ `approved` | boolean | Whether the request is approved |
+|   ↳ `numComments` | number | Number of comments |
+|   ↳ `notes` | string | Deploy request notes |
+|   ↳ `closedAt` | string | Close time, or null |
+|   ↳ `deployedAt` | string | Deployment time, or null |
+|   ↳ `htmlUrl` | string | PlanetScale deploy request URL |
+
+
+---
+
+### PlanetScale Deploy Request Schema Applied
+
+Run on PlanetScale deploy request schema applied events. Supports Vitess.
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerServiceTokenId` | string | Yes | Service Token ID |
+| `triggerServiceToken` | string | Yes | Service Token |
+| `triggerOrganization` | string | Yes | Organization |
+| `triggerDatabaseSelector` | file-selector | Yes | Database |
+| `triggerManualDatabase` | string | Yes | Database Name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Documented PlanetScale event name |
+| `timestamp` | number | Provider event time in Unix seconds |
+| `organization` | string | Organization slug |
+| `database` | string | Database name |
+| `payload` | json | Complete original signed webhook payload |
+| `resource` | object | resource output from the tool |
+|   ↳ `id` | string | Resource ID |
+|   ↳ `state` | string | Current resource state |
+|   ↳ `createdAt` | string | Creation time, or null when unavailable |
+|   ↳ `updatedAt` | string | Update time, or null when unavailable |
+|   ↳ `number` | number | Database-scoped deploy request number |
+|   ↳ `branch` | string | Source branch name |
+|   ↳ `intoBranch` | string | Target branch name |
+|   ↳ `deploymentState` | string | Current deployment state |
+|   ↳ `approved` | boolean | Whether the request is approved |
+|   ↳ `numComments` | number | Number of comments |
+|   ↳ `notes` | string | Deploy request notes |
+|   ↳ `closedAt` | string | Close time, or null |
+|   ↳ `deployedAt` | string | Deployment time, or null |
+|   ↳ `htmlUrl` | string | PlanetScale deploy request URL |
+
+
+---
+
+### PlanetScale Selected Events
+
+Run on PlanetScale selected events. Supports the documented event-specific database engines.
+
+#### Configuration
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `triggerServiceTokenId` | string | Yes | Service Token ID |
+| `triggerServiceToken` | string | Yes | Service Token |
+| `triggerOrganization` | string | Yes | Organization |
+| `triggerDatabaseSelector` | file-selector | Yes | Database |
+| `triggerManualDatabase` | string | Yes | Database Name |
+| `events` | string | Yes | Events |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | string | Documented PlanetScale event name |
+| `timestamp` | number | Provider event time in Unix seconds |
+| `organization` | string | Organization slug |
+| `database` | string | Database name |
+| `payload` | json | Complete original signed webhook payload |
+| `resource` | json | Original event-specific resource |
 

@@ -5,10 +5,12 @@ import {
   workflowDeploymentOperation,
   workflowDeploymentVersion,
 } from '@sim/db/schema'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import type { DbOrTx } from '@sim/workflow-persistence/types'
 import { and, eq, exists, gt, inArray, isNull, lt, lte, notExists, sql } from 'drizzle-orm'
+import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
 import { claimWebhookPath } from '@/lib/webhooks/path-claims'
 import { projectDesiredWebhookProviderConfig } from '@/lib/webhooks/provider-subscriptions'
 import {
@@ -58,6 +60,15 @@ export class StaleWebhookRegistrationOperationError extends Error {
     super(message)
     this.name = 'StaleWebhookRegistrationOperationError'
   }
+}
+
+/** Preserve the SQLSTATE without retaining credential-bearing query or driver details. */
+function safeRegistrationPersistenceError(error: unknown, message: string): Error {
+  const code = getPostgresErrorCode(error)
+  if (code && /^[0-9A-Z]{5}$/.test(code)) {
+    return Object.assign(new Error(`${message} (SQLSTATE ${code}).`), { code })
+  }
+  return new Error(`${message}.`)
 }
 
 function assertOperationGeneration(generation: number): void {
@@ -223,188 +234,200 @@ export async function prepareWebhookRegistrationIntents(input: {
   fence: WebhookRegistrationOperationFence
   desired: readonly DesiredWebhookRegistrationIntent[]
 }): Promise<PreparedWebhookRegistrationWork> {
-  return db.transaction(async (tx) => {
-    await setDeploymentTxTimeouts(tx)
-    await assertCurrentOperation(tx, input.fence, ['preparing'])
-    await adoptLegacyActiveRows(tx, input.fence)
+  return db
+    .transaction(async (tx) => {
+      await setDeploymentTxTimeouts(tx)
+      await assertCurrentOperation(tx, input.fence, ['preparing'])
+      await adoptLegacyActiveRows(tx, input.fence)
 
-    for (const desired of input.desired) {
-      if (desired.path) {
-        await claimWebhookPath(tx, {
-          path: desired.path,
-          workflowId: input.fence.workflowId,
-          generation: input.fence.generation,
-        })
+      for (const desired of input.desired) {
+        if (desired.path) {
+          await claimWebhookPath(tx, {
+            path: desired.path,
+            workflowId: input.fence.workflowId,
+            generation: input.fence.generation,
+          })
+        }
       }
-    }
 
-    const activeRows = await tx
-      .select()
-      .from(webhook)
-      .where(
-        and(
-          eq(webhook.workflowId, input.fence.workflowId),
-          eq(webhook.registrationStatus, 'active'),
-          eq(webhook.isActive, true),
-          isNull(webhook.archivedAt)
+      const activeRows = await tx
+        .select()
+        .from(webhook)
+        .where(
+          and(
+            eq(webhook.workflowId, input.fence.workflowId),
+            eq(webhook.registrationStatus, 'active'),
+            eq(webhook.isActive, true),
+            isNull(webhook.archivedAt)
+          )
         )
-      )
 
-    const activeRegistrations = activeRows
-      .filter(
-        (row): row is WebhookRegistrationRow & { blockId: string } =>
-          typeof row.blockId === 'string'
-      )
-      .map((row) => ({
-        triggerId: row.blockId,
-        generation: rowRegistrationGeneration(row),
-        fingerprint: row.configFingerprint,
-        row,
-      }))
-
-    const plan = planWebhookRegistrationReconciliation({
-      generation: input.fence.generation,
-      desired: input.desired.map((desired) => ({
-        triggerId: desired.blockId,
-        fingerprint: desired.configFingerprint,
-        desired,
-      })),
-      existing: activeRegistrations,
-    })
-
-    const candidateRows = await tx
-      .select()
-      .from(webhook)
-      .where(
-        and(
-          eq(webhook.workflowId, input.fence.workflowId),
-          eq(webhook.registrationStatus, 'candidate')
-        )
-      )
-    const candidatesByBlockId = new Map(
-      candidateRows
+      const activeRegistrations = activeRows
         .filter(
           (row): row is WebhookRegistrationRow & { blockId: string } =>
             typeof row.blockId === 'string'
         )
-        .map((row) => [row.blockId, row])
-    )
+        .map((row) => ({
+          triggerId: row.blockId,
+          generation: rowRegistrationGeneration(row),
+          fingerprint: row.configFingerprint,
+          row,
+        }))
 
-    /**
-     * Orphans left by earlier attempts (their cleanup failed or the process
-     * died) are re-collected on every preparation so they cannot leak forever
-     * — cleanup itself stays generation-fenced, so racing operations at most
-     * duplicate a best-effort provider delete.
-     */
-    const staleOrphanRows = await tx
-      .select()
-      .from(webhook)
-      .where(
-        and(
-          eq(webhook.workflowId, input.fence.workflowId),
-          eq(webhook.registrationStatus, 'orphaned')
+      const plan = planWebhookRegistrationReconciliation({
+        generation: input.fence.generation,
+        desired: input.desired.map((desired) => ({
+          triggerId: desired.blockId,
+          fingerprint: desired.configFingerprint,
+          desired,
+        })),
+        existing: activeRegistrations,
+      })
+
+      const candidateRows = await tx
+        .select()
+        .from(webhook)
+        .where(
+          and(
+            eq(webhook.workflowId, input.fence.workflowId),
+            eq(webhook.registrationStatus, 'candidate')
+          )
         )
+      const candidatesByBlockId = new Map(
+        candidateRows
+          .filter(
+            (row): row is WebhookRegistrationRow & { blockId: string } =>
+              typeof row.blockId === 'string'
+          )
+          .map((row) => [row.blockId, row])
       )
 
-    const candidates: PreparedWebhookCandidate[] = []
-    const orphanedCandidates: WebhookRegistrationRow[] = [...staleOrphanRows]
-    const now = new Date()
-
-    for (const action of plan.actions) {
-      if (action.kind === 'reuse') {
-        const currentGeneration = rowRegistrationGeneration(action.existing.row)
-        const [updated] = await tx
-          .update(webhook)
-          .set({
-            registrationGeneration: input.fence.generation,
-            configFingerprint: action.desired.fingerprint,
-            preparedAt: now,
-            updatedAt: now,
-          })
-          .where(
-            and(
-              eq(webhook.id, action.existing.row.id),
-              eq(webhook.registrationStatus, 'active'),
-              eq(webhook.registrationGeneration, currentGeneration),
-              lte(webhook.registrationGeneration, input.fence.generation)
-            )
+      /**
+       * Orphans left by earlier attempts (their cleanup failed or the process
+       * died) are re-collected on every preparation so they cannot leak forever
+       * — cleanup itself stays generation-fenced, so racing operations at most
+       * duplicate a best-effort provider delete.
+       */
+      const staleOrphanRows = await tx
+        .select()
+        .from(webhook)
+        .where(
+          and(
+            eq(webhook.workflowId, input.fence.workflowId),
+            eq(webhook.registrationStatus, 'orphaned')
           )
-          .returning()
-        if (!updated) throw new StaleWebhookRegistrationOperationError()
-        continue
-      }
+        )
 
-      const desired = action.desired.desired
-      const existingCandidate = candidatesByBlockId.get(action.triggerId)
-      if (existingCandidate && existingCandidate.configFingerprint === action.desired.fingerprint) {
-        if (existingCandidate.registrationGeneration === input.fence.generation) {
-          candidates.push({ desired, row: existingCandidate })
+      const candidates: PreparedWebhookCandidate[] = []
+      const orphanedCandidates: WebhookRegistrationRow[] = [...staleOrphanRows]
+      const now = new Date()
+
+      for (const action of plan.actions) {
+        if (action.kind === 'reuse') {
+          const currentGeneration = rowRegistrationGeneration(action.existing.row)
+          const [updated] = await tx
+            .update(webhook)
+            .set({
+              registrationGeneration: input.fence.generation,
+              configFingerprint: action.desired.fingerprint,
+              preparedAt: now,
+              updatedAt: now,
+            })
+            .where(
+              and(
+                eq(webhook.id, action.existing.row.id),
+                eq(webhook.registrationStatus, 'active'),
+                eq(webhook.registrationGeneration, currentGeneration),
+                lte(webhook.registrationGeneration, input.fence.generation)
+              )
+            )
+            .returning()
+          if (!updated) throw new StaleWebhookRegistrationOperationError()
           continue
         }
-        /**
-         * A fingerprint-identical candidate from a superseded attempt is
-         * adopted rather than orphaned and reinserted: this preserves any
-         * checkpointed provider progress (an external subscription it already
-         * created keeps serving instead of being deleted and recreated) and
-         * avoids insert churn against the path uniqueness index.
-         */
-        const [adopted] = await tx
-          .update(webhook)
-          .set({
-            registrationGeneration: input.fence.generation,
-            deploymentVersionId: input.fence.deploymentVersionId,
-            updatedAt: now,
-          })
-          .where(
-            and(
-              eq(webhook.id, existingCandidate.id),
-              eq(webhook.registrationStatus, 'candidate'),
-              eq(webhook.registrationGeneration, rowRegistrationGeneration(existingCandidate))
+
+        const desired = action.desired.desired
+        const existingCandidate = candidatesByBlockId.get(action.triggerId)
+        if (
+          existingCandidate &&
+          existingCandidate.configFingerprint === action.desired.fingerprint
+        ) {
+          if (existingCandidate.registrationGeneration === input.fence.generation) {
+            candidates.push({ desired, row: existingCandidate })
+            continue
+          }
+          /**
+           * A fingerprint-identical candidate from a superseded attempt is
+           * adopted rather than orphaned and reinserted: this preserves any
+           * checkpointed provider progress (an external subscription it already
+           * created keeps serving instead of being deleted and recreated) and
+           * avoids insert churn against the path uniqueness index.
+           */
+          const [adopted] = await tx
+            .update(webhook)
+            .set({
+              registrationGeneration: input.fence.generation,
+              deploymentVersionId: input.fence.deploymentVersionId,
+              updatedAt: now,
+            })
+            .where(
+              and(
+                eq(webhook.id, existingCandidate.id),
+                eq(webhook.registrationStatus, 'candidate'),
+                eq(webhook.registrationGeneration, rowRegistrationGeneration(existingCandidate))
+              )
             )
+            .returning()
+          if (!adopted) throw new StaleWebhookRegistrationOperationError()
+          candidates.push({ desired, row: adopted })
+          continue
+        }
+
+        if (existingCandidate) {
+          const existingGeneration = rowRegistrationGeneration(existingCandidate)
+          const [orphaned] = await tx
+            .update(webhook)
+            .set({
+              registrationStatus: 'orphaned',
+              updatedAt: now,
+            })
+            .where(
+              and(
+                eq(webhook.id, existingCandidate.id),
+                eq(webhook.registrationStatus, 'candidate'),
+                eq(webhook.registrationGeneration, existingGeneration)
+              )
+            )
+            .returning()
+          if (!orphaned) throw new StaleWebhookRegistrationOperationError()
+          orphanedCandidates.push(orphaned)
+        }
+
+        const [candidate] = await tx
+          .insert(webhook)
+          .values(
+            buildLegacyInvisibleCandidateValues({
+              id: generateShortId(),
+              fence: input.fence,
+              desired,
+              now,
+            })
           )
           .returning()
-        if (!adopted) throw new StaleWebhookRegistrationOperationError()
-        candidates.push({ desired, row: adopted })
-        continue
+        if (!candidate) throw new Error('Failed to persist webhook registration candidate')
+        candidates.push({ desired, row: candidate })
       }
 
-      if (existingCandidate) {
-        const existingGeneration = rowRegistrationGeneration(existingCandidate)
-        const [orphaned] = await tx
-          .update(webhook)
-          .set({
-            registrationStatus: 'orphaned',
-            updatedAt: now,
-          })
-          .where(
-            and(
-              eq(webhook.id, existingCandidate.id),
-              eq(webhook.registrationStatus, 'candidate'),
-              eq(webhook.registrationGeneration, existingGeneration)
-            )
-          )
-          .returning()
-        if (!orphaned) throw new StaleWebhookRegistrationOperationError()
-        orphanedCandidates.push(orphaned)
-      }
-
-      const [candidate] = await tx
-        .insert(webhook)
-        .values(
-          buildLegacyInvisibleCandidateValues({
-            id: generateShortId(),
-            fence: input.fence,
-            desired,
-            now,
-          })
-        )
-        .returning()
-      if (!candidate) throw new Error('Failed to persist webhook registration candidate')
-      candidates.push({ desired, row: candidate })
-    }
-
-    return { candidates, orphanedCandidates }
-  })
+      return { candidates, orphanedCandidates }
+    })
+    .catch((error: unknown) => {
+      const queryError = findDatabaseQueryError(error)
+      if (error instanceof StaleWebhookRegistrationOperationError || !queryError) throw error
+      throw safeRegistrationPersistenceError(
+        queryError,
+        'Failed to persist webhook registration intent'
+      )
+    })
 }
 
 /**
@@ -481,6 +504,14 @@ export async function checkpointWebhookCandidate(input: {
       )
     )
     .returning()
+    .catch((error: unknown) => {
+      const queryError = findDatabaseQueryError(error)
+      if (!queryError) throw error
+      throw safeRegistrationPersistenceError(
+        queryError,
+        'Failed to checkpoint webhook registration state'
+      )
+    })
   if (!updated) throw new StaleWebhookRegistrationOperationError()
   return updated
 }

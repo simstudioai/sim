@@ -12,6 +12,8 @@ import {
   telemetryMock,
   workflowAuthzMockFns,
 } from '@sim/testing'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -78,6 +80,65 @@ describe('POST /api/webhooks polling configuration', () => {
     mocks.getProviderHandler.mockReturnValue({ configurePolling: mocks.configurePolling })
   })
 
+  it.each([false, true])(
+    'keeps saved credentials and database failure parameters out of logs (failure: %s)',
+    async (failure) => {
+      const credential = 'fixture-credential-must-never-be-logged'
+      const config = { password: credential }
+      const saved = {
+        id: 'webhook-1',
+        workflowId: 'workflow-1',
+        blockId: 'block-1',
+        path: 'safe-path',
+        provider: 'generic',
+        providerConfig: config,
+        isActive: true,
+      }
+      queueTableRows(workflow, [
+        { id: 'workflow-1', userId: 'actor-1', workspaceId: 'canonical-workspace' },
+      ])
+      queueTableRows(webhook, [saved])
+      mocks.createExternalWebhookSubscription.mockResolvedValueOnce({
+        updatedProviderConfig: config,
+        externalSubscriptionCreated: false,
+      })
+      if (failure) {
+        dbChainMockFns.returning.mockRejectedValueOnce(
+          new DrizzleQueryError(
+            'update webhook set provider_config = $1',
+            [JSON.stringify(config)],
+            new Error(credential)
+          )
+        )
+      } else {
+        dbChainMockFns.returning.mockResolvedValueOnce([saved])
+      }
+      const response = await POST(
+        createMockRequest(
+          'POST',
+          {
+            workflowId: 'workflow-1',
+            blockId: 'block-1',
+            path: 'safe-path',
+            provider: 'generic',
+            providerConfig: config,
+          },
+          {},
+          'http://localhost:3000/api/webhooks'
+        )
+      )
+      expect(response.status).toBe(failure ? 500 : 200)
+      const logger = getMockLogger('WebhooksAPI')
+      const logged = [
+        logger.info.mock.calls,
+        logger.warn.mock.calls,
+        logger.error.mock.calls,
+      ].flat()
+      expect(JSON.stringify(logged)).not.toContain(credential)
+      if (failure) expect(await response.text()).not.toContain(credential)
+    }
+  )
+
   it('creates an active IMAP webhook instead of rebinding a historical row', async () => {
     const savedWebhook = {
       id: 'webhook-active',
@@ -142,6 +203,55 @@ describe('POST /api/webhooks polling configuration', () => {
       workspaceId: 'canonical-workspace',
       deploymentVersionId: 'deployment-1',
     })
+  })
+
+  it('keeps credential-bearing rollback failures out of polling logs and error responses', async () => {
+    const credential = 'fixture-rollback-secret-must-never-escape'
+    const saved = {
+      id: 'webhook-1',
+      workflowId: 'workflow-1',
+      blockId: 'block-1',
+      path: 'rollback-path',
+      provider: 'imap',
+      providerConfig: { password: credential },
+      isActive: true,
+    }
+    queueTableRows(workflow, [
+      { id: 'workflow-1', userId: 'actor-1', workspaceId: 'canonical-workspace' },
+    ])
+    queueTableRows(webhook, [{ id: saved.id }])
+    queueTableRows(webhook, [saved])
+    dbChainMockFns.returning.mockResolvedValueOnce([saved])
+    mocks.configurePolling.mockImplementationOnce(async () => {
+      dbChainMockFns.where.mockRejectedValueOnce(
+        new DrizzleQueryError(
+          'update webhook set provider_config = $1',
+          [JSON.stringify(saved.providerConfig)],
+          new Error(credential)
+        )
+      )
+      return false
+    })
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          workflowId: 'workflow-1',
+          blockId: 'block-1',
+          path: 'rollback-path',
+          provider: 'imap',
+          providerConfig: saved.providerConfig,
+        },
+        {},
+        'http://localhost:3000/api/webhooks'
+      )
+    )
+    expect(response.status).toBe(500)
+    expect(await response.text()).not.toContain(credential)
+    const logger = getMockLogger('WebhooksAPI')
+    expect(
+      JSON.stringify([logger.info.mock.calls, logger.warn.mock.calls, logger.error.mock.calls])
+    ).not.toContain(credential)
   })
 
   it('restores the previous IMAP deployment binding when polling setup fails', async () => {

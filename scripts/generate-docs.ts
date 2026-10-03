@@ -240,6 +240,7 @@ const TRIGGER_PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   'microsoft-teams': 'Microsoft Teams',
   notion: 'Notion',
   outlook: 'Outlook',
+  planetscale: 'PlanetScale',
   resend: 'Resend',
   salesforce: 'Salesforce',
   servicenow: 'ServiceNow',

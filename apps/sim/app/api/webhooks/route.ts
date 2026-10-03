@@ -60,6 +60,9 @@ async function revertSavedWebhook(
         updatedAt: existingWebhook.updatedAt,
       })
       .where(eq(webhook.id, savedWebhook.id))
+      .catch(() => {
+        throw new Error('Failed to restore previous webhook configuration.')
+      })
     logger.info(`[${requestId}] Restored previous webhook configuration after failed re-save`, {
       webhookId: savedWebhook.id,
     })
@@ -514,7 +517,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         resolvedProviderConfig = updatedConfig
         externalSubscriptionCreated = result.externalSubscriptionCreated
       } catch (err) {
-        logger.error(`[${requestId}] Error creating external webhook subscription`, err)
+        logger.error(`[${requestId}] Error creating external webhook subscription`)
         return NextResponse.json(
           {
             error: 'Failed to create external webhook subscription',
@@ -553,7 +556,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         savedWebhook = updatedResult[0]
         logger.info(`[${requestId}] Webhook updated successfully`, {
           webhookId: savedWebhook.id,
-          savedProviderConfig: savedWebhook.providerConfig,
         })
       } else {
         // Create a new webhook
@@ -580,17 +582,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     } catch (dbError) {
       if (externalSubscriptionCreated) {
-        logger.error(`[${requestId}] DB save failed, cleaning up external subscription`, dbError)
+        logger.error(`[${requestId}] DB save failed, cleaning up external subscription`)
         try {
           await cleanupExternalWebhook(
             createTempWebhookData(configToSave),
             workflowRecord,
             requestId
           )
-        } catch (cleanupError) {
+        } catch {
           logger.error(
-            `[${requestId}] Failed to cleanup external subscription after DB save failure`,
-            cleanupError
+            `[${requestId}] Failed to cleanup external subscription after DB save failure`
           )
         }
       }
@@ -600,10 +601,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (existingWebhook && shouldRecreateSubscription) {
       try {
         await cleanupExternalWebhook(existingWebhook, workflowRecord, requestId)
-      } catch (cleanupError) {
+      } catch {
         logger.warn(
-          `[${requestId}] Failed to cleanup previous external webhook subscription ${existingWebhook.id}`,
-          cleanupError
+          `[${requestId}] Failed to cleanup previous external webhook subscription ${existingWebhook.id}`
         )
       }
     }
@@ -641,8 +641,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           logger.info(`[${requestId}] Successfully configured ${provider} polling`)
         } catch (err) {
           logger.error(
-            `[${requestId}] Error setting up ${provider} webhook configuration, rolling back webhook`,
-            err
+            `[${requestId}] Error setting up ${provider} webhook configuration, rolling back webhook`
           )
           await revertSavedWebhook(savedWebhook, existingWebhook, requestId)
           return NextResponse.json(
@@ -708,10 +707,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
 
-    logger.error(`[${requestId}] Error creating/updating webhook`, {
-      message: error.message,
-      stack: error.stack,
-    })
+    logger.error(`[${requestId}] Error creating/updating webhook`)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 })

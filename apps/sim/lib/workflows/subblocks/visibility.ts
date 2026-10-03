@@ -144,17 +144,25 @@ export function buildCanonicalIndex(subBlocks: SubBlockConfig[]): CanonicalIndex
  * the whole reason execution has always been correct here. Every other caller resolves against the
  * block's FULL value map, so for them the scoping has to live in the index instead.
  *
- * Only the trigger surface is filtered. The action surface keeps the whole array because a trigger
- * member is already excluded by each caller's own trigger-mode filter, and because dropping it
- * would also drop the `canonicalIdBySubBlockId` entry that lets a legacy alias still resolve
- * through {@link resolveDependencyValue}. Mirrors `getSelectorContextSubBlocks`.
+ * The action surface preserves legacy trigger aliases unless their canonical key collides with
+ * a concrete action field: an inactive singleton must not replace that field's credentials.
+ * The trigger surface includes only trigger members. Mirrors `getSelectorContextSubBlocks`.
  */
 export function getCanonicalSubBlocksForSurface(
   subBlocks: SubBlockConfig[],
   triggerSurface: boolean
 ): SubBlockConfig[] {
-  if (!triggerSurface) return subBlocks
-  return subBlocks.filter(shouldUseSubBlockForTriggerModeCanonicalIndex)
+  if (triggerSurface) return subBlocks.filter(shouldUseSubBlockForTriggerModeCanonicalIndex)
+  const actionIds = new Set(
+    subBlocks.filter((field) => !isTriggerModeSubBlock(field)).map((field) => field.id)
+  )
+  const filtered = subBlocks.filter(
+    (field) =>
+      !isTriggerModeSubBlock(field) ||
+      !field.canonicalParamId ||
+      !actionIds.has(field.canonicalParamId)
+  )
+  return filtered.length === subBlocks.length ? subBlocks : filtered
 }
 
 /** {@link buildCanonicalIndex} over {@link getCanonicalSubBlocksForSurface}'s active set. */

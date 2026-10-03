@@ -1,4 +1,5 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockIsDeploymentOperationCurrent, mockClaimWebhookPath } = vi.hoisted(() => ({
@@ -22,6 +23,7 @@ vi.mock('@/lib/workflows/persistence/deployment-operations', () => ({
 import type { DbOrTx } from '@sim/workflow-persistence/types'
 import {
   activateWebhookRegistrations,
+  checkpointWebhookCandidate,
   prepareWebhookRegistrationIntents,
   StaleWebhookRegistrationOperationError,
   type WebhookRegistrationOperationFence,
@@ -382,4 +384,60 @@ describe('redeploys racing within seconds', () => {
       })
     )
   })
+})
+
+describe('registration persistence confidentiality', () => {
+  beforeEach(resetDbChainMock)
+  it('preserves non-database domain errors for deployment classification', async () => {
+    const error = Object.assign(new Error('Webhook path is already claimed'), {
+      code: 'webhook_path_conflict',
+    })
+    dbChainMockFns.transaction.mockRejectedValueOnce(error)
+    await expect(prepareWebhookRegistrationIntents({ fence: FENCE, desired: [] })).rejects.toBe(
+      error
+    )
+  })
+
+  it.each(
+    ['intent', 'checkpoint'].flatMap((phase) =>
+      ['23505', '57014', '08006', 'fixture-secret-code'].map((code) => [phase, code])
+    )
+  )(
+    'projects credential-bearing database errors into safe %s failures with code %s',
+    async (phase, code) => {
+      const credential = 'fixture-registration-secret-must-never-escape'
+      const databaseError = new DrizzleQueryError(
+        'insert webhook values ($1)',
+        [JSON.stringify({ token: credential })],
+        Object.assign(new Error(credential), { code })
+      )
+      dbChainMockFns.transaction.mockRejectedValueOnce(databaseError)
+      dbChainMockFns.returning.mockRejectedValueOnce(databaseError)
+      const operation =
+        phase === 'intent'
+          ? prepareWebhookRegistrationIntents({ fence: FENCE, desired: [] })
+          : checkpointWebhookCandidate({
+              fence: FENCE,
+              webhookId: 'fixture-id',
+              providerConfig: { token: credential },
+            })
+      const error: unknown = await operation.then(
+        () => undefined,
+        (caught: unknown) => caught
+      )
+      expect(error).toBeInstanceOf(Error)
+      expect(error).not.toBe(databaseError)
+      expect(String(error)).not.toContain(credential)
+      expect(JSON.stringify(error)).not.toContain(credential)
+      expect((error as Error).cause).toBeUndefined()
+      expect((error as Error).stack).not.toContain(credential)
+      if (code === 'fixture-secret-code') {
+        expect(JSON.stringify(error)).not.toContain(code)
+        expect(String(error)).not.toContain(code)
+      } else {
+        expect((error as Error & { code?: string }).code).toBe(code)
+        expect(String(error)).toContain(code)
+      }
+    }
+  )
 })

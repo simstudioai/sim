@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-02",
+  "updatedAt": "2026-10-03",
   "integrations": [
     {
       "type": "onepassword",
@@ -18241,8 +18241,94 @@
         }
       ],
       "operationCount": 15,
-      "triggers": [],
-      "triggerCount": 0,
+      "triggers": [
+        {
+          "id": "planetscale_branch_ready",
+          "name": "PlanetScale Branch Ready",
+          "description": "Run on PlanetScale branch ready events. Supports Vitess, Neki, and Postgres."
+        },
+        {
+          "id": "planetscale_branch_anomaly",
+          "name": "PlanetScale Branch Anomaly",
+          "description": "Run on PlanetScale branch anomaly events. Supports Vitess, Neki, and Postgres."
+        },
+        {
+          "id": "planetscale_branch_out_of_memory",
+          "name": "PlanetScale Branch Out of Memory",
+          "description": "Run on PlanetScale branch out of memory events. Supports Postgres."
+        },
+        {
+          "id": "planetscale_branch_primary_promoted",
+          "name": "PlanetScale Branch Primary Promoted",
+          "description": "Run on PlanetScale branch primary promoted events. Supports Postgres."
+        },
+        {
+          "id": "planetscale_branch_sleeping",
+          "name": "PlanetScale Branch Sleeping",
+          "description": "Run on PlanetScale branch sleeping events. Supports Vitess, Neki, and Postgres."
+        },
+        {
+          "id": "planetscale_branch_start_maintenance",
+          "name": "PlanetScale Branch Start Maintenance",
+          "description": "Run on PlanetScale branch start maintenance events. Supports Vitess, Neki, and Postgres."
+        },
+        {
+          "id": "planetscale_backup_failed",
+          "name": "PlanetScale Backup Failed",
+          "description": "Run on PlanetScale backup failed events. Supports Vitess, Neki, and Postgres."
+        },
+        {
+          "id": "planetscale_backup_succeeded",
+          "name": "PlanetScale Backup Succeeded",
+          "description": "Run on PlanetScale backup succeeded events. Supports Vitess, Neki, and Postgres."
+        },
+        {
+          "id": "planetscale_deploy_request_opened",
+          "name": "PlanetScale Deploy Request Opened",
+          "description": "Run on PlanetScale deploy request opened events. Supports Vitess."
+        },
+        {
+          "id": "planetscale_deploy_request_queued",
+          "name": "PlanetScale Deploy Request Queued",
+          "description": "Run on PlanetScale deploy request queued events. Supports Vitess."
+        },
+        {
+          "id": "planetscale_deploy_request_in_progress",
+          "name": "PlanetScale Deploy Request In Progress",
+          "description": "Run on PlanetScale deploy request in progress events. Supports Vitess."
+        },
+        {
+          "id": "planetscale_deploy_request_pending_cutover",
+          "name": "PlanetScale Deploy Request Pending Cutover",
+          "description": "Run on PlanetScale deploy request pending cutover events. Supports Vitess."
+        },
+        {
+          "id": "planetscale_deploy_request_schema_applied",
+          "name": "PlanetScale Deploy Request Schema Applied",
+          "description": "Run on PlanetScale deploy request schema applied events. Supports Vitess."
+        },
+        {
+          "id": "planetscale_deploy_request_errored",
+          "name": "PlanetScale Deploy Request Errored",
+          "description": "Run on PlanetScale deploy request errored events. Supports Vitess."
+        },
+        {
+          "id": "planetscale_deploy_request_reverted",
+          "name": "PlanetScale Deploy Request Reverted",
+          "description": "Run on PlanetScale deploy request reverted events. Supports Vitess."
+        },
+        {
+          "id": "planetscale_deploy_request_closed",
+          "name": "PlanetScale Deploy Request Closed",
+          "description": "Run on PlanetScale deploy request closed events. Supports Vitess."
+        },
+        {
+          "id": "planetscale_webhook",
+          "name": "PlanetScale Selected Events",
+          "description": "Run on PlanetScale selected events. Supports the documented event-specific database engines."
+        }
+      ],
+      "triggerCount": 17,
       "authType": "api-key",
       "category": "tools",
       "integrationType": "databases",
