@@ -25,15 +25,17 @@ vi.mock('@/blocks', () => ({
 vi.mock('@/blocks/custom/client-overlay', () => ({ useCustomBlockOverlayVersion: () => 0 }))
 vi.mock('@/blocks/utils', () => ({ BUILT_IN_TOOL_TYPES: new Set() }))
 vi.mock('@/tools/metadata', () => ({ getToolMetadata: () => undefined }))
-vi.mock('@/providers/models', () => ({ supportsForcedToolUse: () => false }))
+vi.mock('@/providers/models', () => ({
+  supportsForcedToolUse: () => false,
+  supportsToolUsageControl: () => false,
+}))
 vi.mock('@/providers/utils', () => ({
   getProviderFromModel: () => '',
-  supportsToolUsageControl: () => false,
 }))
 vi.mock('@/hooks/use-collaborative-workflow', () => ({
   useCollaborativeWorkflow: () => ({
     collaborativeSetBlockCanonicalMode: fixture.canonical,
-    collaborativeSetBlockCanonicalModes: fixture.canonical,
+    collaborativeSetSubblockValueWithCanonicalModes: fixture.canonical,
   }),
 }))
 vi.mock('@/hooks/use-permission-config', () => ({
@@ -173,6 +175,7 @@ vi.mock('@sim/emcn', () => ({
     <button {...props} />
   ),
   Badge: ({ children }: { children: ReactNode }) => <span>{children}</span>,
+  TagInput: () => null,
   cn: (...values: unknown[]) => values.filter(Boolean).join(' '),
   Combobox: ({
     groups,
