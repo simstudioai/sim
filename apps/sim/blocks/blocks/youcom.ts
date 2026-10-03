@@ -2,15 +2,6 @@ import { YouComIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
-const SEARCH = 'youcom_search'
-const GET_CONTENTS = 'youcom_get_contents'
-const ANSWER = 'youcom_answer'
-const RESEARCH = 'youcom_research'
-const GET_RESEARCH_TASK = 'youcom_get_research_task'
-const FINANCE_RESEARCH = 'youcom_finance_research'
-const SEARCH_IMAGES = 'youcom_search_images'
-const GET_ACCOUNT_BALANCE = 'youcom_get_account_balance'
-
 const COUNTRY_OPTIONS = [
   { label: 'Any', id: '' },
   { label: 'Argentina', id: 'AR' },
@@ -123,7 +114,7 @@ const SAFESEARCH_OPTIONS = [
   { label: 'Strict', id: 'strict' },
 ]
 
-const DOMAIN_FILTER_OPERATIONS = [SEARCH, ANSWER, RESEARCH]
+const DOMAIN_FILTER_OPERATIONS = ['youcom_search', 'youcom_answer', 'youcom_research']
 
 /**
  * You.com documents Exhaustive research as taking up to 300s, the same as the default outbound
@@ -153,21 +144,25 @@ export const YouComBlock: BlockConfig = {
     defaultTitle: 'You.com',
     sentences: {
       byOperation: {
-        [SEARCH]: [
+        youcom_search: [
           { text: 'Search the web for', field: 'query', core: true },
           { text: ', returning', field: 'extractionMode' },
           { text: ', within', field: 'includeDomains' },
         ],
-        [GET_CONTENTS]: [{ text: 'Read page contents from', field: 'urls', core: true }],
-        [ANSWER]: [{ text: 'Answer', field: 'query', after: 'with cited sources', core: true }],
-        [RESEARCH]: [
+        youcom_get_contents: [{ text: 'Read page contents from', field: 'urls', core: true }],
+        youcom_answer: [
+          { text: 'Answer', field: 'query', after: 'with cited sources', core: true },
+        ],
+        youcom_research: [
           { text: 'Research', field: 'input', core: true },
           { text: 'at', field: 'researchEffort', after: 'effort' },
         ],
-        [GET_RESEARCH_TASK]: [{ text: 'Check research task', field: 'taskId', core: true }],
-        [FINANCE_RESEARCH]: [{ text: 'Research financial question', field: 'input', core: true }],
-        [SEARCH_IMAGES]: [{ text: 'Find images of', field: 'query', core: true }],
-        [GET_ACCOUNT_BALANCE]: ['Get remaining API credit balance'],
+        youcom_get_research_task: [{ text: 'Check research task', field: 'taskId', core: true }],
+        youcom_finance_research: [
+          { text: 'Research financial question', field: 'input', core: true },
+        ],
+        youcom_search_images: [{ text: 'Find images of', field: 'query', core: true }],
+        youcom_get_account_balance: ['Get remaining API credit balance'],
       },
     },
   },
@@ -177,23 +172,23 @@ export const YouComBlock: BlockConfig = {
       title: 'Operation',
       type: 'dropdown',
       options: [
-        { label: 'Search', id: SEARCH },
-        { label: 'Get Contents', id: GET_CONTENTS },
-        { label: 'Answer', id: ANSWER },
-        { label: 'Research', id: RESEARCH },
-        { label: 'Get Research Task', id: GET_RESEARCH_TASK },
-        { label: 'Finance Research', id: FINANCE_RESEARCH },
-        { label: 'Search Images', id: SEARCH_IMAGES },
-        { label: 'Get Account Balance', id: GET_ACCOUNT_BALANCE },
+        { label: 'Search', id: 'youcom_search' },
+        { label: 'Get Contents', id: 'youcom_get_contents' },
+        { label: 'Answer', id: 'youcom_answer' },
+        { label: 'Research', id: 'youcom_research' },
+        { label: 'Get Research Task', id: 'youcom_get_research_task' },
+        { label: 'Finance Research', id: 'youcom_finance_research' },
+        { label: 'Search Images', id: 'youcom_search_images' },
+        { label: 'Get Account Balance', id: 'youcom_get_account_balance' },
       ],
-      value: () => SEARCH,
+      value: () => 'youcom_search',
     },
     {
       id: 'query',
       title: 'Search Query',
       type: 'long-input',
       placeholder: 'Enter your search query',
-      condition: { field: 'operation', value: SEARCH },
+      condition: { field: 'operation', value: 'youcom_search' },
       required: true,
     },
     {
@@ -201,7 +196,7 @@ export const YouComBlock: BlockConfig = {
       title: 'Question',
       type: 'long-input',
       placeholder: 'Enter your question',
-      condition: { field: 'operation', value: ANSWER },
+      condition: { field: 'operation', value: 'youcom_answer' },
       required: true,
     },
     {
@@ -209,7 +204,7 @@ export const YouComBlock: BlockConfig = {
       title: 'Image Query',
       type: 'long-input',
       placeholder: 'Enter what to find images of (supports site: and filetype:)',
-      condition: { field: 'operation', value: SEARCH_IMAGES },
+      condition: { field: 'operation', value: 'youcom_search_images' },
       required: true,
     },
     {
@@ -223,7 +218,7 @@ export const YouComBlock: BlockConfig = {
       ],
       value: () => '',
       description: 'Highlights return only the passages relevant to the query',
-      condition: { field: 'operation', value: SEARCH },
+      condition: { field: 'operation', value: 'youcom_search' },
     },
     {
       id: 'extractionFormats',
@@ -237,7 +232,7 @@ export const YouComBlock: BlockConfig = {
       placeholder: 'Defaults to Markdown',
       condition: {
         field: 'operation',
-        value: SEARCH,
+        value: 'youcom_search',
         and: { field: 'extractionMode', value: 'full_page' },
       },
       mode: 'advanced',
@@ -254,7 +249,7 @@ export const YouComBlock: BlockConfig = {
       value: () => '',
       condition: {
         field: 'operation',
-        value: SEARCH,
+        value: 'youcom_search',
         and: { field: 'extractionMode', value: 'full_page' },
       },
       mode: 'advanced',
@@ -264,7 +259,7 @@ export const YouComBlock: BlockConfig = {
       title: 'URLs',
       type: 'long-input',
       placeholder: 'https://example.com, https://another.com',
-      condition: { field: 'operation', value: GET_CONTENTS },
+      condition: { field: 'operation', value: 'youcom_get_contents' },
       required: true,
     },
     {
@@ -278,14 +273,14 @@ export const YouComBlock: BlockConfig = {
         { label: 'Metadata', id: 'metadata' },
       ],
       placeholder: 'Select formats to return',
-      condition: { field: 'operation', value: GET_CONTENTS },
+      condition: { field: 'operation', value: 'youcom_get_contents' },
     },
     {
       id: 'maxAge',
       title: 'Max Cache Age (Seconds)',
       type: 'short-input',
       placeholder: 'Defaults to no limit',
-      condition: { field: 'operation', value: GET_CONTENTS },
+      condition: { field: 'operation', value: 'youcom_get_contents' },
       mode: 'advanced',
     },
     {
@@ -293,7 +288,7 @@ export const YouComBlock: BlockConfig = {
       title: 'Research Question',
       type: 'long-input',
       placeholder: 'Enter the question to research',
-      condition: { field: 'operation', value: RESEARCH },
+      condition: { field: 'operation', value: 'youcom_research' },
       required: true,
     },
     {
@@ -310,7 +305,7 @@ export const YouComBlock: BlockConfig = {
       value: () => 'standard',
       description:
         'Lite under 10s, Standard 10-30s, Deep under 2 min, Exhaustive under 5 min. Frontier always runs in the background',
-      condition: { field: 'operation', value: RESEARCH },
+      condition: { field: 'operation', value: 'youcom_research' },
     },
     {
       id: 'outputSchema',
@@ -321,7 +316,7 @@ export const YouComBlock: BlockConfig = {
         '{\n  "type": "object",\n  "properties": {},\n  "required": [],\n  "additionalProperties": false\n}',
       description:
         'JSON Schema for structured output. Every property must be required; not supported with Lite',
-      condition: { field: 'operation', value: RESEARCH },
+      condition: { field: 'operation', value: 'youcom_research' },
       mode: 'advanced',
     },
     {
@@ -330,7 +325,7 @@ export const YouComBlock: BlockConfig = {
       type: 'switch',
       description:
         'Return a task ID immediately and fetch the result with Get Research Task. Always on for Frontier',
-      condition: { field: 'operation', value: RESEARCH },
+      condition: { field: 'operation', value: 'youcom_research' },
       mode: 'advanced',
     },
     {
@@ -338,7 +333,7 @@ export const YouComBlock: BlockConfig = {
       title: 'Task ID',
       type: 'short-input',
       placeholder: 'Enter the research task ID',
-      condition: { field: 'operation', value: GET_RESEARCH_TASK },
+      condition: { field: 'operation', value: 'youcom_get_research_task' },
       required: true,
     },
     {
@@ -346,7 +341,7 @@ export const YouComBlock: BlockConfig = {
       title: 'Financial Question',
       type: 'long-input',
       placeholder: 'e.g., What drove NVIDIA revenue growth in fiscal 2025?',
-      condition: { field: 'operation', value: FINANCE_RESEARCH },
+      condition: { field: 'operation', value: 'youcom_finance_research' },
       required: true,
     },
     {
@@ -359,14 +354,14 @@ export const YouComBlock: BlockConfig = {
       ],
       value: () => 'deep',
       description: 'Deep takes under 2 min. Exhaustive can take up to 5 min',
-      condition: { field: 'operation', value: FINANCE_RESEARCH },
+      condition: { field: 'operation', value: 'youcom_finance_research' },
     },
     {
       id: 'count',
       title: 'Number of Results',
       type: 'short-input',
       placeholder: 'Defaults to 10',
-      condition: { field: 'operation', value: [SEARCH, SEARCH_IMAGES] },
+      condition: { field: 'operation', value: ['youcom_search', 'youcom_search_images'] },
       mode: 'advanced',
     },
     {
@@ -374,7 +369,7 @@ export const YouComBlock: BlockConfig = {
       title: 'Page Offset',
       type: 'short-input',
       placeholder: '0 to 9, in multiples of the result count',
-      condition: { field: 'operation', value: SEARCH },
+      condition: { field: 'operation', value: 'youcom_search' },
       mode: 'advanced',
     },
     {
@@ -406,7 +401,7 @@ export const YouComBlock: BlockConfig = {
       type: 'dropdown',
       options: SEARCH_LANGUAGE_OPTIONS,
       value: () => '',
-      condition: { field: 'operation', value: SEARCH },
+      condition: { field: 'operation', value: 'youcom_search' },
       mode: 'advanced',
     },
     {
@@ -415,7 +410,7 @@ export const YouComBlock: BlockConfig = {
       type: 'dropdown',
       options: ANSWER_LANGUAGE_OPTIONS,
       value: () => '',
-      condition: { field: 'operation', value: ANSWER },
+      condition: { field: 'operation', value: 'youcom_answer' },
       mode: 'advanced',
     },
     {
@@ -424,7 +419,7 @@ export const YouComBlock: BlockConfig = {
       type: 'dropdown',
       options: SAFESEARCH_OPTIONS,
       value: () => '',
-      condition: { field: 'operation', value: [SEARCH, ANSWER] },
+      condition: { field: 'operation', value: ['youcom_search', 'youcom_answer'] },
       mode: 'advanced',
     },
     {
@@ -460,7 +455,7 @@ export const YouComBlock: BlockConfig = {
         { label: 'Include Licensed Data (core)', id: 'core' },
       ],
       value: () => '',
-      condition: { field: 'operation', value: SEARCH },
+      condition: { field: 'operation', value: 'youcom_search' },
       mode: 'advanced',
     },
     {
@@ -468,7 +463,7 @@ export const YouComBlock: BlockConfig = {
       title: 'Crawl Timeout (Seconds)',
       type: 'short-input',
       placeholder: '1 to 60, defaults to 10',
-      condition: { field: 'operation', value: [SEARCH, GET_CONTENTS] },
+      condition: { field: 'operation', value: ['youcom_search', 'youcom_get_contents'] },
       mode: 'advanced',
     },
     {
@@ -482,17 +477,17 @@ export const YouComBlock: BlockConfig = {
   ],
   tools: {
     access: [
-      SEARCH,
-      GET_CONTENTS,
-      ANSWER,
-      RESEARCH,
-      GET_RESEARCH_TASK,
-      FINANCE_RESEARCH,
-      SEARCH_IMAGES,
-      GET_ACCOUNT_BALANCE,
+      'youcom_search',
+      'youcom_get_contents',
+      'youcom_answer',
+      'youcom_research',
+      'youcom_get_research_task',
+      'youcom_finance_research',
+      'youcom_search_images',
+      'youcom_get_account_balance',
     ],
     config: {
-      tool: (params) => params.operation ?? SEARCH,
+      tool: (params) => params.operation ?? 'youcom_search',
       params: (params) => {
         const result: Record<string, unknown> = {}
         const count = toOptionalNumber(params.count)
