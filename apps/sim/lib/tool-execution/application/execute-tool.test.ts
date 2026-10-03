@@ -126,6 +126,18 @@ const TOOL_METADATA: Record<string, Record<string, unknown>> = {
     },
     hosting: { apiKeyParam: 'apiKey' },
   },
+  image_generate: {
+    id: 'image_generate',
+    name: 'Image Generate',
+    params: {
+      provider: { type: 'string', required: true, visibility: 'user-only' },
+      apiKey: { type: 'string', required: true, visibility: 'user-only' },
+    },
+    hosting: {
+      apiKeyParam: 'apiKey',
+      enabled: (params: { provider?: unknown }) => params.provider === 'falai',
+    },
+  },
   snowflake_execute_sql: {
     id: 'snowflake_execute_sql',
     name: 'Snowflake Execute SQL',
@@ -204,6 +216,7 @@ function block(overrides: Partial<BlockConfig> & { type: string }): BlockConfig 
 const fileBlock = block({ type: 'file_v5', tools: { access: ['file_read'] } })
 const slackBlock = block({ type: 'slack', tools: { access: ['slack_message'] } })
 const firecrawlBlock = block({ type: 'firecrawl', tools: { access: ['firecrawl_scrape'] } })
+const imageBlock = block({ type: 'image_generator', tools: { access: ['image_generate'] } })
 const previewBlock = block({
   type: 'preview_thing',
   preview: true,
@@ -245,6 +258,7 @@ describe('executeToolForCaller', () => {
       fileBlock,
       slackBlock,
       firecrawlBlock,
+      imageBlock,
       previewBlock,
       confluenceBlock,
       zendeskBlock,
@@ -511,38 +525,55 @@ describe('executeToolForCaller', () => {
     expect(mocks.recordUsage).not.toHaveBeenCalled()
   })
 
-  it.each([
-    ['the key is omitted', { input: { url: 'https://a.co' } }],
+  const referencedImageCall = {
+    toolId: 'image_generate',
+    input: { provider: '{{IMAGE_PROVIDER}}', apiKey: '{{IMAGE_KEY}}' },
+  }
+
+  it.each<[string, Parameters<typeof run>[0], Record<string, string>]>([
+    ['the key is omitted', { input: { url: 'https://a.co' } }, {}],
     [
       'the key references an empty variable',
       { input: { url: 'https://a.co', apiKey: '{{FIRECRAWL_KEY}}' } },
+      { FIRECRAWL_KEY: ' ' },
     ],
-  ])('refuses a hosted-key call over the usage limit when %s', async (_case, input) => {
+    [
+      'a reference selects the hosted provider',
+      referencedImageCall,
+      { IMAGE_PROVIDER: 'falai', IMAGE_KEY: '' },
+    ],
+  ])('refuses a hosted-key call over the usage limit when %s', async (_case, input, env) => {
     mocks.checkUsageLimits.mockResolvedValue({ isExceeded: true, message: 'Usage limit exceeded' })
-    environmentUtilsMockFns.mockGetEffectiveDecryptedEnv.mockResolvedValue({ FIRECRAWL_KEY: ' ' })
+    environmentUtilsMockFns.mockGetEffectiveDecryptedEnv.mockResolvedValue(env)
 
     await expect(run(input)).rejects.toBeInstanceOf(ToolUsageLimitExceededError)
   })
 
-  it.each([
-    ['the caller brings their own key', { input: { url: 'https://a.co', apiKey: 'sk-own' } }],
+  it.each<[string, Parameters<typeof run>[0], Record<string, string>]>([
+    ['the caller brings their own key', { input: { url: 'https://a.co', apiKey: 'sk-own' } }, {}],
     [
       'the caller references a variable holding their own key',
       { input: { url: 'https://a.co', apiKey: '{{FIRECRAWL_KEY}}' } },
+      { FIRECRAWL_KEY: 'fc-own' },
     ],
     [
       'the reference pads the variable name',
       { input: { url: 'https://a.co', apiKey: '{{ FIRECRAWL_KEY }}' } },
+      { FIRECRAWL_KEY: 'fc-own' },
+    ],
+    [
+      'a reference selects a provider Sim does not host',
+      referencedImageCall,
+      { IMAGE_PROVIDER: 'openai', IMAGE_KEY: '' },
     ],
     [
       'the tool has no hosted key',
       { toolId: 'zendesk_get_ticket', input: { ticketId: '4', subdomain: 'a', apiToken: 't' } },
+      {},
     ],
-  ])('does not gate on usage when %s', async (_case, input) => {
+  ])('does not gate on usage when %s', async (_case, input, env) => {
     mocks.checkUsageLimits.mockResolvedValue({ isExceeded: true, message: 'Usage limit exceeded' })
-    environmentUtilsMockFns.mockGetEffectiveDecryptedEnv.mockResolvedValue({
-      FIRECRAWL_KEY: 'fc-own',
-    })
+    environmentUtilsMockFns.mockGetEffectiveDecryptedEnv.mockResolvedValue(env)
 
     await expect(run(input)).resolves.toMatchObject({ status: 'succeeded' })
   })

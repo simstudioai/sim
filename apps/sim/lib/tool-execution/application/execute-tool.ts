@@ -58,14 +58,12 @@ export interface ExecuteToolResult {
  * Mirrors `injectHostedKeyIfNeeded`'s tests, in its order, so the two cannot
  * disagree about whether a value is coming: the tool declares `hosting`, the
  * deployment hosts keys, any `enabled` predicate accepts these params, and the
- * caller has not brought a key of their own — which wins where present. A
- * `{{VAR}}` reference is not one yet: the registry resolves it, and a variable
- * holding an empty value falls through to Sim's key.
+ * caller has not brought a key of their own — which wins where present.
  *
  * Pre-dispatch only: the required-input exemption (a parameter Sim will fill is
- * not missing) and usage admission. It is deliberately NOT the metering gate — it cannot see
- * a BYOK key, which the registry injects while reporting the call as *not*
- * hosted, so after dispatch the registry's own verdict is read instead.
+ * not missing) and usage admission. It is deliberately NOT the metering gate —
+ * it cannot see a BYOK key, which the registry injects while reporting the call
+ * as *not* hosted, so after dispatch the registry's own verdict is read instead.
  */
 function hostedKeyParamFor(
   tool: ExecutableToolConfig,
@@ -74,32 +72,44 @@ function hostedKeyParamFor(
   if (!isHosted || !tool.hosting) return undefined
   if (tool.hosting.enabled && !tool.hosting.enabled(params)) return undefined
   const supplied = params[tool.hosting.apiKeyParam]
-  if (typeof supplied === 'string' && supplied.trim().length > 0 && !isEnvVarReference(supplied)) {
-    return undefined
-  }
+  if (typeof supplied === 'string' && supplied.trim().length > 0) return undefined
   return tool.hosting.apiKeyParam
 }
 
 /**
- * Whether a `{{VAR}}` key resolves to a key of the caller's own.
+ * `params` as the registry holds them when it decides on Sim's key.
  *
- * Resolved exactly as the registry resolves it — same environment, same
- * options — before it decides on Sim's key. A variable that is missing or
- * empty leaves the parameter for Sim's key to fill.
+ * The registry resolves each whole-value `{{VAR}}` in a `user-only` parameter
+ * before `injectHostedKeyIfNeeded` runs, so a reference can supply the key, or
+ * the value an `enabled` predicate reads, and an empty variable leaves the key
+ * for Sim's to fill. Resolved the same way here — same environment, same
+ * options. A missing variable stays as written: the registry refuses the call
+ * on it before any key is spent.
  */
-async function referencesOwnKey(
-  value: unknown,
+async function resolveUserOnlyReferences(
+  tool: ExecutableToolConfig,
+  params: Record<string, unknown>,
   userId: string,
   workspaceId: string
-): Promise<boolean> {
-  if (typeof value !== 'string' || !isEnvVarReference(value)) return false
-  const missingKeys: string[] = []
-  const resolved = resolveEnvVarReferences(
-    value,
-    await getEffectiveDecryptedEnv(userId, workspaceId),
-    { allowEmbedded: false, missingKeys }
-  )
-  return missingKeys.length === 0 && typeof resolved === 'string' && resolved.trim().length > 0
+): Promise<Record<string, unknown>> {
+  const referenced = Object.entries(tool.params ?? {})
+    .filter(([name, declaration]) => {
+      const value = params[name]
+      return (
+        declaration?.visibility === 'user-only' &&
+        typeof value === 'string' &&
+        isEnvVarReference(value)
+      )
+    })
+    .map(([name]) => name)
+  if (referenced.length === 0) return params
+
+  const env = await getEffectiveDecryptedEnv(userId, workspaceId)
+  const resolved = { ...params }
+  for (const name of referenced) {
+    resolved[name] = resolveEnvVarReferences(params[name], env, { allowEmbedded: false })
+  }
+  return resolved
 }
 
 /**
@@ -224,9 +234,10 @@ function assertNoUndeclaredInputs(
 function assertRequiredCallerInputsPresent(
   tool: ExecutableToolConfig,
   toolId: string,
-  params: Record<string, unknown>,
-  hostedKeyParam: string | undefined
+  params: Record<string, unknown>
 ): void {
+  const hostedKeyParam = hostedKeyParamFor(tool, params)
+
   const missing = Object.entries(tool.params ?? {})
     .filter(([name, declaration]) => {
       if (!declaration?.required) return false
@@ -326,8 +337,7 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
       ...input.input,
       ...(input.credentialId ? { [selector ?? 'credential']: input.credentialId } : {}),
     }
-    const hostedKeyParam = hostedKeyParamFor(tool, callerParams)
-    assertRequiredCallerInputsPresent(tool, toolId, callerParams, hostedKeyParam)
+    assertRequiredCallerInputsPresent(tool, toolId, callerParams)
 
     const userId = principalUserId(principal)
     if (!userId) {
@@ -345,8 +355,10 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
      * see that key — the same standing every workflow run is held to.
      */
     if (
-      hostedKeyParam &&
-      !(await referencesOwnKey(callerParams[hostedKeyParam], userId, context.workspaceId))
+      hostedKeyParamFor(
+        tool,
+        await resolveUserOnlyReferences(tool, callerParams, userId, context.workspaceId)
+      )
     ) {
       const usage = await checkExecutionUsageLimits(billingAttribution)
       if (usage.isExceeded) {
