@@ -1782,6 +1782,44 @@ registerFamily(handlerLoaders, LOG_TOOL_IDS, async () => {
   return (await import('@/lib/internal/logs/execute-tool')).executeLogsTool
 })
 
+registerFamily(
+  handlerLoaders,
+  [
+    'oracle_fusion_recruiting_list_candidates',
+    'oracle_fusion_recruiting_get_candidate',
+    'oracle_fusion_recruiting_create_candidate',
+    'oracle_fusion_recruiting_update_candidate',
+    'oracle_fusion_recruiting_delete_candidate',
+    'oracle_fusion_recruiting_list_candidate_phones',
+    'oracle_fusion_recruiting_get_candidate_phone',
+    'oracle_fusion_recruiting_create_candidate_phone',
+    'oracle_fusion_recruiting_update_candidate_phone',
+    'oracle_fusion_recruiting_delete_candidate_phone',
+    'oracle_fusion_recruiting_list_candidate_education',
+    'oracle_fusion_recruiting_list_candidate_experience',
+    'oracle_fusion_recruiting_list_candidate_skills',
+    'oracle_fusion_recruiting_list_candidate_attachments',
+    'oracle_fusion_recruiting_list_requisitions',
+    'oracle_fusion_recruiting_get_requisition',
+    'oracle_fusion_recruiting_create_requisition',
+    'oracle_fusion_recruiting_update_requisition',
+    'oracle_fusion_recruiting_delete_requisition',
+    'oracle_fusion_recruiting_list_requisition_postings',
+    'oracle_fusion_recruiting_list_applications',
+    'oracle_fusion_recruiting_get_application',
+    'oracle_fusion_recruiting_list_offers',
+    'oracle_fusion_recruiting_get_offer',
+    'oracle_fusion_recruiting_list_interview_schedules',
+    'oracle_fusion_recruiting_get_interview_schedule',
+    'oracle_fusion_recruiting_list_requisition_templates',
+    'oracle_fusion_recruiting_list_recruiting_representatives',
+  ],
+  async () => {
+    return (await import('@/lib/internal/oracle-fusion-recruiting/execute-tool'))
+      .executeOracleFusionRecruitingTool
+  }
+)
+
 handlerLoaders.set(
   'mcp_run_operation',
   async () => (await import('@/lib/internal/mcp/execute-tool')).executeMcpTool

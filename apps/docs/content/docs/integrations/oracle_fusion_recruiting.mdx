@@ -1,0 +1,532 @@
+---
+title: Oracle Fusion Recruiting
+description: Manage candidates and requisitions, and read applications, offers, and recruiting lookups
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oracle_fusion_recruiting"
+  color="#F80000"
+/>
+
+## Usage Instructions
+
+Use a saved Oracle Fusion integration-user credential to manage candidates, candidate phones, and job requisitions. Read candidate education, experience, skills, attachment metadata, published jobs, applications, offers, interview schedule lookups, requisition templates, and recruiting representatives. Lists return one bounded page. Interview schedules contain lookup metadata, not appointments. Oracle privileges and data security govern access; use a dedicated least-privilege integration user. Write bodies accept only the documented scalar fields listed by each tool; nested child mutations and custom fields are not supported.
+
+
+
+## Actions
+
+### List Candidates
+
+List candidates.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `search` | string | No | Search text, up to 200 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidates` | array | Returned candidate records |
+
+### Get Candidate
+
+Get candidate.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `candidateNumber` | string | Yes | Candidate number; use the identifier returned by the matching list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidate` | json | Returned candidate |
+
+### Create Candidate
+
+Create candidate.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `body` | json | Yes | Documented Oracle fields: FirstName, LastName, MiddleNames, Email, KnownAs, Title, Suffix, PreNameAdjunct, PreviousLastName, PreferredLanguage, PreferredTimezone, CampaignOptIn, SourceMedium, SourceName. Int64 IDs must be decimal strings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidate` | json | Returned candidate |
+
+### Update Candidate
+
+Update candidate.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `candidateNumber` | string | Yes | Candidate number; use the identifier returned by the matching list tool |
+| `body` | json | Yes | Documented Oracle fields: FirstName, LastName, MiddleNames, Email, KnownAs, Title, Suffix, PreNameAdjunct, PreviousLastName, PreferredLanguage, PreferredTimezone, CampaignOptIn, SourceMedium, SourceName. Int64 IDs must be decimal strings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `candidate` | json | Returned candidate |
+
+### Delete Candidate
+
+Delete candidate.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `candidateNumber` | string | Yes | Candidate number; use the identifier returned by the matching list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether Oracle confirmed the deletion |
+
+### List Candidate Phones
+
+List candidate phones.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `candidateNumber` | string | Yes | Candidate number; use the identifier returned by the matching list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `phones` | array | Returned phone records |
+
+### Get Candidate Phone
+
+Get candidate phone.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `candidateNumber` | string | Yes | Candidate number; use the identifier returned by the matching list tool |
+| `phoneId` | string | Yes | Phone id; use the identifier returned by the matching list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `phone` | json | Returned phone |
+
+### Create Candidate Phone
+
+Create candidate phone.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `candidateNumber` | string | Yes | Candidate number; use the identifier returned by the matching list tool |
+| `body` | json | Yes | Documented Oracle fields: PhoneNumber, CountryCodeNumber, AreaCode, LegislationCode. Int64 IDs must be decimal strings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `phone` | json | Returned phone |
+
+### Update Candidate Phone
+
+Update candidate phone.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `candidateNumber` | string | Yes | Candidate number; use the identifier returned by the matching list tool |
+| `phoneId` | string | Yes | Phone id; use the identifier returned by the matching list tool |
+| `body` | json | Yes | Documented Oracle fields: PhoneNumber, CountryCodeNumber, AreaCode, LegislationCode. Int64 IDs must be decimal strings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `phone` | json | Returned phone |
+
+### Delete Candidate Phone
+
+Delete candidate phone.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `candidateNumber` | string | Yes | Candidate number; use the identifier returned by the matching list tool |
+| `phoneId` | string | Yes | Phone id; use the identifier returned by the matching list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether Oracle confirmed the deletion |
+
+### List Candidate Education
+
+List candidate education.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `candidateNumber` | string | Yes | Candidate number; use the identifier returned by the matching list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `education` | array | Returned education records |
+
+### List Candidate Experience
+
+List candidate experience.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `candidateNumber` | string | Yes | Candidate number; use the identifier returned by the matching list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `experience` | array | Returned experience records |
+
+### List Candidate Skills
+
+List candidate skills.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `candidateNumber` | string | Yes | Candidate number; use the identifier returned by the matching list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `skills` | array | Returned skill records |
+
+### List Candidate Attachments
+
+List candidate attachments. Returns metadata only; does not download file contents.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `candidateNumber` | string | Yes | Candidate number; use the identifier returned by the matching list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `attachments` | array | Returned attachment records |
+
+### List Requisitions
+
+List requisitions.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `search` | string | No | Search text, up to 200 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requisitions` | array | Returned requisition records |
+
+### Get Requisition
+
+Get requisition.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `requisitionId` | string | Yes | Requisition id; use the identifier returned by the matching list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requisition` | json | Returned requisition |
+
+### Create Requisition
+
+Create requisition.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `body` | json | Yes | Documented Oracle fields: Title, RequisitionNumber, RecruitingType, HiringManagerId, RecruiterId, PrimaryLocationId, PhaseId, StateId, UnlimitedOpenings, NumberOfOpenings, TemplateId, HiringManagerAssignmentId, RecruiterAssignmentId, BusinessUnitId, DepartmentId, JobId, JobFamilyId, PositionId, GradeId, LegalEmployerId, OrganizationId, PrimaryWorkLocationId, CandidateSelectionProcessId, WorkerType, JobType, FullTimeOrPartTime, RegularOrTemporary, WorkplaceTypeCode, BusinessJustification, ExternalContactName, ExternalContactEmail, InternalContactName, InternalContactEmail. Int64 IDs must be decimal strings. Required: HiringManagerId, PhaseId, PrimaryLocationId, RecruiterId, RecruitingType, StateId, Title, UnlimitedOpenings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requisition` | json | Returned requisition |
+
+### Update Requisition
+
+Update requisition.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `requisitionId` | string | Yes | Requisition id; use the identifier returned by the matching list tool |
+| `body` | json | Yes | Documented Oracle fields: Title, RequisitionNumber, RecruitingType, HiringManagerId, RecruiterId, PrimaryLocationId, PhaseId, StateId, UnlimitedOpenings, NumberOfOpenings, TemplateId, HiringManagerAssignmentId, RecruiterAssignmentId, BusinessUnitId, DepartmentId, JobId, JobFamilyId, PositionId, GradeId, LegalEmployerId, OrganizationId, PrimaryWorkLocationId, CandidateSelectionProcessId, WorkerType, JobType, FullTimeOrPartTime, RegularOrTemporary, WorkplaceTypeCode, BusinessJustification, ExternalContactName, ExternalContactEmail, InternalContactName, InternalContactEmail. Int64 IDs must be decimal strings. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requisition` | json | Returned requisition |
+
+### Delete Requisition
+
+Delete requisition.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `requisitionId` | string | Yes | Requisition id; use the identifier returned by the matching list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether Oracle confirmed the deletion |
+
+### List Requisition Postings
+
+List requisition postings.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `requisitionId` | string | Yes | Requisition id; use the identifier returned by the matching list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `postings` | array | Returned posting records |
+
+### List Applications
+
+List applications.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `search` | string | No | Search text, up to 200 characters |
+| `requisitionId` | string | No | Filter by requisition ID as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `applications` | array | Returned application records |
+
+### Get Application
+
+Get application.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `applicationId` | string | Yes | Application id; use the identifier returned by the matching list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `application` | json | Returned application |
+
+### List Offers
+
+List offers.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `search` | string | No | Search text, up to 200 characters |
+| `requisitionId` | string | No | Filter by requisition ID as a positive decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `offers` | array | Returned offer records |
+
+### Get Offer
+
+Get offer.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `offerId` | string | Yes | Offer id; use the identifier returned by the matching list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `offer` | json | Returned offer |
+
+### List Interview Schedules
+
+List interview schedules. Returns schedule lookup metadata, not interview appointments.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `search` | string | No | Search text, up to 200 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `interviewSchedules` | array | Returned interview schedule records |
+
+### Get Interview Schedule
+
+Get interview schedule. Returns schedule lookup metadata, not interview appointments.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `scheduleId` | string | Yes | Schedule id; use the identifier returned by the matching list tool |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `interviewSchedule` | json | Returned interview schedule |
+
+### List Requisition Templates
+
+List requisition templates.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `search` | string | No | Search text, up to 200 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `requisitionTemplates` | array | Returned requisition template records |
+
+### List Recruiting Representatives
+
+List recruiting representatives.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Saved Oracle Fusion integration-user credential |
+| `limit` | number | No | Records to return \(default 20, maximum 100\) |
+| `offset` | number | No | Zero-based record offset |
+| `search` | string | No | Search text, up to 200 characters |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `representatives` | array | Returned representative records |
+
+

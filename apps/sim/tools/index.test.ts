@@ -74,6 +74,7 @@ import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/
 import { searchIssuesV2Tool } from '@/tools/github/search_issues'
 import { memoryAddTool } from '@/tools/memory/add'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { oracleFusionRecruitingListCandidatesTool } from '@/tools/oracle_fusion_recruiting/list_candidates'
 import { slackListsItemsListTool } from '@/tools/slack_lists/items_list'
 import { stripeListSubscriptionsTool } from '@/tools/stripe/list_subscriptions'
 import { stripeSearchSubscriptionsTool } from '@/tools/stripe/search_subscriptions'
@@ -185,6 +186,7 @@ vi.mock('@/executor/handlers/workflow/custom-block-tool-runner', () => ({
 // Mock the tools registry to avoid loading the full 4500+ line registry file.
 // Only the tools actually exercised in tests are provided.
 const mockRegistryTools: Record<string, any> = {
+  oracle_fusion_recruiting_list_candidates: oracleFusionRecruitingListCandidatesTool,
   stripe_list_subscriptions: stripeListSubscriptionsTool,
   stripe_search_subscriptions: stripeSearchSubscriptionsTool,
   slack_lists_items_list: slackListsItemsListTool,
@@ -1106,6 +1108,80 @@ describe('executeTool Function', () => {
     })
     expect(mockGenerateInternalToken).not.toHaveBeenCalled()
     expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('binds Oracle Fusion Recruiting execution to the credential destination and rejects URL spoofing', async () => {
+    mockResolveExecutorCredentialToken.mockResolvedValueOnce({
+      accessToken: 'resolved-token',
+      instanceUrl: 'https://authoritative.fa.ocs.oraclecloud.com',
+      credentialType: 'service_account',
+    })
+
+    const result = await executeTool(
+      'oracle_fusion_recruiting_list_candidates',
+      {
+        oauthCredential: 'oracle-credential-id',
+        accessToken: 'spoofed-token',
+        instanceUrl: 'https://attacker.example.com',
+        limit: 25,
+      },
+      {
+        executionContext: createToolExecutionContext({
+          userId: 'user-1',
+          workspaceId: 'workspace-456',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        }),
+      }
+    )
+
+    expect(result.output).toMatchObject({
+      oauthCredential: 'oracle-credential-id',
+      accessToken: 'resolved-token',
+      instanceUrl: 'https://authoritative.fa.ocs.oraclecloud.com',
+      limit: 25,
+    })
+    expect(mockExecuteInternalToolOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolId: 'oracle_fusion_recruiting_list_candidates',
+        input: expect.objectContaining({
+          oauthCredential: 'oracle-credential-id',
+          accessToken: 'resolved-token',
+          instanceUrl: 'https://authoritative.fa.ocs.oraclecloud.com',
+          limit: 25,
+        }),
+      })
+    )
+    const operationInput = mockExecuteInternalToolOperation.mock.calls.at(-1)?.[0].input
+    expect(operationInput?.accessToken).not.toBe('spoofed-token')
+    expect(operationInput?.instanceUrl).not.toBe('https://attacker.example.com')
+  })
+
+  it('rejects a non-service-account credential before Oracle Fusion Recruiting execution', async () => {
+    mockResolveExecutorCredentialToken.mockResolvedValueOnce({
+      accessToken: 'oauth-token',
+      instanceUrl: 'https://authoritative.fa.ocs.oraclecloud.com',
+      credentialType: 'oauth',
+    })
+
+    const result = await executeTool(
+      'oracle_fusion_recruiting_list_candidates',
+      { oauthCredential: 'wrong-kind-credential' },
+      {
+        executionContext: createToolExecutionContext({
+          userId: 'user-1',
+          workspaceId: 'workspace-456',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        }),
+      }
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      error: 'List Candidates requires a service-account credential',
+    })
+    expect(mockExecuteInternalToolOperation).not.toHaveBeenCalled()
   })
 
   it('preserves a registered operation failure without turning it into success', async () => {
