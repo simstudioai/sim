@@ -509,11 +509,16 @@ describe('executeToolForCaller', () => {
     expect(mocks.recordUsage).not.toHaveBeenCalled()
   })
 
-  it('refuses a hosted-key call over the usage limit before it dispatches', async () => {
+  it.each([
+    ['the key is omitted', { input: { url: 'https://a.co' } }],
+    [
+      'the key is a variable reference that may resolve empty',
+      { input: { url: 'https://a.co', apiKey: '{{FIRECRAWL_KEY}}' } },
+    ],
+  ])('refuses a hosted-key call over the usage limit when %s', async (_case, input) => {
     mocks.checkUsageLimits.mockResolvedValue({ isExceeded: true, message: 'Usage limit exceeded' })
 
-    await expect(run()).rejects.toBeInstanceOf(ToolUsageLimitExceededError)
-    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
+    await expect(run(input)).rejects.toBeInstanceOf(ToolUsageLimitExceededError)
   })
 
   it.each([

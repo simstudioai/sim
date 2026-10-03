@@ -19,6 +19,7 @@ import { isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { principalUserId } from '@/lib/integrations/principal-scope.server'
 import { toolExecutionOperations } from '@/lib/tool-execution/application/operations'
+import { isEnvVarReference } from '@/executor/constants'
 import { executeTool as executeRegistryTool } from '@/tools'
 import type { ExecutableToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
@@ -55,7 +56,9 @@ export interface ExecuteToolResult {
  * Mirrors `injectHostedKeyIfNeeded`'s tests, in its order, so the two cannot
  * disagree about whether a value is coming: the tool declares `hosting`, the
  * deployment hosts keys, any `enabled` predicate accepts these params, and the
- * caller has not brought a key of their own — which wins where present.
+ * caller has not brought a key of their own — which wins where present. A
+ * `{{VAR}}` reference is not one yet: the registry resolves it, and a variable
+ * holding an empty value falls through to Sim's key.
  *
  * Pre-dispatch only: the required-input exemption (a parameter Sim will fill is
  * not missing) and usage admission. It is deliberately NOT the metering gate — it cannot see
@@ -69,7 +72,9 @@ function hostedKeyParamFor(
   if (!isHosted || !tool.hosting) return undefined
   if (tool.hosting.enabled && !tool.hosting.enabled(params)) return undefined
   const supplied = params[tool.hosting.apiKeyParam]
-  if (typeof supplied === 'string' && supplied.trim().length > 0) return undefined
+  if (typeof supplied === 'string' && supplied.trim().length > 0 && !isEnvVarReference(supplied)) {
+    return undefined
+  }
   return tool.hosting.apiKeyParam
 }
 
