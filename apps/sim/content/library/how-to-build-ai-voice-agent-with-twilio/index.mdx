@@ -259,25 +259,29 @@ app.post(
 
 ```javascript
 async function runVoiceWorkflow(turn) {
-  const response = await fetch(
-    `${process.env.SIM_BASE_URL}/api/v2/workflows/${process.env.SIM_WORKFLOW_ID}/execute`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.SIM_API_KEY
-      },
-      body: JSON.stringify({ input: turn }),
-      signal: AbortSignal.timeout(8000)
-    }
-  )
+  try {
+    const response = await fetch(
+      `${process.env.SIM_BASE_URL}/api/v2/workflows/${process.env.SIM_WORKFLOW_ID}/execute`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.SIM_API_KEY
+        },
+        body: JSON.stringify({ input: turn }),
+        signal: AbortSignal.timeout(8000)
+      }
+    )
 
-  if (!response.ok) return safeVoiceFallback()
+    if (!response.ok) return safeVoiceFallback()
 
-  const payload = await response.json()
-  if (payload.data?.status !== 'completed') return safeVoiceFallback()
+    const payload = await response.json()
+    if (payload.data?.status !== 'completed') return safeVoiceFallback()
 
-  return parseVoiceWorkflowResponse(payload.data.output)
+    return parseVoiceWorkflowResponse(payload.data.output)
+  } catch {
+    return safeVoiceFallback()
+  }
 }
 ```
 
