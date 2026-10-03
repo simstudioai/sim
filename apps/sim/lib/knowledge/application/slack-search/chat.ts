@@ -2,12 +2,12 @@ import type { OrganizationDelegatedPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { copilotChats, slackSearchInstallation, slackSearchTurn } from '@sim/db/schema'
 import { and, asc, eq, isNull } from 'drizzle-orm'
-import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
-import { buildPersistedUserMessage } from '@/lib/copilot/chat/persisted-message'
-import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/copilot/constants'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
+import { buildPersistedUserMessage } from '@/lib/mothership/chat/persisted-message'
+import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
 import {
   type SlackSearchConversation,
   slackSearchConversation,

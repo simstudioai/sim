@@ -14,14 +14,29 @@ export function getConnectorRequiredScopes(
 export function isConnectorCredentialTypeAllowed(
   auth: ConnectorAuthConfig,
   accessMode: string,
-  credentialType: 'oauth' | 'service_account' | undefined
+  credentialType: 'oauth' | 'service_account' | 'managed_oauth' | undefined
 ): boolean {
+  if (credentialType === 'managed_oauth') return false
   return (
     auth.mode !== 'oauth' ||
     accessMode !== 'admin' ||
     !auth.adminCredentialType ||
     credentialType === auth.adminCredentialType
   )
+}
+
+/**
+ * Whether a workspace-mode connector row still carries something to authenticate with. A
+ * connector whose credential was removed keeps its documents but has no token source, so a
+ * sync cannot run until it is reconnected.
+ */
+export function connectorHasAuthSource(
+  auth: ConnectorAuthConfig,
+  connector: { credentialId: string | null; encryptedApiKey: string | null }
+): boolean {
+  const apiKeyConfig = getConnectorApiKeyConfig(auth)
+  if (apiKeyConfig && connector.encryptedApiKey) return true
+  return auth.mode === 'apiKey' ? apiKeyConfig?.optional === true : Boolean(connector.credentialId)
 }
 
 /** Workspace token input supported by a connector, independent of its member OAuth method. */

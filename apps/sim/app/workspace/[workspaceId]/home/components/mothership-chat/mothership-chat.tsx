@@ -1,9 +1,9 @@
 'use client'
 
+import type { ComponentType } from 'react'
 import {
   memo,
   type ReactNode,
-  type RefObject,
   useCallback,
   useDeferredValue,
   useEffect,
@@ -12,12 +12,21 @@ import {
   useRef,
   useState,
 } from 'react'
-import { type ClipboardContent, cn } from '@sim/emcn'
+import {
+  type ClipboardContent,
+  cn,
+  overflowFadeSizeClass,
+  scrollFadeAttributes,
+  scrollFadeClass,
+  useScrollEdges,
+} from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
 import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { MessageActions } from '@/app/workspace/[workspaceId]/components'
+import { inter } from '@/app/_styles/fonts/inter/inter'
+import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar'
+import { MessageActions } from '@/app/workspace/[workspaceId]/components/message-actions'
 import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
 import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {
@@ -34,11 +43,13 @@ import {
   parseLastCredentialTag,
   parseLastQuestionTag,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import type { SearchIntegrationConnectionProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
 import {
   prepareCopyableMarkdown,
   toCopyableMarkdown,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/copyable-markdown'
 import { nextSizerFloor } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/sizer-floor'
+import { useChatFind } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/use-chat-find'
 import { QueuedMessages } from '@/app/workspace/[workspaceId]/home/components/queued-messages'
 import {
   UserInput,
@@ -62,18 +73,11 @@ import { MothershipChatSkeleton } from './components/mothership-chat-skeleton'
 import { shouldShowAssistantMessageActions } from './message-actions-visibility'
 
 interface MothershipChatProps {
+  SearchConnectionComponent?: ComponentType<SearchIntegrationConnectionProps>
   workspaceId?: string
   composer?: ReactNode
   messages: ChatMessage[]
   isSending: boolean
-  /** The composer's Search-mode results, shown above the input. */
-  searchResults?: ReactNode
-  /** The live search query; the composer shows it so the box and the results never disagree. */
-  searchQuery?: string
-  /** The composer, for a caller that hands a question to the agent from outside the box. */
-  userInputRef?: RefObject<UserInputHandle | null>
-  /** Puts the composer in the mode a queued message was written in, when one is loaded for editing. */
-  onRestoreQueuedMode?: (requestMode: QueuedMessage['requestMode']) => void
   isReconnecting?: boolean
   isLoading?: boolean
   onSubmit: (
@@ -81,18 +85,12 @@ interface MothershipChatProps {
     fileAttachments?: FileAttachmentForApi[],
     contexts?: ChatContext[]
   ) => void
-  /** Whether the composer offers Search mode; only the Home composer answers a search. */
-  canSearch?: boolean
-  /** Off in Search mode, where the query stays put so the person can refine it. */
-  clearOnSubmit?: boolean
-  /** Fires when the composer's text goes from something to nothing. */
-  onCleared?: () => void
   onStopGeneration: () => void
   messageQueue: QueuedMessage[]
   editingQueuedId: string | null
   dispatchingHeadId: string | null
   onRemoveQueuedMessage: (id: string) => void
-  onSendQueuedMessage: (id: string) => Promise<void>
+  onSendQueuedMessage: (id?: string) => Promise<void>
   onEditQueuedMessage: (id: string) => QueuedMessage | undefined
   onCancelQueueEdit: () => void
   userId?: string
@@ -104,6 +102,7 @@ interface MothershipChatProps {
    * `ChatSurfaceContextValue`, which this forwards to.
    */
   onContextRemove?: (context: ChatContext, remaining: ChatContext[]) => void
+  onViewSources?: (messageId: string, requestId?: string) => void
   onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
   draftScopeKey?: string
   layout?: 'mothership-view' | 'copilot-view'
@@ -185,6 +184,30 @@ interface UserMessageRowProps {
   attachmentWidthClassName: string
 }
 
+/**
+ * A background-task notification that opened a turn (mothership 21-background-tasks.md
+ * §6.4): a muted system chip, never a user bubble — the user did not type it. Shows the
+ * outcome line; the provenance header and the agent's own note stay out of the way.
+ */
+const TaskNotificationRow = memo(function TaskNotificationRow({
+  content,
+  rowClassName,
+}: {
+  content: string
+  rowClassName: string
+}) {
+  const lines = content.split('\n').filter((line) => line.length > 0)
+  const outcome = lines.find((line) => line.startsWith('Task ')) ?? lines[lines.length - 1] ?? ''
+  return (
+    <div className={cn('flex w-full justify-center', rowClassName)}>
+      <div className='max-w-[85%] rounded-full border border-[var(--border)] bg-[var(--bg)] px-3 py-1 text-[12px] text-[var(--text-secondary)]'>
+        <span className='mr-1.5 font-medium text-[var(--text-primary)]'>Background task</span>
+        {outcome.replace(/^Task [0-9a-f-]+ /, '')}
+      </div>
+    </div>
+  )
+})
+
 const UserMessageRow = memo(function UserMessageRow({
   content,
   contexts,
@@ -203,7 +226,7 @@ const UserMessageRow = memo(function UserMessageRow({
           className={attachmentWidthClassName}
         />
       )}
-      <div className={bubbleClassName}>
+      <div className={bubbleClassName} data-chat-find-content>
         <UserMessageContent content={content} contexts={contexts} />
       </div>
     </div>
@@ -292,17 +315,14 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
     questionDismissed,
   })
 
-  // A visible interaction card (active or answered recap) sits 12px below the
-  // preceding prose (chat-content's `space-y-3`). The row's default `pb-6`
-  // would leave 24px underneath — asymmetric. Shrink the trailing gap to match
-  // so the card breathes equally top and bottom. Dismissed cards fall back to
-  // the normal message rhythm (they render the standard actions row instead).
+  /** Match the 16px prose/card gap when the card is the message's last visible content. */
   const showsInteractionCard = (endsWithQuestion && !questionDismissed) || showsCredentialCard
 
   return (
-    <div className={cn(rowClassName, showsInteractionCard && 'pb-3')}>
+    <div className={cn(rowClassName, showsInteractionCard && 'pb-4')}>
       <MessageContent
         messageId={message.id}
+        imageRequestId={message.requestId}
         requestMode={message.requestMode ?? requestMode}
         blocks={blocks}
         fallbackContent={message.content}
@@ -333,20 +353,14 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
 })
 
 export function MothershipChat({
+  SearchConnectionComponent,
   workspaceId,
   composer,
   messages: messagesProp,
   isSending,
-  searchResults,
-  searchQuery,
-  userInputRef: userInputRefProp,
-  onRestoreQueuedMode,
   isReconnecting = false,
   isLoading = false,
   onSubmit,
-  canSearch = false,
-  clearOnSubmit,
-  onCleared,
   onStopGeneration,
   messageQueue,
   editingQueuedId,
@@ -359,6 +373,7 @@ export function MothershipChat({
   chatId,
   onContextAdd,
   onContextRemove,
+  onViewSources,
   onWorkspaceResourceSelect,
   draftScopeKey,
   layout = 'mothership-view',
@@ -370,6 +385,8 @@ export function MothershipChat({
   const queryClient = useQueryClient()
   const styles = LAYOUT_STYLES[layout]
   const isStreamActive = isSending || isReconnecting
+  /** The deferred list may still end in the previous turn when a new send starts. */
+  const streamingMessageId = isStreamActive ? messagesProp.at(-1)?.id : undefined
   /**
    * Defer the streamed message list so its re-render (virtualizer + rows) is
    * low-priority: React yields it to urgent interactions (dragging/panning the
@@ -378,8 +395,8 @@ export function MothershipChat({
    */
   const messages = useDeferredValue(messagesProp)
   const [lastRowAnimating, setLastRowAnimating] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
   const scrollElementRef = useRef<HTMLDivElement | null>(null)
-  const { ref: autoScrollRef } = useAutoScroll(isStreamActive || lastRowAnimating)
   const sizerRef = useRef<HTMLDivElement | null>(null)
   const scrollerPaddingRef = useRef<{ top: number; bottom: number } | null>(null)
   const sizerFloorAppliedRef = useRef(0)
@@ -517,15 +534,12 @@ export function MothershipChat({
     sizerFloorAppliedRef.current = floor
     sizer.style.minHeight = `${floor}px`
   })
-  const setScrollElement = useCallback(
-    (el: HTMLDivElement | null) => {
-      scrollElementRef.current = el
-      autoScrollRef(el)
-    },
-    [autoScrollRef]
-  )
 
   const hasMessages = messages.length > 0
+  const scrollEdges = useScrollEdges(scrollElementRef, {
+    contentRef: sizerRef,
+    enabled: !isLoading || hasMessages,
+  })
 
   /**
    * Keep a bottom-pinned transcript pinned when the scroll container resizes.
@@ -644,13 +658,14 @@ export function MothershipChat({
     }
   }, [messages])
 
-  /**
-   * Always keep the last row in the rendered window. It is the live/streaming
-   * row; unmounting it (by scrolling far enough up that it leaves the overscan
-   * window) and remounting it mid-stream would reset its smooth-text reveal
-   * state and re-fire the fade-in animation — a visible flash. Pinning it costs
-   * one extra always-mounted row.
-   */
+  /** Keep the current user and assistant mounted while the measured virtual range catches up. */
+  let lastUserIndex = -1
+  for (let index = messages.length - 1; index >= 0; index--) {
+    if (messages[index]?.role === 'user') {
+      lastUserIndex = index
+      break
+    }
+  }
   const lastIndex = messages.length - 1
   const lastRowKey = lastIndex >= 0 ? rowKeyByIndex[lastIndex] : undefined
   useEffect(() => {
@@ -660,12 +675,12 @@ export function MothershipChat({
   const rangeExtractor = useCallback(
     (range: Range) => {
       const indexes = defaultRangeExtractor(range)
-      if (lastIndex >= 0 && !indexes.includes(lastIndex)) {
-        indexes.push(lastIndex)
+      for (const index of [lastUserIndex, lastIndex]) {
+        if (index >= 0 && !indexes.includes(index)) indexes.push(index)
       }
-      return indexes
+      return indexes.sort((a, b) => a - b)
     },
-    [lastIndex]
+    [lastIndex, lastUserIndex]
   )
 
   const virtualizer = useVirtualizer({
@@ -686,6 +701,23 @@ export function MothershipChat({
     useAnimationFrameWithResizeObserver: true,
   })
 
+  const find = useChatFind({
+    chatId,
+    messages,
+    hiddenUserByIndex: interactionPairing.hiddenUserByIndex,
+    containerRef,
+    scrollElementRef,
+    virtualizer,
+  })
+  const { ref: autoScrollRef } = useAutoScroll(isStreamActive || lastRowAnimating, find.isOpen)
+  const setScrollElement = useCallback(
+    (el: HTMLDivElement | null) => {
+      scrollElementRef.current = el
+      autoScrollRef(el)
+    },
+    [autoScrollRef]
+  )
+
   /**
    * Instance property — silently ignored if passed as a `useVirtualizer`
    * option. Skips scroll compensation for the streaming last row: it starts
@@ -697,8 +729,7 @@ export function MothershipChat({
     item.index !== lastIndex && item.start < (instance.scrollElement?.scrollTop ?? 0)
 
   const scrolledChatRef = useRef<string | undefined | typeof UNSCROLLED>(UNSCROLLED)
-  const ownUserInputRef = useRef<UserInputHandle>(null)
-  const userInputRef = userInputRefProp ?? ownUserInputRef
+  const userInputRef = useRef<UserInputHandle>(null)
   const messageQueueRef = useRef(messageQueue)
   useEffect(() => {
     messageQueueRef.current = messageQueue
@@ -713,19 +744,17 @@ export function MothershipChat({
   }, [])
 
   const handleSendQueuedHead = useCallback(() => {
-    const topMessage = messageQueueRef.current[0]
-    if (!topMessage) return
-    void onSendQueuedMessage(topMessage.id)
+    /** The first Enter can enqueue before this component has rendered the new queue. */
+    void onSendQueuedMessage()
   }, [onSendQueuedMessage])
 
   const handleEditQueued = useCallback(
     (id: string) => {
       const msg = onEditQueuedMessage(id)
       if (!msg) return
-      onRestoreQueuedMode?.(msg.requestMode)
       userInputRef.current?.loadQueuedMessage(msg)
     },
-    [onEditQueuedMessage, onRestoreQueuedMode, userInputRef]
+    [onEditQueuedMessage, userInputRef]
   )
 
   const handleEditQueuedTail = useCallback(() => {
@@ -777,18 +806,68 @@ export function MothershipChat({
     virtualizer.scrollToIndex(lastIndex, { align: 'end' })
   }, [chatId, hasMessages, initialScrollBlocked, lastIndex, virtualizer])
 
+  /**
+   * With find closed, the user's own send snaps the viewport to their message: sending is the intent
+   * to watch the reply, and the streaming sticky-scroll only engages when already pinned
+   * to the bottom — from a scrolled-up position a fresh turn would stream out of view
+   * (verified live, three-for-three, during the revamp browser pass).
+   */
+  // The send commit appends the user message AND the live-assistant placeholder together,
+  // so the LAST row is never the user's — track the newest user message wherever it sits.
+  const lastUserMessageId = messages[lastUserIndex]?.id
+  const scrolledForUserMsgRef = useRef<string | undefined>(undefined)
+  useLayoutEffect(() => {
+    if (!lastUserMessageId || scrolledForUserMsgRef.current === lastUserMessageId) return
+    if (find.isOpen || (isSending && initialScrollBlocked)) return
+    scrolledForUserMsgRef.current = lastUserMessageId
+    if (!isSending) return
+    virtualizer.scrollToIndex(lastIndex, { align: 'end' })
+  }, [lastUserMessageId, lastIndex, isSending, initialScrollBlocked, virtualizer, find.isOpen])
+
   const virtualItems = virtualizer.getVirtualItems()
 
   return (
     <ChatSurfaceProvider
+      SearchConnectionComponent={SearchConnectionComponent}
       chatId={chatId}
       userId={userId}
       onContextAdd={onContextAdd}
       onContextRemove={onContextRemove}
+      onViewSources={onViewSources}
       onWorkspaceResourceSelect={onWorkspaceResourceSelect}
     >
-      <div className={cn('flex h-full min-h-0 flex-col', className)}>
-        <div ref={setScrollElement} className={styles.scrollContainer} onCopy={handleCopy}>
+      <div
+        ref={containerRef}
+        onKeyDown={find.onKeyDown}
+        tabIndex={-1}
+        className={cn(
+          'relative flex h-full min-h-0 flex-col [&::highlight(chat-find)]:bg-[var(--highlight-match-bg)] [&::highlight(chat-find)]:text-[var(--highlight-match-text)] [&::highlight(chat-find-active)]:bg-[var(--brand-secondary)] [&::highlight(chat-find-active)]:text-[var(--color-black)]',
+          inter.className,
+          className
+        )}
+      >
+        {find.isOpen && (
+          <FindBar
+            ariaLabel='Find in chat'
+            query={find.query}
+            onQueryChange={find.onQueryChange}
+            onNext={find.next}
+            onPrev={find.prev}
+            onClose={find.close}
+            count={find.count}
+            currentIndex={find.currentIndex}
+            truncated={find.truncated}
+            isLoading={find.isStale}
+            canNavigate={!find.isStale}
+            inputRef={find.inputRef}
+          />
+        )}
+        <div
+          ref={setScrollElement}
+          className={cn(styles.scrollContainer, scrollFadeClass, overflowFadeSizeClass)}
+          {...scrollFadeAttributes(scrollEdges)}
+          onCopy={handleCopy}
+        >
           {isLoading && !hasMessages ? (
             <MothershipChatSkeleton layout={layout} />
           ) : (
@@ -817,7 +896,9 @@ export function MothershipChat({
                     style={{ top: virtualItem.start }}
                   >
                     {msg.role === 'user' ? (
-                      interactionPairing.hiddenUserByIndex[index] ? null : (
+                      interactionPairing.hiddenUserByIndex[index] ? null : msg.origin === 'task' ? (
+                        <TaskNotificationRow content={msg.content} rowClassName={styles.rowGap} />
+                      ) : (
                         <UserMessageRow
                           content={msg.content}
                           contexts={msg.contexts}
@@ -831,7 +912,7 @@ export function MothershipChat({
                       <AssistantMessageRow
                         message={msg}
                         prepareContentForCopy={prepareContentForCopy}
-                        isStreaming={isStreamActive && isLast}
+                        isStreaming={isLast && msg.id === streamingMessageId}
                         isLast={isLast}
                         precedingUserContent={precedingUserByIndex[index]?.content}
                         requestMode={precedingUserByIndex[index]?.requestMode}
@@ -855,9 +936,6 @@ export function MothershipChat({
           onAnimationEnd={animateInput ? onInputAnimationEnd : undefined}
         >
           <div className={styles.footerInner}>
-            {searchResults && (
-              <div className='max-h-[40vh] overflow-y-auto pb-2'>{searchResults}</div>
-            )}
             <QueuedMessages
               messageQueue={messageQueue}
               editingQueuedId={editingQueuedId}
@@ -872,11 +950,7 @@ export function MothershipChat({
                 <UserInput
                   key={draftScopeKey}
                   ref={userInputRef}
-                  defaultValue={searchQuery}
                   onSubmit={onSubmit}
-                  canSearch={canSearch}
-                  clearOnSubmit={clearOnSubmit}
-                  onCleared={onCleared}
                   isSending={isStreamActive}
                   onStopGeneration={onStopGeneration}
                   isInitialView={false}

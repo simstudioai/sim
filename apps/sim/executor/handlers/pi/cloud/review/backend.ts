@@ -300,7 +300,7 @@ export const runCloudReviewPi: PiBackendRun<PiCloudReviewRunParams> = async (par
             )
           }
 
-          const settingsManager = sdk.SettingsManager.inMemory()
+          const settingsManager = sdk.SettingsManager.inMemory({ cacheWarming: 'off' })
           const resourceLoader = createSealedPiResourceLoader(
             sdk,
             buildReviewSystemPrompt(Boolean(searchTool))

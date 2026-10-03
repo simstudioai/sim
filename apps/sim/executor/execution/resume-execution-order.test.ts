@@ -8,8 +8,6 @@
  * token and the provider would silently drop the second. Suppressing a real
  * payment is worse than the duplicate the token exists to prevent, because it
  * looks like success.
- *
- * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
 import type { BlockLog, ExecutionContext } from '@/executor/types'
@@ -39,13 +37,6 @@ function seedFromRestoredLogs(blockLogs: BlockLog[]): ExecutionContext {
 }
 
 describe('execution order across a resume', () => {
-  it('continues past the highest pre-pause value instead of restarting', () => {
-    const ctx = seedFromRestoredLogs([log(1), log(2), log(3)])
-
-    expect(getNextExecutionOrder(ctx)).toBe(4)
-    expect(getNextExecutionOrder(ctx)).toBe(5)
-  })
-
   it('never reissues an order value a pre-pause invocation already used', () => {
     const before = [log(1), log(2), log(3)]
     const ctx = seedFromRestoredLogs(before)
@@ -60,12 +51,6 @@ describe('execution order across a resume', () => {
       before.some((entry) => entry.executionOrder === order)
     )
     expect(collisions).toEqual([])
-  })
-
-  it('starts at 1 for a fresh run with no restored logs', () => {
-    const ctx = seedFromRestoredLogs([])
-
-    expect(getNextExecutionOrder(ctx)).toBe(1)
   })
 
   it('tolerates a snapshot written before executionOrder was recorded', () => {

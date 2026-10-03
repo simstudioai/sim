@@ -179,4 +179,18 @@ Create or update a Wealthbox task
 |     ↳ `taskId` | string | ID of the created/updated task |
 |     ↳ `itemType` | string | Type of item \(task\) |
 
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Wealthbox account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/wealthbox` |
+| Environment variables | `WEALTHBOX_CLIENT_ID`, `WEALTHBOX_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `login` | Access Wealthbox account |
+| `data` | Access Wealthbox data |
+
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useId } from 'react'
+import { Fragment, type Ref, useId } from 'react'
 import {
   Checkbox,
   Chip,
@@ -10,48 +10,87 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
+  Tooltip,
 } from '@sim/emcn'
 import { MoreHorizontal } from '@sim/emcn/icons'
-import { SettingsActionChip } from '@/components/settings/settings-header'
-import {
-  type ConnectorActionState,
-  type ConnectorActionsOptions,
-  useConnectorActions,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions'
+import { orderHeaderActions, type SettingsAction } from '@/components/settings/settings-header'
+import type { ConnectorActionState } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 
-export function ConnectorActions(props: ConnectorActionsOptions) {
-  const state = useConnectorActions(props)
-  if (!state.canEdit) return null
-  const [sync, ...menuActions] = state.actions
+interface ConnectorActionsProps {
+  state: ConnectorActionState
+  triggerRef?: Ref<HTMLButtonElement>
+  history?: {
+    expanded: boolean
+    contentId: string
+    onToggle: () => void
+  }
+}
+
+export function ConnectorActions({ state, triggerRef, history }: ConnectorActionsProps) {
+  if (!state.canEdit && !history) return null
+  const actions = orderHeaderActions([
+    ...state.actions,
+    ...(history
+      ? [
+          {
+            id: 'history',
+            text: history.expanded ? 'Hide history' : 'Sync history',
+            onSelect: history.onToggle,
+          },
+        ]
+      : []),
+  ])
   return (
-    <div className='flex flex-col gap-2'>
-      <div className='flex items-center gap-1'>
-        {sync && <SettingsActionChip action={sync} />}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Chip
-              aria-label='Source actions'
-              leftIcon={MoreHorizontal}
-              disabled={state.actionsDisabled}
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Chip ref={triggerRef} aria-label='Connection actions' leftIcon={MoreHorizontal} />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end'>
+        {actions.map(({ action }, index) => (
+          <Fragment key={action.id}>
+            {action.id === 'delete' && index > 0 && <DropdownMenuSeparator />}
+            <ConnectorActionMenuItem
+              action={action}
+              history={action.id === 'history' ? history : undefined}
             />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='end'>
-            {menuActions.map((action) => (
-              <DropdownMenuItem
-                key={action.id}
-                disabled={action.disabled}
-                onSelect={action.onSelect}
-              >
-                {action.text}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      <ConnectorActionFeedback state={state} />
-    </div>
+          </Fragment>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+interface ConnectorActionMenuItemProps {
+  action: SettingsAction
+  history?: ConnectorActionsProps['history']
+}
+
+function ConnectorActionMenuItem({ action, history }: ConnectorActionMenuItemProps) {
+  const item = (
+    <DropdownMenuItem
+      onSelect={action.onSelect}
+      disabled={action.disabled}
+      aria-label={
+        action.disabled && action.tooltip ? `${action.text} — ${action.tooltip}` : action.text
+      }
+      aria-expanded={history?.expanded}
+      aria-controls={history?.contentId}
+    >
+      {action.text}
+    </DropdownMenuItem>
+  )
+  return action.tooltip ? (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <span className='block'>{item}</span>
+      </Tooltip.Trigger>
+      <Tooltip.Content>{action.tooltip}</Tooltip.Content>
+    </Tooltip.Root>
+  ) : (
+    item
   )
 }
 
@@ -73,11 +112,11 @@ export function ConnectorActionFeedback({ state }: ConnectorActionFeedbackProps)
       <ChipConfirmModal
         open={removal.open}
         onOpenChange={removal.onOpenChange}
-        title='Remove source'
+        title='Remove connection'
         text={
-          removal.syncsPerMember
-            ? 'This disconnects the source, stops future syncs, and deletes its member documents.'
-            : 'This disconnects the source and stops future syncs. Synced documents remain unless you delete them below.'
+          removal.requiresDocumentDeletion
+            ? 'This removes the connection, stops future syncs, and deletes its synced documents from Sim.'
+            : 'This removes the connection and stops future syncs. Synced documents remain unless you delete them below.'
         }
         confirm={{
           label: 'Remove',
@@ -87,7 +126,7 @@ export function ConnectorActionFeedback({ state }: ConnectorActionFeedbackProps)
           onClick: removal.onConfirm,
         }}
       >
-        {!removal.syncsPerMember && (
+        {!removal.requiresDocumentDeletion && (
           <ChipModalField type='custom' title='Documents'>
             <div className='flex items-center gap-2'>
               <Checkbox

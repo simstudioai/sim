@@ -231,4 +231,23 @@ Resolve and close a Dynamics 365 Customer Service case.
 | `caseId` | string | GUID of the closed case |
 | `success` | boolean | Whether the case was closed successfully |
 
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Microsoft Dataverse account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/microsoft-dataverse` |
+| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `<environment-url>/.default` | Access your Dataverse environment through the permissions granted to the app registration |
+| `offline_access` | Access account when not using the application |
+
+Each connection is bound to one environment. `<environment-url>` is that environment's Web API origin, so the scope looks like `https://yourorg.api.crm.dynamics.com/.default`. In Microsoft Entra, add the **Dynamics CRM** API with the delegated `user_impersonation` permission to the app registration.
+
 

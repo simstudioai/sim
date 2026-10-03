@@ -1,13 +1,23 @@
 import { db } from '@sim/db'
 import { credential, credentialGroup, credentialGroupEnrollment, mcpServers } from '@sim/db/schema'
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
+import {
+  organizationAccountAccessPolicyCodec,
+  organizationAccountPolicyAllowsWorkspace,
+} from '@/lib/credential-groups/application/workspace-access-policy'
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
-import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
+import { loadScopedAccountsCredentialListContext } from '@/lib/credential-groups/credentials'
+import {
+  getManagedMcpConnector,
+  MANAGED_MCP_CONNECTOR_IDS,
+} from '@/lib/credential-groups/managed-mcp-connectors'
+import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { resolveMcpWorkspaceContext } from '@/lib/mcp/application/context'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import type { McpToolSchema } from '@/lib/mcp/types'
+import { requireResourcePolicy } from '@/lib/resource-policies/repository'
 
 const MAX_MANAGED_MCP_CONNECTIONS = 500
 const MAX_MANAGED_MCP_CATALOG_BYTES = 5 * 1024 * 1024
@@ -39,14 +49,39 @@ export const listManagedMcpConnectionsUseCase = defineAuthorizedWorkspaceUseCase
     ) {
       return { servers: [], tools: [] }
     }
+    const organizationId = context.workspaceOrganizationId
+    if (!organizationId) return { servers: [], tools: [] }
+    const group = await loadScopedAccountsCredentialListContext({
+      kind: 'organization',
+      organizationId,
+    })
+    if (!group) return { servers: [], tools: [] }
+    if (!(await isScopedCredentialGroupsAvailable({ kind: 'organization', organizationId }))) {
+      return { servers: [], tools: [] }
+    }
+    const policy = await requireResourcePolicy({
+      organizationId,
+      resourceType: 'credential_group',
+      resourceId: group.credentialGroupId,
+      codec: organizationAccountAccessPolicyCodec,
+    })
+    /** Catalogs omit unavailable credentials; execution still requires explicit workspace access. */
+    const allowedConnectorIds = MANAGED_MCP_CONNECTOR_IDS.filter((id) =>
+      organizationAccountPolicyAllowsWorkspace(policy.document, context.workspaceId, `mcp:${id}`)
+    )
+    if (!allowedConnectorIds.length) return { servers: [], tools: [] }
     const managedCatalogScope = () =>
       and(
-        eq(credential.workspaceId, context.workspaceId),
+        eq(credential.organizationId, organizationId),
+        inArray(mcpServers.managedConnectorId, allowedConnectorIds),
+        eq(credentialGroup.id, group.credentialGroupId),
+        eq(credential.mcpOauthConfigVersion, mcpServers.oauthConfigVersion),
         eq(credential.type, 'managed_mcp'),
         eq(credential.managedOauthStatus, 'active'),
         eq(credentialGroup.status, 'active'),
+        isNotNull(credentialGroupEnrollment.userId),
         inArray(credentialGroupEnrollment.status, ['in_progress', 'completed']),
-        eq(mcpServers.workspaceId, context.workspaceId),
+        eq(mcpServers.organizationId, organizationId),
         eq(mcpServers.authType, 'oauth'),
         eq(mcpServers.enabled, true),
         isNull(mcpServers.deletedAt),
@@ -109,9 +144,13 @@ export const listManagedMcpConnectionsUseCase = defineAuthorizedWorkspaceUseCase
             .where(
               and(
                 managedCatalogScope(),
-                inArray(
-                  credential.id,
-                  metadataRows.map((row) => row.id)
+                or(
+                  ...metadataRows.map((row) =>
+                    and(
+                      eq(credential.id, row.id),
+                      sql`COALESCE(octet_length(${credential.mcpTools}::text), 0) <= ${row.toolSnapshotBytes}`
+                    )
+                  )
                 )
               )
             )
@@ -134,6 +173,8 @@ export const listManagedMcpConnectionsUseCase = defineAuthorizedWorkspaceUseCase
     return {
       servers: rows.map((row) => ({
         id: row.id,
+        canonicalServerId: row.serverId,
+        canonicalServerName: row.serverName,
         workspaceId: context.workspaceId,
         name: `${row.serverName} — ${row.email}`,
         ...(row.serverDescription ? { description: row.serverDescription } : {}),
@@ -152,6 +193,7 @@ export const listManagedMcpConnectionsUseCase = defineAuthorizedWorkspaceUseCase
           description: tool.description,
           inputSchema: requireMcpToolSchema(tool.inputSchema),
           serverId: row.id,
+          canonicalServerId: row.serverId,
           serverName: `${row.serverName} — ${row.email}`,
           managedConnectorId: row.managedConnectorId,
         }))

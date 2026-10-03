@@ -1,26 +1,20 @@
-/**
- * @vitest-environment node
- */
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckAttributedUsageLimits, mockResolveBillingAttribution } = vi.hoisted(() => ({
-  mockCheckAttributedUsageLimits: vi.fn(),
-  mockResolveBillingAttribution: vi.fn(),
-}))
-
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  checkAttributedUsageLimits: mockCheckAttributedUsageLimits,
-  resolveBillingAttribution: mockResolveBillingAttribution,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
 import {
   checkWorkspaceUsageGate,
   getWorkspaceCreditAvailability,
 } from '@/lib/billing/core/workspace-usage-gate'
 
+const { mockCheckAttributedUsageLimits, mockResolveBillingAttribution } = billingAttributionMockFns
+
 describe('getWorkspaceCreditAvailability', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveBillingAttribution.mockImplementation(
       ({ actorUserId, workspaceId }: { actorUserId: string; workspaceId: string }) => ({
         actorUserId,
@@ -128,7 +122,6 @@ describe('getWorkspaceCreditAvailability', () => {
 
 describe('checkWorkspaceUsageGate', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveBillingAttribution.mockImplementation(
       ({ actorUserId, workspaceId }: { actorUserId: string; workspaceId: string }) => ({
         actorUserId,

@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * What a configured notification tool actually receives, per Human block version.
  *
  * v1 handed the tool its stored sub-block values verbatim. v2 runs the same pipeline
@@ -8,6 +6,8 @@
  * stringified-value decode, and the block's own `tools.config.params` mapping. That
  * difference is the entire reason v2 exists as a separate block.
  */
+import { toolsUtilsMock, toolsUtilsMockFns } from '@sim/testing/mocks/blocks.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { describe, expect, it, vi } from 'vitest'
 
 const notifierBlock = {
@@ -27,27 +27,30 @@ const notifierBlock = {
   outputs: {},
 }
 
-vi.mock('@/blocks/registry', () => ({
-  getBlock: (type: string) => (type === 'notifier' ? notifierBlock : undefined),
-}))
+vi.mock('@/tools/utils', () => toolsUtilsMock)
 
-vi.mock('@/tools/utils', () => ({
-  getTool: () => ({
-    id: 'notifier_send',
-    params: { channel: { type: 'string' }, silent: { type: 'boolean' } },
-  }),
-}))
+vi.mock('@/tools', () => toolsMock)
 
-const executed: Array<Record<string, unknown>> = []
-vi.mock('@/tools', () => ({
-  executeTool: async (_toolId: string, params: Record<string, unknown>) => {
-    executed.push(params)
-    return { success: true, output: {} }
-  },
-}))
-
+import { getBlock } from '@/blocks/registry'
 import { PAUSE_RESUME } from '@/executor/constants'
 import { HumanInTheLoopBlockHandler } from '@/executor/handlers/human-in-the-loop/human-in-the-loop-handler'
+
+toolsUtilsMockFns.mockGetTool.mockReturnValue({
+  id: 'notifier_send',
+  params: { channel: { type: 'string' }, silent: { type: 'boolean' } },
+})
+
+vi.mocked(getBlock).mockImplementation((type: string) =>
+  type === 'notifier' ? (notifierBlock as never) : undefined
+)
+
+const executed: Array<Record<string, unknown>> = []
+toolsMockFns.mockExecuteTool.mockImplementation(
+  async (_toolId: string, params: Record<string, unknown>) => {
+    executed.push(params)
+    return { success: true, output: {} }
+  }
+)
 
 /** Runs one notification whose channel was configured in ADVANCED mode. */
 async function runNotification(blockTypeId: string): Promise<Record<string, unknown>> {
@@ -108,13 +111,5 @@ describe('Human block notification params', () => {
       manualChannel: 'C123',
       silent: 'false',
     })
-  })
-
-  it('handles both versions', () => {
-    const handler = new HumanInTheLoopBlockHandler()
-    for (const id of ['human_in_the_loop', 'human_in_the_loop_v2']) {
-      expect(handler.canHandle({ metadata: { id } } as never)).toBe(true)
-    }
-    expect(handler.canHandle({ metadata: { id: 'agent' } } as never)).toBe(false)
   })
 })

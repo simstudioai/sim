@@ -1,4 +1,4 @@
-import { filterUndefined, isRecordLike, toRecord } from '@sim/utils/object'
+import { filterUndefined, isRecordLike, toArray, toRecord } from '@sim/utils/object'
 import type {
   SmartleadBaseParams,
   SmartleadCampaign,
@@ -548,10 +548,6 @@ export function mapCreatedCampaign(record: Record<string, unknown>): {
     name: toStringOrNull(record.name),
     created_at: toStringOrNull(record.created_at),
   }
-}
-
-function toArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : []
 }
 
 function toStringArray(value: unknown): string[] {

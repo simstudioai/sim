@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { PersonalApiKeyPrincipal } from '@sim/auth/principal'
 import {
   MockV2ApiKeyUnauthenticatedError,
@@ -148,7 +145,6 @@ function oversizedRequest(maxBodyBytes: number): NextRequest {
 
 describe('defineV2JsonRoute', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue({
       allowed: true,
@@ -504,7 +500,6 @@ describe('defineV2JsonRoute', () => {
  */
 describe('defineV2JsonRoute unreadable body classification', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue({
       allowed: true,
@@ -679,7 +674,6 @@ describe('defineV2JsonRoute HEAD on a route that is not head-safe', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue({
       allowed: true,
@@ -800,7 +794,6 @@ const presenterContract = defineRouteContract({
  */
 describe('defineV2JsonRoute presentation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue({
       allowed: true,
@@ -884,7 +877,6 @@ describe('defineV2JsonRoute OAuth scope admission', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.preauthRate.mockResolvedValue({
       allowed: true,
       remaining: 599,

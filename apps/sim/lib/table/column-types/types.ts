@@ -20,7 +20,6 @@
  */
 
 import type React from 'react'
-import type { NormalizeDateCellOptions } from '@/lib/table/dates'
 import type { ColumnDefinition, JsonValue } from '@/lib/table/types'
 
 /**
@@ -50,6 +49,8 @@ export type ColumnCellEditor =
   | 'text'
   /** Calendar + time picker. */
   | 'date'
+  /** Calendar + time picker retaining the cell's numeric offset, independent of viewer settings. */
+  | 'offset-date'
   /** Option dropdown. */
   | 'select'
   /** Not editable inline — the grid toggles it in place instead. */
@@ -69,6 +70,12 @@ export type TypeSpecificColumnKey = (typeof TYPE_SPECIFIC_COLUMN_KEYS)[number]
 /** Result of coercing a raw value toward a column's declared type. */
 export type CoerceResult = { ok: true; value: JsonValue } | { ok: false }
 
+/** Additional format and precision rules for native PostgreSQL timestamp validation. */
+export interface TimestampValidation {
+  readonly pattern: string
+  readonly maxFractionDigits: number
+}
+
 export interface ColumnTypeDefinition {
   readonly id: ColumnType
 
@@ -83,6 +90,8 @@ export interface ColumnTypeDefinition {
    * comparison is correct. Single source for both filter ranges and sort order.
    */
   readonly jsonbCast: 'numeric' | 'timestamptz' | null
+  /** Guards timestamp comparisons against malformed stored cells without guessing a timezone. */
+  readonly timestampValidation?: TimestampValidation
 
   /**
    * Wire operators a column of this type accepts, or `null` for "all
@@ -161,17 +170,16 @@ export interface ColumnTypeDefinition {
    * implementation — the server calls it before persisting and the grid calls
    * it to fill the optimistic cache, so the two can no longer disagree.
    */
-  coerce(
-    value: JsonValue,
-    column: ColumnDefinition,
-    context?: NormalizeDateCellOptions
-  ): CoerceResult
+  coerce(value: JsonValue, column: ColumnDefinition): CoerceResult
 
-  /** Source-owned normalization applied before checking or rewriting a type conversion. */
-  valueForConversion?(value: JsonValue, target: ColumnDefinition): JsonValue
+  /** Equivalent-value projection for in-memory equality; also enables jsonbCast for SQL equality. */
+  valueForEquality?(value: JsonValue): JsonValue
 
   /** Validates a stored cell's shape. Returns an error message, or null when valid. */
   validateCell(value: JsonValue, column: ColumnDefinition): string | null
+
+  /** Optional strict validation for non-null equality, membership, and range operands. */
+  validateFilterValue?(value: JsonValue, column: ColumnDefinition): string | null
 
   /**
    * Validates this type's own column metadata (a `select`'s options, a
@@ -214,11 +222,7 @@ export interface ColumnTypeDefinition {
   formatForDisplay(value: unknown, column: ColumnDefinition): string
 
   /** Stored value → the text an editor input starts with. */
-  formatForInput(
-    value: unknown,
-    column: ColumnDefinition,
-    context?: NormalizeDateCellOptions
-  ): string
+  formatForInput(value: unknown, column: ColumnDefinition): string
 
   /**
    * Metadata stamped onto a newly created column of this type, so the schema

@@ -1,6 +1,6 @@
 # OCR capacity and indexing recovery
 
-Regular KBs and Sim Search use the same connector content pass, document processor, embeddings, and processing continuations. Authorization and source visibility remain specific to each access mode.
+Regular knowledge bases use the connector content pass, document processor, embeddings, and processing continuations described here. Enterprise Search calls provider APIs and does not run this OCR/indexing recovery path. Authorization and source visibility remain specific to each access mode.
 
 ## Operating budgets
 
@@ -34,7 +34,7 @@ Confluence pages with valid, verified empty bodies become successful skips. Sear
 
 ## Validation and rollout
 
-Run `bun scripts/test-knowledge-acls.ts` for disposable PostgreSQL/Redis tests covering concurrent capacity admission, delayed recovery, indexing, and authorized search. Set `KNOWLEDGE_PROVIDER_LIVE_ENV_FILE` to a selected local environment file to additionally test synthetic content against real OpenAI/Mistral APIs. The harness never uses the production database.
+Run `bun run test:integration` for disposable PostgreSQL/Redis tests covering concurrent capacity admission, delayed recovery, indexing, and authorized search. Set `KNOWLEDGE_PROVIDER_LIVE_ENV_FILE` to a selected local environment file to additionally test synthetic content against real OpenAI/Mistral APIs. The harness never uses the production database.
 
 Without Trigger, knowledge outbox handlers receive a bounded 550-second slice. Bundled Docker and Helm schedules use the longer outbox request budget. Custom schedulers or proxies calling the outbox endpoint must permit its 800-second invocation budget.
 
@@ -49,3 +49,13 @@ Each embedding checkpoint holds at most 16 MiB of exact Float64 vectors, expires
 The shared ingestion path rejects password-protected PDFs, files labeled as PDF without a PDF signature, and animated GIFs before provider admission. GIF validation scans bounded container blocks without decoding frames. A single-image OCR response cannot establish completeness for an animation, so users must export its frames as a PDF or static images. Static GIFs remain supported. Other parser failures can still fall back to OCR when the provider may recover the file.
 
 Provider HTTP 400, 415, and 422 responses are recorded as `ocr_request_rejected`, distinct from invalid source bytes. Automatic Trigger and outbox retries stop, while an explicit retry remains available after repairing the file or correcting the OCR model configuration. Provider error bodies are bounded and discarded; logs and stored failures contain safe HTTP status information, never echoed source content. HTTP 429 and transient service failures retain their existing recovery policy.
+
+## Durable imports and abandoned processing
+
+The shared workspace-file import operation copies the authorized, rendered artifact into immutable KB-owned storage before registering the document and its processing outbox event. It rechecks source identity, authorization and secret provenance, and uses the same upload reservation/cleanup guard as connector ingestion. Queue delay and deletion of the original workspace file do not invalidate the admitted copy. This does not change the contract for arbitrary external URLs submitted through legacy document registration.
+
+The existing outbox cron independently recovers up to 200 abandoned connector documents per invocation, after ordinary outbox delivery. Recovery uses retained source bytes without calling the connector provider. The existing four-hour queue grace, processing lifetime, seven-day source window and five-admission limit still apply. Permanent input/provider rejection remains a user-retryable dead letter. Paused, disabled, deleted, archived and excluded sources are not admitted.
+
+Recovery locks KB, connector and document rows, then installs the replacement generation, spends its admission and enqueues delivery in one transaction. Busy owners are skipped; failed billing/admission waits fifteen minutes without consuming an indexing attempt. A twenty-second deadline bounds the caller and fences late work. The additive recovery index and nullable admission-backoff timestamp must migrate before these workers roll out. Recovery never refreshes source ACL evidence: successful indexing cannot make stale permissions searchable.
+
+GitHub uses one hydration lane per sync, immutable tree/blob identities, and a persisted current-page cursor. Both content and member syncs preserve batch progress before yielding. Provider deferral commits a partial log and next retry together, retains its reason, and does not advance the source watermark or consume the connector failure breaker. Trigger reports a deferred result when no actual source or dispatch failure occurred. Explicit provider waits remain a lower bound, including waits longer than a day. Structured source failures retain safe HTTP/SQLSTATE diagnostics; mutable permission failures remain retryable even when source content is unchanged.

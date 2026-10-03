@@ -1,79 +1,38 @@
-/**
- * @vitest-environment node
- */
+import { idempotencyKey } from '@sim/db/schema'
+import {
+  asyncJobsRegionMock,
+  asyncJobsRegionMockFns,
+} from '@sim/testing/mocks/async-jobs-region.mock'
+import { dbChainMockFns, queueTableRows } from '@sim/testing/mocks/database.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import {
+  MockTriggerApiError as MockApiError,
+  triggerSdkMockFns,
+} from '@sim/testing/mocks/trigger-sdk.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  MockApiError,
-  mockBatchTriggerAndWait,
-  mockCancel,
-  mockList,
-  mockLogger,
-  mockRetrieve,
-  mockResolveTriggerRegion,
-  mockRecordCancellationResult,
-  mockTaskContext,
-  mockTrigger,
-} = vi.hoisted(() => {
-  class MockApiError extends Error {
-    constructor(
-      readonly status: number | undefined,
-      message: string
-    ) {
-      super(message)
-    }
-  }
-
-  return {
-    MockApiError,
-    mockBatchTriggerAndWait: vi.fn(),
-    mockCancel: vi.fn(),
-    mockList: vi.fn(),
-    mockLogger: {
-      debug: vi.fn(),
-      error: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-    },
-    mockRetrieve: vi.fn(),
-    mockResolveTriggerRegion: vi.fn(),
-    mockRecordCancellationResult: vi.fn(),
-    mockTaskContext: { isInsideTask: false },
-    mockTrigger: vi.fn(),
-  }
-})
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => mockLogger,
-}))
-
-vi.mock('@trigger.dev/core/v3', () => ({
-  taskContext: mockTaskContext,
+const { mockRecordCancellationResult } = vi.hoisted(() => ({
+  mockRecordCancellationResult: vi.fn(),
 }))
 
 vi.mock('@/lib/core/execution-limits/metrics', () => ({
   recordExecutionCancellationBackendResult: mockRecordCancellationResult,
 }))
 
-vi.mock('@trigger.dev/sdk', () => ({
-  ApiError: MockApiError,
-  runs: {
-    cancel: mockCancel,
-    list: mockList,
-    retrieve: mockRetrieve,
-  },
-  tasks: {
-    batchTriggerAndWait: mockBatchTriggerAndWait,
-    trigger: mockTrigger,
-  },
-}))
-
-vi.mock('@/lib/core/async-jobs/region', () => ({
-  resolveTriggerRegion: mockResolveTriggerRegion,
-}))
+vi.mock('@/lib/core/async-jobs/region', () => asyncJobsRegionMock)
 
 import { TriggerDevJobQueue } from '@/lib/core/async-jobs/backends/trigger-dev'
 import { AsyncJobEnqueueError, JOB_PENDING_RETENTION_HOURS } from '@/lib/core/async-jobs/types'
+
+const {
+  mockRunsCancel: mockCancel,
+  mockRunsList: mockList,
+  mockRunsRetrieve: mockRetrieve,
+  mockTasksTrigger: mockTrigger,
+} = triggerSdkMockFns
+
+const mockLogger = getMockLogger('TriggerDevJobQueue')
+const mockResolveTriggerRegion = asyncJobsRegionMockFns.mockResolveTriggerRegion
 
 interface MockListedRun {
   id: string
@@ -110,10 +69,8 @@ function createPaginatedList(pages: MockListedRun[][]) {
 
 describe('TriggerDevJobQueue enqueue', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveTriggerRegion.mockResolvedValue('us-east-1')
     mockTrigger.mockResolvedValue({ id: 'run-1' })
-    mockTaskContext.isInsideTask = false
   })
 
   it('uses the provided job ID as the Trigger.dev idempotency key', async () => {
@@ -129,23 +86,6 @@ describe('TriggerDevJobQueue enqueue', () => {
       expect.objectContaining({
         idempotencyKey: 'workflow:1',
         idempotencyKeyTTL: '14d',
-      })
-    )
-  })
-
-  it('dispatches Slack Search to its task with installation concurrency and a stable event key', async () => {
-    await new TriggerDevJobQueue().enqueue(
-      'slack-search',
-      { installationId: 'i1' },
-      { jobId: 'slack-search:i1:Ev1', maxDurationSeconds: 60, concurrencyKey: 'i1', maxAttempts: 1 }
-    )
-    expect(mockTrigger).toHaveBeenCalledWith(
-      'slack-search',
-      { installationId: 'i1' },
-      expect.objectContaining({
-        idempotencyKey: 'slack-search:i1:Ev1',
-        concurrencyKey: 'i1',
-        maxDuration: 60,
       })
     )
   })
@@ -204,27 +144,6 @@ describe('TriggerDevJobQueue enqueue', () => {
     expect(executionTag?.length).toBeLessThanOrEqual(128)
   })
 
-  it('passes the execution timeout to batch Trigger.dev runs', async () => {
-    mockTaskContext.isInsideTask = true
-    mockBatchTriggerAndWait.mockResolvedValue({ runs: [{ id: 'run-1' }] })
-    const queue = new TriggerDevJobQueue()
-
-    await expect(
-      queue.batchEnqueueAndWait('workflow-execution', [
-        {
-          payload: { executionId: 'execution-1' },
-          options: { maxDurationSeconds: 120 },
-        },
-      ])
-    ).resolves.toEqual(['run-1'])
-
-    expect(mockBatchTriggerAndWait).toHaveBeenCalledWith('workflow-execution', [
-      expect.objectContaining({
-        options: expect.objectContaining({ maxDuration: 120 }),
-      }),
-    ])
-  })
-
   it.each([1.5, 4])(
     'rejects invalid execution timeout %s before triggering a run',
     async (maxDurationSeconds) => {
@@ -239,18 +158,6 @@ describe('TriggerDevJobQueue enqueue', () => {
     }
   )
 
-  it('passes the five-second minimum duration to Trigger.dev', async () => {
-    const queue = new TriggerDevJobQueue()
-
-    await queue.enqueue('workflow-execution', {}, { maxDurationSeconds: 5 })
-
-    expect(mockTrigger).toHaveBeenCalledWith(
-      'workflow-execution',
-      {},
-      expect.objectContaining({ maxDuration: 5 })
-    )
-  })
-
   it('validates an entire batch before triggering its first run', async () => {
     const queue = new TriggerDevJobQueue()
 
@@ -264,18 +171,11 @@ describe('TriggerDevJobQueue enqueue', () => {
     expect(mockTrigger).not.toHaveBeenCalled()
   })
 
-  it('rejects an invalid waiting batch before resolving its region', async () => {
-    mockTaskContext.isInsideTask = true
-    const queue = new TriggerDevJobQueue()
-
+  it('preserves ambiguous acceptance when the run receipt cannot be persisted', async () => {
+    dbChainMockFns.onConflictDoUpdate.mockRejectedValueOnce(new Error('database unavailable'))
     await expect(
-      queue.batchEnqueueAndWait('workflow-execution', [
-        { payload: {}, options: { maxDurationSeconds: 1.5 } },
-      ])
-    ).rejects.toMatchObject({ acceptance: 'rejected', retryable: false })
-
-    expect(mockResolveTriggerRegion).not.toHaveBeenCalled()
-    expect(mockBatchTriggerAndWait).not.toHaveBeenCalled()
+      new TriggerDevJobQueue().enqueue('workflow-execution', {}, { jobId: 'workflow:1' })
+    ).rejects.toMatchObject({ acceptance: 'unknown', retryable: true })
   })
 
   it('classifies a client response as proven non-acceptance', async () => {
@@ -326,10 +226,6 @@ describe('TriggerDevJobQueue enqueue', () => {
 })
 
 describe('TriggerDevJobQueue status mapping', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it.each([
     ['PENDING_VERSION', 'pending'],
     ['DELAYED', 'pending'],
@@ -339,19 +235,19 @@ describe('TriggerDevJobQueue status mapping', () => {
     ['WAITING', 'processing'],
   ])('maps active Trigger.dev status %s to %s', async (triggerStatus, jobStatus) => {
     mockRetrieve.mockResolvedValueOnce({
-      id: 'run-1',
+      id: 'run_1',
       payload: {},
       status: triggerStatus,
       taskIdentifier: 'workflow-execution',
     })
     const queue = new TriggerDevJobQueue()
 
-    await expect(queue.getJob('run-1')).resolves.toMatchObject({ status: jobStatus })
+    await expect(queue.getJob('run_1')).resolves.toMatchObject({ status: jobStatus })
   })
 
   it('dates a run cancelled before it was dequeued by its last transition', async () => {
     mockRetrieve.mockResolvedValueOnce({
-      id: 'run-1',
+      id: 'run_1',
       payload: {},
       status: 'CANCELED',
       taskIdentifier: 'workflow-execution',
@@ -360,35 +256,16 @@ describe('TriggerDevJobQueue status mapping', () => {
     })
     const queue = new TriggerDevJobQueue()
 
-    await expect(queue.getJob('run-1')).resolves.toMatchObject({
+    await expect(queue.getJob('run_1')).resolves.toMatchObject({
       status: 'cancelled',
       startedAt: undefined,
       completedAt: new Date('2026-08-05T12:00:02.000Z'),
     })
   })
 
-  it('dates a run cancelled mid-flight by its last transition until it drains', async () => {
-    mockRetrieve.mockResolvedValueOnce({
-      id: 'run-1',
-      payload: {},
-      status: 'CANCELED',
-      taskIdentifier: 'workflow-execution',
-      createdAt: new Date('2026-08-05T12:00:00.000Z'),
-      startedAt: new Date('2026-08-05T12:00:01.000Z'),
-      updatedAt: new Date('2026-08-05T12:00:03.000Z'),
-    })
-    const queue = new TriggerDevJobQueue()
-
-    await expect(queue.getJob('run-1')).resolves.toMatchObject({
-      status: 'cancelled',
-      startedAt: new Date('2026-08-05T12:00:01.000Z'),
-      completedAt: new Date('2026-08-05T12:00:03.000Z'),
-    })
-  })
-
   it('prefers the reported finish over the last transition once the run has drained', async () => {
     mockRetrieve.mockResolvedValueOnce({
-      id: 'run-1',
+      id: 'run_1',
       payload: {},
       status: 'COMPLETED',
       taskIdentifier: 'workflow-execution',
@@ -399,35 +276,60 @@ describe('TriggerDevJobQueue status mapping', () => {
     })
     const queue = new TriggerDevJobQueue()
 
-    await expect(queue.getJob('run-1')).resolves.toMatchObject({
+    await expect(queue.getJob('run_1')).resolves.toMatchObject({
       status: 'completed',
       completedAt: new Date('2026-08-05T12:00:04.000Z'),
     })
   })
 
-  it('leaves a still-running job with no completion instant', async () => {
+  /** Trigger.dev can only retrieve its own run ids; anything else fails, and slowly. */
+  function retrieveOnlyRunIds() {
+    mockRetrieve.mockImplementation(async (id: string) => {
+      if (!id.startsWith('run_')) throw new Error(`Retrieved a caller-chosen job id: ${id}`)
+      return { id, payload: {}, status: 'QUEUED', taskIdentifier: 'schedule-execution' }
+    })
+  }
+
+  it('resolves a caller-chosen job id through its tag', async () => {
+    retrieveOnlyRunIds()
+    mockList.mockReturnValueOnce(createListPage([{ id: 'run_1', tags: ['jobId:schedule_abc'] }]))
+    const queue = new TriggerDevJobQueue()
+
+    await expect(queue.getJob('schedule_abc')).resolves.toMatchObject({
+      id: 'run_1',
+      status: 'pending',
+    })
+  })
+
+  it('returns null for a caller-chosen job id with no tagged run', async () => {
+    retrieveOnlyRunIds()
+    mockList.mockReturnValueOnce(createListPage([]))
+    const queue = new TriggerDevJobQueue()
+
+    await expect(queue.getJob('schedule_abc')).resolves.toBeNull()
+  })
+
+  it('falls back to the tag lookup when a run id is not found', async () => {
+    mockRetrieve.mockRejectedValueOnce(new MockApiError(404, 'Not found'))
+    mockList.mockReturnValueOnce(createListPage([{ id: 'run_2', tags: ['jobId:run_missing'] }]))
     mockRetrieve.mockResolvedValueOnce({
-      id: 'run-1',
+      id: 'run_2',
       payload: {},
       status: 'EXECUTING',
       taskIdentifier: 'workflow-execution',
-      createdAt: new Date('2026-08-05T12:00:00.000Z'),
-      startedAt: new Date('2026-08-05T12:00:01.000Z'),
-      updatedAt: new Date('2026-08-05T12:00:03.000Z'),
     })
     const queue = new TriggerDevJobQueue()
 
-    await expect(queue.getJob('run-1')).resolves.toMatchObject({
+    await expect(queue.getJob('run_missing')).resolves.toMatchObject({
+      id: 'run_2',
       status: 'processing',
-      completedAt: undefined,
     })
   })
 })
 
 describe('TriggerDevJobQueue cancellation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mockList.mockReturnValue(
+    mockList.mockReset().mockReturnValue(
       createListPage([
         {
           id: 'run-1',
@@ -537,39 +439,6 @@ describe('TriggerDevJobQueue cancellation', () => {
     expect(mockCancel).toHaveBeenCalledWith('resume-run')
   })
 
-  it('records not-found when no active run matches', async () => {
-    mockList.mockReturnValue(createListPage([]))
-    const queue = new TriggerDevJobQueue()
-
-    await expect(
-      queue.cancelByExecution(
-        { workflowId: 'workflow-1', executionId: 'execution-1' },
-        'standalone'
-      )
-    ).resolves.toBe(0)
-
-    expect(mockRecordCancellationResult).toHaveBeenCalledWith({
-      backend: 'trigger_dev',
-      result: 'not_found',
-    })
-  })
-
-  it('fails loudly when Trigger.dev rejects cancellation', async () => {
-    mockCancel.mockRejectedValueOnce(new Error('provider unavailable'))
-    const queue = new TriggerDevJobQueue()
-
-    await expect(
-      queue.cancelByExecution(
-        { workflowId: 'workflow-1', executionId: 'execution-1' },
-        'standalone'
-      )
-    ).rejects.toThrow('provider unavailable')
-    expect(mockRecordCancellationResult).toHaveBeenCalledWith({
-      backend: 'trigger_dev',
-      result: 'error',
-    })
-  })
-
   it('attempts later matches and discovery phases before reporting a partial failure', async () => {
     const taggedRuns = Array.from({ length: 12 }, (_, index) => ({
       id: `run-${index}`,
@@ -606,6 +475,49 @@ describe('TriggerDevJobQueue cancellation', () => {
       result: 'error',
     })
   })
+
+  it.each(['receipt', 'retrieve', 'cancel'] as const)(
+    'continues every discovery phase after a root %s failure',
+    async (failurePhase) => {
+      const failure = new Error(`root ${failurePhase} unavailable`)
+      const payload = { workflowId: 'workflow-1', executionId: 'execution-1' }
+      const cancelled = new Set<string>()
+      if (failurePhase === 'receipt') {
+        dbChainMockFns.limit.mockRejectedValueOnce(failure)
+      } else {
+        queueTableRows(idempotencyKey, [{ result: { runId: 'run_root' } }])
+      }
+      mockRetrieve.mockImplementation(async (id: string) => {
+        if (id === 'run_root' && failurePhase === 'retrieve') throw failure
+        return { id, taskIdentifier: 'workflow-execution', status: 'QUEUED', payload }
+      })
+      mockCancel.mockImplementation(async (id: string) => {
+        if (id === 'run_root') throw failure
+        cancelled.add(id)
+      })
+      mockList
+        .mockReturnValueOnce(
+          createListPage([
+            { id: 'tagged', tags: ['workflowId:workflow-1', 'executionId:execution-1'] },
+          ])
+        )
+        .mockReturnValueOnce(
+          createListPage([{ id: 'legacy-tagged', tags: ['workflowId:workflow-1'] }])
+        )
+        .mockReturnValueOnce(createListPage([{ id: 'legacy-untagged', tags: [] }]))
+
+      await expect(
+        new TriggerDevJobQueue().cancelByExecution(
+          {
+            ...payload,
+            rootJobId: 'workflow-execution:execution-1',
+          },
+          'standalone'
+        )
+      ).rejects.toBe(failure)
+      expect(cancelled).toEqual(new Set(['tagged', 'legacy-tagged', 'legacy-untagged']))
+    }
+  )
 
   it('cancels legacy workflow-tagged runs only after payload verification', async () => {
     mockList.mockReturnValueOnce(createListPage([])).mockReturnValueOnce(

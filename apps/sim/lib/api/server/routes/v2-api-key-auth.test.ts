@@ -1,26 +1,26 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  updateLastUsed: vi.fn(),
-  resolveWorkspaceBillingPayer: vi.fn(),
-  getHighestPrioritySubscription: vi.fn(),
-  envFlags: { isAuthDisabled: false },
-}))
+const { updateLastUsed } = vi.hoisted(() => ({ updateLastUsed: vi.fn() }))
 
-vi.mock('@/lib/core/config/env-flags', () => mocks.envFlags)
 vi.mock('@/lib/api-key/crypto', () => ({ hashApiKey: (value: string) => `hash:${value}` }))
 vi.mock('@sim/security/hash', () => ({ sha256Hex: (value: string) => `oauth-hash:${value}` }))
-vi.mock('@/lib/api-key/service', () => ({ updateApiKeyLastUsed: mocks.updateLastUsed }))
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveWorkspaceBillingPayer: mocks.resolveWorkspaceBillingPayer,
-}))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getHighestPrioritySubscription: mocks.getHighestPrioritySubscription,
-}))
+vi.mock('@/lib/api-key/service', () => ({ updateApiKeyLastUsed: updateLastUsed }))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 import {
   authenticateV2ApiKey,
@@ -31,10 +31,17 @@ import {
   readV2CredentialHeaders,
 } from '@/lib/api/server/routes/v2-credential-headers'
 
+const mocks = {
+  updateLastUsed,
+  resolveWorkspaceBillingPayer: billingAttributionMockFns.mockResolveWorkspaceBillingPayer,
+  getHighestPrioritySubscription: billingSubscriptionMockFns.mockGetHighestPrioritySubscription,
+}
+
+afterAll(resetEnvFlagsMock)
+
 describe('v2 API key authentication', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.envFlags.isAuthDisabled = false
+    setEnvFlags({ isAuthDisabled: false })
     resetDbChainMock()
     mocks.updateLastUsed.mockResolvedValue(undefined)
     mocks.getHighestPrioritySubscription.mockResolvedValue(null)
@@ -55,7 +62,7 @@ describe('v2 API key authentication', () => {
     const result = await authenticateV2ApiKey({ apiKey: 'secret', bearer: null })
 
     expect(result).toEqual({
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      principal: createPersonalApiKeyPrincipal(),
       rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
       rateLimitSubscription: null,
       keyType: 'personal',
@@ -111,7 +118,7 @@ describe('v2 API key authentication', () => {
     const result = await authenticateV2ApiKey({ apiKey: 'secret', bearer: null })
 
     expect(result).toEqual({
-      principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
+      principal: createWorkspaceApiKeyPrincipal(),
       rateLimitSubjectIds: ['api-key:key-1', 'workspace:workspace-1'],
       rateLimitSubscription: { plan: 'team', referenceId: 'organization-1' },
       keyType: 'workspace',
@@ -138,8 +145,18 @@ describe('v2 API key authentication', () => {
     })
 
     await expect(authenticateV2ApiKey({ apiKey: 'secret', bearer: null })).resolves.toMatchObject({
-      principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
+      principal: createWorkspaceApiKeyPrincipal(),
     })
+  })
+
+  it('does not accept an opaque sandbox callback credential as a personal API key', async () => {
+    await expect(
+      authenticateV2ApiKey({
+        apiKey: 'mothership-sandbox:11111111-1111-4111-8111-111111111111',
+        bearer: null,
+      })
+    ).rejects.toBeInstanceOf(V2ApiKeyUnauthenticatedError)
+    expect(mocks.updateLastUsed).not.toHaveBeenCalled()
   })
 
   it('treats missing, banned, and expired credentials as unauthenticated', async () => {
@@ -186,8 +203,7 @@ describe('v2 API key authentication', () => {
 
 describe('v2 bearer token authentication', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.envFlags.isAuthDisabled = false
+    setEnvFlags({ isAuthDisabled: false })
     resetDbChainMock()
     mocks.getHighestPrioritySubscription.mockResolvedValue({
       plan: 'pro',
@@ -323,7 +339,7 @@ describe('v2 bearer token authentication', () => {
   })
 
   it('preserves auth-disabled deployment behavior without verifying an OAuth token', async () => {
-    mocks.envFlags.isAuthDisabled = true
+    setEnvFlags({ isAuthDisabled: true })
 
     await expect(
       authenticateV2ApiKey({ apiKey: null, bearer: 'sim_oat_unused' })

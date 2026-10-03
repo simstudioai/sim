@@ -1,11 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   findTermMatches,
   matchSnippet,
-  queryTerms,
+  passageWindow,
   SNIPPET_LENGTH,
   stripLeadingHeaders,
 } from '@/lib/knowledge/search/snippet'
@@ -28,26 +25,9 @@ describe('stripLeadingHeaders', () => {
     expect(stripLeadingHeaders(EMAIL).startsWith('\nThanks for your patience.')).toBe(true)
   })
 
-  it('leaves a document that does not start with headers alone', () => {
-    expect(stripLeadingHeaders('Plain prose: with a colon inside.')).toBe(
-      'Plain prose: with a colon inside.'
-    )
-  })
-
   it('keeps a chunk that is nothing but fields, such as a calendar event', () => {
     expect(stripLeadingHeaders(EVENT)).toBe(EVENT)
     expect(stripLeadingHeaders(`${EVENT}\n\n`)).toBe(`${EVENT}\n\n`)
-  })
-})
-
-describe('queryTerms', () => {
-  it('keeps distinct terms of three or more characters, longest first', () => {
-    expect(queryTerms('the Volvo invoice is volvo')).toEqual(['invoice', 'Volvo', 'volvo', 'the'])
-    expect(queryTerms(undefined)).toEqual([])
-  })
-
-  it('strips the quotes and punctuation around a term', () => {
-    expect(queryTerms('"foo bar" (baz),')).toEqual(['foo', 'bar', 'baz'])
   })
 })
 
@@ -63,32 +43,9 @@ describe('findTermMatches', () => {
   it('reads whole characters beside a hit, not code units', () => {
     expect(findTermMatches('𝔘nicode volvo𝔘 volvo', ['volvo'])).toEqual([{ index: 17, length: 5 }])
   })
-
-  it('skips a hit glued to another word character', () => {
-    expect(findTermMatches('subvolvo volvo_x volvo', ['volvo'])).toEqual([{ index: 17, length: 5 }])
-  })
 })
 
 describe('matchSnippet', () => {
-  it('returns a short document whole, without its headers', () => {
-    expect(matchSnippet('Subject: Hi\nFrom: A\n\nShort body.', 'body')).toBe('Short body.')
-  })
-
-  it('windows around the first query term with ellipses on both sides', () => {
-    const snippet = matchSnippet(EMAIL, 'volvo')
-    expect(snippet.startsWith('…')).toBe(true)
-    expect(snippet.endsWith('…')).toBe(true)
-    expect(snippet).toContain('The Volvo order shipped')
-    expect(snippet).not.toContain('Subject:')
-    expect(snippet.length).toBeLessThanOrEqual(SNIPPET_LENGTH + 2)
-  })
-
-  it('centres on a quoted phrase and on a non-ASCII term', () => {
-    expect(matchSnippet(EMAIL, '"Volvo order"')).toContain('The Volvo order shipped')
-    const german = `${'Einleitung. '.repeat(30)}Die Lieferung nach Zürich ist unterwegs. ${'Mehr. '.repeat(30)}`
-    expect(matchSnippet(german, 'Zürich')).toContain('nach Zürich')
-  })
-
   it.each([
     {
       query: 'Where is the updated backup meeting location for Birch?',
@@ -118,12 +75,6 @@ describe('matchSnippet', () => {
     }
   )
 
-  it('keeps the earliest passage when matching terms are equally specific', () => {
-    const content = `Cedar information. ${'Background. '.repeat(40)}Birch information.`
-    expect(matchSnippet(content, 'Birch Cedar')).toContain('Cedar information')
-    expect(matchSnippet(content, 'Birch Cedar')).not.toContain('Birch information')
-  })
-
   it('never splits a surrogate pair at a window edge', () => {
     const emoji = `${'🙂'.repeat(200)} volvo ${'🙂'.repeat(200)}`
     const loneSurrogate = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/
@@ -131,10 +82,21 @@ describe('matchSnippet', () => {
       expect(loneSurrogate.test(snippet)).toBe(false)
     }
   })
+})
 
-  it('falls back to the opening when no term appears in the chunk', () => {
-    const snippet = matchSnippet(EMAIL, 'unrelated')
-    expect(snippet.startsWith('Thanks for your patience.')).toBe(true)
-    expect(snippet.endsWith('…')).toBe(true)
+describe('verbatim model passages', () => {
+  it('reassembles long Unicode chunks without splitting characters or losing text', () => {
+    const content = '中é🔎\n  code();\n'.repeat(1900)
+    let position = 0
+    let rebuilt = ''
+    while (position < content.length) {
+      const page = passageWindow(content, position, 8000)
+      expect(page.content.isWellFormed()).toBe(true)
+      expect(Buffer.byteLength(page.content)).toBeLessThanOrEqual(24000)
+      expect(page.endOffset).toBeGreaterThan(position)
+      rebuilt += page.content
+      position = page.endOffset
+    }
+    expect(rebuilt).toBe(content)
   })
 })

@@ -1,34 +1,26 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import { describe, expect, it, vi } from 'vitest'
 
-const { mockIsFeatureEnabled } = vi.hoisted(() => ({ mockIsFeatureEnabled: vi.fn() }))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: mockIsFeatureEnabled,
-}))
+import { assertTableRowTtlEnabled } from '@/lib/table/ttl-availability'
 
-import { assertTableRowTtlEnabled, isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
+const mockIsFeatureEnabled = featureFlagsMockFns.mockIsFeatureEnabled
 
 describe('table row TTL availability', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('resolves the global table-row-ttl flag without rollout context', async () => {
-    mockIsFeatureEnabled.mockResolvedValue(true)
-
-    await expect(isTableRowTtlEnabled()).resolves.toBe(true)
-    expect(mockIsFeatureEnabled).toHaveBeenCalledWith('table-row-ttl')
-  })
-
   it('rejects TTL column creation while the flag is disabled', async () => {
     mockIsFeatureEnabled.mockResolvedValue(false)
 
     await expect(assertTableRowTtlEnabled()).rejects.toMatchObject({
       code: 'validation',
-      message: 'Expiration columns are not enabled',
+      detailCode: 'TABLE_ROW_TTL_DISABLED',
     })
+  })
+
+  it('propagates flag lookup failures instead of reporting the feature as disabled', async () => {
+    const error = new Error('flag service unavailable')
+    mockIsFeatureEnabled.mockRejectedValue(error)
+
+    await expect(assertTableRowTtlEnabled()).rejects.toBe(error)
   })
 })

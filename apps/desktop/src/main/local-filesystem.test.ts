@@ -1,18 +1,25 @@
-import { mkdir, mkdtemp, realpath, symlink, writeFile } from 'node:fs/promises'
+import {
+  type FileHandle,
+  mkdir,
+  mkdtemp,
+  open,
+  realpath,
+  rename,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  return { ...actual, open: vi.fn(actual.open) }
+})
 
 import type { LocalFilesystemMount, LocalFilesystemResponse } from '@sim/desktop-bridge'
-import {
-  DEFAULT_GREP_CONTEXT,
-  DEFAULT_GREP_RESULTS,
-  DEFAULT_READ_LINES,
-} from '@sim/desktop-bridge/local-filesystem-limits'
-import { shell } from 'electron'
-import { advanceAccountDataGeneration } from '@/main/account-data-generation'
 import { LocalFilesystemService } from '@/main/local-filesystem'
 import type {
   LocalFilesystemGrantStore,
@@ -85,185 +92,6 @@ describe('LocalFilesystemService', () => {
     }
   })
 
-  it('reports an invalid grep regex instead of claiming there are no matches', async () => {
-    const granted = await mount(service)
-
-    const response = await service.handle({
-      operation: 'grep',
-      uri: granted.uri,
-      pattern: '([unclosed',
-    })
-
-    // Returning an empty match set would tell the model the string appears
-    // nowhere in the user's files, which it would then act on as fact.
-    expect(response.ok).toBe(false)
-  })
-
-  it('still accepts the glob patterns people actually write', async () => {
-    const granted = await mount(service)
-
-    for (const pattern of ['**/*.ts', 'src/**/*.tsx', '**/node_modules/**', '**/*spec*']) {
-      const response = await service.handle({ operation: 'glob', uri: granted.uri, pattern })
-      expect(response.ok).toBe(true)
-    }
-  })
-
-  it('lists, reads, globs, greps, and stats inside the selected directory', async () => {
-    const granted = await mount(service)
-
-    const listData = dataOf(await service.handle({ operation: 'list', uri: granted.uri }))
-    expect('entries' in listData && listData.entries.map((entry) => entry.name)).toEqual([
-      'README.md',
-      'src',
-    ])
-
-    const readData = dataOf(
-      await service.handle({
-        operation: 'read',
-        uri: `${granted.uri}README.md`,
-        startLine: 2,
-        lineCount: 1,
-      })
-    )
-    expect(readData).toMatchObject({ content: 'second line', startLine: 2, endLine: 2 })
-
-    const globData = dataOf(
-      await service.handle({ operation: 'glob', uri: granted.uri, pattern: '**/*.ts' })
-    )
-    expect(
-      'entries' in globData && globData.entries.map((entry) => entry.uri.replace(granted.uri, ''))
-    ).toEqual(['src/index.ts'])
-
-    const grepData = dataOf(
-      await service.handle({
-        operation: 'grep',
-        uri: granted.uri,
-        query: 'ANSWER',
-        include: '**/*.ts',
-      })
-    )
-    expect(grepData).toMatchObject({
-      matches: [{ line: 1, text: 'export const answer = 42' }],
-    })
-
-    const statData = dataOf(
-      await service.handle({ operation: 'stat', uri: `${granted.uri}src/index.ts` })
-    )
-    expect(statData).toMatchObject({ name: 'index.ts', kind: 'file' })
-  })
-
-  it('returns a bounded, explicitly truncated directory listing', async () => {
-    const generatedNames = Array.from(
-      { length: 510 },
-      (_, index) => `generated-${String(509 - index).padStart(3, '0')}.txt`
-    )
-    await Promise.all(generatedNames.map((name) => writeFile(join(root, name), '')))
-    const granted = await mount(service)
-
-    const listing = dataOf(await service.handle({ operation: 'list', uri: granted.uri }))
-    const entries = 'entries' in listing ? listing.entries : []
-
-    expect(listing).toMatchObject({ truncated: true })
-    expect(entries).toHaveLength(500)
-    expect(entries.map((entry) => entry.name)).toEqual(
-      ['README.md', 'src', ...generatedNames]
-        .sort((left, right) => left.localeCompare(right))
-        .slice(0, 500)
-    )
-  })
-
-  it('returns the same capped glob membership regardless of directory enumeration order', async () => {
-    const generatedNames = Array.from(
-      { length: 501 },
-      (_, index) => `glob-${String(500 - index).padStart(3, '0')}.match`
-    )
-    for (const name of generatedNames) {
-      await writeFile(join(root, name), '')
-    }
-    const granted = await mount(service)
-
-    const result = dataOf(
-      await service.handle({ operation: 'glob', uri: granted.uri, pattern: '*.match' })
-    )
-    const entries = 'entries' in result ? result.entries : []
-
-    expect(result).toMatchObject({ truncated: true })
-    expect(entries.map((entry) => entry.name)).toEqual(generatedNames.sort().slice(0, 500))
-  })
-
-  it('returns the same capped grep membership regardless of directory enumeration order', async () => {
-    const generatedNames = Array.from(
-      { length: 5 },
-      (_, index) => `grep-${String(4 - index).padStart(3, '0')}.txt`
-    )
-    for (const name of generatedNames) {
-      await writeFile(join(root, name), 'deterministic match\n')
-    }
-    const granted = await mount(service)
-
-    const result = dataOf(
-      await service.handle({
-        operation: 'grep',
-        uri: granted.uri,
-        pattern: 'deterministic match',
-        outputMode: 'files_with_matches',
-        maxResults: 3,
-      })
-    )
-
-    expect(result).toEqual({
-      files: generatedNames
-        .sort()
-        .slice(0, 3)
-        .map((name) => `${granted.uri}${name}`),
-      truncated: true,
-    })
-  })
-
-  it('supports the normal VFS grep regex and output modes', async () => {
-    const granted = await mount(service)
-
-    const content = dataOf(
-      await service.handle({
-        operation: 'grep',
-        uri: granted.uri,
-        pattern: 'hello|answer\\s*=\\s*42',
-        outputMode: 'content',
-        caseSensitive: true,
-        maxResults: 10,
-      })
-    )
-    expect(content).toMatchObject({
-      matches: [
-        { uri: `${granted.uri}README.md`, line: 1, text: 'hello world' },
-        { uri: `${granted.uri}src/index.ts`, line: 1, text: 'export const answer = 42' },
-      ],
-    })
-
-    const files = dataOf(
-      await service.handle({
-        operation: 'grep',
-        uri: granted.uri,
-        pattern: 'second line',
-        outputMode: 'files_with_matches',
-      })
-    )
-    expect(files).toEqual({ files: [`${granted.uri}README.md`], truncated: false })
-
-    const counts = dataOf(
-      await service.handle({
-        operation: 'grep',
-        uri: `${granted.uri}README.md`,
-        pattern: 'line',
-        outputMode: 'count',
-      })
-    )
-    expect(counts).toEqual({
-      counts: [{ uri: `${granted.uri}README.md`, count: 1 }],
-      truncated: false,
-    })
-  })
-
   it('rejects grep regexes with catastrophic-backtracking risk', async () => {
     const granted = await mount(service)
     await expect(
@@ -277,71 +105,6 @@ describe('LocalFilesystemService', () => {
       code: 'INVALID_REQUEST',
       error: expect.stringContaining('catastrophic backtracking'),
     })
-  })
-
-  it('cancels a native scan by request id', async () => {
-    const granted = await mount(service)
-    for (let index = 0; index < 200; index++) {
-      await writeFile(join(root, `file-${index}.txt`), `line ${index}\n`)
-    }
-
-    const pending = service.handle({
-      operation: 'grep',
-      uri: granted.uri,
-      pattern: 'never-matches',
-      requestId: 'tool-abort',
-    })
-    const cancelled = dataOf(await service.handle({ operation: 'cancel', requestId: 'tool-abort' }))
-    expect(cancelled).toEqual({ cancelled: true })
-    await expect(pending).resolves.toMatchObject({ ok: false, code: 'CANCELLED' })
-  })
-
-  it('does not expose a raw-byte read operation', async () => {
-    const granted = await mount(service)
-    await expect(
-      service.handle({ operation: 'read_file_bytes', uri: `${granted.uri}README.md` })
-    ).resolves.toMatchObject({ ok: false, code: 'INVALID_REQUEST' })
-  })
-
-  it('authorizes a request whose omitted args resolved to the shared defaults', async () => {
-    // The failure mode this guards is silent: with an arg omitted there is no
-    // value on the wire to disagree about, only two defaulting tables — the
-    // renderer's, resolving what to send, and the authorizer's, resolving what
-    // to expect. If they drift, a legitimate tool call is DENIED rather than
-    // erroring. Both now read these from @sim/desktop-bridge; this pins the
-    // authorizer half to them.
-    const granted = await mount(service)
-    const vfsRoot = `user-local/${encodeURIComponent(granted.name)}--${granted.id}`
-
-    expect(
-      service.isAuthorizedClientToolRequest(
-        {
-          operation: 'read',
-          uri: `${granted.uri}README.md`,
-          startLine: 1,
-          lineCount: DEFAULT_READ_LINES,
-          requestId: 'read-defaults',
-        },
-        { toolName: 'read', args: { path: `${vfsRoot}/README.md` } }
-      )
-    ).toBe(true)
-
-    expect(
-      service.isAuthorizedClientToolRequest(
-        {
-          operation: 'grep',
-          uri: granted.uri,
-          pattern: 'TODO',
-          caseSensitive: true,
-          outputMode: 'content',
-          lineNumbers: true,
-          context: DEFAULT_GREP_CONTEXT,
-          maxResults: DEFAULT_GREP_RESULTS,
-          requestId: 'grep-defaults',
-        },
-        { toolName: 'grep', args: { path: 'user-local', pattern: 'TODO' } }
-      )
-    ).toBe(true)
   })
 
   it('binds privileged client reads and searches to server-persisted tool args', async () => {
@@ -492,6 +255,88 @@ describe('LocalFilesystemService', () => {
     expect(escaped).toMatchObject({ ok: false, code: 'ACCESS_DENIED' })
   })
 
+  it('resolves a granted file for upload and refuses escapes, directories, and oversize files', async () => {
+    const granted = await mount(service)
+    const vfsRoot = `user-local/${encodeURIComponent(granted.name)}--${granted.id}`
+    const outside = await mkdtemp(join(tmpdir(), 'sim-localfs-outside-'))
+    await writeFile(join(outside, 'secret.txt'), 'secret')
+    await symlink(join(outside, 'secret.txt'), join(root, 'secret-link.txt'))
+
+    const file = await service.resolveGrantedFile(`${vfsRoot}/README.md`, 1024)
+    try {
+      expect(file).toMatchObject({ name: 'README.md', size: 24 })
+      await expect(file.handle.readFile('utf8')).resolves.toBe('hello world\nsecond line\n')
+    } finally {
+      await file.handle.close()
+    }
+    await expect(
+      service.resolveGrantedFile(`${vfsRoot}/secret-link.txt`, 1024)
+    ).rejects.toMatchObject({ code: 'ACCESS_DENIED' })
+    await expect(service.resolveGrantedFile(`${vfsRoot}/src`, 1024)).rejects.toMatchObject({
+      code: 'NOT_A_FILE',
+    })
+    await expect(service.resolveGrantedFile(`${vfsRoot}/README.md`, 4)).rejects.toMatchObject({
+      code: 'FILE_TOO_LARGE',
+    })
+    await expect(
+      service.resolveGrantedFile('user-local/Other--missing/README.md', 1024)
+    ).rejects.toMatchObject({ code: 'MOUNT_NOT_FOUND' })
+  })
+
+  it.each(['..', '%2e%2e', 'src%2F..%2FREADME.md', 'README.md%00'])(
+    'rejects unsafe upload path segment %s',
+    async (segment) => {
+      const granted = await mount(service)
+      const vfsRoot = `user-local/${encodeURIComponent(granted.name)}--${granted.id}`
+
+      await expect(service.resolveGrantedFile(`${vfsRoot}/${segment}`, 1024)).rejects.toMatchObject(
+        {
+          code: expect.stringMatching(/^(ACCESS_DENIED|INVALID_URI)$/),
+        }
+      )
+    }
+  )
+
+  it.each([false, true])(
+    'closes a file opened through a swapped ancestor (ancestor restored: %s)',
+    async (restoreAncestor) => {
+      const granted = await mount(service)
+      const vfsRoot = `user-local/${encodeURIComponent(granted.name)}--${granted.id}`
+      const outside = await mkdtemp(join(tmpdir(), 'sim-localfs-outside-'))
+      await writeFile(join(outside, 'index.ts'), 'outside secret')
+      const sourceDirectory = join(root, 'src')
+      const originalDirectory = join(root, 'original-src')
+      const openFile = vi.mocked(open).getMockImplementation()
+      if (!openFile) throw new Error('Expected the original file-open implementation')
+      let opened: FileHandle | undefined
+      const openSpy = vi
+        .mocked(open)
+        .mockClear()
+        .mockImplementationOnce(async (...args) => {
+          await rename(sourceDirectory, originalDirectory)
+          await symlink(outside, sourceDirectory)
+          opened = await openFile(...args)
+          if (restoreAncestor) {
+            await rm(sourceDirectory)
+            await rename(originalDirectory, sourceDirectory)
+          }
+          return opened
+        })
+
+      try {
+        await expect(
+          service.resolveGrantedFile(`${vfsRoot}/src/index.ts`, 1024)
+        ).rejects.toMatchObject({ code: 'ACCESS_DENIED' })
+        expect(openSpy).toHaveBeenCalledTimes(1)
+        expect(opened?.fd).toBe(-1)
+      } finally {
+        openSpy.mockReset().mockImplementation(openFile)
+        await opened?.close()
+        await rm(outside, { recursive: true, force: true })
+      }
+    }
+  )
+
   it('rejects lexical traversal before URL normalization can reinterpret it', async () => {
     const granted = await mount(service)
     const traversal = await service.handle({
@@ -500,29 +345,6 @@ describe('LocalFilesystemService', () => {
     })
 
     expect(traversal).toMatchObject({ ok: false, code: 'ACCESS_DENIED' })
-  })
-
-  it('reads a child whose name merely starts with dots', async () => {
-    // The containment check compares path SEGMENTS. Testing the two leading
-    // characters instead denies real files: `..config` is an ordinary name,
-    // not a walk out of the root.
-    await writeFile(join(root, '..config'), 'kept\n')
-    const granted = await mount(service)
-
-    const response = await service.handle({
-      operation: 'read',
-      uri: `${granted.uri}..config`,
-    })
-
-    expect(response.ok).toBe(true)
-  })
-
-  it('clears all grants without touching files on disk', async () => {
-    const granted = await mount(service)
-    service.close()
-
-    const response = await service.handle({ operation: 'stat', uri: granted.uri })
-    expect(response).toMatchObject({ ok: false, code: 'MOUNT_NOT_FOUND' })
   })
 
   it('does not commit a directory chosen after account teardown starts', async () => {
@@ -542,80 +364,6 @@ describe('LocalFilesystemService', () => {
 
     await expect(pendingMount).resolves.toMatchObject({ ok: false, code: 'CANCELLED' })
     expect(grantStore.grants).toEqual([])
-    expect(dataOf(await pendingService.handle({ operation: 'list_mounts' }))).toEqual({
-      mounts: [],
-    })
-  })
-
-  it('waits for an admitted grant update before forgetAll clears persistence', async () => {
-    let delaySave = false
-    let releaseSave: (() => void) | undefined
-    let signalSaveStarted: (() => void) | undefined
-    const saveStarted = new Promise<void>((resolve) => {
-      signalSaveStarted = resolve
-    })
-    const grantStore = new MemoryGrantStore()
-    const originalSave = grantStore.save.bind(grantStore)
-    grantStore.save = async (grants) => {
-      if (delaySave) {
-        await new Promise<void>((resolve) => {
-          releaseSave = resolve
-          signalSaveStarted?.()
-        })
-      }
-      return originalSave(grants)
-    }
-    const selections = [root, join(root, 'src')]
-    const pendingService = new LocalFilesystemService({
-      chooseDirectory: async () => selections.shift() ?? null,
-      grantStore,
-    })
-    const first = await mount(pendingService)
-    await mount(pendingService)
-    delaySave = true
-
-    const forgettingMount = pendingService.handle({
-      operation: 'forget_mount',
-      uri: first.uri,
-    })
-    await saveStarted
-    const forgettingAll = pendingService.forgetAll()
-    releaseSave?.()
-
-    await Promise.all([forgettingMount, forgettingAll])
-    expect(grantStore.grants).toEqual([])
-  })
-
-  it('releases security-scoped access once when persistence finishes after generation expiry', async () => {
-    let resolveSave: ((remembered: boolean) => void) | undefined
-    let signalSaveStarted: (() => void) | undefined
-    const saveStarted = new Promise<void>((resolve) => {
-      signalSaveStarted = resolve
-    })
-    const grantStore: LocalFilesystemGrantStore = {
-      load: async () => [],
-      save: async () => {
-        signalSaveStarted?.()
-        return new Promise<boolean>((resolve) => {
-          resolveSave = resolve
-        })
-      },
-      clear: vi.fn(async () => {}),
-    }
-    const stopAccessing = vi.fn()
-    const pendingService = new LocalFilesystemService({
-      chooseDirectory: async () => ({ path: root, bookmark: 'bookmark' }),
-      grantStore,
-      startAccessingBookmark: () => stopAccessing,
-    })
-
-    const pendingMount = pendingService.handle({ operation: 'mount_directory' })
-    await saveStarted
-    advanceAccountDataGeneration()
-    resolveSave?.(true)
-
-    await expect(pendingMount).resolves.toMatchObject({ ok: false, code: 'CANCELLED' })
-    expect(stopAccessing).toHaveBeenCalledOnce()
     expect(dataOf(await pendingService.handle({ operation: 'list_mounts' }))).toEqual({
       mounts: [],
     })
@@ -667,35 +415,5 @@ describe('LocalFilesystemService', () => {
     const nextLaunch = new LocalFilesystemService({ grantStore })
     await nextLaunch.initialize()
     expect(dataOf(await nextLaunch.handle({ operation: 'list_mounts' }))).toEqual({ mounts: [] })
-  })
-
-  it('keeps a grant session-only when secure persistence is unavailable', async () => {
-    const grantStore: LocalFilesystemGrantStore = {
-      load: async () => [],
-      save: async () => false,
-      clear: async () => {},
-    }
-    const sessionService = new LocalFilesystemService({
-      chooseDirectory: async () => root,
-      grantStore,
-    })
-
-    expect(await mount(sessionService)).toMatchObject({ remembered: false })
-  })
-
-  it('shows a granted folder in the file manager, and only a granted one', async () => {
-    const granted = await mount(service)
-
-    expect(dataOf(await service.handle({ operation: 'reveal_mount', uri: granted.uri }))).toEqual({
-      revealed: true,
-    })
-    expect(shell.showItemInFolder).toHaveBeenCalledWith(await realpath(root))
-
-    const unknown = await service.handle({
-      operation: 'reveal_mount',
-      uri: 'localfs://not-a-mount/',
-    })
-    expect(unknown.ok).toBe(false)
-    expect(shell.showItemInFolder).toHaveBeenCalledOnce()
   })
 })

@@ -2,8 +2,6 @@
 
 import { useId, useState } from 'react'
 import {
-  ButtonGroup,
-  ButtonGroupItem,
   Checkbox,
   Chip,
   ChipCombobox,
@@ -14,27 +12,34 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipSelect,
   type ComboboxOption,
   OverflowText,
 } from '@sim/emcn'
 import { ArrowLeft, ChevronDown, ChevronRight, Plus, Search } from '@sim/emcn/icons'
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
+import { asServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'
 import { getIntegrationsForCredentialProvider } from '@/lib/integrations/credential-display'
+import { initialConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import {
   getCanonicalScopesForProvider,
   getProviderIdFromServiceId,
   getServiceAccountProviderForProviderId,
   type OAuthProvider,
 } from '@/lib/oauth'
+import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
+import { getSearchConnectionLabels } from '@/lib/sim-search/connection-labels'
 import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
 import { SIM_SEARCH_SYNC_INTERVAL_MINUTES } from '@/lib/sim-search/constants'
+import { liveSearchSourceMeta } from '@/lib/sim-search/live/source-settings'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import {
   ConnectServiceAccountModal,
   useServiceAccountConnectTarget,
 } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
+import { ConnectorApiKeyInput } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal/connector-api-key-input'
 import {
   derivedAclCapFieldIds,
   isConnectorFieldRequired,
@@ -50,7 +55,6 @@ import {
   connectorSyncFrequencyHint,
   SYNC_INTERVALS,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
-import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { useConnectorScope } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope'
 import {
@@ -60,19 +64,24 @@ import {
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { withBrandIcon } from '@/blocks/brand-icon'
 import { getConnectorApiKeyConfig, isConnectorCredentialTypeAllowed } from '@/connectors/auth'
+import { GitHubInstallationConnectionField } from '@/connectors/github/installation-connection-field'
+import {
+  GitLabPermissionTabs,
+  GitLabPermissionUploads,
+} from '@/connectors/gitlab/permission-config/fields'
+import { useGitLabPermissionForm } from '@/connectors/gitlab/permission-config/use-permission-form'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 import { useCreateConnector } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useSourceAccounts } from '@/hooks/queries/source-accounts'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
+import { useGitHubInstallationSetup } from '@/hooks/use-github-installation-setup'
 import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useConnectorSetupStore } from '@/stores/connector-setup/store'
 
 const CONNECTOR_ENTRIES = Object.entries(CONNECTOR_META_REGISTRY)
-
-const WORKSPACE_ACCESS: ConnectorAccessSelection = { accessMode: 'workspace' }
 
 interface AddConnectorModalProps {
   scope?: ResourceScope
@@ -83,6 +92,7 @@ interface AddConnectorModalProps {
   isSearchIndex?: boolean
   initialConnectorType?: string | null
   initialAccessMode?: ConnectorAccessSelection['accessMode']
+  lockConnectorType?: boolean
   /** The entry point has already chosen how this source connects. */
   lockedAccessMode?: 'members' | 'admin'
   initialSyncIntervalMinutes?: number
@@ -100,6 +110,7 @@ export function AddConnectorModal({
   isSearchIndex = false,
   initialConnectorType,
   initialAccessMode = 'workspace',
+  lockConnectorType = false,
   lockedAccessMode,
   initialSyncIntervalMinutes = 1440,
   onCreated,
@@ -130,14 +141,18 @@ export function AddConnectorModal({
     draft?.contentCredentialId ?? null
   )
   const [access, setAccess] = useState<ConnectorAccessSelection>(() => ({
-    accessMode:
-      lockedAccessMode ??
-      draft?.accessMode ??
-      (isSearchIndex && initialAccessMode === 'workspace'
-        ? initialType && CONNECTOR_META_REGISTRY[initialType]?.auth.mode === 'apiKey'
-          ? 'admin'
-          : 'members'
-        : initialAccessMode),
+    accessMode: initialConnectorAccessMode(
+      initialType ? CONNECTOR_META_REGISTRY[initialType] : undefined,
+      canAdmin && isSearchIndex && initialType === 'github' && scope.kind === 'organization'
+        ? 'members'
+        : (lockedAccessMode ??
+            (lockConnectorType ? initialAccessMode : draft?.accessMode) ??
+            (isSearchIndex && initialAccessMode === 'workspace'
+              ? initialType && CONNECTOR_META_REGISTRY[initialType]?.auth.mode === 'apiKey'
+                ? 'admin'
+                : 'members'
+              : initialAccessMode))
+    ),
   }))
   const [disabledTagIds, setDisabledTagIds] = useState<Set<string>>(
     () => new Set(draft?.disabledTagIds)
@@ -145,11 +160,13 @@ export function AddConnectorModal({
   const [showMetadata, setShowMetadata] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
-  const [showServiceAccountModal, setShowServiceAccountModal] = useState(false)
+  const [serviceAccountField, setServiceAccountField] = useState<'browsing' | 'content' | null>(
+    null
+  )
 
+  const gitlabPermissions = useGitLabPermissionForm()
   const [apiKeyValue, setApiKeyValue] = useState('')
   const [useApiKey, setUseApiKey] = useState(!isSearchIndex)
-  const [apiKeyFocused, setApiKeyFocused] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
 
   useOAuthReturnForKBConnectors(
@@ -160,7 +177,14 @@ export function AddConnectorModal({
   )
   const { mutate: createConnector, isPending: isCreating } = useCreateConnector()
 
-  const connectorConfig = selectedType ? CONNECTOR_META_REGISTRY[selectedType] : null
+  const liveSearch = isSearchIndex
+  const canSetUpGitHubInstallation =
+    canAdmin && isSearchIndex && selectedType === 'github' && scope.kind === 'organization'
+  const connectorConfig = liveSearchSourceMeta(
+    selectedType ? (CONNECTOR_META_REGISTRY[selectedType] ?? null) : null,
+    Boolean(liveSearch),
+    { githubInstallation: canSetUpGitHubInstallation }
+  )
   const docsUrl = isSearchIndex ? connectorConfig?.searchDocsUrl : undefined
   const setupGuideActions = docsUrl
     ? [
@@ -170,6 +194,12 @@ export function AddConnectorModal({
         },
       ]
     : undefined
+  const searchLabels =
+    isSearchIndex && selectedType
+      ? getSearchConnectionLabels(selectedType, access.accessMode)
+      : undefined
+  const modalTitle = searchLabels?.title ?? `Configure ${connectorConfig?.name}`
+  const showGitLabPermissions = selectedType === 'gitlab' && access.accessMode === 'admin'
   const isMembersMode = access.accessMode === 'members'
   const apiKeyConfig = connectorConfig ? getConnectorApiKeyConfig(connectorConfig.auth) : undefined
   const isApiKeyMode =
@@ -222,10 +252,8 @@ export function AddConnectorModal({
     !isConnectorCredentialTypeAllowed(connectorConfig.auth, access.accessMode, 'oauth')
   const serviceAccountTarget = useServiceAccountConnectTarget({
     serviceAccountProviderId:
-      (isSearchIndex || requiresServiceAccount) &&
-      (serviceAccountProviderId === 'google-service-account' ||
-        serviceAccountProviderId === 'atlassian-service-account')
-        ? serviceAccountProviderId
+      isSearchIndex || requiresServiceAccount
+        ? asServiceAccountProviderId(serviceAccountProviderId)
         : undefined,
     serviceName: connectorConfig?.name,
     serviceIcon: connectorConfig?.icon,
@@ -241,6 +269,8 @@ export function AddConnectorModal({
     !serviceAccountTarget.hidden &&
     (deploymentState === 'ready' || deploymentState === 'limited')
 
+  const browsePersonalAccounts =
+    isMembersMode && (selectedType === 'jira' || selectedType === 'confluence')
   const {
     data: rawCredentials = [],
     isLoading: credentialsLoading,
@@ -249,6 +279,7 @@ export function AddConnectorModal({
     refetch: refetchCredentials,
   } = useOAuthCredentials(connectorProviderId ?? undefined, {
     enabled: Boolean(connectorConfig) && !isApiKeyMode,
+    purpose: browsePersonalAccounts ? 'browsing' : undefined,
     ...owner,
   })
 
@@ -256,6 +287,7 @@ export function AddConnectorModal({
 
   const credentials = rawCredentials.filter(
     (credential) =>
+      (browsePersonalAccounts && credential.type === 'managed_oauth') ||
       !connectorConfig ||
       isConnectorCredentialTypeAllowed(connectorConfig.auth, access.accessMode, credential.type)
   )
@@ -268,6 +300,17 @@ export function AddConnectorModal({
       : credentials.length === 1
         ? credentials[0].id
         : null
+  const installations = credentials.filter(
+    (credential) => credential.provider === GITHUB_INSTALLATION_PROVIDER_ID
+  )
+  const installationCredentialId = contentCredentialId
+    ? (installations.find((credential) => credential.id === contentCredentialId)?.id ?? null)
+    : installations.length === 1
+      ? installations[0].id
+      : null
+  const effectiveContentCredentialId = canSetUpGitHubInstallation
+    ? installationCredentialId
+    : contentCredentialId
 
   const {
     sourceConfig,
@@ -284,15 +327,28 @@ export function AddConnectorModal({
   } = useConnectorConfigFields({
     connectorConfig,
     accessMode: access.accessMode,
-    initialSourceConfig: draft?.sourceConfig,
+    initialSourceConfig: isSearchIndex
+      ? { ...connectorConfig?.searchDefaultSourceConfig, ...draft?.sourceConfig }
+      : draft?.sourceConfig,
     initialCanonicalModes: draft?.canonicalModes,
     initialSelectionLabels: draft?.selectionLabels,
+  })
+
+  const githubSetup = useGitHubInstallationSetup({
+    organizationId:
+      canSetUpGitHubInstallation && scope.kind === 'organization'
+        ? scope.organizationId
+        : undefined,
+    onConnected: (credentialId) => {
+      if (credentialId !== installationCredentialId) handleFieldChange('repository', '')
+      setContentCredentialId(credentialId)
+    },
   })
 
   const indexingCredentialId = isApiKeyMode
     ? null
     : isMembersMode
-      ? contentCredentialId
+      ? effectiveContentCredentialId
       : effectiveCredentialId
   const indexingCredential = credentials.find(
     (credential) => credential.id === indexingCredentialId
@@ -304,10 +360,11 @@ export function AddConnectorModal({
       indexingCredential?.type === 'service_account')
 
   const showCredentialPicker =
-    !isMembersMode ||
-    connectorConfig?.configFields.some(
-      (field) => field.type === 'selector' && isFieldVisible(field)
-    )
+    !canSetUpGitHubInstallation &&
+    (!isMembersMode ||
+      connectorConfig?.configFields.some(
+        (field) => field.type === 'selector' && isFieldVisible(field)
+      ))
 
   const saveSetup = () => {
     if (!setupDraftKey) return
@@ -317,7 +374,7 @@ export function AddConnectorModal({
       canonicalModes,
       accessMode: access.accessMode,
       credentialId: effectiveCredentialId,
-      contentCredentialId,
+      contentCredentialId: effectiveContentCredentialId,
       disabledTagIds: Array.from(disabledTagIds),
       savedAt: Date.now(),
     })
@@ -329,7 +386,7 @@ export function AddConnectorModal({
   }
 
   const isOptionalSetupField = (field: ConnectorConfigField) =>
-    isSearchIndex &&
+    (isSearchIndex || connectorConfig?.supportedAccessModes?.length === 1) &&
     field.setupGroup === 'options' &&
     Boolean(connectorConfig && !isConnectorFieldRequired(field, connectorConfig, access.accessMode))
   const hasOptionalSetupFields = connectorConfig?.configFields.some(
@@ -344,7 +401,10 @@ export function AddConnectorModal({
           connectorConfig,
           sourceConfig,
           selectionLabels,
-          credentialId: effectiveCredentialId,
+          credentialId: canSetUpGitHubInstallation
+            ? installationCredentialId
+            : effectiveCredentialId,
+          credentialType: credentials.find((item) => item.id === effectiveCredentialId)?.type,
           canonicalGroups,
           canonicalModes,
           onFieldChange: handleFieldChange,
@@ -354,7 +414,9 @@ export function AddConnectorModal({
       : null
 
   const contentCredentialField =
-    isMembersMode && connectorConfig?.supportsSeparateContentCredential ? (
+    !canSetUpGitHubInstallation &&
+    isMembersMode &&
+    connectorConfig?.supportsSeparateContentCredential ? (
       <>
         <ConnectorContentCredentialField
           credentialId={contentCredentialId}
@@ -380,7 +442,7 @@ export function AddConnectorModal({
                     value: '__service_account__',
                     label: serviceAccountTarget.label,
                     icon: Plus,
-                    onSelect: () => setShowServiceAccountModal(true),
+                    onSelect: () => setServiceAccountField('content'),
                   },
                 ]
               : []),
@@ -402,25 +464,34 @@ export function AddConnectorModal({
 
   const closeSetup = (nextOpen: boolean) => {
     if (!nextOpen && setupDraftKey) useConnectorSetupStore.getState().clearDraft(setupDraftKey)
+    if (!nextOpen) {
+      gitlabPermissions.reset()
+      setApiKeyValue('')
+    }
     onOpenChange(nextOpen)
   }
 
   const handleSelectType = (type: string) => {
     if (setupDraftKey) useConnectorSetupStore.getState().clearDraft(setupDraftKey)
+    gitlabPermissions.reset()
     setSelectedType(type)
-    setSourceConfig({})
+    setSourceConfig(
+      isSearchIndex ? { ...CONNECTOR_META_REGISTRY[type]?.searchDefaultSourceConfig } : {}
+    )
     setSelectedCredentialId(null)
     setContentCredentialId(null)
-    setAccess(
-      isSearchIndex
-        ? {
-            accessMode: CONNECTOR_META_REGISTRY[type]?.auth.mode === 'apiKey' ? 'admin' : 'members',
-          }
-        : WORKSPACE_ACCESS
-    )
+    setAccess({
+      accessMode: initialConnectorAccessMode(
+        CONNECTOR_META_REGISTRY[type],
+        isSearchIndex
+          ? CONNECTOR_META_REGISTRY[type]?.auth.mode === 'apiKey'
+            ? 'admin'
+            : 'members'
+          : 'workspace'
+      ),
+    })
     setApiKeyValue('')
     setUseApiKey(!isSearchIndex)
-    setApiKeyFocused(false)
     setDisabledTagIds(new Set())
     setShowMetadata(false)
     setCanonicalModes({})
@@ -432,7 +503,9 @@ export function AddConnectorModal({
 
   const hasRequiredCredential = isApiKeyMode
     ? isApiKeyOptional || Boolean(apiKeyValue.trim())
-    : isMembersMode || Boolean(effectiveCredentialId)
+    : canSetUpGitHubInstallation
+      ? Boolean(installationCredentialId)
+      : isMembersMode || Boolean(effectiveCredentialId)
   const hasSearchAccess =
     !isSearchIndex ||
     Boolean(
@@ -444,6 +517,7 @@ export function AddConnectorModal({
   const canSubmit = Boolean(
     connectorConfig &&
       hasRequiredCredential &&
+      (!showGitLabPermissions || gitlabPermissions.complete) &&
       hasSearchAccess &&
       (access.accessMode !== 'admin' || allowAdmin) &&
       (!isMembersMode || allowMembers) &&
@@ -485,6 +559,7 @@ export function AddConnectorModal({
       {
         knowledgeBaseId,
         connectorType: selectedType,
+        ...(showGitLabPermissions ? { permissionConfig: gitlabPermissions.input } : {}),
         accessMode: access.accessMode,
         ...(isApiKeyMode
           ? apiKeyValue.trim()
@@ -493,7 +568,7 @@ export function AddConnectorModal({
           : isMembersMode
             ? {
                 accessMode: 'members' as const,
-                credentialId: contentCredentialId ?? undefined,
+                credentialId: effectiveContentCredentialId ?? undefined,
               }
             : { accessMode: access.accessMode, credentialId: effectiveCredentialId! }),
         sourceConfig: finalSourceConfig,
@@ -528,14 +603,14 @@ export function AddConnectorModal({
       <ChipModal
         open={open}
         onOpenChange={closeSetup}
-        srTitle={step === 'select-type' ? 'Connect Source' : `Configure ${connectorConfig?.name}`}
+        srTitle={step === 'select-type' ? 'Add source' : modalTitle}
         size='md'
         dismissDisabled={isCreating}
       >
         <ChipModalHeader onClose={() => closeSetup(false)}>
           {step === 'configure' ? (
             <span className='flex items-center gap-2'>
-              {!lockedAccessMode && (
+              {!lockConnectorType && !lockedAccessMode && (
                 <Chip
                   leftIcon={ArrowLeft}
                   aria-label='Choose another source'
@@ -546,10 +621,10 @@ export function AddConnectorModal({
                   }}
                 />
               )}
-              {`Configure ${connectorConfig?.name}`}
+              {modalTitle}
             </span>
           ) : (
-            'Connect Source'
+            'Add source'
           )}
         </ChipModalHeader>
 
@@ -592,6 +667,9 @@ export function AddConnectorModal({
             </div>
           ) : connectorConfig ? (
             <>
+              {showGitLabPermissions && (
+                <GitLabPermissionTabs form={gitlabPermissions} disabled={isCreating} />
+              )}
               {integrationAvailabilityError && (
                 <ChipModalField type='custom' title='Connection availability'>
                   <SettingsQueryErrorState
@@ -603,7 +681,8 @@ export function AddConnectorModal({
                   />
                 </ChipModalField>
               )}
-              {(!lockedAccessMode || slackSetupRequired) &&
+              {!canSetUpGitHubInstallation &&
+                (!lockedAccessMode || slackSetupRequired) &&
                 (memberAccessAvailable || mirroredAccessAvailable || slackSetupRequired) && (
                   <ConnectorAccessField
                     scope={scope}
@@ -644,13 +723,10 @@ export function AddConnectorModal({
                   )}
                   {isApiKeyMode ? (
                     <ChipModalField type='custom' title={apiKeyConfig?.label || 'API Key'}>
-                      <ChipInput
-                        type={apiKeyFocused ? 'text' : 'password'}
-                        autoComplete='new-password'
+                      <ConnectorApiKeyInput
                         value={apiKeyValue}
-                        onChange={(e) => setApiKeyValue(e.target.value)}
-                        onFocus={() => setApiKeyFocused(true)}
-                        onBlur={() => setApiKeyFocused(false)}
+                        onChange={setApiKeyValue}
+                        workspaceId={owner.workspaceId}
                         placeholder={apiKeyConfig?.placeholder || 'Enter API key'}
                       />
                     </ChipModalField>
@@ -660,11 +736,9 @@ export function AddConnectorModal({
                       title={
                         isMembersMode
                           ? 'Account for browsing'
-                          : isSearchIndex
-                            ? 'Indexing account'
-                            : canConnectOAuth
-                              ? 'Account'
-                              : 'Service account'
+                          : canConnectOAuth
+                            ? 'Account'
+                            : 'Service account'
                       }
                     >
                       {credentialsError && rawCredentials.length === 0 ? (
@@ -704,7 +778,7 @@ export function AddConnectorModal({
                                     label: serviceAccountTarget.label,
                                     value: '__service_account__',
                                     icon: Plus,
-                                    onSelect: () => setShowServiceAccountModal(true),
+                                    onSelect: () => setServiceAccountField('browsing'),
                                   },
                                 ]
                               : []),
@@ -726,6 +800,30 @@ export function AddConnectorModal({
                     </ChipModalField>
                   ) : null}
 
+                  {canSetUpGitHubInstallation && (
+                    <GitHubInstallationConnectionField
+                      installations={installations}
+                      credentialId={installationCredentialId}
+                      error={credentialsError}
+                      isLoading={credentialsLoading}
+                      isFetching={credentialsFetching}
+                      onRetry={() => void refetchCredentials()}
+                      onConnect={() =>
+                        void githubSetup.connect(installations.length ? 'install' : undefined)
+                      }
+                      connecting={githubSetup.pending}
+                      connectionError={githubSetup.error}
+                      onCancel={githubSetup.cancel}
+                      onCheckConnection={() => void githubSetup.checkConnection()}
+                      isChecking={githubSetup.isChecking}
+                      onChange={(credentialId) => {
+                        if (credentialId !== installationCredentialId)
+                          handleFieldChange('repository', '')
+                        setContentCredentialId(credentialId)
+                      }}
+                      disabled={isCreating}
+                    />
+                  )}
                   {!isSearchIndex && contentCredentialField}
 
                   {configFieldsProps && (
@@ -737,6 +835,9 @@ export function AddConnectorModal({
                         !isOptionalSetupField(field)
                       }
                     />
+                  )}
+                  {showGitLabPermissions && (
+                    <GitLabPermissionUploads form={gitlabPermissions} disabled={isCreating} />
                   )}
 
                   {(hasOptionalSetupFields ||
@@ -750,12 +851,14 @@ export function AddConnectorModal({
                           aria-expanded={showMetadata}
                           onClick={() => setShowMetadata((visible) => !visible)}
                         >
-                          {isSearchIndex ? 'More options' : 'Document details (optional)'}
+                          {isSearchIndex || hasOptionalSetupFields
+                            ? 'More options'
+                            : 'Document details (optional)'}
                         </Chip>
                       </div>
                       {showMetadata && (
                         <>
-                          {isSearchIndex && contentCredentialField}
+                          {isSearchIndex && !canSetUpGitHubInstallation && contentCredentialField}
                           {configFieldsProps && hasOptionalSetupFields && (
                             <ConnectorConfigFields
                               {...configFieldsProps}
@@ -805,31 +908,35 @@ export function AddConnectorModal({
                     </>
                   )}
 
-                  {!isSearchIndex && (
+                  {!isSearchIndex && (!hasOptionalSetupFields || showMetadata) && (
                     <ChipModalField
                       type='custom'
                       title='Sync Frequency'
-                      hint={connectorSyncFrequencyHint(
-                        access.accessMode,
-                        syncInterval,
-                        Boolean(contentCredentialId)
-                      )}
+                      hint={
+                        showGitLabPermissions && gitlabPermissions.mode === 'csv'
+                          ? undefined
+                          : connectorSyncFrequencyHint(
+                              access.accessMode,
+                              syncInterval,
+                              Boolean(contentCredentialId)
+                            )
+                      }
                     >
-                      <ButtonGroup
+                      <ChipSelect
+                        fullWidth
+                        dropdownWidth='trigger'
+                        aria-label='Sync frequency'
                         value={String(syncInterval)}
-                        onValueChange={(val) => setSyncInterval(Number(val))}
-                      >
-                        {SYNC_INTERVALS.map((interval) => (
-                          <ButtonGroupItem
-                            key={interval.value}
-                            value={String(interval.value)}
-                            disabled={interval.requiresMax && !hasMaxAccess}
-                          >
-                            {interval.label}
-                            {interval.requiresMax && !hasMaxAccess && <MaxBadge />}
-                          </ButtonGroupItem>
-                        ))}
-                      </ButtonGroup>
+                        onChange={(value) => setSyncInterval(Number(value))}
+                        options={SYNC_INTERVALS.map((interval) => ({
+                          value: String(interval.value),
+                          label:
+                            interval.requiresMax && !hasMaxAccess
+                              ? `${interval.label} (Max)`
+                              : interval.label,
+                          disabled: interval.requiresMax && !hasMaxAccess,
+                        }))}
+                      />
                     </ChipModalField>
                   )}
 
@@ -866,25 +973,36 @@ export function AddConnectorModal({
                     : 'Connecting…'
                   : isMembersMode
                     ? scope.kind === 'organization'
-                      ? 'Add source'
+                      ? (searchLabels?.add ?? 'Add connection')
                       : 'Create & Invite'
-                    : 'Connect & Sync',
+                    : liveSearch
+                      ? 'Save connection'
+                      : 'Connect & Sync',
                 onClick: handleSubmit,
-                disabled: !canSubmit || isCreating,
+                disabled: !canSubmit || isCreating || githubSetup.pending,
               }}
             />
           ))}
       </ChipModal>
-      {showServiceAccountModal && canConnectServiceAccount && (
+      {serviceAccountField && canConnectServiceAccount && (
         <ConnectServiceAccountModal
           open
-          onOpenChange={setShowServiceAccountModal}
+          onOpenChange={(open) => {
+            if (!open) setServiceAccountField(null)
+          }}
           {...owner}
           serviceAccountProviderId={serviceAccountTarget.serviceAccountProviderId}
           serviceName={serviceAccountTarget.serviceName}
           serviceIcon={serviceAccountTarget.serviceIcon}
           atlassianProduct={selectedType === 'confluence' ? 'confluence' : undefined}
-          onCreated={setSelectedCredentialId}
+          atlassianSetupGuideUrl={
+            selectedType === 'confluence' && docsUrl
+              ? `${docsUrl}#using-a-service-account`
+              : undefined
+          }
+          onCreated={
+            serviceAccountField === 'content' ? setContentCredentialId : setSelectedCredentialId
+          }
         />
       )}
       {showOAuthModal &&
@@ -908,7 +1026,7 @@ export function AddConnectorModal({
             {...owner}
             knowledgeBaseId={knowledgeBaseId}
             connectorType={selectedType ?? undefined}
-            sourceAccess={lockedAccessMode === 'members' ? 'members' : undefined}
+            sourceAccess={access.accessMode === 'members' ? 'members' : undefined}
           />
         )}
     </>

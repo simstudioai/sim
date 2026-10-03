@@ -4,11 +4,6 @@ import type { OutputProperty } from '@/tools/types'
 const logger = createLogger('Zendesk')
 
 // Base params - following Sentry pattern where subdomain is user-provided
-interface ZendeskBaseParams {
-  email: string // Zendesk user email (required for API token authentication)
-  apiToken: string // API token (hidden)
-  subdomain: string // Zendesk subdomain (user-visible, required - e.g., "mycompany" for mycompany.zendesk.com)
-}
 
 export interface ZendeskPaginationParams {
   perPage?: string

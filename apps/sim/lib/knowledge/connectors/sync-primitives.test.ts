@@ -1,35 +1,91 @@
-/** @vitest-environment node */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  knowledgeDocumentsServiceMock,
+  knowledgeDocumentsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-documents-service.mock'
+import {
+  triggerAvailabilityMock,
+  triggerAvailabilityMockFns,
+} from '@sim/testing/mocks/trigger-availability.mock'
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import type { ExternalDocument, SyncResult } from '@/connectors/types'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   add: vi.fn(),
   update: vi.fn(),
-  triggerAvailable: vi.fn(),
-  dispatch: vi.fn<(documents: DocumentData[]) => Promise<{ accepted: number; failed: number }>>(),
+  persistHashes: vi.fn(),
+  sourceMetadata: vi.fn(
+    (_connectorType: string, doc: Pick<ExternalDocument, 'sourceUrl' | 'metadata'>) => ({
+      sourceUrl: doc.sourceUrl ?? null,
+      sourceModifiedAt: null,
+      date1: doc.metadata?.lastActivity,
+    })
+  ),
 }))
 
 vi.mock('@/lib/knowledge/connectors/sync-persistence', () => ({
-  addDocument: mocks.add,
-  updateDocument: mocks.update,
+  addDocument: hoisted.add,
+  updateDocument: hoisted.update,
   persistSkippedDocuments: vi.fn(),
-  persistSkippedRetryHashes: vi.fn(),
+  persistHashOnlyUpdates: hoisted.persistHashes,
+  resolveSourceMetadataFields: hoisted.sourceMetadata,
 }))
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  isTriggerAvailable: mocks.triggerAvailable,
-  processDocumentsWithQueue: mocks.dispatch,
-}))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
+vi.mock('@/lib/core/config/trigger-availability', () => triggerAvailabilityMock)
 
 import { SyncLockLostException, stillHoldsSyncLock } from '@/lib/knowledge/connectors/sync-lock'
 import {
   classifyExternalDoc,
   createSyncRunState,
   type DocOp,
+  loadPageCorpus,
   type ProcessDocOpsInput,
   processDocOps,
 } from '@/lib/knowledge/connectors/sync-primitives'
+
+const mocks = {
+  ...hoisted,
+  triggerAvailable: triggerAvailabilityMockFns.mockIsTriggerAvailable,
+  dispatch: knowledgeDocumentsServiceMockFns.mockProcessDocumentsWithQueue as Mock<
+    (documents: DocumentData[]) => Promise<{ accepted: number; failed: number }>
+  >,
+}
+
+describe('connector-owned hash comparison', () => {
+  const listed: ExternalDocument = {
+    externalId: 'thread',
+    title: 'Thread',
+    content: '',
+    contentDeferred: true,
+    mimeType: 'text/plain',
+    contentHash: 'version:2',
+  }
+  const existing = { id: 'document', contentHash: 'version:2:text:a', storageKey: 'stored' }
+  const matcher = (candidate: string, stored: string) =>
+    stored.startsWith(`${candidate}:`) ? ('current' as const) : ('stale' as const)
+
+  it('treats a listing the connector matches to the stored hash as unchanged', () => {
+    expect(classifyExternalDoc(listed, existing)).toEqual({
+      type: 'update',
+      existingId: 'document',
+    })
+    expect(classifyExternalDoc(listed, existing, false, matcher)).toEqual({ type: 'unchanged' })
+    expect(
+      classifyExternalDoc({ ...listed, contentHash: 'version:3' }, existing, false, matcher)
+    ).toEqual({ type: 'update', existingId: 'document' })
+  })
+
+  it('still rehydrates missing content and forced refreshes', () => {
+    expect(classifyExternalDoc(listed, { ...existing, contentHash: null }, false, matcher)).toEqual(
+      { type: 'update', existingId: 'document' }
+    )
+    expect(classifyExternalDoc(listed, existing, true, matcher)).toEqual({
+      type: 'update',
+      existingId: 'document',
+    })
+  })
+})
 
 describe('source-change skip retry policy', () => {
   const listed: ExternalDocument = {
@@ -57,13 +113,6 @@ describe('source-change skip retry policy', () => {
       existingId: 'document',
     })
     expect(classifyExternalDoc(listed, existing, true)).toEqual({
-      type: 'update',
-      existingId: 'document',
-    })
-  })
-
-  it('keeps the default recovery behavior for other skipped sources', () => {
-    expect(classifyExternalDoc({ ...listed, skippedRetryPolicy: undefined }, existing)).toEqual({
       type: 'update',
       existingId: 'document',
     })
@@ -150,12 +199,12 @@ function dispatchedIds(): string[][] {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   dbChainMockFns.limit.mockResolvedValue([
     { connectorArchivedAt: null, connectorDeletedAt: null, kbDeletedAt: null },
   ])
   mocks.triggerAvailable.mockReturnValue(true)
+  mocks.persistHashes.mockResolvedValue([])
   mocks.add.mockImplementation(
     async (
       _knowledgeBaseId: string,
@@ -183,164 +232,88 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-describe('processDocOps dispatch buffering', () => {
-  it('hydrates 61 unknown-size documents serially and dispatches only metadata in batches of 25, 25, and 11', async () => {
-    const input = inputFor(61)
-    let active = 0
-    let peak = 0
-    input.hydration.getDocument = vi.fn(async (externalId: string) => {
-      active++
-      peak = Math.max(peak, active)
-      await Promise.resolve()
-      active--
-      return sourceDocument(externalId)
-    })
+describe('processDocOps unchanged content under a new hash', () => {
+  function refreshOf(storedHash: string, hydratedHash: string) {
+    const input = inputFor(0)
+    input.pendingOps = [
+      {
+        type: 'update',
+        existingId: 'document',
+        extDoc: { ...sourceDocument('thread'), content: '', contentDeferred: true },
+      },
+    ]
+    input.corpus = {
+      priorByExternalId: new Map([
+        [
+          'thread',
+          {
+            id: 'document',
+            externalId: 'thread',
+            contentHash: storedHash,
+            storageKey: 'stored',
+            userExcluded: false,
+            sourceSeenAt: null,
+          },
+        ],
+      ]),
+    }
+    input.hydration.getDocument = vi.fn(async () => ({
+      ...sourceDocument('thread'),
+      contentHash: hydratedHash,
+      sourceUrl: 'https://source.fixture.test/thread',
+      metadata: { lastActivity: '2026-09-08T12:00:00.000Z' },
+    }))
+    input.matchContentHash = (candidate, stored) =>
+      candidate.split(':').at(-1) === stored.split(':').at(-1) ? 'equivalent' : 'stale'
+    return input
+  }
+
+  it('advances the stored hash and source metadata when the connector finds the same text', async () => {
+    const input = refreshOf('legacy:text-a', 'version:2:text-a')
     await expect(processDocOps(input)).resolves.toBe(true)
-    expect(peak).toBe(1)
-    expect(input.hydration.beforeHydration).toHaveBeenCalledTimes(61)
-    expect(dispatchedIds().map((batch) => batch.length)).toEqual([25, 25, 11])
-    expect(dispatchedIds().flat()).toEqual(input.pendingOps.map((op) => op.extDoc.externalId))
-    expect(input.state.result).toMatchObject({
-      docsAdded: 61,
-      docsFailed: 0,
-      processingDispatch: { requested: 61, accepted: 61, failed: 0 },
-    })
-    for (const [documents] of mocks.dispatch.mock.calls) {
-      expect(
-        documents.every(
-          (document: DocumentData) => !('content' in document) && !('sourceFile' in document)
-        )
-      ).toBe(true)
-    }
-  })
-
-  it.each([
-    { name: 'unknown sizes', count: 6, estimatedBytes: undefined, batchSizes: [1, 1, 1, 1, 1, 1] },
-    { name: 'small known sizes', count: 11, estimatedBytes: 1024, batchSizes: [5, 5, 1] },
-  ])(
-    'keeps the inline fallback at each hydration microbatch for $name',
-    async ({ count, estimatedBytes, batchSizes }) => {
-      mocks.triggerAvailable.mockReturnValue(false)
-      const input = inputFor(count, estimatedBytes)
-      const completed: string[][] = []
-      input.onBatchComplete = async (documents) => {
-        completed.push(documents.map((document) => document.externalId))
-        expect(dispatchedIds()).toEqual(completed)
-      }
-      await expect(processDocOps(input)).resolves.toBe(true)
-      expect(dispatchedIds().map((batch) => batch.length)).toEqual(batchSizes)
-      expect(input.state.result.processingDispatch).toEqual({
-        requested: count,
-        accepted: count,
-        failed: 0,
-      })
-    }
-  )
-
-  it('flushes already persisted documents when the next microbatch reaches the deadline', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-09-01T00:00:00Z'))
-    const input = inputFor(10)
-    input.deadlineAt = Date.now() + 1000
-    let completed = 0
-    input.onBatchComplete = async () => {
-      if (++completed === 3) vi.setSystemTime(input.deadlineAt!)
-    }
-    await expect(processDocOps(input)).resolves.toBe(false)
-    expect(mocks.add).toHaveBeenCalledTimes(3)
-    expect(dispatchedIds()).toEqual([['source-1', 'source-2', 'source-3']])
-    expect(input.state.result.processingDispatch).toEqual({ requested: 3, accepted: 3, failed: 0 })
-    expect(input.state.failedExternalIds.size).toBe(0)
-  })
-
-  it('flushes prior durable documents and preserves a provider 429 instead of continuing hydration', async () => {
-    const input = inputFor(10)
-    const throttled = Object.assign(new Error('Provider rate limit'), { status: 429 })
-    input.hydration.getDocument = vi.fn(async (externalId: string) => {
-      if (externalId === 'source-4') throw throttled
-      return sourceDocument(externalId)
-    })
-    await expect(processDocOps(input)).rejects.toBe(throttled)
-    expect(input.hydration.getDocument).toHaveBeenCalledTimes(4)
-    expect(dispatchedIds()).toEqual([['source-1', 'source-2', 'source-3']])
-    expect(input.state.result.processingDispatch).toEqual({ requested: 3, accepted: 3, failed: 0 })
-    expect(input.onBatchComplete).toHaveBeenCalledTimes(3)
-  })
-
-  it('persists successful hydration siblings before yielding and excludes only deferred sources from the page checkpoint', async () => {
-    const input = inputFor(5, 100)
-    const firstThrottle = Object.assign(new Error('Short throttle'), {
-      status: 429,
-      retryAfterMs: 60_000,
-    })
-    const longestThrottle = Object.assign(new Error('Long throttle'), {
-      status: 429,
-      retryAfterMs: 120_000,
-    })
-    input.hydration.getDocument = vi.fn(async (externalId: string) => {
-      if (externalId === 'source-2') throw firstThrottle
-      if (externalId === 'source-4') throw longestThrottle
-      if (externalId === 'source-5') throw new Error('Temporary source read failure')
-      return sourceDocument(externalId)
-    })
-    await expect(processDocOps(input)).rejects.toBe(longestThrottle)
-    expect(dispatchedIds()).toEqual([['source-1', 'source-3']])
-    expect(input.state.result).toMatchObject({ docsAdded: 2, docsFailed: 1 })
-    expect([...input.state.failedExternalIds]).toEqual(['source-5'])
-    expect(input.onBatchComplete).toHaveBeenCalledWith([
-      input.pendingOps[0].extDoc,
-      input.pendingOps[2].extDoc,
-      input.pendingOps[4].extDoc,
-    ])
-  })
-
-  it('counts an enqueue exception once and continues later batches without resending it', async () => {
-    const input = inputFor(61)
-    mocks.dispatch.mockRejectedValueOnce(new Error('Queue unavailable'))
-    await expect(processDocOps(input)).resolves.toBe(true)
-    expect(dispatchedIds().map((batch) => batch.length)).toEqual([25, 25, 11])
-    expect(new Set(dispatchedIds().flat()).size).toBe(61)
-    expect(input.state.result).toMatchObject({
-      docsAdded: 61,
-      docsFailed: 0,
-      processingDispatch: { requested: 61, accepted: 36, failed: 25 },
-    })
-  })
-
-  it('preserves partial dispatch outcomes and continues with the remaining documents', async () => {
-    const input = inputFor(26)
-    mocks.dispatch.mockResolvedValueOnce({ accepted: 20, failed: 5 })
-    await expect(processDocOps(input)).resolves.toBe(true)
-    expect(dispatchedIds().map((batch) => batch.length)).toEqual([25, 1])
-    expect(input.state.result.processingDispatch).toEqual({
-      requested: 26,
-      accepted: 21,
-      failed: 5,
-    })
-  })
-
-  it('forwards the same lease to persistence and queue dispatch for added and updated documents', async () => {
-    const input = inputFor(2)
-    input.pendingOps[1] = {
-      type: 'update',
-      existingId: 'existing-document',
-      extDoc: input.pendingOps[1]!.extDoc,
-    }
-    await processDocOps(input)
-    expect(mocks.add.mock.calls[0]?.at(-1)).toBe(input.lease)
-    expect(mocks.update.mock.calls[0]?.at(-1)).toBe(input.lease)
-    expect(mocks.dispatch).toHaveBeenCalledExactlyOnceWith(
-      [
-        storedDocument(sourceDocument('source-1')),
-        storedDocument(sourceDocument('source-2'), 'existing-document'),
-      ],
+    expect(mocks.update).not.toHaveBeenCalled()
+    expect(mocks.dispatch).not.toHaveBeenCalled()
+    expect(input.state.result.docsUnchanged).toBe(1)
+    expect(mocks.persistHashes).toHaveBeenCalledWith(
       'knowledge-base',
-      {},
-      expect.any(String),
-      input.billingAttribution,
-      { connectorId: 'connector', stillHeld: input.lease.stillHeld }
+      'connector',
+      [
+        {
+          existingId: 'document',
+          externalId: 'thread',
+          contentHash: 'version:2:text-a',
+          sourceMetadata: {
+            sourceUrl: 'https://source.fixture.test/thread',
+            sourceModifiedAt: null,
+            date1: '2026-09-08T12:00:00.000Z',
+          },
+        },
+      ],
+      input.lease
     )
-    expect(input.state.result).toMatchObject({ docsAdded: 1, docsUpdated: 1 })
+  })
+})
+
+describe('processDocOps dispatch buffering', () => {
+  it('retains a safe per-source cause while successful siblings continue', async () => {
+    const input = inputFor(2, 100)
+    input.hydration.getDocument = vi.fn(async (externalId) => {
+      if (externalId === 'source-1') {
+        throw new Error('private wrapper', {
+          cause: Object.assign(new Error('private response body'), { status: 403 }),
+        })
+      }
+      return sourceDocument(externalId)
+    })
+    await expect(processDocOps(input)).resolves.toBe(true)
+    expect(input.state.sourceFailures.get('source-1')).toMatchObject({
+      category: 'authorization',
+      status: 403,
+    })
+    expect(JSON.stringify([...input.state.sourceFailures.values()])).not.toContain('private')
+    expect([...input.state.failedExternalIds]).toEqual(['source-1'])
+    expect(input.state.result).toMatchObject({ docsAdded: 1, docsFailed: 1 })
+    expect(dispatchedIds()).toEqual([['source-2']])
   })
 
   it('keeps the lease guard on a partial buffer flushed after the run loses ownership', async () => {
@@ -360,6 +333,7 @@ describe('processDocOps dispatch buffering', () => {
       {},
       expect.any(String),
       input.billingAttribution,
+      'backfill',
       { connectorId: 'connector', stillHeld: input.lease.stillHeld }
     )
     expect(input.state.result.processingDispatch).toEqual({ requested: 3, accepted: 0, failed: 0 })
@@ -381,4 +355,35 @@ describe('processDocOps dispatch buffering', () => {
       expect(mocks.dispatch).toHaveBeenCalledTimes(failure === 'dispatch' ? 1 : 0)
     }
   )
+})
+
+describe('loadPageCorpus read recovery', () => {
+  it('retries only the failed bounded page and keeps earlier rows', async () => {
+    vi.useFakeTimers()
+    const row = (externalId: string) => ({
+      id: externalId,
+      externalId,
+      contentHash: 'hash',
+      storageKey: 'stored',
+      userExcluded: false,
+      sourceSeenAt: null,
+    })
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([row('source-1')])
+      .mockRejectedValueOnce(
+        new Error('query', {
+          cause: Object.assign(new Error('connection'), { code: '08006' }),
+        })
+      )
+      .mockResolvedValueOnce([row('source-501')])
+    const result = loadPageCorpus(
+      'connector',
+      Array.from({ length: 501 }, (_, i) => `source-${i + 1}`)
+    )
+    await vi.runAllTimersAsync()
+    const corpus = await result
+    expect([...corpus.priorByExternalId.keys()]).toEqual(['source-1', 'source-501'])
+    expect(dbChainMockFns.limit.mock.calls).toEqual([[501], [501], [501]])
+    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+  })
 })

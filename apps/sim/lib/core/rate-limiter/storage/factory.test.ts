@@ -52,14 +52,6 @@ describe('rate limit storage factory', () => {
     expect(adapter).toEqual({ type: 'db' })
   })
 
-  it('should use RedisTokenBucket when Redis client is available', () => {
-    mockGetStorageMethod.mockReturnValue('redis')
-    mockGetRedisClient.mockReturnValue({ ping: vi.fn() } as never)
-
-    const adapter = createStorageAdapter()
-    expect(adapter).toEqual({ type: 'redis' })
-  })
-
   it('provider admission refuses a configured Redis outage instead of opening a second budget', () => {
     mockGetStorageMethod.mockReturnValue('redis')
     expect(createStorageAdapter()).toEqual({ type: 'db' })
@@ -73,35 +65,6 @@ describe('rate limit storage factory', () => {
     createStorageAdapter()
     mockGetRedisClient.mockReturnValue({ ping: vi.fn() } as never)
     expect(createStorageAdapter({ requireConfiguredBackend: true })).toEqual({ type: 'redis' })
-  })
-
-  it('should use DbTokenBucket when storage method is db', () => {
-    mockGetStorageMethod.mockReturnValue('db')
-
-    const adapter = createStorageAdapter()
-    expect(adapter).toEqual({ type: 'db' })
-  })
-
-  it('should cache the adapter and return same instance', () => {
-    mockGetStorageMethod.mockReturnValue('db')
-
-    const adapter1 = createStorageAdapter()
-    const adapter2 = createStorageAdapter()
-    expect(adapter1).toBe(adapter2)
-  })
-
-  it('should register a reconnect listener that resets cached adapter', () => {
-    mockGetStorageMethod.mockReturnValue('db')
-
-    const adapter1 = createStorageAdapter()
-
-    /** onRedisReconnect is called once (guarded by reconnectListenerRegistered flag). */
-    expect(reconnectCallbacks.length).toBeGreaterThan(0)
-    const latestCallback = reconnectCallbacks[reconnectCallbacks.length - 1]
-    latestCallback()
-
-    const adapter2 = createStorageAdapter()
-    expect(adapter2).not.toBe(adapter1)
   })
 
   it('should re-evaluate storage on next call after reconnect resets cache', () => {

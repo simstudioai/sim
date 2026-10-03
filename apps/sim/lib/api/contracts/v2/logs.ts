@@ -2,7 +2,6 @@ import { z } from 'zod'
 import { traceSpansSchema } from '@/lib/api/contracts/logs'
 import {
   booleanQueryFlagSchema,
-  noInputSchema,
   runIdSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
@@ -24,9 +23,8 @@ import { v2RunFileSchema } from '@/lib/api/contracts/v2/workflows'
 import { PERSISTED_WORKFLOW_EXECUTION_STATUSES } from '@/lib/logs/types'
 
 /**
- * v2 logs contracts. The query schemas are reused verbatim from v1 (the request
- * shape is unchanged); only the response envelope is upgraded to the canonical
- * v2 shapes with concrete item schemas.
+ * v2 logs contracts. List queries retain the v1 filters; responses use the
+ * canonical v2 envelope and concrete item schemas.
  */
 
 const v2LogCostSchema = z
@@ -164,7 +162,7 @@ const v2LogWorkflowStateSchema = z
   )
   .nullable()
   .describe(
-    'Workflow graph captured for the run, or null if unavailable. Sensitive values are redacted to null; environment-variable references may be preserved.'
+    'Workflow graph captured for the run, or null if unavailable or includeWorkflowState=false. Sensitive values are redacted to null; environment-variable references may be preserved.'
   )
 
 const v2LogWorkflowSummarySchema = z.object({
@@ -208,6 +206,11 @@ export const v2LogListItemSchema = z
       .describe('Total execution duration in milliseconds, or null while unavailable.'),
     cost: v2LogCostSchema,
     files: v2LogFilesSchema,
+    hasHandledErrors: z
+      .boolean()
+      .describe(
+        'Whether a block in the run errored and was recovered by an error path. Such a run keeps `level: info`, so this is the only place the handled error shows at run level; pass `includeHandledErrors=true` with `level=error` to list these runs. Always false for a job run.'
+      ),
     /** Present only when `details=full`. */
     workflow: v2LogWorkflowSummarySchema
       .describe('Workflow summary for a full-detail result.')
@@ -338,7 +341,7 @@ export const v2LogParamsSchema = z.object({
  * Upper bound of `workflow_execution_logs.total_duration_ms`, whose column is a
  * Postgres `integer`.
  *
- * The same rule `DEPLOYMENT_VERSION_MAX` states for deployment versions: a
+ * The same rule `INT4_MAX` states for version numbers: a
  * comparison against an `integer` column is an `integer` comparison, so a bound
  * outside int4 — or one carrying a fractional part — is not a filter that
  * matches nothing, it is a value Postgres refuses to parse. `1.5`,
@@ -546,6 +549,12 @@ export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
       V2_LOG_TRIGGERS_MAX
     ).optional(),
     level: z.enum(['info', 'error']).describe('Severity level to include.').optional(),
+    includeHandledErrors: booleanQueryFlagSchema
+      .describe(
+        'Whether `level=error` also selects runs that finished at `info` after a block error was recovered by an error path. Off by default: such a run succeeded, so it is an error only to a caller auditing error handling. Every row reports `hasHandledErrors` whether or not this is set. Job runs carry no block trace, so the flag never widens that branch.'
+      )
+      .optional()
+      .default(false),
     status: v2LogStatusFilterSchema.optional(),
     workflowName: v2WorkflowNameFilterSchema.optional(),
     includeJobRuns: booleanQueryFlagSchema
@@ -706,7 +715,21 @@ export const v2ListLogsContract = defineRouteContract({
 export const v2GetLogContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/logs/[runId]',
-  query: noInputSchema,
+  query: z
+    .object({
+      includeWorkflowState: booleanQueryFlagSchema
+        .default(true)
+        .describe(
+          'Include the saved workflow snapshot (default: true). Set false to omit block configuration from a log read. Other run fields are unchanged.'
+        ),
+    })
+    .strict()
+    .meta({
+      id: 'GetLogQuery',
+      title: 'Execution log detail options',
+      description: 'Controls whether a log detail read includes its saved workflow snapshot.',
+      examples: [{ includeWorkflowState: false }],
+    }),
   params: v2LogParamsSchema,
   response: {
     mode: 'json',

@@ -1,7 +1,16 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import type { Command } from 'commander'
+import { writeStderr } from '#sim-cli/output/io'
+import { styles } from '#sim-cli/output/presentation'
+import {
+  assertWorkspaceOperationOutcome,
+  readWorkspaceOperation,
+  waitWorkspaceOperation,
+  workspaceWaitTimeout,
+} from '../commands/protocol/workspace-operation-wait'
 import { clientFrom } from '../context'
 import type { CommandSpec } from '../contract/types'
-import type { V2OperationName } from '../generated/v2-api'
+import type { GetWorkspaceOperationResponse, V2OperationName } from '../generated/v2-api'
 import { assertCursorAdvances, pageProgress, SimApiError, type V2Page } from '../http/client'
 import { safeOneLine } from '../output/render'
 import { camel } from './derive'
@@ -16,6 +25,15 @@ import {
 } from './request'
 import { foldPageEnvelope, renderPage, renderResult } from './result'
 import type { OperationSpec } from './types'
+
+const WORKSPACE_OPERATION_KINDS: Readonly<
+  Partial<Record<V2OperationName, GetWorkspaceOperationResponse['data']['kind']>>
+> = {
+  importWorkflow: 'workflow_import',
+  forkWorkspace: 'workspace_fork',
+  pushWorkspace: 'workspace_push',
+  pullWorkspace: 'workspace_pull',
+}
 
 /**
  * Operations that report the outcome of the work they did in band.
@@ -83,7 +101,7 @@ export function runFailureMessage(operation: V2OperationName, payload: unknown):
  * `sim tables batch-delete --table-ids '["tbl_typo"]'` indistinguishable from a
  * real deletion in a CI step.
  *
- * Only a total miss fails. A partial success still exits `0`: the payload names
+ * Most checks fail only a total miss. A partial success still exits `0`: the payload names
  * every item that did not make it, and failing the process there would break
  * every caller that legitimately sweeps a list containing already-gone items.
  */
@@ -101,6 +119,12 @@ type BulkOutcomeCheck = (
 ) => string | null
 
 export const BULK_OUTCOME_CHECKS: Readonly<Partial<Record<V2OperationName, BulkOutcomeCheck>>> = {
+  /** Invitation batches explicitly promise success only when every recipient succeeds. */
+  createWorkspaceInvitations: (payload) => {
+    const failed = lengthOf(payload.failed)
+    if (failed === 0 && payload.success !== false) return null
+    return `${failed > 0 ? `Invitation batch failed for ${failed} ${failed === 1 ? 'recipient' : 'recipients'}.` : 'Invitation batch failed.'} Successful results remain committed; inspect failed recipients before retrying.`
+  },
   bulkDeleteFiles: (payload, body) => {
     if (countOf((payload.deletedItems as { files?: unknown } | undefined)?.files) > 0) return null
     const requested = lengthOf(body?.fileIds)
@@ -177,6 +201,53 @@ function countOf(value: unknown): number {
 /** The length of an array field, or `0` when the payload omits it. */
 function lengthOf(value: unknown): number {
   return Array.isArray(value) ? value.length : 0
+}
+
+/**
+ * One line of context a successful result deserves, on stderr, in every format.
+ *
+ * `workflows chat publish` defaults `authType` to `public`, so a caller who
+ * never typed `--auth-type` has just put a chat on the open internet, and the
+ * result — `authType: public` among a dozen other fields of the record — does
+ * not make that leap out. The note is printed whether the default or an
+ * explicit `--auth-type public` chose it: the exposure is the same either way.
+ * stderr, so `sim workflows chat publish … --output json | jq` still reads
+ * exactly the record; every format gets it because a JSON consumer is the one
+ * least likely to look at the record.
+ *
+ * Judged on the response first and the request second: the server states what
+ * it stored, and a body that omitted the field landed on the server's default.
+ */
+const RESULT_NOTES: Readonly<
+  Partial<
+    Record<
+      V2OperationName,
+      (payload: Record<string, unknown>, body: Record<string, unknown> | undefined) => string | null
+    >
+  >
+> = {
+  replaceWorkflowChatDeployment: (payload, body) => {
+    const authType = payload.authType ?? body?.authType ?? 'public'
+    return authType === 'public'
+      ? 'note: auth type is public — anyone with the link can chat; pass --auth-type password|email to restrict it.'
+      : null
+  },
+}
+
+/** Writes the operation's result note to stderr, when it has one and the result calls for it. */
+function writeResultNote(
+  operation: V2OperationName,
+  payload: unknown,
+  body: Record<string, unknown> | undefined
+): void {
+  const note = RESULT_NOTES[operation]
+  if (!note) return
+  const record =
+    payload && typeof payload === 'object' && !Array.isArray(payload)
+      ? (payload as Record<string, unknown>)
+      : {}
+  const message = note(record, body)
+  if (message) writeStderr(styles().dim(`${message}\n`))
 }
 
 /** The one-line explanation of a bulk call that changed nothing, or `null`. */
@@ -385,12 +456,26 @@ export async function executeOperation(
    * on the caller knowing.
    */
   const pagedLimit = paging ? readPagedLimit(requestFlags.limit, operation) : 0
-  const request = buildRequest(
-    operation,
-    positional,
-    requestFlags,
-    needsWorkspace ? client.requireWorkspace() : profile.workspaceId
-  )
+  const requestWorkspaceId = needsWorkspace ? client.requireWorkspace() : profile.workspaceId
+  const request = await buildRequest(operation, positional, requestFlags, requestWorkspaceId)
+
+  if (commandSpec.workspaceOperation) {
+    if (!WORKSPACE_OPERATION_KINDS[operation])
+      throw new SimApiError('This command has no workspace operation identity configured', 0)
+    workspaceWaitTimeout(requestFlags.waitTimeout)
+    if (requestFlags.waitTimeout !== undefined && requestFlags.wait !== true)
+      throw new SimApiError('--wait-timeout requires --wait', 0)
+    if (
+      requestFlags.wait === true &&
+      (!request.body?.requestId || !request.body?.previewFingerprint)
+    )
+      throw new SimApiError(
+        '--wait requires --request-id and --preview-fingerprint from the reviewed preview',
+        0
+      )
+    if (operationSpec.body?.confirm && requestFlags.yes === true && request.body)
+      request.body.confirm = true
+  }
 
   if (paging) {
     const initialCursor = request[paging]?.cursor
@@ -442,13 +527,86 @@ export async function executeOperation(
     return
   }
 
-  const result = await client.request<{ data?: unknown }>(request.path, {
-    method: operationSpec.method,
-    headers: request.headers,
-    query: request.query,
-    body: request.body,
-  })
-  const payload = result?.data ?? result
+  let result: { data?: unknown }
+  try {
+    result = await client.request<{ data?: unknown }>(request.path, {
+      method: operationSpec.method,
+      headers: request.headers,
+      query: request.query,
+      body: request.body,
+    })
+  } catch (error) {
+    if (
+      commandSpec.workspaceOperation &&
+      request.body?.requestId &&
+      (!(error instanceof SimApiError) ||
+        error.status === 0 ||
+        error.status >= 500 ||
+        (error.status >= 200 && error.status < 300))
+    ) {
+      const failure =
+        error instanceof SimApiError
+          ? error
+          : new SimApiError(getErrorMessage(error, 'Unable to read the mutation response'), 0)
+      throw new SimApiError(
+        failure.message,
+        failure.status,
+        'MUTATION_OUTCOME_UNKNOWN',
+        {
+          cause: failure.details,
+          requestId: request.body.requestId,
+          workspaceId: requestWorkspaceId,
+          applied: 'unknown',
+          reconciliation:
+            'Find the operation using this requestId, or retry identical inputs with the same requestId.',
+        },
+        failure.exitCode
+      )
+    }
+    throw error
+  }
+  let payload = result?.data ?? result
+  if (
+    commandSpec.workspaceOperation &&
+    (Boolean(request.body?.requestId) ||
+      requestFlags.wait === true ||
+      (payload && typeof payload === 'object' && 'operationId' in payload))
+  ) {
+    let report
+    try {
+      report = readWorkspaceOperation(payload)
+      const expectedRequestId =
+        operation !== 'importWorkflow' && typeof request.body?.requestId === 'string'
+          ? request.body.requestId.trim()
+          : request.body?.requestId
+      if (
+        report.requestId !== expectedRequestId ||
+        report.workspaceId !== requestWorkspaceId ||
+        report.kind !== WORKSPACE_OPERATION_KINDS[operation]
+      )
+        throw new SimApiError('The operation receipt does not match the submitted mutation', 0)
+    } catch {
+      throw new SimApiError(
+        'The mutation response did not contain a matching operation receipt; reconcile using the same request ID',
+        0,
+        'MUTATION_OUTCOME_UNKNOWN',
+        { requestId: request.body?.requestId, workspaceId: requestWorkspaceId, applied: 'unknown' }
+      )
+    }
+    let timedOut = false
+    if (requestFlags.wait === true)
+      ({ report, timedOut } = await waitWorkspaceOperation(
+        client,
+        report.workspaceId,
+        report.operationId,
+        workspaceWaitTimeout(requestFlags.waitTimeout),
+        report
+      ))
+    payload = report
+    renderResult(operation, profile.output, payload, commandSpec)
+    assertWorkspaceOperationOutcome(report, timedOut)
+    return
+  }
   renderResult(
     operation,
     profile.output,
@@ -459,6 +617,7 @@ export async function executeOperation(
     // its own truncation there, and unwrapping `data` discarded it.
     result
   )
+  writeResultNote(operation, payload, request.body)
 
   // Printed first, then failed, for the reason `followRun` gives: the envelope
   // carries the block outputs that explain *why* the run failed, and exiting

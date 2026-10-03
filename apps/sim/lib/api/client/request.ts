@@ -1,5 +1,6 @@
 import { ApiClientError } from '@/lib/api/client/errors'
 import { CLIENT_ID_HEADER, getClientId } from '@/lib/api/client-id'
+import { CLIENT_INFO_HEADER, getClientInfoHeader } from '@/lib/api/client-info'
 import type {
   AnyApiRouteContract,
   ApiSchema,
@@ -28,6 +29,7 @@ export type ApiClientRequest<C extends AnyApiRouteContract> = MaybeField<
   MaybeField<'body', ContractBodyInput<C>> &
   MaybeField<'headers', ContractHeadersInput<C>> & {
     signal?: AbortSignal
+    keepalive?: boolean
   }
 
 export interface ApiRawRequestOptions {
@@ -108,6 +110,9 @@ function buildHeaders(headers: unknown, hasBody: boolean): Record<string, string
   /** Set here rather than per call site so every request carries it without a decision to get wrong. */
   const clientId = getClientId()
   if (clientId) output[CLIENT_ID_HEADER] = clientId
+
+  const clientInfo = getClientInfoHeader()
+  if (clientInfo) output[CLIENT_INFO_HEADER] = clientInfo
 
   if (headers && typeof headers === 'object') {
     for (const [key, value] of Object.entries(headers as Record<string, unknown>)) {
@@ -203,6 +208,7 @@ export async function requestJson<C extends AnyApiRouteContract>(
     headers: buildHeaders(parsedHeaders, hasBody),
     body: hasBody ? JSON.stringify(parsedBody) : undefined,
     signal: input.signal,
+    ...(input.keepalive === undefined ? {} : { keepalive: input.keepalive }),
   })
 
   const { parsed, raw } = await readResponseBody(response)

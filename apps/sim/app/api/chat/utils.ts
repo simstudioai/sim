@@ -27,30 +27,6 @@ export async function setChatAuthCookie(
 }
 
 /**
- * Check if user has permission to create a chat for a specific workflow
- */
-export async function checkWorkflowAccessForChatCreation(
-  workflowId: string,
-  userId: string
-): Promise<{ hasAccess: boolean; workflow?: any }> {
-  const authorization = await authorizeWorkflowByWorkspacePermission({
-    workflowId,
-    userId,
-    action: 'admin',
-  })
-
-  if (!authorization.workflow) {
-    return { hasAccess: false }
-  }
-
-  if (authorization.allowed) {
-    return { hasAccess: true, workflow: authorization.workflow }
-  }
-
-  return { hasAccess: false }
-}
-
-/**
  * Check if user has access to view/edit/delete a specific chat
  */
 export async function checkChatAccess(

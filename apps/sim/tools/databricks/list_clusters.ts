@@ -1,4 +1,5 @@
 import type { DatabricksBaseParams, DatabricksListClustersResponse } from '@/tools/databricks/types'
+import { databricksUrl } from '@/tools/databricks/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listClustersTool: ToolConfig<DatabricksBaseParams, DatabricksListClustersResponse> = {
@@ -24,13 +25,7 @@ export const listClustersTool: ToolConfig<DatabricksBaseParams, DatabricksListCl
   },
 
   request: {
-    url: (params) => {
-      const host = params.host
-        .trim()
-        .replace(/^https?:\/\//, '')
-        .replace(/\/$/, '')
-      return `https://${host}/api/2.0/clusters/list`
-    },
+    url: (params) => databricksUrl(params.host, '/api/2.0/clusters/list'),
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/json',

@@ -29,6 +29,10 @@ export function slackSearchTurnOutboxId(turnId: string) {
 /** Commits the turn and its retryable dispatch together; only dispatch, never execution, is retried. */
 export async function persistSlackSearchTurn(job: SlackSearchJob, expectedUserId?: string) {
   return db.transaction(async (tx) => {
+    if (job.message.command) {
+      await tx.execute(sql`SET LOCAL statement_timeout = '1500ms'`)
+      await tx.execute(sql`SET LOCAL lock_timeout = '500ms'`)
+    }
     const [installation] = await tx
       .select()
       .from(slackSearchInstallation)
@@ -36,7 +40,8 @@ export async function persistSlackSearchTurn(job: SlackSearchJob, expectedUserId
       .for('update')
       .limit(1)
     if (
-      !installation?.enabled ||
+      !installation ||
+      (job.redirectAppId ? installation.enabled : !installation.enabled) ||
       installation.revision !== job.revision ||
       installation.credentialVersion !== job.credentialVersion
     )
@@ -55,33 +60,36 @@ export async function persistSlackSearchTurn(job: SlackSearchJob, expectedUserId
         )
       )
       .limit(1)
-    const conversation = slackSearchConversation(job)
-    const conversationKey = slackSearchConversationKey(
-      installation.id,
-      conversation.channelId,
-      conversation.threadTs
-    )
-    if (duplicate && job.message.origin) {
+    const conversation = job.message.messageTs === null ? null : slackSearchConversation(job)
+    const conversationKey = conversation
+      ? slackSearchConversationKey(installation.id, conversation.channelId, conversation.threadTs)
+      : `slack-command:${installation.id}:${job.message.eventId}`
+    if (duplicate && (job.message.origin || job.message.command)) {
       const original = slackSearchJobSchema.parse(duplicate.payload)
       if (
         original.message.userId !== job.message.userId ||
         original.message.query !== job.message.query ||
         original.message.queryTooLong !== job.message.queryTooLong ||
-        JSON.stringify(original.message.origin) !== JSON.stringify(job.message.origin)
+        JSON.stringify(original.message.origin) !== JSON.stringify(job.message.origin) ||
+        original.message.command !== job.message.command
       )
         throw new OrchestrationError('forbidden', 'Slack event identity changed')
       return duplicate.id
     }
     if (duplicate && duplicate.conversationKey !== conversationKey)
       throw new OrchestrationError('forbidden', 'Slack event conversation changed')
-    await requireSlackSearchConversationSender(tx, conversation)
-    const chat = expectedUserId
-      ? await resolveSlackSearchChatRecord(tx, {
-          organizationId: installation.organizationId,
-          userId: expectedUserId,
-          conversation,
-        })
-      : await findSlackSearchChatRecord(tx, conversation)
+    if (conversation && !job.redirectAppId)
+      await requireSlackSearchConversationSender(tx, conversation)
+    const chat =
+      !conversation || job.redirectAppId
+        ? null
+        : expectedUserId
+          ? await resolveSlackSearchChatRecord(tx, {
+              organizationId: installation.organizationId,
+              userId: expectedUserId,
+              conversation,
+            })
+          : await findSlackSearchChatRecord(tx, conversation)
     if (
       chat &&
       (chat.organizationId !== installation.organizationId ||

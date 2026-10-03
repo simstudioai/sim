@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockSendToolConfirmations } = vi.hoisted(() => ({
@@ -15,7 +12,6 @@ import { executeManagedAgentRespondToolConfirmationOperation } from '@/lib/inter
 
 describe('Managed Agent tool confirmations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockSendToolConfirmations.mockResolvedValue(undefined)
   })
 

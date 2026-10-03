@@ -9,10 +9,10 @@ import {
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { CursorOperationError } from '@/lib/internal/cursor/errors'
-import { uploadCopilotFile } from '@/lib/uploads/contexts/copilot/copilot-file-manager'
-import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
-import { resolveStoredFileMetadata } from '@/lib/uploads/utils/validation'
-import type { UserFile } from '@/executor/types'
+import {
+  createInternalToolFileResult,
+  type InternalToolFileResult,
+} from '@/lib/internal/tool-operations/file-result'
 import type { DownloadArtifactParams } from '@/tools/cursor/types'
 
 const logger = createLogger('CursorOperations')
@@ -27,32 +27,35 @@ interface CursorArtifactLocation {
 export interface CursorOperationContext {
   requestId: string
   signal?: AbortSignal
-  persistFile?: boolean
-  userId?: string
-  workspaceId?: string
-  workflowId?: string
-  executionId?: string
 }
 
-export async function downloadCursorArtifact(
+interface LegacyCursorArtifactResult {
+  success: boolean
+  output: {
+    file: {
+      name: string
+      mimeType: string
+      data: string
+      size: number
+    }
+  }
+}
+
+export function downloadCursorArtifact(
   input: DownloadArtifactParams,
   context: CursorOperationContext
-): Promise<{
-  success: true
-  output: { file: UserFile | { name: string; mimeType: string; data: string; size: number } }
-}> {
+): Promise<LegacyCursorArtifactResult>
+export function downloadCursorArtifact(
+  input: DownloadArtifactParams,
+  context: CursorOperationContext,
+  version: 'v2'
+): Promise<InternalToolFileResult>
+export async function downloadCursorArtifact(
+  input: DownloadArtifactParams,
+  context: CursorOperationContext,
+  version: 'v1' | 'v2' = 'v1'
+): Promise<LegacyCursorArtifactResult | InternalToolFileResult> {
   context.signal?.throwIfAborted()
-  const executionContext =
-    context.workspaceId && context.workflowId && context.executionId
-      ? {
-          workspaceId: context.workspaceId,
-          workflowId: context.workflowId,
-          executionId: context.executionId,
-        }
-      : null
-  if (context.persistFile && !executionContext && !context.userId) {
-    throw new CursorOperationError('User context is required to store artifacts', 401)
-  }
   const authHeader = `Basic ${Buffer.from(`${input.apiKey}:`).toString('base64')}`
   const artifactResponse = await fetch(
     `https://api.cursor.com/v0/agents/${encodeURIComponent(input.agentId)}/artifacts/download?path=${encodeURIComponent(input.path)}`,
@@ -103,41 +106,33 @@ export async function downloadCursorArtifact(
 
   const fileBuffer = Buffer.from(await downloadResponse.arrayBuffer())
   context.signal?.throwIfAborted()
-  const fileName = input.path.split('/').pop() || 'artifact'
-  const mimeType = downloadResponse.headers.get('content-type') || 'application/octet-stream'
-  let file: UserFile | { name: string; mimeType: string; data: string; size: number }
-  if (context.persistFile) {
-    const metadata = resolveStoredFileMetadata(fileName, mimeType, fileBuffer)
-    file = executionContext
-      ? await uploadExecutionFile(
-          executionContext,
-          fileBuffer,
-          metadata.fileName,
-          metadata.mimeType,
-          context.userId
-        )
-      : await uploadCopilotFile({
-          buffer: fileBuffer,
-          fileName: metadata.fileName,
-          contentType: metadata.mimeType,
-          userId: context.userId!,
-        })
-    context.signal?.throwIfAborted()
-  } else {
-    // V1 exposes base64 metadata rather than a file-typed output.
-    file = {
-      name: fileName,
-      mimeType,
-      data: fileBuffer.toString('base64'),
-      size: fileBuffer.length,
-    }
+  const file = {
+    name: input.path.split('/').pop() || 'artifact',
+    mimeType: downloadResponse.headers.get('content-type') || 'application/octet-stream',
+    buffer: fileBuffer,
   }
   logger.info(`[${context.requestId}] Cursor artifact downloaded`, {
     agentId: input.agentId,
     path: input.path,
-    size: file.size,
+    size: fileBuffer.length,
   })
-  return { success: true, output: { file } }
+  if (version === 'v1') {
+    return {
+      success: true,
+      output: {
+        file: {
+          name: file.name,
+          mimeType: file.mimeType,
+          data: fileBuffer.toString('base64'),
+          size: fileBuffer.length,
+        },
+      },
+    }
+  }
+  return createInternalToolFileResult(file, (storedFile) => ({
+    success: true,
+    output: { file: storedFile },
+  }))
 }
 
 export function cursorOperationErrorMessage(error: unknown): string {

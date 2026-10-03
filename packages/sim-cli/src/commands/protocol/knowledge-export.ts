@@ -1,6 +1,7 @@
-import { basename, join } from 'node:path'
+import { basename } from 'node:path'
 import type { Command } from 'commander'
 import { clientFrom } from '../../context'
+import { embedStore } from '../../embed-context'
 import { V2_OPERATIONS } from '../../generated/v2-api'
 import { resolvePath, SimApiError } from '../../http/client'
 import { isTerminalSafeContentType, saveToFile, streamToStdout } from './files-get'
@@ -76,10 +77,13 @@ export function attachKnowledgeExport(knowledge: Command): void {
 
       if (writesToStdout) {
         const contentType = response.headers.get('content-type')
-        if (process.stdout.isTTY && !isTerminalSafeContentType(contentType)) {
+        const embedded = embedStore.getStore()
+        if ((embedded || process.stdout.isTTY) && !isTerminalSafeContentType(contentType)) {
           await response.body.cancel()
           throw new SimApiError(
-            `Refusing to write ${contentType ?? 'unknown content'} to an interactive terminal. Use --output-file <path> or pipe stdout.`,
+            embedded
+              ? `Refusing to put ${contentType ?? 'unknown content'} in a text result. Use --output-file <path>.`
+              : `Refusing to write ${contentType ?? 'unknown content'} to an interactive terminal. Use --output-file <path> or pipe stdout.`,
             0
           )
         }
@@ -88,15 +92,13 @@ export function attachKnowledgeExport(knowledge: Command): void {
         return
       }
 
-      const target =
+      const target = await saveToFile(
+        response.body,
         options.outputFile ??
-        join(
-          process.cwd(),
           attachmentFileName(response.headers.get('content-disposition')) ??
-            `${knowledgeBaseId}.simkb.zip`
-        )
-
-      await saveToFile(response.body, target, Boolean(options.force))
+          `${knowledgeBaseId}.simkb.zip`,
+        Boolean(options.force)
+      )
       printProtocolResult(profile.output, {
         id: knowledgeBaseId,
         path: target,

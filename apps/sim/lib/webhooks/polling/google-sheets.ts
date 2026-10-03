@@ -100,15 +100,7 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
         rowCount: currentRowCount,
         headers,
         headerRowIndex,
-      } = await fetchSheetState(
-        accessToken,
-        spreadsheetId,
-        sheetName,
-        valueRender,
-        dateTimeRender,
-        requestId,
-        logger
-      )
+      } = await fetchSheetState(accessToken, spreadsheetId, sheetName, valueRender, dateTimeRender)
 
       // First poll: seed state, emit nothing
       if (config.lastIndexChecked === undefined) {
@@ -191,9 +183,7 @@ export const googleSheetsPollingHandler: PollingProviderHandler = {
         adjustedStartRow,
         endRow,
         valueRender,
-        dateTimeRender,
-        requestId,
-        logger
+        dateTimeRender
       )
 
       const { processedCount, failedCount } = await processRows(
@@ -252,12 +242,12 @@ async function isDriveFileUnchanged(
   logger: Logger
 ): Promise<{ unchanged: boolean; currentModifiedTime?: string }> {
   try {
-    const currentModifiedTime = await getDriveFileModifiedTime(accessToken, spreadsheetId, logger)
+    const currentModifiedTime = await getDriveFileModifiedTime(accessToken, spreadsheetId)
     if (!lastModifiedTime || !currentModifiedTime) {
       return { unchanged: false, currentModifiedTime }
     }
     return { unchanged: currentModifiedTime === lastModifiedTime, currentModifiedTime }
-  } catch (error) {
+  } catch {
     logger.warn(`[${requestId}] Drive modifiedTime check failed, proceeding with Sheets API`)
     return { unchanged: false }
   }
@@ -265,8 +255,7 @@ async function isDriveFileUnchanged(
 
 async function getDriveFileModifiedTime(
   accessToken: string,
-  fileId: string,
-  logger: Logger
+  fileId: string
 ): Promise<string | undefined> {
   try {
     const response = await fetch(
@@ -295,9 +284,7 @@ async function fetchSheetState(
   spreadsheetId: string,
   sheetName: string,
   valueRenderOption: ValueRenderOption,
-  dateTimeRenderOption: DateTimeRenderOption,
-  requestId: string,
-  logger: Logger
+  dateTimeRenderOption: DateTimeRenderOption
 ): Promise<{ rowCount: number; headers: string[]; headerRowIndex: number }> {
   const encodedSheet = encodeURIComponent(sheetName)
   const params = new URLSearchParams({
@@ -350,9 +337,7 @@ async function fetchRowRange(
   startRow: number,
   endRow: number,
   valueRenderOption: ValueRenderOption,
-  dateTimeRenderOption: DateTimeRenderOption,
-  requestId: string,
-  logger: Logger
+  dateTimeRenderOption: DateTimeRenderOption
 ): Promise<string[][]> {
   const encodedSheet = encodeURIComponent(sheetName)
   const params = new URLSearchParams({

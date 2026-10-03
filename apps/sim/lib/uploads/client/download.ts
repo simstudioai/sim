@@ -50,6 +50,7 @@ export async function triggerFileDownload(
 
   const content =
     isMarkdown &&
+    record.vfsNamespace !== 'uploads' &&
     (record.storageContext ?? 'workspace') === 'workspace' &&
     source?.fileId === record.id &&
     source.workspaceId === record.workspaceId
@@ -76,9 +77,12 @@ export async function triggerFileDownload(
     return
   }
 
-  const url = isMarkdown
-    ? `/api/files/export/${encodeURIComponent(record.id)}`
-    : `/api/files/serve/${encodeURIComponent(record.key)}?context=workspace&t=${Date.now()}`
+  const url =
+    isMarkdown &&
+    record.vfsNamespace !== 'uploads' &&
+    (record.storageContext ?? 'workspace') === 'workspace'
+      ? `/api/files/export/${encodeURIComponent(record.id)}`
+      : `/api/files/serve/${encodeURIComponent(record.key)}?context=${record.storageContext ?? 'workspace'}&t=${Date.now()}`
 
   // boundary-raw-fetch: binary download read as a blob; these paths have no contract
   const response = await fetch(url, { cache: 'no-store' })

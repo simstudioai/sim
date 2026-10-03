@@ -1,6 +1,14 @@
 'use client'
 
-import { type Dispatch, Fragment, type SetStateAction, useMemo, useState } from 'react'
+import {
+  type Dispatch,
+  Fragment,
+  lazy,
+  type SetStateAction,
+  Suspense,
+  useMemo,
+  useState,
+} from 'react'
 import {
   Badge,
   ChevronDown,
@@ -15,7 +23,6 @@ import {
   OverflowText,
   Tooltip,
 } from '@sim/emcn'
-import { ArrowRight } from '@sim/emcn/icons'
 import type {
   ForkCopyableUnmapped,
   ForkDependentReconfig,
@@ -24,7 +31,13 @@ import type {
   ForkTriggerMapping,
 } from '@/lib/api/contracts/workspace-fork'
 import type { SelectorKey } from '@/lib/selectors/manifest'
+import { buildWebhookTriggerUrl } from '@/lib/webhooks/trigger-url'
+import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   FileKindRow,
@@ -59,7 +72,12 @@ import type {
 } from '@/ee/workspace-forking/components/fork-sync/use-fork-sync'
 import type { ForkDirection } from '@/ee/workspace-forking/hooks/workspace-fork'
 import { forkSyncBlockerReasonFor } from '@/ee/workspace-forking/lib/promote/sync-blockers'
-import { buildWebhookTriggerUrl } from '@/triggers/webhook-url'
+
+const ForkComparisonModal = lazy(() =>
+  import('@/ee/workspace-forking/components/fork-sync/fork-comparison-modal').then((module) => ({
+    default: module.ForkComparisonModal,
+  }))
+)
 
 /**
  * Copyable kinds as expandable rows in the "Copy resources" section, ordered + labeled to match
@@ -812,25 +830,33 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
     controller.inlineSecretCount > 0 ||
     controller.triggerUrlChanges.length > 0
 
-  // Excluded workflows render greyed in the change list. Orient each name's tooltip
-  // to WHERE it is excluded (that's the only place it can be re-included): the sync's
-  // source is this workspace on push and the other workspace on pull.
+  // Unsynced workflows render greyed in the change list. Orient each name's tooltip
+  // to WHERE it is unsynced (that's the only place it can be re-selected, under Synced
+  // workflows): the sync's source is this workspace on push and the other on pull.
   const excludedRows = [
     ...(controller.direction === 'push'
       ? controller.excludedSourceWorkflows
       : controller.excludedTargetWorkflows
-    ).map((name) => ({ name, tooltip: 'Excluded from sync' })),
+    ).map((name) => ({ name, tooltip: 'Not synced' })),
     ...(controller.direction === 'push'
       ? controller.excludedTargetWorkflows
       : controller.excludedSourceWorkflows
     ).map((name) => ({
       name,
-      tooltip: `Excluded from sync in "${controller.otherWorkspaceName}"`,
+      tooltip: `Not synced in "${controller.otherWorkspaceName}"`,
     })),
   ]
 
   return (
     <div className='flex flex-col gap-7'>
+      {controller.comparisonSelection ? (
+        <Suspense fallback={null}>
+          <ForkComparisonModal
+            {...controller.comparisonSelection}
+            onClose={controller.closeComparison}
+          />
+        </Suspense>
+      ) : null}
       <SettingsSection label='Sync direction'>
         <div className='flex flex-col gap-2'>
           <ChipSwitch
@@ -862,32 +888,56 @@ export function ForkSyncView({ controller, onDirectionChange }: ForkSyncViewProp
       {/* Always shown once the diff loads so the user sees the section even with nothing
           deployed - an empty change list means the source has no deployed workflows (every
           deployed workflow appears here, changed or not), so the muted state nudges a deploy.
-          Sync-excluded workflows list greyed at the end, with a tooltip naming where the
-          exclusion lives - the sync will not touch them. */}
+          Unsynced workflows list greyed at the end, with a tooltip naming which workspace
+          they are unsynced in - the sync will not touch them. */}
       {controller.hasDiff ? (
         <SettingsSection label='Deployed workflows'>
           {controller.workflowChanges.length + excludedRows.length > 0 ? (
             <Tooltip.Provider delayDuration={150}>
-              <div className='flex flex-col gap-1'>
-                {controller.workflowChanges.map((change, index) => {
-                  const renamed = change.currentName !== change.otherName
+              <div className={RESOURCE_LIST_STACK}>
+                {controller.workflowChanges.map((change) => {
+                  const comparison = change.action === 'archive' ? null : change.comparison
+                  const unavailableReason =
+                    comparison?.status === 'unavailable' ? comparison.reason : null
+                  const tooltip =
+                    unavailableReason === 'new_workflow'
+                      ? 'Newly added.'
+                      : unavailableReason === 'no_baseline'
+                        ? 'Available after a successful sync.'
+                        : unavailableReason === 'missing_baseline'
+                          ? 'The last synced version is no longer available.'
+                          : undefined
                   return (
-                    <div
-                      key={`${change.action}:${change.currentName}:${index}`}
-                      className='flex min-w-0 items-center gap-1.5'
-                    >
-                      <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>
-                        {change.currentName}
-                      </span>
-                      {renamed ? (
-                        <>
-                          <ArrowRight className='size-3 shrink-0 text-[var(--text-icon)]' />
-                          <span className='min-w-0 truncate text-[var(--text-secondary)] text-sm'>
-                            {change.otherName}
-                          </span>
-                        </>
-                      ) : null}
-                    </div>
+                    <SettingsResourceRow
+                      key={
+                        change.action === 'archive'
+                          ? change.targetWorkflowId
+                          : change.sourceWorkflowId
+                      }
+                      title={
+                        change.currentName === change.otherName
+                          ? change.currentName
+                          : `${change.currentName} → ${change.otherName}`
+                      }
+                      trailing={
+                        change.action === 'archive' ? undefined : (
+                          <RowActionsMenu
+                            label={`${change.currentName} actions`}
+                            actions={[
+                              {
+                                label: 'Compare',
+                                onSelect: () => controller.openComparison(change),
+                                disabled:
+                                  !controller.comparisonReady || comparison?.status !== 'available',
+                                tooltip: controller.comparisonReady
+                                  ? tooltip
+                                  : 'Loading sync details…',
+                              },
+                            ]}
+                          />
+                        )
+                      }
+                    />
                   )
                 })}
                 {excludedRows.map(({ name, tooltip }, index) => (

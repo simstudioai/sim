@@ -176,13 +176,8 @@ async function runKnowledgeItems(
 
 export const bulkMoveKnowledgeItems = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.bulkMoveItems,
-  resolveContext: ({
-    principal,
-    input,
-  }: {
-    principal: Principal
-    input: BulkMoveKnowledgeItemsInput
-  }) => resolveBulkKnowledgeContext(input, BULK_MOVE_KNOWLEDGE_ITEMS_COST_POLICY.maxItems),
+  resolveContext: ({ input }: { principal: Principal; input: BulkMoveKnowledgeItemsInput }) =>
+    resolveBulkKnowledgeContext(input, BULK_MOVE_KNOWLEDGE_ITEMS_COST_POLICY.maxItems),
   async execute({ principal, input, context }): Promise<BulkMoveKnowledgeItemsExecutionResult> {
     /**
      * The destination check and the folder plan read different rows and share
@@ -318,13 +313,8 @@ export const bulkMoveKnowledgeItems = defineAuthorizedKnowledgeUseCase({
 
 export const bulkDeleteKnowledgeItems = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.bulkDeleteItems,
-  resolveContext: ({
-    principal,
-    input,
-  }: {
-    principal: Principal
-    input: BulkDeleteKnowledgeItemsInput
-  }) => resolveBulkKnowledgeContext(input, BULK_DELETE_KNOWLEDGE_ITEMS_COST_POLICY.maxItems),
+  resolveContext: ({ input }: { principal: Principal; input: BulkDeleteKnowledgeItemsInput }) =>
+    resolveBulkKnowledgeContext(input, BULK_DELETE_KNOWLEDGE_ITEMS_COST_POLICY.maxItems),
   async execute({ principal, context }): Promise<BulkDeleteKnowledgeItemsExecutionResult> {
     const plan = await planFolderSelection(
       context.workspaceId,

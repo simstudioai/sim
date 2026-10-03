@@ -1,5 +1,6 @@
 import { once } from 'node:events'
 import { Readable } from 'node:stream'
+import { finished } from 'node:stream/promises'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { ZipArchive } from 'archiver'
@@ -82,9 +83,14 @@ async function appendEntry(
     closed.throwIfAborted()
   }
   const consumed = once(archive, 'entry', { signal: closed })
-  archive.append(source, { name })
+  /** Archiver's source pipe does not forward source errors or premature closure. */
+  const sourceFinished =
+    source instanceof Readable
+      ? finished(source, { readable: true, writable: false, cleanup: true })
+      : undefined
   try {
-    await consumed
+    archive.append(source, { name })
+    await Promise.all([consumed, sourceFinished])
   } catch (error) {
     if (source instanceof Readable) source.destroy()
     throw error

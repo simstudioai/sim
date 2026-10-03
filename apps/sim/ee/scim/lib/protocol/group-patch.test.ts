@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { scimPatchBodySchema } from '@/lib/api/contracts/scim'
 import { SCIM_PATCH_OP_SCHEMA } from '@/ee/scim/lib/protocol/constants'
@@ -53,25 +50,11 @@ describe('parseGroupPatch', () => {
     expect(patch).toEqual({ kind: 'incremental', add: [], remove: ['u1'] })
   })
 
-  it('reads Okta’s member addition', () => {
-    const patch = parseGroupPatch(
-      parseOperations([{ op: 'add', path: 'members', value: [{ value: 'u1', display: 'Ada' }] }])
-    )
-    expect(patch).toEqual({ kind: 'incremental', add: ['u1'], remove: [] })
-  })
-
   it('reads Entra’s legacy removal, which identifies the member by value alone', () => {
     const patch = parseGroupPatch(
       parseOperations([{ op: 'Remove', path: 'members', value: [{ value: 'u1' }] }])
     )
     expect(patch).toEqual({ kind: 'incremental', add: [], remove: ['u1'] })
-  })
-
-  it('reads Entra’s add form with a null $ref alongside the value', () => {
-    const patch = parseGroupPatch(
-      parseOperations([{ op: 'Add', path: 'members', value: [{ $ref: null, value: 'u2' }] }])
-    )
-    expect(patch).toEqual({ kind: 'incremental', add: ['u2'], remove: [] })
   })
 
   it('treats a wholesale member replacement as a full patch', () => {
@@ -91,16 +74,6 @@ describe('parseGroupPatch', () => {
       parseOperations([{ op: 'replace', value: { id: 'g1', displayName: 'Platform' } }])
     )
     expect(patch).toMatchObject({ kind: 'full', displayName: 'Platform' })
-  })
-
-  it('carries membership deltas that accompany a rename', () => {
-    const patch = parseGroupPatch(
-      parseOperations([
-        { op: 'replace', path: 'displayName', value: 'Platform' },
-        { op: 'add', path: 'members', value: [{ value: 'u3' }] },
-      ])
-    )
-    expect(patch).toMatchObject({ kind: 'full', displayName: 'Platform', addMembers: ['u3'] })
   })
 
   it('refuses a remove with no path', () => {

@@ -1,7 +1,7 @@
 import { GoogleDriveIcon } from '@/components/icons'
 import type { ConnectorMeta } from '@/connectors/types'
 
-/** The config field naming the administrator a service account crawls as. */
+/** Directory administrator for company-wide indexing; delegated identity for member content. */
 export const GOOGLE_DRIVE_ADMIN_EMAIL_FIELD_ID = 'adminEmail'
 /** The config field saying how far open shares are searchable. */
 export const GOOGLE_DRIVE_OPEN_SHARING_FIELD_ID = 'openSharing'
@@ -21,15 +21,17 @@ export const googleDriveConnectorMeta: ConnectorMeta = {
     requiredScopes: ['https://www.googleapis.com/auth/drive'],
     adminCredentialType: 'service_account',
     /**
-     * Delegated crawls need read access only. The token acts as the configured
-     * administrator and sees files that account can access; delegation alone
-     * does not discover every user's files. Directory scopes resolve group grants.
+     * The administrator enumerates Workspace users and resolves directory grants.
+     * Each user's content token has only the Drive read scope.
      */
-    serviceAccountScopes: [
+    serviceAccountScopes: ['https://www.googleapis.com/auth/drive.readonly'],
+    adminServiceAccountScopes: [
       'https://www.googleapis.com/auth/drive.readonly',
+      'https://www.googleapis.com/auth/admin.directory.user.readonly',
       'https://www.googleapis.com/auth/admin.directory.group.readonly',
       'https://www.googleapis.com/auth/admin.directory.domain.readonly',
     ],
+    serviceAccountDelegationScopes: ['https://www.googleapis.com/auth/drive.readonly'],
     serviceAccountSubjectFieldId: GOOGLE_DRIVE_ADMIN_EMAIL_FIELD_ID,
   },
 
@@ -41,17 +43,32 @@ export const googleDriveConnectorMeta: ConnectorMeta = {
   /** `files.list` reports each file's own permissions, so one crawl can mirror them. */
   mirrorsSourceAcls: true,
   adminSetupHint:
-    'Use a service account with domain-wide delegation and Google Workspace Directory access. Only files the administrator in Crawl as can access are indexed.',
+    'Use a service account with domain-wide delegation and Google Workspace Directory access to index selected employees’ Drives with their existing permissions.',
 
   configFields: [
     {
       id: GOOGLE_DRIVE_ADMIN_EMAIL_FIELD_ID,
       title: 'Crawl as',
+      titleInAdminMode: 'Directory administrator email',
+      descriptionInAdminMode:
+        'A Google Workspace administrator who can read users, groups, memberships, and domains. Used for directory access; files are read as each selected user.',
       type: 'short-input',
       required: false,
       placeholder: 'admin@yourcompany.com',
       description:
-        'A Google Workspace administrator the service account acts as. Only files this account can access are indexed. Required to mirror Drive permissions; leave blank for your own Google account or files shared directly with the service account.',
+        'The Google Workspace user this service account acts as when fetching content for connected members.',
+    },
+    {
+      id: 'userEmails',
+      title: 'Users',
+      showInAdminModeOnly: true,
+      setupGroup: 'options',
+      type: 'short-input',
+      multi: true,
+      required: false,
+      placeholder: 'All active Google Workspace users',
+      description:
+        'Optional primary email addresses, separated by commas (up to 100). Leave blank to index all active users across this Google Workspace customer.',
     },
     {
       id: GOOGLE_DRIVE_OPEN_SHARING_FIELD_ID,

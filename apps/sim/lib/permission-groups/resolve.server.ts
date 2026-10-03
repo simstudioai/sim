@@ -16,7 +16,7 @@
 import { db } from '@sim/db'
 import { permissionGroup, permissionGroupMember, permissionGroupWorkspace } from '@sim/db/schema'
 import { and, asc, eq, sql } from 'drizzle-orm'
-import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
+import { isOrganizationGovernanceActive } from '@/lib/billing/core/subscription'
 import {
   getAllowedIntegrationsFromEnv,
   isAccessControlEnabled,
@@ -99,7 +99,7 @@ function inactiveUserAccessControlContext(organizationId: string | null): UserAc
  * connection, and a default would let that caller silently check out a second
  * pooled connection while advisory locks are held.
  */
-async function resolveDefaultGroup(
+export async function resolveDefaultGroup(
   organizationId: string,
   executor: DbOrTx
 ): Promise<ResolvedPermissionGroup | null> {
@@ -155,9 +155,10 @@ async function resolveDefaultGroup(
 export async function resolveWorkspaceGroup(
   userId: string,
   organizationId: string,
-  workspaceId: string
+  workspaceId: string,
+  executor: DbOrTx = db
 ): Promise<ResolvedPermissionGroup | null> {
-  const rows = await db
+  const rows = await executor
     .select({
       id: permissionGroup.id,
       name: permissionGroup.name,
@@ -199,7 +200,7 @@ export async function resolveWorkspaceGroup(
     }
   }
 
-  return resolveDefaultGroup(organizationId, db)
+  return resolveDefaultGroup(organizationId, executor)
 }
 
 /**
@@ -216,24 +217,26 @@ export async function resolveWorkspaceGroup(
 async function resolveUserAccessControlContextForOrganization(
   userId: string,
   workspaceId: string,
-  organizationId: string | null
+  organizationId: string | null,
+  executor?: DbOrTx
 ): Promise<UserAccessControlContext> {
   if (!organizationId) return inactiveUserAccessControlContext(null)
 
   /**
-   * `'throw'` because an unentitled organization resolves to `config: null`,
-   * and `null` is not a smaller permission set — it is *no* permission group at
-   * all: every capability allowed, every allowlist off. Under the lenient
-   * default a single subscription-read failure would be indistinguishable from
-   * a genuine plan lapse and would turn the whole regime off for the request.
-   * Throwing surfaces the outage as an error instead.
+   * The governance reader, not the feature gate: an unentitled organization resolves to
+   * `config: null`, and `null` is not a smaller permission set — it is *no* permission group at
+   * all: every capability allowed, every allowlist off. So neither a read failure nor a payment
+   * one may answer here; both would be indistinguishable from a genuine plan lapse and would lift
+   * the whole regime. It throws on the first and keeps governing through the second.
    */
-  const isEnterprise = await isOrganizationOnEnterprisePlan(organizationId, 'throw')
+  const isEnterprise = executor
+    ? await isOrganizationGovernanceActive(organizationId, executor)
+    : await isOrganizationGovernanceActive(organizationId)
   if (!isEnterprise) {
     return inactiveUserAccessControlContext(organizationId)
   }
 
-  const resolved = await resolveWorkspaceGroup(userId, organizationId, workspaceId)
+  const resolved = await resolveWorkspaceGroup(userId, organizationId, workspaceId, executor ?? db)
   return {
     organizationId,
     entitled: true,
@@ -256,12 +259,18 @@ async function resolveUserAccessControlContextForOrganization(
 export async function resolveVerifiedUserAccessControlContext(
   userId: string,
   workspaceId: string,
-  organizationId: string | null
+  organizationId: string | null,
+  executor?: DbOrTx
 ): Promise<UserAccessControlContext> {
   if (!isHosted && !isAccessControlEnabled) {
     return inactiveUserAccessControlContext(null)
   }
-  return resolveUserAccessControlContextForOrganization(userId, workspaceId, organizationId)
+  return resolveUserAccessControlContextForOrganization(
+    userId,
+    workspaceId,
+    organizationId,
+    executor
+  )
 }
 
 /**
@@ -274,17 +283,22 @@ export async function resolveVerifiedUserAccessControlContext(
  */
 export async function getUserPermissionConfig(
   userId: string,
-  workspaceId: string
+  workspaceId: string,
+  executor?: DbOrTx
 ): Promise<PermissionGroupConfig | null> {
   if (!isHosted && !isAccessControlEnabled) {
     return mergeEnvAllowlist(null)
   }
 
-  const workspace = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
+  const workspace = await getWorkspaceWithOwner(workspaceId, {
+    includeArchived: true,
+    ...(executor ? { executor } : {}),
+  })
   const context = await resolveUserAccessControlContextForOrganization(
     userId,
     workspaceId,
-    workspace?.organizationId ?? null
+    workspace?.organizationId ?? null,
+    executor
   )
   return context.config
 }
@@ -297,12 +311,13 @@ export async function getUserPermissionConfig(
  * covered by a workspace group.
  */
 export async function getUserPermissionConfigForOrganization(
-  organizationId: string
+  organizationId: string,
+  executor?: DbOrTx
 ): Promise<PermissionGroupConfig | null> {
-  if (!(await isOrganizationPermissionRegimeActive(organizationId))) {
+  if (!(await isOrganizationPermissionRegimeActive(organizationId, executor))) {
     return mergeEnvAllowlist(null)
   }
-  return getEntitledOrganizationPermissionConfig(organizationId, db)
+  return getEntitledOrganizationPermissionConfig(organizationId, executor ?? db)
 }
 
 /**
@@ -315,7 +330,7 @@ export async function getUserPermissionConfigForOrganization(
  * part of the entitlement cache key, so this read cannot reuse a preflight
  * result. A permission-group lock alone only serializes group writes.
  *
- * `'throw'` for the same reason as in
+ * Reads governance rather than feature entitlement, for the same reason as in
  * {@link resolveUserAccessControlContextForOrganization}.
  */
 export async function isOrganizationPermissionRegimeActive(
@@ -324,8 +339,8 @@ export async function isOrganizationPermissionRegimeActive(
 ): Promise<boolean> {
   if (!isHosted && !isAccessControlEnabled) return false
   return executor
-    ? isOrganizationOnEnterprisePlan(organizationId, 'throw', executor)
-    : isOrganizationOnEnterprisePlan(organizationId, 'throw')
+    ? isOrganizationGovernanceActive(organizationId, executor)
+    : isOrganizationGovernanceActive(organizationId)
 }
 
 /**

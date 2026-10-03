@@ -1,7 +1,18 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  billingWorkspaceAccessMock,
+  billingWorkspaceAccessMockFns,
+} from '@sim/testing/mocks/billing-workspace-access.mock'
+import {
+  credentialGroupsProvidersMock,
+  credentialGroupsProvidersMockFns,
+} from '@sim/testing/mocks/credential-groups-providers.mock'
+import { emailMailerMock } from '@sim/testing/mocks/email-mailer.mock'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { eq, ilike, inArray, isNull } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,34 +27,24 @@ vi.mock('@/components/emails/credential-groups/render', () => ({
   renderCredentialGroupInvitationEmail: vi.fn(),
 }))
 
-vi.mock('@/lib/messaging/email/mailer', () => ({ sendEmail: vi.fn() }))
+vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getOrganizationSubscriptionUsable: vi.fn().mockResolvedValue({ plan: 'enterprise' }),
-}))
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: vi.fn().mockResolvedValue(true),
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
-vi.mock('@/lib/billing/core/workspace-access', () => ({
-  getWorkspaceOwnerSubscriptionAccess: vi.fn().mockResolvedValue({}),
-}))
+vi.mock('@/lib/billing/core/workspace-access', () => billingWorkspaceAccessMock)
 
 vi.mock('@/lib/credential-groups/availability', () => ({
   isCredentialGroupsAvailable: vi.fn().mockResolvedValue(true),
 }))
 
-vi.mock('@/lib/credential-groups/provider-registry', () => ({
-  getCredentialGroupProviderAdapter: () => adapter,
-}))
+vi.mock('@/lib/credential-groups/provider-registry', () => credentialGroupsProvidersMock)
 
 import { renderCredentialGroupInvitationEmail } from '@/components/emails/credential-groups/render'
-import { getOrganizationSubscriptionUsable } from '@/lib/billing/core/subscription'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
   bindCredentialGroupEnrollmentUser,
   completeCredentialGroupEnrollment,
-  createCredentialGroupInvitationLink,
   createCredentialGroupSelfEnrollmentLink,
   deleteCredentialGroupEnrollment,
   getAuthorizedCredentialGroupOAuthContext,
@@ -56,6 +57,13 @@ import {
 import { CredentialGroupProviderConfigurationError } from '@/lib/credential-groups/provider-adapter'
 import { CREDENTIAL_GROUP_PROVIDER_IDS } from '@/lib/credential-groups/providers'
 import { sendEmail } from '@/lib/messaging/email/mailer'
+
+const mockGetOrganizationSubscriptionUsable =
+  billingSubscriptionMockFns.mockGetOrganizationSubscriptionUsable
+mockGetOrganizationSubscriptionUsable.mockResolvedValue({ plan: 'enterprise' })
+featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(true)
+billingWorkspaceAccessMockFns.mockGetWorkspaceOwnerSubscriptionAccess.mockResolvedValue({})
+credentialGroupsProvidersMockFns.mockGetCredentialGroupProviderAdapter.mockReturnValue(adapter)
 
 const MAX_CONNECTION_SUMMARIES = (CREDENTIAL_GROUP_PROVIDER_IDS.length + 1) * 3
 
@@ -114,7 +122,6 @@ describe('focused public enrollment projection', () => {
     },
   ]
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     queueTableRows(schemaMock.credentialGroupEnrollment, [
       {
@@ -166,7 +173,6 @@ describe('focused public enrollment projection', () => {
 
 describe('listCredentialGroupEnrollments', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -355,65 +361,8 @@ describe('listCredentialGroupEnrollments', () => {
   })
 })
 
-describe('createCredentialGroupInvitationLink', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-  })
-
-  it('issues a fresh enrollment token without sending email', async () => {
-    const issued = {
-      ...ENROLLMENT,
-      email: 'person@example.com',
-      status: 'invited' as const,
-      sentAt: null,
-      completedAt: null,
-    }
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([
-        {
-          workspaceId: 'workspace-1',
-          workspaceName: 'Workspace',
-          groupId: 'group-1',
-          groupName: 'Group',
-          groupStatus: 'active',
-          options: [{ id: 'option-1', status: 'active' }],
-        },
-      ])
-      .mockResolvedValueOnce([])
-    dbChainMockFns.returning.mockResolvedValueOnce([issued])
-
-    const result = await createCredentialGroupInvitationLink(
-      'workspace-1',
-      'group-1',
-      'user-1',
-      ' Person@Example.COM '
-    )
-
-    expect(result.enrollment).toMatchObject({
-      id: ENROLLMENT.id,
-      email: 'person@example.com',
-      status: 'invited',
-      sentAt: null,
-    })
-    expect(new URL(result.invitationLink).pathname).toMatch(
-      /^\/credential-groups\/enroll\/[0-9a-f-]+$/
-    )
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        credentialGroupId: 'group-1',
-        email: 'person@example.com',
-        createdBy: 'user-1',
-        sentAt: null,
-      })
-    )
-    expect(sendEmail).not.toHaveBeenCalled()
-  })
-})
-
 describe('verified self enrollment', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -441,14 +390,6 @@ describe('verified self enrollment', () => {
     )
   })
 
-  it('continues to require an account type for external invitations', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([group]).mockResolvedValueOnce([])
-    await expect(
-      createCredentialGroupInvitationLink('workspace-1', 'group-1', 'admin', ENROLLMENT.email)
-    ).rejects.toThrow('Add an account type')
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-  })
-
   it('refuses a disabled group for self enrollment', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([{ ...group, groupStatus: 'disabled' }])
     await expect(
@@ -471,7 +412,6 @@ describe('verified self enrollment', () => {
 
 describe('resendCredentialGroupEnrollment', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -546,7 +486,6 @@ describe('resendCredentialGroupEnrollment', () => {
 
 describe('deleteCredentialGroupEnrollment', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -567,7 +506,6 @@ describe('deleteCredentialGroupEnrollment', () => {
 
 describe('completeCredentialGroupEnrollment', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -683,7 +621,6 @@ describe('enrollment context for session-authorized or consumed-attempt OAuth', 
     workspaceOwnerId: 'owner',
   }
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
   it('resolves pinned identity after invitation rotation or expiry without looking up the old bearer', async () => {
@@ -798,8 +735,7 @@ describe('organization enrollment bound identity', () => {
   }
   beforeEach(() => {
     resetDbChainMock()
-    vi.clearAllMocks()
-    vi.mocked(getOrganizationSubscriptionUsable).mockResolvedValue({ plan: 'enterprise' } as never)
+    mockGetOrganizationSubscriptionUsable.mockResolvedValue({ plan: 'enterprise' })
     vi.mocked(isFeatureEnabled).mockResolvedValue(true)
     queueTableRows(schemaMock.credentialGroupEnrollment, [row])
   })
@@ -847,7 +783,6 @@ describe('verified immutable enrollment identity binding', () => {
     invitationTokenHash: ENROLLMENT.invitationTokenHash,
   }
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
   it('binds an invitation once to its verified recipient', async () => {

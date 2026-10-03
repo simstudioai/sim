@@ -10,7 +10,7 @@ import {
   resourcePolicy,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   type ResourceScope,
@@ -24,7 +24,10 @@ import { requireOrganizationAccountsSetup } from '@/lib/credential-groups/organi
 import { credentialGroupScopePolicyVersion } from '@/lib/credential-groups/provider-adapter'
 import { decryptCredentialGroupProviderConfiguration } from '@/lib/credential-groups/provider-configuration'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
-import { isCredentialGroupProvider } from '@/lib/credential-groups/providers'
+import {
+  type CredentialGroupProvider,
+  isCredentialGroupProvider,
+} from '@/lib/credential-groups/providers'
 import { credentialGroupScope } from '@/lib/credential-groups/scope'
 import { resolveSlackManagedUserScopes } from '@/lib/credential-groups/slack-managed-user-scopes'
 import type {
@@ -37,7 +40,8 @@ import {
   createOrganizationAccountsGroup,
   createWorkspaceAccountsGroup,
 } from '@/lib/credential-groups/workspace-accounts'
-import type { DbOrTx } from '@/lib/db/types'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 
 type WorkspaceCredentialGroupRecord = CredentialGroupRecord & { workspaceId: string }
 type OrganizationCredentialGroupRecord = CredentialGroupRecord & {
@@ -83,7 +87,13 @@ function scopesEqual(left: string[], right: string[]): boolean {
 
 async function buildOption(
   scope: ResourceScope,
-  option: CredentialGroupOptionInput,
+  option: {
+    provider: CredentialGroupProvider
+    label: string
+    required: boolean
+    slackBotCredentialId?: string
+    requiredScopes?: string[]
+  },
   credentialGroupId?: string,
   executor: DbOrTx = db
 ): Promise<CredentialGroupOptionConfig> {
@@ -244,22 +254,26 @@ export async function getCredentialGroup(
 export function ensureWorkspaceAccountsGroup(
   scope: Extract<ResourceScope, { kind: 'organization' }>,
   userId: string,
-  option?: CredentialGroupOptionInput
+  option?: CredentialGroupOptionInput,
+  executor?: DbTransaction
 ): Promise<OrganizationCredentialGroupRecord & { created: boolean }>
 export function ensureWorkspaceAccountsGroup(
   workspaceId: string,
   userId: string,
-  option?: CredentialGroupOptionInput
+  option?: CredentialGroupOptionInput,
+  executor?: DbTransaction
 ): Promise<WorkspaceCredentialGroupRecord & { created: boolean }>
 export function ensureWorkspaceAccountsGroup(
   scope: ResourceScope,
   userId: string,
-  option?: CredentialGroupOptionInput
+  option?: CredentialGroupOptionInput,
+  executor?: DbTransaction
 ): Promise<CredentialGroupRecord & { created: boolean }>
 export async function ensureWorkspaceAccountsGroup(
   scopeInput: string | ResourceScope,
   userId: string,
-  option?: CredentialGroupOptionInput
+  option?: CredentialGroupOptionInput,
+  executor?: DbTransaction
 ): Promise<CredentialGroupRecord & { created: boolean }> {
   const scope = credentialGroupScope(scopeInput)
   if (option?.provider === 'slack') {
@@ -267,9 +281,11 @@ export async function ensureWorkspaceAccountsGroup(
   }
   const preparedOption = option ? await buildOption(scope, { ...option, required: false }) : null
   let wasCreated = false
-  const row = await db.transaction(async (tx) => {
-    await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`search-accounts:${resourceScopeKey(scope)}`}, 0))`
+  const provision = async (tx: DbTransaction) => {
+    await acquireAdvisoryXactLock(
+      tx,
+      'search_accounts',
+      `search-accounts:${resourceScopeKey(scope)}`
     )
     const [existing] = await tx
       .select()
@@ -306,7 +322,9 @@ export async function ensureWorkspaceAccountsGroup(
         ) {
           throw new OrchestrationError(
             'validation',
-            `Update ${preparedOption.label} in Connected accounts before connecting this source`
+            scope.kind === 'organization'
+              ? `Refresh ${preparedOption.label} in Sources > More > Update sign-in settings, or Connected accounts > Providers > Update configurations when Search is disabled`
+              : `Update ${preparedOption.label} in Connected accounts before connecting this source`
           )
         }
         return existing
@@ -375,11 +393,88 @@ export async function ensureWorkspaceAccountsGroup(
           )
     wasCreated = true
     return created
-  })
+  }
+  const row = executor ? await provision(executor) : await db.transaction(provision)
   return {
-    ...(await toCredentialGroup(row, await listLinkedMcpServers(row.id))),
+    ...(await toCredentialGroup(row, await listLinkedMcpServers(row.id, executor))),
     created: wasCreated,
   }
+}
+
+/** Adds a provider without changing the verified consent policy of existing connections. */
+export async function addOrganizationAccountProvider(
+  organizationId: string,
+  userId: string,
+  option: { provider: CredentialGroupProvider; label: string; requiredScopes?: string[] },
+  executor: DbTransaction
+): Promise<{ groupId: string; changed: boolean }> {
+  const scope = { kind: 'organization', organizationId } as const
+  const group = await ensureWorkspaceAccountsGroup(scope, userId, undefined, executor)
+  const [existing] = await executor
+    .select()
+    .from(credentialGroup)
+    .where(and(eq(credentialGroup.id, group.id), resourceScopeCondition(credentialGroup, scope)))
+    .limit(1)
+    .for('update')
+  if (!existing) throw new Error('Connected accounts disappeared during provider setup')
+  const matching = existing.options.filter((candidate) => candidate.provider === option.provider)
+  if (matching.length > 1)
+    throw new OrchestrationError(
+      'conflict',
+      `Connected accounts contains duplicate ${option.label} settings`
+    )
+  if (matching[0]) {
+    const current = matching[0]
+    if (current.status !== 'active')
+      throw new OrchestrationError(
+        'validation',
+        `Enable ${option.label} in Connected accounts first`
+      )
+    return { groupId: group.id, changed: group.created }
+  }
+  if (
+    existing.options.some(
+      (candidate) => candidate.label.toLowerCase() === option.label.toLowerCase()
+    )
+  )
+    throw new OrchestrationError(
+      'conflict',
+      `An account option already uses the name ${option.label}. Rename it in Settings.`
+    )
+  const preparedOption = await buildOption(
+    scope,
+    { ...option, required: false },
+    group.id,
+    executor
+  )
+  const [updated] = await executor
+    .update(credentialGroup)
+    .set({ options: [...existing.options, preparedOption], updatedAt: new Date() })
+    .where(and(eq(credentialGroup.id, group.id), resourceScopeCondition(credentialGroup, scope)))
+    .returning({ id: credentialGroup.id })
+  if (!updated) throw new Error('Connected accounts provider update returned no row')
+  return { groupId: group.id, changed: true }
+}
+
+async function invalidateOptionGrants(
+  executor: DbTransaction,
+  groupId: string,
+  optionIds: string[]
+) {
+  const enrollmentIds = executor
+    .select({ id: credentialGroupEnrollment.id })
+    .from(credentialGroupEnrollment)
+    .where(eq(credentialGroupEnrollment.credentialGroupId, groupId))
+  await executor
+    .update(credential)
+    .set({ managedOauthStatus: 'needs_reauth', updatedAt: new Date() })
+    .where(
+      and(
+        eq(credential.type, 'managed_oauth'),
+        inArray(credential.credentialGroupEnrollmentId, enrollmentIds),
+        inArray(credential.credentialGroupOptionId, optionIds)
+      )
+    )
 }
 
 /**
@@ -503,20 +598,7 @@ export async function updateCredentialGroup(
 
     if (!updated) throw new Error('Credential group update returned no row')
     if (invalidatedOptionIds.length > 0) {
-      const enrollmentIds = tx
-        .select({ id: credentialGroupEnrollment.id })
-        .from(credentialGroupEnrollment)
-        .where(eq(credentialGroupEnrollment.credentialGroupId, groupId))
-      await tx
-        .update(credential)
-        .set({ managedOauthStatus: 'needs_reauth', updatedAt: new Date() })
-        .where(
-          and(
-            eq(credential.type, 'managed_oauth'),
-            inArray(credential.credentialGroupEnrollmentId, enrollmentIds),
-            inArray(credential.credentialGroupOptionId, invalidatedOptionIds)
-          )
-        )
+      await invalidateOptionGrants(tx, groupId, invalidatedOptionIds)
     }
     return toCredentialGroup(updated, await listLinkedMcpServers(updated.id, tx))
   })

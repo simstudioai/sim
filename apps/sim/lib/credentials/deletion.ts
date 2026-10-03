@@ -2,7 +2,8 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, notExists, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, notExists, or, sql } from 'drizzle-orm'
+import type { AnyPgColumn, PgTable } from 'drizzle-orm/pg-core'
 import type { NextRequest } from 'next/server'
 import {
   type ResourceOwner,
@@ -10,6 +11,9 @@ import {
   resourceScopeFromOwner,
 } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
+import { CONTENT_ENGINE_ACCESS_MODES } from '@/lib/knowledge/connectors/access-modes'
+import { CREDENTIAL_REMOVED_SYNC_ERROR } from '@/lib/knowledge/connectors/sync-limits'
+import { buildSyncUnscheduledUpdate } from '@/lib/knowledge/connectors/sync-lock'
 import { CREDENTIAL_SUBBLOCK_IDS } from '@/lib/workflows/persistence/utils'
 
 const logger = createLogger('CredentialDeletion')
@@ -216,23 +220,16 @@ async function clearInWorkflowBlocks(
   workspaceId: string,
   needle: string
 ): Promise<void> {
-  const rows = await db
-    .select({
-      id: schema.workflowBlocks.id,
-      subBlocks: schema.workflowBlocks.subBlocks,
-    })
-    .from(schema.workflowBlocks)
-    .innerJoin(schema.workflow, eq(schema.workflow.id, schema.workflowBlocks.workflowId))
-    .where(
-      and(
-        eq(schema.workflow.workspaceId, workspaceId),
-        sql`${schema.workflowBlocks.subBlocks}::text LIKE ${needle}`
-      )
-    )
+  const rows = await readWorkspaceCredentialRefs(workspaceId, needle, {
+    table: schema.workflowBlocks,
+    id: schema.workflowBlocks.id,
+    workflowId: schema.workflowBlocks.workflowId,
+    value: schema.workflowBlocks.subBlocks,
+  })
 
   let updated = 0
   for (const row of rows) {
-    const next = clearCredentialInValue(row.subBlocks, credentialId)
+    const next = clearCredentialInValue(row.value, credentialId)
     if (next.changed) {
       await db
         .update(schema.workflowBlocks)
@@ -255,22 +252,15 @@ async function clearInDeploymentVersions(
   workspaceId: string,
   needle: string
 ): Promise<void> {
-  const rows = await db
-    .select({
-      id: schema.workflowDeploymentVersion.id,
-      state: schema.workflowDeploymentVersion.state,
-    })
-    .from(schema.workflowDeploymentVersion)
-    .innerJoin(schema.workflow, eq(schema.workflow.id, schema.workflowDeploymentVersion.workflowId))
-    .where(
-      and(
-        eq(schema.workflow.workspaceId, workspaceId),
-        sql`${schema.workflowDeploymentVersion.state}::text LIKE ${needle}`
-      )
-    )
+  const rows = await readWorkspaceCredentialRefs(workspaceId, needle, {
+    table: schema.workflowDeploymentVersion,
+    id: schema.workflowDeploymentVersion.id,
+    workflowId: schema.workflowDeploymentVersion.workflowId,
+    value: schema.workflowDeploymentVersion.state,
+  })
 
   for (const row of rows) {
-    const next = clearCredentialInValue(row.state, credentialId)
+    const next = clearCredentialInValue(row.value, credentialId)
     if (next.changed) {
       await db
         .update(schema.workflowDeploymentVersion)
@@ -285,22 +275,15 @@ async function clearInPausedExecutions(
   workspaceId: string,
   needle: string
 ): Promise<void> {
-  const rows = await db
-    .select({
-      id: schema.pausedExecutions.id,
-      executionSnapshot: schema.pausedExecutions.executionSnapshot,
-    })
-    .from(schema.pausedExecutions)
-    .innerJoin(schema.workflow, eq(schema.workflow.id, schema.pausedExecutions.workflowId))
-    .where(
-      and(
-        eq(schema.workflow.workspaceId, workspaceId),
-        sql`${schema.pausedExecutions.executionSnapshot}::text LIKE ${needle}`
-      )
-    )
+  const rows = await readWorkspaceCredentialRefs(workspaceId, needle, {
+    table: schema.pausedExecutions,
+    id: schema.pausedExecutions.id,
+    workflowId: schema.pausedExecutions.workflowId,
+    value: schema.pausedExecutions.executionSnapshot,
+  })
 
   for (const row of rows) {
-    const next = clearCredentialInValue(row.executionSnapshot, credentialId)
+    const next = clearCredentialInValue(row.value, credentialId)
     if (next.changed) {
       await db
         .update(schema.pausedExecutions)
@@ -315,22 +298,15 @@ async function clearInWorkflowCheckpoints(
   workspaceId: string,
   needle: string
 ): Promise<void> {
-  const rows = await db
-    .select({
-      id: schema.workflowCheckpoints.id,
-      workflowState: schema.workflowCheckpoints.workflowState,
-    })
-    .from(schema.workflowCheckpoints)
-    .innerJoin(schema.workflow, eq(schema.workflow.id, schema.workflowCheckpoints.workflowId))
-    .where(
-      and(
-        eq(schema.workflow.workspaceId, workspaceId),
-        sql`${schema.workflowCheckpoints.workflowState}::text LIKE ${needle}`
-      )
-    )
+  const rows = await readWorkspaceCredentialRefs(workspaceId, needle, {
+    table: schema.workflowCheckpoints,
+    id: schema.workflowCheckpoints.id,
+    workflowId: schema.workflowCheckpoints.workflowId,
+    value: schema.workflowCheckpoints.workflowState,
+  })
 
   for (const row of rows) {
-    const next = clearCredentialInValue(row.workflowState, credentialId)
+    const next = clearCredentialInValue(row.value, credentialId)
     if (next.changed) {
       await db
         .update(schema.workflowCheckpoints)
@@ -340,10 +316,54 @@ async function clearInWorkflowCheckpoints(
   }
 }
 
+/**
+ * Restrict the rows before inspecting their JSON. With a plain join, Postgres can push
+ * the text predicate below the workspace join and detoast every tenant's snapshots.
+ * This query has reached 46s in production. Materializing the workspace selection
+ * keeps the expensive scan local, including archived workflows
+ * whose frozen snapshots still need their credential references removed.
+ */
+async function readWorkspaceCredentialRefs(
+  workspaceId: string,
+  needle: string,
+  source: { table: PgTable; id: AnyPgColumn; workflowId: AnyPgColumn; value: AnyPgColumn }
+): Promise<Array<{ id: string; value: unknown }>> {
+  return db.execute<{ id: string; value: unknown }>(sql`
+    WITH workspace_credential_refs AS MATERIALIZED (
+      SELECT ${source.id} AS id, ${source.value} AS value
+      FROM ${source.table}
+      INNER JOIN ${schema.workflow} ON ${schema.workflow.id} = ${source.workflowId}
+      WHERE ${schema.workflow.workspaceId} = ${workspaceId}
+    )
+    SELECT id, value FROM workspace_credential_refs WHERE value::text LIKE ${needle}
+  `)
+}
+
+/**
+ * A content-engine connector whose credential is gone cannot sync until it is reconnected, so
+ * it leaves the due sweep with the reconnect error; paused and disabled connectors keep their
+ * status. A connector that still holds an API key, or a members-mode connector that only loses
+ * its optional dedicated content credential, keeps running and merely drops the reference.
+ */
 async function clearInKnowledgeConnectors(credentialId: string): Promise<void> {
+  const now = new Date()
   await db
     .update(schema.knowledgeConnector)
-    .set({ credentialId: null, updatedAt: new Date() })
+    .set({
+      ...buildSyncUnscheduledUpdate(now, CREDENTIAL_REMOVED_SYNC_ERROR),
+      credentialId: null,
+      status: sql`CASE WHEN ${schema.knowledgeConnector.status} IN ('paused', 'disabled') THEN ${schema.knowledgeConnector.status} ELSE 'error' END`,
+    })
+    .where(
+      and(
+        eq(schema.knowledgeConnector.credentialId, credentialId),
+        inArray(schema.knowledgeConnector.accessMode, [...CONTENT_ENGINE_ACCESS_MODES]),
+        isNull(schema.knowledgeConnector.encryptedApiKey)
+      )
+    )
+  await db
+    .update(schema.knowledgeConnector)
+    .set({ credentialId: null, updatedAt: now })
     .where(eq(schema.knowledgeConnector.credentialId, credentialId))
 }
 

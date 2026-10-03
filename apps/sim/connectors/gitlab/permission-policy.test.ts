@@ -1,13 +1,16 @@
-/** @vitest-environment node */
+import { knowledgeDocumentsUtilsMock } from '@sim/testing/mocks/knowledge-documents-utils.mock'
+import {
+  knowledgeSecureFetchMock,
+  knowledgeSecureFetchMockFns,
+} from '@sim/testing/mocks/knowledge-secure-fetch.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { fetchSource } = vi.hoisted(() => ({ fetchSource: vi.fn() }))
-vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
-  secureFetchWithRetry: fetchSource,
-}))
-vi.mock('@/lib/knowledge/documents/utils', () => ({ VALIDATE_RETRY_OPTIONS: { maxRetries: 0 } }))
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => knowledgeSecureFetchMock)
+vi.mock('@/lib/knowledge/documents/utils', () => knowledgeDocumentsUtilsMock)
 
 import { discoverGitLabPermissionPolicy } from '@/connectors/gitlab/permission-policy'
+
+const fetchSource = knowledgeSecureFetchMockFns.mockSecureFetchWithRetry
 
 const config = { host: 'gitlab.example.com:8443', project: 'team/project' }
 const project = {
@@ -26,7 +29,6 @@ function group(id: number, parent_id: number | null = null): Record<string, unkn
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   version = '18.7.0-ee'
   settings = { external_authorization_service_enabled: false, admin_mode: false }
   groups = new Map([

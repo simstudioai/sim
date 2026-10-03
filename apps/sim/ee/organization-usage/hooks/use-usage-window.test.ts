@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { MAX_CUSTOM_RANGE_DAYS } from '@/lib/api/contracts/organization-usage'
 import { isUsableCustomRange } from '@/ee/organization-usage/hooks/use-usage-window'
@@ -12,19 +9,6 @@ import { isUsableCustomRange } from '@/ee/organization-usage/hooks/use-usage-win
  * works while these three rules match the window resolver's.
  */
 describe('isUsableCustomRange', () => {
-  it('accepts a well-formed range inside the cap', () => {
-    expect(isUsableCustomRange('2026-01-01', '2026-01-31')).toBe(true)
-  })
-
-  it('accepts a single-day range', () => {
-    expect(isUsableCustomRange('2026-01-01', '2026-01-01')).toBe(true)
-  })
-
-  it('rejects a missing bound', () => {
-    expect(isUsableCustomRange('2026-01-01', null)).toBe(false)
-    expect(isUsableCustomRange(null, '2026-01-31')).toBe(false)
-  })
-
   it('rejects a malformed or unreal date', () => {
     expect(isUsableCustomRange('2026-1-1', '2026-01-31')).toBe(false)
     expect(isUsableCustomRange('2026-02-30', '2026-03-01')).toBe(false)

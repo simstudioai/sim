@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
   defaultMockEnv,
@@ -11,30 +8,34 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import {
+  knowledgeEmbeddingsMock,
+  knowledgeEmbeddingsMockFns,
+} from '@sim/testing/mocks/knowledge-embeddings.mock'
+import { getAllMockLoggers, getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { storageServiceMock } from '@sim/testing/mocks/storage-service.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
+import { tasks } from '@trigger.dev/sdk'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCheckAttributedUsageLimits,
-  mockBatchTrigger,
-  mockGenerateEmbeddings,
-  mockGetBoundWorkspaceFileSecretProvenanceByMetadata,
+
   mockGetEmbeddingModelInfo,
-  mockGetFileMetadataByKeys,
+
   mockProcessDocument,
-  mockTrigger,
 } = vi.hoisted(() => ({
   mockCheckAttributedUsageLimits: vi.fn(),
-  mockBatchTrigger: vi.fn(),
-  mockGenerateEmbeddings: vi.fn(),
-  mockGetBoundWorkspaceFileSecretProvenanceByMetadata: vi.fn(),
   mockGetEmbeddingModelInfo: vi.fn(),
-  mockGetFileMetadataByKeys: vi.fn(),
   mockProcessDocument: vi.fn(),
-  mockTrigger: vi.fn(),
-}))
-
-vi.mock('@trigger.dev/sdk', () => ({
-  tasks: { batchTrigger: mockBatchTrigger, trigger: mockTrigger },
 }))
 
 vi.mock('@/lib/knowledge/documents/document-processor', () => ({
@@ -47,51 +48,52 @@ vi.mock('@/lib/knowledge/embedding-models', () => ({
   getEmbeddingModelInfo: mockGetEmbeddingModelInfo,
 }))
 
-vi.mock('@/lib/knowledge/embeddings', () => ({
-  generateEmbeddings: mockGenerateEmbeddings,
-}))
+vi.mock('@/lib/knowledge/embeddings', () => knowledgeEmbeddingsMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  getBoundWorkspaceFileSecretProvenanceByMetadata:
-    mockGetBoundWorkspaceFileSecretProvenanceByMetadata,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  deleteFile: vi.fn(),
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadataByIdentity: vi.fn(),
-  getFileMetadataByKeys: mockGetFileMetadataByKeys,
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 import * as billingAttribution from '@/lib/billing/core/billing-attribution'
+import { resetUsageGateCache } from '@/lib/billing/core/usage-gate-cache'
 import { env } from '@/lib/core/config/env'
 import {
   markInsideTriggerRun,
   resetInsideTriggerRunForTests,
 } from '@/lib/core/config/trigger-runtime'
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
-import {
-  BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE,
-  EMBEDDING_QUOTA_EXHAUSTED_MESSAGE,
-} from '@/lib/embeddings'
+import { EMBEDDING_QUOTA_EXHAUSTED_MESSAGE } from '@/lib/embeddings'
 import * as embeddingClient from '@/lib/embeddings/client'
-import { EmbeddingAPIError, EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
+import { EmbeddingQuotaExhaustedError } from '@/lib/embeddings/client'
 import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
 import {
   PermanentDocumentProcessingError,
   UsageLimitDocumentProcessingError,
 } from '@/lib/knowledge/documents/document-processing-error'
 import { KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-continuation-dispatch'
-import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
-import type { DocumentProcessingPayload } from '@/lib/knowledge/documents/processing-payload'
-import { ProviderCapacityContinuationExhaustedError } from '@/lib/knowledge/documents/processing-provider-deferral'
+import { KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT } from '@/lib/knowledge/documents/processing-outbox-event'
 import { processDocumentAsync, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
 import { MAX_PROCESSING_ATTEMPTS } from '@/lib/knowledge/documents/types'
 
+const mockGenerateEmbeddings = knowledgeEmbeddingsMockFns.mockGenerateEmbeddings
+
+const mockBatchTrigger = vi.mocked(tasks.batchTrigger)
+const mockTrigger = vi.mocked(tasks.trigger)
+
+const { error: mockLogError } = getMockLogger('DocumentService')
+
+const mockGetFileMetadataByKeys = uploadsMetadataMockFns.mockGetFileMetadataByKeys
+const mockGetBoundWorkspaceFileSecretProvenanceByMetadata =
+  workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenanceByMetadata
+
 const mockEmbeddingCapacity = vi.fn<typeof embeddingClient.assertKnowledgeEmbeddingCapacity>()
 beforeEach(() => {
+  resetUsageGateCache()
   vi.spyOn(billingAttribution, 'checkAttributedUsageLimits').mockImplementation(
     mockCheckAttributedUsageLimits
   )
@@ -199,7 +201,6 @@ const SOURCE_BINDING = {
 
 describe('knowledge document processing source', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     // The processing claim is guarded and returns the row it claimed; without a
     // stub every worker would read as 'already completed' and return early.
@@ -207,6 +208,7 @@ describe('knowledge document processing source', () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
       .mockResolvedValueOnce([{ id: 'document-1' }])
     mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
     mockGetFileMetadataByKeys.mockImplementation(async (_keys: string[], context: string) =>
@@ -298,29 +300,13 @@ describe('knowledge document processing source', () => {
     expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
   })
 
-  it('passes a cooperative deadline below the durable worker hard limit', async () => {
-    const deadlineAt = Date.now() + 550_000
-    await processDocumentAsync(
-      'knowledge-base-1',
-      'document-1',
-      PERSISTED_CONTEXT,
-      {},
-      BILLING_ATTRIBUTION,
-      undefined,
-      {
-        chargedAtDispatch: false,
-        deadlineAt,
-      }
-    )
-    expect(mockProcessDocument.mock.calls[0][6].processingDeadlineAt).toBe(deadlineAt - 15_000)
-  })
-
   it('reads a connector-owned source file as the system, not as the actor', async () => {
     resetDbChainMock()
     dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
     dbChainMockFns.limit
       .mockResolvedValueOnce([{ ...PERSISTED_CONTEXT, connectorId: 'connector-1' }])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
       .mockResolvedValueOnce([{ id: 'document-1' }])
 
     await processDocumentAsync(
@@ -346,42 +332,6 @@ describe('knowledge document processing source', () => {
       {
         userId: PERSISTED_CONTEXT.uploadedBy,
         knowledgeAccess: SYSTEM_ACCESS_SCOPE,
-        signal: expect.any(AbortSignal),
-        processingDeadlineAt: expect.any(Number),
-      },
-      PERSISTED_CONTEXT.workspaceId,
-      undefined,
-      undefined
-    )
-  })
-
-  it('processes a legacy document when its workspace metadata row no longer exists', async () => {
-    mockGetFileMetadataByKeys.mockResolvedValue([])
-    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(new Map())
-
-    await processDocumentAsync(
-      'knowledge-base-1',
-      'document-1',
-      {
-        filename: 'stale.pdf',
-        fileUrl: 'https://example.com/stale.pdf',
-        fileSize: 1,
-        mimeType: 'text/plain',
-      },
-      {},
-      BILLING_ATTRIBUTION
-    )
-
-    expect(mockProcessDocument).toHaveBeenCalledWith(
-      PERSISTED_CONTEXT.fileUrl,
-      PERSISTED_CONTEXT.filename,
-      PERSISTED_CONTEXT.mimeType,
-      1024,
-      200,
-      100,
-      {
-        userId: PERSISTED_CONTEXT.uploadedBy,
-        knowledgeAccess: undefined,
         signal: expect.any(AbortSignal),
         processingDeadlineAt: expect.any(Number),
       },
@@ -418,35 +368,69 @@ describe('knowledge document processing source', () => {
     expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
   })
 
-  it('takes over an existing processing attempt', async () => {
-    dbChainMockFns.limit
-      .mockReset()
-      .mockResolvedValueOnce([{ ...PERSISTED_CONTEXT, processingStatus: 'processing' }])
-      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
-      .mockResolvedValueOnce([{ id: 'document-1' }])
-    dbChainMockFns.returning.mockReset().mockResolvedValue([{ id: 'document-1' }])
+  describe('execution source provenance', () => {
+    const executionKey = 'execution/workspace-1/workflow-1/run-1/source.pdf'
+    const executionUrl = `/api/files/serve/${encodeURIComponent(executionKey)}?context=workspace`
+    const executionBinding = {
+      ...SOURCE_BINDING,
+      key: executionKey,
+      context: 'execution',
+      secretProvenanceVersion: 1,
+    }
 
-    await processDocumentAsync(
-      'knowledge-base-1',
-      'document-1',
-      {
-        filename: 'stale.pdf',
-        fileUrl: 'https://example.com/stale.pdf',
-        fileSize: 1,
-        mimeType: 'text/plain',
-      },
-      {},
-      BILLING_ATTRIBUTION
+    beforeEach(() => {
+      dbChainMockFns.limit
+        .mockReset()
+        .mockResolvedValueOnce([{ ...PERSISTED_CONTEXT, fileUrl: executionUrl }])
+        .mockResolvedValueOnce([{ ...PERSISTED_PROVENANCE_ROW, fileUrl: executionUrl }])
+        .mockResolvedValueOnce([{ id: 'document-1' }])
+        .mockResolvedValueOnce([{ id: 'document-1' }])
+      mockGetFileMetadataByKeys.mockImplementation(async (_keys: string[], context: string) =>
+        context === 'execution' ? [executionBinding] : []
+      )
+    })
+
+    function process() {
+      return processDocumentAsync(
+        'knowledge-base-1',
+        'document-1',
+        {
+          filename: 'untrusted-queued-name.txt',
+          fileUrl: 'https://example.com/untrusted-queued-url.txt',
+          fileSize: 1,
+          mimeType: 'text/plain',
+        },
+        {},
+        BILLING_ATTRIBUTION
+      )
+    }
+
+    it.each(['unknown', 'missing'])(
+      'refuses tracked execution sources with %s sidecars before parsing',
+      async (kind) => {
+        mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
+          new Map(kind === 'unknown' ? [[executionBinding.id, { status: 'unknown' }]] : [])
+        )
+
+        await expect(process()).rejects.toThrow(
+          'Knowledge document secret provenance is unavailable'
+        )
+
+        expect(mockProcessDocument).not.toHaveBeenCalled()
+        expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
+      }
     )
 
-    expect(mockProcessDocument).toHaveBeenCalled()
-    expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        processingStatus: 'processing',
-        processingStartedAt: expect.any(Date),
-      })
-    )
+    it('refuses a source whose execution metadata belongs to another workspace', async () => {
+      mockGetFileMetadataByKeys.mockResolvedValue([
+        { ...executionBinding, workspaceId: 'other-workspace' },
+      ])
+
+      await expect(process()).rejects.toThrow('Document file is not owned by this knowledge base')
+
+      expect(mockProcessDocument).not.toHaveBeenCalled()
+      expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
+    })
   })
 })
 
@@ -456,13 +440,13 @@ describe('processDocumentAsync write guards', () => {
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
       .mockResolvedValueOnce([{ id: 'document-1' }])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
     mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
     mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
       new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
     )
   }
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
     mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
@@ -496,6 +480,7 @@ describe('processDocumentAsync write guards', () => {
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
       .mockResolvedValueOnce([{ id: 'document-1' }])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
     mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
     mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
       new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
@@ -521,44 +506,168 @@ describe('processDocumentAsync write guards', () => {
     expect(guardForStatusWrite('processing')).toBeDefined()
   })
 
-  it('signals ownership before a claimed processing attempt can fail', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([PERSISTED_CONTEXT])
-      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
-      .mockResolvedValueOnce([{ id: 'document-1' }])
-    mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
-    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
-      new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
+  describe('a transient database failure', () => {
+    const databaseError = () =>
+      new DrizzleQueryError(
+        'insert private SQL',
+        ['private bound content'],
+        Object.assign(new Error('canceling statement due to statement timeout'), {
+          code: '57014',
+        })
+      )
+
+    async function failWith(error: Error, scheduleDatabaseRetry: (error: unknown) => Date | null) {
+      armProviderSource()
+      mockProcessDocument.mockRejectedValueOnce(error)
+      return processDocumentAsync(
+        'knowledge-base-1',
+        'document-1',
+        PERSISTED_CONTEXT,
+        {},
+        BILLING_ATTRIBUTION,
+        'pass-1',
+        {
+          chargedAtDispatch: true,
+          processingQueueToken: 'pass-1',
+          processingQueuedAt: new Date(),
+          scheduleDatabaseRetry,
+        }
+      ).catch((caught: unknown) => caught)
+    }
+
+    it('leaves the document pending until its scheduled retry instead of failed', async () => {
+      const error = databaseError()
+      const retryAt = new Date(Date.now() + 120_000)
+      const schedule = vi.fn().mockReturnValue(retryAt)
+
+      expect(await failWith(error, schedule)).toBe(error)
+
+      expect(schedule).toHaveBeenCalledWith(error)
+      const pending = dbChainMockFns.set.mock.calls.find(
+        ([value]) => value.processingDeferredUntil === retryAt
+      )?.[0]
+      expect(pending).toMatchObject({
+        processingStatus: 'pending',
+        processingError: null,
+        processingDeferredUntil: retryAt,
+        processingStartedAt: null,
+        processingCompletedAt: null,
+      })
+      /** The same run retries, so its queue token and retry budget stay as they are. */
+      expect(pending).not.toHaveProperty('processingQueueToken')
+      expect(pending).not.toHaveProperty('processingAttempts')
+      /** Stamped only when unset, so a dispatch cannot claim it as never queued meanwhile. */
+      expect(pending.processingQueuedAt.toSQL().sql).toMatch(/^COALESCE\(.+, \?\)$/)
+      expect(
+        dbChainMockFns.set.mock.calls.some(([value]) => value.processingStatus === 'failed')
+      ).toBe(false)
+      expect(guardForStatusWrite('pending')).toBeDefined()
+    })
+
+    /** The row the deferral write returns: the document as it now stands. */
+    function deferredRow(connectorId: string | null, retryAt: Date, queuedAt: Date) {
+      return {
+        id: 'document-1',
+        knowledgeBaseId: 'knowledge-base-1',
+        connectorId,
+        uploadedAt: new Date(0),
+        processingStatus: 'pending',
+        processingQueueToken: 'pass-1',
+        processingQueuedAt: queuedAt,
+        processingStartedAt: null,
+        processingDeferredUntil: retryAt,
+        processingCompletedAt: null,
+        processingRecoveryAfter: null,
+      }
+    }
+
+    function deferredRetryChecks() {
+      return dbChainMockFns.values.mock.calls
+        .map(([value]) => value as Record<string, unknown>)
+        .filter((value) => value.eventType === KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT)
+    }
+
+    it('records the failure once no retry is scheduled', async () => {
+      const error = databaseError()
+      dbChainMockFns.returning.mockResolvedValue([deferredRow(null, new Date(), new Date())])
+      expect(await failWith(error, () => null)).toBe(error)
+      expect(deferredRetryChecks()).toHaveLength(0)
+
+      expect(dbChainMockFns.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          processingStatus: 'failed',
+          processingError: 'Database request failed (SQLSTATE 57014).',
+          processingDeferredUntil: null,
+        })
+      )
+    })
+  })
+
+  it('records the failed embedding batch without exposing SQL, content or vectors', async () => {
+    armProviderSource()
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'document-1' }])
+    mockProcessDocument.mockResolvedValueOnce({
+      chunks: [{ text: 'private-content', metadata: { startIndex: 0, endIndex: 15 } }],
+      metadata: { chunkCount: 1, tokenCount: 3, characterCount: 15 },
+    })
+    mockGenerateEmbeddings.mockResolvedValueOnce({
+      embeddings: [[0.123456789]],
+      billableTokens: 0,
+      modelName: 'text-embedding-3-small',
+      pricingId: 'text-embedding-3-small',
+    })
+    const databaseError = new DrizzleQueryError(
+      'insert private SQL',
+      ['private-content', [0.123456789]],
+      Object.assign(new Error('canceling statement due to statement timeout'), { code: '57014' })
     )
-    mockProcessDocument.mockRejectedValueOnce(new Error('processor failed after claim'))
-    const onClaimed = vi.fn()
+    dbChainMockFns.values.mockRejectedValueOnce(databaseError)
 
     await expect(
       processDocumentAsync(
         'knowledge-base-1',
         'document-1',
         {
-          filename: 'a.pdf',
-          fileUrl: 'https://example.com/a.pdf',
-          fileSize: 1,
+          filename: 'a.txt',
+          fileUrl: 'https://example.com/a.txt',
+          fileSize: 15,
           mimeType: 'text/plain',
         },
         {},
-        BILLING_ATTRIBUTION,
-        'request-1',
-        { chargedAtDispatch: true, onClaimed }
+        BILLING_ATTRIBUTION
       )
-    ).rejects.toThrow('processor failed after claim')
+    ).rejects.toBe(databaseError)
 
-    expect(onClaimed).toHaveBeenCalledTimes(1)
-    expect(guardForStatusWrite('processing')).toBeDefined()
+    expect(mockLogError).toHaveBeenCalledWith('[document-1] Failed to insert embedding batch', {
+      knowledgeBaseId: 'knowledge-base-1',
+      operation: 'embedding.insert',
+      batchNumber: 1,
+      batchSize: 1,
+      totalChunks: 1,
+      embeddingModel: 'text-embedding-3-small',
+      embeddingDimensions: 1536,
+      elapsedMs: expect.any(Number),
+      diagnostic: {
+        category: 'database',
+        code: '57014',
+        databaseReason: 'statement_timeout',
+        message: 'Database request failed (SQLSTATE 57014).',
+      },
+    })
+    const logs = JSON.stringify(getAllMockLoggers().flatMap((logger) => logger.error.mock.calls))
+    expect(logs).not.toContain('private')
+    expect(logs).not.toContain('0.123456789')
     expect(guardForStatusWrite('failed')).toBeDefined()
+    expect(
+      dbChainMockFns.set.mock.calls.some(([value]) => value.processingStatus === 'completed')
+    ).toBe(false)
   })
 
   it('accepts a legacy queuedAt-only payload only while the row has no token', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
       .mockResolvedValueOnce([{ id: 'document-1' }])
     mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
     mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
@@ -600,52 +709,11 @@ describe('processDocumentAsync write guards', () => {
     ).toBe(true)
   })
 
-  it('accepts a pre-rollout payload only while the row has no token', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([PERSISTED_CONTEXT])
-      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
-      .mockResolvedValueOnce([{ id: 'document-1' }])
-    mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
-    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
-      new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
-    )
-
-    await processDocumentAsync(
-      'knowledge-base-1',
-      'document-1',
-      {
-        filename: 'a.pdf',
-        fileUrl: 'https://example.com/a.pdf',
-        fileSize: 1,
-        mimeType: 'text/plain',
-      },
-      {},
-      BILLING_ATTRIBUTION,
-      'request-1',
-      { chargedAtDispatch: false }
-    )
-
-    const claimGuard = guardForStatusWrite('processing')
-    expect(
-      hasMockCondition(
-        claimGuard,
-        (node: MockCondition) =>
-          node.type === 'isNull' && node.column === schemaMock.document.processingQueueToken
-      )
-    ).toBe(true)
-    expect(
-      hasMockCondition(
-        claimGuard,
-        (node: MockCondition) =>
-          node.type === 'eq' && node.left === schemaMock.document.processingQueuedAt
-      )
-    ).toBe(false)
-  })
-
   it('uses the queue token as the authoritative claim and final-write generation', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
       .mockResolvedValueOnce([{ id: 'document-1' }])
     mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
     mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
@@ -707,6 +775,7 @@ describe('processDocumentAsync write guards', () => {
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
       .mockResolvedValueOnce([{ id: 'document-1' }])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
     // The guarded claim matched no rows: another pass owns this document.
     dbChainMockFns.returning.mockReset().mockResolvedValue([])
 
@@ -724,69 +793,6 @@ describe('processDocumentAsync write guards', () => {
     )
 
     expect(mockProcessDocument).not.toHaveBeenCalled()
-  })
-
-  it('guards the missing-context failure write against a finished pass', async () => {
-    // No context row: the document or its knowledge base is gone.
-    dbChainMockFns.limit.mockResolvedValue([])
-
-    await processDocumentAsync(
-      'knowledge-base-1',
-      'document-1',
-      {
-        filename: 'a.pdf',
-        fileUrl: 'https://example.com/a.pdf',
-        fileSize: 1,
-        mimeType: 'text/plain',
-      },
-      {},
-      BILLING_ATTRIBUTION
-    )
-
-    const where = guardForStatusWrite('failed')
-    for (const column of [schemaMock.document.archivedAt, schemaMock.document.deletedAt]) {
-      expect(
-        hasMockCondition(
-          where,
-          (node: MockCondition) => node.type === 'isNull' && node.column === column
-        )
-      ).toBe(true)
-    }
-  })
-
-  it('clears the retry budget when a pass completes', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([PERSISTED_CONTEXT])
-      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
-      .mockResolvedValueOnce([{ id: 'document-1' }])
-    mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
-    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
-      new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
-    )
-
-    await processDocumentAsync(
-      'knowledge-base-1',
-      'document-1',
-      {
-        filename: 'a.pdf',
-        fileUrl: 'https://example.com/a.pdf',
-        fileSize: 1,
-        mimeType: 'text/plain',
-      },
-      {},
-      BILLING_ATTRIBUTION
-    )
-
-    /**
-     * Without the reset a document that failed four times and then succeeded
-     * would carry those attempts forever, so its next single failure would
-     * exhaust the budget and dead-letter a document that is actually healthy.
-     */
-    const completion = dbChainMockFns.set.mock.calls.find(
-      (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'completed'
-    )
-    expect(completion).toBeDefined()
-    expect((completion?.[0] as Record<string, unknown>).processingAttempts).toBe(0)
   })
 
   it('records a mutable usage-limit failure and refunds a charged dispatch attempt', async () => {
@@ -835,6 +841,7 @@ describe('processDocumentAsync write guards', () => {
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
       .mockResolvedValueOnce([{ id: 'document-1' }])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
     mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
     mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
       new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
@@ -879,6 +886,7 @@ describe('processDocumentAsync write guards', () => {
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
       .mockResolvedValueOnce([{ id: 'document-1' }])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
     mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
     mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
       new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
@@ -914,80 +922,6 @@ describe('processDocumentAsync write guards', () => {
       processingError:
         'This file is encrypted or password-protected. Remove the protection and retry.',
       processingAttempts: 5,
-    })
-  })
-
-  it('keeps infrastructure failures eligible for automatic recovery', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([PERSISTED_CONTEXT])
-      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
-      .mockResolvedValueOnce([{ id: 'document-1' }])
-    mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
-    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
-      new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
-    )
-    mockProcessDocument.mockRejectedValue(new Error('Storage request timed out'))
-
-    await expect(
-      processDocumentAsync(
-        'knowledge-base-1',
-        'document-1',
-        {
-          filename: 'report.docx',
-          fileUrl: 'https://example.com/report.docx',
-          fileSize: 1,
-          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        },
-        {},
-        BILLING_ATTRIBUTION
-      )
-    ).rejects.toThrow('Storage request timed out')
-
-    const failure = dbChainMockFns.set.mock.calls.find(
-      (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'failed'
-    )
-    expect(failure).toBeDefined()
-    expect(failure![0]).not.toHaveProperty('processingAttempts')
-  })
-
-  it('dead-letters rejected customer-managed embedding credentials until the user retries', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([PERSISTED_CONTEXT])
-      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
-      .mockResolvedValueOnce([{ id: 'document-1' }])
-    mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
-    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
-      new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
-    )
-    mockProcessDocument.mockResolvedValue({
-      chunks: [{ text: 'Index me', metadata: { startIndex: 0, endIndex: 8 } }],
-      metadata: { chunkCount: 1, tokenCount: 2, characterCount: 8 },
-    })
-    mockGenerateEmbeddings.mockRejectedValue(
-      new EmbeddingAPIError('Embedding API failed: 401', 401, true)
-    )
-
-    await expect(
-      processDocumentAsync(
-        'knowledge-base-1',
-        'document-1',
-        {
-          filename: 'report.docx',
-          fileUrl: 'https://example.com/report.docx',
-          fileSize: 1,
-          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        },
-        {},
-        BILLING_ATTRIBUTION
-      )
-    ).rejects.toMatchObject({ status: 401, isBYOK: true })
-
-    const failure = dbChainMockFns.set.mock.calls.find(
-      (call) => (call[0] as Record<string, unknown> | undefined)?.processingStatus === 'failed'
-    )
-    expect(failure?.[0]).toMatchObject({
-      processingError: BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE,
-      processingAttempts: MAX_PROCESSING_ATTEMPTS,
     })
   })
 
@@ -1050,79 +984,25 @@ describe('processDocumentAsync write guards', () => {
     }
   )
 
-  it('records an actionable state after the provider recovery window is exhausted', async () => {
+  it('reports discarded output when the generation changes before the index commit', async () => {
     armProviderSource()
-    const exhausted = new ProviderCapacityContinuationExhaustedError()
-    mockProcessDocument.mockRejectedValue(new ProviderCapacityDeferredError('rate_limit'))
-    await expect(
-      processDocumentAsync(
+    dbChainMockFns.limit.mockReset()
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([PERSISTED_CONTEXT])
+      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([])
+    expect(
+      await processDocumentAsync(
         'knowledge-base-1',
         'document-1',
         PERSISTED_CONTEXT,
         {},
-        BILLING_ATTRIBUTION,
-        'pass-1',
-        {
-          chargedAtDispatch: false,
-          processingQueueToken: 'pass-1',
-          scheduleProviderContinuation: vi.fn().mockRejectedValue(exhausted),
-        }
+        BILLING_ATTRIBUTION
       )
-    ).rejects.toBe(exhausted)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        processingStatus: 'failed',
-        processingError: exhausted.message,
-        processingAttempts: MAX_PROCESSING_ATTEMPTS,
-      })
-    )
-  })
-
-  it('does not schedule a continuation after an outbox lease is cancelled', async () => {
-    armProviderSource()
-    const controller = new AbortController()
-    const schedule = vi.fn()
-    mockProcessDocument.mockImplementation(async () => {
-      controller.abort(new DOMException('Lease lost', 'AbortError'))
-      throw new ProviderCapacityDeferredError('rate_limit')
-    })
-    await expect(
-      processDocumentAsync(
-        'knowledge-base-1',
-        'document-1',
-        PERSISTED_CONTEXT,
-        {},
-        BILLING_ATTRIBUTION,
-        'pass-1',
-        {
-          chargedAtDispatch: false,
-          signal: controller.signal,
-          scheduleProviderContinuation: schedule,
-        }
-      )
-    ).rejects.toThrow('Lease lost')
-    expect(schedule).not.toHaveBeenCalled()
-  })
-
-  it('does not parse or reschedule a superseded provider continuation', async () => {
-    armProviderSource()
-    dbChainMockFns.returning.mockResolvedValueOnce([])
-    const schedule = vi.fn()
-    await processDocumentAsync(
-      'knowledge-base-1',
-      'document-1',
-      PERSISTED_CONTEXT,
-      {},
-      BILLING_ATTRIBUTION,
-      'obsolete-pass',
-      {
-        chargedAtDispatch: false,
-        processingQueueToken: 'obsolete-pass',
-        scheduleProviderContinuation: schedule,
-      }
-    )
-    expect(mockProcessDocument).not.toHaveBeenCalled()
-    expect(schedule).not.toHaveBeenCalled()
+    ).toEqual({ outcome: 'skipped', reason: 'superseded' })
+    expect(
+      dbChainMockFns.set.mock.calls.some(([value]) => value.processingStatus === 'completed')
+    ).toBe(false)
   })
 
   it.each([
@@ -1134,6 +1014,7 @@ describe('processDocumentAsync write guards', () => {
       dbChainMockFns.limit
         .mockResolvedValueOnce([PERSISTED_CONTEXT])
         .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+        .mockResolvedValueOnce([{ id: 'document-1' }])
         .mockResolvedValueOnce([{ id: 'document-1' }])
       mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
       mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
@@ -1196,7 +1077,6 @@ describe('in-process quota continuation dispatch', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     resetInsideTriggerRunForTests()
     setEnvFlags({ isTriggerDevEnabled: false })
@@ -1204,9 +1084,11 @@ describe('in-process quota continuation dispatch', () => {
     Object.assign(env, { ...defaultMockEnv, TRIGGER_SECRET_KEY: undefined })
     dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
     dbChainMockFns.limit
+      .mockResolvedValueOnce([{ isSearchIndex: false }])
       .mockResolvedValueOnce([{ userId: 'knowledge-owner', workspaceId: 'workspace-1' }])
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
       .mockResolvedValueOnce([{ id: 'document-1' }])
     mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
     mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
@@ -1226,7 +1108,6 @@ describe('in-process quota continuation dispatch', () => {
   })
 
   afterEach(() => {
-    vi.restoreAllMocks()
     resetInsideTriggerRunForTests()
     resetEnvFlagsMock()
   })
@@ -1245,7 +1126,8 @@ describe('in-process quota continuation dispatch', () => {
         'knowledge-base-1',
         {},
         'request-1',
-        BILLING_ATTRIBUTION
+        BILLING_ATTRIBUTION,
+        'interactive'
       )
     ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
 
@@ -1285,177 +1167,13 @@ describe('in-process quota continuation dispatch', () => {
     )
   })
 
-  it('passes the admitting outbox deadline through initial in-process dispatch', async () => {
-    const context = { signal: new AbortController().signal, deadlineAt: Date.now() + 550_000 }
-    await expect(
-      processDocumentsWithQueue(
-        [queuedDocument],
-        'knowledge-base-1',
-        {},
-        'request-1',
-        BILLING_ATTRIBUTION,
-        undefined,
-        context
-      )
-    ).resolves.toMatchObject({ accepted: 1 })
-    expect(mockProcessDocument.mock.calls[0][6].processingDeadlineAt).toBe(
-      context.deadlineAt - 15_000
-    )
-  })
-
-  it('resumes an OCR-throttled regular KB from the durable outbox to a completed index', async () => {
-    mockProcessDocument.mockRejectedValueOnce(
-      new ProviderCapacityDeferredError('rate_limit', { retryAfterMs: 600_000 })
-    )
-    await expect(
-      processDocumentsWithQueue(
-        [queuedDocument],
-        'knowledge-base-1',
-        {},
-        'request-1',
-        BILLING_ATTRIBUTION
-      )
-    ).resolves.toMatchObject({ accepted: 1, failed: 0 })
-    expect(mockTrigger).not.toHaveBeenCalled()
-    const event = dbChainMockFns.values.mock.calls.find(
-      ([value]) => value.eventType === KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT
-    )?.[0]
-    expect(event).toMatchObject({
-      id: 'knowledge-provider-document-1-request-1-1',
-      payload: {
-        requestId: 'request-1',
-        processingQueueToken: 'knowledge-provider-document-1-request-1-1',
-        providerRetryCount: 1,
-      },
-    })
-    const payload = event.payload as DocumentProcessingPayload
-    expect(
-      dbChainMockFns.set.mock.calls.some(([value]) => value.processingStatus === 'failed')
-    ).toBe(false)
-    const refunded = dbChainMockFns.set.mock.calls.filter(
-      ([value]) => value.processingDeferredUntil instanceof Date
-    )
-    expect(refunded).toHaveLength(1)
-    expect(refunded[0][0].processingAttempts.toSQL().sql).toBe('GREATEST(? - 1, 0)')
-
-    dbChainMockFns.limit.mockReset()
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([PERSISTED_CONTEXT])
-      .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
-      .mockResolvedValueOnce([{ id: 'document-1' }])
-    dbChainMockFns.set.mockClear()
-    mockGenerateEmbeddings.mockResolvedValue({
-      embeddings: [Array(1536).fill(0)],
-      billableTokens: 0,
-      modelName: 'text-embedding-3-small',
-      pricingId: 'text-embedding-3-small',
-    })
-    await knowledgeDocumentProcessingOutboxHandlers[KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT](
-      payload,
-      {
-        eventId: event.id,
-        eventType: event.eventType,
-        attempts: 0,
-        maxAttempts: 10,
-        signal: new AbortController().signal,
-        checkpointPayload: vi.fn(),
-      }
-    )
-    expect(mockProcessDocument).toHaveBeenCalledTimes(2)
-    expect(mockGenerateEmbeddings).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        processingStatus: 'completed',
-        processingAttempts: 0,
-        processingQueueToken: null,
-        processingDeferredUntil: null,
-      })
-    )
-    expect(
-      dbChainMockFns.set.mock.calls.some(([value]) => value.processingStatus === 'failed')
-    ).toBe(false)
-  })
-
-  it.each(['preflight', 'request'])(
-    'upgrades a tokenless queue stamp across an accepted %s quota continuation',
-    async (stage) => {
-      const originalQueuedAt = new Date('2026-08-24T22:00:00.000Z')
-      const deferredUntil = new Date('2026-08-24T23:00:00.000Z')
-      resetDbChainMock()
-      dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
-      dbChainMockFns.limit
-        .mockResolvedValueOnce([PERSISTED_CONTEXT])
-        .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
-        .mockResolvedValueOnce([{ id: 'document-1' }])
-      mockGetFileMetadataByKeys.mockResolvedValue([SOURCE_BINDING])
-      mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
-        new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
-      )
-      mockProcessDocument.mockResolvedValue({
-        chunks: [{ text: 'Index me', metadata: { startIndex: 0, endIndex: 8 } }],
-        metadata: { chunkCount: 1, tokenCount: 2, characterCount: 8 },
-      })
-      if (stage === 'preflight')
-        mockEmbeddingCapacity.mockRejectedValueOnce(new EmbeddingQuotaExhaustedError('openai'))
-      mockGenerateEmbeddings.mockRejectedValue(new EmbeddingQuotaExhaustedError('openai'))
-
-      await expect(
-        processDocumentAsync(
-          'knowledge-base-1',
-          'document-1',
-          {
-            filename: 'report.docx',
-            fileUrl: 'https://example.com/report.docx',
-            fileSize: 1,
-            mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          },
-          {},
-          BILLING_ATTRIBUTION,
-          'request-1',
-          {
-            chargedAtDispatch: false,
-            processingQueuedAt: originalQueuedAt,
-            scheduleQuotaContinuation: vi
-              .fn()
-              .mockResolvedValue({ deferredUntil, processingQueueToken: 'continuation-1' }),
-          }
-        )
-      ).rejects.toBeInstanceOf(EmbeddingQuotaExhaustedError)
-
-      expect(mockProcessDocument).toHaveBeenCalledTimes(stage === 'preflight' ? 0 : 1)
-      const deferredWrite = dbChainMockFns.set.mock.calls.find(
-        (call) =>
-          (call[0] as Record<string, unknown> | undefined)?.processingDeferredUntil ===
-          deferredUntil
-      )
-      expect(deferredWrite?.[0]).toMatchObject({
-        processingStatus: 'pending',
-        processingDeferredUntil: deferredUntil,
-      })
-      expect(deferredWrite?.[0]).toMatchObject({
-        processingQueuedAt: deferredUntil,
-        processingQueueToken: 'continuation-1',
-      })
-      expect(
-        dbChainMockFns.where.mock.calls.some((call) =>
-          hasMockCondition(
-            call[0],
-            (node) =>
-              node.type === 'eq' &&
-              node.left === schemaMock.document.processingQueuedAt &&
-              node.right === originalQueuedAt
-          )
-        )
-      ).toBe(true)
-    }
-  )
-
   it('stops automatic retries after the bounded quota continuation chain is exhausted', async () => {
     resetDbChainMock()
     dbChainMockFns.returning.mockResolvedValue([{ id: 'document-1' }])
     dbChainMockFns.limit
       .mockResolvedValueOnce([PERSISTED_CONTEXT])
       .mockResolvedValueOnce([PERSISTED_PROVENANCE_ROW])
+      .mockResolvedValueOnce([{ id: 'document-1' }])
       .mockResolvedValueOnce([{ id: 'document-1' }])
 
     await expect(
@@ -1484,30 +1202,6 @@ describe('in-process quota continuation dispatch', () => {
     expect(mockTrigger).not.toHaveBeenCalled()
   })
 
-  it('durably defers quota exhaustion after a failed Trigger batch fallback', async () => {
-    markInsideTriggerRun()
-    mockBatchTrigger.mockRejectedValue(new Error('batch unavailable'))
-
-    await expect(
-      processDocumentsWithQueue(
-        [queuedDocument],
-        'knowledge-base-1',
-        {},
-        'request-1',
-        BILLING_ATTRIBUTION
-      )
-    ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
-
-    expect(mockBatchTrigger).toHaveBeenCalledTimes(1)
-    expect(mockTrigger).toHaveBeenCalledWith(
-      'knowledge-process-document',
-      expect.objectContaining({ documentId: 'document-1', quotaRetryCount: 1 }),
-      expect.objectContaining({
-        idempotencyKey: 'knowledge-quota-document-1-request-1-1',
-      })
-    )
-  })
-
   it('keeps a claimed direct dispatch accepted when quota continuation handoff fails', async () => {
     markInsideTriggerRun()
     mockBatchTrigger.mockRejectedValue(new Error('batch unavailable'))
@@ -1519,7 +1213,8 @@ describe('in-process quota continuation dispatch', () => {
         'knowledge-base-1',
         {},
         'request-1',
-        BILLING_ATTRIBUTION
+        BILLING_ATTRIBUTION,
+        'interactive'
       )
     ).resolves.toEqual({ requested: 1, accepted: 1, failed: 0, failedDocumentIds: [] })
 

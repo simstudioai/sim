@@ -423,7 +423,7 @@ export const oauthCredentialSchema = z.object({
   id: z.string(),
   name: z.string(),
   provider: z.custom<OAuthProvider>((value) => typeof value === 'string'),
-  type: z.enum(['oauth', 'service_account']).optional(),
+  type: z.enum(['oauth', 'service_account', 'managed_oauth']).optional(),
   serviceId: z.string().optional(),
   lastUsed: z.string().optional(),
   isDefault: z.boolean().optional(),

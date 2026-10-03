@@ -14,38 +14,6 @@ function extractExtension(fileName: string): string {
 
 export const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
 
-const IMAGE_FILE_EXTENSIONS: Record<string, string> = {
-  'image/gif': 'gif',
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-}
-
-/** Normalize tool-output image metadata before storing provider bytes. */
-export function resolveStoredFileMetadata(
-  fileName: string,
-  declaredMimeType: string,
-  buffer: Buffer
-): { fileName: string; mimeType: string } {
-  if (!declaredMimeType.startsWith('image/')) {
-    return { fileName, mimeType: declaredMimeType }
-  }
-
-  const mimeType = sniffImageContentType(buffer)
-  if (!mimeType) {
-    return {
-      fileName: `${fileName.replace(/\.[^.]+$/, '')}.bin`,
-      mimeType: 'application/octet-stream',
-    }
-  }
-
-  const extension = IMAGE_FILE_EXTENSIONS[mimeType]
-  return {
-    fileName: extension ? `${fileName.replace(/\.[^.]+$/, '')}.${extension}` : fileName,
-    mimeType,
-  }
-}
-
 export const SUPPORTED_DOCUMENT_EXTENSIONS = [
   'pdf',
   'csv',
@@ -55,7 +23,6 @@ export const SUPPORTED_DOCUMENT_EXTENSIONS = [
   'md',
   'xlsx',
   'xls',
-  'ppt',
   'pptx',
   'html',
   'htm',
@@ -187,7 +154,6 @@ export const SUPPORTED_MIME_TYPES: Record<SupportedDocumentExtension, string[]> 
     'application/x-excel',
     'application/x-msexcel',
   ],
-  ppt: ['application/vnd.ms-powerpoint', 'application/powerpoint', 'application/x-mspowerpoint'],
   pptx: [
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     'application/octet-stream',
@@ -198,25 +164,6 @@ export const SUPPORTED_MIME_TYPES: Record<SupportedDocumentExtension, string[]> 
   jsonl: ['application/jsonl', 'application/x-jsonlines', 'text/jsonl', 'application/octet-stream'],
   yaml: ['text/yaml', 'text/x-yaml', 'application/yaml', 'application/x-yaml'],
   yml: ['text/yaml', 'text/x-yaml', 'application/yaml', 'application/x-yaml'],
-}
-
-export const SUPPORTED_AUDIO_MIME_TYPES: Record<SupportedAudioExtension, string[]> = {
-  mp3: ['audio/mpeg', 'audio/mp3'],
-  m4a: ['audio/mp4', 'audio/x-m4a', 'audio/m4a'],
-  wav: ['audio/wav', 'audio/wave', 'audio/x-wav'],
-  webm: ['audio/webm'],
-  ogg: ['audio/ogg', 'audio/vorbis'],
-  flac: ['audio/flac', 'audio/x-flac'],
-  aac: ['audio/aac', 'audio/x-aac'],
-  opus: ['audio/opus'],
-}
-
-export const SUPPORTED_VIDEO_MIME_TYPES: Record<SupportedVideoExtension, string[]> = {
-  mp4: ['video/mp4', 'video/mpeg'],
-  mov: ['video/quicktime', 'video/x-quicktime'],
-  avi: ['video/x-msvideo', 'video/avi'],
-  mkv: ['video/x-matroska'],
-  webm: ['video/webm'],
 }
 
 export const ACCEPTED_FILE_TYPES = Object.values(SUPPORTED_MIME_TYPES).flat()
@@ -239,7 +186,7 @@ const SUPPORTED_IMAGE_MIME_TYPES = [
   'image/vnd.microsoft.icon',
 ]
 
-const SUPPORTED_ARCHIVE_MIME_TYPES = [
+export const SUPPORTED_ARCHIVE_MIME_TYPES = [
   'application/zip',
   'application/x-zip-compressed',
   'application/x-zip',

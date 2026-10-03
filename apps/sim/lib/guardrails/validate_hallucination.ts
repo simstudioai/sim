@@ -266,7 +266,6 @@ export async function validateHallucination(
     providerCredentials,
     workflowId,
     workspaceId,
-    actorUserId,
     executionContext,
     billingAttribution,
     requestId,

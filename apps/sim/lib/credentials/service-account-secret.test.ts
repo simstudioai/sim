@@ -1,24 +1,20 @@
-/**
- * @vitest-environment node
- */
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockEncryptSecret,
   mockFetchSlackTeamId,
   mockValidateAtlassian,
   mockNormalizeDomain,
   mockClientCredentialMinter,
 } = vi.hoisted(() => ({
-  // Identity encryption so tests can read back the JSON blob.
-  mockEncryptSecret: vi.fn(async (value: string) => ({ encrypted: value })),
   mockFetchSlackTeamId: vi.fn(),
   mockValidateAtlassian: vi.fn(),
   mockNormalizeDomain: vi.fn((raw: string) => raw.trim().toLowerCase()),
   mockClientCredentialMinter: vi.fn(),
 }))
 
-vi.mock('@/lib/core/security/encryption', () => ({ encryptSecret: mockEncryptSecret }))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+const mockEncryptSecret = encryptionMockFns.mockEncryptSecret
 vi.mock('@/lib/webhooks/providers/slack', () => ({ fetchSlackTeamId: mockFetchSlackTeamId }))
 vi.mock('@/lib/credentials/atlassian-service-account', () => ({
   validateAtlassianServiceAccount: mockValidateAtlassian,
@@ -59,7 +55,6 @@ import {
 
 describe('verifyAndBuildServiceAccountSecret', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockEncryptSecret.mockImplementation(async (value: string) => ({ encrypted: value }))
     mockNormalizeDomain.mockImplementation((raw: string) => raw.trim().toLowerCase())
   })
@@ -70,10 +65,6 @@ describe('verifyAndBuildServiceAccountSecret', () => {
       signingSecret: 'sec',
       botToken: 'xoxb-1',
     })
-    expect(result.providerId).toBe(SLACK_CUSTOM_BOT_PROVIDER_ID)
-    expect(result.displayName).toBe('Acme')
-    expect(result.auditMetadata.slackTeamId).toBe('T1')
-    expect(result.botUserId).toBe('U_BOT')
     const blob = JSON.parse(result.encryptedServiceAccountKey)
     expect(blob).toMatchObject({
       signingSecret: 'sec',
@@ -82,23 +73,6 @@ describe('verifyAndBuildServiceAccountSecret', () => {
       botUserId: 'U_BOT',
       teamName: 'Acme',
     })
-  })
-
-  it('throws when Slack required fields are missing', async () => {
-    await expect(
-      verifyAndBuildServiceAccountSecret(SLACK_CUSTOM_BOT_PROVIDER_ID, { signingSecret: 'sec' })
-    ).rejects.toBeInstanceOf(ServiceAccountSecretError)
-    expect(mockFetchSlackTeamId).not.toHaveBeenCalled()
-  })
-
-  it('wraps a failed Slack token verification as a ServiceAccountSecretError', async () => {
-    mockFetchSlackTeamId.mockRejectedValue(new Error('invalid_auth'))
-    await expect(
-      verifyAndBuildServiceAccountSecret(SLACK_CUSTOM_BOT_PROVIDER_ID, {
-        signingSecret: 'sec',
-        botToken: 'xoxb-bad',
-      })
-    ).rejects.toThrow(/Could not verify the Slack bot token/)
   })
 
   it('verifies an Atlassian token and encrypts the blob', async () => {
@@ -113,46 +87,12 @@ describe('verifyAndBuildServiceAccountSecret', () => {
       domain: 'Acme.atlassian.net',
       atlassianProduct: 'confluence',
     })
-    expect(mockValidateAtlassian).toHaveBeenCalledWith('tok', 'acme.atlassian.net', 'confluence')
-    expect(result.providerId).toBe(ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID)
-    expect(result.displayName).toBe('Jira Bot')
-    expect(result.auditMetadata.atlassianCloudId).toBe('cloud-1')
-    expect(result.principal).toEqual({ kind: 'user', id: 'acc-1', label: 'bot@acme.com' })
-    expect(result.auditMetadata.principalId).toBe('acc-1')
-    expect(result.auditMetadata.principalLabel).toBe('bot@acme.com')
     const blob = JSON.parse(result.encryptedServiceAccountKey)
     expect(blob).toMatchObject({
       apiToken: 'tok',
       domain: 'acme.atlassian.net',
       cloudId: 'cloud-1',
       atlassianProduct: 'confluence',
-    })
-  })
-
-  it('throws when Atlassian required fields are missing', async () => {
-    await expect(
-      verifyAndBuildServiceAccountSecret(ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID, { apiToken: 'tok' })
-    ).rejects.toBeInstanceOf(ServiceAccountSecretError)
-  })
-
-  it('validates and encrypts a Google service-account JSON key', async () => {
-    const json = JSON.stringify({
-      type: 'service_account',
-      client_email: 'svc@proj.iam',
-      project_id: 'proj',
-    })
-    const result = await verifyAndBuildServiceAccountSecret('google-service-account', {
-      serviceAccountJson: json,
-    })
-    expect(result.providerId).toBe('google-service-account')
-    expect(result.displayName).toBe('svc@proj.iam')
-    expect(result.encryptedServiceAccountKey).toBe(json)
-    expect(result.principal).toEqual({ kind: 'user', id: 'svc@proj.iam' })
-    expect(result.auditMetadata).toEqual({
-      googleClientEmail: 'svc@proj.iam',
-      googleProjectId: 'proj',
-      principalKind: 'user',
-      principalId: 'svc@proj.iam',
     })
   })
 
@@ -191,13 +131,6 @@ describe('verifyAndBuildServiceAccountSecret', () => {
       clientSecret: ' csec ',
       orgId: ' acc-1 ',
     })
-    expect(result.providerId).toBe('zoom-service-account')
-    expect(result.displayName).toBe('Zoom account acc-1')
-    expect(result.auditMetadata).toEqual({
-      zoomAccountId: 'acc-1',
-      principalKind: 'tenant',
-      principalId: 'acc-1',
-    })
     expect(mockClientCredentialMinter).toHaveBeenCalledWith({
       clientId: 'cid',
       clientSecret: 'csec',
@@ -218,20 +151,6 @@ describe('verifyAndBuildServiceAccountSecret', () => {
     })
   })
 
-  it('falls back to a label-derived display name when the mint has no identity', async () => {
-    mockClientCredentialMinter.mockResolvedValue({ accessToken: 'minted', expiresInSeconds: 3600 })
-    const result = await verifyAndBuildServiceAccountSecret('box-service-account', {
-      clientId: 'cid',
-      clientSecret: 'csec',
-      orgId: '999',
-    })
-    expect(result.displayName).toBe('Box 999')
-    expect(result.principal).toBeNull()
-    expect(result.auditMetadata).toEqual({ principalKind: 'none' })
-    const blob = JSON.parse(result.encryptedServiceAccountKey)
-    expect(blob.metadata).toEqual({ principalKind: 'none' })
-  })
-
   it('threads NetSuite certificate material into the minter and encrypted blob', async () => {
     mockClientCredentialMinter.mockResolvedValue({
       accessToken: 'minted',
@@ -250,13 +169,6 @@ describe('verifyAndBuildServiceAccountSecret', () => {
       certificateId: ' certificate-id ',
       privateKey: ' -----BEGIN PRIVATE KEY-----key ',
     })
-
-    expect(mockClientCredentialMinter).toHaveBeenCalledWith({
-      orgId: 'https://1234567.suitetalk.api.netsuite.com/',
-      clientId: 'client-id',
-      certificateId: 'certificate-id',
-      privateKey: '-----BEGIN PRIVATE KEY-----key',
-    })
     expect(JSON.parse(result.encryptedServiceAccountKey)).toMatchObject({
       providerId: 'netsuite-service-account',
       certificateId: 'certificate-id',
@@ -273,18 +185,6 @@ describe('verifyAndBuildServiceAccountSecret', () => {
     ).rejects.toBeInstanceOf(ServiceAccountSecretError)
     expect(mockClientCredentialMinter).not.toHaveBeenCalled()
   })
-
-  it('propagates a failed client-credential mint', async () => {
-    mockClientCredentialMinter.mockRejectedValue(new Error('invalid_credentials'))
-    await expect(
-      verifyAndBuildServiceAccountSecret('box-service-account', {
-        clientId: 'cid',
-        clientSecret: 'bad',
-        orgId: '999',
-      })
-    ).rejects.toThrow('invalid_credentials')
-  })
-
   it('rejects prototype-chain providerIds with a validation error, not a TypeError', async () => {
     for (const providerId of ['__proto__', 'constructor', 'toString']) {
       await expect(

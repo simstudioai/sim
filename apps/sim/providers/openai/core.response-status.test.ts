@@ -1,47 +1,51 @@
 /**
- * @vitest-environment node
- *
  * Pins the non-streaming status/error gate, and pins its `incomplete` policy to the one
  * `streamResponsesTurn` applies so the two paths cannot silently diverge.
  */
+
+import { jsonResponse } from '@sim/testing/helpers/http'
+import { providersMock } from '@sim/testing/mocks/providers.mock'
+import {
+  providersConversationHistoryMock,
+  providersConversationHistoryMockFns,
+} from '@sim/testing/mocks/providers-conversation-history.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeResponsesProviderRequest } from '@/providers/openai/core'
 import type { ProviderRequest, ProviderResponse } from '@/providers/types'
 
-vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 5 }))
+providersMock.MAX_TOOL_ITERATIONS = 5
+const mockCaptureStep = providersConversationHistoryMockFns.mockCaptureProviderConversationStep
+const mockRecordToolError =
+  providersConversationHistoryMockFns.mockRecordProviderConversationToolError
+const mockConversationContext =
+  providersConversationHistoryMockFns.mockGetConversationRequestContext
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: () => false,
-  calculateCost: () => ({ input: 0, output: 0, total: 0 }),
-  sumToolCosts: () => 0,
-  enforceStrictSchema: (schema: unknown) => schema,
-  prepareToolExecution: () => ({ toolParams: {}, executionParams: {} }),
-  prepareToolsWithUsageControl: (tools: unknown[]) => ({
-    tools,
-    toolChoice: undefined,
-    forcedTools: [],
-    hasFilteredTools: false,
-  }),
-  trackForcedToolUsage: () => ({ hasUsedForcedTool: false, usedForcedTools: [] }),
-  supportsReasoningEffort: () => false,
+providersUtilsMockFns.mockIsFunctionToolCall.mockReturnValue(false)
+providersUtilsMockFns.mockPrepareToolExecution.mockReturnValue({
+  toolParams: {},
+  executionParams: {},
+})
+providersUtilsMockFns.mockPrepareToolsWithUsageControl.mockImplementation((tools) => ({
+  tools,
+  toolChoice: undefined,
+  forcedTools: [],
+  hasFilteredTools: false,
 }))
+
+vi.mock('@/providers', () => providersMock)
+
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 const { mockExecuteProviderTool } = vi.hoisted(() => ({
   mockExecuteProviderTool: vi.fn(),
 }))
 
+vi.mock('@/providers/conversation-history', () => providersConversationHistoryMock)
+
 vi.mock('@/providers/runtime-context', () => ({
   executeProviderTool: mockExecuteProviderTool,
 }))
-
-function jsonResponse(body: unknown) {
-  return {
-    ok: true,
-    status: 200,
-    headers: new Headers(),
-    json: () => Promise.resolve(body),
-  }
-}
 
 const USAGE = { input_tokens: 1, output_tokens: 1, total_tokens: 2 }
 
@@ -70,7 +74,9 @@ describe('OpenAI non-streaming response status handling', () => {
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as any
 
   beforeEach(() => {
-    vi.clearAllMocks()
+    mockCaptureStep.mockReset()
+    mockRecordToolError.mockReset()
+    mockConversationContext.mockReset()
     const response = { success: true, output: { results: [] } }
     mockExecuteProviderTool.mockResolvedValue({ rawResponse: response, modelResponse: response })
   })
@@ -93,6 +99,101 @@ describe('OpenAI non-streaming response status handling', () => {
   const TOOL_REQUEST: Partial<ProviderRequest> = {
     tools: [{ id: 'exa_search', name: 'exa_search', description: 'search', params: {} }],
   }
+
+  it('refuses invalid context configuration before sending and preserves its nonretryable classification', async () => {
+    mockConversationContext.mockReturnValue({
+      agentConversation: {},
+      agentMemoryContext: { historyTokens: Number.NaN },
+    })
+    const fetchMock = vi.fn()
+    await expect(run(fetchMock)).rejects.toMatchObject({
+      name: 'AgentContextLimitError',
+      retryable: false,
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('lets an estimated oversized request reach the provider and propagates its actual context rejection', async () => {
+    mockConversationContext.mockReturnValue({ agentConversation: {} })
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      headers: new Headers(),
+      text: async () =>
+        JSON.stringify({
+          error: { message: 'Provider context window exceeded', code: 'context_length_exceeded' },
+        }),
+    })
+    await expect(run(fetchMock, { maxTokens: 10_000_000 })).rejects.toThrow(
+      'Provider context window exceeded'
+    )
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('awaits assistant capture before dispatching tools and captures the final response', async () => {
+    const order: string[] = []
+    mockCaptureStep.mockImplementation(async (_request, _protocol, output) => {
+      await Promise.resolve()
+      order.push(
+        output.some((item: { type: string }) => item.type === 'function_call')
+          ? 'capture-call'
+          : 'capture-final'
+      )
+    })
+    mockExecuteProviderTool.mockImplementation(async () => {
+      order.push('tool')
+      const result = { success: true, output: { found: true } }
+      return { rawResponse: result, modelResponse: result }
+    })
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          ...COMPLETED_RESPONSE,
+          output: [functionCall('{}')],
+          usage: {
+            input_tokens: 100,
+            output_tokens: 20,
+            input_tokens_details: { cached_tokens: 30, cache_write_tokens: 10 },
+          },
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse(COMPLETED_RESPONSE))
+    await run(fetchMock, TOOL_REQUEST)
+    expect(order).toEqual(['capture-call', 'tool', 'capture-final'])
+    expect(mockCaptureStep.mock.calls.every(([, protocol]) => protocol === 'responses')).toBe(true)
+    expect(mockCaptureStep.mock.calls.map((call) => call[3])).toEqual([
+      {
+        input: 60,
+        output: 20,
+        cacheRead: 30,
+        cacheWrites: [{ tokens: 10, inputRateMultiplier: 1.25 }],
+      },
+      {
+        input: 1,
+        output: 1,
+        cacheRead: 0,
+        cacheWrites: [{ tokens: 0, inputRateMultiplier: 1.25 }],
+      },
+    ])
+  })
+
+  it('records a malformed call error without dispatching it', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({ ...COMPLETED_RESPONSE, output: [functionCall('{broken')] })
+      )
+      .mockResolvedValueOnce(jsonResponse(COMPLETED_RESPONSE))
+    await run(fetchMock, TOOL_REQUEST)
+    expect(mockExecuteProviderTool).not.toHaveBeenCalled()
+    expect(mockRecordToolError).toHaveBeenCalledWith(
+      expect.anything(),
+      'call_1',
+      'exa_search',
+      expect.stringContaining('Invalid JSON')
+    )
+  })
 
   it('fails the block on a 200 carrying status "failed", surfacing the API error message', async () => {
     const fetchMock = vi.fn().mockResolvedValue(

@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
   Chip,
@@ -15,7 +15,8 @@ import {
   Library,
   Loader,
   OverflowText,
-  Skeleton,
+  RowActions,
+  rowActionsGroupClass,
   scrollFadeAttributes,
   scrollFadeClass,
   Tooltip,
@@ -23,6 +24,8 @@ import {
   useScrollEdges,
 } from '@sim/emcn'
 import {
+  Building,
+  Dashboard,
   Database,
   Files,
   Integration,
@@ -39,20 +42,26 @@ import { createLogger } from '@sim/logger'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useSession } from '@/lib/auth/auth-client'
+import { canViewWorkspaceBillingSettings } from '@/lib/billing/workspace-permissions'
 import { focusVisibleBrowserOmnibox } from '@/lib/browser-agent/renderer-shortcuts'
-import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isStatusNoticePreviewEnabled } from '@/lib/core/config/env-flags'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { buildFolderTree, getFolderPathNames } from '@/lib/folders/tree'
 import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
+import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { captureEvent } from '@/lib/posthog/client'
+import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
 import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
+import {
+  allNavigationItems,
+  type SettingsSection,
+} from '@/app/workspace/[workspaceId]/settings/navigation'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
   ChatNavigationLink,
@@ -84,6 +93,7 @@ import type {
   LogItem,
   PageActionContext,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
+import { SidebarRowAction } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import {
@@ -102,20 +112,22 @@ import {
   useWorkspaceLogoUpload,
   useWorkspaceManagement,
   useWorkspaceWorkflowsRoom,
-  WORKSPACE_LOGO_ACCEPT_ATTRIBUTE,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
   compareByOrder,
   createSidebarDragGhost,
   groupWorkflowsByFolder,
+  isSidebarBackgroundClick,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import { useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
+import { useWorkspaceAccessRequestFeatures } from '@/ee/access-requests/components/permission-access-boundary'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { type LogFilters, useLogsList } from '@/hooks/queries/logs'
 import type { MothershipChatMetadata } from '@/hooks/queries/mothership-chats'
 import {
+  MothershipChatDeleteError,
   useDeleteMothershipChat,
   useDeleteMothershipChats,
   useMarkMothershipChatRead,
@@ -124,13 +136,13 @@ import {
   useRenameMothershipChat,
   useSetMothershipChatPinned,
 } from '@/hooks/queries/mothership-chats'
+import { useUserProfile } from '@/hooks/queries/user-profile'
 import { useUpdateWorkflow } from '@/hooks/queries/workflows'
 import type { Workspace } from '@/hooks/queries/workspace'
 import { useContextMenu } from '@/hooks/use-context-menu'
 import { useMothershipChatEvents } from '@/hooks/use-mothership-chat-events'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
 import { useFilterStore } from '@/stores/logs/filters/store'
@@ -170,15 +182,6 @@ const SEARCH_MODAL_DATE_FORMAT = new Intl.DateTimeFormat(undefined, {
   hour: 'numeric',
   minute: '2-digit',
 })
-
-/** Stands in for a chip row while a list loads, so it carries no margin either. */
-function SidebarItemSkeleton() {
-  return (
-    <div className='sidebar-collapse-hide flex h-[30px] items-center gap-2 rounded-lg px-2'>
-      <Skeleton className='h-[16px] w-[16px] shrink-0 rounded-sm' />
-    </div>
-  )
-}
 
 const SidebarChatItem = memo(function SidebarChatItem({
   chat,
@@ -241,19 +244,14 @@ const SidebarChatItem = memo(function SidebarChatItem({
         chatId={chat.id}
         href={chat.href}
         isCurrentRoute={isCurrentRoute}
-        className={chipVariants({
-          active: isCurrentRoute || isSelected || isMenuOpen,
-          fullWidth: true,
-        })}
-        onClick={(e) => {
-          if (e.metaKey || e.ctrlKey) return
-          if (e.shiftKey) {
-            e.preventDefault()
-            onMultiSelectClick(chat.id, true)
-          } else {
-            useFolderStore.getState().selectChatOnly(chat.id)
-          }
-        }}
+        className={cn(
+          chipVariants({
+            active: isCurrentRoute || isSelected || isMenuOpen,
+            fullWidth: true,
+          }),
+          rowActionsGroupClass
+        )}
+        onSelectChat={onMultiSelectClick}
         onContextMenu={(e) => onContextMenu(e, chat.id)}
         draggable
         onDragStart={handleDragStart}
@@ -261,30 +259,21 @@ const SidebarChatItem = memo(function SidebarChatItem({
       >
         <OverflowText label={chat.name} className='flex-1 text-[var(--text-body)]' />
         {chat.id !== 'new' && (
-          <div className='relative flex size-[18px] shrink-0 items-center justify-center'>
-            {showStatusDot && (
-              <span
-                aria-hidden='true'
-                className={cn(
-                  'size-[6px] rounded-full transition-opacity',
-                  isMenuOpen ? 'opacity-0' : 'group-hover:opacity-0'
-                )}
-                style={{
-                  backgroundColor: isActive ? '#EAB308' : 'var(--brand-accent)',
-                }}
-              />
-            )}
-            {!showStatusDot && isPinned && (
-              <Pin
-                aria-hidden='true'
-                className={cn(
-                  'absolute size-[12px] text-[var(--text-icon)] transition-opacity',
-                  isMenuOpen ? 'opacity-0' : 'group-hover:opacity-0'
-                )}
-              />
-            )}
-            <button
-              type='button'
+          <RowActions
+            open={isMenuOpen}
+            indicator={
+              showStatusDot ? (
+                <span
+                  aria-hidden='true'
+                  className='size-[6px] rounded-full'
+                  style={{ backgroundColor: isActive ? '#EAB308' : 'var(--brand-accent)' }}
+                />
+              ) : isPinned ? (
+                <Pin aria-hidden='true' className='size-[12px] text-[var(--text-icon)]' />
+              ) : undefined
+            }
+          >
+            <SidebarRowAction
               aria-label='Chat options'
               onPointerDown={onMorePointerDown}
               onClick={(e) => {
@@ -292,14 +281,10 @@ const SidebarChatItem = memo(function SidebarChatItem({
                 e.stopPropagation()
                 onMoreClick(e, chat.id)
               }}
-              className={cn(
-                'absolute inset-0 flex items-center justify-center rounded-sm opacity-0 transition-opacity group-hover:opacity-100',
-                isMenuOpen && 'opacity-100'
-              )}
             >
               <MoreHorizontal className='size-[14px] text-[var(--text-icon)]' />
-            </button>
-          </div>
+            </SidebarRowAction>
+          </RowActions>
         )}
       </ChatNavigationLink>
     </SidebarTooltip>
@@ -335,14 +320,16 @@ const SidebarNavItem = memo(function SidebarNavItem({
 /** Event name for sidebar scroll operations - centralized for consistency */
 export const SIDEBAR_SCROLL_EVENT = 'sidebar-scroll-to-item'
 
-const HIDDEN_STYLE = { display: 'none' } as const
-
 /**
  * Opts a control out of the desktop shell's window-drag region. The header row is
  * draggable chrome, so anything clickable inside it has to say so or the click is
  * swallowed by the drag handler.
  */
 const DRAG_EXEMPT_CLASS = '[-webkit-app-region:no-drag]'
+
+interface SidebarProps {
+  organizationHref: string | null
+}
 
 /**
  * Sidebar component with resizable width that persists across page refreshes.
@@ -360,7 +347,7 @@ const DRAG_EXEMPT_CLASS = '[-webkit-app-region:no-drag]'
  *
  * @returns Sidebar with workflows panel
  */
-export const Sidebar = memo(function Sidebar() {
+export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps) {
   const { isCollapsed: isCollapsedProp, isPeeking } = useSidebarChrome()
   const isCollapsed = isCollapsedProp && !isPeeking
   const params = useParams()
@@ -375,7 +362,9 @@ export const Sidebar = memo(function Sidebar() {
 
   const posthog = usePostHog()
   const { data: sessionData, isPending: sessionLoading } = useSession()
-  const { workspace: routeWorkspace } = useWorkspaceHostContext()
+  const { data: profile } = useUserProfile()
+  const hostContext = useWorkspaceHostContext()
+  const { workspace: routeWorkspace } = hostContext
   const { hosted, chatEnabled } = useDeploymentShape()
   const { canAdmin, canEdit, isLoading: permissionsLoading } = useUserPermissionsContext()
   const {
@@ -385,6 +374,8 @@ export const Sidebar = memo(function Sidebar() {
     isToolAllowed,
     integrationAvailability,
   } = usePermissionConfig()
+  const accessRequests = useWorkspaceAccessRequestFeatures()
+  const accessRequestsEnabled = accessRequests.data?.enabled === true
   const { getSettingsHref, navigateToSettings } = useSettingsNavigation()
   const initializeSearchData = useSearchModalStore((state) => state.initializeData)
   const customBlockOverlayVersion = useCustomBlockOverlayVersion()
@@ -407,26 +398,10 @@ export const Sidebar = memo(function Sidebar() {
     customBlockOverlayVersion,
   ])
 
-  const setSidebarWidth = useSidebarStore((state) => state.setSidebarWidth)
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
-  const isOnWorkflowPage = !!workflowId
-
-  const isCollapsedRef = useRef(isCollapsed)
-  useLayoutEffect(() => {
-    isCollapsedRef.current = isCollapsed
-  }, [isCollapsed])
 
   const isMac = isMacPlatform()
-
-  const [showCollapsedTooltips, setShowCollapsedTooltips] = useState(isCollapsed)
-
-  useEffect(() => {
-    if (isCollapsed) {
-      const timer = setTimeout(() => setShowCollapsedTooltips(true), 200)
-      return () => clearTimeout(timer)
-    }
-    setShowCollapsedTooltips(false)
-  }, [isCollapsed])
+  const showCollapsedTooltips = isCollapsed
 
   const { isImporting, handleFileChange: handleImportFileChange } = useImportWorkflow({
     workspaceId,
@@ -729,6 +704,7 @@ export const Sidebar = memo(function Sidebar() {
     [workspaces, workspaceId]
   )
 
+  const dashboardsEnabled = useFeatureFlag('dashboards')
   const topNavItems = useMemo(
     () =>
       [
@@ -740,20 +716,27 @@ export const Sidebar = memo(function Sidebar() {
           onClick: chatEnabled ? undefined : createWorkflow,
           // Creation navigates optimistically, so a read-only member would land
           // on a workflow the server declined to create.
-          hidden: !chatEnabled && !permissionsLoading && !canEdit,
+          hidden:
+            (!chatEnabled && !permissionsLoading && !canEdit) ||
+            (chatEnabled && permissionConfig.hideCopilot && !accessRequestsEnabled),
+          restricted: chatEnabled && permissionConfig.hideCopilot,
+        },
+        {
+          id: 'dashboards',
+          label: 'Dashboard',
+          icon: Dashboard,
+          href: `/workspace/${workspaceId}/dashboards`,
+          hidden: !dashboardsEnabled || (permissionConfig.hideFilesTab && !accessRequestsEnabled),
+          restricted: permissionConfig.hideFilesTab,
         },
         {
           id: 'integrations',
           label: 'Integrations',
           icon: Integration,
           href: `/workspace/${workspaceId}/integrations`,
-          /* Skills and Search are tabs of this surface, not their own nav items —
-             keep the entry lit while the user is on either. */
-          additionalActivePaths: [
-            `/workspace/${workspaceId}/skills`,
-            `/workspace/${workspaceId}/search`,
-          ],
-          hidden: permissionConfig.hideIntegrationsTab,
+          additionalActivePaths: [`/workspace/${workspaceId}/skills`],
+          hidden: permissionConfig.hideIntegrationsTab && !accessRequestsEnabled,
+          restricted: permissionConfig.hideIntegrationsTab,
         },
       ].filter((item) => !item.hidden),
     [
@@ -762,7 +745,11 @@ export const Sidebar = memo(function Sidebar() {
       canEdit,
       permissionsLoading,
       permissionConfig.hideIntegrationsTab,
+      permissionConfig.hideCopilot,
+      permissionConfig.hideFilesTab,
+      accessRequestsEnabled,
       chatEnabled,
+      dashboardsEnabled,
     ]
   )
 
@@ -774,27 +761,31 @@ export const Sidebar = memo(function Sidebar() {
           label: 'Tables',
           icon: Table,
           href: `/workspace/${workspaceId}/tables`,
-          hidden: permissionConfig.hideTablesTab,
+          hidden: permissionConfig.hideTablesTab && !accessRequestsEnabled,
+          restricted: permissionConfig.hideTablesTab,
         },
         {
           id: 'files',
           label: 'Files',
           icon: Files,
           href: `/workspace/${workspaceId}/files`,
-          hidden: permissionConfig.hideFilesTab,
+          hidden: permissionConfig.hideFilesTab && !accessRequestsEnabled,
+          restricted: permissionConfig.hideFilesTab,
         },
         {
           id: 'knowledge-base',
           label: 'Knowledge bases',
           icon: Database,
           href: `/workspace/${workspaceId}/knowledge`,
-          hidden: permissionConfig.hideKnowledgeBaseTab,
+          hidden: permissionConfig.hideKnowledgeBaseTab && !accessRequestsEnabled,
+          restricted: permissionConfig.hideKnowledgeBaseTab,
         },
         {
           id: 'logs',
           label: 'Logs',
           icon: Library,
           href: `/workspace/${workspaceId}/logs`,
+          restricted: false,
         },
       ].filter((item) => !item.hidden),
     [
@@ -802,6 +793,7 @@ export const Sidebar = memo(function Sidebar() {
       permissionConfig.hideFilesTab,
       permissionConfig.hideKnowledgeBaseTab,
       permissionConfig.hideTablesTab,
+      accessRequestsEnabled,
     ]
   )
 
@@ -819,18 +811,38 @@ export const Sidebar = memo(function Sidebar() {
   }
 
   const handleOpenSettings = (section: SettingsSection) => {
-    if (!isCollapsedRef.current) {
-      setSidebarWidth(SIDEBAR_WIDTH.MIN)
-    }
     navigateToSettings({ section })
+  }
+
+  const profileNavigationLinks = allNavigationItems
+    .filter(
+      ({ id }) =>
+        id === 'teammates' ||
+        id === 'recently-deleted' ||
+        (id === 'billing' && canViewWorkspaceBillingSettings(hostContext, profile?.id))
+    )
+    .map(({ id, label, icon }) => ({
+      label,
+      icon,
+      href: getSettingsHref({ section: id }),
+      onNavigate: () => handleOpenSettings(id),
+    }))
+
+  if (organizationHref) {
+    profileNavigationLinks.push({
+      label: 'Organization',
+      icon: Building,
+      href: organizationHref,
+      onNavigate: () => router.push(organizationHref),
+    })
   }
 
   const { data: fetchedChats = EMPTY_CHATS, isLoading: chatsLoading } = useMothershipChats(
     workspaceId,
-    { enabled: chatEnabled }
+    { enabled: chatEnabled && !permissionConfig.hideCopilot }
   )
 
-  useMothershipChatEvents(workspaceId)
+  useMothershipChatEvents(workspaceId, chatEnabled && !permissionConfig.hideCopilot)
 
   /**
    * Stays empty when Chat is disabled, which also drops the command palette's
@@ -838,12 +850,12 @@ export const Sidebar = memo(function Sidebar() {
    */
   const chats = useMemo(
     () =>
-      fetchedChats.map((t) => ({
+      (permissionConfig.hideCopilot || !chatEnabled ? EMPTY_CHATS : fetchedChats).map((t) => ({
         ...t,
         href: `/workspace/${workspaceId}/chat/${t.id}`,
         date: SEARCH_MODAL_DATE_FORMAT.format(t.updatedAt),
       })),
-    [fetchedChats, workspaceId]
+    [fetchedChats, workspaceId, permissionConfig.hideCopilot, chatEnabled]
   )
 
   const chatIds = useMemo(() => chats.map((t) => t.id), [chats])
@@ -867,16 +879,6 @@ export const Sidebar = memo(function Sidebar() {
     setIsChatDeleteModalOpen(true)
   }, [chats])
 
-  const navigateToPage = useCallback(
-    (path: string) => {
-      if (!isCollapsedRef.current) {
-        setSidebarWidth(SIDEBAR_WIDTH.MIN)
-      }
-      router.push(path)
-    },
-    [setSidebarWidth, router]
-  )
-
   const handleConfirmDeleteChats = () => {
     const { chatIds: chatIdsToDelete } = contextMenuSelectionRef.current
     if (chatIdsToDelete.length === 0) return
@@ -889,14 +891,26 @@ export const Sidebar = memo(function Sidebar() {
     const onDeleteSuccess = () => {
       useFolderStore.getState().clearChatSelection()
       if (isViewingDeletedChat) {
-        navigateToPage(`/workspace/${workspaceId}/home`)
+        router.push(`/workspace/${workspaceId}/home`)
       }
     }
 
     if (chatIdsToDelete.length === 1) {
       deleteChatMutation.mutate(chatIdsToDelete[0], { onSuccess: onDeleteSuccess })
     } else {
-      deleteChatsMutation.mutate(chatIdsToDelete, { onSuccess: onDeleteSuccess })
+      deleteChatsMutation.mutate(chatIdsToDelete, {
+        onSuccess: onDeleteSuccess,
+        onError: (error) => {
+          if (
+            error instanceof MothershipChatDeleteError &&
+            error.deletedChatIds.some(
+              (id) => window.location.pathname === `/workspace/${workspaceId}/chat/${id}`
+            )
+          ) {
+            router.push(`/workspace/${workspaceId}/home`)
+          }
+        },
+      })
     }
     setIsChatDeleteModalOpen(false)
   }
@@ -1111,10 +1125,7 @@ export const Sidebar = memo(function Sidebar() {
   )
 
   const handleSidebarClick = (e: React.MouseEvent<HTMLElement>) => {
-    const target = e.target as HTMLElement
-    if (target.tagName === 'BUTTON' || target.closest('button, [role="button"], a')) {
-      return
-    }
+    if (!isSidebarBackgroundClick(e)) return
     const { selectOnly, clearAllSelection } = useFolderStore.getState()
     workflowId ? selectOnly(workflowId) : clearAllSelection()
   }
@@ -1237,7 +1248,7 @@ export const Sidebar = memo(function Sidebar() {
           try {
             const pathWorkspaceId = resolveWorkspaceIdFromPath()
             if (pathWorkspaceId) {
-              navigateToPage(`/workspace/${pathWorkspaceId}/logs`)
+              router.push(`/workspace/${pathWorkspaceId}/logs`)
               logger.info('Navigated to logs', { workspaceId: pathWorkspaceId })
             } else {
               logger.warn('No workspace ID found, cannot navigate to logs')
@@ -1275,7 +1286,7 @@ export const Sidebar = memo(function Sidebar() {
       <input
         ref={logoFileInputRef}
         type='file'
-        accept={WORKSPACE_LOGO_ACCEPT_ATTRIBUTE}
+        accept={LOGO_ACCEPT_ATTRIBUTE}
         className='hidden'
         onChange={handleLogoFileChange}
       />
@@ -1310,6 +1321,7 @@ export const Sidebar = memo(function Sidebar() {
               )}
             >
               <WorkspaceHeader
+                organizationHref={organizationHref}
                 activeWorkspace={activeWorkspace ?? routeWorkspace}
                 workspaceId={workspaceId}
                 workspaces={workspaces}
@@ -1434,7 +1446,7 @@ export const Sidebar = memo(function Sidebar() {
                   {...scrollFadeAttributes(scrollEdges)}
                 >
                   <div ref={scrollContentRef} className='flex flex-col'>
-                    {chatEnabled && (
+                    {chatEnabled && !permissionConfig.hideCopilot && (
                       <SidebarSection
                         title='Chats'
                         railCollapsed={isCollapsed}
@@ -1448,12 +1460,7 @@ export const Sidebar = memo(function Sidebar() {
                               ariaLabel='Chats'
                               isEditing={!!chatFlyoutRename.editingId}
                             >
-                              {chatsLoading ? (
-                                <DropdownMenuItem disabled>
-                                  <Loader className='size-[14px]' animate />
-                                  Loading...
-                                </DropdownMenuItem>
-                              ) : chats.length === 0 ? (
+                              {chatsLoading ? null : chats.length === 0 ? (
                                 <DropdownMenuItem disabled>No chats yet</DropdownMenuItem>
                               ) : (
                                 chats.map((chat) => (
@@ -1461,6 +1468,8 @@ export const Sidebar = memo(function Sidebar() {
                                     key={chat.id}
                                     chat={chat}
                                     isCurrentRoute={pathname === chat.href}
+                                    isSelected={hasChatMultiSelection && selectedChats.has(chat.id)}
+                                    onSelectChat={handleChatClick}
                                     isMenuOpen={menuOpenChatId === chat.id}
                                     isEditing={chat.id === chatFlyoutRename.editingId}
                                     editValue={chatFlyoutRename.value}
@@ -1479,9 +1488,7 @@ export const Sidebar = memo(function Sidebar() {
                           </div>
                         ) : (
                           <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
-                            {chatsLoading ? (
-                              <SidebarItemSkeleton />
-                            ) : (
+                            {!chatsLoading && (
                               <>
                                 {chats.length === 0 ? (
                                   <div className='flex h-[30px] items-center px-2 text-[var(--text-muted)] text-small'>
@@ -1570,7 +1577,8 @@ export const Sidebar = memo(function Sidebar() {
                       <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
                         {workspaceNavItems.map((item) => {
                           const active = isNavItemActive(item, pathname)
-                          const flyout = isCollapsed ? railFlyouts[item.id] : undefined
+                          const flyout =
+                            isCollapsed && !item.restricted ? railFlyouts[item.id] : undefined
                           /* The flyout replaces the collapsed tooltip rather than
                              stacking on it: both open on the same hover. */
                           return flyout ? (
@@ -1610,12 +1618,13 @@ export const Sidebar = memo(function Sidebar() {
                                 <Tooltip.Trigger asChild>
                                   <DropdownMenuTrigger asChild>
                                     <Button
+                                      aria-label='More actions'
                                       variant='quiet'
                                       size='icon'
                                       disabled={!permissionsLoading && !canEdit}
                                     >
                                       {isImporting || isCreatingFolder ? (
-                                        <Loader className='h-[16px] w-[16px]' animate />
+                                        <Loader className='size-[16px]' animate />
                                       ) : (
                                         <MoreHorizontal className='size-[14px]' />
                                       )}
@@ -1650,12 +1659,15 @@ export const Sidebar = memo(function Sidebar() {
                             <Tooltip.Root>
                               <Tooltip.Trigger asChild>
                                 <Button
+                                  aria-label={
+                                    isCreatingWorkflow ? 'Creating workflow...' : 'New workflow'
+                                  }
                                   variant='quiet'
                                   size='icon'
                                   onClick={handleCreateWorkflow}
                                   disabled={isCreatingWorkflow || (!permissionsLoading && !canEdit)}
                                 >
-                                  <Plus className='h-[16px] w-[16px]' />
+                                  <Plus className='size-[16px]' />
                                 </Button>
                               </Tooltip.Trigger>
                               <Tooltip.Content>
@@ -1681,12 +1693,8 @@ export const Sidebar = memo(function Sidebar() {
                             isEditing={!!workflowFlyoutRename.editingId}
                             primaryAction={workflowsPrimaryAction}
                           >
-                            {workflowsLoading && regularWorkflows.length === 0 ? (
-                              <DropdownMenuItem disabled>
-                                <Loader className='size-[14px]' animate />
-                                Loading...
-                              </DropdownMenuItem>
-                            ) : regularWorkflows.length === 0 ? (
+                            {workflowsLoading &&
+                            regularWorkflows.length === 0 ? null : regularWorkflows.length === 0 ? (
                               <DropdownMenuItem disabled>No workflows yet</DropdownMenuItem>
                             ) : (
                               <>
@@ -1738,9 +1746,7 @@ export const Sidebar = memo(function Sidebar() {
                         </div>
                       ) : (
                         <div className='px-2'>
-                          {workflowsLoading && regularWorkflows.length === 0 ? (
-                            <SidebarItemSkeleton />
-                          ) : (
+                          {workflowsLoading && regularWorkflows.length === 0 ? null : (
                             <WorkflowList
                               workspaceId={workspaceId}
                               workflowId={workflowId}
@@ -1764,12 +1770,12 @@ export const Sidebar = memo(function Sidebar() {
                 ) : null}
 
                 <SidebarFooter
-                  workspaceId={workspaceId}
                   showDivider={scrollEdges.bottom}
                   isCollapsed={isCollapsed}
                   showCollapsedTooltips={showCollapsedTooltips}
-                  getSettingsHref={(section) => getSettingsHref({ section })}
-                  onOpenSettings={handleOpenSettings}
+                  accountSettingsHref={getSettingsHref({ section: 'general' })}
+                  onOpenAccountSettings={() => handleOpenSettings('general')}
+                  navigationLinks={profileNavigationLinks}
                   onOpenDocs={handleOpenDocs}
                   onJoinSlack={handleOpenSlackCommunity}
                   onContactSupport={handleOpenHelpFromMenu}

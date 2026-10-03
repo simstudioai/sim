@@ -2,15 +2,18 @@
 
 import type { ReactNode } from 'react'
 import {
-  ButtonGroup,
-  ButtonGroupItem,
+  ChipButtonGroup,
+  ChipButtonGroupItem,
   ChipCombobox,
+  ChipDropdown,
   ChipLink,
   ChipModalField,
   type ComboboxOption,
+  Tooltip,
 } from '@sim/emcn'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { supportsConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import { slackSearchSetupHref } from '@/lib/sim-search/setup-navigation'
 import { connectorMemberProvider } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
 import {
@@ -64,6 +67,9 @@ interface ConnectorAccessFieldProps {
   /** Only an admin may move a connector out of workspace mode. */
   canAdmin: boolean
   disabled?: boolean
+  /** Existing Search sources retain the sync method chosen during setup. */
+  lockAccessMode?: boolean
+  isAvailabilityReady?: boolean
   /** Whether member accounts may be chosen; an existing selection remains visible for recovery. */
   allowMembers?: boolean
   /** Whether administrator access may be chosen; it needs a connector that mirrors source permissions. */
@@ -85,6 +91,8 @@ export function ConnectorAccessField({
   onChange,
   canAdmin,
   disabled = false,
+  lockAccessMode = false,
+  isAvailabilityReady = true,
   allowMembers = true,
   allowAdmin = false,
   allowWorkspace = true,
@@ -122,14 +130,24 @@ export function ConnectorAccessField({
     { mode: 'members', label: 'Member accounts', allowed: membersSupported && allowMembers },
     {
       mode: 'admin',
-      label: isConnectorCredentialTypeAllowed(connectorConfig.auth, 'admin', 'oauth')
-        ? 'Admin or service account'
-        : 'Service account',
+      label:
+        !lockAccessMode && isConnectorCredentialTypeAllowed(connectorConfig.auth, 'admin', 'oauth')
+          ? 'Admin or service account'
+          : 'Service account',
       allowed: adminSupported && allowAdmin,
     },
   ]
+  for (const entry of modes)
+    entry.allowed &&= supportsConnectorAccessMode(connectorConfig, entry.mode)
+  if (
+    connectorConfig.supportedAccessModes?.filter((mode) => allowWorkspace || mode !== 'workspace')
+      .length === 1 &&
+    modes.some((entry) => entry.mode === value.accessMode && entry.allowed)
+  )
+    return canAdmin && footer ? <div className='px-2'>{footer}</div> : null
   /** Keep a retired current method visible so an admin can select an available replacement. */
   const visibleModes = modes.filter((entry) => entry.allowed || entry.mode === value.accessMode)
+  const currentMode = modes.find((entry) => entry.mode === value.accessMode)
   const showModeSelector =
     canAdmin && visibleModes.some((entry) => entry.allowed && entry.mode !== value.accessMode)
 
@@ -141,7 +159,7 @@ export function ConnectorAccessField({
       title={slackSetupOnly ? 'Slack app' : allowWorkspace ? 'Connection method' : 'Sync using'}
       error={canAdmin && !showSlackSetup ? accountsQuery.error?.message : undefined}
       hint={
-        canAdmin && !modes.find((entry) => entry.mode === value.accessMode)?.allowed
+        canAdmin && isAvailabilityReady && !currentMode?.allowed
           ? `This connection method is not available in this ${scope.kind}.`
           : value.accessMode === 'workspace'
             ? 'Everyone in this workspace can search these documents.'
@@ -149,8 +167,23 @@ export function ConnectorAccessField({
       }
     >
       <div className='flex flex-col gap-2'>
-        {slackSetupOnly ? null : showModeSelector ? (
-          <ButtonGroup
+        {slackSetupOnly ? null : lockAccessMode ? (
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild tabIndex={0}>
+              <span className='inline-flex w-fit cursor-not-allowed'>
+                <ChipDropdown
+                  aria-label={`Sync using: ${currentMode?.label ?? 'Unavailable'}`}
+                  value={value.accessMode}
+                  options={visibleModes.map(({ mode, label }) => ({ value: mode, label }))}
+                  disabled
+                  className='pointer-events-none w-fit'
+                />
+              </span>
+            </Tooltip.Trigger>
+            <Tooltip.Content>Add a new connection to change the sync method.</Tooltip.Content>
+          </Tooltip.Root>
+        ) : showModeSelector ? (
+          <ChipButtonGroup
             value={value.accessMode}
             disabled={disabled}
             onValueChange={(mode) => {
@@ -159,11 +192,11 @@ export function ConnectorAccessField({
             }}
           >
             {visibleModes.map((entry) => (
-              <ButtonGroupItem key={entry.mode} value={entry.mode} disabled={!entry.allowed}>
+              <ChipButtonGroupItem key={entry.mode} value={entry.mode} disabled={!entry.allowed}>
                 {entry.label}
-              </ButtonGroupItem>
+              </ChipButtonGroupItem>
             ))}
-          </ButtonGroup>
+          </ChipButtonGroup>
         ) : (
           <p className='text-[var(--text-body)] text-small'>
             {modes.find((entry) => entry.mode === value.accessMode)?.label}
@@ -211,8 +244,8 @@ export function SlackMemberSetup({
 }: SlackMemberSetupProps) {
   const scope = explicitScope ?? resourceScopeFromOwner({ workspaceId })
   const href =
-    scope.kind === 'organization' || searchSetupSource
-      ? slackSearchSetupHref(scope, searchSetupSource ?? 'search')
+    scope.kind === 'organization'
+      ? slackSearchSetupHref(scope.organizationId, searchSetupSource ?? 'search')
       : `/workspace/${scope.workspaceId}/settings/credential-groups`
   return (
     <ChipLink href={href} onClick={onNavigate}>

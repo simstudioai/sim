@@ -370,41 +370,76 @@ export function validateOrganizationAccountPolicyDocument(
     requireCanonicalId(resource.id, 'Organization account resource ID') !== expectedResourceId
   )
     throw new Error('Organization account policy resource does not match its canonical resource')
-  if (!Array.isArray(document.statements) || document.statements.length > 1)
-    throw new Error('Organization account policy supports only workspace access')
-  if (document.statements.length === 0) return
-  const statement = requireRecord(
-    document.statements[0],
-    'Organization account workspace statement'
-  )
-  requireExactKeys(
-    statement,
-    ['sid', 'effect', 'actions', 'principals'],
-    'Organization account workspace statement'
-  )
-  if (
-    statement.sid !== 'WorkspaceCredentialAccess' ||
-    statement.effect !== 'allow' ||
-    !Array.isArray(statement.actions) ||
-    statement.actions.length !== 1 ||
-    statement.actions[0] !== CREDENTIAL_USE_ACTION
-  )
-    throw new Error('Organization account workspace statement is invalid')
-  if (
-    !Array.isArray(statement.principals) ||
-    statement.principals.length < 1 ||
-    statement.principals.length > 1000
-  )
-    throw new Error('Organization account policy supports 1-1000 workspaces')
-  let previous = ''
-  for (const value of statement.principals) {
-    const principal = requireRecord(value, 'Organization account workspace principal')
-    requireExactKeys(principal, ['type', 'workspaceId'], 'Organization account workspace principal')
-    const id = requireCanonicalId(principal.workspaceId, 'Organization account workspace ID')
-    if (principal.type !== 'workspace' || id <= previous)
-      throw new Error('Organization account workspace principals must be unique and sorted')
-    previous = id
+  if (!Array.isArray(document.statements) || document.statements.length > 128)
+    throw new Error('Organization account policy has too many statements')
+  const seenStatements = new Set<string>()
+  const allWorkspaces = new Set<string>()
+  const selectedWorkspaces = new Set<string>()
+  for (const value of document.statements) {
+    const statement = requireRecord(value, 'Organization account workspace statement')
+    requireExactKeys(
+      statement,
+      [
+        'sid',
+        'effect',
+        'actions',
+        'principals',
+        ...(statement.condition === undefined ? [] : ['condition']),
+      ],
+      'Organization account workspace statement'
+    )
+    let credentialType: string | undefined
+    if (statement.condition !== undefined) {
+      const condition = requireRecord(statement.condition, 'Credential type condition')
+      requireExactKeys(condition, ['StringEquals'], 'Credential type condition')
+      const equals = requireRecord(condition.StringEquals, 'Credential type StringEquals')
+      requireExactKeys(equals, ['credential_group:CredentialType'], 'Credential type StringEquals')
+      credentialType = requireCanonicalId(
+        equals['credential_group:CredentialType'],
+        'Credential type'
+      )
+      if (!/^(oauth|mcp|personal_token):[a-z][a-z0-9-]*$/.test(credentialType))
+        throw new Error('Invalid credential type')
+    }
+    const sid = credentialType
+      ? `WorkspaceCredentialAccess:${credentialType}`
+      : 'WorkspaceCredentialAccess'
+    if (
+      statement.sid !== sid ||
+      seenStatements.has(sid) ||
+      statement.effect !== 'allow' ||
+      !Array.isArray(statement.actions) ||
+      statement.actions.length !== 1 ||
+      statement.actions[0] !== CREDENTIAL_USE_ACTION
+    )
+      throw new Error('Organization account workspace statement is invalid')
+    seenStatements.add(sid)
+    if (
+      !Array.isArray(statement.principals) ||
+      statement.principals.length < 1 ||
+      statement.principals.length > 1000
+    )
+      throw new Error('Organization account policy supports 1-1000 workspaces')
+    let previous = ''
+    for (const value of statement.principals) {
+      const principal = requireRecord(value, 'Organization account workspace principal')
+      requireExactKeys(
+        principal,
+        ['type', 'workspaceId'],
+        'Organization account workspace principal'
+      )
+      const id = requireCanonicalId(principal.workspaceId, 'Organization account workspace ID')
+      if (principal.type !== 'workspace' || id <= previous)
+        throw new Error('Organization account workspace principals must be unique and sorted')
+      previous = id
+      const workspaces = credentialType ? selectedWorkspaces : allWorkspaces
+      workspaces.add(id)
+    }
   }
+  if ([...allWorkspaces].some((id) => selectedWorkspaces.has(id)))
+    throw new Error('Workspace has overlapping all and selected grants')
+  if (new Set([...allWorkspaces, ...selectedWorkspaces]).size > 1000)
+    throw new Error('Organization account policy supports at most 1000 workspaces')
 }
 
 function assertPage<T extends { id: string }>(

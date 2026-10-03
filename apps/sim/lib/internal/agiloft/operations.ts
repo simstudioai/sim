@@ -1,5 +1,5 @@
 import { toError } from '@sim/utils/errors'
-import { filterUndefined } from '@sim/utils/object'
+import { filterUndefined, toRecordOrNull } from '@sim/utils/object'
 import type {
   AgiloftAsyncStatusBody,
   AgiloftAttachBody,
@@ -65,10 +65,11 @@ import {
   getLockHttpMethod,
   parseFieldList,
 } from '@/lib/internal/agiloft/urls'
-import { uploadCopilotFile } from '@/lib/uploads/contexts/copilot/copilot-file-manager'
-import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
+import {
+  createInternalToolFileResult,
+  type InternalToolFileResult,
+} from '@/lib/internal/tool-operations/file-result'
 import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
-import { resolveStoredFileMetadata } from '@/lib/uploads/utils/validation'
 import type {
   AgiloftAsyncStatusResponse,
   AgiloftAttachmentInfoResponse,
@@ -91,18 +92,12 @@ import type { ToolResponse } from '@/tools/types'
 export interface AgiloftOperationContext {
   requestId: string
   userId?: string
-  workspaceId?: string
-  workflowId?: string
-  executionId?: string
   signal?: AbortSignal
 }
 
 function parseRecordData(data: string): Record<string, unknown> | null {
   try {
-    const parsed = JSON.parse(data)
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : null
+    return toRecordOrNull(JSON.parse(data))
   } catch {
     return null
   }
@@ -899,21 +894,7 @@ export async function executeAgiloftAttachFile(
 export async function executeAgiloftRetrieveAttachment(
   input: AgiloftRetrieveBody,
   context: AgiloftOperationContext
-): Promise<ToolResponse> {
-  const executionContext =
-    context.workspaceId && context.workflowId && context.executionId
-      ? {
-          workspaceId: context.workspaceId,
-          workflowId: context.workflowId,
-          executionId: context.executionId,
-        }
-      : null
-  if (!executionContext && !context.userId) {
-    throw new AgiloftOperationError(401, {
-      success: false,
-      error: 'User context is required to store attachments',
-    })
-  }
+): Promise<InternalToolFileResult> {
   let resolvedIP: string
   try {
     resolvedIP = await resolveAgiloftInstance(input.instanceUrl, context.signal)
@@ -950,25 +931,8 @@ export async function executeAgiloftRetrieveAttachment(
       error: `Agiloft error: ${buffer.toString('utf8').slice(0, 300)}`,
     })
   }
-  const metadata = resolveStoredFileMetadata(
-    fileName,
-    resolveEffectiveMimeType(contentType, fileName),
-    buffer
+  return createInternalToolFileResult(
+    { buffer, name: fileName, mimeType: resolveEffectiveMimeType(contentType, fileName) },
+    (file) => ({ success: true, output: { file } })
   )
-  const file = executionContext
-    ? await uploadExecutionFile(
-        executionContext,
-        buffer,
-        metadata.fileName,
-        metadata.mimeType,
-        context.userId
-      )
-    : await uploadCopilotFile({
-        buffer,
-        fileName: metadata.fileName,
-        contentType: metadata.mimeType,
-        userId: context.userId!,
-      })
-  context.signal?.throwIfAborted()
-  return { success: true, output: { file } }
 }

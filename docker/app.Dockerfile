@@ -1,7 +1,7 @@
 # ========================================
 # Base Stage: runtime-only dependencies (inherited by the final image)
 # ========================================
-FROM oven/bun:1.4.1-slim AS base
+FROM oven/bun:1.4.2-slim AS base
 
 # Install Node.js 24 (Active LTS) and the runtime dependencies once in base.
 # Node runs only the isolated-vm sandbox worker (the app itself runs under Bun);
@@ -131,6 +131,10 @@ RUN bun build apps/sim/bootstrap.ts --target=bun --outfile=apps/sim/bootstrap.js
 FROM base AS runner
 WORKDIR /app
 
+# Runtime flags override these image defaults; dev images opt into Plan.
+ARG MSHIP_PLAN_MODE_DEFAULT=false
+ENV MSHIP_PLAN_MODE_DEFAULT=$MSHIP_PLAN_MODE_DEFAULT
+
 # Node.js 24, Python, ffmpeg, etc. are already installed in base stage
 ENV NODE_ENV=production
 
@@ -146,6 +150,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/.next/static ./apps/sim/
 # Self-contained secrets-loading bootstrap (bundled in the builder stage). Runs
 # before the standalone server.js to hydrate process.env from the runtime secret.
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/bootstrap.js ./apps/sim/bootstrap.js
+COPY --from=builder --chown=nextjs:nodejs /app/packages/sim-cli/dist/runtime.js ./packages/sim-cli/dist/runtime.js
 
 # Copy blog/author content for runtime filesystem reads (not part of the JS bundle)
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/content ./apps/sim/content

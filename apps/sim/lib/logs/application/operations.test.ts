@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { describe, expect, it } from 'vitest'
 import { logDelegationPolicy } from '@/lib/logs/application/authorization'
@@ -25,7 +21,7 @@ describe('logs operation registry', () => {
     expect(logOperations.list.delegatedServices).toEqual(['copilot', 'executor'])
     expect(logOperations.readDetail.delegatedServices).toEqual(['copilot', 'executor'])
     expect(logOperations.readExecutionSnapshot.delegatedServices).toEqual(['executor'])
-    expect(logOperations.readStats.delegatedServices).toBeUndefined()
+    expect(logOperations.readStats.delegatedServices).toEqual(['copilot'])
 
     for (const operation of Object.values(logOperations)) {
       expect(operation.minimumRole).toBe('read')

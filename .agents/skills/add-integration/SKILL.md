@@ -123,18 +123,22 @@ Follow `.agents/skills/add-block/SKILL.md` for the block structure, subBlock typ
 `canvasPresentation`; `bun run apps/sim/scripts/check-canvas-sentences.ts --block={service}` must
 pass (CI runs `check:canvas-sentences --require-coverage`).
 
-Two rules that are easy to get wrong when copying from existing blocks:
+Three rules that are easy to get wrong when copying from existing blocks:
 
 - Every remote `selectorKey` must use the unified server selector path. Apply the `add-selector` skill:
   add browser-safe metadata to `apps/sim/lib/selectors/manifest.ts`, reuse or extract a server-only
   provider listing primitive, and add a credential- and destination-bound server attachment. Do not
-  add code under `hooks/selectors/providers`, a provider-specific query key, browser token acquisition,
-  or a selector-only API route. The shared context builder sends only active `dependsOn` values and
+  add a client provider fetcher, a provider-specific query key, browser token acquisition, or a
+  selector-only API route. The shared context builder sends only active `dependsOn` values and
   preserves exact `{{KEY}}` environment references for server-side resolution.
-- A `canonicalParamId` is a third name that neither member of a basic/advanced pair uses as its `id`
-  (e.g. `channelSelector` + `channelId` → `canonicalParamId: 'channel'`). It is the only key that
-  survives serialization, so `inputs` and `tools.config.params` reference the canonical id, never the
-  subblock ids. It is unique block-wide, and every member of a group shares the same `required` value.
+- Basic/advanced pairs use a `canonicalParamId`; its constraints are in
+  `.claude/rules/sim-integrations.md` and the `add-block` skill → canonicalParamId Pattern.
+- Every text-entry subBlock (`short-input`, `long-input`, `code`) and every selector declares a
+  `placeholder`; an empty box tells the user nothing. Secrets read `Enter your {thing}` (e.g.
+  `Enter your API key`), free text names what to type (`Enter branch name`), and formatted values
+  show the shape (`2023-01-01T00:00:00Z`, `1 to 1000`). An optional field with a server-side default
+  names that default (`Defaults to the database region`). Dropdowns, switches, and `oauth-input` do
+  not need one.
 
 ## Step 4: Add Icon
 
@@ -209,7 +213,7 @@ import {
 } from '@/tools/{service}'
 
 // Add to tools object (alphabetically)
-export const tools: Record<string, ToolConfig> = {
+export const tools: Record<string, ExecutableToolConfig> = {
   // ... existing tools ...
   {service}_action1: {service}Action1Tool,
   {service}_action2: {service}Action2Tool,
@@ -298,16 +302,33 @@ a resolvable capability must fail validation.
 
 ## Step 8: Generate and Validate the Catalog
 
-Run the documentation generator:
-```bash
-bun run scripts/generate-docs.ts
-bun run deployment-config:generate
-bun run integration-catalog:check
-bun run deployment-config:check
-bun run docs:check
+Run `bun run tool-metadata:generate`, `bun run scripts/generate-docs.ts`,
+`bun run deployment-config:generate`, then `bun run check:audits` (see the `validate-integration`
+skill → Regenerate Derived Artifacts for the full list and what each check verifies).
+
+The docs generator creates `apps/docs/content/docs/integrations/{service}.mdx` — one page per service carrying the block's Actions and, if it has one, its Triggers section. Never hand-edit generated pages; the only editable region is the `{/* MANUAL-CONTENT */}` block (see `scripts/README.md`).
+
+Every generated integration page carries a hand-written intro directly under `<BlockInfoCard />`. The
+generator preserves it across regenerations, so write it once after the first generate:
+
+```mdx
+{/* MANUAL-CONTENT-START:intro */}
+[{Service}](https://service.com/) is {one sentence on what the service is}.
+
+With the {Service} block, you can:
+
+- **{Capability}**: {what the operations in this group do}
+- **{Capability}**: {...}
+
+{How to connect: which credential to create and where, if it is not OAuth.}
+
+In Sim, the {Service} block lets your agents {concrete workflow uses}.
+{/* MANUAL-CONTENT-END */}
 ```
 
-This creates `apps/docs/content/docs/integrations/{service}.mdx` — one page per service carrying the block's Actions and, if it has one, its Triggers section. Never hand-edit generated pages; the only editable region is the `{/* MANUAL-CONTENT */}` block (see `scripts/README.md`).
+Group the bullets by what the user gets done, not one bullet per tool. Only describe operations the
+block actually ships. Follow `.claude/rules/constitution.md` for voice. Re-run
+`bun run scripts/generate-docs.ts` afterwards and confirm the section survived unchanged.
 
 The docs generator refreshes `packages/deployment-config/src/integrations.json`, and the deployment
 config generator projects service-account provider IDs from that catalog plus the canonical OAuth
@@ -364,10 +385,11 @@ If creating V2 versions (API-aligned outputs):
 ### Block
 - [ ] Created `blocks/blocks/{service}.ts`
 - [ ] Set `integrationType` to the correct `IntegrationType` enum value
-- [ ] Set `tags` array with all applicable `IntegrationTag` values
+- [ ] `{Service}BlockMeta.tags` lists every applicable `IntegrationTag` (tags live on the meta, not the block)
 - [ ] Defined operation dropdown with all operations
 - [ ] Added credential field with `requiredScopes: getScopesForService('{service}')`
 - [ ] Added conditional fields per operation
+- [ ] Every `short-input`, `long-input`, `code`, and selector subBlock has a `placeholder`
 - [ ] Set up dependsOn for cascading selectors
 - [ ] Every remote `selectorKey` exists in the shared manifest and has one server attachment with
       trusted credential provider binding and a fixed, credential-bound, or explicitly reviewed
@@ -386,7 +408,7 @@ If creating V2 versions (API-aligned outputs):
 ### OAuth Scopes (if OAuth service)
 - [ ] Defined scopes in `lib/oauth/oauth.ts` under `OAUTH_PROVIDERS`
 - [ ] Added scope descriptions in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts`
-- [ ] Used `getCanonicalScopesForProvider()` in `auth.ts` (never hardcode)
+- [ ] Used `getCanonicalScopesForProvider()` in `lib/auth/connectors/providers.ts` (never hardcode)
 - [ ] Used `getScopesForService()` in block `requiredScopes` (never hardcode)
 
 ### Deployment Availability (if OAuth service)
@@ -415,6 +437,7 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Ran `bun run scripts/generate-docs.ts`
 - [ ] Ran `bun run deployment-config:generate` for OAuth or service-account changes
 - [ ] Verified docs file created
+- [ ] Wrote the `{/* MANUAL-CONTENT-START:intro */}` section under `<BlockInfoCard />` and confirmed it survives a regenerate
 - [ ] Reviewed and committed the generated `packages/deployment-config/src/integrations.json` change
 - [ ] `bun run integration-catalog:check` passes
 - [ ] `bun run docs:check` passes — CI fails on stale generated docs, so commit the full generator
@@ -474,7 +497,7 @@ Use the basic/advanced mode pattern:
 },
 ```
 
-**Critical:** `canonicalParamId` must NOT match any subblock `id`.
+**Critical:** `canonicalParamId` must NOT match the `id` of a subblock outside its canonical group.
 
 #### 2. Normalize File Input in Block Config
 
@@ -518,36 +541,29 @@ Implement `apps/sim/lib/internal/{service}/execute-tool.ts` and keep the file/pr
 operations beside it. The handler validates `request.input`, derives storage authority only from
 trusted `request.context`, authorizes every stored file before reading bytes, forwards
 `request.signal`, enforces declared and actual byte caps, and returns the canonical tool response.
-Register `{service}_upload` in `apps/sim/lib/internal/tool-operations/registry.server.ts` and add a
-registry/direct-handler test. There is no HTTP fallback.
+Register `{service}_upload` in `apps/sim/lib/internal/tool-operations/registry.server.ts`; the
+sweep in `apps/sim/tools/request-transport.test.ts` fails a forgotten registration
+(`registry.server.test.ts` checks registered ids are canonical with loadable handlers). For anything more, run the
+`test-audit` gate. There is no HTTP fallback.
 
 ### File Output Pattern (Downloads)
 
-Declare downloads as `file` / `file[]` outputs and return canonical `UserFile` objects.
-Internal operation responses are capped at 10 MiB **before** `transformResponse` and
-`FileToolProcessor` run. Inline base64 expands the bytes by roughly one third, so it
-cannot carry a download near that limit. Persist downloads in the server operation
-**before `Response.json`**, not in a response transform.
+Declare a `file` / `file[]` output on the tool. For a raw binary endpoint, set
+`request.responseType: 'binary'` and return `output.file = { name, mimeType, data: buffer, size }`
+from `transformResponse(response, params?, context?)`. The executor's `FileToolProcessor` stores it
+and replaces it with a `UserFile`; tools never call it.
 
-Follow `executeQuickBooksDownloadDocument` or `executeAgiloftRetrieveAttachment`:
+In an operation handler, return `createInternalToolFileResult` / `createInternalToolFilesResult`
+from `lib/internal/tool-operations/file-result.ts` — never base64 JSON. The shared presenter stores
+bounded provider bytes using trusted execution or Copilot ownership, normalizes image metadata,
+and returns a small JSON envelope before the unchanged 10 MiB response cap. Preserve the stored
+`UserFile` unchanged through response schemas and transforms (`userFileSchema` / `UserFile`),
+including its `id`, `key`, `url`, `context`, `type`, `name`, and `size`.
 
-- Derive storage scope only from trusted `request.context`, never tool parameters.
-  Use `uploadExecutionFile` for a complete workspace/workflow/execution scope;
-  otherwise use `uploadCopilotFile` with the trusted user identity. Reject missing
-  storage authority before downloading. Do not fabricate an `ExecutionContext`.
-- Keep provider authentication, DNS-pinned downloads, byte caps and cancellation.
-  Normalize image metadata with `resolveStoredFileMetadata` before uploading.
-- Return the stored file unchanged through the response schema and transform; use
-  `userFileSchema` / `UserFile` rather than rebuilding a base64-only shape.
-  `FileToolProcessor` passes stored files through; the executor records them for
-  execution consumers. Do not call its private `processFileData` method.
-- Surface storage failures instead of falling back to an oversized inline payload.
-  Storage helpers do not promise rollback when later execution steps fail.
-
-Test provider bytes larger than the inline JSON budget through the actual handler,
-bounded response reader, transform and file processor, mocking provider/storage
-boundaries only. Preserve explicit legacy base64 outputs when they are a separate
-versioned contract; do not silently convert those outputs or raise the global cap.
+Keep provider authentication, DNS-pinned downloads, byte caps, and cancellation. Surface storage
+failures; never fall back to oversized inline bytes or raise the global JSON cap. Preserve explicit
+legacy base64 outputs when they are a separate versioned contract. See the `add-tools` skill →
+File Downloads and Generated Files.
 
 ### Key Helpers Reference
 
@@ -556,7 +572,7 @@ versioned contract; do not silently convert those outputs or raise the global ca
 | `normalizeFileInput` | `@/blocks/utils` | Normalize file params in block config |
 | `processFilesToUserFiles` | `@/lib/uploads/utils/file-utils` | Convert raw inputs to UserFile[] |
 | `downloadFileFromStorage` | `@/lib/uploads/utils/file-utils.server` | Get file Buffer from UserFile |
-| `FileToolProcessor` | `@/executor/utils/file-tool-processor` | Process tool output files |
+| `FileToolProcessor` | `@/executor/utils/file-tool-processor` | Executor-side; stores declared file outputs (not called by tools) |
 | `isUserFile` | `@/lib/core/utils/user-file` | Type guard for UserFile objects |
 | `FileInputSchema` | `@/lib/uploads/utils/file-schemas` | Zod schema for file validation |
 
@@ -591,13 +607,13 @@ Scopes are maintained in a single source of truth and reused everywhere:
 
 1. **Define scopes** in `lib/oauth/oauth.ts` under `OAUTH_PROVIDERS[provider].services[service].scopes`
 2. **Add descriptions** in `SCOPE_DESCRIPTIONS` within `lib/oauth/utils.ts` for the OAuth modal UI
-3. **Reference in auth.ts** using `getCanonicalScopesForProvider(providerId)` from `@/lib/oauth/utils`
+3. **Reference in `lib/auth/connectors/providers.ts`** (`buildConnectorProviders`) using `getCanonicalScopesForProvider(providerId)` from `@/lib/oauth/utils`
 4. **Reference in blocks** using `getScopesForService(serviceId)` from `@/lib/oauth/utils`
 
-**Never hardcode scope arrays** in `auth.ts` or block `requiredScopes`. Always import from the centralized source.
+**Never hardcode scope arrays** in the Better Auth connector providers or block `requiredScopes`. Always import from the centralized source.
 
 ```typescript
-// In auth.ts (Better Auth config)
+// In lib/auth/connectors/providers.ts (Better Auth connector providers)
 scopes: getCanonicalScopesForProvider('{service}'),
 
 // In block credential sub-block

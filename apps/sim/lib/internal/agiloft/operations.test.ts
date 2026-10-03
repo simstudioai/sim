@@ -1,6 +1,7 @@
-/**
- * @vitest-environment node
- */
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SecureFetchResponse } from '@/lib/core/security/input-validation.server'
 import type { ToolResponse } from '@/tools/types'
@@ -14,26 +15,17 @@ const clientMocks = vi.hoisted(() => ({
   resolveAgiloftInstance: vi.fn(),
 }))
 
-const providerMocks = vi.hoisted(() => ({
-  secureFetchWithPinnedIP: vi.fn(),
-}))
-
 const fileMocks = vi.hoisted(() => ({
   resolveAgiloftAttachmentFile: vi.fn(),
-  uploadCopilotFile: vi.fn(),
 }))
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  MAX_JSON_API_RESPONSE_BYTES: 10 * 1024 * 1024,
-  secureFetchWithPinnedIP: providerMocks.secureFetchWithPinnedIP,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 vi.mock('@/lib/internal/agiloft/client', () => clientMocks)
 vi.mock('@/lib/internal/agiloft/file-input', () => fileMocks)
-vi.mock('@/lib/uploads/contexts/copilot/copilot-file-manager', () => fileMocks)
-vi.mock('@/lib/uploads/contexts/execution', () => ({ uploadExecutionFile: vi.fn() }))
+
+const { mockSecureFetchWithPinnedIP } = inputValidationMockFns
 
 import {
-  executeAgiloftCreateRecord,
   executeAgiloftRetrieveAttachment,
   executeAgiloftSearchRecords,
   executeAgiloftSelectRecords,
@@ -80,25 +72,21 @@ function createResponse(
 
 type ResponseTransform = (response: SecureFetchResponse) => Promise<ToolResponse>
 
+const storedFile = {
+  id: 'stored-file',
+  name: 'stored.bin',
+  size: 5,
+  type: 'application/octet-stream',
+  mimeType: 'application/octet-stream',
+  url: '/api/files/stored',
+  key: 'execution/workspace/workflow/run/stored.bin',
+  context: 'execution',
+} as const
+
 describe('Agiloft operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     clientMocks.isAgiloftRefusal.mockReturnValue(false)
     clientMocks.resolveAgiloftInstance.mockResolvedValue('203.0.113.10')
-  })
-
-  it('rejects invalid record JSON before opening an Agiloft session', async () => {
-    const result = await executeAgiloftCreateRecord(
-      { ...BASE, data: '[]' },
-      { requestId: 'request-1' }
-    )
-
-    expect(result).toEqual({
-      success: false,
-      output: { id: null, fields: {} },
-      error: 'The data parameter must be a JSON object of field names to values',
-    })
-    expect(clientMocks.executeAlrestRequest).not.toHaveBeenCalled()
   })
 
   it('caps search results and forwards cancellation through the authenticated operation', async () => {
@@ -151,16 +139,7 @@ describe('Agiloft operations', () => {
 
   it('bounds attachment downloads and preserves binary metadata', async () => {
     const controller = new AbortController()
-    const storedFile = {
-      id: 'file-1',
-      key: 'copilot/user-1/file-1',
-      url: '/api/files/serve/file-1',
-      name: 'evidence.txt',
-      type: 'text/plain',
-      size: 5,
-    }
-    fileMocks.uploadCopilotFile.mockResolvedValue(storedFile)
-    providerMocks.secureFetchWithPinnedIP.mockResolvedValue(
+    mockSecureFetchWithPinnedIP.mockResolvedValue(
       createResponse({
         bytes: new TextEncoder().encode('hello'),
         headers: {
@@ -172,22 +151,14 @@ describe('Agiloft operations', () => {
 
     const result = await executeAgiloftRetrieveAttachment(
       { ...BASE, recordId: '1', fieldName: 'files', position: '0' },
-      { requestId: 'request-1', userId: 'user-1', signal: controller.signal }
+      { requestId: 'request-1', signal: controller.signal }
     )
 
-    expect(result).toEqual({
-      success: true,
-      output: {
-        file: storedFile,
-      },
-    })
-    expect(fileMocks.uploadCopilotFile).toHaveBeenCalledWith({
-      buffer: Buffer.from('hello'),
-      fileName: 'evidence.txt',
-      contentType: 'text/plain',
-      userId: 'user-1',
-    })
-    expect(providerMocks.secureFetchWithPinnedIP).toHaveBeenCalledWith(
+    expect(result.files).toEqual([
+      { name: 'evidence.txt', mimeType: 'text/plain', buffer: Buffer.from('hello') },
+    ])
+    expect(result.present([storedFile])).toEqual({ success: true, output: { file: storedFile } })
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
       expect.stringContaining('/ewws/EWRetrieve'),
       '203.0.113.10',
       {

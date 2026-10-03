@@ -15,6 +15,42 @@ export const dynamic = 'force-dynamic'
 
 const { GET: betterAuthGET, POST: betterAuthPOST } = toNextJsHandler(auth.handler)
 const SAFE_ORGANIZATION_POST_PATHS = new Set(['organization/check-slug', 'organization/set-active'])
+/**
+ * Password-reset mail the plugin would send under a name Sim does not own.
+ *
+ * `/api/auth/forget-password` is an application route that owns the per-recipient budget (5 per 15
+ * minutes, keyed on the address) and writes the `PASSWORD_RESET_REQUESTED` audit record. Every
+ * plugin alias reaches the same mailer with only a per-IP default in front of it, which a caller
+ * spread across addresses walks straight past, at one victim's mailbox. Matched rather than listed,
+ * like the SSO and OAuth guards below, so a plugin version that renames or adds an alias cannot
+ * quietly reopen the path.
+ */
+function isBlockedPasswordResetPath(path: string): boolean {
+  return /(^|\/)(request-password-reset|forget-password)(\/|$)/.test(path)
+}
+
+/** The one OTP purpose a Sim surface sends: the resend button on `/verify`. */
+const ALLOWED_VERIFICATION_OTP_TYPE = 'email-verification'
+const VERIFICATION_OTP_SENDER_PATH = 'email-otp/send-verification-otp'
+
+/**
+ * The same mailer again, reached by asking the verification sender for a different purpose.
+ *
+ * `email-otp/send-verification-otp` takes the OTP `type` from the request body, and
+ * `forget-password` there sends reset mail to any address named — so blocking the reset paths
+ * above while leaving this one open would only rename the hole. The endpoint stays reachable for
+ * the purpose the product actually sends, and an unreadable body is refused rather than forwarded.
+ */
+async function isBlockedVerificationOtpSend(request: NextRequest, path: string): Promise<boolean> {
+  if (path !== VERIFICATION_OTP_SENDER_PATH) return false
+  // boundary-raw-json: the plugin owns this endpoint's schema; the guard reads one field to decide whether to forward the request at all
+  const body = await request
+    .clone()
+    .json()
+    .catch(() => null)
+  return (body as { type?: unknown } | null)?.type !== ALLOWED_VERIFICATION_OTP_TYPE
+}
+
 const OAUTH_CALLBACK_PATH_PREFIX = 'oauth2/callback/'
 const UNSUPPORTED_OIDC_PATHS = new Set([
   '.well-known/openid-configuration',
@@ -175,6 +211,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   if (isBlockedSsoMutationPath(path)) {
     return NextResponse.json(
       { error: 'SSO provider mutations are handled by application API routes.' },
+      { status: 404 }
+    )
+  }
+
+  if (isBlockedPasswordResetPath(path) || (await isBlockedVerificationOtpSend(request, path))) {
+    return NextResponse.json(
+      { error: 'Password reset is handled by application API routes.' },
       { status: 404 }
     )
   }

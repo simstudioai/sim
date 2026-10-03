@@ -1,3 +1,4 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import { generateId } from '@sim/utils/id'
 import type {
   MintlifyAssistantSource,
@@ -8,7 +9,6 @@ import {
   MINTLIFY_API_BASE,
   mintlifyHeaders,
   pathSegment,
-  toNullableString,
   toObjectArray,
   toStringArray,
 } from '@/tools/mintlify/utils'
@@ -49,16 +49,16 @@ function parseAssistantStream(body: string): AssistantStreamResult {
         break
       case 'source-url':
         result.sources.push({
-          sourceId: toNullableString(event.sourceId),
-          url: toNullableString(event.url),
-          title: toNullableString(event.title),
+          sourceId: toStringOrNull(event.sourceId),
+          url: toStringOrNull(event.url),
+          title: toStringOrNull(event.title),
         })
         break
       case 'error':
-        result.errorText = toNullableString(event.errorText)
+        result.errorText = toStringOrNull(event.errorText)
         break
       case 'finish':
-        result.threadId = toNullableString(event.threadId)
+        result.threadId = toStringOrNull(event.threadId)
         break
       default:
         break

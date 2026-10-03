@@ -1,11 +1,14 @@
 import { createHash } from 'node:crypto'
 import { createLogger } from '@sim/logger'
 import { acquireProviderCapacity } from '@/lib/core/rate-limiter/provider-capacity'
-import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
+import {
+  type ProviderCapacityDeferralReason,
+  ProviderCapacityDeferredError,
+} from '@/lib/core/rate-limiter/provider-capacity-error'
 import type { ProviderCapacityQuota } from '@/lib/core/rate-limiter/provider-capacity-state'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import {
-  fetchWithRetry,
   hasRateLimitEvidence,
   type RetryOptions,
   resolveRetryDelayMs,
@@ -16,16 +19,18 @@ const REQUEST_BUDGET_MS = 150_000
 const ADMISSION_WAIT_MS = 120_000
 
 /** The sync scheduler persists the wait without incrementing the source failure breaker. */
-export class GitHubRequestDeferredError extends Error {
-  readonly rateLimited = true
-  readonly retryable = false
+export class GitHubRequestDeferredError extends ProviderCapacityDeferredError {
+  readonly rateLimited: boolean
 
   constructor(
-    readonly retryAfterMs: number,
-    cause?: unknown
+    retryAfterMs: number,
+    cause?: unknown,
+    reason: ProviderCapacityDeferralReason = 'rate_limit'
   ) {
-    super('GitHub requests are waiting for shared provider capacity', { cause })
+    super(reason, { providerId: 'github-rest', retryAfterMs, cause })
     this.name = 'GitHubRequestDeferredError'
+    this.message = `GitHub requests are waiting for shared provider capacity (${reason})`
+    this.rateLimited = reason === 'rate_limit'
   }
 }
 
@@ -64,7 +69,7 @@ export async function fetchGitHubWithRetry(
     .digest('hex')
   return fetchWithRetry(url, options, {
     ...retryOptions,
-    fetcher: async (input, init) => {
+    fetcher: async (input, init, transport) => {
       const signal = init?.signal ?? undefined
       let lease
       try {
@@ -89,7 +94,7 @@ export async function fetchGitHubWithRetry(
         })
       } catch (error) {
         if (error instanceof ProviderCapacityDeferredError) {
-          throw new GitHubRequestDeferredError(error.retryAfterMs ?? 5000, error)
+          throw new GitHubRequestDeferredError(error.retryAfterMs ?? 5000, error, error.reason)
         }
         throw error
       }
@@ -105,12 +110,16 @@ export async function fetchGitHubWithRetry(
         try {
           return await lease.settle(outcome, retryAfterMs, quota)
         } catch (cause) {
-          throw new GitHubRequestDeferredError(Math.max(retryAfterMs ?? 0, 5000), cause)
+          throw new GitHubRequestDeferredError(
+            Math.max(retryAfterMs ?? 0, 5000),
+            cause,
+            'admission_unavailable'
+          )
         }
       }
 
       try {
-        const response = await fetch(input, init)
+        const response = await transport(input, init)
         quota = readRequestQuota(response.headers)
         let secondaryLimit = false
         let forbiddenBody: string | undefined

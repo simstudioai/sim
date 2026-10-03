@@ -327,7 +327,7 @@ const ReadOnlyTextPreview = memo(function ReadOnlyTextPreview({
 
   return (
     <div className='min-h-0 w-full flex-1 overflow-auto bg-[var(--surface-1)] p-4'>
-      <pre className='whitespace-pre-wrap break-words font-mono text-[13px] text-[var(--text-body)]'>
+      <pre className='whitespace-pre-wrap break-words font-mono text-[var(--text-body)] text-small'>
         {content}
       </pre>
     </div>

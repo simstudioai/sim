@@ -14,8 +14,8 @@ export interface DrivePermission {
   domain?: string | null
   /**
    * Whether an `anyone` or `domain` grant makes the file *findable*, as opposed
-   * to merely openable by someone already holding its link. Absent means true,
-   * which is what the Drive API documents.
+   * to merely openable by someone already holding its link. Broad grants
+   * require an explicit true value.
    */
   allowFileDiscovery?: boolean | null
   /** Whether the account behind a `user` grant has been deleted. */
@@ -113,7 +113,6 @@ export function driveFileAcl(input: DriveAclInput): string[] {
   return sortAccessTokens(tokens)
 }
 
-/** Drive omits `allowFileDiscovery` when the grant is discoverable. */
 function isDiscoverable(permission: DrivePermission): boolean {
-  return permission.allowFileDiscovery !== false
+  return permission.allowFileDiscovery === true
 }

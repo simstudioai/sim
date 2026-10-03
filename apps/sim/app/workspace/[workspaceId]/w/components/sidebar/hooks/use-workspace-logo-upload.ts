@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { validateLogoFile } from '@/lib/uploads/client/logo-file'
 import { uploadInternalFileSession } from '@/lib/uploads/client/session-upload'
-import { validateWorkspaceLogoFile } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/workspace-logo-file'
 
 const logger = createLogger('WorkspaceLogoUpload')
 
@@ -67,7 +67,7 @@ export function useWorkspaceLogoUpload({
 
   const processFile = useCallback(
     async (file: File) => {
-      const validationError = validateWorkspaceLogoFile(file)
+      const validationError = validateLogoFile(file)
       if (validationError) {
         onErrorRef.current?.(validationError)
         return
