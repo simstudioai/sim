@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { integrationMatcherMock } from '@sim/testing/mocks/integration-matcher.mock'
 import { createRoot } from 'react-dom/client'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -13,7 +14,7 @@ vi.mock('@/app/workspace/[workspaceId]/providers/feature-flags-provider', () => 
 vi.mock('@/hooks/queries/dashboards', () => ({
   useWorkspaceDashboard: () => ({ data: undefined, isPending: false }),
 }))
-vi.mock('@/blocks/integration-matcher', () => ({ listIntegrationsByPopularity: () => [] }))
+vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 vi.mock('@/hooks/queries/custom-tools', () => ({
   useCustomTools: () => ({
     data: [{ id: 'tool-1', title: 'Lookup order' }],

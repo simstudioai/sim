@@ -3,14 +3,11 @@
  */
 
 import { act } from 'react'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-const { mockPush } = vi.hoisted(() => ({ mockPush: vi.fn() }))
-
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mockPush }),
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 import { useUnsavedChangesGuard } from '@/app/workspace/[workspaceId]/components/credential-detail/hooks/use-unsaved-changes-guard'
 
@@ -32,10 +29,6 @@ function mountDisabledDirtyGuard(): () => void {
 }
 
 describe('useUnsavedChangesGuard', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('installs no nested navigation guard when its embedded host owns transitions', () => {
     const pushState = vi.spyOn(window.history, 'pushState')
     const unmount = mountDisabledDirtyGuard()

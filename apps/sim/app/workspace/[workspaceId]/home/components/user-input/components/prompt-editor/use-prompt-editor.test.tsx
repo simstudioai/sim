@@ -223,10 +223,6 @@ describe.each([{ workspaceId: 'ws-1' }, { workspaceId: '', organizationId: 'org-
 )
 
 describe('usePromptEditor context insertion', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it.each(['skill', 'custom_tool', 'mcp_server'] as const)(
     'does not insert panel-only %s resources into the prompt',
     (type) => {
