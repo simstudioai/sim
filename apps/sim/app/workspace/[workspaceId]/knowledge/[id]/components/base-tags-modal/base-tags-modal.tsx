@@ -13,8 +13,10 @@ import {
   ChipModalHeader,
   type ComboboxOption,
   handleKeyboardActivation,
+  Tooltip,
+  useCopyToClipboard,
 } from '@sim/emcn'
-import { Trash } from '@sim/emcn/icons'
+import { Check, Duplicate, Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import type { TagUsageData } from '@/lib/api/contracts/knowledge'
@@ -97,6 +99,8 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
     displayName: '',
     fieldType: 'text',
   })
+  const [copiedTagId, setCopiedTagId] = useState<string | null>(null)
+  const { copied, copy } = useCopyToClipboard()
 
   const { data: tagUsageData = [], refetch: refetchTagUsage } = useTagUsageQuery(knowledgeBaseId, {
     enabled: open,
@@ -123,6 +127,12 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
     setSelectedTag(tag)
     await refetchTagUsage()
     setViewDocumentsDialogOpen(true)
+  }
+
+  const handleCopyTagId = async (tagId: string) => {
+    if (await copy(tagId)) {
+      setCopiedTagId(tagId)
+    }
   }
 
   const openTagCreator = () => {
@@ -292,14 +302,38 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                       {usage.documentCount} document{usage.documentCount !== 1 ? 's' : ''}
                     </span>
                     <div className='flex shrink-0 items-center gap-1'>
+                      <Tooltip.Root>
+                        <Tooltip.Trigger asChild>
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void handleCopyTagId(tag.id)
+                            }}
+                            className='size-4 p-0 text-[var(--text-muted)]'
+                            aria-label={`Copy ${tag.displayName} tag ID`}
+                          >
+                            {copied && copiedTagId === tag.id ? (
+                              <Check className='size-3 text-[var(--text-success)]' />
+                            ) : (
+                              <Duplicate className='size-3' />
+                            )}
+                          </Button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content side='top'>
+                          {copied && copiedTagId === tag.id ? 'Copied' : 'Copy tag ID'}
+                        </Tooltip.Content>
+                      </Tooltip.Root>
                       <Button
-                        aria-label='Delete Tag'
+                        type='button'
                         variant='ghost'
                         onClick={(e) => {
                           e.stopPropagation()
                           handleDeleteTagClick(tag)
                         }}
                         className='size-4 p-0 text-[var(--text-muted)] hover-hover:text-[var(--text-error)]'
+                        aria-label={`Delete ${tag.displayName} tag`}
                       >
                         <Trash className='size-3' />
                       </Button>

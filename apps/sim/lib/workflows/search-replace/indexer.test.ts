@@ -562,7 +562,7 @@ describe('indexWorkflowSearchMatches', () => {
     ])
   })
 
-  it('indexes only value fields for JSON-backed knowledge tag subblocks', () => {
+  it('indexes connected ID and value fields for JSON-backed knowledge tag subblocks', () => {
     const workflow = createSearchReplaceWorkflowFixture()
     workflow.blocks['tag-block-1'] = {
       id: 'tag-block-1',
@@ -579,6 +579,7 @@ describe('indexWorkflowSearchMatches', () => {
             {
               id: 'filter-open',
               tagName: 'Status',
+              tagId: '<start.openTagId>',
               fieldType: 'text',
               operator: 'eq',
               tagValue: 'open ticket',
@@ -633,6 +634,12 @@ describe('indexWorkflowSearchMatches', () => {
 
     expect(valueMatches).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({
+          subBlockId: 'tagFilters',
+          valuePath: [0, 'tagId'],
+          fieldTitle: 'Tag ID',
+          searchText: '<start.openTagId>',
+        }),
         expect.objectContaining({
           subBlockId: 'tagFilters',
           valuePath: [0, 'tagValue'],
