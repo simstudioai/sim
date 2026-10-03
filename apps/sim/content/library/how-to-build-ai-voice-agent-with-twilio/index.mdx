@@ -255,18 +255,52 @@ app.post(
 )
 ```
 
-`runVoiceWorkflow` represents an adapter you control. It should authenticate to the deployment interface used by your Sim workflow, set a deadline, validate the response schema, and return a safe fallback when the workflow is unavailable.
+`runVoiceWorkflow` represents an adapter you control. The synchronous workflow API wraps the turn contract in `input` and returns the workflow's structured response in `data.output`, so the adapter should map both envelopes explicitly:
+
+```javascript
+async function runVoiceWorkflow(turn) {
+  const response = await fetch(
+    `${process.env.SIM_BASE_URL}/api/v2/workflows/${process.env.SIM_WORKFLOW_ID}/execute`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.SIM_API_KEY
+      },
+      body: JSON.stringify({ input: turn }),
+      signal: AbortSignal.timeout(8000)
+    }
+  )
+
+  if (!response.ok) return safeVoiceFallback()
+
+  const payload = await response.json()
+  if (payload.data?.status !== 'completed') return safeVoiceFallback()
+
+  return parseVoiceWorkflowResponse(payload.data.output)
+}
+```
+
+`parseVoiceWorkflowResponse` should validate `speech`, `action`, `nextState`, `escalate`, and `endCall` against the expected schema. The adapter should also authenticate to the deployment interface, keep its API key server-side, and return a safe fallback when the request times out or the workflow is unavailable.
 
 ### How do you start a real-time Twilio voice agent?
 
-Twilio starts a real-time voice session by connecting the call to a secure WebSocket with `<Connect><Stream>`.
+Twilio starts a real-time voice session by connecting the call to a secure WebSocket with `<Connect><Stream>`. Do not invoke this route until an earlier TwiML step has disclosed the AI interaction and collected any consent required before live transcription. Record that result in server-side session state, then enforce it before opening the stream.
 
 ```javascript
 app.post(
-  '/voice/incoming-stream',
+  '/voice/start-stream-after-consent',
   twilio.webhook({ validate: true }),
-  (req, res) => {
+  async (req, res) => {
     const response = new twilio.twiml.VoiceResponse()
+    const consent = await loadCallConsent(req.body.CallSid)
+
+    if (!consent.aiDisclosureGiven || !consent.transcriptionAllowed) {
+      response.say('I cannot start voice processing without your consent.')
+      response.redirect('/voice/consent')
+      return res.type('text/xml').send(response.toString())
+    }
+
     const connect = response.connect()
     const stream = connect.stream({
       url: 'wss://voice.example.com/twilio-media'
