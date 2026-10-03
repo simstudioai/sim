@@ -330,7 +330,7 @@ export function getNodeSelectionContextId(
   return node.parentId || blocks[node.id]?.data?.parentId || null
 }
 
-export function getEdgeSelectionContextId(
+function getEdgeSelectionContextId(
   edge: Pick<Edge, 'source' | 'target'>,
   nodes: Array<Pick<Node, 'id' | 'parentId'>>,
   blocks: Record<string, { data?: { parentId?: string } }>
