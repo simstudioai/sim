@@ -22,6 +22,7 @@ import {
 } from '@/lib/mothership/events'
 import { createSearchResource } from '@/lib/mothership/resources/search'
 import { OrganizationLanding } from '@/app/o/[organizationId]/components/organization-landing'
+import { ChatDetails } from '@/app/o/[organizationId]/home/components/chat-details'
 import { Composer } from '@/app/o/[organizationId]/home/components/composer'
 import { GetStarted } from '@/app/o/[organizationId]/home/components/get-started'
 import { projectPaneParsers } from '@/app/o/[organizationId]/home/components/project-pane/search-params'
@@ -477,14 +478,21 @@ function OrganizationHomeContent({
   const hostLanding = hasChat ? undefined : landing?.(requestMode)
   const content = (
     <div className='flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--bg)]'>
-      {projectViewEnabled && (
+      {projectViewEnabled && !lookupMode ? (
+        <ChatDetails
+          key={chat.resolvedChatId ?? chatId ?? 'new'}
+          title={chatTitle || 'New chat'}
+          messages={chat.messages}
+          isSending={chat.isSending || chat.isReconnecting}
+        />
+      ) : projectViewEnabled ? (
         <header className='flex h-[calc(var(--resource-header-controls-height)+1px)] shrink-0 items-center gap-2 border-[var(--border)] border-b px-4'>
           <OverflowText
             label={chatTitle || (lookupMode ? 'Search' : 'New chat')}
             className='text-[var(--text-body)] text-small'
           />
         </header>
-      )}
+      ) : null}
       {lookupMode ? (
         <SearchResultsView
           embedded
