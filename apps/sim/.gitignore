@@ -11,6 +11,10 @@ bun-debug.log*
 
 # testing
 /coverage
+/e2e/.cache/
+/e2e/.runs/
+/playwright-report/
+/test-results/
 
 # next.js
 /.next/

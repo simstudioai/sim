@@ -22,7 +22,7 @@ import type { TableViewWire } from '@/lib/api/contracts/tables'
 import { resolveTableViewSelection } from '@/app/workspace/[workspaceId]/tables/[tableId]/view-state'
 
 /** Legacy label for tables that do not yet have a persisted default view. */
-export const ALL_ROWS_VIEW_LABEL = 'All'
+export const ALL_ROWS_VIEW_LABEL = 'Default view'
 
 /** Matches the breadcrumb location popover's hover-intent grace period. */
 const POPOVER_CLOSE_DELAY_MS = 120

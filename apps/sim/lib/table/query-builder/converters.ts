@@ -4,13 +4,13 @@
 
 import { generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
-import { columnMatchesRef } from '@/lib/table/column-keys'
+import { columnMatchesRef, getColumnId } from '@/lib/table/column-keys'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import {
   MULTI_SELECT_FILTER_OPERATORS,
   SINGLE_SELECT_FILTER_OPERATORS,
 } from '@/lib/table/query-builder/constants'
-import { validatePredicateShape } from '@/lib/table/query-builder/validate'
+import { SYSTEM_COLUMN_FIELDS, validatePredicateShape } from '@/lib/table/query-builder/validate'
 import type {
   ColumnDefinition,
   Filter,
@@ -18,6 +18,7 @@ import type {
   FilterRule,
   JsonValue,
   Predicate,
+  PredicateNode,
   Sort,
   SortRule,
   SortSpec,
@@ -141,6 +142,28 @@ export function prunePredicateForColumns(
 
   if (kept.length === rules.length) return predicate
   return filterRulesToPredicate(kept, columns)
+}
+
+/** Removes deleted stable column ids and empty groups from a saved view predicate. */
+export function pruneViewPredicateForColumns(
+  predicate: TablePredicate | null,
+  columns: ColumnDefinition[]
+): TablePredicate | null {
+  if (!predicate) return null
+  const live = new Set(columns.map(getColumnId))
+
+  const prune = (node: PredicateNode): PredicateNode | null => {
+    if ('all' in node || 'any' in node) {
+      const members = 'all' in node ? node.all : node.any
+      const children = members.map(prune).filter((child): child is PredicateNode => child !== null)
+      if (children.length === 0) return null
+      return 'all' in node ? { all: children } : { any: children }
+    }
+    return live.has(node.field) || SYSTEM_COLUMN_FIELDS.has(node.field) ? node : null
+  }
+
+  const pruned = prune(predicate)
+  return pruned && ('all' in pruned || 'any' in pruned) ? pruned : null
 }
 
 /**

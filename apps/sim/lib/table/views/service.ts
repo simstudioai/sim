@@ -25,7 +25,11 @@ import { NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { signalTableViewsChanged } from '@/lib/table/events'
 import type { DbTransaction } from '@/lib/table/planner'
-import { filterRulesToPredicate, filterToRules } from '@/lib/table/query-builder/converters'
+import {
+  filterRulesToPredicate,
+  filterToRules,
+  pruneViewPredicateForColumns,
+} from '@/lib/table/query-builder/converters'
 import {
   SYSTEM_COLUMN_FIELDS,
   validateStoragePredicate,
@@ -70,9 +74,8 @@ export class TableViewValidationError extends Error {
  * every view on every column delete, stale ids are pruned here on read — the
  * stored blob stays as-is and self-heals on the next save.
  *
- * `filter` is deliberately left untouched: pruning a predicate would silently
- * widen the view's row set, which is worse than surfacing a filter the user can
- * see and remove. The filter builder already renders a stale column id as-is.
+ * Deleted filter columns and empty groups are removed recursively so the view
+ * stays usable and its row query agrees with the visible filter controls.
  */
 export function pruneViewConfig(
   config: TableViewConfig,
@@ -81,6 +84,7 @@ export function pruneViewConfig(
   const live = new Set(columns.map(getColumnId))
   const pruned: TableViewConfig = { ...config }
 
+  if (config.filter) pruned.filter = pruneViewPredicateForColumns(config.filter, columns)
   if (config.columnOrder) pruned.columnOrder = config.columnOrder.filter((id) => live.has(id))
   if (config.pinnedColumns) pruned.pinnedColumns = config.pinnedColumns.filter((id) => live.has(id))
   if (config.hiddenColumns) pruned.hiddenColumns = config.hiddenColumns.filter((id) => live.has(id))
@@ -193,12 +197,9 @@ function tolerantColumns(
  * cannot carry a dangling layout ref forward: the read it echoes is pruned.
  *
  * `carriedForward` names the references that are exempt from that refusal.
- * Deleting a column leaves every view that filtered on it dangling —
- * `pruneViewConfig` deliberately does not prune a filter — so without the
- * exemption the filter becomes unwritable: changing one of its other conditions
- * autosaves the whole predicate and would be refused over the dangling condition
- * the user did not touch, with no way to save its eventual removal. The v2
- * surface exempts only what the STORED config
+ * A stale client can carry a filter column deleted since its last read, so
+ * the exemption keeps unrelated edits writable until that client refetches the
+ * pruned config. The v2 surface exempts only what the STORED config
  * already held, so a reference the caller INTRODUCES is refused; a first-party
  * caller exempts its own refs too, which is the behavior the grid has always
  * had — see {@link CreateTableViewData.strictRefs}.
@@ -344,7 +345,7 @@ function toTableView(row: typeof tableViews.$inferSelect, columns: ColumnDefinit
   }
 }
 
-/** Every view on a table, oldest first, with stale column references pruned. */
+/** Every view on a table, alphabetically by name, with stale column references pruned. */
 export async function listTableViews(
   tableId: string,
   columns: ColumnDefinition[],
@@ -359,7 +360,7 @@ export async function listTableViews(
         workspaceId ? eq(tableViews.workspaceId, workspaceId) : undefined
       )
     )
-    .orderBy(asc(tableViews.createdAt), asc(tableViews.id))
+    .orderBy(asc(sql`lower(${tableViews.name})`), asc(tableViews.createdAt), asc(tableViews.id))
 
   return rows.map((row) => toTableView(row, columns))
 }
@@ -429,10 +430,9 @@ export interface CreateTableViewData {
    * in this request and can be told which reference was wrong.
    *
    * Absent — the first-party grid, which does not author these refs so much as
-   * carry them: a view filtered on a since-deleted column keeps the dangling
-   * leaf through every read (`pruneViewConfig` spares filters) and hands it
-   * straight back on the next autosave. Refusing it would reject a config the
-   * first-party grid already accepted, over a condition the user never touched.
+   * carry them: a stale client may hand a since-deleted column back on its
+   * next autosave before refetching the pruned config. Refusing it would reject
+   * a config the grid already accepted, over a condition the user never touched.
    */
   strictRefs?: boolean
 }

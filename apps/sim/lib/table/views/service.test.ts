@@ -48,6 +48,35 @@ describe('pruneViewConfig', () => {
       pruneViewConfig({ sort: [{ field: 'col_a', direction: 'desc' }] }, columns).sort
     ).toEqual([{ field: 'col_a', direction: 'desc' }])
   })
+
+  it('prunes deleted columns and empty groups from nested view predicates', () => {
+    const config: TableViewConfig = {
+      filter: {
+        any: [
+          { field: 'col_gone', op: 'eq', value: 'x' },
+          {
+            all: [
+              { field: 'col_a', op: 'contains', value: 'A' },
+              { any: [{ field: 'col_gone', op: 'eq', value: 'y' }] },
+            ],
+          },
+        ],
+      },
+    }
+    expect(pruneViewConfig(config, columns).filter).toEqual({
+      any: [{ all: [{ field: 'col_a', op: 'contains', value: 'A' }] }],
+    })
+    expect(
+      pruneViewConfig({ filter: { all: [{ field: 'col_gone', op: 'eq', value: 'x' }] } }, columns)
+        .filter
+    ).toBeNull()
+    expect(
+      pruneViewConfig(
+        { filter: { all: [{ field: 'createdAt', op: 'gte', value: '2026-01-01' }] } },
+        columns
+      ).filter
+    ).toEqual({ all: [{ field: 'createdAt', op: 'gte', value: '2026-01-01' }] })
+  })
 })
 
 /**
@@ -283,11 +312,8 @@ describe('view config column-reference normalization', () => {
   })
 
   /**
-   * A column delete leaves the referencing views behind, and `pruneViewConfig`
-   * deliberately does not prune a filter. The write must therefore let the
-   * already-stored reference through — otherwise the first save of anything else
-   * on that view (a sort change, a hidden-column change, the Save chip's whole
-   * config) 400s on a condition the user did not touch.
+   * A stale client may still carry a deleted filter column. The write permits
+   * references already present in storage so unrelated edits remain writable.
    */
   it('lets a save carry forward a stale filter reference the view already stored', async () => {
     const stale = { all: [{ field: 'col_gone', op: 'eq' as const, value: 'x' }] }
