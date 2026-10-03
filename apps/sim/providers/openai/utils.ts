@@ -448,6 +448,7 @@ export function createReadableStreamFromResponses(
         let fullThinking = ''
         let finalUsage: ResponsesUsageTokens | undefined
         let completed = false
+        let finishReason: string | undefined
         let terminalResponse: OpenAI.Responses.Response | undefined
         let sawFunctionCall = false
 
@@ -476,6 +477,7 @@ export function createReadableStreamFromResponses(
               }
               terminalResponse = event.response
               finalUsage = parseResponsesUsage(event.response.usage)
+              finishReason = reason
               completed = true
               continue
             }
@@ -512,6 +514,9 @@ export function createReadableStreamFromResponses(
           }
 
           await onComplete?.(fullContent, finalUsage, fullThinking || undefined, terminalResponse)
+          if (finishReason) {
+            controller.enqueue({ type: 'turn_end', turn: 'final', finishReason })
+          }
           controller.close()
         } catch (error) {
           if (!streamAbortController.signal.aborted) {
