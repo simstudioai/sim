@@ -137,45 +137,6 @@ export const ORACLE_EXECUTION_OUTPUTS = {
   },
 } as const satisfies Record<string, OutputProperty>
 
-/** Output definition for the columns returned by Oracle schema introspection. */
-const ORACLE_COLUMN_OUTPUT_PROPERTIES = {
-  name: { type: 'string', description: 'Column name' },
-  type: { type: 'string', description: 'Oracle data type, including length or precision' },
-  nullable: { type: 'boolean', description: 'Whether the column allows NULL values' },
-  default: { type: 'string', description: 'Default value expression', nullable: true },
-  isPrimaryKey: { type: 'boolean', description: 'Whether the column is part of the primary key' },
-  isForeignKey: { type: 'boolean', description: 'Whether the column is a foreign key' },
-  references: {
-    type: 'object',
-    description: 'Cross-schema foreign key reference information',
-    optional: true,
-    properties: {
-      schema: { type: 'string', description: 'Referenced schema name' },
-      table: { type: 'string', description: 'Referenced table name' },
-      column: { type: 'string', description: 'Referenced column name' },
-    },
-  },
-} as const satisfies Record<string, OutputProperty>
-
-/** Output definition for foreign key constraints returned by introspection. */
-const ORACLE_FOREIGN_KEY_OUTPUT_PROPERTIES = {
-  column: { type: 'string', description: 'Local column name' },
-  referencesSchema: { type: 'string', description: 'Referenced schema name' },
-  referencesTable: { type: 'string', description: 'Referenced table name' },
-  referencesColumn: { type: 'string', description: 'Referenced column name' },
-} as const satisfies Record<string, OutputProperty>
-
-/** Output definition for indexes returned by introspection. */
-const ORACLE_INDEX_OUTPUT_PROPERTIES = {
-  name: { type: 'string', description: 'Index name' },
-  columns: {
-    type: 'array',
-    description: 'Indexed columns in column-position order',
-    items: { type: 'string', description: 'Column name' },
-  },
-  unique: { type: 'boolean', description: 'Whether the index is declared UNIQUE' },
-} as const satisfies Record<string, OutputProperty>
-
 /** Output definition for tables returned by Oracle schema introspection. */
 export const ORACLE_TABLE_OUTPUT_PROPERTIES = {
   name: { type: 'string', description: 'Table name' },
@@ -183,7 +144,30 @@ export const ORACLE_TABLE_OUTPUT_PROPERTIES = {
   columns: {
     type: 'array',
     description: 'Table columns in ordinal position order',
-    items: { type: 'object', properties: ORACLE_COLUMN_OUTPUT_PROPERTIES },
+    items: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Column name' },
+        type: { type: 'string', description: 'Oracle data type, including length or precision' },
+        nullable: { type: 'boolean', description: 'Whether the column allows NULL values' },
+        default: { type: 'string', description: 'Default value expression', nullable: true },
+        isPrimaryKey: {
+          type: 'boolean',
+          description: 'Whether the column is part of the primary key',
+        },
+        isForeignKey: { type: 'boolean', description: 'Whether the column is a foreign key' },
+        references: {
+          type: 'object',
+          description: 'Cross-schema foreign key reference information',
+          optional: true,
+          properties: {
+            schema: { type: 'string', description: 'Referenced schema name' },
+            table: { type: 'string', description: 'Referenced table name' },
+            column: { type: 'string', description: 'Referenced column name' },
+          },
+        },
+      },
+    },
   },
   primaryKey: {
     type: 'array',
@@ -193,11 +177,30 @@ export const ORACLE_TABLE_OUTPUT_PROPERTIES = {
   foreignKeys: {
     type: 'array',
     description: 'Foreign key columns declared on the table',
-    items: { type: 'object', properties: ORACLE_FOREIGN_KEY_OUTPUT_PROPERTIES },
+    items: {
+      type: 'object',
+      properties: {
+        column: { type: 'string', description: 'Local column name' },
+        referencesSchema: { type: 'string', description: 'Referenced schema name' },
+        referencesTable: { type: 'string', description: 'Referenced table name' },
+        referencesColumn: { type: 'string', description: 'Referenced column name' },
+      },
+    },
   },
   indexes: {
     type: 'array',
     description: 'Non-primary-key indexes on the table',
-    items: { type: 'object', properties: ORACLE_INDEX_OUTPUT_PROPERTIES },
+    items: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Index name' },
+        columns: {
+          type: 'array',
+          description: 'Indexed columns in column-position order',
+          items: { type: 'string', description: 'Column name' },
+        },
+        unique: { type: 'boolean', description: 'Whether the index is declared UNIQUE' },
+      },
+    },
   },
 } as const satisfies Record<string, OutputProperty>
