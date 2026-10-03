@@ -1,3 +1,4 @@
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 /**
  * The member sync scheduler's reclaim against real PostgreSQL: a members-mode connector whose
  * member lease went stale is put back on the failure ladder, and a connector in any other access
@@ -51,7 +52,7 @@ describe('member sync reclaim in PostgreSQL', () => {
   })
 
   afterAll(async () => {
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
     await db.$client.end()

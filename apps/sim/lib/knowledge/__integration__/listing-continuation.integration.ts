@@ -19,6 +19,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { toNumberOrNull } from '@sim/utils/coerce'
 import { generateId } from '@sim/utils/id'
 import { toArray, toRecord } from '@sim/utils/object'
@@ -150,7 +151,7 @@ describe('durable source and member cycles in PostgreSQL', () => {
     }))
   })
   afterAll(async () => {
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(user).where(eq(user.id, ids.aliceId))
     await db.delete(user).where(eq(user.id, ids.bobId))
     await rm(fixture.storageRoot, { recursive: true, force: true })

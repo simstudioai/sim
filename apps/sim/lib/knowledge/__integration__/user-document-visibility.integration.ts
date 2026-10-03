@@ -1,6 +1,7 @@
 /** Real PostgreSQL coverage for the probe that keeps a user's visible documents from being skipped. */
 import { db } from '@sim/db'
 import { document, knowledgeConnector, organization, user, workspace } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -28,7 +29,7 @@ describe('Visible user documents in PostgreSQL', () => {
     })
   })
   afterEach(async () => {
-    await db.delete(workspace).where(eq(workspace.id, owner.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, owner.workspaceId))
     await db.delete(organization).where(eq(organization.id, owner.organizationId))
     await db.delete(user).where(inArray(user.id, [owner.aliceId, owner.bobId]))
   })

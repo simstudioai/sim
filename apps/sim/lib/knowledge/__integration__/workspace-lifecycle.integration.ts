@@ -8,6 +8,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -33,6 +34,7 @@ import { archiveWorkspace } from '@/lib/workspaces/lifecycle'
 
 describe('workspace knowledge lifecycle in PostgreSQL', () => {
   const fixtures: ReturnType<typeof createKnowledgeAclFixtureIds>[] = []
+  const retainedEnvironments = new Map<string, string>()
 
   async function seed() {
     const ids = createKnowledgeAclFixtureIds()
@@ -53,7 +55,12 @@ describe('workspace knowledge lifecycle in PostgreSQL', () => {
 
   afterEach(async () => {
     for (const ids of fixtures.splice(0)) {
-      await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+      const retained = retainedEnvironments.get(ids.workspaceId)
+      await deleteWorkspaceFixture(
+        db,
+        inArray(workspace.id, retained ? [ids.workspaceId, retained] : [ids.workspaceId])
+      )
+      retainedEnvironments.delete(ids.workspaceId)
       await db.delete(organization).where(eq(organization.id, ids.organizationId))
       await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
     }
@@ -64,6 +71,16 @@ describe('workspace knowledge lifecycle in PostgreSQL', () => {
     async (alreadyArchived) => {
       const ids = await seed()
       const other = await seed()
+      const retainedId = generateId()
+      retainedEnvironments.set(ids.workspaceId, retainedId)
+      await insertWorkspaceFixture(db, {
+        id: retainedId,
+        name: 'Retained active environment',
+        ownerId: ids.aliceId,
+        billedAccountUserId: ids.aliceId,
+        organizationId: ids.organizationId,
+        forkedFromWorkspaceId: ids.workspaceId,
+      })
       const previousArchive = new Date('2025-01-01T00:00:00.000Z')
       if (alreadyArchived) {
         await db
@@ -118,7 +135,7 @@ describe('workspace knowledge lifecycle in PostgreSQL', () => {
 
   it('hard deletion cascades to KBs, documents, and connectors', async () => {
     const ids = await seed()
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
 
     expect(
       await db

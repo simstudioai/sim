@@ -1,3 +1,4 @@
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 /** Real PostgreSQL coverage for storage ownership changes and document lifecycle accounting. */
 
 import { execFile } from 'node:child_process'
@@ -128,7 +129,7 @@ afterAll(async () => {
         )
       )
     await db.delete(knowledgeBase).where(eq(knowledgeBase.id, ids.knowledgeBaseId))
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
     await db.delete(organization).where(eq(organization.id, ids.organizationId))
     await db.delete(user).where(inArray(user.id, [ids.aliceId, ids.bobId]))
   }

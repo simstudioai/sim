@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { db } from '@sim/db'
 import {
@@ -18,6 +18,7 @@ import {
   workspaceForkPromoteRun,
   workspaceForkResourceMap,
 } from '@sim/db/schema'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import {
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
@@ -27,7 +28,8 @@ import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import postgres from 'postgres'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
 import { prepareProjectsForAccountDeletion } from '@/lib/projects/account-deletion'
 import {
@@ -57,6 +59,14 @@ import { unlinkForkEdge } from '@/ee/workspace-forking/lib/lineage/unlink'
 
 beforeEach(() => {
   vi.stubEnv('PROJECT_API_ENABLED', 'true')
+})
+
+let restoreEnforcement = false
+beforeAll(async () => {
+  const rows = await db.execute(
+    sql`SELECT 1 FROM pg_trigger WHERE tgname = 'project_contract_check' AND tgrelid = 'public.workspace'::regclass`
+  )
+  restoreEnforcement = rows.length > 0
 })
 
 const users: string[] = []
@@ -190,9 +200,101 @@ afterAll(async () => {
   if (organizations.length)
     await db.delete(organization).where(inArray(organization.id, organizations))
   if (users.length) await db.delete(user).where(inArray(user.id, users))
+  if (restoreEnforcement) {
+    const client = postgres(readTestDatabaseUrl(), { max: 1, onnotice: () => undefined })
+    try {
+      for (const statement of (
+        await readFile(
+          new URL(
+            '../../../../../packages/db/migrations/0395_project_membership_enforcement.sql',
+            import.meta.url
+          ),
+          'utf8'
+        )
+      ).split('--> statement-breakpoint')) {
+        await client.unsafe(statement)
+      }
+    } finally {
+      await client.end()
+    }
+  }
 })
 
 describe('Project foundation at the database and application boundary', () => {
+  check(
+    'application creation, disconnect, organization deletion and archive commit with SQL enforcement',
+    async () => {
+      const client = postgres(readTestDatabaseUrl(), { max: 1, onnotice: () => undefined })
+      try {
+        for (const statement of (
+          await readFile(
+            new URL(
+              '../../../../../packages/db/migrations/0395_project_membership_enforcement.sql',
+              import.meta.url
+            ),
+            'utf8'
+          )
+        ).split('--> statement-breakpoint')) {
+          await client.unsafe(statement)
+        }
+        const f = await fixture(true, 1)
+        const organizationId = f.organizationId
+        if (!organizationId) throw new Error('Missing organization fixture')
+        const created = await createProject.execute({
+          principal: f.owner,
+          input: {
+            organizationId: f.organizationId,
+            name: 'Enforced',
+            initialEnvironment: { name: 'Production' },
+          },
+          request,
+        })
+        environments.push(created.initialEnvironment.id)
+        const source = await getWorkspaceWithOwner(created.initialEnvironment.id)
+        if (!source) throw new Error('Missing source environment')
+        const fork = await createFork({
+          source,
+          policy: await getWorkspaceCreationPolicy({ userId: f.ownerId }),
+          userId: f.ownerId,
+          name: 'Staging',
+        })
+        environments.push(fork.workspace.id)
+        await unlinkForkEdge({ parentWorkspaceId: source.id, childWorkspaceId: fork.workspace.id })
+        const [detached] = await db
+          .select()
+          .from(projectWorkspace)
+          .where(eq(projectWorkspace.workspaceId, fork.workspace.id))
+        expect(detached.projectId).not.toBe(created.project.id)
+        await db.transaction(async (tx) => {
+          await detachOrganizationWorkspacesTx(tx, organizationId)
+          await tx.delete(organization).where(eq(organization.id, organizationId))
+        })
+        await archiveProject.execute({
+          principal: f.owner,
+          input: { projectId: created.project.id },
+          request,
+        })
+        const [archived] = await db.select().from(project).where(eq(project.id, created.project.id))
+        expect(archived.organizationId).toBeNull()
+        expect(archived.archivedAt).not.toBeNull()
+        expect(
+          await db
+            .select()
+            .from(workflow)
+            .where(and(eq(workflow.workspaceId, source.id), sql`${workflow.archivedAt} IS NULL`))
+        ).toHaveLength(0)
+      } finally {
+        await client.unsafe('ROLLBACK')
+        for (const table of ['project', 'project_workspace', 'workspace', 'workflow']) {
+          await client.unsafe(
+            `DROP TRIGGER IF EXISTS project_contract_lock ON ${table}; DROP TRIGGER IF EXISTS project_contract_check ON ${table}`
+          )
+        }
+        await client.end()
+      }
+    }
+  )
+
   check(
     'workspace creation and fork/disconnect assign Projects while APIs remain disabled',
     async () => {

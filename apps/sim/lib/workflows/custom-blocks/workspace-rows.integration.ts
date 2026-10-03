@@ -1,6 +1,7 @@
 /** The custom-block rows an execution overlays, read against real PostgreSQL. */
 import { db } from '@sim/db'
 import { customBlock, organization, user, workflow, workspace } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import {
   billingSubscriptionMock,
   billingSubscriptionMockFns,
@@ -38,7 +39,7 @@ beforeAll(async () => {
     { id: organizations.withBlocks, name: 'With Blocks', slug: organizations.withBlocks },
     { id: organizations.withoutBlocks, name: 'Without Blocks', slug: organizations.withoutBlocks },
   ])
-  await db.insert(workspace).values([
+  await insertWorkspaceFixture(db, [
     {
       id: workspaces.withBlocks,
       name: 'With Blocks',
@@ -90,7 +91,7 @@ beforeEach(() => {
 })
 
 afterAll(async () => {
-  await db.delete(workspace).where(inArray(workspace.id, Object.values(workspaces)))
+  await deleteWorkspaceFixture(db, inArray(workspace.id, Object.values(workspaces)))
   await db.delete(organization).where(inArray(organization.id, Object.values(organizations)))
   await db.delete(user).where(eq(user.id, owner))
 })

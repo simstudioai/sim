@@ -1,3 +1,4 @@
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 /**
  * Reconnects that Sim's replay ring can no longer serve, against real Redis and
  * PostgreSQL through the production reconnect route. A local HTTP server stands in for
@@ -154,7 +155,7 @@ describe.runIf(Boolean(redisUrl))('reconnects past the replay ring', () => {
       createdAt: now,
       updatedAt: now,
     })
-    await db.insert(workspace).values({
+    await insertWorkspaceFixture(db, {
       id: workspaceId,
       name: 'Replay gap fixture',
       ownerId: userId,
@@ -183,7 +184,7 @@ describe.runIf(Boolean(redisUrl))('reconnects past the replay ring', () => {
     await db.delete(copilotRuns).where(eq(copilotRuns.chatId, chatId))
     await db.delete(copilotChats).where(eq(copilotChats.id, chatId))
     await db.delete(permissions).where(eq(permissions.userId, userId))
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
     await db.delete(user).where(eq(user.id, userId))
     await closeRedisConnection()
   })

@@ -11,6 +11,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -94,8 +95,8 @@ describe('Search source identity and concurrent creation', () => {
   })
 
   afterAll(async () => {
-    await db.delete(workspace).where(eq(workspace.id, ids.workspaceId))
-    await db.delete(workspace).where(eq(workspace.id, other.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, ids.workspaceId))
+    await deleteWorkspaceFixture(db, eq(workspace.id, other.workspaceId))
     for (const id of [ids.aliceId, ids.bobId, other.aliceId, other.bobId]) {
       await db.delete(project).where(eq(project.ownerId, id))
       await db.delete(user).where(eq(user.id, id))
@@ -179,7 +180,7 @@ describe('Search source identity and concurrent creation', () => {
       expect(policies).toHaveLength(0)
     } finally {
       await db.delete(permissions).where(eq(permissions.entityId, created.id))
-      await db.delete(workspace).where(eq(workspace.id, created.id))
+      await deleteWorkspaceFixture(db, eq(workspace.id, created.id))
     }
   })
 
