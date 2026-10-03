@@ -35,11 +35,11 @@ vi.mock('@/lib/credentials/application/resolve-managed-oauth-token', () => ({
 
 vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
 
-import { getBlockRegistry } from '@/blocks/registry'
-import type { BlockConfig } from '@/blocks/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { InvalidManagedOAuthDelegationError } from '@/lib/credentials/application/managed-oauth-delegation'
 import { resolveCredentialAccessToken, resolveCredentialToken } from '@/lib/oauth/token-resolution'
+import { getBlockRegistry } from '@/blocks/registry'
+import type { BlockConfig } from '@/blocks/types'
 import { getToolMetadata } from '@/tools/metadata'
 
 const mockGetToolMetadata = vi.mocked(getToolMetadata)
