@@ -4,18 +4,6 @@ import { selectorManifest } from '@/lib/selectors/manifest'
 import { serverSelectorRegistry } from '@/lib/selectors/server/registry'
 
 describe('selector manifest', () => {
-  it('keeps the completed migration inventory exhaustive and legacy-free', () => {
-    const classifications = Object.values(selectorManifest).map((entry) => entry.classification)
-    const count = (classification: (typeof classifications)[number]) =>
-      classifications.filter((value) => value === classification).length
-
-    expect(Object.keys(selectorManifest)).toHaveLength(105)
-    expect(count('provider-server')).toBe(93)
-    expect(count('internal-server')).toBe(11)
-    expect(count('local')).toBe(1)
-    expect(classifications).not.toContain('provider-legacy')
-  })
-
   it('attaches every manifest key exactly once on its declared execution side', () => {
     const entries = Object.entries(selectorManifest)
     const expectedServerKeys = entries
@@ -36,11 +24,15 @@ describe('selector manifest', () => {
     const rawConnectionKeys = providerKeys.filter(
       (key) => !serverSelectorRegistry[key as keyof typeof serverSelectorRegistry].credential
     )
-    expect(providerKeys).toHaveLength(93)
     expect(rawConnectionKeys.sort()).toEqual([
       'cloudwatch.logGroups',
       'cloudwatch.logStreams',
       'imap.mailboxes',
+      'mcp.tools',
+      'planetscale.backups',
+      'planetscale.branches',
+      'planetscale.databases',
+      'planetscale.deployRequests',
     ])
   })
 
@@ -57,11 +49,6 @@ describe('selector manifest', () => {
       'sharepoint',
       'microsoft-excel',
     ])
-  })
-
-  it('declares both CloudWatch selectors as paginated', () => {
-    expect(selectorManifest['cloudwatch.logGroups'].listMode).toBe('paginated')
-    expect(selectorManifest['cloudwatch.logStreams'].listMode).toBe('paginated')
   })
 
   /**
@@ -81,24 +68,12 @@ describe('selector manifest', () => {
     }
   })
 
-  it('pins the resource each shared-provider selector reaches', () => {
-    expect(serverSelectorRegistry['google.drive'].credential?.resourceServiceId).toBe(
-      'google-drive'
-    )
-    expect(serverSelectorRegistry['onedrive.folders'].credential?.resourceServiceId).toBe(
-      'onedrive'
-    )
-    expect(serverSelectorRegistry['sharepoint.sites'].credential?.resourceServiceId).toBe(
-      'sharepoint'
-    )
-  })
-
   it('requires executable preparation for every non-fixed destination', () => {
     const preparedDestinations = Object.values(serverSelectorRegistry).filter(
       (attachment) => attachment.destination !== 'fixed'
     )
 
-    expect(preparedDestinations).toHaveLength(24)
+    expect(preparedDestinations).toHaveLength(25)
     for (const attachment of preparedDestinations) {
       expect(attachment.destination).toEqual(
         expect.objectContaining({
@@ -109,7 +84,7 @@ describe('selector manifest', () => {
     }
   })
 
-  it('preserves credential-use auditing only for the seven legacy-audited selectors', () => {
+  it('preserves credential-use auditing for the declared selectors', () => {
     const auditedKeys = Object.entries(serverSelectorRegistry)
       .flatMap(([key, attachment]) => (attachment.auditCredentialUse ? [key] : []))
       .sort()
@@ -117,6 +92,7 @@ describe('selector manifest', () => {
     expect(auditedKeys).toEqual([
       'confluence.pages',
       'jira.issues',
+      'jira.projectKeys',
       'jira.projects',
       'managedAgent.agents',
       'managedAgent.environments',

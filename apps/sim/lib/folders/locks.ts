@@ -1,21 +1,24 @@
 import { db } from '@sim/db'
 import { sql } from 'drizzle-orm'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
-import type { DbOrTx } from '@/lib/db/types'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 
 const FOLDER_MUTATION_LOCK_TIMEOUT_MS = 5_000
 
 /** Serializes every writer for one workspace resource-folder tree. */
 export async function acquireFolderMutationLock(
-  tx: DbOrTx,
+  tx: DbTransaction,
   workspaceId: string,
   resourceType: FolderResourceType
 ): Promise<void> {
   await tx.execute(
     sql`select set_config('lock_timeout', ${`${FOLDER_MUTATION_LOCK_TIMEOUT_MS}ms`}, true)`
   )
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtextextended(${`resource_folders:${resourceType}:${workspaceId}`}, 0))`
+  await acquireAdvisoryXactLock(
+    tx,
+    'resource_folders',
+    `resource_folders:${resourceType}:${workspaceId}`
   )
 }
 

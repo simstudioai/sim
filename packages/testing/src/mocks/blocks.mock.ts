@@ -14,6 +14,8 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import { vi } from 'vitest'
+
 /**
  * Mock block configurations that mirror the real block registry.
  * Used for testing serialization, deserialization, and validation.
@@ -305,7 +307,7 @@ export function createMockGetBlock(extraConfigs: Record<string, any> = {}) {
 /**
  * Mock tool configurations for validation tests.
  */
-export const mockToolConfigs: Record<string, any> = {
+const mockToolConfigs: Record<string, any> = {
   jina_read_url: {
     params: {
       url: { visibility: 'user-or-llm', required: true },
@@ -323,7 +325,7 @@ export const mockToolConfigs: Record<string, any> = {
 /**
  * Creates a getTool function that returns mock tool configs.
  */
-export function createMockGetTool(extraConfigs: Record<string, any> = {}) {
+function createMockGetTool(extraConfigs: Record<string, any> = {}) {
   const configs = { ...mockToolConfigs, ...extraConfigs }
   return (toolId: string) => configs[toolId] || null
 }
@@ -336,6 +338,11 @@ export const blocksMock = {
   getAllBlocks: () => Object.values(mockBlockConfigs),
 }
 
+/** Per-test control of {@link toolsUtilsMock}; defaults to the shared mock tool universe. */
+export const toolsUtilsMockFns = {
+  mockGetTool: vi.fn(createMockGetTool()),
+}
+
 /**
  * Pre-configured tools/utils mock for use with vi.mock('@/tools/utils', () => toolsUtilsMock).
  *
@@ -344,7 +351,7 @@ export const blocksMock = {
  * real generated artifacts — see {@link toolsMetadataMock}.
  */
 export const toolsUtilsMock = {
-  getTool: createMockGetTool(),
+  getTool: toolsUtilsMockFns.mockGetTool,
 }
 
 /**

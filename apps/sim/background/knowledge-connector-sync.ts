@@ -10,7 +10,7 @@ import type { SyncResult } from '@/connectors/types'
 
 const logger = createLogger('TriggerKnowledgeConnectorSync')
 
-export type ConnectorSyncTaskOutcome = 'completed' | 'partial' | 'skipped' | 'failed'
+export type ConnectorSyncTaskOutcome = 'completed' | 'partial' | 'skipped' | 'failed' | 'deferred'
 
 /**
  * Separates source-sync failures from expected queue/lock no-ops. Intentional
@@ -20,19 +20,11 @@ export type ConnectorSyncTaskOutcome = 'completed' | 'partial' | 'skipped' | 'fa
 export function classifyConnectorSyncResult(result: SyncResult): ConnectorSyncTaskOutcome {
   if (result.skipReason) return 'skipped'
   if (result.error) return 'failed'
-  if (result.docsFailed > 0 || result.processingDispatch.failed > 0) return 'partial'
+  if (result.deferred && result.docsFailed === 0 && result.processingDispatch.failed === 0)
+    return 'deferred'
+  if (result.listingIncomplete || result.docsFailed > 0 || result.processingDispatch.failed > 0)
+    return 'partial'
   return 'completed'
-}
-
-function formatConnectorSyncFailure(
-  connectorId: string,
-  result: SyncResult,
-  outcome: Extract<ConnectorSyncTaskOutcome, 'partial' | 'failed'>
-): string {
-  if (outcome === 'failed') {
-    return `Connector sync failed for ${connectorId}: ${result.error}`
-  }
-  return `Connector sync partially failed for ${connectorId}: ${result.docsFailed} source failures, ${result.processingDispatch.failed} dispatch failures`
 }
 
 export async function executeConnectorSyncJob(payload: unknown) {
@@ -57,9 +49,11 @@ export async function executeConnectorSyncJob(payload: unknown) {
       dispatchToken,
     })
 
+    const outcome = classifyConnectorSyncResult(result)
     logger.info(`[${requestId}] Connector sync completed`, {
       connectorId,
-      outcome: classifyConnectorSyncResult(result),
+      outcome,
+      deferred: result.deferred,
       added: result.docsAdded,
       updated: result.docsUpdated,
       deleted: result.docsDeleted,
@@ -71,16 +65,21 @@ export async function executeConnectorSyncJob(payload: unknown) {
       processingDispatchFailed: result.processingDispatch.failed,
     })
 
-    const outcome = classifyConnectorSyncResult(result)
-    if (outcome === 'failed' || outcome === 'partial') {
+    if (outcome === 'failed') {
       /**
-       * `executeSync` has already persisted its terminal state. Source failures
-       * preserve the previous incremental watermark so the next connector pass
-       * replays them; dispatch failures remain eligible for the stuck-document
-       * sweep. Retrying this whole task immediately would duplicate a large
-       * fan-out, so fail visibly without retrying the completed transaction.
+       * `executeSync` has already persisted its terminal state, and retrying this
+       * whole task would duplicate a large fan-out, so fail visibly without
+       * retrying the completed transaction. A partial sync is not a failed run:
+       * its source failures keep the previous incremental watermark so the next
+       * connector pass replays them, its dispatch failures stay eligible for the
+       * stuck-document sweep, and the outcome rides on the return value.
        */
-      throw new AbortTaskRunError(formatConnectorSyncFailure(connectorId, result, outcome))
+      throw new AbortTaskRunError(`Connector sync failed for ${connectorId}: ${result.error}`)
+    }
+    if (outcome === 'partial' && (result.docsFailed > 0 || result.processingDispatch.failed > 0)) {
+      logger.warn(
+        `[${requestId}] Connector sync partially failed for ${connectorId}: ${result.docsFailed} source failures, ${result.processingDispatch.failed} dispatch failures`
+      )
     }
 
     return {

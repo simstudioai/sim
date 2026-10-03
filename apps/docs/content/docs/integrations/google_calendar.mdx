@@ -11,20 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Google Calendar](https://calendar.google.com) is Google's widely used online calendar and scheduling service, making it easy to organize meetings, events, reminders, and appointments individually or collaboratively. As a key part of Google Workspace, Google Calendar offers robust tools for managing your schedule, sending invitations, setting event reminders, and sharing calendars with others.
-
-Google Calendar supports feature-rich integrations and automation, allowing users and teams to streamline event management and keep their workflows synchronized. Its API enables programmatic creation, modification, and listing of calendar events, empowering agents and automated workflows to interact with your schedule in real time.
-
-Key features of Google Calendar include:
-
-- **Event Scheduling**: Create one-time or recurring events with rich details like time, location, and guests.
-- **Reminders & Notifications**: Automated email and push reminders to ensure you never miss an important event.
-- **Sharing & Collaboration**: Share calendars with individuals or groups, manage permissions, and coordinate meetings seamlessly.
-- **Integration**: Connect with Gmail, Meet, Docs, and external tools for a unified productivity experience.
-- **Time Zone Support**: Schedule meetings across regions with full time zone awareness.
-- **Mobile & Multi-Device Access**: Access your calendar from web, mobile, and desktop.
-
-In Sim, the Google Calendar integration allows your agents to read, create, update, and list calendar events as part of automated workflows. This enables powerful scenarios such as syncing meeting information, generating reminders, tracking event changes, coordinating team schedules, and much more. By connecting Sim with Google Calendar, your agents can handle scheduling tasks, manage events intelligently, and keep your whole organization on track without manual intervention.
+Use [Google Calendar](https://calendar.google.com) to manage events and calendars, invite attendees, inspect availability, and configure sharing. Calendar event triggers can start workflows when events change.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -324,6 +311,35 @@ Invite attendees to an existing Google Calendar event. Returns API-aligned field
 | `creator` | json | Event creator |
 | `organizer` | json | Event organizer |
 
+### Google Calendar Respond to Invitation
+
+RSVP to a Google Calendar event (accept, decline, or tentative) as the connected account. Only your own response changes; other guests are left untouched. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | Google Calendar ID the invitation appears on \(e.g., primary or calendar@group.calendar.google.com\) |
+| `eventId` | string | Yes | Google Calendar event ID to respond to. Use a recurring-event instance ID \(as returned by List Events or Get Recurring Instances\) to respond to a single occurrence; the series ID responds to every occurrence. |
+| `responseStatus` | string | Yes | Your response: accepted, declined, or tentative |
+| `comment` | string | No | Optional note to include with your response |
+| `sendUpdates` | string | No | Who to notify about your response: all, externalOnly, or none |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Event ID |
+| `htmlLink` | string | Event link |
+| `status` | string | Event status |
+| `summary` | string | Event title |
+| `start` | json | Event start |
+| `end` | json | Event end |
+| `responseStatus` | string | Your confirmed response \(accepted, declined, or tentative\) |
+| `comment` | string | Your response comment |
+| `attendees` | json | Event attendees |
+| `organizer` | json | Event organizer |
+
 ### Google Calendar Free/Busy
 
 Query free/busy information for one or more Google Calendars. Returns API-aligned fields only.
@@ -493,8 +509,6 @@ Revoke an access control rule (sharing) from a calendar. Returns API-aligned fie
 | `ruleId` | string | Removed ACL rule ID |
 | `deleted` | boolean | Whether removal was successful |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -536,4 +550,21 @@ Triggers when events are created, updated, or cancelled in Google Calendar
 |   ↳ `organizer` | json | Event organizer |
 | `calendarId` | string | Calendar ID |
 | `timestamp` | string | Event processing timestamp in ISO format |
+
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Google Calendar account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-calendar` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/calendar` | View and manage calendar |
+
 

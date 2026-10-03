@@ -4,7 +4,6 @@ description: The Webhook trigger runs a workflow on any inbound HTTP request to 
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { BlockPreview } from '@/components/workflow-preview'
 import { Video } from '@/components/ui/video'
 import { FAQ } from '@/components/ui/faq'
@@ -73,10 +72,4 @@ See [Triggers](/workflows#triggers) for every service that supports this.
 
 <FAQ items={[
   { question: "What HTTP methods does the webhook endpoint accept?", answer: "POST triggers workflows. GET is used only for provider-specific verification challenges (such as Microsoft Graph or WhatsApp). Other methods return 405 Method Not Allowed." },
-  { question: "How do I authenticate webhook requests?", answer: "Enable Require Authentication and set an Authentication Token. Callers send it as a Bearer token in the Authorization header, or you specify a custom header name (e.g. X-Secret-Key) and the token is matched against that header." },
-  { question: "Can I define the expected payload structure?", answer: "Yes. The Input Format field lets you define the expected JSON schema. It's optional but documents the structure, and you can use a file[] field for uploads." },
-  { question: "Does the webhook deduplicate requests?", answer: "Yes. The processing pipeline includes idempotency checks that prevent duplicate runs from repeated requests with the same payload." },
-  { question: "What data from the request is available in my workflow?", answer: "All of it — headers, body, and query parameters are parsed and available to downstream blocks. Common fields like event, id, and data are extracted from the payload when present." },
-  { question: "Do I need to deploy my workflow for the webhook URL to work?", answer: "Yes. The endpoint checks that the workflow is deployed before triggering a run; otherwise it returns a not-found response." },
-  { question: "Does the webhook auto-disable after repeated failures?", answer: "No. Unlike polling-based triggers (RSS, Gmail, IMAP), push-based webhooks don't auto-disable — each request is processed independently. If runs fail consistently, check the run logs." },
 ]} />

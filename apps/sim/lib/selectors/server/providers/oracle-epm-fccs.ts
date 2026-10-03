@@ -42,16 +42,24 @@ async function prepareFccsDestination(
 ): Promise<PreparedFccsDestination> {
   args.signal?.throwIfAborted()
   const credential = args.credential
-  const id = credential?.access?.resolvedCredentialId
-  if (!credential || !id || credential.access?.credentialType !== 'service_account')
-    throw new SelectorConnectionUnavailableError()
-  const resolved = await resolveOAuthAccountId(id)
-  args.signal?.throwIfAborted()
-  if (
-    resolved?.credentialType !== 'service_account' ||
-    resolved.providerId !== ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID
-  )
-    throw new SelectorConnectionUnavailableError()
+  const id = credential?.organization
+    ? credential.suppliedId
+    : credential?.access?.resolvedCredentialId
+  if (!credential || !id) throw new SelectorConnectionUnavailableError()
+  if (credential.organization) {
+    if (credential.providerId !== ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID)
+      throw new SelectorConnectionUnavailableError()
+  } else {
+    if (credential.access?.credentialType !== 'service_account')
+      throw new SelectorConnectionUnavailableError()
+    const resolved = await resolveOAuthAccountId(id)
+    args.signal?.throwIfAborted()
+    if (
+      resolved?.credentialType !== 'service_account' ||
+      resolved.providerId !== ORACLE_EPM_SERVICE_ACCOUNT_PROVIDER_ID
+    )
+      throw new SelectorConnectionUnavailableError()
+  }
   const token = await resolveSelectorCredentialBundle({
     credential,
     protectedValues: args.protectedValues,

@@ -11,25 +11,9 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Affinity](https://www.affinity.co/) is the CRM private capital firms run on — venture capital, private equity, private credit, investment banking, and family offices. It captures every email and calendar event across the firm automatically, turns that history into scored relationships, and organizes deals as rows on Lists whose columns each firm defines for itself.
+[Affinity](https://www.affinity.co/) is a CRM for companies, people, opportunities, and relationship data. Its v2 integration can read and update records, lists, field values, notes, interactions, and transcripts.
 
-**Why Affinity?**
-- **Relationship intelligence, not just records:** Every pair of people carries an interaction score derived from real communication, so "who here can introduce me" is a query rather than a Slack thread.
-- **No manual entry:** Emails, meetings, calls, and chat messages are captured and attributed on their own. The API reads that history as first-class objects.
-- **Lists are the data model:** A deal lives as a row on a List, and the List's columns are the fields the firm actually tracks. Field IDs are discoverable at runtime, so a workflow adapts to a firm's schema instead of hardcoding it.
-- **A change feed built for sync:** Field value changes are exposed as an ordered, cursor-paged stream, which is what makes an incremental mirror possible without re-reading the whole workspace.
-
-**Using Affinity in Sim**
-
-Sim's Affinity integration covers the v2 API end to end with an API key — 70 operations across companies, people, opportunities, lists, list entries, saved views, fields, notes, reminders, merges, interactions, transcripts, and users. Field values are readable and writable one at a time or a hundred per request, and the discovery operations (**List Field Metadata**, **List List Fields**, and the dropdown-option operations) exist so an agent can learn a workspace's schema before it writes to it.
-
-**Key benefits of using Affinity in Sim:**
-- **Pipeline reporting:** Page a List or a Saved View with exactly the columns a report needs, then summarize what moved, what stalled, and what is closing.
-- **Writing back:** Move a deal's stage, fill an enriched field, or update a hundred columns on one row in a single call — with the dropdown option resolved by name first, so nothing is written blind.
-- **Warm introductions:** Combine relationship scores with the inferred-connection operations, which surface paths through shared employment history and through investors who backed a company a target once led.
-- **Meeting capture:** Read a transcript fragment by fragment and write the summary back as a note anchored to that meeting, attached to the companies and people it concerns.
-- **Natural-language sourcing:** **Semantic Search** takes an investment thesis in plain language and returns scored companies; **Search Notes** and **Search Files** answer diligence questions from what the firm already wrote down.
-- **Incremental sync:** Follow the field-value change feed from a stored cursor to keep a table or warehouse in step without a full reload.
+Discover a workspace’s list fields and dropdown options before writing values. Use bulk field operations for multiple changes and follow the field-value change feed from a stored cursor for incremental sync. Relationship and inferred-connection operations help find introduction paths; Semantic Search finds companies from an investment description.
 
 **Before you start**
 

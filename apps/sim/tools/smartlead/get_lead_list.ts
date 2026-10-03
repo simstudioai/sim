@@ -1,4 +1,4 @@
-import { isRecordLike } from '@sim/utils/object'
+import { toRecordOrNull } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { SmartleadBaseParams, SmartleadLeadListResponse } from '@/tools/smartlead/types'
 import {
@@ -38,7 +38,7 @@ export const getLeadListTool: ToolConfig<GetLeadListParams, SmartleadLeadListRes
   },
   transformResponse: async (response) => {
     const record = await smartleadRecord(response, 'lead list')
-    const data = isRecordLike(record.data) ? record.data : null
+    const data = toRecordOrNull(record.data)
     if (!data) throw new Error('Smartlead lead list not found')
 
     return {

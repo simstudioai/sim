@@ -1,14 +1,15 @@
-import { ChipLink } from '@sim/emcn'
+import { Fragment } from 'react'
+import { ChipLink, cn } from '@sim/emcn'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { BackLink } from '@/app/(landing)/components'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
+import { LANDING_CONTENT_WIDTH, LANDING_GUTTER } from '@/app/(landing)/components/landing-layout'
 import { ShareButton } from '@/app/(landing)/components/share-button'
 import { FeaturedModelCard, ProviderIcon } from '@/app/(landing)/models/components/model-primitives'
 import {
-  ALL_CATALOG_MODELS,
   buildModelCapabilityFacts,
   buildModelFaqs,
   formatPrice,
@@ -19,17 +20,21 @@ import {
   getPricingBounds,
   getProviderBySlug,
   getRelatedModels,
+  MODEL_PROVIDERS_WITH_MODELS,
 } from '@/app/(landing)/models/utils'
 
 const baseUrl = SITE_URL
 
+/**
+ * Unknown params must 404 before rendering: `notFound()` during render streams this segment's
+ * `loading.tsx` with a 200 status first.
+ */
 export const dynamicParams = false
 
 export async function generateStaticParams() {
-  return ALL_CATALOG_MODELS.map((model) => ({
-    provider: model.providerSlug,
-    model: model.slug,
-  }))
+  return MODEL_PROVIDERS_WITH_MODELS.flatMap((provider) =>
+    provider.models.map((model) => ({ provider: provider.slug, model: model.slug }))
+  )
 }
 
 export async function generateMetadata({
@@ -146,7 +151,7 @@ export default async function ModelPage({
       <JsonLd data={faqJsonLd} />
 
       <section className='bg-[var(--bg)]'>
-        <div className='mx-auto w-full max-w-[1460px] px-20 pt-[112px] max-sm:px-5 max-sm:pt-20 max-lg:px-8'>
+        <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER, 'pt-[112px] max-sm:pt-20')}>
           <div className='mb-6'>
             <BackLink href={provider.href} label={`Back to ${provider.name}`} />
           </div>
@@ -188,8 +193,8 @@ export default async function ModelPage({
 
         <div className='mt-8 h-px w-full bg-[var(--border)]' />
 
-        <div className='mx-auto w-full max-w-[1460px]'>
-          <div className='mx-20 border-[var(--border)] border-x max-sm:mx-5 max-lg:mx-8'>
+        <div className={cn(LANDING_CONTENT_WIDTH, LANDING_GUTTER)}>
+          <div className='border-[var(--border)] border-x'>
             <InfoRow label='Input price' value={`${formatPrice(model.pricing.input)}/1M`} />
             <InfoRow
               label='Cached input'
@@ -200,6 +205,28 @@ export default async function ModelPage({
               }
             />
             <InfoRow label='Output price' value={`${formatPrice(model.pricing.output)}/1M`} />
+            {model.pricing.tiers?.map((tier) => {
+              const threshold = formatTokenCount(tier.aboveInputTokens)
+
+              return (
+                <Fragment key={tier.aboveInputTokens}>
+                  <InfoRow
+                    label={`Input price (> ${threshold})`}
+                    value={`${formatPrice(tier.input)}/1M`}
+                  />
+                  <InfoRow
+                    label={`Cached input (> ${threshold})`}
+                    value={
+                      tier.cachedInput !== undefined ? `${formatPrice(tier.cachedInput)}/1M` : 'N/A'
+                    }
+                  />
+                  <InfoRow
+                    label={`Output price (> ${threshold})`}
+                    value={`${formatPrice(tier.output)}/1M`}
+                  />
+                </Fragment>
+              )
+            })}
             <InfoRow
               label='Context window'
               value={model.contextWindow ? formatTokenCount(model.contextWindow) : 'Unknown'}

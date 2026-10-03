@@ -1,10 +1,7 @@
 import { PerplexityIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { PerplexityChatResponse, PerplexitySearchResponse } from '@/tools/perplexity/types'
 
-type PerplexityResponse = PerplexityChatResponse | PerplexitySearchResponse
-
-export const PerplexityBlock: BlockConfig<PerplexityResponse> = {
+export const PerplexityBlock: BlockConfig = {
   type: 'perplexity',
   name: 'Perplexity',
   description: 'Use Perplexity AI for chat and search',

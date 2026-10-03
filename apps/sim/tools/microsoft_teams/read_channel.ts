@@ -1,4 +1,8 @@
 import { createLogger } from '@sim/logger'
+import {
+  AttachmentDownloadBudget,
+  rethrowAttachmentDownloadError,
+} from '@/lib/uploads/utils/attachment-download-budget'
 import type {
   MicrosoftTeamsReadResponse,
   MicrosoftTeamsToolParams,
@@ -8,7 +12,7 @@ import {
   extractMessageAttachments,
   fetchHostedContentsForChannelMessage,
 } from '@/tools/microsoft_teams/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { ToolConfig, ToolFileData, ToolResponseContext } from '@/tools/types'
 
 const logger = createLogger('MicrosoftTeamsReadChannel')
 
@@ -86,7 +90,13 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
     },
   },
 
-  transformResponse: async (response: Response, params?: MicrosoftTeamsToolParams) => {
+  transformResponse: async (
+    response: Response,
+    params?: MicrosoftTeamsToolParams,
+    context?: ToolResponseContext
+  ) => {
+    const budget = new AttachmentDownloadBudget(context)
+    context?.signal?.throwIfAborted()
     const data = await response.json()
 
     const messages = data.value || []
@@ -108,70 +118,76 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
       }
     }
 
-    const processedMessages = await Promise.all(
-      messages.map(async (message: any, index: number) => {
-        try {
-          const content = message.body?.content || 'No content'
-          const messageId = message.id
+    const processedMessages: NonNullable<
+      MicrosoftTeamsReadResponse['output']['metadata']['messages']
+    > = []
+    for (const [index, message] of messages.entries()) {
+      context?.signal?.throwIfAborted()
+      try {
+        const content = message.body?.content || 'No content'
+        const messageId = message.id
 
-          const attachments = extractMessageAttachments(message)
+        const attachments = extractMessageAttachments(message)
 
-          let sender = 'Unknown'
-          if (message.from?.user?.displayName) {
-            sender = message.from.user.displayName
-          } else if (message.messageType === 'systemEventMessage') {
-            sender = 'System'
-          }
+        let sender = 'Unknown'
+        if (message.from?.user?.displayName) {
+          sender = message.from.user.displayName
+        } else if (message.messageType === 'systemEventMessage') {
+          sender = 'System'
+        }
 
-          let uploaded: any[] = []
-          if (
-            params?.includeAttachments &&
-            params.accessToken &&
-            params.teamId &&
-            params.channelId &&
-            messageId
-          ) {
-            try {
-              const hostedContents = await fetchHostedContentsForChannelMessage({
-                accessToken: params.accessToken,
-                teamId: params.teamId,
-                channelId: params.channelId,
-                messageId,
-              })
-              uploaded.push(...hostedContents)
+        let uploaded: ToolFileData[] = []
+        if (
+          params?.includeAttachments &&
+          params.accessToken &&
+          params.teamId &&
+          params.channelId &&
+          messageId
+        ) {
+          try {
+            const hostedContents = await fetchHostedContentsForChannelMessage({
+              accessToken: params.accessToken,
+              teamId: params.teamId,
+              channelId: params.channelId,
+              messageId,
+              budget,
+            })
+            uploaded.push(...hostedContents)
 
-              const referenceFiles = await downloadAllReferenceAttachments({
-                accessToken: params.accessToken,
-                attachments,
-              })
-              uploaded.push(...referenceFiles)
-            } catch (_e) {
-              uploaded = []
-            }
-          }
-
-          return {
-            id: messageId,
-            content: content,
-            sender,
-            timestamp: message.createdDateTime,
-            messageType: message.messageType || 'message',
-            attachments,
-            uploadedFiles: uploaded,
-          }
-        } catch (error) {
-          logger.error(`Error processing message at index ${index}:`, error)
-          return {
-            id: message.id || `unknown-${index}`,
-            content: 'Error processing message',
-            sender: 'Unknown',
-            timestamp: message.createdDateTime || new Date().toISOString(),
-            messageType: 'error',
-            attachments: [],
+            const referenceFiles = await downloadAllReferenceAttachments({
+              accessToken: params.accessToken,
+              attachments,
+              budget,
+            })
+            uploaded.push(...referenceFiles)
+          } catch (_e) {
+            rethrowAttachmentDownloadError(_e, context?.signal)
+            uploaded = []
           }
         }
-      })
-    )
+
+        processedMessages.push({
+          id: messageId,
+          content: content,
+          sender,
+          timestamp: message.createdDateTime,
+          messageType: message.messageType || 'message',
+          attachments,
+          uploadedFiles: uploaded,
+        })
+      } catch (error) {
+        rethrowAttachmentDownloadError(error, context?.signal)
+        logger.error(`Error processing message at index ${index}:`, error)
+        processedMessages.push({
+          id: message.id || `unknown-${index}`,
+          content: 'Error processing message',
+          sender: 'Unknown',
+          timestamp: message.createdDateTime || new Date().toISOString(),
+          messageType: 'error',
+          attachments: [],
+        })
+      }
+    }
 
     const formattedMessages = processedMessages
       .map((message: any) => {

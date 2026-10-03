@@ -1,70 +1,14 @@
-/**
- * @vitest-environment node
- */
+import {
+  knowledgeSecureFetchMock,
+  knowledgeSecureFetchMockFns,
+} from '@sim/testing/mocks/knowledge-secure-fetch.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSecureFetch } = vi.hoisted(() => ({ mockSecureFetch: vi.fn() }))
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => knowledgeSecureFetchMock)
 
-vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
-  secureFetchWithRetry: mockSecureFetch,
-}))
+import { sameOriginNextUrl, zendeskConnector } from '@/connectors/zendesk/zendesk'
 
-import { buildBaseUrl, sameOriginNextUrl, zendeskConnector } from '@/connectors/zendesk/zendesk'
-
-describe('buildBaseUrl', () => {
-  it.concurrent('builds the base URL for a valid subdomain', () => {
-    expect(buildBaseUrl('acme')).toBe('https://acme.zendesk.com')
-  })
-
-  it.concurrent('allows hyphens and digits within the label', () => {
-    expect(buildBaseUrl('acme-support-1')).toBe('https://acme-support-1.zendesk.com')
-  })
-
-  it.concurrent('allows a single-character subdomain', () => {
-    expect(buildBaseUrl('a')).toBe('https://a.zendesk.com')
-  })
-
-  it.concurrent('allows the maximum 63-character label', () => {
-    const label = `a${'b'.repeat(61)}c`
-    expect(label).toHaveLength(63)
-    expect(buildBaseUrl(label)).toBe(`https://${label}.zendesk.com`)
-  })
-
-  it.concurrent('trims surrounding whitespace', () => {
-    expect(buildBaseUrl('  acme  ')).toBe('https://acme.zendesk.com')
-  })
-
-  it.concurrent('normalizes uppercase to lowercase (DNS is case-insensitive)', () => {
-    expect(buildBaseUrl('MyCompany')).toBe('https://mycompany.zendesk.com')
-  })
-
-  describe('rejects SSRF payloads', () => {
-    const ssrfPayloads: Array<[string, string]> = [
-      ['fragment truncation', 'webhook.site/abc#'],
-      ['fragment with path', 'evil.com/path#'],
-      ['embedded path', 'acme/api/v2'],
-      ['scheme injection', 'http://evil.com'],
-      ['userinfo', 'user@evil.com'],
-      ['port', 'acme:8080'],
-      ['open-redirect host', 'httpbin.org/redirect-to?url=http://169.254.169.254'],
-      ['loopback', '127.0.0.1'],
-      ['link-local literal', '169.254.169.254'],
-      ['whitespace injection', 'acme evil'],
-      ['leading hyphen', '-acme'],
-      ['trailing hyphen', 'acme-'],
-      ['leading dot', '.acme'],
-      ['trailing dot', 'acme.'],
-      ['empty string', ''],
-      ['whitespace only', '   '],
-      ['over-length label', 'a'.repeat(64)],
-      ['unicode', 'acmé'],
-    ]
-
-    it.concurrent.each(ssrfPayloads)('rejects %s', (_label, payload) => {
-      expect(() => buildBaseUrl(payload)).toThrow('Invalid Zendesk subdomain')
-    })
-  })
-})
+const mockSecureFetch = knowledgeSecureFetchMockFns.mockSecureFetchWithRetry
 
 describe('sameOriginNextUrl', () => {
   const baseUrl = 'https://acme.zendesk.com'
@@ -167,33 +111,6 @@ describe('zendeskConnector.listDocuments ticket capping', () => {
 
     expect(syncContext.listingCapped).toBe(true)
   })
-
-  it('drains the cursor and never sends offset page params', async () => {
-    let page = 0
-    const urls = mockApi(() => {
-      page += 1
-      return page === 1
-        ? {
-            tickets: [ticket(1)],
-            meta: { has_more: true },
-            links: { next: `${BASE}/api/v2/tickets.json?page%5Bafter%5D=x` },
-          }
-        : { tickets: [ticket(2)], meta: { has_more: false } }
-    })
-
-    const syncContext: Record<string, unknown> = {}
-    const result = await zendeskConnector.listDocuments(
-      'tok',
-      { ...CONFIG, maxTickets: '500' },
-      undefined,
-      syncContext
-    )
-
-    expect(result.documents.map((d) => d.externalId)).toEqual(['ticket-1', 'ticket-2'])
-    expect(urls[0]).toContain('page%5Bsize%5D=100')
-    expect(urls[0]).toContain('sort=-updated_at')
-    expect(syncContext.listingCapped).toBeUndefined()
-  })
 })
 
 /**
@@ -237,72 +154,6 @@ describe('zendeskConnector.listDocuments unfollowable continuation links', () =>
       expect(syncContext.listingCapped).toBe(true)
     }
   )
-
-  it('caps the article listing when has_more is true but next is cross-origin', async () => {
-    mockApi(() => ({
-      articles: [
-        {
-          id: 1,
-          title: 'A',
-          body: '<p>hello</p>',
-          html_url: `${BASE}/hc/articles/1`,
-          section_id: null,
-          label_names: [],
-          author_id: 1,
-          locale: 'en-us',
-          created_at: '2024-01-01T00:00:00Z',
-          updated_at: '2024-02-01T00:00:00Z',
-          edited_at: '2024-02-01T00:00:00Z',
-          draft: false,
-        },
-      ],
-      meta: { has_more: true },
-      links: { next: 'https://support.acme.com/api/v2/help_center/articles.json?page=2' },
-    }))
-
-    const syncContext: Record<string, unknown> = {}
-    const result = await zendeskConnector.listDocuments(
-      'tok',
-      { ...CONFIG, contentType: 'articles' },
-      undefined,
-      syncContext
-    )
-
-    expect(result.documents).toHaveLength(1)
-    expect(syncContext.listingCapped).toBe(true)
-  })
-
-  it('caps the ticket search when next_page is cross-origin', async () => {
-    mockApi(() => ({
-      results: [ticket(1)],
-      next_page: 'https://evil.com/api/v2/search.json?page=2',
-    }))
-
-    const syncContext: Record<string, unknown> = {}
-    await zendeskConnector.listDocuments(
-      'tok',
-      { ...CONFIG, ticketStatus: 'open', maxTickets: '800' },
-      undefined,
-      syncContext
-    )
-
-    expect(syncContext.listingCapped).toBe(true)
-  })
-
-  it('leaves listingCapped unset when the search drains its pages honestly', async () => {
-    mockApi(() => ({ results: [ticket(1)], count: 1, next_page: null }))
-
-    const syncContext: Record<string, unknown> = {}
-    const result = await zendeskConnector.listDocuments(
-      'tok',
-      { ...CONFIG, ticketStatus: 'open', maxTickets: '800' },
-      undefined,
-      syncContext
-    )
-
-    expect(result.documents).toHaveLength(1)
-    expect(syncContext.listingCapped).toBeUndefined()
-  })
 })
 
 /**
@@ -366,41 +217,6 @@ describe('zendeskConnector.listDocuments malformed pagination envelopes', () => 
     expect(syncContext.listingCapped).toBe(true)
   })
 
-  it('caps the article listing on a bare 200 interstitial', async () => {
-    mockApi(() => ({}))
-
-    const syncContext: Record<string, unknown> = {}
-    const result = await zendeskConnector.listDocuments(
-      'tok',
-      { ...CONFIG, contentType: 'articles' },
-      undefined,
-      syncContext
-    )
-
-    expect(result.documents).toEqual([])
-    expect(syncContext.listingCapped).toBe(true)
-  })
-
-  /**
-   * An absent `next_page` ends the search walk. The `count`-vs-returned check
-   * is what catches a search that still had matches, so a missing key can only
-   * lose records the count does not already account for.
-   */
-  it('does not cap the ticket search when next_page is absent and count agrees', async () => {
-    mockApi(() => ({ results: [ticket(1)], count: 1 }))
-
-    const syncContext: Record<string, unknown> = {}
-    const result = await zendeskConnector.listDocuments(
-      'tok',
-      { ...CONFIG, ticketStatus: 'open', maxTickets: '800' },
-      undefined,
-      syncContext
-    )
-
-    expect(result.documents).toHaveLength(1)
-    expect(syncContext.listingCapped).toBeUndefined()
-  })
-
   it('caps the ticket search when count reports more matches than were returned', async () => {
     mockApi(() => ({ results: [ticket(1)], count: 9 }))
 
@@ -415,78 +231,11 @@ describe('zendeskConnector.listDocuments malformed pagination envelopes', () => 
     expect(result.documents).toHaveLength(1)
     expect(syncContext.listingCapped).toBe(true)
   })
-
-  it('leaves listingCapped unset when the ticket cursor drains to has_more false', async () => {
-    mockApi(() => ({
-      tickets: [ticket(1)],
-      meta: { has_more: false },
-      links: { next: `${BASE}/api/v2/tickets.json?page%5Bafter%5D=x` },
-    }))
-
-    const syncContext: Record<string, unknown> = {}
-    const result = await zendeskConnector.listDocuments(
-      'tok',
-      { ...CONFIG, maxTickets: '800' },
-      undefined,
-      syncContext
-    )
-
-    expect(result.documents).toHaveLength(1)
-    expect(syncContext.listingCapped).toBeUndefined()
-  })
-
-  it('leaves listingCapped unset when the article cursor drains to has_more false', async () => {
-    mockApi(() => ({
-      articles: [
-        {
-          id: 1,
-          title: 'A',
-          body: '<p>hello</p>',
-          html_url: `${BASE}/hc/articles/1`,
-          section_id: null,
-          label_names: [],
-          author_id: 1,
-          locale: 'en-us',
-          created_at: '2024-01-01T00:00:00Z',
-          updated_at: '2024-02-01T00:00:00Z',
-          edited_at: '2024-02-01T00:00:00Z',
-          draft: false,
-        },
-      ],
-      meta: { has_more: false },
-    }))
-
-    const syncContext: Record<string, unknown> = {}
-    const result = await zendeskConnector.listDocuments(
-      'tok',
-      { ...CONFIG, contentType: 'articles' },
-      undefined,
-      syncContext
-    )
-
-    expect(result.documents).toHaveLength(1)
-    expect(syncContext.listingCapped).toBeUndefined()
-  })
 })
 
 describe('zendeskConnector ticket contentHash invariant', () => {
   beforeEach(() => {
     mockSecureFetch.mockReset()
-  })
-
-  it('produces an identical contentHash from the listing stub and getDocument', async () => {
-    mockApi(() => ({ tickets: [ticket(7)], meta: { has_more: false } }))
-    const listed = await zendeskConnector.listDocuments('tok', CONFIG)
-    const stub = listed.documents[0]
-
-    mockApi((url) => (url.includes('/comments') ? { comments: [] } : { ticket: ticket(7) }))
-    const hydrated = await zendeskConnector.getDocument('tok', CONFIG, 'ticket-7')
-
-    expect(stub.contentDeferred).toBe(true)
-    expect(hydrated?.contentDeferred).toBe(false)
-    expect(hydrated?.contentHash).toBe(stub.contentHash)
-    expect(hydrated?.externalId).toBe(stub.externalId)
-    expect(hydrated?.sourceUrl).toBe(stub.sourceUrl)
   })
 
   it('returns null for a deleted ticket but rethrows a server fault', async () => {

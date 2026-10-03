@@ -1,16 +1,37 @@
 /** @vitest-environment node */
-import { describe, expect, it, vi } from 'vitest'
-import { pollOracleEpmJob } from '@/lib/internal/oracle-epm/jobs'
+
+import { inputValidationMock } from '@sim/testing/mocks/input-validation.mock'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  type OracleEpmPollClassification,
+  type OracleEpmPollOptions,
+  type OracleEpmPollResult,
+  pollOracleEpmJob,
+} from '@/lib/internal/oracle-epm'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 describe('pollOracleEpmJob', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.spyOn(AbortSignal, 'timeout').mockImplementation((milliseconds) => {
+      const controller = new AbortController()
+      setTimeout(() => controller.abort(new DOMException('deadline', 'TimeoutError')), milliseconds)
+      return controller.signal
+    })
+  })
+
+  afterEach(() => vi.useRealTimers())
+
   it('leaves status interpretation and result extraction to the child', async () => {
+    type Snapshot = { status: 'RUNNING' } | { status: 'DONE'; value: number }
     const read = vi
-      .fn()
+      .fn<OracleEpmPollOptions<Snapshot, number, never>['read']>()
       .mockResolvedValueOnce({ status: 'RUNNING' })
       .mockResolvedValueOnce({ status: 'DONE', value: 42 })
-    const result = await pollOracleEpmJob({
+    const pending: Promise<OracleEpmPollResult<number, never>> = pollOracleEpmJob({
       read,
-      classify: (snapshot) =>
+      classify: (snapshot): OracleEpmPollClassification<number, never> =>
         snapshot.status === 'DONE'
           ? { state: 'success' as const, result: snapshot.value }
           : { state: 'pending' as const },
@@ -20,7 +41,8 @@ describe('pollOracleEpmJob', () => {
       initialDelayMs: 1,
       maxDelayMs: 1,
     })
-    expect(result).toEqual({ state: 'success', result: 42, attempts: 2 })
+    await vi.advanceTimersByTimeAsync(1)
+    expect(await pending).toEqual({ state: 'success', result: 42, attempts: 2 })
   })
 
   it('returns child-owned terminal failures unchanged', async () => {
@@ -95,7 +117,7 @@ describe('pollOracleEpmJob', () => {
   it('enforces the scheduler deadline when a child read ignores cancellation', async () => {
     let readSignal: AbortSignal | undefined
     const startedAt = Date.now()
-    await expect(
+    const pending = expect(
       pollOracleEpmJob({
         read: async (signal) => {
           readSignal = signal
@@ -109,7 +131,9 @@ describe('pollOracleEpmJob', () => {
         maxDelayMs: 1,
       })
     ).rejects.toMatchObject({ name: 'TimeoutError' })
-    expect(Date.now() - startedAt).toBeLessThan(500)
+    await vi.advanceTimersByTimeAsync(30)
+    await pending
+    expect(Date.now() - startedAt).toBe(30)
     expect(readSignal?.aborted).toBe(true)
   })
 

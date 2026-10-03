@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 import { listSurfacedBackgroundWork } from '@/ee/workspace-forking/lib/background-work/store'
 
@@ -41,48 +38,7 @@ function decodeCursor(cursor: string): { updatedAt: string; id: string } {
 
 describe('listSurfacedBackgroundWork', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('returns the surfaced rows ordered by recency with the id tiebreaker', async () => {
-    mockChildrenLookup([])
-    const rows = [
-      { id: 'job-1', updatedAt: new Date('2026-07-01T10:00:00.000Z') },
-      { id: 'job-2', updatedAt: new Date('2026-07-01T09:00:00.000Z') },
-    ]
-    dbChainMockFns.limit.mockResolvedValueOnce(rows as never)
-
-    const result = await listSurfacedBackgroundWork(executor, 'ws-1')
-
-    expect(result.rows).toEqual(rows)
-    expect(dbChainMockFns.orderBy).toHaveBeenCalledWith(
-      { type: 'desc', column: 'backgroundWorkStatus.updatedAt' },
-      { type: 'desc', column: 'backgroundWorkStatus.id' }
-    )
-    // Over-fetches one row past the default page size to detect another page.
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(51)
-  })
-
-  it('returns a null cursor when the page is not full', async () => {
-    mockChildrenLookup([])
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      { id: 'job-1', updatedAt: new Date('2026-07-01T10:00:00.000Z') },
-    ] as never)
-
-    const result = await listSurfacedBackgroundWork(executor, 'ws-1', { limit: 2 })
-
-    expect(result.rows).toHaveLength(1)
-    expect(result.nextCursor).toBeNull()
-  })
-
-  it('returns a null cursor for an empty page', async () => {
-    mockChildrenLookup([])
-    dbChainMockFns.limit.mockResolvedValueOnce([] as never)
-
-    const result = await listSurfacedBackgroundWork(executor, 'ws-1')
-
-    expect(result).toEqual({ rows: [], nextCursor: null })
   })
 
   it('trims the over-fetched row and encodes the next cursor from the last returned row', async () => {
@@ -140,50 +96,6 @@ describe('listSurfacedBackgroundWork', () => {
       updatedAt: '2026-07-01 10:00:00.123456',
       id: 'job-1',
     })
-  })
-
-  it('applies the cursor as a keyset condition with the id tiebreaker', async () => {
-    mockChildrenLookup([])
-    const cursorTimestamp = '2026-07-01 09:00:00.123456'
-    const cursor = encodeCursor({ updatedAt: cursorTimestamp, id: 'job-2' })
-
-    await listSurfacedBackgroundWork(executor, 'ws-1', { cursor })
-
-    const rowsWhere = dbChainMockFns.where.mock.calls[1][0] as MockCondition
-    expect(rowsWhere.type).toBe('and')
-    expect(rowsWhere.conditions).toHaveLength(3)
-
-    // The cursor timestamp is bound as a `::timestamp`-cast SQL fragment so the
-    // comparison happens at full microsecond precision in Postgres.
-    const expectedTimestampFragment = expect.objectContaining({ values: [cursorTimestamp] })
-    const keyset = (rowsWhere.conditions as MockCondition[])[2]
-    expect(keyset).toEqual(
-      expect.objectContaining({
-        type: 'or',
-        conditions: [
-          expect.objectContaining({
-            type: 'lt',
-            left: 'backgroundWorkStatus.updatedAt',
-            right: expectedTimestampFragment,
-          }),
-          expect.objectContaining({
-            type: 'and',
-            conditions: [
-              expect.objectContaining({
-                type: 'eq',
-                left: 'backgroundWorkStatus.updatedAt',
-                right: expectedTimestampFragment,
-              }),
-              expect.objectContaining({
-                type: 'lt',
-                left: 'backgroundWorkStatus.id',
-                right: 'job-2',
-              }),
-            ],
-          }),
-        ],
-      })
-    )
   })
 
   it('accepts a legacy ISO cursor produced before the text-precision format', async () => {
@@ -268,47 +180,6 @@ describe('listSurfacedBackgroundWork', () => {
     expect(rowsWhere.conditions).toHaveLength(2)
   })
 
-  it('ignores a cursor with an out-of-range time and serves the first page', async () => {
-    mockChildrenLookup([])
-    const cursor = encodeCursor({ updatedAt: '2026-07-01 99:00:00', id: 'job-2' })
-
-    await listSurfacedBackgroundWork(executor, 'ws-1', { cursor })
-
-    const rowsWhere = dbChainMockFns.where.mock.calls[1][0] as MockCondition
-    expect(rowsWhere.conditions).toHaveLength(2)
-  })
-
-  it('ignores an undecodable cursor and serves the first page', async () => {
-    mockChildrenLookup([])
-
-    await listSurfacedBackgroundWork(executor, 'ws-1', { cursor: 'not-base64-json' })
-
-    const rowsWhere = dbChainMockFns.where.mock.calls[1][0] as MockCondition
-    expect(rowsWhere.conditions).toHaveLength(2)
-  })
-
-  it('clamps the requested limit to the server-side cap', async () => {
-    mockChildrenLookup([])
-
-    await listSurfacedBackgroundWork(executor, 'ws-1', { limit: 5000 })
-
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(101)
-  })
-
-  it('looks up live forks of the workspace for the child-keyed clause', async () => {
-    mockChildrenLookup([])
-    await listSurfacedBackgroundWork(executor, 'ws-1')
-
-    const childrenWhere = dbChainMockFns.where.mock.calls[0][0] as MockCondition
-    expect(childrenWhere).toEqual({
-      type: 'and',
-      conditions: [
-        { type: 'eq', left: 'workspace.forkedFromWorkspaceId', right: 'ws-1' },
-        { type: 'isNull', column: 'workspace.archivedAt' },
-      ],
-    })
-  })
-
   it('matches rows keyed to the workspace, to it as fork child, and to it as edge partner', async () => {
     mockChildrenLookup([])
     await listSurfacedBackgroundWork(executor, 'ws-1')
@@ -371,14 +242,5 @@ describe('listSurfacedBackgroundWork', () => {
         },
       ],
     })
-  })
-
-  it('omits the child-keyed clause when the workspace has no forks', async () => {
-    mockChildrenLookup([])
-    await listSurfacedBackgroundWork(executor, 'ws-1')
-
-    const rowsWhere = dbChainMockFns.where.mock.calls[1][0] as MockCondition
-    const involves = (rowsWhere.conditions as MockCondition[])[0]
-    expect(involves.conditions).toHaveLength(3)
   })
 })

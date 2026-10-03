@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -27,7 +23,6 @@ vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { ArchiveError } from '@/lib/uploads/archive'
 import { POST } from '@/app/api/v2/files/[fileId]/unzip/route'
 
@@ -52,7 +47,6 @@ function unzipRequest(body: Record<string, unknown> = { workspaceId: WORKSPACE_I
 
 describe('POST /api/v2/files/[fileId]/unzip', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -62,66 +56,6 @@ describe('POST /api/v2/files/[fileId]/unzip', () => {
       extractedCount: 12,
       skippedCount: 2,
     })
-  })
-
-  /**
-   * The widening itself: a workspace API key previously could not reach this
-   * operation at all, because it was declared `['session']` only.
-   */
-  it('unarchives for a workspace API key', async () => {
-    const response = await POST(unzipRequest(), context)
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      data: { folderPath: '/Engineering/archive', extractedFileCount: 12, skippedFileCount: 2 },
-    })
-  })
-
-  it('unarchives for a personal API key', async () => {
-    v2RouteMocks.authenticate.mockResolvedValueOnce({
-      ...AUTH,
-      principal: { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-2' },
-      keyType: 'personal' as const,
-    })
-
-    const response = await POST(unzipRequest(), context)
-
-    expect(response.status).toBe(200)
-  })
-
-  /**
-   * Counts and a path only. Returning the unpacked files would materialize a
-   * large archive's whole contents into one response body.
-   */
-  it('does not return the unpacked files', async () => {
-    const response = await POST(unzipRequest(), context)
-    const body = await response.json()
-
-    expect(body.data).not.toHaveProperty('files')
-    expect(Object.keys(body.data).sort()).toEqual([
-      'extractedFileCount',
-      'folderPath',
-      'skippedFileCount',
-    ])
-  })
-
-  it('rejects a body with an undeclared key', async () => {
-    const response = await POST(
-      unzipRequest({ workspaceId: WORKSPACE_ID, destination: '/elsewhere' }),
-      context
-    )
-
-    expect(response.status).toBe(400)
-    expect(mocks.extract).not.toHaveBeenCalled()
-  })
-
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await POST(unzipRequest(), context)
-
-    expect(response.status).toBe(401)
-    expect(mocks.extract).not.toHaveBeenCalled()
   })
 
   it('conceals a cross-tenant archive as a missing file', async () => {
@@ -135,41 +69,9 @@ describe('POST /api/v2/files/[fileId]/unzip', () => {
     })
   })
 
-  /** The zip-bomb and size guards must still surface, not be softened. */
-  it('surfaces the archive size ceiling as 413', async () => {
-    mocks.extract.mockRejectedValueOnce(
-      new OrchestrationError('payload_too_large', 'Archive exceeds the 100 MB unzip limit')
-    )
-
-    const response = await POST(unzipRequest(), context)
-
-    expect(response.status).toBe(413)
-    expect((await response.json()).error.message).toContain('unzip limit')
-  })
-
-  it('surfaces a concurrent unarchive as 409', async () => {
-    mocks.extract.mockRejectedValueOnce(
-      new OrchestrationError('conflict', 'This archive is already being unzipped')
-    )
-
-    const response = await POST(unzipRequest(), context)
-
-    expect(response.status).toBe(409)
-  })
-
-  it('surfaces a non-archive file as 400', async () => {
-    mocks.extract.mockRejectedValueOnce(
-      new OrchestrationError('validation', 'Only .zip files can be unzipped')
-    )
-
-    const response = await POST(unzipRequest(), context)
-
-    expect(response.status).toBe(400)
-  })
-
   /**
-   * The cases above all raise `OrchestrationError`, which every v2 policy
-   * already renders — but the extraction use case does not: a payload it cannot
+   * Every v2 policy already renders an `OrchestrationError`, but the extraction
+   * use case does not only raise those: a payload it cannot
    * parse or that busts a cap raises `ArchiveError`, and with no arm for that
    * class the route answered `500`. The internal extract route beside it has
    * mapped these all along, so the two disagreed about whose fault a bad

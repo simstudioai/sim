@@ -1,8 +1,9 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, drizzleOrmMock, resetDbChainMock, schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { permissionsMock } from '@sim/testing/mocks/permissions.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+
 import { listCredentialMembershipsForUser } from '@/lib/credentials/members'
 
 describe('listCredentialMembershipsForUser', () => {

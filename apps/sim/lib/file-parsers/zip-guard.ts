@@ -29,18 +29,18 @@ const LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50
 const EOCD_SIGNATURE = 0x06054b50
 const ZIP64_EOCD_LOCATOR_SIGNATURE = 0x07064b50
 const ZIP64_EOCD_SIGNATURE = 0x06064b50
-const CENTRAL_DIRECTORY_HEADER_SIGNATURE = 0x02014b50
+export const CENTRAL_DIRECTORY_HEADER_SIGNATURE = 0x02014b50
 const ZIP64_EXTRA_FIELD_ID = 0x0001
 
-const EOCD_MIN_SIZE = 22
+export const EOCD_MIN_SIZE = 22
 const ZIP64_EOCD_LOCATOR_SIZE = 20
-const CENTRAL_DIRECTORY_HEADER_MIN_SIZE = 46
-const LOCAL_FILE_HEADER_MIN_SIZE = 30
+export const CENTRAL_DIRECTORY_HEADER_MIN_SIZE = 46
+export const LOCAL_FILE_HEADER_MIN_SIZE = 30
 const MAX_EOCD_COMMENT_SIZE = 0xffff
 const UINT32_SENTINEL = 0xffffffff
 const UINT16_SENTINEL = 0xffff
 
-const COMPRESSION_METHOD_STORED = 0
+export const COMPRESSION_METHOD_STORED = 0
 const COMPRESSION_METHOD_DEFLATE = 8
 
 /** General-purpose bit 3: sizes live in a trailing data descriptor, not the local header. */
@@ -99,7 +99,7 @@ export function isZipShaped(buffer: Buffer): boolean {
  * at the buffer tail, so a decoy EOCD signature planted in the comment region
  * cannot redirect the guard to a smaller, attacker-chosen central directory.
  */
-function findEocdOffset(buffer: Buffer): number {
+export function findEocdOffset(buffer: Buffer): number {
   const minStart = Math.max(0, buffer.length - EOCD_MIN_SIZE - MAX_EOCD_COMMENT_SIZE)
   for (let offset = buffer.length - EOCD_MIN_SIZE; offset >= minStart; offset--) {
     if (buffer.readUInt32LE(offset) !== EOCD_SIGNATURE) {
@@ -113,7 +113,7 @@ function findEocdOffset(buffer: Buffer): number {
   return -1
 }
 
-interface CentralDirectoryLocation {
+export interface CentralDirectoryLocation {
   offset: number
   entryCount: number
 }
@@ -122,7 +122,7 @@ interface CentralDirectoryLocation {
  * Resolve the central directory offset and entry count, following the ZIP64
  * end-of-central-directory chain when the 32-bit fields are saturated.
  */
-function locateCentralDirectory(
+export function locateCentralDirectory(
   buffer: Buffer,
   eocdOffset: number
 ): CentralDirectoryLocation | null {

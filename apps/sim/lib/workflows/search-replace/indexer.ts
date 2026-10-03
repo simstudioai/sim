@@ -47,6 +47,7 @@ import {
 } from '@/lib/workflows/subblocks/visibility'
 import { isSyntheticToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
 import { type ParsedStoredTool, parseStoredToolInputValue } from '@/lib/workflows/tool-input/types'
+import { getAgentToolUsageControlMode } from '@/lib/workflows/tool-input/usage-control'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { isReference } from '@/executor/constants'
@@ -209,6 +210,10 @@ function isSearchableLeafPath(
   const lastSegment = path.at(-1)
   if (typeof lastSegment !== 'string') return true
   if (mode === 'text' && subBlockType === 'messages-input' && lastSegment === 'role') {
+    return false
+  }
+  /** A fallback row's key is a `{{VAR}}` reference; rewriting it would turn it into a raw value. */
+  if (mode === 'text' && subBlockType === 'model-fallback-list' && lastSegment === 'apiKey') {
     return false
   }
   if (mode === 'text' && subBlockType === 'tool-input') {
@@ -954,24 +959,35 @@ function addToolInputMatches({
       })
     }
 
-    const params = getToolInputParamConfigs({
-      tool,
-      toolIndex,
-      parentCanonicalModes,
-      credentialTypeById,
-      blockConfigs,
-    })
+    const params: Array<ResolvedToolInputParamConfig & { valuePath: WorkflowSearchValuePath }> =
+      getToolInputParamConfigs({
+        tool,
+        toolIndex,
+        parentCanonicalModes,
+        credentialTypeById,
+        blockConfigs,
+      }).map((param) => ({ ...param, valuePath: [toolIndex, 'params', param.paramId] }))
+
+    if (getAgentToolUsageControlMode(toolIndex, parentCanonicalModes) === 'advanced') {
+      params.unshift({
+        paramId: 'usageControlExpression',
+        config: { id: 'usageControlExpression', title: 'Permission Mode', type: 'short-input' },
+        value: tool.usageControlExpression,
+        valuePath: [toolIndex, 'usageControlExpression'],
+        authoritative: false,
+      })
+    }
 
     for (const {
       paramId,
       config,
       value: paramValue,
+      valuePath: basePath,
       selectorContext,
       dependentValuePaths,
     } of params) {
       const subBlockType = config.type
       const structuredResourceKind = getResourceKindForSubBlock(config)
-      const basePath: WorkflowSearchValuePath = [toolIndex, 'params', paramId]
       const nestedDependentValuePaths = dependentValuePaths?.map((path) => [toolIndex, ...path])
 
       if (mode !== 'resource' && !structuredResourceKind) {

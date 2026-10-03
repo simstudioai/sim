@@ -7,11 +7,13 @@ import type {
   ResourcePolicyPrincipalType,
 } from '@/lib/resource-policies/principals/types'
 import { workflowResourcePolicyPrincipalDefinition } from '@/lib/resource-policies/principals/workflow'
+import { workspaceResourcePolicyPrincipalDefinition } from '@/lib/resource-policies/principals/workspace'
 
 export const RESOURCE_POLICY_PRINCIPAL_DEFINITIONS = Object.freeze({
   credential_group_actor: credentialGroupActorResourcePolicyPrincipalDefinition,
   knowledge_connector: knowledgeConnectorResourcePolicyPrincipalDefinition,
   workflow: workflowResourcePolicyPrincipalDefinition,
+  workspace: workspaceResourcePolicyPrincipalDefinition,
 } as const satisfies Record<ResourcePolicyPrincipalType, ResourcePolicyPrincipalDefinition>)
 
 export function getResourcePolicyPrincipalDefinition(

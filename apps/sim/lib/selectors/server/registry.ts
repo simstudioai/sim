@@ -8,7 +8,9 @@ import { bitbucketSelectorAttachments } from '@/lib/selectors/server/providers/b
 import { calcomSelectorAttachments } from '@/lib/selectors/server/providers/calcom'
 import { clickupSelectorAttachments } from '@/lib/selectors/server/providers/clickup'
 import { cloudWatchSelectorAttachments } from '@/lib/selectors/server/providers/cloudwatch'
+import { codaSelectorAttachments } from '@/lib/selectors/server/providers/coda'
 import { confluenceSelectorAttachments } from '@/lib/selectors/server/providers/confluence'
+import { githubSelectorAttachments } from '@/lib/selectors/server/providers/github'
 import { googleSelectorAttachments } from '@/lib/selectors/server/providers/google'
 import { harmonicSelectorAttachments } from '@/lib/selectors/server/providers/harmonic'
 import { hubspotSelectorAttachments } from '@/lib/selectors/server/providers/hubspot'
@@ -17,12 +19,15 @@ import { jiraSelectorAttachments } from '@/lib/selectors/server/providers/jira'
 import { jsmSelectorAttachments } from '@/lib/selectors/server/providers/jsm'
 import { linearSelectorAttachments } from '@/lib/selectors/server/providers/linear'
 import { managedAgentSelectorAttachments } from '@/lib/selectors/server/providers/managed-agent'
+import { mcpSelectorAttachments } from '@/lib/selectors/server/providers/mcp'
 import { microsoftSelectorAttachments } from '@/lib/selectors/server/providers/microsoft'
 import { mondaySelectorAttachments } from '@/lib/selectors/server/providers/monday'
 import { netsuiteSelectorAttachments } from '@/lib/selectors/server/providers/netsuite'
 import { notionSelectorAttachments } from '@/lib/selectors/server/providers/notion'
 import { oracleEpmFccsSelectorAttachments } from '@/lib/selectors/server/providers/oracle-epm-fccs'
 import { pipedriveSelectorAttachments } from '@/lib/selectors/server/providers/pipedrive'
+import { planetScaleSelectorAttachments } from '@/lib/selectors/server/providers/planetscale'
+import { powerBISelectorAttachments } from '@/lib/selectors/server/providers/powerbi'
 import { sharepointSelectorAttachments } from '@/lib/selectors/server/providers/sharepoint'
 import { slackSelectorAttachments } from '@/lib/selectors/server/providers/slack'
 import { snowflakeSelectorAttachments } from '@/lib/selectors/server/providers/snowflake'
@@ -35,6 +40,7 @@ import type { ServerSelectorAttachment } from '@/lib/selectors/server/types'
 
 export const serverSelectorRegistry = {
   ...internalSelectorAttachments,
+  ...mcpSelectorAttachments,
   ...airtableSelectorAttachments,
   ...asanaSelectorAttachments,
   ...attioSelectorAttachments,
@@ -43,8 +49,10 @@ export const serverSelectorRegistry = {
   ...calcomSelectorAttachments,
   ...clickupSelectorAttachments,
   ...cloudWatchSelectorAttachments,
+  ...codaSelectorAttachments,
   ...confluenceSelectorAttachments,
   ...googleSelectorAttachments,
+  ...githubSelectorAttachments,
   ...harmonicSelectorAttachments,
   ...hubspotSelectorAttachments,
   ...imapSelectorAttachments,
@@ -58,6 +66,8 @@ export const serverSelectorRegistry = {
   ...notionSelectorAttachments,
   ...oracleEpmFccsSelectorAttachments,
   ...pipedriveSelectorAttachments,
+  ...planetScaleSelectorAttachments,
+  ...powerBISelectorAttachments,
   ...sharepointSelectorAttachments,
   ...slackSelectorAttachments,
   ...snowflakeSelectorAttachments,

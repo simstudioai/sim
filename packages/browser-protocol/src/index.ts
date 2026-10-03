@@ -25,25 +25,34 @@ export const CURRENT_BROWSER_TOOL_NAMES = [
   'browser_open_url',
   'browser_go_back',
   'browser_go_forward',
+  'browser_reload',
   'browser_open_tab',
   'browser_switch_tab',
   'browser_close_tab',
   'browser_list_tabs',
   'browser_list_sessions',
+  'browser_list_downloads',
+  'browser_save_download',
   'browser_wait_for',
   'browser_snapshot',
+  'browser_find',
   'browser_read_text',
   'browser_screenshot',
   'browser_extract',
   'browser_click',
   'browser_click_at',
   'browser_type',
+  'browser_fill_form',
+  'browser_batch',
   'browser_insert_text',
   'browser_press_key',
   'browser_scroll',
   'browser_select_option',
+  'browser_set_checked',
+  'browser_upload_file',
   'browser_hover',
   'browser_drag',
+  'browser_zoom',
 ] as const
 
 export type CurrentBrowserToolName = (typeof CURRENT_BROWSER_TOOL_NAMES)[number]
@@ -71,6 +80,16 @@ export const BROWSER_NAVIGATION_RENDERER_TIMEOUT_MS =
   BROWSER_RENDERER_TRANSPORT_GRACE_MS
 
 /**
+ * The desktop exchanges browser-agent file bytes with the app here: POST streams a file named by
+ * a claimed `browser_upload_file` call, PUT stores a completed download for `browser_save_download`.
+ */
+export const BROWSER_FILE_TRANSFER_PATH = '/api/desktop/tool/file'
+/** Per-file byte ceiling for browser uploads and saved downloads, enforced on both sides. */
+export const BROWSER_FILE_TRANSFER_MAX_BYTES = 100 * 1024 * 1024
+/** Files one `browser_upload_file` call may attach. */
+export const BROWSER_UPLOAD_MAX_FILES = 10
+
+/**
  * Normalizes the model-visible `browser_wait_for.timeoutMs` consistently in
  * the renderer and desktop main process.
  */
@@ -83,6 +102,34 @@ export function normalizeBrowserWaitForTimeoutMs(value: unknown): number {
         : Number.NaN
   if (!Number.isFinite(parsed) || parsed <= 0) return BROWSER_WAIT_FOR_DEFAULT_TIMEOUT_MS
   return Math.min(parsed, BROWSER_WAIT_FOR_MAX_TIMEOUT_MS)
+}
+
+/** Client execution budget, including authorization, native queueing, and result delivery. */
+export function browserToolRendererTimeoutMs(
+  tool: CurrentBrowserToolName,
+  params: Record<string, unknown> = {}
+): number {
+  switch (tool) {
+    case 'browser_navigate':
+    case 'browser_open_url':
+    case 'browser_go_back':
+    case 'browser_go_forward':
+    case 'browser_reload':
+    case 'browser_open_tab':
+    case 'browser_switch_tab':
+    case 'browser_upload_file':
+    case 'browser_save_download':
+    case 'browser_batch':
+      return BROWSER_NAVIGATION_RENDERER_TIMEOUT_MS
+    case 'browser_wait_for':
+      return (
+        BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS +
+        normalizeBrowserWaitForTimeoutMs(params.timeoutMs) +
+        BROWSER_WAIT_FOR_RENDERER_GRACE_MS
+      )
+    default:
+      return BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS + 30_000
+  }
 }
 
 export const BROWSER_THEMES = ['system', 'light', 'dark'] as const
@@ -184,10 +231,11 @@ export interface BrowserPanelSnapshot {
 
 /**
  * Browser-chrome commands from the panel header (URL bar, back/forward,
- * reload) plus the legacy `takeover-done` action retained for persisted
- * `browser_request_takeover` cards. Page interactions need no protocol — the
- * user acts on the real embedded page directly, and its right-click menu is
- * native and lives entirely in the shell.
+ * reload), the resource tab strip (`switch-tab`, `close-tab`), plus the legacy
+ * `takeover-done` action retained for persisted `browser_request_takeover`
+ * cards. Page interactions need no protocol — the user acts on the real
+ * embedded page directly, and its right-click menu is native and lives
+ * entirely in the shell.
  */
 export interface BrowserPanelAction {
   action:
@@ -195,8 +243,8 @@ export interface BrowserPanelAction {
     | 'reload'
     | 'back'
     | 'forward'
+    /** Fallback for installed shells that predate the acknowledged `openTab` bridge call. */
     | 'new-tab'
-    | 'duplicate-tab'
     | 'switch-tab'
     | 'close-tab'
     | 'print'
@@ -204,12 +252,19 @@ export interface BrowserPanelAction {
     | 'zoom-out'
     | 'zoom-reset'
     | 'respond-media-permission'
+    /** Compatibility response for installed shells with the retired navigation gate. */
     | 'respond-site-permission'
     | 'takeover-done'
   /** Absolute URL for `navigate` (typed into the panel's URL bar). */
   url?: string
-  /** Stable tab id for `duplicate-tab`, `switch-tab`, and `close-tab`. */
+  /** Stable tab id for `switch-tab` and `close-tab`. */
   tabId?: string
+  /**
+   * `switch-tab` only: false when the switch mirrors a selection made outside
+   * the page (the resource strip), so it must not count as the user claiming
+   * the page from the agent. Older shells treat every switch as a claim.
+   */
+  claim?: boolean
   /** Optional free-text instruction submitted with `takeover-done`. */
   takeoverResponse?: string
   /** Exact pending permission request being answered. */
@@ -227,7 +282,7 @@ export interface BrowserMediaPermissionRequest {
   devices: BrowserMediaDevice[]
 }
 
-/** One ungranted top-level origin transition awaiting explicit user consent. */
+/** Legacy navigation request emitted only by installed shells with per-task site consent. */
 export interface BrowserSitePermissionRequest {
   requestId: string
   /** Exact tab whose suspended request will be resumed or cancelled. */
@@ -250,7 +305,7 @@ export interface BrowserPageState {
   issue?: BrowserPageIssue
   /** Main-frame media request awaiting a renderer-owned permission prompt. */
   mediaPermissionRequest?: BrowserMediaPermissionRequest
-  /** Ungranted top-level origin transition awaiting a renderer-owned permission prompt. */
+  /** Legacy request from installed shells that still require a site-origin prompt. */
   sitePermissionRequest?: BrowserSitePermissionRequest
 }
 
@@ -320,8 +375,6 @@ export interface BrowserTabState {
   active: boolean
   /** Recoverable problem currently replacing this tab's native page surface. */
   issue?: BrowserPageIssue
-  /** Pinned tabs are ordered before regular tabs and cannot be closed. */
-  pinned: boolean
 }
 
 /** Complete live tab list pushed by the desktop shell. */

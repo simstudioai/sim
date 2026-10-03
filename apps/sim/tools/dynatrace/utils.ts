@@ -1,4 +1,4 @@
-import { toRecord, toRecordOrNull } from '@sim/utils/object'
+import { toArray, toRecord, toRecordOrNull } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import type {
   DynatraceAttack,
@@ -157,14 +157,6 @@ export async function readJsonBody(response: Response): Promise<Record<string, u
   }
 }
 
-function toRecordArray(value: unknown): Array<Record<string, unknown>> {
-  return Array.isArray(value) ? (value as Array<Record<string, unknown>>) : []
-}
-
-function toStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? (value as string[]) : []
-}
-
 /** Flattens an `EntityStub` (`{ entityId: { id, type }, name }`) into a single object. */
 export function mapEntityStub(stub: unknown): DynatraceEntityStub | null {
   const record = toRecordOrNull(stub)
@@ -178,14 +170,14 @@ export function mapEntityStub(stub: unknown): DynatraceEntityStub | null {
 }
 
 function mapEntityStubs(value: unknown): DynatraceEntityStub[] {
-  return toRecordArray(value)
+  return toArray<Record<string, unknown>>(value)
     .map(mapEntityStub)
     .filter((stub): stub is DynatraceEntityStub => stub !== null)
 }
 
 /** Maps a `METag` list. */
 export function mapTags(value: unknown): DynatraceTag[] {
-  return toRecordArray(value).map((tag) => ({
+  return toArray<Record<string, unknown>>(value).map((tag) => ({
     context: (tag.context as string) ?? null,
     key: (tag.key as string) ?? null,
     value: (tag.value as string) ?? null,
@@ -195,14 +187,14 @@ export function mapTags(value: unknown): DynatraceTag[] {
 
 /** Maps a management zone list. */
 export function mapManagementZones(value: unknown): DynatraceManagementZone[] {
-  return toRecordArray(value).map((zone) => ({
+  return toArray<Record<string, unknown>>(value).map((zone) => ({
     id: (zone.id as string) ?? null,
     name: (zone.name as string) ?? null,
   }))
 }
 
 function mapProblemFilters(value: unknown): DynatraceProblemFilter[] {
-  return toRecordArray(value).map((filter) => ({
+  return toArray<Record<string, unknown>>(value).map((filter) => ({
     id: (filter.id as string) ?? null,
     name: (filter.name as string) ?? null,
   }))
@@ -275,19 +267,23 @@ export function mapEntityType(value: Record<string, unknown>): DynatraceEntityTy
     displayName: (value.displayName as string) ?? null,
     dimensionKey: (value.dimensionKey as string) ?? null,
     entityLimitExceeded: (value.entityLimitExceeded as boolean) ?? null,
-    properties: toRecordArray(value.properties).map((property) => ({
+    properties: toArray<Record<string, unknown>>(value.properties).map((property) => ({
       id: (property.id as string) ?? null,
       displayName: (property.displayName as string) ?? null,
       type: (property.type as string) ?? null,
     })),
-    fromRelationships: toRecordArray(value.fromRelationships).map((relationship) => ({
-      id: (relationship.id as string) ?? null,
-      toTypes: toStringArray(relationship.toTypes),
-    })),
-    toRelationships: toRecordArray(value.toRelationships).map((relationship) => ({
-      id: (relationship.id as string) ?? null,
-      fromTypes: toStringArray(relationship.fromTypes),
-    })),
+    fromRelationships: toArray<Record<string, unknown>>(value.fromRelationships).map(
+      (relationship) => ({
+        id: (relationship.id as string) ?? null,
+        toTypes: toArray<string>(relationship.toTypes),
+      })
+    ),
+    toRelationships: toArray<Record<string, unknown>>(value.toRelationships).map(
+      (relationship) => ({
+        id: (relationship.id as string) ?? null,
+        fromTypes: toArray<string>(relationship.fromTypes),
+      })
+    ),
   }
 }
 
@@ -306,7 +302,7 @@ export function mapEvent(value: Record<string, unknown>): DynatraceEvent {
     suppressAlert: (value.suppressAlert as boolean) ?? null,
     suppressProblem: (value.suppressProblem as boolean) ?? null,
     entityId: mapEntityStub(value.entityId),
-    properties: toRecordArray(value.properties).map((property) => ({
+    properties: toArray<Record<string, unknown>>(value.properties).map((property) => ({
       key: (property.key as string) ?? null,
       value: (property.value as string) ?? null,
     })),
@@ -325,9 +321,9 @@ export function mapMetricResult(value: Record<string, unknown>): DynatraceMetric
       ? value.appliedOptionalFilters
       : [],
     dql: toRecordOrNull(value.dql),
-    warnings: toStringArray(value.warnings),
-    data: toRecordArray(value.data).map((series) => ({
-      dimensions: toStringArray(series.dimensions),
+    warnings: toArray<string>(value.warnings),
+    data: toArray<Record<string, unknown>>(value.data).map((series) => ({
+      dimensions: toArray<string>(series.dimensions),
       dimensionMap: toRecord(series.dimensionMap) as Record<string, string>,
       timestamps: Array.isArray(series.timestamps) ? (series.timestamps as number[]) : [],
       values: Array.isArray(series.values) ? (series.values as Array<number | null>) : [],
@@ -343,17 +339,17 @@ export function mapMetricDescriptor(value: Record<string, unknown>): DynatraceMe
     description: (value.description as string) ?? null,
     unit: (value.unit as string) ?? null,
     unitDisplayFormat: (value.unitDisplayFormat as string) ?? null,
-    tags: toStringArray(value.tags),
+    tags: toArray<string>(value.tags),
     billable: (value.billable as boolean) ?? null,
     dduBillable: (value.dduBillable as boolean) ?? null,
     created: (value.created as number) ?? null,
     lastWritten: (value.lastWritten as number) ?? null,
-    aggregationTypes: toStringArray(value.aggregationTypes),
+    aggregationTypes: toArray<string>(value.aggregationTypes),
     defaultAggregation: toRecordOrNull(value.defaultAggregation),
-    dimensionDefinitions: toRecordArray(value.dimensionDefinitions),
-    dimensionCardinalities: toRecordArray(value.dimensionCardinalities),
-    transformations: toStringArray(value.transformations),
-    entityType: toStringArray(value.entityType),
+    dimensionDefinitions: toArray<Record<string, unknown>>(value.dimensionDefinitions),
+    dimensionCardinalities: toArray<Record<string, unknown>>(value.dimensionCardinalities),
+    transformations: toArray<string>(value.transformations),
+    entityType: toArray<string>(value.entityType),
     minimumValue: (value.minimumValue as number) ?? null,
     maximumValue: (value.maximumValue as number) ?? null,
     rootCauseRelevant: (value.rootCauseRelevant as boolean) ?? null,
@@ -363,7 +359,7 @@ export function mapMetricDescriptor(value: Record<string, unknown>): DynatraceMe
     metricSelector: (value.metricSelector as string) ?? null,
     scalar: (value.scalar as boolean) ?? null,
     resolutionInfSupported: (value.resolutionInfSupported as boolean) ?? null,
-    warnings: toStringArray(value.warnings),
+    warnings: toArray<string>(value.warnings),
   }
 }
 
@@ -404,7 +400,7 @@ export function mapSecurityProblem(value: Record<string, unknown>): DynatraceSec
     vulnerabilityType: (value.vulnerabilityType as string) ?? null,
     packageName: (value.packageName as string) ?? null,
     externalVulnerabilityId: (value.externalVulnerabilityId as string) ?? null,
-    cveIds: toStringArray(value.cveIds),
+    cveIds: toArray<string>(value.cveIds),
     url: (value.url as string) ?? null,
     firstSeenTimestamp: (value.firstSeenTimestamp as number) ?? null,
     lastUpdatedTimestamp: (value.lastUpdatedTimestamp as number) ?? null,
@@ -426,12 +422,12 @@ export function mapSecurityProblemDetails(
     description: (value.description as string) ?? null,
     remediationDescription: (value.remediationDescription as string) ?? null,
     muteStateChangeInProgress: (value.muteStateChangeInProgress as boolean) ?? null,
-    affectedEntities: toStringArray(value.affectedEntities),
-    exposedEntities: toStringArray(value.exposedEntities),
-    reachableDataAssets: toStringArray(value.reachableDataAssets),
-    vulnerableComponents: toRecordArray(value.vulnerableComponents),
+    affectedEntities: toArray<string>(value.affectedEntities),
+    exposedEntities: toArray<string>(value.exposedEntities),
+    reachableDataAssets: toArray<string>(value.reachableDataAssets),
+    vulnerableComponents: toArray<Record<string, unknown>>(value.vulnerableComponents),
     filteredCounts: toRecordOrNull(value.filteredCounts),
-    events: toRecordArray(value.events),
+    events: toArray<Record<string, unknown>>(value.events),
     entryPoints: toRecordOrNull(value.entryPoints),
     relatedEntities: toRecordOrNull(value.relatedEntities),
     relatedAttacks: toRecordOrNull(value.relatedAttacks),
@@ -495,7 +491,7 @@ export function toStringList(value: unknown): string[] {
 
 /** Maps the per-problem summary a batch mute/unmute returns. */
 export function mapMuteSummary(value: unknown): DynatraceMuteSummaryEntry[] {
-  return toRecordArray(value).map((entry) => ({
+  return toArray<Record<string, unknown>>(value).map((entry) => ({
     securityProblemId: (entry.securityProblemId as string) ?? null,
     muteStateChangeTriggered: (entry.muteStateChangeTriggered as boolean) ?? null,
     reason: (entry.reason as string) ?? null,
@@ -507,7 +503,7 @@ export function mapRemediationItem(value: Record<string, unknown>): DynatraceRem
   return {
     id: (value.id as string) ?? null,
     name: (value.name as string) ?? null,
-    entityIds: toStringArray(value.entityIds),
+    entityIds: toArray<string>(value.entityIds),
     firstAffectedTimestamp: (value.firstAffectedTimestamp as number) ?? null,
     resolvedTimestamp: (value.resolvedTimestamp as number) ?? null,
     vulnerabilityState: (value.vulnerabilityState as string) ?? null,
@@ -515,7 +511,7 @@ export function mapRemediationItem(value: Record<string, unknown>): DynatraceRem
     muteState: toRecordOrNull(value.muteState),
     remediationProgress: toRecordOrNull(value.remediationProgress),
     trackingLink: toRecordOrNull(value.trackingLink),
-    vulnerableComponents: toRecordArray(value.vulnerableComponents),
+    vulnerableComponents: toArray<Record<string, unknown>>(value.vulnerableComponents),
   }
 }
 

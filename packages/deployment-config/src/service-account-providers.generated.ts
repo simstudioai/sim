@@ -37,3 +37,6 @@ export const SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID = {
   'zoho-desk': 'zoho-desk-service-account',
   zoom: 'zoom-service-account',
 } as const
+
+/** OAuth services whose users supply app credentials when connecting an account. */
+export const CREDENTIAL_CONFIGURED_OAUTH_SERVICE_IDS = ['quickbooks'] as const

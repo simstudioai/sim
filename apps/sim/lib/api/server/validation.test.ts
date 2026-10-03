@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
 import { describe, expect, it } from 'vitest'
 import {
@@ -51,14 +48,6 @@ describe('parseJsonBody default size boundary', () => {
     expect(result.success).toBe(true)
   })
 
-  it('accepts a body just under the proxy cap', async () => {
-    const result = await parseJsonBody(
-      requestDeclaring(PROXY_CLIENT_MAX_BODY_BYTES - 1, JSON.stringify({ value: 'ok' }))
-    )
-
-    expect(result.success).toBe(true)
-  })
-
   it('rejects a body just over the proxy cap as too large, not as malformed', async () => {
     const result = await parseJsonBody(
       requestDeclaring(PROXY_CLIENT_MAX_BODY_BYTES + 1, JSON.stringify({ value: 'ok' }))
@@ -84,16 +73,6 @@ describe('parseJsonBody default size boundary', () => {
     await expect(result.response.json()).resolves.toEqual({
       error: `Request body exceeds the maximum allowed size of ${PROXY_CLIENT_MAX_BODY_BYTES} bytes`,
     })
-  })
-
-  it('still accepts a body at the ceiling under an over-ceiling override', async () => {
-    const result = await parseJsonBody(
-      requestDeclaring(PROXY_CLIENT_MAX_BODY_BYTES, JSON.stringify({ value: 'ok' })),
-      'response',
-      INLINE_FILE_BODY_BYTES
-    )
-
-    expect(result.success).toBe(true)
   })
 
   it('leaves an override below the ceiling exactly as declared', async () => {

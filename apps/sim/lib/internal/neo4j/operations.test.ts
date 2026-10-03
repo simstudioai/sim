@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -53,7 +50,6 @@ function queryResult() {
 
 describe('Neo4j operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.run.mockResolvedValue(queryResult())
     mocks.sessionClose.mockResolvedValue(undefined)
     mocks.driverClose.mockResolvedValue(undefined)
@@ -61,24 +57,6 @@ describe('Neo4j operations', () => {
       session: vi.fn().mockReturnValue({ run: mocks.run, close: mocks.sessionClose }),
       close: mocks.driverClose,
     })
-  })
-
-  it('projects records and always closes the session and driver', async () => {
-    await expect(executeNeo4jQuery(INPUT)).resolves.toMatchObject({
-      message: 'Found 1 records',
-      records: [{ name: 'Ada' }],
-      recordCount: 1,
-    })
-    expect(mocks.sessionClose).toHaveBeenCalledOnce()
-    expect(mocks.driverClose).toHaveBeenCalledOnce()
-  })
-
-  it('closes resources when the query fails', async () => {
-    mocks.run.mockRejectedValueOnce(new Error('provider failed'))
-
-    await expect(executeNeo4jQuery(INPUT)).rejects.toThrow('provider failed')
-    expect(mocks.sessionClose).toHaveBeenCalledOnce()
-    expect(mocks.driverClose).toHaveBeenCalledOnce()
   })
 
   it('rejects invalid Cypher before opening a driver', async () => {

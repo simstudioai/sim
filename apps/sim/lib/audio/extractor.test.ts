@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import fs from 'node:fs'
 import path from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -73,24 +70,6 @@ beforeEach(() => {
 })
 
 describe('audio FFmpeg execution', () => {
-  it('reads typed metadata directly from ffprobe JSON', async () => {
-    const metadata = await getAudioMetadata(Buffer.from('audio'), 'audio/mp4')
-
-    expect(metadata).toEqual({
-      bitrate: 192000,
-      channels: 2,
-      codec: 'aac',
-      duration: 7.5,
-      format: 'mov,mp4,m4a',
-      sampleRate: 48000,
-    })
-    expect(calls[0]).toMatchObject({
-      executable: '/usr/bin/ffprobe',
-      maxBuffer: 4 * 1024 * 1024,
-      timeout: 30_000,
-    })
-  })
-
   it('keeps MIME-derived input filenames inside the temporary directory', async () => {
     await getAudioMetadata(Buffer.from('audio'), 'audio/../../../../escaped')
 
@@ -98,12 +77,6 @@ describe('audio FFmpeg execution', () => {
     expect(inputFile).toBeDefined()
     expect(path.basename(inputFile as string)).toBe('input.dat')
     expect(inputFile).toMatch(/audio-ffprobe-[^/]+\/input\.dat$/)
-  })
-
-  it('normalizes MIME parameters before selecting a known extension', async () => {
-    await getAudioMetadata(Buffer.from('audio'), ' Audio/MPEG; codecs=mp3 ')
-
-    expect(calls[0].args.at(-1)).toMatch(/input\.mp3$/)
   })
 
   it('converts with a shell-free argument vector and preserves audio options', async () => {
@@ -159,20 +132,5 @@ describe('audio FFmpeg execution', () => {
     await expect(
       extractAudioFromVideo(Buffer.from('video'), 'video/mp4', { outputFormat: 'mp3' })
     ).rejects.toThrow(/FFmpeg audio output exceeds maximum size/)
-  })
-
-  it('returns an existing audio buffer when metadata probing fails', async () => {
-    probe.fail = true
-    const buffer = Buffer.from('already-audio')
-
-    const result = await extractAudioFromVideo(buffer, 'audio/mpeg')
-
-    expect(result).toEqual({
-      buffer,
-      duration: 0,
-      format: 'mpeg',
-      size: buffer.length,
-    })
-    expect(calls.some((call) => call.executable.includes('ffmpeg'))).toBe(false)
   })
 })

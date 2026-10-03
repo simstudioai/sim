@@ -24,6 +24,8 @@ import type { Sql } from 'postgres'
 export interface ScriptMigration {
   /** Unique stable identifier recorded in `script_migrations`; never rename after release. */
   name: string
+  /** Earlier, unregistered migrations whose work this migration fully completes. Recorded only on success. */
+  supersedes?: readonly string[]
   /** Env vars the migration needs; the runner throws before `up` if any is unset. */
   requiredEnv?: readonly string[]
   /**
@@ -32,4 +34,13 @@ export interface ScriptMigration {
    * blocking lock acquisitions wait instead of aborting with `55P03`.
    */
   up(sql: Sql): Promise<void>
+}
+
+/**
+ * Thrown by `up` to leave the migration unrecorded without failing the upgrade,
+ * so the next upgrade runs it again: for work this database refuses today but
+ * may accept later, such as an extension the migration role may not yet create.
+ */
+export class ScriptMigrationDeferred extends Error {
+  override name = 'ScriptMigrationDeferred'
 }

@@ -61,6 +61,10 @@ export function createVerifyAuth(options: VerifyAuthOptions): VerifyAuth {
     }),
     plugins: [
       oneTimeToken({
+        /**
+         * Unused by this instance, which only verifies: `/one-time-token/verify` reads the expiry
+         * off the row. The app sets its own far shorter window in apps/sim/lib/auth/auth.ts.
+         */
         expiresIn: 24 * 60,
       }),
     ],

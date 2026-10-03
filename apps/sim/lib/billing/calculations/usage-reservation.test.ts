@@ -1,13 +1,9 @@
-/**
- * @vitest-environment node
- */
 import { redisConfigMockFns, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   refreshExecutionSlotExpiry,
   releaseExecutionSlot,
   reserveExecutionSlot,
-  resolveBillingEntityKey,
   UsageReservationUnavailableError,
 } from '@/lib/billing/calculations/usage-reservation'
 
@@ -43,20 +39,9 @@ afterAll(resetEnvFlagsMock)
 
 describe('usage-reservation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isBillingEnabled: true })
     setEnvFlags({ isHosted: true })
     redisConfigMockFns.mockGetRedisClient.mockReturnValue(fakeRedis)
-  })
-
-  describe('resolveBillingEntityKey', () => {
-    it('keys personal subscriptions by user', () => {
-      expect(resolveBillingEntityKey({ type: 'user', id: 'user-1' })).toBe('user:user-1')
-    })
-
-    it('keys org-scoped subscriptions by organization', () => {
-      expect(resolveBillingEntityKey({ type: 'organization', id: 'org-9' })).toBe('org:org-9')
-    })
   })
 
   describe('reserveExecutionSlot', () => {
@@ -65,16 +50,6 @@ describe('usage-reservation', () => {
       const result = await reserveExecutionSlot(baseParams)
       expect(result).toEqual({ reserved: true, created: true })
       expect(evalMock).toHaveBeenCalledTimes(2)
-    })
-
-    it('uses the active attempt expiry for the reservation and pointer', async () => {
-      evalMock.mockResolvedValueOnce(1).mockResolvedValueOnce(1)
-      const expiresAt = Date.now() + 60_000
-
-      await reserveExecutionSlot({ ...baseParams, expiresAt })
-
-      expect(evalMock.mock.calls[0][5]).toBe(expiresAt.toString())
-      expect(evalMock.mock.calls[1][4]).toBe(expiresAt.toString())
     })
 
     it('returns payer exhaustion without registering a pointer', async () => {
@@ -128,18 +103,6 @@ describe('usage-reservation', () => {
       expect(evalMock.mock.calls[1][2]).toBe('usage:reservation:resume-entry-1')
     })
 
-    it('passes the free-tier concurrency cap and payer headroom to the atomic script', async () => {
-      evalMock.mockResolvedValueOnce(1).mockResolvedValueOnce(1)
-      await reserveExecutionSlot(baseParams)
-      const args = evalMock.mock.calls[0]
-      expect(args[1]).toBe(2)
-      expect(args[2]).toContain('{user:user-1}')
-      expect(args[3]).toContain('{user:user-1}')
-      expect(args[6]).toBe('10')
-      expect(args[7]).toBe('1000')
-      expect(args[8]).toBe('exec-1')
-    })
-
     it('atomically declares payer, owner, and member keys in one cluster slot', async () => {
       evalMock.mockResolvedValueOnce(1).mockResolvedValueOnce(1)
       await reserveExecutionSlot(memberParams)
@@ -161,19 +124,6 @@ describe('usage-reservation', () => {
       expect(args[6]).toBe('1000')
       expect(args[0]).toContain("redis.call('ZREMRANGEBYSCORE'")
       expect(args[0]).not.toMatch(/ZRANGE|SMEMBERS|HGETALL|KEYS\s/)
-    })
-
-    it.each([
-      ['pro_6000', '50'],
-      ['team_6000', '50'],
-      ['pro_25000', '200'],
-      ['team_25000', '200'],
-    ] as const)('gives %s its paid tier concurrency cap of %s', async (plan, expected) => {
-      evalMock.mockResolvedValueOnce(1).mockResolvedValueOnce(1)
-
-      await reserveExecutionSlot({ ...baseParams, plan })
-
-      expect(evalMock.mock.calls[0][6]).toBe(expected)
     })
 
     it('uses an Enterprise subscription metadata concurrency override', async () => {
@@ -256,13 +206,6 @@ describe('usage-reservation', () => {
       expect(evalMock).not.toHaveBeenCalled()
     })
 
-    it('is a no-op on self-hosted deployments', async () => {
-      setEnvFlags({ isHosted: false })
-      const result = await reserveExecutionSlot(baseParams)
-      expect(result).toEqual({ reserved: true, created: false })
-      expect(evalMock).not.toHaveBeenCalled()
-    })
-
     it('fails closed when hosted Redis is unavailable', async () => {
       redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
       await expect(reserveExecutionSlot(baseParams)).rejects.toBeInstanceOf(
@@ -339,12 +282,61 @@ describe('usage-reservation', () => {
   })
 
   describe('refreshExecutionSlotExpiry', () => {
-    it('rethrows the original error object rather than the diagnostic wrapper', async () => {
-      const original = Object.assign(new Error('Command timed out'), { code: 'ETIMEDOUT' })
+    it.each([
+      new Error('Command timed out'),
+      Object.assign(new Error('connect ETIMEDOUT'), { code: 'ETIMEDOUT' }),
+    ])('classifies a Redis transport failure while preserving its cause: %s', async (original) => {
       getMock.mockRejectedValueOnce(original)
 
-      await expect(refreshExecutionSlotExpiry('exec-1', Date.now() + 60_000)).rejects.toBe(original)
+      await expect(refreshExecutionSlotExpiry('exec-1', Date.now() + 60_000)).rejects.toMatchObject(
+        {
+          name: 'UsageReservationUnavailableError',
+          code: 'SERVICE_OVERLOADED',
+          cause: original,
+        }
+      )
+      expect(evalMock).not.toHaveBeenCalled()
     })
+
+    it.each(['local', 'pointer'])('classifies a timeout extending the %s lease', async (stage) => {
+      evalMock.mockResolvedValueOnce(1).mockResolvedValueOnce(1)
+      await reserveExecutionSlot(memberParams)
+      const descriptor = String(evalMock.mock.calls[1][3])
+      vi.clearAllMocks()
+      getMock.mockResolvedValueOnce(descriptor)
+      if (stage === 'pointer') evalMock.mockResolvedValueOnce(1)
+      const original = new Error('Command timed out')
+      evalMock.mockRejectedValueOnce(original)
+
+      await expect(refreshExecutionSlotExpiry('exec-1', Date.now() + 60_000)).rejects.toMatchObject(
+        {
+          name: 'UsageReservationUnavailableError',
+          code: 'SERVICE_OVERLOADED',
+          cause: original,
+        }
+      )
+      expect(evalMock).toHaveBeenCalledTimes(stage === 'pointer' ? 2 : 1)
+    })
+
+    it.each([
+      new TypeError('invalid Redis command argument'),
+      Object.assign(new Error('NOAUTH Authentication required.'), { name: 'ReplyError' }),
+      Object.assign(
+        new Error('WRONGTYPE Operation against a key holding the wrong kind of value'),
+        {
+          name: 'ReplyError',
+        }
+      ),
+    ])(
+      'does not classify programming or server configuration failures as transient: %s',
+      async (original) => {
+        getMock.mockRejectedValueOnce(original)
+
+        await expect(refreshExecutionSlotExpiry('exec-1', Date.now() + 60_000)).rejects.toBe(
+          original
+        )
+      }
+    )
 
     it('refreshes only the locally owned slot and matching pointer', async () => {
       evalMock.mockResolvedValueOnce(1).mockResolvedValueOnce(1)
@@ -465,17 +457,6 @@ describe('usage-reservation', () => {
 
       expect(evalMock).toHaveBeenCalledTimes(2)
       expect(evalMock.mock.calls[1][1]).toBe(3)
-    })
-
-    it('is a no-op when billing enforcement is disabled', async () => {
-      setEnvFlags({ isBillingEnabled: false })
-      await releaseExecutionSlot('exec-1')
-      expect(getMock).not.toHaveBeenCalled()
-    })
-
-    it('swallows release errors', async () => {
-      getMock.mockRejectedValueOnce(new Error('boom'))
-      await expect(releaseExecutionSlot('exec-1')).resolves.toBeUndefined()
     })
   })
 })

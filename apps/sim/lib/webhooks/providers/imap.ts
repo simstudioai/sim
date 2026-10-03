@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { webhook, workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import {
   createSecureImapClient,
@@ -53,7 +54,7 @@ export const imapHandler: WebhookProviderHandler = {
     logger.info(`[${requestId}] Setting up IMAP polling for webhook ${webhookData.id}`)
 
     try {
-      const providerConfig = (webhookData.providerConfig as Record<string, unknown>) || {}
+      const providerConfig = toRecord(webhookData.providerConfig)
       const now = new Date()
 
       if (!providerConfig.host || !providerConfig.username || !providerConfig.password) {

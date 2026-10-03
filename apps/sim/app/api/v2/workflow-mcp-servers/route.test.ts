@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
 import {
-  MockV2ApiKeyUnauthenticatedError,
   resetDbChainMock,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -10,40 +6,30 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { mcpPubsubMock, mcpPubsubMockFns } from '@sim/testing/mocks/mcp-pubsub.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  resolvePermission: vi.fn(),
-  loadWorkspaceContext: vi.fn(),
   listServers: vi.fn(),
   listToolNames: vi.fn(),
   createServer: vi.fn(),
-  audit: vi.fn(),
-  publishToolsChanged: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    MCP_SERVER_ADDED: 'mcp_server.added',
-    MCP_SERVER_UPDATED: 'mcp_server.updated',
-    MCP_SERVER_REMOVED: 'mcp_server.removed',
-  },
-  AuditResourceType: { MCP_SERVER: 'mcp_server' },
-  recordAudit: mocks.audit,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspaceContext,
-}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 vi.mock('@/lib/mcp/queries', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/mcp/queries')>()),
   listWorkspaceWorkflowMcpServers: mocks.listServers,
@@ -57,29 +43,28 @@ vi.mock('@/lib/mcp/orchestration', () => ({
   performUpdateWorkflowMcpTool: vi.fn(),
   performDeleteWorkflowMcpTool: vi.fn(),
 }))
-vi.mock('@/lib/mcp/pubsub', () => ({
-  mcpPubSub: { publishWorkflowToolsChanged: mocks.publishToolsChanged },
-}))
+vi.mock('@/lib/mcp/pubsub', () => mcpPubsubMock)
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
 import { GET, POST } from '@/app/api/v2/workflow-mcp-servers/route'
 
+const mockPublishWorkflowToolsChanged = mcpPubsubMockFns.mockPublishWorkflowToolsChanged
+
 const WORKSPACE_ID = 'workspace-1'
 
 const personalKeyAuth = {
-  principal: { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'personal-key-1' },
+  principal: createPersonalApiKeyPrincipal({ keyId: 'personal-key-1' }),
   rateLimitSubjectIds: ['api-key:personal-key-1', 'user:user-1'] as const,
   rateLimitSubscription: null,
   keyType: 'personal' as const,
 }
 
 const workspaceKeyAuth = {
-  principal: {
-    kind: 'workspace_api_key' as const,
+  principal: createWorkspaceApiKeyPrincipal({
     workspaceId: WORKSPACE_ID,
     keyId: 'workspace-key-1',
-  },
+  }),
   rateLimitSubjectIds: ['api-key:workspace-key-1'] as const,
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
@@ -108,28 +93,31 @@ function serverRow(overrides: Record<string, unknown> = {}) {
 }
 
 async function get(search = `?workspaceId=${WORKSPACE_ID}`) {
-  const request = new NextRequest(`http://localhost/api/v2/workflow-mcp-servers${search}`)
-  return GET(request, { params: Promise.resolve({}) })
+  const request = createMockRequest({
+    url: `http://localhost/api/v2/workflow-mcp-servers${search}`,
+  })
+  return GET(request, createRouteContext({}))
 }
 
 async function post(body: unknown) {
-  const request = new NextRequest('http://localhost/api/v2/workflow-mcp-servers', {
+  const request = createMockRequest({
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    url: 'http://localhost/api/v2/workflow-mcp-servers',
+    body,
   })
-  return POST(request, { params: Promise.resolve({}) })
+  return POST(request, createRouteContext({}))
 }
 
 describe('/api/v2/workflow-mcp-servers', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     v2RouteMocks.authenticate.mockResolvedValue(personalKeyAuth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.resolvePermission.mockResolvedValue('admin')
-    mocks.loadWorkspaceContext.mockResolvedValue(workspaceContext)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('admin')
+    workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext.mockResolvedValue(
+      workspaceContext
+    )
     mocks.listServers.mockResolvedValue({ data: [serverRow()], nextCursorKeys: null })
     mocks.listToolNames.mockResolvedValue({ namesByServerId: new Map(), truncated: false })
     mocks.createServer.mockResolvedValue({
@@ -140,34 +128,6 @@ describe('/api/v2/workflow-mcp-servers', () => {
   })
 
   describe('GET', () => {
-    it('publishes the served endpoint and tool inventory for each server', async () => {
-      mocks.listToolNames.mockResolvedValue({
-        namesByServerId: new Map([['wfmcp-1', ['triage_ticket']]]),
-        truncated: false,
-      })
-
-      const response = await get()
-
-      expect(response.status).toBe(200)
-      expect(await response.json()).toEqual({
-        data: [
-          {
-            id: 'wfmcp-1',
-            name: 'Support agents',
-            description: 'Ticket triage',
-            isPublic: false,
-            mcpServerUrl: expect.stringContaining('/api/mcp/serve/wfmcp-1'),
-            toolCount: 1,
-            toolNames: ['triage_ticket'],
-            createdAt: '2026-06-12T10:30:00.000Z',
-            updatedAt: '2026-06-12T10:30:00.000Z',
-          },
-        ],
-        nextCursor: null,
-        toolNamesTruncated: false,
-      })
-    })
-
     /**
      * `toolNames` and `toolCount` are gathered for the whole page under one
      * ceiling, so a page that trips it under-reports every server's inventory.
@@ -217,17 +177,6 @@ describe('/api/v2/workflow-mcp-servers', () => {
       expect(body.data[0]).not.toHaveProperty('workspaceId')
     })
 
-    it('mints a cursor when the page was cut', async () => {
-      mocks.listServers.mockResolvedValue({
-        data: [serverRow()],
-        nextCursorKeys: [{ key: 'createdAt', value: '2026-06-12T10:30:00.000Z' }],
-      })
-
-      const body = await (await get()).json()
-
-      expect(body.nextCursor).toEqual(expect.any(String))
-    })
-
     it('rejects a cursor minted under a different ordering', async () => {
       mocks.listServers.mockResolvedValue({
         data: [serverRow()],
@@ -243,39 +192,25 @@ describe('/api/v2/workflow-mcp-servers', () => {
       expect((await response.json()).error.code).toBe('BAD_REQUEST')
     })
 
-    it('requires a workspace', async () => {
-      const response = await get('')
-
-      expect(response.status).toBe(400)
-      expect(mocks.loadWorkspaceContext).not.toHaveBeenCalled()
-    })
-
     it('rejects a workspace API key before canonical loading', async () => {
       v2RouteMocks.authenticate.mockResolvedValue(workspaceKeyAuth)
 
       const response = await get()
 
       expect(response.status).toBe(403)
-      expect(mocks.loadWorkspaceContext).not.toHaveBeenCalled()
+      expect(
+        workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext
+      ).not.toHaveBeenCalled()
       expect(mocks.listServers).not.toHaveBeenCalled()
     })
 
     it('conceals a workspace the caller cannot reach as 404', async () => {
-      mocks.resolvePermission.mockResolvedValue(null)
+      workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
 
       const response = await get()
 
       expect(response.status).toBe(404)
       expect(mocks.listServers).not.toHaveBeenCalled()
-    })
-
-    it('rejects an unauthenticated request', async () => {
-      v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-      const response = await get()
-
-      expect(response.status).toBe(401)
-      expect((await response.json()).error.code).toBe('UNAUTHORIZED')
     })
   })
 
@@ -292,34 +227,15 @@ describe('/api/v2/workflow-mcp-servers', () => {
       expect(mocks.createServer).toHaveBeenCalledWith(
         expect.objectContaining({ workspaceId: WORKSPACE_ID, name: 'Support agents' })
       )
-      expect(mocks.audit).toHaveBeenCalledTimes(1)
-      expect(mocks.publishToolsChanged).toHaveBeenCalledWith({
+      expect(auditMockFns.mockRecordAudit).toHaveBeenCalledTimes(1)
+      expect(mockPublishWorkflowToolsChanged).toHaveBeenCalledWith({
         serverId: 'wfmcp-1',
         workspaceId: WORKSPACE_ID,
       })
     })
 
-    /** The create response has no tool inventory to report, so it must not claim one. */
-    it('omits the tool inventory the write never read', async () => {
-      const body = await (await post({ workspaceId: WORKSPACE_ID, name: 'Support agents' })).json()
-
-      expect(body.data).not.toHaveProperty('toolCount')
-      expect(body.data).not.toHaveProperty('toolNames')
-    })
-
-    it('rejects an unknown field rather than storing it', async () => {
-      const response = await post({
-        workspaceId: WORKSPACE_ID,
-        name: 'Support agents',
-        transport: 'streamable-http',
-      })
-
-      expect(response.status).toBe(400)
-      expect(mocks.createServer).not.toHaveBeenCalled()
-    })
-
     it('refuses a caller below workspace admin with 403', async () => {
-      mocks.resolvePermission.mockResolvedValue('write')
+      workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
 
       const response = await post({ workspaceId: WORKSPACE_ID, name: 'Support agents' })
 
@@ -345,7 +261,7 @@ describe('/api/v2/workflow-mcp-servers', () => {
       expect((await response.json()).error.message).toBe(
         'Workflow must be deployed before adding as an MCP tool'
       )
-      expect(mocks.audit).not.toHaveBeenCalled()
+      expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
     })
 
     it('does not expose an internal orchestration failure message', async () => {

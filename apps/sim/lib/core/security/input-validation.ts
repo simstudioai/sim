@@ -630,8 +630,13 @@ export function validateAwsRegion(
     }
   }
 
+  /**
+   * Partition prefixes are matched longest-first: `us-isob` and `us-isof` must precede
+   * `us-iso`, or the shorter alternative wins and the trailing partition letter fails to
+   * match the following `-`.
+   */
   const awsRegionPattern =
-    /^(eu-isoe|eusc-[a-z]{2}|us-isob|us-iso|us-gov|af|ap|ca|cn|eu|il|me|mx|sa|us)-(central|north|northeast|northwest|south|southeast|southwest|east|west)-\d{1,2}$/
+    /^(eu-isoe|eusc-[a-z]{2}|us-isob|us-isof|us-iso|us-gov|af|ap|ca|cn|eu|il|me|mx|sa|us)-(central|north|northeast|northwest|south|southeast|southwest|east|west)-\d{1,2}$/
 
   if (!awsRegionPattern.test(value)) {
     logger.warn('Invalid AWS region format', {
@@ -656,7 +661,7 @@ export function validateAwsRegion(
  * and relocate the request — along with any attached credential — to an
  * attacker-controlled host.
  *
- * Accepts `global` plus the documented `{geography}-{direction}{index}` region
+ * Accepts `global`, the `us` and `eu` multi-regions, and the `{geography}-{direction}{index}` region
  * form (e.g. us-central1, europe-west4, northamerica-northeast1, me-central2).
  *
  * @param value - The location to validate
@@ -672,7 +677,7 @@ export function validateGoogleCloudLocation(
   }
 
   const googleLocationPattern =
-    /^(global|(africa|asia|australia|europe|me|northamerica|southamerica|us)-(central|east|north|northeast|northwest|south|southeast|southwest|west)\d{1,2})$/
+    /^(global|us|eu|(africa|asia|australia|europe|me|northamerica|southamerica|us)-(central|east|north|northeast|northwest|south|southeast|southwest|west)\d{1,2})$/
 
   if (!googleLocationPattern.test(value)) {
     logger.warn('Invalid Google Cloud location format', {
@@ -1162,6 +1167,9 @@ function validateVendorHostedUrl(
   if (!urlResult.isValid) return urlResult
 
   const parsed = new URL(candidate)
+  // A trailing FQDN dot names the same host, but TLS hostname verification rejects it.
+  const fullyQualified = parsed.hostname.endsWith('.')
+  if (fullyQualified) parsed.hostname = parsed.hostname.slice(0, -1)
   const hostname = parsed.hostname.toLowerCase()
   const allowed = suffixes.some(
     (suffix) => (allowBareSuffix && hostname === suffix.slice(1)) || hostname.endsWith(suffix)
@@ -1180,7 +1188,8 @@ function validateVendorHostedUrl(
     }
   }
 
-  return { isValid: true, sanitized: sanitize === 'origin' ? parsed.origin : candidate }
+  if (sanitize === 'origin') return { isValid: true, sanitized: parsed.origin }
+  return { isValid: true, sanitized: fullyQualified ? parsed.href : candidate }
 }
 
 /**
@@ -1262,15 +1271,20 @@ export function validateWorkdayTenantUrl(
 }
 
 /**
- * Every production Databricks control-plane DNS zone, mirroring `ALL_ENVS` in the
- * Databricks SDK (`databricks/sdk/environments.py`). The SDK's `.dev.*`/`.staging.*`
- * zones are internal and deliberately omitted; the ones that are subdomains of a
- * zone listed here (e.g. `.staging.cloud.databricks.com`) match by suffix anyway.
+ * Every production Databricks control-plane DNS zone. All but `.cloud.databricks.mil` mirror
+ * `ALL_ENVS` in the Databricks SDK (`databricks/sdk/environments.py`); the DoD zone comes from the
+ * Databricks AWS GovCloud docs. The SDK's `.dev.*`/`.staging.*` zones are internal and
+ * deliberately omitted; the ones that are subdomains of a zone listed here (e.g.
+ * `.staging.cloud.databricks.com`) match by suffix anyway. `.databricks.com` admits workspace
+ * custom URLs (`acme.databricks.com`) and subsumes the AWS and GCP zones, which stay listed so
+ * the rejection message names them.
  */
 const DATABRICKS_ALLOWED_HOST_SUFFIXES = [
   '.cloud.databricks.com',
   '.cloud.databricks.us',
+  '.cloud.databricks.mil',
   '.gcp.databricks.com',
+  '.databricks.com',
   '.azuredatabricks.net',
   '.databricks.azure.us',
   '.databricks.azure.cn',
@@ -1283,6 +1297,8 @@ const DATABRICKS_ALLOWED_HOST_SUFFIXES = [
  * every REST call is made against it. Example valid hosts:
  * - dbc-1234abcd-5678.cloud.databricks.com (AWS)
  * - dbc-1234abcd-5678.cloud.databricks.us (AWS GovCloud)
+ * - dbc-1234abcd-5678.cloud.databricks.mil (AWS GovCloud DoD)
+ * - acme.databricks.com (workspace custom URL)
  * - adb-1234567890123456.7.azuredatabricks.net (Azure)
  * - adb-1234567890123456.7.databricks.azure.us (Azure US Government)
  * - adb-1234567890123456.7.databricks.azure.cn (Azure China)

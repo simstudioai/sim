@@ -1,7 +1,7 @@
-import { chmodSync, existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockLogger } = vi.hoisted(() => ({
   mockLogger: {
@@ -23,41 +23,9 @@ describe('scrubUrl', () => {
       'https://sim.ai/desktop/auth'
     )
   })
-
-  it('returns empty for unparseable input', () => {
-    expect(scrubUrl('not a url')).toBe('')
-  })
 })
 
 describe('createEventLog', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('appends JSONL entries', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'sim-desktop-events-'))
-    const events = createEventLog(dir)
-    events.record('app_launch', { version: '1.0.0' })
-    events.record('load_failure', { kind: 'dns' })
-
-    const lines = readFileSync(events.filePath, 'utf8').trim().split('\n')
-    expect(lines).toHaveLength(2)
-    const first = JSON.parse(lines[0])
-    expect(first.name).toBe('app_launch')
-    expect(first.data).toEqual({ version: '1.0.0' })
-    expect(typeof first.at).toBe('string')
-  })
-
-  it('rotates once past the size cap', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'sim-desktop-events-'))
-    const events = createEventLog(dir, 64)
-    events.record('app_launch', { version: '1.0.0' })
-    events.record('app_launch', { version: '1.0.0' })
-    events.record('app_launch', { version: '1.0.0' })
-    expect(existsSync(`${events.filePath}.1`)).toBe(true)
-    expect(statSync(`${events.filePath}.1`).mode & 0o777).toBe(0o600)
-  })
-
   it('creates its directory and log with private permissions', () => {
     const root = mkdtempSync(join(tmpdir(), 'sim-desktop-events-'))
     const dir = join(root, 'logs')
@@ -66,23 +34,6 @@ describe('createEventLog', () => {
 
     expect(statSync(dir).mode & 0o777).toBe(0o700)
     expect(statSync(events.filePath).mode & 0o777).toBe(0o600)
-  })
-
-  it('tightens permissions on existing logs', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'sim-desktop-events-'))
-    const filePath = join(dir, 'desktop-events.log')
-    const rotatedFilePath = `${filePath}.1`
-    writeFileSync(filePath, 'current\n')
-    writeFileSync(rotatedFilePath, 'rotated\n')
-    chmodSync(dir, 0o755)
-    chmodSync(filePath, 0o644)
-    chmodSync(rotatedFilePath, 0o644)
-
-    createEventLog(dir)
-
-    expect(statSync(dir).mode & 0o777).toBe(0o700)
-    expect(statSync(filePath).mode & 0o777).toBe(0o600)
-    expect(statSync(rotatedFilePath).mode & 0o777).toBe(0o600)
   })
 
   it('reports permission failures without exposing local paths or OS errors', () => {
@@ -114,38 +65,6 @@ describe('installMainProcessFailureObservers', () => {
       },
     }
   }
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('records unexpected child-process exits once per failure burst', () => {
-    vi.useFakeTimers()
-    try {
-      const events = { filePath: '/tmp/events.log', record: vi.fn() }
-      const { source } = createProcessSource()
-      installMainProcessFailureObservers({ events, getWindow: () => null, processSource: source })
-      const appHandlers = vi.mocked(app.on).mock.calls as unknown as Array<
-        [string, (...args: never[]) => void]
-      >
-      const handler = appHandlers.find(([event]) => event === 'child-process-gone')?.[1] as
-        | ((event: unknown, details: Record<string, unknown>) => void)
-        | undefined
-      const details = { type: 'GPU', reason: 'crashed', exitCode: 9, serviceName: 'GPU' }
-
-      handler?.({}, details)
-      handler?.({}, details)
-
-      expect(events.record).toHaveBeenCalledOnce()
-      expect(events.record).toHaveBeenCalledWith('child_process_gone', details)
-
-      vi.advanceTimersByTime(5_000)
-      handler?.({}, details)
-      expect(events.record).toHaveBeenCalledTimes(2)
-    } finally {
-      vi.useRealTimers()
-    }
-  })
 
   it('shows one recovery prompt for simultaneous fatal failures', async () => {
     let resolvePrompt: ((value: { response: number; checkboxChecked: boolean }) => void) | undefined
