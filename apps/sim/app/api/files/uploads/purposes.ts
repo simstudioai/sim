@@ -14,7 +14,10 @@ import {
 } from '@/lib/uploads/upload-session/service'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
 import { validateAttachmentFileType } from '@/lib/uploads/utils/validation'
-import { authorizeWorkspaceFileAccess } from '@/lib/workspace-files/application/authorization'
+import {
+  authorizeWorkspaceFileAccess,
+  WORKSPACE_FILES_DELEGATION_AUDIENCE,
+} from '@/lib/workspace-files/application/authorization'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -24,6 +27,7 @@ const INTERNAL_UPLOAD_PURPOSES = new Set<InternalUploadPurpose>([
   'workspace_file',
   'profile_picture',
   'workspace_logo',
+  'organization_logo',
   'mothership_attachment',
   'execution_attachment',
 ])
@@ -57,6 +61,11 @@ export async function createPurposeUploadSession(
         localOrigin,
       })
     }
+    case 'organization_logo':
+      throw new UploadSessionError(
+        'validation',
+        'Organization logos require organization authorization'
+      )
     case 'profile_picture':
       return createUploadSession({
         purpose: body.purpose,
@@ -78,6 +87,7 @@ export async function createPurposeUploadSession(
         localOrigin,
       })
     case 'mothership_attachment':
+      if (!body.workspaceId) throw new UploadSessionError('validation', 'workspaceId is required')
       await requireWorkspacePermission(userId, body.workspaceId, 'write')
       return createUploadSession({
         purpose: body.purpose,
@@ -120,6 +130,11 @@ export async function reauthorizeUploadPurpose(
     case 'mothership_attachment':
       await requireWorkspacePermission(userId, requireSessionScope(session.workspaceId), 'write')
       return
+    case 'organization_logo':
+      throw new UploadSessionError(
+        'forbidden',
+        'Organization logos require organization authorization'
+      )
     case 'profile_picture':
       return
     case 'workspace_logo':
@@ -235,8 +250,12 @@ function requireSessionScope(value: string | null, label = 'scope'): string {
 
 async function principalUserId(principal: Principal, workspaceId?: string): Promise<string> {
   switch (principal.kind) {
+    case 'slack_app':
+    case 'slack_installation':
+      throw new UploadSessionError('forbidden', 'Slack installations cannot create uploads')
     case 'session':
     case 'personal_api_key':
+    case 'oauth_access_token':
       return principal.userId
     case 'workspace_api_key':
       if (!workspaceId || principal.workspaceId !== workspaceId) {
@@ -250,13 +269,28 @@ async function principalUserId(principal: Principal, workspaceId?: string): Prom
         return context.billedAccountUserId
       }
     case 'delegated':
+      if (
+        principal.serviceId === 'copilot' &&
+        principal.workspaceId === workspaceId &&
+        principal.audience === WORKSPACE_FILES_DELEGATION_AUDIENCE &&
+        principal.subjectUserId &&
+        principal.resourceScope?.chatId &&
+        principal.expiresAt > new Date()
+      )
+        return principal.subjectUserId
       throw new UploadSessionError('forbidden', 'Delegated principals cannot create uploads')
     case 'system':
       throw new UploadSessionError('forbidden', 'System principals cannot create uploads')
+    case 'organization_delegated':
     case 'credential_group_enrollment':
       throw new UploadSessionError(
         'forbidden',
         'Credential Group enrollment principals cannot create uploads'
+      )
+    case 'scim_connection':
+      throw new UploadSessionError(
+        'forbidden',
+        'Directory provisioning credentials cannot create uploads'
       )
   }
 }

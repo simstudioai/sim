@@ -38,6 +38,8 @@ export interface EgressValidationSuccess {
 export interface EgressValidationFailure {
   readonly isValid: false
   readonly error: string
+  /** Retains resolver failure codes so callers can distinguish an outage from a policy denial. */
+  readonly cause?: unknown
 }
 
 export type EgressValidationResult = EgressValidationSuccess | EgressValidationFailure
@@ -45,6 +47,8 @@ export type EgressValidationResult = EgressValidationSuccess | EgressValidationF
 export interface EgressValidationOptions {
   /** Omit destination-derived values from logs when the URL contains protected context. */
   logDetails?: boolean
+  /** Cancels DNS validation before a guarded connection can begin. */
+  signal?: AbortSignal
 }
 
 type EgressDenial = Extract<EgressDecision, { allowed: false }>
@@ -77,6 +81,7 @@ export async function validateEgressUrl(
   profile: EgressProfile,
   options: EgressValidationOptions = {}
 ): Promise<EgressValidationResult> {
+  options.signal?.throwIfAborted()
   if (!url || typeof url !== 'string') {
     return { isValid: false, error: `${paramName} is required and must be a string` }
   }
@@ -113,15 +118,16 @@ export async function validateEgressUrl(
 
   let addresses: string[]
   try {
-    addresses = (await resolveHostAddresses(host)).addresses
+    addresses = (await resolveHostAddresses(host, { signal: options.signal })).addresses
   } catch (error) {
+    options.signal?.throwIfAborted()
     logger.warn(
       'DNS lookup failed',
       options.logDetails === false
         ? { profile, paramName }
         : { profile, paramName, host, error: toError(error).message }
     )
-    return { isValid: false, error: `${paramName} hostname could not be resolved` }
+    return { isValid: false, error: `${paramName} hostname could not be resolved`, cause: error }
   }
 
   // Refused records are filtered rather than failing the whole host: pinning to a

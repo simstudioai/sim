@@ -1,0 +1,81 @@
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({ policy: vi.fn(), runtime: vi.fn() }))
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
+vi.mock('@/lib/credential-groups/application/organization-workspace-access', () => ({
+  requireOrganizationAccountsWorkspaceAccess: mocks.policy,
+}))
+vi.mock('@/lib/credentials/managed-mcp', () => ({
+  loadScopedManagedMcpRuntimeCredential: mocks.runtime,
+  ManagedMcpCredentialError: class extends Error {},
+}))
+
+import {
+  listManagedMcpSearchAccounts,
+  loadOwnManagedMcpRuntime,
+} from '@/lib/sim-search/live/mcp-accounts'
+
+const row = {
+  id: 'mine',
+  displayName: 'Coda',
+  workspaceId: null,
+  organizationId: 'org',
+  groupId: 'group',
+  connectorId: 'coda',
+}
+describe('Coda personal search authority', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext.mockResolvedValue({
+      workspaceId: 'workspace',
+      workspaceOrganizationId: 'org',
+    })
+    mocks.policy.mockResolvedValue({})
+    mocks.runtime.mockResolvedValue({ credentialType: 'mcp:coda' })
+  })
+  it('filters by the acting person and applies organization workspace grants before discovery', async () => {
+    queueTableRows(schemaMock.credential, [row])
+    expect(
+      await listManagedMcpSearchAccounts({ workspaceId: 'workspace' }, 'person')
+    ).toMatchObject([{ id: 'mine', type: 'managed_mcp' }])
+    expect(eq).toHaveBeenCalledWith(schemaMock.credentialGroupEnrollment.userId, 'person')
+    expect(mocks.policy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'workspace',
+        organizationId: 'org',
+        credentialGroupId: 'group',
+      }),
+      'mcp:coda'
+    )
+    expect(mocks.runtime).not.toHaveBeenCalled()
+  })
+  it('does not expose or decrypt grants rejected by workspace policy', async () => {
+    queueTableRows(schemaMock.credential, [row])
+    mocks.policy.mockRejectedValue(new Error('denied'))
+    expect(await listManagedMcpSearchAccounts({ workspaceId: 'workspace' }, 'person')).toEqual([])
+    expect(mocks.runtime).not.toHaveBeenCalled()
+  })
+  it('supports organization search without inventing a workspace and binds token resolution to the person', async () => {
+    queueTableRows(schemaMock.credential, [row])
+    await loadOwnManagedMcpRuntime({ organizationId: 'org' }, 'person', 'mine', 'coda')
+    expect(knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext).not.toHaveBeenCalled()
+    expect(mocks.runtime).toHaveBeenCalledWith(
+      'mine',
+      { kind: 'organization', organizationId: 'org' },
+      'person'
+    )
+  })
+  it('rejects references to credentials outside the fresh own-account listing', async () => {
+    queueTableRows(schemaMock.credential, [row])
+    await expect(
+      loadOwnManagedMcpRuntime({ organizationId: 'org' }, 'person', 'someone-else', 'coda')
+    ).rejects.toThrow('no longer available')
+    expect(mocks.runtime).not.toHaveBeenCalled()
+  })
+})

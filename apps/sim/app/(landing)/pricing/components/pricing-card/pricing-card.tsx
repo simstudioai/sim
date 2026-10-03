@@ -99,7 +99,7 @@ export function PricingCard({
             <span className='text-[20px] text-[var(--text-primary)] tabular-nums'>{price}</span>
             {discountLabel && <ChipTag variant='mono'>{discountLabel}</ChipTag>}
           </div>
-          <p className='text-[var(--text-muted)] text-base'>{priceSubtext ?? ' '}</p>
+          <p className='text-[var(--text-secondary)] text-base'>{priceSubtext ?? ' '}</p>
         </div>
 
         <ChipLink href={cta.href} variant={cta.variant} fullWidth className='w-full justify-center'>

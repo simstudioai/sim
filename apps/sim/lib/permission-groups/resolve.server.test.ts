@@ -1,27 +1,25 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { DbOrTx } from '@/lib/db/types'
 
-const { mockIsOrganizationOnEnterprisePlan, mockGetWorkspaceWithOwner } = vi.hoisted(() => ({
-  mockIsOrganizationOnEnterprisePlan: vi.fn(),
-  mockGetWorkspaceWithOwner: vi.fn(),
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationOnEnterprisePlan: mockIsOrganizationOnEnterprisePlan,
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import {
   getUserPermissionConfig,
   getUserPermissionConfigForOrganization,
+  isOrganizationPermissionRegimeActive,
   resolveVerifiedUserAccessControlContext,
 } from '@/lib/permission-groups/resolve.server'
+
+const { mockIsOrganizationGovernanceActive } = billingSubscriptionMockFns
+const { mockGetWorkspaceWithOwner } = permissionsMockFns
 
 const ORGANIZATION_ID = 'org-1'
 const USER_ID = 'user-1'
@@ -35,17 +33,11 @@ const WORKSPACE_ID = 'workspace-1'
  * entitled" and these tests go red.
  */
 function entitlementReadFails(): void {
-  mockIsOrganizationOnEnterprisePlan.mockImplementation(
-    async (_organizationId: string, onError?: string) => {
-      if (onError === 'throw') throw new Error('billing database unavailable')
-      return false
-    }
-  )
+  mockIsOrganizationGovernanceActive.mockRejectedValue(new Error('billing database unavailable'))
 }
 
 describe('permission-group resolution under a failed entitlement read', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isHosted: true, isAccessControlEnabled: true })
     mockGetWorkspaceWithOwner.mockResolvedValue({ organizationId: ORGANIZATION_ID })
   })
@@ -63,7 +55,7 @@ describe('permission-group resolution under a failed entitlement read', () => {
     await expect(
       resolveVerifiedUserAccessControlContext(USER_ID, WORKSPACE_ID, ORGANIZATION_ID)
     ).rejects.toThrow('billing database unavailable')
-    expect(mockIsOrganizationOnEnterprisePlan).toHaveBeenCalledWith(ORGANIZATION_ID, 'throw')
+    expect(mockIsOrganizationGovernanceActive).toHaveBeenCalledWith(ORGANIZATION_ID)
   })
 
   it('rejects rather than resolving a null config from the workspace-lookup path', async () => {
@@ -80,7 +72,7 @@ describe('permission-group resolution under a failed entitlement read', () => {
     await expect(getUserPermissionConfigForOrganization(ORGANIZATION_ID)).rejects.toThrow(
       'billing database unavailable'
     )
-    expect(mockIsOrganizationOnEnterprisePlan).toHaveBeenCalledWith(ORGANIZATION_ID, 'throw')
+    expect(mockIsOrganizationGovernanceActive).toHaveBeenCalledWith(ORGANIZATION_ID)
   })
 
   /**
@@ -89,7 +81,7 @@ describe('permission-group resolution under a failed entitlement read', () => {
    * inactive context.
    */
   it('still resolves an inactive context when the organization is genuinely unentitled', async () => {
-    mockIsOrganizationOnEnterprisePlan.mockResolvedValue(false)
+    mockIsOrganizationGovernanceActive.mockResolvedValue(false)
 
     await expect(
       resolveVerifiedUserAccessControlContext(USER_ID, WORKSPACE_ID, ORGANIZATION_ID)
@@ -100,5 +92,26 @@ describe('permission-group resolution under a failed entitlement read', () => {
       config: null,
     })
     await expect(getUserPermissionConfigForOrganization(ORGANIZATION_ID)).resolves.toBeNull()
+  })
+
+  it('rechecks entitlement on the caller transaction after an unentitled preflight', async () => {
+    const executor = {} as DbOrTx
+    mockIsOrganizationGovernanceActive.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+
+    await expect(isOrganizationPermissionRegimeActive(ORGANIZATION_ID)).resolves.toBe(false)
+    await expect(isOrganizationPermissionRegimeActive(ORGANIZATION_ID, executor)).resolves.toBe(
+      true
+    )
+    expect(mockIsOrganizationGovernanceActive).toHaveBeenLastCalledWith(ORGANIZATION_ID, executor)
+  })
+
+  it('propagates a transaction entitlement read failure instead of disabling restrictions', async () => {
+    const executor = {} as DbOrTx
+    entitlementReadFails()
+
+    await expect(isOrganizationPermissionRegimeActive(ORGANIZATION_ID, executor)).rejects.toThrow(
+      'billing database unavailable'
+    )
+    expect(mockIsOrganizationGovernanceActive).toHaveBeenCalledWith(ORGANIZATION_ID, executor)
   })
 })

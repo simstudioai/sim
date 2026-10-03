@@ -115,6 +115,7 @@ function createBaseSpan(log: ValidBlockLog): TraceSpan {
     ...(log.childTraceDisabled ? { childTraceDisabled: true } : {}),
     ...(log.errorHandled && { errorHandled: true }),
     ...(log.tries !== undefined && { tries: log.tries }),
+    ...(log.modelFallbacks?.length && { modelFallbacks: log.modelFallbacks }),
     ...(log.loopId && { loopId: log.loopId }),
     ...(log.parallelId && { parallelId: log.parallelId }),
     ...(log.iterationIndex !== undefined && { iterationIndex: log.iterationIndex }),
@@ -391,8 +392,11 @@ function resolveToolCallsList(output: NormalizedBlockOutput | undefined): BlockT
 
 /** Extracts and flattens child workflow trace spans into the parent span's children. */
 function attachChildWorkflowSpans(span: TraceSpan, log: ValidBlockLog): void {
-  const childTraceSpans = log.childTraceSpans ?? log.output?.childTraceSpans
-  if (!childTraceSpans?.length) return
+  const childTraceSpans = readChildSpans(
+    log.childTraceSpans ?? log.output?.childTraceSpans,
+    'childTraceSpans'
+  )
+  if (childTraceSpans.length === 0) return
 
   span.children = flattenWorkflowChildren(childTraceSpans)
   span.output = stripChildTraceSpansFromOutput(span.output)
@@ -403,10 +407,21 @@ function isSyntheticWorkflowWrapper(span: TraceSpan): boolean {
   return span.type === 'workflow' && !span.blockId
 }
 
+/**
+ * Reads a list of child spans, or `[]` when absent. Anything other than an
+ * array (for example a span list that was spilled to a large-value reference)
+ * is dropped with a warning so one malformed subtree cannot fail the trace.
+ */
+function readChildSpans(value: unknown, source: 'children' | 'childTraceSpans'): TraceSpan[] {
+  if (value === undefined || value === null) return []
+  if (Array.isArray(value)) return value
+  logger.warn('Dropping child spans that are not a list', { source, shape: typeof value })
+  return []
+}
+
 /** Reads nested `childTraceSpans` off a span's output, or `[]` if absent. */
 function extractOutputChildren(output: TraceSpan['output']): TraceSpan[] {
-  const nested = (output as { childTraceSpans?: TraceSpan[] } | undefined)?.childTraceSpans
-  return Array.isArray(nested) ? nested : []
+  return readChildSpans(output?.childTraceSpans, 'childTraceSpans')
 }
 
 /** Returns a copy of `output` with `childTraceSpans` removed, or undefined unchanged. */
@@ -429,23 +444,21 @@ export function flattenWorkflowChildren(spans: TraceSpan[]): TraceSpan[] {
 
   for (const span of spans) {
     if (isSyntheticWorkflowWrapper(span)) {
-      if (span.children?.length) {
-        flattened.push(...flattenWorkflowChildren(span.children))
-      }
+      flattened.push(...flattenWorkflowChildren(readChildSpans(span.children, 'children')))
       continue
     }
 
-    const directChildren = span.children ?? []
+    const directChildren = readChildSpans(span.children, 'children')
     const outputChildren = extractOutputChildren(span.output)
     const allChildren = [...directChildren, ...outputChildren]
 
     const nextSpan: TraceSpan = { ...span }
     if (allChildren.length > 0) {
       nextSpan.children = flattenWorkflowChildren(allChildren)
+    } else if (!Array.isArray(span.children)) {
+      nextSpan.children = undefined
     }
-    if (outputChildren.length > 0) {
-      nextSpan.output = stripChildTraceSpansFromOutput(nextSpan.output)
-    }
+    nextSpan.output = stripChildTraceSpansFromOutput(nextSpan.output)
 
     flattened.push(nextSpan)
   }

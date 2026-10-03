@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { BrowserPageIssue } from '@sim/browser-protocol'
-import { Button } from '@sim/emcn'
+import { Chip } from '@sim/emcn'
 import { CircleAlert, Globe, RefreshCw } from '@sim/emcn/icons'
 
 interface BrowserPageIssueProps {
@@ -125,13 +125,25 @@ export function browserPageIssueCopy(issue: BrowserPageIssue): BrowserPageIssueC
   }
 }
 
+/**
+ * Whether nothing in Sim holds focus, as when it was in the native page that
+ * just failed. Any focused element, from the chat composer to the omnibox,
+ * keeps it. `document.activeElement` survives a window blur, so a caret left
+ * in chat still counts.
+ */
+function isFocusFree(): boolean {
+  const active = document.activeElement
+  return !active || active === document.body
+}
+
 /** Replaces a hidden native page and optionally claims renderer focus for keyboard recovery. */
 export function BrowserPageIssueView({ issue, onReload, focusRecovery }: BrowserPageIssueProps) {
   const headingRef = useRef<HTMLHeadingElement>(null)
   const copy = browserPageIssueCopy(issue)
 
   useEffect(() => {
-    if (focusRecovery) headingRef.current?.focus()
+    // Keyboard recovery for someone who was in the browser.
+    if (focusRecovery && isFocusFree()) headingRef.current?.focus()
   }, [focusRecovery, issue])
 
   const Icon = issue.kind === 'load-error' ? Globe : CircleAlert
@@ -161,10 +173,11 @@ export function BrowserPageIssueView({ issue, onReload, focusRecovery }: Browser
           ))}
         </ul>
         <p className='mt-6 break-all font-mono text-[var(--text-muted)] text-xs'>{copy.code}</p>
-        <Button type='button' variant='default' size='sm' className='mt-8 gap-1' onClick={onReload}>
-          <RefreshCw className='size-[14px]' />
-          Reload
-        </Button>
+        <div className='mt-8'>
+          <Chip leftIcon={RefreshCw} onClick={onReload}>
+            Reload
+          </Chip>
+        </div>
       </div>
     </section>
   )

@@ -1,14 +1,3 @@
-/** Anonymous user ID used when DISABLE_AUTH is enabled */
-export const ANONYMOUS_USER_ID = '00000000-0000-0000-0000-000000000000'
-
-export const ANONYMOUS_USER = {
-  id: ANONYMOUS_USER_ID,
-  name: 'Anonymous',
-  email: 'anonymous@localhost',
-  emailVerified: true,
-  image: null,
-} as const
-
 /**
  * Provider IDs permitted to authenticate (create or link a session) through the
  * unauthenticated sign-in endpoints `/sign-in/social` and `/sign-in/oauth2`.
@@ -106,3 +95,13 @@ export function applyRegistrationGate<T extends Record<string, RegistrationGate>
   /** The spread widens past what TypeScript can prove; the keys are unchanged. */
   return gated as T
 }
+
+/**
+ * How a sign-in refused by an organization's single sign-on requirement identifies itself. Here
+ * rather than beside the policy so the sign-in and verification screens can recognize the refusal
+ * without pulling the policy module — and its database dependencies — into the browser bundle.
+ */
+export const SSO_REQUIRED_ERROR_CODE = 'SSO_REQUIRED'
+
+export const SSO_REQUIRED_MESSAGE =
+  'Your organization requires single sign-on. Sign in through your identity provider.'

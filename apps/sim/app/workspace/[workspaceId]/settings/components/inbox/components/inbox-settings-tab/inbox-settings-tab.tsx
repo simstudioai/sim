@@ -296,6 +296,11 @@ export function InboxSettingsTab() {
                 </div>
               </div>
             )}
+            {updateSecretPolicy.error && (
+              <p role='alert' className='text-[var(--text-error)] text-caption'>
+                {getErrorMessage(updateSecretPolicy.error, 'Failed to update secret access')}
+              </p>
+            )}
           </div>
         </SettingsSection>
       </div>

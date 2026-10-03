@@ -32,6 +32,7 @@ async function prepareDestination(args: ExecuteServerSelectorArgs) {
     throw new SelectorConnectionUnavailableError()
   }
   args.signal?.throwIfAborted()
+  if (!args.workspaceId) throw new SelectorContextUnavailableError()
   try {
     const prepared = await prepareOciNativeClient(
       { credentialId, region: args.context.region || undefined },
@@ -50,6 +51,8 @@ async function executeNativeSelector(
   destination: Awaited<ReturnType<typeof prepareDestination>>
 ) {
   if (args.request.kind !== 'list') throw new SelectorOptionsUnavailableError()
+  args.signal?.throwIfAborted()
+  if (!args.workspaceId) throw new SelectorContextUnavailableError()
   const buckets = args.selectorKey === 'oci_object_storage_native.buckets'
   const parsed = ociNativeInputSchema.safeParse({
     operation: buckets ? 'list_buckets' : 'list_objects',

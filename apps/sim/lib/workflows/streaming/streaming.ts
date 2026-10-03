@@ -8,7 +8,7 @@ import {
   extractPathFromOutputId,
   parseOutputContentSafely,
 } from '@/lib/core/utils/response-format'
-import { encodeSSE } from '@/lib/core/utils/sse'
+import { encodeSSE, encodeSSEComment } from '@/lib/core/utils/sse'
 import {
   getInlineJsonByteLength,
   materializeInlineExecutionValue,
@@ -33,10 +33,12 @@ import {
   type ChatStreamChunkResetFrame,
   type ChatStreamErrorFrame,
   type ChatStreamFinalFrame,
+  type ChatStreamOutputFrame,
   type ChatStreamStreamErrorFrame,
   type ChatStreamThinkingFrame,
   type ChatStreamToolFrame,
   clientAcceptsAgentStreamProtocol,
+  clientAcceptsChatOutputProtocol,
 } from '@/lib/workflows/streaming/agent-stream-protocol'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
@@ -47,6 +49,7 @@ import { DEFAULT_MAX_THINKING_CHARS } from '@/providers/stream-pump'
 const logger = createLogger('WorkflowStreaming')
 
 const DANGEROUS_KEYS = ['__proto__', 'constructor', 'prototype']
+const STREAM_KEEPALIVE_INTERVAL_MS = 15_000
 const SELECTED_OUTPUT_TOO_LARGE_MESSAGE =
   'Selected output is too large to inline; select a nested field or use pagination/preview.'
 
@@ -127,6 +130,7 @@ interface StreamingState {
   processedOutputs: Set<string>
   streamCompletionTimes: Map<string, number>
   completedBlockIds: Set<string>
+  deferredOutputBlocks: Set<string>
   selectedOutputBytes: number
   streamedSelectedOutputKeys: Set<string>
   selectedOutputError?: string
@@ -512,6 +516,10 @@ export async function createStreamingResponse(
    */
   const emitThinking = clientAcceptsProtocol && streamConfig.includeThinking === true
   const emitToolCalls = clientAcceptsProtocol && streamConfig.includeToolCalls === true
+  const emitStructuredOutputs =
+    streamConfig.workflowTriggerType === 'chat' &&
+    Boolean(options.requestHeaders) &&
+    clientAcceptsChatOutputProtocol(options.requestHeaders!)
   const maxThinkingChars = DEFAULT_MAX_THINKING_CHARS
 
   let requestAborted = false
@@ -531,13 +539,32 @@ export async function createStreamingResponse(
     options.requestSignal?.removeEventListener('abort', onRequestAbort)
   }
 
+  let keepaliveId: ReturnType<typeof setInterval> | undefined
+  const stopKeepalive = () => {
+    if (keepaliveId) {
+      clearInterval(keepaliveId)
+      keepaliveId = undefined
+    }
+  }
+
   return new ReadableStream({
     async start(controller) {
+      /** Flush headers promptly and keep silent blocks alive through idle-limited proxies. */
+      controller.enqueue(encodeSSEComment('keepalive'))
+      keepaliveId = setInterval(() => {
+        try {
+          controller.enqueue(encodeSSEComment('keepalive'))
+        } catch {
+          stopKeepalive()
+        }
+      }, STREAM_KEEPALIVE_INTERVAL_MS)
+
       const state: StreamingState = {
         streamedChunks: new Map(),
         processedOutputs: new Set(),
         streamCompletionTimes: new Map(),
         completedBlockIds: new Set(),
+        deferredOutputBlocks: new Set(),
         selectedOutputBytes: 0,
         streamedSelectedOutputKeys: new Set(),
       }
@@ -607,6 +634,11 @@ export async function createStreamingResponse(
           return
         }
 
+        /** Response-format streams contain complete selected values; send their typed outputs once. */
+        const deferSelectedOutputs =
+          emitStructuredOutputs && streamingExec.clientStreamTransformed === true
+        if (deferSelectedOutputs) state.deferredOutputBlocks.add(blockId)
+
         /**
          * Negotiated clients get answer text live from the sink (pending deltas
          * stream as the model generates; `chunk_reset` clears an intermediate
@@ -616,8 +648,8 @@ export async function createStreamingResponse(
          * only writes once the turn is classified — correct for a consumer that
          * cannot retract, at the cost of arriving in one piece.
          *
-         * Response-format projections rewrite the bytes, so those blocks keep
-         * the byte stream as the frame source either way.
+         * Response-format projections rewrite the bytes. Typed-output clients
+         * receive those selections from onBlockComplete instead.
          */
         const sinkAnswerText =
           clientAcceptsProtocol &&
@@ -683,7 +715,7 @@ export async function createStreamingResponse(
             }
             state.streamedChunks.get(blockId)!.push(textChunk)
 
-            if (!sinkAnswerText) {
+            if (!sinkAnswerText && !deferSelectedOutputs) {
               emitAnswerChunk(textChunk)
             }
           }
@@ -718,12 +750,17 @@ export async function createStreamingResponse(
           return
         }
 
-        if (state.streamedChunks.has(selectedOutputBlockId)) {
+        const hasStreamedText =
+          state.streamedChunks.has(selectedOutputBlockId) &&
+          !state.deferredOutputBlocks.has(selectedOutputBlockId)
+        if (hasStreamedText && !emitStructuredOutputs) {
           return
         }
 
         const matchingOutputs = getSelectedOutputDescriptors(streamConfig.selectedOutputs).filter(
-          (descriptor) => descriptor.blockId === selectedOutputBlockId
+          (descriptor) =>
+            descriptor.blockId === selectedOutputBlockId &&
+            (!hasStreamedText || (descriptor.path !== '' && descriptor.path !== 'content'))
         )
 
         /**
@@ -788,6 +825,24 @@ export async function createStreamingResponse(
               await materializeInlineExecutionValue(hydratedOutput, materializationContext, {
                 maxBytes: getRemainingSelectedOutputBytes(state.selectedOutputBytes),
               })
+              if (emitStructuredOutputs && typeof hydratedOutput !== 'string') {
+                const nextSelectedOutputBytes =
+                  state.selectedOutputBytes + (getInlineJsonByteLength(hydratedOutput) ?? 0)
+                assertInlineMaterializationSize(
+                  nextSelectedOutputBytes,
+                  MAX_INLINE_MATERIALIZATION_BYTES
+                )
+                const frame: ChatStreamOutputFrame = {
+                  blockId: selectedOutputBlockId,
+                  event: 'output',
+                  data: hydratedOutput,
+                }
+                controller.enqueue(encodeSSE(frame))
+                state.selectedOutputBytes = nextSelectedOutputBytes
+                state.streamedSelectedOutputKeys.add(descriptor.key)
+                state.processedOutputs.add(selectedOutputBlockId)
+                continue
+              }
               const formattedOutput =
                 typeof hydratedOutput === 'string'
                   ? hydratedOutput
@@ -845,7 +900,7 @@ export async function createStreamingResponse(
           timeoutController.timeoutMs &&
           !requestAborted
         ) {
-          const timeoutErrorMessage = getTimeoutErrorMessage(null, timeoutController.timeoutMs)
+          const timeoutErrorMessage = getTimeoutErrorMessage(timeoutController.timeoutMs)
           logger.info(`[${requestId}] Streaming execution timed out`, {
             timeoutMs: timeoutController.timeoutMs,
           })
@@ -930,6 +985,7 @@ export async function createStreamingResponse(
 
         controller.close()
       } finally {
+        stopKeepalive()
         cleanupRequestAbort()
         timeoutController.cleanup()
       }
@@ -940,6 +996,7 @@ export async function createStreamingResponse(
         projectResolvedSecretDiagnosticError(reason, undefined)
       )
       requestAborted = true
+      stopKeepalive()
       timeoutController.abort()
       cleanupRequestAbort()
       timeoutController.cleanup()

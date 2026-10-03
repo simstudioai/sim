@@ -1,6 +1,5 @@
 import { ConvexIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { ConvexResponse } from '@/tools/convex/types'
 
 /**
  * A List Documents page is resumed with either the page cursor or the snapshot
@@ -8,7 +7,7 @@ import type { ConvexResponse } from '@/tools/convex/types'
  */
 const PAGE_RESUME_FIELD = ['pageCursor', 'snapshot'] as const
 
-export const ConvexBlock: BlockConfig<ConvexResponse> = {
+export const ConvexBlock: BlockConfig = {
   type: 'convex',
   name: 'Convex',
   description: 'Use Convex database',

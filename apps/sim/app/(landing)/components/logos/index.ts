@@ -1,1 +1,1 @@
-export { Logos } from './logos'
+export { LOGOS, type Logo, Logos, MUTED_MARK } from './logos'

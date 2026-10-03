@@ -1,5 +1,6 @@
 'use client'
 import { chipVariants, cn } from '@sim/emcn'
+import { Check } from '@sim/emcn/icons'
 import { SlackIcon } from '@/components/icons'
 import { BillingPeriodToggle } from '@/app/workspace/[workspaceId]/upgrade/components/billing-period-toggle/billing-period-toggle'
 import {
@@ -55,37 +56,13 @@ export interface ComparisonTableProps {
 }
 
 /**
- * Inline check icon — matches the card-level `CheckIcon` shape.
- */
-function CheckIcon() {
-  return (
-    <svg
-      width='14'
-      height='14'
-      viewBox='0 0 14 14'
-      fill='none'
-      aria-hidden='true'
-      className='size-[14px] shrink-0'
-    >
-      <path
-        d='M2.5 7L5.5 10L11.5 4'
-        stroke='currentColor'
-        strokeWidth='1.5'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-      />
-    </svg>
-  )
-}
-
-/**
  * Renders a single cell value: `true` → check icon, `false` → em-dash, string → text.
  */
 function Cell({ value }: { value: CellValue }) {
   if (value === true) {
     return (
       <span className='flex justify-center text-[var(--text-primary)]'>
-        <CheckIcon />
+        <Check className='size-[14px] shrink-0' />
       </span>
     )
   }

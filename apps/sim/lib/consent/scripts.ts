@@ -1,6 +1,7 @@
 import { ahrefsAnalytics } from '@c15t/scripts/ahrefs-analytics'
 import { gtag } from '@c15t/scripts/google-tag'
 import { xPixel } from '@c15t/scripts/x-pixel'
+import { FREEBUFF_TAG_SRC, installFreebuffStub } from '@/lib/analytics/freebuff'
 
 export const GOOGLE_ANALYTICS_ID = 'G-DR7YBE70VS' as const
 
@@ -22,12 +23,6 @@ export const X_PIXEL_ID = 'q5xbl' as const
 export const X_DEMO_BOOKED_EVENT_ID = 'tw-q5xbl-q5xbn' as const
 
 const AHREFS_ANALYTICS_KEY = 'WJ9yWTBAiQKZAE/2TyU/yA' as const
-
-declare global {
-  interface Window {
-    _hsq?: unknown[][]
-  }
-}
 
 const GOOGLE_ANALYTICS_SCRIPT = gtag({
   id: GOOGLE_ANALYTICS_ID,
@@ -66,19 +61,20 @@ export const GLOBAL_CONSENT_SCRIPTS = [
     },
   },
   ahrefsAnalytics({ key: AHREFS_ANALYTICS_KEY }),
+  /**
+   * Global rather than landing-only: the ad lands on a marketing page but the
+   * conversion fires from `/signup`. The tag recovers `?bfcid=` from the
+   * original navigation entry, so a client-side route change before consent
+   * resolves does not lose the click id.
+   */
+  {
+    id: 'freebuff-tag',
+    src: FREEBUFF_TAG_SRC,
+    category: 'marketing',
+    async: true,
+    onBeforeLoad: installFreebuffStub,
+  },
 ] as const
 
 /** Marketing-page integrations that should not load on a direct workspace visit. */
 export const X_PIXEL_SCRIPT = xPixel({ pixelId: X_PIXEL_ID })
-
-/** HubSpot has no first-party c15t helper, so it uses the generic script contract. */
-export const HUBSPOT_SCRIPT = {
-  id: 'hubspot',
-  src: 'https://js-na2.hs-scripts.com/246720681.js',
-  category: 'measurement',
-  async: true,
-  onBeforeLoad: () => {
-    window._hsq ||= []
-    window._hsq.push(['setPath', window.location.pathname])
-  },
-} as const

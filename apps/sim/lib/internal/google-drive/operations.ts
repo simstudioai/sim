@@ -17,6 +17,7 @@ import type {
   GoogleDriveMoveInput,
   GoogleDriveUploadInput,
 } from '@/lib/internal/google-drive/input'
+import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import type { GoogleDriveFile, GoogleDriveRevision } from '@/tools/google_drive/types'
 import {
@@ -204,18 +205,14 @@ export async function executeGoogleDriveDownload(
   }
 
   context.signal?.throwIfAborted()
-  return {
-    success: true,
-    output: {
-      file: {
-        name: input.fileName || metadata.name || 'download',
-        mimeType: finalMimeType,
-        data: fileBuffer.toString('base64'),
-        size: fileBuffer.length,
-      },
-      metadata,
+  return createInternalToolFileResult(
+    {
+      buffer: fileBuffer,
+      name: input.fileName || metadata.name || 'download',
+      mimeType: finalMimeType,
     },
-  }
+    (file) => ({ success: true, output: { file, metadata } })
+  )
 }
 
 export async function executeGoogleDriveExport(
@@ -279,18 +276,14 @@ export async function executeGoogleDriveExport(
     )
   }
   const fileBuffer = Buffer.from(arrayBuffer)
-  return {
-    success: true,
-    output: {
-      file: {
-        name: input.fileName || metadata.name || 'export',
-        mimeType: input.mimeType,
-        data: fileBuffer.toString('base64'),
-        size: fileBuffer.length,
-      },
-      exportedMimeType: input.mimeType,
+  return createInternalToolFileResult(
+    {
+      buffer: fileBuffer,
+      name: input.fileName || metadata.name || 'export',
+      mimeType: input.mimeType,
     },
-  }
+    (file) => ({ success: true, output: { file, exportedMimeType: input.mimeType } })
+  )
 }
 
 export async function executeGoogleDriveMove(

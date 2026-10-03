@@ -426,6 +426,8 @@ export type ModalSize = keyof typeof MODAL_SIZES
 
 export interface ModalContentProps
   extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
+  /** Backdrop styling for specialized surfaces such as media viewers. */
+  overlayClassName?: string
   /**
    * Whether to show the close button
    * @default true
@@ -488,6 +490,7 @@ const ModalContent = React.forwardRef<
   (
     {
       className,
+      overlayClassName,
       children,
       showClose = true,
       size = 'md',
@@ -562,6 +565,7 @@ const ModalContent = React.forwardRef<
     return (
       <ModalPortal>
         <ModalOverlay
+          className={overlayClassName}
           nativeSurfaceBarrierClaimedRef={nativeSurfaceBarrierClaimedRef}
           nativeSurfaceReady={nativeSurfaceReady}
           onNativeSurfaceReadyChange={handleNativeSurfaceReadyChange}

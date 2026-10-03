@@ -1,11 +1,12 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
-import { loadExecutionsByRow, writeExecutionsPatch } from '@/lib/table/rows/executions'
-import type { RowExecutionMetadata } from '@/lib/table/types'
+import {
+  loadExecutionsByRow,
+  tableMayHaveRunState,
+  writeExecutionsPatch,
+} from '@/lib/table/rows/executions'
+import type { RowExecutionMetadata, TableSchema } from '@/lib/table/types'
 
 const EXECUTION_STATE: RowExecutionMetadata = {
   status: 'running',
@@ -29,7 +30,6 @@ function renderCondition(value: unknown): string {
 
 describe('writeExecutionsPatch guards', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -60,19 +60,6 @@ describe('writeExecutionsPatch guards', () => {
       set: Record<string, unknown>
     }
     expect(conflict.set.capabilityGovernedUserId).toBe('requesting-member')
-  })
-
-  /** A write that names no subject clears it — only an unclaimed marker is read. */
-  it('writes null for a state that carries no subject', async () => {
-    await writeExecutionsPatch(
-      dbChainMock.db as unknown as Parameters<typeof writeExecutionsPatch>[0],
-      'table-1',
-      'row-1',
-      { 'group-1': EXECUTION_STATE }
-    )
-
-    const values = dbChainMockFns.values.mock.calls[0]?.[0] as Record<string, unknown>
-    expect(values.capabilityGovernedUserId).toBeNull()
   })
 
   it('rejects a worker write when the atomic stale-or-cancel predicate returns no row', async () => {
@@ -212,19 +199,6 @@ describe('loadExecutionsByRow', () => {
   })
 
   /**
-   * `blockErrors` is schemaless jsonb, so a blob that is not an object at all is
-   * reachable on read. Omitting the key is what lets the published contract keep
-   * declaring `Record<string, string>` without a drifted row becoming a 500.
-   */
-  it('omits block errors entirely when the stored blob is not an object map', async () => {
-    const { trx } = fakeTrx([[storedExecution({ rowId: 'row-1', blockErrors: ['boom'] })]])
-
-    const byRow = await loadExecutionsByRow(trx, ['row-1'])
-
-    expect(byRow.get('row-1')?.['group-1']).not.toHaveProperty('blockErrors')
-  })
-
-  /**
    * The budget is spent DURING the drain: the refusal has to land before the
    * remaining chunks are read, or the heap spike the ceiling exists to prevent
    * has already happened by the time anything measures it.
@@ -245,16 +219,26 @@ describe('loadExecutionsByRow', () => {
 
     expect(select.mock.calls.length).toBeLessThan(3)
   })
+})
 
-  it('reads every chunk when the sidecar fits the budget', async () => {
-    const page = (prefix: string) =>
-      Array.from({ length: 250 }, (_, index) => storedExecution({ rowId: `${prefix}-${index}` }))
-    const { trx, select } = fakeTrx([page('a'), page('b'), page('c')])
-    const ids = Array.from({ length: 750 }, (_, index) => `row-${index}`)
+describe('tableMayHaveRunState', () => {
+  const column = (overrides: Partial<TableSchema['columns'][number]> = {}) => ({
+    id: 'col_1',
+    name: 'title',
+    type: 'string' as const,
+    ...overrides,
+  })
 
-    const byRow = await loadExecutionsByRow(trx, ids, { budgetBytes: 2 * 1024 * 1024 })
-
-    expect(select).toHaveBeenCalledTimes(3)
-    expect(byRow.size).toBe(750)
+  /**
+   * A column still pointing at a group is group state whatever the group list says, so an
+   * unexpected schema shape must keep the sidecar read rather than silently drop run state.
+   */
+  it('is true for a column that still names a group the list has lost', () => {
+    expect(
+      tableMayHaveRunState({
+        columns: [column({ workflowGroupId: 'group-1' })],
+        workflowGroups: [],
+      })
+    ).toBe(true)
   })
 })

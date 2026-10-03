@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { workspaceFileColumns, workspaceFiles } from '@sim/db/schema'
+import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -22,7 +22,14 @@ import {
 } from '@/lib/uploads/core/storage-service'
 import { getWorkspaceFileSize, type StorageContext } from '@/lib/uploads/shared/types'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
+import { activeWorkspaceFileConditions } from '@/lib/workspace-files/query-scope'
 import { resolveForkFolderMapping } from '@/ee/workspace-forking/lib/copy/copy-workflows'
+import {
+  assertForkCopyActive,
+  completeForkCopyResource,
+  type ForkCopyControl,
+  rethrowForkCopyInterruption,
+} from '@/ee/workspace-forking/lib/copy/progress'
 import {
   type ForkContentRefMaps,
   rewriteForkContentRefs,
@@ -190,14 +197,12 @@ export async function planForkFileCopies(params: {
     selectors.length === 0
       ? []
       : await tx
-          .select(workspaceFileColumns)
+          .select()
           .from(workspaceFiles)
           .where(
             and(
               selectors.length === 1 ? selectors[0] : or(...selectors),
-              eq(workspaceFiles.workspaceId, sourceWorkspaceId),
-              eq(workspaceFiles.context, 'workspace'),
-              isNull(workspaceFiles.deletedAt)
+              ...activeWorkspaceFileConditions([sourceWorkspaceId])
             )
           )
 
@@ -265,16 +270,19 @@ export async function planForkFileCopies(params: {
 export async function executeForkFileBlobCopies(
   blobTasks: BlobCopyTask[],
   requestId = 'unknown',
-  contentRefMaps?: ForkContentRefMaps
+  contentRefMaps?: ForkContentRefMaps,
+  control?: ForkCopyControl
 ): Promise<{ copied: number; failed: number; failedTargetKeys: string[] }> {
   let copied = 0
   const failedTargetKeys: string[] = []
   for (let offset = 0; offset < blobTasks.length; offset += BLOB_COPY_PAGE) {
+    assertForkCopyActive(control)
     const taskPage = blobTasks.slice(offset, offset + BLOB_COPY_PAGE)
     let finalizedById: Map<string, { key: string; workspaceId: string | null }>
     try {
       finalizedById = await getFinalizedFileCopies(taskPage)
     } catch (error) {
+      rethrowForkCopyInterruption(error, control)
       for (const task of taskPage) {
         failedTargetKeys.push(task.targetKey)
         logger.warn(`[${requestId}] Failed to check copied file replay state`, {
@@ -286,6 +294,11 @@ export async function executeForkFileBlobCopies(
     }
 
     for (const task of taskPage) {
+      assertForkCopyActive(control)
+      if (control?.progress?.completed.includes(`file:${task.targetFileId}`)) {
+        copied++
+        continue
+      }
       let uploadedThisAttempt = false
       try {
         const finalized = finalizedById.get(task.targetFileId)
@@ -293,6 +306,7 @@ export async function executeForkFileBlobCopies(
           if (finalized.key !== task.targetKey || finalized.workspaceId !== task.workspaceId) {
             throw new Error(`Conflicting target metadata for copied file ${task.targetFileId}`)
           }
+          await completeForkCopyResource(control, `file:${task.targetFileId}`)
           copied += 1
           continue
         }
@@ -310,6 +324,7 @@ export async function executeForkFileBlobCopies(
               const rewritten = rewriteForkContentRefs(text, contentRefMaps)
               if (rewritten !== text) body = Buffer.from(rewritten, 'utf8')
             } catch (error) {
+              rethrowForkCopyInterruption(error, control)
               logger.warn(
                 `[${requestId}] Failed to rewrite markdown blob content; copying raw bytes`,
                 {
@@ -319,6 +334,7 @@ export async function executeForkFileBlobCopies(
               )
             }
           }
+          assertForkCopyActive(control)
           await uploadFile({
             file: body,
             fileName: task.fileName,
@@ -336,11 +352,14 @@ export async function executeForkFileBlobCopies(
           uploadedThisAttempt = true
         }
 
+        assertForkCopyActive(control)
         const billingContext = await resolveStorageBillingContext(task.workspaceId)
         const targetOriginalName = await resolveTargetOriginalName(task)
         const targetDisplayName =
           targetOriginalName === task.fileName ? task.displayName : targetOriginalName
+        assertForkCopyActive(control)
         await db.transaction(async (tx) => {
+          assertForkCopyActive(control)
           const [inserted] = await tx
             .insert(workspaceFiles)
             .values({
@@ -423,6 +442,7 @@ export async function executeForkFileBlobCopies(
           )
           await incrementStorageUsageForBillingContextInTx(tx, billingContext, task.size)
         })
+        await completeForkCopyResource(control, `file:${task.targetFileId}`)
         copied += 1
         if (targetOriginalName !== task.fileName) {
           logger.warn(`[${requestId}] Copied file renamed to avoid a target name collision`, {
@@ -433,6 +453,7 @@ export async function executeForkFileBlobCopies(
           })
         }
       } catch (error) {
+        rethrowForkCopyInterruption(error, control)
         failedTargetKeys.push(task.targetKey)
         logger.warn(`[${requestId}] Failed to copy file blob during fork`, {
           targetKey: task.targetKey,

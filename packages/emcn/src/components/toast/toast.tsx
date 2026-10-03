@@ -100,6 +100,7 @@ interface ToastData {
   duration: number
   persistAcrossRoutes: boolean
   onDismiss?: () => void
+  onUserDismiss?: () => void
 }
 
 interface ToastRemoval {
@@ -174,6 +175,8 @@ type ToastInput = {
   action?: ToastAction
   /** Called once when the toast leaves the stack, regardless of how it was dismissed. */
   onDismiss?: () => void
+  /** Called directly when the user closes the toast or selects its action, before removal. */
+  onUserDismiss?: () => void
   duration?: number
   /**
    * Keep the toast across navigation. The stack is otherwise cleared on every
@@ -374,7 +377,10 @@ function ToastItem({ toast: t, geometry, reduceMotion, onDismiss, onMeasure }: T
     return () => observer.disconnect()
   }, [t.id, onMeasure])
 
-  const dismiss = useCallback(() => onDismiss(t.id), [onDismiss, t.id])
+  const dismiss = () => {
+    t.onUserDismiss?.()
+    onDismiss(t.id)
+  }
 
   const { y, scale, height, zIndex } = geometry
   const cornerRadius = height <= COMPACT_CARD_HEIGHT_PX ? COMPACT_RADIUS_PX : CONCENTRIC_RADIUS_PX
@@ -484,8 +490,10 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   const [heights, setHeights] = useState<Record<string, number>>({})
   const [expanded, setExpanded] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
-  const processedRemovalIdsRef = useRef(new Set<string>())
+  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>> | null>(null)
+  const timers = (timersRef.current ??= new Map())
+  const processedRemovalIdsRef = useRef<Set<string> | null>(null)
+  const processedRemovalIds = (processedRemovalIdsRef.current ??= new Set())
 
   /**
    * Clear the previous route's toasts when the route changes. Toasts flagged
@@ -539,21 +547,21 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
       duration: input.duration ?? (input.action ? 0 : AUTO_DISMISS_MS),
       persistAcrossRoutes: input.persistAcrossRoutes ?? false,
       onDismiss: input.onDismiss,
+      onUserDismiss: input.onUserDismiss,
     }
     dispatch({ type: 'add', toast: data })
     return id
   }
 
   useEffect(() => {
-    const processed = processedRemovalIdsRef.current
     if (removals.length === 0) {
-      processed.clear()
+      processedRemovalIds.clear()
       return
     }
     const ids: string[] = []
     for (const removal of removals) {
-      if (processed.has(removal.id)) continue
-      processed.add(removal.id)
+      if (processedRemovalIds.has(removal.id)) continue
+      processedRemovalIds.add(removal.id)
       ids.push(removal.id)
       removal.callback()
     }
@@ -561,10 +569,10 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   }, [removals])
 
   const dismissToast = useCallback((id: string) => {
-    const timer = timersRef.current.get(id)
+    const timer = timers.get(id)
     if (timer) {
       clearTimeout(timer)
-      timersRef.current.delete(id)
+      timers.delete(id)
     }
     dispatch({ type: 'dismiss', id })
     setHeights((prev) => {
@@ -576,8 +584,8 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   }, [])
 
   const dismissAllToasts = useCallback(() => {
-    for (const timer of timersRef.current.values()) clearTimeout(timer)
-    timersRef.current.clear()
+    for (const timer of timers.values()) clearTimeout(timer)
+    timers.clear()
     dispatch({ type: 'dismiss-all' })
     setHeights({})
   }, [])
@@ -605,7 +613,6 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
    * every timer so a toast can't be cleared mid-read.
    */
   useEffect(() => {
-    const timers = timersRef.current
     if (toasts.length === 0 || expanded) {
       for (const timer of timers.values()) clearTimeout(timer)
       timers.clear()
@@ -632,7 +639,6 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   }, [toasts, expanded, dismissToast])
 
   useEffect(() => {
-    const timers = timersRef.current
     return () => {
       for (const timer of timers.values()) clearTimeout(timer)
     }
@@ -694,7 +700,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
                   key='toast-stack'
                   aria-live='polite'
                   aria-label='Notifications'
-                  data-native-surface-overlay=''
+                  data-native-surface-overlay='passive'
                   /*
                    * The stack is portalled to `<body>`, so it shares no ancestor
                    * with the panel or terminal it insets by. A resize drag writes

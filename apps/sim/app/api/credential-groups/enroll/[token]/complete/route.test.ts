@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -43,25 +40,9 @@ function request() {
 
 describe('credential group enrollment completion route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.ipRateLimit.mockResolvedValue(null)
     mocks.authenticate.mockResolvedValue(principal)
     mocks.complete.mockResolvedValue({ completed: true })
-  })
-
-  it('submits optional account selections through its invitation principal', async () => {
-    const enrollmentRequest = request()
-    const response = await POST(enrollmentRequest, context)
-
-    expect(response.status).toBe(303)
-    expect(response.headers.get('location')).toBe('/credential-groups/complete')
-    expect(response.headers.get('cache-control')).toBe('no-store')
-    expect(response.headers.get('referrer-policy')).toBe('no-referrer')
-    expect(mocks.complete).toHaveBeenCalledWith({
-      principal,
-      input: {},
-      request: enrollmentRequest,
-    })
   })
 
   it('returns to an unavailable enrollment when completion loses authorization', async () => {

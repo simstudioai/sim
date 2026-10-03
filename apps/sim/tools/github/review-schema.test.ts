@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { Value } from 'typebox/value'
 import { describe, expect, it } from 'vitest'
 import {

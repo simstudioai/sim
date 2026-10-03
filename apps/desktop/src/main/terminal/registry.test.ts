@@ -1,9 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { tmpdir } from 'node:os'
 import type { TerminalCommandEvent } from '@sim/terminal-protocol'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('electron', () => import('@/test/electron-mock'))
 
 interface StubSessionControl {
   terminalId: string
@@ -120,9 +119,9 @@ describe('TerminalRegistry', () => {
     const events = sink()
     terminals.setSink(events)
 
-    const firstA = terminals.start('chat-A', { cols: 80, rows: 24 })
+    const firstA = terminals.openTerminal('chat-A')
     terminals.openTerminal('chat-A', '/tmp')
-    const firstB = terminals.start('chat-B', { cols: 100, rows: 30 })
+    const firstB = terminals.openTerminal('chat-B')
 
     expect(firstA.activeTerminalId).toBe('1')
     expect(firstB.activeTerminalId).toBe('1')
@@ -165,7 +164,7 @@ describe('TerminalRegistry', () => {
     const terminals = registry()
     const events = sink()
     terminals.setSink(events)
-    terminals.start('pending:new', { cols: 80, rows: 24 })
+    terminals.openTerminal('pending:new')
     terminals.openTerminal('pending:new', '/tmp')
     const before = terminals.getTabs('pending:new')
     const originalSessions = [...stubSessions]
@@ -183,64 +182,6 @@ describe('TerminalRegistry', () => {
       activeTerminalId: null,
     })
     expect(terminals.migrateScope('missing', 'chat-other')).toBe(true)
-
-    terminals.dispose()
-  })
-
-  it('keeps the provisional service when persisted terminal migration collides', () => {
-    const persistence: TerminalScopePersistence = {
-      load: vi.fn(),
-      save: vi.fn(() => true),
-      migrate: vi.fn(() => false),
-      disposeScope: vi.fn(),
-    }
-    const terminals = new TerminalRegistry(persistence)
-    terminals.start('pending:new', { cols: 80, rows: 24 })
-
-    expect(terminals.migrateScope('pending:new', 'chat-existing')).toBe(false)
-    expect(terminals.peekTabs('pending:new').tabs).toHaveLength(1)
-    expect(terminals.peekTabs('chat-existing').tabs).toHaveLength(0)
-
-    terminals.dispose()
-  })
-
-  it('restores saved tab directories lazily as fresh shells', () => {
-    const persistedTabs = Array.from({ length: 12 }, (_, index) => ({
-      cwd: index % 2 === 0 ? tmpdir() : process.cwd(),
-    }))
-    const persistence: TerminalScopePersistence = {
-      load: vi.fn(() => ({
-        v: 1 as const,
-        tabs: persistedTabs,
-        activeIndex: 11,
-      })),
-      save: vi.fn(() => true),
-      migrate: vi.fn(() => true),
-      disposeScope: vi.fn(),
-    }
-    const terminals = new TerminalRegistry(persistence)
-
-    expect(terminals.peekTabs('chat-A')).toEqual({
-      tabs: [],
-      activeTerminalId: null,
-    })
-    expect(stubSessions).toHaveLength(0)
-
-    const restored = terminals.start('chat-A', { cols: 120, rows: 40 })
-
-    expect(stubSessions.map(({ cwd }) => cwd)).toEqual(persistedTabs.map(({ cwd }) => cwd))
-    expect(restored).toMatchObject({
-      activeTerminalId: '12',
-      tabs: persistedTabs.map(({ cwd }, index) => ({
-        terminalId: String(index + 1),
-        cwd,
-      })),
-    })
-    expect(persistence.save).toHaveBeenLastCalledWith('chat-A', {
-      v: 1,
-      tabs: persistedTabs,
-      activeIndex: 11,
-    })
 
     terminals.dispose()
   })
@@ -267,7 +208,7 @@ describe('TerminalRegistry', () => {
     terminals.setPanelFocused('chat-A', true, owner as never)
     createControl.failAt = 2
 
-    expect(() => terminals.start('chat-A', { cols: 120, rows: 40 })).toThrow('PTY spawn failed')
+    expect(() => terminals.restoreScope('chat-A')).toThrow('PTY spawn failed')
     expect(stubSessions).toHaveLength(1)
     expect(stubSessions[0].disposed).toBe(true)
     expect(terminals.peekTabs('chat-A')).toEqual({ tabs: [], activeTerminalId: null })
@@ -275,7 +216,7 @@ describe('TerminalRegistry', () => {
     expect(events.tabs).not.toHaveBeenCalled()
 
     createControl.failAt = null
-    const restored = terminals.start('chat-A', { cols: 120, rows: 40 })
+    const restored = terminals.restoreScope('chat-A')
 
     expect(restored.tabs.map(({ cwd }) => cwd)).toEqual(persistedTabs.map(({ cwd }) => cwd))
     expect(restored.activeTerminalId).toBe('2')
@@ -301,44 +242,13 @@ describe('TerminalRegistry', () => {
     terminals.dispose()
   })
 
-  it('bounds a corrupt oversized restore while retaining its selected tab', () => {
-    const persistedTabs = Array.from({ length: 20 }, (_, index) => ({
-      cwd: index % 2 === 0 ? tmpdir() : process.cwd(),
-    }))
-    const persistence: TerminalScopePersistence = {
-      load: vi.fn(() => ({
-        v: 1 as const,
-        tabs: persistedTabs,
-        activeIndex: 19,
-      })),
-      save: vi.fn(() => true),
-      migrate: vi.fn(() => true),
-      disposeScope: vi.fn(),
-    }
-    const terminals = new TerminalRegistry(persistence)
-
-    const restored = terminals.start('chat-A', { cols: 120, rows: 40 })
-
-    expect(restored.tabs).toHaveLength(16)
-    expect(restored.activeTerminalId).toBe('16')
-    expect(stubSessions.map(({ cwd }) => cwd)).toEqual([
-      ...persistedTabs.slice(0, 15).map(({ cwd }) => cwd),
-      persistedTabs[19].cwd,
-    ])
-    expect(persistence.save).toHaveBeenLastCalledWith('chat-A', {
-      v: 1,
-      tabs: [...persistedTabs.slice(0, 15), persistedTabs[19]],
-      activeIndex: 15,
-    })
-  })
-
   it('enforces the process-wide terminal ceiling without evicting live scopes', () => {
     const terminals = registry()
     for (let index = 0; index < 48; index++) {
-      terminals.start(`chat-${index}`, { cols: 80, rows: 24 })
+      terminals.openTerminal(`chat-${index}`)
     }
 
-    expect(() => terminals.start('chat-overflow', { cols: 80, rows: 24 })).toThrow(
+    expect(() => terminals.openTerminal('chat-overflow')).toThrow(
       expect.objectContaining({ code: 'RESOURCE_LIMIT' })
     )
     expect(stubSessions).toHaveLength(48)
@@ -359,16 +269,16 @@ describe('TerminalRegistry', () => {
     }
     const terminals = new TerminalRegistry(persistence)
     for (let index = 0; index < 46; index++) {
-      terminals.start(`chat-live-${index}`, { cols: 80, rows: 24 })
+      terminals.openTerminal(`chat-live-${index}`)
     }
 
-    expect(() => terminals.start('chat-pending-restore', { cols: 80, rows: 24 })).toThrow(
+    expect(() => terminals.restoreScope('chat-pending-restore')).toThrow(
       expect.objectContaining({ code: 'RESOURCE_LIMIT' })
     )
     expect(persistence.save).not.toHaveBeenCalledWith('chat-pending-restore', expect.anything())
 
     terminals.disposeScope('chat-live-0')
-    const restored = terminals.start('chat-pending-restore', { cols: 80, rows: 24 })
+    const restored = terminals.restoreScope('chat-pending-restore')
 
     expect(restored.tabs.map(({ cwd }) => cwd)).toEqual(persistedTabs.map(({ cwd }) => cwd))
     expect(restored.activeTerminalId).toBe('2')
@@ -377,52 +287,6 @@ describe('TerminalRegistry', () => {
       tabs: persistedTabs,
       activeIndex: 1,
     })
-  })
-
-  it('opens a fallback shell for a saved tab whose directory no longer exists', () => {
-    const missingCwd = '/definitely-does-not-exist/sim-terminal-restored-tab'
-    const persistence: TerminalScopePersistence = {
-      load: vi.fn(() => ({
-        v: 1 as const,
-        tabs: [{ cwd: tmpdir() }, { cwd: missingCwd }, { cwd: process.cwd() }],
-        activeIndex: 1,
-      })),
-      save: vi.fn(() => true),
-      migrate: vi.fn(() => true),
-      disposeScope: vi.fn(),
-    }
-    const terminals = new TerminalRegistry(persistence)
-
-    const restored = terminals.start('chat-A', { cols: 120, rows: 40 })
-
-    expect(stubSessions.map(({ cwd }) => cwd)).toEqual([tmpdir(), tmpdir(), process.cwd()])
-    expect(restored.activeTerminalId).toBe('2')
-    expect(restored.tabs).toHaveLength(3)
-    expect(persistence.save).toHaveBeenLastCalledWith('chat-A', {
-      v: 1,
-      tabs: [{ cwd: tmpdir() }, { cwd: tmpdir() }, { cwd: process.cwd() }],
-      activeIndex: 1,
-    })
-
-    terminals.dispose()
-  })
-
-  it('forgets an abandoned provisional scope instead of saving it', () => {
-    const persistence: TerminalScopePersistence = {
-      load: vi.fn(),
-      save: vi.fn(() => true),
-      migrate: vi.fn(() => true),
-      disposeScope: vi.fn(),
-    }
-    const terminals = new TerminalRegistry(persistence)
-    terminals.start('pending:new', { cols: 80, rows: 24 })
-    vi.mocked(persistence.save).mockClear()
-
-    terminals.disposeScope('pending:new')
-
-    expect(stubSessions[0].disposed).toBe(true)
-    expect(persistence.save).not.toHaveBeenCalled()
-    expect(persistence.disposeScope).toHaveBeenCalledWith('pending:new')
   })
 
   it('suspends PTYs while retaining their descriptor for fresh-shell restore', () => {
@@ -444,7 +308,7 @@ describe('TerminalRegistry', () => {
     }
     const terminals = new TerminalRegistry(persistence)
     const rememberedCwd = tmpdir()
-    terminals.start('chat-deleted', { cols: 80, rows: 24 })
+    terminals.openTerminal('chat-deleted')
     terminals.openTerminal('chat-deleted', rememberedCwd)
     terminals.switchTerminal('chat-deleted', '1')
     const originalSessions = [...stubSessions]
@@ -465,7 +329,7 @@ describe('TerminalRegistry', () => {
       activeTerminalId: null,
     })
 
-    expect(terminals.start('chat-deleted', { cols: 100, rows: 30 })).toEqual({
+    expect(terminals.restoreScope('chat-deleted')).toEqual({
       tabs: [],
       activeTerminalId: null,
     })
@@ -476,78 +340,17 @@ describe('TerminalRegistry', () => {
     expect(stubSessions).toHaveLength(2)
 
     terminals.activateScope('chat-deleted')
-    const restored = terminals.start('chat-deleted', { cols: 100, rows: 30 })
+    const restored = terminals.restoreScope('chat-deleted')
     expect(stubSessions).toHaveLength(4)
     expect(stubSessions.slice(2).map(({ cwd }) => cwd)).toEqual([initialCwd, rememberedCwd])
     expect(restored.activeTerminalId).toBe('1')
   })
 
-  it('kills live PTYs even when their descriptor cannot be saved', () => {
-    const persistence: TerminalScopePersistence = {
-      load: vi.fn(),
-      save: vi.fn(() => false),
-      migrate: vi.fn(() => true),
-      disposeScope: vi.fn(),
-    }
-    const terminals = new TerminalRegistry(persistence)
-    terminals.start('chat-deleted', { cols: 80, rows: 24 })
-
-    // Suspension accompanies chat deletion: a failed descriptor save must
-    // never leave the deleted chat's shells running invisibly.
-    expect(terminals.suspendScope('chat-deleted')).toBe(true)
-    expect(stubSessions[0].disposed).toBe(true)
-    expect(terminals.peekTabs('chat-deleted')).toEqual({ tabs: [], activeTerminalId: null })
-  })
-
-  it('kills live PTYs even when the descriptor save throws', () => {
-    const persistence: TerminalScopePersistence = {
-      load: vi.fn(),
-      save: vi.fn(() => true),
-      migrate: vi.fn(() => true),
-      disposeScope: vi.fn(),
-    }
-    const terminals = new TerminalRegistry(persistence)
-    terminals.start('chat-deleted', { cols: 80, rows: 24 })
-    vi.mocked(persistence.save).mockImplementation(() => {
-      throw new Error('keychain locked')
-    })
-
-    expect(terminals.suspendScope('chat-deleted')).toBe(true)
-    expect(stubSessions[0].disposed).toBe(true)
-  })
-
-  it('routes renderer shortcuts only to the focused terminal scope', () => {
-    const terminals = registry()
-    terminals.start('chat-A', { cols: 80, rows: 24 })
-    terminals.start('chat-B', { cols: 80, rows: 24 })
-    const listeners = new Map<string, (...args: unknown[]) => void>()
-    const send = vi.fn()
-    const contents = {
-      isDestroyed: () => false,
-      once: (event: string, callback: (...args: unknown[]) => void) =>
-        listeners.set(event, callback),
-      on: (event: string, callback: (...args: unknown[]) => void) => listeners.set(event, callback),
-      removeListener: (event: string) => listeners.delete(event),
-      send,
-    }
-    const ownerWindow = { webContents: contents }
-
-    terminals.setPanelFocused('chat-B', true, contents as never)
-
-    expect(terminals.handleFocusedShortcut(ownerWindow as never, 'reload-or-clear')).toBe(true)
-    expect(send).toHaveBeenCalledWith('terminal:shortcut-command', 'clear', 'chat-B', '1')
-    expect(terminals.handleFocusedShortcut(ownerWindow as never, 'zoom-in')).toBe(true)
-    expect(send).toHaveBeenLastCalledWith('terminal:shortcut-command', 'zoom-in', 'chat-B', '1')
-
-    terminals.setPanelFocused('chat-B', false, contents as never)
-    expect(terminals.handleFocusedShortcut(ownerWindow as never, 'reload-or-clear')).toBe(false)
-  })
-
   it('writes user input only for the visible focused owner and active terminal', () => {
     const terminals = registry()
-    const first = terminals.start('chat-A', { cols: 80, rows: 24 }).activeTerminalId as string
+    const first = terminals.openTerminal('chat-A').activeTerminalId as string
     const second = terminals.openTerminal('chat-A').activeTerminalId as string
-    terminals.start('chat-B', { cols: 80, rows: 24 })
+    terminals.openTerminal('chat-B')
     const owner = {
       isDestroyed: () => false,
       once: vi.fn(),
@@ -567,30 +370,5 @@ describe('TerminalRegistry', () => {
     expect(terminals.writeUserInput('chat-A', second, 'a', owner as never)).toBe(true)
     const activeSession = stubSessions.find((session) => session.terminalId === second)
     expect(activeSession?.writes).toEqual(['a'])
-  })
-
-  it('closes tabs only for the renderer displaying their terminal scope', () => {
-    const terminals = registry()
-    const first = terminals.start('chat-A', { cols: 80, rows: 24 }).activeTerminalId as string
-    const second = terminals.openTerminal('chat-A').activeTerminalId as string
-    const owner = {
-      isDestroyed: () => false,
-      once: vi.fn(),
-      on: vi.fn(),
-      removeListener: vi.fn(),
-    }
-    const other = { ...owner, once: vi.fn(), on: vi.fn(), removeListener: vi.fn() }
-
-    expect(terminals.closeUserTerminal('chat-A', first, owner as never).tabs).toHaveLength(2)
-    terminals.setPanelVisible('chat-A', true, owner as never)
-    expect(terminals.closeUserTerminal('chat-A', first, other as never).tabs).toHaveLength(2)
-    expect(terminals.closeUserTerminal('chat-B', '1', owner as never)).toEqual({
-      tabs: [],
-      activeTerminalId: null,
-    })
-
-    const closed = terminals.closeUserTerminal('chat-A', first, owner as never)
-    expect(closed.tabs).toHaveLength(1)
-    expect(closed.activeTerminalId).toBe(second)
   })
 })

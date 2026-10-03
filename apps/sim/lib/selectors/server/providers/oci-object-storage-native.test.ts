@@ -50,7 +50,6 @@ async function execute(input: ExecuteServerSelectorArgs) {
 
 describe('native OCI selectors', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.prepareOciNativeClient.mockResolvedValue({
       client: 'prepared-client',
       endpoint: 'prepared-endpoint',
@@ -119,7 +118,7 @@ describe('native OCI selectors', () => {
     await expect(execute(input)).rejects.toMatchObject({ name: 'SelectorContextUnavailableError' })
   })
 
-  it('does not fall back to the visible credential or another credential provider', async () => {
+  it('rejects untrusted credentials and missing workspace context', async () => {
     const input = args()
     input.credential = {
       suppliedId: 'visible-selection',
@@ -136,7 +135,22 @@ describe('native OCI selectors', () => {
     await expect(execute(input)).rejects.toMatchObject({
       name: 'SelectorConnectionUnavailableError',
     })
+    input.credential = args().credential
+    input.workspaceId = undefined
+    await expect(execute(input)).rejects.toMatchObject({
+      name: 'SelectorContextUnavailableError',
+    })
+    await expect(
+      ociObjectStorageNativeSelectorAttachments['oci_object_storage_native.objects'].execute(
+        input,
+        {
+          credentialId: 'authorized',
+          prepared: { client: 'prepared-client', endpoint: 'prepared-endpoint' },
+        }
+      )
+    ).rejects.toMatchObject({ name: 'SelectorContextUnavailableError' })
     expect(mocks.prepareOciNativeClient).not.toHaveBeenCalled()
+    expect(mocks.executeOciNativeOperation).not.toHaveBeenCalled()
   })
 
   it('rejects missing dependencies and oversized projections without collecting more pages', async () => {

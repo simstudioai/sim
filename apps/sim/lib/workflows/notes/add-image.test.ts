@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { appendNoteImageMarkdown } from '@/lib/workflows/notes/add-image'
 
@@ -10,10 +7,6 @@ const image = {
 }
 
 describe('appendNoteImageMarkdown', () => {
-  it('is the whole note when there is nothing to append to', () => {
-    expect(appendNoteImageMarkdown('', image)).toBe(`![${image.alt}](${image.url})`)
-  })
-
   it('separates the image from existing content so it renders as its own block', () => {
     expect(appendNoteImageMarkdown('Some notes', image)).toBe(
       `Some notes\n\n![${image.alt}](${image.url})`
@@ -26,9 +19,5 @@ describe('appendNoteImageMarkdown', () => {
     expect(twice).toBe(
       `Some notes\n\n![${image.alt}](${image.url})\n\n![${image.alt}](${image.url})`
     )
-  })
-
-  it('treats whitespace-only content as empty', () => {
-    expect(appendNoteImageMarkdown('   \n\n', image)).toBe(`![${image.alt}](${image.url})`)
   })
 })

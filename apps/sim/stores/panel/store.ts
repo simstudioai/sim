@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+// client-boundary-allow: the default tab is picked at module init, before any surface
+// seeds the deployment shape; moving it to the reader is a product call
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { PANEL_WIDTH } from '@/stores/constants'
 import type { PanelState, PanelTab } from '@/stores/panel/types'

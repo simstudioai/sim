@@ -24,9 +24,9 @@ export const PATCH = defineInternalJsonRoute({
     connectorId: params.connectorId,
     knowledgeBaseId: params.id,
     accessMode: body.accessMode,
-    credentialGroupId: body.credentialGroupId,
-    credentialGroupOptionId: body.credentialGroupOptionId,
     credentialId: body.credentialId,
+    sourceConfig: body.sourceConfig,
+    syncIntervalMinutes: body.syncIntervalMinutes,
     resolveBillingAttribution: (workspaceId: string) =>
       resolveInternalKnowledgeBillingAttribution(request, principal, workspaceId),
     source: 'ui' as const,

@@ -1,7 +1,6 @@
 import { StripeIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { StripeResponse } from '@/tools/stripe/types'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -10,7 +9,7 @@ import { getTrigger } from '@/triggers'
  */
 const CAPTURE_AMOUNT_FIELD = ['amount_to_capture', 'amount'] as const
 
-export const StripeBlock: BlockConfig<StripeResponse> = {
+export const StripeBlock: BlockConfig = {
   type: 'stripe',
   name: 'Stripe',
   description: 'Process payments and manage Stripe data',
@@ -195,7 +194,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       title: 'Operation',
       type: 'dropdown',
       options: [
-        // Payment Intents
         { label: 'Create Payment Intent', id: 'create_payment_intent' },
         { label: 'Retrieve Payment Intent', id: 'retrieve_payment_intent' },
         { label: 'Update Payment Intent', id: 'update_payment_intent' },
@@ -204,14 +202,12 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
         { label: 'Cancel Payment Intent', id: 'cancel_payment_intent' },
         { label: 'List Payment Intents', id: 'list_payment_intents' },
         { label: 'Search Payment Intents', id: 'search_payment_intents' },
-        // Customers
         { label: 'Create Customer', id: 'create_customer' },
         { label: 'Retrieve Customer', id: 'retrieve_customer' },
         { label: 'Update Customer', id: 'update_customer' },
         { label: 'Delete Customer', id: 'delete_customer' },
         { label: 'List Customers', id: 'list_customers' },
         { label: 'Search Customers', id: 'search_customers' },
-        // Subscriptions
         { label: 'Create Subscription', id: 'create_subscription' },
         { label: 'Retrieve Subscription', id: 'retrieve_subscription' },
         { label: 'Update Subscription', id: 'update_subscription' },
@@ -219,7 +215,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
         { label: 'Resume Subscription', id: 'resume_subscription' },
         { label: 'List Subscriptions', id: 'list_subscriptions' },
         { label: 'Search Subscriptions', id: 'search_subscriptions' },
-        // Invoices
         { label: 'Create Invoice', id: 'create_invoice' },
         { label: 'Retrieve Invoice', id: 'retrieve_invoice' },
         { label: 'Update Invoice', id: 'update_invoice' },
@@ -230,27 +225,23 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
         { label: 'Send Invoice', id: 'send_invoice' },
         { label: 'List Invoices', id: 'list_invoices' },
         { label: 'Search Invoices', id: 'search_invoices' },
-        // Charges
         { label: 'Create Charge', id: 'create_charge' },
         { label: 'Retrieve Charge', id: 'retrieve_charge' },
         { label: 'Update Charge', id: 'update_charge' },
         { label: 'Capture Charge', id: 'capture_charge' },
         { label: 'List Charges', id: 'list_charges' },
         { label: 'Search Charges', id: 'search_charges' },
-        // Products
         { label: 'Create Product', id: 'create_product' },
         { label: 'Retrieve Product', id: 'retrieve_product' },
         { label: 'Update Product', id: 'update_product' },
         { label: 'Delete Product', id: 'delete_product' },
         { label: 'List Products', id: 'list_products' },
         { label: 'Search Products', id: 'search_products' },
-        // Prices
         { label: 'Create Price', id: 'create_price' },
         { label: 'Retrieve Price', id: 'retrieve_price' },
         { label: 'Update Price', id: 'update_price' },
         { label: 'List Prices', id: 'list_prices' },
         { label: 'Search Prices', id: 'search_prices' },
-        // Events
         { label: 'Retrieve Event', id: 'retrieve_event' },
         { label: 'List Events', id: 'list_events' },
       ],
@@ -264,7 +255,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       placeholder: 'Enter your Stripe secret key (sk_test_... or sk_live_...)',
       required: true,
     },
-    // Common ID field for retrieve/update/delete/confirm/capture/cancel operations
     {
       id: 'id',
       title: 'ID',
@@ -305,7 +295,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       },
       required: true,
     },
-    // Payment Intent specific fields - CREATE (amount required)
     {
       id: 'amount',
       title: 'Amount (in cents)',
@@ -317,7 +306,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       },
       required: true,
     },
-    // Payment Intent specific fields - UPDATE/CAPTURE (amount optional)
     {
       id: 'amount',
       title: 'Amount (in cents)',
@@ -328,7 +316,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
         value: ['update_payment_intent', 'capture_payment_intent', 'capture_charge'],
       },
     },
-    // Currency - REQUIRED for create operations
     {
       id: 'currency',
       title: 'Currency',
@@ -340,7 +327,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       },
       required: true,
     },
-    // Currency - OPTIONAL for update operations
     {
       id: 'currency',
       title: 'Currency',
@@ -362,7 +348,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
         value: ['create_payment_intent', 'confirm_payment_intent', 'create_customer'],
       },
     },
-    // Customer specific fields - REQUIRED for create_subscription and create_invoice
     {
       id: 'customer',
       title: 'Customer ID',
@@ -374,7 +359,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       },
       required: true,
     },
-    // Customer specific fields - OPTIONAL for other operations
     {
       id: 'customer',
       title: 'Customer ID',
@@ -395,7 +379,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
         value: ['create_customer', 'update_customer'],
       },
     },
-    // Name - REQUIRED for create_product
     {
       id: 'name',
       title: 'Name',
@@ -407,7 +390,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       },
       required: true,
     },
-    // Name - OPTIONAL for customers and update_product
     {
       id: 'name',
       title: 'Name',
@@ -440,7 +422,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       },
       mode: 'advanced',
     },
-    // Subscription specific fields - REQUIRED for create_subscription
     {
       id: 'items',
       title: 'Items (JSON Array)',
@@ -452,7 +433,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       },
       required: true,
     },
-    // Items - OPTIONAL for update_subscription
     {
       id: 'items',
       title: 'Items (JSON Array)',
@@ -499,7 +479,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       },
       mode: 'advanced',
     },
-    // Invoice specific fields
     {
       id: 'collection_method',
       title: 'Collection Method',
@@ -528,7 +507,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       },
       mode: 'advanced',
     },
-    // Charge specific fields
     {
       id: 'source',
       title: 'Payment Source',
@@ -553,7 +531,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       },
       mode: 'advanced',
     },
-    // Product specific fields
     {
       id: 'active',
       title: 'Active',
@@ -579,7 +556,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       },
       mode: 'advanced',
     },
-    // Price specific fields
     {
       id: 'product',
       title: 'Product ID',
@@ -611,7 +587,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
         value: 'create_price',
       },
     },
-    // Common description field
     {
       id: 'description',
       title: 'Description',
@@ -634,7 +609,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       },
       mode: 'advanced',
     },
-    // Common metadata field
     {
       id: 'metadata',
       title: 'Metadata (JSON)',
@@ -661,7 +635,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       },
       mode: 'advanced',
     },
-    // List/Search common fields
     {
       id: 'limit',
       title: 'Limit',
@@ -708,7 +681,30 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       },
       required: true,
     },
-    // Additional filters for specific list operations
+    {
+      id: 'starting_after',
+      title: 'Starting After',
+      type: 'short-input',
+      placeholder: 'Last subscription ID from the previous page',
+      condition: { field: 'operation', value: 'list_subscriptions' },
+      mode: 'advanced',
+    },
+    {
+      id: 'ending_before',
+      title: 'Ending Before',
+      type: 'short-input',
+      placeholder: 'First subscription ID from the current page',
+      condition: { field: 'operation', value: 'list_subscriptions' },
+      mode: 'advanced',
+    },
+    {
+      id: 'page',
+      title: 'Search Page',
+      type: 'short-input',
+      placeholder: 'Token from metadata.next_page; omit for the first page',
+      condition: { field: 'operation', value: 'search_subscriptions' },
+      mode: 'advanced',
+    },
     {
       id: 'status',
       title: 'Status',
@@ -810,7 +806,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
   ],
   tools: {
     access: [
-      // Payment Intents
       'stripe_create_payment_intent',
       'stripe_retrieve_payment_intent',
       'stripe_update_payment_intent',
@@ -819,14 +814,12 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       'stripe_cancel_payment_intent',
       'stripe_list_payment_intents',
       'stripe_search_payment_intents',
-      // Customers
       'stripe_create_customer',
       'stripe_retrieve_customer',
       'stripe_update_customer',
       'stripe_delete_customer',
       'stripe_list_customers',
       'stripe_search_customers',
-      // Subscriptions
       'stripe_create_subscription',
       'stripe_retrieve_subscription',
       'stripe_update_subscription',
@@ -834,7 +827,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       'stripe_resume_subscription',
       'stripe_list_subscriptions',
       'stripe_search_subscriptions',
-      // Invoices
       'stripe_create_invoice',
       'stripe_retrieve_invoice',
       'stripe_update_invoice',
@@ -845,27 +837,23 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       'stripe_send_invoice',
       'stripe_list_invoices',
       'stripe_search_invoices',
-      // Charges
       'stripe_create_charge',
       'stripe_retrieve_charge',
       'stripe_update_charge',
       'stripe_capture_charge',
       'stripe_list_charges',
       'stripe_search_charges',
-      // Products
       'stripe_create_product',
       'stripe_retrieve_product',
       'stripe_update_product',
       'stripe_delete_product',
       'stripe_list_products',
       'stripe_search_products',
-      // Prices
       'stripe_create_price',
       'stripe_retrieve_price',
       'stripe_update_price',
       'stripe_list_prices',
       'stripe_search_prices',
-      // Events
       'stripe_retrieve_event',
       'stripe_list_events',
     ],
@@ -892,7 +880,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
           ...rest
         } = params
 
-        // Parse JSON fields
         let parsedAddress: any | undefined
         let parsedMetadata: any | undefined
         let parsedItems: any | undefined
@@ -909,7 +896,6 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
           throw new Error(`Invalid JSON input: ${error.message}`)
         }
 
-        // Convert string booleans to actual booleans
         const parsedBooleans: Record<string, boolean | undefined> = {}
         if (cancel_at_period_end !== undefined)
           parsedBooleans.cancel_at_period_end = cancel_at_period_end === 'true'
@@ -937,75 +923,60 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     apiKey: { type: 'string', description: 'Stripe secret API key' },
-    // Common inputs
     id: { type: 'string', description: 'Resource ID' },
     amount: { type: 'number', description: 'Amount in cents' },
     currency: { type: 'string', description: 'Three-letter ISO currency code' },
     description: { type: 'string', description: 'Description of the resource' },
     metadata: { type: 'json', description: 'Set of key-value pairs' },
-    // Customer inputs
     customer: { type: 'string', description: 'Customer ID' },
     email: { type: 'string', description: 'Customer email address' },
     name: { type: 'string', description: 'Customer or product name' },
     phone: { type: 'string', description: 'Customer phone number' },
     address: { type: 'json', description: 'Customer address object' },
-    // Payment inputs
     payment_method: { type: 'string', description: 'Payment method ID' },
     source: { type: 'string', description: 'Payment source' },
     receipt_email: { type: 'string', description: 'Email for receipt' },
-    // Subscription inputs
     items: { type: 'json', description: 'Subscription items array' },
     trial_period_days: { type: 'number', description: 'Trial period in days' },
     cancel_at_period_end: { type: 'boolean', description: 'Cancel at period end' },
     prorate: { type: 'boolean', description: 'Prorate cancellation' },
     invoice_now: { type: 'boolean', description: 'Invoice immediately' },
-    // Invoice inputs
     collection_method: { type: 'string', description: 'Collection method' },
     auto_advance: { type: 'boolean', description: 'Auto-finalize invoice' },
     paid_out_of_band: { type: 'boolean', description: 'Paid outside Stripe' },
-    // Charge inputs
     capture: { type: 'boolean', description: 'Capture immediately' },
     amount_to_capture: { type: 'number', description: 'Amount to capture in cents' },
     cancellation_reason: { type: 'string', description: 'Cancellation reason' },
-    // Product inputs
     active: { type: 'boolean', description: 'Whether resource is active' },
     images: { type: 'json', description: 'Product images array' },
-    // Price inputs
     product: { type: 'string', description: 'Product ID' },
     unit_amount: { type: 'number', description: 'Unit amount in cents' },
     recurring: { type: 'json', description: 'Recurring billing configuration' },
-    // List/Search inputs
     limit: { type: 'number', description: 'Maximum results to return' },
+    starting_after: { type: 'string', description: 'Next-page subscription ID cursor' },
+    ending_before: { type: 'string', description: 'Previous-page subscription ID cursor' },
+    page: { type: 'string', description: 'Subscription search token from metadata.next_page' },
     query: { type: 'string', description: 'Search query' },
     status: { type: 'string', description: 'Status filter' },
     type: { type: 'string', description: 'Event type filter' },
   },
   outputs: {
-    // Payment Intent outputs
     payment_intent: { type: 'json', description: 'Payment intent object' },
     payment_intents: { type: 'json', description: 'Array of payment intents' },
-    // Customer outputs
     customer: { type: 'json', description: 'Customer object' },
     customers: { type: 'json', description: 'Array of customers' },
-    // Subscription outputs
     subscription: { type: 'json', description: 'Subscription object' },
     subscriptions: { type: 'json', description: 'Array of subscriptions' },
-    // Invoice outputs
     invoice: { type: 'json', description: 'Invoice object' },
     invoices: { type: 'json', description: 'Array of invoices' },
-    // Charge outputs
     charge: { type: 'json', description: 'Charge object' },
     charges: { type: 'json', description: 'Array of charges' },
-    // Product outputs
     product: { type: 'json', description: 'Product object' },
     products: { type: 'json', description: 'Array of products' },
-    // Price outputs
     price: { type: 'json', description: 'Price object' },
     prices: { type: 'json', description: 'Array of prices' },
-    // Event outputs
     event: { type: 'json', description: 'Event object' },
     events: { type: 'json', description: 'Array of events' },
-    // Common outputs
     metadata: { type: 'json', description: 'Operation metadata' },
     deleted: { type: 'boolean', description: 'Whether resource was deleted' },
   },
@@ -1096,19 +1067,20 @@ export const StripeBlockMeta = {
       description:
         'Create and confirm a Stripe payment intent to collect a charge from a customer.',
       content:
-        '# Collect Payment\n\nCharge a customer by creating and confirming a payment intent.\n\n## Steps\n1. Run Create Payment Intent with the amount, currency, and customer.\n2. Confirm the intent with Confirm Payment Intent, or Capture Payment Intent if it was created for manual capture.\n3. If a charge needs to be aborted, run Cancel Payment Intent instead.\n\n## Output\nReturn the payment intent ID, its status (succeeded, requires action, or canceled), and the captured amount.',
+        '# Collect Payment\n\nCharge a customer by creating and confirming a payment intent.\n\n## Steps\n1. Run Create Payment Intent with the amount, currency, and customer.\n2. Confirm the intent with Confirm Payment Intent and a payment method. If the confirmed intent has status requires_capture, run Capture Payment Intent to collect the authorized funds.\n3. If a charge needs to be aborted, run Cancel Payment Intent instead.\n\n## Output\nReturn the payment intent ID, its status (succeeded, requires action, or canceled), and the captured amount.',
     },
     {
       name: 'manage-subscription',
-      description: 'Create, update, pause, or cancel a Stripe subscription for a customer.',
+      description:
+        'Create a Stripe subscription, manage its cancellation, or resume a paused subscription.',
       content:
-        '# Manage Subscription\n\nHandle the lifecycle of a recurring subscription.\n\n## Steps\n1. To start a subscription, run Create Subscription with the customer and price items.\n2. To change a plan, run Update Subscription with the new items. To pause and later restart, use Cancel Subscription or Resume Subscription as appropriate.\n3. Confirm the current state with Retrieve Subscription.\n\n## Output\nReturn the subscription ID, its status, current period end, and the plan items, and note exactly what changed.',
+        '# Manage Subscription\n\nHandle the lifecycle of a recurring subscription.\n\n## Steps\n1. To start a subscription, run Create Subscription with the customer and price items.\n2. Use Update Subscription with cancel_at_period_end to schedule or reverse a cancellation before it takes effect. Use Cancel Subscription only for immediate cancellation. Resume Subscription applies only to a paused subscription; it does not restart a canceled subscription.\n3. Confirm the current state with Retrieve Subscription.\n\n## Output\nReturn the subscription ID, its status, and the returned subscription items, and note exactly what changed.',
     },
     {
       name: 'issue-invoice',
       description: 'Create, finalize, and send a Stripe invoice to a customer, then track payment.',
       content:
-        '# Issue Invoice\n\nBill a customer with a Stripe invoice.\n\n## Steps\n1. Run Create Invoice for the customer with the line items.\n2. Run Finalize Invoice to lock it, then Send Invoice to deliver it to the customer.\n3. Track payment with Retrieve Invoice, or run Pay Invoice to charge a saved payment method. Use Void Invoice to cancel an unpaid invoice.\n\n## Output\nReturn the invoice ID, its status (draft, open, paid, or void), the amount due, and the hosted invoice URL when available.',
+        '# Issue Invoice\n\nBill a customer with a Stripe invoice.\n\n## Steps\n1. Run Create Invoice for the customer. This tool does not add line items; add them in Stripe and verify the draft with Retrieve Invoice before finalizing.\n2. Run Finalize Invoice to lock it, then Send Invoice to deliver it to the customer.\n3. Track payment with Retrieve Invoice, or run Pay Invoice to charge a saved payment method. Use Void Invoice to cancel an unpaid invoice.\n\n## Output\nReturn the invoice ID, its status (draft, open, paid, or void), the amount due, and the hosted invoice URL when available.',
     },
     {
       name: 'find-customer-activity',

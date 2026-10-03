@@ -189,6 +189,10 @@ export interface ColumnSpec {
    * `score` fixes a similarity to four decimals. The raw double arrives as
    * `0.2818957269585687`, a nineteen-character column whose last dozen digits
    * cannot separate one result from another.
+   *
+   * `people` shows a list of `{ id, email }` users by email. A user whose
+   * account is gone has a null email, so the id stands in rather than the
+   * person vanishing from the list.
    */
   format?:
     | 'auto'
@@ -201,6 +205,7 @@ export interface ColumnSpec {
     | 'trace-count'
     | 'folder-path'
     | 'score'
+    | 'people'
 }
 
 export interface BodyVariantSpec {
@@ -275,9 +280,9 @@ export interface CommandSpec {
    * A page-envelope field that qualifies the whole list, stated once for the
    * human formats.
    *
-   * `billing logs` answers a different question depending on the kind of API
-   * key that asked — a personal key sees the caller's own events, a workspace
-   * key the whole workspace ledger — and the response says which. The value
+   * `billing logs` answers a different question depending on the credential —
+   * an OAuth login or personal key sees the caller's own events, while a
+   * workspace key sees the whole workspace ledger. The response says which. The value
    * belongs to the query rather than to any row, so it is not a column; it goes
    * to stderr so that a `--output text` consumer cutting tab-separated fields
    * still reads only rows. `json` and `yaml` print the unwrapped `data` array
@@ -311,6 +316,8 @@ export interface CommandSpec {
    * when the profile says so) whatever the profile's display format is.
    */
   document?: boolean
+  /** Mutation returns a durable workspace operation and supports --wait. */
+  workspaceOperation?: boolean
   /** Keep the operation out of the CLI surface entirely. */
   hidden?: boolean
 }

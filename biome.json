@@ -8,9 +8,13 @@
       "!**/.next",
       "!**/.next",
       "!**/next-env.d.ts",
-      "!**/out",
+      "!out",
+      "!apps/*/out",
+      "!packages/*/out",
       "!**/dist",
-      "!**/build",
+      "!build",
+      "!apps/*/build",
+      "!packages/*/build",
       "!**/node_modules",
       "!**/.bun",
       "!**/.cache",
@@ -27,11 +31,13 @@
       "!**/public/worker-*.js",
       "!**/public/fallback-*.js",
       "!**/apps/sim/tools/generated",
+      "!**/apps/sim/lib/mothership/generated/**",
       "!**/apps/docs/.source",
       "!**/apps/desktop/release",
       "!**/venv",
       "!**/.venv",
-      "!**/uploads",
+      "!uploads",
+      "!apps/*/uploads",
       "!**/apps/sim/lib/execution/sandbox/bundles/*.cjs",
       "!**/test-results",
       "!**/playwright-report"
@@ -94,12 +100,17 @@
         "noControlCharactersInRegex": "off",
         "noThenProperty": "off",
         "noAssignInExpressions": "off",
-        "noDocumentCookie": "off"
+        "noDocumentCookie": "off",
+        "noConsole": { "level": "error", "fix": "none" }
       },
       "correctness": {
         "useExhaustiveDependencies": "off",
-        "noUnusedFunctionParameters": "off",
-        "noUnusedVariables": "off"
+        "noUnusedFunctionParameters": { "level": "error", "fix": "none" },
+        "noUnusedVariables": {
+          "level": "error",
+          "fix": "none",
+          "options": { "ignoreRestSiblings": true }
+        }
       },
       "security": {
         "noDangerouslySetInnerHtml": "off"
@@ -147,15 +158,22 @@
       "formatter": { "enabled": false }
     },
     {
-      "includes": ["packages/**"],
-      "linter": {
-        "rules": {
-          "correctness": {
-            "noUnusedFunctionParameters": "error",
-            "noUnusedVariables": "error"
-          }
-        }
-      }
+      "includes": [
+        "**/scripts/**",
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.integration.ts",
+        "**/*.spec.ts",
+        "apps/desktop/e2e/**",
+        "apps/sim/vitest.setup.ts",
+        "packages/cli/**",
+        "packages/sim-cli/**",
+        "packages/sim-setup/**",
+        "packages/db/script-migrations/**",
+        "packages/logger/src/**",
+        "packages/ts-sdk/examples/**"
+      ],
+      "linter": { "rules": { "suspicious": { "noConsole": "off" } } }
     }
   ],
   "javascript": {

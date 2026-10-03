@@ -1,4 +1,4 @@
-import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile-error'
+import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
 
 /** True when `error` means a generated document's artifact is still compiling. */
 export function isDocNotReadyError(error: unknown): error is DocCompileUserError {
