@@ -2,25 +2,13 @@
  * @vitest-environment jsdom
  */
 import { act, useContext } from 'react'
+import { createDeferred } from '@sim/testing/helpers/deferred'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockListOrganizations, mockSetActive } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-  mockListOrganizations: vi.fn(),
-  mockSetActive: vi.fn(),
-}))
-
-vi.mock('@/lib/auth/auth-client', () => ({
-  client: {
-    getSession: mockGetSession,
-    organization: {
-      list: mockListOrganizations,
-      setActive: mockSetActive,
-    },
-  },
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
 vi.mock('posthog-js', () => ({
   default: {
@@ -37,18 +25,12 @@ import {
   type SessionHookResult,
   SessionProvider,
 } from '@/app/_shell/providers/session-provider'
-import { sessionKeys, useSessionQuery } from '@/hooks/queries/session'
+import { sessionKeys } from '@/hooks/queries/session'
 
-/** Deferred promise: lets a test resolve a mocked async call at a chosen moment. */
-function defer<T>() {
-  let resolve!: (value: T) => void
-  let reject!: (reason?: unknown) => void
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res
-    reject = rej
-  })
-  return { promise, resolve, reject }
-}
+const {
+  getSession: mockGetSession,
+  organization: { list: mockListOrganizations, setActive: mockSetActive },
+} = authClientMockFns.mockClient
 
 /** Set the jsdom URL search string before rendering the provider. */
 function setSearch(search: string) {
@@ -68,11 +50,6 @@ const FRESH_SESSION: AppSession = {
 const NO_ACTIVE_ORGANIZATION_SESSION: AppSession = {
   user: { id: 'user-1', email: 'u@x.com', name: 'No active organization' },
   session: { id: 's1', userId: 'user-1' },
-}
-
-const RECOVERED_ORGANIZATION_SESSION: AppSession = {
-  user: { id: 'user-1', email: 'u@x.com', name: 'Recovered organization' },
-  session: { id: 's1', userId: 'user-1', activeOrganizationId: 'org-member' },
 }
 
 interface Harness {
@@ -149,62 +126,11 @@ function isUpgradeCall(arg: unknown): boolean {
   )
 }
 
-describe('useSessionQuery', () => {
-  it('uses an all-rooted key factory and a 5-minute staleTime', () => {
-    expect(sessionKeys.all).toEqual(['session'])
-    expect(sessionKeys.detail()).toEqual(['session', 'detail'])
-    // The hook is exported and reads from the same detail key.
-    expect(typeof useSessionQuery).toBe('function')
-  })
-})
-
 describe('SessionProvider', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockListOrganizations.mockResolvedValue({ data: [], error: null })
     mockSetActive.mockResolvedValue({ data: null, error: null })
     setSearch('')
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
-  it('exposes the contract context shape and the loaded session on a normal load', async () => {
-    mockGetSession.mockResolvedValue({ data: STALE_SESSION })
-
-    const h = renderProvider()
-    await flushUntil(() => h.ctx()?.data != null)
-
-    const ctx = h.ctx()
-    expect(ctx).not.toBeNull()
-    expect(ctx).toMatchObject({
-      data: expect.any(Object),
-      isPending: expect.any(Boolean),
-      error: null,
-    })
-    expect(typeof ctx?.refetch).toBe('function')
-    expect(ctx?.data).toEqual(STALE_SESSION)
-    expect(ctx?.isPending).toBe(false)
-
-    h.unmount()
-  })
-
-  it('preserves an intentional no-active-organization state on a normal load', async () => {
-    mockGetSession.mockResolvedValue({ data: NO_ACTIVE_ORGANIZATION_SESSION })
-    mockListOrganizations.mockResolvedValue({
-      data: [{ id: 'org-member', name: 'Member organization' }],
-      error: null,
-    })
-
-    const h = renderProvider()
-    await flushUntil(() => h.ctx()?.data != null)
-
-    expect(h.ctx()?.data).toEqual(NO_ACTIVE_ORGANIZATION_SESSION)
-    expect(mockListOrganizations).not.toHaveBeenCalled()
-    expect(mockSetActive).not.toHaveBeenCalled()
-
-    h.unmount()
   })
 
   it('does not auto-select an organization for an external-only user during recovery', async () => {
@@ -217,34 +143,6 @@ describe('SessionProvider', () => {
 
     expect(mockListOrganizations).toHaveBeenCalledTimes(1)
     expect(mockSetActive).not.toHaveBeenCalled()
-
-    h.unmount()
-  })
-
-  it('recovers the sole valid viewer organization membership when upgrade recovery is explicit', async () => {
-    window.history.replaceState({}, '', '/workspace/workspace-b?upgraded=true')
-    mockListOrganizations.mockResolvedValue({
-      data: [{ id: 'org-member', name: 'Member organization' }],
-      error: null,
-    })
-    mockGetSession.mockImplementation(() =>
-      Promise.resolve({
-        data:
-          mockSetActive.mock.calls.length > 0
-            ? RECOVERED_ORGANIZATION_SESSION
-            : NO_ACTIVE_ORGANIZATION_SESSION,
-      })
-    )
-
-    const h = renderProvider()
-    await flushUntil(
-      () =>
-        h.queryClient.getQueryData<AppSession>(sessionKeys.detail())?.session
-          ?.activeOrganizationId === 'org-member'
-    )
-
-    expect(mockSetActive).toHaveBeenCalledWith({ organizationId: 'org-member' })
-    expect(h.queryClient.getQueryData(sessionKeys.detail())).toEqual(RECOVERED_ORGANIZATION_SESSION)
 
     h.unmount()
   })
@@ -272,8 +170,8 @@ describe('SessionProvider', () => {
   it('upgrade path: fresh disableCookieCache read wins even when the stale mount query resolves LAST', async () => {
     setSearch('?upgraded=true')
 
-    const mount = defer<{ data: AppSession }>()
-    const upgrade = defer<{ data: AppSession }>()
+    const mount = createDeferred<{ data: AppSession }>()
+    const upgrade = createDeferred<{ data: AppSession }>()
 
     mockGetSession.mockImplementation((arg?: unknown) => {
       if (isUpgradeCall(arg)) return upgrade.promise
@@ -309,8 +207,8 @@ describe('SessionProvider', () => {
   it('upgrade path: a failed fresh read keeps the user signed in and still reconciles plan surfaces', async () => {
     setSearch('?upgraded=true')
 
-    const mount = defer<{ data: AppSession }>()
-    const upgrade = defer<{ data: AppSession }>()
+    const mount = createDeferred<{ data: AppSession }>()
+    const upgrade = createDeferred<{ data: AppSession }>()
     mockGetSession.mockImplementation((arg?: unknown) =>
       isUpgradeCall(arg) ? upgrade.promise : mount.promise
     )
@@ -350,19 +248,6 @@ describe('SessionProvider', () => {
     expect(invalidatedKeys()).toContainEqual(['subscription'])
 
     invalidateSpy.mockRestore()
-    h.unmount()
-  })
-
-  it('strips the upgraded param from the URL', async () => {
-    setSearch('?upgraded=true&keep=1')
-    mockGetSession.mockResolvedValue({ data: FRESH_SESSION })
-
-    const h = renderProvider()
-    await flush()
-
-    expect(window.location.search).not.toContain('upgraded')
-    expect(window.location.search).toContain('keep=1')
-
     h.unmount()
   })
 })

@@ -43,11 +43,11 @@ Search the web using Parallel AI. Provides comprehensive search results with int
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `objective` | string | Yes | The search objective or question to answer |
-| `search_queries` | string | No | Comma-separated list of search queries to execute |
-| `mode` | string | No | Search mode: one-shot, agentic, or fast \(default: one-shot\) |
-| `max_results` | number | No | Maximum number of results to return \(default: 10\) |
-| `max_chars_per_result` | number | No | Maximum characters per result excerpt \(minimum: 1000\) |
+| `search_queries` | string | Yes | Comma-separated list of concise keyword search queries \(3-6 words each\). At least one is required |
+| `objective` | string | No | Natural-language description of the search intent used to rank and excerpt results |
+| `mode` | string | No | Search mode: turbo, fast, basic, or advanced \(default: advanced\) |
+| `max_results` | number | No | Maximum number of results to return \(default: 10, max: 20\) |
+| `max_chars_per_result` | number | No | Maximum characters of excerpts per result |
 | `include_domains` | string | No | Comma-separated list of domains to restrict search results to |
 | `exclude_domains` | string | No | Comma-separated list of domains to exclude from search results |
 | `apiKey` | string | Yes | Parallel AI API Key |
@@ -71,10 +71,9 @@ Extract targeted information from specific URLs using Parallel AI. Processes pro
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `urls` | string | Yes | Comma-separated list of URLs to extract information from |
-| `objective` | string | No | What information to extract from the provided URLs |
-| `excerpts` | boolean | No | Include relevant excerpts from the content \(default: true\) |
-| `full_content` | boolean | No | Include full page content as markdown \(default: false\) |
+| `urls` | string | Yes | Comma-separated list of URLs to extract information from \(up to 20\) |
+| `objective` | string | No | What information to extract from the provided URLs \(up to 5,000 characters\) |
+| `full_content` | boolean | No | Include full page content as markdown in addition to excerpts \(default: false\) |
 | `apiKey` | string | Yes | Parallel AI API Key |
 
 #### Output
@@ -87,7 +86,12 @@ Extract targeted information from specific URLs using Parallel AI. Processes pro
 |   ↳ `title` | string | The title of the page |
 |   ↳ `publish_date` | string | Publication date \(YYYY-MM-DD\) |
 |   ↳ `excerpts` | array | Relevant text excerpts in markdown |
-|   ↳ `full_content` | string | Full page content as markdown |
+|   ↳ `full_content` | string | Full page content as markdown \(only when requested\) |
+| `errors` | array | URLs that could not be extracted, with the reason |
+|   ↳ `url` | string | The URL that failed |
+|   ↳ `error_type` | string | Category of the failure |
+|   ↳ `http_status_code` | number | HTTP status returned by the page, if any |
+|   ↳ `content` | string | Error detail |
 
 ### Parallel AI Deep Research
 
@@ -98,7 +102,8 @@ Conduct comprehensive deep research across the web using Parallel AI. Synthesize
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `input` | string | Yes | Research query or question \(up to 15,000 characters\) |
-| `processor` | string | No | Processing tier: pro, ultra, pro-fast, ultra-fast \(default: pro\) |
+| `output_format` | string | No | Output format: text for a markdown report with inline citations, auto for a structured JSON object that needs the pro tier or higher \(default: text\) |
+| `processor` | string | No | Processing tier: core, core2x, pro, ultra, ultra2x, ultra4x, ultra8x, or a -fast variant \(default: pro\) |
 | `include_domains` | string | No | Comma-separated list of domains to restrict research to \(source policy\) |
 | `exclude_domains` | string | No | Comma-separated list of domains to exclude from research \(source policy\) |
 | `apiKey` | string | Yes | Parallel AI API Key |
@@ -110,7 +115,7 @@ Conduct comprehensive deep research across the web using Parallel AI. Synthesize
 | `status` | string | Task status \(completed, failed, running\) |
 | `run_id` | string | Unique ID for this research task |
 | `message` | string | Status message |
-| `content` | object | Research results \(structured based on output_schema\) |
+| `content` | json | Research findings: a markdown report string for the text output format, or a structured object with query-specific keys for the auto format |
 | `basis` | array | Citations and sources with reasoning and confidence levels |
 |   ↳ `field` | string | Output field dot-notation path |
 |   ↳ `reasoning` | string | Explanation for the result |
@@ -118,6 +123,6 @@ Conduct comprehensive deep research across the web using Parallel AI. Synthesize
 |     ↳ `url` | string | Source URL |
 |     ↳ `title` | string | Source title |
 |     ↳ `excerpts` | array | Relevant excerpts from the source |
-|   ↳ `confidence` | string | Confidence level \(high, medium\) |
+|   ↳ `confidence` | string | Confidence level \(low, medium, high\) |
 
 

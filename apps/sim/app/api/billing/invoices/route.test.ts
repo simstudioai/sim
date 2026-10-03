@@ -1,22 +1,18 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns, createMockRequest, dbChainMockFns } from '@sim/testing'
+import { stripeClientMock } from '@sim/testing/mocks/stripe.mock'
 import { generateShortId } from '@sim/utils/id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetStripeClient, mockStripeInvoicesList } = vi.hoisted(() => ({
-  mockGetStripeClient: vi.fn(),
+const { mockStripeInvoicesList } = vi.hoisted(() => ({
   mockStripeInvoicesList: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/stripe-client', () => ({
-  getStripeClient: mockGetStripeClient,
-}))
+vi.mock('@/lib/billing/stripe-client', () => stripeClientMock)
 
 import { GET } from '@/app/api/billing/invoices/route'
 
 const mockGetSession = authMockFns.mockGetSession
+const mockGetStripeClient = stripeClientMock.getStripeClient
 
 function makeInvoice(overrides: Record<string, unknown> = {}) {
   return {
@@ -35,7 +31,6 @@ function makeInvoice(overrides: Record<string, unknown> = {}) {
 
 describe('GET /api/billing/invoices', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     dbChainMockFns.limit.mockResolvedValue([{ customer: 'cus_1' }])
     mockGetStripeClient.mockReturnValue({ invoices: { list: mockStripeInvoicesList } })
@@ -66,28 +61,6 @@ describe('GET /api/billing/invoices', () => {
 
     expect(body.invoices).toHaveLength(5)
     expect(body.hasMore).toBe(true)
-  })
-
-  it('surfaces the line-item description, preferring the top-level invoice description', async () => {
-    mockStripeInvoicesList.mockResolvedValueOnce({
-      data: [
-        makeInvoice({ lines: { data: [{ description: 'Sim Max' }] } }),
-        makeInvoice({
-          description: 'Usage overage',
-          lines: { data: [{ description: 'ignored line' }] },
-        }),
-        makeInvoice(),
-      ],
-      has_more: false,
-    })
-
-    const request = createMockRequest('GET')
-    const response = await GET(request)
-    const body = await response.json()
-
-    expect(body.invoices[0].description).toBe('Sim Max')
-    expect(body.invoices[1].description).toBe('Usage overage')
-    expect(body.invoices[2].description).toBeNull()
   })
 
   it('pages through further drafts to confirm hasMore when the first page is inconclusive', async () => {

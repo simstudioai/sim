@@ -1,16 +1,12 @@
-import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { SupabaseIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
-import type { SupabaseResponse } from '@/tools/supabase/types'
-
-const logger = createLogger('SupabaseBlock')
 
 /** Canonical basic/advanced pair for the storage upload payload. */
 const FILE_DATA_FIELD = ['file', 'fileContent'] as const
 
-export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
+export const SupabaseBlock: BlockConfig = {
   type: 'supabase',
   name: 'Supabase',
   description: 'Use Supabase database',

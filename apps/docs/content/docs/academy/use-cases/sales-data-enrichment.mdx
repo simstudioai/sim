@@ -3,41 +3,32 @@ title: Sales Data Management & Enrichment
 description: A table-backed system that takes thin lead records, enriches them in parallel, scores them, and writes the results back.
 ---
 
-import { VideoPlaceholder } from '@/components/ui/video-placeholder'
-import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
-import { VideoChapters } from '@/components/ui/video-chapters'
+Build a lead table that runs a workflow for each row, enriches the company record, and writes a fit score with supporting evidence.
 
-<VideoPlaceholder eyebrow="Use case" title="Sales Data Management & Enrichment" className="mt-2" />
+## Prepare the table and workflow
 
-<div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
-<div>
+Create input columns such as `company_name` and `domain`, plus output columns such as `industry`, `fit_score`, `fit_reason`, and `source_urls`.
 
-Run your sales pipeline as data. Start with thin lead records in a table, enrich each one, company info, fit signals, score it, and write the results back, all in parallel across the whole table.
+Build a workflow that accepts the input values, looks up the company with your chosen integration or research tools, and returns a structured result. Give the [Agent](/academy/agents/intro) explicit scoring criteria. For example, define which industries qualify and how missing evidence should affect the result.
 
-<WhatYouWillLearn
-  items={[
-    { title: 'Treat a table as the system', body: 'Hold leads as rows and operate over them in bulk.' },
-    { title: 'Enrich and score', body: 'Look up each lead, gather context, and let an agent score the fit.' },
-    { title: 'Run at scale', body: 'Use workflow columns to process every row in parallel.' },
-  ]}
-/>
+## Connect the workflow to rows
 
-</div>
+1. Add a [workflow group](/tables/workflow-columns) to the table and select the enrichment workflow.
+2. Map the row's company name and domain to the workflow inputs.
+3. Select and map the output columns. One row run can fill several columns.
+4. Run a single row and compare the values and cited sources with the company you intended to enrich.
+5. Run a small selection of rows. Enable **Auto-run workflow** only when new or changed rows should run automatically.
 
-<VideoChapters
-  chapters={[
-    { title: 'The problem', time: '0:00' },
-    { title: 'Leads as a table', time: '0:35' },
-    { title: 'Enrich each row', time: '1:20' },
-    { title: 'Score the fit', time: '2:10' },
-    { title: 'Run in parallel', time: '3:00' },
-  ]}
-/>
+![Configure workflow dialog with multiple output columns, Auto-run, and Run after settings](/static/tables/workflow-columns/configure-workflow.png)
 
-</div>
+## Check the result
 
-## What you'll build
+Test a company with a known domain, an ambiguous company name, and a row missing both. Confirm that uncertain matches are identified instead of receiving an unsupported score.
 
-Leads live in a **table**. A **workflow column** runs per row: it enriches the record, an **Agent** block scores the fit, and the results are written straight back into the table. The table becomes both the queue and the record.
+Open an output cell's menu to inspect the row's execution trace. If a run fails, inspect the failed block and rerun that row after fixing the cause. When one enrichment stage depends on another, configure **Run after** dependencies.
 
-This is [tables](/academy/tables/intro) and [agents](/academy/agents/intro) composed into a pipeline that operates at scale.
+## Continue learning
+
+- [Workflow Columns](/academy/tables/workflow-columns)
+- [Table Operations](/academy/tables/operations)
+- [Logs](/academy/workflows/logs)

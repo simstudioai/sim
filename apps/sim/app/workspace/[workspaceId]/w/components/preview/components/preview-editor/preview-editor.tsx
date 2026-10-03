@@ -128,7 +128,7 @@ function extractAllReferencesFromSubBlocks(
         }
       }
 
-      const envMatches = value.match(/\{\{([^}]+)\}\}/g)
+      const envMatches = value.match(/\{\{([^{}]+)\}\}/g)
       if (envMatches) {
         envMatches.forEach((match) => envVars.add(match))
       }
@@ -384,7 +384,7 @@ function ConnectionsSection({
                 {hasFields && (
                   <ChevronDown
                     className={cn(
-                      'h-3.5 w-3.5 shrink-0 transition-transform duration-100',
+                      'size-3.5 shrink-0 transition-transform duration-100',
                       'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
                       isExpanded && 'rotate-180'
                     )}
@@ -434,7 +434,7 @@ function ConnectionsSection({
                 handleKeyboardActivation(event, () => setExpandedVariables(!expandedVariables))
               }
             >
-              <div className='relative flex size-[14px] shrink-0 items-center justify-center overflow-hidden rounded-sm bg-[#8B5CF6]'>
+              <div className='relative flex size-[14px] shrink-0 items-center justify-center overflow-hidden rounded-sm bg-violet-500'>
                 <span className='text-[9px] text-white'>V</span>
               </div>
               <OverflowText
@@ -483,7 +483,7 @@ function ConnectionsSection({
                 handleKeyboardActivation(event, () => setExpandedEnvVars(!expandedEnvVars))
               }
             >
-              <div className='relative flex size-[14px] shrink-0 items-center justify-center overflow-hidden rounded-sm bg-[#6B7280]'>
+              <div className='relative flex size-[14px] shrink-0 items-center justify-center overflow-hidden rounded-sm bg-cool-gray-500'>
                 <span className='text-[9px] text-white'>E</span>
               </div>
               <OverflowText
@@ -605,7 +605,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
     <div className='flex-1 overflow-y-auto overflow-x-hidden pt-2 pb-2'>
       {/* Type Selection - matches SubflowEditor */}
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
+        <Label className='mb-[6.5px] block pl-0.5 text-small'>
           {isLoop ? 'Loop Type' : 'Parallel Type'}
         </Label>
         <Combobox
@@ -622,9 +622,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
 
       {/* Configuration - matches SubflowEditor */}
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
-          {getConfigLabel()}
-        </Label>
+        <Label className='mb-[6.5px] block pl-0.5 text-small'>{getConfigLabel()}</Label>
 
         {isCountMode ? (
           <div>
@@ -1062,13 +1060,19 @@ function PreviewEditorContent({
     const subflowName = block.name || (isLoop ? 'Loop' : 'Parallel')
 
     return (
-      <div className='relative flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
+      <div className='relative flex size-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
         {/* Header - styled like subflow header */}
         <div className='mx-[-1px] flex shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
           <BlockTile blockType={block.type} size='lg' />
           <OverflowText label={subflowName} className='flex-1 text-[var(--text-primary)] text-sm' />
           {onClose && (
-            <Button variant='ghost' className='shrink-0 p-1!' onClick={onClose}>
+            <Button
+              aria-label='Close preview'
+              variant='ghost'
+              iconPadding='sm'
+              className='shrink-0'
+              onClick={onClose}
+            >
               <X className='size-[14px]' />
             </Button>
           )}
@@ -1089,7 +1093,7 @@ function PreviewEditorContent({
 
   if (!blockConfig) {
     return (
-      <div className='flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
+      <div className='flex size-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
         <div className='mx-[-1px] flex items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
           <div className='flex size-[18px] items-center justify-center rounded-sm bg-[var(--surface-3)]' />
           <span className='text-[var(--text-primary)] text-sm'>
@@ -1146,7 +1150,7 @@ function PreviewEditorContent({
         : 'gray'
 
   return (
-    <div className='relative flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
+    <div className='relative flex size-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
       {/* Header - styled like editor */}
       <div className='mx-[-1px] flex shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
         {block.type !== 'note' && <BlockTile blockType={block.type} size='lg' />}
@@ -1155,7 +1159,13 @@ function PreviewEditorContent({
           className='flex-1 text-[var(--text-primary)] text-sm'
         />
         {onClose && (
-          <Button variant='ghost' className='shrink-0 p-1!' onClick={onClose}>
+          <Button
+            aria-label='Close preview'
+            variant='ghost'
+            iconPadding='sm'
+            className='shrink-0'
+            onClick={onClose}
+          >
             <X className='size-[14px]' />
           </Button>
         )}
@@ -1224,6 +1234,7 @@ function PreviewEditorContent({
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <Button
+                            aria-label={copiedSection === 'input' ? 'Copied' : 'Copy'}
                             type='button'
                             variant='ghost'
                             onClick={(e) => {
@@ -1246,6 +1257,7 @@ function PreviewEditorContent({
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <Button
+                            aria-label='Search'
                             type='button'
                             variant='ghost'
                             onClick={(e) => {
@@ -1296,6 +1308,7 @@ function PreviewEditorContent({
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <Button
+                            aria-label={copiedSection === 'output' ? 'Copied' : 'Copy'}
                             type='button'
                             variant='ghost'
                             onClick={(e) => {
@@ -1318,6 +1331,7 @@ function PreviewEditorContent({
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
                           <Button
+                            aria-label='Search'
                             type='button'
                             variant='ghost'
                             onClick={(e) => {
@@ -1360,7 +1374,7 @@ function PreviewEditorContent({
                       </div>
                     ) : resolvedChildWorkflowState ? (
                       <>
-                        <div className='[&_.react-flow__handle]:hidden! h-full w-full [&_*:active]:cursor-grabbing! [&_*]:cursor-grab!'>
+                        <div className='[&_.react-flow__handle]:hidden! size-full [&_*:active]:cursor-grabbing! [&_*]:cursor-grab!'>
                           <PreviewWorkflow
                             workflowState={resolvedChildWorkflowState}
                             height={160}
@@ -1374,6 +1388,11 @@ function PreviewEditorContent({
                         <Tooltip.Root>
                           <Tooltip.Trigger asChild>
                             <Button
+                              aria-label={
+                                isExecutionMode && onDrillDown
+                                  ? 'Expand workflow'
+                                  : 'Open in new tab'
+                              }
                               type='button'
                               variant='ghost'
                               onClick={handleExpandChildWorkflow}
@@ -1424,6 +1443,10 @@ function PreviewEditorContent({
                         config={subBlockConfig}
                         isPreview={true}
                         subBlockValues={subBlockValues}
+                        dependencyContext={{
+                          ...subBlockValues,
+                          __canonicalModes: canonicalModeOverrides,
+                        }}
                         disabled={true}
                       />
                       {index < visibleSubBlocks.length - 1 && (
@@ -1493,7 +1516,7 @@ function PreviewEditorContent({
           </span>
           <Button
             variant='ghost'
-            className='p-1!'
+            iconPadding='sm'
             onClick={goToPreviousMatch}
             disabled={matchCount === 0}
             aria-label='Previous match'
@@ -1502,14 +1525,14 @@ function PreviewEditorContent({
           </Button>
           <Button
             variant='ghost'
-            className='p-1!'
+            iconPadding='sm'
             onClick={goToNextMatch}
             disabled={matchCount === 0}
             aria-label='Next match'
           >
             <ArrowDown className='size-[12px]' />
           </Button>
-          <Button variant='ghost' className='p-1!' onClick={closeSearch} aria-label='Close search'>
+          <Button variant='ghost' iconPadding='sm' onClick={closeSearch} aria-label='Close search'>
             <X className='size-[12px]' />
           </Button>
         </div>

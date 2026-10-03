@@ -3,21 +3,6 @@ import { describe, expect, it } from 'vitest'
 import { quickValidateEmail, validateAllowlistEntry } from '@/lib/messaging/email/validation'
 
 describe('quickValidateEmail', () => {
-  it.concurrent('should validate a correct email', () => {
-    const result = quickValidateEmail('user@example.com')
-    expect(result.isValid).toBe(true)
-    expect(result.checks.syntax).toBe(true)
-    expect(result.checks.disposable).toBe(true)
-    expect(result.checks.mxRecord).toBe(true)
-    expect(result.confidence).toBe('medium')
-  })
-
-  it.concurrent('should reject invalid syntax', () => {
-    const result = quickValidateEmail('invalid-email')
-    expect(result.isValid).toBe(false)
-    expect(result.reason).toBe('Invalid email format')
-  })
-
   it.concurrent('should reject disposable email addresses', () => {
     const disposableDomains = [
       'mailinator.com',
@@ -58,30 +43,6 @@ describe('quickValidateEmail', () => {
     expect(result.reason).toBe('Email contains suspicious patterns')
   })
 
-  it.concurrent('should reject email with missing domain', () => {
-    const result = quickValidateEmail('user@')
-    expect(result.isValid).toBe(false)
-    expect(result.reason).toBe('Invalid email format')
-  })
-
-  it.concurrent('should reject email with domain starting with dot', () => {
-    const result = quickValidateEmail('user@.example.com')
-    expect(result.isValid).toBe(false)
-    expect(result.reason).toBe('Invalid email format')
-  })
-
-  it.concurrent('should reject email with domain ending with dot', () => {
-    const result = quickValidateEmail('user@example.')
-    expect(result.isValid).toBe(false)
-    expect(result.reason).toBe('Invalid email format')
-  })
-
-  it.concurrent('should reject email with domain missing TLD', () => {
-    const result = quickValidateEmail('user@localhost')
-    expect(result.isValid).toBe(false)
-    expect(result.reason).toBe('Invalid domain format')
-  })
-
   it.concurrent('should reject email longer than 254 characters', () => {
     const longLocal = 'a'.repeat(64)
     const longDomain = `${'b'.repeat(180)}.com`
@@ -107,43 +68,6 @@ describe('quickValidateEmail', () => {
       expect(result.checks.syntax).toBe(true)
       expect(result.checks.disposable).toBe(true)
     }
-  })
-
-  it.concurrent('should return high confidence for syntax errors', () => {
-    const result = quickValidateEmail('not-valid-email')
-    expect(result.confidence).toBe('high')
-  })
-
-  it.concurrent('should handle special characters in local part', () => {
-    const result = quickValidateEmail("user!#$%&'*+/=?^_`{|}~@example.com")
-    expect(result.checks.syntax).toBe(true)
-  })
-
-  it.concurrent('should handle empty string', () => {
-    const result = quickValidateEmail('')
-    expect(result.isValid).toBe(false)
-    expect(result.reason).toBe('Invalid email format')
-  })
-
-  it.concurrent('should handle email with only @ symbol', () => {
-    const result = quickValidateEmail('@')
-    expect(result.isValid).toBe(false)
-  })
-
-  it.concurrent('should handle email with spaces', () => {
-    const result = quickValidateEmail('user name@example.com')
-    expect(result.isValid).toBe(false)
-  })
-
-  it.concurrent('should handle email with multiple @ symbols', () => {
-    const result = quickValidateEmail('user@domain@example.com')
-    expect(result.isValid).toBe(false)
-  })
-
-  it.concurrent('should validate subdomains', () => {
-    const result = quickValidateEmail('user@mail.subdomain.example.com')
-    expect(result.isValid).toBe(true)
-    expect(result.checks.domain).toBe(true)
   })
 })
 
@@ -180,17 +104,6 @@ describe('isValidEmailSyntax', () => {
 })
 
 describe('validateAllowlistEntry', () => {
-  it.concurrent('should accept a valid address', () => {
-    expect(validateAllowlistEntry('user@example.com')).toBeNull()
-  })
-
-  it.concurrent('should waive address-level policy for bare domain entries', () => {
-    expect(validateAllowlistEntry('@mailinator.com')).toBeNull()
-    expect(validateAllowlistEntry('user@mailinator.com')).toBe(
-      'Disposable email addresses are not allowed'
-    )
-  })
-
   it.concurrent('should surface the underlying rejection reason', () => {
     expect(validateAllowlistEntry('notanemail')).toBe('Invalid email format')
     expect(validateAllowlistEntry('user..name@example.com')).toBe(

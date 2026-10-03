@@ -31,6 +31,7 @@ import {
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
 import { resolveRestoredFolderId } from '@/lib/folders/queries'
 import { notifyWorkspaceTablesChanged } from '@/lib/realtime/notify'
@@ -135,9 +136,7 @@ export async function withLockedTable<T>(
 ): Promise<T> {
   return db.transaction(async (trx) => {
     await setTableTxTimeouts(trx)
-    await trx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_schema:${tableId}`}, 0))`
-    )
+    await acquireAdvisoryXactLock(trx, 'user_table_schema', `user_table_schema:${tableId}`)
     const table = await getTableById(tableId, { tx: trx, includeArchived: opts?.includeArchived })
     if (!table || (opts?.expectedWorkspaceId && table.workspaceId !== opts.expectedWorkspaceId)) {
       throw new OrchestrationError('not_found', 'Table not found')

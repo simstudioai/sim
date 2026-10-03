@@ -1,32 +1,15 @@
-/**
- * @vitest-environment node
- */
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { mockEnvObject, setEnv } from '@sim/testing/mocks/env.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FeatureFlagContext, FeatureFlagName } from '@/lib/core/config/feature-flags'
 
-const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
+const { mockFetch, mockIsPlatformAdmin } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
   mockIsPlatformAdmin: vi.fn(),
-  envRef: {
-    APPCONFIG_APPLICATION: 'sim-staging' as string | undefined,
-    APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
-    TABLES_V2_API: undefined as boolean | undefined,
-    TABLE_ROW_TTL: undefined as boolean | undefined,
-    CREDENTIAL_GROUPS: undefined as boolean | undefined,
-    KNOWLEDGE_MEMBER_ACCESS: undefined as boolean | undefined,
-  },
 }))
 
 vi.mock('@/lib/core/config/appconfig', () => ({
   fetchAppConfigProfile: mockFetch,
-}))
-
-vi.mock('@/lib/core/config/env', () => ({
-  isTruthy: (v: unknown) => Boolean(v),
-  get env() {
-    return envRef
-  },
 }))
 
 vi.mock('@/lib/permissions/super-user', () => ({
@@ -52,6 +35,21 @@ import {
   isFeatureEnabled,
 } from '@/lib/core/config/feature-flags?feature-flags-test'
 
+const envRef = mockEnvObject
+setEnv({
+  APPCONFIG_APPLICATION: 'sim-staging',
+  APPCONFIG_ENVIRONMENT: 'staging',
+  DASHBOARDS: undefined,
+  TABLES_V2_API: undefined,
+  TABLE_ROW_TTL: undefined,
+  MSHIP_MODEL_SELECTOR: undefined,
+  MSHIP_PLAN_MODE: undefined,
+  AGENT_MEMORY_HISTORY: undefined,
+  CREDENTIAL_GROUPS: undefined,
+  KNOWLEDGE_MEMBER_ACCESS: undefined,
+  SLACK_SEARCH_SHARED_APP: undefined,
+})
+
 /** Make `getFeatureFlags` resolve to `doc` via the AppConfig path (also exercises parseConfig). */
 function withAppConfig(doc: unknown) {
   setEnvFlags({ isAppConfigEnabled: true })
@@ -70,8 +68,42 @@ afterAll(resetEnvFlagsMock)
 
 describe('getFeatureFlags', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isAppConfigEnabled: false })
+    envRef.AGENT_MEMORY_HISTORY = undefined
+    envRef.DASHBOARDS = undefined
+  })
+
+  it('rolls dashboards out globally or by organization and defaults off locally', async () => {
+    expect(await isFeatureEnabled('dashboards')).toBe(false)
+    envRef.DASHBOARDS = true
+    expect(await isFeatureEnabled('dashboards')).toBe(true)
+    withAppConfig({ dashboards: { orgIds: ['org-a'] } })
+    expect(await isFeatureEnabled('dashboards', { orgId: 'org-a' })).toBe(true)
+    expect(await isFeatureEnabled('dashboards', { orgId: 'org-b' })).toBe(false)
+    expect(await isFeatureEnabled('dashboards')).toBe(false)
+    withAppConfig({ dashboards: { enabled: true } })
+    expect(await isFeatureEnabled('dashboards', { orgId: 'org-b' })).toBe(true)
+    withAppConfig({ dashboards: { enabled: false } })
+    expect(await isFeatureEnabled('dashboards', { orgId: 'org-a' })).toBe(false)
+    envRef.DASHBOARDS = undefined
+  })
+
+  it('rolls Agent history out by workspace and retains a global capture switch', async () => {
+    withAppConfig({ 'agent-memory-history': { workspaceIds: ['workspace-a'] } })
+    expect(await isFeatureEnabled('agent-memory-history', { workspaceId: 'workspace-a' })).toBe(
+      true
+    )
+    expect(await isFeatureEnabled('agent-memory-history', { workspaceId: 'workspace-b' })).toBe(
+      false
+    )
+    withAppConfig({ 'agent-memory-history': { enabled: true } })
+    expect(await isFeatureEnabled('agent-memory-history', { workspaceId: 'workspace-b' })).toBe(
+      true
+    )
+    setEnvFlags({ isAppConfigEnabled: false })
+    expect(await isFeatureEnabled('agent-memory-history')).toBe(false)
+    envRef.AGENT_MEMORY_HISTORY = true
+    expect(await isFeatureEnabled('agent-memory-history')).toBe(true)
   })
 
   it('derives flags from fallback secrets when AppConfig is disabled, without fetching', async () => {
@@ -121,10 +153,43 @@ describe('getFeatureFlags', () => {
 
 describe('isFeatureEnabled', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.CREDENTIAL_GROUPS = undefined
     envRef.KNOWLEDGE_MEMBER_ACCESS = undefined
+    envRef.SLACK_SEARCH_SHARED_APP = undefined
+  })
+
+  describe('slack-search-shared-app flag', () => {
+    it('enables only the allowlisted organization', async () => {
+      withAppConfig({ 'slack-search-shared-app': { enabled: false, orgIds: ['review-org'] } })
+      expect(await isFeatureEnabled('slack-search-shared-app', { orgId: 'review-org' })).toBe(true)
+      expect(await isFeatureEnabled('slack-search-shared-app', { orgId: 'other-org' })).toBe(false)
+      expect(await isFeatureEnabled('slack-search-shared-app')).toBe(false)
+      expect(mockIsPlatformAdmin).not.toHaveBeenCalled()
+    })
+
+    it('does not grant organization access from user or workspace targeting', async () => {
+      withAppConfig({
+        'slack-search-shared-app': {
+          userIds: ['review-org'],
+          workspaceIds: ['review-org'],
+          adminEnabled: true,
+        },
+      })
+      expect(await isFeatureEnabled('slack-search-shared-app', { orgId: 'review-org' })).toBe(false)
+      expect(mockIsPlatformAdmin).not.toHaveBeenCalled()
+    })
+
+    it('preserves the global AppConfig switch', async () => {
+      withAppConfig({ 'slack-search-shared-app': { enabled: true } })
+      expect(await isFeatureEnabled('slack-search-shared-app', { orgId: 'any-org' })).toBe(true)
+    })
+
+    it('preserves the global fallback switch off AppConfig', async () => {
+      expect(await isFeatureEnabled('slack-search-shared-app', { orgId: 'review-org' })).toBe(false)
+      envRef.SLACK_SEARCH_SHARED_APP = true
+      expect(await isFeatureEnabled('slack-search-shared-app', { orgId: 'review-org' })).toBe(true)
+    })
   })
 
   describe('knowledge-member-access flag', () => {
@@ -173,11 +238,16 @@ describe('isFeatureEnabled', () => {
       expect(await isFeatureEnabled('credential-groups')).toBe(true)
     })
 
-    it('opens for an allowlisted workspace only', async () => {
-      withAppConfig({ 'credential-groups': { workspaceIds: ['ws-1'] } })
-      expect(await isFeatureEnabled('credential-groups', { workspaceId: 'ws-1' })).toBe(true)
-      expect(await isFeatureEnabled('credential-groups', { workspaceId: 'ws-2' })).toBe(false)
+    it('opens for an allowlisted organization only', async () => {
+      withAppConfig({ 'credential-groups': { orgIds: ['org-1'] } })
+      expect(await isFeatureEnabled('credential-groups', { orgId: 'org-1' })).toBe(true)
+      expect(await isFeatureEnabled('credential-groups', { orgId: 'org-2' })).toBe(false)
       expect(await isFeatureEnabled('credential-groups')).toBe(false)
+    })
+
+    it('a legacy workspace allowlist does not enable the organization gate', async () => {
+      withAppConfig({ 'credential-groups': { workspaceIds: ['ws-1'] } })
+      expect(await isFeatureEnabled('credential-groups', { orgId: 'org-1' })).toBe(false)
     })
   })
 
@@ -253,7 +323,6 @@ describe('isFeatureEnabled', () => {
 
 describe('tables-v2-api flag', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.TABLES_V2_API = undefined
   })
@@ -279,7 +348,6 @@ describe('tables-v2-api flag', () => {
 
 describe('table-row-ttl flag', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.TABLE_ROW_TTL = undefined
   })
@@ -295,4 +363,41 @@ describe('table-row-ttl flag', () => {
     withAppConfig({ 'table-row-ttl': { enabled: true } })
     expect(await isFeatureEnabled('table-row-ttl')).toBe(true)
   })
+})
+
+describe('Mothership model and Plan flags', () => {
+  beforeEach(() => {
+    setEnvFlags({ isAppConfigEnabled: false })
+    envRef.MSHIP_MODEL_SELECTOR = undefined
+    envRef.MSHIP_PLAN_MODE = undefined
+  })
+
+  it('defaults off without AppConfig and accepts explicit self-hosted settings', async () => {
+    expect(await isFeatureEnabled('mothership-model-selector')).toBe(false)
+    expect(await isFeatureEnabled('mothership-plan-mode')).toBe(false)
+    envRef.MSHIP_MODEL_SELECTOR = true
+    envRef.MSHIP_PLAN_MODE = true
+    expect(await isFeatureEnabled('mothership-model-selector')).toBe(true)
+    expect(await isFeatureEnabled('mothership-plan-mode')).toBe(true)
+  })
+
+  it.each(['sim-dev', 'sim-staging', 'sim-production'])(
+    'uses the configured document for %s with no environment-name default',
+    async (application) => {
+      const previous = envRef.APPCONFIG_APPLICATION
+      envRef.APPCONFIG_APPLICATION = application
+      try {
+        for (const value of [true, false]) {
+          withAppConfig({
+            'mothership-model-selector': { enabled: value },
+            'mothership-plan-mode': { enabled: value },
+          })
+          expect(await isFeatureEnabled('mothership-model-selector')).toBe(value)
+          expect(await isFeatureEnabled('mothership-plan-mode')).toBe(value)
+        }
+      } finally {
+        envRef.APPCONFIG_APPLICATION = previous
+      }
+    }
+  )
 })

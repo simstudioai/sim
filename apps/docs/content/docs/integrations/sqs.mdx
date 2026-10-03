@@ -11,15 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-[Amazon Simple Queue Service (SQS)](https://aws.amazon.com/sqs/) is a fully managed message queuing service that enables you to decouple and scale microservices, distributed systems, and serverless applications. SQS eliminates the complexity and overhead associated with managing and operating message-oriented middleware, and empowers developers to focus on differentiating work.
-
-With Amazon SQS, you can:
-
-- **Send messages**: Publish messages to queues for asynchronous processing
-- **Decouple applications**: Enable loose coupling between components of your system
-- **Scale workloads**: Handle variable workloads without provisioning infrastructure
-- **Ensure reliability**: Built-in redundancy and high availability
-- **Support FIFO queues**: Maintain strict message ordering and exactly-once processing
+Use [Amazon SQS](https://aws.amazon.com/sqs/) to send and receive messages, manage queues, and redrive dead-letter messages.
 
 In Sim, the SQS integration gives your agents both sides of the queue — producing work and consuming it. Supported operations cover:
 
@@ -51,7 +43,7 @@ Send a message to an Amazon SQS queue
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue) |
 | `data` | json | Yes | Message body to send as JSON object \(e.g., \{ "action": "process", "payload": \{...\} \}\) |
 | `delaySeconds` | number | No | Seconds to delay delivery of this message, 0-900. Not supported per-message on FIFO queues |
 | `messageAttributes` | json | No | Message attributes keyed by name, each \{ "dataType": "String" \| "Number", "stringValue": "..." \}. A custom label such as Number.float is allowed; Binary attributes are not supported |
@@ -79,7 +71,7 @@ Send up to 10 messages to an Amazon SQS queue in a single request
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue) |
 | `entries` | array | Yes | Up to 10 entries, each \{ "id": "unique-id", "data": \{ ... \}, "delaySeconds"?, "messageGroupId"?, "messageDeduplicationId"?, "messageAttributes"? \} |
 
 #### Output
@@ -112,7 +104,7 @@ Receive up to 10 messages from an Amazon SQS queue, with optional long polling
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue) |
 | `maxNumberOfMessages` | number | No | Maximum number of messages to return, 1-10 \(default 1\) |
 | `waitTimeSeconds` | number | No | Long-poll duration in seconds, 0-20. Waits for a message to arrive before returning \(default 0, short poll\) |
 | `visibilityTimeout` | number | No | Seconds the returned messages stay hidden from other consumers, 0-43200. Defaults to the queue setting |
@@ -145,7 +137,7 @@ Delete a received message from an Amazon SQS queue using its receipt handle
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue) |
 | `receiptHandle` | string | Yes | Receipt handle returned by sqs_receive_message for the message to delete |
 
 #### Output
@@ -165,7 +157,7 @@ Delete up to 10 received messages from an Amazon SQS queue in a single request
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue) |
 | `entries` | array | Yes | Up to 10 entries, each \{ "id": "unique-id", "receiptHandle": "..." \}. Receipt handles come from sqs_receive_message |
 
 #### Output
@@ -194,7 +186,7 @@ Change how long a received Amazon SQS message stays hidden from other consumers
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue) |
 | `receiptHandle` | string | Yes | Receipt handle returned by sqs_receive_message for the message to update |
 | `visibilityTimeout` | number | Yes | New visibility timeout in seconds, 0-43200 \(12 hours\). 0 makes the message immediately visible again |
 
@@ -215,7 +207,7 @@ Change the visibility timeout of up to 10 received Amazon SQS messages at once
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue) |
 | `entries` | array | Yes | Up to 10 entries, each \{ "id": "unique-id", "receiptHandle": "...", "visibilityTimeout": 0-43200 \}. Receipt handles come from sqs_receive_message |
 
 #### Output
@@ -287,7 +279,7 @@ Read configuration and message-count attributes of an Amazon SQS queue
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue) |
 | `attributeNames` | array | No | Attributes to return, e.g. \["All"\], \["ApproximateNumberOfMessages"\], \["QueueArn"\], \["VisibilityTimeout"\], \["RedrivePolicy"\]. Omitting this returns no attributes |
 
 #### Output
@@ -307,7 +299,7 @@ Update configuration attributes of an existing Amazon SQS queue
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue) |
 | `attributes` | json | Yes | Attributes to set as string values, e.g. \{ "VisibilityTimeout": "60", "MessageRetentionPeriod": "345600", "RedrivePolicy": "\{...\}" \}. FifoQueue can only be set at creation |
 
 #### Output
@@ -349,7 +341,7 @@ Delete an Amazon SQS queue and every message still in it
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue) |
 
 #### Output
 
@@ -368,7 +360,7 @@ Delete every message in an Amazon SQS queue while keeping the queue itself
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue) |
 
 #### Output
 
@@ -410,7 +402,7 @@ List the cost-allocation tags attached to an Amazon SQS queue
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue) |
 
 #### Output
 
@@ -429,7 +421,7 @@ Add or overwrite cost-allocation tags on an Amazon SQS queue
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue) |
 | `tags` | json | Yes | Tags to apply as \{ "key": "value" \} pairs. An existing key is overwritten. AWS recommends no more than 50 tags per queue |
 
 #### Output
@@ -449,7 +441,7 @@ Remove cost-allocation tags from an Amazon SQS queue
 | `region` | string | Yes | AWS region \(e.g., us-east-1\) |
 | `accessKeyId` | string | Yes | AWS access key ID |
 | `secretAccessKey` | string | Yes | AWS secret access key |
-| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue\) |
+| `queueUrl` | string | Yes | SQS queue URL \(e.g., https://sqs.us-east-1.amazonaws.com/123456789012/my-queue) |
 | `tagKeys` | array | Yes | Tag keys to remove, e.g. \["env", "team"\] |
 
 #### Output

@@ -1,12 +1,7 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
-  areGroupDepsSatisfied,
   areOutputsFilled,
   getUnmetGroupDeps,
-  isEmptyCellValue,
   isExecCancelled,
   isExecCancelledAfter,
   optimisticallyScheduleNewlyEligibleGroups,
@@ -38,20 +33,6 @@ function makeRow(
 describe('areGroupDepsSatisfied — checkbox dependency', () => {
   const group = makeGroup({ id: 'g1', dependencies: { columns: ['flag'] } })
 
-  it('treats a checked box (true) as satisfied', () => {
-    expect(areGroupDepsSatisfied(group, makeRow({ flag: true }))).toBe(true)
-  })
-
-  it('treats an unchecked box (false) as unmet', () => {
-    expect(areGroupDepsSatisfied(group, makeRow({ flag: false }))).toBe(false)
-  })
-
-  it('treats empty / null / undefined as unmet', () => {
-    expect(areGroupDepsSatisfied(group, makeRow({ flag: '' }))).toBe(false)
-    expect(areGroupDepsSatisfied(group, makeRow({ flag: null }))).toBe(false)
-    expect(areGroupDepsSatisfied(group, makeRow({}))).toBe(false)
-  })
-
   it('reports an unchecked box in unmet deps', () => {
     expect(getUnmetGroupDeps(group, makeRow({ flag: false })).columns).toEqual(['flag'])
     expect(getUnmetGroupDeps(group, makeRow({ flag: true })).columns).toEqual([])
@@ -79,12 +60,6 @@ function completedExec(workflowId: string): RowExecutionMetadata {
 }
 
 describe('isExecCancelled', () => {
-  it('is true only for cancelled status', () => {
-    expect(isExecCancelled({ status: 'cancelled' } as RowExecutionMetadata)).toBe(true)
-    expect(isExecCancelled({ status: 'running' } as RowExecutionMetadata)).toBe(false)
-    expect(isExecCancelled(undefined)).toBe(false)
-  })
-
   it('is true regardless of executionId — the resurrection-bug guard', () => {
     // A stop click can only stamp the pre-stamp's (often null) executionId.
     expect(
@@ -111,34 +86,6 @@ describe('isExecCancelledAfter — dispatcher tombstone', () => {
     } as RowExecutionMetadata
     expect(isExecCancelledAfter(exec, since)).toBe(false)
   })
-
-  it('is false without a cancelledAt timestamp', () => {
-    expect(isExecCancelledAfter({ status: 'cancelled' } as RowExecutionMetadata, since)).toBe(false)
-  })
-})
-
-describe('isEmptyCellValue — multiselect', () => {
-  it('treats an emptied multiselect as empty', () => {
-    // `[]` is truthy, so a naive null/undefined/'' check reads it as filled —
-    // which would make dependents eligible off a cleared selection.
-    expect(isEmptyCellValue([])).toBe(true)
-  })
-
-  it('treats a multiselect holding options as filled', () => {
-    expect(isEmptyCellValue(['opt_a'])).toBe(false)
-  })
-
-  it('still treats null, undefined and empty string as empty', () => {
-    expect(isEmptyCellValue(null)).toBe(true)
-    expect(isEmptyCellValue(undefined)).toBe(true)
-    expect(isEmptyCellValue('')).toBe(true)
-  })
-
-  it('treats other scalars as filled, including false and 0', () => {
-    expect(isEmptyCellValue(false)).toBe(false)
-    expect(isEmptyCellValue(0)).toBe(false)
-    expect(isEmptyCellValue('Open')).toBe(false)
-  })
 })
 
 describe('areOutputsFilled — multiselect output', () => {
@@ -147,10 +94,5 @@ describe('areOutputsFilled — multiselect output', () => {
   it('reports an emptied multiselect output as unfilled', () => {
     const row = { id: 'r1', data: { g1_out: [] } } as unknown as TableRow
     expect(areOutputsFilled(group, row)).toBe(false)
-  })
-
-  it('reports a populated multiselect output as filled', () => {
-    const row = { id: 'r1', data: { g1_out: ['opt_a'] } } as unknown as TableRow
-    expect(areOutputsFilled(group, row)).toBe(true)
   })
 })

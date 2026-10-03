@@ -166,6 +166,8 @@ export interface ApplyOperationsResult {
 }
 
 export interface OperationContext {
+  /** Enforce the internal tool attachment contract on newly authored inputs. */
+  enforceToolBindingContract?: boolean
   modifiedState: any
   skippedItems: SkippedItem[]
   validationErrors: ValidationError[]

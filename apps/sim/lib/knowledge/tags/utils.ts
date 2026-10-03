@@ -1,4 +1,6 @@
+import { type Column, type SQL, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { MAX_DOCUMENT_INDEXED_TEXT_LENGTH } from '@/lib/knowledge/constants'
 
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
@@ -60,12 +62,40 @@ export function coerceTagFilterValue(
 }
 
 /**
- * Escapes the LIKE metacharacters in a tag filter value so a `%` or `_` a
- * caller typed matches itself instead of acting as a wildcard. Both filter
- * builders pair this with `ESCAPE '\'`.
+ * Compiles a date tag filter as a half-open range on the raw column, which a
+ * btree on the slot serves; a `column::date` comparison never can. Date slots
+ * are `timestamp` without time zone, so a row's calendar day is its value
+ * floored to midnight regardless of the session time zone, and each range
+ * selects exactly the rows `column::date <operator> value::date` does. A NULL
+ * tag matches no operator. Both filter builders share it, so the document list
+ * and search agree on every day boundary. Returns `undefined` for an unknown
+ * operator or a `between` without an upper bound.
  */
-export function escapeLikePattern(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
+export function buildDateTagCondition(
+  column: Column,
+  operator: string,
+  value: string,
+  valueTo?: string
+): SQL | undefined {
+  switch (operator) {
+    case 'eq':
+      return sql`${column} >= ${value}::date::timestamp AND ${column} < (${value}::date + 1)::timestamp`
+    case 'neq':
+      return sql`(${column} < ${value}::date::timestamp OR ${column} >= (${value}::date + 1)::timestamp)`
+    case 'gt':
+      return sql`${column} >= (${value}::date + 1)::timestamp`
+    case 'gte':
+      return sql`${column} >= ${value}::date::timestamp`
+    case 'lt':
+      return sql`${column} < ${value}::date::timestamp`
+    case 'lte':
+      return sql`${column} < (${value}::date + 1)::timestamp`
+    case 'between':
+      if (valueTo === undefined) return undefined
+      return sql`${column} >= ${value}::date::timestamp AND ${column} < (${valueTo}::date + 1)::timestamp`
+    default:
+      return undefined
+  }
 }
 
 /**
@@ -94,6 +124,17 @@ export function uncompilableTagFilterError(filter: {
  * Validate a tag value against its expected field type
  * Returns an error message if invalid, or null if valid
  */
+/**
+ * Text tag values sit under an index whose rows Postgres caps in size; a value past
+ * {@link MAX_DOCUMENT_INDEXED_TEXT_LENGTH} would fail the document write itself, so it is
+ * refused with a message naming the tag instead.
+ */
+export function validateTagValueLength(tagName: string, value: string): string | null {
+  return value.length > MAX_DOCUMENT_INDEXED_TEXT_LENGTH
+    ? `Tag "${tagName}" cannot exceed ${MAX_DOCUMENT_INDEXED_TEXT_LENGTH} characters`
+    : null
+}
+
 export function validateTagValue(tagName: string, value: string, fieldType: string): string | null {
   if (fieldType !== 'boolean' && fieldType !== 'number' && fieldType !== 'date') return null
 

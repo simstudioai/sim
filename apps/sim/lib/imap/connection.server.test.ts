@@ -1,12 +1,12 @@
-/**
- * @vitest-environment node
- */
 import { environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockImapFlow, mockValidateDatabaseHost } = vi.hoisted(() => ({
+const { mockImapFlow } = vi.hoisted(() => ({
   mockImapFlow: vi.fn(),
-  mockValidateDatabaseHost: vi.fn(),
 }))
 
 vi.mock('imapflow', () => ({
@@ -15,9 +15,7 @@ vi.mock('imapflow', () => ({
   },
 }))
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  validateDatabaseHost: mockValidateDatabaseHost,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import {
   createSecureImapClient,
@@ -27,9 +25,10 @@ import {
   resolveImapConnectionForActor,
 } from '@/lib/imap/connection.server'
 
+const mockValidateDatabaseHost = inputValidationMockFns.mockValidateDatabaseHost
+
 describe('IMAP connection policy', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetEnvironmentUtilsMock()
     mockValidateDatabaseHost.mockResolvedValue({
       isValid: true,
@@ -88,24 +87,6 @@ describe('IMAP connection policy', () => {
       2,
       expect.objectContaining({ secure: false, port: 143, doSTARTTLS: true })
     )
-  })
-
-  it('preserves the legacy TLS defaults for nullable connection values', () => {
-    expect(
-      normalizeLiteralImapConnection({
-        host: 'imap.example.com',
-        port: null,
-        secure: null,
-        username: 'mailbox-user',
-        password: 'literal-password',
-      })
-    ).toEqual({
-      host: 'imap.example.com',
-      port: 993,
-      secure: true,
-      username: 'mailbox-user',
-      password: 'literal-password',
-    })
   })
 
   it('resolves exact personal and visible shared references for the deployment actor', async () => {

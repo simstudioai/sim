@@ -1,9 +1,15 @@
-/**
- * @vitest-environment node
- */
-import { describe, expect, it } from 'vitest'
+import { db } from '@sim/db'
+import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'
-import { clampSessionExpiry, type ResolvedSessionPolicy } from '@/lib/auth/session-policy'
+import { getMemberOrganizationId, invalidateMembershipCache } from '@/lib/auth/security-policy'
+import {
+  clampExpiryForSession,
+  clampSessionExpiry,
+  getSessionPolicy,
+  invalidateSessionPolicyCache,
+  type ResolvedSessionPolicy,
+} from '@/lib/auth/session-policy'
 
 const HOUR_MS = 60 * 60 * 1000
 
@@ -16,12 +22,6 @@ describe('clampSessionExpiry', () => {
   const now = new Date('2026-07-22T12:00:00Z')
   /** Better Auth's sliding refresh proposes now + 30 days. */
   const proposed = new Date(now.getTime() + 30 * 24 * HOUR_MS)
-
-  it('returns the proposed time unchanged when no policy fields are set', () => {
-    expect(clampSessionExpiry(policy(), createdAt, proposed, now).getTime()).toBe(
-      proposed.getTime()
-    )
-  })
 
   it('caps absolute lifetime at createdAt + maxSessionHours', () => {
     const result = clampSessionExpiry(policy({ maxSessionHours: 24 }), createdAt, proposed, now)
@@ -80,5 +80,60 @@ describe('clampSessionExpiry', () => {
       now
     )
     expect(result.getTime()).toBe(shortProposal.getTime())
+  })
+})
+
+describe('transaction-scoped session policies', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+    setEnvFlags({ isBillingEnabled: false, isSessionPoliciesEnabled: true })
+    invalidateSessionPolicyCache('org-1')
+    invalidateMembershipCache('user-1')
+  })
+
+  afterEach(() => {
+    resetDbChainMock()
+    resetEnvFlagsMock()
+  })
+
+  it('does not consume a cached policy or publish uncommitted policy changes', async () => {
+    dbChainMockFns.limit.mockResolvedValue([{ settings: { maxSessionHours: 24 } }])
+    await expect(getSessionPolicy('org-1')).resolves.toMatchObject({ maxSessionHours: 24 })
+
+    const limit = vi.fn().mockResolvedValue([{ settings: { maxSessionHours: 4 } }])
+    const executor = {
+      ...db,
+      select: vi.fn().mockReturnValue({ from: () => ({ where: () => ({ limit }) }) }),
+    }
+    await expect(getSessionPolicy('org-1', executor)).resolves.toMatchObject({ maxSessionHours: 4 })
+    await expect(getSessionPolicy('org-1')).resolves.toMatchObject({ maxSessionHours: 24 })
+    expect(dbChainMockFns.limit).toHaveBeenCalledOnce()
+  })
+
+  it('sees a membership created in the transaction despite a cached non-member result', async () => {
+    dbChainMockFns.limit.mockResolvedValue([])
+    await expect(getMemberOrganizationId('user-1')).resolves.toBeNull()
+
+    const limit = vi.fn()
+    limit.mockResolvedValueOnce([{ organizationId: 'org-1' }])
+    limit.mockResolvedValueOnce([{ settings: { maxSessionHours: 4 } }])
+    const executor = {
+      ...db,
+      select: vi.fn().mockReturnValue({ from: () => ({ where: () => ({ limit }) }) }),
+    }
+
+    await expect(
+      clampExpiryForSession(
+        {
+          userId: 'user-1',
+          createdAt: new Date('2026-09-08T00:00:00Z'),
+          expiresAt: new Date('2026-10-08T00:00:00Z'),
+        },
+        undefined,
+        executor
+      )
+    ).resolves.toEqual(new Date('2026-09-08T04:00:00Z'))
+    await expect(getMemberOrganizationId('user-1')).resolves.toBeNull()
+    expect(dbChainMockFns.limit).toHaveBeenCalledOnce()
   })
 })

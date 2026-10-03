@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { formatGeneratedSource } from './format-generated-source'
 
 /**
- * Generate `apps/sim/lib/copilot/generated/trace-events-v1.ts` from
+ * Generate `apps/sim/lib/mothership/generated/trace-events-v1.ts` from
  * the Go-side `contracts/trace-events-v1.schema.json` contract.
  *
  * Mirrors the span-names + attribute-keys sync scripts exactly — the
@@ -20,7 +20,7 @@ const DEFAULT_CONTRACT_PATH = resolve(
   ROOT,
   '../copilot/copilot/contracts/trace-events-v1.schema.json'
 )
-const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/copilot/generated/trace-events-v1.ts')
+const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/mothership/generated/trace-events-v1.ts')
 
 function extractEventNames(schema: Record<string, unknown>): string[] {
   const defs = (schema.$defs ?? {}) as Record<string, unknown>

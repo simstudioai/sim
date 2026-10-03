@@ -59,6 +59,8 @@ export type ComboboxOption = {
   iconElement?: ReactNode
   /** Custom select handler - when provided, this is called instead of onChange */
   onSelect?: () => void
+  /** Explicit selection state for action options whose values are not stored in the selection. */
+  selected?: boolean
   /** Whether this option is disabled */
   disabled?: boolean
   /** When true, keep the dropdown open after selecting this option */
@@ -222,6 +224,11 @@ const Combobox = memo(
         searchActive = false,
         onLoadMore,
         onLoadAll,
+        'aria-label': ariaLabel,
+        'aria-labelledby': ariaLabelledBy,
+        'aria-describedby': ariaDescribedBy,
+        'aria-required': ariaRequired,
+        'aria-invalid': ariaInvalid,
         ...props
       },
       ref
@@ -691,7 +698,7 @@ const Combobox = memo(
       const isLoadingContinuation = isLoadingMore || isLoadingAll
       const resolvedEmptyMessage =
         truncated && hasActiveSearch
-          ? 'No matches in the first 10,000 options'
+          ? 'No matches in partial results'
           : hasMore && hasActiveSearch
             ? 'No matches in loaded options'
             : hasMore
@@ -728,14 +735,16 @@ const Combobox = memo(
           </Button>
         ) : truncated && filteredOptions.length > 0 ? (
           <div className='py-2 text-center text-[var(--text-muted)] text-caption'>
-            Showing the first 10,000 options
+            Showing partial results
           </div>
         ) : null
 
       const renderFlatOption = (option: ComboboxOption, index: number) => {
-        const isSelected = multiSelect
-          ? multiSelectValues?.includes(option.value)
-          : effectiveSelectedValue === option.value
+        const isSelected =
+          option.selected ??
+          (multiSelect
+            ? multiSelectValues?.includes(option.value)
+            : effectiveSelectedValue === option.value)
         const isHighlighted = index === effectiveHighlightedIndex
         const OptionIcon = option.icon
 
@@ -781,13 +790,6 @@ const Combobox = memo(
                   <div className='group relative'>
                     <Input
                       ref={inputRef}
-                      className={cn(
-                        'w-full pr-10 transition-colors',
-                        (overlayContent || SelectedIcon) && 'text-transparent caret-foreground',
-                        SelectedIcon && !overlayContent && 'pl-7',
-                        open && 'focus-visible:border-[var(--border-1)]',
-                        className
-                      )}
                       placeholder={placeholder}
                       value={value ?? ''}
                       onChange={handleInputChange}
@@ -795,7 +797,20 @@ const Combobox = memo(
                       onBlur={handleBlur}
                       onKeyDown={handleKeyDown}
                       disabled={disabled}
+                      aria-label={ariaLabel}
+                      aria-labelledby={ariaLabelledBy}
+                      aria-describedby={ariaDescribedBy}
+                      aria-required={ariaRequired}
+                      aria-invalid={ariaInvalid}
                       {...inputProps}
+                      className={cn(
+                        'w-full pr-10 transition-colors',
+                        (overlayContent || SelectedIcon) && 'text-transparent caret-foreground',
+                        SelectedIcon && !overlayContent && 'pl-7',
+                        open && 'focus-visible:border-[var(--border-1)]',
+                        className,
+                        inputProps?.className
+                      )}
                       role='combobox'
                       aria-expanded={open}
                       aria-haspopup='listbox'
@@ -840,6 +855,11 @@ const Combobox = memo(
                   <div
                     ref={ref}
                     role='combobox'
+                    aria-label={ariaLabel}
+                    aria-labelledby={ariaLabelledBy}
+                    aria-describedby={ariaDescribedBy}
+                    aria-required={ariaRequired}
+                    aria-invalid={ariaInvalid}
                     aria-expanded={open}
                     aria-haspopup='listbox'
                     aria-controls={listboxId}
@@ -973,7 +993,7 @@ const Combobox = memo(
                         Loading options...
                       </span>
                     </div>
-                  ) : error && filteredOptions.length === 0 && !hasMore ? (
+                  ) : error && filteredOptions.length === 0 ? (
                     <div className='px-1.5 py-3.5 text-center text-[var(--text-error)] text-caption'>
                       {error}
                     </div>
@@ -994,9 +1014,11 @@ const Combobox = memo(
                                 </div>
                               )}
                           {group.items.map((option) => {
-                            const isSelected = multiSelect
-                              ? multiSelectValues?.includes(option.value)
-                              : effectiveSelectedValue === option.value
+                            const isSelected =
+                              option.selected ??
+                              (multiSelect
+                                ? multiSelectValues?.includes(option.value)
+                                : effectiveSelectedValue === option.value)
                             const globalIndex = filteredOptions.findIndex(
                               (o) => o.value === option.value
                             )

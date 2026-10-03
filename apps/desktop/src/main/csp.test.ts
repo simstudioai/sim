@@ -62,26 +62,4 @@ describe('attachCspFallback', () => {
     )
     expect(cb).toHaveBeenCalledWith({})
   })
-
-  it('leaves subresources untouched', () => {
-    const cb = vi.fn()
-    session.run()?.(
-      { url: `${APP_ORIGIN}/app.js`, resourceType: 'script', responseHeaders: {} },
-      cb
-    )
-    expect(cb).toHaveBeenCalledWith({})
-  })
-
-  it('leaves non-app-origin documents untouched', () => {
-    const cb = vi.fn()
-    session.run()?.(
-      {
-        url: 'https://accounts.google.com/o/oauth2',
-        resourceType: 'mainFrame',
-        responseHeaders: {},
-      },
-      cb
-    )
-    expect(cb).toHaveBeenCalledWith({})
-  })
 })

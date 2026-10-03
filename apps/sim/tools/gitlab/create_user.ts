@@ -4,6 +4,7 @@ import type { ToolConfig } from '@/tools/types'
 
 export const gitlabCreateUserTool: ToolConfig<GitLabCreateUserParams, GitLabUserResponse> = {
   id: 'gitlab_create_user',
+  personalToken: { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' },
   name: 'GitLab Create User',
   description:
     'Create a new GitLab user. Requires an administrator token with admin_mode on the instance.',

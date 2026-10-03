@@ -1,9 +1,8 @@
 import { HexIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { HexResponse } from '@/tools/hex/types'
 
-export const HexBlock: BlockConfig<HexResponse> = {
+export const HexBlock: BlockConfig = {
   type: 'hex',
   name: 'Hex',
   description: 'Run and manage Hex projects',

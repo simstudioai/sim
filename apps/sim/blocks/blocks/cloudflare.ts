@@ -1,6 +1,5 @@
 import { CloudflareIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { CloudflareResponse } from '@/tools/cloudflare/types'
 
 /**
  * Per-operation aliases from a tool param name to the subBlock id that supplies
@@ -75,7 +74,7 @@ const ALIASED_SUBBLOCK_IDS = [
   ...new Set(Object.values(SUBBLOCK_ALIASES).flatMap((aliases) => Object.values(aliases))),
 ]
 
-export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
+export const CloudflareBlock: BlockConfig = {
   type: 'cloudflare',
   name: 'Cloudflare',
   description: 'Manage DNS, WAF, Zero Trust access, and edge infrastructure',

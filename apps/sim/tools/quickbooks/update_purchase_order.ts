@@ -68,6 +68,12 @@ export const quickbooksUpdatePurchaseOrderTool: InternalToolConfig<
       visibility: 'user-or-llm',
       description: 'Replacement date in YYYY-MM-DD format',
     },
+    dueDate: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Replacement due date in YYYY-MM-DD format',
+    },
     documentNumber: {
       type: 'string',
       required: false,

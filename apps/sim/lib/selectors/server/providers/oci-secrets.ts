@@ -21,6 +21,7 @@ type OciSecretsSelectorKey = Extract<ServerSelectorKey, `oci_secrets.${string}`>
 async function prepareOciSecretsDestination(args: ExecuteServerSelectorArgs): Promise<OciClient> {
   const access = args.credential?.access
   if (
+    !args.workspaceId ||
     !access?.ok ||
     !access.resolvedCredentialId ||
     access.credentialType !== 'service_account' ||

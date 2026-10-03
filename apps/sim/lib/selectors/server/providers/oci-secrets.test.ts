@@ -48,7 +48,6 @@ function args(overrides: Partial<ExecuteServerSelectorArgs> = {}): ExecuteServer
 
 describe('OCI Secrets server selectors', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.createClient.mockResolvedValue(client)
   })
 

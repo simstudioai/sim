@@ -3,12 +3,20 @@
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { cn } from '@sim/emcn'
-import { ArrowUpDown, File, ListFilter, Plus, Search } from '@sim/emcn/icons'
+import {
+  ArrowUpDown,
+  CsvIcon,
+  DocxIcon,
+  File,
+  ListFilter,
+  PdfIcon,
+  Plus,
+  Search,
+  ZipIcon,
+} from '@sim/emcn/icons'
 import { AgentIcon } from '@/components/icons'
-import { CsvIcon, DocxIcon, PdfIcon } from '@/components/icons/document-icons'
 import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
 import { PLATFORM_LOOP_RESET_FADE_MS } from '@/app/(landing)/components/shared/platform-loop-constants'
-import { ZipIcon } from '@/app/(landing)/components/shared/zip-icon'
 import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'
 
 /** Sidebar content for the files hero - a file-heavy team's workspace. */
@@ -236,10 +244,10 @@ export function FilesHeroLoop() {
 
   return (
     <HeroLoopShell chats={SIDEBAR_CHATS} workflows={SIDEBAR_WORKFLOWS} activeItem='Files'>
-      <div className='h-full w-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
+      <div className='size-full overflow-hidden rounded-[6px] border border-[var(--border)] bg-[var(--bg)]'>
         <div
           className={cn(
-            'flex h-full w-full flex-col transition-opacity duration-300 ease-out',
+            'flex size-full flex-col transition-opacity duration-300 ease-out',
             fading ? 'opacity-0' : 'opacity-100'
           )}
         >

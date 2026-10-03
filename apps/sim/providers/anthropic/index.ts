@@ -4,6 +4,7 @@ import type { StreamingExecution } from '@/executor/types'
 import { executeAnthropicProviderRequest } from '@/providers/anthropic/core'
 import { getCachedProviderClient } from '@/providers/client-cache'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { PROVIDER_MAX_RETRIES } from '@/providers/transport'
 import type { ProviderConfig, ProviderRequest, ProviderResponse } from '@/providers/types'
 
 const logger = createLogger('AnthropicProvider')
@@ -24,7 +25,10 @@ export const anthropicProvider: ProviderConfig = {
       providerLabel: 'Anthropic',
       createClient: (apiKey) => {
         const cacheKey = `anthropic::${apiKey}`
-        return getCachedProviderClient(cacheKey, () => new Anthropic({ apiKey }))
+        return getCachedProviderClient(
+          cacheKey,
+          () => new Anthropic({ apiKey, maxRetries: PROVIDER_MAX_RETRIES })
+        )
       },
       logger,
     })

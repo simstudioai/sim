@@ -1,3 +1,4 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import type {
   MintlifyGetUpdateStatusParams,
   MintlifyGetUpdateStatusResponse,
@@ -10,7 +11,6 @@ import {
   pathSegment,
   readMintlifyJson,
   toNullableNumber,
-  toNullableString,
 } from '@/tools/mintlify/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -24,8 +24,8 @@ function toAuthor(value: unknown): MintlifyUpdateAuthor | null {
   if (!value || typeof value !== 'object') return null
   const author = value as Record<string, unknown>
   return {
-    name: toNullableString(author.name),
-    avatarUrl: toNullableString(author.avatarUrl),
+    name: toStringOrNull(author.name),
+    avatarUrl: toStringOrNull(author.avatarUrl),
     githubUserId: toNullableNumber(author.githubUserId),
   }
 }
@@ -36,9 +36,9 @@ function toCommit(value: unknown): MintlifyUpdateCommit | null {
   const filesChanged = commit.filesChanged as Record<string, unknown> | undefined
 
   return {
-    sha: toNullableString(commit.sha),
-    ref: toNullableString(commit.ref),
-    message: toNullableString(commit.message),
+    sha: toStringOrNull(commit.sha),
+    ref: toStringOrNull(commit.ref),
+    message: toStringOrNull(commit.message),
     filesChanged: filesChanged
       ? {
           added: toStringList(filesChanged.added),
@@ -87,20 +87,20 @@ export const mintlifyGetUpdateStatusTool: ToolConfig<
     return {
       success: true,
       output: {
-        id: toNullableString(data._id),
-        projectId: toNullableString(data.projectId),
-        createdAt: toNullableString(data.createdAt),
-        endedAt: toNullableString(data.endedAt),
-        status: toNullableString(data.status),
-        summary: toNullableString(data.summary),
+        id: toStringOrNull(data._id),
+        projectId: toStringOrNull(data.projectId),
+        createdAt: toStringOrNull(data.createdAt),
+        endedAt: toStringOrNull(data.endedAt),
+        status: toStringOrNull(data.status),
+        summary: toStringOrNull(data.summary),
         logs: toStringList(data.logs),
-        subdomain: toNullableString(data.subdomain),
-        screenshot: toNullableString(data.screenshot),
-        screenshotLight: toNullableString(data.screenshotLight),
-        screenshotDark: toNullableString(data.screenshotDark),
+        subdomain: toStringOrNull(data.subdomain),
+        screenshot: toStringOrNull(data.screenshot),
+        screenshotLight: toStringOrNull(data.screenshotLight),
+        screenshotDark: toStringOrNull(data.screenshotDark),
         author: toAuthor(data.author),
         commit: toCommit(data.commit),
-        source: toNullableString(data.source),
+        source: toStringOrNull(data.source),
       },
     }
   },
