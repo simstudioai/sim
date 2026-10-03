@@ -1,9 +1,8 @@
 'use client'
 
 import type { ComponentType } from 'react'
-import { cn, disclosureChevronClass } from '@sim/emcn'
+import { Avatar, cn, disclosureChevronClass, formatChartCompactNumber } from '@sim/emcn'
 import { ArrowRight, ChevronDown } from '@sim/emcn/icons'
-import { formatChartCompactNumber } from '@/components/charts'
 import {
   AnthropicIcon,
   AzureIcon,
@@ -14,6 +13,7 @@ import {
   FireworksIcon,
   GeminiIcon,
   GroqIcon,
+  KieIcon,
   KimiIcon,
   LitellmIcon,
   MetaIcon,
@@ -24,6 +24,7 @@ import {
   OpenRouterIcon,
   SakanaIcon,
   TogetherIcon,
+  TypeSafeIcon,
   VertexIcon,
   VllmIcon,
   xAIIcon,
@@ -64,6 +65,7 @@ const PROVIDER_ICONS: Readonly<Record<string, ComponentType<{ className?: string
   fireworks: FireworksIcon,
   google: GeminiIcon,
   groq: GroqIcon,
+  kie: KieIcon,
   kimi: KimiIcon,
   litellm: LitellmIcon,
   meta: MetaIcon,
@@ -75,6 +77,7 @@ const PROVIDER_ICONS: Readonly<Record<string, ComponentType<{ className?: string
   openrouter: OpenRouterIcon,
   sakana: SakanaIcon,
   together: TogetherIcon,
+  typesafe: TypeSafeIcon,
   vertex: VertexIcon,
   vllm: VllmIcon,
   xai: xAIIcon,
@@ -84,10 +87,10 @@ const PROVIDER_ICONS: Readonly<Record<string, ComponentType<{ className?: string
   'azure-openai': AzureIcon,
 }
 
-export const USAGE_PROVIDER_ICON_IDS = Object.keys(PROVIDER_ICONS)
-
 interface UsageConsumerRowProps {
   row: OrganizationUsageBreakdownRow
+  /** Member rows lead with the member's avatar where other rows show a provider mark. */
+  isMember: boolean
   /** BYOK rows carry no cost, so tokens are the only usage they can show. */
   showTokensOnly: boolean
   onSelect?: (row: OrganizationUsageBreakdownRow) => void
@@ -125,6 +128,7 @@ export const USAGE_ROW_CLASSES = 'flex w-full items-center gap-2.5 rounded-lg p-
  */
 function UsageConsumerRow({
   row,
+  isMember,
   showTokensOnly,
   onSelect,
   actions,
@@ -147,20 +151,22 @@ function UsageConsumerRow({
         onSelect && 'transition-colors hover-hover:bg-[var(--surface-active)]'
       )}
     >
-      {ProviderIcon && (
-        <ProviderIcon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+      {isMember ? (
+        <Avatar size='xs' name={row.label} src={row.image} aria-hidden />
+      ) : (
+        ProviderIcon && <ProviderIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
       )}
       <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'>{row.label}</span>
       <div
-        className='h-[4px] w-[64px] flex-shrink-0 overflow-hidden rounded-full bg-[var(--border)]'
+        className='h-[4px] w-[64px] shrink-0 overflow-hidden rounded-full bg-[var(--border)]'
         aria-hidden='true'
       >
         <div
-          className='h-full rounded-full bg-[var(--indicator-seat-filled)]'
+          className='h-full rounded-full bg-[var(--brand-blue)]'
           style={{ width: `${Math.max(2, Math.round(row.share * 100))}%` }}
         />
       </div>
-      <span className='w-[72px] flex-shrink-0 text-right text-[var(--text-muted)] text-caption tabular-nums'>
+      <span className='w-[72px] shrink-0 text-right text-[var(--text-muted)] text-caption tabular-nums'>
         {showTokensOnly ? formatChartCompactNumber(row.tokens ?? 0) : row.credits.toLocaleString()}
       </span>
       {/* An arrow or a menu, never both — `sim-settings-pages.md`. */}
@@ -169,7 +175,7 @@ function UsageConsumerRow({
       ) : actions?.length ? (
         <RowActionsMenu label={`${row.label} actions`} actions={actions} />
       ) : reservedTrailing ? (
-        <span className={cn(reservedTrailing, 'flex-shrink-0')} aria-hidden='true' />
+        <span className={cn(reservedTrailing, 'shrink-0')} aria-hidden='true' />
       ) : null}
     </Row>
   )
@@ -239,6 +245,7 @@ export function UsageConsumers({
         <UsageConsumerRow
           key={`${dimension}-${row.id}`}
           row={row}
+          isMember={dimension === 'member'}
           showTokensOnly={showTokensOnly}
           {...(onExpandOther && trailingSlot ? { reservedTrailing: trailingSlot } : {})}
           {...(onSelectRow && row.id ? { onSelect: onSelectRow } : {})}
@@ -273,7 +280,7 @@ export function UsageConsumers({
               <span className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-sm'>
                 {`Other (${breakdown.other.rowCount} more)`}
               </span>
-              <span className='w-[72px] flex-shrink-0 text-right text-[var(--text-muted)] text-caption tabular-nums'>
+              <span className='w-[72px] shrink-0 text-right text-[var(--text-muted)] text-caption tabular-nums'>
                 {showTokensOnly
                   ? formatChartCompactNumber(breakdown.other.tokens)
                   : breakdown.other.credits.toLocaleString()}
@@ -286,7 +293,7 @@ export function UsageConsumers({
               */}
               {trailingSlot && (
                 <span
-                  className={cn(trailingSlot, 'flex flex-shrink-0 items-center justify-center')}
+                  className={cn(trailingSlot, 'flex shrink-0 items-center justify-center')}
                   aria-hidden='true'
                 >
                   {onExpandOther && <ChevronDown className={disclosureChevronClass} />}

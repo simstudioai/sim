@@ -1,5 +1,3 @@
-import type { ToolResponse } from '@/tools/types'
-
 interface GoogleVaultCommonParams {
   accessToken: string
   matterId: string
@@ -41,10 +39,6 @@ export interface GoogleVaultListMattersExportParams extends GoogleVaultCommonPar
   pageSize?: number
   pageToken?: string
   exportId?: string
-}
-
-interface GoogleVaultListMattersExportResponse extends ToolResponse {
-  output: any
 }
 
 export type GoogleVaultHoldView = 'BASIC_HOLD' | 'FULL_HOLD'
@@ -145,8 +139,4 @@ export interface GoogleVaultListSavedQueriesParams extends GoogleVaultCommonPara
 
 export interface GoogleVaultDeleteSavedQueryParams extends GoogleVaultCommonParams {
   savedQueryId: string
-}
-
-interface GoogleVaultListMattersHoldsResponse extends ToolResponse {
-  output: any
 }

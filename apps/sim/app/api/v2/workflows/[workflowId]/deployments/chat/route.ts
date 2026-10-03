@@ -5,11 +5,11 @@ import {
 } from '@/lib/api/contracts/v2/chat-deployments'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import {
-  chatDeploymentOperations,
   deleteWorkflowChatDeployment,
   readWorkflowChatDeployment,
   replaceWorkflowChatDeployment,
 } from '@/lib/chat-deployments/application'
+import { chatDeploymentOperations } from '@/lib/chat-deployments/application/operations'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { chatDeploymentErrorPolicy, toV2ChatDeployment } from '@/app/api/v2/chat-deployments/utils'
 

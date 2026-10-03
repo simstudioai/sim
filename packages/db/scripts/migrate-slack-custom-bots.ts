@@ -48,7 +48,7 @@ import { createLogger } from '@sim/logger'
 import { describeError, getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { chunkArray, sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { type BackoffOptions, backoffWithJitter } from '@sim/utils/retry'
 import { truncate } from '@sim/utils/string'
 import { and, asc, eq, gt, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
@@ -400,7 +400,7 @@ export function extractSlackBotSources(block: SlackMigrationBlock): SlackBotSour
       ) {
         throw new Error('Slack triggerConfig must be an object when present')
       }
-      const triggerConfig = isRecordLike(rawTriggerConfig) ? rawTriggerConfig : {}
+      const triggerConfig = toRecord(rawTriggerConfig)
       const rawSigningSecret = preferredTriggerValue(values, triggerConfig, 'signingSecret')
       const rawBotToken = preferredTriggerValue(values, triggerConfig, 'botToken')
       const existingBotCredentialId = nonEmptyString(values.botCredential)

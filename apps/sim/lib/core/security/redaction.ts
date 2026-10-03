@@ -2,6 +2,7 @@
  * Centralized redaction utilities for sensitive data
  */
 
+import { escapeRegExp } from '@sim/utils/string'
 import { filterUserFileForDisplay, isUserFile } from '@/lib/core/utils/user-file'
 
 export const REDACTED_MARKER = '[REDACTED]'
@@ -433,7 +434,7 @@ export function redactKnownSensitiveValues(value: string, secrets: string[]): st
     }
     for (const encoded of encodedVariants) {
       if (encoded !== secret) {
-        const escaped = encoded.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const escaped = escapeRegExp(encoded)
         result = result.replace(new RegExp(escaped, 'gi'), REDACTED_MARKER)
       }
     }

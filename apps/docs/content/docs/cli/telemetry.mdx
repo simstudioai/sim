@@ -1,0 +1,26 @@
+---
+title: Telemetry
+description: Control anonymous usage reporting — every subcommand, argument, and flag
+---
+
+import { CommandTable } from '@/components/ui/command-table'
+
+Every command below also accepts the [global options](/cli/commands#global-options).
+
+## Show whether usage reporting is on, and why not if it is off
+
+```bash
+sim telemetry status
+```
+
+## Turn usage reporting on for this machine
+
+```bash
+sim telemetry enable
+```
+
+## Turn usage reporting off for this machine
+
+```bash
+sim telemetry disable
+```

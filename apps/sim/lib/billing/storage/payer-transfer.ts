@@ -1,6 +1,7 @@
 import {
   document,
   knowledgeBase,
+  knowledgeConnector,
   organization,
   userStats,
   workspace,
@@ -77,7 +78,8 @@ function parseExactBytes(value: number | string, label: string): number {
  * Computes one workspace's live billable bytes with two index-bounded scalar
  * aggregates. Archived workspace files and documents remain billable while
  * their objects are retained; mothership files, connector documents, and
- * deleted documents are excluded.
+ * deleted documents are excluded. A detaching connector's reservation counts:
+ * it was charged when the connector was removed with its documents kept.
  */
 async function getExactWorkspaceStorageBytes(tx: DbOrTx, workspaceId: string): Promise<number> {
   const [row] = await tx.execute<ExactWorkspaceStorageRow>(sql`
@@ -103,6 +105,13 @@ async function getExactWorkspaceStorageBytes(tx: DbOrTx, workspaceId: string): P
         WHERE ${knowledgeBase.workspaceId} = ${workspaceId}
           AND ${document.connectorId} IS NULL
           AND ${document.deletedAt} IS NULL
+      ), 0)::bigint + COALESCE((
+        SELECT SUM(${knowledgeConnector.detachReservedBytes})
+        FROM ${knowledgeConnector}
+        INNER JOIN ${knowledgeBase}
+          ON ${knowledgeBase.id} = ${knowledgeConnector.knowledgeBaseId}
+        WHERE ${knowledgeBase.workspaceId} = ${workspaceId}
+          AND ${knowledgeConnector.detachedAt} IS NOT NULL
       ), 0)::bigint AS document_bytes
   `)
 
@@ -208,6 +217,20 @@ async function getExactWorkspaceStorageBytesBatch(
       WHERE ${inArray(knowledgeBase.workspaceId, workspaceIds)}
         AND ${document.connectorId} IS NULL
         AND ${document.deletedAt} IS NULL
+      GROUP BY ${knowledgeBase.workspaceId}
+
+      UNION ALL
+
+      SELECT
+        ${knowledgeBase.workspaceId} AS workspace_id,
+        0::bigint AS workspace_file_bytes,
+        SUM(${knowledgeConnector.detachReservedBytes}) AS document_bytes,
+        0::bigint AS workspace_file_missing_size_count
+      FROM ${knowledgeConnector}
+      INNER JOIN ${knowledgeBase}
+        ON ${knowledgeBase.id} = ${knowledgeConnector.knowledgeBaseId}
+      WHERE ${inArray(knowledgeBase.workspaceId, workspaceIds)}
+        AND ${knowledgeConnector.detachedAt} IS NOT NULL
       GROUP BY ${knowledgeBase.workspaceId}
     ) storage_by_workspace
     GROUP BY storage_by_workspace.workspace_id

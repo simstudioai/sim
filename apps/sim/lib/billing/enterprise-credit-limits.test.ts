@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { deriveEnterpriseCreditLimits } from '@/lib/billing/enterprise-credit-limits'
 

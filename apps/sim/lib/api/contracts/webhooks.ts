@@ -333,3 +333,55 @@ export const tiktokWebhookResponseSchema = z.union([
   z.object({ ok: z.literal(true) }),
   z.object({ error: z.string().min(1) }),
 ])
+
+export const tiktokWebhookContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/webhooks/tiktok',
+  headers: tiktokWebhookHeadersSchema,
+  // Body is validated after HMAC verification against the raw payload.
+  body: tiktokWebhookEnvelopeSchema,
+  response: {
+    mode: 'json',
+    schema: tiktokWebhookResponseSchema,
+  },
+})
+
+/** Intuit's app-level QuickBooks CloudEvent envelope. */
+export const quickBooksWebhookEventSchema = z.object({
+  specversion: z.string().min(1).max(32),
+  id: z.string().min(1).max(255),
+  source: z.string().min(1).max(2048),
+  type: z.string().min(1).max(255),
+  datacontenttype: z.string().min(1).max(255).optional(),
+  time: z.string().datetime({ offset: true }),
+  intuitentityid: z.string().min(1).max(255),
+  intuitaccountid: z.string().min(1).max(255),
+  data: z.unknown().optional(),
+})
+
+/** Maximum CloudEvents Intuit batches into a single webhook delivery. */
+export const QUICKBOOKS_WEBHOOK_MAX_EVENTS = 1000
+
+export const quickBooksWebhookEventsSchema = z
+  .array(quickBooksWebhookEventSchema)
+  .min(1)
+  .max(QUICKBOOKS_WEBHOOK_MAX_EVENTS)
+
+export type QuickBooksWebhookEvent = z.input<typeof quickBooksWebhookEventSchema>
+
+export const quickBooksWebhookParamsSchema = z.object({
+  appKey: z.string().regex(/^[A-Za-z0-9_-]{43}$/, 'Invalid QuickBooks webhook app key'),
+})
+
+export const quickBooksWebhookContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/webhooks/quickbooks/[appKey]',
+  params: quickBooksWebhookParamsSchema,
+  headers: z.object({ 'intuit-signature': z.string().min(1) }),
+  // Body is validated after HMAC verification against the raw payload.
+  body: quickBooksWebhookEventsSchema,
+  response: {
+    mode: 'json',
+    schema: z.union([z.object({ ok: z.literal(true) }), z.object({ error: z.string().min(1) })]),
+  },
+})

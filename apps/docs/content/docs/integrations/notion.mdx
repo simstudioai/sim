@@ -11,17 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-The Notion tool integration enables your agents to read, create, and manage Notion pages and databases directly within your workflows. This allows you to automate the retrieval and updating of structured content, notes, documents, and more from your Notion workspace.
-
-With the Notion tool, you can:
-
-- **Read pages or databases**: Extract rich content or metadata from specified Notion pages or entire databases
-- **Create new content**: Programmatically create new pages or databases for dynamic content generation
-- **Append content**: Add new blocks or properties to existing pages and databases
-- **Query databases**: Run advanced filters and searches on structured Notion data for custom workflows
-- **Search your workspace**: Locate pages and databases across your Notion workspace automatically
-
-This tool is ideal for scenarios where agents need to synchronize information, generate reports, or maintain structured notes within Notion. By bringing Notion's capabilities into automated workflows, you empower your agents to interface with knowledge, documentation, and project management data programmatically and seamlessly.
+Use Notion to read and manage pages, databases, blocks, and comments. Query a database or search the workspace to find the content a workflow needs; webhook triggers can start workflows when content changes.
 {/* MANUAL-CONTENT-END */}
 
 
@@ -603,8 +593,6 @@ Retrieve a single Notion user by their UUID
 | `avatar_url` | string | User avatar image URL |
 | `email` | string | User email address \(person users only\) |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -947,4 +935,15 @@ Trigger workflow on any Notion webhook event
 |   ↳ `page_id` | string | Page ID related to the event, when present |
 |   ↳ `updated_blocks` | array | Blocks updated as part of the event, when provided by Notion |
 |   ↳ `updated_properties` | array | Updated properties included with the event, when provided by Notion |
+
+
+## OAuth Scopes
+
+Sim requests no OAuth scopes for Notion. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/notion` |
+| Environment variables | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET` |
+
 

@@ -1,1 +1,1 @@
-export { HeroPlatformLoop } from './hero-platform-loop'
+export { HeroPlatformLoopMount } from './hero-platform-loop-mount'

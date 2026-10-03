@@ -10,8 +10,10 @@ import type { AwsIamDeleteRoleBody } from '@/lib/api/contracts/tools/aws/iam-del
 import type { AwsIamDeleteUserBody } from '@/lib/api/contracts/tools/aws/iam-delete-user'
 import type { AwsIamDetachRolePolicyBody } from '@/lib/api/contracts/tools/aws/iam-detach-role-policy'
 import type { AwsIamDetachUserPolicyBody } from '@/lib/api/contracts/tools/aws/iam-detach-user-policy'
+import type { AwsIamGetPolicyBody } from '@/lib/api/contracts/tools/aws/iam-get-policy'
 import type { AwsIamGetRoleBody } from '@/lib/api/contracts/tools/aws/iam-get-role'
 import type { AwsIamGetUserBody } from '@/lib/api/contracts/tools/aws/iam-get-user'
+import type { AwsIamListAccessKeysBody } from '@/lib/api/contracts/tools/aws/iam-list-access-keys'
 import type { AwsIamListAttachedRolePoliciesBody } from '@/lib/api/contracts/tools/aws/iam-list-attached-role-policies'
 import type { AwsIamListAttachedUserPoliciesBody } from '@/lib/api/contracts/tools/aws/iam-list-attached-user-policies'
 import type { AwsIamListGroupsBody } from '@/lib/api/contracts/tools/aws/iam-list-groups'
@@ -20,6 +22,7 @@ import type { AwsIamListRolesBody } from '@/lib/api/contracts/tools/aws/iam-list
 import type { AwsIamListUsersBody } from '@/lib/api/contracts/tools/aws/iam-list-users'
 import type { AwsIamRemoveUserFromGroupBody } from '@/lib/api/contracts/tools/aws/iam-remove-user-from-group'
 import type { AwsIamSimulatePrincipalPolicyBody } from '@/lib/api/contracts/tools/aws/iam-simulate-principal-policy'
+import type { AwsIamUpdateAccessKeyBody } from '@/lib/api/contracts/tools/aws/iam-update-access-key'
 import {
   addUserToGroup,
   attachRolePolicy,
@@ -33,8 +36,10 @@ import {
   deleteUser,
   detachRolePolicy,
   detachUserPolicy,
+  getPolicy,
   getRole,
   getUser,
+  listAccessKeys,
   listAttachedRolePolicies,
   listAttachedUserPolicies,
   listGroups,
@@ -43,6 +48,7 @@ import {
   listUsers,
   removeUserFromGroup,
   simulatePrincipalPolicy,
+  updateAccessKey,
 } from '@/lib/internal/iam/client'
 import type { IAMConnectionConfig } from '@/tools/iam/types'
 
@@ -322,13 +328,47 @@ export async function executeIamSimulatePrincipalPolicy(
     (client) =>
       simulatePrincipalPolicy(
         client,
-        input.policySourceArn,
-        input.actionNames,
-        input.resourceArns,
-        input.maxResults,
-        input.marker,
+        {
+          policySourceArn: input.policySourceArn,
+          actionNames: input.actionNames,
+          resourceArns: input.resourceArns,
+          contextEntries: input.contextEntries,
+          maxResults: input.maxResults,
+          marker: input.marker,
+        },
         signal
       ),
+    signal
+  )
+}
+
+export async function executeIamGetPolicy(input: AwsIamGetPolicyBody, signal?: AbortSignal) {
+  return withIamClient(input, (client) => getPolicy(client, input.policyArn, signal), signal)
+}
+
+export async function executeIamListAccessKeys(
+  input: AwsIamListAccessKeysBody,
+  signal?: AbortSignal
+) {
+  return withIamClient(
+    input,
+    (client) => listAccessKeys(client, input.userName, input.maxItems, input.marker, signal),
+    signal
+  )
+}
+
+export async function executeIamUpdateAccessKey(
+  input: AwsIamUpdateAccessKeyBody,
+  signal?: AbortSignal
+) {
+  return withIamClient(
+    input,
+    async (client) => {
+      await updateAccessKey(client, input.accessKeyIdToUpdate, input.status, input.userName, signal)
+      return {
+        message: `Access key "${input.accessKeyIdToUpdate}" set to ${input.status}`,
+      }
+    },
     signal
   )
 }

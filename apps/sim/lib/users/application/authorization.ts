@@ -7,7 +7,7 @@ export function requireUserAccountPrincipal(
   principal: Principal,
   operation: UserAccountOperation
 ): asserts principal is SessionPrincipal {
-  if (!operation.principalKinds.some((kind) => kind === principal.kind)) {
+  if (principal.kind !== 'session' || !operation.principalKinds.includes('session')) {
     throw new ForbiddenOperationError(
       'PRINCIPAL_KIND_NOT_PERMITTED',
       `Principal kind ${principal.kind} cannot perform operation ${operation.id}; a first-party session is required`

@@ -1,7 +1,12 @@
-import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
+import type {
+  InternalToolOperationHandler,
+  InternalToolOperationResult,
+} from '@/lib/internal/tool-operations/types'
 import { isMcpTool } from '@/executor/constants'
 
-type InternalToolOperationHandlerLoader = () => Promise<InternalToolOperationHandler>
+type InternalToolOperationHandlerLoader = () => Promise<
+  InternalToolOperationHandler<InternalToolOperationResult>
+>
 
 const STS_TOOL_IDS = [
   'sts_assume_role',
@@ -52,8 +57,10 @@ const IAM_TOOL_IDS = [
   'iam_delete_user',
   'iam_detach_role_policy',
   'iam_detach_user_policy',
+  'iam_get_policy',
   'iam_get_role',
   'iam_get_user',
+  'iam_list_access_keys',
   'iam_list_attached_role_policies',
   'iam_list_attached_user_policies',
   'iam_list_groups',
@@ -62,6 +69,7 @@ const IAM_TOOL_IDS = [
   'iam_list_users',
   'iam_remove_user_from_group',
   'iam_simulate_principal_policy',
+  'iam_update_access_key',
 ] as const
 
 const IDENTITY_CENTER_TOOL_IDS = [
@@ -77,6 +85,10 @@ const IDENTITY_CENTER_TOOL_IDS = [
   'identity_center_check_assignment_status',
   'identity_center_check_assignment_deletion_status',
   'identity_center_list_account_assignments',
+  'identity_center_list_assignments_for_account',
+  'identity_center_describe_user',
+  'identity_center_describe_group',
+  'identity_center_list_group_memberships',
 ] as const
 
 const SECRETS_MANAGER_TOOL_IDS = [
@@ -90,6 +102,31 @@ const SECRETS_MANAGER_TOOL_IDS = [
   'secrets_manager_untag_resource',
   'secrets_manager_restore_secret',
   'secrets_manager_rotate_secret',
+] as const
+
+const SSM_TOOL_IDS = [
+  'ssm_send_command',
+  'ssm_list_commands',
+  'ssm_list_command_invocations',
+  'ssm_get_command_invocation',
+  'ssm_cancel_command',
+  'ssm_get_parameter',
+  'ssm_get_parameters',
+  'ssm_get_parameters_by_path',
+  'ssm_put_parameter',
+  'ssm_delete_parameter',
+  'ssm_describe_parameters',
+  'ssm_describe_instance_information',
+  'ssm_describe_instance_patches',
+  'ssm_describe_instance_patch_states',
+  'ssm_list_compliance_items',
+  'ssm_list_compliance_summaries',
+  'ssm_start_automation_execution',
+  'ssm_describe_automation_executions',
+  'ssm_get_automation_execution',
+  'ssm_stop_automation_execution',
+  'ssm_list_documents',
+  'ssm_get_document',
 ] as const
 
 const DYNAMODB_TOOL_IDS = [
@@ -124,7 +161,29 @@ const SES_TOOL_IDS = [
   'ses_update_template',
 ] as const
 
-const SQS_TOOL_IDS = ['sqs_send'] as const
+const SQS_TOOL_IDS = [
+  'sqs_send',
+  'sqs_send_message_batch',
+  'sqs_receive_message',
+  'sqs_delete_message',
+  'sqs_delete_message_batch',
+  'sqs_change_message_visibility',
+  'sqs_change_message_visibility_batch',
+  'sqs_list_queues',
+  'sqs_get_queue_url',
+  'sqs_get_queue_attributes',
+  'sqs_set_queue_attributes',
+  'sqs_create_queue',
+  'sqs_delete_queue',
+  'sqs_purge_queue',
+  'sqs_list_dead_letter_source_queues',
+  'sqs_list_queue_tags',
+  'sqs_tag_queue',
+  'sqs_untag_queue',
+  'sqs_start_message_move_task',
+  'sqs_list_message_move_tasks',
+  'sqs_cancel_message_move_task',
+] as const
 
 const RDS_TOOL_IDS = [
   'rds_query',
@@ -140,6 +199,23 @@ const TEXTRACT_TOOL_IDS = [
   'textract_parser_v2',
   'textract_analyze_expense',
   'textract_analyze_id',
+] as const
+
+const CLOUDTRAIL_TOOL_IDS = [
+  'cloudtrail_cancel_query',
+  'cloudtrail_describe_query',
+  'cloudtrail_describe_trails',
+  'cloudtrail_get_event_data_store',
+  'cloudtrail_get_event_selectors',
+  'cloudtrail_get_insight_selectors',
+  'cloudtrail_get_query_results',
+  'cloudtrail_get_trail',
+  'cloudtrail_get_trail_status',
+  'cloudtrail_list_event_data_stores',
+  'cloudtrail_list_tags',
+  'cloudtrail_list_trails',
+  'cloudtrail_lookup_events',
+  'cloudtrail_start_query',
 ] as const
 
 const CLOUDWATCH_TOOL_IDS = [
@@ -288,18 +364,33 @@ const MYSQL_TOOL_IDS = [
 ] as const
 
 const ATHENA_TOOL_IDS = [
+  'athena_batch_get_named_query',
+  'athena_batch_get_prepared_statement',
   'athena_batch_get_query_execution',
   'athena_create_named_query',
+  'athena_create_prepared_statement',
   'athena_delete_named_query',
+  'athena_delete_prepared_statement',
+  'athena_get_data_catalog',
+  'athena_get_database',
   'athena_get_named_query',
+  'athena_get_prepared_statement',
   'athena_get_query_execution',
   'athena_get_query_results',
+  'athena_get_query_runtime_statistics',
+  'athena_get_table_metadata',
+  'athena_get_work_group',
+  'athena_list_data_catalogs',
   'athena_list_databases',
   'athena_list_named_queries',
+  'athena_list_prepared_statements',
   'athena_list_query_executions',
   'athena_list_table_metadata',
+  'athena_list_work_groups',
   'athena_start_query',
   'athena_stop_query',
+  'athena_update_named_query',
+  'athena_update_prepared_statement',
 ] as const
 
 const CLICKHOUSE_TOOL_IDS = [
@@ -370,6 +461,7 @@ const JUPYTER_TOOL_IDS = [
   'jupyter_delete_content',
   'jupyter_delete_session',
   'jupyter_get_content',
+  'jupyter_get_content_v2',
   'jupyter_interrupt_kernel',
   'jupyter_list_contents',
   'jupyter_list_kernels',
@@ -644,6 +736,7 @@ const OUTLOOK_TOOL_IDS = [
   'outlook_copy',
   'outlook_delete',
   'outlook_draft',
+  'outlook_get_attachment',
   'outlook_mark_read',
   'outlook_mark_unread',
   'outlook_move',
@@ -656,6 +749,7 @@ const SSH_TOOL_IDS = [
   'ssh_create_directory',
   'ssh_delete_file',
   'ssh_download_file',
+  'ssh_download_file_v2',
   'ssh_execute_command',
   'ssh_execute_script',
   'ssh_get_system_info',
@@ -692,6 +786,24 @@ const DOCUSIGN_TOOL_IDS = [
   'docusign_list_templates',
   'docusign_send_envelope',
   'docusign_void_envelope',
+] as const
+
+const QUICKBOOKS_TOOL_IDS = [
+  'quickbooks_add_attachment',
+  'quickbooks_create_bill_payment',
+  'quickbooks_download_attachment',
+  'quickbooks_download_transaction_pdf',
+  'quickbooks_update_bill',
+  'quickbooks_update_bill_payment',
+  'quickbooks_update_credit_memo',
+  'quickbooks_update_customer_payment',
+  'quickbooks_update_employee',
+  'quickbooks_update_item',
+  'quickbooks_update_purchase',
+  'quickbooks_update_purchase_order',
+  'quickbooks_update_refund_receipt',
+  'quickbooks_update_vendor',
+  'quickbooks_update_vendor_credit',
 ] as const
 
 const THINKING_TOOL_IDS = ['thinking_tool'] as const
@@ -838,6 +950,7 @@ const SLACK_TOOL_IDS = [
   'slack_download',
   'slack_get_channel_history',
   'slack_get_thread_replies',
+  'slack_list_channels',
   'slack_ephemeral_message',
   'slack_message',
   'slack_message_reader',
@@ -954,6 +1067,7 @@ const CURSOR_TOOL_IDS = ['cursor_download_artifact', 'cursor_download_artifact_v
 const SFTP_TOOL_IDS = [
   'sftp_delete',
   'sftp_download',
+  'sftp_download_v2',
   'sftp_list',
   'sftp_mkdir',
   'sftp_upload',
@@ -1011,7 +1125,12 @@ const PERSONA_TOOL_IDS = ['persona_import_accounts'] as const
 
 const SHAREPOINT_TOOL_IDS = ['sharepoint_download_file', 'sharepoint_upload_file'] as const
 
-const QUIVER_TOOL_IDS = ['quiver_text_to_svg', 'quiver_image_to_svg'] as const
+const QUIVER_TOOL_IDS = [
+  'quiver_text_to_svg',
+  'quiver_image_to_svg',
+  'quiver_text_to_svg_v2',
+  'quiver_image_to_svg_v2',
+] as const
 
 const TELEGRAM_TOOL_IDS = ['telegram_send_document'] as const
 
@@ -1272,6 +1391,7 @@ const EMBEDDINGS_TOOL_IDS = [
   'embeddings_gemini',
   'embeddings_cohere',
   'embeddings_mistral',
+  'embeddings_ollama',
   'openai_embeddings',
 ] as const
 
@@ -1349,6 +1469,9 @@ registerFamily(handlerLoaders, IDENTITY_CENTER_TOOL_IDS, async () => {
 registerFamily(handlerLoaders, SECRETS_MANAGER_TOOL_IDS, async () => {
   return (await import('@/lib/internal/secrets-manager/execute-tool')).executeSecretsManagerTool
 })
+registerFamily(handlerLoaders, SSM_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/ssm/execute-tool')).executeSsmTool
+})
 registerFamily(handlerLoaders, DYNAMODB_TOOL_IDS, async () => {
   return (await import('@/lib/internal/dynamodb/execute-tool')).executeDynamodbTool
 })
@@ -1366,6 +1489,9 @@ registerFamily(handlerLoaders, TEXTRACT_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, CLOUDWATCH_TOOL_IDS, async () => {
   return (await import('@/lib/internal/cloudwatch/execute-tool')).executeCloudwatchTool
+})
+registerFamily(handlerLoaders, CLOUDTRAIL_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/cloudtrail/execute-tool')).executeCloudtrailTool
 })
 registerFamily(handlerLoaders, POSTGRESQL_TOOL_IDS, async () => {
   return (await import('@/lib/internal/postgresql/execute-tool')).executePostgresqlTool
@@ -1447,6 +1573,9 @@ registerFamily(handlerLoaders, ASANA_TOOL_IDS, async () => {
 })
 registerFamily(handlerLoaders, DOCUSIGN_TOOL_IDS, async () => {
   return (await import('@/lib/internal/docusign/execute-tool')).executeDocuSignTool
+})
+registerFamily(handlerLoaders, QUICKBOOKS_TOOL_IDS, async () => {
+  return (await import('@/lib/internal/quickbooks/execute-tool')).executeQuickBooksTool
 })
 registerFamily(handlerLoaders, THINKING_TOOL_IDS, async () => {
   return (await import('@/lib/internal/thinking/execute-tool')).executeThinkingTool
@@ -1703,6 +1832,15 @@ registerFamily(handlerLoaders, LOG_TOOL_IDS, async () => {
   return (await import('@/lib/internal/logs/execute-tool')).executeLogsTool
 })
 
+handlerLoaders.set(
+  'mcp_run_operation',
+  async () => (await import('@/lib/internal/mcp/execute-tool')).executeMcpTool
+)
+handlerLoaders.set(
+  'mcp_list_operations',
+  async () => (await import('@/lib/internal/mcp/list-operations')).listMcpOperations
+)
+
 export function isInternalToolOperationRegistered(toolId: string): boolean {
   return handlerLoaders.has(toolId) || isMcpTool(toolId)
 }
@@ -1713,7 +1851,7 @@ export function getRegisteredInternalToolOperationIds(): string[] {
 
 export async function getInternalToolOperationHandler(
   toolId: string
-): Promise<InternalToolOperationHandler | null> {
+): Promise<InternalToolOperationHandler<InternalToolOperationResult> | null> {
   const loader = handlerLoaders.get(toolId)
   if (loader) return loader()
   if (isMcpTool(toolId)) {

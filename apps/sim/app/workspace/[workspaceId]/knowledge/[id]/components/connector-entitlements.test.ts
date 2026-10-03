@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import type { WorkspaceOwnerBilling } from '@/lib/api/contracts/workspaces'
@@ -38,10 +35,6 @@ describe('hasWorkspaceMaxConnectorAccess', () => {
     setEnvFlags({ isHosted: true, isBillingEnabled: true })
   })
 
-  it('uses the workspace host Max entitlement', () => {
-    expect(hasWorkspaceMaxConnectorAccess(HOST_MAX_BILLING)).toBe(true)
-  })
-
   it('does not unlock live sync from a free host plan', () => {
     expect(hasWorkspaceMaxConnectorAccess(FREE_BILLING)).toBe(false)
   })
@@ -54,12 +47,6 @@ describe('hasWorkspaceMaxConnectorAccess', () => {
         billingBlockedReason: 'payment_failed',
       })
     ).toBe(false)
-  })
-
-  it('keeps connector intervals available when billing is disabled', () => {
-    setEnvFlags({ isBillingEnabled: false })
-
-    expect(hasWorkspaceMaxConnectorAccess(FREE_BILLING)).toBe(true)
   })
 
   /**

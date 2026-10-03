@@ -42,7 +42,8 @@ export const checkAssignmentStatusTool: InternalToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Request ID returned from Create or Delete Account Assignment',
+      description:
+        'Request ID returned from Create Account Assignment. Deletion request IDs are not accepted — use Check Assignment Deletion Status for those.',
     },
   },
 

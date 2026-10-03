@@ -174,9 +174,11 @@ async function prepareDestination(
   args: ExecuteServerSelectorArgs
 ): Promise<OracleFusionScmAuthInput> {
   if (
-    !args.credential?.access?.resolvedCredentialId ||
-    args.credential.access.credentialType !== 'service_account' ||
-    args.credential.providerId !== ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID
+    !args.credential ||
+    args.credential.providerId !== ORACLE_FUSION_SERVICE_ACCOUNT_PROVIDER_ID ||
+    (!args.credential.organization &&
+      (!args.credential.access?.resolvedCredentialId ||
+        args.credential.access.credentialType !== 'service_account'))
   ) {
     throw new SelectorConnectionUnavailableError()
   }

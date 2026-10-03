@@ -10,7 +10,6 @@ import {
 } from '@/hooks/kb/use-knowledge-base-tag-definitions'
 import {
   type DocumentTagDefinitionInput,
-  useDeleteDocumentTagDefinitions,
   useDocumentTagDefinitionsQuery,
   useSaveDocumentTagDefinitions,
 } from '@/hooks/queries/kb/knowledge'
@@ -41,7 +40,6 @@ export function useTagDefinitions(
   const queryClient = useQueryClient()
   const query = useDocumentTagDefinitionsQuery(knowledgeBaseId, documentId)
   const { mutateAsync: saveTagDefinitionsMutation } = useSaveDocumentTagDefinitions()
-  const { mutateAsync: deleteTagDefinitionsMutation } = useDeleteDocumentTagDefinitions()
 
   const tagDefinitions = (query.data ?? EMPTY_TAG_DEFINITIONS) as TagDefinition[]
 

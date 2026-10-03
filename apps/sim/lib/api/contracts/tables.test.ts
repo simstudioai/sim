@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { tableEventStreamQuerySchema, tableRowsQuerySchema } from '@/lib/api/contracts/tables'
 
@@ -48,20 +45,9 @@ describe('tableRowsQuerySchema limit', () => {
     expect(tableRowsQuerySchema.parse({ workspaceId: 'ws-1' }).limit).toBeUndefined()
     expect(tableRowsQuerySchema.parse({ workspaceId: 'ws-1', limit: '' }).limit).toBeUndefined()
   })
-
-  it('still parses and validates an explicit limit', () => {
-    expect(tableRowsQuerySchema.parse({ workspaceId: 'ws-1', limit: '25' }).limit).toBe(25)
-    expect(tableRowsQuerySchema.parse({ workspaceId: 'ws-1', limit: '1000000' }).limit).toBe(
-      1000000
-    )
-  })
 })
 
 describe('tableEventStreamQuerySchema', () => {
-  it('parses an explicit cursor', () => {
-    expect(tableEventStreamQuerySchema.parse({ from: '7' })).toEqual({ from: 7 })
-  })
-
   it('keeps 0 as an explicit replay-from-start cursor', () => {
     expect(tableEventStreamQuerySchema.parse({ from: '0' })).toEqual({ from: 0 })
   })

@@ -1,6 +1,8 @@
 import { AuditAction, AuditResourceType, recordAudit, recordAuditOnce } from '@sim/audit'
+import type { PrincipalActor } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
+  foldedEmail,
   invitation,
   invitationWorkspaceGrant,
   member,
@@ -8,16 +10,16 @@ import {
   workspaceEnvironment,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { permissionSatisfies } from '@sim/platform-authz/workspace'
+import { isOrgAdminRole, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { normalizeEmail } from '@sim/utils/string'
-import { and, eq, sql } from 'drizzle-orm'
-import type { NextRequest } from 'next/server'
+import { and, eq } from 'drizzle-orm'
 import {
   acquireOrganizationUserMutationLocks,
   getUserOrganization,
 } from '@/lib/billing/organizations/membership'
+import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import { enqueueOutboxEvent, type OutboxHandler } from '@/lib/core/outbox/service'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
@@ -34,7 +36,10 @@ import {
   getEffectiveWorkspacePermission,
   getWorkspaceWithOwner,
   type PermissionType,
+  type WorkspaceWithOwner,
 } from '@/lib/workspaces/permissions/utils'
+import type { WorkspaceInvitePolicy } from '@/lib/workspaces/policy'
+import { assertMembershipNotScimManaged } from '@/ee/scim/lib/managed-membership'
 
 const logger = createLogger('InvitationDirectGrant')
 
@@ -71,8 +76,13 @@ export interface GrantWorkspaceAccessDirectlyInput {
   actorName: string
   actorEmail?: string | null
   /** Audit attribution may differ from the authorized product actor for admin tooling. */
-  auditActor?: { id: string | null; name: string; email: string | null }
-  request?: NextRequest
+  auditActor?: {
+    id: string | null
+    name: string
+    email: string | null
+    metadata?: { actor: PrincipalActor; operation: string }
+  }
+  request?: OrchestrationRequestContext
   /** Send the lightweight "you've been added" email. Defaults to true. */
   notify?: boolean
   /** Ordinary invites preserve access; provisioning may explicitly ensure the requested minimum. */
@@ -81,6 +91,11 @@ export interface GrantWorkspaceAccessDirectlyInput {
   sourceOperationId?: string
   /** Makes the semantic audit recoverable when the caller itself is durable. */
   auditOperationId?: string
+  /** Revalidates application admission and returns the current policy under canonical locks. */
+  validateLockedWorkspace?: (
+    tx: DbOrTx,
+    workspace: WorkspaceWithOwner
+  ) => Promise<WorkspaceInvitePolicy>
 }
 
 async function getPendingWorkspaceInvitationIds(
@@ -94,7 +109,7 @@ async function getPendingWorkspaceInvitationIds(
     .innerJoin(invitationWorkspaceGrant, eq(invitationWorkspaceGrant.invitationId, invitation.id))
     .where(
       and(
-        sql`lower(${invitation.email}) = ${normalizedEmail}`,
+        eq(foldedEmail(invitation.email), normalizedEmail),
         eq(invitation.status, 'pending'),
         eq(invitationWorkspaceGrant.workspaceId, workspaceId)
       )
@@ -137,6 +152,12 @@ export async function grantWorkspaceAccessDirectly(
           userId: input.userId,
           organizationIds: [input.organizationId],
         })
+        /** A member the directory manages gets workspace access from the directory, not by hand. */
+        await assertMembershipNotScimManaged({
+          organizationId: input.organizationId,
+          userId: input.userId,
+          executor: tx,
+        })
 
         const currentInvitationIds = await getPendingWorkspaceInvitationIds(
           tx,
@@ -156,6 +177,13 @@ export async function grantWorkspaceAccessDirectly(
           .from(member)
           .where(
             and(eq(member.userId, input.actorId), eq(member.organizationId, input.organizationId))
+          )
+          .for('update')
+        await tx
+          .select({ id: member.id })
+          .from(member)
+          .where(
+            and(eq(member.userId, input.userId), eq(member.organizationId, input.organizationId))
           )
           .for('update')
 
@@ -191,6 +219,8 @@ export async function grantWorkspaceAccessDirectly(
           throw new DirectGrantContextChangedError()
         }
 
+        await input.validateLockedWorkspace?.(tx, workspaceRow)
+
         const [existing] = await tx
           .select({ id: permissions.id, permissionType: permissions.permissionType })
           .from(permissions)
@@ -205,7 +235,9 @@ export async function grantWorkspaceAccessDirectly(
           .limit(1)
 
         let outcome: DirectGrantOutcome
-        if (existing) {
+        if (isOrgAdminRole(inviteeMembership.role)) {
+          outcome = { outcome: 'unchanged', permission: 'admin' }
+        } else if (existing) {
           const existingPermission = existing.permissionType as PermissionType
           if (
             input.existingPermissionPolicy === 'ensure-at-least' &&
@@ -346,6 +378,7 @@ export async function grantWorkspaceAccessDirectly(
         ? `Changed ${normalizedEmail} from ${result.previousPermission} to ${result.permission}`
         : `Added existing organization member ${normalizedEmail} as ${input.permission}`,
     metadata: {
+      ...input.auditActor?.metadata,
       targetEmail: normalizedEmail,
       targetRole: input.permission,
       organizationId: input.organizationId,

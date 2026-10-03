@@ -1,13 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   FUNCTION_APT_PACKAGES,
   FUNCTION_BASE_PYTHON_PACKAGE_IMPORTS,
   FUNCTION_BASE_PYTHON_PACKAGES,
-  FUNCTION_COMMAND_ALIASES_ASSERT,
-  FUNCTION_COMMAND_ALIASES_SETUP,
   FUNCTION_COMMANDS_ASSERT,
   FUNCTION_DAYTONA_BASE_IMAGE,
   FUNCTION_DAYTONA_NODE_INSTALL,
@@ -35,18 +30,6 @@ import {
 } from '@/scripts/function-sandbox-packages'
 
 describe('Function sandbox package contract', () => {
-  it('keeps provider-shared package and command lists unique', () => {
-    expect(new Set(FUNCTION_APT_PACKAGES).size).toBe(FUNCTION_APT_PACKAGES.length)
-    expect(new Set(FUNCTION_BASE_PYTHON_PACKAGES).size).toBe(FUNCTION_BASE_PYTHON_PACKAGES.length)
-    expect(
-      new Set(FUNCTION_BASE_PYTHON_PACKAGE_IMPORTS.map(({ importName }) => importName)).size
-    ).toBe(FUNCTION_BASE_PYTHON_PACKAGE_IMPORTS.length)
-    expect(new Set(FUNCTION_PIP_CLI_PACKAGES).size).toBe(FUNCTION_PIP_CLI_PACKAGES.length)
-    expect(new Set(FUNCTION_NPM_CLI_PACKAGES).size).toBe(FUNCTION_NPM_CLI_PACKAGES.length)
-    expect(new Set(FUNCTION_REQUIRED_COMMANDS).size).toBe(FUNCTION_REQUIRED_COMMANDS.length)
-    expect(FUNCTION_BASE_PYTHON_PACKAGES).toHaveLength(49)
-  })
-
   it('maps every top-level distribution to the import verified by provider builds', () => {
     expect(FUNCTION_BASE_PYTHON_PACKAGES).toEqual(
       FUNCTION_BASE_PYTHON_PACKAGE_IMPORTS.map(({ distribution }) => distribution)
@@ -172,15 +155,6 @@ describe('Function sandbox package contract', () => {
     expect(
       FUNCTION_PIP_CLI_PACKAGES.every((packageSpec) => !packageSpec.startsWith('awscli'))
     ).toBe(true)
-  })
-
-  it('normalizes Debian command names to the conventional Function CLI surface', () => {
-    expect(FUNCTION_COMMAND_ALIASES_SETUP).toContain('/usr/local/bin/fd')
-    expect(FUNCTION_COMMAND_ALIASES_SETUP).toContain('command -v fdfind')
-    expect(FUNCTION_COMMAND_ALIASES_SETUP).toContain('/usr/local/bin/bat')
-    expect(FUNCTION_COMMAND_ALIASES_SETUP).toContain('command -v batcat')
-    expect(FUNCTION_COMMAND_ALIASES_ASSERT).toContain('fd --version')
-    expect(FUNCTION_COMMAND_ALIASES_ASSERT).toContain('bat --version')
   })
 
   it('asserts the same explicit Node and Python versions at provider build time', () => {

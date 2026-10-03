@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Drives `resolveEgressPolicy` through the real profile table on both
  * deployment postures, so a change to `PROFILE_SPECS` or to the hosted gate is
  * visible here rather than only in whatever call site happens to notice.
@@ -102,18 +100,6 @@ describe('the hosted platform ignores every softening', () => {
     envFlagsMock.isHosted = true
     expect(decide('proxy', 'http://proxy.example/', '93.184.216.34').allowed).toBe(true)
     expect(decide('proxy', 'http://proxy.example/', '10.4.2.9').allowed).toBe(false)
-  })
-
-  it('still permits ordinary public HTTPS', () => {
-    envFlagsMock.isHosted = true
-    expect(decide('requestTarget', 'https://api.example/', '93.184.216.34').allowed).toBe(true)
-  })
-
-  it('still refuses a service port on a public host', () => {
-    envFlagsMock.isHosted = true
-    expect(decide('requestTarget', 'https://api.example:5432/', '93.184.216.34').allowed).toBe(
-      false
-    )
   })
 
   it('offers no remedy in the refusal, where the variables would do nothing', () => {

@@ -2,6 +2,8 @@ import { alterWarehouseTool } from '@/tools/snowflake/alter_warehouse'
 import { callProcedureTool } from '@/tools/snowflake/call_procedure'
 import { cancelStatementTool } from '@/tools/snowflake/cancel_statement'
 import { cancelTaskRunTool } from '@/tools/snowflake/cancel_task_run'
+import { cortexAnalystAskTool } from '@/tools/snowflake/cortex_analyst_ask'
+import { cortexAnalystFeedbackTool } from '@/tools/snowflake/cortex_analyst_feedback'
 import { deleteRowsTool } from '@/tools/snowflake/delete_rows'
 import { executeSqlTool } from '@/tools/snowflake/execute_sql'
 import { getStatementTool } from '@/tools/snowflake/get_statement'
@@ -61,3 +63,5 @@ export const snowflakeListTablesTool = listTablesTool
 export const snowflakeResumeTaskTool = resumeTaskTool
 export const snowflakeSuspendTaskTool = suspendTaskTool
 export const snowflakeUnloadDataTool = unloadDataTool
+export const snowflakeCortexAnalystAskTool = cortexAnalystAskTool
+export const snowflakeCortexAnalystFeedbackTool = cortexAnalystFeedbackTool

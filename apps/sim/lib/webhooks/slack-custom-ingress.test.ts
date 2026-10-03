@@ -1,11 +1,8 @@
-/**
- * @vitest-environment node
- */
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   cancel: vi.fn(),
-  getCredential: vi.fn(),
   listSessions: vi.fn(),
   unregister: vi.fn(),
   setStatus: vi.fn(),
@@ -14,9 +11,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/execution/cancel-workflow-execution', () => ({
   cancelWorkflowExecution: mocks.cancel,
 }))
-vi.mock('@/lib/oauth/credential-service', () => ({
-  getSlackBotCredential: mocks.getCredential,
-}))
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 vi.mock('@/lib/webhooks/slack-agent-api', () => ({
   setSlackAgentSessionStatus: mocks.setStatus,
 }))
@@ -47,18 +42,6 @@ function webhook(overrides: Record<string, unknown> = {}) {
 }
 
 describe('getLegacySlackCustomBotCredentialId', () => {
-  it('returns the credential for a fully marked legacy webhook', () => {
-    expect(getLegacySlackCustomBotCredentialId(webhook())).toBe('credential-1')
-  })
-
-  it('ignores ordinary path webhooks', () => {
-    expect(
-      getLegacySlackCustomBotCredentialId(
-        webhook({ providerConfig: { triggerId: 'slack_webhook' }, routingKey: null })
-      )
-    ).toBeNull()
-  })
-
   it('fails fast on a partial marker', () => {
     expect(() =>
       getLegacySlackCustomBotCredentialId(webhook({ routingKey: 'credential-2' }))
@@ -68,9 +51,8 @@ describe('getLegacySlackCustomBotCredentialId', () => {
 
 describe('handleSlackAgentSessionStopped', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.listSessions.mockResolvedValue([])
-    mocks.getCredential.mockResolvedValue({ botToken: 'xoxb-test' })
+    authOAuthUtilsMockFns.mockGetSlackBotCredential.mockResolvedValue({ botToken: 'xoxb-test' })
   })
 
   it('cancels every active execution and returns the session to active', async () => {

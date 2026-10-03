@@ -17,7 +17,6 @@ import { vi } from 'vitest'
  */
 export const knowledgeApiUtilsMockFns = {
   mockCheckKnowledgeBaseAccess: vi.fn(),
-  mockCheckKnowledgeBaseWriteAccess: vi.fn(),
   mockCheckDocumentWriteAccess: vi.fn(),
   mockCheckDocumentAccess: vi.fn(),
   mockCheckChunkAccess: vi.fn(),
@@ -33,7 +32,6 @@ export const knowledgeApiUtilsMockFns = {
  */
 export const knowledgeApiUtilsMock = {
   checkKnowledgeBaseAccess: knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseAccess,
-  checkKnowledgeBaseWriteAccess: knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseWriteAccess,
   checkDocumentWriteAccess: knowledgeApiUtilsMockFns.mockCheckDocumentWriteAccess,
   checkDocumentAccess: knowledgeApiUtilsMockFns.mockCheckDocumentAccess,
   checkChunkAccess: knowledgeApiUtilsMockFns.mockCheckChunkAccess,

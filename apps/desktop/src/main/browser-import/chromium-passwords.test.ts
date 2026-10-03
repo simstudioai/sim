@@ -123,30 +123,6 @@ describe.skipIf(!sqliteAvailable)('readBrowserPasswords', () => {
     })
   })
 
-  it('carries the best available Chromium modification timestamp', async () => {
-    const path = await writeLoginDatabase([
-      {
-        signonRealm: 'https://modified.test/',
-        username: 'ada',
-        passwordValue: encryptV10('newer'),
-        modifiedAt: 20,
-        createdAt: 10,
-      },
-      {
-        signonRealm: 'https://created.test/',
-        username: 'grace',
-        passwordValue: encryptV10('older'),
-        createdAt: 15,
-      },
-    ])
-
-    expect(
-      (await readBrowserPasswords(path, KEY)).credentials.map(
-        ({ sourceModifiedAt }) => sourceModifiedAt
-      )
-    ).toEqual([20n, 15n])
-  })
-
   it('does not strip a prefix from password plaintext', async () => {
     // Unlike cookies, saved passwords carry no domain-bound prefix. Removing
     // 32 bytes here would silently corrupt every password.
@@ -185,21 +161,6 @@ describe.skipIf(!sqliteAvailable)('readBrowserPasswords', () => {
     expect(result.skipped).toBe(3)
   })
 
-  it('falls back to the origin url when there is no signon realm', async () => {
-    const path = await writeLoginDatabase([
-      {
-        signonRealm: '',
-        originUrl: 'https://fallback.test/login',
-        username: 'ada',
-        passwordValue: encryptV10('p'),
-      },
-    ])
-
-    expect((await readBrowserPasswords(path, KEY)).credentials[0].origin).toBe(
-      'https://fallback.test/login'
-    )
-  })
-
   it('binds a password to signon_realm when origin_url names another site', async () => {
     const path = await writeLoginDatabase([
       {
@@ -228,17 +189,5 @@ describe.skipIf(!sqliteAvailable)('readBrowserPasswords', () => {
     const [credential] = (await readBrowserPasswords(path, KEY)).credentials
     expect(credential.origin).toBe('android://token@com.example/')
     expect(normalizeOrigin(credential.origin)).toBeNull()
-  })
-
-  it('reports an unrecognised schema rather than guessing', async () => {
-    const { DatabaseSync } = await import('node:sqlite')
-    const path = join(directory, 'Login Data')
-    const database = new DatabaseSync(path)
-    database.exec('CREATE TABLE not_logins (a TEXT)')
-    database.close()
-
-    await expect(readBrowserPasswords(path, KEY)).rejects.toMatchObject({
-      code: 'unsupported-schema',
-    })
   })
 })

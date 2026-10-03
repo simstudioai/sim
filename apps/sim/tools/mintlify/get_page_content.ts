@@ -1,3 +1,4 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import type {
   MintlifyGetPageContentParams,
   MintlifyGetPageContentResponse,
@@ -7,7 +8,6 @@ import {
   mintlifyHeaders,
   pathSegment,
   readMintlifyJson,
-  toNullableString,
   toStringArray,
 } from '@/tools/mintlify/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -70,8 +70,8 @@ export const mintlifyGetPageContentTool: ToolConfig<
     return {
       success: true,
       output: {
-        path: toNullableString(data.path),
-        content: toNullableString(data.content),
+        path: toStringOrNull(data.path),
+        content: toStringOrNull(data.content),
       },
     }
   },

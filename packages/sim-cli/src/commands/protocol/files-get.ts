@@ -1,11 +1,13 @@
 import { once } from 'node:events'
 import { createWriteStream, rmSync, type WriteStream } from 'node:fs'
 import { link, lstat, mkdtemp, readlink, rename, rm } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, posix, resolve } from 'node:path'
 import { Readable, type Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { Command } from 'commander'
+import { writeStdout } from '#sim-cli/output/io'
 import { clientFrom } from '../../context'
+import { embedStore } from '../../embed-context'
 import { V2_OPERATIONS } from '../../generated/v2-api'
 import { isRequestTimeout, RAISE_TIMEOUT_HINT, resolvePath, SimApiError } from '../../http/client'
 import { printProtocolResult } from './result'
@@ -201,23 +203,53 @@ export async function saveToFile(
   body: ReadableStream<Uint8Array>,
   target: string,
   force: boolean
-): Promise<void> {
-  return saveStagedFile(body, target, force)
+): Promise<string> {
+  const embedded = embedStore.getStore()
+  if (embedded) {
+    try {
+      if (embedded.workingDirectory) {
+        if (!posix.isAbsolute(embedded.workingDirectory))
+          throw new SimApiError('The caller working directory must be absolute.', 0)
+        target = posix.resolve(embedded.workingDirectory, target)
+      }
+      embedded.identity.signal?.throwIfAborted()
+      if (!embedded.writeFile) {
+        throw new SimApiError(
+          `--output-file cannot save ${target} here: this surface has no machine to write to. Read the file instead, or use a client with filesystem access to download it.`,
+          0
+        )
+      }
+      await embedded.writeFile(target, body, { overwrite: force })
+      embedded.identity.signal?.throwIfAborted()
+    } finally {
+      /** The host releases its reader; refusal and early failure must also close the source. */
+      await body.cancel().catch(() => {})
+    }
+    return target
+  }
+  target = resolve(target)
+  await saveStagedFile(body, target, force)
+  return target
 }
 
 /** Streams a fetch body to stdout without closing the process-wide stream. */
 export async function streamToStdout(
   body: ReadableStream<Uint8Array>,
-  output: NodeJS.WriteStream = process.stdout
+  output?: NodeJS.WriteStream
 ): Promise<void> {
   const reader = body.getReader()
   try {
     while (true) {
       const { done, value } = await reader.read()
       if (done) return
-      if (!output.write(value)) await once(output, 'drain')
+      if (output) {
+        if (!output.write(value)) await once(output, 'drain')
+      } else if (!writeStdout(value)) {
+        await once(process.stdout, 'drain')
+      }
     }
   } finally {
+    await reader.cancel().catch(() => {})
     reader.releaseLock()
   }
 }
@@ -245,58 +277,87 @@ export function isTerminalSafeContentType(contentType: string | null): boolean {
   )
 }
 
+interface DownloadOutputOptions {
+  outputFile?: string
+  force?: boolean
+}
+
+type DownloadOperation = (typeof V2_OPERATIONS)['downloadFile' | 'downloadFileVersion']
+
+/**
+ * Streams a binary v2 download to stdout or atomically to `--output-file`. Shared by every
+ * command that downloads file bytes, so each gets the same terminal guard and overwrite rules.
+ */
+async function downloadToOutput(
+  command: Command,
+  operation: DownloadOperation,
+  pathParams: Record<string, string>,
+  options: DownloadOutputOptions
+): Promise<void> {
+  const target = options.outputFile
+  const writesToStdout = target === undefined || target === '-'
+  if (writesToStdout && options.force) {
+    throw new SimApiError('--force requires --output-file <path>', 0)
+  }
+
+  const { client, profile } = clientFrom(command)
+  const workspaceId = client.requireWorkspace()
+  const response = await client.requestRaw(resolvePath(operation.path, pathParams), {
+    method: operation.method,
+    query: { workspaceId },
+  })
+  if (!response.body) {
+    throw new SimApiError('File content response was empty.', response.status)
+  }
+
+  if (writesToStdout) {
+    const contentType = response.headers.get('content-type')
+    const embedded = embedStore.getStore()
+    if ((embedded || process.stdout.isTTY) && !isTerminalSafeContentType(contentType)) {
+      await response.body.cancel()
+      throw new SimApiError(
+        embedded
+          ? `Refusing to put ${contentType ?? 'unknown content'} in a text result. Use --output-file <path>.`
+          : `Refusing to write ${contentType ?? 'unknown content'} to an interactive terminal. Use --output-file <path> or pipe stdout.`,
+        0
+      )
+    }
+
+    await streamToStdout(response.body)
+    return
+  }
+
+  const savedTarget = await saveToFile(response.body, target, Boolean(options.force))
+  printProtocolResult(profile.output, {
+    id: pathParams.fileId,
+    path: savedTarget,
+    status: 'saved',
+  })
+}
+
 export function attachFileGet(files: Command): void {
   files
     .command('get')
     .argument('<fileId>', 'File whose content to read')
     .allowExcessArguments(false)
-    .description('Get a file’s content')
+    .description('Download a file’s content to stdout or a local file')
     .option('-o, --output-file <path>', 'Write content to a file instead of stdout')
     .option('--force', 'Overwrite --output-file if it already exists')
-    .action(
-      async (
-        fileId: string,
-        options: { outputFile?: string; force?: boolean },
-        command: Command
-      ) => {
-        const writesToStdout = options.outputFile === undefined || options.outputFile === '-'
-        if (writesToStdout && options.force) {
-          throw new SimApiError('--force requires --output-file <path>', 0)
-        }
+    .action((fileId: string, options: DownloadOutputOptions, command: Command) =>
+      downloadToOutput(command, V2_OPERATIONS.downloadFile, { fileId }, options)
+    )
+}
 
-        const { client, profile } = clientFrom(command)
-        const workspaceId = client.requireWorkspace()
-        const operation = V2_OPERATIONS.downloadFile
-        const response = await client.requestRaw(resolvePath(operation.path, { fileId }), {
-          method: operation.method,
-          query: { workspaceId },
-        })
-        if (!response.body) {
-          throw new SimApiError('File content response was empty.', response.status)
-        }
-
-        if (options.outputFile === undefined || options.outputFile === '-') {
-          const contentType = response.headers.get('content-type')
-          if (process.stdout.isTTY && !isTerminalSafeContentType(contentType)) {
-            await response.body.cancel()
-            throw new SimApiError(
-              `Refusing to write ${contentType ?? 'unknown content'} to an interactive terminal. Use --output-file <path> or pipe stdout.`,
-              0
-            )
-          }
-
-          await streamToStdout(response.body)
-          return
-        }
-
-        const target = options.outputFile
-
-        await saveToFile(response.body, target, Boolean(options.force))
-        printProtocolResult(profile.output, {
-          id: fileId,
-          path: target,
-          status: 'saved',
-        })
-      }
+export function attachFileVersionDownload(versions: Command): void {
+  versions
+    .command('download')
+    .argument('<fileId>', 'File identifier.')
+    .argument('<version>', 'Version number.')
+    .allowExcessArguments(false)
+    .description('Download the content of one version of a file')
+    .option('-o, --output-file <path>', 'Write content to a file instead of stdout')
+    .option('--force', 'Overwrite --output-file if it already exists')
+    .action((fileId: string, version: string, options: DownloadOutputOptions, command: Command) =>
+      downloadToOutput(command, V2_OPERATIONS.downloadFileVersion, { fileId, version }, options)
     )
 }

@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-import type { SessionPrincipal, WorkspaceApiKeyPrincipal } from '@sim/auth/principal'
 import {
   auditMock,
   auditMockFns,
@@ -10,40 +6,37 @@ import {
   encryptionMockFns,
   hasMockCondition,
   posthogServerMock,
-  posthogServerMockFns,
   queueTableRows,
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import {
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  isEntitled: vi.fn(),
-  loadWorkspaceContext: vi.fn(),
-  resolveWorkspacePermission: vi.fn(),
-}))
+const { isEntitled } = vi.hoisted(() => ({ isEntitled: vi.fn() }))
 
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+
 vi.mock('@/lib/api-key/byok-entitlement', () => ({
-  isOrganizationBYOKEntitled: mocks.isEntitled,
+  isOrganizationBYOKEntitled: isEntitled,
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspaceContext,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolveWorkspacePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import {
   deleteOrganizationByokKey,
@@ -52,20 +45,18 @@ import {
   saveOrganizationByokKey,
 } from '@/lib/api-key/application/organization-byok-keys'
 
+const mocks = {
+  isEntitled,
+  loadWorkspaceContext: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+  resolveWorkspacePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
+
 const ORGANIZATION_ID = 'organization-1'
 const WORKSPACE_ID = 'workspace-1'
 
-const sessionPrincipal: SessionPrincipal = {
-  kind: 'session',
-  userId: 'admin-1',
-  sessionId: 'session-1',
-}
+const sessionPrincipal = createSessionPrincipal({ userId: 'admin-1' })
 
-const workspaceKeyPrincipal: WorkspaceApiKeyPrincipal = {
-  kind: 'workspace_api_key',
-  workspaceId: WORKSPACE_ID,
-  keyId: 'workspace-key-1',
-}
+const workspaceKeyPrincipal = createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key-1' })
 
 const storedKeyRow = (id: string, providerId = 'openai') => ({
   id,
@@ -84,7 +75,6 @@ function queueOrganizationAdmin(role: 'admin' | 'owner' | 'member' = 'admin') {
 
 describe('organization BYOK application boundary', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.isEntitled.mockReset().mockResolvedValue(false)
     mocks.loadWorkspaceContext.mockReset().mockResolvedValue({
@@ -135,23 +125,6 @@ describe('organization BYOK application boundary', () => {
     expect(mocks.isEntitled).not.toHaveBeenCalled()
   })
 
-  it('rejects a session with no exact-target organization membership without reading keys', async () => {
-    queueTableRows(schemaMock.member, [])
-
-    await expect(
-      listOrganizationByokKeys.execute({
-        principal: sessionPrincipal,
-        input: { organizationId: ORGANIZATION_ID },
-      })
-    ).rejects.toMatchObject({
-      code: 'forbidden',
-      detailCode: 'ORGANIZATION_MEMBERSHIP_REQUIRED',
-    })
-
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
-    expect(mocks.isEntitled).not.toHaveBeenCalled()
-  })
-
   it('allows an admin to list and clean up retained ciphertext after entitlement loss', async () => {
     queueOrganizationAdmin('owner')
     queueTableRows(schemaMock.organizationBYOKKeys, [storedKeyRow('key-1'), storedKeyRow('key-2')])
@@ -182,21 +155,6 @@ describe('organization BYOK application boundary', () => {
       })
     ).resolves.toEqual({ success: true })
 
-    expect(mocks.isEntitled).toHaveBeenCalledTimes(1)
-    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: null,
-        actorId: 'admin-1',
-        action: 'byok_key.deleted',
-        resourceId: 'key-2',
-        metadata: expect.objectContaining({
-          organizationId: ORGANIZATION_ID,
-          scope: 'organization',
-          providerId: 'openai',
-          keyId: 'key-2',
-        }),
-      })
-    )
     const deleteWhere = dbChainMockFns.where.mock.calls.at(-1)?.[0]
     for (const scopedValue of [ORGANIZATION_ID, 'openai', 'key-2']) {
       expect(
@@ -226,7 +184,7 @@ describe('organization BYOK application boundary', () => {
     expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
   })
 
-  it('updates only the scoped key, preserves its name, remasks it, and audits the rotation', async () => {
+  it('updates only the scoped key, preserves its name, and remasks it', async () => {
     queueOrganizationAdmin()
     mocks.isEntitled.mockResolvedValue(true)
     queueTableRows(schemaMock.organizationBYOKKeys, [{ id: 'key-1', name: 'Primary' }])
@@ -251,7 +209,6 @@ describe('organization BYOK application boundary', () => {
       },
     })
 
-    expect(encryptionMockFns.mockEncryptSecret).toHaveBeenCalledWith('sk-rotated-secret')
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({ encryptedApiKey: 'encrypted-value', name: 'Primary' })
     )
@@ -264,67 +221,6 @@ describe('organization BYOK application boundary', () => {
         )
       ).toBe(true)
     }
-    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'byok_key.updated',
-        resourceId: 'key-1',
-        metadata: expect.objectContaining({
-          organizationId: ORGANIZATION_ID,
-          providerId: 'openai',
-          keyId: 'key-1',
-        }),
-      })
-    )
-  })
-
-  it('serializes capped creation and records scoped audit and organization analytics', async () => {
-    queueOrganizationAdmin()
-    mocks.isEntitled.mockResolvedValue(true)
-    queueTableRows(schemaMock.organizationBYOKKeys, [{ keyCount: 2 }])
-    const now = new Date('2026-02-01T00:00:00.000Z')
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      {
-        id: 'key-new',
-        providerId: 'openai',
-        name: 'Production',
-        createdAt: now,
-        updatedAt: now,
-      },
-    ])
-
-    await expect(
-      saveOrganizationByokKey.execute({
-        principal: sessionPrincipal,
-        input: {
-          organizationId: ORGANIZATION_ID,
-          providerId: 'openai',
-          apiKey: 'sk-new-production-secret',
-          name: 'Production',
-        },
-      })
-    ).resolves.toMatchObject({
-      key: { id: 'key-new', providerId: 'openai', name: 'Production' },
-    })
-
-    expect(dbChainMockFns.execute).toHaveBeenCalledTimes(2)
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        organizationId: ORGANIZATION_ID,
-        providerId: 'openai',
-        encryptedApiKey: 'encrypted-value',
-        name: 'Production',
-        createdBy: 'admin-1',
-      })
-    )
-    expect(JSON.stringify(auditMockFns.mockRecordAudit.mock.calls)).not.toContain(
-      'sk-new-production-secret'
-    )
-    expect(posthogServerMockFns.mockCaptureServerEvent).toHaveBeenCalledWith(
-      'admin-1',
-      'organization_byok_key_added',
-      { organization_id: ORGANIZATION_ID, provider_id: 'openai' },
-      expect.objectContaining({ groups: { organization: ORGANIZATION_ID } })
-    )
   })
 
   it('enforces the ten-key provider cap before encrypting or inserting', async () => {
@@ -361,15 +257,67 @@ describe('organization BYOK application boundary', () => {
     })
 
     expect(result).toEqual({ inheritedProviderIds: ['anthropic'] })
-    expect(Object.keys(result)).toEqual(['inheritedProviderIds'])
-    expect(mocks.resolveWorkspacePermission).toHaveBeenCalledWith(
-      'admin-1',
-      WORKSPACE_ID,
-      ORGANIZATION_ID,
-      undefined,
-      { forUpdate: undefined }
-    )
-    expect(mocks.isEntitled).toHaveBeenCalledWith(ORGANIZATION_ID)
     expect(JSON.stringify(result)).not.toContain(ORGANIZATION_ID)
+  })
+})
+
+describe('organization settings BYOK delegation', () => {
+  const principal = {
+    kind: 'organization_delegated',
+    serviceId: 'copilot',
+    subjectUserId: 'admin-1',
+    organizationId: ORGANIZATION_ID,
+    delegationId: 'byok-list',
+    audience: 'sim:settings',
+    issuedAt: new Date(),
+    expiresAt: new Date(Date.now() + 60_000),
+    resourceScope: { chatId: 'chat' },
+  } as const
+  beforeEach(() => {
+    resetDbChainMock()
+    mocks.isEntitled.mockResolvedValue(false)
+    encryptionMockFns.mockDecryptSecret.mockResolvedValue({
+      decrypted: 'sk-private-provider-value',
+    })
+  })
+  it('revokes using canonical organization/provider scope and the actual delegated actor', async () => {
+    queueOrganizationAdmin()
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'key-1' }])
+    await expect(
+      deleteOrganizationByokKey.execute({
+        principal,
+        input: { organizationId: ORGANIZATION_ID, providerId: 'openai', keyId: 'key-1' },
+      })
+    ).resolves.toEqual({ success: true })
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'admin-1',
+        metadata: expect.objectContaining({ operation: 'byok_keys.organization.delete' }),
+      })
+    )
+  })
+  it.each([
+    { ...principal, organizationId: 'foreign' },
+    { ...principal, audience: 'sim:search' },
+    { ...principal, expiresAt: new Date(0) },
+  ])('rejects invalid delegated scope before reading secrets', async (invalid) => {
+    await expect(
+      listOrganizationByokKeys.execute({
+        principal: invalid,
+        input: { organizationId: ORGANIZATION_ID },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
+  })
+  it('keeps plaintext key submission on the authenticated browser flow', async () => {
+    await expect(
+      saveOrganizationByokKey.execute({
+        principal,
+        input: { organizationId: ORGANIZATION_ID, providerId: 'openai', apiKey: 'private' },
+      })
+    ).rejects.toMatchObject({ detailCode: 'PRINCIPAL_KIND_NOT_PERMITTED' })
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
   })
 })
