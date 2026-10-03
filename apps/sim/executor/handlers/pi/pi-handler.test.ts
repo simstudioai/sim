@@ -213,13 +213,17 @@ describe('PiBlockHandler', () => {
     expect(mockRunLocal).not.toHaveBeenCalled()
   })
 
-  it('rejects an unavailable model before resolving credentials', async () => {
+  it('rejects an unavailable model with replacement guidance before credentials or remote setup', async () => {
     mockResolvePiModelId.mockReturnValue(undefined)
 
     await expect(handler.execute(ctx(), block, localInputs())).rejects.toThrow(
-      /not available.*installed Pi catalog/
+      /not available.*Choose a supported Pi model/
     )
     expect(mockResolveKey).not.toHaveBeenCalled()
+    expect(mockRunLocal).not.toHaveBeenCalled()
+    expect(mockRunCloud).not.toHaveBeenCalled()
+    expect(mockRunCloudPlan).not.toHaveBeenCalled()
+    expect(mockRunCloudReview).not.toHaveBeenCalled()
   })
 
   it('adds successful Function tool cost once to a non-streaming Local Dev result', async () => {

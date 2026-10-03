@@ -59,7 +59,8 @@ export function TableFilter({
   onClose,
 }: TableFilterProps) {
   const lastAppliedFilterRef = useRef<string | undefined>(undefined)
-  const deferredAppliedRulesRef = useRef<Map<string, FilterRule>>(new Map())
+  const deferredAppliedRulesRef = useRef<Map<string, FilterRule> | null>(null)
+  const deferredAppliedRules = (deferredAppliedRulesRef.current ??= new Map())
   const [rules, setRules] = useState<FilterRule[]>(() => {
     const fromFilter = predicateToFilterRules(filter)
     return fromFilter.length > 0 ? fromFilter : [createRule(columns)]
@@ -86,23 +87,22 @@ export function TableFilter({
       if (deferredRule && !isCompleteRule(deferredRule)) {
         const previouslyAppliedRule = currentRules.find((rule) => rule.id === deferredRule.id)
         if (previouslyAppliedRule && isCompleteRule(previouslyAppliedRule)) {
-          const deferredRules = deferredAppliedRulesRef.current
-          if (!deferredRules.has(deferredRule.id)) {
-            deferredRules.set(deferredRule.id, previouslyAppliedRule)
+          if (!deferredAppliedRules.has(deferredRule.id)) {
+            deferredAppliedRules.set(deferredRule.id, previouslyAppliedRule)
           }
         }
       }
 
       const nextRulesById = new Map(nextRules.map((rule) => [rule.id, rule]))
-      for (const [id] of deferredAppliedRulesRef.current) {
+      for (const [id] of deferredAppliedRules) {
         const nextRule = nextRulesById.get(id)
         if (!nextRule || isCompleteRule(nextRule)) {
-          deferredAppliedRulesRef.current.delete(id)
+          deferredAppliedRules.delete(id)
         }
       }
 
       const appliedRules = nextRules.map((rule) => {
-        const deferredRule = deferredAppliedRulesRef.current.get(rule.id)
+        const deferredRule = deferredAppliedRules.get(rule.id)
         return deferredRule && !isCompleteRule(rule)
           ? { ...deferredRule, logicalOperator: rule.logicalOperator }
           : rule

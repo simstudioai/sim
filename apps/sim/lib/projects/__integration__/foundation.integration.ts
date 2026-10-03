@@ -205,7 +205,7 @@ afterAll(async () => {
       for (const statement of (
         await readFile(
           new URL(
-            '../../../../../packages/db/migrations/0394_project_membership_enforcement.sql',
+            '../../../../../packages/db/migrations/0395_project_membership_enforcement.sql',
             import.meta.url
           ),
           'utf8'
@@ -228,7 +228,7 @@ describe('Project foundation at the database and application boundary', () => {
         for (const statement of (
           await readFile(
             new URL(
-              '../../../../../packages/db/migrations/0394_project_membership_enforcement.sql',
+              '../../../../../packages/db/migrations/0395_project_membership_enforcement.sql',
               import.meta.url
             ),
             'utf8'

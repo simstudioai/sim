@@ -22,6 +22,7 @@ export const selectorContextKeys = [
   'baseId',
   'docId',
   'datasetId',
+  'groupId',
   'serviceDeskId',
   'impersonateUserEmail',
   'boardId',

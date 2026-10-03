@@ -259,8 +259,7 @@ async function initializeOpenTelemetry() {
     exporter.export = (spans, resultCallback) => {
       origExport(spans, (result) => {
         if (result?.code !== 0) {
-          // eslint-disable-next-line no-console
-          console.error('[OTEL] exporter export failed', {
+          logger.error('Exporter export failed', {
             endpoint: telemetryConfig.endpoint,
             resultCode: result?.code,
             error: result?.error?.message,

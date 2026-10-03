@@ -13,7 +13,6 @@ import {
   liveSearchProviderSchema,
   type NativeSearchQuery,
   nativeSearchQueriesSchema,
-  SEARCH_TERMS_REQUIRED,
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/mothership-assistant-tools'
 import { canonicalJson, fingerprint, instantScopePart } from '@/lib/api/cursor-binding'
@@ -73,14 +72,20 @@ const signedContinuationSchema = boundContinuationSchema.extend({
   signature: z.string().regex(/^[a-f0-9]{64}$/),
 })
 
-function continuationSignature(provider: 'hubspot' | 'zoom', value: BoundContinuation): string {
+type BoundProvider = 'hubspot' | 'zoom' | 'lucid' | 'notion'
+
+function hasBoundContinuation(provider: string): provider is BoundProvider {
+  return ['hubspot', 'zoom', 'lucid', 'notion'].includes(provider)
+}
+
+function continuationSignature(provider: BoundProvider, value: BoundContinuation): string {
   return hmacSha256Hex(
     `live-search-continuation:${provider}:${canonicalJson(value)}`,
     env.BETTER_AUTH_SECRET
   )
 }
 
-function readBoundContinuation(provider: 'hubspot' | 'zoom', value: string): BoundContinuation {
+function readBoundContinuation(provider: BoundProvider, value: string): BoundContinuation {
   try {
     const prefix = `${provider}:`
     if (!value.startsWith(prefix) || value.length > (provider === 'hubspot' ? 512 : 4000))
@@ -96,12 +101,12 @@ function readBoundContinuation(provider: 'hubspot' | 'zoom', value: string): Bou
   } catch {
     throw new NativeSearchError(
       'unavailable',
-      `Invalid ${provider === 'zoom' ? 'Zoom' : 'HubSpot'} cursor. Restart this search without a cursor.`
+      `Invalid ${provider} cursor. Restart this search without a cursor.`
     )
   }
 }
 
-function writeBoundContinuation(provider: 'hubspot' | 'zoom', value: BoundContinuation): string {
+function writeBoundContinuation(provider: BoundProvider, value: BoundContinuation): string {
   const payload = boundContinuationSchema.parse(value)
   const signed = { ...payload, signature: continuationSignature(provider, payload) }
   const cursor = `${provider}:${Buffer.from(JSON.stringify(signed)).toString('base64url')}`
@@ -358,7 +363,8 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
     if (
       (!input.query.trim() &&
         !hasDateBounds(input.filters) &&
-        !queries?.some((query) => query.query)) ||
+        !queries?.some((query) => query.query || query.browse)) ||
+      (!queries && input.filters?.source === 'lucid' && !input.query.trim()) ||
       input.query.length > 2000 ||
       !Number.isInteger(input.topK) ||
       input.topK < 1 ||
@@ -367,18 +373,12 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
       throw new OrchestrationError('validation', 'Invalid live search query or result limit')
     const filters = input.filters
     if (
-      !queries &&
-      (filters?.source === 'notion' || filters?.source === 'lucid') &&
-      !input.query.trim()
-    )
-      throw new OrchestrationError('validation', SEARCH_TERMS_REQUIRED[filters.source])
-    if (
       filters?.startDate &&
       filters.endDate &&
       Date.parse(filters.startDate) >= Date.parse(filters.endDate)
     )
       throw new OrchestrationError('validation', 'endDate must be after startDate')
-    if (queries?.some((query) => !query.query) && !hasDateBounds(filters))
+    if (queries?.some((query) => !query.query && !query.browse) && !hasDateBounds(filters))
       throw new OrchestrationError('validation', 'Empty native queries require a date bound')
     const searchSignal = input.signal
       ? AbortSignal.any([input.signal, AbortSignal.timeout(20_000)])
@@ -421,7 +421,7 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
       let queryNative = native
       let continuationScope: string | undefined
       let listingEndDate: string | undefined
-      if (account.provider === 'hubspot' || account.provider === 'zoom') {
+      if (hasBoundContinuation(account.provider)) {
         continuationScope = fingerprint(
           canonicalJson({
             provider: account.provider,
@@ -430,6 +430,9 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
             account: account.id,
             query: (native?.query ?? input.query).trim(),
             kind: native?.kind,
+            ...(['lucid', 'notion'].includes(account.provider)
+              ? { browse: native?.browse, project: native?.project, topK: input.topK }
+              : {}),
             sort: requestedFilters?.sortBy ?? 'relevance',
             startDate: instantScopePart(requestedFilters?.startDate),
             endDate: instantScopePart(requestedFilters?.endDate),
@@ -540,10 +543,16 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
               ? 'No readable matches on this page. Continue with nextCursor for more.'
               : undefined,
           ]),
+          ...(page.folders
+            ? {
+                folders: page.folders.map((folder) => ({
+                  ...folder,
+                  name: safeContent(folder.name, input.resultSecretRegistry),
+                })),
+              }
+            : {}),
           nextCursor:
-            page.nextCursor &&
-            continuationScope &&
-            (account.provider === 'hubspot' || account.provider === 'zoom')
+            page.nextCursor && continuationScope && hasBoundContinuation(account.provider)
               ? writeBoundContinuation(account.provider, {
                   v: 2,
                   scope: continuationScope,
@@ -607,12 +616,13 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
           results: [],
         }
       }
+      let session: LiveAccountSession | undefined
       try {
         signal.throwIfAborted()
         const resolved = await measureSearchStage('live.resolve', () =>
           resolveListedLiveAccount(input, userId, account)
         )
-        const session = await measureSearchStage('live.session', () =>
+        session = await measureSearchStage('live.session', () =>
           openLiveAccountSession({
             owner: input,
             userId,
@@ -623,9 +633,10 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
             searches: natives.length,
           })
         )
+        const currentSession = session
         return await Promise.all(
           natives.map((target) =>
-            searchQuery(account, resolved, session, target.native, statusFor(target)).catch(
+            searchQuery(account, resolved, currentSession, target.native, statusFor(target)).catch(
               (error) => failed(error, target)
             )
           )
@@ -634,6 +645,7 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
         return natives.map((target) => failed(error, target))
       } finally {
         settled.abort()
+        await session?.close()
       }
     }
     let searched: SearchedQuery[]
@@ -760,8 +772,9 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
       : AbortSignal.timeout(15_000)
     const pool = createPinnedConnectionPool()
     let document: NativeDocument
+    let session: LiveAccountSession | undefined
     try {
-      const session = await openLiveAccountSession({
+      session = await openLiveAccountSession({
         owner: input,
         userId,
         resolved,
@@ -774,7 +787,10 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
           'not_found',
           'Document is outside your organization’s search scope'
         )
-      document = await measureSearchStage('live.read', () => session.read(reference, input.filters))
+      const currentSession = session
+      document = await measureSearchStage('live.read', () =>
+        currentSession.read(reference, input.filters)
+      )
       /** Readers degrade section failures to warnings, so the signal decides cancellation. */
       signal.throwIfAborted()
       const current = await session.verifyCurrent(document)
@@ -786,7 +802,11 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
           'Document is outside your organization’s search scope'
         )
     } finally {
-      pool.destroy()
+      try {
+        await session?.close()
+      } finally {
+        pool.destroy()
+      }
     }
     if (!matchesLiveFilters(document, input.documentId, reference.provider, input.filters))
       throw new OrchestrationError('not_found', 'Document is outside the selected search filters')

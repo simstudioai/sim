@@ -1,1 +1,1 @@
-export { WorkflowDiffSkeleton, WorkflowDiffView } from './workflow-diff-view'
+export { WorkflowComparisonModal } from './workflow-comparison-modal'

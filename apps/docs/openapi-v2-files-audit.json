@@ -790,11 +790,11 @@
             "name": "offset",
             "in": "query",
             "required": false,
-            "description": "First line to return, 1-based. Absent starts at the first line.",
+            "description": "First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.",
             "schema": {
-              "description": "First line to return, 1-based. Absent starts at the first line.",
+              "description": "First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.",
               "type": "integer",
-              "minimum": 1,
+              "minimum": 0,
               "maximum": 9007199254740991
             }
           },
@@ -1241,11 +1241,11 @@
             "name": "offset",
             "in": "query",
             "required": false,
-            "description": "First line to return, 1-based. Absent starts at the first line.",
+            "description": "First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.",
             "schema": {
-              "description": "First line to return, 1-based. Absent starts at the first line.",
+              "description": "First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line.",
               "type": "integer",
-              "minimum": 1,
+              "minimum": 0,
               "maximum": 9007199254740991
             }
           },

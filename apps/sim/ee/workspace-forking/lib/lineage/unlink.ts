@@ -5,6 +5,7 @@ import {
   workspaceForkDependentValue,
   workspaceForkPromoteRun,
   workspaceForkResourceMap,
+  workspaceForkWorkflowSync,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
@@ -94,6 +95,9 @@ export async function unlinkForkEdge(
     await tx
       .delete(workspaceForkPromoteRun)
       .where(eq(workspaceForkPromoteRun.childWorkspaceId, childWorkspaceId))
+    await tx
+      .delete(workspaceForkWorkflowSync)
+      .where(eq(workspaceForkWorkflowSync.childWorkspaceId, childWorkspaceId))
     return true
   })
 

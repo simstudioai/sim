@@ -16,7 +16,7 @@ paths:
 - All internal navigation uses Next.js `<Link>` with real `href`s — never `onClick` navigation. External links get `rel="noopener noreferrer"`.
 - All copy is server-rendered text: no text baked into images, no content that exists only after a client effect runs.
 - Navbar is a Server Component (no `'use client'`) for immediate crawlability. Logo `<Image>` has `priority` (LCP element). The navbar `<nav>` carries `SiteNavigationElement` schema.org markup.
-- Structured data: emit JSON-LD (`Organization`, `WebSite`, `WebApplication` with `featureList`, `FAQPage` if an FAQ exists) from a server component rendered before visible content. Keep `featureList` in sync with the features the page shows (`components/home-structured-data/`).
+- Structured data: emit JSON-LD (`Organization`, `WebSite`, `WebApplication` with `featureList`, `FAQPage` if an FAQ exists) from a server component rendered before visible content. Keep `featureList` in sync with the features the page shows (`apps/sim/app/(landing)/components/home-structured-data/`).
 - After adding routes or anchors, verify `app/sitemap.ts` and `app/robots.ts` still reflect reality.
 
 ## GEO (Generative Engine Optimisation)

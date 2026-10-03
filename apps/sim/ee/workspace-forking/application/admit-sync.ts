@@ -2,8 +2,6 @@ import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
-import { prepareWorkflowSnapshotDeployment } from '@/lib/workflows/orchestration/deploy'
-import { loadWorkflowDeploymentSnapshot } from '@/lib/workflows/persistence/utils'
 import {
   insertWorkspaceOperationReceipt,
   type WorkspaceOperationReport,
@@ -14,6 +12,10 @@ import {
   type ForkContentCopyPayload,
   hasForkContentToCopy,
 } from '@/ee/workspace-forking/lib/copy/content-copy-runner'
+import {
+  type PrepareForkDeploymentsParams,
+  prepareForkSyncDeployments,
+} from '@/ee/workspace-forking/lib/promote/prepare-deployments'
 import type { PromoteForkResult } from '@/ee/workspace-forking/lib/promote/promote'
 
 /** Persists the receipt, exact deployment versions, and resumable effects with the sync writes. */
@@ -29,6 +31,10 @@ export async function admitForkSync(
     undeployEventIds: string[]
     mcpAttachmentServerIds: string[]
     needsConfigurationIds: Set<string>
+    deploymentSources: Pick<
+      PrepareForkDeploymentsParams,
+      'childWorkspaceId' | 'items' | 'sourceVersions'
+    >
     copy?: ForkContentCopyPayload
   }
 ): Promise<WorkspaceOperationReport> {
@@ -72,19 +78,16 @@ export async function admitForkSync(
     report.copyProgress = { status: 'pending', copied: 0, failed: 0 }
     report.contentOutboxEventId = await enqueueDurableForkContent(tx, report, params.copy)
   }
-  for (const workflowId of [...params.targetIds].sort()) {
-    if (params.needsConfigurationIds.has(workflowId)) continue
-    const workflowState = await loadWorkflowDeploymentSnapshot(workflowId, tx)
-    if (!workflowState) throw new Error('A synced workflow is missing its admitted graph')
-    const prepared = await prepareWorkflowSnapshotDeployment({
-      params: { workflowId, userId: params.userId, requestId: admission.requestId },
-      actorId: params.userId,
-      requestId: admission.requestId,
-      idempotencyKey: `${report.operationId}:${workflowId}`,
-      workflowState,
-      tx,
-      workspaceOperationId: report.operationId,
-    })
+  const deployments = await prepareForkSyncDeployments(tx, {
+    ...params.deploymentSources,
+    targetWorkspaceId: params.targetWorkspaceId,
+    promoteRunId: result.promoteRunId,
+    needsConfigurationIds: params.needsConfigurationIds,
+    userId: params.userId,
+    requestId: admission.requestId,
+    workspaceOperationId: report.operationId,
+  })
+  for (const [workflowId, prepared] of deployments) {
     if (prepared.success) {
       report.deploymentOperationIds!.push(prepared.operation.id)
       if (prepared.outboxEventId) report.effectEventIds!.push(prepared.outboxEventId)

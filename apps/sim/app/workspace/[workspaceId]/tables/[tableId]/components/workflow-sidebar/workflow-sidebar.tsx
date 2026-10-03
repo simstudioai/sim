@@ -704,7 +704,7 @@ export function WorkflowSidebarBody({
                   </div>
                 ) : workflowState.data ? (
                   <>
-                    <div className='[&_.react-flow__handle]:hidden! h-full w-full [&_*:active]:cursor-grabbing! [&_*]:cursor-grab!'>
+                    <div className='[&_.react-flow__handle]:hidden! size-full [&_*:active]:cursor-grabbing! [&_*]:cursor-grab!'>
                       <PreviewWorkflow
                         workflowState={workflowState.data}
                         height={160}

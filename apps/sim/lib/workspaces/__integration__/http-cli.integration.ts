@@ -20,10 +20,16 @@ import { eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { hashApiKey } from '@/lib/api-key/crypto'
+import { processOutboxEventById } from '@/lib/core/outbox/service'
+import { workflowDeploymentOutboxHandlers } from '@/lib/workflows/deployment-outbox'
+import { performFullDeploy } from '@/lib/workflows/orchestration/deploy'
+import { workspaceOperationOutboxHandlers } from '@/lib/workspaces/operations/outbox'
+import type { WorkspaceOperationReport } from '@/lib/workspaces/operations/receipts'
 import { GET as logGet } from '@/app/api/v2/logs/[runId]/route'
 import { POST as importPreview } from '@/app/api/v2/workflows/import/preview/route'
 import { POST as importApply } from '@/app/api/v2/workflows/import/route'
 import { POST as forkPreview } from '@/app/api/v2/workspaces/[workspaceId]/fork/preview/route'
+import { POST as pushPreview } from '@/app/api/v2/workspaces/[workspaceId]/fork/push/preview/route'
 import { POST as pushApply } from '@/app/api/v2/workspaces/[workspaceId]/fork/push/route'
 import { POST as forkApply } from '@/app/api/v2/workspaces/[workspaceId]/fork/route'
 import { GET as operationGet } from '@/app/api/v2/workspaces/[workspaceId]/operations/[operationId]/route'
@@ -202,18 +208,20 @@ describe('v2 and CLI workflow protocol against PostgreSQL', () => {
                 ? await forkPreview(request, context)
                 : match?.[2] === 'fork'
                   ? await forkApply(request, context)
-                  : match?.[2] === 'fork/push'
-                    ? await pushApply(request, context)
-                    : match?.[2] === 'operations'
-                      ? await operationsList(request, context)
-                      : match?.[2].startsWith('operations/')
-                        ? await operationGet(request, {
-                            params: Promise.resolve({
-                              workspaceId: match[1],
-                              operationId: match[2].slice('operations/'.length),
-                            }),
-                          })
-                        : new Response('Unknown fixture route', { status: 404 })
+                  : match?.[2] === 'fork/push/preview'
+                    ? await pushPreview(request, context)
+                    : match?.[2] === 'fork/push'
+                      ? await pushApply(request, context)
+                      : match?.[2] === 'operations'
+                        ? await operationsList(request, context)
+                        : match?.[2].startsWith('operations/')
+                          ? await operationGet(request, {
+                              params: Promise.resolve({
+                                workspaceId: match[1],
+                                operationId: match[2].slice('operations/'.length),
+                              }),
+                            })
+                          : new Response('Unknown fixture route', { status: 404 })
         outgoing.statusCode = response.status
         response.headers.forEach((value, name) => outgoing.setHeader(name, value))
         const body = await response.text()
@@ -395,7 +403,14 @@ describe('v2 and CLI workflow protocol against PostgreSQL', () => {
     expect(requestCount).toBe(before)
   })
 
-  it('creates a draft fork through the CLI and follows its operation receipt', async () => {
+  it('creates a draft fork and exposes the activated same-source comparison through the CLI', async () => {
+    const [sourceWorkflow] = await db
+      .select()
+      .from(workflow)
+      .where(eq(workflow.workspaceId, workspaceId))
+      .limit(1)
+    const deployed = await performFullDeploy({ workflowId: sourceWorkflow.id, userId })
+    expect(deployed.success).toBe(true)
     const preview = await cli(['workspaces', 'fork-preview', '--name', 'CLI fork fixture'])
     expect(preview.code, preview.stderr).toBe(0)
     const created = await cli([
@@ -416,5 +431,40 @@ describe('v2 and CLI workflow protocol against PostgreSQL', () => {
     const drafts = await db.select().from(workflow).where(eq(workflow.workspaceId, childId))
     expect(drafts.length).toBeGreaterThan(0)
     expect(drafts.every((draft) => !draft.isDeployed)).toBe(true)
+    const previewArgs = ['workspaces', 'push-preview', '--other-workspace-id', childId]
+    const before = await cli(previewArgs)
+    expect(before.code, before.stderr).toBe(0)
+    const previewData = JSON.parse(before.stdout)
+    expect(previewData.workflows[0]).toMatchObject({
+      sourceWorkflowId: sourceWorkflow.id,
+      comparison: { status: 'unavailable', reason: 'no_baseline' },
+    })
+    const pushed = await cli([
+      'workspaces',
+      'push',
+      '--other-workspace-id',
+      childId,
+      '--preview-fingerprint',
+      previewData.previewFingerprint,
+      '--request-id',
+      generateId(),
+      '--yes',
+    ])
+    expect(pushed.code, pushed.stderr).toBe(0)
+    const [receipt] = await db
+      .select()
+      .from(workspaceOperationReceipt)
+      .where(eq(workspaceOperationReceipt.id, JSON.parse(pushed.stdout).operationId))
+    const admitted = receipt.report as WorkspaceOperationReport
+    const registry = { ...workflowDeploymentOutboxHandlers, ...workspaceOperationOutboxHandlers }
+    for (const eventId of admitted.effectEventIds ?? [])
+      expect(await processOutboxEventById(eventId, registry)).toBe('completed')
+    const after = await cli(previewArgs)
+    expect(after.code, after.stderr).toBe(0)
+    const version = { id: deployed.deploymentVersionId, version: deployed.version }
+    expect(JSON.parse(after.stdout).workflows[0]).toMatchObject({
+      sourceWorkflowId: sourceWorkflow.id,
+      comparison: { status: 'available', base: version, target: version },
+    })
   })
 })

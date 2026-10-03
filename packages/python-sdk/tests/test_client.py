@@ -46,7 +46,7 @@ def test_simstudio_client_default_base_url():
     """Test SimStudioClient with default base URL."""
     client = SimStudioClient(api_key="test-api-key")
     assert client.api_key == "test-api-key"
-    assert client.base_url == "https://sim.ai"
+    assert client.base_url == "https://www.sim.ai"
 
 
 def test_set_api_key():
@@ -79,7 +79,7 @@ def test_validate_workflow_returns_false_on_error(mock_get):
     result = client.validate_workflow("test-workflow-id")
     
     assert result is False
-    mock_get.assert_called_once_with("https://sim.ai/api/workflows/test-workflow-id/status")
+    mock_get.assert_called_once_with("https://www.sim.ai/api/workflows/test-workflow-id/status")
 
 
 def test_simstudio_error():
@@ -131,7 +131,7 @@ def test_async_execution_returns_run_id(mock_post):
     mock_response.json.return_value = {
         "data": {
             "runId": "execution-123",
-            "statusUrl": "https://sim.ai/api/v2/workflows/workflow-id/runs/execution-123"
+            "statusUrl": "https://www.sim.ai/api/v2/workflows/workflow-id/runs/execution-123"
         }
     }
     mock_response.headers.get.return_value = None
@@ -146,11 +146,11 @@ def test_async_execution_returns_run_id(mock_post):
 
     assert result.success is True
     assert result.run_id == "execution-123"
-    assert result.status_url == "https://sim.ai/api/v2/workflows/workflow-id/runs/execution-123"
+    assert result.status_url == "https://www.sim.ai/api/v2/workflows/workflow-id/runs/execution-123"
     assert result.async_execution is True
 
     call_args = mock_post.call_args
-    assert call_args.args[0] == "https://sim.ai/api/v2/workflows/workflow-id/execute"
+    assert call_args.args[0] == "https://www.sim.ai/api/v2/workflows/workflow-id/execute"
     assert "X-Execution-Mode" not in call_args.kwargs["headers"]
     assert call_args.kwargs["json"] == {
         "input": {"message": "Hello"},

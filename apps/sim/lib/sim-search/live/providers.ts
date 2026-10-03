@@ -64,7 +64,7 @@ export const LIVE_SEARCH_PROVIDERS = {
     transport: 'managed_mcp',
     guide: {
       syntax:
-        'Nonempty document-title keywords, at most 400 characters. Results are relevance-ranked, not guaranteed literal title matches. The provider returns at most 200 relevance-ranked candidates; Sim verifies metadata for at most 10. Search has no continuation.',
+        'Nonempty document-title keywords, at most 400 characters. Results are relevance-ranked, not guaranteed literal title matches. The provider returns at most 200 relevance-ranked candidates; Sim verifies metadata for at most 10. Title search has no continuation. To discover available documents without guessing keywords, use native query {provider: lucid, query: empty string, browse: folder}; omit project for the root folder, or pass a returned numeric folder ID. Each page lists direct children, with child folders in account coverage; follow the cursor with the same account, mode, project, filters and topK. Do not claim recursive or whole-account completeness.',
       scope:
         'kind lucidchart or lucidspark selects a product; omit to search both. To search shape text within a known document, set project to its UUID or Lucid URL and use one literal substring of at most 200 characters. Dates use modification time; sorting and end dates apply only to retrieved candidates, not the entire account.',
       example: 'deployment architecture',
@@ -264,9 +264,9 @@ export const LIVE_SEARCH_PROVIDERS = {
     transport: 'managed_mcp',
     guide: {
       syntax:
-        'Natural-language or plain keyword content search through Notion MCP. Search terms are required even with dates or sorting. Availability depends on the connected account and plan; results are restricted to Notion pages, excluding connected apps.',
+        'Natural-language or plain keyword content search through Notion MCP. For navigation without a topic, use a queryless native browse mode: private or shared for sidebar pages, favorites for pinned pages, recent for recently viewed pages. These bounded, paginated lists are not an exhaustive workspace inventory; recent is not last modified. Follow the account cursor with the same browse mode, account, filters and topK. Availability depends on the connected account and plan; results are restricted to Notion pages, excluding connected apps.',
       scope:
-        'project optionally takes a known Notion page URL when the advertised tool supports page scoping. Dates use explicit last-edited timestamps; results without those timestamps cannot satisfy date filters. Read a result for page content.',
+        'project optionally takes a known Notion page URL when the advertised tool supports page scoping. Modification filters and newest sorting are pushed to the provider only if the advertised schema and plan support them. Date-only search requires those capabilities; use a sidebar browse mode or terms otherwise. Exact date checks use freshly fetched last-edited timestamps for at most 10 candidates; oldest is local ordering, not global oldest discovery. Read a result for page content.',
       example: 'deployment rollback checklist',
       avoid:
         'Treating REST title search as full-content search, unsupported boolean qualifiers, claiming exhaustive results, or assuming advanced filters were applied when the provider reports they were dropped.',

@@ -47,8 +47,11 @@ const MAX_TEMPLATES_SHOWN = 12
 const bySlug = new Map(allIntegrations.map((i) => [i.slug, i]))
 const byType = new Map(allIntegrations.map((i) => [i.type, i]))
 
-/** Unknown slugs reach the section 404 while known pages remain pre-rendered. */
-export const dynamicParams = true
+/**
+ * Unknown params must 404 before rendering: `notFound()` during render streams this segment's
+ * `loading.tsx` with a 200 status first.
+ */
+export const dynamicParams = false
 
 /**
  * Returns up to `limit` related integration slugs from the same category, so
@@ -747,7 +750,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             <div className='px-6 pt-10 pb-4'>
               <div className='mb-2 flex items-center gap-2.5'>
                 <span className='relative flex size-2' aria-hidden='true'>
-                  <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75' />
+                  <span className='absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75' />
                   <span className='relative inline-flex size-2 rounded-full bg-emerald-500' />
                 </span>
                 <h2

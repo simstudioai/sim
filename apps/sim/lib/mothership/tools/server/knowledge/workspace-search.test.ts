@@ -155,24 +155,6 @@ describe('Assistant retrieval tools', () => {
       })
     })
   }
-  it.each([{ startDate: '2026-09-01T00:00:00Z' }, { sortBy: 'newest' }, { sortBy: 'oldest' }])(
-    'returns actionable validation for empty Notion native queries with %j',
-    async (bound) => {
-      const result = await searchWorkspaceServerTool.execute(
-        {
-          ...bound,
-          query: 'fallback terms',
-          nativeQueries: [{ provider: 'notion', query: ' \t ' }],
-        },
-        { ...context, assistantSearch: undefined }
-      )
-      expect(result).toMatchObject({
-        success: false,
-        message: 'Notion requires search terms. Add keywords or a concise question.',
-      })
-      expect(result).not.toHaveProperty('data')
-    }
-  )
   it.each([
     { provider: 'slack', kind: 'meeting' },
     { provider: 'google_drive', kind: 'transcript' },

@@ -297,7 +297,7 @@ function isQuotedGitPath(path: string): boolean {
  * the net guard alone let the reported `diff` grow to megabytes across rounds.
  */
 function capDiff(text: string): string {
-  return text.length > MAX_DIFF_BYTES ? `${text.slice(0, MAX_DIFF_BYTES)}\n[diff truncated]` : text
+  return truncate(text, MAX_DIFF_BYTES, '\n[diff truncated]')
 }
 
 function mergeRoundTotals(total: PiRunTotals, round: PiRunTotals): void {
