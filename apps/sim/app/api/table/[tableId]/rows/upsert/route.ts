@@ -25,7 +25,7 @@ export const POST = defineInternalJsonRoute({
   errorPolicy: internalTableRowsErrorPolicy,
   mapInput: ({ params, body }, { principal, request }) => ({
     tableId: params.tableId,
-    assertedWorkspaceId: body.workspaceId,
+    assertedWorkspaceId: principal.kind === 'delegated' ? principal.workspaceId : body.workspaceId,
     data: body.data as RowData,
     dataKeying: rowKeyingForPrincipal(principal),
     strictWrite: false,

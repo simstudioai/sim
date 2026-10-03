@@ -57,7 +57,7 @@ export const updateContactPointTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'JSON object of receiver settings for this type, e.g. {"url":"https://hooks.slack.com/..."} for slack',
+        'JSON object of receiver settings for this type, e.g. { "url": "https://hooks.slack.com/..." } for slack',
     },
     disableResolveMessage: {
       type: 'boolean',

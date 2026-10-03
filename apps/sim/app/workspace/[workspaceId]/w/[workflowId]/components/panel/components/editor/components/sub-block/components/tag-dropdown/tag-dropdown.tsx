@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import {
   cn,
+  OverflowText,
   Popover,
   PopoverAnchor,
   PopoverContent,
@@ -11,6 +12,7 @@ import {
   PopoverSection,
   usePopoverContext,
 } from '@sim/emcn'
+import { ChevronLeft } from '@sim/emcn/icons'
 import {
   getEffectiveBlockOutputType,
   getOutputPathsFromSchema,
@@ -29,7 +31,7 @@ import { useWorkflowReferenceScope } from '@/app/workspace/[workspaceId]/w/[work
 import { getBlock } from '@/blocks'
 import { BlockTile } from '@/blocks/block-tile'
 import type { BlockConfig } from '@/blocks/types'
-import { normalizeName } from '@/executor/constants'
+import { isHumanInTheLoopBlock, normalizeName } from '@/executor/constants'
 import type { Variable } from '@/stores/variables/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
@@ -79,7 +81,7 @@ interface TagDropdownProps {
   /** Callback when the dropdown should close */
   onClose?: () => void
   /** Custom styles for positioning */
-  style?: React.CSSProperties
+  style?: Pick<React.CSSProperties, 'top' | 'left' | 'zIndex'>
   /** Reference to the input element for caret positioning */
   inputRef?: React.RefObject<HTMLTextAreaElement | HTMLInputElement | null>
 }
@@ -381,7 +383,7 @@ interface NestedTagRendererProps {
   selectedIndex: number
   setSelectedIndex: (index: number) => void
   handleTagSelect: (tag: string, blockGroup?: BlockTagGroup) => void
-  itemRefs: React.RefObject<Map<string, HTMLElement>>
+  itemRefs: Map<string, HTMLElement>
   blocks: Record<string, BlockState>
   getMergedSubBlocks: (blockId: string) => Record<string, any>
 }
@@ -438,11 +440,11 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
           }}
           ref={(el) => {
             if (el && currentNestedTag.parentTag) {
-              itemRefs.current?.set(currentNestedTag.parentTag, el)
+              itemRefs.set(currentNestedTag.parentTag, el)
             }
           }}
         >
-          <span className='flex-1 truncate'>{currentNestedTag.display}</span>
+          <OverflowText label={currentNestedTag.display} className='flex-1' />
         </PopoverItem>
       )}
 
@@ -478,11 +480,11 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
             }}
             ref={(el) => {
               if (el) {
-                itemRefs.current?.set(child.fullTag, el)
+                itemRefs.set(child.fullTag, el)
               }
             }}
           >
-            <span className='flex-1 truncate'>{child.display}</span>
+            <OverflowText label={child.display} className='flex-1' />
             {childType && childType !== 'any' && (
               <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>
                 {childType}
@@ -514,11 +516,11 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
             }}
             ref={(el) => {
               if (el && nestedChild.parentTag) {
-                itemRefs.current?.set(nestedChild.parentTag, el)
+                itemRefs.set(nestedChild.parentTag, el)
               }
             }}
           >
-            <span className='flex-1 truncate'>{nestedChild.display}</span>
+            <OverflowText label={nestedChild.display} className='flex-1' />
             <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>{'>'}</span>
           </PopoverItem>
         )
@@ -602,7 +604,7 @@ const NestedTagRenderer: React.FC<NestedTagRendererProps> = ({
         }}
         ref={(el) => {
           if (el && nestedTag.parentTag) {
-            itemRefs.current?.set(nestedTag.parentTag, el)
+            itemRefs.set(nestedTag.parentTag, el)
           }
         }}
       >
@@ -669,11 +671,11 @@ const NestedTagRenderer: React.FC<NestedTagRendererProps> = ({
       }}
       ref={(el) => {
         if (el && nestedTag.fullTag) {
-          itemRefs.current?.set(nestedTag.fullTag, el)
+          itemRefs.set(nestedTag.fullTag, el)
         }
       }}
     >
-      <span className='flex-1 truncate'>{nestedTag.display}</span>
+      <OverflowText label={nestedTag.display} className='flex-1' />
       {tagDescription && tagDescription !== 'any' && (
         <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>
           {tagDescription}
@@ -711,7 +713,7 @@ const VariableTagItem: React.FC<{
   selectedIndex: number
   setSelectedIndex: (index: number) => void
   handleTagSelect: (tag: string) => void
-  itemRefs: React.RefObject<Map<string, HTMLElement>>
+  itemRefs: Map<string, HTMLElement>
   variableInfo: { type: string; id: string } | null
 }> = ({
   tag,
@@ -737,13 +739,16 @@ const VariableTagItem: React.FC<{
       }}
       ref={(el) => {
         if (el) {
-          itemRefs.current?.set(tag, el)
+          itemRefs.set(tag, el)
         }
       }}
     >
-      <span className='flex-1 truncate'>
-        {tag.startsWith(TAG_PREFIXES.VARIABLE) ? tag.substring(TAG_PREFIXES.VARIABLE.length) : tag}
-      </span>
+      <OverflowText
+        label={
+          tag.startsWith(TAG_PREFIXES.VARIABLE) ? tag.substring(TAG_PREFIXES.VARIABLE.length) : tag
+        }
+        className='flex-1'
+      />
       {variableInfo && (
         <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>
           {variableInfo.type}
@@ -762,7 +767,7 @@ const BlockRootTagItem: React.FC<{
   selectedIndex: number
   setSelectedIndex: (index: number) => void
   handleTagSelect: (tag: string, group?: BlockTagGroup) => void
-  itemRefs: React.RefObject<Map<string, HTMLElement>>
+  itemRefs: Map<string, HTMLElement>
   group: BlockTagGroup
   blockType: string
   blockName: string
@@ -791,7 +796,7 @@ const BlockRootTagItem: React.FC<{
       }}
       ref={(el) => {
         if (el) {
-          itemRefs.current?.set(rootTag, el)
+          itemRefs.set(rootTag, el)
         }
       }}
     >
@@ -800,7 +805,7 @@ const BlockRootTagItem: React.FC<{
         fallbackLabel={blockName.charAt(0).toUpperCase()}
         size='sm'
       />
-      <span className='flex-1 truncate'>{blockName}</span>
+      <OverflowText label={blockName} className='flex-1' />
     </PopoverItem>
   )
 }
@@ -858,14 +863,7 @@ const TagDropdownBackButton: React.FC<{ setSelectedIndex: (index: number) => voi
       }}
       onMouseEnter={handleMouseEnter}
     >
-      <svg
-        className={cn('shrink-0', size === 'sm' ? 'size-3' : 'h-3.5 w-3.5')}
-        fill='none'
-        viewBox='0 0 24 24'
-        stroke='currentColor'
-      >
-        <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M15 19l-7-7 7-7' />
-      </svg>
+      <ChevronLeft className={cn('shrink-0', size === 'sm' ? 'size-3' : 'size-3.5')} />
       <span className='shrink-0'>Back</span>
     </PopoverItem>
   )
@@ -906,7 +904,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   inputRef,
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0)
-  const itemRefs = useRef<Map<string, HTMLElement>>(new Map())
+  const itemElementsRef = useRef<Map<string, HTMLElement> | null>(null)
+  const itemRefs = (itemElementsRef.current ??= new Map())
 
   const [nestedPath, setNestedPath] = useState<NestedTag[]>([])
   const baseFolderRef = useRef<{
@@ -1204,8 +1203,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       if (!accessibleBlock) continue
 
       // Skip the current block - blocks cannot reference their own outputs
-      // Exception: human_in_the_loop blocks can reference their own outputs (url, resumeEndpoint)
-      if (accessibleBlockId === blockId && accessibleBlock.type !== 'human_in_the_loop') continue
+      // Exception: Human blocks can reference their own outputs (url, resumeEndpoint)
+      if (accessibleBlockId === blockId && !isHumanInTheLoopBlock(accessibleBlock.type)) continue
 
       const blockConfig = getBlock(accessibleBlock.type)
 
@@ -1618,7 +1617,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           <div
             className={cn('pointer-events-none', className)}
             style={{
-              ...style,
+              zIndex: style?.zIndex,
               position: inputElement ? 'fixed' : 'absolute',
               top: inputElement ? `${caretViewport.top}px` : style?.top,
               left: inputElement ? `${caretViewport.left}px` : style?.left,

@@ -1,0 +1,44 @@
+import { createSerializer, parseAsString, parseAsStringLiteral } from 'nuqs/server'
+
+const SEARCH_SETUP_SOURCES = [
+  'coda',
+  'confluence',
+  'github',
+  'gitlab',
+  'gmail',
+  'google_calendar',
+  'google_drive',
+  'jira',
+  'slack',
+] as const
+
+/** Null closes setup; an empty value opens the picker, and a source type resumes its form. */
+export const searchSetupParam = {
+  key: 'addConnector',
+  parser: parseAsStringLiteral(['', ...SEARCH_SETUP_SOURCES]),
+} as const
+
+/** An explicit member-source action survives OAuth; ordinary organization setup is central. */
+export const searchSetupAccessParam = {
+  key: 'source-access',
+  parser: parseAsStringLiteral(['members']),
+} as const
+
+export const serializeSearchSetup = createSerializer({
+  [searchSetupParam.key]: searchSetupParam.parser,
+  [searchSetupAccessParam.key]: searchSetupAccessParam.parser,
+})
+
+/** Null closes the source management panel. */
+export const managedSourceParam = {
+  key: 'manage-source',
+  parser: parseAsString,
+} as const
+
+/** A setup detour carries intent, never an arbitrary redirect URL. */
+export const searchSetupReturnParam = {
+  key: 'search-setup',
+  parser: parseAsStringLiteral([...SEARCH_SETUP_SOURCES, 'search']),
+} as const
+
+export type SearchSetupSource = NonNullable<ReturnType<typeof searchSetupParam.parser.parse>>

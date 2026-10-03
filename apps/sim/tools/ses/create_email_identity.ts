@@ -2,9 +2,9 @@ import type {
   SESCreateEmailIdentityParams,
   SESCreateEmailIdentityResponse,
 } from '@/tools/ses/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createEmailIdentityTool: ToolConfig<
+export const createEmailIdentityTool: InternalToolConfig<
   SESCreateEmailIdentityParams,
   SESCreateEmailIdentityResponse
 > = {
@@ -59,11 +59,8 @@ export const createEmailIdentityTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/ses/create-email-identity',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

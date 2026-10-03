@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type {
   VercelPromoteDeploymentParams,
   VercelPromoteDeploymentResponse,
@@ -52,7 +53,7 @@ export const vercelPromoteDeploymentTool: ToolConfig<
       if (params.teamId) query.set('teamId', params.teamId.trim())
       if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
-      return `https://api.vercel.com/v10/projects/${params.projectId.trim()}/promote/${params.deploymentId.trim()}${qs ? `?${qs}` : ''}`
+      return `https://api.vercel.com/v10/projects/${safeUrlPathSegment(params.projectId, 'projectId')}/promote/${safeUrlPathSegment(params.deploymentId, 'deploymentId')}${qs ? `?${qs}` : ''}`
     },
     method: 'POST',
     headers: (params: VercelPromoteDeploymentParams) => ({

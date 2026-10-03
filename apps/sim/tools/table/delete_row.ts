@@ -1,19 +1,16 @@
+import { TABLE_ID_PARAM } from '@/tools/table/params'
+import { tableSuccess } from '@/tools/table/response'
 import type { TableDeleteResponse, TableRowDeleteParams } from '@/tools/table/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const tableDeleteRowTool: ToolConfig<TableRowDeleteParams, TableDeleteResponse> = {
+export const tableDeleteRowTool: InternalToolConfig<TableRowDeleteParams, TableDeleteResponse> = {
   id: 'table_delete_row',
   name: 'Delete Row',
   description: 'Delete a row from a table',
   version: '1.0.0',
 
   params: {
-    tableId: {
-      type: 'string',
-      required: true,
-      description: 'Table ID',
-      visibility: 'user-only',
-    },
+    tableId: TABLE_ID_PARAM,
     rowId: {
       type: 'string',
       required: true,
@@ -22,22 +19,16 @@ export const tableDeleteRowTool: ToolConfig<TableRowDeleteParams, TableDeleteRes
     },
   },
 
-  request: {
-    internal: true,
-    internalAuth: 'executor_delegation',
-    url: (params: TableRowDeleteParams) =>
-      `/api/table/${encodeURIComponent(params.tableId)}/rows/${encodeURIComponent(params.rowId)}`,
-    method: 'DELETE',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: TableRowDeleteParams) => {
+  operation: {
+    input: (params: TableRowDeleteParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
         throw new Error('Workspace ID is required in execution context')
       }
 
       return {
+        tableId: params.tableId,
+        rowId: params.rowId,
         workspaceId,
       }
     },
@@ -47,13 +38,10 @@ export const tableDeleteRowTool: ToolConfig<TableRowDeleteParams, TableDeleteRes
     const result = await response.json()
     const data = result.data || result
 
-    return {
-      success: true,
-      output: {
-        deletedCount: data.deletedCount,
-        message: data.message || 'Row deleted successfully',
-      },
-    }
+    return tableSuccess({
+      deletedCount: data.deletedCount,
+      message: data.message || 'Row deleted successfully',
+    })
   },
 
   outputs: {

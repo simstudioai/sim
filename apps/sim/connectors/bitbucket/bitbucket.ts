@@ -1,10 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { decodeTextBuffer } from '@/lib/file-parsers/utils'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { bitbucketConnectorMeta } from '@/connectors/bitbucket/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
   CONNECTOR_MAX_FILE_BYTES,
+  ConnectorListingScopeUnavailableError,
+  isListingScopeUnavailableError,
   markSkipped,
   parseTagDate,
   readBodyWithLimit,
@@ -79,7 +83,6 @@ const BINARY_SNIFF_BYTES = 8000
  */
 const MAX_TREE_DEPTH = 5
 const BINARY_SKIP_REASON = 'Binary file was not indexed'
-const NON_UTF8_SKIP_REASON = 'Non-UTF-8 file was not indexed'
 /**
  * Bitbucket answers a raw read of an LFS-managed file with a 301 to Atlassian's
  * media services platform. The connector deliberately surfaces the file as
@@ -223,12 +226,15 @@ function readSlug(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-/** Reads an optional positive, finite integer document cap. */
+/**
+ * Reads the optional document cap: a positive, finite integer, or 0 for
+ * unlimited, which is also how a members-mode sync clears the cap.
+ */
 function readMaxItems(value: unknown): number {
   if (value === undefined || value === null) return 0
   if (typeof value === 'string' && !value.trim()) return 0
   const parsed = Number(value)
-  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
     throw new Error('Max items must be a positive integer')
   }
   return parsed
@@ -520,6 +526,18 @@ function pullRequestToDocument(
  * Fetches the repository record, used to resolve the canonical full name, the web
  * UI base URL, and the default branch — and to confirm access during validation.
  */
+/**
+ * The error a request against the configured repository throws: scope-unavailable
+ * when Bitbucket says the repository does not exist for this caller (404) or
+ * refuses them (403), a plain error for anything else.
+ */
+function repositoryRequestError(message: string, status: number): Error {
+  const described = `${message}: ${status}`
+  return status === 403 || status === 404
+    ? new ConnectorListingScopeUnavailableError(described, status)
+    : new Error(described)
+}
+
 async function fetchRepository(
   workspaceSlug: string,
   repoSlug: string,
@@ -553,8 +571,9 @@ async function resolveRepository(
 
   const response = await fetchRepository(workspaceSlug, repoSlug, accessToken)
   if (!response.ok) {
-    throw new Error(
-      `Cannot access Bitbucket repository ${workspaceSlug}/${repoSlug}: ${response.status}`
+    throw repositoryRequestError(
+      `Cannot access Bitbucket repository ${workspaceSlug}/${repoSlug}`,
+      response.status
     )
   }
 
@@ -807,6 +826,8 @@ function applyMaxItemsCap(
 
 export const bitbucketConnector: ConnectorConfig = {
   ...bitbucketConnectorMeta,
+
+  isListingScopeUnavailableError: isListingScopeUnavailableError,
 
   listDocuments: async (
     accessToken: string,
@@ -1097,7 +1118,7 @@ export const bitbucketConnector: ConnectorConfig = {
         status: response.status,
         error: errorText.slice(0, 500),
       })
-      throw new Error(`Failed to list Bitbucket pull requests: ${response.status}`)
+      throw repositoryRequestError('Failed to list Bitbucket pull requests', response.status)
     }
 
     const page = parsePagedResponse<BitbucketPullRequest>(
@@ -1220,13 +1241,7 @@ export const bitbucketConnector: ConnectorConfig = {
         return markSkipped(stub, BINARY_SKIP_REASON)
       }
 
-      let text: string
-      try {
-        text = new TextDecoder('utf-8', { fatal: true }).decode(buffer)
-      } catch {
-        logger.info('Skipping non-UTF-8 Bitbucket file', { path })
-        return markSkipped(stub, NON_UTF8_SKIP_REASON)
-      }
+      const text = decodeTextBuffer(buffer).text
 
       const body = composeBody(stub.title, text)
       if (!body.trim()) return null

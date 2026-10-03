@@ -1,7 +1,7 @@
 import type { GoogleVaultDownloadExportFileParams } from '@/tools/google_vault/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const downloadExportFileTool: ToolConfig<GoogleVaultDownloadExportFileParams> = {
+export const downloadExportFileTool: InternalToolConfig<GoogleVaultDownloadExportFileParams> = {
   id: 'google_vault_download_export_file',
   name: 'Vault Download Export File',
   description: 'Download a single file from a Google Vault export (GCS object)',
@@ -45,13 +45,8 @@ export const downloadExportFileTool: ToolConfig<GoogleVaultDownloadExportFilePar
     },
   },
 
-  request: {
-    url: '/api/tools/google_vault/download-export-file',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       matterId: params.matterId,
       bucketName: params.bucketName,

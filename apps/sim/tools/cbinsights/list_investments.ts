@@ -1,20 +1,13 @@
 import type { CbInsightsListResponse, CbInsightsOrgListParams } from '@/tools/cbinsights/types'
-import {
-  asArray,
-  cbInsightsRequest,
-  clampLimit,
-  compactBody,
-  pageInfo,
-  requireOrgIds,
-} from '@/tools/cbinsights/utils'
-import type { ToolConfig } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
-interface CbInsightsListInvestmentsParams extends CbInsightsOrgListParams {
+export interface CbInsightsListInvestmentsParams extends CbInsightsOrgListParams {
   limit?: number | string
   nextPageToken?: string
 }
 
-export const cbinsightsListInvestmentsTool: ToolConfig<
+export const cbinsightsListInvestmentsTool: InternalToolConfig<
   CbInsightsListInvestmentsParams,
   CbInsightsListResponse
 > = {
@@ -57,27 +50,9 @@ export const cbinsightsListInvestmentsTool: ToolConfig<
     },
   },
 
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-
-  directExecution: async (params, signal) =>
-    cbInsightsRequest<{
-      orgs?: unknown
-      nextPageToken?: unknown
-      totalHits?: unknown
-      totalHitsRelation?: unknown
-    }>(
-      params,
-      {
-        path: '/v2/financialtransactions/investments',
-        body: compactBody({
-          orgIds: requireOrgIds(params.orgIds),
-          limit: clampLimit(params.limit),
-          nextPageToken: params.nextPageToken?.trim(),
-        }),
-      },
-      (data) => ({ orgs: asArray(data.orgs), ...pageInfo(data) }),
-      signal
-    ),
+  operation: {
+    input: createInternalToolOperationInput,
+  },
 
   outputs: {
     orgs: {

@@ -1,20 +1,17 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
-import { guardrailsValidateContract } from '@/lib/api/contracts/hotspots'
+import { guardrailsValidationInputSchema } from '@/lib/internal/guardrails/input'
 import { guardrailsValidateTool } from '@/tools/guardrails/validate'
 
 // The block layer serializes an empty checkbox / table subBlock to `null`; the
 // tool's body builder must produce a shape the contract accepts (undefined, not null).
 const buildBody = (params: Record<string, unknown>) =>
-  guardrailsValidateTool.request.body?.(params as never) as Record<string, unknown>
+  guardrailsValidateTool.operation.input(params as never) as Record<string, unknown>
 
-describe('guardrailsValidateTool.request.body', () => {
+describe('guardrailsValidateTool.operation.input', () => {
   it('coerces a null entity-type checkbox to omitted, and the contract accepts it', () => {
     const body = buildBody({ input: 'x', validationType: 'pii', piiEntityTypes: null })
     expect(body.piiEntityTypes).toBeUndefined()
-    expect(guardrailsValidateContract.body.safeParse(body).success).toBe(true)
+    expect(guardrailsValidationInputSchema.safeParse(body).success).toBe(true)
   })
 
   it('passes a real entity-type array through unchanged', () => {
@@ -38,7 +35,7 @@ describe('guardrailsValidateTool.request.body', () => {
     expect(body.piiCustomPatterns).toEqual([
       { name: 'Emp', regex: 'EMP-\\d{6}', replacement: 'EMPLOYEE_ID' },
     ])
-    expect(guardrailsValidateContract.body.safeParse(body).success).toBe(true)
+    expect(guardrailsValidationInputSchema.safeParse(body).success).toBe(true)
   })
 
   it('omits custom patterns when the table is empty/null', () => {
@@ -52,7 +49,7 @@ describe('guardrailsValidateTool.request.body', () => {
   })
 
   it('regression guard: the contract rejects the raw null the block emits (why we coerce)', () => {
-    const parsed = guardrailsValidateContract.body.safeParse({
+    const parsed = guardrailsValidationInputSchema.safeParse({
       input: 'x',
       validationType: 'pii',
       piiEntityTypes: null,
@@ -61,9 +58,9 @@ describe('guardrailsValidateTool.request.body', () => {
   })
 })
 
-describe('guardrailsValidateTool.request.modelInput', () => {
-  it('delegates only hallucination input provenance to the authenticated guardrails route', () => {
-    const modelInput = guardrailsValidateTool.request.modelInput
+describe('guardrailsValidateTool.operation.modelInput', () => {
+  it('delegates only hallucination input provenance to the authenticated operation', () => {
+    const modelInput = guardrailsValidateTool.operation.modelInput
     expect(modelInput?.mode).toBe('private-provenance')
     if (modelInput?.mode !== 'private-provenance') throw new Error('Unexpected model input mode')
 

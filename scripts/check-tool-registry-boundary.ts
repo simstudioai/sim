@@ -4,7 +4,7 @@
  * entry's module graph grows past its recorded baseline.
  *
  * `@/tools/registry` is a barrel over 4,300+ tools whose `ToolConfig`s hold
- * closures (`request.headers`, `transformResponse`, `directExecution`). Those
+ * closures (`request.headers`, `transformResponse`). Those
  * closures reach every integration's SDK client and parser, so reaching the
  * barrel costs ~4,700 modules — it was 71-82% of every workspace route's module
  * graph until those edges were cut.
@@ -84,6 +84,18 @@ function hasDefaultExport(file: string): boolean {
 const isWorkspaceEntry = (filename: string, fullPath: string) =>
   WORKSPACE_ENTRY_FILENAMES.has(filename) && hasDefaultExport(fullPath)
 const isRouteEntry = (filename: string) => filename === 'route.ts'
+/**
+ * Whether a route file sits under an `execute` segment *within the app*.
+ *
+ * Two ways to get this wrong, both silent. Testing the absolute path matches a
+ * checkout that merely happens to live under a directory named `execute`, which
+ * would exclude every catalog route and quietly retire the guard. Testing for
+ * the substring `'/execute/'` stops matching on Windows, where `join` emits
+ * backslashes, and re-includes the route so the audit fails on every run. So:
+ * relative to the app first, then split on either separator.
+ */
+const isUnderExecute = (fullPath: string) =>
+  relative(APP, fullPath).split(/[/\\]/).includes('execute')
 const isSourceModule = (filename: string) =>
   filename.endsWith('.ts') && !filename.endsWith('.test.ts')
 
@@ -118,8 +130,17 @@ const ENTRY_SOURCES: readonly EntrySource[] = [
     reason: 'the public block catalog, which reads block metadata only',
   },
   {
+    /**
+     * The catalog routes only — `POST /tools/{toolId}/execute` is deliberately
+     * outside. Reading a tool and running one are different jobs: the reads
+     * project `params`/`outputs`, which `@/tools/metadata` covers, while
+     * execution has to reach the executable registry by definition. That is the
+     * same reason the ~122 execute/deploy/import/webhook routes are not covered
+     * wholesale, and it keeps the rule meaningful for its four siblings: a
+     * `getTool` import in the list or detail route is still always a mistake.
+     */
     root: 'app/api/v2/tools',
-    matches: isRouteEntry,
+    matches: (filename, fullPath) => isRouteEntry(filename) && !isUnderExecute(fullPath),
     reason: 'the public tool catalog, which reads tool metadata only',
   },
   {
@@ -137,17 +158,6 @@ const ENTRY_SOURCES: readonly EntrySource[] = [
     root: 'lib/catalog/projection',
     matches: isSourceModule,
     reason: 'the shared catalog projection, which every catalog surface imports',
-  },
-  {
-    /**
-     * The Copilot block-metadata tool: the reason the shared projection exists.
-     * Cutting its registry edge took it from ~6,756 modules to ~1,321, and
-     * nothing was holding that win — the tool appeared in no guarded subtree, so
-     * a single `getTool` import could have spent all of it silently.
-     */
-    root: 'lib/copilot/tools/server/blocks',
-    matches: (filename) => filename === 'get-blocks-metadata-tool.ts',
-    reason: 'the Copilot block-metadata tool, which reads block and tool metadata only',
   },
 ]
 

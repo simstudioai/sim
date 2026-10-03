@@ -1,9 +1,6 @@
-/**
- * @vitest-environment node
- */
 import { document, documentSecretProvenance } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
 import { updateDocument } from '@/lib/knowledge/documents/service'
 import {
@@ -54,7 +51,6 @@ const CURRENT_DOCUMENT = {
 
 describe('knowledge document provenance updates', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

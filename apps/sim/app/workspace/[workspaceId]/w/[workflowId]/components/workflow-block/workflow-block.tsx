@@ -23,12 +23,17 @@ import {
   WorkflowBlockView,
 } from '@sim/workflow-renderer'
 import { wouldCreateCycle } from '@sim/workflow-types/workflow'
+import {
+  type Node,
+  type NodeProps,
+  useStore as useReactFlowStore,
+  useUpdateNodeInternals,
+} from '@xyflow/react'
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { type NodeProps, useStore as useReactFlowStore, useUpdateNodeInternals } from 'reactflow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
-import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { createMcpToolId } from '@/lib/mcp/shared'
 import { sendMothershipMessage } from '@/lib/mothership/events'
@@ -56,7 +61,9 @@ import {
   getDisplayValue,
   hasDisplayableRowValue,
   resolveDropdownLabel,
+  resolveFallbackModelsLabel,
   resolveFilterFieldLabel,
+  resolveFolderPathLabel,
   resolveSandboxLabel,
   resolveSkillsLabel,
   resolveToolsLabel,
@@ -103,7 +110,7 @@ import { useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import { useCustomTools } from '@/hooks/queries/custom-tools'
 import { useDeployWorkflow } from '@/hooks/queries/deployments'
 import { useDynamicSubBlockOptionDisplayName } from '@/hooks/queries/dynamic-subblock-options'
-import { useMcpServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
+import { useMcpToolServers, useMcpToolsQuery } from '@/hooks/queries/mcp'
 import { useCredentialName } from '@/hooks/queries/oauth/oauth-credentials'
 import { useSandboxes } from '@/hooks/queries/sandboxes'
 import { useReactivateSchedule, useScheduleInfo } from '@/hooks/queries/schedules'
@@ -152,6 +159,7 @@ const SUBBLOCK_META_ICONS_BY_TYPE: Record<string, MetaIcon> = {
   'messages-input': MessageSquareText,
   'tool-input': Wrench,
   'skill-input': Sparkles,
+  'model-fallback-list': ArrowLeftRight,
   'oauth-input': Key,
   switch: ToggleLeft,
   'file-upload': Paperclip,
@@ -465,7 +473,7 @@ const SubBlockRow = memo(function SubBlockRow({
     )
   }, [workflowMapForLookup, workflowMapLoaded, workflowMapIsPlaceholder, subBlock, rawValue])
 
-  const { data: mcpServers = [] } = useMcpServers(workspaceId || '')
+  const { data: mcpServers = [] } = useMcpToolServers(workspaceId || '')
   const mcpServerDisplayName = useMemo(() => {
     if (subBlock?.type !== 'mcp-server-selector' || typeof rawValue !== 'string') {
       return null
@@ -490,8 +498,10 @@ const SubBlockRow = memo(function SubBlockRow({
     if (subBlock?.type !== 'mcp-tool-selector' || typeof rawValue !== 'string') {
       return null
     }
-    return mcpToolNamesById.get(rawValue) ?? null
-  }, [subBlock?.type, rawValue, mcpToolNamesById])
+    return subBlock.canonicalParamId === 'tool'
+      ? rawValue
+      : (mcpToolNamesById.get(rawValue) ?? null)
+  }, [subBlock?.type, subBlock?.canonicalParamId, rawValue, mcpToolNamesById])
 
   const { data: tables = [] } = useTablesList(workspaceId || '')
   const tableDisplayName = useMemo(() => {
@@ -566,6 +576,11 @@ const SubBlockRow = memo(function SubBlockRow({
     [subBlock, rawValue, workspaceSkills]
   )
 
+  const fallbackModelsDisplayValue = useMemo(
+    () => resolveFallbackModelsLabel(subBlock, rawValue),
+    [subBlock, rawValue]
+  )
+
   /**
    * Hydrates the Function block's sandbox id to its name. Deliberately scoped to
    * the sandbox row: this row is memoized per subblock, and the shared list query
@@ -577,6 +592,11 @@ const SubBlockRow = memo(function SubBlockRow({
   const sandboxDisplayValue = useMemo(
     () => resolveSandboxLabel(subBlock, rawValue, sandboxData?.sandboxes ?? []),
     [subBlock, rawValue, sandboxData]
+  )
+
+  const folderPathDisplayValue = useMemo(
+    () => resolveFolderPathLabel(subBlock, rawValue),
+    [subBlock, rawValue]
   )
 
   const isPasswordField = subBlock?.password === true
@@ -592,12 +612,14 @@ const SubBlockRow = memo(function SubBlockRow({
     filterDisplayValue ||
     toolsDisplayValue ||
     skillsDisplayValue ||
+    fallbackModelsDisplayValue ||
     sandboxDisplayValue ||
     knowledgeBaseDisplayName ||
     workflowSelectionName ||
     mcpServerDisplayName ||
     mcpToolDisplayName ||
     tableDisplayName ||
+    folderPathDisplayValue ||
     webhookUrlDisplayValue ||
     selectorDisplayName
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
@@ -616,16 +638,19 @@ const SubBlockRow = memo(function SubBlockRow({
   )
 }, areSubBlockRowPropsEqual)
 
+type WorkflowBlockNode = Node<WorkflowBlockProps, 'workflowBlock'>
+
 export const WorkflowBlock = memo(function WorkflowBlock({
   id,
   data,
   selected,
-}: NodeProps<WorkflowBlockProps>) {
+}: NodeProps<WorkflowBlockNode>) {
   const { type, config, name, isPending } = data
 
   const contentRef = useRef<HTMLDivElement>(null)
 
   const params = useParams()
+  const { chatEnabled } = useDeploymentShape()
   const workspaceId = params.workspaceId as string
 
   const {
@@ -748,8 +773,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
              knob. */
           const isHighlighted = isEdgeHighlighted({
             isEndpointSelected:
-              state.nodeInternals.get(edge.source)?.selected ||
-              state.nodeInternals.get(edge.target)?.selected ||
+              state.nodeLookup.get(edge.source)?.selected ||
+              state.nodeLookup.get(edge.target)?.selected ||
               (edge.data as { isConnectedToSelection?: boolean } | undefined)
                 ?.isConnectedToSelection,
             isConnectedToEditor: isEdgeConnectedToEditor(
@@ -1171,7 +1196,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       <>
         {chipBlocks.map((subBlock, index) => (
           <Fragment key={`statement-${subBlock.id}`}>
-            {index > 0 && <span className='flex-shrink-0 text-[var(--text-muted)] text-sm'>·</span>}
+            {index > 0 && <span className='shrink-0 text-[var(--text-muted)] text-sm'>·</span>}
             <SubBlockRow
               title={getCanvasRowTitle(subBlock)}
               value={getDisplayValue(subBlockState[subBlock.id]?.value)}
@@ -1273,7 +1298,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       }}
       sunsetStatus={sunset?.status}
       sunsetTooltip={sunset?.tooltip}
-      canFixSunset={canEditWorkflow && isChatEnabled}
+      canFixSunset={canEditWorkflow && chatEnabled}
       onFixSunset={onFixSunset}
       shouldShowScheduleBadge={shouldShowScheduleBadge}
       scheduleIsDisabled={Boolean(scheduleInfo?.isDisabled)}

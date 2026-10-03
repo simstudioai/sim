@@ -1,18 +1,17 @@
-import type { ListItinerariesParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { ListItinerariesParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
+  baseSapConcurInput,
   buildListQuery,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  transformSapConcurResponse,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 /**
  * Concur Trips v1.1 serves this endpoint as XML only — there is no JSON representation.
- * The shared proxy therefore surfaces the payload as a raw XML string in `data`, which
+ * The direct operation therefore surfaces the payload as a raw XML string in `data`, which
  * downstream blocks are expected to parse.
  */
-export const listItinerariesTool: ToolConfig<ListItinerariesParams, SapConcurProxyResponse> = {
+export const listItinerariesTool: InternalToolConfig<ListItinerariesParams, SapConcurResponse> = {
   id: 'sap_concur_list_itineraries',
   name: 'SAP Concur List Trips',
   description: 'List travel trips/itineraries (GET /api/travel/trip/v1.1).',
@@ -151,11 +150,8 @@ export const listItinerariesTool: ToolConfig<ListItinerariesParams, SapConcurPro
       description: 'Include trips booked on behalf of guests. Defaults to false.',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const isPaged = params.itemsPerPage !== undefined || params.page !== undefined
       const query = buildListQuery({
         startDate: params.startDate,
@@ -174,7 +170,7 @@ export const listItinerariesTool: ToolConfig<ListItinerariesParams, SapConcurPro
         lastModifiedDate: params.lastModifiedDate,
       })
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/api/travel/trip/v1.1`,
         method: 'GET',
         accept: 'application/xml',
@@ -182,7 +178,7 @@ export const listItinerariesTool: ToolConfig<ListItinerariesParams, SapConcurPro
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

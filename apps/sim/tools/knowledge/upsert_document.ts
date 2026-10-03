@@ -6,9 +6,9 @@ import {
 } from '@/tools/knowledge/types'
 import { enrichKBTagsSchema } from '@/tools/schema-enrichers'
 import { formatDocumentTagsForAPI, parseDocumentTags } from '@/tools/shared/tags'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const knowledgeUpsertDocumentTool: ToolConfig<
+export const knowledgeUpsertDocumentTool: InternalToolConfig<
   KnowledgeUpsertDocumentParams,
   KnowledgeUpsertDocumentResponse
 > = {
@@ -59,20 +59,12 @@ export const knowledgeUpsertDocumentTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    internalAuth: 'executor_delegation',
-    url: (params) =>
-      `/api/knowledge/${encodeURIComponent(params.knowledgeBaseId)}/documents/upsert`,
-    method: 'POST',
+  operation: {
     secretProvenance: {
       request: selectKnowledgeDocumentWriteSecretProvenance,
       response: { incomplete: 'reject' },
     },
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => {
+    input: (params) => {
       const workflowId = params._context?.workflowId
       const textContent = params.content?.trim()
       const documentName = params.name?.trim()
@@ -110,6 +102,7 @@ export const knowledgeUpsertDocumentTool: ToolConfig<
       const tagData = formatDocumentTagsForAPI(parsedTags)
 
       const requestBody: Record<string, unknown> = {
+        knowledgeBaseId: params.knowledgeBaseId,
         filename,
         fileUrl: dataUri,
         fileSize: contentBytes,

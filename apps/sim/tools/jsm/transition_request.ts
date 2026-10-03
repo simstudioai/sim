@@ -1,7 +1,7 @@
 import type { JsmTransitionRequestParams, JsmTransitionRequestResponse } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmTransitionRequestTool: ToolConfig<
+export const jsmTransitionRequestTool: InternalToolConfig<
   JsmTransitionRequestParams,
   JsmTransitionRequestResponse
 > = {
@@ -54,13 +54,8 @@ export const jsmTransitionRequestTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/transition',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

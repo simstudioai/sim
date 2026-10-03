@@ -41,7 +41,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { createPortal } from 'react-dom'
 import { supportsAtomicBrowserPanelOcclusion } from '@/lib/browser-agent/transport'
-import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { getFolderPathNames } from '@/lib/folders/tree'
 import { requestMothershipNavigation, sendMothershipMessage } from '@/lib/mothership/events'
@@ -88,6 +88,7 @@ import {
   CMDK_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
+import { useWorkspaceAccessRequestFeatures } from '@/ee/access-requests/components/permission-access-boundary'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
@@ -154,6 +155,7 @@ function SearchModalContent({
 }: SearchModalContentProps) {
   const params = useParams()
   const router = useRouter()
+  const { chatEnabled } = useDeploymentShape()
   const workspaceId = params.workspaceId as string
   const currentWorkflowId = params.workflowId as string | undefined
   const inputRef = useRef<HTMLInputElement>(null)
@@ -163,6 +165,8 @@ function SearchModalContent({
   const visuallyOpen = nativeSurfaceReady
   const { navigateToSettings } = useSettingsNavigation()
   const { config: permissionConfig } = usePermissionConfig()
+  const accessRequests = useWorkspaceAccessRequestFeatures()
+  const accessRequestsEnabled = accessRequests.data?.enabled === true
   const invokeCommand = useInvokeGlobalCommand()
   const posthog = usePostHog()
 
@@ -271,7 +275,7 @@ function SearchModalContent({
           name: 'Integrations',
           icon: Integration,
           href: `/workspace/${workspaceId}/integrations`,
-          hidden: permissionConfig.hideIntegrationsTab,
+          hidden: permissionConfig.hideIntegrationsTab && !accessRequestsEnabled,
         },
         {
           id: 'skills',
@@ -285,21 +289,21 @@ function SearchModalContent({
           name: 'Tables',
           icon: Table,
           href: `/workspace/${workspaceId}/tables`,
-          hidden: permissionConfig.hideTablesTab,
+          hidden: permissionConfig.hideTablesTab && !accessRequestsEnabled,
         },
         {
           id: 'files',
           name: 'Files',
           icon: File,
           href: `/workspace/${workspaceId}/files`,
-          hidden: permissionConfig.hideFilesTab,
+          hidden: permissionConfig.hideFilesTab && !accessRequestsEnabled,
         },
         {
           id: 'knowledge-base',
           name: 'Knowledge bases',
           icon: Database,
           href: `/workspace/${workspaceId}/knowledge`,
-          hidden: permissionConfig.hideKnowledgeBaseTab,
+          hidden: permissionConfig.hideKnowledgeBaseTab && !accessRequestsEnabled,
         },
         {
           id: 'logs',
@@ -335,6 +339,7 @@ function SearchModalContent({
       permissionConfig.hideTablesTab,
       permissionConfig.hideFilesTab,
       permissionConfig.hideIntegrationsTab,
+      accessRequestsEnabled,
     ]
   )
 
@@ -391,7 +396,7 @@ function SearchModalContent({
         },
       }
     )
-    if (isChatEnabled) {
+    if (chatEnabled) {
       list.push({
         id: 'new-chat',
         name: 'New chat',
@@ -674,6 +679,7 @@ function SearchModalContent({
     workspaceId,
     canEdit,
     canAdmin,
+    chatEnabled,
     pageContext,
     onCreateWorkflow,
     onCreateFolder,
@@ -717,14 +723,19 @@ function SearchModalContent({
    * way back the ask row unmounts while cmdk still remembers it as selected,
    * so Home re-anchors the selection once the result rows are back.
    */
-  const handleSearchKeyDown = useCallback((event: ReactKeyboardEvent<HTMLInputElement>) => {
-    if (event.key !== 'Tab' || !isChatEnabled) return
-    event.preventDefault()
-    setAskMode((mode) => !mode)
-    requestAnimationFrame(() => {
-      inputRef.current?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
-    })
-  }, [])
+  const handleSearchKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLInputElement>) => {
+      if (event.key !== 'Tab' || !chatEnabled) return
+      event.preventDefault()
+      setAskMode((mode) => !mode)
+      requestAnimationFrame(() => {
+        inputRef.current?.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Home', bubbles: true })
+        )
+      })
+    },
+    [chatEnabled]
+  )
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1334,7 +1345,7 @@ function SearchModalContent({
         aria-hidden={!visuallyOpen}
         aria-label='Search'
         className={cn(
-          '-translate-x-1/2 fixed top-[15%] z-[var(--z-modal)] w-[min(500px,calc(100%-32px))] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
+          '-translate-x-1/2 fixed top-[15%] z-[var(--z-modal)] w-[min(500px,calc(100%-32px))] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] dark:bg-[var(--surface-5)]',
           visuallyOpen ? 'visible opacity-100' : 'invisible opacity-0'
         )}
         style={{
@@ -1361,7 +1372,6 @@ function SearchModalContent({
                   rows against an edge the user cannot see. */}
               <CommandFadedList
                 ref={listRef}
-                fade='palette'
                 className={cn(
                   'scrollbar-none max-h-[min(448px,calc(85dvh-26px))] [clip-path:inset(3px_round_13px)]',
                   CMDK_ITEM_GAP_CLASS,
@@ -1400,7 +1410,7 @@ function SearchModalContent({
               <CommandSearch
                 ref={inputRef}
                 surface='palette'
-                cycleResultsOnTab={!isChatEnabled}
+                cycleResultsOnTab={!chatEnabled}
                 autoFocus={!atomicBrowserOcclusion}
                 aria-label={askMode ? 'Ask Sim' : 'Search anything'}
                 value={search}
@@ -1408,8 +1418,8 @@ function SearchModalContent({
                 onKeyDown={handleSearchKeyDown}
                 placeholder={askMode ? 'Ask Sim anything...' : 'Search anything...'}
                 endAdornment={
-                  isChatEnabled ? (
-                    <span className='flex-shrink-0 whitespace-nowrap text-[var(--text-subtle)] text-xs'>
+                  chatEnabled ? (
+                    <span className='shrink-0 whitespace-nowrap text-[var(--text-subtle)] text-xs'>
                       {askMode ? '⇥ Search' : '⇥ Ask Sim'}
                     </span>
                   ) : undefined

@@ -1,0 +1,50 @@
+---
+title: Twilio SMS
+description: Send SMS messages
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="twilio_sms"
+  color="#F22F46"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+Use [Twilio SMS](https://www.twilio.com/en-us/sms) to send a text message from a workflow. Configure the Twilio credentials, sending number, recipient, and message body documented below.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Twilio into the workflow. Can send SMS messages.
+
+
+
+## Actions
+
+### Twilio Send SMS
+
+Send text messages to single or multiple recipients using the Twilio API.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `phoneNumbers` | string | Yes | Phone numbers to send the message to in E.164 format \(e.g., +15551234567\), separated by newlines |
+| `message` | string | Yes | Message to send |
+| `accountSid` | string | Yes | Twilio Account SID |
+| `authToken` | string | Yes | Twilio Auth Token |
+| `fromNumber` | string | Yes | Twilio phone number to send the message from in E.164 format \(e.g., +15551234567\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | SMS send success status |
+| `messageId` | string | Unique Twilio message identifier \(SID\) |
+| `status` | string | Message delivery status from Twilio |
+| `fromNumber` | string | Phone number message was sent from |
+| `toNumber` | string | Phone number message was sent to |
+
+

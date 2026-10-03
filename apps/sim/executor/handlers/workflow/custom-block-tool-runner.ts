@@ -1,3 +1,4 @@
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -72,6 +73,7 @@ export function buildCustomBlockExecutionContext(
     abortSignal?: AbortSignal
     resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
     executorDelegationOrigin?: ExecutorDelegationOrigin
+    principal?: WorkflowExecutionPrincipal
     /** The invoking run's in-flight block-output redaction policy. */
     piiBlockOutputRedaction?: PiiBlockOutputRedaction
   }
@@ -83,6 +85,7 @@ export function buildCustomBlockExecutionContext(
     workflowId: context.workflowId ?? 'custom-block-tool',
     workspaceId: context.workspaceId,
     userId: context.userId,
+    principal: options.principal,
     executorDelegationOrigin: options.executorDelegationOrigin,
     executionId,
     isDeployedContext: context.isDeployedContext,
@@ -110,6 +113,7 @@ export function buildCustomBlockExecutionContext(
       workflowId: context.workflowId,
       workspaceId: context.workspaceId,
       userId: context.userId,
+      principal: options.principal,
       billingAttribution: context.billingAttribution,
       executionMode: 'sync',
     },
@@ -133,6 +137,7 @@ export async function runCustomBlockTool(
   options: {
     abortSignal?: AbortSignal
     resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+    principal?: WorkflowExecutionPrincipal
   } = {}
 ): Promise<ToolResponse> {
   if (!params.blockType) {
@@ -143,6 +148,7 @@ export async function runCustomBlockTool(
     environmentVariables: {},
     abortSignal: options.abortSignal,
     resolvedSecretTraceRegistry: options.resolvedSecretTraceRegistry,
+    principal: options.principal,
   })
   const block: SerializedBlock = {
     id: generateId(),

@@ -1,3 +1,4 @@
+import { toRecord } from '@sim/utils/object'
 import type {
   JotformFormPropertiesResponse,
   JotformUpdateFormPropertiesParams,
@@ -5,7 +6,6 @@ import type {
 import {
   buildJotformHeaders,
   buildJotformUrl,
-  isRecord,
   parseJotformResponse,
   requireValue,
   toJsonObject,
@@ -47,7 +47,7 @@ export const updateFormPropertiesTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Properties to set, e.g. {"thankurl":"https://example.com/thanks","activeRedirect":"thankurl","formWidth":"650"}',
+        'Properties to set, e.g. { "thankurl": "https://example.com/thanks", "activeRedirect": "thankurl", "formWidth": "650" }',
     },
   },
 
@@ -82,7 +82,7 @@ export const updateFormPropertiesTool: ToolConfig<
     return {
       success: true,
       output: {
-        properties: isRecord(envelope.content) ? envelope.content : {},
+        properties: toRecord(envelope.content),
       },
     }
   },

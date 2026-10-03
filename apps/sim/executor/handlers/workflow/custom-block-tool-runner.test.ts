@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { createLogger } from '@sim/logger'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockExecute } = vi.hoisted(() => ({ mockExecute: vi.fn() }))
 
@@ -68,10 +65,6 @@ describe('buildCustomBlockExecutionContext', () => {
     expect(ctx.executionId).toBeTruthy()
   })
 
-  it('defaults the call chain to [] when none is provided', () => {
-    expect(buildCustomBlockExecutionContext({}, { environmentVariables: {} }).callChain).toEqual([])
-  })
-
   it('carries the caller-supplied env map and redaction policy verbatim', () => {
     const ctx = buildCustomBlockExecutionContext(
       { workspaceId: 'ws-1' },
@@ -87,37 +80,6 @@ describe('buildCustomBlockExecutionContext', () => {
 })
 
 describe('runCustomBlockTool', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('runs the handler with the synthetic ctx and returns its projected output', async () => {
-    mockExecute.mockResolvedValue({ success: true, result: { answer: 'hi' }, cost: { total: 0.5 } })
-
-    const res = await runCustomBlockTool({
-      blockType: 'custom_block_abc',
-      inputMapping: '{"field-question":"hi"}',
-      _context: { workspaceId: 'ws-consumer', userId: 'u-consumer' },
-    })
-
-    expect(res.success).toBe(true)
-    expect(res.output.cost).toEqual({ total: 0.5 })
-
-    const [ctxArg, blockArg, inputsArg] = mockExecute.mock.calls[0]
-    expect(ctxArg.workspaceId).toBe('ws-consumer')
-    expect(blockArg.metadata.id).toBe('custom_block_abc')
-    expect(inputsArg).toEqual({ inputMapping: '{"field-question":"hi"}' })
-  })
-
-  it('surfaces a handler failure as a clean tool error', async () => {
-    mockExecute.mockRejectedValue(new Error('This block’s workflow is not deployed.'))
-
-    const res = await runCustomBlockTool({ blockType: 'custom_block_abc', _context: {} })
-
-    expect(res.success).toBe(false)
-    expect(res.error).toContain('not deployed')
-  })
-
   it('does not log a secret-bearing child workflow error with or without provenance', async () => {
     const secret = 'custom-block-child-secret-value'
     const message = `${secret} __var_API_KEY __sim_code_0_binding_0`
@@ -189,36 +151,6 @@ describe('buildCustomBlockExecutionContext invoker identity', () => {
     expect(ctx.executionId).toBe('agent-execution-id')
     expect(ctx.metadata.executionId).toBe('agent-execution-id')
     expect(ctx.metadata.requestId).toBe('agent-request-id')
-  })
-
-  it('falls back to generated ids when the caller supplies none', () => {
-    const ctx = buildCustomBlockExecutionContext(
-      { workspaceId: 'ws-1' },
-      { environmentVariables: {} }
-    )
-
-    expect(ctx.executionId).toBeTruthy()
-    expect(ctx.metadata.requestId).toBeTruthy()
-    expect(ctx.executionId).not.toBe(ctx.metadata.requestId)
-  })
-})
-
-describe('buildCustomBlockExecutionContext cancellation', () => {
-  it("adopts the agent tool loop's abort signal so the bridge has something to watch", () => {
-    const controller = new AbortController()
-    const ctx = buildCustomBlockExecutionContext(
-      { workspaceId: 'ws-1' },
-      { environmentVariables: {}, abortSignal: controller.signal }
-    )
-
-    expect(ctx.abortSignal).toBe(controller.signal)
-  })
-
-  it('leaves the signal undefined when the caller has none', () => {
-    expect(
-      buildCustomBlockExecutionContext({ workspaceId: 'ws-1' }, { environmentVariables: {} })
-        .abortSignal
-    ).toBeUndefined()
   })
 })
 

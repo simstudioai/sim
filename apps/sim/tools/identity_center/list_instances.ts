@@ -2,9 +2,9 @@ import type {
   IdentityCenterListInstancesParams,
   IdentityCenterListInstancesResponse,
 } from '@/tools/identity_center/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listInstancesTool: ToolConfig<
+export const listInstancesTool: InternalToolConfig<
   IdentityCenterListInstancesParams,
   IdentityCenterListInstancesResponse
 > = {
@@ -46,11 +46,8 @@ export const listInstancesTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/identity-center/list-instances',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,
@@ -76,9 +73,35 @@ export const listInstancesTool: ToolConfig<
 
   outputs: {
     instances: {
-      type: 'json',
-      description:
-        'List of Identity Center instances with instanceArn, identityStoreId, name, status, statusReason',
+      type: 'array',
+      description: 'Identity Center instances in the region',
+      items: {
+        type: 'object',
+        properties: {
+          instanceArn: { type: 'string', description: 'ARN of the Identity Center instance' },
+          identityStoreId: {
+            type: 'string',
+            description: 'Identity Store ID backing the instance',
+          },
+          name: { type: 'string', description: 'Instance name', nullable: true },
+          status: { type: 'string', description: 'Instance status' },
+          statusReason: {
+            type: 'string',
+            description: 'Explanation when the instance is not ACTIVE',
+            nullable: true,
+          },
+          ownerAccountId: {
+            type: 'string',
+            description: 'AWS account that owns the instance',
+            nullable: true,
+          },
+          createdDate: {
+            type: 'string',
+            description: 'ISO 8601 date the instance was created',
+            nullable: true,
+          },
+        },
+      },
     },
     nextToken: {
       type: 'string',

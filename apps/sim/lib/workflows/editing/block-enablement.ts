@@ -1,20 +1,4 @@
-import type { BlockState } from '@sim/workflow-types/workflow'
-
-/** Whether a block, or any container above it, is locked against edits. */
-export function isBlockProtected(blockId: string, blocksById: Record<string, BlockState>): boolean {
-  const block = blocksById[blockId]
-  if (!block) return false
-  if (block.locked) return true
-
-  const visited = new Set<string>()
-  let parentId = block.data?.parentId
-  while (parentId && !visited.has(parentId)) {
-    visited.add(parentId)
-    if (blocksById[parentId]?.locked) return true
-    parentId = blocksById[parentId]?.data?.parentId
-  }
-  return false
-}
+import { type BlockState, isWorkflowBlockProtected } from '@sim/workflow-types/workflow'
 
 /** Whether any container above a block is disabled, which keeps the block from running. */
 export function hasDisabledAncestor(
@@ -71,10 +55,8 @@ export type BlockEnablementDecision =
  * Pure, and the single source of truth for the three protection rules — a
  * locked block or locked container cannot be toggled, a block cannot be enabled
  * while a container above it is disabled, and toggling a loop or parallel
- * cascades to its unlocked descendants. Both the dedicated
- * `workflows.blocks.set_enabled` use case and the `setBlockEnabled` slice of a
- * `workflows.operations.apply` batch call it, so the two cannot drift into
- * disagreeing about what is protected.
+ * cascades to its unlocked descendants. The `setBlockEnabled` slice of a
+ * `workflows.operations.apply` batch calls it.
  */
 export function decideBlockEnablement(
   blocks: Record<string, BlockState>,
@@ -88,7 +70,7 @@ export function decideBlockEnablement(
       refusal: { reason: 'not_found', message: `Block ${blockId} not found` },
     }
   }
-  if (isBlockProtected(blockId, blocks)) {
+  if (isWorkflowBlockProtected(blockId, blocks)) {
     return {
       outcome: 'refused',
       refusal: {
@@ -110,7 +92,7 @@ export function decideBlockEnablement(
   const affectedBlockIds = new Set<string>([blockId])
   if (targetBlock.type === 'loop' || targetBlock.type === 'parallel') {
     for (const descendantId of findDescendants(blockId, blocks)) {
-      if (!isBlockProtected(descendantId, blocks)) {
+      if (!isWorkflowBlockProtected(descendantId, blocks)) {
         affectedBlockIds.add(descendantId)
       }
     }

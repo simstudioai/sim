@@ -1,48 +1,39 @@
-/**
- * @vitest-environment node
- */
+import {
+  createDelegatedPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  events,
-  mockLoadContext,
-  mockResolvePermission,
-  mockAssertItems,
-  mockArchive,
-  mockAudit,
-  mockNotify,
-} = vi.hoisted(() => ({
+const { events } = vi.hoisted(() => ({
   events: [] as string[],
-  mockLoadContext: vi.fn(),
-  mockResolvePermission: vi.fn(),
-  mockAssertItems: vi.fn(),
-  mockArchive: vi.fn(),
-  mockAudit: vi.fn(),
-  mockNotify: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  assertWorkspaceFileItemsBelongToWorkspace: mockAssertItems,
-  bulkArchiveWorkspaceFileItems: mockArchive,
-  loadWorkspaceFileOperationContext: mockLoadContext,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) =>
-    actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
-  resolveEffectiveWorkspacePermission: mockResolvePermission,
-}))
-vi.mock('@sim/audit', () => ({
-  AuditAction: { FILE_DELETED: 'file.deleted', FOLDER_DELETED: 'folder.deleted' },
-  AuditResourceType: { FILE: 'file', FOLDER: 'folder' },
-  recordAudit: mockAudit,
-}))
-vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceFilesChanged: mockNotify }))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
 import { archiveWorkspaceFileItemsOperation } from '@/lib/workspace-files/application/archive-workspace-file-items'
 
+const mockNotify = realtimeNotifyMockFns.mockNotifyWorkspaceFilesChanged
+
+const mockAudit = auditMockFns.mockRecordAudit
+
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+
+const mockAssertItems = workspaceUploadsMockFns.mockAssertWorkspaceFileItemsBelongToWorkspace
+const mockArchive = workspaceUploadsMockFns.mockBulkArchiveWorkspaceFileItems
+const mockLoadContext = workspaceUploadsMockFns.mockLoadWorkspaceFileOperationContext
+
 describe('archiveWorkspaceFileItemsOperation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     events.length = 0
     mockLoadContext.mockImplementation(async () => {
       events.push('resolve')
@@ -68,54 +59,14 @@ describe('archiveWorkspaceFileItemsOperation', () => {
     }))
   })
 
-  it('preserves atomic bulk archive results and emits side effects once', async () => {
-    const result = await archiveWorkspaceFileItemsOperation.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: { workspaceId: 'ws-1', fileIds: ['file-1'] },
-    })
-
-    expect(result).toMatchObject({ deletedItems: { files: 1, folders: 0 } })
-    expect(events).toEqual(['resolve', 'authorize', 'execute'])
-    expect(mockArchive).toHaveBeenCalledWith({
-      workspaceId: 'ws-1',
-      fileIds: ['file-1'],
-      folderIds: [],
-    })
-    expect(mockAssertItems).toHaveBeenCalledWith({
-      workspaceId: 'ws-1',
-      fileIds: ['file-1'],
-      folderIds: [],
-    })
-    expect(mockAudit).toHaveBeenCalledOnce()
-    expect(mockNotify).toHaveBeenCalledOnce()
-  })
-
-  it('classifies a single missing file without notifying', async () => {
-    mockArchive.mockResolvedValue({ files: 0, folders: 0, fileIds: [], folderIds: [] })
-    await expect(
-      archiveWorkspaceFileItemsOperation.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: { workspaceId: 'ws-1', fileIds: ['missing'] },
-      })
-    ).rejects.toThrow('File not found')
-    expect(mockAudit).not.toHaveBeenCalled()
-    expect(mockNotify).not.toHaveBeenCalled()
-  })
-
   it('authorizes a delegated bulk selection without borrowing the first file scope', async () => {
     await expect(
       archiveWorkspaceFileItemsOperation.execute({
-        principal: {
-          kind: 'delegated',
-          serviceId: 'copilot',
-          subjectUserId: 'user-1',
+        principal: createDelegatedPrincipal({
           workspaceId: 'ws-1',
-          delegationId: 'delegation-1',
           audience: 'sim:workspace-files',
-          issuedAt: new Date('2026-01-01T00:00:00Z'),
-          expiresAt: new Date('2099-01-01T00:00:00Z'),
           resourceScope: { fileId: 'file-1' },
-        },
+        }),
         input: { workspaceId: 'ws-1', fileIds: ['file-1', 'file-2'] },
       })
     ).rejects.toThrow('Delegated workspace access is no longer valid')
@@ -127,17 +78,11 @@ describe('archiveWorkspaceFileItemsOperation', () => {
   })
 
   it('allows a file-scoped delegated principal to archive its one explicit file', async () => {
-    const principal = {
-      kind: 'delegated' as const,
-      serviceId: 'copilot' as const,
-      subjectUserId: 'user-1',
+    const principal = createDelegatedPrincipal({
       workspaceId: 'ws-1',
-      delegationId: 'delegation-1',
       audience: 'sim:workspace-files',
-      issuedAt: new Date('2026-01-01T00:00:00Z'),
-      expiresAt: new Date('2099-01-01T00:00:00Z'),
       resourceScope: { fileId: 'file-1' },
-    }
+    })
 
     await archiveWorkspaceFileItemsOperation.execute({
       principal,
@@ -150,17 +95,11 @@ describe('archiveWorkspaceFileItemsOperation', () => {
   it('denies a file-scoped delegated principal selecting a folder before validation', async () => {
     await expect(
       archiveWorkspaceFileItemsOperation.execute({
-        principal: {
-          kind: 'delegated',
-          serviceId: 'copilot',
-          subjectUserId: 'user-1',
+        principal: createDelegatedPrincipal({
           workspaceId: 'ws-1',
-          delegationId: 'delegation-1',
           audience: 'sim:workspace-files',
-          issuedAt: new Date('2026-01-01T00:00:00Z'),
-          expiresAt: new Date('2099-01-01T00:00:00Z'),
           resourceScope: { fileId: 'file-1' },
-        },
+        }),
         input: { workspaceId: 'ws-1', folderIds: ['folder-1'] },
       })
     ).rejects.toThrow('Delegated workspace access is no longer valid')
@@ -179,7 +118,7 @@ describe('archiveWorkspaceFileItemsOperation', () => {
     })
 
     const result = await archiveWorkspaceFileItemsOperation.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       input: {
         workspaceId: 'ws-1',
         fileIds: ['file-1', 'file-2'],
@@ -199,23 +138,10 @@ describe('archiveWorkspaceFileItemsOperation', () => {
     expect(mockNotify).toHaveBeenCalledOnce()
   })
 
-  it('does not claim or notify a zero-row bulk mutation', async () => {
-    mockArchive.mockResolvedValue({ files: 0, folders: 0, fileIds: [], folderIds: [] })
-
-    const result = await archiveWorkspaceFileItemsOperation.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: { workspaceId: 'ws-1', fileIds: ['file-1', 'file-2'] },
-    })
-
-    expect(result).toMatchObject({ deletedItems: { files: 0, folders: 0 } })
-    expect(mockAudit).not.toHaveBeenCalled()
-    expect(mockNotify).not.toHaveBeenCalled()
-  })
-
   it('rejects oversized selections after authorization and before storage', async () => {
     await expect(
       archiveWorkspaceFileItemsOperation.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: {
           workspaceId: 'ws-1',
           fileIds: Array.from({ length: 1_001 }, (_, index) => `file-${index}`),

@@ -11,11 +11,11 @@ import { client } from '@/lib/auth/auth-client'
 import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/draft-constants'
 import { getDesktopBridge } from '@/lib/desktop'
 import { OAUTH_PROVIDERS, type OAuthServiceConfig } from '@/lib/oauth'
+import { getPerRequestOAuthLinkScopes } from '@/lib/oauth/utils'
 
 const logger = createLogger('OAuthConnectionsQuery')
 
 export const OAUTH_CONNECTIONS_STALE_TIME = 30 * 1000
-export const OAUTH_CONNECTED_ACCOUNTS_STALE_TIME = 60 * 1000
 
 /**
  * Query key factory for OAuth connection queries.
@@ -151,6 +151,22 @@ export function useConnectOAuthService() {
 
   return useMutation({
     mutationFn: async ({ providerId, callbackURL, draftId }: ConnectServiceParams) => {
+      /**
+       * Desktop keeps the entire provider flow in the system browser so the
+       * authorization route's state cookies and callback use one cookie jar.
+       */
+      const desktopBridge = getDesktopBridge()
+      if (desktopBridge?.beginOAuthConnect) {
+        const opened = await desktopBridge.beginOAuthConnect(
+          providerId,
+          draftId ? { draftId } : undefined
+        )
+        if (!opened) {
+          throw new Error('Could not open your browser to connect this account.')
+        }
+        return { success: true }
+      }
+
       if (providerId === 'trello') {
         const returnUrl = encodeURIComponent(callbackURL)
         const draftQuery = draftId ? `&draftId=${encodeURIComponent(draftId)}` : ''
@@ -172,21 +188,14 @@ export function useConnectOAuthService() {
         return { success: true }
       }
 
-      // Desktop app: OAuth cannot run in the embedded window (Google/Microsoft
-      // block embedded user agents, and better-auth binds the flow's state to
-      // the initiating browser's cookies), so the whole flow is handed to the
-      // system browser and returns via the app's loopback. Completion arrives
-      // through onOAuthConnectComplete (see useDesktopOAuthConnectListener),
-      // which refreshes caches and shows the connected toast.
-      const desktopBridge = getDesktopBridge()
-      if (desktopBridge?.beginOAuthConnect) {
-        const opened = await desktopBridge.beginOAuthConnect(
-          providerId,
-          draftId ? { draftId } : undefined
-        )
-        if (!opened) {
-          throw new Error('Could not open your browser to connect this account.')
+      if (providerId === 'quickbooks') {
+        if (!draftId) {
+          throw new Error('QuickBooks authorization requires a credential connection draft.')
         }
+        const authorizeUrl = new URL('/api/auth/oauth2/authorize', window.location.origin)
+        authorizeUrl.searchParams.set('draftId', draftId)
+        authorizeUrl.searchParams.set('callbackURL', callbackURL)
+        window.location.href = authorizeUrl.toString()
         return { success: true }
       }
 
@@ -195,9 +204,11 @@ export function useConnectOAuthService() {
         stateCallbackUrl.searchParams.set(OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM, draftId)
       }
 
+      const scopes = getPerRequestOAuthLinkScopes(providerId)
       await client.oauth2.link({
         providerId,
         callbackURL: stateCallbackUrl.toString(),
+        ...(scopes && { scopes }),
       })
 
       return { success: true }

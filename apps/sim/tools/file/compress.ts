@@ -1,14 +1,15 @@
-import type { ToolConfig, ToolResponse, WorkflowToolExecutionContext } from '@/tools/types'
+import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 interface FileCompressParams {
   fileId?: string | string[]
   fileInput?: unknown
+  folderPaths?: string[]
+  includeSubfolders?: boolean
   archiveName?: string
   workspaceId?: string
-  _context?: WorkflowToolExecutionContext
 }
 
-export const fileCompressTool: ToolConfig<FileCompressParams, ToolResponse> = {
+export const fileCompressTool: InternalToolConfig<FileCompressParams, ToolResponse> = {
   id: 'file_compress',
   name: 'File Compress',
   description:
@@ -28,6 +29,22 @@ export const fileCompressTool: ToolConfig<FileCompressParams, ToolResponse> = {
       visibility: 'user-only',
       description: 'Selected workspace file object, or an array of file objects.',
     },
+    folderPaths: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      maxItems: 64,
+      items: { type: 'string' },
+      description:
+        'Folders whose files are included, as canonical percent-encoded paths, e.g. ["/Reports/Q3%20Results"]. Nested folders are included by default, and the folders are read at run time, so a file added later is picked up.',
+    },
+    includeSubfolders: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Whether nested folders are read too. Defaults to true; set false to take only the folders\u2019 direct files.',
+    },
     archiveName: {
       type: 'string',
       required: false,
@@ -37,16 +54,15 @@ export const fileCompressTool: ToolConfig<FileCompressParams, ToolResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/file/manage',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       operation: 'compress',
       fileId: params.fileId,
       fileInput: params.fileInput,
+      folderPaths: params.folderPaths,
+      includeSubfolders: params.includeSubfolders,
       archiveName: params.archiveName,
-      workspaceId: params.workspaceId || params._context?.workspaceId,
+      workspaceId: params.workspaceId,
     }),
   },
 
@@ -74,10 +90,9 @@ interface FileDecompressParams {
   fileId?: string
   fileInput?: unknown
   workspaceId?: string
-  _context?: WorkflowToolExecutionContext
 }
 
-export const fileDecompressTool: ToolConfig<FileDecompressParams, ToolResponse> = {
+export const fileDecompressTool: InternalToolConfig<FileDecompressParams, ToolResponse> = {
   id: 'file_decompress',
   name: 'File Decompress',
   description:
@@ -99,15 +114,12 @@ export const fileDecompressTool: ToolConfig<FileDecompressParams, ToolResponse> 
     },
   },
 
-  request: {
-    url: '/api/tools/file/manage',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       operation: 'decompress',
       fileId: params.fileId,
       fileInput: params.fileInput,
-      workspaceId: params.workspaceId || params._context?.workspaceId,
+      workspaceId: params.workspaceId,
     }),
   },
 

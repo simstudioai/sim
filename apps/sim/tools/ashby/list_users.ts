@@ -2,6 +2,7 @@ import type { AshbyUserSummary } from '@/tools/ashby/types'
 import {
   ashbyAuthHeaders,
   ashbyErrorMessage,
+  ashbyLimit,
   mapUserSummary,
   USER_SUMMARY_OUTPUT,
 } from '@/tools/ashby/utils'
@@ -12,6 +13,7 @@ interface AshbyListUsersParams {
   cursor?: string
   perPage?: number
   includeDeactivated?: boolean
+  syncToken?: string
 }
 
 interface AshbyListUsersResponse extends ToolResponse {
@@ -19,6 +21,7 @@ interface AshbyListUsersResponse extends ToolResponse {
     users: AshbyUserSummary[]
     moreDataAvailable: boolean
     nextCursor: string | null
+    nextSyncCursor: string | null
   }
 }
 
@@ -53,6 +56,12 @@ export const listUsersTool: ToolConfig<AshbyListUsersParams, AshbyListUsersRespo
       visibility: 'user-or-llm',
       description: 'When true, includes deactivated users in results (default false)',
     },
+    syncToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Opaque token from a completed prior sync run',
+    },
   },
 
   request: {
@@ -62,9 +71,11 @@ export const listUsersTool: ToolConfig<AshbyListUsersParams, AshbyListUsersRespo
     body: (params) => {
       const body: Record<string, unknown> = {}
       if (params.cursor) body.cursor = params.cursor
-      if (params.perPage) body.limit = params.perPage
+      const limit = ashbyLimit(params.perPage)
+      if (limit) body.limit = limit
       if (params.includeDeactivated !== undefined)
         body.includeDeactivated = params.includeDeactivated
+      if (params.syncToken) body.syncToken = params.syncToken
       return body
     },
   },
@@ -84,6 +95,7 @@ export const listUsersTool: ToolConfig<AshbyListUsersParams, AshbyListUsersRespo
           .filter((u: AshbyUserSummary | null): u is AshbyUserSummary => u !== null),
         moreDataAvailable: data.moreDataAvailable ?? false,
         nextCursor: data.nextCursor ?? null,
+        nextSyncCursor: data.syncToken ?? null,
       },
     }
   },
@@ -104,6 +116,11 @@ export const listUsersTool: ToolConfig<AshbyListUsersParams, AshbyListUsersRespo
     nextCursor: {
       type: 'string',
       description: 'Opaque cursor for fetching the next page',
+      optional: true,
+    },
+    nextSyncCursor: {
+      type: 'string',
+      description: 'Opaque token for the next incremental sync',
       optional: true,
     },
   },

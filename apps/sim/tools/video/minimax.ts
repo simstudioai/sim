@@ -1,8 +1,8 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import type { VideoParams, VideoResponse } from '@/tools/video/types'
 import { parseBooleanParamWithDefault } from '@/tools/video/utils'
 
-export const minimaxVideoTool: ToolConfig<VideoParams, VideoResponse> = {
+export const minimaxVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
   id: 'video_minimax',
   name: 'MiniMax Hailuo Video',
   description:
@@ -54,21 +54,12 @@ export const minimaxVideoTool: ToolConfig<VideoParams, VideoResponse> = {
     },
   },
 
-  request: {
+  operation: {
     modelInput: {
       mode: 'project',
       select: (params) => ({ prompt: params.prompt }),
     },
-    url: '/api/tools/video',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (
-      params: VideoParams & {
-        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
-      }
-    ) => ({
+    input: (params) => ({
       provider: 'minimax',
       apiKey: params.apiKey,
       model: params.model || 'hailuo-2.3',
@@ -76,9 +67,6 @@ export const minimaxVideoTool: ToolConfig<VideoParams, VideoResponse> = {
       duration: params.duration || 6,
       endpoint: params.endpoint || 'standard',
       promptOptimizer: parseBooleanParamWithDefault(params.promptOptimizer, true),
-      workspaceId: params._context?.workspaceId,
-      workflowId: params._context?.workflowId,
-      executionId: params._context?.executionId,
     }),
   },
 

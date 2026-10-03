@@ -14,6 +14,13 @@ export const googleMeetConnectorMeta: ConnectorMeta = {
     requiredScopes: ['https://www.googleapis.com/auth/meetings.space.readonly'],
   },
 
+  /**
+   * `conferenceRecords.list` returns only the conferences the caller
+   * organized, so a member's crawl never reaches a meeting they cannot read.
+   * It also omits meetings they merely attended, the same shape as Zoom's
+   * own-recordings listing.
+   */
+  permissionScopedListing: { capFieldIds: ['maxMeetings'] },
   configFields: [
     {
       id: 'maxMeetings',

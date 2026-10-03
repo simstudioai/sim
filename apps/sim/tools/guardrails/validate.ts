@@ -1,5 +1,5 @@
 import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
 /** A row from the `piiCustomPatterns` table subBlock (cells keyed by column header). */
 interface CustomPatternRow {
@@ -61,191 +61,183 @@ export interface GuardrailsValidateOutput {
     error?: string
     score?: number
     reasoning?: string
-    detectedEntities?: any[]
+    detectedEntities?: unknown[]
     maskedText?: string
   }
   error?: string
 }
 
-export const guardrailsValidateTool: ToolConfig<GuardrailsValidateInput, GuardrailsValidateOutput> =
-  {
-    id: 'guardrails_validate',
-    name: 'Guardrails Validate',
-    description:
-      'Validate content using guardrails (JSON, regex, hallucination check, or PII detection)',
-    version: '1.0.0',
+export const guardrailsValidateTool: InternalToolConfig<
+  GuardrailsValidateInput,
+  GuardrailsValidateOutput
+> = {
+  id: 'guardrails_validate',
+  name: 'Guardrails Validate',
+  description:
+    'Validate content using guardrails (JSON, regex, hallucination check, or PII detection)',
+  version: '1.0.0',
 
-    params: {
-      input: {
-        type: 'string',
-        required: true,
-        visibility: 'user-or-llm',
-        description: 'Content to validate (from wired block)',
-      },
-      validationType: {
-        type: 'string',
-        required: true,
-        visibility: 'user-only',
-        description: 'Type of validation: json, regex, hallucination, or pii',
-      },
-      regex: {
-        type: 'string',
-        required: false,
-        visibility: 'user-only',
-        description: 'Regex pattern (required for regex validation)',
-      },
-      knowledgeBaseId: {
-        type: 'string',
-        required: false,
-        visibility: 'user-only',
-        description: 'Knowledge base ID (required for hallucination check)',
-      },
-      threshold: {
-        type: 'string',
-        required: false,
-        visibility: 'user-only',
-        description: 'Confidence threshold (0-10 scale, default: 3, scores below fail)',
-      },
-      topK: {
-        type: 'string',
-        required: false,
-        visibility: 'user-only',
-        description: 'Number of chunks to retrieve from knowledge base (default: 10)',
-      },
-      model: {
-        type: 'string',
-        required: false,
-        visibility: 'user-only',
-        description: 'LLM model for confidence scoring (default: gpt-4o-mini)',
-      },
-      apiKey: {
-        type: 'string',
-        required: false,
-        visibility: 'user-only',
-        description: 'API key for LLM provider (optional if using hosted)',
-      },
-      piiEntityTypes: {
-        type: 'array',
-        required: false,
-        visibility: 'user-only',
-        description: 'PII entity types to detect (empty = detect all)',
-      },
-      piiMode: {
-        type: 'string',
-        required: false,
-        visibility: 'user-only',
-        description: 'PII action mode: block or mask (default: block)',
-      },
-      piiLanguage: {
-        type: 'string',
-        required: false,
-        visibility: 'user-only',
-        description: 'Language for PII detection (default: en)',
-      },
-      piiCustomPatterns: {
-        type: 'array',
-        required: false,
-        visibility: 'user-only',
-        description: 'Custom regex patterns to detect and replace (name, pattern, replacement)',
-      },
+  params: {
+    input: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Content to validate (from wired block)',
     },
-
-    outputs: {
-      passed: {
-        type: 'boolean',
-        description: 'Whether validation passed',
-      },
-      validationType: {
-        type: 'string',
-        description: 'Type of validation performed',
-      },
-      input: {
-        type: 'string',
-        description: 'Original input',
-      },
-      error: {
-        type: 'string',
-        description: 'Error message if validation failed',
-        optional: true,
-      },
-      score: {
-        type: 'number',
-        description:
-          'Confidence score (0-10, 0=hallucination, 10=grounded, only for hallucination check)',
-        optional: true,
-      },
-      reasoning: {
-        type: 'string',
-        description: 'Reasoning for confidence score (only for hallucination check)',
-        optional: true,
-      },
-      detectedEntities: {
-        type: 'array',
-        description: 'Detected PII entities (only for PII detection)',
-        optional: true,
-      },
-      maskedText: {
-        type: 'string',
-        description: 'Text with PII masked (only for PII detection in mask mode)',
-        optional: true,
-      },
+    validationType: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Type of validation: json, regex, hallucination, or pii',
     },
-
-    request: {
-      url: '/api/guardrails/validate',
-      method: 'POST',
-      headers: () => ({
-        'Content-Type': 'application/json',
-      }),
-      modelInput: {
-        mode: 'private-provenance',
-        inputPaths: (params: GuardrailsValidateInput) =>
-          params.validationType === 'hallucination' ? [['input']] : [],
-      },
-      body: (params: GuardrailsValidateInput) => ({
-        input: params.input,
-        validationType: params.validationType,
-        regex: params.regex,
-        knowledgeBaseId: params.knowledgeBaseId,
-        threshold: params.threshold,
-        topK: params.topK,
-        model: params.model,
-        apiKey: params.apiKey,
-        azureEndpoint: params.azureEndpoint,
-        azureApiVersion: params.azureApiVersion,
-        vertexProject: params.vertexProject,
-        vertexLocation: params.vertexLocation,
-        vertexCredential: params.vertexCredential,
-        bedrockAccessKeyId: params.bedrockAccessKeyId,
-        bedrockSecretKey: params.bedrockSecretKey,
-        bedrockRegion: params.bedrockRegion,
-        // An empty entity-type checkbox serializes to null; the contract's array
-        // field accepts undefined (omitted), not null — so coerce. This is the
-        // common shape when only custom patterns are configured.
-        piiEntityTypes: Array.isArray(params.piiEntityTypes) ? params.piiEntityTypes : undefined,
-        piiMode: params.piiMode,
-        piiLanguage: params.piiLanguage,
-        piiCustomPatterns: toCustomPatterns(params.piiCustomPatterns),
-        workflowId: params._context?.workflowId,
-        workspaceId: params._context?.workspaceId,
-      }),
+    regex: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Regex pattern (required for regex validation)',
     },
+    knowledgeBaseId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Knowledge base ID (required for hallucination check)',
+    },
+    threshold: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Confidence threshold (0-10 scale, default: 3, scores below fail)',
+    },
+    topK: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Number of chunks to retrieve from knowledge base (default: 10)',
+    },
+    model: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'LLM model for confidence scoring (default: gpt-4o-mini)',
+    },
+    apiKey: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'API key for LLM provider (optional if using hosted)',
+    },
+    piiEntityTypes: {
+      type: 'array',
+      required: false,
+      visibility: 'user-only',
+      description: 'PII entity types to detect (empty = detect all)',
+    },
+    piiMode: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'PII action mode: block or mask (default: block)',
+    },
+    piiLanguage: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Language for PII detection (default: en)',
+    },
+    piiCustomPatterns: {
+      type: 'array',
+      required: false,
+      visibility: 'user-only',
+      description: 'Custom regex patterns to detect and replace (name, pattern, replacement)',
+    },
+  },
 
-    transformResponse: async (response: Response): Promise<GuardrailsValidateOutput> => {
-      const result = await response.json()
+  outputs: {
+    passed: {
+      type: 'boolean',
+      description: 'Whether validation passed',
+    },
+    validationType: {
+      type: 'string',
+      description: 'Type of validation performed',
+    },
+    input: {
+      type: 'string',
+      description: 'Original input',
+    },
+    error: {
+      type: 'string',
+      description: 'Error message if validation failed',
+      optional: true,
+    },
+    score: {
+      type: 'number',
+      description:
+        'Confidence score (0-10, 0=hallucination, 10=grounded, only for hallucination check)',
+      optional: true,
+    },
+    reasoning: {
+      type: 'string',
+      description: 'Reasoning for confidence score (only for hallucination check)',
+      optional: true,
+    },
+    detectedEntities: {
+      type: 'array',
+      description: 'Detected PII entities (only for PII detection)',
+      optional: true,
+    },
+    maskedText: {
+      type: 'string',
+      description: 'Text with PII masked (only for PII detection in mask mode)',
+      optional: true,
+    },
+  },
 
-      if (!response.ok && !result.output) {
-        return {
-          success: true,
-          output: {
-            passed: false,
-            validationType: 'unknown',
-            input: '',
-            error: result.error || `Validation failed with status ${response.status}`,
-          },
-        }
+  operation: {
+    modelInput: {
+      mode: 'private-provenance',
+      inputPaths: (params: GuardrailsValidateInput) =>
+        params.validationType === 'hallucination' ? [['input']] : [],
+    },
+    input: (params: GuardrailsValidateInput) => ({
+      input: params.input,
+      validationType: params.validationType,
+      regex: params.regex,
+      knowledgeBaseId: params.knowledgeBaseId,
+      threshold: params.threshold,
+      topK: params.topK,
+      model: params.model,
+      apiKey: params.apiKey,
+      azureEndpoint: params.azureEndpoint,
+      azureApiVersion: params.azureApiVersion,
+      vertexProject: params.vertexProject,
+      vertexLocation: params.vertexLocation,
+      vertexCredential: params.vertexCredential,
+      bedrockAccessKeyId: params.bedrockAccessKeyId,
+      bedrockSecretKey: params.bedrockSecretKey,
+      bedrockRegion: params.bedrockRegion,
+      piiEntityTypes: Array.isArray(params.piiEntityTypes) ? params.piiEntityTypes : undefined,
+      piiMode: params.piiMode,
+      piiLanguage: params.piiLanguage,
+      piiCustomPatterns: toCustomPatterns(params.piiCustomPatterns),
+    }),
+  },
+
+  transformResponse: async (response: Response): Promise<GuardrailsValidateOutput> => {
+    const result = await response.json()
+
+    if (!response.ok && !result.output) {
+      return {
+        success: true,
+        output: {
+          passed: false,
+          validationType: 'unknown',
+          input: '',
+          error: result.error || `Validation failed with status ${response.status}`,
+        },
       }
+    }
 
-      return result
-    },
-  }
+    return result
+  },
+}

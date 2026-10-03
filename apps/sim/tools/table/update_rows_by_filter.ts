@@ -1,10 +1,12 @@
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
+import { TABLE_ID_PARAM } from '@/tools/table/params'
+import { tableSuccess } from '@/tools/table/response'
 import type { TableBulkOperationResponse, TableUpdateByFilterParams } from '@/tools/table/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const tableUpdateRowsByFilterTool: ToolConfig<
+export const tableUpdateRowsByFilterTool: InternalToolConfig<
   TableUpdateByFilterParams,
   TableBulkOperationResponse
 > = {
@@ -21,12 +23,7 @@ export const tableUpdateRowsByFilterTool: ToolConfig<
   },
 
   params: {
-    tableId: {
-      type: 'string',
-      required: true,
-      description: 'Table ID',
-      visibility: 'user-only',
-    },
+    tableId: TABLE_ID_PARAM,
     filter: {
       type: 'object',
       required: true,
@@ -48,24 +45,18 @@ export const tableUpdateRowsByFilterTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
+  operation: {
     secretProvenance: {
       request: (params) => selectTableRowSecretProvenance([params.data]),
     },
-    url: (params: TableUpdateByFilterParams) =>
-      `/api/table/${encodeURIComponent(params.tableId)}/rows`,
-    method: 'PUT',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params: TableUpdateByFilterParams) => {
+    input: (params: TableUpdateByFilterParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {
         throw new Error('Workspace ID is required in execution context')
       }
 
       return {
+        tableId: params.tableId,
         filter: params.filter,
         data: params.data,
         limit: params.limit,
@@ -78,14 +69,11 @@ export const tableUpdateRowsByFilterTool: ToolConfig<
     const result = await response.json()
     const data = result.data || result
 
-    return {
-      success: true,
-      output: {
-        updatedCount: data.updatedCount || 0,
-        updatedRowIds: data.updatedRowIds || [],
-        message: data.message || 'Rows updated successfully',
-      },
-    }
+    return tableSuccess({
+      updatedCount: data.updatedCount || 0,
+      updatedRowIds: data.updatedRowIds || [],
+      message: data.message || 'Rows updated successfully',
+    })
   },
 
   outputs: {

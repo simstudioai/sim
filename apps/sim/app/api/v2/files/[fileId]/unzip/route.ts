@@ -34,7 +34,7 @@ export const POST = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: fileOperations.extractArchive,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,
+  errorPolicy: v2FileErrorPolicies.concealExtractionAuthorization,
   mapInput: ({ params, body }) => ({
     fileId: params.fileId,
     assertedWorkspaceId: body.workspaceId,

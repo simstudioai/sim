@@ -2,9 +2,9 @@ import type {
   AgiloftRunActionButtonParams,
   AgiloftRunActionButtonResponse,
 } from '@/tools/agiloft/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const agiloftRunActionButtonTool: ToolConfig<
+export const agiloftRunActionButtonTool: InternalToolConfig<
   AgiloftRunActionButtonParams,
   AgiloftRunActionButtonResponse
 > = {
@@ -59,12 +59,8 @@ export const agiloftRunActionButtonTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/agiloft/run_action_button',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       instanceUrl: params.instanceUrl,
       knowledgeBase: params.knowledgeBase,
       login: params.login,

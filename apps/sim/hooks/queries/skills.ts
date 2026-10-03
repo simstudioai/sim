@@ -1,5 +1,11 @@
 import { createLogger } from '@sim/logger'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   deleteSkillContract,
@@ -44,13 +50,20 @@ async function fetchSkills(workspaceId: string, signal?: AbortSignal): Promise<S
 /**
  * Hook to fetch skills for a workspace
  */
-export function useSkills(workspaceId: string, options?: { enabled?: boolean }) {
-  return useQuery<SkillDefinition[]>({
+export function getSkillsQueryOptions(workspaceId: string) {
+  return queryOptions<SkillDefinition[]>({
     queryKey: skillsKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchSkills(workspaceId, signal),
-    enabled: !!workspaceId && (options?.enabled ?? true),
+    enabled: !!workspaceId,
     staleTime: SKILL_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
+  })
+}
+
+export function useSkills(workspaceId: string, options?: { enabled?: boolean }) {
+  return useQuery({
+    ...getSkillsQueryOptions(workspaceId),
+    enabled: !!workspaceId && (options?.enabled ?? true),
   })
 }
 

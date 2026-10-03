@@ -8,6 +8,7 @@ import {
   V2_OPERATIONS,
 } from '../generated/v2-api'
 import { SimApiError } from '../http/client'
+import { describeOperation } from '../runtime/build'
 import { coerce } from '../runtime/request'
 import { renderResult } from '../runtime/result'
 
@@ -56,8 +57,11 @@ function serviceAccountProvider(
   return provider
 }
 
-function credentialValues(provider: ServiceAccountProvider, raw: string): Record<string, string> {
-  const parsed = coerce(raw, { kind: 'object' }, { json: true }, 'credentials')
+async function credentialValues(
+  provider: ServiceAccountProvider,
+  raw: string
+): Promise<Record<string, string>> {
+  const parsed = await coerce(raw, { kind: 'object' }, { json: true }, 'credentials')
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new SimApiError('--credentials must be a JSON object', 0)
   }
@@ -119,7 +123,7 @@ async function createServiceAccount(
     throw new SimApiError(`--id is required for ${providerId}.`, 0)
   }
 
-  const credentialFields = credentialValues(provider, options.credentials)
+  const credentialFields = await credentialValues(provider, options.credentials)
   const operation = V2_OPERATIONS.createServiceAccountCredential
   const response = await client.request<CreateServiceAccountCredentialResponse>(operation.path, {
     method: operation.method,
@@ -192,11 +196,20 @@ export function attachCredentialCommands(program: Command): void {
   credentials
     .command('create')
     .argument('<providerId>', 'Service-account provider to create a credential for')
-    .description('Create a service-account credential using its discovered provider schema')
-    .requiredOption('--name <displayName>', 'Name shown for the credential in Sim')
+    .description(
+      describeOperation(
+        V2_OPERATIONS.createServiceAccountCredential,
+        'Create a service-account credential using its discovered provider schema'
+      )
+    )
+    // The `(required)` suffix is the marker the generated flags carry, and it
+    // is literal text rather than something commander renders — a hand-written
+    // mandatory option that omits it is the only kind of required flag whose
+    // help does not say so.
+    .requiredOption('--name <displayName>', 'Name shown for the credential in Sim (required)')
     .requiredOption(
       '--credentials <json|@file>',
-      'Provider credentials as JSON (or @path / @- to read a file or stdin)'
+      'Provider credentials as JSON (or @path / @- to read a file or stdin) (required)'
     )
     .option('--description <description>', 'Optional credential description')
     .option(
@@ -210,8 +223,13 @@ export function attachCredentialCommands(program: Command): void {
   credentials
     .command('connect')
     .argument('<providerId>', 'OAuth provider to connect')
-    .description('Create a short-lived link for connecting an OAuth provider')
-    .requiredOption('--name <displayName>', 'Name shown for the new credential in Sim')
+    .description(
+      describeOperation(
+        V2_OPERATIONS.createCredentialConnection,
+        'Create a short-lived link for connecting an OAuth provider'
+      )
+    )
+    .requiredOption('--name <displayName>', 'Name shown for the new credential in Sim (required)')
     .action(async (providerId: string, options: { name: string }, command: Command) =>
       createConnectionLink(command, { providerId, displayName: options.name })
     )
@@ -219,7 +237,12 @@ export function attachCredentialCommands(program: Command): void {
   credentials
     .command('reconnect')
     .argument('<credentialId>', 'Existing OAuth credential to re-authorize')
-    .description('Create a short-lived link for reconnecting an OAuth credential')
+    .description(
+      describeOperation(
+        V2_OPERATIONS.createCredentialConnection,
+        'Create a short-lived link for reconnecting an OAuth credential'
+      )
+    )
     .action((credentialId: string, _options: unknown, command: Command) =>
       createConnectionLink(command, { credentialId })
     )

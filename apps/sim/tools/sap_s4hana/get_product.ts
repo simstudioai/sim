@@ -1,14 +1,12 @@
-import type { GetProductParams, SapProxyResponse } from '@/tools/sap_s4hana/types'
+import type { GetProductParams, SapS4HanaResponse } from '@/tools/sap_s4hana/types'
 import {
-  baseProxyBody,
   buildEntityQuery,
+  buildSapOperationBaseInput,
   quoteOdataKey,
-  SAP_PROXY_URL,
-  transformSapProxyResponse,
 } from '@/tools/sap_s4hana/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getProductTool: ToolConfig<GetProductParams, SapProxyResponse> = {
+export const getProductTool: InternalToolConfig<GetProductParams, SapS4HanaResponse> = {
   id: 'sap_s4hana_get_product',
   name: 'SAP S/4HANA Get Product',
   description:
@@ -95,19 +93,15 @@ export const getProductTool: ToolConfig<GetProductParams, SapProxyResponse> = {
       description: 'Comma-separated navigation properties to expand (e.g., "to_Description")',
     },
   },
-  request: {
-    url: SAP_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...baseProxyBody(params),
+  operation: {
+    input: (params) => ({
+      ...buildSapOperationBaseInput(params),
       service: 'API_PRODUCT_SRV',
       path: `/A_Product(${quoteOdataKey(params.product)})`,
       method: 'GET',
       query: buildEntityQuery(params),
     }),
   },
-  transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
     data: {

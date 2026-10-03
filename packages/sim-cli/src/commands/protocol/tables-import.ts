@@ -1,6 +1,7 @@
 import { setTimeout as sleep } from 'node:timers/promises'
-import chalk from 'chalk'
 import { type Command, Option } from 'commander'
+import { writeStderr } from '#sim-cli/output/io'
+import { hasProgressTerminal, styles } from '#sim-cli/output/presentation'
 import { clientFrom } from '../../context'
 import type {
   CompleteTableImportResponse,
@@ -26,6 +27,7 @@ interface ImportOptions {
   createColumns?: string
   timezone?: string
   wait: boolean
+  yes?: boolean
 }
 
 const IMPORT_POLL_MS = 1500
@@ -38,7 +40,7 @@ function tableNameFrom(fileName: string): string {
   return (/^[0-9]/.test(cleaned) ? `_${cleaned}` : cleaned).slice(0, 128)
 }
 
-function jsonFlag(raw: string, flagName: string, kind: FieldSpec['kind']): unknown {
+function jsonFlag(raw: string, flagName: string, kind: FieldSpec['kind']): Promise<unknown> {
   return coerce(raw, { kind }, { json: true }, flagName)
 }
 
@@ -106,13 +108,13 @@ async function watchImport(
     )
     current = next.data
     const line = progressLine(current)
-    if (process.stderr.isTTY && line !== reported) {
+    if (hasProgressTerminal() && line !== reported) {
       reported = line
-      process.stderr.write(`\r${chalk.dim(line)}\u001b[K`)
+      writeStderr(`\r${styles().dim(line)}\u001b[K`)
     }
   }
 
-  if (process.stderr.isTTY && reported !== null) process.stderr.write('\r\u001b[K')
+  if (hasProgressTerminal() && reported !== null) writeStderr('\r\u001b[K')
   return current
 }
 
@@ -163,6 +165,10 @@ export function attachTableImport(tables: Command): void {
     .option('--mapping <json|@file>', 'Column mapping (--table-id only)')
     .option('--create-columns <json|@file>', 'Columns to create (--table-id only)')
     .option('--timezone <iana>', 'Timezone for date parsing, e.g. America/New_York')
+    // Not the bare `(required)` marker the generated flags use: the docs
+    // generator keys its Required column off that exact suffix, and this one is
+    // required for a single shape of the command.
+    .option('-y, --yes', 'Confirm this destructive operation (required with --mode replace)')
     .option('--no-wait', 'Return once the import is queued instead of watching it')
     .action(async (path: string | undefined, options: ImportOptions, command: Command) => {
       const { client, profile } = clientFrom(command)
@@ -173,6 +179,21 @@ export function attachTableImport(tables: Command): void {
       }
 
       const intoExisting = validateTargetOptions(options)
+
+      // Gated the way the eleven destructive `tables` leaves are, but only for
+      // the shape that destroys something: `--mode replace` empties the table
+      // before its first batch, while an append or a new table writes nothing
+      // away. Refused before the file is opened, as the target-option guards
+      // above are, so the refusal costs nothing. Widening it to every import
+      // would put a prompt on the common path and teach the reflexive `--yes`
+      // the gate depends on nobody learning.
+      if (intoExisting && options.mode === 'replace' && options.yes !== true) {
+        throw new SimApiError(
+          'This deletes every row in the table before loading the CSV and cannot be undone. Re-run with --yes to confirm.',
+          0
+        )
+      }
+
       const local = path ? await localFile(path) : null
       const source = local
         ? {
@@ -206,9 +227,11 @@ export function attachTableImport(tables: Command): void {
             workspaceId,
             source,
             target,
-            ...(options.mapping ? { mapping: jsonFlag(options.mapping, 'mapping', 'object') } : {}),
+            ...(options.mapping
+              ? { mapping: await jsonFlag(options.mapping, 'mapping', 'object') }
+              : {}),
             ...(options.createColumns
-              ? { createColumns: jsonFlag(options.createColumns, 'create-columns', 'array') }
+              ? { createColumns: await jsonFlag(options.createColumns, 'create-columns', 'array') }
               : {}),
             ...(options.timezone ? { timezone: options.timezone } : {}),
           },

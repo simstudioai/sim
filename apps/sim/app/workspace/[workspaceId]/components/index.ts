@@ -8,14 +8,14 @@ export type { ErrorBoundaryProps, ErrorStateProps } from './error'
 export { ErrorShell, ErrorState } from './error'
 export type { FindBarProps } from './find-bar/find-bar'
 export { FindBar } from './find-bar/find-bar'
+export { useFindShortcut } from './find-bar/use-find-shortcut'
 export { InlineRenameInput } from './inline-rename-input'
 export { IntegrationTabsHeader } from './integration-tabs-header'
 export { MessageActions } from './message-actions'
 export type { BulkOutcome } from './resource/bulk-outcome'
 export { reportBulkOutcome } from './resource/bulk-outcome'
 export { FloatingOverflowText } from './resource/components/floating-overflow-text'
-export type { OwnerAvatarProps } from './resource/components/owner-cell'
-export { OwnerAvatar, ownerCell } from './resource/components/owner-cell'
+export { ownerCell } from './resource/components/owner-cell'
 export {
   type ChromeActionSpec,
   ResourceChromeFallback,

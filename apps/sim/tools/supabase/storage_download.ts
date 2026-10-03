@@ -52,6 +52,7 @@ export const storageDownloadTool: ToolConfig<
   },
 
   request: {
+    responseType: 'binary',
     url: (params) => {
       const bucket = encodeStorageSegment(params.bucket)
       const path = encodeStoragePath(params.path)
@@ -96,15 +97,13 @@ export const storageDownloadTool: ToolConfig<
         contentType,
       })
 
-      const base64Data = fileBuffer.toString('base64')
-
       return {
         success: true,
         output: {
           file: {
             name: resolvedName,
             mimeType: contentType,
-            data: base64Data,
+            data: fileBuffer,
             size: fileBuffer.length,
           },
         },

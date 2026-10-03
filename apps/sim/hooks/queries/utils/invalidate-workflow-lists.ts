@@ -1,9 +1,9 @@
 import type { QueryClient } from '@tanstack/react-query'
+import { selectorKeys } from '@/hooks/queries/utils/selector-keys'
 import { type WorkflowQueryScope, workflowKeys } from '@/hooks/queries/utils/workflow-keys'
-import { selectorKeys } from '@/hooks/selectors/query-keys'
 
-export async function invalidateWorkflowSelectors(queryClient: QueryClient, workspaceId: string) {
-  await queryClient.invalidateQueries({ queryKey: selectorKeys.simWorkflowsPrefix(workspaceId) })
+export async function invalidateWorkflowSelectors(queryClient: QueryClient, _workspaceId: string) {
+  await queryClient.invalidateQueries({ queryKey: selectorKeys.all })
 }
 
 /**

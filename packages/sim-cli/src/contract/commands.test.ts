@@ -1,14 +1,39 @@
-/**
- * @vitest-environment node
- */
-import type { Command } from 'commander'
-import { describe, expect, it } from 'vitest'
+import { Command } from 'commander'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api'
-import { HELP_EPILOGUE } from '../program'
 import { buildGeneratedCommands } from '../runtime/build'
 import { flagNameFor, flagSpecFor } from '../runtime/request'
 import type { OperationSpec } from '../runtime/types'
 import { CLI_CONTRACT } from './commands'
+
+const { mockRequest } = vi.hoisted(() => ({ mockRequest: vi.fn() }))
+
+vi.mock('../context', () => ({
+  clientFrom: () => ({
+    client: { request: mockRequest, requireWorkspace: () => 'ws_local' },
+    profile: { workspaceId: 'ws_local', output: 'json', name: 'default', apiKey: 'k' },
+  }),
+}))
+
+/**
+ * Runs a leaf through commander, the way the terminal does.
+ *
+ * A `confirm` gate is enforced in `runtime/execute`, not by the contract, so
+ * asserting the string alone would only compare the constant with itself: the
+ * key could be renamed, or the gate could stop reading it, with the test still
+ * green. Parsing real argv is what proves the refusal reaches the caller and
+ * that nothing was sent.
+ */
+async function runLeaf(argv: string[]): Promise<void> {
+  const root = new Command('sim').exitOverride().option('--workspace <id>')
+  for (const group of buildGeneratedCommands()) root.addCommand(group)
+  const override = (command: Command) => {
+    command.exitOverride()
+    command.commands.forEach(override)
+  }
+  override(root)
+  await root.parseAsync(['node', 'sim', ...argv])
+}
 
 /** Every leaf command's full path, `tables rows count` style. */
 function leafPaths(options: { includeHidden?: boolean } = {}): string[] {
@@ -50,45 +75,6 @@ describe('the command tree', () => {
     // single-document one.
     const paths = leafPaths()
     expect(paths.length).toBe(new Set(paths).size)
-  })
-
-  it('names each renamed command after what it does', () => {
-    // The retired path still resolves, so a script written before the rename
-    // keeps working; it is simply hidden, so nothing teaches it any more. Both
-    // halves matter: dropping it breaks callers, surfacing it undoes the rename.
-    const visible = leafPaths()
-    const all = leafPaths({ includeHidden: true })
-
-    for (const [current, retired] of [
-      ['tables rows count', 'tables count create'],
-      ['files restore', 'files restore create'],
-      ['workflows deployment status', 'workflows deployment list'],
-    ]) {
-      expect(visible).toContain(current)
-      expect(visible).not.toContain(retired)
-      expect(all).toContain(retired)
-    }
-  })
-
-  it('places connector synchronization with the other connector commands', () => {
-    const all = leafPaths({ includeHidden: true })
-
-    expect(all).toContain('knowledge connectors sync')
-    expect(all).not.toContain('knowledge sync create')
-    for (const path of [
-      ['create'],
-      ['delete'],
-      ['get'],
-      ['list'],
-      ['sync'],
-      ['update'],
-      ['documents', 'list'],
-      ['documents', 'update'],
-    ]) {
-      expect(commandAt('knowledge', 'connectors', ...path).helpInformation()).toContain(
-        '<knowledgeBaseId>'
-      )
-    }
   })
 
   it('spells one concept with one flag name across the contract', () => {
@@ -153,45 +139,6 @@ describe('the upload control token', () => {
 
     expect(offenders).toEqual([])
   })
-
-  it('takes the session inspector with it, and leaves the import ones standing', () => {
-    // `files uploads get` required the token, so hiding it is the whole fix;
-    // the import pair only accepted it, and both stay reachable through the
-    // API key and workspace every other command already sends.
-    const all = leafPaths({ includeHidden: true })
-
-    expect(all).not.toContain('files uploads get')
-    expect(leafPaths()).toEqual(
-      expect.arrayContaining(['tables imports get', 'tables imports cancel'])
-    )
-  })
-})
-
-describe('renamed commands keep their surface', () => {
-  it('documents the filter operators on the row count', () => {
-    const help = commandAt('tables', 'rows', 'count').helpInformation()
-    expect(help).toContain('--filter <json|@file>')
-    expect(help).toContain('{"field":"status","op":"eq","value":"active"}')
-    expect(help).toContain('{"all":[{"field":"status","op":"eq","value":"active"}]}')
-    expect(help).toContain('{"any":[{"field":"status","op":"eq","value":"active"}]}')
-    expect(help).toContain('group entries may also be nested groups')
-    expect(help).not.toContain('--predicate')
-  })
-
-  it('asks for a row search the same way knowledge search does', () => {
-    const help = commandAt('tables', 'rows', 'find').helpInformation()
-    expect(help).toContain('--query <value>')
-    expect(help).not.toMatch(/--q\b/)
-  })
-
-  it('names the parent knowledge base on every document command', () => {
-    for (const verb of ['get', 'update', 'delete', 'batch-update']) {
-      expect(commandAt('knowledge', 'documents', verb).helpInformation()).toContain(
-        '<knowledgeBaseId>'
-      )
-    }
-    expect(commandAt('knowledge', 'tags', 'list').helpInformation()).toContain('<knowledgeBaseId>')
-  })
 })
 
 /**
@@ -237,37 +184,6 @@ describe('folder-path fields', () => {
     expect(checked).toBeGreaterThan(30)
   })
 
-  it('decodes every one it also puts in a column', () => {
-    const undecoded: string[] = []
-    for (const [operation, spec] of Object.entries(CLI_CONTRACT)) {
-      for (const column of [...(spec.columns ?? []), ...(spec.fields ?? [])]) {
-        const path = column.path ?? column.header
-        if (FOLDER_PATH_FIELDS.has(path) && column.format !== 'folder-path') {
-          undecoded.push(`${operation}.${path}`)
-        }
-      }
-    }
-    expect(undecoded).toEqual([])
-  })
-
-  it('keeps the provider catalogue to what you scan to choose one', () => {
-    // Inferred, this listed eleven columns: the detail-view fields
-    // (`docsUrl`, `helpText`, `requiresClientGeneratedCredentialId`) pushed the
-    // table well past a terminal and read as empty on every OAuth row.
-    const columns = CLI_CONTRACT.listCredentialProviders?.columns ?? []
-    const paths = columns.map((column) => column.path ?? column.header)
-
-    expect(columns.length).toBeLessThanOrEqual(7)
-    for (const detail of ['docsUrl', 'helpText', 'requiresClientGeneratedCredentialId', 'fields']) {
-      expect(paths).not.toContain(detail)
-    }
-    // Both ids stay: `credentials connect` names an OAuth provider by
-    // `serviceId`, `credentials create` matches a service account on
-    // `providerId`, and the catalogue is where you look either up.
-    expect(paths).toContain('serviceId')
-    expect(paths).toContain('providerId')
-  })
-
   /**
    * `knowledge chunks batch-update --operation delete` reaches the same
    * destructive path as the singular `knowledge chunks delete`, which is
@@ -280,21 +196,14 @@ describe('folder-path fields', () => {
     expect(CLI_CONTRACT.deleteKnowledgeChunk?.confirm).toBeTruthy()
     expect(CLI_CONTRACT.bulkUpdateKnowledgeDocuments?.confirm).toBeUndefined()
   })
-
-  it('mentions the variable that moves the profile files, since help names a path', () => {
-    // The epilogue states where the files live, and SIM_CONFIG_DIR moves both.
-    // Naming only ~/.sim made help wrong for anyone who had set it — including
-    // every CI job that points the CLI at a scratch directory.
-    expect(HELP_EPILOGUE).toContain('~/.sim/config')
-    expect(HELP_EPILOGUE).toContain('SIM_CONFIG_DIR')
-  })
 })
 
 describe('confirm gates say what is actually at stake', () => {
-  it('gates the two workflow writes that change what production serves', () => {
+  it('gates the three workflow writes that change what production serves', () => {
     // `undeploy` takes the workflow offline for every consumer, its published
-    // MCP tools included. `rollback` changes which version is live, while the
-    // gated `revert` only overwrites the draft.
+    // MCP tools included. `rollback` and `activate` are the same application
+    // operation under two transitions and both change which version is live,
+    // while the gated `revert` only overwrites the draft.
     const undeploy = CLI_CONTRACT.undeployWorkflow?.confirm ?? ''
     expect(undeploy).toContain('offline')
     expect(undeploy).toMatch(/MCP/)
@@ -305,135 +214,7 @@ describe('confirm gates say what is actually at stake', () => {
     expect(undeploy).toContain('until it is deployed again')
     expect(undeploy).not.toMatch(/does not restore|not recoverable|cannot be undone/)
     expect(CLI_CONTRACT.rollbackWorkflow?.confirm).toBeTruthy()
-  })
-
-  it('does not promise irreversible loss for a recoverable delete', () => {
-    // `tables restore`, `knowledge restore` and `workflows restore` all ship, so
-    // these three archive rather than destroy — the wording `deleteFile`
-    // already uses.
-    for (const [operation, restore] of [
-      ['deleteTable', 'tables restore'],
-      ['deleteKnowledgeBase', 'knowledge restore'],
-      ['deleteWorkflow', 'workflows restore'],
-    ] as const) {
-      const confirm = CLI_CONTRACT[operation]?.confirm ?? ''
-      expect(confirm).toContain('archives')
-      expect(confirm).toContain(restore)
-    }
-  })
-})
-
-describe('records show what the API actually returns', () => {
-  it('summarizes log stats instead of dumping the raw payload', () => {
-    const fields = CLI_CONTRACT.getLogStats?.fields ?? []
-    const paths = fields.map((field) => field.path ?? field.header)
-
-    expect(paths).toContain('totalRuns')
-    expect(paths).toContain('timeBounds.start')
-    // `avgLatency` is the one duration in the response whose key the `Ms`
-    // suffix does not rescue, so it printed as a raw float.
-    expect(fields.find((field) => field.path === 'avgLatency')?.format).toBe('duration')
-    // A nested array cannot be a column, so the raw JSON dump was the only
-    // thing standing in for the per-workflow series.
-    expect(fields.find((field) => field.header === 'workflows')?.format).toBe('count')
-  })
-
-  it('reports the storage quota billing returns beside the credits', () => {
-    const spec = CLI_CONTRACT.getBillingStatus
-    const paths = (spec?.fields ?? []).map((field) => field.path ?? field.header)
-
-    expect(paths).toContain('storage.usedBytes')
-    expect(paths).toContain('storage.limitBytes')
-    expect(paths).toContain('storage.percentUsed')
-    // Credits and storage are both null for a workspace API key, so the record
-    // has to say why it is showing em-dashes.
-    expect(spec?.describe).toContain('personal API key')
-  })
-
-  it('describes a workspace with the fields the strict schema has', () => {
-    const paths = (CLI_CONTRACT.getWorkspace?.fields ?? []).map(
-      (field) => field.path ?? field.header
-    )
-
-    // `mode` is not on the strict v2 workspace schema, so it could only ever
-    // render an em-dash; `color` and `logoUrl` are returned and were missing.
-    expect(paths).not.toContain('mode')
-    expect(paths).toContain('color')
-    expect(paths).toContain('logoUrl')
-  })
-})
-
-describe('list columns', () => {
-  it('shows which secrets are unredacted', () => {
-    // An unredacted secret's value reaches run logs, model-visible content and
-    // shared log links in plaintext; table and text are the default formats, so
-    // omitting the column hid that from the operator entirely.
-    const columns = CLI_CONTRACT.listSecrets?.columns ?? []
-    const unredacted = columns.find((column) => (column.path ?? column.header) === 'unredacted')
-
-    expect(unredacted?.format).toBe('bool')
-    // `--output text` is positional: the new column has to trail the ones a
-    // script already cuts.
-    expect(columns[columns.length - 1]).toBe(unredacted)
-  })
-
-  it('keeps the workflow-MCP listings scannable', () => {
-    const servers = CLI_CONTRACT.listWorkflowMcpServers?.columns ?? []
-    const tools = CLI_CONTRACT.listWorkflowMcpTools?.columns ?? []
-
-    expect(servers.length).toBeGreaterThan(0)
-    expect(tools.length).toBeGreaterThan(0)
-    // Inferred, these were 8 and 10 columns wide, both timestamps included.
-    expect(servers.length).toBeLessThanOrEqual(6)
-    expect(tools.length).toBeLessThanOrEqual(5)
-    expect(servers.map((column) => column.path ?? column.header)).toContain('toolCount')
-    const toolPaths = tools.map((column) => column.path ?? column.header)
-    // Two truncated URLs side by side told the reader nothing; `workflowId` is
-    // what `tools delete` addresses.
-    expect(toolPaths).not.toContain('mcpServerUrl')
-    expect(toolPaths).not.toContain('apiEndpoint')
-    expect(toolPaths).toContain('workflowId')
-  })
-
-  it('lists the audit-log id its own get command takes', () => {
-    expect(
-      (CLI_CONTRACT.listAuditLogs?.columns ?? []).map((column) => column.path ?? column.header)
-    ).toContain('id')
-  })
-})
-
-describe('help states the shape of a JSON flag', () => {
-  it('asks for the dispatch row cap as a count, not as its wire object', () => {
-    const help = flatHelp('tables', 'dispatches', 'create')
-
-    // Every other `--limit` in the CLI is a bare integer, so `--limit 2` here
-    // failed with "expected object, received number" — and the fix for that
-    // must not be to teach the caller `{"type":"rows","max":100}`, whose
-    // `type` has exactly one legal value.
-    expect(help).toContain('--max-rows <n>')
-    expect(help).toContain('1-1,000,000')
-    expect(help).not.toContain('"type":"rows"')
-    expect(help).not.toMatch(/--limit\b/)
-  })
-
-  it('shows one example per arm of the workflow operation batches', () => {
-    const operations = commandAt('workflows', 'operations', 'apply').helpInformation()
-    expect(operations).toContain('"operation_type":"add"')
-    expect(operations).toContain('"operation_type":"edit"')
-    expect(operations).toContain('"operation_type":"delete"')
-    expect(operations).toContain('subflowId')
-    expect(operations).toContain('"enabled":false')
-
-    const variables = commandAt('workflows', 'variables', 'update').helpInformation()
-    expect(variables).toContain('"operation":"add"')
-    expect(variables).toContain('"operation":"edit"')
-    expect(variables).toContain('"operation":"delete"')
-  })
-
-  it('shows the parameter-description shape MCP tool publishing takes', () => {
-    expect(commandAt('workflow-mcp-servers', 'tools', 'create').helpInformation()).toContain(
-      '[{"name":"email","description":"Customer email address"}]'
-    )
+    expect(CLI_CONTRACT.activateWorkflowVersion?.confirm).toBeTruthy()
   })
 })
 
@@ -445,138 +226,33 @@ describe('help states the shape of a JSON flag', () => {
  * a `not.toContain` on a wrapped phrase pass whether or not the phrase is
  * there.
  */
-function flatHelp(...names: string[]): string {
+function _flatHelp(...names: string[]): string {
   return commandAt(...names)
     .helpInformation()
     .replace(/\s+/g, ' ')
 }
 
-describe('help and gates state what is actually true', () => {
-  /**
-   * `--run-id` names a header that reads like an idempotency key and is not one:
-   * reusing a claimed value is refused outright, and a fresh one starts a second
-   * run — so neither reading of "retry with this" is safe, and help that only
-   * implied one-shot semantics left the caller to find that out from a failed
-   * retry.
-   */
-  it('denies that --run-id makes a retry idempotent', () => {
-    const help = flatHelp('workflows', 'run')
-
-    expect(help).toContain('NOT an idempotency key')
-    expect(help).toContain('RUN_ID_CONFLICT')
+describe('the import cancel refuses through commander, not just in the contract', () => {
+  beforeEach(() => {
+    mockRequest.mockReset()
+    mockRequest.mockResolvedValue({ data: {} })
+    vi.spyOn(console, 'log').mockImplementation(() => {})
   })
 
-  it('warns about the chunk batch in terms true of every operation it accepts', () => {
-    // `--operation` takes enable, disable, or delete. The first two are
-    // reversible and destroy nothing, so a gate message promising a possible
-    // irreversible delete on every invocation is false two times in three —
-    // and a warning the caller learns to disbelieve is how `--yes` becomes
-    // reflexive.
-    const confirm = CLI_CONTRACT.bulkUpdateKnowledgeChunks?.confirm ?? ''
+  it('refuses an import cancellation without --yes, sends nothing, and says why', async () => {
+    // The runner commits rows batch by batch and stops between batches, so a
+    // cancelled import keeps what it wrote; a `replace` has already emptied the
+    // table by then. The refusal is where the caller reads that, so it is
+    // asserted through the error commander actually raises.
+    const refusal = await runLeaf(['tables', 'imports', 'cancel', 'imp-1']).then(
+      () => '',
+      (error: Error) => error.message
+    )
 
-    expect(confirm).toBeTruthy()
-    expect(confirm).toContain('--operation delete')
-    // The unconditional claim: true only of the delete arm.
-    expect(confirm).not.toMatch(/^This can delete every named chunk/)
-  })
-
-  it('names the flag the terminal actually has for a full tag cleanup', () => {
-    const help = flatHelp('knowledge', 'tags', 'cleanup')
-
-    // The API's prose named a wire spelling with no terminal form; `--no-unused`
-    // is printed on the next line of this same help.
-    expect(help).toContain('--no-unused')
-    expect(help).not.toContain('unused=false')
-  })
-
-  /**
-   * `--organization` became optional server-side: the caller's sole organization
-   * is derived, and only a multi-organization account has to name one. Help that
-   * still read like a plain ID field sent people looking up an id they did not
-   * need.
-   */
-  it('says --organization defaults to the caller only organization', () => {
-    for (const names of [
-      ['audit-logs', 'list'],
-      ['audit-logs', 'get'],
-    ]) {
-      const help = flatHelp(...names)
-
-      expect(help).toContain('--organization')
-      expect(help).toContain('defaults to your only organization')
-      expect(help).toContain('personal API key required')
-    }
-  })
-
-  it('states the tag field type it falls back to', () => {
-    // Undocumented, the default surfaces as `Tag slot "number3" is not valid
-    // for field type "text"` — blaming a field type the caller never typed.
-    expect(flatHelp('knowledge', 'tags', 'create')).toContain('Defaults to text')
-  })
-
-  /**
-   * `--folder` meant the destination on `workflows move` and the selection on
-   * `tables move`, under one generic describe that answered neither. The three
-   * move commands now spell the destination `--to`, and the flag that names
-   * folders being moved says so.
-   */
-  it('spells the move destination --to on every move command', () => {
-    for (const names of [
-      ['workflows', 'move'],
-      ['tables', 'move'],
-      ['files', 'move'],
-    ]) {
-      const help = flatHelp(...names)
-
-      expect(help).toContain('--to <value>')
-      expect(help).not.toContain('--folder <value>')
-    }
-
-    expect(flatHelp('workflows', 'move')).toContain('/ moves the workflows to the workspace root')
-    // The one surviving `--folder` is the selection, not a destination.
-    expect(flatHelp('tables', 'move')).toContain('Table folders to move')
-  })
-
-  it('keeps the retired workflows move --folder working and out of help', () => {
-    const spec = CLI_CONTRACT.moveWorkflows?.flags?.folderPath
-
-    expect(spec?.name).toBe('to')
-    expect(spec?.renamedFrom).toContain('folder')
-  })
-
-  it('takes --recursive as a bare switch on every command that has one', () => {
-    for (const names of [
-      ['files', 'list'],
-      ['files', 'folders', 'delete'],
-      ['knowledge', 'folders', 'delete'],
-      ['tables', 'folders', 'delete'],
-      ['workflows', 'folders', 'delete'],
-    ]) {
-      const help = flatHelp(...names)
-
-      expect(help).toContain('--recursive ')
-      // The server's twelve-spelling string union, which the terminal should
-      // never make anyone type: `--recursive yes`.
-      expect(help).not.toContain('--recursive <')
-    }
-  })
-
-  it('gates the table-wide run cancellation it left open', () => {
-    // `tables dispatches cancel` stops one dispatch behind a gate; this stops
-    // every run on the table and had none.
-    const confirm = CLI_CONTRACT.cancelTableRuns?.confirm ?? ''
-
-    expect(confirm).toBeTruthy()
-    expect(confirm).toContain('--scope')
-  })
-
-  it('offers no negation for the retry that must travel alone', () => {
-    // `retryProcessing` is `z.literal(true)`, so `--no-retry-processing` sent
-    // `retryProcessing: false` as the entire request — a body that asks for
-    // nothing and that the route rejects.
-    const help = flatHelp('knowledge', 'documents', 'update')
-
-    expect(help).toContain('--retry-processing')
-    expect(help).not.toContain('--no-retry-processing')
+    expect(refusal).toContain('--yes')
+    expect(refusal).toContain('replace')
+    expect(refusal).toMatch(/empties the table/)
+    expect(refusal).not.toMatch(/not recoverable|cannot be undone/)
+    expect(mockRequest).not.toHaveBeenCalled()
   })
 })

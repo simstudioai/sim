@@ -142,5 +142,8 @@ export function useDependsOnGate(
     finalDisabled,
     dependencyValues: dependencyValuesMap,
     canonicalIndex,
+    contextConfigs: blockConfig?.subBlocks ?? [],
+    canonicalModeOverrides,
+    triggerSurface,
   }
 }

@@ -9,6 +9,7 @@ import {
   workflowExecutionSnapshots,
 } from '@sim/db/schema'
 import { and, type Column, eq, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import {
   type CursorKey,
   decimalKey,
@@ -25,12 +26,16 @@ import {
 } from '@/lib/api/list-query'
 import { workflowExecutionOriginSql } from '@/lib/logs/execution-origin'
 import { folderScopeCondition, type LogFolderScope } from '@/lib/logs/folder-scope'
+import { handledErrorSpanCondition } from '@/lib/logs/handled-errors'
 import {
   buildJobLogFilters,
   buildLogFilters,
   jobLogsSelectable,
   type LogFilters,
 } from '@/lib/logs/public-filters'
+
+/** Distinguishes the workflow-owner join from the execution-actor join on `user`. */
+const workflowOwner = alias(user, 'workflow_owner')
 
 export interface PublicLogCursor {
   startedAt: string
@@ -111,11 +116,12 @@ function workflowLogQuery(includeExecutionData: boolean) {
       totalDurationMs: workflowExecutionLogs.totalDurationMs,
       costTotal: workflowExecutionLogs.costTotal,
       files: workflowExecutionLogs.files,
+      /** Published on every row: a handled block error is invisible in `level`. */
+      hasHandledErrors: handledErrorSpanCondition(),
       executionData: includeExecutionData ? workflowExecutionLogs.executionData : sql`null`,
       workflowName: workflow.name,
       workflowDescription: workflow.description,
       workflowFolderId: workflow.folderId,
-      workflowUserId: workflow.userId,
       workflowWorkspaceId: workflow.workspaceId,
       workflowCreatedAt: workflow.createdAt,
       workflowUpdatedAt: workflow.updatedAt,
@@ -448,7 +454,11 @@ export async function getPublicWorkflowLogScope(executionId: string) {
  * is deliberately left-sided: a missing snapshot does not make an otherwise
  * valid execution disappear from the log resource.
  */
-export async function getPublicWorkflowLog(lookup: PublicWorkflowLogLookup, workspaceId?: string) {
+export async function getPublicWorkflowLog(
+  lookup: PublicWorkflowLogLookup,
+  workspaceId?: string,
+  options: { includeWorkflowState?: boolean } = {}
+) {
   const lookupCondition =
     lookup.column === 'id'
       ? eq(workflowExecutionLogs.id, lookup.value)
@@ -472,12 +482,15 @@ export async function getPublicWorkflowLog(lookup: PublicWorkflowLogLookup, work
       costTotal: workflowExecutionLogs.costTotal,
       files: workflowExecutionLogs.files,
       createdAt: workflowExecutionLogs.createdAt,
-      workflowState: workflowExecutionSnapshots.stateData,
+      workflowState:
+        options.includeWorkflowState === false
+          ? sql<null>`null`
+          : workflowExecutionSnapshots.stateData,
       workflowName: workflow.name,
       workflowDescription: workflow.description,
       workflowFolderId: workflow.folderId,
-      workflowUserId: workflow.userId,
-      workflowOwnerEmail: user.email,
+      executedByEmail: user.email,
+      workflowOwnerEmail: workflowOwner.email,
       workflowWorkspaceId: workflow.workspaceId,
       workflowCreatedAt: workflow.createdAt,
       workflowUpdatedAt: workflow.updatedAt,
@@ -500,7 +513,29 @@ export async function getPublicWorkflowLog(lookup: PublicWorkflowLogLookup, work
     )
     .leftJoin(pausedExecutions, eq(pausedExecutions.executionId, workflowExecutionLogs.executionId))
     .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
-    .leftJoin(user, eq(workflow.userId, user.id))
+    /**
+     * The identity the run ACTED as, read from the attribution the run itself
+     * captured — not the workflow owner, who contributes nothing to a run beyond
+     * a personal-variable fallback and whose row can be reassigned long after the
+     * fact. Joining the immutable per-run actor keeps a historical log honest
+     * about who it ran as.
+     *
+     * Null on a run that failed before an actor was resolved (a webhook rejected
+     * during setup), which is the truthful answer for those: there was no actor.
+     */
+    .leftJoin(
+      user,
+      eq(sql`${workflowExecutionLogs.executionData}->'billingAttribution'->>'actorUserId'`, user.id)
+    )
+    /**
+     * Kept only to serve the deprecated `workflow.ownerEmail`, which was a
+     * required field of the published v2 log schema before `executedByEmail`
+     * replaced it. Removing it outright would break typed clients, so it stays
+     * until that field does. Aliased because the actor join above already holds
+     * `user` — the two identities coincide on an interactive run and diverge on
+     * every background one, which is the whole reason the field was replaced.
+     */
+    .leftJoin(workflowOwner, eq(workflow.userId, workflowOwner.id))
     .where(
       and(
         lookupCondition,

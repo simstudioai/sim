@@ -2,20 +2,14 @@ import type {
   CbInsightsOrgListParams,
   CbInsightsPagedOrgListResponse,
 } from '@/tools/cbinsights/types'
-import {
-  asArray,
-  asString,
-  cbInsightsRequest,
-  compactBody,
-  requireOrgIds,
-} from '@/tools/cbinsights/utils'
-import type { ToolConfig } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
-interface CbInsightsListBusinessRelationshipsParams extends CbInsightsOrgListParams {
+export interface CbInsightsListBusinessRelationshipsParams extends CbInsightsOrgListParams {
   nextPageToken?: string
 }
 
-export const cbinsightsListBusinessRelationshipsTool: ToolConfig<
+export const cbinsightsListBusinessRelationshipsTool: InternalToolConfig<
   CbInsightsListBusinessRelationshipsParams,
   CbInsightsPagedOrgListResponse
 > = {
@@ -52,21 +46,9 @@ export const cbinsightsListBusinessRelationshipsTool: ToolConfig<
     },
   },
 
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-
-  directExecution: async (params, signal) =>
-    cbInsightsRequest<{ orgs?: unknown; nextPageToken?: unknown }>(
-      params,
-      {
-        path: '/v2/businessrelationships',
-        body: compactBody({
-          orgIds: requireOrgIds(params.orgIds),
-          nextPageToken: params.nextPageToken?.trim(),
-        }),
-      },
-      (data) => ({ orgs: asArray(data.orgs), nextPageToken: asString(data.nextPageToken) }),
-      signal
-    ),
+  operation: {
+    input: createInternalToolOperationInput,
+  },
 
   outputs: {
     orgs: {

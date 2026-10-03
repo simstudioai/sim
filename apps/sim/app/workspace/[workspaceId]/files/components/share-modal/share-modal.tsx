@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import {
-  ButtonGroup,
-  ButtonGroupItem,
   Chip,
+  ChipButtonGroup,
+  ChipButtonGroupItem,
   ChipConfirmModal,
   ChipModal,
   ChipModalBody,
@@ -18,7 +18,7 @@ import { Check, Link, Send } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import { GeneratedPasswordInput } from '@/components/ui'
 import type { ShareAuthType, ShareRecord } from '@/lib/api/contracts/public-shares'
-import { isSsoEnabled } from '@/lib/core/config/env-flags'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { validateAllowlistEntry } from '@/lib/messaging/email/validation'
 import { useFileShare, useUpsertFileShare } from '@/hooks/queries/public-shares'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -75,6 +75,7 @@ export function ShareModal({
   const { config: permissionConfig } = usePermissionConfig()
   const upsertShare = useUpsertFileShare()
   const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
+  const { features } = useDeploymentShape()
 
   const shareReadReady = isFetchedAfterMount && !isShareError
   const saved = shareReadReady ? (share ?? null) : (share ?? initialShare ?? null)
@@ -91,7 +92,7 @@ export function ShareModal({
   const isAuthTypeAllowed = (mode: ShareAuthType) =>
     allowedAuthTypes === null || allowedAuthTypes.includes(mode)
 
-  const ssoEnabled = isSsoEnabled || savedAccessMode === 'sso'
+  const ssoEnabled = features.sso || savedAccessMode === 'sso'
   const candidateAuthTypes: ShareAuthType[] = [
     'public',
     'password',
@@ -205,18 +206,18 @@ export function ShareModal({
         </ChipModalHeader>
         <ChipModalBody>
           <ChipModalField type='custom' title='Access' hint={accessHint}>
-            <ButtonGroup
+            <ChipButtonGroup
               value={effectiveMode}
               onValueChange={(value) => setDraftMode(value as ShareAuthType)}
               aria-label='File access'
               disabled={upsertShare.isPending}
             >
               {accessModes.map((mode) => (
-                <ButtonGroupItem key={mode} value={mode}>
+                <ChipButtonGroupItem key={mode} value={mode}>
                   {ACCESS_LABELS[mode]}
-                </ButtonGroupItem>
+                </ChipButtonGroupItem>
               ))}
-            </ButtonGroup>
+            </ChipButtonGroup>
           </ChipModalField>
           {effectiveMode === 'password' ? (
             <ChipModalField

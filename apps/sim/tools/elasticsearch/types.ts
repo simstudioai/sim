@@ -2,7 +2,7 @@
 import type { ToolResponse } from '@/tools/types'
 
 // Base params for all Elasticsearch tools
-interface ElasticsearchBaseParams {
+export interface ElasticsearchBaseParams {
   // Connection configuration
   deploymentType: 'self_hosted' | 'cloud'
   host?: string // For self-hosted
@@ -80,37 +80,25 @@ export interface ElasticsearchGetIndexParams extends ElasticsearchBaseParams {
   index: string
 }
 
-interface ElasticsearchIndexExistsParams extends ElasticsearchBaseParams {
-  index: string
-}
-
-interface ElasticsearchRefreshIndexParams extends ElasticsearchBaseParams {
-  index: string
-}
-
-interface ElasticsearchIndexStatsParams extends ElasticsearchBaseParams {
-  index: string
-}
-
 // Mapping Operations
-interface ElasticsearchPutMappingParams extends ElasticsearchBaseParams {
-  index: string
-  mappings: string // JSON string
-}
-
-interface ElasticsearchGetMappingParams extends ElasticsearchBaseParams {
-  index: string
-}
 
 // Cluster Operations
 export interface ElasticsearchClusterHealthParams extends ElasticsearchBaseParams {
   waitForStatus?: 'green' | 'yellow' | 'red'
-  timeout?: string
+  /**
+   * Server-side wait, sent as the `timeout` query parameter. Deliberately not
+   * named `timeout`: `tools/request-transport.ts` reads `params.timeout` as the
+   * outbound client abort deadline in milliseconds.
+   */
+  clusterTimeout?: string
 }
 
 export interface ElasticsearchClusterStatsParams extends ElasticsearchBaseParams {}
 
-export interface ElasticsearchListIndicesParams extends ElasticsearchBaseParams {}
+export interface ElasticsearchListIndicesParams extends ElasticsearchBaseParams {
+  /** Include indices whose name starts with `.` (Elasticsearch system indices). */
+  includeSystemIndices?: boolean
+}
 
 interface ElasticsearchIndexInfo {
   index: string
@@ -185,15 +173,23 @@ export interface ElasticsearchIndexResponse extends ToolResponse {
   }
 }
 
+/** One entry of a `GET /{index}` response, keyed by index name. */
+interface ElasticsearchIndexState {
+  aliases?: Record<string, unknown>
+  mappings?: Record<string, unknown>
+  settings?: Record<string, unknown>
+}
+
+/**
+ * `indices` is the declared aggregate map of every matched index. The raw
+ * per-index keys are spread alongside it so references saved before `indices`
+ * existed keep resolving; an index legitimately named `indices` is spread last
+ * and therefore wins, which is what widens the declared type here.
+ */
 export interface ElasticsearchIndexInfoResponse extends ToolResponse {
-  output: Record<
-    string,
-    {
-      aliases: Record<string, unknown>
-      mappings: Record<string, unknown>
-      settings: Record<string, unknown>
-    }
-  >
+  output: Record<string, ElasticsearchIndexState | Record<string, ElasticsearchIndexState>> & {
+    indices: ElasticsearchIndexState | Record<string, ElasticsearchIndexState>
+  }
 }
 
 interface ElasticsearchIndexExistsResponse extends ToolResponse {

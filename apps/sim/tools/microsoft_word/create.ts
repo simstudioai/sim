@@ -3,9 +3,11 @@ import type {
   MicrosoftWordCreateResponse,
   MicrosoftWordToolParams,
 } from '@/tools/microsoft_word/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createTool: ToolConfig<MicrosoftWordToolParams, MicrosoftWordCreateResponse> = {
+type CreateToolConfig = InternalToolConfig<MicrosoftWordToolParams, MicrosoftWordCreateResponse>
+
+export const createTool: CreateToolConfig = {
   id: 'microsoft_word_create',
   name: 'Create Microsoft Word Document',
   description:
@@ -55,11 +57,8 @@ export const createTool: ToolConfig<MicrosoftWordToolParams, MicrosoftWordCreate
     },
   },
 
-  request: {
-    url: '/api/tools/microsoft_word/create',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       name: params.name,
       content: params.content,

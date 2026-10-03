@@ -1,14 +1,17 @@
-/**
- * @vitest-environment node
- */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { executeCbinsightsChatOperation } from '@/lib/internal/cbinsights/operations/chat'
+import { executeCbinsightsGetCommercialMaturityHistoryOperation } from '@/lib/internal/cbinsights/operations/get-commercial-maturity-history'
+import { executeCbinsightsGetExitProbabilityHistoryOperation } from '@/lib/internal/cbinsights/operations/get-exit-probability-history'
+import { executeCbinsightsGetOrgFundingsOperation } from '@/lib/internal/cbinsights/operations/get-org-fundings'
+import { executeCbinsightsGetOrgOutlookOperation } from '@/lib/internal/cbinsights/operations/get-org-outlook'
+import { executeCbinsightsListBusinessRelationshipsOperation } from '@/lib/internal/cbinsights/operations/list-business-relationships'
+import { executeCbinsightsListFundingsOperation } from '@/lib/internal/cbinsights/operations/list-fundings'
+import { executeCbinsightsLookupOrganizationsOperation } from '@/lib/internal/cbinsights/operations/lookup-organizations'
+import { executeCbinsightsRagOperation } from '@/lib/internal/cbinsights/operations/rag'
+import { executeCbinsightsSearchFirmographicsOperation } from '@/lib/internal/cbinsights/operations/search-firmographics'
 import { cbinsightsChatTool } from '@/tools/cbinsights/chat'
-import { cbinsightsGetOrgFundingsTool } from '@/tools/cbinsights/get_org_fundings'
-import { cbinsightsGetOrgOutlookTool } from '@/tools/cbinsights/get_org_outlook'
 import { cbinsightsGetScoutingReportTool } from '@/tools/cbinsights/get_scouting_report'
 import { cbinsightsListBusinessRelationshipsTool } from '@/tools/cbinsights/list_business_relationships'
-import { cbinsightsListFundingsTool } from '@/tools/cbinsights/list_fundings'
-import { cbinsightsLookupOrganizationsTool } from '@/tools/cbinsights/lookup_organizations'
 import { cbinsightsRagTool } from '@/tools/cbinsights/rag'
 import { cbinsightsSearchFirmographicsTool } from '@/tools/cbinsights/search_firmographics'
 import { cbInsightsTokenCacheSize, resetCbInsightsTokenCache } from '@/tools/cbinsights/utils'
@@ -43,15 +46,11 @@ beforeEach(() => {
   resetCbInsightsTokenCache()
 })
 
-afterEach(() => {
-  vi.unstubAllGlobals()
-})
-
 describe('cbinsights authorization', () => {
   it('exchanges the client credentials before the data call, then bearers the token', async () => {
     mockFetch([AUTH_OK, { body: { orgs: [] } }])
 
-    await cbinsightsLookupOrganizationsTool.directExecution!({
+    await executeCbinsightsLookupOrganizationsOperation({
       ...CREDS,
       names: 'CB Insights',
     } as never)
@@ -69,8 +68,8 @@ describe('cbinsights authorization', () => {
   it('reuses a cached token rather than re-authorizing per call', async () => {
     mockFetch([AUTH_OK, { body: { orgs: [] } }, { body: { orgs: [] } }])
 
-    await cbinsightsLookupOrganizationsTool.directExecution!({ ...CREDS, names: 'a' } as never)
-    await cbinsightsLookupOrganizationsTool.directExecution!({ ...CREDS, names: 'b' } as never)
+    await executeCbinsightsLookupOrganizationsOperation({ ...CREDS, names: 'a' } as never)
+    await executeCbinsightsLookupOrganizationsOperation({ ...CREDS, names: 'b' } as never)
 
     expect(calls.filter((call) => call.url.endsWith('/v2/authorize'))).toHaveLength(1)
   })
@@ -88,7 +87,7 @@ describe('cbinsights authorization', () => {
       { body: { orgs: [{ orgId: 1 }] } },
     ])
 
-    const result = await cbinsightsLookupOrganizationsTool.directExecution!({
+    const result = await executeCbinsightsLookupOrganizationsOperation({
       ...CREDS,
       names: 'CB Insights',
     } as never)
@@ -112,7 +111,7 @@ describe('cbinsights authorization', () => {
     ])
 
     await expect(
-      cbinsightsLookupOrganizationsTool.directExecution!({ ...CREDS, names: 'a' } as never)
+      executeCbinsightsLookupOrganizationsOperation({ ...CREDS, names: 'a' } as never)
     ).rejects.toThrow(/still nope/)
     expect(calls).toHaveLength(4)
   })
@@ -121,7 +120,7 @@ describe('cbinsights authorization', () => {
     mockFetch([AUTH_OK, { status: 403, body: { error: 'Insufficient credits' } }])
 
     await expect(
-      cbinsightsLookupOrganizationsTool.directExecution!({ ...CREDS, names: 'a' } as never)
+      executeCbinsightsLookupOrganizationsOperation({ ...CREDS, names: 'a' } as never)
     ).rejects.toThrow(/Insufficient credits/)
   })
 
@@ -129,7 +128,7 @@ describe('cbinsights authorization', () => {
     mockFetch([{ body: {} }])
 
     await expect(
-      cbinsightsLookupOrganizationsTool.directExecution!({ ...CREDS, names: 'a' } as never)
+      executeCbinsightsLookupOrganizationsOperation({ ...CREDS, names: 'a' } as never)
     ).rejects.toThrow(/returned no token/)
   })
 })
@@ -147,7 +146,7 @@ describe('cbinsights token cache', () => {
     mockFetch(responses)
 
     for (let index = 0; index < 200; index++) {
-      await cbinsightsLookupOrganizationsTool.directExecution!({
+      await executeCbinsightsLookupOrganizationsOperation({
         clientId: `id-${index}`,
         clientSecret: 'secret',
         names: 'a',
@@ -162,14 +161,14 @@ describe('cbinsights request building', () => {
   it('rejects a lookup with no search parameter', async () => {
     mockFetch([AUTH_OK])
     await expect(
-      cbinsightsLookupOrganizationsTool.directExecution!({ ...CREDS } as never)
+      executeCbinsightsLookupOrganizationsOperation({ ...CREDS } as never)
     ).rejects.toThrow(/at least one of "names", "urls", or "profileUrl"/)
   })
 
   it('rejects the profileUrl + names combination the API rejects', async () => {
     mockFetch([AUTH_OK])
     await expect(
-      cbinsightsLookupOrganizationsTool.directExecution!({
+      executeCbinsightsLookupOrganizationsOperation({
         ...CREDS,
         names: 'CB Insights',
         profileUrl: 'https://app.cbinsights.com/profiles/c/jp3o4',
@@ -180,11 +179,11 @@ describe('cbinsights request building', () => {
   it('accepts a comma-separated list and a JSON array alike', async () => {
     mockFetch([AUTH_OK, { body: { orgs: [] } }, { body: { orgs: [] } }])
 
-    await cbinsightsLookupOrganizationsTool.directExecution!({
+    await executeCbinsightsLookupOrganizationsOperation({
       ...CREDS,
       names: 'CB Insights, Stripe',
     } as never)
-    await cbinsightsLookupOrganizationsTool.directExecution!({
+    await executeCbinsightsLookupOrganizationsOperation({
       ...CREDS,
       names: '["CB Insights","Stripe"]',
     } as never)
@@ -195,7 +194,7 @@ describe('cbinsights request building', () => {
 
   it('clamps limit into the documented 1-100 range', async () => {
     mockFetch([AUTH_OK, { body: { orgs: [] } }])
-    await cbinsightsLookupOrganizationsTool.directExecution!({
+    await executeCbinsightsLookupOrganizationsOperation({
       ...CREDS,
       names: 'a',
       limit: 5000,
@@ -207,8 +206,32 @@ describe('cbinsights request building', () => {
     mockFetch([AUTH_OK])
     const orgIds = Array.from({ length: 101 }, (_, index) => index + 1)
     await expect(
-      cbinsightsListFundingsTool.directExecution!({ ...CREDS, orgIds } as never)
+      executeCbinsightsListFundingsOperation({ ...CREDS, orgIds } as never)
     ).rejects.toThrow(/at most 100 organization IDs/)
+  })
+
+  it('rejects more than 100 firmographics organization IDs before spending a round trip', async () => {
+    mockFetch([AUTH_OK])
+    const orgIds = Array.from({ length: 101 }, (_, index) => index + 1)
+    await expect(
+      executeCbinsightsSearchFirmographicsOperation({ ...CREDS, orgIds } as never)
+    ).rejects.toThrow(/at most 100 organization IDs/)
+    expect(calls).toHaveLength(0)
+  })
+
+  it.each([
+    ['startDate', 20260725],
+    ['endDate', { date: '2026-08-28' }],
+  ])('rejects a non-string commercial maturity %s', async (field, value) => {
+    mockFetch([AUTH_OK])
+    await expect(
+      executeCbinsightsGetCommercialMaturityHistoryOperation({
+        ...CREDS,
+        orgId: 129410,
+        [field]: value,
+      } as never)
+    ).rejects.toThrow(new RegExp(`"${field}" must be a string`))
+    expect(calls).toHaveLength(0)
   })
 
   /*
@@ -219,7 +242,7 @@ describe('cbinsights request building', () => {
   it('rejects a required ID list containing an invalid entry rather than dropping it', async () => {
     mockFetch([AUTH_OK])
     await expect(
-      cbinsightsListFundingsTool.directExecution!({
+      executeCbinsightsListFundingsOperation({
         ...CREDS,
         orgIds: '129410, notanid, 1034157',
       } as never)
@@ -229,7 +252,7 @@ describe('cbinsights request building', () => {
   it('rejects a mistyped optional filter rather than silently widening the search', async () => {
     mockFetch([AUTH_OK])
     await expect(
-      cbinsightsSearchFirmographicsTool.directExecution!({
+      executeCbinsightsSearchFirmographicsOperation({
         ...CREDS,
         keyword: 'fintech',
         sectorIds: 'four',
@@ -239,7 +262,7 @@ describe('cbinsights request building', () => {
 
   it('still treats an unset optional filter as absent', async () => {
     mockFetch([AUTH_OK, { body: { orgs: [] } }])
-    await cbinsightsSearchFirmographicsTool.directExecution!({
+    await executeCbinsightsSearchFirmographicsOperation({
       ...CREDS,
       keyword: 'fintech',
       sectorIds: '',
@@ -256,13 +279,13 @@ describe('cbinsights request building', () => {
   it('tolerates a trailing or doubled comma identically on both paths', async () => {
     mockFetch([AUTH_OK, { body: { orgs: [] } }, { body: { orgs: [] } }])
 
-    await cbinsightsListFundingsTool.directExecution!({
+    await executeCbinsightsListFundingsOperation({
       ...CREDS,
       orgIds: '129410, 1034157,',
     } as never)
     expect(JSON.parse(String(calls[1].init.body)).orgIds).toEqual([129410, 1034157])
 
-    await cbinsightsSearchFirmographicsTool.directExecution!({
+    await executeCbinsightsSearchFirmographicsOperation({
       ...CREDS,
       sectorIds: '1,,2',
     } as never)
@@ -280,7 +303,7 @@ describe('cbinsights request building', () => {
     async (entry) => {
       mockFetch([AUTH_OK])
       await expect(
-        cbinsightsSearchFirmographicsTool.directExecution!({
+        executeCbinsightsSearchFirmographicsOperation({
           ...CREDS,
           keyword: 'fintech',
           vcBacked: entry,
@@ -297,7 +320,7 @@ describe('cbinsights request building', () => {
     [false, false],
   ])('still accepts the boolean form %j a dropdown emits', async (entry, expected) => {
     mockFetch([AUTH_OK, { body: { orgs: [] } }])
-    await cbinsightsSearchFirmographicsTool.directExecution!({
+    await executeCbinsightsSearchFirmographicsOperation({
       ...CREDS,
       keyword: 'fintech',
       vcBacked: entry,
@@ -307,7 +330,7 @@ describe('cbinsights request building', () => {
 
   it('treats the dropdown\'s "Any" option as no filter at all', async () => {
     mockFetch([AUTH_OK, { body: { orgs: [] } }])
-    await cbinsightsSearchFirmographicsTool.directExecution!({
+    await executeCbinsightsSearchFirmographicsOperation({
       ...CREDS,
       keyword: 'fintech',
       vcBacked: '',
@@ -322,7 +345,7 @@ describe('cbinsights request building', () => {
   it('rejects a sort direction that is neither asc nor desc', async () => {
     mockFetch([AUTH_OK])
     await expect(
-      cbinsightsSearchFirmographicsTool.directExecution!({
+      executeCbinsightsSearchFirmographicsOperation({
         ...CREDS,
         keyword: 'fintech',
         sortField: 'mosaicOverall',
@@ -339,7 +362,7 @@ describe('cbinsights request building', () => {
   it('rejects a mistyped limit rather than falling back to the endpoint default', async () => {
     mockFetch([AUTH_OK])
     await expect(
-      cbinsightsLookupOrganizationsTool.directExecution!({
+      executeCbinsightsLookupOrganizationsOperation({
         ...CREDS,
         names: 'a',
         limit: 'twenty',
@@ -355,7 +378,7 @@ describe('cbinsights request building', () => {
   it('rejects a non-text entry in a free-text filter rather than stringifying it', async () => {
     mockFetch([AUTH_OK])
     await expect(
-      cbinsightsLookupOrganizationsTool.directExecution!({
+      executeCbinsightsLookupOrganizationsOperation({
         ...CREDS,
         names: [{ name: 'CB Insights' }],
       } as never)
@@ -365,7 +388,7 @@ describe('cbinsights request building', () => {
 
   it('treats a whitespace-only numeric bound as unset, not as zero', async () => {
     mockFetch([AUTH_OK, { body: { orgs: [] } }])
-    await cbinsightsSearchFirmographicsTool.directExecution!({
+    await executeCbinsightsSearchFirmographicsOperation({
       ...CREDS,
       keyword: 'fintech',
       minCurrentHeadcount: '   ',
@@ -376,7 +399,7 @@ describe('cbinsights request building', () => {
   it('rejects a mistyped numeric bound rather than dropping it', async () => {
     mockFetch([AUTH_OK])
     await expect(
-      cbinsightsSearchFirmographicsTool.directExecution!({
+      executeCbinsightsSearchFirmographicsOperation({
         ...CREDS,
         keyword: 'fintech',
         minCurrentHeadcount: 'fifty',
@@ -391,7 +414,7 @@ describe('cbinsights request building', () => {
   it('refuses a firmographics search carrying only paging or sort', async () => {
     mockFetch([AUTH_OK])
     await expect(
-      cbinsightsSearchFirmographicsTool.directExecution!({
+      executeCbinsightsSearchFirmographicsOperation({
         ...CREDS,
         limit: 100,
         nextPageToken: 'tok',
@@ -402,7 +425,7 @@ describe('cbinsights request building', () => {
 
   it('still sends paging and sort alongside a real filter', async () => {
     mockFetch([AUTH_OK, { body: { orgs: [] } }])
-    await cbinsightsSearchFirmographicsTool.directExecution!({
+    await executeCbinsightsSearchFirmographicsOperation({
       ...CREDS,
       keyword: 'fintech',
       limit: 25,
@@ -428,7 +451,7 @@ describe('cbinsights request building', () => {
     async (entry) => {
       mockFetch([AUTH_OK])
       await expect(
-        cbinsightsGetOrgOutlookTool.directExecution!({ ...CREDS, orgId: entry } as never)
+        executeCbinsightsGetOrgOutlookOperation({ ...CREDS, orgId: entry } as never)
       ).rejects.toThrow(/"orgId" must be a positive integer/)
     }
   )
@@ -436,12 +459,12 @@ describe('cbinsights request building', () => {
   it('rejects a numeric ID past the precision limit on both input shapes', async () => {
     mockFetch([AUTH_OK])
     await expect(
-      cbinsightsGetOrgOutlookTool.directExecution!({ ...CREDS, orgId: 1e20 } as never)
+      executeCbinsightsGetOrgOutlookOperation({ ...CREDS, orgId: 1e20 } as never)
     ).rejects.toThrow(/"orgId" must be a positive integer/)
 
     mockFetch([AUTH_OK])
     await expect(
-      cbinsightsGetOrgOutlookTool.directExecution!({
+      executeCbinsightsGetOrgOutlookOperation({
         ...CREDS,
         orgId: '12345678901234567890',
       } as never)
@@ -450,17 +473,17 @@ describe('cbinsights request building', () => {
 
   it('still accepts a plain decimal ID, with or without padding', async () => {
     mockFetch([AUTH_OK, { body: {} }, { body: {} }])
-    await cbinsightsGetOrgOutlookTool.directExecution!({ ...CREDS, orgId: '  129410  ' } as never)
+    await executeCbinsightsGetOrgOutlookOperation({ ...CREDS, orgId: '  129410  ' } as never)
     expect(calls[1].url).toContain('/organizations/129410/outlook')
 
-    await cbinsightsGetOrgOutlookTool.directExecution!({ ...CREDS, orgId: 129410 } as never)
+    await executeCbinsightsGetOrgOutlookOperation({ ...CREDS, orgId: 129410 } as never)
     expect(calls[2].url).toContain('/organizations/129410/outlook')
   })
 
   it('rejects an alternate numeric notation inside a bulk ID list', async () => {
     mockFetch([AUTH_OK])
     await expect(
-      cbinsightsListFundingsTool.directExecution!({
+      executeCbinsightsListFundingsOperation({
         ...CREDS,
         orgIds: '129410, 0x10',
       } as never)
@@ -470,7 +493,7 @@ describe('cbinsights request building', () => {
   it('rejects a non-integer organization ID rather than interpolating it into the path', async () => {
     mockFetch([AUTH_OK])
     await expect(
-      cbinsightsGetOrgOutlookTool.directExecution!({
+      executeCbinsightsGetOrgOutlookOperation({
         ...CREDS,
         orgId: '12/../../admin',
       } as never)
@@ -479,7 +502,7 @@ describe('cbinsights request building', () => {
 
   it('puts the organization ID on the path for a scoped endpoint', async () => {
     mockFetch([AUTH_OK, { body: {} }])
-    await cbinsightsGetOrgFundingsTool.directExecution!({ ...CREDS, orgId: 129410 } as never)
+    await executeCbinsightsGetOrgFundingsOperation({ ...CREDS, orgId: 129410 } as never)
     expect(calls[1].url).toBe(
       'https://api.cbinsights.com/v2/organizations/129410/financialtransactions/fundings'
     )
@@ -487,7 +510,7 @@ describe('cbinsights request building', () => {
 
   it('omits filters the caller left blank instead of sending them empty', async () => {
     mockFetch([AUTH_OK, { body: { orgs: [] } }])
-    await cbinsightsSearchFirmographicsTool.directExecution!({
+    await executeCbinsightsSearchFirmographicsOperation({
       ...CREDS,
       keyword: 'fintech',
       marketNames: '',
@@ -500,7 +523,7 @@ describe('cbinsights request building', () => {
 
   it('builds the single sort object from the two plain fields', async () => {
     mockFetch([AUTH_OK, { body: { orgs: [] } }])
-    await cbinsightsSearchFirmographicsTool.directExecution!({
+    await executeCbinsightsSearchFirmographicsOperation({
       ...CREDS,
       keyword: 'fintech',
       sortField: 'mosaicOverall',
@@ -516,14 +539,14 @@ describe('cbinsights request building', () => {
   it('rejects a firmographics search with no filter at all', async () => {
     mockFetch([AUTH_OK])
     await expect(
-      cbinsightsSearchFirmographicsTool.directExecution!({ ...CREDS } as never)
+      executeCbinsightsSearchFirmographicsOperation({ ...CREDS } as never)
     ).rejects.toThrow(/at least one search parameter/)
   })
 
   it('rejects a RAG message over the documented 10,000-character cap', async () => {
     mockFetch([AUTH_OK])
     await expect(
-      cbinsightsRagTool.directExecution!({ ...CREDS, message: 'x'.repeat(10_001) } as never)
+      executeCbinsightsRagOperation({ ...CREDS, message: 'x'.repeat(10_001) } as never)
     ).rejects.toThrow(/under 10,000 characters/)
   })
 })
@@ -543,7 +566,7 @@ describe('cbinsights response mapping', () => {
       },
     ])
 
-    const result = await cbinsightsGetOrgFundingsTool.directExecution!({
+    const result = await executeCbinsightsGetOrgFundingsOperation({
       ...CREDS,
       orgId: 129410,
     } as never)
@@ -560,7 +583,7 @@ describe('cbinsights response mapping', () => {
   it('reports absent collections as empty and absent scalars as null', async () => {
     mockFetch([AUTH_OK, { body: {} }])
 
-    const result = await cbinsightsGetOrgFundingsTool.directExecution!({
+    const result = await executeCbinsightsGetOrgFundingsOperation({
       ...CREDS,
       orgId: 1,
     } as never)
@@ -582,7 +605,7 @@ describe('cbinsights response mapping', () => {
   it('reports only the fields the business-relationships endpoint documents', async () => {
     mockFetch([AUTH_OK, { body: { orgs: [{ orgId: 1 }], nextPageToken: 'tok' } }])
 
-    const result = await cbinsightsListBusinessRelationshipsTool.directExecution!({
+    const result = await executeCbinsightsListBusinessRelationshipsOperation({
       ...CREDS,
       orgIds: '1',
     } as never)
@@ -607,7 +630,7 @@ describe('cbinsights response mapping', () => {
       },
     ])
 
-    const result = await cbinsightsChatTool.directExecution!({
+    const result = await executeCbinsightsChatOperation({
       ...CREDS,
       message: 'Which markets are growing?',
     } as never)
@@ -619,7 +642,7 @@ describe('cbinsights response mapping', () => {
 
   it('sends the conversation ID back under the API name when continuing a chat', async () => {
     mockFetch([AUTH_OK, { body: {} }])
-    await cbinsightsChatTool.directExecution!({
+    await executeCbinsightsChatOperation({
       ...CREDS,
       message: 'and then?',
       chatId: 'conv-1',
@@ -633,15 +656,10 @@ describe('cbinsights response mapping', () => {
 })
 
 describe('cbinsights model-input projection', () => {
-  /*
-   * `directExecution` still runs `projectToolModelInputParams`, so declaring the
-   * message here is what keeps an activated Sim secret from reaching a third
-   * party's model as plaintext. Only the message is model-visible — the
-   * credentials and the conversation ID are not.
-   */
+  /** The operation boundary projects only the message into third-party model input. */
   it('projects only the message on the two generative endpoints', () => {
-    const chatSelect = cbinsightsChatTool.request.modelInput
-    const ragSelect = cbinsightsRagTool.request.modelInput
+    const chatSelect = cbinsightsChatTool.operation.modelInput
+    const ragSelect = cbinsightsRagTool.operation.modelInput
 
     expect(chatSelect?.mode).toBe('project')
     expect(ragSelect?.mode).toBe('project')
@@ -661,7 +679,70 @@ describe('cbinsights model-input projection', () => {
    * an AI-backed provider is not on its own a reason to project.
    */
   it('leaves the ID-only endpoints unprojected', () => {
-    expect(cbinsightsGetScoutingReportTool.request.modelInput).toBeUndefined()
-    expect(cbinsightsSearchFirmographicsTool.request.modelInput).toBeUndefined()
+    expect(cbinsightsGetScoutingReportTool.operation.modelInput).toBeUndefined()
+    expect(cbinsightsSearchFirmographicsTool.operation.modelInput).toBeUndefined()
+  })
+})
+
+describe('cbinsights non-text runtime values', () => {
+  /*
+   * `params.x?.trim()` guards `undefined`, not the type: a block-to-block reference
+   * resolving to a number reached `.trim()` and threw a bare TypeError naming no
+   * parameter. The sibling history operation already used parseOptionalStringParam.
+   */
+  it('names the offending date parameter instead of throwing a TypeError', async () => {
+    mockFetch([AUTH_OK])
+    await expect(
+      executeCbinsightsGetExitProbabilityHistoryOperation({
+        ...CREDS,
+        orgId: 123,
+        startDate: 20240101,
+      } as never)
+    ).rejects.toThrow('CB Insights "startDate" must be a string')
+  })
+
+  it('names a non-text keyword on search rather than crashing', async () => {
+    mockFetch([AUTH_OK])
+    await expect(
+      executeCbinsightsSearchFirmographicsOperation({ ...CREDS, keyword: { a: 1 } } as never)
+    ).rejects.toThrow('CB Insights "keyword" must be a string')
+  })
+
+  it('names a non-text page token rather than crashing', async () => {
+    mockFetch([AUTH_OK])
+    await expect(
+      executeCbinsightsListFundingsOperation({
+        ...CREDS,
+        orgIds: '123',
+        nextPageToken: 42,
+      } as never)
+    ).rejects.toThrow('CB Insights "nextPageToken" must be a string')
+  })
+
+  it('still treats a blank optional value as omitted, exactly as before', async () => {
+    mockFetch([AUTH_OK, { body: {} }])
+    await executeCbinsightsGetExitProbabilityHistoryOperation({
+      ...CREDS,
+      orgId: 123,
+      startDate: '   ',
+    } as never)
+    expect(JSON.parse(String(calls[1].init.body))).not.toHaveProperty('startDate')
+  })
+})
+
+describe('cbinsights rag message bound', () => {
+  /* The tool description and this error both say "under 10,000", so the guard must
+     reject the boundary value rather than forward it. */
+  it('rejects a message of exactly 10,000 characters', async () => {
+    mockFetch([AUTH_OK])
+    await expect(
+      executeCbinsightsRagOperation({ ...CREDS, message: 'a'.repeat(10_000) } as never)
+    ).rejects.toThrow('CB Insights "message" must be under 10,000 characters')
+  })
+
+  it('accepts the largest message the contract allows', async () => {
+    mockFetch([AUTH_OK, { body: { data: 'ok' } }])
+    await executeCbinsightsRagOperation({ ...CREDS, message: 'a'.repeat(9_999) } as never)
+    expect(JSON.parse(String(calls[1].init.body)).message).toHaveLength(9_999)
   })
 })

@@ -2,9 +2,12 @@ import type {
   IdentityCenterGetUserParams,
   IdentityCenterGetUserResponse,
 } from '@/tools/identity_center/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getUserTool: ToolConfig<IdentityCenterGetUserParams, IdentityCenterGetUserResponse> = {
+export const getUserTool: InternalToolConfig<
+  IdentityCenterGetUserParams,
+  IdentityCenterGetUserResponse
+> = {
   id: 'identity_center_get_user',
   name: 'Identity Center Get User',
   description: 'Look up a user in the Identity Store by email address',
@@ -43,11 +46,8 @@ export const getUserTool: ToolConfig<IdentityCenterGetUserParams, IdentityCenter
     },
   },
 
-  request: {
-    url: '/api/tools/identity-center/get-user',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

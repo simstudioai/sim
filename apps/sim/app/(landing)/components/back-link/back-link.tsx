@@ -16,7 +16,7 @@ export function BackLink({ href, label }: BackLinkProps) {
   return (
     <Link
       href={href}
-      className='group/link inline-flex items-center gap-1.5 text-[var(--text-muted)] text-sm tracking-[0.02em] hover:text-[var(--text-primary)]'
+      className='group/link inline-flex items-center gap-1.5 text-[var(--text-secondary)] text-sm tracking-[0.02em] hover:text-[var(--text-primary)]'
     >
       <svg
         className='size-3 shrink-0'

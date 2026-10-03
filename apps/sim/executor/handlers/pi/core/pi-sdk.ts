@@ -29,10 +29,9 @@ function isToolArguments(value: unknown): value is Record<string, unknown> {
  * credentials from thrown and reported tool errors. Successful tool output is ordinary model
  * content and stays verbatim; Sim-secret projection is owned by the tool adapter's provenance.
  *
- * A spec's `isError` is rethrown rather than reported in the result: Pi derives a call's error state
- * solely from whether `execute` threw, so a resolved failure would reach the model as a successful
- * tool call whose text happens to describe a failure. Throwing also matches Pi's own `bash`, which
- * throws on a non-zero exit with the output appended, so the failure text survives either way.
+ * A spec's `isError` is rethrown with scrubbed text, preserving Sim's existing failure semantics.
+ * Pi 1.0 also accepts an explicit error result, but throwing keeps the same diagnostic boundary
+ * for reported failures and exceptions.
  *
  * Shared by both host-side backends: Local Dev converts its SSH, Sim, and search tools here, and
  * Review Code converts its search tool here alongside the review tools it builds directly.
@@ -90,7 +89,9 @@ export function createSealedPiResourceLoader(sdk: PiSdk, systemPrompt: string): 
     getThemes: () => ({ themes: [], diagnostics: [] }),
     getAgentsFiles: () => ({ agentsFiles: [] }),
     getSystemPrompt: () => systemPrompt,
+    getSystemPromptSource: () => undefined,
     getAppendSystemPrompt: () => [],
+    getAppendSystemPromptSources: () => [],
     extendResources: () => {},
     reload: async () => {},
   }

@@ -25,14 +25,15 @@ docs/
 
 # CI/CD and DevOps
 .github
-.devcontainer
 .husky
 docker-compose*.yml
 Dockerfile*
 
 # Build artifacts and caches
 .next
+**/.next
 .turbo
+**/.turbo
 .cache
 dist
 build

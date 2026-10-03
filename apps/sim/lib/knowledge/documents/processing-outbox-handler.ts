@@ -1,18 +1,74 @@
+import { isRecordLike } from '@sim/utils/object'
 import { assertBillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
-import type { OutboxHandler, OutboxHandlerRegistry } from '@/lib/core/outbox/service'
+import { env, envNumber } from '@/lib/core/config/env'
+import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
+import {
+  type OutboxHandler,
+  type OutboxHandlerRegistry,
+  withOutboxHandlerTimeout,
+} from '@/lib/core/outbox/service'
+import { isBYOKEmbeddingCredentialRejection, isEmbeddingQuotaExhaustion } from '@/lib/embeddings'
+import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
+import {
+  cleanupKnowledgeConnector,
+  KNOWLEDGE_CONNECTOR_CLEANUP_EVENT,
+} from '@/lib/knowledge/connectors/deletion'
+import {
+  detachKnowledgeConnector,
+  KNOWLEDGE_CONNECTOR_DETACH_EVENT,
+} from '@/lib/knowledge/connectors/detachment'
+import { checkDeferredDocumentRetry } from '@/lib/knowledge/documents/deferred-retry-check'
+import {
+  getOcrRequestRejection,
+  isPermanentDocumentProcessingError,
+  isUsageLimitDocumentProcessingError,
+} from '@/lib/knowledge/documents/document-processing-error'
+import {
+  cleanupEmbeddingCheckpoint,
+  EMBEDDING_CHECKPOINT_CLEANUP_EVENT,
+} from '@/lib/knowledge/documents/embedding-checkpoints'
+import {
+  cleanupOcrCheckpoint,
+  OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT,
+} from '@/lib/knowledge/documents/ocr-checkpoints'
 import { reclaimStaleDocumentProcessingClaim } from '@/lib/knowledge/documents/processing-claim'
 import {
+  dispatchDocumentProcessingContinuation,
+  KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT,
+} from '@/lib/knowledge/documents/processing-continuation-dispatch'
+import {
+  KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT,
   KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT,
   type KnowledgeDocumentProcessingOutboxPayload,
 } from '@/lib/knowledge/documents/processing-outbox-event'
 import {
+  assertDocumentProcessingPayload,
+  resolveDocumentProcessingLane,
+  shouldRefundDocumentProcessingPredecessor,
+} from '@/lib/knowledge/documents/processing-payload'
+import { scheduleDocumentProcessingProviderContinuation } from '@/lib/knowledge/documents/processing-provider-continuation'
+import {
+  getProviderCapacityDeferral,
+  ProviderCapacityContinuationExhaustedError,
+} from '@/lib/knowledge/documents/processing-provider-deferral'
+import {
+  canScheduleDocumentProcessingQuotaContinuation,
+  scheduleDocumentProcessingQuotaContinuation,
+} from '@/lib/knowledge/documents/processing-quota-continuation'
+import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery'
+import {
   getKnowledgeDocument,
   type ProcessingOptions,
+  processDocumentAsync,
   processDocumentsWithQueue,
 } from '@/lib/knowledge/documents/service'
+import {
+  cleanupKnowledgeStorage,
+  KNOWLEDGE_STORAGE_CLEANUP_EVENT,
+} from '@/lib/knowledge/documents/storage-cleanup'
 
 function requirePayloadRecord(payload: unknown): Record<string, unknown> {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+  if (!isRecordLike(payload)) {
     throw new Error('Knowledge document processing outbox payload must be an object')
   }
   return payload as Record<string, unknown>
@@ -52,14 +108,25 @@ function parsePayload(payload: unknown): KnowledgeDocumentProcessingOutboxPayloa
     documentId: requireNonEmptyString(record.documentId, 'documentId'),
     processingOptions: parseProcessingOptions(record.processingOptions),
     billingAttribution: assertBillingAttributionSnapshot(record.billingAttribution),
+    processingLane: resolveDocumentProcessingLane(record.processingLane),
   }
 }
 
 const processKnowledgeDocument: OutboxHandler<unknown> = async (rawPayload, context) => {
   const payload = parsePayload(rawPayload)
   context.signal.throwIfAborted()
-  const document = await getKnowledgeDocument(payload.knowledgeBaseId, payload.documentId)
-  if (!document || document.processingStatus === 'completed') return
+  /** A background job processing the row it was dispatched for; no principal is involved. */
+  const document = await getKnowledgeDocument(
+    payload.knowledgeBaseId,
+    payload.documentId,
+    SYSTEM_ACCESS_SCOPE
+  )
+  if (
+    !document ||
+    document.processingStatus === 'completed' ||
+    document.processingOutcome === 'skipped'
+  )
+    return
   if (document.processingStatus === 'processing') {
     const reclaimed = await reclaimStaleDocumentProcessingClaim({
       knowledgeBaseId: payload.knowledgeBaseId,
@@ -85,13 +152,112 @@ const processKnowledgeDocument: OutboxHandler<unknown> = async (rawPayload, cont
     payload.knowledgeBaseId,
     payload.processingOptions,
     context.eventId,
-    payload.billingAttribution
+    payload.billingAttribution,
+    payload.processingLane,
+    undefined,
+    { signal: context.signal, deadlineAt: context.deadlineAt }
   )
+  context.signal.throwIfAborted()
   if (dispatch.failed > 0 || dispatch.accepted !== 1) {
     throw new Error(`Knowledge document ${document.id} processing dispatch was not accepted`)
   }
 }
 
+/** Resumes the saved indexing generation without admitting or billing a new pass. */
+const resumeKnowledgeDocument: OutboxHandler<unknown> = (rawPayload, context) =>
+  runAdmittedDocument(rawPayload, context, false)
+
+/** Recovery already installed and charged this generation in its admission transaction. */
+const recoverKnowledgeDocument: OutboxHandler<unknown> = async (rawPayload, context) => {
+  const payload = assertDocumentProcessingPayload(rawPayload)
+  if (!payload.processingQueueToken || !payload.processingQueuedAt || !payload.chargedAtDispatch)
+    throw new Error('Document recovery requires an admitted generation')
+  context.signal.throwIfAborted()
+  if (isTriggerAvailable()) {
+    await dispatchDocumentProcessingContinuation(
+      payload,
+      new Date(),
+      `${context.eventId}-worker`,
+      true
+    )
+    return
+  }
+  await runAdmittedDocument(payload, context, context.attempts === 0)
+}
+
+async function runAdmittedDocument(
+  rawPayload: unknown,
+  context: Parameters<OutboxHandler>[1],
+  chargedAtDispatch: boolean
+): Promise<void> {
+  const payload = assertDocumentProcessingPayload(rawPayload)
+  context.signal.throwIfAborted()
+  try {
+    await processDocumentAsync(
+      payload.knowledgeBaseId,
+      payload.documentId,
+      payload.docData,
+      payload.processingOptions,
+      payload,
+      payload.requestId,
+      {
+        chargedAtDispatch,
+        processingQueueToken: payload.processingQueueToken,
+        processingPredecessorToken: payload.processingPredecessorToken,
+        refundPredecessorAdmission: shouldRefundDocumentProcessingPredecessor(payload),
+        ...(payload.processingQueuedAt
+          ? { processingQueuedAt: new Date(payload.processingQueuedAt) }
+          : {}),
+        ...(canScheduleDocumentProcessingQuotaContinuation(payload)
+          ? {
+              scheduleQuotaContinuation: () =>
+                scheduleDocumentProcessingQuotaContinuation(payload, false, chargedAtDispatch),
+            }
+          : { quotaContinuationExhausted: true }),
+        scheduleProviderContinuation: (error) =>
+          scheduleDocumentProcessingProviderContinuation(payload, error, false, chargedAtDispatch),
+        signal: context.signal,
+        deadlineAt: context.deadlineAt,
+      }
+    )
+  } catch (error) {
+    context.signal.throwIfAborted()
+    if (
+      getProviderCapacityDeferral(error) ||
+      error instanceof ProviderCapacityContinuationExhaustedError ||
+      isEmbeddingQuotaExhaustion(error) ||
+      isBYOKEmbeddingCredentialRejection(error) ||
+      getOcrRequestRejection(error) ||
+      isPermanentDocumentProcessingError(error) ||
+      isUsageLimitDocumentProcessingError(error)
+    )
+      return
+    throw error
+  }
+}
+
+const KNOWLEDGE_HANDLER_TIMEOUT_MS = Math.min(
+  550_000,
+  Math.max(1, envNumber(env.KB_CONFIG_MAX_DURATION, 600) * 1000 - 30_000)
+)
+
 export const knowledgeDocumentProcessingOutboxHandlers = {
-  [KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT]: processKnowledgeDocument,
+  [KNOWLEDGE_CONNECTOR_CLEANUP_EVENT]: cleanupKnowledgeConnector,
+  [KNOWLEDGE_CONNECTOR_DETACH_EVENT]: detachKnowledgeConnector,
+  [KNOWLEDGE_STORAGE_CLEANUP_EVENT]: cleanupKnowledgeStorage,
+  [OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT]: cleanupOcrCheckpoint,
+  [KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT]: checkDeferredDocumentRetry,
+  [EMBEDDING_CHECKPOINT_CLEANUP_EVENT]: cleanupEmbeddingCheckpoint,
+  [KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT]: withOutboxHandlerTimeout(
+    processKnowledgeDocument,
+    KNOWLEDGE_HANDLER_TIMEOUT_MS
+  ),
+  [KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT]: withOutboxHandlerTimeout(
+    resumeKnowledgeDocument,
+    KNOWLEDGE_HANDLER_TIMEOUT_MS
+  ),
+  [KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT]: withOutboxHandlerTimeout(
+    recoverKnowledgeDocument,
+    KNOWLEDGE_HANDLER_TIMEOUT_MS
+  ),
 } satisfies OutboxHandlerRegistry

@@ -18,6 +18,14 @@
       "types": "./src/random.ts",
       "default": "./src/random.ts"
     },
+    "./client-info": {
+      "types": "./src/client-info.ts",
+      "default": "./src/client-info.ts"
+    },
+    "./coerce": {
+      "types": "./src/coerce.ts",
+      "default": "./src/coerce.ts"
+    },
     "./color": {
       "types": "./src/color.ts",
       "default": "./src/color.ts"
@@ -54,6 +62,14 @@
       "types": "./src/retry.ts",
       "default": "./src/retry.ts"
     },
+    "./paste": {
+      "types": "./src/paste.ts",
+      "default": "./src/paste.ts"
+    },
+    "./site": {
+      "types": "./src/site.ts",
+      "default": "./src/site.ts"
+    },
     "./sso-domain": {
       "types": "./src/sso-domain.ts",
       "default": "./src/sso-domain.ts"
@@ -80,6 +96,6 @@
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.0"
+    "vitest": "^5.0.1"
   }
 }

@@ -2,9 +2,9 @@ import type {
   AppConfigCreateConfigurationProfileParams,
   AppConfigCreateConfigurationProfileResponse,
 } from '@/tools/appconfig/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createConfigurationProfileTool: ToolConfig<
+export const createConfigurationProfileTool: InternalToolConfig<
   AppConfigCreateConfigurationProfileParams,
   AppConfigCreateConfigurationProfileResponse
 > = {
@@ -72,11 +72,8 @@ export const createConfigurationProfileTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/appconfig/create-configuration-profile',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

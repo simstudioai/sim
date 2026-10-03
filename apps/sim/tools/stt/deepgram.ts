@@ -1,8 +1,8 @@
 import type { SttParams, SttResponse, SttV2Params } from '@/tools/stt/types'
 import { STT_SEGMENT_OUTPUT_PROPERTIES } from '@/tools/stt/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deepgramSttTool: ToolConfig<SttParams, SttResponse> = {
+export const deepgramSttTool: InternalToolConfig<SttParams, SttResponse> = {
   id: 'stt_deepgram',
   name: 'Deepgram STT',
   description: 'Transcribe audio to text using Deepgram',
@@ -65,21 +65,12 @@ export const deepgramSttTool: ToolConfig<SttParams, SttResponse> = {
     },
   },
 
-  request: {
+  operation: {
     modelInput: {
       mode: 'project',
       select: (params) => ({ language: params.language }),
     },
-    url: '/api/tools/stt',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (
-      params: SttParams & {
-        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
-      }
-    ) => ({
+    input: (params) => ({
       provider: 'deepgram',
       apiKey: params.apiKey,
       model: params.model,
@@ -89,9 +80,6 @@ export const deepgramSttTool: ToolConfig<SttParams, SttResponse> = {
       language: params.language || 'auto',
       timestamps: params.timestamps || 'none',
       diarization: params.diarization || false,
-      workspaceId: params._context?.workspaceId,
-      workflowId: params._context?.workflowId,
-      executionId: params._context?.executionId,
     }),
   },
 
@@ -146,20 +134,16 @@ const deepgramSttV2Params = {
   timestamps: deepgramSttTool.params.timestamps,
   diarization: deepgramSttTool.params.diarization,
   translateToEnglish: deepgramSttTool.params.translateToEnglish,
-} satisfies ToolConfig['params']
+} satisfies InternalToolConfig['params']
 
-export const deepgramSttV2Tool: ToolConfig<SttV2Params, SttResponse> = {
+export const deepgramSttV2Tool: InternalToolConfig<SttV2Params, SttResponse> = {
   ...deepgramSttTool,
   id: 'stt_deepgram_v2',
   name: 'Deepgram STT',
   params: deepgramSttV2Params,
-  request: {
-    ...deepgramSttTool.request,
-    body: (
-      params: SttV2Params & {
-        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
-      }
-    ) => ({
+  operation: {
+    ...deepgramSttTool.operation,
+    input: (params) => ({
       provider: 'deepgram',
       apiKey: params.apiKey,
       model: params.model,
@@ -169,9 +153,6 @@ export const deepgramSttV2Tool: ToolConfig<SttV2Params, SttResponse> = {
       timestamps: params.timestamps || 'none',
       diarization: params.diarization || false,
       translateToEnglish: params.translateToEnglish || false,
-      workspaceId: params._context?.workspaceId,
-      workflowId: params._context?.workflowId,
-      executionId: params._context?.executionId,
     }),
   },
 }

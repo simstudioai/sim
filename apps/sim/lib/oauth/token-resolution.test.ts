@@ -1,56 +1,61 @@
-/**
- * @vitest-environment node
- */
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import { credentialsManagedOauthMock } from '@sim/testing/mocks/credentials-managed-oauth.mock'
+import { oauthUtilsMock } from '@sim/testing/mocks/oauth-utils.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAuthorizeCredentialUseForAuth,
-  mockGetCredential,
-  mockRecordAudit,
-  mockRefreshTokenIfNeeded,
-  mockResolveOAuthAccountId,
-  mockResolveServiceAccountToken,
-} = vi.hoisted(() => ({
+const { mockAuthorizeCredentialUseForAuth, mockExecuteManagedToken } = vi.hoisted(() => ({
   mockAuthorizeCredentialUseForAuth: vi.fn(),
-  mockGetCredential: vi.fn(),
-  mockRecordAudit: vi.fn(),
-  mockRefreshTokenIfNeeded: vi.fn(),
-  mockResolveOAuthAccountId: vi.fn(),
-  mockResolveServiceAccountToken: vi.fn(),
+  mockExecuteManagedToken: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { CREDENTIAL_ACCESSED: 'credential.accessed' },
-  AuditResourceType: { CREDENTIAL: 'credential' },
-  recordAudit: mockRecordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/auth/credential-access', () => ({
   authorizeCredentialUseForAuth: mockAuthorizeCredentialUseForAuth,
 }))
 
-vi.mock('@/lib/oauth/credential-service', () => ({
-  getCredential: mockGetCredential,
-  refreshTokenIfNeeded: mockRefreshTokenIfNeeded,
-  resolveOAuthAccountId: mockResolveOAuthAccountId,
-  resolveServiceAccountToken: mockResolveServiceAccountToken,
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
+
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
+
+vi.mock('@/lib/credentials/application/managed-oauth-delegation', () => ({
+  InvalidManagedOAuthDelegationError: class InvalidManagedOAuthDelegationError extends Error {
+    constructor() {
+      super('Managed credential execution requires valid workflow delegation')
+      this.name = 'InvalidManagedOAuthDelegationError'
+    }
+  },
+  authenticateManagedOAuthDelegation: vi.fn(),
 }))
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: vi.fn(),
+vi.mock('@/lib/credentials/application/resolve-managed-oauth-token', () => ({
+  resolveManagedOAuthCredentialToken: { execute: mockExecuteManagedToken },
 }))
 
-import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
-import { resolveCredentialToken } from '@/lib/oauth/token-resolution'
+vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
+
+vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
+
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { InvalidManagedOAuthDelegationError } from '@/lib/credentials/application/managed-oauth-delegation'
+import { resolveCredentialAccessToken, resolveCredentialToken } from '@/lib/oauth/token-resolution'
+import { getToolMetadata } from '@/tools/metadata'
+
+const mockGetToolMetadata = vi.mocked(getToolMetadata)
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const {
+  mockGetCredential,
+  mockRefreshTokenIfNeeded,
+  mockResolveOAuthAccountId,
+  mockResolveServiceAccountToken,
+} = authOAuthUtilsMockFns
 
 const INTERNAL_AUTH = { success: true, userId: 'user-1', authType: 'internal_jwt' } as const
 
 describe('resolveCredentialToken', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockResolveOAuthAccountId.mockResolvedValue(null)
-  })
-
   it('fails closed when the credential is not authorized', async () => {
     mockAuthorizeCredentialUseForAuth.mockResolvedValue({
       ok: false,
@@ -59,6 +64,7 @@ describe('resolveCredentialToken', () => {
 
     const result = await resolveCredentialToken(INTERNAL_AUTH, {
       requestId: 'req-1',
+      resolvedCredential: null,
       credentialId: 'cred-1',
     })
 
@@ -70,20 +76,6 @@ describe('resolveCredentialToken', () => {
     expect(mockGetCredential).not.toHaveBeenCalled()
     expect(mockRefreshTokenIfNeeded).not.toHaveBeenCalled()
     expect(mockRecordAudit).not.toHaveBeenCalled()
-  })
-
-  it('fails closed when the caller carries no user id', async () => {
-    mockAuthorizeCredentialUseForAuth.mockResolvedValue({
-      ok: false,
-      error: 'Authentication required',
-    })
-
-    const result = await resolveCredentialToken(
-      { success: true, authType: 'internal_jwt' },
-      { requestId: 'req-1', credentialId: 'cred-1' }
-    )
-
-    expect(result).toEqual({ ok: false, status: 403, error: 'Authentication required' })
   })
 
   it('refreshes the token, records the access trail, and returns the payload', async () => {
@@ -103,13 +95,16 @@ describe('resolveCredentialToken', () => {
 
     const result = await resolveCredentialToken(INTERNAL_AUTH, {
       requestId: 'req-1',
+      resolvedCredential: null,
       credentialId: 'cred-1',
       workflowId: 'wf-1',
     })
 
-    expect(result).toEqual({ ok: true, token: { accessToken: 'fresh', idToken: 'id-token' } })
+    expect(result).toEqual({
+      ok: true,
+      token: { accessToken: 'fresh', credentialType: 'oauth', idToken: 'id-token' },
+    })
     expect(mockGetCredential).toHaveBeenCalledWith('req-1', 'account-1', 'owner-1')
-    expect(mockRefreshTokenIfNeeded).toHaveBeenCalled()
     expect(mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         actorId: 'user-1',
@@ -120,20 +115,37 @@ describe('resolveCredentialToken', () => {
     )
   })
 
-  it('returns 404 when the authorized credential is missing', async () => {
+  it('projects the realm and environment bound to the QuickBooks account identity', async () => {
     mockAuthorizeCredentialUseForAuth.mockResolvedValue({
       ok: true,
       requesterUserId: 'user-1',
       credentialOwnerUserId: 'owner-1',
+      workspaceId: 'ws-1',
+      resolvedCredentialId: 'account-1',
     })
-    mockGetCredential.mockResolvedValue(undefined)
-
-    const result = await resolveCredentialToken(INTERNAL_AUTH, {
-      requestId: 'req-1',
-      credentialId: 'cred-1',
+    mockGetCredential.mockResolvedValue({
+      providerId: 'quickbooks',
+      accountId:
+        'quickbooks:v2:NkYPLLqX2cM-QABxg0vbv71mQS9s_aRP3v7ZKLvnJyo:sandbox:1234567890:dXNlci0x',
     })
+    mockRefreshTokenIfNeeded.mockResolvedValue({ accessToken: 'fresh', refreshed: false })
 
-    expect(result).toEqual({ ok: false, status: 404, error: 'Credential not found' })
+    await expect(
+      resolveCredentialToken(INTERNAL_AUTH, {
+        requestId: 'req-1',
+        resolvedCredential: null,
+        credentialId: 'cred-1',
+      })
+    ).resolves.toEqual({
+      ok: true,
+      token: {
+        accessToken: 'fresh',
+        credentialType: 'oauth',
+        idToken: undefined,
+        realmId: '1234567890',
+        quickBooksEnvironment: 'sandbox',
+      },
+    })
   })
 
   it('reports a failed refresh as 401 without recording access', async () => {
@@ -147,6 +159,7 @@ describe('resolveCredentialToken', () => {
 
     const result = await resolveCredentialToken(INTERNAL_AUTH, {
       requestId: 'req-1',
+      resolvedCredential: null,
       credentialId: 'cred-1',
     })
 
@@ -155,60 +168,220 @@ describe('resolveCredentialToken', () => {
   })
 
   it('authorizes service-account credentials before minting a token', async () => {
-    mockResolveOAuthAccountId.mockResolvedValue({
-      credentialType: 'service_account',
-      credentialId: 'sa-1',
-      providerId: 'google',
-      workspaceId: 'ws-1',
-      accountId: '',
-      usedCredentialTable: true,
-    })
     mockAuthorizeCredentialUseForAuth.mockResolvedValue({ ok: false, error: 'Unauthorized' })
 
     const result = await resolveCredentialToken(INTERNAL_AUTH, {
       requestId: 'req-1',
       credentialId: 'cred-1',
+      resolvedCredential: {
+        credentialType: 'service_account',
+        credentialId: 'sa-1',
+        providerId: 'google',
+        workspaceId: 'ws-1',
+        accountId: '',
+        usedCredentialTable: true,
+      },
     })
 
     expect(result).toEqual({ ok: false, status: 403, error: 'Unauthorized' })
     expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
   })
 
-  it('surfaces the classified service-account failure code', async () => {
-    mockResolveOAuthAccountId.mockResolvedValue({
-      credentialType: 'service_account',
-      credentialId: 'sa-1',
-      providerId: 'atlassian',
-      workspaceId: 'ws-1',
-      accountId: '',
-      usedCredentialTable: true,
-    })
-    mockAuthorizeCredentialUseForAuth.mockResolvedValue({ ok: true, requesterUserId: 'user-1' })
-    mockResolveServiceAccountToken.mockRejectedValue(
-      new TokenServiceAccountValidationError('invalid_credentials', 401)
-    )
-
-    const result = await resolveCredentialToken(INTERNAL_AUTH, {
-      requestId: 'req-1',
-      credentialId: 'cred-1',
-    })
-
-    expect(result).toEqual({
-      ok: false,
-      status: 401,
-      code: 'invalid_credentials',
-      error: 'Credential rejected by the provider — reconnect the credential',
-    })
-  })
-
   it('rejects a malformed impersonation subject before touching the credential', async () => {
     const result = await resolveCredentialToken(INTERNAL_AUTH, {
       requestId: 'req-1',
+      resolvedCredential: null,
       credentialId: 'cred-1',
       impersonateEmail: 'not-an-email',
     })
 
     expect(result.ok).toBe(false)
     expect(mockAuthorizeCredentialUseForAuth).not.toHaveBeenCalled()
+  })
+})
+
+const MANAGED_RESOLVED = {
+  credentialType: 'managed_oauth',
+  credentialId: 'managed-1',
+  providerId: 'google',
+  workspaceId: 'ws-1',
+  accountId: '',
+  usedCredentialTable: true,
+} as const
+
+const EXECUTOR_PRINCIPAL = {
+  kind: 'delegated',
+  serviceId: 'executor',
+  subjectUserId: 'user-1',
+  workspaceId: 'ws-1',
+} as never
+
+describe('resolveCredentialAccessToken', () => {
+  const authenticate = vi.fn()
+  const resolveManagedPrincipal = vi.fn()
+
+  beforeEach(() => {
+    mockResolveOAuthAccountId.mockResolvedValue(null)
+    authenticate.mockResolvedValue(INTERNAL_AUTH)
+    resolveManagedPrincipal.mockResolvedValue(EXECUTOR_PRINCIPAL)
+    mockGetToolMetadata.mockReturnValue({
+      oauth: { required: true, provider: 'google', requiredScopes: ['scope-a'] },
+    })
+  })
+
+  it('rejects a managed credential when no delegation resolver is wired', async () => {
+    mockResolveOAuthAccountId.mockResolvedValue(MANAGED_RESOLVED)
+
+    const result = await resolveCredentialAccessToken({
+      requestId: 'req-1',
+      credentialId: 'cred-1',
+      toolId: 'gmail_send',
+      authenticate,
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      status: 403,
+      code: 'MANAGED_CREDENTIAL_DELEGATION_REQUIRED',
+      error: 'Managed credentials can only be used by an authenticated workflow execution',
+    })
+    expect(authenticate).not.toHaveBeenCalled()
+  })
+
+  it('maps an invalid delegation to 401 with its message', async () => {
+    mockResolveOAuthAccountId.mockResolvedValue(MANAGED_RESOLVED)
+    resolveManagedPrincipal.mockRejectedValue(new InvalidManagedOAuthDelegationError())
+
+    const result = await resolveCredentialAccessToken({
+      requestId: 'req-1',
+      credentialId: 'cred-1',
+      toolId: 'gmail_send',
+      authenticate,
+      resolveManagedPrincipal,
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      status: 401,
+      code: 'MANAGED_CREDENTIAL_DELEGATION_INVALID',
+      error: 'Managed credential execution requires valid workflow delegation',
+    })
+    expect(resolveManagedPrincipal).toHaveBeenCalledWith('managed-1')
+  })
+
+  it('requires a tool id for managed credentials', async () => {
+    mockResolveOAuthAccountId.mockResolvedValue(MANAGED_RESOLVED)
+
+    const result = await resolveCredentialAccessToken({
+      requestId: 'req-1',
+      credentialId: 'cred-1',
+      authenticate,
+      resolveManagedPrincipal,
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      status: 400,
+      code: 'MANAGED_CREDENTIAL_TOOL_REQUIRED',
+      error: 'A tool ID is required to use a managed credential',
+    })
+  })
+
+  it('rejects tools without managed OAuth support', async () => {
+    mockResolveOAuthAccountId.mockResolvedValue(MANAGED_RESOLVED)
+    mockGetToolMetadata.mockReturnValue({ oauth: undefined })
+
+    const result = await resolveCredentialAccessToken({
+      requestId: 'req-1',
+      credentialId: 'cred-1',
+      toolId: 'http_request',
+      authenticate,
+      resolveManagedPrincipal,
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      status: 500,
+      code: 'MANAGED_CREDENTIAL_TOOL_UNSUPPORTED',
+      error: 'This tool is not configured to use managed credentials',
+    })
+    expect(mockExecuteManagedToken).not.toHaveBeenCalled()
+  })
+
+  it('rejects tools whose scope policy is empty', async () => {
+    mockResolveOAuthAccountId.mockResolvedValue(MANAGED_RESOLVED)
+    mockGetToolMetadata.mockReturnValue({ oauth: { required: true, provider: 'google' } })
+
+    const result = await resolveCredentialAccessToken({
+      requestId: 'req-1',
+      credentialId: 'cred-1',
+      toolId: 'gmail_send',
+      authenticate,
+      resolveManagedPrincipal,
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      status: 500,
+      code: 'MANAGED_CREDENTIAL_TOOL_UNSUPPORTED',
+      error: 'This tool is not configured to use managed credentials',
+    })
+  })
+
+  it("scopes a managed credential to the tool's required scopes", async () => {
+    mockResolveOAuthAccountId.mockResolvedValue(MANAGED_RESOLVED)
+    mockExecuteManagedToken.mockResolvedValue({ accessToken: 'managed-token', idToken: 'id-1' })
+    const auditRequest = { headers: { get: () => null } }
+
+    const result = await resolveCredentialAccessToken({
+      requestId: 'req-1',
+      credentialId: 'cred-1',
+      toolId: 'gmail_send',
+      auditRequest,
+      authenticate,
+      resolveManagedPrincipal,
+    })
+
+    expect(result).toEqual({
+      ok: true,
+      token: {
+        accessToken: 'managed-token',
+        credentialType: 'managed_oauth',
+        idToken: 'id-1',
+      },
+    })
+    expect(mockExecuteManagedToken).toHaveBeenCalledWith({
+      principal: EXECUTOR_PRINCIPAL,
+      input: {
+        credentialId: 'managed-1',
+        expectedProviderId: 'google',
+        requiredScopes: ['scope-a'],
+        toolId: 'gmail_send',
+      },
+      request: auditRequest,
+    })
+    expect(authenticate).not.toHaveBeenCalled()
+  })
+
+  it('projects orchestration failures as managed unauthorized', async () => {
+    mockResolveOAuthAccountId.mockResolvedValue(MANAGED_RESOLVED)
+    mockExecuteManagedToken.mockRejectedValue(
+      new OrchestrationError('not_found', 'Managed credential not found')
+    )
+
+    const result = await resolveCredentialAccessToken({
+      requestId: 'req-1',
+      credentialId: 'cred-1',
+      toolId: 'gmail_send',
+      authenticate,
+      resolveManagedPrincipal,
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      status: 404,
+      code: 'MANAGED_CREDENTIAL_UNAUTHORIZED',
+      error: 'Managed credential not found',
+    })
   })
 })

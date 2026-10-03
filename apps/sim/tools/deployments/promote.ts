@@ -2,9 +2,9 @@ import type {
   DeploymentsPromoteParams,
   DeploymentsPromoteResponse,
 } from '@/tools/deployments/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deploymentsPromoteTool: ToolConfig<
+export const deploymentsPromoteTool: InternalToolConfig<
   DeploymentsPromoteParams,
   DeploymentsPromoteResponse
 > = {
@@ -29,21 +29,11 @@ export const deploymentsPromoteTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/deployments/promote',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
-      const workspaceId = params._context?.workspaceId
-      if (!workspaceId) {
-        throw new Error('workspaceId is required in execution context')
-      }
-      return {
-        workflowId: params.workflowId,
-        workspaceId,
-        version: Number(params.version),
-      }
-    },
+  operation: {
+    input: (params) => ({
+      workflowId: params.workflowId,
+      version: Number(params.version),
+    }),
   },
 
   transformResponse: async (response) => response.json(),

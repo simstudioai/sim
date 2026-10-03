@@ -1,7 +1,7 @@
 import type { KnowledgeListDocumentsResponse } from '@/tools/knowledge/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const knowledgeListDocumentsTool: ToolConfig<any, KnowledgeListDocumentsResponse> = {
+export const knowledgeListDocumentsTool: InternalToolConfig<any, KnowledgeListDocumentsResponse> = {
   id: 'knowledge_list_documents',
   name: 'Knowledge List Documents',
   description: 'List documents in a knowledge base with optional filtering, search, and pagination',
@@ -40,22 +40,14 @@ export const knowledgeListDocumentsTool: ToolConfig<any, KnowledgeListDocumentsR
     },
   },
 
-  request: {
-    internal: true,
-    internalAuth: 'executor_delegation',
-    url: (params) => {
-      const queryParams = new URLSearchParams()
-      if (params.search) queryParams.set('search', params.search)
-      if (params.enabledFilter) queryParams.set('enabledFilter', params.enabledFilter)
-      if (params.limit != null) queryParams.set('limit', String(params.limit))
-      if (params.offset != null) queryParams.set('offset', String(params.offset))
-      const qs = queryParams.toString()
-      return `/api/knowledge/${encodeURIComponent(params.knowledgeBaseId)}/documents${qs ? `?${qs}` : ''}`
-    },
-    method: 'GET',
+  operation: {
     secretProvenance: { response: { incomplete: 'reject' } },
-    headers: () => ({
-      'Content-Type': 'application/json',
+    input: (params) => ({
+      knowledgeBaseId: params.knowledgeBaseId,
+      ...(params.search ? { search: params.search } : {}),
+      ...(params.enabledFilter ? { enabledFilter: params.enabledFilter } : {}),
+      ...(params.limit != null ? { limit: String(params.limit) } : {}),
+      ...(params.offset != null ? { offset: String(params.offset) } : {}),
     }),
   },
 

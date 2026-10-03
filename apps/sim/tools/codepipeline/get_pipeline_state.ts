@@ -2,9 +2,9 @@ import type {
   CodePipelineGetPipelineStateParams,
   CodePipelineGetPipelineStateResponse,
 } from '@/tools/codepipeline/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getPipelineStateTool: ToolConfig<
+export const getPipelineStateTool: InternalToolConfig<
   CodePipelineGetPipelineStateParams,
   CodePipelineGetPipelineStateResponse
 > = {
@@ -41,13 +41,8 @@ export const getPipelineStateTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/codepipeline/get-pipeline-state',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

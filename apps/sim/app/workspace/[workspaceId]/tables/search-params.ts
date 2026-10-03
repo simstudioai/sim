@@ -1,5 +1,6 @@
 import { parseAsArrayOf, parseAsString } from 'nuqs/server'
 import { createSortParams } from '@/lib/url-state'
+import type { ResourceListPreferenceConfig } from '@/stores/resource-list-preferences'
 
 /** Sortable table columns, matching the `Resource.Options` sort menu. */
 export const TABLE_SORT_COLUMNS = [
@@ -44,6 +45,16 @@ export const tablesParsers = {
   rows: parseAsArrayOf(parseAsString).withDefault([]),
   owner: parseAsArrayOf(parseAsString).withDefault([]),
 } as const
+
+export const tablesListPreferenceConfig = {
+  module: 'tables',
+  sortColumns: TABLE_SORT_COLUMNS,
+  filterKeys: ['rows', 'owner'],
+  defaultPreference: {
+    sort: tablesSortParams.default,
+    filters: { rows: [], owner: [] },
+  },
+} as const satisfies ResourceListPreferenceConfig
 
 /** Filter/search/sort view-state: clean URLs, no back-stack churn. */
 export const tablesUrlKeys = {

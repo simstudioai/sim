@@ -1,8 +1,18 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike, omit } from '@sim/utils/object'
-import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
-import type { ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
+import {
+  durableSecretProvenanceFromRegistry,
+  importDurableSecretProvenance,
+} from '@/lib/execution/durable-secret-provenance'
+import type { AgentConversationSession } from '@/lib/memory/conversation-types'
+import {
+  AGENT_MEMORY_RETRIEVAL_TOOL_ID,
+  type AgentMemoryRetrievalBinding,
+} from '@/lib/memory/retrieval-tool-types'
+import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
+import type { ToolExecutionResult } from '@/lib/mothership/tool-executor/types'
 import {
   CHILD_EXECUTION_ID_OUTPUT_KEY,
   CHILD_TRACE_DISABLED_OUTPUT_KEY,
@@ -10,15 +20,22 @@ import {
 import type { ExecutionContext } from '@/executor/types'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { getPreparedProviderToolInputProvenance } from '@/providers/tool-input-provenance'
+import type { ProviderId } from '@/providers/types'
 import { type ExecuteToolOptions, executeTool } from '@/tools'
 import type { ToolResponse } from '@/tools/types'
 
 export interface ProviderRuntimeContext {
+  agentConversation?: AgentConversationSession
+  agentMemoryContext?: { historyTokens?: number }
+  agentMemoryRetrieval?: AgentMemoryRetrievalBinding
+  conversationProvider?: { providerId: ProviderId; binding: string }
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   /** Trusted server execution context inherited by model-emitted tool calls. */
   executionContext?: ExecutionContext
   /** Request-scoped provider wire ids mapped back to canonical tool registry ids. */
   toolIdByWireId?: ReadonlyMap<string, string>
+  /** Failed canonical Function cost omitted from provider tool-result collections. */
+  failedFunctionToolCost?: { total: number }
 }
 
 export type ExecuteProviderToolOptions = ExecuteToolOptions
@@ -31,6 +48,11 @@ export interface ProviderToolExecutionResult {
 }
 
 const providerRuntimeContext = new AsyncLocalStorage<ProviderRuntimeContext | undefined>()
+const logger = createLogger('ProviderRuntimeContext')
+
+export function getProviderRuntimeContext(): ProviderRuntimeContext | undefined {
+  return providerRuntimeContext.getStore()
+}
 
 export function runWithProviderRuntimeContext<T>(
   context: ProviderRuntimeContext | undefined,
@@ -43,7 +65,17 @@ function toProviderModelResponse(
   rawResponse: ToolResponse,
   projectedResponse: ToolExecutionResult
 ): ToolResponse {
-  const { output: _output, error: _error, ...functionalFields } = rawResponse
+  /**
+   * `effect` is an input to the egress projection, not content — it reaches the model only as
+   * the disclosure record that replaces withheld output. This split spreads every other field
+   * through verbatim, so dropping it here is what keeps that true on the provider path too.
+   */
+  const {
+    output: _output,
+    error: _error,
+    effect: _effect,
+    ...functionalFields
+  } = rawResponse as ToolResponse & { effect?: unknown }
   return {
     ...functionalFields,
     output: Object.hasOwn(projectedResponse, 'output')
@@ -78,13 +110,102 @@ function withoutChildTraceHandle(response: ToolResponse): ToolResponse {
   }
 }
 
+function accumulateFailedFunctionToolCost(
+  toolId: string,
+  result: ToolResponse,
+  accumulator: ProviderRuntimeContext['failedFunctionToolCost']
+): void {
+  if (toolId !== 'function_execute' || result.success || !accumulator) return
+  if (!isRecordLike(result.output) || !isRecordLike(result.output.cost)) return
+
+  const total = result.output.cost.total
+  if (typeof total === 'number' && Number.isFinite(total) && total > 0) {
+    accumulator.total += total
+  }
+}
+
 export async function executeProviderTool(
   toolId: string,
   params: Parameters<typeof executeTool>[1],
   options: ExecuteProviderToolOptions = {}
 ): Promise<ProviderToolExecutionResult> {
   const runtimeContext = providerRuntimeContext.getStore()
+  const invocationId =
+    isRecordLike(params._context) && typeof params._context.invocationId === 'string'
+      ? params._context.invocationId
+      : undefined
+  const session = runtimeContext?.agentConversation
+  runtimeContext?.executionContext?.abortSignal?.throwIfAborted()
   const executionToolId = runtimeContext?.toolIdByWireId?.get(toolId) ?? toolId
+  const memoryRetrieval =
+    executionToolId === AGENT_MEMORY_RETRIEVAL_TOOL_ID &&
+    toolId === runtimeContext?.agentMemoryRetrieval?.tool.id
+      ? runtimeContext?.agentMemoryRetrieval
+      : undefined
+  const recorded =
+    invocationId && !memoryRetrieval ? await session?.getReplayResult(invocationId) : undefined
+  if (recorded) {
+    if (
+      runtimeContext?.resolvedSecretTraceRegistry &&
+      recorded.provenance &&
+      !(await importDurableSecretProvenance(
+        runtimeContext.resolvedSecretTraceRegistry,
+        recorded.provenance,
+        recorded.rawResponse
+      ))
+    ) {
+      throw Object.assign(new Error('Recorded tool result provenance could not be restored'), {
+        retryable: false,
+      })
+    }
+    logger.info('Replayed a recorded Agent tool result')
+    const rawResponse = isRecordLike(recorded.rawResponse.output.cost)
+      ? {
+          ...recorded.rawResponse,
+          output: {
+            ...recorded.rawResponse.output,
+            cost: {
+              ...recorded.rawResponse.output.cost,
+              input: 0,
+              output: 0,
+              toolCost: 0,
+              total: 0,
+            },
+          },
+        }
+      : recorded.rawResponse
+    return {
+      rawResponse,
+      modelResponse:
+        session?.getRecordedResult?.(invocationId!)?.modelResponse ?? recorded.modelResponse,
+    }
+  }
+  const recordResult = async (
+    result: ProviderToolExecutionResult
+  ): Promise<ProviderToolExecutionResult> => {
+    try {
+      if (session && invocationId) {
+        await session.recordToolResult({
+          invocationId,
+          ...result,
+          ...(runtimeContext?.resolvedSecretTraceRegistry
+            ? {
+                provenance: durableSecretProvenanceFromRegistry(
+                  runtimeContext.resolvedSecretTraceRegistry,
+                  result.rawResponse
+                ),
+              }
+            : {}),
+        })
+        const retained = session.getRecordedResult?.(invocationId)
+        if (retained && !memoryRetrieval)
+          return { ...result, modelResponse: retained.modelResponse }
+      }
+    } catch {
+      logger.warn('Agent tool result durability unavailable')
+    }
+    return result
+  }
   const registry =
     options.resolvedSecretTraceRegistry ?? runtimeContext?.resolvedSecretTraceRegistry
 
@@ -105,20 +226,27 @@ export async function executeProviderTool(
 
   try {
     const executionContext = options.executionContext ?? runtimeContext?.executionContext
-    const result = await executeTool(executionToolId, params, {
-      ...options,
-      ...(executionContext ? { executionContext } : {}),
-      resolvedSecretTraceRegistry: toolCallRegistry,
-    })
+    const result = memoryRetrieval
+      ? await memoryRetrieval.execute(params)
+      : await executeTool(executionToolId, params, {
+          ...options,
+          ...(executionContext ? { executionContext } : {}),
+          resolvedSecretTraceRegistry: toolCallRegistry,
+        })
+    accumulateFailedFunctionToolCost(
+      executionToolId,
+      result,
+      runtimeContext?.failedFunctionToolCost
+    )
     if (!registry || !toolCallRegistry) {
-      return { rawResponse: result, modelResponse: withoutChildTraceHandle(result) }
+      return recordResult({ rawResponse: result, modelResponse: withoutChildTraceHandle(result) })
     }
 
     const modelResponse = withoutChildTraceHandle(
       toProviderModelResponse(result, projectToolResultForCopilot(result, toolCallRegistry))
     )
     registry.mergeToolCallRegistry(toolCallRegistry)
-    return { rawResponse: result, modelResponse }
+    return recordResult({ rawResponse: result, modelResponse })
   } catch (error) {
     if (!registry || !toolCallRegistry) throw error
     const errorName =
@@ -136,6 +264,6 @@ export async function executeProviderTool(
       rawResponse,
       projectToolResultForCopilot(rawResponse, toolCallRegistry)
     )
-    return { rawResponse, modelResponse }
+    return recordResult({ rawResponse, modelResponse })
   }
 }

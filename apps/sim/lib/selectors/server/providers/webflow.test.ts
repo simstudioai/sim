@@ -1,0 +1,94 @@
+import {
+  selectorCredentialsMock,
+  selectorCredentialsMockFns,
+} from '@sim/testing/mocks/selector-credentials.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockFetch } = vi.hoisted(() => ({
+  mockFetch: vi.fn(),
+}))
+
+vi.mock('@/lib/selectors/server/credentials', () => selectorCredentialsMock)
+
+import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
+import { webflowSelectorAttachments } from '@/lib/selectors/server/providers/webflow'
+import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
+
+const mockResolveSelectorOAuthAccessToken =
+  selectorCredentialsMockFns.mockResolveSelectorOAuthAccessToken
+
+const collectionId = '680000000000000000000001'
+
+function args(request: ExecuteServerSelectorArgs['request']): ExecuteServerSelectorArgs {
+  return {
+    selectorKey: 'webflow.items',
+    context: { oauthCredential: 'credential-1', collectionId },
+    request,
+    scope: { kind: 'workspace', workspaceId: 'workspace-1' },
+    workspaceId: 'workspace-1',
+    principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+    requesterUserId: 'user-1',
+    credential: { suppliedId: 'credential-1' },
+    references: new Map(),
+    protectedValues: createSelectorProtectedValues(),
+  }
+}
+
+describe('Webflow server selector adapter', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', mockFetch)
+    mockResolveSelectorOAuthAccessToken.mockResolvedValue('server-only-token')
+  })
+
+  afterAll(() => vi.unstubAllGlobals())
+
+  it('fetches one searched item page beyond the old 50-page boundary', async () => {
+    const itemId = '680000000000000000001389'
+    mockFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          items: [{ id: itemId, fieldData: { name: 'Needle beyond fifty' } }],
+          pagination: { limit: 100, offset: 5000, total: 5002 },
+        }),
+        { status: 200 }
+      )
+    )
+
+    await expect(
+      webflowSelectorAttachments['webflow.items'].execute(
+        args({ kind: 'list', search: '  Needle  ', cursor: '5000' })
+      )
+    ).resolves.toEqual({
+      kind: 'list',
+      items: [{ id: itemId, label: 'Needle beyond fifty' }],
+      nextCursor: '5001',
+    })
+
+    const url = new URL(String(mockFetch.mock.calls[0]?.[0]))
+    expect(url.pathname).toBe(`/v2/collections/${collectionId}/items`)
+    expect(url.searchParams.get('limit')).toBe('100')
+    expect(url.searchParams.get('offset')).toBe('5000')
+    expect(url.searchParams.get('filter[name][contains]')).toBe('Needle')
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('continues after a full page when optional pagination fields are omitted', async () => {
+    const items = Array.from({ length: 100 }, (_, index) => ({
+      id: index.toString(16).padStart(24, '0'),
+      fieldData: { name: `Item ${index}` },
+    }))
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ items, pagination: {} }), { status: 200 })
+    )
+
+    const result = await webflowSelectorAttachments['webflow.items'].execute(
+      args({ kind: 'list', cursor: '5000' })
+    )
+
+    expect(result.kind).toBe('list')
+    if (result.kind !== 'list') throw new Error('Expected a list selector result')
+    expect(result.items).toHaveLength(100)
+    expect(result.nextCursor).toBe('5100')
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+  })
+})

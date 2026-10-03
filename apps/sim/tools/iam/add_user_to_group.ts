@@ -1,7 +1,10 @@
 import type { IAMAddUserToGroupParams, IAMGroupMembershipResponse } from '@/tools/iam/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const addUserToGroupTool: ToolConfig<IAMAddUserToGroupParams, IAMGroupMembershipResponse> = {
+export const addUserToGroupTool: InternalToolConfig<
+  IAMAddUserToGroupParams,
+  IAMGroupMembershipResponse
+> = {
   id: 'iam_add_user_to_group',
   name: 'IAM Add User to Group',
   description: 'Add an IAM user to a group',
@@ -40,11 +43,8 @@ export const addUserToGroupTool: ToolConfig<IAMAddUserToGroupParams, IAMGroupMem
     },
   },
 
-  request: {
-    url: '/api/tools/iam/add-user-to-group',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

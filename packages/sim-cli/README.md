@@ -1,426 +1,390 @@
 # Sim CLI
 
-Talk to the [Sim](https://sim.ai) API from your terminal.
+`sim` is the command-line client for [Sim](https://sim.ai), a workspace for
+building, deploying, and managing AI agents and workflows.
+
+Use the CLI to work with an existing Sim account or self-hosted deployment from
+your terminal. You can run workflows, inspect logs, query tables, manage files
+and knowledge bases, and configure workspace resources. The CLI does not install
+or run Sim itself; see the
+[self-hosting guide](https://docs.sim.ai/platform/self-hosting/docker) if you need
+to set up a Sim deployment.
+
+## Install
+
+The CLI requires Node.js 20 or newer.
 
 ```bash
-npm install -g sim
-sim login
-sim workflows list
+npm install --global sim
+sim --version
 ```
 
-Full documentation: **https://docs.sim.ai/cli**
+You can also run a command without installing the package globally:
+
+```bash
+npx sim --help
+```
+
+## Updates
+
+The CLI checks for a newer stable release on eligible interactive invocations,
+at most once per day. It prints an optional update notice and continues your
+command. Updates install only when you run `sim update`.
+
+Update immediately, including in CI or with automatic checks disabled:
+
+```bash
+sim update
+```
+
+The updater uses the package manager that installed the running copy and verifies
+its global installation before making changes. Supported managers are npm, pnpm,
+Bun, and Yarn Classic. Use `sim update --package-manager bun` if detection does
+not match a custom installation. Manual updates preserve staging and dev channels.
+Installation failures exit with an error; concurrent update attempts are refused.
+The updater resolves the channel through that package manager, refuses older
+releases, and installs the exact version it checked.
+
+Set `SIM_NO_UPDATE_CHECK=1` to disable update notices. Project-local installs and
+temporary package-runner copies must be updated through their package manager.
+
+Older releases without `sim update` need one upgrade using the package manager
+that installed them before this mechanism becomes available.
+
+## Get started
+
+Sign in to the default profile:
+
+```bash
+sim login
+```
+
+With no `--method`, the CLI prefers OAuth when the server offers it and a local
+browser callback is possible. It selects API-key pairing for remote terminals
+or servers without OAuth. Use `sim login --method oauth` to require OAuth;
+if the server does not offer it, login fails without creating an API key.
+
+OAuth login opens Sim in your browser, asks you to approve the requested access,
+and receives the one-time authorization code on a loopback callback. It stores
+a short-lived OAuth login that renews automatically and can be revoked under
+**Settings → General → Authorized apps**. Choose a default workspace afterward with
+`sim configure --set-workspace <id>`.
+
+Use `--no-browser` with either method to print the approval URL without opening
+it. OAuth still needs the browser to reach the CLI's loopback callback. Over SSH
+or in a container without port forwarding, use
+`sim login --method api-key --no-browser` to approve from another device and
+create a permanent personal API key. `--method api-key` creates a new key;
+set `SIM_API_KEY` to supply an existing one.
+
+Pairing requires a server that supports `platform` API keys. Upgrade older
+deployments that only issue `copilot` keys before login; they are not compatible
+with the platform CLI. OAuth discovery does not check pairing compatibility.
+
+Check the active profile and verify that its endpoint, credential, and workspace
+work together:
+
+```bash
+sim whoami
+```
+
+This also reports whether the active credential is an OAuth login or an API
+key. Some administrative operations require a personal credential.
+
+Then list and run workflows:
+
+```bash
+sim workflows list
+sim workflows run <workflowId> --input '{"ticketId":"T-4821"}'
+```
+
+A workflow must be deployed before it can run:
+
+```bash
+sim workflows deploy <workflowId>
+```
+
+Workflow, knowledge-base, and workspace IDs are UUIDs. Table IDs start with
+`tbl_`; file IDs start with `wf_`. Despite the prefix, `wf_` identifies a file,
+not a workflow.
 
 ## Profiles
 
-Profiles work like the AWS CLI and are selected with `-P`, `--profile`, or
-`SIM_PROFILE`. A profile normally owns one identity and one set of defaults; a
-workspace profile can instead share a stored identity through `auth_profile`.
+A profile is a named CLI configuration. It determines:
 
-Non-secret settings live in `~/.sim/config`:
+- which Sim deployment to use
+- which stored login or API key to authenticate with
+- which workspace to target by default
+- how command output is formatted
 
-```ini
-[default]
-endpoint = https://www.sim.ai
-workspace = b7f4a1c3-9e02-4d68-8a5b-1c3f6d90e274
-output = table
-
-[profile dev]
-endpoint = http://localhost:3000
-workspace = a3c81b02-5f4d-4e19-9d7a-2b6c1e084f55
-
-[profile acme]
-auth_profile = default
-workspace = 7e2d9c14-6b83-4a55-8f01-c4d3e9a76b28
-```
-
-Keys live in `~/.sim/credentials`, written `0600`:
-
-```ini
-[default]
-api_key = sim_…
-
-[dev]
-api_key = sim_…
-```
-
-The section-naming asymmetry — `[profile dev]` in config, `[dev]` in credentials
-— is the AWS convention, kept so existing habits and tooling carry over.
+If you do not specify a profile, the CLI uses `default`. Select another profile
+with `--profile`, its short form `-P`, or `SIM_PROFILE`:
 
 ```bash
-sim configure --set-endpoint http://localhost:3000 --profile dev
-sim configure --set-workspace a3c81b02-5f4d-4e19-9d7a-2b6c1e084f55 --profile dev
-
-sim profiles   # list them; * marks the active one
-sim whoami     # resolved values, where each came from, and whether they work
-
-# Share the active stored login with a second workspace
-sim profile add acme --workspace 7e2d9c14-6b83-4a55-8f01-c4d3e9a76b28
+sim workflows list --profile production
+sim -P production logs list
+SIM_PROFILE=production sim tables list
 ```
 
-A profile name that is not configured is refused, with the closest configured
-name suggested. A typo used to fall through to the built-in defaults, so
-`--profile stagng` talked to production and handed it whatever key resolved.
-The two exceptions are the commands whose job is to create a profile:
-`sim login --profile new` and `sim configure --profile new` still accept a name
-that does not exist yet.
+Unknown profile names fail with the configured profile list and a suggested
+match when available. `login` and `configure` are the exceptions because they
+can create a new profile.
 
-## Where settings come from
+There are two common ways to create profiles.
 
-Each setting resolves independently, first match wins:
+### Use one login with several workspaces
 
-| Rank | Source |
-| --- | --- |
-| 1 | Command-line flag (`--endpoint`, `--workspace`, `--output`) |
-| 2 | Environment (`SIM_ENDPOINT`, `SIM_API_KEY`, `SIM_WORKSPACE`, `SIM_OUTPUT`) |
-| 3 | `~/.sim/config` for the selected profile and credentials for its `auth_profile`, when set |
-| 4 | Built-in default (`https://www.sim.ai`, `table`) |
-
-`SIM_TIMEOUT_SECONDS` bounds each request (default `3600`, `0` waits
-indefinitely) and `SIM_DEBUG=1` traces requests to stderr. Node ignores
-`HTTPS_PROXY` unless `NODE_USE_ENV_PROXY=1` is also set, on Node 22.21+ or
-24.5+; the CLI warns when a proxy is configured but will not be used.
-
-Formats are listed under [Output formats](#output-formats).
-
-`sim whoami` prints the winning source per setting, which is usually the fastest
-way to explain a surprising result. It then reads the configured workspace to
-prove the settings actually work; `--no-verify` skips that and stays offline.
-
-Its exit status is the answer, so CI can branch on it:
-
-| Code | Meaning |
-| --- | --- |
-| `0` | The key works and reached the configured workspace |
-| `1` | The credentials are wrong — no key stored, or the API refused it |
-| `2` | The check could not be made — nothing to check against, or the endpoint did not answer |
-
-For CI, skip `sim login` entirely and set `SIM_API_KEY` and `SIM_WORKSPACE` —
-nothing needs to touch the filesystem. `SIM_CONFIG_DIR` relocates both files if
-you need to keep them somewhere other than `~/.sim`.
-
-## Logging in
-
-`sim login` uses the same browser handoff shape as `gh auth login`: the terminal
-prints a pairing code and a URL, you approve in a browser, and the key comes back
-over the CLI's own connection. Nothing redeemable crosses the browser leg, and
-there is no loopback listener — so it works over SSH and inside containers.
-
-```
-$ sim login --profile dev --endpoint http://localhost:3000
-
-Pairing code: K7M2-P9XT
-Confirm this code matches what the browser shows before approving.
-
-http://localhost:3000/cli/auth?request=…&scope=platform
-Waiting for approval…
-
-✓ Logged in. Key stored in /Users/you/.sim/credentials
-  Personal key, defaulting to a3c81b02-5f4d-4e19-9d7a-2b6c1e084f55.
-  Override per command with --workspace.
-```
-
-The approval page is where you pick the workspace — the terminal has no key yet,
-so it cannot list them for you. `sim login` issues a personal key, and whichever
-workspace you pick becomes only the profile's default `workspace`; it does not
-limit the key to that workspace. Use `--workspace` to target another workspace
-the key can access.
-
-`sim login --workspace <id>` preselects a workspace in the picker, and an
-existing profile's workspace preselects itself on re-login.
-
-### Personal and workspace keys
-
-Some operations accept only a **personal** API key: secrets, knowledge chunks,
-knowledge connectors, knowledge tag writes, `chat`, `audit-logs`, and most
-workflow deployment writes. A workspace-scoped key gets a `FORBIDDEN` response
-on those, under one of two codes:
-
-- `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` — the workspace-scoped operations,
-  which is most of the list: secrets, knowledge, `chat`, and the deployment
-  writes.
-- `PRINCIPAL_KIND_NOT_PERMITTED` — the organization-scoped ones, which never go
-  through workspace authorization at all. `audit-logs` is the one in this list.
-
-Match on either when you are branching on the refusal. `sim whoami` reports
-which kind you hold on its `Key type` row, and `sim meta status` reports the
-same thing as `personal` or `workspace` alongside the rest of the key's state:
+After `sim login`, create another profile that shares the active profile's
+credential but has its own default workspace:
 
 ```bash
-$ sim meta status --output json
-{
-  "v2Enabled": true,
-  "keyType": "personal",
-  "expiresAt": null
-}
-```
-
-`sim whoami --no-verify` stays offline and so cannot read the key type; it
-prints `not checked` instead.
-
-`sim logout` removes the stored key. A shared workspace profile cannot remove
-its authentication profile's key; use `sim logout --all --profile <name>` to
-remove only the workspace profile. An authentication profile cannot be removed
-entirely while workspace profiles reference it. Logging out does not revoke a
-key — do that in Settings → API keys.
-
-## Commands
-
-The commands below are the common ones. The complete reference — every group,
-subcommand, argument, and flag, generated from this package — is at
-[docs.sim.ai/cli/commands](https://docs.sim.ai/cli/commands).
-
-Plural resource names are canonical. Most plural top-level resource groups also
-accept their singular form — `sim table list`, `sim file get`, and
-`sim workflow get` are equivalent to their plural spellings. The groups with a
-singular alias are `audit-logs`, `credentials`, `custom-tools`, `files`, `logs`,
-`mcp-servers`, `secrets`, `skills`, `tables`, `workflows`, and `workspaces`;
-`blocks`, `tools`, `chat-deployments`, `connector-types`, and
-`workflow-mcp-servers` are plural-only. `sim --help` lists each group with the
-aliases it actually accepts.
-
-`knowledge` also accepts the shorter `kb` alias.
-
-```bash
-sim workflows ls [path] [--search <text>] [--limit <n>]
-sim workflows list [--folder <path>] [--deployed-only] [--limit <n>]
-sim workflows get <id>
-sim workflows update <id> [--name <name>] [--description <text>] [--folder <path>]
-sim workflows mv <id> <folder>
-sim workflows deploy|undeploy|rollback <id>
-sim workflows run <id> [--input <json|@file>] [--select-output <path>…] [--async]
-sim workflows runs list --workflow <workflowId> [--status <status>]
-sim workflows runs get <runId> --workflow <workflowId> [--include-output]
-sim workflows runs cancel <runId> --workflow <workflowId>
-sim workflows runs resume <runId> --workflow <workflowId> --context <contextId> [--input <json|@file>]
-
-sim logs list [--level error] [--workflow <id>…] [--trigger <name>…] [--start-date <date>]
-sim logs get <runId>
-
-sim audit-logs list [--organization <organizationId>] [--all-workspaces]
-sim audit-logs get <id> [--organization <organizationId>]
-
 sim workspaces list
-sim workspaces get
-sim workspaces members
-
-sim tables ls [path] [--search <text>] [--limit <n>]
-sim tables list [--folder <path>]
-sim tables get <tableId>
-sim tables update <tableId> [--name <name>] [--description <text>] [--folder <path>]
-sim tables mv <tableId> <folder>
-sim tables columns create|update|delete|run <tableId>
-sim tables rows list <tableId> [--limit <n>]
-sim tables rows create <tableId> --data <json|@file>
-sim tables rows create <tableId> --rows <json|@file>
-sim tables rows query <tableId> [--filter <json>] [--sort <json>] [--limit <n>]
-sim tables rows query <tableId> --filter '{"all":[{"field":"status","op":"eq","value":"active"}]}'
-sim tables upsert <tableId> --data <json>
-sim tables rows batch-delete <tableId> (--row <id>… | --filter <json>) --yes
-
-sim files ls [path] [--search <text>] [--limit <n>]
-sim files list [--folder <path>]
-sim files describe <fileId>
-sim files get <fileId> [-o <path>]  # stdout by default
-sim files create --name <name> [--folder <path>] [--content <value>] [--encoding utf-8|base64]
-sim files upload <path> [--name <name>] [--folder <path>]
-sim files share get <fileId>
-sim files share set <fileId> --is-active <true|false> [--auth-type public|password|email|sso]
-sim files mv --file-ids <id>… [--to <path>]
-sim files batch-delete --file-ids <id>… --yes
-sim files delete <fileId> --yes
-
-sim knowledge ls [path] [--search <text>] [--limit <n>]
-sim knowledge list [--folder <path>]
-sim knowledge get <id>
-sim knowledge update <id> [--name <name>] [--description <text>] [--folder <path>]
-sim knowledge mv <id> <folder>
-sim knowledge search --query <text> --kb <id>… [--search-mode vector|hybrid]
-
-sim knowledge documents list <knowledgeBaseId> [--search <text>]
-sim knowledge documents get <knowledgeBaseId> <documentId>
-sim knowledge documents upload <knowledgeBaseId> <path> [--tag <value>...]
-sim knowledge documents update <knowledgeBaseId> <documentId> [--filename <name>] [--enabled]
-sim knowledge documents batch-update <knowledgeBaseId> --operation enable|disable
-sim knowledge documents delete <knowledgeBaseId> <documentId> --yes
-
-sim billing status [--all-workspaces]
-sim billing logs [--period 7d] [--source sim-chat] [--limit <n>] [--all-workspaces]
+sim profile add acme --workspace <workspaceId>
+sim --profile acme whoami
 ```
 
-The `sim-chat` billing source combines Copilot and workspace chat usage.
-Organization audit logs require a personal API key; `--organization` defaults
-to your only organization and is needed only when you belong to more than one. Commands with
-`--all-workspaces` otherwise default to the workspace in the active profile.
+If you omit `--workspace` in an interactive terminal, the CLI asks you to choose
+one. The new profile stores an `auth_profile` reference to the active login; it
+does not copy the credential.
 
-`workflows runs get` is the lightweight status and polling resource.
-`--workflow` names the parent resource, while the run ID remains positional.
-For a paused run, its status includes the context ID needed by `resume`.
-`logs get` is the full diagnostic resource. It keeps the default human output
-concise; add `--trace` for the expanded recursive trace with span inputs,
-outputs, errors, timing, and cost. JSON and YAML retain the complete structured
-response.
+### Use a separate account or deployment
 
-`sim logs get` keeps the default human output concise. Use JSON or YAML to
-inspect its complete `executionData` and recursive `traceSpans` tree:
+Run `login` with a new profile name. Add `--endpoint` when the profile should use
+a self-hosted or local deployment:
 
 ```bash
-sim logs get <runId> --trace
-sim logs get <runId> --output json | jq '.traceSpans'
-sim logs list --include-trace-spans --output json
+sim login --profile work
+sim login --profile local --endpoint http://localhost:3000
 ```
 
-Workflow output selectors use `blockName.field` syntax, such as
-`--select-output agent_1.content`; fields that are not produced are omitted.
+Each of these profiles stores its own login. The endpoint selected during login
+is saved with the profile.
 
-`ls` is a directory view: it combines the resources at its optional path with
-that folder's direct child folders. It never includes deeper descendants. Its
-`ref` column is the resource ID or canonical folder path to pass to the next
-command. Use `list` when you want resources only, or `folders ls` when you want
-folders only.
-
-Each folder-backed resource has the same path commands:
+### View and change profiles
 
 ```bash
-sim tables ls Reports
-sim tables folders ls --parent Reports
-sim tables mkdir Reports/Quarterly
-sim tables folders create Reports/Quarterly
-sim tables folders mv Reports/Quarterly Archive/Quarterly
-sim tables folders delete Archive/Quarterly --yes
-sim tables folders delete Archive --recursive --yes
+sim profiles
+sim configure --profile work
+sim configure --profile work --set-workspace <workspaceId>
+sim configure --profile work --set-output table
+sim configure --profile local --set-endpoint http://localhost:3000
+sim whoami --profile work
 ```
 
-`mkdir` is the concise form of `folders create`. Replace `tables` with `files`,
-`workflows`, or `knowledge`. The leading `/` is optional on API inputs; the API
-returns the canonical leading-slash form. Omit the `ls` path to list root.
+`sim profiles` marks the active profile with `*`. Running `sim configure` with
+no setting flags prints the saved settings for that profile.
 
-### List inputs
+Non-secret settings are stored in `~/.sim/config`. OAuth tokens and API keys are
+stored separately in `~/.sim/credentials`, which is written with `0600`
+permissions. Set
+`SIM_CONFIG_DIR` to use a different directory.
 
-Primitive lists take space-separated values. Prefix a path with `@` to read
-one value per line, or use `@-` to read the list from stdin.
+For each setting, the CLI uses the first available value in this order:
+
+1. command-line flag
+2. environment variable
+3. selected profile
+4. built-in default
+
+`sim whoami` shows both the resolved values and where each one came from.
+Its JSON and YAML `authenticated` field is `true` after the server accepts the
+credential, `false` when it is missing or rejected, and `null` when authentication
+could not be checked (including `--no-verify`). `verification.status` separately
+reports whether the configured workspace is accessible; a valid credential can
+still have `no-workspace` or `rejected` workspace verification.
+
+`sim files read` and `sim files versions read` print the complete text response as
+JSON, or YAML with `--output yaml`, including in table and text display modes.
+The `truncated` field describes server extraction limits, not display clipping.
+For the original file bytes, use `sim files get`.
+
+## Useful commands
+
+Run `--help` at any level to see the available subcommands and flags:
 
 ```bash
-sim files mv --file-ids wf_3Kq9tVbN2xLpR7sWmZ4dY wf_8Jd5cHy1QnT6vXbA0rEuP --to Archive
-sim files mv --file-ids @file-ids.txt --to Archive
-printf 'wf_3Kq9tVbN2xLpR7sWmZ4dY\nwf_8Jd5cHy1QnT6vXbA0rEuP\n' | sim files mv --file-ids @- --to Archive
+sim --help
+sim workflows --help
+sim tables rows query --help
 ```
 
-File IDs carry a `wf_` prefix, as above. Workflow, knowledge-base, and
-workspace IDs are bare UUIDs, and table IDs are `tbl_`-prefixed — the `wf_`
-prefix belongs to files, not workflows.
-
-Arrays of objects remain JSON inputs because they cannot be represented as a
-flat list without losing structure.
-
-### Secret values
-
-`sim secrets set` takes the same `@` convention for its `--value`. Passing a
-secret inline exposes it to shell history and to anything reading the process
-list, so prefer a file or stdin; the contents are sent verbatim, with no
-trimming. A value that genuinely begins with `@` is written `@@`, and only the
-leading `@` is dropped. Omit `--value` entirely and the terminal prompts for it
-without echoing.
+Or describe the task and let the CLI find the command. Search ranks the commands
+this version ships, locally; your query is never sent anywhere:
 
 ```bash
-sim secrets set STRIPE_KEY --scope workspace --value @stripe.key
-op read op://vault/stripe/key | sim secrets set STRIPE_KEY --scope workspace --value @-
-sim secrets set MENTION --scope workspace --value @@channel   # the literal @channel
+sim cli search "cancel a running workflow"
+sim --output table cli search list table rows
 ```
 
-`--unredacted` marks a workspace secret whose value may appear in run logs and
-model-visible content; `--no-unredacted` restores redaction. Omit both and the
-secret keeps whatever it had. Both apply only to `--scope workspace`.
+It returns the five best matches. When a coding agent runs the CLI, root and
+group `--help` open with a note pointing it to `sim cli search`.
 
-### Filtering table rows
+The commands you will use most often are:
 
-`--filter` takes the same predicate tree the API uses — `all` (AND) or `any`
-(OR) groups of `{field, op, value}` conditions, nestable. It's JSON because the
-grammar is a tree; there's no honest flag encoding for it.
-
-```bash
-sim tables rows query tbl_123 \
-  --filter '{"all":[{"field":"status","op":"eq","value":"open"},
-                    {"field":"score","op":"gt","value":10}]}' \
-  --sort '[{"field":"score","direction":"desc"}]' --limit 50
-```
-
-`--sort` is JSON for the same reason: it is an ordered list of keys, each with a
-`field` and a `direction` of `asc` or `desc`.
-
-Row columns are discovered at runtime from the returned data, unioned across the
-page so a sparse row doesn't hide a column.
-
-Deletions require an explicit selector *and* `--yes`; there is no "delete
-everything" default.
-
-### Output formats
-
-Output format can be selected per command with `--output`, saved as a profile
-default with `sim configure --set-output <format>`, or set ambiently with
-`SIM_OUTPUT` for CI:
-
-| Format | For |
+| Task | Command |
 | --- | --- |
-| `table` | reading (default) |
-| `json` | piping into `jq` |
-| `yaml` | piping into anything that reads YAML |
-| `text` | shell loops — tab-separated, no header, no colour |
+| Ask Sim about the workspace | `sim chat "Which workflows failed today?"` |
+| List or inspect workflows | `sim workflows list`, `sim workflows get <workflowId>` |
+| Deploy or run a workflow | `sim workflows deploy <workflowId>`, `sim workflows run <workflowId>` |
+| Follow a workflow run | `sim workflows run <workflowId> --follow` |
+| Inspect workflow runs | `sim workflows runs list --workflow <workflowId>` |
+| Find errors | `sim logs list --level error`, `sim logs follow` |
+| Inspect a run trace | `sim logs get <runId> --trace` |
+| Work with tables | `sim tables list`, `sim tables rows query <tableId>` |
+| Import a CSV | `sim tables import ./data.csv` |
+| Upload or download files | `sim files upload ./report.pdf`, `sim files get <fileId>` |
+| Search knowledge bases | `sim knowledge search --query "refund policy" --kb <knowledgeBaseId>` |
+| Upload a knowledge document | `sim knowledge documents upload <knowledgeBaseId> ./handbook.pdf` |
+| Export a knowledge base | `sim knowledge export <knowledgeBaseId> -o ./kb.simkb.zip` |
+| Manage integration credentials | `sim credentials --help` |
+| Manage workspace secrets | `sim secrets list`, `sim secrets set <name>` |
 
-`json` and `yaml` emit the API's **raw** values, not the table's formatting — a
-duration stays `1500`, not `"1.5s"` — so switching format never changes the data.
-`text` uses the rendered cells, since it is meant for shell plumbing rather than
-parsing.
+Commands follow this general shape:
 
-```bash
-sim configure --set-output json                      # for this profile, from now on
-sim configure --set-output text --profile scripts    # a profile dedicated to scripting
-
-sim --output json logs list --level error | jq -r '.[].runId'
-sim logs list --level error --output json | jq -r '.[].runId'
-SIM_OUTPUT=yaml sim logs list --level error > logs.yaml
-
-SIM_OUTPUT=text sim files list |
-  while IFS=$'\t' read -r id name folder size type uploaded_by uploaded; do
-    echo "$id $name"
-  done
+```text
+sim <resource> [sub-resource] <verb> [arguments] [options]
 ```
 
-An absent value is an em-dash in `table` and an **empty field** in `text`, so
-emptiness tests downstream behave.
+Many plural top-level resource names also accept a singular spelling, so
+`sim workflow get <workflowId>` and `sim workflows get <workflowId>` are
+equivalent. Not every group has a singular alias; `sim --help` shows the exact
+aliases. `knowledge` also has the `kb` alias.
 
-An invalid active `SIM_OUTPUT` or `output =` value fails with the accepted
-formats. A valid higher-priority `--output` still overrides a stale lower tier,
-so `sim --output table configure --set-output json` can repair a profile.
-
-## How this stays in sync with the API
-
-`src/generated/v2-api.ts` is generated from the Zod route contracts in
-`apps/sim/lib/api/contracts/v2/**` — the same contracts the routes validate
-against, so a shape that disagrees with them is a shape the server would reject.
-It holds every response/request type plus the operation table (method, path,
-path params) the client dispatches through.
+For workflows, tables, files, and knowledge bases, `list` returns resources
+only. `ls [path]` returns the resources and direct child folders at a path:
 
 ```bash
-bun run generate:cli-api   # regenerate after changing a contract
-bun run check:cli-api      # CI: fails if the generated file is stale
-bun run check:openapi      # CI: fails if the docs and contracts disagree
+sim workflows ls /Support
+sim files ls /Reports
 ```
 
-The generated file contains only type declarations and one const — no imports —
-so the `packages/*` must not import `apps/*` boundary is preserved; the script
-does the crossing at build time.
+See the [command reference](https://docs.sim.ai/cli/commands) for every command,
+argument, and flag.
 
-The OpenAPI documents under `apps/docs` are deliberately **not** generated. They
-carry hand-written descriptions, examples, and error responses that Zod schemas
-don't encode, so regenerating them would trade real documentation for mechanical
-accuracy. `check:openapi` reconciles them against the same contracts instead —
-field by field, and it parses every documented example with the real Zod schema —
-so the prose survives while drift still fails the build.
+## JSON input and output
 
-## Notes
+JSON is the default, so agents and scripts can parse every result directly.
+Use `table` for aligned human-readable output, YAML if you prefer it, and `text`
+for tab-separated shell output:
 
-- Commands talk to the `/api/v2` surface, which returns `{ data }` and
-  `{ data, nextCursor }`. List commands auto-page up to `--limit`.
+```bash
+sim workflows list --output table
+sim logs list | jq -r '.data[].runId'
+SIM_OUTPUT=yaml sim tables get <tableId>
+sim configure --set-output table
+```
+
+Scripts that must not depend on a profile's saved format can still pass
+`--output json` explicitly.
+
+Paginated lists return `{ "data": [...], "nextCursor": "..." }` in JSON and YAML.
+`nextCursor` is `null` when no pages remain. Resource lists and directory `ls`
+fetch every page by default; use `--limit N` to cap them. Table rows (including
+queries), logs, audit/billing events, workflow runs/versions, and knowledge
+documents/chunks keep a default limit of 100. Use `--limit 0` to fetch every page
+of those datasets, or pass the returned `nextCursor` to `--cursor` to continue
+with another bounded result. Keep the same resource, filters, and sort order
+when resuming; stop when `nextCursor` is `null`. Results accumulate in memory
+before printing, so large datasets need an explicit limit or filter.
+
+```bash
+sim tables rows list <tableId> --limit 100 --output json
+sim tables rows list <tableId> --limit 100 --cursor "$nextCursor" --output json
+```
+
+JSON-valued options accept inline JSON, a file prefixed with `@`, or stdin with
+`@-`:
+
+```bash
+sim workflows run <workflowId> --input '{"customerId":"cus_123"}'
+sim workflows run <workflowId> --input @input.json
+printf '%s' '{"customerId":"cus_123"}' | sim workflows run <workflowId> --input @-
+```
+
+List-valued options use the same `@file` and `@-` forms, with one value per
+line. Destructive commands require an explicit selector and `--yes`; they do not
+default to deleting every resource when a selector is missing.
+
+For secret values, prefer a prompt, file, or stdin so the value does not appear
+in shell history or the process list:
+
+```bash
+sim secrets set API_KEY --scope workspace
+sim secrets set API_KEY --scope workspace --value @secret.txt
+printf '%s' "$API_KEY" | sim secrets set API_KEY --scope workspace --value @-
+```
+
+## CI and automation
+
+In CI, use an API key instead of `sim login`:
+
+```bash
+export SIM_API_KEY="sim_..."
+export SIM_WORKSPACE="<workspaceId>"
+
+sim workflows run <workflowId> --input @input.json --output json
+```
+
+Create and revoke API keys in Sim under **Settings → API keys**, and store them
+in your CI provider's secret store. `sim logout` only removes a stored key from
+the current machine; it does not revoke the key.
+
+The main environment variables are:
+
+| Variable | Purpose |
+| --- | --- |
+| `SIM_PROFILE` | Profile to use |
+| `SIM_ENDPOINT` | Sim deployment URL |
+| `SIM_API_KEY` | API key, usually for CI |
+| `SIM_WORKSPACE` | Workspace to target |
+| `SIM_OUTPUT` | `table`, `json`, `yaml`, or `text` |
+| `SIM_CONFIG_DIR` | Base directory for CLI config, credentials, and the update cache |
+| `SIM_TIMEOUT_SECONDS` | Per-request timeout; `0` waits indefinitely |
+| `SIM_DEBUG` | Print request diagnostics to stderr |
+| `SIM_NO_UPDATE_CHECK` | Turn off update notices |
+| `SIM_TELEMETRY_DISABLED` | Turn off anonymous usage reporting (`DO_NOT_TRACK=1` also works) |
+
+On eligible interactive invocations, `sim` uses a daily cache before asking
+`registry.npmjs.org` what is published under the `latest` tag and prints an
+optional notice on stderr when a newer version exists. Prerelease installs are
+skipped entirely. The cache lives in `~/.sim` by default and follows `SIM_CONFIG_DIR`;
+without a writable cache, each eligible invocation checks again. Concurrent
+invocations can also perform duplicate checks. The registry request has a
+one-second deadline; the short-lived request process is terminated on expiry.
+Apart from the configured registry URL, it sends only its own version and never
+your Sim API key. If `npm_config_registry` points at a private mirror, its query
+string is preserved, including any query-string credentials. Registry URLs
+containing username/password userinfo are rejected. Set
+`SIM_NO_UPDATE_CHECK=1` to turn it off. Empty or whitespace-only registry values
+use the public default; non-empty malformed or non-HTTP(S) values fail closed.
+The full list of cases where it stays quiet is in the
+[configuration guide](https://docs.sim.ai/cli/configuration).
+
+## Usage data
+
+The CLI reports anonymous usage data — which commands run, whether they
+succeed, and how long they take — so the team can see how it is used. Nothing
+you type is sent: no argument or flag values, paths, ids, error messages, or
+credentials. The first interactive run prints a notice and is not reported.
+
+```bash
+sim telemetry status
+sim telemetry disable
+```
+
+`DO_NOT_TRACK=1` or `SIM_TELEMETRY_DISABLED=1` in the environment also turns it
+off. The full description of what is sent is in the
+[usage data guide](https://docs.sim.ai/cli/usage-data).
+
+## Documentation
+
+- [CLI documentation](https://docs.sim.ai/cli)
+- [Command reference](https://docs.sim.ai/cli/commands)
+- [Authentication](https://docs.sim.ai/cli/authentication)
+- [Profiles and configuration](https://docs.sim.ai/cli/configuration)
+- [Scripting](https://docs.sim.ai/cli/scripting)
+- [Troubleshooting](https://docs.sim.ai/cli/troubleshooting)
+- [Usage data](https://docs.sim.ai/cli/usage-data)
 
 ## License
 

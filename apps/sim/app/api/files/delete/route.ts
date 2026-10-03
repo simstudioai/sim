@@ -6,7 +6,7 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { StorageContext } from '@/lib/uploads/config'
-import { deleteFile, hasCloudStorage } from '@/lib/uploads/core/storage-service'
+import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
 import { extractStorageKey, inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess, verifyKBFileWriteAccess } from '@/app/api/files/authorization'
@@ -73,7 +73,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const hasAccess =
         storageContext === 'knowledge-base'
           ? await verifyKBFileWriteAccess(key, userId)
-          : await verifyFileAccess(key, userId, undefined, storageContext, !hasCloudStorage(), {
+          : await verifyFileAccess(key, userId, undefined, storageContext, {
               requireWrite: true,
             })
 

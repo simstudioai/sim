@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { BLOCK_DIMENSIONS } from '@sim/workflow-renderer'
-import type { Node, ReactFlowInstance } from 'reactflow'
+import type { Node, ReactFlowInstance } from '@xyflow/react'
 
 interface VisibleBounds {
   width: number
@@ -94,6 +94,20 @@ interface FitViewToBoundsOptions {
   nodes?: Node[]
 }
 
+function resolveNodeDimension(
+  measuredDimension: number | undefined,
+  configuredDimension: number | undefined,
+  fallback: number
+): number {
+  if (typeof measuredDimension === 'number' && measuredDimension > 0) {
+    return measuredDimension
+  }
+  if (typeof configuredDimension === 'number' && configuredDimension > 0) {
+    return configuredDimension
+  }
+  return fallback
+}
+
 /**
  * Hook providing canvas viewport utilities that account for sidebar, panel, and terminal overlays.
  */
@@ -150,8 +164,16 @@ export function useCanvasViewport(
       let maxY = Number.NEGATIVE_INFINITY
 
       nodes.forEach((node) => {
-        const nodeWidth = node.width ?? BLOCK_DIMENSIONS.FIXED_WIDTH
-        const nodeHeight = node.height ?? BLOCK_DIMENSIONS.MIN_HEIGHT
+        const nodeWidth = resolveNodeDimension(
+          node.measured?.width,
+          node.width,
+          BLOCK_DIMENSIONS.FIXED_WIDTH
+        )
+        const nodeHeight = resolveNodeDimension(
+          node.measured?.height,
+          node.height,
+          BLOCK_DIMENSIONS.MIN_HEIGHT
+        )
 
         minX = Math.min(minX, node.position.x)
         minY = Math.min(minY, node.position.y)

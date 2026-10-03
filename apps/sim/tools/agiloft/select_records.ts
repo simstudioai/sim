@@ -1,7 +1,7 @@
 import type { AgiloftSelectRecordsParams, AgiloftSelectResponse } from '@/tools/agiloft/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const agiloftSelectRecordsTool: ToolConfig<
+export const agiloftSelectRecordsTool: InternalToolConfig<
   AgiloftSelectRecordsParams,
   AgiloftSelectResponse
 > = {
@@ -50,12 +50,8 @@ export const agiloftSelectRecordsTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/agiloft/select_records',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       instanceUrl: params.instanceUrl,
       knowledgeBase: params.knowledgeBase,
       login: params.login,

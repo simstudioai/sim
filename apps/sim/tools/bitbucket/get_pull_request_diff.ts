@@ -3,20 +3,16 @@ import type {
   BitbucketToolResponse,
 } from '@/tools/bitbucket/types'
 import {
-  assertBitbucketResponseOk,
   BITBUCKET_API_BASE,
   BITBUCKET_DEFAULT_MAX_CHARACTERS,
   BITBUCKET_ERROR_EXTRACTOR,
   BITBUCKET_PULL_REQUEST_PARAMS,
-  BITBUCKET_RAW_TRANSFER_MAX_BYTES,
-  BITBUCKET_READ_RETRY,
-  bitbucketHeaders,
-  bitbucketHeadRange,
   bitbucketPullRequestPath,
   bitbucketRawHead,
   bitbucketRepositoryPathQuery,
 } from '@/tools/bitbucket/utils'
-import type { ToolConfig } from '@/tools/types'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
 interface BitbucketDiffOutput {
   diff: string
@@ -26,12 +22,12 @@ interface BitbucketDiffOutput {
   fullBytes: number | null
 }
 
-function pullRequestDiffUrl(params: BitbucketGetPullRequestDiffParams): string {
+export function pullRequestDiffUrl(params: BitbucketGetPullRequestDiffParams): string {
   bitbucketRepositoryPathQuery(params.path)
   return `${BITBUCKET_API_BASE}${bitbucketPullRequestPath(params.workspaceSlug, params.repoSlug, params.prId)}/diff`
 }
 
-async function transformDiff(
+export async function transformDiff(
   response: Response,
   maxCharacters: number | undefined
 ): Promise<BitbucketToolResponse<BitbucketDiffOutput>> {
@@ -50,7 +46,7 @@ async function transformDiff(
   }
 }
 
-export const bitbucketGetPullRequestDiffTool: ToolConfig<
+export const bitbucketGetPullRequestDiffTool: InternalToolConfig<
   BitbucketGetPullRequestDiffParams,
   BitbucketToolResponse<BitbucketDiffOutput>
 > = {
@@ -79,39 +75,9 @@ export const bitbucketGetPullRequestDiffTool: ToolConfig<
       default: BITBUCKET_DEFAULT_MAX_CHARACTERS,
     },
   },
-  directExecution: async (params, signal) => {
-    const { secureBitbucketPullRequestRedirect } = await import('@/tools/bitbucket/utils.server')
-    const headers = bitbucketHeaders(params.accessToken, {
-      json: false,
-      range: bitbucketHeadRange(params.maxCharacters),
-    })
-    const response = await secureBitbucketPullRequestRedirect(
-      pullRequestDiffUrl(params),
-      params.workspaceSlug,
-      params.repoSlug,
-      'diff',
-      headers,
-      BITBUCKET_RAW_TRANSFER_MAX_BYTES,
-      {
-        signal,
-        targetQuery: { path: bitbucketRepositoryPathQuery(params.path), binary: 'false' },
-      }
-    )
-    await assertBitbucketResponseOk(response)
-    return transformDiff(response, params.maxCharacters)
+  operation: {
+    input: createInternalToolOperationInput,
   },
-  request: {
-    url: pullRequestDiffUrl,
-    method: 'GET',
-    headers: (params) =>
-      bitbucketHeaders(params.accessToken, {
-        json: false,
-        range: bitbucketHeadRange(params.maxCharacters),
-      }),
-    retry: BITBUCKET_READ_RETRY,
-    stripAuthOnRedirect: true,
-  },
-  transformResponse: async (response, params) => transformDiff(response, params?.maxCharacters),
   outputs: {
     diff: { type: 'string', description: 'Bounded unified diff text decoded as UTF-8' },
     decodingLossy: {

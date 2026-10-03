@@ -1,10 +1,14 @@
 import { createLogger, runWithRequestContext } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { resolveClientInfo } from '@sim/utils/client-info'
+import { describeError, findCause, getErrorMessage, redactBoundParameters } from '@sim/utils/errors'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
+import { hasExternalApiCredentials } from '@/lib/api/server/credential-headers'
 import { getRateLimitHeaders } from '@/lib/api/server/rate-limit-context'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { MAX_CALL_CHAIN_DEPTH, parseCallChain, SIM_VIA_HEADER } from '@/lib/execution/call-chain'
+import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
 
 const logger = createLogger('RouteHandler')
 
@@ -87,6 +91,52 @@ function traceIdFromTraceparent(header: string | null | undefined): string | und
 }
 
 /**
+ * Which official client sent the request, resolved once here so every log line
+ * and analytics event in the request carries it. Attribution only: the value
+ * is caller-controlled and never feeds authorization.
+ */
+function clientInfoFor(request: NextRequest) {
+  const headers = request?.headers
+  if (!headers?.get) return undefined
+  return resolveClientInfo(headers, { hasExternalCredentials: hasExternalApiCredentials(headers) })
+}
+
+/**
+ * The workflow call chain the request arrived with, so a request one workflow
+ * makes to run another is attributed to the workflow that made it. Read here,
+ * not only in the execute routes that enforce its depth, because the events a
+ * nested run emits should know they were nested. Bounded by the same cap the
+ * execute routes apply; a chain past it is refused there and truncated here.
+ */
+function callChainFor(request: NextRequest): readonly string[] | undefined {
+  const chain = parseCallChain(request?.headers?.get?.(SIM_VIA_HEADER))
+  return chain.length > 0 ? chain.slice(0, MAX_CALL_CHAIN_DEPTH) : undefined
+}
+
+/**
+ * What a wrapped error hides: a query failure from the database client carries
+ * the driver's reason and the Postgres code on its cause, and only the outer
+ * message names the query. The shared describer reads the deepest cause and
+ * strips bound parameter values, so user data never reaches the log.
+ */
+function errorDetail(error: unknown): { cause?: string; code?: string; causeStack?: string } {
+  if (!(error instanceof Error) || error.cause === undefined) return {}
+  const described = describeError(error)
+  /** Outside production the deepest cause's stack says where a wrapped failure was raised. */
+  const deepest = findCause(
+    error,
+    (candidate): candidate is Error => candidate instanceof Error && candidate.cause === undefined
+  )
+  return {
+    cause: `${described.name}: ${described.message}`,
+    ...(described.code ? { code: described.code } : {}),
+    ...(process.env.NODE_ENV !== 'production' && deepest?.stack
+      ? { causeStack: redactBoundParameters(deepest.stack) }
+      : {}),
+  }
+}
+
+/**
  * Wraps a Next.js API route handler with centralized error reporting.
  *
  * - Generates a unique request ID and stores it in AsyncLocalStorage so every
@@ -110,14 +160,24 @@ export function withRouteHandler<T>(
     const path =
       request?.nextUrl?.pathname ?? new URL(request?.url ?? '/', 'http://localhost').pathname
     const traceId = traceIdFromTraceparent(request?.headers?.get?.('traceparent'))
+    const requestContext = {
+      requestId,
+      method,
+      path,
+      traceId,
+      client: clientInfoFor(request),
+      callChain: callChainFor(request),
+    }
 
-    return runWithRequestContext({ requestId, method, path, traceId }, async () => {
+    return runWithRequestContext(requestContext, async () => {
       let response: NextResponse | Response
       try {
-        response = await handler(request, context)
+        response = await withPermissionGroupScope(() => handler(request, context))
       } catch (error) {
         const duration = Date.now() - startTime
-        const message = getErrorMessage(error, 'Unknown error')
+        /** A query failure names its bound values in the message; they are user data. */
+        const message = redactBoundParameters(getErrorMessage(error, 'Unknown error'))
+        const detail = errorDetail(error)
         if (request.signal.aborted) {
           logger.info('Client closed request', { duration, status: 499 })
           response = options.clientAbortResponse
@@ -131,7 +191,12 @@ export function withRouteHandler<T>(
         if (typedError) {
           const typedStatus = typedError.statusCode
           if (typedStatus >= 500) {
-            logger.error('Unhandled route error', { duration, status: typedStatus, error: message })
+            logger.error('Unhandled route error', {
+              duration,
+              status: typedStatus,
+              error: message,
+              ...detail,
+            })
           } else {
             logger.warn('Typed route error', { duration, status: typedStatus, error: message })
           }
@@ -143,13 +208,13 @@ export function withRouteHandler<T>(
         }
 
         if (options.unhandledErrorResponse) {
-          logger.error('Unhandled route error', { duration, error: message })
+          logger.error('Unhandled route error', { duration, error: message, ...detail })
           response = options.unhandledErrorResponse({ error, requestId })
           applyResponseHeaders(response, request, requestId)
           return response
         }
 
-        logger.error('Unhandled route error', { duration, error: message })
+        logger.error('Unhandled route error', { duration, error: message, ...detail })
         response = NextResponse.json({ error: 'Internal server error', requestId }, { status: 500 })
         applyResponseHeaders(response, request, requestId)
         return response

@@ -1,0 +1,12 @@
+diff --git a/dist/index.mjs b/dist/index.mjs
+index f5156df9584e938b58d8eb6a651dd37654039ca9..b79fafd25e3567e19601e27c59508b5fbe511626 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -2858,6 +2858,7 @@ const oauthProvider = (options) => {
+ 			response_type: z.enum(["code"]).optional(),
+ 			client_id: z.string(),
+ 			redirect_uri: SafeUrlSchema.optional(),
++			resource: z.string().optional(),
+ 			scope: z.string().optional(),
+ 			state: z.string().optional(),
+ 			request_uri: z.string().optional(),

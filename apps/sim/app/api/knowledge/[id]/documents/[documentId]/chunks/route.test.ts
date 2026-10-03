@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -26,7 +22,7 @@ vi.mock('@/lib/knowledge/application/chunks', () => ({
   },
 }))
 
-vi.mock('@/app/api/knowledge/secret-provenance', () => ({
+vi.mock('@/lib/knowledge/api/secret-provenance', () => ({
   finalizeKnowledgePersistedResponse: vi.fn(),
   finalizeKnowledgeProvenanceResponse: vi.fn(),
   resolveKnowledgeWriteSecretProvenance: vi.fn(),
@@ -41,7 +37,6 @@ const params = () => ({
 
 describe('/api/knowledge/[id]/documents/[documentId]/chunks internal route composition', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'session-1' },

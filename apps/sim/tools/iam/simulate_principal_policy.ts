@@ -2,9 +2,9 @@ import type {
   IAMSimulatePrincipalPolicyParams,
   IAMSimulatePrincipalPolicyResponse,
 } from '@/tools/iam/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const simulatePrincipalPolicyTool: ToolConfig<
+export const simulatePrincipalPolicyTool: InternalToolConfig<
   IAMSimulatePrincipalPolicyParams,
   IAMSimulatePrincipalPolicyResponse
 > = {
@@ -52,7 +52,35 @@ export const simulatePrincipalPolicyTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of resource ARNs to simulate against (defaults to * if not provided)',
+        'Comma-separated list of resource ARNs to simulate against (defaults to * if not provided). Read the per-ARN verdict from resourceSpecificResults, not from evalDecision.',
+    },
+    contextEntries: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      maxItems: 64,
+      items: {
+        type: 'object',
+        properties: {
+          contextKeyName: {
+            type: 'string',
+            description: 'Full condition context key name, e.g. aws:SourceIp or s3:VersionId',
+          },
+          contextKeyValues: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Values to supply for the key',
+          },
+          contextKeyType: {
+            type: 'string',
+            description:
+              'Data type of the values: string, stringList, numeric, numericList, boolean, booleanList, ip, ipList, binary, binaryList, date, or dateList',
+          },
+        },
+        required: ['contextKeyName', 'contextKeyValues', 'contextKeyType'],
+      },
+      description:
+        'Condition context keys to supply to the simulation. Without these, any policy gated by a Condition simulates as denied with missing context values.',
     },
     maxResults: {
       type: 'number',
@@ -68,17 +96,15 @@ export const simulatePrincipalPolicyTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/iam/simulate-principal-policy',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,
       policySourceArn: params.policySourceArn,
       actionNames: params.actionNames,
       resourceArns: params.resourceArns,
+      contextEntries: params.contextEntries,
       maxResults: params.maxResults,
       marker: params.marker,
     }),
@@ -104,7 +130,7 @@ export const simulatePrincipalPolicyTool: ToolConfig<
     evaluationResults: {
       type: 'json',
       description:
-        'Simulation results per action: evalActionName, evalResourceName, evalDecision (allowed/explicitDeny/implicitDeny), matchedStatements (sourcePolicyId, sourcePolicyType), missingContextValues',
+        'One result per simulated action. evalDecision is the AGGREGATE, most-restrictive decision across every resource ARN, and evalResourceName is the resource-type ARN template (e.g. an arn:aws:s3:::BUCKET/KEY shape with the bucket and key left as placeholders), not a customer ARN. For the verdict on an individual ARN read resourceSpecificResults[]: evalResourceName, evalResourceDecision (allowed/explicitDeny/implicitDeny), matchedStatements, missingContextValues, permissionsBoundaryAllowed. When concrete resource ARNs are supplied, missing context values appear there rather than at the top level.',
     },
     isTruncated: {
       type: 'boolean',

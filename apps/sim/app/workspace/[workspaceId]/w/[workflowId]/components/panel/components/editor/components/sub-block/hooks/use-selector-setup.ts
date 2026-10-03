@@ -2,14 +2,18 @@
 
 import { useMemo } from 'react'
 import { useParams } from 'next/navigation'
-import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
+import {
+  buildSelectorContextFromValues,
+  getSelectorContextSubBlocks,
+} from '@/lib/selectors/context'
+import type { SelectorKey } from '@/lib/selectors/manifest'
 import type { SubBlockConfig } from '@/blocks/types'
-import { extractEnvVarName, isEnvVarReference, isReference } from '@/executor/constants'
-import { usePersonalEnvironment } from '@/hooks/queries/environment'
-import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
+import type { SelectorClientContext } from '@/hooks/queries/selectors'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useDependsOnGate } from './use-depends-on-gate'
-import { useSubBlockValue } from './use-sub-block-value'
+
+const EMPTY_SELECTOR_VALUES: Record<string, unknown> = {}
 
 /**
  * Resolves all selector configuration from a sub-block's declarative properties.
@@ -33,72 +37,61 @@ export function useSelectorSetup(
   const workflowId = (params?.workflowId as string) || activeWorkflowId || ''
   const workspaceId = (params?.workspaceId as string) || ''
 
-  const { data: envVariables = {} } = usePersonalEnvironment()
-
-  const { finalDisabled, dependencyValues, canonicalIndex } = useDependsOnGate(
-    blockId,
-    subBlock,
-    opts
+  const {
+    finalDisabled,
+    dependencyValues,
+    canonicalIndex,
+    contextConfigs,
+    canonicalModeOverrides,
+    triggerSurface,
+    dependsOn,
+  } = useDependsOnGate(blockId, subBlock, opts)
+  const liveValues = useSubBlockStore((state) =>
+    activeWorkflowId
+      ? (state.workflowValues[activeWorkflowId]?.[blockId] ?? EMPTY_SELECTOR_VALUES)
+      : EMPTY_SELECTOR_VALUES
   )
+  const selectorValues = opts?.previewContextValues ?? liveValues
 
-  const [impersonateUserEmail] = useSubBlockValue<string | null>(blockId, 'impersonateUserEmail')
-
-  const resolvedDependencyValues = useMemo(() => {
-    const resolved: Record<string, unknown> = {}
-    for (const [key, value] of Object.entries(dependencyValues)) {
-      if (value === null || value === undefined) {
-        resolved[key] = value
-        continue
-      }
-      const str = String(value)
-      if (isEnvVarReference(str)) {
-        const varName = extractEnvVarName(str)
-        resolved[key] = envVariables[varName]?.value || undefined
-      } else {
-        resolved[key] = value
-      }
-    }
-    return resolved
-  }, [dependencyValues, envVariables])
-
-  const selectorContext = useMemo<SelectorContext>(() => {
-    const context: SelectorContext = {
+  const selectorKey = (subBlock.selectorKey ?? null) as SelectorKey | null
+  const selectorContext = useMemo<SelectorClientContext>(() => {
+    if (!selectorKey) return { workflowId, workspaceId: workspaceId || undefined }
+    const activeConfigs = getSelectorContextSubBlocks(
+      contextConfigs,
+      selectorValues,
+      triggerSurface
+    )
+    return {
+      ...buildSelectorContextFromValues({
+        selectorKey,
+        contextConfigs: activeConfigs,
+        values: selectorValues,
+        dependsOn,
+        canonicalIndex,
+        canonicalModes: canonicalModeOverrides,
+        staticContext: { mimeType: subBlock.mimeType },
+      }),
       workflowId,
       workspaceId: workspaceId || undefined,
-      mimeType: subBlock.mimeType,
     }
-
-    for (const [depKey, value] of Object.entries(resolvedDependencyValues)) {
-      if (value === null || value === undefined) continue
-      const strValue = String(value)
-      if (!strValue) continue
-      if (isReference(strValue)) continue
-
-      const canonicalParamId = canonicalIndex.canonicalIdBySubBlockId[depKey] ?? depKey
-      if (SELECTOR_CONTEXT_FIELDS.has(canonicalParamId as keyof SelectorContext)) {
-        context[canonicalParamId as keyof SelectorContext] = strValue
-      }
-    }
-
-    if (context.oauthCredential && impersonateUserEmail) {
-      context.impersonateUserEmail = impersonateUserEmail
-    }
-
-    return context
   }, [
-    resolvedDependencyValues,
+    selectorKey,
+    contextConfigs,
     canonicalIndex,
+    canonicalModeOverrides,
+    dependsOn,
+    selectorValues,
     workflowId,
     workspaceId,
     subBlock.mimeType,
-    impersonateUserEmail,
+    triggerSurface,
   ])
 
   return {
-    selectorKey: (subBlock.selectorKey ?? null) as SelectorKey | null,
+    selectorKey,
     selectorContext,
     allowSearch: subBlock.selectorAllowSearch ?? true,
     disabled: finalDisabled || !subBlock.selectorKey,
-    dependencyValues: resolvedDependencyValues,
+    dependencyValues,
   }
 }

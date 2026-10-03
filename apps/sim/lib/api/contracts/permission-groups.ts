@@ -1,50 +1,37 @@
 import { z } from 'zod'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
-import { shareAuthTypeSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { permissionGroupConfigSchema } from '@/lib/permission-groups/types'
+import {
+  permissionGroupConfigSchema,
+  permissionGroupReadShape,
+} from '@/lib/permission-groups/fields'
 
-export const permissionGroupFullConfigSchema = z.object({
-  allowedIntegrations: z.array(z.string()).nullable(),
-  allowedModelProviders: z.array(z.string()).nullable(),
-  deniedModels: z.array(z.string()).default([]),
-  deniedTools: z.array(z.string()).default([]),
-  hideTraceSpans: z.boolean(),
-  hideKnowledgeBaseTab: z.boolean(),
-  hideTablesTab: z.boolean(),
-  hideCopilot: z.boolean(),
-  hideIntegrationsTab: z.boolean(),
-  hideSecretsTab: z.boolean(),
-  hideApiKeysTab: z.boolean(),
-  hideInboxTab: z.boolean(),
-  hideFilesTab: z.boolean(),
-  disableMcpTools: z.boolean(),
-  disableCustomTools: z.boolean(),
-  disableSkills: z.boolean(),
-  disableInvitations: z.boolean(),
-  disablePublicApi: z.boolean(),
-  disablePublicFileSharing: z.boolean(),
-  allowedFileShareAuthTypes: z.array(shareAuthTypeSchema).nullable(),
-  hideDeployApi: z.boolean(),
-  hideDeployMcp: z.boolean(),
-  hideDeployChatbot: z.boolean(),
-  allowedChatDeployAuthTypes: z.array(shareAuthTypeSchema).nullable(),
-})
+/**
+ * The wire shape of a resolved config: every key present, in registry order.
+ *
+ * Built from the same field registry as the write schema and the tolerant
+ * parser, because the group editor's dirty check compares stringified configs —
+ * a key this schema omitted, or ordered differently, would read as an unsaved
+ * change forever.
+ */
+export const permissionGroupFullConfigSchema = z.object(permissionGroupReadShape)
 
 export const addPermissionGroupMemberBodySchema = z.object({
-  userId: z.string().min(1),
+  userId: z.string().min(1, 'userId is required'),
 })
 
 /** Route params for organization-scoped permission-group collection routes (`id` = organizationId). */
 export const permissionGroupParamsSchema = z.object({
   id: organizationIdSchema,
 })
+export type PermissionGroupParams = z.input<typeof permissionGroupParamsSchema>
 
 /** Route params for a single permission group (`id` = organizationId, `groupId` = permission group id). */
 export const permissionGroupDetailParamsSchema = z.object({
   id: organizationIdSchema,
   groupId: z.string().min(1),
 })
+export type PermissionGroupDetailParams = z.input<typeof permissionGroupDetailParamsSchema>
 
 /** A workspace a permission group targets (id + display name). */
 export const permissionGroupWorkspaceRefSchema = z.object({
@@ -103,14 +90,24 @@ export const userPermissionConfigQuerySchema = z.object({
 })
 
 export const userPermissionConfigSchema = z.object({
-  permissionGroupId: z.string().nullable(),
-  groupName: z.string().nullable(),
-  config: permissionGroupFullConfigSchema.nullable(),
-  entitled: z.boolean(),
-  /** The workspace's owning organization id (null when the workspace has no org). */
-  organizationId: z.string().nullable(),
-  /** Whether the caller is an owner/admin of the workspace's owning organization. */
-  isOrgAdmin: z.boolean(),
+  permissionGroupId: z
+    .string()
+    .nullable()
+    .describe('Identifier of the group governing the caller; null when no group applies.'),
+  groupName: z.string().nullable().describe('Name of the governing permission group.'),
+  config: permissionGroupFullConfigSchema
+    .nullable()
+    .describe(
+      'Effective group restrictions. True disables a boolean capability; null allowlists allow all values and empty allowlists allow none. Null config means no group applies.'
+    ),
+  entitled: z.boolean().describe('Whether organization permission governance is active.'),
+  organizationId: z
+    .string()
+    .nullable()
+    .describe('Organization that owns the workspace; null for a personal workspace.'),
+  isOrgAdmin: z
+    .boolean()
+    .describe('Whether the caller is an owner or administrator of the workspace’s organization.'),
 })
 export type UserPermissionConfig = z.output<typeof userPermissionConfigSchema>
 
@@ -127,10 +124,10 @@ const workspaceIdsSchema = z.array(z.string().min(1)).max(MAX_PERMISSION_GROUP_W
  * with no `workspaceIds` is already the all-workspaces case and needs no
  * assertion here.
  *
- * Everything else is left to the routes: a non-default group targets the
+ * Other scope rules are enforced by the shared manager: a non-default group targets the
  * workspaces in `workspaceIds` (empty is allowed on update — the group then
  * governs nothing, since the resolver inner-joins the workspace link table), and
- * the create route requires at least one workspace up front.
+ * creation requires at least one workspace up front.
  */
 function refineWorkspaceScope(
   body: { workspaceIds?: string[]; isDefault?: boolean },
@@ -147,32 +144,82 @@ function refineWorkspaceScope(
 
 export const createPermissionGroupBodySchema = z
   .object({
-    name: z.string().trim().min(1).max(100),
-    description: z.string().trim().max(500).optional(),
+    name: z
+      .string({ error: 'name is required' })
+      .trim()
+      .min(1, 'name is required')
+      .max(100, 'name cannot exceed 100 characters')
+      .describe('Group name, unique within the organization.'),
+    description: z
+      .string()
+      .trim()
+      .max(500, 'description cannot exceed 500 characters')
+      .optional()
+      .describe('Optional group description.'),
     config: permissionGroupConfigSchema.optional(),
-    isDefault: z.boolean().optional(),
-    workspaceIds: workspaceIdsSchema.optional(),
+    isDefault: z
+      .boolean()
+      .optional()
+      .describe(
+        'Whether the group is the organization default. Only one group can be the default.'
+      ),
+    workspaceIds: workspaceIdsSchema
+      .optional()
+      .describe(
+        'Workspace identifiers for a non-default group. Required on creation; an empty update makes the group inactive.'
+      ),
   })
   .superRefine(refineWorkspaceScope)
+export type CreatePermissionGroupBody = z.input<typeof createPermissionGroupBodySchema>
 
 export const updatePermissionGroupBodySchema = z
   .object({
-    name: z.string().trim().min(1).max(100).optional(),
-    description: z.string().trim().max(500).nullable().optional(),
+    name: z
+      .string({ error: 'name is required' })
+      .trim()
+      .min(1, 'name is required')
+      .max(100, 'name cannot exceed 100 characters')
+      .describe('Group name, unique within the organization.')
+      .optional(),
+    description: z
+      .string()
+      .trim()
+      .max(500, 'description cannot exceed 500 characters')
+      .nullable()
+      .optional()
+      .describe(
+        'Group description. Null or an empty string clears it; omission leaves it unchanged.'
+      ),
     config: permissionGroupConfigSchema.optional(),
-    isDefault: z.boolean().optional(),
-    workspaceIds: workspaceIdsSchema.optional(),
+    isDefault: z
+      .boolean()
+      .optional()
+      .describe(
+        'Whether the group is the organization default. Only one group can be the default.'
+      ),
+    workspaceIds: workspaceIdsSchema
+      .optional()
+      .describe(
+        'Workspace identifiers for a non-default group. Required on creation; an empty update makes the group inactive.'
+      ),
   })
   .superRefine(refineWorkspaceScope)
+export type UpdatePermissionGroupBody = z.input<typeof updatePermissionGroupBodySchema>
 
 export const removePermissionGroupMemberQuerySchema = z.object({
   memberId: z.string().min(1),
 })
+export type RemovePermissionGroupMemberQuery = z.input<
+  typeof removePermissionGroupMemberQuerySchema
+>
 
 export const bulkAddPermissionGroupMembersBodySchema = z.object({
   userIds: z.array(z.string()).optional(),
   addAllOrganizationMembers: z.boolean().optional(),
 })
+export type BulkAddPermissionGroupMembersBody = z.input<
+  typeof bulkAddPermissionGroupMembersBodySchema
+>
 
 const successResponseSchema = z.object({
   success: z.literal(true),
@@ -200,6 +247,7 @@ export const createPermissionGroupContract = defineRouteContract({
     schema: z.object({
       permissionGroup: permissionGroupWriteSchema,
     }),
+    status: 201,
   },
 })
 
@@ -210,6 +258,21 @@ export const getUserPermissionConfigContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: userPermissionConfigSchema,
+  },
+})
+
+export const getPermissionGroupContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/permission-groups/[groupId]',
+  params: permissionGroupDetailParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      permissionGroup: permissionGroupWriteSchema.omit({ workspaceIds: true }).extend({
+        membershipMode: z.string(),
+        workspaces: z.array(permissionGroupWorkspaceRefSchema),
+      }),
+    }),
   },
 })
 
@@ -276,6 +339,7 @@ export const addPermissionGroupMemberContract = defineRouteContract({
         assignedAt: z.string(),
       }),
     }),
+    status: 201,
   },
 })
 

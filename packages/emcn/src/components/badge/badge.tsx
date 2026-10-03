@@ -5,7 +5,7 @@ import { cn } from '../../lib/cn'
 /** Shared base styles for status color badge variants */
 const STATUS_BASE = 'gap-1.5 rounded-md'
 
-const badgeVariants = cva('inline-flex items-center focus:outline-none transition-colors', {
+const badgeVariants = cva('inline-flex items-center focus:outline-hidden transition-colors', {
   variants: {
     variant: {
       default:

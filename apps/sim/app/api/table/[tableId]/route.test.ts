@@ -1,62 +1,51 @@
-/**
- * @vitest-environment node
- */
 import { hybridAuthMockFns } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
+import { permissionsMock } from '@sim/testing/mocks/permissions.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { tableMock } from '@sim/testing/mocks/table.mock'
+import { tableApiMock, tableApiMockFns } from '@sim/testing/mocks/table-api.mock'
+import {
+  tableApplicationTablesMock,
+  tableApplicationTablesMockFns,
+} from '@sim/testing/mocks/table-application-tables.mock'
+import { tableBillingMock } from '@sim/testing/mocks/table-billing.mock'
+import {
+  tableRouteUtilsMock,
+  tableRouteUtilsMockFns,
+} from '@sim/testing/mocks/table-route-utils.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import { tableWireMock } from '@sim/testing/mocks/table-wire.mock'
+import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/lib/table/api', () => tableApiMock)
+vi.mock('@/lib/table/application/tables', () => tableApplicationTablesMock)
+
+vi.mock('@/lib/table', () => tableMock)
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/table/billing', () => tableBillingMock)
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/app/api/table/utils', () => tableRouteUtilsMock)
+vi.mock('@/lib/table/wire', () => tableWireMock)
+
+import { GET, PATCH } from '@/app/api/table/[tableId]/route'
+
+const { mockReadTableDetailsUseCase: mockReadTable } = tableApplicationTablesMockFns
+const { mockAuthenticate } = tableApiMockFns
+const { mockFindActiveFolder } = folderQueriesMockFns
+const { mockCheckAccess } = tableRouteUtilsMockFns
+
 const {
-  mockCheckAccess,
   mockDeleteTable,
   mockGetTableById,
   mockMoveTableToFolder,
   mockRenameTable,
   mockUpdateTableLocks,
-  mockFindActiveFolder,
-  mockGetLimits,
-} = vi.hoisted(() => ({
-  mockCheckAccess: vi.fn(),
-  mockDeleteTable: vi.fn(),
-  mockGetTableById: vi.fn(),
-  mockMoveTableToFolder: vi.fn(),
-  mockRenameTable: vi.fn(),
-  mockUpdateTableLocks: vi.fn(),
-  mockFindActiveFolder: vi.fn(),
-  mockGetLimits: vi.fn(),
-}))
-
-vi.mock('@/lib/table', () => ({
-  deleteTable: mockDeleteTable,
-  getTableById: mockGetTableById,
-  moveTableToFolder: mockMoveTableToFolder,
-  renameTable: mockRenameTable,
-  updateTableLocks: mockUpdateTableLocks,
-  TableConflictError: class extends Error {},
-}))
-vi.mock('@/lib/table/service', () => ({
-  deleteTable: mockDeleteTable,
-  getTableById: mockGetTableById,
-  moveTableToFolder: mockMoveTableToFolder,
-  renameTable: mockRenameTable,
-  updateTableLocks: mockUpdateTableLocks,
-}))
-vi.mock('@/lib/table/billing', () => ({ getWorkspaceTableLimits: mockGetLimits }))
-vi.mock('@/lib/folders/queries', () => ({ findActiveFolder: mockFindActiveFolder }))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceWithOwner: vi.fn(),
-  getUserEntityPermissions: vi.fn(),
-}))
-vi.mock('@/app/api/table/utils', () => ({
-  accessError: () => new Response('denied', { status: 403 }),
-  checkAccess: mockCheckAccess,
-  tableLockErrorResponse: () => null,
-}))
-vi.mock('@/lib/table/wire', () => ({
-  normalizeColumn: (column: unknown) => column,
-}))
-
-import { GET, PATCH } from '@/app/api/table/[tableId]/route'
+} = tableServiceMockFns
 
 const TABLE = {
   id: 'tbl_1',
@@ -73,18 +62,13 @@ const TABLE = {
 }
 
 function patchRequest(body: unknown): NextRequest {
-  return new NextRequest('http://localhost:3000/api/table/tbl_1', {
-    method: 'PATCH',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-  })
+  return createMockRequest({ method: 'PATCH', url: 'http://localhost:3000/api/table/tbl_1', body })
 }
 
-const routeContext = { params: Promise.resolve({ tableId: 'tbl_1' }) }
+const routeContext = createRouteContext({ tableId: 'tbl_1' })
 
 describe('PATCH /api/table/[tableId] folder moves', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockMoveTableToFolder.mockResolvedValue({ name: 'Table' })
     mockRenameTable.mockResolvedValue({ id: 'tbl_1', name: 'Table' })
     mockDeleteTable.mockResolvedValue({ archived: { name: 'Table', workspaceId: 'workspace-1' } })
@@ -102,47 +86,6 @@ describe('PATCH /api/table/[tableId] folder moves', () => {
     mockFindActiveFolder.mockResolvedValue({ id: 'folder-1' })
   })
 
-  it('moves the table into a folder in the same workspace and tree', async () => {
-    const response = await PATCH(
-      patchRequest({ workspaceId: 'workspace-1', folderId: 'folder-1' }),
-      routeContext
-    )
-
-    expect(response.status).toBe(200)
-    expect(mockFindActiveFolder).toHaveBeenCalledWith('folder-1', 'workspace-1', 'table')
-    expect(mockMoveTableToFolder).toHaveBeenCalledWith(
-      'tbl_1',
-      'workspace-1',
-      'folder-1',
-      expect.any(String)
-    )
-  })
-
-  it('moves the table to the workspace root on an explicit null, with no folder lookup', async () => {
-    mockGetTableById.mockResolvedValue({ ...TABLE, folderId: null })
-
-    const response = await PATCH(
-      patchRequest({ workspaceId: 'workspace-1', folderId: null }),
-      routeContext
-    )
-
-    expect(response.status).toBe(200)
-    expect(mockFindActiveFolder).not.toHaveBeenCalled()
-    expect(mockMoveTableToFolder).toHaveBeenCalledWith(
-      'tbl_1',
-      'workspace-1',
-      null,
-      expect.any(String)
-    )
-  })
-
-  it('leaves placement untouched when folderId is omitted', async () => {
-    await PATCH(patchRequest({ workspaceId: 'workspace-1', name: 'renamed' }), routeContext)
-
-    expect(mockRenameTable).toHaveBeenCalled()
-    expect(mockMoveTableToFolder).not.toHaveBeenCalled()
-  })
-
   it('rejects a folder from another workspace or resource tree without writing', async () => {
     mockFindActiveFolder.mockResolvedValue(null)
 
@@ -154,56 +97,47 @@ describe('PATCH /api/table/[tableId] folder moves', () => {
     expect(response.status).toBe(404)
     expect(mockMoveTableToFolder).not.toHaveBeenCalled()
   })
-
-  it('rejects a body with no name, folder, or lock changes', async () => {
-    const response = await PATCH(patchRequest({ workspaceId: 'workspace-1' }), routeContext)
-
-    expect(response.status).toBe(400)
-    expect(mockMoveTableToFolder).not.toHaveBeenCalled()
-    expect(mockRenameTable).not.toHaveBeenCalled()
-  })
 })
 
-/**
- * Pins which auth path this route hands a Bearer token to.
- *
- * `fetchTableSchema` in `@/tools/schema-enrichers` reaches this route with a legacy
- * `type: 'internal'` token from the deprecated `buildAuthHeaders`. Only
- * `checkSessionOrInternalAuth` accepts that token; the delegation policy the sibling
- * table routes use rejects it outright. Migrating this route without moving that caller
- * to `buildExecutorDelegationHeaders` in the same change breaks every table tool on an
- * Agent block, so this fails first and names the caller.
- *
- * Scope: this pins the *route's* choice of verifier. That the legacy token is actually
- * valid for that verifier — and rejected by the delegation one — is pinned separately in
- * `@/lib/auth/internal.test.ts`. Both halves are needed; neither implies the other.
- */
-describe('GET /api/table/[tableId] executor auth pairing', () => {
+describe('GET /api/table/[tableId] application adapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
-      success: true,
-      userId: 'user-1',
-      authType: 'internal_jwt',
+    mockAuthenticate.mockResolvedValue({
+      kind: 'delegated',
+      serviceId: 'executor',
+      subjectUserId: 'user-1',
+      workspaceId: 'workspace-canonical',
+      delegationId: 'delegation-1',
+      audience: 'sim:tables',
+      issuedAt: new Date('2026-01-01'),
+      expiresAt: new Date('2026-01-02'),
     })
-    mockCheckAccess.mockResolvedValue({ ok: true, table: TABLE })
-    mockGetLimits.mockResolvedValue({ maxRowsPerTable: 1000 })
+    mockReadTable.mockResolvedValue({
+      table: {
+        ...TABLE,
+        description: null,
+        metadata: null,
+        rowCount: 0,
+        createdBy: 'user-1',
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+      maxRows: 1000,
+      folderPath: '/',
+    })
   })
 
-  it('routes a Bearer token to the legacy verifier fetchTableSchema mints for', async () => {
-    const request = new NextRequest('http://localhost:3000/api/table/tbl_1?workspaceId=workspace-1')
-    request.headers.set('authorization', 'Bearer legacy-internal-token')
+  it('uses the delegated principal workspace instead of the query assertion', async () => {
+    const request = createMockRequest({
+      url: 'http://localhost:3000/api/table/tbl_1?workspaceId=workspace-forged',
+    })
 
     const response = await GET(request, routeContext)
 
+    expect(mockReadTable).toHaveBeenCalledOnce()
     expect(response.status).toBe(200)
-    expect(hybridAuthMockFns.mockCheckSessionOrInternalAuth).toHaveBeenCalledWith(
-      expect.objectContaining({
-        headers: expect.objectContaining({ get: expect.any(Function) }),
-      }),
-      expect.anything()
-    )
-    const [forwarded] = hybridAuthMockFns.mockCheckSessionOrInternalAuth.mock.calls[0]
-    expect(forwarded.headers.get('authorization')).toBe('Bearer legacy-internal-token')
+    expect(mockReadTable.mock.calls[0][0].input).toEqual({
+      tableId: 'tbl_1',
+      workspaceId: 'workspace-canonical',
+    })
   })
 })

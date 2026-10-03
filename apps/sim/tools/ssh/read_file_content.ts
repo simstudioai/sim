@@ -1,7 +1,7 @@
 import type { SSHReadFileContentParams, SSHResponse } from '@/tools/ssh/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const readFileContentTool: ToolConfig<SSHReadFileContentParams, SSHResponse> = {
+export const readFileContentTool: InternalToolConfig<SSHReadFileContentParams, SSHResponse> = {
   id: 'ssh_read_file_content',
   name: 'SSH Read File Content',
   description: 'Read the contents of a remote file',
@@ -64,13 +64,8 @@ export const readFileContentTool: ToolConfig<SSHReadFileContentParams, SSHRespon
     },
   },
 
-  request: {
-    url: '/api/tools/ssh/read-file-content',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port) || 22,
       username: params.username,

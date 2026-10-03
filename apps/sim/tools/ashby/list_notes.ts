@@ -1,4 +1,4 @@
-import { ashbyAuthHeaders, ashbyErrorMessage } from '@/tools/ashby/utils'
+import { ashbyAuthHeaders, ashbyErrorMessage, ashbyLimit } from '@/tools/ashby/utils'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListNotesParams {
@@ -56,7 +56,7 @@ export const listNotesTool: ToolConfig<AshbyListNotesParams, AshbyListNotesRespo
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of results per page',
+      description: 'Number of results per page (1-100)',
     },
   },
 
@@ -69,7 +69,8 @@ export const listNotesTool: ToolConfig<AshbyListNotesParams, AshbyListNotesRespo
         candidateId: params.candidateId.trim(),
       }
       if (params.cursor) body.cursor = params.cursor
-      if (params.perPage) body.limit = params.perPage
+      const limit = ashbyLimit(params.perPage)
+      if (limit) body.limit = limit
       return body
     },
   },

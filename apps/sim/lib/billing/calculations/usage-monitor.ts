@@ -3,10 +3,12 @@ import { userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
+import { USAGE_UNAVAILABLE_MESSAGE } from '@/lib/billing/constants'
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { resolveSubscriptionUsagePeriod } from '@/lib/billing/core/reporting-period'
+import { readSoftGateUsageCost } from '@/lib/billing/core/reporting-usage-cache'
 import { getUserUsageLimit, type UsageLimitSubscription } from '@/lib/billing/core/usage'
 import {
   type BillingContext,
@@ -15,12 +17,12 @@ import {
   type UsageQueryPeriod,
 } from '@/lib/billing/core/usage-log'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
-import { computeBillingPeriodUsageWithDailyRefresh } from '@/lib/billing/credits/daily-refresh'
+import { computeBillingPeriodUsageWithWeeklyRefresh } from '@/lib/billing/credits/weekly-refresh'
 import {
   getOrgMemberUsageForBillingPeriod,
   getOrgMemberUsageLimit,
 } from '@/lib/billing/organizations/member-limits'
-import { getPlanTierDollars, isPaid } from '@/lib/billing/plan-helpers'
+import { getPlanWeeklyRefreshDollars, isPaid } from '@/lib/billing/plan-helpers'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
 
@@ -42,8 +44,18 @@ interface UsageData {
   scope: 'user' | 'organization'
   /** Present only when `scope === 'organization'`. */
   organizationId: string | null
+  /**
+   * The ledger could not be read, so `isExceeded` is a fail-closed refusal rather than a
+   * measured one. Admission refuses on it; a run already under way treats it as unknown.
+   */
+  unavailable?: true
 }
 
+/**
+ * The organization's pooled usage for an admission check. An enterprise reporting window is
+ * served through {@link readSoftGateUsageCost}; its weekly refresh is zero, so it always takes
+ * a plain-sum branch below.
+ */
 async function computePooledOrgUsage(
   organizationId: string,
   sub: UsageLimitSubscription,
@@ -58,20 +70,20 @@ async function computePooledOrgUsage(
     }
 
   if (!isPaid(sub.plan) || !sub.periodStart) {
-    return getBillingPeriodUsageCost({ type: 'organization', id: organizationId }, billingPeriod)
+    return readSoftGateUsageCost({ type: 'organization', id: organizationId }, billingPeriod)
   }
 
-  const planDollars = getPlanTierDollars(sub.plan)
-  if (planDollars <= 0) {
-    return getBillingPeriodUsageCost({ type: 'organization', id: organizationId }, billingPeriod)
+  const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(sub.plan)
+  if (weeklyRefreshDollars <= 0) {
+    return readSoftGateUsageCost({ type: 'organization', id: organizationId }, billingPeriod)
   }
 
-  const { ledgerUsage, refreshConsumed } = await computeBillingPeriodUsageWithDailyRefresh({
+  const { ledgerUsage, refreshConsumed } = await computeBillingPeriodUsageWithWeeklyRefresh({
     billingEntity: { type: 'organization', id: organizationId },
     billingPeriod,
     refreshPeriodStart: sub.periodStart,
     refreshPeriodEnd: sub.periodEnd ?? null,
-    planDollars,
+    weeklyRefreshDollars,
     seats: sub.seats || 1,
   })
 
@@ -134,20 +146,20 @@ export async function checkUsageStatus(
         : defaultBillingPeriod())
     let ledgerUsage: number
     let refreshConsumed = 0
-    let appliedDailyRefresh = false
+    let appliedWeeklyRefresh = false
     if (sub && isPaid(sub.plan) && sub.periodStart) {
-      const planDollars = getPlanTierDollars(sub.plan)
-      if (planDollars > 0) {
-        const usage = await computeBillingPeriodUsageWithDailyRefresh({
+      const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(sub.plan)
+      if (weeklyRefreshDollars > 0) {
+        const usage = await computeBillingPeriodUsageWithWeeklyRefresh({
           billingEntity: { type: 'user', id: userId },
           billingPeriod,
           refreshPeriodStart: sub.periodStart,
           refreshPeriodEnd: sub.periodEnd ?? null,
-          planDollars,
+          weeklyRefreshDollars,
         })
         ledgerUsage = usage.ledgerUsage
         refreshConsumed = usage.refreshConsumed
-        appliedDailyRefresh = true
+        appliedWeeklyRefresh = true
       } else {
         ledgerUsage = await getBillingPeriodUsageCost({ type: 'user', id: userId }, billingPeriod)
       }
@@ -155,7 +167,7 @@ export async function checkUsageStatus(
       ledgerUsage = await getBillingPeriodUsageCost({ type: 'user', id: userId }, billingPeriod)
     }
     const usageBeforeRefresh = ledgerUsage - refreshConsumed
-    const currentUsage = appliedDailyRefresh ? Math.max(0, usageBeforeRefresh) : usageBeforeRefresh
+    const currentUsage = appliedWeeklyRefresh ? Math.max(0, usageBeforeRefresh) : usageBeforeRefresh
 
     return buildUsageData({ currentUsage, limit, scope, organizationId })
   } catch (error) {
@@ -177,6 +189,7 @@ export async function checkUsageStatus(
       limit: 0,
       scope: 'user',
       organizationId: null,
+      unavailable: true,
     }
   }
 }
@@ -346,7 +359,11 @@ export async function checkServerSideUsageLimits(
       isExceeded: usageData.isExceeded,
       currentUsage: usageData.currentUsage,
       limit: usageData.limit,
-      message: usageData.isExceeded ? exceededMessage : undefined,
+      message: usageData.unavailable
+        ? USAGE_UNAVAILABLE_MESSAGE
+        : usageData.isExceeded
+          ? exceededMessage
+          : undefined,
     }
   } catch (error) {
     logger.error('Error in server-side usage limit check', {

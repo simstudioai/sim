@@ -5,6 +5,7 @@ interface UseSettingsUnsavedGuardParams {
   isDirty: boolean
   /** Embedded editors use their host's guard instead of global settings navigation. */
   enabled?: boolean
+  navigationBlocked?: boolean
 }
 
 interface SettingsUnsavedGuard {
@@ -20,26 +21,36 @@ interface SettingsUnsavedGuard {
 export function useSettingsUnsavedGuard({
   isDirty,
   enabled = true,
+  navigationBlocked = false,
 }: UseSettingsUnsavedGuardParams): SettingsUnsavedGuard {
   const setDirty = useSettingsDirtyStore((state) => state.setDirty)
+  const setNavigationBlocked = useSettingsDirtyStore((state) => state.setNavigationBlocked)
   const reset = useSettingsDirtyStore((state) => state.reset)
   const isDirtyRef = useRef(enabled && isDirty)
+  const navigationBlockedRef = useRef(enabled && navigationBlocked)
   const pendingLeaveRef = useRef<(() => void) | null>(null)
   const [showUnsavedModal, setShowUnsavedModal] = useState(false)
 
   useEffect(() => {
     isDirtyRef.current = enabled && isDirty
+    navigationBlockedRef.current = enabled && navigationBlocked
     if (!enabled) {
       pendingLeaveRef.current = null
       setShowUnsavedModal(false)
       return
     }
     setDirty(isDirty)
+    setNavigationBlocked(navigationBlocked)
+    if (navigationBlocked) {
+      pendingLeaveRef.current = null
+      setShowUnsavedModal(false)
+      return
+    }
     if (!isDirty) {
       pendingLeaveRef.current = null
       setShowUnsavedModal(false)
     }
-  }, [enabled, isDirty, setDirty])
+  }, [enabled, isDirty, navigationBlocked, setDirty, setNavigationBlocked])
 
   useEffect(() => {
     if (!enabled) return
@@ -47,6 +58,9 @@ export function useSettingsUnsavedGuard({
   }, [enabled, reset])
 
   const guardBack = useCallback((onLeave: () => void) => {
+    if (navigationBlockedRef.current || useSettingsDirtyStore.getState().navigationBlocked) {
+      return
+    }
     if (isDirtyRef.current) {
       pendingLeaveRef.current = onLeave
       setShowUnsavedModal(true)
@@ -56,6 +70,9 @@ export function useSettingsUnsavedGuard({
   }, [])
 
   const confirmDiscard = useCallback(() => {
+    if (navigationBlockedRef.current || useSettingsDirtyStore.getState().navigationBlocked) {
+      return
+    }
     setShowUnsavedModal(false)
     pendingLeaveRef.current?.()
     pendingLeaveRef.current = null

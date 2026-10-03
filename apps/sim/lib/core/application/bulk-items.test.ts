@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { describe, expect, it } from 'vitest'
 import { type BulkItemDisposition, classifyBulkItemError } from '@/lib/core/application/bulk-items'
 import { OrchestrationError } from '@/lib/core/orchestration/types'

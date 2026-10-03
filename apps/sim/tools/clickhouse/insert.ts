@@ -1,7 +1,7 @@
 import type { ClickHouseInsertParams, ClickHouseInsertResponse } from '@/tools/clickhouse/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const insertTool: ToolConfig<ClickHouseInsertParams, ClickHouseInsertResponse> = {
+export const insertTool: InternalToolConfig<ClickHouseInsertParams, ClickHouseInsertResponse> = {
   id: 'clickhouse_insert',
   name: 'ClickHouse Insert',
   description: 'Insert a row into a ClickHouse table',
@@ -58,13 +58,8 @@ export const insertTool: ToolConfig<ClickHouseInsertParams, ClickHouseInsertResp
     },
   },
 
-  request: {
-    url: '/api/tools/clickhouse/insert',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

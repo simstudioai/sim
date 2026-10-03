@@ -1,5 +1,6 @@
-import { Badge, ChipLink, cn } from '@sim/emcn'
+import { Badge, ChipLink } from '@sim/emcn'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
+import { SegmentedMeter } from '@/app/workspace/[workspaceId]/settings/components/segmented-meter'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 type Subscription = {
@@ -107,25 +108,7 @@ export function TeamSeatsOverview({
           </div>
         </div>
 
-        <div className='flex items-center gap-1'>
-          {Array.from({ length: pillCount }).map((_, i) => {
-            const isFilled = i < usedSeats
-            const isOverage = i >= totalSeats
-            return (
-              <div
-                key={i}
-                className={cn(
-                  'h-[6px] flex-1 rounded-full transition-colors',
-                  isOverage
-                    ? 'bg-[var(--badge-amber-text)]'
-                    : isFilled
-                      ? 'bg-[var(--indicator-seat-filled)]'
-                      : 'bg-[var(--border)]'
-                )}
-              />
-            )
-          })}
-        </div>
+        <SegmentedMeter used={usedSeats} total={totalSeats} segments={pillCount} />
 
         <p className='text-[var(--text-muted)] text-small'>
           {isOverLimit

@@ -4,7 +4,7 @@ import type {
   SubmitMetricsParams,
   SubmitMetricsResponse,
 } from '@/tools/datadog/types'
-import { datadogErrorMessage, parseJsonParam } from '@/tools/datadog/utils'
+import { datadogErrorMessage, parseJsonParam, resolveDatadogSite } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 /**
@@ -49,7 +49,7 @@ export const submitMetricsTool: ToolConfig<SubmitMetricsParams, SubmitMetricsRes
 
   request: {
     url: (params) => {
-      const site = params.site || 'datadoghq.com'
+      const site = resolveDatadogSite(params.site)
       return `https://api.${site}/api/v2/series`
     },
     method: 'POST',

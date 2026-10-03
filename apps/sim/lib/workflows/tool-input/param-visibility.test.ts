@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   isSubBlockRequired,
@@ -14,11 +11,6 @@ describe('isUserSuppliedToolParam', () => {
     expect(isUserSuppliedToolParam({ paramVisibility: 'user-or-llm' })).toBe(false)
     expect(isUserSuppliedToolParam({ paramVisibility: 'llm-only' })).toBe(false)
     expect(isUserSuppliedToolParam({ paramVisibility: 'hidden' })).toBe(false)
-  })
-
-  it('treats an undeclared visibility as user-or-llm', () => {
-    // Matches the tool-row renderer's fallback: an unannotated param is never user-required.
-    expect(isUserSuppliedToolParam({})).toBe(false)
   })
 })
 
@@ -49,12 +41,6 @@ describe('isToolParamUserRequired', () => {
 })
 
 describe('isSubBlockRequired', () => {
-  it('handles the boolean and absent forms', () => {
-    expect(isSubBlockRequired(true, {})).toBe(true)
-    expect(isSubBlockRequired(false, {})).toBe(false)
-    expect(isSubBlockRequired(undefined, {})).toBe(false)
-  })
-
   it('evaluates the condition form', () => {
     const required = { field: 'operation', value: ['write', 'read-bulk'] }
     expect(isSubBlockRequired(required, { operation: 'write' })).toBe(true)

@@ -3,15 +3,14 @@ import type {
   AzureDataExplorerIngestResponse,
 } from '@/tools/azure_data_explorer/types'
 import {
-  AZURE_DATA_EXPLORER_PROXY_URL,
-  azureDataExplorerAuthBody,
+  azureDataExplorerAuthInput,
   buildWithClause,
   renderEntityName,
   transformColumnListResponse,
 } from '@/tools/azure_data_explorer/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const azureDataExplorerIngestInlineTool: ToolConfig<
+export const azureDataExplorerIngestInlineTool: InternalToolConfig<
   AzureDataExplorerIngestInlineParams,
   AzureDataExplorerIngestResponse
 > = {
@@ -78,12 +77,9 @@ export const azureDataExplorerIngestInlineTool: ToolConfig<
         'Ingestion properties clause contents, e.g. format="json", ingestionMappingReference="mymapping"',
     },
   },
-  request: {
-    url: AZURE_DATA_EXPLORER_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...azureDataExplorerAuthBody(params),
+  operation: {
+    input: (params) => ({
+      ...azureDataExplorerAuthInput(params),
       endpoint: 'mgmt',
       database: params.database,
       csl: `.ingest inline into table ${renderEntityName(params.table)}${buildWithClause(

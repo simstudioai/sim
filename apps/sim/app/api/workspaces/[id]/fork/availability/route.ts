@@ -1,36 +1,20 @@
-import { type NextRequest, NextResponse } from 'next/server'
 import { getForkAvailabilityContract } from '@/lib/api/contracts/workspace-fork'
-import { parseRequest } from '@/lib/api/server'
-import { getSession } from '@/lib/auth'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
-import { isForkingAvailableForWorkspace } from '@/ee/workspace-forking/lib/lineage/authz'
+import {
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import { internalForkErrorPolicy } from '@/ee/workspace-forking/api/route-policies'
+import { getWorkspaceForkAvailability } from '@/ee/workspace-forking/application/discovery'
+import { forkOperations } from '@/ee/workspace-forking/application/operations'
 
-/**
- * Whether forking is available for this workspace based on deployment configuration
- * and plan. Member-readable because it only reveals availability; the client uses it
- * to show or hide Forks settings and context-menu entries.
- */
-export const GET = withRouteHandler(
-  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const parsed = await parseRequest(getForkAvailabilityContract, req, context)
-    if (!parsed.success) return parsed.response
-    const { id } = parsed.data.params
-
-    const access = await checkWorkspaceAccess(id, session.user.id)
-    if (!access.exists || !access.workspace) {
-      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
-    }
-
-    const available = await isForkingAvailableForWorkspace(
-      access.workspace.organizationId,
-      session.user.id
-    )
-    return NextResponse.json({ available })
-  }
-)
+export const GET = defineInternalJsonRoute({
+  contract: getForkAvailabilityContract,
+  auth: internalSessionAuth,
+  operation: forkOperations.discover,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve existing internal fork request policy' }),
+  errorPolicy: internalForkErrorPolicy,
+  mapInput: ({ params }) => ({ workspaceId: params.id }),
+  useCase: getWorkspaceForkAvailability,
+  present: (result) => result,
+})

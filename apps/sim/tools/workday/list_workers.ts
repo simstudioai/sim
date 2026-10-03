@@ -1,7 +1,10 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import type { WorkdayListWorkersParams, WorkdayListWorkersResponse } from '@/tools/workday/types'
 
-export const listWorkersTool: ToolConfig<WorkdayListWorkersParams, WorkdayListWorkersResponse> = {
+export const listWorkersTool: InternalToolConfig<
+  WorkdayListWorkersParams,
+  WorkdayListWorkersResponse
+> = {
   id: 'workday_list_workers',
   name: 'List Workday Workers',
   description: 'List or search workers with optional filtering and pagination.',
@@ -46,13 +49,8 @@ export const listWorkersTool: ToolConfig<WorkdayListWorkersParams, WorkdayListWo
     },
   },
 
-  request: {
-    url: '/api/tools/workday/list-workers',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => params,
+  operation: {
+    input: (params) => params,
   },
 
   transformResponse: async (response: Response) => {

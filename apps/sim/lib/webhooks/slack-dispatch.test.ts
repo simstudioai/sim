@@ -1,16 +1,11 @@
-/**
- * @vitest-environment node
- */
+import {
+  webhooksProcessorMock,
+  webhooksProcessorMockFns,
+} from '@sim/testing/mocks/webhooks-processor.mock'
 import { NextRequest, NextResponse } from 'next/server'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockDispatchResolvedWebhookTarget } = vi.hoisted(() => ({
-  mockDispatchResolvedWebhookTarget: vi.fn(),
-}))
-
-vi.mock('@/lib/webhooks/processor', () => ({
-  dispatchResolvedWebhookTarget: mockDispatchResolvedWebhookTarget,
-}))
+vi.mock('@/lib/webhooks/processor', () => webhooksProcessorMock)
 
 vi.mock('@/lib/webhooks/providers/slack', () => ({
   resolveSlackEventKey: vi.fn(),
@@ -19,9 +14,42 @@ vi.mock('@/lib/webhooks/providers/slack', () => ({
 import { dispatchResolvedWebhookTarget } from '@/lib/webhooks/processor'
 import {
   dispatchSlackWebhooks,
-  getSlackDispatchFailureResponse,
   getSlackDispatchResponse,
+  resolveSlackExternalUserSubject,
 } from '@/lib/webhooks/slack-dispatch'
+
+const mockDispatchResolvedWebhookTarget = webhooksProcessorMockFns.mockDispatchResolvedWebhookTarget
+
+describe('resolveSlackExternalUserSubject', () => {
+  it('uses the actor tenant for Slack Connect interactions', () => {
+    expect(
+      resolveSlackExternalUserSubject({
+        type: 'block_actions',
+        team: { id: 'T_INSTALLATION' },
+        user: { id: 'U_EXTERNAL', team_id: 'T_EXTERNAL' },
+      })
+    ).toEqual({
+      kind: 'external_user',
+      provider: 'slack',
+      tenantId: 'T_EXTERNAL',
+      subjectId: 'U_EXTERNAL',
+    })
+  })
+
+  it('does not create a human subject for bot events', () => {
+    expect(
+      resolveSlackExternalUserSubject({
+        team_id: 'T_WORKSPACE',
+        event: { type: 'message', user: 'U_BOT', bot_id: 'B_BOT', subtype: 'bot_message' },
+      })
+    ).toBeUndefined()
+  })
+
+  it('fails closed when either stable provider identifier is missing', () => {
+    expect(resolveSlackExternalUserSubject({ event: { user: 'U_PERSON' } })).toBeUndefined()
+    expect(resolveSlackExternalUserSubject({ team_id: 'T_WORKSPACE', event: {} })).toBeUndefined()
+  })
+})
 
 describe('dispatchSlackWebhooks', () => {
   it('dispatches at most ten targets concurrently and preserves result order', async () => {
@@ -100,15 +128,5 @@ describe('dispatchSlackWebhooks', () => {
     ])
 
     expect(response.status).toBe(200)
-  })
-
-  it('fails fast when a failed Slack dispatch carries a successful response', () => {
-    expect(() =>
-      getSlackDispatchFailureResponse({
-        outcome: 'failed',
-        response: new NextResponse(null, { status: 200 }),
-        reason: 'queue-failed',
-      })
-    ).toThrow('Failed Slack dispatch returned successful HTTP status 200')
   })
 })

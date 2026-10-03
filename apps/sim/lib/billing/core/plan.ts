@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { member, organization, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, getTableColumns, inArray } from 'drizzle-orm'
 import {
   checkEnterprisePlan,
   checkProPlan,
@@ -82,46 +82,20 @@ export async function getHighestPrioritySubscription(
 ) {
   const { onError = 'return-null', executor = db } = options
   try {
-    const [personalSubs, memberships] = await Promise.all([
+    const entitled = inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+    const [personalSubs, orgSubs] = await Promise.all([
       executor
         .select()
         .from(subscription)
-        .where(
-          and(
-            eq(subscription.referenceId, userId),
-            inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
-          )
-        ),
+        .where(and(eq(subscription.referenceId, userId), entitled)),
+      // The `organization` join keeps orphaned memberships from contributing a subscription.
       executor
-        .select({ organizationId: member.organizationId })
+        .select(getTableColumns(subscription))
         .from(member)
-        .where(eq(member.userId, userId)),
+        .innerJoin(organization, eq(organization.id, member.organizationId))
+        .innerJoin(subscription, eq(subscription.referenceId, organization.id))
+        .where(and(eq(member.userId, userId), entitled)),
     ])
-
-    const orgIds = memberships.map((m: { organizationId: string }) => m.organizationId)
-
-    let orgSubs: typeof personalSubs = []
-    if (orgIds.length > 0) {
-      // Verify orgs exist to filter out orphaned subscriptions
-      const existingOrgs = await executor
-        .select({ id: organization.id })
-        .from(organization)
-        .where(inArray(organization.id, orgIds))
-
-      const validOrgIds = existingOrgs.map((o) => o.id)
-
-      if (validOrgIds.length > 0) {
-        orgSubs = await executor
-          .select()
-          .from(subscription)
-          .where(
-            and(
-              inArray(subscription.referenceId, validOrgIds),
-              inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
-            )
-          )
-      }
-    }
 
     if (personalSubs.length === 0 && orgSubs.length === 0) return null
 

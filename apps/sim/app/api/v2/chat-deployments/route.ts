@@ -1,9 +1,10 @@
 import { v2ListChatDeploymentsContract } from '@/lib/api/contracts/v2/chat-deployments'
 import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
-import { chatDeploymentOperations, listChatDeployments } from '@/lib/chat-deployments/application'
+import { listChatDeployments } from '@/lib/chat-deployments/application'
+import { chatDeploymentOperations } from '@/lib/chat-deployments/application/operations'
 import {
-  chatDeploymentErrorPolicy,
+  chatDeploymentWorkspaceErrorPolicy,
   toV2ChatDeploymentListItem,
 } from '@/app/api/v2/chat-deployments/utils'
 import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
@@ -48,7 +49,7 @@ export const GET = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: chatDeploymentOperations.list,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: chatDeploymentErrorPolicy,
+  errorPolicy: chatDeploymentWorkspaceErrorPolicy,
   mapInput: ({ query }) => ({
     workspaceId: query.workspaceId,
     workflowId: query.workflowId,

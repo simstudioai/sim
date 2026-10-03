@@ -19,8 +19,8 @@ import {
   getWorkflowMcpPublishableWorkflow,
   getWorkflowMcpServerById,
   getWorkflowMcpToolIncludingArchived,
-  listLiveWorkflowMcpTools,
   listWorkflowMcpToolNames,
+  listWorkflowMcpToolsIncludingArchived,
   listWorkspaceWorkflowMcpServers,
   type WorkflowMcpServerSortBy,
 } from '@/lib/mcp/queries'
@@ -125,6 +125,20 @@ export const listWorkflowMcpDeployments = defineAuthorizedWorkspaceUseCase({
         toolNames: namesByServerId.get(server.id) ?? [],
       })),
       nextCursorKeys: page.nextCursorKeys,
+      /**
+       * The name cap alone: `toolCount` and `toolNames` under-report because
+       * this page's servers publish more tools between them than
+       * `MAX_LISTED_WORKFLOW_MCP_TOOLS`. Kept apart from `truncated` because a
+       * surface that already publishes a `nextCursor` expresses "there is more
+       * to fetch" with the cursor, and would otherwise report an incomplete
+       * inventory on every page that simply has a successor.
+       */
+      toolNamesTruncated: truncated,
+      /**
+       * Anything at all is unseen — the name cap, or a further page. For a
+       * caller with no cursor to follow, which is how the copilot handler reads
+       * this, those are the same fact.
+       */
       truncated: page.nextCursorKeys !== null || truncated,
     }
   },
@@ -157,11 +171,15 @@ export interface ListWorkflowMcpDeploymentToolsInput {
 }
 
 /**
- * Every tool a server publishes.
+ * Every tool a server publishes, archived registrations included.
  *
  * Without this a caller could publish and unpublish tools but never enumerate
  * them: the server list reports tool *names* only, so nothing returned the
  * `workflowId` that addresses a tool for deletion.
+ *
+ * Archived rows are the registrations an undeploy withdrew; the presenter
+ * reports them as `inactive`. Listing only live rows made an undeployed
+ * workflow's tools vanish from the inventory with nothing to say why.
  */
 export const listWorkflowMcpDeploymentTools = defineAuthorizedWorkspaceUseCase({
   operation: mcpServerOperations.listWorkflowDeploymentTools,
@@ -169,7 +187,7 @@ export const listWorkflowMcpDeploymentTools = defineAuthorizedWorkspaceUseCase({
     resolveServerContext(input.serverId),
   authorizationOptions,
   async execute({ context }) {
-    const { tools, truncated } = await listLiveWorkflowMcpTools(
+    const { tools, truncated } = await listWorkflowMcpToolsIncludingArchived(
       context.server.id,
       MAX_LISTED_WORKFLOW_MCP_TOOLS
     )

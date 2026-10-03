@@ -1,4 +1,4 @@
-import { type Principal, requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import { requirePrincipalSubjectUserId, type WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
@@ -19,7 +19,7 @@ import {
 interface ManualExecutionInput
   extends Omit<ExecuteWorkflowInput, 'input' | 'mode' | 'requestedTimeoutSeconds'> {
   input?: unknown
-  mode: 'sync' | 'stream'
+  mode: 'sync' | 'stream' | 'sync-result-stream'
 }
 
 export interface ExecuteManualWorkflowInput extends ManualExecutionInput {
@@ -52,12 +52,13 @@ function listTriggers(options: ReturnType<typeof resolveTriggerRunOptions>): str
 }
 
 function executionServiceInput(params: {
-  principal: Principal
+  principal: WorkflowExecutionPrincipal
   context: Awaited<ReturnType<typeof resolveActiveWorkflowApplicationContext>>
   input: ManualExecutionInput
 }) {
   return {
     workflowId: params.context.workflowId,
+    principal: params.principal,
     userId: requirePrincipalSubjectUserId(params.principal),
     requestId: params.input.requestId,
     executionId: params.input.executionId,
@@ -89,10 +90,7 @@ export const executeManualWorkflowOperation = defineAuthorizedWorkflowUseCase({
       )
     }
     const state = await loadManualState(context.workflowId)
-    const options = resolveTriggerRunOptions(
-      mergeSubblockStateWithValues(state.blocks),
-      state.edges
-    )
+    const options = resolveTriggerRunOptions(mergeSubblockStateWithValues(state.blocks))
     if (options.length === 0) {
       throw new OrchestrationError(
         'validation',

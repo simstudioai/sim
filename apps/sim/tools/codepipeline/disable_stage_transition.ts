@@ -2,9 +2,9 @@ import type {
   CodePipelineDisableStageTransitionParams,
   CodePipelineDisableStageTransitionResponse,
 } from '@/tools/codepipeline/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const disableStageTransitionTool: ToolConfig<
+export const disableStageTransitionTool: InternalToolConfig<
   CodePipelineDisableStageTransitionParams,
   CodePipelineDisableStageTransitionResponse
 > = {
@@ -61,13 +61,8 @@ export const disableStageTransitionTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/codepipeline/disable-stage-transition',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.awsRegion,
       accessKeyId: params.awsAccessKeyId,
       secretAccessKey: params.awsSecretAccessKey,

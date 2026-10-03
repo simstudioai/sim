@@ -1,7 +1,7 @@
 import type { LogsGetParams, LogsGetResponse } from '@/tools/logs/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const logsGetTool: ToolConfig<LogsGetParams, LogsGetResponse> = {
+export const logsGetTool: InternalToolConfig<LogsGetParams, LogsGetResponse> = {
   id: 'logs_get',
   name: 'Get Log by ID',
   description: 'Fetch a single workflow execution log entry by its log ID.',
@@ -16,20 +16,8 @@ export const logsGetTool: ToolConfig<LogsGetParams, LogsGetResponse> = {
     },
   },
 
-  request: {
-    internal: true,
-    url: (params) => {
-      const workspaceId = params._context?.workspaceId
-      if (!workspaceId) {
-        throw new Error('workspaceId is required in execution context')
-      }
-      const qs = new URLSearchParams({ workspaceId })
-      return `/api/logs/${encodeURIComponent(params.id)}?${qs.toString()}`
-    },
-    method: 'GET',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
+  operation: {
+    input: (params) => ({ id: params.id }),
   },
 
   transformResponse: async (response): Promise<LogsGetResponse> => {

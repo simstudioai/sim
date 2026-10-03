@@ -10,6 +10,8 @@ import {
   pausedExecutions,
   tableRowExecutions,
   userTableRows as userTableRowsTable,
+  workflowDeploymentVersion,
+  workflow as workflowTable,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
@@ -55,6 +57,7 @@ import { areGroupDepsSatisfied, areOutputsFilled, isExecInFlight } from '@/lib/t
 import { resolveTableDispatchConcurrency } from '@/lib/table/dispatch-concurrency'
 import type { DispatchLimit, DispatchMode } from '@/lib/table/dispatcher'
 import { buildFilterClause } from '@/lib/table/sql'
+import { resolveWorkflowGroupDeploymentMode } from '@/lib/table/workflow-groups/deployment-mode'
 
 export {
   getUnmetGroupDeps,
@@ -192,6 +195,11 @@ export interface ScheduleOpts {
   groupIds?: string[]
   isManualRun?: boolean
   mode?: DispatchMode
+  /** Person whose permission group gates every cell this batch emits, or `null`
+   *  for an actorless run. Required so a new call site cannot emit a payload
+   *  with no gate by simply not thinking about one; see
+   *  {@link InsertRowData.capabilityGovernedUserId} in `@/lib/table/types`. */
+  capabilityGovernedUserId: string | null
 }
 
 /** Pure eligibility filter + payload building. Shared by the auto-fire path
@@ -199,15 +207,15 @@ export interface ScheduleOpts {
 export function buildPendingRuns(
   table: TableDefinition,
   rows: TableRow[],
-  opts?: ScheduleOpts
+  opts: ScheduleOpts
 ): WorkflowGroupCellPayload[] {
   const allGroups = table.schema.workflowGroups ?? []
   if (allGroups.length === 0) return []
   if (rows.length === 0) return []
 
-  const groupIdFilter = opts?.groupIds
+  const groupIdFilter = opts.groupIds
     ? new Set(opts.groupIds)
-    : opts?.groupId
+    : opts.groupId
       ? new Set([opts.groupId])
       : null
   const groups = groupIdFilter ? allGroups.filter((g) => groupIdFilter.has(g.id)) : allGroups
@@ -221,8 +229,8 @@ export function buildPendingRuns(
   for (const row of orderedRows) {
     for (const group of groups) {
       const reason = classifyEligibility(group, row, {
-        isManualRun: opts?.isManualRun,
-        mode: opts?.mode,
+        isManualRun: opts.isManualRun,
+        mode: opts.mode,
       })
       reasonCounts[reason] = (reasonCounts[reason] ?? 0) + 1
       if (reason !== 'eligible' && reason !== 'manual-bypass') continue
@@ -235,6 +243,7 @@ export function buildPendingRuns(
         ...(group.enrichmentId ? { enrichmentId: group.enrichmentId } : {}),
         workspaceId: table.workspaceId,
         executionId: generateId(),
+        capabilityGovernedUserId: opts.capabilityGovernedUserId,
       })
     }
   }
@@ -449,6 +458,13 @@ export interface WorkflowGroupCellPayload {
    *  auto-fire (row writes, CSV import) → billing falls back to the workspace
    *  billed account. */
   triggeredByUserId?: string
+  /** Person whose permission group gates this cell's tools. Null/absent means
+   *  no acting person, so no per-tool gate applies. Not `triggeredByUserId`;
+   *  see {@link InsertRowData.capabilityGovernedUserId} in `@/lib/table/types`.
+   *  Required like every sibling in `@/lib/table/types`: an omitted key and a
+   *  deliberate `null` both read as "ungated", so the compiler is what makes a
+   *  caller state which one it means. */
+  capabilityGovernedUserId: string | null
 }
 
 export type QueuedWorkflowGroupCellPayload = Omit<
@@ -730,6 +746,8 @@ export async function cancelWorkflowGroupRuns(
             secretProvenance: undefined,
             workspaceId: table.workspaceId,
             executionsPatch: mutation.executionsPatch,
+            /** A cancellation stamp writes no cell values and fires no enrichment. */
+            capabilityGovernedUserId: null,
           },
           table,
           `wfgrp-cancel-${mutation.rowId}`
@@ -841,6 +859,69 @@ export async function cancelWorkflowGroupRuns(
  * completed cells; `mode: 'incomplete'` skips them. `groupIds` omitted = every
  * workflow group on the table. `rowIds` omitted = every row.
  */
+/**
+ * A `deployed`-mode group whose workflow has no active deployment has nothing
+ * to run: the cell runner loads the deployment, so every cell would fail with
+ * the same error. Refuse the dispatch up front, naming the workflow, rather than
+ * enqueueing a run that only writes error cells. Groups with no backing workflow
+ * (enrichments) and `live`-mode groups are not checked.
+ *
+ * Returns the groups that are runnable; an auto-fire caller drops the rest
+ * (with a warning, since nobody is there to receive an error) while a manual
+ * run refuses the whole request.
+ */
+export async function assertWorkflowGroupsDeployable(
+  groups: readonly WorkflowGroup[],
+  options: { isManualRun: boolean; requestId: string }
+): Promise<WorkflowGroup[]> {
+  const checked = groups.filter(
+    (group) => group.workflowId && resolveWorkflowGroupDeploymentMode(group) === 'deployed'
+  )
+  if (checked.length === 0) return [...groups]
+
+  const workflowIds = [...new Set(checked.map((group) => group.workflowId))]
+  const rows = await db
+    .select({
+      workflowId: workflowTable.id,
+      workflowName: workflowTable.name,
+      deploymentId: workflowDeploymentVersion.id,
+    })
+    .from(workflowTable)
+    .leftJoin(
+      workflowDeploymentVersion,
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflowTable.id),
+        eq(workflowDeploymentVersion.isActive, true)
+      )
+    )
+    .where(inArray(workflowTable.id, workflowIds))
+
+  const nameById = new Map<string, string>()
+  const deployed = new Set<string>()
+  for (const row of rows) {
+    nameById.set(row.workflowId, row.workflowName)
+    if (row.deploymentId) deployed.add(row.workflowId)
+  }
+
+  const undeployed = checked.filter((group) => !deployed.has(group.workflowId))
+  if (undeployed.length === 0) return [...groups]
+
+  const describe = (group: WorkflowGroup) => {
+    const name = nameById.get(group.workflowId)
+    const workflow = name ? `"${name}" (${group.workflowId})` : group.workflowId
+    return `Workflow group "${group.name ?? group.id}" runs the deployed version of workflow ${workflow}, which has no active deployment. Deploy the workflow, or switch the group to live mode, before running it.`
+  }
+
+  if (options.isManualRun) {
+    throw new OrchestrationError('validation', describe(undeployed[0]))
+  }
+  for (const group of undeployed) {
+    logger.warn(`[${options.requestId}] Skipping auto-run: ${describe(group)}`)
+  }
+  const skipped = new Set(undeployed.map((group) => group.id))
+  return groups.filter((group) => !skipped.has(group.id))
+}
+
 export async function runWorkflowColumn(opts: {
   tableId: string
   workspaceId: string
@@ -865,6 +946,10 @@ export async function runWorkflowColumn(opts: {
    *  callers (row writes, CSV import) → falls back to the workspace billed
    *  account at billing time. */
   triggeredByUserId?: string | null
+  /** Person whose permission group gates the run's cells; `null` when the run
+   *  has no acting person (workspace key, schedule, auto-fire). Required, and
+   *  never defaulted from `triggeredByUserId`; see {@link InsertRowData.capabilityGovernedUserId} in `@/lib/table/types`. */
+  capabilityGovernedUserId: string | null
 }): Promise<{ dispatchId: string | null; shouldSignalRowsChanged: boolean }> {
   const {
     tableId,
@@ -877,6 +962,7 @@ export async function runWorkflowColumn(opts: {
     excludeRowIds,
     limit,
     triggeredByUserId,
+    capabilityGovernedUserId,
   } = opts
   const isManualRun = opts.isManualRun ?? true
   // Empty `rowIds` array means "scope explicitly empty" — auto-fire callers
@@ -894,11 +980,18 @@ export async function runWorkflowColumn(opts: {
     throw new OrchestrationError('validation', 'Invalid workspace ID')
 
   const allGroups = table.schema.workflowGroups ?? []
-  const targetGroups = groupIds ? allGroups.filter((g) => groupIds.includes(g.id)) : allGroups
+  const requestedGroups = groupIds ? allGroups.filter((g) => groupIds.includes(g.id)) : allGroups
   // Tables with no workflow groups are the majority. Auto-fire callers from
   // every row write would otherwise produce error-level log spam on every
   // PATCH/insert. Manual run-column callers always pass `groupIds` so they
   // can't reach here with an empty target.
+  if (requestedGroups.length === 0) {
+    return { dispatchId: null, shouldSignalRowsChanged: false }
+  }
+  const targetGroups = await assertWorkflowGroupsDeployable(requestedGroups, {
+    isManualRun,
+    requestId,
+  })
   if (targetGroups.length === 0) {
     return { dispatchId: null, shouldSignalRowsChanged: false }
   }
@@ -945,6 +1038,7 @@ export async function runWorkflowColumn(opts: {
     limit,
     isManualRun,
     triggeredByUserId,
+    capabilityGovernedUserId,
   })
 
   try {
@@ -1083,10 +1177,24 @@ export interface CellResumeContext {
   groupId: string
   workspaceId: string
   workflowId: string
+  /**
+   * Person whose permission group gates the tools of everything this cell's
+   * run still has to do. Required, because a pause is the one boundary where
+   * the subject would otherwise be reconstructed from scratch: the resumed
+   * cascade is driven by the resume worker, whose payload carries no dispatch
+   * and no row marker to re-read it from. `null` is the actorless run — no
+   * per-tool gate — and has to be written, not inferred from an absent key.
+   *
+   * Lives in `paused_executions.metadata`, a jsonb document, so carrying it
+   * needs no schema change: a pause row written before this field existed
+   * reads back `undefined`, which the resume worker normalizes to `null`.
+   */
+  capabilityGovernedUserId: string | null
 }
 
 interface PausedMetadataPatch {
-  cellContext?: CellResumeContext
+  /** Read back from jsonb, so a pause written before a field existed lacks it. */
+  cellContext?: Partial<CellResumeContext> & Omit<CellResumeContext, 'capabilityGovernedUserId'>
   [key: string]: unknown
 }
 
@@ -1132,7 +1240,13 @@ export async function findCellContextByExecutionId(
       .where(eq(pausedExecutions.executionId, executionId))
       .limit(1)
     const meta = row?.metadata as PausedMetadataPatch | null
-    return meta?.cellContext ?? null
+    const stored = meta?.cellContext
+    if (!stored) return null
+    return {
+      ...stored,
+      /** A pause stashed before the subject was carried is an ungated resume. */
+      capabilityGovernedUserId: stored.capabilityGovernedUserId ?? null,
+    }
   } catch (err) {
     logger.error(`Failed to read cell context for executionId=${executionId}:`, err)
     return null

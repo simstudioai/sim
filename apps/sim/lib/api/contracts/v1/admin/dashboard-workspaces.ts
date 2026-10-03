@@ -59,13 +59,114 @@ const adminDashboardWorkspaceCandidateSchema = z.object({
   ownerEmail: z.string(),
   workspaceMode: z.string(),
   organizationId: z.string().nullable(),
+  /** Name of the organization that currently owns the workspace, if any. */
+  organizationName: z.string().nullable(),
   billedAccountUserId: z.string(),
   /** Archived workspaces are movable; the flag lets admin UIs label them. */
   archived: z.boolean(),
+  /**
+   * Non-null when the workspace cannot be moved. Ineligible rows are returned
+   * rather than filtered out so the admin learns the workspace exists and why
+   * it is stuck, instead of an empty result they cannot act on.
+   */
+  ineligibleReason: z.string().nullable().optional(),
+})
+
+/** Usage split so the UI can separate what leaves from what breaks behind. */
+const adminDashboardCustomBlockUsageSchema = z.object({
+  live: z.number().int().min(0),
+  deployed: z.number().int().min(0),
+})
+
+const adminDashboardWorkspaceSourceImpactSchema = z.object({
+  unpublishedCustomBlocks: z
+    .array(
+      z.object({
+        id: z.string(),
+        type: z.string(),
+        name: z.string(),
+        movingWorkspaceUsage: adminDashboardCustomBlockUsageSchema,
+        sourceOrgElsewhereUsage: adminDashboardCustomBlockUsageSchema,
+      })
+    )
+    .max(500),
+  /** Non-empty means the move is blocked until the fork is disconnected. */
+  blockingForkEdges: z
+    .array(
+      z.object({
+        workspaceId: z.string(),
+        name: z.string(),
+        organizationId: z.string().nullable(),
+        direction: z.enum(['parent', 'child']),
+      })
+    )
+    .max(500),
+  detachedPermissionGroups: z
+    .array(z.object({ permissionGroupId: z.string(), name: z.string() }))
+    .max(500),
+  strippedRetentionRules: z.object({
+    piiRedactionRules: z.number().int().min(0),
+    retentionOverrides: z.number().int().min(0),
+  }),
+  retainedCollaboratorCaps: z
+    .array(
+      z.object({
+        userId: z.string(),
+        email: z.string(),
+        sourceOrgLimitDollars: z.number().nullable(),
+      })
+    )
+    .max(1000),
+  brandingChanges: z.boolean(),
+  /**
+   * Rows omitted to keep the response inside the array bounds above. Non-null
+   * means the lists are incomplete and the notice says so.
+   */
+  truncated: z
+    .object({
+      customBlocks: z.number().int().min(0),
+      permissionGroups: z.number().int().min(0),
+      collaboratorCaps: z.number().int().min(0),
+      forkEdges: z.number().int().min(0),
+      credentials: z.number().int().min(0),
+      environmentVariableKeys: z.number().int().min(0),
+    })
+    .nullable(),
+})
+
+/** Secrets that travel with the workspace. Never carries secret material. */
+const adminDashboardWorkspaceCredentialsSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        id: z.string(),
+        displayName: z.string(),
+        type: z.string(),
+        backedBySourceOrgMember: z.boolean(),
+      })
+    )
+    .max(1000),
+  credentialGroupCount: z.number().int().min(0),
+  /** Variable names only — values are never sent. */
+  environmentVariableKeys: z.array(z.string()).max(1000),
+  byokKeyCount: z.number().int().min(0),
+  /** Rows omitted to stay within the bounds above. */
+  truncatedCredentials: z.number().int().min(0),
+  truncatedEnvironmentVariableKeys: z.number().int().min(0),
 })
 
 const adminDashboardWorkspacePreflightSchema = z.object({
   workspace: adminDashboardWorkspaceCandidateSchema,
+  /** `null` for a personal or grandfathered source. */
+  sourceOrganization: z
+    .object({
+      id: z.string(),
+      name: z.string(),
+      ownerId: z.string().nullable(),
+      ownerName: z.string().nullable(),
+      ownerEmail: z.string().nullable(),
+    })
+    .nullable(),
   destinationOrganization: z.object({
     id: z.string(),
     name: z.string(),
@@ -80,6 +181,8 @@ const adminDashboardWorkspacePreflightSchema = z.object({
       email: z.string(),
       permission: z.enum(['admin', 'write', 'read']),
       organizationMember: z.boolean(),
+      /** Retains access after the move, as an external collaborator. */
+      sourceOrganizationMember: z.boolean(),
     })
   ),
   invitations: z.array(
@@ -91,6 +194,17 @@ const adminDashboardWorkspacePreflightSchema = z.object({
       workspaceGrantCount: z.number().int().min(1),
     })
   ),
+  sourceOrganizationImpact: adminDashboardWorkspaceSourceImpactSchema,
+  credentials: adminDashboardWorkspaceCredentialsSchema,
+  entitlements: z.object({
+    sourceIsEnterprise: z.boolean(),
+    destinationIsEnterprise: z.boolean(),
+    capabilitiesLost: z.array(z.string()).max(50),
+  }),
+  /** Non-empty means the move will throw; the UI must not offer a confirm. */
+  blockers: z.array(z.string()).max(20),
+  /** Advisory consequences worth reading, which never block. */
+  notices: z.array(z.string()).max(20),
   warning: z.string().nullable(),
 })
 

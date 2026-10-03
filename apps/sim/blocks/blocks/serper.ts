@@ -1,9 +1,8 @@
 import { SerperIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { SearchResponse } from '@/tools/serper/types'
 
-export const SerperBlock: BlockConfig<SearchResponse> = {
+export const SerperBlock: BlockConfig = {
   type: 'serper',
   name: 'Serper',
   description: 'Search the web using Serper',
@@ -41,6 +40,8 @@ export const SerperBlock: BlockConfig<SearchResponse> = {
         { label: 'news', id: 'news' },
         { label: 'places', id: 'places' },
         { label: 'images', id: 'images' },
+        { label: 'videos', id: 'videos' },
+        { label: 'shopping', id: 'shopping' },
       ],
       value: () => 'search',
     },

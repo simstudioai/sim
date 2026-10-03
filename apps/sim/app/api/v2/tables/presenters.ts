@@ -8,7 +8,8 @@ import {
   toV2CreateTableImport,
   toV2TableImport,
 } from '@/lib/table/orchestration/import-resource'
-import type { TableSchema, WorkflowGroup } from '@/lib/table/types'
+import type { TableSchema, WorkflowGroup, WorkflowGroupDeploymentMode } from '@/lib/table/types'
+import { resolveWorkflowGroupDeploymentMode } from '@/lib/table/workflow-groups/deployment-mode'
 
 export function presentV2CreateTableImport(result: CreateTableImportResult) {
   return { data: toV2CreateTableImport(result) }
@@ -35,8 +36,19 @@ export function presentV2TableExport(record: TableExportRecord, queued = false) 
  * driven by the inverse map; a ref naming no current column is left as-is, so a
  * legacy name-keyed group and a ref to a since-deleted column both survive.
  */
-export function presentV2WorkflowGroup(group: WorkflowGroup, schema: TableSchema): WorkflowGroup {
-  return remapGroupColumnRefs(group, buildNameById(schema))
+export function presentV2WorkflowGroup(
+  group: WorkflowGroup,
+  schema: TableSchema
+): Omit<WorkflowGroup, 'deploymentMode'> & { deploymentMode: WorkflowGroupDeploymentMode } {
+  return {
+    ...remapGroupColumnRefs(group, buildNameById(schema)),
+    /**
+     * Always the effective mode. A group that predates the field ran the
+     * deployed version all along; publishing it as absent read as "no mode",
+     * which a caller took for the draft.
+     */
+    deploymentMode: resolveWorkflowGroupDeploymentMode(group),
+  }
 }
 
 /**
@@ -61,9 +73,35 @@ export function presentV2TableDispatch(dispatch: DispatchRow): V2TableRunDispatc
      */
     status: dispatch.status === 'cancelled' ? 'canceled' : dispatch.status,
     mode: dispatch.mode,
+    /**
+     * A dispatch with no row list narrows what it walks by a compiled filter,
+     * an exclusion set, or both, and the dispatcher applies each independently.
+     * Publishing only `groupIds` and `rowIds` described all of those exactly
+     * like a run over every eligible row — and `POST` on this same path accepts
+     * `filter` and `excludeRowIds`, so a caller could create a scope this
+     * resource then denied having.
+     *
+     * The filter itself stays unpublished, with the scheduler `cursor` and the
+     * internal identities: it is held compiled, in a different grammar from the
+     * predicate the request was written in, so returning it would publish an
+     * internal artifact under a name callers would read back as their own
+     * input. `filtered` names the distinction without claiming to reproduce it.
+     *
+     * The two narrowings are reported separately because they are separate: the
+     * run rejects only `rowIds` *with* `excludeRowIds`, so an exclusion set with
+     * no filter is a scope a caller can really create, and one flag covering
+     * both would have to call it either filtered (it is not) or unnarrowed (it
+     * is not). `excludeRowIds` mirrors the walk's own condition and is withheld
+     * where `rowIds` would make the dispatcher ignore it, so the scope reports
+     * what will actually happen.
+     */
     scope: {
       groupIds: dispatch.scope.groupIds,
       ...(dispatch.scope.rowIds ? { rowIds: dispatch.scope.rowIds } : {}),
+      ...(dispatch.scope.filter ? { filtered: true as const } : {}),
+      ...(!dispatch.scope.rowIds?.length && dispatch.scope.excludeRowIds?.length
+        ? { excludeRowIds: dispatch.scope.excludeRowIds }
+        : {}),
     },
     limit: dispatch.limit,
     processedCount: dispatch.processedCount,

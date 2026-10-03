@@ -1,0 +1,76 @@
+import { simSearchConnectorsMock } from '@sim/testing/mocks/sim-search-connectors.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const m = vi.hoisted(() => ({ authorize: vi.fn(), receive: vi.fn() }))
+vi.mock('@/lib/knowledge/application/slack-search/authorization', () => ({
+  requireSlackInstallationPrincipal: (p: { kind: string }) => {
+    if (p.kind !== 'slack_installation') throw new Error('principal')
+  },
+  authorizeSlackSearchInstallation: m.authorize,
+}))
+vi.mock('@/lib/knowledge/application/slack-search/process-message', () => ({
+  receiveSlackSearchMessage: { execute: m.receive },
+}))
+vi.mock('@/lib/sim-search/connectors', () => ({
+  ...simSearchConnectorsMock,
+  SEARCH_CONNECTORS: [{ type: 'slack', providerId: 'slack' }],
+}))
+
+import { receiveSlackSearchCommand } from '@/lib/knowledge/application/slack-search/commands'
+import { slackSearchCommandEventId, slackSearchCommandSchema } from '@/lib/slack-search/commands'
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://www.sim.ai')
+
+const input = {
+  api_app_id: 'A1',
+  team_id: 'T1',
+  user_id: 'U1',
+  channel_id: 'C1',
+  trigger_id: 'trigger.1',
+  command: '/query',
+  text: 'release notes',
+} as const
+const principal = {
+  kind: 'slack_installation',
+  appId: 'A1',
+  teamId: 'T1',
+  eventId: slackSearchCommandEventId(input),
+  credentialId: 'c1',
+  credentialVersion: 'v1',
+  receivedAt: new Date(),
+} as const
+beforeEach(() => {
+  m.authorize.mockResolvedValue({ installation: { organizationId: 'org' } })
+  m.receive.mockResolvedValue('turn')
+})
+describe('Slack commands', () => {
+  it('uses stable deduplication for retries and rejects forged user scope', async () => {
+    expect(slackSearchCommandEventId({ ...input })).toBe(principal.eventId)
+    await expect(
+      receiveSlackSearchCommand.execute({ principal, input: { ...input, user_id: 'U2' } })
+    ).rejects.toThrow('verified identity')
+    expect(m.receive).not.toHaveBeenCalled()
+  })
+  it('returns an environment-correct personal connection link without OAuth state', async () => {
+    const result = await receiveSlackSearchCommand.execute({
+      principal,
+      input: { ...input, command: '/connect', text: 'slack' },
+    })
+    expect(result.text).toBe(
+      '<https://www.sim.ai/o/org/integrations?connectorType=slack|Connect your sources in Sim>'
+    )
+    expect(m.receive).not.toHaveBeenCalled()
+  })
+  it('does not queue commands on a disabled installation', async () => {
+    m.authorize.mockResolvedValue(null)
+    await receiveSlackSearchCommand.execute({ principal, input })
+    expect(m.receive).not.toHaveBeenCalled()
+  })
+  it('does not accept unsupported commands or oversized invocations', () => {
+    expect(slackSearchCommandSchema.safeParse({ ...input, command: '/other' }).success).toBe(false)
+    expect(slackSearchCommandSchema.safeParse({ ...input, text: 'x'.repeat(40001) }).success).toBe(
+      false
+    )
+  })
+})

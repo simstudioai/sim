@@ -1,8 +1,11 @@
 import type { JsmCreateObjectParams, JsmCreateObjectResponse } from '@/tools/jsm/types'
 import { ASSET_OBJECT_PROPERTIES } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmCreateObjectTool: ToolConfig<JsmCreateObjectParams, JsmCreateObjectResponse> = {
+export const jsmCreateObjectTool: InternalToolConfig<
+  JsmCreateObjectParams,
+  JsmCreateObjectResponse
+> = {
   id: 'jsm_create_object',
   name: 'JSM Create Asset Object',
   description:
@@ -54,11 +57,8 @@ export const jsmCreateObjectTool: ToolConfig<JsmCreateObjectParams, JsmCreateObj
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/assets/object/create',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

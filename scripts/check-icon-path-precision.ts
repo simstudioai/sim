@@ -261,7 +261,10 @@ function normalizedRelativePath(file: string): string {
 }
 
 export function analyzeIconSource(source: string, file: string): IconPrecisionAnalysis {
-  const extracted = extractLiteralPaths(source, file)
+  return analyzeExtractedPaths(extractLiteralPaths(source, file), file)
+}
+
+function analyzeExtractedPaths(extracted: ExtractedPaths, file: string): IconPrecisionAnalysis {
   const candidates: PrecisionCandidate[] = []
   const normalizedFile = normalizedRelativePath(file)
   const invalidExceptions = extracted.invalidExceptions.map((exception) => ({
@@ -322,8 +325,16 @@ async function currentIconFiles(): Promise<string[]> {
 async function scanCurrentFiles(files: string[]): Promise<IconPrecisionAnalysis> {
   const candidates: PrecisionCandidate[] = []
   const invalidExceptions: InvalidPrecisionException[] = []
-  for (const file of files) {
-    const analysis = analyzeIconSource(await readFile(file, 'utf8'), file)
+  const sources = await Promise.all(files.map((file) => readFile(file, 'utf8')))
+  const parsedBySource = new Map<string, ExtractedPaths>()
+  for (const [index, file] of files.entries()) {
+    const source = sources[index]
+    let extracted = parsedBySource.get(source)
+    if (!extracted) {
+      extracted = extractLiteralPaths(source, file)
+      parsedBySource.set(source, extracted)
+    }
+    const analysis = analyzeExtractedPaths(extracted, file)
     candidates.push(...analysis.candidates)
     invalidExceptions.push(...analysis.invalidExceptions)
   }

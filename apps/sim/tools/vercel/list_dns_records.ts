@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { VercelListDnsRecordsParams, VercelListDnsRecordsResponse } from '@/tools/vercel/types'
 
 export const vercelListDnsRecordsTool: ToolConfig<
@@ -50,7 +51,7 @@ export const vercelListDnsRecordsTool: ToolConfig<
       if (params.teamId) query.set('teamId', params.teamId.trim())
       if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
-      return `https://api.vercel.com/v5/domains/${params.domain.trim()}/records${qs ? `?${qs}` : ''}`
+      return `https://api.vercel.com/v5/domains/${safeUrlPathSegment(params.domain, 'domain')}/records${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params: VercelListDnsRecordsParams) => ({

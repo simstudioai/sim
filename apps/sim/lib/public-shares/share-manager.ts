@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { publicShare, user, workspace, workspaceFiles } from '@sim/db/schema'
+import { publicShare, user, type WorkspaceFileRow, workspace, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
@@ -74,6 +74,36 @@ export async function getSharesForResources(
     .from(publicShare)
     .where(
       and(eq(publicShare.resourceType, resourceType), inArray(publicShare.resourceId, resourceIds))
+    )
+
+  for (const row of rows) {
+    result.set(row.resourceId, mapShareRecord(row))
+  }
+  return result
+}
+
+/**
+ * Batch-fetch shares for resources after constraining them to one workspace.
+ * Application use cases that authorize at workspace scope use this form so a
+ * caller-supplied resource id cannot reach a share from another workspace.
+ */
+export async function getWorkspaceSharesForResources(
+  resourceType: ShareResourceType,
+  workspaceId: string,
+  resourceIds: string[]
+): Promise<Map<string, ShareRecord>> {
+  const result = new Map<string, ShareRecord>()
+  if (resourceIds.length === 0) return result
+
+  const rows = await db
+    .select()
+    .from(publicShare)
+    .where(
+      and(
+        eq(publicShare.resourceType, resourceType),
+        eq(publicShare.workspaceId, workspaceId),
+        inArray(publicShare.resourceId, resourceIds)
+      )
     )
 
   for (const row of rows) {
@@ -228,7 +258,7 @@ export async function upsertFileShare({
  */
 export interface ResolvedShare {
   share: PublicShareRow
-  file: typeof workspaceFiles.$inferSelect
+  file: WorkspaceFileRow
   /** Owning workspace name, for provenance on the public page. */
   workspaceName: string | null
   /** Display name of the file's uploader. */

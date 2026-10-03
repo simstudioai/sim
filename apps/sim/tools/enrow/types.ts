@@ -20,9 +20,10 @@ export interface EnrowFindEmailResult {
   /** Enrow quality qualifier: "valid" | "invalid" | null (if not yet finished). */
   qualification: string | null
   fullname: string | null
+  firstname: string | null
+  lastname: string | null
   company_name: string | null
   company_domain: string | null
-  linkedin_url: string | null
 }
 
 export interface EnrowFindEmailResponse extends ToolResponse {

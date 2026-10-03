@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type {
   VercelUpdateEdgeConfigItemsParams,
   VercelUpdateEdgeConfigItemsResponse,
@@ -46,7 +47,8 @@ export const vercelUpdateEdgeConfigItemsTool: ToolConfig<
       const query = new URLSearchParams()
       if (params.teamId) query.set('teamId', params.teamId.trim())
       const qs = query.toString()
-      return `https://api.vercel.com/v1/edge-config/${params.edgeConfigId.trim()}/items${qs ? `?${qs}` : ''}`
+      const edgeConfigId = safeUrlPathSegment(params.edgeConfigId, 'edgeConfigId')
+      return `https://api.vercel.com/v1/global-config/${edgeConfigId}/items${qs ? `?${qs}` : ''}`
     },
     method: 'PATCH',
     headers: (params: VercelUpdateEdgeConfigItemsParams) => ({

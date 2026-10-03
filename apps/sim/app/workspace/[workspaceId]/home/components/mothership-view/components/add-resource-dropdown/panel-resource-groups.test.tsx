@@ -7,6 +7,12 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/browser-agent/transport', () => ({ isBrowserAgentAvailable: () => false }))
 vi.mock('@/lib/terminal/transport', () => ({ isTerminalAvailable: () => false }))
+vi.mock('@/app/workspace/[workspaceId]/providers/feature-flags-provider', () => ({
+  useFeatureFlag: () => false,
+}))
+vi.mock('@/hooks/queries/dashboards', () => ({
+  useWorkspaceDashboard: () => ({ data: undefined, isPending: false }),
+}))
 vi.mock('@/blocks/integration-matcher', () => ({ listIntegrationsByPopularity: () => [] }))
 vi.mock('@/hooks/queries/custom-tools', () => ({
   useCustomTools: () => ({
@@ -51,7 +57,7 @@ vi.mock('@/hooks/queries/workspace-files', () => ({
   useWorkspaceFiles: () => ({ data: [], isPending: false }),
 }))
 
-import { useAvailableResources } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/add-resource-dropdown'
+import { useAvailableResources } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/available-resources'
 
 describe('useAvailableResources panel resource groups', () => {
   it('offers Skills, Custom Tools, and MCP servers to the panel picker', () => {

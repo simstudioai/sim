@@ -27,7 +27,11 @@ export const revalidate = 0
  * so the response cannot be used to probe which ids exist.
  *
  * `headSafe: false` because downloading records a `FILE_DOWNLOADED` audit event
- * and pulls the bytes out of object storage.
+ * and pulls the bytes out of object storage. `HEAD` therefore runs the
+ * authorization phase alone — which is why the use case resolves the addressed
+ * file while loading canonical context rather than in `execute`, so a `HEAD`
+ * answers the same existence question a `GET` would instead of succeeding for
+ * an id that has no file behind it.
  */
 export const GET = defineV2BinaryRoute({
   contract: v2DownloadRunFileContract,

@@ -1,4 +1,5 @@
 import type { LangsmithGetRunParams, LangsmithGetRunResponse } from '@/tools/langsmith/types'
+import { LANGSMITH_API_BASE, truncateLangsmithErrorText } from '@/tools/langsmith/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const langsmithGetRunTool: ToolConfig<LangsmithGetRunParams, LangsmithGetRunResponse> = {
@@ -21,7 +22,7 @@ export const langsmithGetRunTool: ToolConfig<LangsmithGetRunParams, LangsmithGet
     },
   },
   request: {
-    url: (params) => `https://api.smith.langchain.com/runs/${params.runId.trim()}`,
+    url: (params) => `${LANGSMITH_API_BASE}/runs/${encodeURIComponent(params.runId.trim())}`,
     method: 'GET',
     headers: (params) => ({
       'X-Api-Key': params.apiKey,
@@ -30,7 +31,9 @@ export const langsmithGetRunTool: ToolConfig<LangsmithGetRunParams, LangsmithGet
   transformResponse: async (response) => {
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`LangSmith get run failed (${response.status}): ${errorText}`)
+      throw new Error(
+        `LangSmith get run failed (${response.status}): ${truncateLangsmithErrorText(errorText)}`
+      )
     }
 
     const data = (await response.json()) as Record<string, unknown>

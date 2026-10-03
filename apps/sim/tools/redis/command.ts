@@ -1,7 +1,7 @@
 import type { RedisCommandParams, RedisCommandResponse } from '@/tools/redis/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const redisCommandTool: ToolConfig<RedisCommandParams, RedisCommandResponse> = {
+export const redisCommandTool: InternalToolConfig<RedisCommandParams, RedisCommandResponse> = {
   id: 'redis_command',
   name: 'Redis Command',
   description:
@@ -23,11 +23,8 @@ export const redisCommandTool: ToolConfig<RedisCommandParams, RedisCommandRespon
     },
   },
 
-  request: {
-    url: '/api/tools/redis/execute',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       let parsed: unknown
       try {
         parsed = JSON.parse(params.command)

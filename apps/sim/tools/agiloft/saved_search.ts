@@ -1,7 +1,7 @@
 import type { AgiloftSavedSearchParams, AgiloftSavedSearchResponse } from '@/tools/agiloft/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const agiloftSavedSearchTool: ToolConfig<
+export const agiloftSavedSearchTool: InternalToolConfig<
   AgiloftSavedSearchParams,
   AgiloftSavedSearchResponse
 > = {
@@ -43,12 +43,8 @@ export const agiloftSavedSearchTool: ToolConfig<
     },
   },
 
-  request: {
-    internal: true,
-    url: () => '/api/tools/agiloft/saved_search',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       instanceUrl: params.instanceUrl,
       knowledgeBase: params.knowledgeBase,
       login: params.login,

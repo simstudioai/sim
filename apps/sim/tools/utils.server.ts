@@ -1,16 +1,15 @@
 import { createLogger } from '@sim/logger'
 import { customToolSchemaSchema } from '@/lib/api/contracts/tools/custom'
 import {
-  secureFetchWithPinnedIP,
-  validateUrlWithDNS,
-} from '@/lib/core/security/input-validation.server'
-import { getCustomToolByIdOrTitle } from '@/lib/workflows/custom-tools/operations'
+  readAvailableCustomToolByIdOrTitleAsCopilot,
+  readAvailableCustomToolByIdOrTitleAsExecutor,
+} from '@/lib/internal/custom-tools/read-available-by-id-or-title'
+import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import { isCustomTool } from '@/executor/constants'
+import type { ExecutionContext } from '@/executor/types'
 import type { CustomToolDefinition } from '@/hooks/queries/custom-tools'
-import { extractErrorMessage } from '@/tools/error-extractors'
 import { tools } from '@/tools/registry'
-import type { ToolConfig, ToolResponse } from '@/tools/types'
-import type { RequestParams } from '@/tools/utils'
+import type { ExecutableToolConfig } from '@/tools/types'
 import {
   createCustomToolRequestBody,
   createParamSchema,
@@ -21,12 +20,14 @@ import {
 const logger = createLogger('ToolsUtils')
 
 export interface GetToolAsyncContext {
-  workflowId?: string
-  userId?: string
-  workspaceId?: string
+  executionContext?: ExecutionContext
+  operationContext?: InternalToolOperationContext
+  signal?: AbortSignal
 }
 
-type CustomToolRow = NonNullable<Awaited<ReturnType<typeof getCustomToolByIdOrTitle>>>
+type CustomToolRow = NonNullable<
+  Awaited<ReturnType<typeof readAvailableCustomToolByIdOrTitleAsExecutor>>
+>
 
 function toCustomToolDefinition(customTool: CustomToolRow): CustomToolDefinition | null {
   const parsedSchema = customToolSchemaSchema.safeParse(customTool.schema)
@@ -49,78 +50,11 @@ function toCustomToolDefinition(customTool: CustomToolRow): CustomToolDefinition
   }
 }
 
-/**
- * Execute the actual request and transform the response.
- * Server-only: uses DNS validation and IP-pinned fetch.
- */
-export async function executeRequest(
-  toolId: string,
-  tool: ToolConfig,
-  requestParams: RequestParams
-): Promise<ToolResponse> {
-  try {
-    const { url, method, headers, body } = requestParams
-    const isExternalUrl = url.startsWith('http://') || url.startsWith('https://')
-    const externalResponse = isExternalUrl
-      ? (() => {
-          return validateUrlWithDNS(url, 'url').then((urlValidation) => {
-            if (!urlValidation.isValid) {
-              throw new Error(urlValidation.error)
-            }
-            return secureFetchWithPinnedIP(url, urlValidation.resolvedIP!, {
-              method,
-              headers,
-              body,
-            })
-          })
-        })()
-      : fetch(url, { method, headers, body })
-
-    const resolvedResponse = await externalResponse
-
-    if (!resolvedResponse.ok) {
-      let errorData: any
-      try {
-        errorData = await resolvedResponse.json()
-      } catch (_e) {
-        try {
-          errorData = await resolvedResponse.text()
-        } catch (_e2) {
-          errorData = null
-        }
-      }
-
-      const error = extractErrorMessage({
-        status: resolvedResponse.status,
-        statusText: resolvedResponse.statusText,
-        data: errorData,
-      })
-      logger.error(`${toolId} error:`, { error })
-      throw new Error(error)
-    }
-
-    const transformResponse =
-      tool.transformResponse ||
-      (async (resp: Response) => ({
-        success: true,
-        output: await resp.json(),
-      }))
-
-    return await transformResponse(resolvedResponse as Response)
-  } catch (error: any) {
-    return {
-      success: false,
-      output: {},
-      error: error.message || 'Unknown error',
-    }
-  }
-}
-
 // Get a tool by its ID asynchronously (supports server-side)
 export async function getToolAsync(
   toolId: string,
   context: GetToolAsyncContext = {}
-): Promise<ToolConfig | undefined> {
+): Promise<ExecutableToolConfig | undefined> {
   const builtInTool = tools[resolveToolId(toolId)]
   if (builtInTool) return builtInTool
 
@@ -134,23 +68,31 @@ export async function getToolAsync(
 async function fetchCustomToolFromDB(
   customToolId: string,
   context: GetToolAsyncContext
-): Promise<ToolConfig | undefined> {
-  const { workflowId, userId, workspaceId } = context
+): Promise<ExecutableToolConfig | undefined> {
+  const { executionContext, operationContext, signal } = context
   const identifier = customToolId.replace('custom_', '')
 
-  if (!userId) {
+  if (
+    (!executionContext ||
+      (!executionContext.userId && !executionContext.executorDelegationOrigin?.subjectUserId)) &&
+    !operationContext?.copilotToolExecution
+  ) {
     throw new Error(`Cannot fetch custom tool without userId: ${identifier}`)
-  }
-  if (!workspaceId) {
-    throw new Error(`Cannot fetch custom tool without workspaceId: ${identifier}`)
   }
 
   try {
-    const customTool = await getCustomToolByIdOrTitle({
-      identifier,
-      userId,
-      workspaceId,
-    })
+    const customTool = executionContext
+      ? await readAvailableCustomToolByIdOrTitleAsExecutor({
+          context: executionContext,
+          identifier,
+          lookup: 'id_or_title',
+        })
+      : await readAvailableCustomToolByIdOrTitleAsCopilot({
+          context: operationContext!,
+          identifier,
+          lookup: 'id_or_title',
+          signal,
+        })
 
     if (!customTool) {
       logger.error(`Custom tool not found: ${identifier}`)
@@ -167,9 +109,12 @@ async function fetchCustomToolFromDB(
     return {
       ...toolConfig,
       params: createParamSchema(customTool),
-      request: {
-        ...toolConfig.request,
-        body: createCustomToolRequestBody(customTool, false, workflowId),
+      operation: {
+        input: createCustomToolRequestBody(
+          customTool,
+          false,
+          executionContext?.workflowId ?? operationContext?.workflowId
+        ),
       },
     }
   } catch (error) {

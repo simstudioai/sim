@@ -119,7 +119,6 @@ export const GET = withRouteHandler(
         billedOverageThisPeriod: stats?.billedOverageThisPeriod ?? '0',
         storageUsedBytes: stats?.storageUsedBytes ?? 0,
         billingBlocked: stats?.billingBlocked ?? false,
-        currentPeriodCopilotCost: stats?.currentPeriodCopilotCost ?? '0',
         lastPeriodCopilotCost: stats?.lastPeriodCopilotCost ?? null,
         subscriptions: subscriptions.map(toAdminSubscription),
         organizationMemberships: memberOrgs.map((m) => ({

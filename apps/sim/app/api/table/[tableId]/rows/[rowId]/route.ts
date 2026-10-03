@@ -32,7 +32,7 @@ export const GET = defineInternalJsonRoute({
   mapInput: ({ params, query }, { principal, request }) => ({
     tableId: params.tableId,
     rowId: params.rowId,
-    assertedWorkspaceId: query.workspaceId,
+    assertedWorkspaceId: principal.kind === 'delegated' ? principal.workspaceId : query.workspaceId,
     includePersistedSecretProvenance: negotiateTableRowsProvenance(
       request,
       principal.kind !== 'session'
@@ -56,7 +56,8 @@ export const PATCH = defineInternalJsonRoute({
     return {
       tableId: params.tableId,
       rowId: params.rowId,
-      assertedWorkspaceId: body.workspaceId,
+      assertedWorkspaceId:
+        principal.kind === 'delegated' ? principal.workspaceId : body.workspaceId,
       data: body.data as RowData,
       dataKeying: rowKeyingForPrincipal(principal),
       strictWrite: false,
@@ -87,10 +88,10 @@ export const DELETE = defineInternalJsonRoute({
   auth: internalTableSessionOrExecutorAuth,
   rateLimit,
   errorPolicy: internalTableRowsErrorPolicy,
-  mapInput: ({ params, body }, { request }) => ({
+  mapInput: ({ params, body }, { principal, request }) => ({
     tableId: params.tableId,
     rowId: params.rowId,
-    assertedWorkspaceId: body.workspaceId,
+    assertedWorkspaceId: principal.kind === 'delegated' ? principal.workspaceId : body.workspaceId,
     actorClientId: readClientId(request),
   }),
   useCase: deleteTableRow,

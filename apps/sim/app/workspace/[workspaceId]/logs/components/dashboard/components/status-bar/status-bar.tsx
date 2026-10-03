@@ -87,7 +87,7 @@ function StatusBarInner({
               aria-pressed={isSelected}
               className={`h-6 flex-1 rounded-[3px] ${color} ${hoverBrightness} cursor-pointer transition-all ${
                 isSelected
-                  ? 'relative z-10 scale-105 shadow-sm ring-1 ring-[var(--text-secondary)]'
+                  ? 'relative z-10 scale-105 shadow-xs ring-1 ring-[var(--text-secondary)]'
                   : 'relative z-0'
               }`}
               aria-label={`Segment ${i + 1}`}

@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { VercelGetDeploymentParams, VercelGetDeploymentResponse } from '@/tools/vercel/types'
 
 export const vercelGetDeploymentTool: ToolConfig<
@@ -50,7 +51,7 @@ export const vercelGetDeploymentTool: ToolConfig<
       if (params.teamId) query.set('teamId', params.teamId.trim())
       if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
-      return `https://api.vercel.com/v13/deployments/${params.deploymentId.trim()}${qs ? `?${qs}` : ''}`
+      return `https://api.vercel.com/v13/deployments/${safeUrlPathSegment(params.deploymentId, 'deploymentId')}${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params: VercelGetDeploymentParams) => ({

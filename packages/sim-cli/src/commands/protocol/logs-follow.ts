@@ -1,12 +1,13 @@
-import chalk from 'chalk'
+import { sleep } from '@sim/utils/helpers'
 import { type Command, Option } from 'commander'
 import { dump } from 'js-yaml'
+import { printLine, writeStderr } from '#sim-cli/output/io'
+import { hasProgressTerminal, styles } from '#sim-cli/output/presentation'
 import type { OutputFormat } from '../../config/index'
 import { clientFrom } from '../../context'
 import { CLI_CONTRACT } from '../../contract/commands'
 import type { ColumnSpec } from '../../contract/types'
 import { type ListLogsResponse, V2_OPERATIONS } from '../../generated/v2-api'
-import { sleep } from '../../helpers'
 import { SimApiError, type SimClient } from '../../http/client'
 import {
   bool,
@@ -62,7 +63,7 @@ const MAX_PAGES_PER_POLL = 10
 const MAX_REMEMBERED_RUNS = 5000
 
 /** Widest a table column renders, matching the `logs list` table. */
-const MAX_CELL_WIDTH = 60
+export const MAX_CELL_WIDTH = 60
 
 /** How often an interruptible wait checks whether Ctrl-C has arrived. */
 const WAIT_SLICE_MS = 250
@@ -135,8 +136,14 @@ function renderCell(value: unknown, format: ColumnSpec['format']): string {
   }
 }
 
-const COLUMNS: Column<LogRow>[] = (CLI_CONTRACT.listLogs?.columns ?? []).map((spec) => ({
+interface FollowColumn extends Column<LogRow> {
+  /** Narrowest this column may lock to, from the contract's `minWidth`. */
+  floor: number
+}
+
+const COLUMNS: FollowColumn[] = (CLI_CONTRACT.listLogs?.columns ?? []).map((spec) => ({
   header: spec.header,
+  floor: Math.min(MAX_CELL_WIDTH, spec.minWidth ?? 0),
   value: (row) => renderCell(at(row, spec.path ?? spec.header), spec.format),
 }))
 
@@ -156,7 +163,7 @@ function pad(value: string, width: number): string {
 }
 
 /**
- * Truncates a cell to its locked column width.
+ * Truncates a cell to the widest a column may ever render.
  *
  * Skipped unless the visible width equals the string length, which is only true
  * of text carrying neither an escape sequence nor a wide character — slicing
@@ -178,23 +185,37 @@ type RowWriter = (rows: LogRow[]) => void
  * table. Locking the widths is what `kubectl get -w` does, for the same reason.
  * The header prints on the first call even when that call carries no rows, so
  * the columns are labelled from the start rather than from the first run.
+ *
+ * The lock decides the layout, never the content: a cell wider than its column
+ * overflows and pushes the rest of its row right, because clamping to a width
+ * the first batch happened to set is how a copyable run id became `9f…`. Cells
+ * are still cut at {@link MAX_CELL_WIDTH}, the cap `logs list` uses, so one
+ * LLM-sized cell cannot take the view. The contract's per-column floors are
+ * what keep the ragged case rare — without them `-n 0` locks every column to
+ * its header label and the whole follow prints askew.
  */
 function createTableWriter(): RowWriter {
   let widths: number[] | null = null
 
   return (rows) => {
-    const lines = rows.map((row) => COLUMNS.map((column) => oneLine(column.value(row))))
+    const lines = rows.map((row) =>
+      COLUMNS.map((column) => clamp(oneLine(column.value(row)), MAX_CELL_WIDTH))
+    )
 
     if (!widths) {
       widths = COLUMNS.map((column, index) =>
         Math.min(
           MAX_CELL_WIDTH,
-          Math.max(visibleWidth(column.header), ...lines.map((line) => visibleWidth(line[index])))
+          Math.max(
+            column.floor,
+            visibleWidth(column.header),
+            ...lines.map((line) => visibleWidth(line[index]))
+          )
         )
       )
       const header = widths
-      console.log(
-        chalk.dim(
+      printLine(
+        styles().dim(
           COLUMNS.map((column, index) => pad(column.header.toUpperCase(), header[index]))
             .join('  ')
             .trimEnd()
@@ -204,9 +225,9 @@ function createTableWriter(): RowWriter {
 
     const locked = widths
     for (const line of lines) {
-      console.log(
+      printLine(
         line
-          .map((cell, index) => pad(clamp(cell, locked[index]), locked[index]))
+          .map((cell, index) => pad(cell, locked[index]))
           .join('  ')
           .trimEnd()
       )
@@ -226,13 +247,13 @@ function createTableWriter(): RowWriter {
 function createWriter(format: OutputFormat): RowWriter {
   if (format === 'json') {
     return (rows) => {
-      for (const row of rows) console.log(JSON.stringify(row))
+      for (const row of rows) printLine(JSON.stringify(row))
     }
   }
   if (format === 'yaml') {
     return (rows) => {
       for (const row of rows) {
-        console.log(`---\n${dump(row, { lineWidth: 0, noRefs: true }).trimEnd()}`)
+        printLine(`---\n${dump(row, { lineWidth: 0, noRefs: true }).trimEnd()}`)
       }
     }
   }
@@ -270,21 +291,21 @@ export function followStatus(): FollowStatus {
   let reported = false
   return {
     note: (message) => {
-      if (!process.stderr.isTTY) return
+      if (!hasProgressTerminal()) return
       reported = true
-      process.stderr.write(`\r${chalk.dim(message)}${ERASE_LINE}`)
+      writeStderr(`\r${styles().dim(message)}${ERASE_LINE}`)
     },
     warn: (message) => {
       if (reported) {
         reported = false
-        process.stderr.write(`\r${ERASE_LINE}`)
+        writeStderr(`\r${ERASE_LINE}`)
       }
-      process.stderr.write(`warning: ${message}\n`)
+      writeStderr(`warning: ${message}\n`)
     },
     clear: () => {
       if (!reported) return
       reported = false
-      process.stderr.write(`\r${ERASE_LINE}`)
+      writeStderr(`\r${ERASE_LINE}`)
     },
   }
 }
@@ -447,7 +468,7 @@ function isTransient(error: unknown): boolean {
 function nonNegativeInteger(raw: string, flag: string): number {
   const value = Number(raw)
   if (!Number.isSafeInteger(value) || value < 0) {
-    throw new SimApiError(`${flag} must be a non-negative integer`, 0)
+    throw new SimApiError(`${flag} must be a whole number of 0 or more`, 0)
   }
   return value
 }
@@ -478,7 +499,7 @@ function inSeconds(ms: number): number {
 export function attachLogsFollow(logs: Command): void {
   logs
     .command('follow')
-    .description('Watch runs as they arrive, printing each new run once')
+    .description('Watch runs live as they arrive, printing each new run once')
     .option('--workflow <id>', 'Only follow runs of this workflow (repeatable)', collect, [])
     .option(
       '--folder <path>',
@@ -511,7 +532,7 @@ follow.
 
 Examples:
   $ sim logs follow --level error
-  $ sim logs follow --workflow wf_123 -n 0
+  $ sim logs follow --workflow 00000000-0000-4000-8000-000000000000 -n 0
   $ sim --output json logs follow | jq -r '.runId'
 `
     )

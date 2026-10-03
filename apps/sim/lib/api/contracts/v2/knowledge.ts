@@ -59,7 +59,10 @@ import {
   rerankerModelSchema,
   rerankerStatusSchema,
 } from '@/lib/knowledge/reranker-models'
-import { knowledgeDocumentUploadMetadataSchema } from '@/lib/knowledge/upload-metadata'
+import {
+  KNOWLEDGE_DOCUMENT_UPLOAD_RECIPES,
+  knowledgeDocumentUploadMetadataSchema,
+} from '@/lib/knowledge/upload-metadata'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 
 /**
@@ -136,6 +139,7 @@ export const v2KnowledgeBaseSchema = knowledgeBaseDataSchema
       .describe('Knowledge base description, or null when none is set.')
       .meta({ examples: ['All product documentation and guides'] }),
     tokenCount: knowledgeBaseDataSchema.shape.tokenCount
+      .unwrap()
       .describe('Total tokens across indexed documents.')
       .meta({ examples: [48213] }),
     embeddingModel: knowledgeBaseDataSchema.shape.embeddingModel
@@ -170,7 +174,7 @@ export const v2KnowledgeBaseSchema = knowledgeBaseDataSchema
     deletedAt: v2TimestampSchema
       .nullable()
       .describe(
-        'ISO 8601 timestamp when the knowledge base was archived by `DELETE /knowledge/{knowledgeBaseId}`, or null while the knowledge base is active. Only `GET /knowledge?scope=archived` returns knowledge bases with a non-null value.'
+        'ISO 8601 archive timestamp, or null while active. Use List Knowledge Bases with `scope=archived` to find archived knowledge bases.'
       )
       .meta({ format: 'date-time', examples: ['2026-01-16T09:00:00Z'] }),
   })
@@ -278,7 +282,7 @@ export const v2KnowledgeDocumentTagsSchema = z
       .describe('Tag value; dates are ISO 8601 strings and an unset tag is null.')
   )
   .describe(
-    'Document tag values keyed by tag display name. Writes address the same tags by slot (`tag1`..`tag7`); resolve names to slots with GET /api/v2/knowledge/{knowledgeBaseId}/tags.'
+    'Document tag values keyed by display name. Writes use slots such as `tag1`; use List Tags to map names to slots.'
   )
   .meta({ examples: [{ category: 'billing', priority: 2 }] })
 
@@ -379,8 +383,22 @@ export const v2KnowledgeSearchResultSchema = z
       .meta({ examples: [{ category: 'billing', priority: 2 }] }),
     similarity: z
       .number()
-      .describe('Similarity score for vector search; tag-only matches use 1.')
+      .describe(
+        'Cosine similarity between the query embedding and the chunk (1 - cosine distance), reported the same way in `vector` and `hybrid` mode; tag-only matches use 1. In `hybrid` mode results are not ordered by this value — see `rankScore`.'
+      )
       .meta({ examples: [0.8423] }),
+    rankScore: z
+      .number()
+      .describe(
+        'The retrieval score, or reranker score when reranked. In `vector` mode it equals `similarity`; in `hybrid` mode it is the reciprocal-rank-fusion score (a sum of 1/(60 + rank) over the lexical and vector legs, so a chunk both legs ranked first scores 2/61); when a reranker ordered the results it is `rerankerScore`. Recency boosting may reorder retrieval results without changing this score; `rank` always reflects returned order.'
+      )
+      .meta({ examples: [0.0328] }),
+    rank: z
+      .number()
+      .int()
+      .positive()
+      .describe('1-based position in the returned order.')
+      .meta({ examples: [1] }),
     rerankerScore: z
       .number()
       .optional()
@@ -481,10 +499,14 @@ const v2KnowledgeDocumentProcessingOptionsSchema =
     .extend({
       recipe: knowledgeDocumentUploadMetadataSchema.shape.processingOptions
         .unwrap()
-        .shape.recipe.describe('Optional document processing recipe.'),
+        .shape.recipe.describe(
+          `Optional document processing recipe. One of: ${KNOWLEDGE_DOCUMENT_UPLOAD_RECIPES.join(', ')}.`
+        ),
       lang: knowledgeDocumentUploadMetadataSchema.shape.processingOptions
         .unwrap()
-        .shape.lang.describe('Optional document language code.'),
+        .shape.lang.describe(
+          'Optional document language: hyphen-separated letter and digit subtags such as `en`, `en-US`, or `zh-Hant-TW`. Only that shape is validated, not full BCP-47 conformance.'
+        ),
     })
     .strict()
 
@@ -620,7 +642,7 @@ export const v2ListKnowledgeBasesQuerySchema = z
     scope: v2KnowledgeBaseScopeSchema
       .default('active')
       .describe(
-        'Which lifecycle set to list: `active` (default) for live knowledge bases, `archived` for knowledge bases a `DELETE` archived and `POST /knowledge/{knowledgeBaseId}/restore` can bring back. `folderPath` resolves against active folders only, so pairing it with `scope=archived` returns an empty page when the containing folder was archived too.'
+        'Lifecycle scope: active or archived knowledge bases. Use Restore Knowledge Base to recover archived entries. Folder paths resolve only active folders, so filtering by an archived folder returns no matches.'
       ),
     folderPath: v2FolderPathInputSchema
       .optional()
@@ -763,6 +785,28 @@ export const v2GetKnowledgeBaseContract = defineRouteContract({
     mode: 'json',
     schema: v2DataResponse(v2KnowledgeBaseSchema),
   },
+})
+
+export const v2ExportKnowledgeBaseQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the knowledge base.'),
+    vectors: booleanQueryFlagSchema
+      .optional()
+      .default(true)
+      .describe(
+        'Include chunk vectors so an import into a deployment with the same embedding model reuses them instead of re-embedding.'
+      ),
+  })
+  .strict()
+
+export type V2ExportKnowledgeBaseQuery = z.input<typeof v2ExportKnowledgeBaseQuerySchema>
+
+export const v2ExportKnowledgeBaseContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/export',
+  params: v2KnowledgeBaseParamsSchema,
+  query: v2ExportKnowledgeBaseQuerySchema,
+  response: { mode: 'binary' },
 })
 
 /**
@@ -929,7 +973,7 @@ export const v2KnowledgeSearchBodySchema = z
       .max(100, 'topK cannot exceed 100')
       .default(10)
       .describe(
-        'Maximum number of search results to return. Must be a whole number between 1 and 100; the boundary schema only bounds the range, so a fractional value is admitted here and then rejected with 400 during search.'
+        'Maximum number of search results to return. Must be a whole number between 1 and 100.'
       ),
     tagFilters: z
       .array(v2KnowledgeSearchTagFilterSchema)
@@ -939,7 +983,7 @@ export const v2KnowledgeSearchBodySchema = z
       )
       .optional()
       .describe(
-        `Structured tag filters, at most ${MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS} of them. Every filter must hold, including two that name the same tag: repeating one tag narrows the result rather than widening it, matching \`GET /api/v2/knowledge/{knowledgeBaseId}/documents\`. To match either of two values for one tag, issue a search per value. Each filtered tag must resolve to the same slot and field type in every knowledge base selected; one missing from any of them, or defined inconsistently across them, is rejected rather than ignored, and those knowledge bases must be searched separately. List the available names with \`GET /api/v2/knowledge/{knowledgeBaseId}/tags\`.`
+        `Up to ${MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS} filters combined with AND; repeating a tag narrows results. To express OR, run separate searches. Every tag must exist with the same slot and field type in each selected knowledge base or the request is rejected. List valid names with the knowledge-base tag-list operation.`
       ),
     searchMode: v1KnowledgeSearchBodySchema.shape.searchMode.describe(
       'Retrieval strategy: vector is semantic-only, while hybrid also runs full-text search.'
@@ -1181,11 +1225,7 @@ export const v2GetKnowledgeDocumentContract = defineRouteContract({
  */
 export const v2KnowledgeTagSchema = z
   .object({
-    id: z
-      .string()
-      .describe(
-        'Tag definition identifier. Published because `PATCH` and `DELETE /knowledge/{knowledgeBaseId}/tags/{tagId}` address a definition by it; without it those operations are unreachable from a list read.'
-      ),
+    id: z.string().describe('Tag definition ID used by Update Tag and Delete Tag.'),
     displayName: z
       .string()
       .describe('Display name used by tag filters and by tag values on document reads.')
@@ -1691,13 +1731,17 @@ export const v2CreateKnowledgeConnectorBodySchema = z
       .min(1)
       .max(255)
       .optional()
-      .describe('OAuth credential identifier for connectors that require OAuth.'),
+      .describe(
+        'OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types); omit it for `apiKey` connectors.'
+      ),
     apiKey: z
       .string()
       .min(1)
       .max(10_000)
       .optional()
-      .describe('Write-only API key for connectors that use API-key authentication.'),
+      .describe(
+        'Write-only API key for connector types whose `auth.mode` is `apiKey` (see connector types), or a personal access token for an OAuth connector that also accepts one, such as GitHub. Send it instead of `credentialId`. Pass a raw key, or a secret reference written as the whole value `{{SECRET_NAME}}`, which the server resolves; `$SECRET_NAME` is not a reference.'
+      ),
     sourceConfig: z
       .record(z.string(), z.unknown().describe('Connector-specific source configuration value.'))
       .describe('Connector-specific source selection and filtering configuration.'),

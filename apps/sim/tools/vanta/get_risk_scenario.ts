@@ -1,9 +1,9 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import { VANTA_RISK_SCENARIO_OUTPUT_PROPERTIES } from '@/tools/vanta/outputs'
 import type { VantaGetRiskScenarioParams, VantaGetRiskScenarioResponse } from '@/tools/vanta/types'
-import { createVantaTransformResponse, VANTA_QUERY_ROUTE } from '@/tools/vanta/utils'
+import { createVantaTransformResponse } from '@/tools/vanta/utils'
 
-export const vantaGetRiskScenarioTool: ToolConfig<
+export const vantaGetRiskScenarioTool: InternalToolConfig<
   VantaGetRiskScenarioParams,
   VantaGetRiskScenarioResponse
 > = {
@@ -40,11 +40,8 @@ export const vantaGetRiskScenarioTool: ToolConfig<
     },
   },
 
-  request: {
-    url: VANTA_QUERY_ROUTE,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       operation: 'vanta_get_risk_scenario',
       clientId: params.clientId,
       clientSecret: params.clientSecret,

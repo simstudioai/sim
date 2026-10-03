@@ -1,27 +1,28 @@
 /**
- * @vitest-environment node
- *
  * Resolution is the fail-closed boundary: a selection that cannot be honored has
  * to surface as an explicit error, never as a baffling ModuleNotFoundError
  * inside the user's code. These cases pin that contract down.
  */
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
+import {
+  remoteSandboxProviderMock,
+  remoteSandboxProviderMockFns,
+} from '@sim/testing/mocks/remote-sandbox-provider.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CodeLanguage } from '@/lib/execution/languages'
 
 const {
-  mockSelect,
-  mockUpdate,
   mockProviderStrategy,
   mockEnsureSandboxImage,
   mockIsMissingImage,
   mockLocalGeneration,
+  mockPlanAccess,
 } = vi.hoisted(() => ({
-  mockSelect: vi.fn(),
-  mockUpdate: vi.fn(),
   mockProviderStrategy: { current: 'prebuilt' as 'prebuilt' | 'runtime' },
   mockEnsureSandboxImage: vi.fn(),
   mockIsMissingImage: vi.fn(),
   mockLocalGeneration: { current: 1785792000000001 },
+  mockPlanAccess: vi.fn(),
 }))
 
 vi.mock('@/lib/execution/remote-sandbox/image-registry', () => ({
@@ -29,69 +30,12 @@ vi.mock('@/lib/execution/remote-sandbox/image-registry', () => ({
   FAILED_BUILD_RETRY_COOLDOWN_MS: 600_000,
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    select: mockSelect,
-    update: mockUpdate,
-  },
+vi.mock('@/lib/execution/remote-sandbox/entitlement', () => ({
+  MAX_PLAN_REQUIRED: 'Sim sandboxes require an active Max or Enterprise plan.',
+  hasWorkspaceSandboxRetentionAccessCached: mockPlanAccess,
 }))
 
-vi.mock('@sim/db/schema', () => ({
-  workspaceSandbox: {
-    id: 'id',
-    workspaceId: 'workspace_id',
-    name: 'name',
-    language: 'language',
-    dependencies: 'dependencies',
-    cliTools: 'cli_tools',
-    systemPackages: 'system_packages',
-    specHash: 'spec_hash',
-  },
-  sandboxImage: {
-    provider: 'provider',
-    specHash: 'spec_hash',
-    status: 'status',
-    imageRef: 'image_ref',
-    materializationGeneration: 'materialization_generation',
-    errorCode: 'error_code',
-    errorMessage: 'error_message',
-    lastUsedAt: 'last_used_at',
-  },
-}))
-
-vi.mock('drizzle-orm', () => ({
-  and: (...args: unknown[]) => args,
-  eq: (...args: unknown[]) => args,
-}))
-
-vi.mock('@/lib/execution/remote-sandbox/provider', () => ({
-  resolveProvider: () => ({
-    id: 'e2b',
-    get dependencyStrategy() {
-      return mockProviderStrategy.current
-    },
-    get images() {
-      return mockProviderStrategy.current === 'prebuilt'
-        ? {
-            rendererRevision: 1,
-            isMissingImage: mockIsMissingImage,
-            materialization: () => ({
-              rendererRevision: 1,
-              generation: mockLocalGeneration.current,
-              imageRefPrefix: 'sim-sbx-current:',
-              baseImageRef: 'sim-function:f47ac10b-58cc-4372-a567-0e02b2c3d479',
-            }),
-            imageRefGeneration: (imageRef: string) => {
-              if (imageRef.startsWith('sim-sbx-current:')) return mockLocalGeneration.current
-              if (imageRef.startsWith('sim-sbx-newer:')) return mockLocalGeneration.current + 1000
-              if (imageRef.startsWith('sim-sbx-collision:')) return mockLocalGeneration.current
-              return undefined
-            },
-          }
-        : undefined
-    },
-  }),
-}))
+vi.mock('@/lib/execution/remote-sandbox/provider', () => remoteSandboxProviderMock)
 
 import {
   invalidateSandboxResolution,
@@ -99,6 +43,35 @@ import {
   repairMissingSandboxImage,
   resolveWorkspaceSandbox,
 } from '@/lib/execution/remote-sandbox/resolve'
+
+const { select: mockSelect, update: mockUpdate } = dbChainMockFns
+
+remoteSandboxProviderMockFns.mockResolveProvider.mockImplementation(() => ({
+  id: 'e2b',
+  get dependencyStrategy() {
+    return mockProviderStrategy.current
+  },
+  get images() {
+    return mockProviderStrategy.current === 'prebuilt'
+      ? {
+          rendererRevision: 1,
+          isMissingImage: mockIsMissingImage,
+          materialization: () => ({
+            rendererRevision: 1,
+            generation: mockLocalGeneration.current,
+            imageRefPrefix: 'sim-sbx-current:',
+            baseImageRef: 'sim-function:f47ac10b-58cc-4372-a567-0e02b2c3d479',
+          }),
+          imageRefGeneration: (imageRef: string) => {
+            if (imageRef.startsWith('sim-sbx-current:')) return mockLocalGeneration.current
+            if (imageRef.startsWith('sim-sbx-newer:')) return mockLocalGeneration.current + 1000
+            if (imageRef.startsWith('sim-sbx-collision:')) return mockLocalGeneration.current
+            return undefined
+          },
+        }
+      : undefined
+  },
+}))
 
 /** Queues the rows each successive `db.select()` chain resolves to. */
 function queueSelects(...results: unknown[][]) {
@@ -121,12 +94,12 @@ const SANDBOX_ROW = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   invalidateSandboxResolution()
   mockProviderStrategy.current = 'prebuilt'
   mockLocalGeneration.current = 1785792000000001
   mockUpdate.mockReturnValue({ set: () => ({ where: () => Promise.resolve() }) })
   mockEnsureSandboxImage.mockResolvedValue(undefined)
+  mockPlanAccess.mockResolvedValue(true)
 })
 
 describe('resolveWorkspaceSandbox', () => {
@@ -604,7 +577,11 @@ describe('provisionRuntimeDependencies', () => {
     ]
     expect(command).toContain('apt-get update')
     expect(command).toContain("'curl=7.88.1-10+deb12u8' 'jq'")
-    expect(options).toMatchObject({ rootUser: true, signal: controller.signal })
+    expect(options).toMatchObject({
+      rootUser: true,
+      signal: controller.signal,
+      atMostOnce: true,
+    })
     expect(options.timeoutMs).toBeGreaterThan(0)
     expect(options.timeoutMs).toBeLessThanOrEqual(90_000)
     expect(sandbox.writeFile).not.toHaveBeenCalled()
@@ -723,4 +700,68 @@ describe('repairMissingSandboxImage', () => {
     expect(message).toBeNull()
     expect(mockEnsureSandboxImage).not.toHaveBeenCalled()
   })
+})
+
+/**
+ * Execution is gated on a *terminal* plan lapse only. A payment retry keeps
+ * running (the retention reader decides that); what is pinned here is that the
+ * gate fires before any row is read, never fires without a selection, and
+ * fails open when the plan cannot be read at all.
+ */
+describe('resolveWorkspaceSandbox plan gate', () => {
+  it('refuses a selection once the plan has lapsed, before reading the row', async () => {
+    mockPlanAccess.mockResolvedValue(false)
+
+    await expect(
+      resolveWorkspaceSandbox({
+        kind: 'code',
+        language: CodeLanguage.Python,
+        workspaceId: 'ws-1',
+        sandboxId: 'sbx-1',
+      })
+    ).rejects.toThrow('Max or Enterprise')
+    expect(mockPlanAccess).toHaveBeenCalledWith('ws-1')
+    expect(mockSelect).not.toHaveBeenCalled()
+  })
+
+  it('allows the selection when the plan cannot be read, rather than failing every block', async () => {
+    mockPlanAccess.mockRejectedValue(new Error('billing read failed'))
+    queueSelects(
+      [SANDBOX_ROW],
+      [{ status: 'ready', imageRef: 'sim-sbx-current:abc', errorCode: null, errorMessage: null }]
+    )
+
+    const resolved = await resolveWorkspaceSandbox({
+      kind: 'code',
+      language: CodeLanguage.Python,
+      workspaceId: 'ws-1',
+      sandboxId: 'sbx-1',
+    })
+
+    expect(resolved).toMatchObject({ strategy: 'prebuilt', imageRef: 'sim-sbx-current:abc' })
+  })
+
+  it('never consults the plan without a selection', async () => {
+    await resolveWorkspaceSandbox({
+      kind: 'code',
+      language: CodeLanguage.Python,
+      workspaceId: 'ws-1',
+    })
+
+    expect(mockPlanAccess).not.toHaveBeenCalled()
+  })
+
+  it.each(['mothership', 'doc', 'pi'] as const)(
+    'never consults the plan for the %s kind',
+    async (kind) => {
+      await resolveWorkspaceSandbox({
+        kind,
+        language: CodeLanguage.Python,
+        workspaceId: 'ws-1',
+        sandboxId: 'sbx-1',
+      })
+
+      expect(mockPlanAccess).not.toHaveBeenCalled()
+    }
+  )
 })

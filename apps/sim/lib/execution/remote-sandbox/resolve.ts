@@ -1,4 +1,6 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { LRUCache } from 'lru-cache'
 import { CodeLanguage } from '@/lib/execution/languages'
 import { classifyInstallOutput, tailBuildLog } from '@/lib/execution/remote-sandbox/build-errors'
 import {
@@ -11,6 +13,10 @@ import {
   sandboxCliToolRecipes,
   sandboxCliVerificationCommand,
 } from '@/lib/execution/remote-sandbox/cli-tools.server'
+import {
+  hasWorkspaceSandboxRetentionAccessCached,
+  MAX_PLAN_REQUIRED,
+} from '@/lib/execution/remote-sandbox/entitlement'
 import { MAX_SANDBOX_PROCESS_OUTPUT_BYTES } from '@/lib/execution/remote-sandbox/output-limits'
 import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
 import {
@@ -109,21 +115,13 @@ interface CachedImage {
   errorMessage: string | null
 }
 
-interface CacheEntry {
-  expiresAt: number
-  value: CachedImage
-}
-
 /**
- * Both maps are process-lifetime and keyed by an unbounded space (every spec
- * hash ever executed), so each drops its oldest entry rather than growing for
- * the life of the worker.
+ * Both caches are keyed by an unbounded space (every spec hash ever executed):
+ * `max` is the memory backstop, `ttl` the freshness policy — lru-cache owns
+ * expiry/eviction/ceiling per the caching rule (never hand-roll TTL arithmetic).
  */
-const IMAGE_CACHE_LIMIT = 1000
-const LAST_USED_CACHE_LIMIT = 1000
-
-const imageCache = new Map<string, CacheEntry>()
-const lastUsedWrites = new Map<string, number>()
+const imageCache = new LRUCache<string, CachedImage>({ max: 1000, ttl: IMAGE_TTL_MS })
+const lastUsedWrites = new LRUCache<string, number>({ max: 1000, ttl: LAST_USED_DEBOUNCE_MS })
 
 /**
  * JavaScript packages live outside the default resolution roots, so Node needs
@@ -150,11 +148,9 @@ function envsFor(
  */
 function touchImage(specHash: string, provider: string): void {
   const key = `${provider}:${specHash}`
-  const now = Date.now()
-  const written = lastUsedWrites.get(key)
-  if (written && now - written < LAST_USED_DEBOUNCE_MS) return
-  if (lastUsedWrites.size >= LAST_USED_CACHE_LIMIT) lastUsedWrites.clear()
-  lastUsedWrites.set(key, now)
+  // The TTL IS the debounce: a still-fresh entry means we wrote recently.
+  if (lastUsedWrites.get(key) !== undefined) return
+  lastUsedWrites.set(key, Date.now())
   void sandboxDb()
     .then(({ db, sandboxImage, and, eq }) =>
       db
@@ -166,6 +162,28 @@ function touchImage(specHash: string, provider: string): void {
 }
 
 /**
+ * Refuses a selection once the workspace's plan has terminally lapsed.
+ *
+ * Fails open when the plan cannot be read at all: this sits in front of every
+ * Function block on the execution path, and a billing-database blip must not
+ * become a fleet-wide run failure. The cached reader never records the outage,
+ * so the next block asks again.
+ */
+async function requireSandboxPlan(workspaceId: string): Promise<void> {
+  let entitled: boolean
+  try {
+    entitled = await hasWorkspaceSandboxRetentionAccessCached(workspaceId)
+  } catch (error) {
+    logger.warn('Sandbox plan check unavailable; allowing the selected sandbox', {
+      workspaceId,
+      error: getErrorMessage(error),
+    })
+    return
+  }
+  if (!entitled) throw new Error(MAX_PLAN_REQUIRED)
+}
+
+/**
  * Resolves the sandbox an execution should run against, or `null` when none is
  * selected (today's behavior: the env-configured template, no install step).
  *
@@ -174,9 +192,11 @@ function touchImage(specHash: string, provider: string): void {
  * throws with the reason, because the alternative is a baffling
  * `ModuleNotFoundError` inside the user's code.
  *
- * Deliberately not plan-gated here: authoring and new Copilot selection are
- * gated at their boundaries, while a workspace that downgrades keeps executing
- * sandboxes already attached to Function blocks.
+ * Plan-gated on a terminal lapse only. Authoring and new Copilot selection are
+ * gated at their boundaries on a usable plan; execution reads the retention
+ * variant, so a payment retry never fails a running workflow, while a payer
+ * that cancelled or downgraded off Max/Enterprise fails closed with the plan
+ * message rather than keep running a feature the plan no longer includes.
  */
 export async function resolveWorkspaceSandbox(args: {
   kind: SandboxKind
@@ -195,9 +215,10 @@ export async function resolveWorkspaceSandbox(args: {
   if (!workspaceId) {
     throw new Error('A sandbox was selected but this execution has no workspace to resolve it in')
   }
+  await requireSandboxPlan(workspaceId)
 
   const provider = resolveProvider()
-  const { db, sandboxImage, workspaceSandbox, and, eq } = await sandboxDb()
+  const { db, workspaceSandbox, and, eq } = await sandboxDb()
   const [row] = await db
     .select({
       id: workspaceSandbox.id,
@@ -351,10 +372,7 @@ async function readImage(
 ): Promise<CachedImage | undefined> {
   const cacheKey = `${providerId}:${specHash}:${materializationGeneration}:${materializationRefPrefix}`
   const cached = imageCache.get(cacheKey)
-  if (cached) {
-    if (cached.expiresAt > Date.now()) return cached.value
-    imageCache.delete(cacheKey)
-  }
+  if (cached !== undefined) return cached
 
   const { db, sandboxImage, and, eq } = await sandboxDb()
   const [image] = await db
@@ -369,13 +387,7 @@ async function readImage(
     .where(and(eq(sandboxImage.provider, providerId), eq(sandboxImage.specHash, specHash)))
     .limit(1)
 
-  if (image?.status === 'ready') {
-    if (imageCache.size >= IMAGE_CACHE_LIMIT) {
-      const oldest = imageCache.keys().next()
-      if (!oldest.done) imageCache.delete(oldest.value)
-    }
-    imageCache.set(cacheKey, { expiresAt: Date.now() + IMAGE_TTL_MS, value: image })
-  }
+  if (image?.status === 'ready') imageCache.set(cacheKey, image)
   return image
 }
 
@@ -573,6 +585,7 @@ export async function provisionRuntimeDependencies(
       maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
       signal,
       rootUser: true,
+      atMostOnce: true,
       ...(commandOptions?.envs ? { envs: commandOptions.envs } : {}),
     })
     if (signal?.aborted) {
