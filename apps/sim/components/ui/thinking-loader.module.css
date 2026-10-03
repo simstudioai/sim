@@ -79,12 +79,9 @@
   white-space: nowrap;
 }
 
-/* The sweeping-band treatment itself (gradient, timing, dark mode, reduced
-   motion) is owned by the shared shimmer-text module; this class only adds the
-   loader-scaled font sizing. Canonical normal weight per emcn rules: body text
-   is 400, never medium. */
+/* ShimmerText owns the gradient, timing, dark mode, and reduced motion. This
+   class only adds loader-scaled font sizing and canonical normal weight. */
 .label {
-  composes: shimmer from "./shimmer-text.module.css";
   font-size: var(--tl-label-size, 14px);
   font-weight: 400;
 }

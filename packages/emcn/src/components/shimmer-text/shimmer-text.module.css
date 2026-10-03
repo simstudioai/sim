@@ -1,7 +1,7 @@
 /**
  * Claude-style text shimmer: the text paints from a gradient with a light band
  * that sweeps across the glyphs via background-clip. This is the single source
- * of truth for the treatment — the ThinkingLoader label composes it. Under
+ * of truth for the treatment, including the ThinkingLoader label. Under
  * reduced motion the sweep is replaced by a gentle opacity pulse in solid ink:
  * the shimmer conveys essential in-progress state, so it needs a vestibular-safe
  * fallback rather than none. Consumers whose resting text is not body ink set

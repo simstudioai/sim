@@ -1,7 +1,7 @@
 'use client'
 
 import { type CSSProperties, type ReactNode, useEffect, useId, useState } from 'react'
-import { cn } from '@sim/emcn'
+import { cn, ShimmerText } from '@sim/emcn'
 import styles from '@/components/ui/thinking-loader.module.css'
 
 const VARIANTS = [
@@ -532,11 +532,19 @@ export function ThinkingLoader({
       <span className={styles.labelStack}>
         {exitingLabel ? (
           <span key={exitingLabel} className={cn(styles.labelLayer, styles.labelOut)}>
-            <span className={shimmer ? styles.label : styles.labelStatic}>{exitingLabel}</span>
+            {shimmer ? (
+              <ShimmerText className={styles.label}>{exitingLabel}</ShimmerText>
+            ) : (
+              <span className={styles.labelStatic}>{exitingLabel}</span>
+            )}
           </span>
         ) : null}
         <span key={shownLabel} className={cn(styles.labelLayer, styles.labelIn)}>
-          <span className={shimmer ? styles.label : styles.labelStatic}>{shownLabel}</span>
+          {shimmer ? (
+            <ShimmerText className={styles.label}>{shownLabel}</ShimmerText>
+          ) : (
+            <span className={styles.labelStatic}>{shownLabel}</span>
+          )}
         </span>
       </span>
     </output>
