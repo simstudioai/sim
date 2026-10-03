@@ -557,6 +557,53 @@ describe('persisted-message', () => {
 })
 
 describe('stripToolResultOutput', () => {
+  it('keeps only bounded successful async launch identity for display', () => {
+    const launch = {
+      async: true,
+      status: 'launched',
+      agentId: 'review-report-1',
+      name: 'Review report',
+    }
+    const message: PersistedMessage = {
+      id: 'message',
+      role: 'assistant',
+      content: '',
+      timestamp: new Date(0).toISOString(),
+      contentBlocks: [
+        {
+          type: 'tool',
+          phase: 'call',
+          toolCall: {
+            id: 'launch',
+            name: 'workflow',
+            state: 'success',
+            result: {
+              success: true,
+              output: { ...launch, note: 'large content', task: 'private task' },
+            },
+          },
+        },
+      ],
+    }
+    expect(stripToolResultOutput(message).contentBlocks?.[0].toolCall?.result).toEqual({
+      success: true,
+      output: launch,
+    })
+    for (const output of [
+      { ...launch, agentId: 'x'.repeat(129) },
+      { ...launch, name: 'x'.repeat(257) },
+      { ...launch, async: false },
+    ]) {
+      const invalid = structuredClone(message)
+      const result = invalid.contentBlocks?.[0].toolCall?.result
+      if (!result) throw new Error('Expected an async launch result')
+      result.output = output
+      expect(stripToolResultOutput(invalid).contentBlocks?.[0].toolCall?.result).toEqual({
+        success: true,
+      })
+    }
+  })
+
   it('keeps the partial-coverage marker of an empty search through save and reload', () => {
     const message: PersistedMessage = {
       id: 'msg-search',
