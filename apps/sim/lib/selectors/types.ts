@@ -10,6 +10,7 @@ export const selectorContextKeys = [
   'domain',
   'teamId',
   'projectId',
+  'taskId',
   'knowledgeBaseId',
   'planId',
   'mimeType',

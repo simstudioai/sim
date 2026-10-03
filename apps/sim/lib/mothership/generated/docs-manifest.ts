@@ -254,6 +254,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/okta.mdx',
   'integrations/onedrive.mdx',
   'integrations/onepassword.mdx',
+  'integrations/oracle_fusion_project_management.mdx',
   'integrations/otter.mdx',
   'integrations/outlook.mdx',
   'integrations/pagerduty.mdx',

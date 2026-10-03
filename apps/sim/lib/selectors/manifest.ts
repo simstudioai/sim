@@ -86,6 +86,69 @@ function internalSelector(
 }
 
 export const selectorManifest = {
+  'oracleFusionProjectManagement.projects': providerSelector([], {
+    readiness: { all: ['oauthCredential'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionProjectManagement.tasks': providerSelector(['projectId'], {
+    readiness: { all: ['oauthCredential', 'projectId'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionProjectManagement.organizations': providerSelector([], {
+    readiness: { all: ['oauthCredential'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionProjectManagement.resources': providerSelector([], {
+    readiness: { all: ['oauthCredential'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionProjectManagement.roles': providerSelector([], {
+    readiness: { all: ['oauthCredential'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionProjectManagement.deliverableTypes': providerSelector([], {
+    readiness: { all: ['oauthCredential'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionProjectManagement.statuses': providerSelector([], {
+    readiness: { all: ['oauthCredential'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionProjectManagement.teamMembers': providerSelector(['projectId'], {
+    readiness: { all: ['oauthCredential', 'projectId'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
+  'oracleFusionProjectManagement.laborAssignments': providerSelector(['projectId', 'taskId'], {
+    readiness: { all: ['oauthCredential', 'projectId', 'taskId'] },
+    listMode: 'paginated',
+    search: true,
+    detail: true,
+    unknownDetail: true,
+  }),
   'airtable.bases': providerSelector([], { detail: true }),
   'airtable.tables': providerSelector(['baseId'], {
     readiness: { all: ['oauthCredential', 'baseId'] },

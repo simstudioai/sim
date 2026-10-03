@@ -1,0 +1,1291 @@
+---
+title: Oracle Fusion Project Management
+description: Manage Oracle Fusion projects, plans, tasks, resources, costs, budgets, and project invoices
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="oracle_fusion_project_management"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Connect an Oracle Fusion service-account credential to manage project delivery and project financial workflows. Read visible plans and manage authorized tasks, milestones, deliverables, team members, and labor assignments. Work with project costs, budgets, and project-contract invoices without administering the Financials, HCM, or Procurement products. API contracts target Oracle 26C and the fixed FSCM REST version. Management privileges, enabled modules, financial plan types, status rules, and tenant configuration determine availability. No live tenant validation is implied.
+
+
+
+## Actions
+
+### Oracle Fusion Project Management List Projects
+
+List projects in Oracle Fusion Cloud Project Management. Returns one bounded page, not an automatically drained collection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
+| `limit` | number | No | One page of 1–1000 items; default 100 |
+| `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | This page of project records |
+| `count` | number | Items in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Offset used for this page |
+| `nextOffset` | number | Offset to request next when hasMore is true |
+| `totalResults` | number | Estimated total when requested |
+
+### Oracle Fusion Project Management Get Project
+
+Get project in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `projectId` | string | Yes | Project ID as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `project` | json | Documented project fields |
+
+### Oracle Fusion Project Management Create Project
+
+Create project in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `projectName` | string | Yes | Project name |
+| `projectNumber` | string | No | Project number |
+| `projectDescription` | string | No | Project description \(null is accepted by the documented API\) |
+| `projectStartDate` | string | No | Project start date |
+| `projectEndDate` | string | No | Project end date \(null is accepted by the documented API\) |
+| `projectStatusCode` | string | No | Project status code \(null is accepted by the documented API\) |
+| `projectStatusChangeComment` | string | No | Project status change comment \(null is accepted by the documented API\) |
+| `projectManagerEmail` | string | No | Project manager email \(null is accepted by the documented API\) |
+| `organizationName` | string | Yes | Organization name |
+| `projectCurrencyCode` | string | No | Project currency code |
+| `sourceTemplateId` | string | No | Source template ID as an exact decimal ID string \(null is accepted by the documented API\) |
+| `sourceTemplateName` | string | No | Source template name \(null is accepted by the documented API\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `project` | json | Documented project fields |
+
+### Oracle Fusion Project Management Update Project
+
+Update project in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `projectName` | string | No | Project name |
+| `projectNumber` | string | No | Project number |
+| `projectDescription` | string | No | Project description \(null is accepted by the documented API\) |
+| `projectStartDate` | string | No | Project start date |
+| `projectEndDate` | string | No | Project end date \(null is accepted by the documented API\) |
+| `projectStatusCode` | string | No | Project status code \(null is accepted by the documented API\) |
+| `projectStatusChangeComment` | string | No | Project status change comment \(null is accepted by the documented API\) |
+| `projectManagerEmail` | string | No | Project manager email \(null is accepted by the documented API\) |
+| `organizationName` | string | No | Organization name |
+| `projectCurrencyCode` | string | No | Project currency code |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `project` | json | Documented project fields |
+
+### Oracle Fusion Project Management List Project Statuses
+
+Read statuses for projects and other status-enabled business objects. Use StatusObjectCode to distinguish them; configured transitions and privileges remain tenant-specific.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
+| `limit` | number | No | One page of 1–1000 items; default 100 |
+| `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
+| `statusObjectCode` | string | No | Tenant status-object code; omit to inspect all status-enabled project business objects |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | This page of status records |
+| `count` | number | Items in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Offset used for this page |
+| `nextOffset` | number | Offset to request next when hasMore is true |
+| `totalResults` | number | Estimated total when requested |
+
+### Oracle Fusion Project Management List Project Status History
+
+List project status history in Oracle Fusion Cloud Project Management. Returns one bounded page, not an automatically drained collection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
+| `limit` | number | No | One page of 1–1000 items; default 100 |
+| `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | This page of history records |
+| `count` | number | Items in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Offset used for this page |
+| `nextOffset` | number | Offset to request next when hasMore is true |
+| `totalResults` | number | Estimated total when requested |
+
+### Oracle Fusion Project Management List Project Plans
+
+Read one page of project plans visible to the credential through projectPlanDetails. View access does not imply management access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
+| `limit` | number | No | One page of 1–1000 items; default 100 |
+| `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | This page of plan records |
+| `count` | number | Items in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Offset used for this page |
+| `nextOffset` | number | Offset to request next when hasMore is true |
+| `totalResults` | number | Estimated total when requested |
+
+### Oracle Fusion Project Management Get Project Plan
+
+Read a visible project plan using projectPlanDetails; does not require selecting the management-only projectPlans resource.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `projectId` | string | Yes | Project ID as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `plan` | json | Documented plan fields |
+
+### Oracle Fusion Project Management List Tasks
+
+List tasks in Oracle Fusion Cloud Project Management. Returns one bounded page, not an automatically drained collection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
+| `limit` | number | No | One page of 1–1000 items; default 100 |
+| `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | This page of task records |
+| `count` | number | Items in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Offset used for this page |
+| `nextOffset` | number | Offset to request next when hasMore is true |
+| `totalResults` | number | Estimated total when requested |
+
+### Oracle Fusion Project Management Get Task
+
+Get task in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `taskId` | string | Yes | Task ID as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `task` | json | Documented task fields |
+
+### Oracle Fusion Project Management Create Task
+
+Create a task using projectPlans management access. Oracle lists task name, number, and level as required; its descriptions also note automatic number and level calculation.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `taskName` | string | Yes | Task name |
+| `taskNumber` | string | Yes | Task number |
+| `taskLevel` | number | Yes | Task level |
+| `description` | string | No | Description \(null is accepted by the documented API\) |
+| `parentTaskId` | string | No | Parent task ID as an exact decimal ID string \(null is accepted by the documented API\) |
+| `milestoneFlag` | boolean | No | Milestone flag \(null is accepted by the documented API\) |
+| `plannedStartDateTime` | string | No | Planned start date time \(null is accepted by the documented API\) |
+| `plannedFinishDateTime` | string | No | Planned finish date time \(null is accepted by the documented API\) |
+| `plannedEffort` | number | No | Planned effort \(null is accepted by the documented API\) |
+| `plannedDuration` | number | No | Planned duration \(null is accepted by the documented API\) |
+| `taskStatusCode` | string | No | Task status code \(null is accepted by the documented API\) |
+| `statusChangeComments` | string | No | Status change comments \(null is accepted by the documented API\) |
+| `physicalPercentComplete` | number | No | Physical percent complete \(null is accepted by the documented API\) |
+| `percentComplete` | number | No | Percent complete \(null is accepted by the documented API\) |
+| `actualStartDateTime` | string | No | Actual start date time \(null is accepted by the documented API\) |
+| `actualFinishDateTime` | string | No | Actual finish date time \(null is accepted by the documented API\) |
+| `actualHours` | number | No | Actual hours \(null is accepted by the documented API\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `task` | json | Documented task fields |
+
+### Oracle Fusion Project Management Update Task
+
+Update task in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `taskId` | string | Yes | Task ID as a decimal string |
+| `taskName` | string | No | Task name |
+| `taskNumber` | string | No | Task number |
+| `taskLevel` | number | No | Task level |
+| `description` | string | No | Description \(null is accepted by the documented API\) |
+| `parentTaskId` | string | No | Parent task ID as an exact decimal ID string \(null is accepted by the documented API\) |
+| `milestoneFlag` | boolean | No | Milestone flag \(null is accepted by the documented API\) |
+| `plannedStartDateTime` | string | No | Planned start date time \(null is accepted by the documented API\) |
+| `plannedFinishDateTime` | string | No | Planned finish date time \(null is accepted by the documented API\) |
+| `plannedEffort` | number | No | Planned effort \(null is accepted by the documented API\) |
+| `plannedDuration` | number | No | Planned duration \(null is accepted by the documented API\) |
+| `taskStatusCode` | string | No | Task status code \(null is accepted by the documented API\) |
+| `statusChangeComments` | string | No | Status change comments \(null is accepted by the documented API\) |
+| `physicalPercentComplete` | number | No | Physical percent complete \(null is accepted by the documented API\) |
+| `percentComplete` | number | No | Percent complete \(null is accepted by the documented API\) |
+| `actualStartDateTime` | string | No | Actual start date time \(null is accepted by the documented API\) |
+| `actualFinishDateTime` | string | No | Actual finish date time \(null is accepted by the documented API\) |
+| `actualHours` | number | No | Actual hours \(null is accepted by the documented API\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `task` | json | Documented task fields |
+
+### Oracle Fusion Project Management Delete Task
+
+Delete task in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `taskId` | string | Yes | Task ID as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | True after Oracle accepts the deletion with an empty success response |
+| `id` | string | Identifier supplied to this delete operation |
+
+### Oracle Fusion Project Management List Milestones
+
+List project-plan tasks filtered to MilestoneFlag=true.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
+| `limit` | number | No | One page of 1–1000 items; default 100 |
+| `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | This page of task records |
+| `count` | number | Items in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Offset used for this page |
+| `nextOffset` | number | Offset to request next when hasMore is true |
+| `totalResults` | number | Estimated total when requested |
+
+### Oracle Fusion Project Management Create Milestone
+
+Create a task with MilestoneFlag=true using projectPlans management access. Update or delete the milestone with the task tools.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `taskName` | string | Yes | Task name |
+| `taskNumber` | string | Yes | Task number |
+| `taskLevel` | number | Yes | Task level |
+| `description` | string | No | Description \(null is accepted by the documented API\) |
+| `parentTaskId` | string | No | Parent task ID as an exact decimal ID string \(null is accepted by the documented API\) |
+| `plannedStartDateTime` | string | No | Planned start date time \(null is accepted by the documented API\) |
+| `plannedFinishDateTime` | string | No | Planned finish date time \(null is accepted by the documented API\) |
+| `plannedEffort` | number | No | Planned effort \(null is accepted by the documented API\) |
+| `plannedDuration` | number | No | Planned duration \(null is accepted by the documented API\) |
+| `taskStatusCode` | string | No | Task status code \(null is accepted by the documented API\) |
+| `statusChangeComments` | string | No | Status change comments \(null is accepted by the documented API\) |
+| `physicalPercentComplete` | number | No | Physical percent complete \(null is accepted by the documented API\) |
+| `percentComplete` | number | No | Percent complete \(null is accepted by the documented API\) |
+| `actualStartDateTime` | string | No | Actual start date time \(null is accepted by the documented API\) |
+| `actualFinishDateTime` | string | No | Actual finish date time \(null is accepted by the documented API\) |
+| `actualHours` | number | No | Actual hours \(null is accepted by the documented API\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `task` | json | Documented task fields |
+
+### Oracle Fusion Project Management List Task Status History
+
+List task status history in Oracle Fusion Cloud Project Management. Returns one bounded page, not an automatically drained collection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `taskId` | string | Yes | Task ID as a decimal string |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
+| `limit` | number | No | One page of 1–1000 items; default 100 |
+| `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | This page of history records |
+| `count` | number | Items in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Offset used for this page |
+| `nextOffset` | number | Offset to request next when hasMore is true |
+| `totalResults` | number | Estimated total when requested |
+
+### Oracle Fusion Project Management List Deliverables
+
+List deliverables in Oracle Fusion Cloud Project Management. Returns one bounded page, not an automatically drained collection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
+| `limit` | number | No | One page of 1–1000 items; default 100 |
+| `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | This page of deliverable records |
+| `count` | number | Items in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Offset used for this page |
+| `nextOffset` | number | Offset to request next when hasMore is true |
+| `totalResults` | number | Estimated total when requested |
+
+### Oracle Fusion Project Management Get Deliverable
+
+Get deliverable in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `deliverableId` | string | Yes | Deliverable ID as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deliverable` | json | Documented deliverable fields |
+
+### Oracle Fusion Project Management Create Deliverable
+
+Create deliverable in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `deliverableName` | string | Yes | Deliverable name |
+| `shortName` | string | Yes | Short name |
+| `description` | string | No | Description \(null is accepted by the documented API\) |
+| `needByDate` | string | No | Need by date \(null is accepted by the documented API\) |
+| `ownerEmail` | string | No | Owner email \(null is accepted by the documented API\) |
+| `deliverablePriorityCode` | string | Yes | Deliverable priority code |
+| `deliverableStatusCode` | string | Yes | Deliverable status code |
+| `deliverableTypeId` | string | Yes | Deliverable type ID as an exact decimal ID string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deliverable` | json | Documented deliverable fields |
+
+### Oracle Fusion Project Management Update Deliverable
+
+Update deliverable in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `deliverableId` | string | Yes | Deliverable ID as a decimal string |
+| `deliverableName` | string | No | Deliverable name |
+| `shortName` | string | No | Short name |
+| `description` | string | No | Description \(null is accepted by the documented API\) |
+| `needByDate` | string | No | Need by date \(null is accepted by the documented API\) |
+| `ownerEmail` | string | No | Owner email \(null is accepted by the documented API\) |
+| `deliverablePriorityCode` | string | No | Deliverable priority code |
+| `deliverableStatusCode` | string | No | Deliverable status code |
+| `deliverableTypeId` | string | No | Deliverable type ID as an exact decimal ID string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deliverable` | json | Documented deliverable fields |
+
+### Oracle Fusion Project Management Delete Deliverable
+
+Delete deliverable in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `deliverableId` | string | Yes | Deliverable ID as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | True after Oracle accepts the deletion with an empty success response |
+| `id` | string | Identifier supplied to this delete operation |
+
+### Oracle Fusion Project Management List Deliverable Task Associations
+
+List deliverable task associations in Oracle Fusion Cloud Project Management. Returns one bounded page, not an automatically drained collection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `deliverableId` | string | Yes | Deliverable ID as a decimal string |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
+| `limit` | number | No | One page of 1–1000 items; default 100 |
+| `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | This page of association records |
+| `count` | number | Items in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Offset used for this page |
+| `nextOffset` | number | Offset to request next when hasMore is true |
+| `totalResults` | number | Estimated total when requested |
+
+### Oracle Fusion Project Management Get Deliverable Task Association
+
+Get deliverable task association in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `deliverableId` | string | Yes | Deliverable ID as a decimal string |
+| `associationId` | string | Yes | Association ID as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `association` | json | Documented association fields |
+
+### Oracle Fusion Project Management Create Deliverable Task Association
+
+Create deliverable task association in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `deliverableId` | string | Yes | Deliverable ID as a decimal string |
+| `projectId` | string | Yes | Project ID as an exact decimal ID string |
+| `taskId` | string | Yes | Task ID as an exact decimal ID string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `association` | json | Documented association fields |
+
+### Oracle Fusion Project Management Update Deliverable Task Association
+
+Update deliverable task association in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `deliverableId` | string | Yes | Deliverable ID as a decimal string |
+| `associationId` | string | Yes | Association ID as a decimal string |
+| `projectId` | string | No | Project ID as an exact decimal ID string \(null is accepted by the documented API\) |
+| `taskId` | string | No | Task ID as an exact decimal ID string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `association` | json | Documented association fields |
+
+### Oracle Fusion Project Management Delete Deliverable Task Association
+
+Delete deliverable task association in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `deliverableId` | string | Yes | Deliverable ID as a decimal string |
+| `associationId` | string | Yes | Association ID as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | True after Oracle accepts the deletion with an empty success response |
+| `id` | string | Identifier supplied to this delete operation |
+
+### Oracle Fusion Project Management List Project Team Members
+
+List project team members in Oracle Fusion Cloud Project Management. Returns one bounded page, not an automatically drained collection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
+| `limit` | number | No | One page of 1–1000 items; default 100 |
+| `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | This page of team Member records |
+| `count` | number | Items in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Offset used for this page |
+| `nextOffset` | number | Offset to request next when hasMore is true |
+| `totalResults` | number | Estimated total when requested |
+
+### Oracle Fusion Project Management Get Project Team Member
+
+Get project team member in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `teamMemberId` | string | Yes | Team member ID as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `teamMember` | json | Documented team Member fields |
+
+### Oracle Fusion Project Management Create Project Team Member
+
+Create project team member in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `personEmail` | string | Yes | Person email |
+| `projectRole` | string | Yes | Project role |
+| `startDate` | string | No | Start date \(null is accepted by the documented API\) |
+| `finishDate` | string | No | Finish date \(null is accepted by the documented API\) |
+| `assignmentTypeCode` | string | No | Assignment type code \(null is accepted by the documented API\) |
+| `resourceAllocationPercentage` | number | No | Resource allocation percentage \(null is accepted by the documented API\) |
+| `resourceAssignmentEffortInHours` | number | No | Resource assignment effort in hours \(null is accepted by the documented API\) |
+| `billablePercent` | string | No | Billable percent \(null is accepted by the documented API\) |
+| `trackTimeFlag` | boolean | No | Track time flag \(null is accepted by the documented API\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `teamMember` | json | Documented team Member fields |
+
+### Oracle Fusion Project Management Update Project Team Member
+
+Update dates, allocation, billing percentage, or time tracking. Oracle does not permit changing the person or project role through this PATCH.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `teamMemberId` | string | Yes | Team member ID as a decimal string |
+| `startDate` | string | No | Start date \(null is accepted by the documented API\) |
+| `finishDate` | string | No | Finish date \(null is accepted by the documented API\) |
+| `assignmentTypeCode` | string | No | Assignment type code \(null is accepted by the documented API\) |
+| `resourceAllocationPercentage` | number | No | Resource allocation percentage \(null is accepted by the documented API\) |
+| `resourceAssignmentEffortInHours` | number | No | Resource assignment effort in hours \(null is accepted by the documented API\) |
+| `billablePercent` | string | No | Billable percent \(null is accepted by the documented API\) |
+| `trackTimeFlag` | boolean | No | Track time flag \(null is accepted by the documented API\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `teamMember` | json | Documented team Member fields |
+
+### Oracle Fusion Project Management Delete Project Team Member
+
+Delete project team member in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `teamMemberId` | string | Yes | Team member ID as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | True after Oracle accepts the deletion with an empty success response |
+| `id` | string | Identifier supplied to this delete operation |
+
+### Oracle Fusion Project Management List Task Labor Resource Assignments
+
+List task labor resource assignments in Oracle Fusion Cloud Project Management. Returns one bounded page, not an automatically drained collection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
+| `limit` | number | No | One page of 1–1000 items; default 100 |
+| `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
+| `taskId` | string | No | Filter assignments by a task within the selected project |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | This page of labor Assignment records |
+| `count` | number | Items in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Offset used for this page |
+| `nextOffset` | number | Offset to request next when hasMore is true |
+| `totalResults` | number | Estimated total when requested |
+
+### Oracle Fusion Project Management Get Task Labor Resource Assignment
+
+Get task labor resource assignment in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `assignmentId` | string | Yes | Assignment ID as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `laborAssignment` | json | Documented labor Assignment fields |
+
+### Oracle Fusion Project Management Create Task Labor Resource Assignment
+
+Assign a labor resource to a task. Supply exactly one of resourceEmail and laborResourceId; management access is required.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `taskId` | string | Yes | Task ID as an exact decimal ID string |
+| `resourceEmail` | string | No | Resource email |
+| `laborResourceId` | string | No | Labor resource ID as an exact decimal ID string |
+| `plannedEffortinHours` | number | No | Planned effort in hours \(null is accepted by the documented API\) |
+| `actualEffortinHours` | number | No | Actual effort in hours \(null is accepted by the documented API\) |
+| `remainingEffortinHours` | number | No | Remaining effort in hours \(null is accepted by the documented API\) |
+| `percentComplete` | number | No | Percent complete \(null is accepted by the documented API\) |
+| `primaryResourceFlag` | boolean | No | Primary resource flag \(null is accepted by the documented API\) |
+| `resourceAllocation` | number | No | Resource allocation \(null is accepted by the documented API\) |
+| `effectiveBillRate` | number | No | Effective bill rate \(null is accepted by the documented API\) |
+| `effectiveCostRate` | number | No | Effective cost rate \(null is accepted by the documented API\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `laborAssignment` | json | Documented labor Assignment fields |
+
+### Oracle Fusion Project Management Update Task Labor Resource Assignment
+
+Update an assignment using projectPlans management access. Supply exactly one of resourceEmail and laborResourceId, as required by Oracle for PATCH.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `assignmentId` | string | Yes | Assignment ID as a decimal string |
+| `resourceEmail` | string | No | Resource email |
+| `laborResourceId` | string | No | Labor resource ID as an exact decimal ID string |
+| `plannedEffortinHours` | number | No | Planned effort in hours \(null is accepted by the documented API\) |
+| `actualEffortinHours` | number | No | Actual effort in hours \(null is accepted by the documented API\) |
+| `remainingEffortinHours` | number | No | Remaining effort in hours \(null is accepted by the documented API\) |
+| `percentComplete` | number | No | Percent complete \(null is accepted by the documented API\) |
+| `primaryResourceFlag` | boolean | No | Primary resource flag \(null is accepted by the documented API\) |
+| `resourceAllocation` | number | No | Resource allocation \(null is accepted by the documented API\) |
+| `effectiveBillRate` | number | No | Effective bill rate \(null is accepted by the documented API\) |
+| `effectiveCostRate` | number | No | Effective cost rate \(null is accepted by the documented API\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `laborAssignment` | json | Documented labor Assignment fields |
+
+### Oracle Fusion Project Management Delete Task Labor Resource Assignment
+
+Delete task labor resource assignment in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `projectId` | string | Yes | Project ID as a decimal string |
+| `assignmentId` | string | Yes | Assignment ID as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | True after Oracle accepts the deletion with an empty success response |
+| `id` | string | Identifier supplied to this delete operation |
+
+### Oracle Fusion Project Management List Project Enterprise Resources
+
+List project enterprise resources in Oracle Fusion Cloud Project Management. Returns one bounded page, not an automatically drained collection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
+| `limit` | number | No | One page of 1–1000 items; default 100 |
+| `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | This page of resource records |
+| `count` | number | Items in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Offset used for this page |
+| `nextOffset` | number | Offset to request next when hasMore is true |
+| `totalResults` | number | Estimated total when requested |
+
+### Oracle Fusion Project Management List Project Costs
+
+List project costs in Oracle Fusion Cloud Project Management. Returns one bounded page, not an automatically drained collection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
+| `limit` | number | No | One page of 1–1000 items; default 100 |
+| `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
+| `projectId` | string | No | Filter by an exact project ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | This page of cost records |
+| `count` | number | Items in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Offset used for this page |
+| `nextOffset` | number | Offset to request next when hasMore is true |
+| `totalResults` | number | Estimated total when requested |
+
+### Oracle Fusion Project Management Get Project Cost
+
+Get project cost in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `costKey` | string | Yes | Opaque project-cost key returned by list or get; not the numeric CostId |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `cost` | json | Documented cost fields |
+
+### Oracle Fusion Project Management Update Project Cost
+
+Update project-cost bill-rate metadata. Use Adjust Project Cost for billable/capitalizable flags, holds, transfers, or split adjustments.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `costKey` | string | Yes | Opaque project-cost key returned by list or get; not the numeric CostId |
+| `externalBillRate` | number | No | External bill rate \(null is accepted by the documented API\) |
+| `externalBillRateCurrency` | string | No | External bill rate currency \(null is accepted by the documented API\) |
+| `externalBillRateSourceName` | string | No | External bill rate source name \(null is accepted by the documented API\) |
+| `externalBillRateSourceReference` | string | No | External bill rate source reference \(null is accepted by the documented API\) |
+| `intercompanyBillRate` | number | No | Intercompany bill rate \(null is accepted by the documented API\) |
+| `intercompanyBillRateCurrency` | string | No | Intercompany bill rate currency \(null is accepted by the documented API\) |
+| `intercompanyBillRateSourceName` | string | No | Intercompany bill rate source name \(null is accepted by the documented API\) |
+| `intercompanyBillRateSourceReference` | string | No | Intercompany bill rate source reference \(null is accepted by the documented API\) |
+| `payrollCostedCode` | string | No | Payroll costed code \(null is accepted by the documented API\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `cost` | json | Documented cost fields |
+
+### Oracle Fusion Project Management Adjust Project Cost
+
+Perform a project-cost adjustment using a configured PJC_ADJUSTMENT_TYPE code. Oracle validates which fields and transaction states apply to that adjustment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `costKey` | string | Yes | Opaque project-cost key returned by list or get; not the numeric CostId |
+| `adjustmentTypeCode` | string | Yes | Adjustment type code |
+| `justification` | string | No | Justification \(null is accepted by the documented API\) |
+| `comment` | string | No | Comment \(null is accepted by the documented API\) |
+| `quantity` | number | No | Quantity \(null is accepted by the documented API\) |
+| `billableFlag` | boolean | No | Billable flag \(null is accepted by the documented API\) |
+| `capitalizableFlag` | boolean | No | Capitalizable flag \(null is accepted by the documented API\) |
+| `holdInvoiceFlag` | boolean | No | Hold invoice flag \(null is accepted by the documented API\) |
+| `holdRevenueFlag` | boolean | No | Hold revenue flag \(null is accepted by the documented API\) |
+| `targetProjectId` | string | No | Target project ID as an exact decimal ID string \(null is accepted by the documented API\) |
+| `targetTaskId` | string | No | Target task ID as an exact decimal ID string \(null is accepted by the documented API\) |
+| `rawCostInTransactionCurrency` | number | No | Raw cost in transaction currency \(null is accepted by the documented API\) |
+| `transactionCurrencyCode` | string | No | Transaction currency code \(null is accepted by the documented API\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result; not a refreshed resource |
+
+### Oracle Fusion Project Management List Project Budgets
+
+List project budgets in Oracle Fusion Cloud Project Management. Returns one bounded page, not an automatically drained collection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
+| `limit` | number | No | One page of 1–1000 items; default 100 |
+| `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
+| `projectId` | string | No | Filter by an exact project ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | This page of budget records |
+| `count` | number | Items in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Offset used for this page |
+| `nextOffset` | number | Offset to request next when hasMore is true |
+| `totalResults` | number | Estimated total when requested |
+
+### Oracle Fusion Project Management Get Project Budget
+
+Get project budget in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `planVersionId` | string | Yes | Plan version ID as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `budget` | json | Documented budget fields |
+
+### Oracle Fusion Project Management Create Project Budget
+
+Create or copy a project budget version synchronously, optionally with resource/amount lines. Financial plan types, resource breakdown structures, and currencies are tenant-configured.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `projectId` | string | Yes | Project ID as an exact decimal ID string |
+| `projectName` | string | Yes | Project name |
+| `projectNumber` | string | Yes | Project number |
+| `planVersionName` | string | Yes | Plan version name |
+| `planVersionDescription` | string | No | Plan version description \(null is accepted by the documented API\) |
+| `financialPlanType` | string | No | Financial plan type \(null is accepted by the documented API\) |
+| `planVersionStatus` | string | No | Plan version status \(null is accepted by the documented API\) |
+| `budgetCreationMethod` | string | No | Budget creation method \(null is accepted by the documented API\) |
+| `budgetGenerationSource` | string | No | Budget generation source \(null is accepted by the documented API\) |
+| `planningAmounts` | string | No | Planning amounts \(null is accepted by the documented API\) |
+| `sourcePlanType` | string | No | Source plan type \(null is accepted by the documented API\) |
+| `sourcePlanVersionId` | string | No | Source plan version ID as an exact decimal ID string \(null is accepted by the documented API\) |
+| `sourcePlanVersionNumber` | number | No | Source plan version number \(null is accepted by the documented API\) |
+| `sourcePlanVersionStatus` | string | No | Source plan version status \(null is accepted by the documented API\) |
+| `copyAdjustmentPercentage` | number | No | Copy adjustment percentage \(null is accepted by the documented API\) |
+| `deferFinancialPlanCreation` | string | No | Only N is supported: create the budget synchronously and return its version; deferred creation is not supported |
+| `planningResources` | array | No | Budget lines with RbsElementId and TaskId as strings, and optional PlanningAmounts; no HCM person IDs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `budget` | json | Documented budget fields |
+
+### Oracle Fusion Project Management Update Project Budget
+
+Update project budget in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `planVersionId` | string | Yes | Plan version ID as a decimal string |
+| `planVersionName` | string | No | Plan version name |
+| `planVersionDescription` | string | No | Plan version description \(null is accepted by the documented API\) |
+| `financialPlanType` | string | No | Financial plan type \(null is accepted by the documented API\) |
+| `planVersionStatus` | string | No | Plan version status \(null is accepted by the documented API\) |
+| `lockedFlag` | boolean | No | Locked flag \(null is accepted by the documented API\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `budget` | json | Documented budget fields |
+
+### Oracle Fusion Project Management Delete Project Budget
+
+Delete project budget in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `planVersionId` | string | Yes | Plan version ID as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | True after Oracle accepts the deletion with an empty success response |
+| `id` | string | Identifier supplied to this delete operation |
+
+### Oracle Fusion Project Management Adjust Project Budget
+
+Adjust project budget in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `planVersionId` | string | Yes | Plan version ID as a decimal string |
+| `adjustmentPercentage` | number | Yes | Adjustment percentage |
+| `fromPeriod` | string | No | From period \(null is accepted by the documented API\) |
+| `adjustmentType` | string | Yes | Adjustment type |
+| `toPeriod` | string | No | To period \(null is accepted by the documented API\) |
+| `createNewWorkingVersion` | string | No | Y creates a new working version; N adjusts the existing version |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result; not a refreshed resource |
+
+### Oracle Fusion Project Management Refresh Project Budget Rates
+
+Refresh project budget rates in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `planVersionId` | string | Yes | Plan version ID as a decimal string |
+| `retainRateOverride` | string | No | Y retains rate overrides; N allows rates to be refreshed |
+| `refreshOnlyConversionRates` | string | No | Y refreshes only currency conversion rates; N refreshes all applicable rates |
+| `refreshRatesPeriodForward` | string | No | Period name from which to refresh rates, using the project financial calendar |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result; not a refreshed resource |
+
+### Oracle Fusion Project Management List Project Contract Invoices
+
+List project contract invoices in Oracle Fusion Cloud Project Management. Returns one bounded page, not an automatically drained collection.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `q` | string | No | Optional oracle q filter using attributes documented for this collection |
+| `orderBy` | string | No | Documented sort attributes for this collection, for example TaskId:asc for tasks; use a stable order when paging |
+| `limit` | number | No | One page of 1–1000 items; default 100 |
+| `offset` | number | No | Zero-based offset for this page; use nextOffset to continue |
+| `totalResults` | boolean | No | Include oracle’s estimated total row count |
+| `projectId` | string | No | Filter by an exact project ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `items` | array | This page of invoice records |
+| `count` | number | Items in this page |
+| `hasMore` | boolean | Whether Oracle reports another page |
+| `limit` | number | Page size used by Oracle |
+| `offset` | number | Offset used for this page |
+| `nextOffset` | number | Offset to request next when hasMore is true |
+| `totalResults` | number | Estimated total when requested |
+
+### Oracle Fusion Project Management Get Project Contract Invoice
+
+Get project contract invoice in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `invoiceId` | string | Yes | Invoice ID as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invoice` | json | Documented invoice fields |
+
+### Oracle Fusion Project Management Update Project Contract Invoice
+
+Update project contract invoice in Oracle Fusion Cloud Project Management.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `invoiceId` | string | Yes | Invoice ID as a decimal string |
+| `invoiceComment` | string | No | Invoice comment \(null is accepted by the documented API\) |
+| `invoiceDate` | string | No | Invoice date \(null is accepted by the documented API\) |
+| `invoiceInstructions` | string | No | Invoice instructions \(null is accepted by the documented API\) |
+| `unreleaseComments` | string | No | Unrelease comments \(null is accepted by the documented API\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invoice` | json | Documented invoice fields |
+
+### Oracle Fusion Project Management Delete Draft Project Contract Invoice
+
+Delete a standard project contract invoice in draft status. Oracle rejects other invoice states; no preceding transition is performed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `invoiceId` | string | Yes | Invoice ID as a decimal string |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | True after Oracle accepts the deletion with an empty success response |
+| `id` | string | Identifier supplied to this delete operation |
+
+### Oracle Fusion Project Management Transition Project Contract Invoice
+
+Invoke one fixed, documented project-contract invoice lifecycle action. Release-only fields and unrelease comments apply only to their corresponding action; no automatic transition chaining.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `oauthCredential` | string | Yes | Reusable Oracle Fusion service-account credential |
+| `invoiceId` | string | Yes | Invoice ID as a decimal string |
+| `receivablesNumber` | string | No | Receivables number \(null is accepted by the documented API\) |
+| `creditMemoReasonCode` | string | No | Credit memo reason code \(null is accepted by the documented API\) |
+| `invoiceDate` | string | No | Invoice date \(null is accepted by the documented API\) |
+| `creditMemoReasonMeaning` | string | No | Credit memo reason meaning \(null is accepted by the documented API\) |
+| `unreleaseComments` | string | No | Unrelease comments \(null is accepted by the documented API\) |
+| `action` | string | Yes | Exactly one of submit, approve, reject, release, return_to_draft, unrelease, cancel; Oracle enforces the current invoice status |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `result` | string | Documented Oracle action result; not a refreshed resource |
+
+
