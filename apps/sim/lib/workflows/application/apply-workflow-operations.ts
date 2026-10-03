@@ -3,6 +3,10 @@ import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal
 import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import {
+  generateLoopBlocks,
+  generateParallelBlocks,
+} from '@sim/workflow-persistence/subflow-helpers'
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { ForbiddenOperationError, principalAuditSource } from '@/lib/core/application'
@@ -12,12 +16,9 @@ import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/entitlement'
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import {
-  type ActiveWorkflowApplicationContext,
-  resolveActiveWorkflowApplicationContext,
-} from '@/lib/workflows/application/context'
+import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
+import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { withWorkflowBlockScope } from '@/lib/workflows/application/workflow-block-scope'
 import { requireMutableWorkflow } from '@/lib/workflows/application/workflow-mutability'
 import { WorkflowOperationsNotAppliedError } from '@/lib/workflows/application/workflow-operations-error'
@@ -56,7 +57,6 @@ import {
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
 import { withBlockVisibility } from '@/blocks/visibility/server-context'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { normalizeWorkflowState } from '@/stores/workflows/workflow/validation'
 
 const logger = createLogger('ApplyWorkflowOperations')
@@ -253,17 +253,7 @@ async function resolveBaseGraph(
  */
 export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.applyOperations,
-  resolveContext: ({
-    principal,
-    input,
-  }: {
-    principal: Principal
-    input: ApplyWorkflowOperationsInput
-  }) =>
-    resolveActiveWorkflowApplicationContext({
-      workflowId: input.workflowId,
-      assertedWorkspaceId: assertedWorkflowWorkspaceId(principal, input.assertedWorkspaceId),
-    }),
+  resolveContext: resolvePrincipalWorkflowContext<ApplyWorkflowOperationsInput>,
   async execute({ principal, input, context }): Promise<ApplyWorkflowOperationsResult> {
     if (input.operations.length === 0) {
       throw new OrchestrationError('validation', 'operations cannot be empty')

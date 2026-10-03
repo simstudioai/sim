@@ -11,15 +11,16 @@ import { requestUtilsMock } from '@sim/testing/mocks/request.mock'
 import { schemaMock } from '@sim/testing/mocks/schema.mock'
 import { setupGlobalStorageMocks } from '@sim/testing/mocks/storage.mock'
 import { terminalConsoleMock } from '@sim/testing/mocks/terminal-console.mock'
+import { triggerSdkMock } from '@sim/testing/mocks/trigger-sdk.mock'
 import { urlsMock } from '@sim/testing/mocks/urls.mock'
 import { workflowAuthzMock } from '@sim/testing/mocks/workflow-authz.mock'
 import { afterAll, vi } from 'vitest'
 
 /**
  * This file runs once per test file, and with `isolate: true` every module it
- * touches is re-evaluated each time. The `@sim/testing` barrel is 69 modules
- * (factories, builders, assertions, every mock); the 15 mocks registered here
- * are 16. Importing them by file keeps the fixed per-file setup cost at
+ * touches is re-evaluated each time. The `@sim/testing` barrel is ~60 modules
+ * (factories, builders, assertions, every mock); the mocks registered here
+ * are ~20. Importing them by file keeps the fixed per-file setup cost at
  * ~10ms instead of ~300ms — measured on the full suite: setup 926s -> 30s.
  */
 
@@ -197,18 +198,12 @@ vi.mock('@/components/icons', async () => {
   )
 })
 
-vi.mock('@trigger.dev/sdk', () => ({
-  task: vi.fn(() => ({ trigger: vi.fn() })),
-  timeout: { None: 'none' },
-  tasks: {
-    trigger: vi.fn().mockResolvedValue({ id: 'mock-task-id' }),
-    batchTrigger: vi.fn().mockResolvedValue([{ id: 'mock-task-id' }]),
-  },
-  runs: {
-    retrieve: vi.fn().mockResolvedValue({ id: 'mock-run-id', status: 'COMPLETED' }),
-  },
-  configure: vi.fn(),
-}))
+/**
+ * `task()` returns its definition (so a test calls `.run` directly) plus `trigger`/`batchTrigger`
+ * spies; `tasks.*`, `runs.*`, `idempotencyKeys` and the error classes are driven through
+ * `triggerSdkMockFns`.
+ */
+vi.mock('@trigger.dev/sdk', () => triggerSdkMock)
 
 const originalConsoleError = console.error
 const originalConsoleWarn = console.warn

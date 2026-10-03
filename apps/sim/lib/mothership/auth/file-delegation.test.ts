@@ -1,15 +1,12 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { COPILOT_APPLICATION_DELEGATION_TTL_MS } from '@/lib/mothership/auth/application-delegation'
 import {
   createCopilotChatFilePrincipal,
   createCopilotWorkspaceContextFilePrincipal,
   messageForCopilotFileError,
   resolveCopilotFilePrincipal,
 } from '@/lib/mothership/auth/file-delegation'
-import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/mothership/constants'
 
 const trustedContext = {
   userId: 'user-1',
@@ -38,7 +35,7 @@ describe('Copilot file delegation', () => {
       },
     })
     expect(principal.expiresAt.getTime() - principal.issuedAt.getTime()).toBe(
-      ORCHESTRATION_TIMEOUT_MS
+      COPILOT_APPLICATION_DELEGATION_TTL_MS
     )
   })
 

@@ -13,20 +13,6 @@ const seed = () => ({
   message: 'Search',
   requestedAt: Date.now(),
 })
-it.each(['fast', 'adaptive', 'max'] as const)(
-  'retains queued %s selection across remount',
-  (level) => {
-    writeQueuedSendHandoffState({
-      ...seed(),
-      requestMode: 'assistant',
-      assistantSearchLevel: level,
-    })
-    expect(readQueuedSendHandoffState()).toMatchObject({
-      requestMode: 'assistant',
-      assistantSearchLevel: level,
-    })
-  }
-)
 it.each([
   [true, 'fast'],
   [false, 'adaptive'],

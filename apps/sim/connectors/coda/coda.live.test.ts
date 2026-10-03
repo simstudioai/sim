@@ -2,7 +2,6 @@
  * Opt-in provider tests. Only documents created here are mutated or deleted.
  * Set CODA_CONNECTOR_LIVE_TOKEN_FILE to a local token file. Optionally set
  * CODA_CONNECTOR_LIVE_FIXTURE_FILE to retain the fixture for UI and access tests.
- * @vitest-environment node
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { sleep } from '@sim/utils/helpers'
@@ -45,7 +44,7 @@ async function waitFor<T>(read: () => Promise<T | undefined>): Promise<T> {
   throw new Error('Coda did not converge within 60 seconds')
 }
 
-describe.skipIf(!token).sequential('Coda connector live', () => {
+describe.skipIf(!token)('Coda connector live', { concurrent: false }, () => {
   let docId = ''
   let pageId = ''
   let before: ExternalDocument[] = []

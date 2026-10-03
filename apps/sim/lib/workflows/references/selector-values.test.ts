@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { getOption } = vi.hoisted(() => ({ getOption: vi.fn() }))
@@ -20,7 +19,6 @@ const principal = { kind: 'personal_api_key', userId: 'user', keyId: 'key' } as 
 
 describe('workflow selector validation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     getOption.mockImplementation(async ({ input }) => ({ id: input.id, label: input.id }))
   })
   it('validates each selected ID and deduplicates shared requests', async () => {

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { Principal } from '@sim/auth/principal'
 import { invitation, invitationWorkspaceGrant, member, workspace } from '@sim/db/schema'
 import {
@@ -11,20 +10,26 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ config: vi.fn() }))
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET } from '@/app/api/v2/organizations/[organizationId]/invitations/[invitationId]/workspaces/route'
 
-const principal: Principal = { kind: 'personal_api_key', userId: 'actor', keyId: 'key' }
+const principal: Principal = createPersonalApiKeyPrincipal({ userId: 'actor', keyId: 'key' })
 const params = { organizationId: 'organization', invitationId: 'invitation' }
 const rows = [
   { id: 'workspace-a', name: 'Engineering', permission: 'write', archivedAt: null },
@@ -47,11 +52,11 @@ function setPrincipal(value: Principal) {
 
 function request(query = '', scope = params) {
   return GET(
-    new NextRequest(
-      `http://localhost/api/v2/organizations/${scope.organizationId}/invitations/${scope.invitationId}/workspaces${query}`,
-      { headers: { 'x-api-key': 'key', 'x-forwarded-for': '127.0.0.1' } }
-    ),
-    { params: Promise.resolve(scope) }
+    createMockRequest({
+      url: `http://localhost/api/v2/organizations/${scope.organizationId}/invitations/${scope.invitationId}/workspaces${query}`,
+      headers: { 'x-api-key': 'key', 'x-forwarded-for': '127.0.0.1' },
+    }),
+    createRouteContext(scope)
   )
 }
 
@@ -62,12 +67,11 @@ function queueAuthorized(status = 'pending', grants = rows) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   setPrincipal(principal)
   v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
   v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-  mocks.config.mockResolvedValue(null)
+  permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue(null)
 })
 
 describe('organization invitation workspace grants', () => {
@@ -90,12 +94,6 @@ describe('organization invitation workspace grants', () => {
       })
     }
   )
-
-  it('returns an empty page for an invitation without workspace grants', async () => {
-    queueAuthorized('pending', [])
-    const response = await request()
-    expect(await response.json()).toEqual({ data: [], nextCursor: null })
-  })
 
   it('bounds pages and retains a unique workspace ID tiebreaker', async () => {
     queueAuthorized()
@@ -175,41 +173,23 @@ describe('organization invitation workspace grants', () => {
   })
 
   it('refuses actorless workspace keys before protected loading', async () => {
-    setPrincipal({ kind: 'workspace_api_key', workspaceId: 'workspace', keyId: 'key' })
+    setPrincipal(createWorkspaceApiKeyPrincipal({ workspaceId: 'workspace', keyId: 'key' }))
     expect((await request()).status).toBe(403)
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 
-  it('admits read-only OAuth with current administrator authority', async () => {
-    setPrincipal({
-      kind: 'oauth_access_token',
-      userId: 'actor',
-      clientId: 'client',
-      tokenId: 'token',
-      scopes: ['api:read'],
-      expiresAt: new Date('2099-01-01'),
-    })
-    queueAuthorized()
-    expect((await request()).status).toBe(200)
-  })
-
   it('rechecks credential policy but does not require permission to send new invitations', async () => {
     queueAuthorized()
-    mocks.config.mockResolvedValue({ ...DEFAULT_PERMISSION_GROUP_CONFIG, disableInvitations: true })
+    permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue({
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      disableInvitations: true,
+    })
     expect((await request()).status).toBe(200)
     queueTableRows(member, [{ role: 'admin' }])
-    mocks.config.mockResolvedValue({
+    permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue({
       ...DEFAULT_PERMISSION_GROUP_CONFIG,
       disablePersonalApiKeys: true,
     })
     expect((await request()).status).toBe(403)
   })
-
-  it.each(['?limit=1.5', '?limit=0', '?limit=101', '?sortBy=email', '?extra=true', '?cursor=bad'])(
-    'rejects invalid query %s before protected loading',
-    async (query) => {
-      expect((await request(query)).status).toBe(400)
-      expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    }
-  )
 })

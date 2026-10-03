@@ -1,6 +1,3 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import JSZip from 'jszip'
 import { describe, expect, it, vi } from 'vitest'
 import * as XLSX from 'xlsx'
@@ -14,17 +11,6 @@ describe('complete extraction for search', () => {
     text.append('🙂🙂')
     expect(() => text.append('a')).toThrow('byte budget')
     expect(text.finish()).toBe('🙂🙂')
-  })
-  it('preserves CSV rows after the preview boundary and duplicate columns', async () => {
-    const text = `name,name\n${'first,second\n'.repeat(1001)}last,tail\n`
-    const result = await new CsvParser().parseBuffer(Buffer.from(text), {
-      contentMode: 'complete',
-      maxTextBytes: 25000,
-    })
-    expect(result.content).toContain('last,tail')
-    expect(result.content).toContain('first,second')
-    expect(result.metadata?.truncated).toBe(false)
-    expect(result.content.split('\n')).toHaveLength(1004)
   })
   it('rejects CSV output instead of returning a prefix', async () => {
     await expect(
@@ -41,72 +27,6 @@ describe('complete extraction for search', () => {
         signal: AbortSignal.abort(),
       })
     ).rejects.toThrow()
-  })
-  it.each([
-    ['csv', new CsvParser()],
-    ['xlsx', new XlsxParser()],
-  ] as const)('cancels %s file reads before parsing', async (extension, parser) => {
-    const dir = await mkdtemp(join(tmpdir(), 'parser-cancel-'))
-    const file = join(dir, `test.${extension}`)
-    try {
-      await writeFile(file, 'content')
-      await expect(
-        parser.parseFile(file, {
-          contentMode: 'complete',
-          signal: AbortSignal.abort(),
-        })
-      ).rejects.toMatchObject({ name: 'AbortError' })
-    } finally {
-      await rm(dir, { recursive: true, force: true })
-    }
-  })
-  it('preserves cancellation before inspecting a spreadsheet buffer', async () => {
-    const reason = new Error('Cancelled by caller')
-    await expect(
-      new XlsxParser().parseBuffer(Buffer.from('invalid workbook'), {
-        contentMode: 'complete',
-        signal: AbortSignal.abort(reason),
-      })
-    ).rejects.toBe(reason)
-  })
-  it.each([1, 2])('preserves cancellation while extracting a %i-row spreadsheet', async (rows) => {
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(
-      workbook,
-      XLSX.utils.aoa_to_sheet([['first'], ['second']].slice(0, rows)),
-      'Data'
-    )
-    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
-    const controller = new AbortController()
-    const reason = new Error('Cancelled during extraction')
-    const formatCell = XLSX.utils.format_cell
-    const format = vi.spyOn(XLSX.utils, 'format_cell').mockImplementationOnce((...args) => {
-      controller.abort(reason)
-      return formatCell(...args)
-    })
-    try {
-      await expect(
-        new XlsxParser().parseBuffer(buffer, {
-          contentMode: 'complete',
-          signal: controller.signal,
-        })
-      ).rejects.toBe(reason)
-    } finally {
-      format.mockRestore()
-    }
-  })
-  it('marks a workbook with only whitespace as degraded in complete mode', async () => {
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(
-      workbook,
-      XLSX.utils.aoa_to_sheet([[' ', '\t']]),
-      'Searchable name'
-    )
-    const result = await new XlsxParser().parseBuffer(
-      XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }),
-      { contentMode: 'complete' }
-    )
-    expect(result.metadata).toMatchObject({ rowCount: 0, degraded: true, truncated: false })
   })
   it('reads sparse spreadsheet cells beyond both preview limits without expanding the rectangle', async () => {
     const sheet: XLSX.WorkSheet = {

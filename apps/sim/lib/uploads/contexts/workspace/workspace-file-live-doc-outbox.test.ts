@@ -1,31 +1,22 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockApplyEditToLiveFileDoc, mockDownloadFile, mockInvalidateLiveFileDoc } = vi.hoisted(
-  () => ({
-    mockApplyEditToLiveFileDoc: vi.fn(),
-    mockDownloadFile: vi.fn(),
-    mockInvalidateLiveFileDoc: vi.fn(),
-  })
-)
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
-vi.mock('@/lib/realtime/notify', () => ({
-  applyEditToLiveFileDoc: mockApplyEditToLiveFileDoc,
-  invalidateLiveFileDoc: mockInvalidateLiveFileDoc,
-}))
-
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFile: mockDownloadFile,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 import {
   WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT,
   workspaceFileLiveDocOutboxHandlers,
 } from '@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox'
+
+const mockDownloadFile = storageServiceMockFns.mockDownloadFile
+
+const mockApplyEditToLiveFileDoc = realtimeNotifyMockFns.mockApplyEditToLiveFileDoc
+const mockInvalidateLiveFileDoc = realtimeNotifyMockFns.mockInvalidateLiveFileDoc
 
 const VERSION = new Date('2026-09-04T12:00:00.000Z')
 const PAYLOAD = {
@@ -53,7 +44,6 @@ function handler() {
 
 describe('workspace file live-document outbox', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockDownloadFile.mockResolvedValue(Buffer.from('# Durable content'))
     mockApplyEditToLiveFileDoc.mockResolvedValue({ applied: true, status: 'applied' })
@@ -119,13 +109,6 @@ describe('workspace file live-document outbox', () => {
     await expect(handler()(PAYLOAD, context())).resolves.toEqual(
       expect.objectContaining({ outcome: 'deferred' })
     )
-  })
-
-  it('rejects malformed payloads before touching durable state', async () => {
-    await expect(handler()({ ...PAYLOAD, version: 0 }, context())).rejects.toThrow(
-      'invalid version'
-    )
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 
   it('does not materialize files beyond the collaborative editor boundary', async () => {

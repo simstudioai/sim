@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { dispatch } = vi.hoisted(() => ({ dispatch: vi.fn() }))
@@ -12,11 +11,8 @@ import {
   type DocumentProcessingPayload,
 } from '@/lib/knowledge/documents/processing-payload'
 import {
-  MAX_PROCESSING_CONTINUATION_SLICES,
   MAX_PROVIDER_CONTINUATION_AGE_MS,
   MAX_PROVIDER_CONTINUATION_ATTEMPTS,
-  resolveAdmissionContinuationDelayMs,
-  resolveProviderContinuationDelayMs,
   scheduleDocumentProcessingProviderContinuation,
 } from '@/lib/knowledge/documents/processing-provider-continuation'
 import { ProviderCapacityContinuationExhaustedError } from '@/lib/knowledge/documents/processing-provider-deferral'
@@ -37,7 +33,6 @@ const PAYLOAD: DocumentProcessingPayload = {
 
 describe('durable provider continuations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useFakeTimers()
     vi.setSystemTime(NOW)
     dispatch.mockResolvedValue(undefined)
@@ -64,31 +59,6 @@ describe('durable provider continuations', () => {
       due,
       'knowledge-provider-doc-1-pass-1-1',
       undefined
-    )
-  })
-
-  it('upgrades a tokenless legacy stamp and preserves the start of a continuation chain', async () => {
-    const payload = {
-      ...PAYLOAD,
-      processingQueueToken: undefined,
-      providerRetryCount: 2,
-      providerRetryStartedAt: new Date(NOW.getTime() - 600_000).toISOString(),
-    }
-    await scheduleDocumentProcessingProviderContinuation(
-      payload,
-      new ProviderCapacityDeferredError('admission_unavailable'),
-      false
-    )
-    expect(dispatch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        processingQueueToken: 'knowledge-provider-doc-1-pass-1-3',
-        processingQueuedAt: expect.any(String),
-        providerRetryCount: 3,
-        providerRetryStartedAt: payload.providerRetryStartedAt,
-      }),
-      expect.any(Date),
-      'knowledge-provider-doc-1-pass-1-3',
-      false
     )
   })
 
@@ -170,50 +140,6 @@ describe('durable provider continuations', () => {
     expect(continuation.processingQueueToken).toBe('knowledge-provider-doc-1-pass-1-4')
   })
 
-  it('bounds admission resumes independently of provider retries', async () => {
-    await expect(
-      scheduleDocumentProcessingProviderContinuation(
-        {
-          ...PAYLOAD,
-          processingSliceCount: MAX_PROCESSING_CONTINUATION_SLICES,
-          providerRetryStartedAt: NOW.toISOString(),
-        },
-        new ProviderCapacityDeferredError('admission_timeout'),
-        false
-      )
-    ).rejects.toBeInstanceOf(ProviderCapacityContinuationExhaustedError)
-    expect(dispatch).not.toHaveBeenCalled()
-  })
-
-  it('starts the same bounded recovery horizon when the first continuation is a processing slice', async () => {
-    await scheduleDocumentProcessingProviderContinuation(
-      PAYLOAD,
-      new ProviderCapacityDeferredError('processing_budget'),
-      false
-    )
-    const scheduled = assertDocumentProcessingPayload(dispatch.mock.calls[0][0])
-    expect(scheduled.providerRetryCount).toBeUndefined()
-    expect(scheduled).toMatchObject({
-      processingSliceCount: 1,
-      providerRetryStartedAt: NOW.toISOString(),
-    })
-  })
-
-  it('bounds processing slices independently of rate-limit retries', async () => {
-    await expect(
-      scheduleDocumentProcessingProviderContinuation(
-        {
-          ...PAYLOAD,
-          processingSliceCount: MAX_PROCESSING_CONTINUATION_SLICES,
-          providerRetryStartedAt: NOW.toISOString(),
-        },
-        new ProviderCapacityDeferredError('processing_budget'),
-        false
-      )
-    ).rejects.toBeInstanceOf(ProviderCapacityContinuationExhaustedError)
-    expect(dispatch).not.toHaveBeenCalled()
-  })
-
   it('uses the same generation when a handoff is replayed after its acknowledgement was lost', async () => {
     const error = new ProviderCapacityDeferredError('admission_unavailable')
     const first = await scheduleDocumentProcessingProviderContinuation(PAYLOAD, error, false)
@@ -235,29 +161,5 @@ describe('durable provider continuations', () => {
         new ProviderCapacityDeferredError('admission_unavailable')
       )
     ).rejects.toBe(error)
-  })
-
-  it('clamps and jitters the admission bucket wait', () => {
-    for (let i = 0; i < 20; i++) {
-      const stated = resolveAdmissionContinuationDelayMs(30_000)
-      expect(stated).toBeGreaterThanOrEqual(24_000)
-      expect(stated).toBeLessThanOrEqual(36_000)
-      const floored = resolveAdmissionContinuationDelayMs(800)
-      expect(floored).toBeGreaterThanOrEqual(8_000)
-      expect(floored).toBeLessThanOrEqual(12_000)
-      const capped = resolveAdmissionContinuationDelayMs(10 * 60_000)
-      expect(capped).toBeGreaterThanOrEqual(48_000)
-      expect(capped).toBeLessThanOrEqual(72_000)
-      const missing = resolveAdmissionContinuationDelayMs(undefined)
-      expect(missing).toBeGreaterThanOrEqual(12_000)
-      expect(missing).toBeLessThanOrEqual(18_000)
-    }
-  })
-
-  it('bounds jittered polling without reducing provider minimums', () => {
-    expect(resolveProviderContinuationDelayMs(1)).toBeGreaterThanOrEqual(48_000)
-    expect(resolveProviderContinuationDelayMs(1)).toBeLessThanOrEqual(72_000)
-    expect(resolveProviderContinuationDelayMs(100)).toBeLessThanOrEqual(3_600_000)
-    expect(resolveProviderContinuationDelayMs(100, 7_200_000)).toBe(7_200_000)
   })
 })

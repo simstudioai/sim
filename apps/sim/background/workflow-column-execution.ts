@@ -149,7 +149,7 @@ export function buildTableAbortState(args: {
     executionId,
     jobId: null,
     workflowId,
-    error: timedOut ? getTimeoutErrorMessage(null, timeoutMs) : 'Cancelled',
+    error: timedOut ? getTimeoutErrorMessage(timeoutMs) : 'Cancelled',
     runningBlockIds: [],
   }
 }
@@ -866,6 +866,7 @@ async function runWorkflowAndWriteTerminal(
               triggerType: 'workflow',
               checkDeployment: false,
               checkRateLimit: false,
+              includeActorSubscription: true,
               skipConcurrencyReservation: true,
               logPreprocessingErrors: false,
               billingAttribution,

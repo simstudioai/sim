@@ -1,12 +1,11 @@
-/**
- * @vitest-environment node
- */
 import { webhook } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/triggers/webhook-url', () => ({
+vi.mock('@/lib/webhooks/trigger-url', () => ({
   buildWebhookTriggerUrl: (path: string) => `https://sim.test/api/webhooks/trigger/${path}`,
+}))
+vi.mock('@/triggers/webhook-url', () => ({
   buildSlackCustomBotRequestUrl: (credentialId: string) =>
     `https://sim.test/api/webhooks/slack/custom/${credentialId}`,
 }))
@@ -18,7 +17,6 @@ afterAll(resetDbChainMock)
 
 describe('listDeployedWebhookUrls', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

@@ -1,18 +1,13 @@
 /** @vitest-environment jsdom */
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { CredentialGroupCompletionHandoff } from '@/app/credential-groups/complete/completion-handoff'
-
-afterEach(() => {
-  vi.restoreAllMocks()
-  vi.unstubAllGlobals()
-})
 
 describe('credential group OAuth completion', () => {
   it.each([undefined, 'failed', 'denied', 'configuration_changed'] as const)(
     'publishes %s to only its initiating tab and keeps failures visible',
-    (failure) => {
+    async (failure) => {
       const postMessage = vi.fn()
       const closeChannel = vi.fn()
       const names: string[] = []
@@ -32,7 +27,7 @@ describe('credential group OAuth completion', () => {
       const root = createRoot(container)
       const completionId = '550e8400-e29b-41d4-a716-446655440000'
       try {
-        act(() =>
+        await act(async () =>
           root.render(
             <CredentialGroupCompletionHandoff completionId={completionId} failure={failure} />
           )

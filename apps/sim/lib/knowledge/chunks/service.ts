@@ -14,6 +14,7 @@ import {
   searchFilter,
   textKey,
 } from '@/lib/api/list-query'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DurableSecretProvenance } from '@/lib/execution/durable-secret-provenance'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import type { KnowledgeAccessScope } from '@/lib/knowledge/access/types'
@@ -239,9 +240,7 @@ export async function createChunk(
     await tx.execute(
       sql`select set_config('lock_timeout', ${`${KB_CHUNK_LOCK_TIMEOUT_MS}ms`}, true)`
     )
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${`kb_chunk_seq:${documentId}`}, 0))`
-    )
+    await acquireAdvisoryXactLock(tx, 'kb_chunk_seq', `kb_chunk_seq:${documentId}`)
 
     const activeDocument = await tx
       .select({ id: document.id })

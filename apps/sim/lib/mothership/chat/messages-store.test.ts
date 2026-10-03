@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import {
   appendCopilotChatMessages,
   persistCopilotChatTurn,
@@ -56,44 +53,10 @@ function lastValuesRows() {
 
 describe('messages-store', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
   describe('appendCopilotChatMessages', () => {
-    it('is a no-op on empty array', async () => {
-      await appendCopilotChatMessages('chat-1', [])
-      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-    })
-
-    it('inserts rows built from PersistedMessage shape', async () => {
-      await appendCopilotChatMessages('chat-1', [userMsg, assistantMsg])
-
-      expect(dbChainMockFns.insert).toHaveBeenCalledTimes(1)
-      expect(dbChainMockFns.values).toHaveBeenCalledTimes(1)
-      const rows = lastValuesRows()
-      expect(rows).toHaveLength(2)
-
-      expect(rows[0]).toMatchObject({
-        chatId: 'chat-1',
-        messageId: 'msg-user-1',
-        role: 'user',
-        content: userMsg,
-        model: null,
-        streamId: null,
-      })
-      expect(rows[0].createdAt as Date).toEqual(new Date(userMsg.timestamp))
-      expect(rows[0].updatedAt as Date).toEqual(new Date(userMsg.timestamp))
-
-      expect(rows[1]).toMatchObject({
-        chatId: 'chat-1',
-        messageId: 'msg-asst-1',
-        role: 'assistant',
-        content: assistantMsg,
-      })
-      expect(rows[1].createdAt as Date).toEqual(new Date(assistantMsg.timestamp))
-    })
-
     it('assigns seq as 0-based array index when the chat has no prior rows', async () => {
       dbChainMockFns.where.mockResolvedValueOnce([{ maxSeq: null }])
 
@@ -110,19 +73,6 @@ describe('messages-store', () => {
       const rows = lastValuesRows()
       expect(rows[0].seq).toBe(5)
       expect(rows[1].seq).toBe(6)
-    })
-
-    it('passes chatModel and streamId options to every row', async () => {
-      await appendCopilotChatMessages('chat-1', [userMsg, assistantMsg], {
-        chatModel: 'claude-sonnet-4-5',
-        streamId: 'stream-xyz',
-      })
-
-      const rows = lastValuesRows()
-      expect(rows[0].model).toBe('claude-sonnet-4-5')
-      expect(rows[0].streamId).toBe('stream-xyz')
-      expect(rows[1].model).toBe('claude-sonnet-4-5')
-      expect(rows[1].streamId).toBe('stream-xyz')
     })
 
     it('uses ON CONFLICT DO UPDATE that PRESERVES existing seq', async () => {

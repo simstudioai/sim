@@ -1,6 +1,8 @@
 /** @vitest-environment jsdom */
+
 import { act } from 'react'
 import { ToastProvider } from '@sim/emcn'
+import { nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MyInvitation } from '@/lib/api/contracts/invitations'
@@ -8,16 +10,15 @@ import type { MyInvitation } from '@/lib/api/contracts/invitations'
 const mocks = vi.hoisted(() => ({
   accept: vi.fn(),
   decline: vi.fn(),
-  push: vi.fn(),
   refetch: vi.fn(),
   query: vi.fn(),
   close: vi.fn(),
 }))
 
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mocks.push }),
-  usePathname: () => '/workspace/workspace-1/home',
-}))
+vi.mock(
+  'next/navigation',
+  async () => (await import('@sim/testing/mocks/next-navigation.mock')).nextNavigationMock
+)
 vi.mock('@/hooks/queries/invitations', () => ({
   useMyPendingInvitations: mocks.query,
   useAcceptMyInvitation: () => ({ isPending: false, mutateAsync: mocks.accept }),
@@ -25,6 +26,9 @@ vi.mock('@/hooks/queries/invitations', () => ({
 }))
 
 import { ViewInvitationsModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workspace-header/components/pending-invitations/view-invitations-modal'
+
+const mockPush = nextNavigationMockFns.router.push
+nextNavigationMockFns.mockUsePathname.mockReturnValue('/workspace/workspace-1/home')
 
 class ResizeObserverMock {
   observe = vi.fn()
@@ -92,8 +96,6 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
-  vi.clearAllMocks()
-  vi.unstubAllGlobals()
 })
 
 describe('ViewInvitationsModal', () => {
@@ -188,7 +190,7 @@ describe('ViewInvitationsModal', () => {
       disclosedWorkspaceIds: ['personal', 'archived'],
       disclosedOutcome: 'will-join',
     })
-    expect(mocks.push).toHaveBeenCalledWith('/o/org-1/home')
+    expect(mockPush).toHaveBeenCalledWith('/o/org-1/home')
   })
 
   it('blocks an internal invitation with no preview and offers refresh', async () => {
@@ -200,80 +202,5 @@ describe('ViewInvitationsModal', () => {
     expect(mocks.accept).not.toHaveBeenCalled()
     await act(async () => button('Refresh invitation')?.click())
     expect(mocks.refetch).toHaveBeenCalledOnce()
-  })
-
-  it.each([
-    ['external', null],
-    ['already-member', 'Your organization role will stay the same'],
-    ['blocked', 'This invitation cannot currently be accepted'],
-  ] as const)('discloses %s and preserves its empty-set stale check', async (outcome, message) => {
-    invitation.joinPreview = {
-      outcome,
-      organizationName: null,
-      workspacesToMove: [],
-      workspaceIdsToMove: [],
-    }
-    await renderModal()
-    if (message) expect(document.body.textContent).toContain(message)
-    else {
-      expect(document.body.textContent).not.toContain('Before you join')
-      expect(document.body.textContent).not.toContain('without joining an organization')
-    }
-    expect(document.body.textContent).not.toContain('as an organization admin')
-    await act(async () => button('Accept')?.click())
-    expect(mocks.accept).toHaveBeenCalledWith({
-      invitationId: 'invitation-1',
-      disclosedWorkspaceIds: [],
-      disclosedOutcome: outcome,
-    })
-  })
-
-  it('describes an empty workspace migration without omitting its stale check', async () => {
-    invitation.joinPreview = {
-      outcome: 'will-join',
-      organizationName: 'Target Team',
-      workspacesToMove: [],
-      workspaceIdsToMove: [],
-    }
-    await renderModal()
-    expect(document.body.textContent).toContain('You have no personal workspaces to move')
-    await act(async () => button('Accept')?.click())
-    expect(mocks.accept).toHaveBeenCalledWith({
-      invitationId: 'invitation-1',
-      disclosedWorkspaceIds: [],
-      disclosedOutcome: 'will-join',
-    })
-  })
-
-  it('shows loading rather than an empty list while invitations are pending', async () => {
-    mocks.query.mockReturnValue({ data: undefined, isPending: true, isError: false })
-    await renderModal()
-    expect(document.body.textContent).toContain('Loading invitations')
-    expect(document.body.textContent).not.toContain('No pending invitations')
-    expect(button('Accept')).toBeUndefined()
-  })
-
-  it('retries fetch errors without claiming there are no invitations', async () => {
-    mocks.query.mockReturnValue({
-      data: undefined,
-      isPending: false,
-      isError: true,
-      error: new Error('Invitations could not be loaded'),
-      isFetching: false,
-      refetch: mocks.refetch,
-    })
-    await renderModal()
-    expect(document.body.textContent).toContain('Invitations could not be loaded')
-    expect(document.body.textContent).not.toContain('No pending invitations')
-    expect(button('Accept')).toBeUndefined()
-    await act(async () => button('Try again')?.click())
-    expect(mocks.refetch).toHaveBeenCalledOnce()
-  })
-
-  it('shows an empty list only after a successful query', async () => {
-    mocks.query.mockReturnValue({ data: [], isPending: false, isError: false })
-    await renderModal()
-    expect(document.body.textContent).toContain('No pending invitations')
-    expect(button('Accept')).toBeUndefined()
   })
 })

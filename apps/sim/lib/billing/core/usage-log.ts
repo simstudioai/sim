@@ -1,9 +1,11 @@
 import { createHash } from 'node:crypto'
 import { db, dbReplica } from '@sim/db'
-import { usageLog, workflow } from '@sim/db/schema'
+import { subscription as subscriptionTable, usageLog, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { toNumberOrNull } from '@sim/utils/coerce'
 import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { toRecordOrNull } from '@sim/utils/object'
 import { and, desc, eq, gte, inArray, lt, lte, notInArray, or, sql } from 'drizzle-orm'
 import {
   type CursorKey,
@@ -27,6 +29,7 @@ import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import type { InternalUsageLogSource } from '@/lib/billing/usage-sources'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { HttpError } from '@/lib/core/utils/http-error'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbClient, DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('UsageLog')
@@ -582,6 +585,23 @@ export interface RecordCumulativeUsageParams {
   /** Stable per-request key; the single ledger row is keyed on this. */
   eventKey: string
   metadata?: UsageLogMetadata
+  /**
+   * The Stripe-period subscription that pays for this request. When given, a top-up that
+   * arrives after that subscription has moved past the period of the request's latest row is
+   * recorded in a new row stamped with the subscription's current period, so a request that
+   * outlives its billing period is invoiced by the period it was spent in rather than topping up
+   * a period that has already been closed. A charge into a period the subscription's close marker
+   * has already passed (its terminal settlement) throws {@link CumulativeUsagePeriodClosedError}.
+   * Omit it for reporting-window and free payers.
+   *
+   * Mixed versions: code that predates period rows reads only the request key. If such code
+   * (during a deploy, or after a rollback) handles a later callback for a request that already
+   * has period rows, it re-adds those rows' amount to the first row. That only double-counts
+   * when it lands between the rollover and that period's close, which waits at least an hour,
+   * and only for runs spanning a rollover; the exposure is one run's post-rollover spend, cents
+   * to dollars.
+   */
+  payerSubscriptionId?: string
 }
 
 export interface RecordCumulativeUsageResult {
@@ -591,6 +611,57 @@ export interface RecordCumulativeUsageResult {
   delta: number
   /** The request's recorded cumulative cost after this flush. */
   total: number
+  /** The billing period of the row this flush wrote to, or of the request's latest row. */
+  billingPeriod: { start: Date; end: Date }
+}
+
+/**
+ * The most period rows one request may span: its first row plus one per later billing period.
+ * A request still billing twelve periods after it started is refused rather than scanned.
+ */
+const MAX_CUMULATIVE_PERIOD_ROWS = 12
+
+/**
+ * The ledger key of the `index`-th period a cumulative request rolled into; 0 is the request key.
+ * The cost callback refuses a request key containing `@`, so these never collide with another
+ * request's.
+ */
+function cumulativePeriodEventKey(eventKey: string, index: number): string {
+  return index === 0 ? eventKey : `${eventKey}@${index}`
+}
+
+/** Decimal places kept when period row costs are summed or subtracted as floats. */
+const PERIOD_COST_DECIMALS = 12
+
+function sumLedgerCost(rows: readonly { cost: string }[]): number {
+  if (rows.length <= 1) return rows[0] ? Number.parseFloat(rows[0].cost) : 0
+  const total = rows.reduce((sum, row) => sum + Number.parseFloat(row.cost), 0)
+  return Number(total.toFixed(PERIOD_COST_DECIMALS))
+}
+
+const CUMULATIVE_TOKEN_FIELDS = ['inputTokens', 'outputTokens'] as const
+
+/**
+ * A period row's share of a cumulative callback's token counts: the cumulative counts minus what
+ * the request's other rows already hold, so summing the rows never counts a token twice.
+ */
+function periodUsageMetadata(
+  metadata: UsageLogMetadata | undefined,
+  otherRows: readonly { metadata: unknown }[]
+): UsageLogMetadata | undefined {
+  const cumulative = toRecordOrNull(metadata)
+  if (!cumulative || otherRows.length === 0) return metadata
+  const share: Record<string, unknown> = { ...cumulative }
+  for (const field of CUMULATIVE_TOKEN_FIELDS) {
+    const total = toNumberOrNull(cumulative[field])
+    if (total === null) continue
+    const recorded = otherRows.reduce(
+      (sum, row) => sum + (toNumberOrNull(toRecordOrNull(row.metadata)?.[field]) ?? 0),
+      0
+    )
+    share[field] = Math.max(0, total - recorded)
+  }
+  return share
 }
 
 export type CumulativeUsageContextField =
@@ -611,6 +682,23 @@ export class CumulativeUsageContextMismatchError extends Error {
   }
 }
 
+/**
+ * A cumulative charge whose billing period the payer has already settled: the subscription ended
+ * and its final invoice summed that period. The charge is refused rather than recorded where no
+ * invoice will ever read it.
+ */
+export class CumulativeUsagePeriodClosedError extends Error {
+  constructor(
+    readonly eventKey: string,
+    readonly billingPeriod: { start: Date; end: Date }
+  ) {
+    super(
+      `Cumulative usage event "${eventKey}" targets a billing period that has already been settled`
+    )
+    this.name = 'CumulativeUsagePeriodClosedError'
+  }
+}
+
 interface CumulativeUsageLedgerBinding {
   userId: string
   workspaceId: string | null
@@ -627,6 +715,11 @@ function assertCumulativeUsageLedgerBinding(
     workspaceId?: string
     billingContext: BillingContext
     eventKey: string
+    /**
+     * A request whose first charge landed after its period closed, or after an anchor reset moved
+     * its start forward, is stamped with a later one.
+     */
+    allowLaterPeriod?: boolean
   }
 ): void {
   const mismatchedFields: CumulativeUsageContextField[] = []
@@ -642,11 +735,16 @@ function assertCumulativeUsageLedgerBinding(
   ) {
     mismatchedFields.push('billing entity')
   }
-  if (
-    existing.billingPeriodStart?.getTime() !==
-      expected.billingContext.billingPeriod.start.getTime() ||
-    existing.billingPeriodEnd?.getTime() !== expected.billingContext.billingPeriod.end.getTime()
-  ) {
+  const frozenPeriod = expected.billingContext.billingPeriod
+  const samePeriod =
+    existing.billingPeriodStart?.getTime() === frozenPeriod.start.getTime() &&
+    existing.billingPeriodEnd?.getTime() === frozenPeriod.end.getTime()
+  // The same forward-only rule that rolls a charge into a new period row.
+  const laterPeriod =
+    expected.allowLaterPeriod === true &&
+    existing.billingPeriodStart !== null &&
+    existing.billingPeriodStart.getTime() > frozenPeriod.start.getTime()
+  if (!samePeriod && !laterPeriod) {
     mismatchedFields.push('billing period')
   }
 
@@ -702,6 +800,7 @@ export async function recordCumulativeUsage(
     cost,
     eventKey,
     metadata,
+    payerSubscriptionId,
   } = params
 
   if (workspaceId && (!billingEntity || !billingPeriod)) {
@@ -740,13 +839,15 @@ export async function recordCumulativeUsage(
           set_config('lock_timeout', ${`${CUMULATIVE_FLUSH_LOCK_TIMEOUT_MS}ms`}, true)
       `)
       enterStage('lock')
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${eventKey}, 0))`)
+      await acquireAdvisoryXactLock(tx, 'usage_log_event', eventKey)
 
       enterStage('read')
-      const [existing] = await tx
+      const rows = await tx
         .select({
           id: usageLog.id,
+          eventKey: usageLog.eventKey,
           cost: usageLog.cost,
+          metadata: usageLog.metadata,
           userId: usageLog.userId,
           workspaceId: usageLog.workspaceId,
           billingEntityType: usageLog.billingEntityType,
@@ -755,55 +856,135 @@ export async function recordCumulativeUsage(
           billingPeriodEnd: usageLog.billingPeriodEnd,
         })
         .from(usageLog)
-        .where(eq(usageLog.eventKey, eventKey))
-        .limit(1)
+        .where(
+          payerSubscriptionId
+            ? inArray(
+                usageLog.eventKey,
+                Array.from({ length: MAX_CUMULATIVE_PERIOD_ROWS }, (_, index) =>
+                  cumulativePeriodEventKey(eventKey, index)
+                )
+              )
+            : eq(usageLog.eventKey, eventKey)
+        )
+        .limit(MAX_CUMULATIVE_PERIOD_ROWS)
 
-      if (existing) {
-        assertCumulativeUsageLedgerBinding(existing, {
+      // Period rows are written in order under this lock, so they are the keys 0..n-1.
+      const chain = payerSubscriptionId
+        ? Array.from({ length: rows.length }, (_, index) =>
+            rows.find((row) => row.eventKey === cumulativePeriodEventKey(eventKey, index))
+          ).filter((row) => row !== undefined)
+        : rows.slice(0, 1)
+      if (payerSubscriptionId && chain.length !== rows.length) {
+        throw new Error(`Cumulative usage event "${eventKey}" has a gap in its period rows`)
+      }
+      const [anchor] = chain
+      if (anchor) {
+        assertCumulativeUsageLedgerBinding(anchor, {
           userId,
           workspaceId,
           billingContext,
           eventKey,
+          allowLaterPeriod: Boolean(payerSubscriptionId),
         })
       }
 
-      const recorded = existing ? Number.parseFloat(existing.cost) : 0
+      const latest = chain.at(-1)
+      const latestPeriod =
+        latest?.billingPeriodStart && latest.billingPeriodEnd
+          ? { start: latest.billingPeriodStart, end: latest.billingPeriodEnd }
+          : billingContext.billingPeriod
+      const recorded = sumLedgerCost(chain)
       const { shouldBill, delta, newTotal } = resolveCumulativeTopUp(recorded, cost)
 
       if (!shouldBill) {
         enterStage('commit')
-        return { billed: false, delta: 0, total: recorded }
+        return { billed: false, delta: 0, total: recorded, billingPeriod: latestPeriod }
+      }
+
+      // The payer's current period and close marker, share-locked so a change to either (a
+      // rollover, an anchor reset inside the old period, or a terminal settlement) waits for this
+      // write to commit, and whatever a close later sums for the old period is final.
+      const [currentPeriod] = payerSubscriptionId
+        ? await tx
+            .select({
+              start: subscriptionTable.periodStart,
+              end: subscriptionTable.periodEnd,
+              closedThrough: subscriptionTable.lastClosedPeriodStart,
+            })
+            .from(subscriptionTable)
+            .where(eq(subscriptionTable.id, payerSubscriptionId))
+            .for('share')
+            .limit(1)
+        : []
+
+      // Only ever forward: a subscription period that does not start after the latest row's
+      // keeps topping up that row, whatever the wall clock or a replayed webhook says. A start
+      // that moved forward inside the old period (anchor reset, resync) still rolls, so the old
+      // period's close is never topped up after the fact.
+      const rolledPeriod =
+        currentPeriod?.start &&
+        currentPeriod.end &&
+        currentPeriod.start.getTime() > latestPeriod.start.getTime()
+          ? { start: currentPeriod.start, end: currentPeriod.end }
+          : null
+      if (rolledPeriod && latest && chain.length >= MAX_CUMULATIVE_PERIOD_ROWS) {
+        throw new Error(`Cumulative usage event "${eventKey}" spans too many billing periods`)
+      }
+      // A marker at or past the target period's end means that period is already settled — a
+      // terminal settlement marks it whatever the subscription's bounds — so nothing would
+      // ever invoice this charge.
+      const targetPeriod = rolledPeriod ?? latestPeriod
+      if (
+        currentPeriod?.closedThrough &&
+        currentPeriod.closedThrough.getTime() >= targetPeriod.end.getTime()
+      ) {
+        throw new CumulativeUsagePeriodClosedError(eventKey, targetPeriod)
       }
 
       enterStage('write')
-      if (existing) {
+      if (latest && !rolledPeriod) {
+        const otherRows = chain.slice(0, -1)
+        const latestCost =
+          otherRows.length === 0
+            ? newTotal
+            : Number((newTotal - sumLedgerCost(otherRows)).toFixed(PERIOD_COST_DECIMALS))
         await tx
           .update(usageLog)
-          .set({ cost: newTotal.toString(), metadata: metadata ?? null })
-          .where(eq(usageLog.id, existing.id))
-      } else {
-        await recordUsage({
-          userId,
-          workspaceId,
-          tx,
-          billingEntity: billingContext.billingEntity,
-          billingPeriod: billingContext.billingPeriod,
-          entries: [
-            {
-              category: 'model',
-              source,
-              description: model,
-              cost: newTotal,
-              eventKey,
-              sourceReference: eventKey,
-              ...(metadata ? { metadata } : {}),
-            },
-          ],
-        })
+          .set({
+            cost: latestCost.toString(),
+            metadata: periodUsageMetadata(metadata, otherRows) ?? null,
+          })
+          .where(eq(usageLog.id, latest.id))
+        enterStage('commit')
+        return { billed: true, delta, total: newTotal, billingPeriod: latestPeriod }
       }
 
+      const rowMetadata = periodUsageMetadata(metadata, chain)
+      await recordUsage({
+        userId,
+        workspaceId,
+        tx,
+        billingEntity: billingContext.billingEntity,
+        billingPeriod: targetPeriod,
+        entries: [
+          {
+            category: 'model',
+            source,
+            description: model,
+            cost: chain.length === 0 ? newTotal : Number(delta.toFixed(PERIOD_COST_DECIMALS)),
+            eventKey: cumulativePeriodEventKey(eventKey, chain.length),
+            sourceReference: eventKey,
+            ...(rowMetadata ? { metadata: rowMetadata } : {}),
+          },
+        ],
+      })
       enterStage('commit')
-      return { billed: true, delta, total: newTotal }
+      return {
+        billed: true,
+        delta,
+        total: newTotal,
+        billingPeriod: { start: targetPeriod.start, end: targetPeriod.end },
+      }
     })
     succeeded = true
     return result

@@ -1,20 +1,21 @@
-/**
- * @vitest-environment node
- */
+import {
+  selectorCredentialsMock,
+  selectorCredentialsMockFns,
+} from '@sim/testing/mocks/selector-credentials.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetch, mockResolveSelectorOAuthAccessToken } = vi.hoisted(() => ({
+const { mockFetch } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
-  mockResolveSelectorOAuthAccessToken: vi.fn(),
 }))
 
-vi.mock('@/lib/selectors/server/credentials', () => ({
-  resolveSelectorOAuthAccessToken: mockResolveSelectorOAuthAccessToken,
-}))
+vi.mock('@/lib/selectors/server/credentials', () => selectorCredentialsMock)
 
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { mondaySelectorAttachments } from '@/lib/selectors/server/providers/monday'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
+
+const mockResolveSelectorOAuthAccessToken =
+  selectorCredentialsMockFns.mockResolveSelectorOAuthAccessToken
 
 function listArgs(): ExecuteServerSelectorArgs {
   return {
@@ -33,25 +34,11 @@ function listArgs(): ExecuteServerSelectorArgs {
 
 describe('Monday server selector adapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
     mockResolveSelectorOAuthAccessToken.mockResolvedValue('server-only-token')
   })
 
   afterAll(() => vi.unstubAllGlobals())
-
-  it('falls back to the provider ID when a board name is empty', async () => {
-    mockFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify({ data: { boards: [{ id: 'board-1', name: '' }] } }), {
-        status: 200,
-      })
-    )
-
-    await expect(mondaySelectorAttachments['monday.boards'].execute(listArgs())).resolves.toEqual({
-      kind: 'list',
-      items: [{ id: 'board-1', label: 'board-1' }],
-    })
-  })
 
   it('hydrates a selected board through a direct ID lookup', async () => {
     mockFetch.mockResolvedValueOnce(

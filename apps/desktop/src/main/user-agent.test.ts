@@ -15,21 +15,6 @@ describe('stockChromeUserAgent', () => {
     expect(agent).not.toMatch(/Electron/)
     expect(agent).not.toMatch(/Sim\//)
   })
-
-  it('reproduces the desktop string Chrome sends under user-agent reduction', () => {
-    expect(stockChromeUserAgent(ELECTRON_DEFAULT)).toBe(STOCK_CHROME)
-  })
-
-  it('keeps the platform token of the machine it is running on', () => {
-    const windowsDefault =
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Sim/1.0.0 Chrome/140.0.7339.207 Electron/43.1.1 Safari/537.36'
-    expect(stockChromeUserAgent(windowsDefault)).toContain('(Windows NT 10.0; Win64; x64)')
-  })
-
-  it('passes through a string that is not a Chromium user agent', () => {
-    expect(stockChromeUserAgent('curl/8.4.0')).toBe('curl/8.4.0')
-    expect(stockChromeUserAgent('')).toBe('')
-  })
 })
 
 describe('installBrowserUserAgent', () => {

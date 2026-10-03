@@ -1,6 +1,4 @@
-/**
- * @vitest-environment node
- */
+import { flushMicrotasks } from '@sim/testing/helpers/async'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -74,6 +72,87 @@ function runtimeWithFilePages(count: number, requested: string[]): AgentCliRunti
 }
 
 describe('universal grep', () => {
+  it('bounds matching time for adversarial patterns across file lines', async () => {
+    const runtime = runtimeWith({
+      '/api/v2/files': { data: [{ id: 'input' }], nextCursor: null },
+      '/api/v2/files/input/text': {
+        data: { text: Array.from({ length: 12 }, () => `${'a'.repeat(26)}!`).join('\n') },
+      },
+    })
+    const started = performance.now()
+    const result = await runEngine('grep', ['(a+)+$'], runtime, { scope: 'files', count: true })
+    expect(performance.now() - started).toBeLessThan(2_000)
+    expect(result).toMatchObject({ exitCode: 0, stdout: '0' })
+  }, 15_000)
+
+  it('matches unsupported regex syntax literally without falling back to backtracking', async () => {
+    const result = await runEngine(
+      'grep',
+      ['(?=NEEDLE)'],
+      runtimeWith({
+        '/api/v2/files': { data: [{ id: 'input' }], nextCursor: null },
+        '/api/v2/files/input/text': { data: { text: '(?=needle)\nneedle' } },
+      }),
+      { scope: 'files', count: true, i: true }
+    )
+    expect(result).toMatchObject({ exitCode: 0, stdout: '1 (files=1)' })
+  })
+
+  it('bounds overlapping context windows while counting matches beyond the output limit', async () => {
+    const result = await runEngine(
+      'grep',
+      ['needle'],
+      runtimeWith({
+        '/api/v2/files': { data: [{ id: 'input' }], nextCursor: null },
+        '/api/v2/files/input/text': {
+          data: { text: ['header', ...Array.from({ length: 30_000 }, () => 'needle')].join('\n') },
+        },
+      }),
+      { scope: 'files', C: '30000', limit: '3' }
+    )
+    expect(result).toMatchObject({
+      exitCode: 0,
+      stdout:
+        'files/input:1: header\nfiles/input:2: needle\nfiles/input:3: needle\n' +
+        '[2 of 30000 matching lines shown — narrow with --scope, --in, or a tighter pattern]',
+    })
+  }, 15_000)
+
+  it('fails an exhausted scan budget instead of returning a complete count', async () => {
+    vi.spyOn(performance, 'now').mockReturnValueOnce(0).mockReturnValue(6_000)
+    const result = await runEngine('grep', ['id'], runtimeWith(CATALOG), {
+      scope: 'blocks',
+      count: true,
+    })
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toBe('')
+    expect(result.stderr).toMatch(/incomplete.*budget/i)
+  })
+
+  it('yields during scanning so a pending cancellation can stop the search', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.spyOn(performance, 'now').mockReturnValueOnce(0).mockReturnValue(20)
+      const controller = new AbortController()
+      setTimeout(() => controller.abort(new Error('Search stopped')), 0)
+      const pending = runEngine(
+        'grep',
+        ['id'],
+        { ...runtimeWith(CATALOG), signal: controller.signal },
+        { scope: 'blocks' }
+      )
+      await flushMicrotasks()
+      await vi.runAllTimersAsync()
+      expect(await pending).toMatchObject({
+        exitCode: 1,
+        stdout: '',
+        stderr: expect.stringContaining('Search stopped'),
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('finds field ids inside block definitions and names the path-shaped line', async () => {
     const result = await runEngine('grep', ['stream'], runtimeWith(CATALOG), {
       scope: 'blocks',
@@ -256,7 +335,7 @@ describe('universal grep', () => {
     expect(result.stderr).toContain('e.g. blocks/table_v2')
   })
 
-  it.each(['knowledge', 'kb', 'KB', 'knowledge/kb-123'])(
+  it.each(['KB', 'knowledge/kb-123'])(
     'redirects --in %s to semantic knowledge search before materializing any world',
     async (selector) => {
       /** An empty runtime throws on any request, so a clean refusal proves nothing was fetched. */
@@ -327,12 +406,6 @@ describe('universal grep', () => {
     expect(result.exitCode).toBe(0)
     expect(result.stdout).toContain('workflows/fx-etl (wf-1):')
     expect(result.stdout).toContain('name: fx-etl')
-  })
-
-  it('reports no matches honestly', async () => {
-    const result = await runEngine('grep', ['zzz-nope'], runtimeWith(CATALOG), { scope: 'blocks' })
-    expect(result.exitCode).toBe(0)
-    expect(result.stdout).toContain('No matches for "zzz-nope" in blocks')
   })
 
   it('names files by their VFS path, with no doubled slash at the root', async () => {

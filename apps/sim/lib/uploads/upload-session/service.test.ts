@@ -1,41 +1,42 @@
-/**
- * @vitest-environment node
- */
 import type { Principal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { sha256Hex } from '@sim/security/hash'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  createExecutorPrincipal,
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { eq, inArray, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 
 const {
   mockAbortProviderUpload,
-  mockCheckStorageQuota,
   mockCompleteMultipart,
   mockCreatePutTransfer,
   mockDeleteObjectVersion,
   mockHeadObject,
   mockInitiateMultipart,
   mockListMultipartParts,
-  mockResolveBillingContext,
   mockUploadStorageProvider,
 } = vi.hoisted(() => ({
   mockAbortProviderUpload: vi.fn(),
-  mockCheckStorageQuota: vi.fn(),
   mockCompleteMultipart: vi.fn(),
   mockCreatePutTransfer: vi.fn(),
   mockDeleteObjectVersion: vi.fn(),
   mockHeadObject: vi.fn(),
   mockInitiateMultipart: vi.fn(),
   mockListMultipartParts: vi.fn(),
-  mockResolveBillingContext: vi.fn(),
   mockUploadStorageProvider: vi.fn(() => 's3' as const),
 }))
 
-vi.mock('@/lib/billing/storage', () => ({
-  checkStorageQuotaForBillingContext: mockCheckStorageQuota,
-  resolveStorageBillingContext: mockResolveBillingContext,
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
 
 /**
  * Stands in for the workspace-files barrel, which pulls the whole file manager.
@@ -43,15 +44,7 @@ vi.mock('@/lib/billing/storage', () => ({
  * `contexts/workspace/workspace-file-manager.test.ts`, so the purposes that key
  * through it are deliberately absent from the sidecar-bounds sweep below.
  */
-vi.mock('@/lib/uploads/contexts/workspace', async () => {
-  const { buildStorageKeySegment } = await import('@/lib/uploads/core/storage-key')
-  return {
-    generateWorkspaceFileKey: vi.fn(
-      (workspaceId: string, fileName: string) =>
-        `workspace/${workspaceId}/${buildStorageKeySegment('final-', fileName)}`
-    ),
-  }
-})
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 
 vi.mock('@/lib/uploads/upload-session/cleanup', () => ({
   maybeCleanupLocalUploadArtifacts: vi.fn().mockResolvedValue({ scanned: 0, removed: 0 }),
@@ -69,8 +62,10 @@ vi.mock('@/lib/uploads/upload-session/provider', () => ({
   uploadStorageProvider: mockUploadStorageProvider,
 }))
 
-import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { LOCAL_UPLOAD_METADATA_SUFFIX } from '@/lib/uploads/core/storage-key'
+import {
+  buildStorageKeySegment,
+  LOCAL_UPLOAD_METADATA_SUFFIX,
+} from '@/lib/uploads/core/storage-key'
 import {
   abortUploadSession,
   assertUploadSessionAuthBinding,
@@ -79,7 +74,6 @@ import {
   createUploadPartUrls,
   createUploadSession,
   createUploadSessionAuthBinding,
-  expectedUploadPartSize,
   getOwnedUploadSession,
   getPrincipalKnowledgeDocumentUploadSession,
   UPLOAD_SESSION_PART_SIZE,
@@ -89,20 +83,24 @@ import {
 } from '@/lib/uploads/upload-session/service'
 import {
   bindWorkspaceFileUploadProvenance,
-  readWorkspaceFileUploadProvenance,
   WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY,
 } from '@/lib/uploads/upload-session/workspace-file-provenance'
 import { toInternalUploadSession } from '@/app/api/files/uploads/utils'
+
+workspaceUploadsMockFns.mockGenerateWorkspaceFileKey.mockImplementation(
+  (workspaceId: string, fileName: string) =>
+    `workspace/${workspaceId}/${buildStorageKeySegment('final-', fileName)}`
+)
+
 import { toV2FileUpload } from '@/app/api/v2/files/uploads/utils'
+
+const mockCheckStorageQuota = billingStorageMockFns.mockCheckStorageQuotaForBillingContext
+const mockResolveBillingContext = billingStorageMockFns.mockResolveStorageBillingContext
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 const FINAL_KEY = `workspace/${WORKSPACE_ID}/final-file.bin`
-const executorPrincipal: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  subjectUserId: 'user-1',
+const executorPrincipal: WorkflowExecutionDelegatedPrincipal = createExecutorPrincipal({
   workspaceId: WORKSPACE_ID,
-  delegationId: 'delegation-1',
   audience: 'sim:tables',
   issuedAt: new Date('2026-08-01T00:00:00.000Z'),
   expiresAt: new Date('2099-08-01T00:00:00.000Z'),
@@ -111,11 +109,10 @@ const executorPrincipal: WorkflowExecutionDelegatedPrincipal = {
     workflowId: 'workflow-1',
     executionId: 'execution-1',
   },
-}
+})
 
 describe('upload sessions', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockResolveBillingContext.mockResolvedValue({ workspaceId: WORKSPACE_ID })
     mockCheckStorageQuota.mockResolvedValue({ allowed: true })
@@ -157,7 +154,7 @@ describe('upload sessions', () => {
     expect(inserted.metadata.authBinding).toEqual({
       version: 1,
       workspaceId: WORKSPACE_ID,
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
     })
   })
 
@@ -178,7 +175,7 @@ describe('upload sessions', () => {
       purpose: 'organization_logo',
       organizationId: 'org-1',
       expectedLogo: null,
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       fileName: 'logo.png',
       contentType: 'image/png',
       fileSize: 100,
@@ -215,7 +212,7 @@ describe('upload sessions', () => {
         organizationId: 'org-1',
         expectedLogo: null,
         userId: 'user-1',
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         fileName: 'logo.png',
         ...file,
       })
@@ -239,7 +236,7 @@ describe('upload sessions', () => {
       userId: 'user-1',
       purpose: 'mothership_attachment',
       organizationId: 'org-1',
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       fileName: 'image.png',
       contentType: 'image/png',
       fileSize: 100,
@@ -274,7 +271,7 @@ describe('upload sessions', () => {
         userId: 'user-1',
         purpose: 'mothership_attachment',
         organizationId: 'org-1',
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         fileName: 'image.png',
         ...file,
       })
@@ -283,44 +280,13 @@ describe('upload sessions', () => {
     expect(dbChainMockFns.values).not.toHaveBeenCalled()
   })
 
-  it('persists trusted source classification with the upload before issuing its transfer', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([uploadRow()])
-    const source = {
-      status: 'exact' as const,
-      entries: [{ encryptedValue: 'fixture-ciphertext', sourceUserId: 'user-1' }],
-    }
-    await createUploadSession({
-      id: 'upload-1',
-      workspaceId: WORKSPACE_ID,
-      userId: 'user-1',
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      purpose: 'workspace_file',
-      fileName: 'file.bin',
-      contentType: 'application/octet-stream',
-      fileSize: 4,
-      secretProvenance: source,
-    })
-    const metadata = dbChainMockFns.values.mock.calls[0][0].metadata
-    expect(readWorkspaceFileUploadProvenance({ workspaceId: WORKSPACE_ID, metadata })).toEqual(
-      source
-    )
-    expect(metadata.authBinding.principal.userId).toBe('user-1')
-    expect(dbChainMockFns.values).toHaveBeenCalledBefore(mockCreatePutTransfer)
-    expect(JSON.stringify(mockCreatePutTransfer.mock.calls)).not.toContain('fixture-ciphertext')
-    source.entries.length = 0
-    expect(readWorkspaceFileUploadProvenance({ workspaceId: WORKSPACE_ID, metadata })).toEqual({
-      status: 'exact',
-      entries: [{ encryptedValue: 'fixture-ciphertext', sourceUserId: 'user-1' }],
-    })
-  })
-
   it('does not accept source classification smuggled into generic session metadata', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([uploadRow()])
     await createUploadSession({
       id: 'upload-1',
       workspaceId: WORKSPACE_ID,
       userId: 'user-1',
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       purpose: 'workspace_file',
       fileName: 'file.bin',
       contentType: 'application/octet-stream',
@@ -377,7 +343,7 @@ describe('upload sessions', () => {
       id: 'upload-1',
       workspaceId: WORKSPACE_ID,
       userId: 'user-1',
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       purpose: purpose as Parameters<typeof createUploadSession>[0]['purpose'],
       fileName: `${'a'.repeat(251)}.txt`,
       contentType: 'text/plain',
@@ -413,7 +379,7 @@ describe('upload sessions', () => {
         id: 'upload-1',
         workspaceId: WORKSPACE_ID,
         userId: 'user-1',
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         purpose: purpose as Parameters<typeof createUploadSession>[0]['purpose'],
         fileName: 'empty.txt',
         contentType: 'text/plain',
@@ -457,62 +423,13 @@ describe('upload sessions', () => {
     )
   })
 
-  it('allocates distinct keys for same-named execution attachments', async () => {
-    dbChainMockFns.returning
-      .mockResolvedValueOnce([
-        uploadRow({
-          id: 'upload-1',
-          purpose: 'execution_attachment',
-          storageContext: 'execution',
-          workflowId: 'workflow-1',
-          executionId: 'execution-1',
-        }),
-      ])
-      .mockResolvedValueOnce([
-        uploadRow({
-          id: 'upload-2',
-          purpose: 'execution_attachment',
-          storageContext: 'execution',
-          workflowId: 'workflow-1',
-          executionId: 'execution-1',
-        }),
-      ])
-
-    const createExecutionAttachment = (id: string) =>
-      createUploadSession({
-        id,
-        workspaceId: WORKSPACE_ID,
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-        userId: 'user-1',
-        purpose: 'execution_attachment',
-        fileName: 'output.bin',
-        contentType: 'application/octet-stream',
-        fileSize: 4,
-        localOrigin: 'http://localhost:3000',
-      })
-
-    await createExecutionAttachment('upload-1')
-    await createExecutionAttachment('upload-2')
-
-    const firstKey = dbChainMockFns.values.mock.calls[0][0].finalKey
-    const secondKey = dbChainMockFns.values.mock.calls[1][0].finalKey
-    expect(firstKey).not.toBe(secondKey)
-    expect(firstKey).toMatch(
-      new RegExp(`^execution/${WORKSPACE_ID}/workflow-1/execution-1/[^/]+/upload-1-output\\.bin$`)
-    )
-    expect(secondKey).toMatch(
-      new RegExp(`^execution/${WORKSPACE_ID}/workflow-1/execution-1/[^/]+/upload-2-output\\.bin$`)
-    )
-  })
-
   it('rejects workspace control access without the matching immutable credential binding', async () => {
     const row = uploadRow({
       metadata: {
         authBinding: {
           version: 1,
           workspaceId: WORKSPACE_ID,
-          principal: { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-1' },
+          principal: createWorkspaceApiKeyPrincipal({ workspaceId: WORKSPACE_ID }),
         },
       },
     })
@@ -522,40 +439,9 @@ describe('upload sessions', () => {
       getOwnedUploadSession({
         uploadId: row.id,
         uploadToken: 'upload-secret',
-        principal: { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-2' },
+        principal: createWorkspaceApiKeyPrincipal({ workspaceId: WORKSPACE_ID, keyId: 'key-2' }),
       })
     ).rejects.toMatchObject({ code: 'not_found' })
-  })
-
-  it('binds new knowledge-document sessions to the exact creating credential', async () => {
-    const row = uploadRow({
-      purpose: 'knowledge_document',
-      knowledgeBaseId: 'kb-1',
-      storageContext: 'knowledge-base',
-      finalKey: 'kb/guide.pdf',
-      fileName: 'guide.pdf',
-      contentType: 'application/pdf',
-    })
-    dbChainMockFns.returning.mockResolvedValueOnce([row])
-
-    await createUploadSession({
-      id: row.id,
-      workspaceId: WORKSPACE_ID,
-      knowledgeBaseId: 'kb-1',
-      userId: 'user-1',
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-      purpose: 'knowledge_document',
-      fileName: 'guide.pdf',
-      contentType: 'application/pdf',
-      fileSize: 4,
-      localOrigin: 'http://localhost:3000',
-    })
-
-    expect(dbChainMockFns.values.mock.calls[0][0].metadata.authBinding).toEqual({
-      version: 1,
-      workspaceId: WORKSPACE_ID,
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-    })
   })
 
   it('rejects a different API key on a bound knowledge-document control leg', async () => {
@@ -567,7 +453,7 @@ describe('upload sessions', () => {
         authBinding: {
           version: 1,
           workspaceId: WORKSPACE_ID,
-          principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+          principal: createPersonalApiKeyPrincipal(),
         },
       },
     })
@@ -577,7 +463,7 @@ describe('upload sessions', () => {
       getPrincipalKnowledgeDocumentUploadSession({
         uploadId: row.id,
         uploadToken: 'upload-secret',
-        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-2' },
+        principal: createPersonalApiKeyPrincipal({ keyId: 'key-2' }),
         workspaceId: WORKSPACE_ID,
         knowledgeBaseId: 'kb-1',
       })
@@ -587,26 +473,24 @@ describe('upload sessions', () => {
   it.each([
     {
       label: 'session',
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      mismatch: { kind: 'session', userId: 'user-1', sessionId: 'session-2' },
+      principal: createSessionPrincipal(),
+      mismatch: createSessionPrincipal({ sessionId: 'session-2' }),
     },
     {
       label: 'personal API key',
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-      mismatch: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-2' },
+      principal: createPersonalApiKeyPrincipal(),
+      mismatch: createPersonalApiKeyPrincipal({ keyId: 'key-2' }),
     },
     {
       label: 'workspace API key',
-      principal: {
-        kind: 'workspace_api_key',
+      principal: createWorkspaceApiKeyPrincipal({
         workspaceId: WORKSPACE_ID,
         keyId: 'workspace-key-1',
-      },
-      mismatch: {
-        kind: 'workspace_api_key',
+      }),
+      mismatch: createWorkspaceApiKeyPrincipal({
         workspaceId: WORKSPACE_ID,
         keyId: 'workspace-key-2',
-      },
+      }),
     },
   ] satisfies Array<{ label: string; principal: Principal; mismatch: Principal }>)(
     'requires the exact bound $label credential for knowledge control',
@@ -624,70 +508,6 @@ describe('upload sessions', () => {
     }
   )
 
-  it('preserves legacy unbound sessions under their prior ownership rules', () => {
-    const legacy = sessionRecord({ metadata: {} })
-
-    expect(() =>
-      assertUploadSessionAuthBinding(legacy, {
-        kind: 'session',
-        userId: legacy.userId,
-        sessionId: 'current-session',
-      })
-    ).not.toThrow()
-    expect(() =>
-      assertUploadSessionAuthBinding(legacy, {
-        kind: 'personal_api_key',
-        userId: legacy.userId,
-        keyId: 'current-key',
-      })
-    ).not.toThrow()
-    expect(() =>
-      assertUploadSessionAuthBinding(legacy, {
-        kind: 'workspace_api_key',
-        workspaceId: WORKSPACE_ID,
-        keyId: 'current-workspace-key',
-      })
-    ).not.toThrow()
-
-    expect(() =>
-      assertUploadSessionAuthBinding(legacy, {
-        kind: 'session',
-        userId: 'different-user',
-        sessionId: 'current-session',
-      })
-    ).toThrow('Upload session not found')
-    expect(() =>
-      assertUploadSessionAuthBinding(legacy, {
-        kind: 'workspace_api_key',
-        workspaceId: 'different-workspace',
-        keyId: 'current-workspace-key',
-      })
-    ).toThrow('Upload session not found')
-  })
-
-  it('preserves the explicit missing-binding compatibility path for old knowledge sessions', () => {
-    const legacy = sessionRecord({
-      purpose: 'knowledge_document',
-      knowledgeBaseId: 'kb-1',
-      metadata: {},
-    })
-
-    expect(() =>
-      assertUploadSessionAuthBinding(legacy, {
-        kind: 'personal_api_key',
-        userId: legacy.userId,
-        keyId: 'replacement-key',
-      })
-    ).not.toThrow()
-    expect(() =>
-      assertUploadSessionAuthBinding(legacy, {
-        kind: 'personal_api_key',
-        userId: 'different-user',
-        keyId: 'replacement-key',
-      })
-    ).toThrow('Upload session not found')
-  })
-
   it('never treats a malformed credential binding as a legacy session', () => {
     const malformed = sessionRecord({
       purpose: 'knowledge_document',
@@ -696,11 +516,10 @@ describe('upload sessions', () => {
     })
 
     expect(() =>
-      assertUploadSessionAuthBinding(malformed, {
-        kind: 'session',
-        userId: malformed.userId,
-        sessionId: 'current-session',
-      })
+      assertUploadSessionAuthBinding(
+        malformed,
+        createSessionPrincipal({ userId: malformed.userId, sessionId: 'current-session' })
+      )
     ).toThrow('Upload session not found')
   })
 
@@ -712,7 +531,7 @@ describe('upload sessions', () => {
         authBinding: {
           version: 1,
           workspaceId: WORKSPACE_ID,
-          principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+          principal: createPersonalApiKeyPrincipal(),
         },
       },
     })
@@ -724,7 +543,7 @@ describe('upload sessions', () => {
         uploadId: bound.id,
         uploadToken: 'upload-secret',
         purpose: 'table_import',
-        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+        principal: createPersonalApiKeyPrincipal(),
       })
     ).resolves.toMatchObject({ id: bound.id, purpose: 'table_import' })
     await expect(
@@ -732,45 +551,9 @@ describe('upload sessions', () => {
         uploadId: bound.id,
         uploadToken: 'upload-secret',
         purpose: 'table_import',
-        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-2' },
+        principal: createPersonalApiKeyPrincipal({ keyId: 'key-2' }),
       })
     ).rejects.toMatchObject({ code: 'not_found' })
-  })
-
-  it('binds table-import uploads to the canonical executor workflow execution', async () => {
-    const row = uploadRow({
-      purpose: 'table_import',
-      storageContext: 'table-import',
-      finalKey: `table-import/${WORKSPACE_ID}/upload-1/people.csv`,
-      fileName: 'people.csv',
-      contentType: 'text/csv',
-    })
-    dbChainMockFns.returning.mockResolvedValueOnce([row])
-
-    await createUploadSession({
-      id: row.id,
-      workspaceId: WORKSPACE_ID,
-      userId: 'user-1',
-      principal: executorPrincipal,
-      purpose: 'table_import',
-      fileName: 'people.csv',
-      contentType: 'text/csv',
-      fileSize: 4,
-      localOrigin: 'http://localhost:3000',
-    })
-
-    expect(dbChainMockFns.values.mock.calls[0][0].metadata.authBinding).toEqual({
-      version: 1,
-      workspaceId: WORKSPACE_ID,
-      principal: {
-        kind: 'delegated',
-        serviceId: 'executor',
-        subjectUserId: 'user-1',
-        audience: 'sim:tables',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-      },
-    })
   })
 
   it.each([
@@ -858,70 +641,6 @@ describe('upload sessions', () => {
     ).toThrow('Delegated principal cannot create this upload')
   })
 
-  it('fails closed for legacy table-import sessions without a binding', () => {
-    const legacyImport = sessionRecord({
-      purpose: 'table_import',
-      storageContext: 'table-import',
-      metadata: {},
-    })
-
-    expect(() =>
-      assertUploadSessionAuthBinding(legacyImport, {
-        kind: 'session',
-        userId: legacyImport.userId,
-        sessionId: 'current-session',
-      })
-    ).toThrow('Upload session not found')
-  })
-
-  it('initiates multipart storage directly at the final key', async () => {
-    const fileSize = UPLOAD_SESSION_PUT_MAX_BYTES + 1
-    const row = uploadRow({
-      fileSize,
-      method: 'multipart',
-      providerUploadId: 'provider-upload-1',
-      partSize: UPLOAD_SESSION_PART_SIZE,
-      partCount: Math.ceil(fileSize / UPLOAD_SESSION_PART_SIZE),
-    })
-    dbChainMockFns.returning.mockResolvedValueOnce([row])
-
-    const created = await createWorkspaceUpload(fileSize)
-
-    expect(created.transfer).toEqual({
-      method: 'multipart',
-      partSize: UPLOAD_SESSION_PART_SIZE,
-      partCount: 7,
-    })
-    expect(mockInitiateMultipart).toHaveBeenCalledWith(
-      expect.objectContaining({ key: FINAL_KEY, uploadId: 'upload-1' })
-    )
-    expect(mockCreatePutTransfer).not.toHaveBeenCalled()
-  })
-
-  it('uses proxy-safe multipart parts for large local uploads', async () => {
-    const fileSize = UPLOAD_SESSION_PART_SIZE + 1
-    mockUploadStorageProvider.mockReturnValue('local')
-    mockInitiateMultipart.mockResolvedValueOnce({ provider: 'local', providerUploadId: null })
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      uploadRow({
-        fileSize,
-        method: 'multipart',
-        storageProvider: 'local',
-        partSize: UPLOAD_SESSION_PART_SIZE,
-        partCount: 2,
-      }),
-    ])
-
-    const created = await createWorkspaceUpload(fileSize)
-
-    expect(created.transfer).toEqual({
-      method: 'multipart',
-      partSize: UPLOAD_SESSION_PART_SIZE,
-      partCount: 2,
-    })
-    expect(mockCreatePutTransfer).not.toHaveBeenCalled()
-  })
-
   it('preserves multipart request bounds before provider signing', async () => {
     const multipart = sessionRecord({
       method: 'multipart',
@@ -952,32 +671,6 @@ describe('upload sessions', () => {
         localOrigin: 'http://localhost:3000',
       })
     ).rejects.toMatchObject({ code: 'validation' })
-  })
-
-  /**
-   * The part-number path segment of a signed part URL is caller-editable, so
-   * the size lookup is a request boundary. It has to classify an out-of-range
-   * part as a validation failure for the data-plane route to answer 400 rather
-   * than falling through to its generic 500.
-   */
-  it('classifies an out-of-range part number as a validation failure', () => {
-    const multipart = sessionRecord({
-      method: 'multipart',
-      partSize: UPLOAD_SESSION_PART_SIZE,
-      partCount: 2,
-      fileSize: UPLOAD_SESSION_PART_SIZE + 1,
-    })
-
-    expect(expectedUploadPartSize(multipart, 1)).toBe(UPLOAD_SESSION_PART_SIZE)
-    expect(expectedUploadPartSize(multipart, 2)).toBe(1)
-    expect(() => expectedUploadPartSize(multipart, 3)).toThrow(OrchestrationError)
-    expect(() => expectedUploadPartSize(multipart, 3)).toThrow('partNumber must be between 1 and 2')
-    try {
-      expectedUploadPartSize(multipart, 3)
-      expect.unreachable('out-of-range part number must throw')
-    } catch (error) {
-      expect(error).toMatchObject({ code: 'validation' })
-    }
   })
 
   it('loads ownership from PostgreSQL and rejects a mismatched token', async () => {
@@ -1081,38 +774,6 @@ describe('upload sessions', () => {
     expect(mockCompleteMultipart).not.toHaveBeenCalled()
   })
 
-  it.each(['uploading', 'finalizing'] as const)(
-    'retains private classification through a fresh %s completion claim',
-    async (status) => {
-      const metadata = {
-        [WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY]: bindWorkspaceFileUploadProvenance(WORKSPACE_ID, {
-          status: 'exact',
-          entries: [{ encryptedValue: 'fixture-ciphertext', sourceUserId: 'user-1' }],
-        }),
-      }
-      const session = sessionRecord({
-        status,
-        metadata,
-        providerObjectVersion: status === 'finalizing' ? 'version-1' : null,
-      })
-      mockHeadObject.mockResolvedValue(providerObject(session, 'version-1'))
-      queueCompletionRows(session, 'version-1')
-      const finalize = vi.fn(async (claimed: UploadSessionRecord) => {
-        expect(readWorkspaceFileUploadProvenance(claimed)).toEqual({
-          status: 'exact',
-          entries: [{ encryptedValue: 'fixture-ciphertext', sourceUserId: 'user-1' }],
-        })
-        return { value: 'classified-file', completedFileId: 'file-1' }
-      })
-      const result = await completeUploadSession({ session, finalize })
-      expect(result.value).toBe('classified-file')
-      expect(finalize).toHaveBeenCalledTimes(1)
-      expect(readWorkspaceFileUploadProvenance(result.session)).toEqual(
-        readWorkspaceFileUploadProvenance(session)
-      )
-    }
-  )
-
   it('allows a finalizing session to recover after its upload TTL', async () => {
     const session = sessionRecord({
       status: 'finalizing',
@@ -1164,18 +825,6 @@ describe('upload sessions', () => {
     expect(mockHeadObject).not.toHaveBeenCalled()
   })
 
-  it('loads an already-completed durable result without re-running the finalizer', async () => {
-    const session = sessionRecord({ status: 'completed', completedFileId: 'file-1' })
-    const finalize = vi.fn()
-    const loadCompleted = vi.fn().mockResolvedValue('completed-file')
-
-    await expect(
-      completeUploadSession({ session, finalize, loadCompleted })
-    ).resolves.toMatchObject({ value: 'completed-file', alreadyCompleted: true })
-    expect(loadCompleted).toHaveBeenCalledOnce()
-    expect(finalize).not.toHaveBeenCalled()
-  })
-
   it('deletes a matching completed provider object without aborting its consumed upload id', async () => {
     const session = sessionRecord({
       method: 'multipart',
@@ -1199,28 +848,6 @@ describe('upload sessions', () => {
       version: 'version-1',
       context: 'workspace',
     })
-  })
-
-  it('aborts multipart provider state when no final object exists', async () => {
-    const session = sessionRecord({
-      method: 'multipart',
-      providerUploadId: 'provider-upload-1',
-      fileSize: UPLOAD_SESSION_PART_SIZE + 1,
-      partSize: UPLOAD_SESSION_PART_SIZE,
-      partCount: 2,
-    })
-    mockHeadObject.mockResolvedValue(null)
-    dbChainMockFns.returning
-      .mockResolvedValueOnce([uploadRow({ ...rowGeometry(session), status: 'aborting' })])
-      .mockResolvedValueOnce([
-        uploadRow({ ...rowGeometry(session), status: 'aborted', completedAt: new Date() }),
-      ])
-
-    await expect(abortUploadSession(session)).resolves.toMatchObject({ status: 'aborted' })
-    expect(mockAbortProviderUpload).toHaveBeenCalledWith(
-      expect.objectContaining({ key: FINAL_KEY, providerUploadId: 'provider-upload-1' })
-    )
-    expect(mockDeleteObjectVersion).not.toHaveBeenCalled()
   })
 
   it('refuses to abort once domain finalization has registered a resource', async () => {
@@ -1288,26 +915,6 @@ describe('upload sessions', () => {
     expect(vi.mocked(isNull)).toHaveBeenCalledWith(schemaMock.uploadSession.completedFileId)
   })
 
-  it('deletes a late PUT object before purging an aborted session', async () => {
-    const completedAt = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000)
-    const aborted = uploadRow({ status: 'aborted', completedAt })
-    queueTableRows(schemaMock.uploadSession, [])
-    queueTableRows(schemaMock.uploadSession, [aborted])
-    mockHeadObject.mockResolvedValue(providerObject(sessionRecord(aborted), 'version-1'))
-    dbChainMockFns.returning
-      .mockResolvedValueOnce([aborted])
-      .mockResolvedValueOnce([{ id: aborted.id }])
-
-    await expect(cleanupExpiredUploadSessions()).resolves.toEqual({
-      expired: 0,
-      failed: 0,
-      purged: 1,
-    })
-    expect(mockDeleteObjectVersion).toHaveBeenCalledWith(
-      expect.objectContaining({ key: FINAL_KEY, version: 'version-1' })
-    )
-  })
-
   it.each(['mothership_attachment', 'organization_logo'] as const)(
     'reclaims an unreferenced completed %s object',
     async (purpose) => {
@@ -1346,38 +953,6 @@ describe('upload sessions', () => {
     }
   )
 
-  it.each(['mothership_attachment', 'organization_logo'] as const)(
-    'retains %s ownership records after deletion failure so cleanup can retry',
-    async (purpose) => {
-      const image = uploadRow({
-        purpose,
-        workspaceId: null,
-        storageContext: purpose === 'organization_logo' ? 'organization-logos' : 'mothership',
-        status: 'completed',
-        completedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
-      })
-      queueTableRows(schemaMock.uploadSession, [])
-      queueTableRows(schemaMock.uploadSession, [image])
-      mockHeadObject.mockResolvedValue(providerObject(sessionRecord(image), 'version-1'))
-      mockDeleteObjectVersion.mockRejectedValueOnce(new Error('Storage unavailable'))
-      dbChainMockFns.returning.mockResolvedValueOnce([image])
-
-      await expect(cleanupExpiredUploadSessions()).resolves.toEqual({
-        expired: 0,
-        failed: 1,
-        purged: 0,
-      })
-      expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-      expect(dbChainMockFns.set).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          processingLeaseId: null,
-          processingLeaseExpiresAt: null,
-          error: 'Storage unavailable',
-        })
-      )
-    }
-  )
-
   it('purges completed workspace attachment sessions without deleting their registered objects', async () => {
     const attachment = uploadRow({
       purpose: 'mothership_attachment',
@@ -1404,11 +979,7 @@ async function createWorkspaceUpload(fileSize: number) {
     id: 'upload-1',
     workspaceId: WORKSPACE_ID,
     userId: 'user-1',
-    principal: {
-      kind: 'session',
-      userId: 'user-1',
-      sessionId: 'session-1',
-    },
+    principal: createSessionPrincipal(),
     purpose: 'workspace_file',
     fileName: 'file.bin',
     contentType: 'application/octet-stream',

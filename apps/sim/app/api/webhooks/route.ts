@@ -9,7 +9,7 @@ import {
 } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId, generateShortId } from '@sim/utils/id'
-import { omit } from '@sim/utils/object'
+import { omit, toRecord } from '@sim/utils/object'
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { listWebhooksContract, upsertWebhookContract } from '@/lib/api/contracts/webhooks'
@@ -454,8 +454,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       shouldRecreateExternalWebhookSubscription({
         previousProvider: existingWebhook.provider as string,
         nextProvider: provider,
-        previousConfig: ((existingWebhook.providerConfig as Record<string, unknown>) ||
-          {}) as Record<string, unknown>,
+        previousConfig: toRecord(existingWebhook.providerConfig),
         nextConfig: resolvedProviderConfig,
       })
 
@@ -525,11 +524,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         )
       }
     } else {
-      mergeNonUserFields(
-        configToSave,
-        (existingWebhook.providerConfig as Record<string, unknown>) || {},
-        userProvided
-      )
+      mergeNonUserFields(configToSave, toRecord(existingWebhook.providerConfig), userProvided)
     }
     configToSave.userId = undefined
 

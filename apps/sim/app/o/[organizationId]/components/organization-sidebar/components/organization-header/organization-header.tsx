@@ -145,9 +145,7 @@ export function OrganizationHeader({
                     {logo}
                   </DropdownMenuItem>
                 </Tooltip.Trigger>
-                <Tooltip.Content>
-                  {isUploadingLogo ? 'Uploading...' : 'Change logo'}
-                </Tooltip.Content>
+                <Tooltip.Content>{isUploadingLogo ? 'Uploading' : 'Change logo'}</Tooltip.Content>
               </Tooltip.Root>
             ) : (
               logo

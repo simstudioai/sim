@@ -117,7 +117,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
  * GET /api/copilot/feedback
  * Get feedback records for the authenticated user
  */
-export const GET = withRouteHandler(async (req: NextRequest) => {
+export const GET = withRouteHandler(async () => {
   const tracker = createRequestTracker()
 
   try {

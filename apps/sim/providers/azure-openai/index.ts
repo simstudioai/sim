@@ -19,8 +19,6 @@ import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { prepareProviderAttachments } from '@/providers/attachments'
 import {
-  checkForForcedToolUsage,
-  createReadableStreamFromAzureOpenAIStream,
   extractApiVersionFromUrl,
   extractBaseUrl,
   extractDeploymentFromUrl,
@@ -42,12 +40,15 @@ import {
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { executeResponsesProviderRequest } from '@/providers/openai/core'
 import { getChatCompletionConversationUsage } from '@/providers/openai-compat/conversation-usage'
+import { createOpenAICompatibleAgentEventStream } from '@/providers/openai-compat/stream-events'
+import { buildJsonSchemaResponseFormat } from '@/providers/response-format'
 import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
+import { openAICompatTransport } from '@/providers/transport'
 import type {
   FunctionCallResponse,
   ProviderConfig,
@@ -58,6 +59,7 @@ import type {
 import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
+  checkForForcedToolUsageOpenAI,
   isFunctionToolCall,
   prepareToolExecution,
   prepareToolsWithUsageControl,
@@ -97,6 +99,7 @@ async function executeChatCompletionsRequest(
     apiKey: request.apiKey!,
     apiVersion: azureApiVersion,
     endpoint: azureEndpoint,
+    ...openAICompatTransport(),
     ...(pinnedFetch ? { fetch: pinnedFetch } : {}),
   })
 
@@ -174,14 +177,7 @@ async function executeChatCompletionsRequest(
     payload.verbosity = request.verbosity as ChatCompletionVerbosity
 
   if (request.responseFormat) {
-    payload.response_format = {
-      type: 'json_schema',
-      json_schema: {
-        name: request.responseFormat.name || 'response_schema',
-        schema: request.responseFormat.schema || request.responseFormat,
-        strict: request.responseFormat.strict !== false,
-      },
-    }
+    payload.response_format = buildJsonSchemaResponseFormat(request.responseFormat)
 
     logger.info('Added JSON schema response format to Azure OpenAI request')
   }
@@ -239,9 +235,10 @@ async function executeChatCompletionsRequest(
         initialCost: { input: 0, output: 0, total: 0 },
         streamFormat: 'agent-events-v1',
         createStream: ({ output, finalizeTiming }) =>
-          createReadableStreamFromAzureOpenAIStream(
-            streamResponse,
-            (content, usage) => {
+          createOpenAICompatibleAgentEventStream(streamResponse, {
+            providerName: 'Azure OpenAI',
+            request,
+            onComplete: ({ content, usage }) => {
               output.content = content
               output.tokens = {
                 input: usage.prompt_tokens,
@@ -262,8 +259,7 @@ async function executeChatCompletionsRequest(
 
               finalizeTiming()
             },
-            request
-          ),
+          }),
       })
 
       return streamingResult
@@ -319,12 +315,13 @@ async function executeChatCompletionsRequest(
       { model: request.model, provider: 'azure_openai' }
     )
 
-    const firstCheckResult = checkForForcedToolUsage(
+    const firstCheckResult = checkForForcedToolUsageOpenAI(
       currentResponse,
       originalToolChoice ?? 'auto',
-      logger,
+      'Azure OpenAI',
       forcedTools,
-      usedForcedTools
+      usedForcedTools,
+      logger
     )
     hasUsedForcedTool = firstCheckResult.hasUsedForcedTool
     usedForcedTools = firstCheckResult.usedForcedTools
@@ -541,12 +538,13 @@ async function executeChatCompletionsRequest(
         )
       }
 
-      const nextCheckResult = checkForForcedToolUsage(
+      const nextCheckResult = checkForForcedToolUsageOpenAI(
         currentResponse,
         nextPayload.tool_choice ?? 'auto',
-        logger,
+        'Azure OpenAI',
         forcedTools,
-        usedForcedTools
+        usedForcedTools,
+        logger
       )
       hasUsedForcedTool = nextCheckResult.hasUsedForcedTool
       usedForcedTools = nextCheckResult.usedForcedTools

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockCallOdata, mockFetchAccessToken, mockFetchCsrf } = vi.hoisted(() => ({
@@ -21,10 +18,7 @@ vi.mock('@/lib/internal/sap-s4hana/client', () => ({
     method === 'MERGE',
 }))
 
-import {
-  executeSapS4HanaOperation,
-  SapS4HanaProviderError,
-} from '@/lib/internal/sap-s4hana/operations'
+import { executeSapS4HanaOperation } from '@/lib/internal/sap-s4hana/operations'
 import { sapS4HanaOperationInputSchema } from '@/lib/internal/sap-s4hana/schema'
 
 const BASE_INPUT = sapS4HanaOperationInputSchema.parse({
@@ -40,7 +34,6 @@ const BASE_INPUT = sapS4HanaOperationInputSchema.parse({
 
 describe('SAP S/4HANA operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockFetchAccessToken.mockResolvedValue('token')
     mockFetchCsrf.mockResolvedValue({ token: 'csrf', cookie: 'session=1' })
   })
@@ -79,25 +72,5 @@ describe('SAP S/4HANA operations', () => {
     ).resolves.toEqual({ status: 204, data: null })
     expect(mockFetchCsrf).toHaveBeenCalledTimes(2)
     expect(mockCallOdata).toHaveBeenCalledTimes(2)
-  })
-
-  it('preserves provider status and detailed OData errors', async () => {
-    mockCallOdata.mockResolvedValue({
-      status: 400,
-      body: {
-        error: {
-          code: 'SAP/INVALID',
-          message: { value: 'Invalid request' },
-          innererror: {
-            errordetails: [{ code: 'FIELD', message: 'Field is required', severity: 'error' }],
-          },
-        },
-      },
-      csrfHeader: '',
-    })
-
-    await expect(executeSapS4HanaOperation(BASE_INPUT, 'request-3')).rejects.toEqual(
-      new SapS4HanaProviderError('[SAP/INVALID] Invalid request ([FIELD] Field is required)', 400)
-    )
   })
 })

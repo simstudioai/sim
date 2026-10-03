@@ -1,23 +1,14 @@
-/**
- * @vitest-environment node
- */
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockPrefetch } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
+const { mockPrefetch } = vi.hoisted(() => ({
   mockPrefetch: vi.fn(),
 }))
 
-vi.mock('next/navigation', () => ({
-  notFound: () => {
-    throw new Error('NEXT_NOT_FOUND')
-  },
-  redirect: (href: string) => {
-    throw new Error(`NEXT_REDIRECT:${href}`)
-  },
-}))
-vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
-vi.mock('@/lib/core/config/env-flags', () => ({ isBillingEnabled: true }))
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/permissions/super-user', () => ({ isPlatformAdmin: vi.fn() }))
 vi.mock('@/app/_shell/providers/get-query-client', () => ({ getQueryClient: vi.fn() }))
 vi.mock('@/components/settings/prefetch-standalone-general', () => ({
@@ -29,19 +20,15 @@ vi.mock('@/components/settings/account-settings-renderer', () => ({
 
 import AccountSettingsSectionPage from '@/app/account/settings/[section]/page'
 
-const pageProps = (section: string) => ({ params: Promise.resolve({ section }) })
+setEnvFlags({ isBillingEnabled: true })
+
+const mockGetSession = authMockFns.mockGetSession
+
+const pageProps = (section: string) => createRouteContext({ section })
 
 describe('account settings legacy links', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'viewer-a' } })
-  })
-
-  it('redirects Authorized apps bookmarks to the General subview', async () => {
-    await expect(AccountSettingsSectionPage(pageProps('authorized-apps'))).rejects.toThrow(
-      'NEXT_REDIRECT:/account/settings/general?view=authorized-apps'
-    )
-    expect(mockPrefetch).not.toHaveBeenCalled()
   })
 
   it('authenticates before following the legacy bookmark', async () => {

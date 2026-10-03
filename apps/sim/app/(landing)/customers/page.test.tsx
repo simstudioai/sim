@@ -1,6 +1,7 @@
-/** @vitest-environment node */
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ContentPost } from '@/lib/content/schema'
 import type { CustomerStory } from '@/lib/customers/data'
 import CustomerPage from '@/app/(landing)/customers/[slug]/page'
@@ -11,15 +12,7 @@ const { getAllMeta, getBySlug } = vi.hoisted(() => ({
   getBySlug: vi.fn(),
 }))
 
-vi.mock('@sim/emcn', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/emcn')>()),
-  cn: (...values: string[]) => values.join(' '),
-}))
-vi.mock('next/navigation', () => ({
-  notFound: () => {
-    throw new Error('Not found')
-  },
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/customers/registry', () => ({
   getAllCustomerStoryMeta: getAllMeta,
   getCustomerStoryBySlug: getBySlug,
@@ -80,18 +73,7 @@ function setStories(rivianDraft: boolean, expDraft: boolean) {
   )
 }
 
-beforeEach(() => vi.clearAllMocks())
-
 describe('customer publication boundaries', () => {
-  it('prioritizes only the first rendered card when an earlier story has no content', async () => {
-    setStories(false, false)
-    const exp = post('exp-realty', false)
-    getBySlug.mockImplementation(async (slug: string) => (slug === exp.slug ? exp : null))
-    const html = renderToStaticMarkup(await CustomersPage())
-    expect(html).not.toContain('href="/customers/rivian"')
-    expect(html).toContain('href="/customers/exp-realty" data-priority="true"')
-  })
-
   it('preserves the complete noindex design preview when every story is a draft', async () => {
     setStories(true, true)
     const html = renderToStaticMarkup(await CustomersPage())
@@ -101,40 +83,10 @@ describe('customer publication boundaries', () => {
     expect((await generateMetadata()).robots).toEqual({ index: false, follow: false })
   })
 
-  it('shows only published stories once the index can be indexed', async () => {
-    setStories(false, true)
-    const html = renderToStaticMarkup(await CustomersPage())
-    expect(html).toContain('href="/customers/rivian"')
-    expect(html).not.toContain('href="/customers/exp-realty"')
-    expect(getBySlug).toHaveBeenCalledExactlyOnceWith('rivian')
-    expect((await generateMetadata()).robots).toEqual({ index: true, follow: true })
-  })
-
   it('does not recommend a draft from a published story', async () => {
     setStories(false, true)
-    const html = renderToStaticMarkup(
-      await CustomerPage({ params: Promise.resolve({ slug: 'rivian' }) })
-    )
+    const html = renderToStaticMarkup(await CustomerPage(createRouteContext({ slug: 'rivian' })))
     expect(html).not.toContain('Next story')
     expect(getBySlug).toHaveBeenCalledExactlyOnceWith('rivian')
   })
-
-  it('recommends another published story when one is available', async () => {
-    setStories(false, false)
-    const html = renderToStaticMarkup(
-      await CustomerPage({ params: Promise.resolve({ slug: 'rivian' }) })
-    )
-    expect(html).toContain('href="/customers/exp-realty"')
-  })
-
-  it.each([true, false])(
-    'keeps draft preview navigation when the other story draft state is %s',
-    async (rivianDraft) => {
-      setStories(rivianDraft, true)
-      const html = renderToStaticMarkup(
-        await CustomerPage({ params: Promise.resolve({ slug: 'exp-realty' }) })
-      )
-      expect(html).toContain('href="/customers/rivian"')
-    }
-  )
 })

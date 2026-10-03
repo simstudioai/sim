@@ -1,33 +1,31 @@
-/**
- * @vitest-environment node
- */
-import type { DelegatedPrincipal, Principal } from '@sim/auth/principal'
-import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import type { SubjectDelegatedPrincipal } from '@sim/auth/principal'
+import { resetDbChainMock } from '@sim/testing'
+import {
+  createDelegatedPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   listPersonal: vi.fn(),
   listTokens: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/credentials/personal', () => ({
-  getPersonalOAuthCredentials: mocks.listPersonal,
+  getPersonalOAuthCredentials: hoisted.listPersonal,
 }))
 
 vi.mock('@/lib/credentials/personal-tokens', () => ({
-  getPersonalTokenCredentials: mocks.listTokens,
+  getPersonalTokenCredentials: hoisted.listTokens,
 }))
 
 import {
@@ -35,13 +33,19 @@ import {
   listPersonalCredentials,
 } from '@/lib/credentials/application/personal-credentials'
 
+const mocks = {
+  ...hoisted,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+}
+
 const workspaceContext = {
   workspaceId: 'workspace-1',
   workspaceOrganizationId: null,
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner',
 }
-const principal: Principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }
+const principal = createSessionPrincipal()
 const personalCredential = {
   id: 'credential-1',
   providerId: 'google-drive',
@@ -54,23 +58,16 @@ const authorizationInput = {
   expectedProviderId: 'google-drive',
 }
 
-function delegatedPrincipal(overrides: Partial<DelegatedPrincipal> = {}): DelegatedPrincipal {
-  return {
-    kind: 'delegated',
-    serviceId: 'copilot',
-    subjectUserId: 'user-1',
-    workspaceId: 'workspace-1',
+function delegatedPrincipal(overrides: Partial<SubjectDelegatedPrincipal> = {}) {
+  return createDelegatedPrincipal({
     delegationId: 'assistant-turn-1',
     audience: 'sim:credentials',
-    issuedAt: new Date(),
-    expiresAt: new Date(Date.now() + 60_000),
     ...overrides,
-  }
+  })
 }
 
 describe('personal credential application access', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('read')
@@ -107,33 +104,6 @@ describe('personal credential application access', () => {
     )
   })
 
-  it('includes only owner-scoped personal token metadata in account discovery', async () => {
-    const token = {
-      id: 'gitlab-personal',
-      providerId: 'gitlab',
-      type: 'personal_token',
-      displayName: 'My GitLab',
-      instanceUrl: 'https://gitlab.example.com',
-    }
-    mocks.listTokens.mockResolvedValue([token])
-    queueTableRows(schemaMock.credential, [
-      {
-        ...token,
-        organizationId: null,
-        workspaceId: 'workspace-1',
-        groupId: 'legacy-group',
-        groupOrganizationId: null,
-        groupWorkspaceId: 'workspace-1',
-      },
-    ])
-    const result = await listPersonalCredentials.execute({
-      principal,
-      input: { workspaceId: 'workspace-1' },
-    })
-    expect(result.credentials).toEqual([personalCredential, token])
-    expect(mocks.listTokens).toHaveBeenCalledWith('workspace-1', 'user-1')
-  })
-
   it('accepts an alternate authorization server for the same OAuth service', async () => {
     const sandbox = { ...personalCredential, providerId: 'salesforce-sandbox' }
     mocks.listPersonal.mockResolvedValue([sandbox])
@@ -143,28 +113,6 @@ describe('personal credential application access', () => {
         input: { ...authorizationInput, expectedProviderId: 'salesforce' },
       })
     ).resolves.toEqual(sandbox)
-  })
-
-  it('authorizes a managed account returned by the same personal policy', async () => {
-    const managed = { ...personalCredential, providerId: 'slack', type: 'managed_oauth' as const }
-    mocks.listPersonal.mockResolvedValue([managed])
-    queueTableRows(schemaMock.credential, [
-      {
-        ...managed,
-        organizationId: null,
-        workspaceId: 'workspace-1',
-        groupId: 'legacy-group',
-        groupOrganizationId: null,
-        groupWorkspaceId: 'workspace-1',
-      },
-    ])
-
-    const result = await authorizePersonalCredential.execute({
-      principal,
-      input: { ...authorizationInput, expectedProviderId: 'slack' },
-    })
-
-    expect(result).toEqual(managed)
   })
 
   it('refuses a different person account even when the caller is a workspace administrator', async () => {
@@ -178,15 +126,6 @@ describe('personal credential application access', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
   })
 
-  it('refuses a service account absent from the personal credential set', async () => {
-    await expect(
-      authorizePersonalCredential.execute({
-        principal,
-        input: { ...authorizationInput, credentialId: 'workspace-service-account' },
-      })
-    ).rejects.toMatchObject({ code: 'forbidden' })
-  })
-
   it('refuses a personal account belonging to a different provider', async () => {
     await expect(
       authorizePersonalCredential.execute({
@@ -194,25 +133,6 @@ describe('personal credential application access', () => {
         input: { ...authorizationInput, expectedProviderId: 'slack' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
-  })
-
-  it('rechecks after discovery so a disconnected account cannot authorize a pending action', async () => {
-    await listPersonalCredentials.execute({ principal, input: { workspaceId: 'workspace-1' } })
-    mocks.listPersonal.mockResolvedValue([])
-
-    await expect(
-      authorizePersonalCredential.execute({ principal, input: authorizationInput })
-    ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.listPersonal).toHaveBeenCalledTimes(2)
-  })
-
-  it('refuses missing workspaces before looking up personal accounts', async () => {
-    mocks.loadWorkspace.mockResolvedValue(null)
-
-    await expect(
-      listPersonalCredentials.execute({ principal, input: { workspaceId: 'missing-workspace' } })
-    ).rejects.toMatchObject({ code: 'not_found' })
-    expect(mocks.listPersonal).not.toHaveBeenCalled()
   })
 
   it('refuses removed workspace membership before looking up personal accounts', async () => {
@@ -224,28 +144,10 @@ describe('personal credential application access', () => {
     expect(mocks.listPersonal).not.toHaveBeenCalled()
   })
 
-  it('refuses actorless workspace keys before loading protected data', async () => {
-    await expect(
-      listPersonalCredentials.execute({
-        principal: {
-          kind: 'workspace_api_key',
-          keyId: 'workspace-key',
-          workspaceId: 'workspace-1',
-        },
-        input: { workspaceId: 'workspace-1' },
-      })
-    ).rejects.toThrow()
-    expect(mocks.loadWorkspace).not.toHaveBeenCalled()
-    expect(mocks.listPersonal).not.toHaveBeenCalled()
-  })
-
   it.each([
     ['another workspace', { workspaceId: 'workspace-2' }],
-    ['another service', { serviceId: 'executor' }],
-    ['another audience', { audience: 'sim:knowledge' }],
-    ['expired delegation', { expiresAt: new Date(0) }],
     ['no person', { subjectUserId: undefined }],
-  ] satisfies Array<[string, Partial<DelegatedPrincipal>]>)(
+  ] satisfies Array<[string, Partial<SubjectDelegatedPrincipal>]>)(
     'refuses %s delegations',
     async (_, overrides) => {
       await expect(

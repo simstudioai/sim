@@ -1,8 +1,7 @@
 import { EnrowIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { EnrowResponse } from '@/tools/enrow/types'
 
-export const EnrowBlock: BlockConfig<EnrowResponse> = {
+export const EnrowBlock: BlockConfig = {
   type: 'enrow',
   name: 'Enrow',
   description: 'Find and verify B2B emails with triple-verified accuracy',
@@ -38,7 +37,7 @@ export const EnrowBlock: BlockConfig<EnrowResponse> = {
       value: () => 'enrow_find_email',
     },
 
-    // --- Find Email ---
+    // Find Email
     {
       id: 'fullname',
       title: 'Full Name',
@@ -64,7 +63,7 @@ export const EnrowBlock: BlockConfig<EnrowResponse> = {
       mode: 'advanced',
     },
 
-    // --- Verify Email ---
+    // Verify Email
     {
       id: 've_email',
       title: 'Email Address',
@@ -74,7 +73,7 @@ export const EnrowBlock: BlockConfig<EnrowResponse> = {
       condition: { field: 'operation', value: 'enrow_verify_email' },
     },
 
-    // --- API Key (hidden on hosted Sim for operations with hosted-key support) ---
+    // API Key (hidden on hosted Sim for operations with hosted-key support)
     {
       id: 'apiKey',
       title: 'API Key',

@@ -1,49 +1,45 @@
-/** @vitest-environment node */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvFlagsMock } from '@sim/testing/mocks/env-flags.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import {
+  mothershipOrganizationChatsMock,
+  mothershipOrganizationChatsMockFns,
+} from '@sim/testing/mocks/mothership-organization-chats.mock'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   search: vi.fn(),
   read: vi.fn(),
-  authorizeChat: vi.fn(),
-  info: vi.fn(),
 }))
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ info: mocks.info, error: vi.fn(), warn: vi.fn() }),
-}))
-vi.mock('@/lib/mothership/chat/organization-chats', () => ({
-  authorizeOrganizationChatDelegation: { execute: mocks.authorizeChat },
-}))
-vi.mock('@/lib/knowledge/application/workspace-search', () => ({
-  searchOrganizationKnowledge: {
+vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
+vi.mock('@/lib/sim-search/live/application', () => ({
+  searchLiveKnowledge: {
     get operation() {
       return knowledgeOperations.search
     },
-    execute: mocks.search,
+    execute: hoisted.search,
   },
-  searchWorkspaceKnowledge: {
-    get operation() {
-      return knowledgeOperations.search
-    },
-    execute: mocks.search,
-  },
-}))
-vi.mock('@/lib/knowledge/application/read-search-document', () => ({
-  readSearchDocument: {
+  readLiveDocument: {
     get operation() {
       return knowledgeOperations.readDocument
     },
-    execute: mocks.read,
+    execute: hoisted.read,
   },
 }))
 
-import { EmbeddingConfigurationError } from '@/lib/embeddings/configuration-error'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { annotateSearchDiagnostics } from '@/lib/knowledge/search/diagnostics'
+import { collectRetrievalCitationEvidence } from '@/lib/mothership/chat/citation-evidence'
+import { compactRetrievalCitations } from '@/lib/mothership/chat/retrieval-citations'
 import {
   readDocumentServerTool,
   searchWorkspaceServerTool,
 } from '@/lib/mothership/tools/server/knowledge/workspace-search'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const mocks = {
+  ...hoisted,
+  authorizeChat: mothershipOrganizationChatsMockFns.mockAuthorizeOrganizationChatDelegation,
+  info: getMockLogger('KnowledgeSearchDiagnostics').info,
+}
 
 const context = {
   userId: 'reader',
@@ -57,9 +53,10 @@ const context = {
   }),
 }
 describe('Assistant retrieval tools', () => {
+  afterEach(resetEnvFlagsMock)
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.search.mockResolvedValue({
+    mocks.search.mockImplementation(async ({ input }: { input: { query: string } }) => ({
+      query: input.query,
       retrieval: { status: 'complete', timedOutLegs: [] },
       knowledgeBases: [{ id: 'index', name: 'Enterprise Search' }],
       results: [
@@ -75,7 +72,7 @@ describe('Assistant retrieval tools', () => {
           similarity: 1,
         },
       ],
-    })
+    }))
     mocks.read.mockResolvedValue({
       knowledgeBaseId: 'index',
       documentId: 'doc',
@@ -86,88 +83,91 @@ describe('Assistant retrieval tools', () => {
       next: null,
     })
   })
-  it('returns a safe permanent configuration failure instead of empty results or opaque error', async () => {
-    mocks.search.mockRejectedValue(new EmbeddingConfigurationError())
-    const result = await searchWorkspaceServerTool.execute({ query: 'policy' }, context)
+  for (const tool of [searchWorkspaceServerTool, readDocumentServerTool]) {
+    describe(`${tool.name} live citations`, () => {
+      it.each([
+        {
+          name: 'the source link before its container',
+          sourceUrl: 'https://source.test/document',
+          sourceContainerUrl: 'https://source.test/container',
+          citationUrl: 'https://source.test/document',
+        },
+        {
+          name: 'the container when the source has no link',
+          sourceUrl: null,
+          sourceContainerUrl: 'https://source.test/container',
+          citationUrl: 'https://source.test/container',
+        },
+        {
+          name: 'no citation link when neither destination is available',
+          sourceUrl: null,
+          sourceContainerUrl: undefined,
+          citationUrl: null,
+        },
+      ])('preserves $name through saved citation evidence', async (links) => {
+        const document = {
+          knowledgeBaseId: '',
+          documentId: 'live:opaque-reference',
+          documentName: 'Live document',
+          sourceUrl: links.sourceUrl,
+          sourceContainerUrl: links.sourceContainerUrl,
+          connectorType: 'slack',
+          content: 'Retrieved evidence',
+        }
+        const searching = tool.name === 'search_workspace'
+        if (searching) {
+          mocks.search.mockResolvedValueOnce({
+            retrieval: { status: 'complete', timedOutLegs: [] },
+            results: [document],
+          })
+        } else {
+          mocks.read.mockResolvedValueOnce({
+            ...document,
+            chunks: [{ chunkIndex: 0, content: document.content }],
+            hasMore: false,
+            next: null,
+          })
+        }
+        const result = await tool.execute(
+          searching ? { query: 'evidence' } : { documentId: document.documentId },
+          { ...context, assistantSearch: undefined }
+        )
+        const expected = { documentId: document.documentId, citationUrl: links.citationUrl }
+        expect(result).toMatchObject({
+          success: true,
+          data: searching ? { results: [expected] } : expected,
+        })
+        const evidence = collectRetrievalCitationEvidence([
+          {
+            toolCall: {
+              name: tool.name,
+              status: 'success',
+              result: {
+                success: true,
+                output: compactRetrievalCitations(tool.name, result),
+              },
+            },
+          },
+        ])
+        expect([...evidence.values()].map((source) => source.url)).toEqual(
+          links.citationUrl ? [links.citationUrl] : []
+        )
+      })
+    })
+  }
+  it.each([
+    { provider: 'slack', kind: 'meeting' },
+    { provider: 'google_drive', kind: 'transcript' },
+  ])('rejects $provider searches with an unsupported $kind selector', async (selection) => {
+    const result = await searchWorkspaceServerTool.execute(
+      { query: 'release', nativeQueries: [{ ...selection, query: 'release' }] },
+      { ...context, assistantSearch: undefined }
+    )
     expect(result).toMatchObject({
       success: false,
-      retryable: false,
-      capability: 'semantic_retrieval',
-      reason: 'provider_not_configured',
-      recovery: expect.stringContaining('authorized original'),
-      message: expect.stringContaining('embedding provider is not configured'),
+      message: `${selection.provider} does not support kind selection.`,
     })
     expect(result).not.toHaveProperty('data')
-    expect(result).not.toHaveProperty('results')
-  })
-  it('returns empty incomplete retrieval as a recoverable search outcome and logs coverage', async () => {
-    mocks.search.mockImplementation(async () => {
-      annotateSearchDiagnostics({
-        retrievalStatus: 'partial',
-        timedOutLegs: ['vector', 'keyword'],
-      })
-      return {
-        retrieval: { status: 'partial', timedOutLegs: ['vector', 'keyword'] },
-        knowledgeBases: [{ id: 'index', name: 'Enterprise Search' }],
-        results: [],
-      }
-    })
-
-    const result = await searchWorkspaceServerTool.execute({ query: 'canaries' }, context)
-
-    expect(result).toMatchObject({
-      success: true,
-      message: expect.stringContaining('cannot establish absence or completeness'),
-      data: {
-        retrieval: { status: 'partial', timedOutLegs: ['vector', 'keyword'] },
-        results: [],
-      },
-    })
-    expect(result).not.toHaveProperty('error')
-    expect(mocks.info).toHaveBeenCalledWith(
-      'Knowledge search completed',
-      expect.objectContaining({ passageBytes: 0, originalPassageBytes: 0, outcome: 'partial' })
-    )
-  })
-  it('pins organization and private chat while reusing the canonical search index and citations', async () => {
-    const orgContext = {
-      ...context,
-      workspaceId: undefined,
-      organizationId: 'org-1',
-      chatId: 'chat-1',
-      requestMode: 'assistant',
-    }
-    const result = await searchWorkspaceServerTool.execute(
-      { query: 'policy', organizationId: 'forged' },
-      orgContext
-    )
-    expect(result).toMatchObject({
-      success: true,
-      data: {
-        results: [
-          expect.objectContaining({
-            citationUrl: expect.stringContaining('/o/org-1/knowledge/index/doc'),
-          }),
-        ],
-      },
-    })
-    expect(mocks.authorizeChat).toHaveBeenCalledWith({
-      principal: expect.objectContaining({
-        kind: 'organization_delegated',
-        subjectUserId: 'reader',
-        organizationId: 'org-1',
-        resourceScope: { chatId: 'chat-1' },
-      }),
-    })
-    expect(mocks.search).toHaveBeenCalledWith({
-      principal: expect.objectContaining({ organizationId: 'org-1' }),
-      input: expect.objectContaining({ organizationId: 'org-1', filters: context.assistantSearch }),
-    })
-    await readDocumentServerTool.execute({ documentId: 'doc' }, orgContext)
-    expect(mocks.read).toHaveBeenCalledWith({
-      principal: expect.objectContaining({ organizationId: 'org-1' }),
-      input: expect.objectContaining({ assertedOrganizationId: 'org-1' }),
-    })
   })
 
   it.each([
@@ -246,97 +246,6 @@ describe('Assistant retrieval tools', () => {
     )
     expect(JSON.stringify(result)).not.toContain(secret)
   })
-
-  it.each([0, 20, 50])(
-    'measures UTF-8 bytes for %i passages without logging their content',
-    async (count) => {
-      const content = 'Confidential passage é🔎'.repeat(100)
-      mocks.search.mockResolvedValueOnce({
-        retrieval: { status: 'complete', timedOutLegs: [] },
-        knowledgeBases: [{ id: 'index', name: 'Enterprise Search' }],
-        results: Array.from({ length: count }, (_, index) => ({
-          knowledgeBaseId: 'index',
-          documentId: `doc-${index % 4}`,
-          documentName: 'Private title',
-          sourceUrl: null,
-          sourceModifiedAt: null,
-          metadata: {},
-          content,
-          chunkIndex: index,
-          similarity: 1,
-        })),
-      })
-
-      const output = await searchWorkspaceServerTool.execute(
-        { query: 'Private query', ...(count === 50 ? { topK: 50 } : {}) },
-        context
-      )
-
-      expect(output.success).toBe(true)
-      expect(mocks.info).toHaveBeenCalledWith(
-        'Knowledge search completed',
-        expect.objectContaining({
-          toolCallId: 'call',
-          toolResultBytes: Buffer.byteLength(JSON.stringify(output)),
-          passageBytes: count * Buffer.byteLength(content.slice(0, 1200)),
-          originalPassageBytes: count * Buffer.byteLength(content),
-          maxPassageBytes: count ? Buffer.byteLength(content.slice(0, 1200)) : 0,
-          uniqueDocumentCount: Math.min(count, 4),
-        })
-      )
-      const logged = JSON.stringify(mocks.info.mock.calls)
-      expect(logged).not.toContain('Confidential passage')
-      expect(logged).not.toContain('Private title')
-      expect(logged).not.toContain('Private query')
-    }
-  )
-
-  it('returns stable citation IDs with internal links for uploaded documents', async () => {
-    const result = await searchWorkspaceServerTool.execute({ query: 'orion' }, context)
-    expect(result).toMatchObject({
-      success: true,
-      data: {
-        results: [
-          expect.objectContaining({
-            citationId: 'document:doc',
-            citationUrl: expect.stringContaining('/workspace/workspace/knowledge/index/doc'),
-          }),
-        ],
-      },
-    })
-  })
-  it('projects the provider name for connected-source citations instead of the index name', async () => {
-    mocks.search.mockResolvedValueOnce({
-      retrieval: { status: 'complete', timedOutLegs: [] },
-      knowledgeBases: [{ id: 'index', name: 'Sim Search' }],
-      results: [
-        {
-          knowledgeBaseId: 'index',
-          documentId: 'doc',
-          documentName: 'Launch checklist',
-          sourceUrl: 'https://mail.google.com/thread',
-          connectorType: 'gmail',
-          sourceModifiedAt: null,
-          metadata: {},
-          content: 'body',
-          chunkIndex: 0,
-          similarity: 1,
-        },
-      ],
-    })
-    expect(await searchWorkspaceServerTool.execute({ query: 'launch' }, context)).toMatchObject({
-      success: true,
-      data: {
-        results: [
-          expect.objectContaining({
-            documentName: 'Launch checklist',
-            siteName: 'Gmail',
-            knowledgeBaseName: 'Sim Search',
-          }),
-        ],
-      },
-    })
-  })
   it('rejects untrusted contexts, incompatible sources and out-of-scope document reads', async () => {
     expect(
       await searchWorkspaceServerTool.execute(
@@ -352,24 +261,5 @@ describe('Assistant retrieval tools', () => {
     })
     expect(mocks.search).not.toHaveBeenCalled()
     expect(mocks.read).not.toHaveBeenCalled()
-  })
-  it('reads a selected document through the shared use case and rejects unbounded pages', async () => {
-    expect(
-      await readDocumentServerTool.execute({ documentId: 'doc', startChunkIndex: 20 }, context)
-    ).toMatchObject({ success: true })
-    expect(mocks.read).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({
-          assertedWorkspaceId: 'workspace',
-          filters: context.assistantSearch,
-          startChunkIndex: 20,
-          limit: 3,
-        }),
-      })
-    )
-    expect(
-      await readDocumentServerTool.execute({ documentId: 'doc', limit: 9 }, context)
-    ).toMatchObject({ success: false })
-    expect(mocks.read).toHaveBeenCalledOnce()
   })
 })

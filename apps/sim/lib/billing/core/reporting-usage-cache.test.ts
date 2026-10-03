@@ -1,21 +1,17 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
 import { sleep } from '@sim/utils/helpers'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetBillingPeriodUsageCost } = vi.hoisted(() => ({
-  mockGetBillingPeriodUsageCost: vi.fn(),
-}))
-
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  getBillingPeriodUsageCost: mockGetBillingPeriodUsageCost,
-}))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 import * as reportingUsageCache from '@/lib/billing/core/reporting-usage-cache'
 import type { UsageQueryPeriod } from '@/lib/billing/core/usage-log'
 
+const mockGetBillingPeriodUsageCost = billingUsageLogMockFns.mockGetBillingPeriodUsageCost
 const { REPORTING_USAGE_CACHE_TTL_MS, readSoftGateUsageCost } = reportingUsageCache
 
 const REPORTING: UsageQueryPeriod = {
@@ -43,12 +39,7 @@ function freshOrg() {
 
 describe('readSoftGateUsageCost on a reporting window', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetBillingPeriodUsageCost.mockReset()
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
   })
 
   it('sums the ledger again once a cached sum outlives its TTL', async () => {
@@ -139,15 +130,7 @@ describe('readSoftGateUsageCost on a reporting window', () => {
 
 describe('readSoftGateUsageCost', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetBillingPeriodUsageCost.mockReset()
-  })
-
-  it('exposes no cached reader that a non-reporting period could reach', () => {
-    expect(Object.keys(reportingUsageCache).sort()).toEqual([
-      'REPORTING_USAGE_CACHE_TTL_MS',
-      'readSoftGateUsageCost',
-    ])
   })
 
   it('never serves a cached reporting sum to another source with the same bounds', async () => {

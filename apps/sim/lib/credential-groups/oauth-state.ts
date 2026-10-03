@@ -44,7 +44,7 @@ interface StoredCredentialGroupOAuthAttempt {
   completionRedirect?: boolean
   connectionIntent?: CredentialGroupConnectionIntent
   completionId?: string
-  returnTo?: 'search' | 'accounts' | 'github-installation'
+  returnTo?: 'search' | 'accounts' | 'integrations' | 'github-installation'
   nonceHash: string
   encryptedCodeVerifier?: string
   encryptedInvitationToken: string
@@ -69,7 +69,7 @@ export interface CredentialGroupOAuthAttempt {
   completionRedirect?: boolean
   connectionIntent?: CredentialGroupConnectionIntent
   completionId?: string
-  returnTo?: 'search' | 'accounts' | 'github-installation'
+  returnTo?: 'search' | 'accounts' | 'integrations' | 'github-installation'
   codeVerifier?: string
   invitationToken: string
   createdAt: number
@@ -91,7 +91,7 @@ interface CreateCredentialGroupOAuthAttemptParams {
   completionRedirect?: boolean
   connectionIntent?: CredentialGroupConnectionIntent
   completionId?: string
-  returnTo?: 'search' | 'accounts' | 'github-installation'
+  returnTo?: 'search' | 'accounts' | 'integrations' | 'github-installation'
   codeVerifier?: string
   invitationToken: string
 }
@@ -148,6 +148,7 @@ function isStoredAttempt(value: unknown): value is StoredCredentialGroupOAuthAtt
     (candidate.returnTo === undefined ||
       candidate.returnTo === 'search' ||
       candidate.returnTo === 'accounts' ||
+      candidate.returnTo === 'integrations' ||
       (candidate.returnTo === 'github-installation' &&
         candidate.provider === 'github-repositories' &&
         typeof candidate.organizationId === 'string' &&

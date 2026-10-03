@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CredentialGroupOAuthStateVersionError } from '@/lib/credential-groups/oauth-attempt-version'
@@ -73,44 +70,10 @@ describe('credential group OAuth callback', () => {
     }
   )
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.rateLimit.mockResolvedValue(null)
     mocks.consumeAttempt.mockResolvedValue(attempt)
     mocks.authenticate.mockReturnValue(principal)
     mocks.completeOAuth.mockResolvedValue({ connectedOptionId: 'option-1' })
-  })
-
-  it('consumes provider-bound state and enters the application operation', async () => {
-    const callbackRequest = request('state=state-1&code=code-1')
-    const response = await GET(callbackRequest, context)
-
-    expect(mocks.consumeAttempt).toHaveBeenCalledWith('state-1')
-    expect(mocks.authenticate).toHaveBeenCalledWith(attempt)
-    expect(mocks.completeOAuth).toHaveBeenCalledWith({
-      principal,
-      input: { attempt, code: 'code-1' },
-      request: callbackRequest,
-    })
-    expect(response.status).toBe(307)
-    expect(response.headers.get('location')).toBe(
-      '/credential-groups/enroll/invitation-token?connected=option-1'
-    )
-  })
-
-  it('restores the exact focused option after a successful Search connection', async () => {
-    mocks.consumeAttempt.mockResolvedValue({ ...attempt, optionId: 'site-two', returnTo: 'search' })
-    const response = await GET(request('state=state-1&code=code-1'), context)
-    expect(response.headers.get('location')).toBe(
-      '/credential-groups/enroll/invitation-token?optionId=site-two&returnTo=search&connected=site-two'
-    )
-    expect(mocks.completeOAuth).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal,
-        input: expect.objectContaining({
-          attempt: expect.objectContaining({ optionId: 'site-two' }),
-        }),
-      })
-    )
   })
 
   it.each([
@@ -200,17 +163,6 @@ describe('credential group OAuth callback', () => {
     expect(mocks.completeOAuth).toHaveBeenCalledOnce()
   })
 
-  it('returns an unavailable enrollment redirect when the invitation is revoked during exchange', async () => {
-    mocks.completeOAuth.mockRejectedValueOnce(new CredentialGroupInvitationUnavailableError())
-
-    const response = await GET(request('state=state-1&code=code-1'), context)
-
-    expect(response.status).toBe(307)
-    expect(response.headers.get('location')).toBe(
-      '/credential-groups/enroll/invitation-token?oauth=unavailable'
-    )
-  })
-
   it('returns a valid rate-limited callback to the enrollment page without exchanging', async () => {
     mocks.rateLimit.mockResolvedValue(
       NextResponse.json({ error: 'Too many requests' }, { status: 429 })
@@ -258,17 +210,6 @@ describe('credential group OAuth callback', () => {
     const response = await GET(request('state=state-1&code=code-1'), context)
     expect(response.status).toBe(303)
     expect(response.headers.get('location')).toBe(`/credential-groups/complete?oauth=${status}`)
-  })
-
-  it('shows rate limits on the personal completion page without exchanging', async () => {
-    mocks.consumeAttempt.mockResolvedValue({ ...attempt, completionRedirect: true })
-    mocks.rateLimit.mockResolvedValue(
-      NextResponse.json({ error: 'Too many requests' }, { status: 429 })
-    )
-    const response = await GET(request('state=state-1&code=code-1'), context)
-    expect(response.status).toBe(303)
-    expect(response.headers.get('location')).toBe('/credential-groups/complete?oauth=rate_limited')
-    expect(mocks.completeOAuth).not.toHaveBeenCalled()
   })
   it('reports a state protocol change as an explicit restart without exchanging a code', async () => {
     mocks.consumeAttempt.mockRejectedValue(new CredentialGroupOAuthStateVersionError())

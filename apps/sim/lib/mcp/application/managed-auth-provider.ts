@@ -3,6 +3,7 @@ import { resourceScopeFields } from '@/lib/core/resource-scope'
 import { requireOrganizationAccountsWorkspaceAccess } from '@/lib/credential-groups/application/organization-workspace-access'
 import {
   loadManagedMcpRuntimeCredential,
+  ManagedMcpCredentialError,
   type ManagedMcpRuntimeCredential,
   saveManagedMcpRuntimeTokens,
 } from '@/lib/credentials/managed-mcp'
@@ -37,6 +38,11 @@ export async function createManagedMcpAuthProvider(
     ...resourceScopeFields(current.scope),
   })
   const preregistered = await loadPreregisteredClient(current.mcpServerId)
+  if (current.configurationFingerprint !== preregistered?.configurationFingerprint)
+    throw new ManagedMcpCredentialError(
+      'Managed MCP credential needs authorization after app configuration changed',
+      401
+    )
   let tokenVersion: string | null = current.tokenVersion
   return new ManagedMcpOauthProvider({
     clientRow,

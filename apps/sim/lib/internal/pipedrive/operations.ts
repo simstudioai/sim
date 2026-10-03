@@ -44,7 +44,7 @@ export async function executePipedriveGetFiles(
           mimeType: downloaded.contentType || getMimeTypeFromExtension(extension),
           buffer: downloaded.buffer,
         })
-      } catch (error) {
+      } catch {
         context.signal?.throwIfAborted()
         logger.warn('Failed to download Pipedrive file', {
           fileId: file.id,

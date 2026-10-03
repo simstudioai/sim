@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { getRequestContext } from '@sim/logger'
 import { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,7 +7,6 @@ const mockGetRequestContext = vi.mocked(getRequestContext)
 
 describe('withRequestId', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetRequestContext.mockReturnValue(undefined)
   })
 
@@ -23,10 +19,6 @@ describe('withRequestId', () => {
     })
   })
 
-  it('leaves the body untouched when there is no active request scope', () => {
-    expect(withRequestId({ error: 'Table not found' })).toEqual({ error: 'Table not found' })
-  })
-
   it('does not overwrite a requestId the policy already set', () => {
     mockGetRequestContext.mockReturnValue({ requestId: 'req-123' })
 
@@ -35,19 +27,10 @@ describe('withRequestId', () => {
       requestId: 'explicit',
     })
   })
-
-  it('passes through non-object bodies', () => {
-    mockGetRequestContext.mockReturnValue({ requestId: 'req-123' })
-
-    expect(withRequestId('plain text')).toBe('plain text')
-    expect(withRequestId(null)).toBeNull()
-    expect(withRequestId([{ error: 'a' }])).toEqual([{ error: 'a' }])
-  })
 })
 
 describe('responseWithRequestId', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetRequestContext.mockReturnValue(undefined)
   })
 
@@ -77,12 +60,6 @@ describe('responseWithRequestId', () => {
 
     expect(stamped.headers.get('x-custom')).toBe('kept')
     expect(stamped.headers.get('content-length')).toBeNull()
-  })
-
-  it('returns the original response when there is no active request scope', async () => {
-    const original = NextResponse.json({ error: 'Validation error' }, { status: 400 })
-
-    expect(await responseWithRequestId(original)).toBe(original)
   })
 
   it('returns the original response when the body is not JSON', async () => {

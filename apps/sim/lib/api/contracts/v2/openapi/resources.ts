@@ -247,11 +247,6 @@ const TOOL_EXECUTION_EXAMPLE = {
   error: null,
 } as const
 
-const SANDBOX_ADMIN_PLAN_NOTE =
-  'Requires a workspace admin on Max or Enterprise; lower plans return `403` with `error.details.code: WORKSPACE_PLAN_CAPABILITY_REQUIRED`.'
-const SANDBOX_BUILD_BUDGET_NOTE =
-  'Creates and updates share a write budget; bursts return `429` with `Retry-After`.'
-
 const TOOL_DETAIL_EXAMPLE = {
   ...TOOL_SUMMARY_EXAMPLE,
   params: {

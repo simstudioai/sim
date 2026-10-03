@@ -1,9 +1,9 @@
-/** @vitest-environment node */
+import { remoteSandboxMock, remoteSandboxMockFns } from '@sim/testing/mocks/remote-sandbox.mock'
 import sharp from 'sharp'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-const { sandbox, transcode } = vi.hoisted(() => ({ sandbox: vi.fn(), transcode: vi.fn() }))
-vi.mock('@/lib/execution/remote-sandbox', () => ({ executeInSandbox: sandbox }))
+const { transcode } = vi.hoisted(() => ({ transcode: vi.fn() }))
+vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
 vi.mock('@/lib/uploads/server/heic', () => ({
   isHevcHeifContainer: (buffer: Buffer) => buffer.toString('ascii', 8, 12) === 'heic',
   isHeifContainer: (buffer: Buffer) => buffer.toString('ascii', 4, 8) === 'ftyp',
@@ -12,11 +12,11 @@ vi.mock('@/lib/uploads/server/heic', () => ({
 
 import { prepareImageForVision } from '@/lib/workspace-files/prepare-image-for-vision'
 
+const sandbox = remoteSandboxMockFns.mockExecuteInSandbox
+
 const raster = () => sharp({ create: { width: 3, height: 2, channels: 3, background: '#ff0000' } })
 
 describe('prepareImageForVision', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   it.each(['png', 'jpeg', 'webp', 'gif'] as const)(
     'preserves valid bounded %s bytes and sniffs the actual format',
     async (format) => {

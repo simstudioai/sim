@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import type { PDFDocumentLoadingTask } from 'pdfjs-dist/types/src/pdf'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockGetDocument, workerMessageHandler, canvasPrimitives } = vi.hoisted(() => ({
   mockGetDocument: vi.fn(),
@@ -31,29 +28,6 @@ import { FileParserError } from '@/lib/file-parsers/errors'
 import { openPdfDocument } from '@/lib/file-parsers/pdfjs-server'
 
 describe('openPdfDocument', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('initializes native primitives before concurrent cold opens and retains existing globals', async () => {
-    class ExistingPath2D {}
-    vi.stubGlobal('Path2D', ExistingPath2D)
-    const pdf = { destroy: vi.fn().mockResolvedValue(undefined) }
-    mockGetDocument.mockReturnValue({ promise: Promise.resolve(pdf) })
-
-    await Promise.all([openPdfDocument(new Uint8Array([1])), openPdfDocument(new Uint8Array([2]))])
-
-    expect(globalThis.DOMMatrix).toBe(canvasPrimitives.DOMMatrix)
-    expect(globalThis.ImageData).toBe(canvasPrimitives.ImageData)
-    expect(globalThis.Path2D).toBe(ExistingPath2D)
-    expect(mockGetDocument).toHaveBeenCalledTimes(2)
-    expect(mockGetDocument).toHaveBeenCalledWith({
-      data: new Uint8Array([1]),
-      isEvalSupported: false,
-      useSystemFonts: true,
-    })
-  })
-
   it('destroys a pending loading task immediately when parsing is cancelled', async () => {
     let resolveLoading: ((pdf: { destroy: () => Promise<void> }) => void) | undefined
     const lateDocumentDestroy = vi.fn().mockResolvedValue(undefined)

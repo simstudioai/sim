@@ -88,7 +88,7 @@ export const salesforceGetAccountsTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response: Response, params) => {
+  transformResponse: async (response: Response) => {
     const data = await response.json()
 
     if (!response.ok) {

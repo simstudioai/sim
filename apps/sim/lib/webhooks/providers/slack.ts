@@ -908,7 +908,7 @@ export const slackHandler: WebhookProviderHandler = {
    */
   async formatInput({ body, webhook, requestId }: FormatInputContext): Promise<FormatInputResult> {
     const b = toRecord(body)
-    const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
+    const providerConfig = toRecord(webhook.providerConfig)
     let botToken = providerConfig.botToken as string | undefined
     // Reusable custom Slack bot credential: use its stored bot token directly.
     if (!botToken && typeof providerConfig.credentialId === 'string') {

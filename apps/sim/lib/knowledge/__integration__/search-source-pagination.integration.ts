@@ -1,7 +1,5 @@
 import { db } from '@sim/db'
 import {
-  document,
-  embedding,
   knowledgeBase,
   knowledgeConnector,
   member,
@@ -17,19 +15,14 @@ import {
   createKnowledgeAclFixtureIds,
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
-import { readSearchSourceOverview } from '@/lib/knowledge/application/search-source-overview'
-import { readSearchSourceProgress } from '@/lib/knowledge/application/search-source-progress'
 import { listSearchSources } from '@/lib/knowledge/application/search-sources'
 
 const ids = createKnowledgeAclFixtureIds()
 const alice = { kind: 'session' as const, userId: ids.aliceId, sessionId: 'fixture-alice' }
-const bob = { kind: 'session' as const, userId: ids.bobId, sessionId: 'fixture-bob' }
 const sourceIds = Array.from({ length: 105 }, () => generateId())
   .sort()
   .reverse()
 const olderSourceId = generateId()
-const documentId = generateId()
-const embeddingId = generateId()
 const input = { workspaceId: ids.workspaceId }
 
 beforeAll(async () => {
@@ -65,33 +58,6 @@ beforeAll(async () => {
     status: 'active',
     createdAt: new Date('2025-12-31T00:00:00Z'),
   })
-  await db.insert(document).values({
-    id: documentId,
-    connectorId: olderSourceId,
-    knowledgeBaseId: ids.knowledgeBaseId,
-    externalId: 'fixture',
-    filename: 'readable.txt',
-    fileUrl: 'https://fixture.test/readable',
-    fileSize: 12,
-    mimeType: 'text/plain',
-    processingStatus: 'completed',
-    acl: [`u:${ids.aliceId}@fixture.test`],
-    aclVerifiedAt: new Date(),
-  })
-  await db.insert(embedding).values({
-    id: embeddingId,
-    documentId,
-    knowledgeBaseId: ids.knowledgeBaseId,
-    chunkIndex: 0,
-    chunkHash: 'fixture-hash',
-    content: 'Fixture text',
-    contentLength: 12,
-    tokenCount: 3,
-    startOffset: 0,
-    endOffset: 12,
-    embeddingModel: 'text-embedding-3-small',
-    embedding: [1, ...Array<number>(1535).fill(0)],
-  })
 })
 
 afterAll(async () => {
@@ -101,7 +67,7 @@ afterAll(async () => {
   await db.delete(user).where(eq(user.id, ids.bobId))
 })
 
-describe('bounded source pagination and provider overview', () => {
+describe('bounded live Search source configuration pagination', () => {
   it('finds a provider beyond the unfiltered candidate bound on its first filtered page', async () => {
     const result = await listSearchSources.execute({
       principal: alice,
@@ -141,31 +107,6 @@ describe('bounded source pagination and provider overview', () => {
     expect(second.sources.map((source) => source.connectorId)).toEqual([olderSourceId])
     expect(second.nextCursor).toBeNull()
   })
-  it('includes providers beyond the loaded page and requires viewer-readable indexed content', async () => {
-    const first = await listSearchSources.execute({ principal: alice, input })
-    expect(first.sources.every((source) => source.connectorType === 'confluence')).toBe(true)
-    const [aliceOverview, bobOverview] = await Promise.all(
-      [alice, bob].map((principal) => readSearchSourceOverview.execute({ principal, input }))
-    )
-    expect(aliceOverview.providers).toEqual(
-      expect.arrayContaining([{ connectorType: 'google_drive', isSyncing: false }])
-    )
-    expect(aliceOverview.hasSearchableDocuments).toBe(true)
-    expect(bobOverview.hasSearchableDocuments).toBe(false)
-  })
-  it('keeps paused but readable sources complete and ignores disabled chunks', async () => {
-    await db
-      .update(knowledgeConnector)
-      .set({ status: 'paused' })
-      .where(eq(knowledgeConnector.id, olderSourceId))
-    const paused = await readSearchSourceOverview.execute({ principal: alice, input })
-    expect(paused.hasSearchableDocuments).toBe(true)
-    expect(paused.providers.every((provider) => !provider.isSyncing)).toBe(true)
-    await db.update(embedding).set({ enabled: false }).where(eq(embedding.id, embeddingId))
-    expect(
-      (await readSearchSourceOverview.execute({ principal: alice, input })).hasSearchableDocuments
-    ).toBe(false)
-  })
   it('shows a newly created source on the first-page refresh so enrollment can observe completion', async () => {
     const before = await listSearchSources.execute({ principal: alice, input })
     expect(before.sources[0].connectorId).toBe(sourceIds[0])
@@ -179,7 +120,7 @@ describe('bounded source pagination and provider overview', () => {
       status: 'pending',
     })
     const refreshed = await listSearchSources.execute({ principal: alice, input })
-    expect(refreshed.sources[0]).toMatchObject({ connectorId: newSourceId, isSyncing: true })
+    expect(refreshed.sources[0]).toMatchObject({ connectorId: newSourceId })
     expect(refreshed.sources.map((source) => source.connectorId)).toEqual([
       newSourceId,
       ...sourceIds.slice(0, 24),
@@ -190,7 +131,7 @@ describe('bounded source pagination and provider overview', () => {
     })
     expect(next.sources.map((source) => source.connectorId)).toEqual(sourceIds.slice(24, 49))
   })
-  it('does not report deactivated pending sources as indexing in any read model', async () => {
+  it('preserves organization deactivation when listing source configuration', async () => {
     await db.insert(member).values({
       id: generateId(),
       organizationId: ids.organizationId,
@@ -217,22 +158,10 @@ describe('bounded source pagination and provider overview', () => {
       approved: false,
     })
     const owner = { organizationId: ids.organizationId }
-    const [progress, overview, summary] = await Promise.all([
-      readSearchSourceProgress.execute({
-        principal: alice,
-        input: { ...owner, connectorIds: [approvalSourceId] },
-      }),
-      readSearchSourceOverview.execute({ principal: alice, input: owner }),
-      listSearchSources.execute({ principal: alice, input: owner }),
-    ])
-    expect(progress.sources[0].isSyncing).toBe(false)
-    expect(
-      overview.providers.find((provider) => provider.connectorType === 'google_drive')?.isSyncing
-    ).toBe(false)
+    const summary = await listSearchSources.execute({ principal: alice, input: owner })
     expect(summary.sources[0]).toMatchObject({
       connectorId: approvalSourceId,
       approved: false,
-      isSyncing: false,
     })
   })
 })

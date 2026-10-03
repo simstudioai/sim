@@ -120,6 +120,7 @@ import {
   processDocOps,
   RETRY_WINDOW_DAYS,
   runChangeFeedPass,
+  staleSeen,
   sweepStuckDocuments,
 } from '@/lib/knowledge/connectors/sync-primitives'
 import { getRetryAfterMs } from '@/lib/knowledge/documents/utils'
@@ -136,8 +137,6 @@ import { PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
 
 const logger = createLogger('ConnectorMemberSyncEngine')
 
-/** Observers tried, in listing order, before a document's hydration is given up on. */
-const HYDRATION_OBSERVER_ATTEMPTS = 3
 /** A minted token is reused for this long before the member is re-minted. */
 const MEMBER_TOKEN_REUSE_MS = 45 * 60 * 1000
 /** Members whose tokens one run keeps at once; a memory backstop, not a working-set limit. */
@@ -2301,7 +2300,13 @@ export async function executeMemberSync(
                   await tx
                     .update(document)
                     .set({ sourceSeenAt: run.runStartedAt })
-                    .where(and(eq(document.connectorId, connectorId), inArray(document.id, page)))
+                    .where(
+                      and(
+                        eq(document.connectorId, connectorId),
+                        inArray(document.id, page),
+                        staleSeen(run.runStartedAt)
+                      )
+                    )
                 }
               })
             }

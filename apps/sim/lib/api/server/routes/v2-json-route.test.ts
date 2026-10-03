@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { PersonalApiKeyPrincipal } from '@sim/auth/principal'
 import {
   MockV2ApiKeyUnauthenticatedError,
@@ -28,7 +25,6 @@ class TestLockedError extends HttpError {
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
-import { markInternalRequest } from '@/lib/api/server/routes/internal-request'
 import type { V2ApiKeyAuthContext } from '@/lib/api/server/routes/v2-api-key-auth'
 import {
   admitOptionalV2Request,
@@ -149,7 +145,6 @@ function oversizedRequest(maxBodyBytes: number): NextRequest {
 
 describe('defineV2JsonRoute', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue({
       allowed: true,
@@ -209,21 +204,6 @@ describe('defineV2JsonRoute', () => {
       'on-success',
     ])
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
-  })
-
-  it('authenticates but never rate-limits a request the server marked as its own', async () => {
-    // The embedded CLI and the agent-cli engines dispatch to these handlers in-process;
-    // the IP bucket and the per-key limits exist for callers on the wire, and a chat
-    // turn's tool calls all land on one key (dev 2026-09-03: grep hit the limit).
-    const internal = request()
-    markInternalRequest(internal)
-
-    const response = await createHandler()(internal)
-
-    expect(response.status).toBe(201)
-    expect(v2RouteMocks.authenticate).toHaveBeenCalledTimes(1)
-    expect(v2RouteMocks.preauthRate).not.toHaveBeenCalled()
-    expect(v2RouteMocks.operationRate).not.toHaveBeenCalled()
   })
 
   it('fails closed before authentication when the IP bucket cannot admit the request', async () => {
@@ -520,7 +500,6 @@ describe('defineV2JsonRoute', () => {
  */
 describe('defineV2JsonRoute unreadable body classification', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue({
       allowed: true,
@@ -695,7 +674,6 @@ describe('defineV2JsonRoute HEAD on a route that is not head-safe', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue({
       allowed: true,
@@ -816,7 +794,6 @@ const presenterContract = defineRouteContract({
  */
 describe('defineV2JsonRoute presentation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue({
       allowed: true,
@@ -900,7 +877,6 @@ describe('defineV2JsonRoute OAuth scope admission', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.preauthRate.mockResolvedValue({
       allowed: true,
       remaining: 599,

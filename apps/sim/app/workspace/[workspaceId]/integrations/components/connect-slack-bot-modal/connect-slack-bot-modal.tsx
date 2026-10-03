@@ -8,7 +8,6 @@ import {
   type ChipDropdownOption,
   ChipInput,
   ChipModalField,
-  SecretInput,
   Wizard,
 } from '@sim/emcn'
 import { Loader, Plus, Trash } from '@sim/emcn/icons'
@@ -19,6 +18,11 @@ import { SlackIcon } from '@/components/icons'
 import { SlackAppManifest } from '@/components/integrations/slack-app-manifest'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import {
+  buildSlackAppCreationUrl,
+  getSlackAppNameError,
+  SLACK_APP_CREATION_URL_MAX_LENGTH,
+} from '@/lib/integrations/slack-manifest'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import {
   useCreateScopedCredential,
@@ -167,6 +171,7 @@ export function ConnectSlackBotModal({
   // window.location.origin) so Slack's servers can reach it.
   const requestUrl = buildSlackCustomBotRequestUrl(credentialId)
 
+  const nameError = isReconnect ? null : getSlackAppNameError(appName)
   const descriptionError = getAgentDescriptionError(appDescription)
   const slashCommandsError = searchOnly || isReconnect ? null : getSlashCommandsError(slashCommands)
   const manifestConfigurationError = descriptionError ?? slashCommandsError
@@ -192,7 +197,7 @@ export function ConnectSlackBotModal({
       ),
       ...(managedUserAuthorization ? { managedUserAuthorization } : {}),
     })
-    return JSON.stringify(manifest, null, 2)
+    return JSON.stringify(manifest)
   }, [
     isReconnect,
     manifestConfigurationError,
@@ -203,6 +208,12 @@ export function ConnectSlackBotModal({
     requestUrl,
     searchOnly,
   ])
+
+  const createAppUrl = buildSlackAppCreationUrl(manifestJson)
+  const creationUrlError =
+    createAppUrl.length > SLACK_APP_CREATION_URL_MAX_LENGTH
+      ? 'This app configuration is too large to open in Slack. Shorten or remove slash commands.'
+      : null
 
   const capabilityIds = [...selected]
   const setCapabilityIds = (next: string[]) => setSelected(new Set(next))
@@ -270,31 +281,41 @@ export function ConnectSlackBotModal({
           fallback, which collides for a second bot in the same workspace. */}
       <Wizard.Step
         title={searchOnly ? 'Name your Slack app' : 'Configure your bot'}
-        canAdvance={appName.trim().length > 0 && !descriptionError && !slashCommandsError}
+        canAdvance={
+          appName.trim().length > 0 &&
+          !nameError &&
+          !manifestConfigurationError &&
+          !creationUrlError
+        }
       >
         <StepConfigure
           searchOnly={searchOnly}
           reconnect={isReconnect}
           appName={appName}
+          nameError={appName ? nameError : null}
           onAppNameChange={setAppName}
           appDescription={appDescription}
           onAppDescriptionChange={setAppDescription}
           descriptionError={descriptionError}
           slashCommands={slashCommands}
           onSlashCommandsChange={setSlashCommands}
-          slashCommandsError={slashCommandsError}
+          slashCommandsError={slashCommandsError ?? creationUrlError}
           capabilityIds={capabilityIds}
           onCapabilityIdsChange={setCapabilityIds}
         />
       </Wizard.Step>
       <Wizard.Step title={isReconnect ? 'Open your app in Slack' : 'Create the app in Slack'}>
-        <StepCreate manifestJson={manifestJson} reconnect={isReconnect} />
+        <StepCreate
+          manifestJson={manifestJson}
+          createAppUrl={createAppUrl}
+          reconnect={isReconnect}
+        />
+      </Wizard.Step>
+      <Wizard.Step title='Install and paste your Bot Token' canAdvance={botToken.trim().length > 0}>
+        <StepToken value={botToken} onChange={setBotToken} reconnect={isReconnect} />
       </Wizard.Step>
       <Wizard.Step title='Paste your Signing Secret' canAdvance={signingSecret.trim().length > 0}>
         <StepSecret value={signingSecret} onChange={setSigningSecret} />
-      </Wizard.Step>
-      <Wizard.Step title='Install and paste your Bot Token' canAdvance={botToken.trim().length > 0}>
-        <StepToken value={botToken} onChange={setBotToken} />
       </Wizard.Step>
       <Wizard.Step title='All set'>
         <StepDone
@@ -337,6 +358,7 @@ interface StepConfigureProps {
   searchOnly: boolean
   reconnect: boolean
   appName: string
+  nameError: string | null
   onAppNameChange: (next: string) => void
   appDescription: string
   onAppDescriptionChange: (next: string) => void
@@ -351,6 +373,7 @@ function StepConfigure({
   searchOnly,
   reconnect,
   appName,
+  nameError,
   onAppNameChange,
   appDescription,
   onAppDescriptionChange,
@@ -372,6 +395,7 @@ function StepConfigure({
         value={appName}
         onChange={onAppNameChange}
         placeholder={DEFAULT_APP_NAME}
+        error={nameError}
       />
       <ChipModalField
         type='input'
@@ -491,9 +515,10 @@ function SlashCommandsEditor({ commands, onChange, error }: SlashCommandsEditorP
 
 interface StepCreateProps {
   manifestJson: string
+  createAppUrl: string
   reconnect: boolean
 }
-function StepCreate({ manifestJson, reconnect }: StepCreateProps) {
+function StepCreate({ manifestJson, createAppUrl, reconnect }: StepCreateProps) {
   if (reconnect) {
     return (
       <SubStepList>
@@ -521,29 +546,13 @@ function StepCreate({ manifestJson, reconnect }: StepCreateProps) {
     <div className='space-y-4'>
       <SubStepList>
         <SubStep n={1}>
-          <div>Copy your manifest:</div>
+          <div>Open Slack with the manifest for your selected permissions already filled in:</div>
           <div className='mt-2'>
-            <SlackAppManifest manifest={manifestJson} />
+            <SlackAppManifest manifest={manifestJson} createAppUrl={createAppUrl} />
           </div>
         </SubStep>
         <SubStep n={2}>
-          Open the{' '}
-          <a
-            href='https://api.slack.com/apps'
-            target='_blank'
-            rel='noopener noreferrer'
-            className='text-[var(--brand-secondary)] underline underline-offset-2'
-          >
-            Slack Apps page
-          </a>
-          .
-        </SubStep>
-        <SubStep n={3}>
-          Click <strong>Create New App</strong> → <strong>From a manifest</strong> and pick your
-          workspace.
-        </SubStep>
-        <SubStep n={4}>
-          Paste your manifest, then click <strong>Next</strong> → <strong>Create</strong>.
+          Select your workspace, review the configuration, then click <strong>Create</strong>.
         </SubStep>
       </SubStepList>
     </div>
@@ -576,13 +585,22 @@ function StepSecret({ value, onChange }: SecretStepProps) {
   )
 }
 
-function StepToken({ value, onChange }: SecretStepProps) {
+function StepToken({ value, onChange, reconnect }: SecretStepProps & { reconnect: boolean }) {
   return (
     <div className='space-y-4'>
       <SubStepList>
         <SubStep n={1}>
-          In Slack, open <strong>Install App</strong> → <strong>Install to Workspace</strong> and
-          authorize.
+          {reconnect ? (
+            <>
+              Open <strong>OAuth &amp; Permissions</strong> in your existing Slack app. Reinstall
+              only if Slack requests it.
+            </>
+          ) : (
+            <>
+              In Slack, open <strong>OAuth &amp; Permissions</strong> →{' '}
+              <strong>Install to Workspace</strong> and approve access.
+            </>
+          )}
         </SubStep>
         <SubStep n={2}>
           Copy the <strong>Bot User OAuth Token</strong> (starts with <code>xoxb-</code>).
@@ -602,9 +620,15 @@ interface SecretFieldProps {
 }
 function SecretField({ label, value, onChange, placeholder }: SecretFieldProps) {
   return (
-    <ChipModalField type='custom' title={label}>
-      <SecretInput value={value} onChange={onChange} placeholder={placeholder} />
-    </ChipModalField>
+    <ChipModalField
+      type='input'
+      inputType='password'
+      title={label}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      autoComplete='off'
+    />
   )
 }
 

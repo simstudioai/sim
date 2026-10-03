@@ -1,145 +1,242 @@
 ---
 slug: sim-vs-dify-open-source-ai-workspace-vs-llm-app-rag-platform
 title: 'Sim vs Dify: Open-Source AI Workspace vs LLM App / RAG Platform'
-description: 'Compare Sim and Dify for AI agents, RAG applications, workflow automation, licensing, deployment, and pricing. Learn when an AI workspace or an LLM app platform fits your team.'
+description: 'Sim vs Dify head to head: how the two compare on visual workflow building, RAG, self-hosting, integrations, licensing, pricing, and team fit, and when to choose each.'
 date: 2026-08-05
-updated: 2026-08-05
+updated: 2026-09-30
 authors:
   - andrew
-readingTime: 8
+readingTime: 12
 tags: [Dify, Open Source, AI Agents, RAG, Sim]
 ogImage: /library/sim-vs-dify-open-source-ai-workspace-vs-llm-app-rag-platform/cover.jpg
-canonical: https://www.sim.ai/library/sim-vs-dify-open-source-ai-workspace-vs-llm-app-rag-platform
 draft: false
 faq:
-  - q: 'Is Sim a good Dify alternative?'
-    a: 'Sim is a strong alternative for teams that need agentic workflows and business automation alongside retrieval and chat. The better choice depends on whether your product is primarily an LLM application or a connected operational workflow.'
-  - q: 'Why should I compare licenses before choosing an AI platform?'
-    a: 'A license determines the rights to use, modify, distribute, and host software. Review it against your actual deployment, commercial, multi-tenant, and branding plans before committing to a platform.'
-  - q: 'Does Sim support RAG?'
-    a: 'Yes. Sim Knowledge Bases support retrieval workflows, and they can be used alongside Tables, Files, agents, tools, APIs, and scheduled workflows.'
-  - q: 'Can Sim be self-hosted?'
-    a: 'Sim core is available under Apache 2.0. Teams can use the repository and deployment documentation to evaluate whether self-hosting fits their infrastructure and operational requirements.'
-  - q: 'How should I compare Sim and Dify pricing?'
-    a: 'Model the cost using your real seat count, workspace count, environments, and expected model or tool usage. Check each vendor’s current pricing page because plans, credits, and limits can change.'
+  - q: "What is the difference between Sim and Dify?"
+    a: "Sim is an AI workflow and agent builder for automating processes across models, data, and external applications, while Dify is an LLM application platform centered on chatflows, workflows, agents, model management, and knowledge retrieval."
+  - q: "Is Sim better than Dify?"
+    a: "Sim is the better fit when a team wants an Apache 2.0 visual workspace for AI agents and multi-application automation, while Dify may fit better when managed LLM applications and knowledge-base operations are the main requirements."
+  - q: "Is Dify better than Sim?"
+    a: "Dify is the better fit when a team primarily needs to build and operate retrieval-heavy LLM applications, while Sim is usually the better fit for AI workflows that coordinate models, data, logic, and business applications."
+  - q: "Which is better for RAG, Sim or Dify?"
+    a: "Dify is often the more specialized choice for teams whose product revolves around managed knowledge bases and retrieval configuration, while Sim is a strong choice when retrieval is one step inside a broader automated workflow."
+  - q: "Which is better for AI workflow automation, Sim or Dify?"
+    a: "Sim is generally the more direct fit for visual AI workflow automation across external applications, while Dify is generally the more direct fit for workflows packaged as LLM applications."
+  - q: "Is Sim open source?"
+    a: "Sim core is open-source software licensed under the OSI-approved Apache License 2.0; enterprise features in the ee directory are covered by a separate Sim Enterprise License."
+  - q: "Is Dify open source?"
+    a: "Dify makes its source code available under the Dify Open Source License, which is based on Apache License 2.0 but adds conditions and is not the standard OSI-approved Apache 2.0 license."
+  - q: "Can Sim be self-hosted?"
+    a: "Sim can be self-hosted, and its Apache 2.0 license permits use, modification, and distribution subject to the license terms."
+  - q: "Can Dify be self-hosted?"
+    a: "Dify can be self-hosted, including through its documented Docker Compose deployment, subject to the Dify Open Source License."
+  - q: "How much do Sim and Dify cost?"
+    a: "Sim and Dify both publish hosted-cloud pricing, while self-hosters must also account for infrastructure, model, storage, database, and operational costs; as of September 2026, buyers should confirm current prices and quotas on each vendor's official pricing page."
+  - q: "Which has more integrations, Sim or Dify?"
+    a: "Sim emphasizes connections used in end-to-end AI automation, while Dify extends LLM applications through models, tools, APIs, and plugins; buyers should compare the current official catalogs against the exact systems they need."
+  - q: "Which is better for teams, Sim or Dify?"
+    a: "Sim fits teams coordinating AI-driven business workflows, while Dify fits teams building and operating LLM applications with centralized prompt, model, retrieval, and application configuration."
+  - q: "How do Sim and Dify compare with n8n?"
+    a: "Sim focuses on AI-native agents and workflows, Dify focuses on LLM applications and RAG, and n8n is the broadest general-purpose application automation platform of the three."
+  - q: "Is n8n open source?"
+    a: "n8n is source-available under the Sustainable Use License and Enterprise License, and the Sustainable Use License is not an OSI-approved open-source license."
+  - q: "Is Sim free?"
+    a: "Sim can be self-hosted under Apache 2.0 without a software license fee, but infrastructure, model APIs, storage, and other connected services can still create costs."
 ---
 
 ## TL;DR
 
-- Choose Sim for an AI workspace that combines agents, workflows, Tables, Files, Knowledge Bases, and deployment surfaces under an [Apache 2.0 license](https://github.com/simstudioai/sim/blob/main/LICENSE). Choose Dify for an LLM application platform centered on RAG and conversational experiences; review its [current license](https://github.com/langgenius/dify/blob/main/LICENSE) before building a commercial product on it.
-- Sim supports conversational, visual, and programmatic building in one workspace. Dify documents a visual [workflow](https://docs.dify.ai/en/guides/workflow) and application-building model for LLM apps.
-- At the time of writing, [Sim pricing](https://www.sim.ai/pricing) lists Free, Pro, and Max plans, while [Dify pricing](https://dify.ai/pricing) lists Sandbox, Professional, Team, and Enterprise options. Compare the live pages before you buy.
-- Sim can deploy workflows as an API, a hosted chat experience, or an MCP tool. Dify documents application publishing and API access for its LLM applications in its [deployment documentation](https://docs.dify.ai/en/guides/application-publishing).
+Sim and Dify overlap as visual platforms for building AI applications, but they are optimized for different jobs: **Sim focuses on AI agents and workflows spanning models, data, and external applications, whereas Dify focuses on building and operating LLM applications with workflows, chatflows, agents, and retrieval.**
 
-## Sim vs Dify: the direct answer
+Choose Sim when flexible AI automation, an OSI-approved core license, and broader workflow orchestration are priorities. Choose Dify when the central task is managing retrieval-heavy LLM applications. Neither platform is universally superior.
 
-Sim is a strong Dify alternative when you need a permissively licensed workspace for agents, business automation, and workflows that go beyond retrieval and chat. Dify is a focused option when the job is shipping a production LLM application centered on RAG and conversational interfaces, as reflected in its [application and workflow documentation](https://docs.dify.ai/en/guides/workflow).
+This page compares only these two products. If you are still surveying the field, the ranked list of [Dify alternatives](https://www.sim.ai/library/dify-alternatives) also covers n8n, LangChain and LangGraph, RAGFlow, and Langflow.
 
-Dify serves developers who want a platform for creating and deploying LLM applications. Its documented workflow, knowledge, and application capabilities support RAG assistants and chat experiences. Sim serves technical builders who need a broader workspace where agents can reason, process structured data, call business tools, and run through deterministic control flow in the same graph.
+_Reviewed September 2026. Product capabilities, hosted pricing, quotas, and license terms should be reconfirmed from the linked first-party sources before purchase or deployment._
 
-The clearest split is license and scope. Dify ships under the [Dify Open Source License](https://github.com/langgenius/dify/blob/main/LICENSE), which is based on Apache 2.0 with additional conditions. Sim releases its core under [standard Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), a permissive license that allows commercial use, modification, and distribution subject to its terms.
+## What is the difference between Sim and Dify?
 
-## Choose Dify when / choose Sim when
+**Sim is an AI workflow and agent builder, while Dify is an LLM application development platform with a particularly strong emphasis on application configuration and RAG.**
 
-### Choose Dify when
+[Sim](https://www.sim.ai/) provides a visual workspace for connecting models, agents, knowledge, logic, APIs, and business applications into executable workflows. Its core is available under the standard [Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE).
 
-- Your application is RAG-first, where document retrieval defines the product. Dify's [Knowledge documentation](https://docs.dify.ai/en/cloud/use-dify/knowledge/create-knowledge/introduction) explains its knowledge-base workflow.
-- Your application is chat-first, where a conversational interface is the primary surface. Dify documents chat-oriented application types in its [application guide](https://docs.dify.ai/en/guides/application-creation/creating-an-application).
+[Dify](https://dify.ai/) provides visual workflows and chatflows alongside model-provider management, agents, knowledge bases, retrieval settings, APIs, and application publishing. Its product is organized around the lifecycle of an LLM-powered application.
 
-### Choose Sim when
+The products overlap, but their centers of gravity differ:
 
-- You need business automation that extends past chat and retrieval into operational systems.
-- You want native Tables, Files, and Knowledge Bases connected inside one workspace.
-- You need agentic reasoning and deterministic workflow logic in the same graph.
-- You plan to ship a commercial multi-tenant product and need standard Apache 2.0 terms without Dify's additional license conditions.
-- You want to evaluate a collaborative canvas for a team building shared workflows.
+- **Choose Sim** when AI is part of a multi-step process involving external systems, branching logic, data, human-facing tools, or multiple model calls.
+- **Choose Dify** when the primary deliverable is a chatbot, assistant, agent, or other LLM application backed by centrally managed prompts and knowledge.
 
-## Why the license matters: Apache 2.0 vs Dify's modified Apache license
+## What are the key facts about Sim, Dify, and n8n?
 
-Both products can be self-hosted: Sim publishes its [source and license](https://github.com/simstudioai/sim), while Dify documents [self-hosted deployment](https://docs.dify.ai/en/getting-started/install-self-hosted/docker-compose). Self-hosting gives you control of infrastructure. The license determines whether and how you may modify the software, distribute it, sell access to a service built on it, or put your own brand on it.
+**Sim, Dify, and n8n differ most clearly in license, deployment model, and the type of workflow each platform treats as its primary use case.**
 
-Dify's [license text](https://github.com/langgenius/dify/blob/main/LICENSE) adds conditions beyond Apache 2.0, including a condition related to multi-tenant operation and a condition related to Dify branding and copyright information in the frontend. Those terms can matter to SaaS vendors, agencies running shared client portals, and platforms that plan to resell a hosted version. Internal deployments and products where Dify is used only behind the scenes may present a different analysis, so map the license against your architecture.
+- **Sim:** Sim core uses the OSI-approved [Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE), supports [Docker and Kubernetes self-hosting](https://docs.sim.ai/platform/self-hosting), and offers a hosted service whose current plans and usage charges are listed on the [official Sim pricing page](https://www.sim.ai/pricing). Enterprise features in the repository's `ee` directory use a separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE).
+- **Dify:** Dify supports [self-hosting](https://docs.dify.ai/en/self-host/deploy/overview) under the [Dify Open Source License](https://github.com/langgenius/dify/blob/main/LICENSE) and offers hosted workspace plans with quotas and limits on the [official Dify pricing page](https://dify.ai/pricing).
+- **n8n:** n8n supports self-hosting under its source-available [Sustainable Use License and Enterprise License](https://docs.n8n.io/privacy-and-security/sustainable-use-license/) and sells hosted plans using the units and limits on the [official n8n pricing page](https://n8n.io/pricing/).
 
-Sim's [open-source core](https://github.com/simstudioai/sim) uses standard Apache 2.0. The [Apache License 2.0 text](https://www.apache.org/licenses/LICENSE-2.0) permits commercial use, modification, and distribution under its notice and attribution requirements, and includes an express patent grant. Sim enterprise offerings, trademarks, hosted services, and third-party components can carry separate terms.
+As of September 2026, Sim's core uses Apache 2.0, which appears on the [OSI Approved Licenses list](https://opensource.org/licenses). Dify's repository uses a modified license with additional conditions, and n8n's Sustainable Use License is source-available rather than OSI-approved open source. For more context, see [Apache 2.0 vs fair-code](https://www.sim.ai/library/apache-2-0-vs-fair-code).
 
-Have counsel review the current repository license when multi-tenant resale, customer-facing branding, or redistribution is part of your business model. For a broader explanation of the distinction, see [Apache 2.0 vs fair-code](https://www.sim.ai/library/apache-2-0-vs-fair-code).
+## How do Sim and Dify compare at a glance?
 
-## Builder model and agent depth
+**Sim is usually the better match for cross-application AI workflows, while Dify is usually the better match for teams operating LLM applications and managed retrieval.**
 
-Dify centers on a visual workflow editor and application model. Its [workflow guide](https://docs.dify.ai/en/guides/workflow) describes connecting nodes to create LLM application flows, while its [agent documentation](https://docs.dify.ai/en/guides/workflow/node/agent) covers agent-oriented workflows. That model fits developers who want an application-oriented interface without assembling the orchestration stack themselves.
+| Buyer criterion | Sim | Dify | Better fit when… |
+|---|---|---|---|
+| Primary focus | Visual AI agents and workflows | [LLM applications, chatflows, workflows, agents, and RAG](https://docs.dify.ai/en/learn/key-concepts) | The required outcome determines the fit |
+| Workflow building | Coordinates models, logic, data, APIs, and external applications | [Coordinates application steps, tools, retrieval, and outputs](https://docs.dify.ai/en/cloud/use-dify/build/workflow-chatflow) | Sim for broader automation; Dify for app-centric orchestration |
+| RAG | Knowledge and retrieval can be incorporated into larger workflows | [Knowledge-base ingestion and retrieval](https://docs.dify.ai/en/api-reference/guides/knowledge) are central platform capabilities | Dify for a RAG-centered product; Sim for RAG inside broader automation |
+| Integrations | Emphasizes workflow connections to models and business systems | Emphasizes [model providers, tools, APIs, data sources, and plugins](https://docs.dify.ai/en/cloud/use-dify/workspace/plugins) | Compare the current catalogs against required systems |
+| Self-hosting | [Supported](https://docs.sim.ai/platform/self-hosting) | [Supported, including Docker Compose](https://docs.dify.ai/en/self-host/deploy/quick-start/docker-compose) | Both can fit self-hosting requirements |
+| License | Apache License 2.0 for core; separate enterprise-feature license | Dify Open Source License with additional conditions | Sim when an OSI-approved core license is required |
+| Hosted service | Available | Available | Compare current quotas, usage units, and support requirements |
+| Typical team | Automation, operations, product, and engineering teams building AI workflows | Product and AI teams building LLM applications and knowledge assistants | Match the platform to the team's main operating model |
+| General automation alternative | More AI-native than a conventional automation platform | More LLM-app-centric than a conventional automation platform | Consider n8n when broad non-AI app automation dominates |
 
-Sim gives you [three ways to build](https://docs.sim.ai/introduction). Describe the system to Mothership in plain language, construct it on the visual canvas, or work through APIs. The same workspace can hold the resources those paths use, so a team can start conversationally and refine visually or programmatically.
+## Which is better for visual workflow building, Sim or Dify?
 
-[Mothership](https://docs.sim.ai/mothership) operates across workspace resources rather than only a single workflow. It can create and modify workflows and work with Tables, Files, and Knowledge Bases from natural-language instructions. This is useful when the build process itself needs access to the resources a workflow will use.
+**Sim is generally the more direct choice for visually automating an end-to-end process across AI models and external applications, while Dify is generally the more direct choice for visually composing an LLM application.**
 
-Both platforms combine model reasoning with explicit logic, but their emphasis differs. Dify provides [agent and workflow nodes](https://docs.dify.ai/en/guides/workflow) for LLM applications. Sim combines Agent blocks with conditions, routers, loops, custom code, parallel execution, and approval steps in one graph. Predictable steps can stay deterministic while judgment and tool selection go to a model.
+A Sim workflow can represent a broader operational process: receive or fetch data, retrieve context, invoke one or more models, apply logic, call external services, and deliver the result. This makes Sim suitable when the AI step is part of a larger automation rather than the entire product.
 
-Sim also supports real-time workspace collaboration, allowing teammates to work on shared workflows. Teams comparing the category can use [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms) to evaluate the trade-offs among visual builders, frameworks, and workspaces.
+Dify's documented [Workflow and Chatflow builder](https://docs.dify.ai/en/cloud/use-dify/build/workflow-chatflow) combines models, tools, logic, retrieval, conditions, and outputs in applications that can be published through the web or APIs.
 
-## Context and action layers: knowledge bases vs a connected workspace
+Neither approach is inherently better. The important architectural question is whether the team is primarily automating a process or operating an LLM application.
 
-Dify puts RAG at the center. Its [Knowledge feature](https://docs.dify.ai/en/cloud/use-dify/knowledge/create-knowledge/introduction) indexes documents for retrieval and supplies retrieved context to applications. If document retrieval and conversation define your product, that focus can be an advantage.
+## Which is better for RAG, Sim or Dify?
 
-Sim supports retrieval and connects it to other workspace resources. The [workspace model](https://docs.sim.ai/introduction) links Knowledge Bases with native Tables and Files. Knowledge Bases can supply semantic retrieval, Tables can hold structured records and workflow state, and Files can be used as inputs or outputs. One workflow can retrieve policy text, update a case record in a Table, and save a generated report as a File.
+**Dify is often the better fit for a RAG-centered application, while Sim is often the better fit when retrieval is one component of a larger AI workflow.**
 
-Sim connects that context to action through integrations, API calls, custom JavaScript, and MCP tools. Rather than comparing catalogs by a single count, evaluate whether the specific services, authentication patterns, and workflow controls you need are available. For background on publishing or consuming reusable tools, see [what an MCP server is](https://www.sim.ai/library/what-is-an-mcp-server).
+Dify gives knowledge management a prominent role in the product. Teams can create knowledge bases, connect them to applications, configure chunking and retrieval, and manage the resulting experience in the same platform, as described in the [official Dify knowledge documentation](https://docs.dify.ai/en/cloud/use-dify/knowledge/create-knowledge/introduction).
 
-The practical difference is scope. Dify is a focused choice for RAG-first and chat-first applications. Sim fits workflows that need document retrieval, structured operational data, persistent files, and actions across external systems in the same workflow.
+Sim supports knowledge and retrieval within visual workflows, allowing retrieved context to be combined with model calls, application actions, conditions, and additional processing. Buyers can review the [Sim retrieval documentation](https://docs.sim.ai/knowledgebase/debugging-retrieval).
 
-## Deployment, hosting, and model flexibility
+For a support assistant whose defining feature is answering from an internal corpus, Dify's application-and-knowledge orientation may reduce conceptual overhead. For a process that retrieves information and then updates systems, requests approval, generates assets, or triggers downstream actions, Sim's broader workflow orientation may be more natural.
 
-Dify documents production application publishing, APIs, and [self-hosted deployment](https://docs.dify.ai/en/getting-started/install-self-hosted/docker-compose). Review those guides alongside its [pricing page](https://dify.ai/pricing) to understand which hosted and enterprise options apply to your plan.
+RAG quality still depends on document preparation, chunking, embedding choices, retrieval settings, reranking, model behavior, evaluation, and source freshness. A platform cannot remove the need to test those components against real queries.
 
-Sim exposes deployed workflows as a REST API, a hosted chat experience, or an MCP tool through a workflow MCP server. The MCP surface lets compatible AI systems discover and call a deployed workflow as a reusable tool. You can evaluate Sim Cloud or self-host the [Apache 2.0 core](https://github.com/simstudioai/sim) on infrastructure appropriate for your team.
+## Can Sim and Dify be self-hosted?
 
-Both platforms support model-provider connections. Dify documents supported providers in its [model-provider guide](https://docs.dify.ai/en/guides/model-configuration/new-model-provider). Sim offers managed access and bring-your-own-key options, and can connect to local model infrastructure. Choose based on the providers, key-management approach, and hosting pattern you actually need rather than a raw model count. For a deeper Sim-specific guide, read [BYOK and multi-model agent building](https://www.sim.ai/library/byok-multi-model-ai-agent-builder).
+**Sim and Dify can both be self-hosted, but their license terms and operational requirements differ.**
 
-## Comparison table: Sim vs Dify across key axes
+Sim's core source code is available in the [official Sim GitHub repository](https://github.com/simstudioai/sim) under [Apache License 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE). Apache 2.0 permits use, modification, and distribution subject to its terms and includes an express patent grant. Enterprise features in the `ee` directory are covered by the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE).
 
-| Axis | Sim | Dify |
-| --- | --- | --- |
-| Category and buyer job | AI workspace for agents, workflows, and business automation | [Platform for LLM applications, workflows, RAG, and chat](https://docs.dify.ai/en/guides/application-creation/creating-an-application) |
-| Builder model | Mothership natural language, visual canvas, and API | [Visual workflow builder and application types](https://docs.dify.ai/en/guides/workflow) |
-| Agent depth | Agentic reasoning and deterministic control in one graph | [Agent and workflow nodes for LLM applications](https://docs.dify.ai/en/guides/workflow/node/agent) |
-| Context layer | Native Tables, Files, and Knowledge Bases | [Knowledge bases and retrieval workflows](https://docs.dify.ai/en/cloud/use-dify/knowledge/create-knowledge/introduction) |
-| Action layer | Integrations, API calls, custom JavaScript, and MCP tools | [Tools, plugins, APIs, and workflow nodes](https://docs.dify.ai/en/guides/tools) |
-| Collaboration | Shared real-time workspace workflows | Evaluate [Dify plan and team options](https://dify.ai/pricing) against your collaboration requirements |
-| Deployment surfaces | REST API, hosted chat, and MCP tool or server | [Published applications and APIs](https://docs.dify.ai/en/guides/application-publishing) |
-| License | [Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE) | [Dify Open Source License](https://github.com/langgenius/dify/blob/main/LICENSE) |
-| Pricing model | [Free and paid plans with usage pricing](https://www.sim.ai/pricing) | [Sandbox and paid workspace plans](https://dify.ai/pricing) |
+Dify's source code is available in the [official Dify GitHub repository](https://github.com/langgenius/dify). Dify documents self-hosting through [Docker Compose](https://docs.dify.ai/en/self-host/deploy/quick-start/docker-compose), but buyers should read the repository's [current license](https://github.com/langgenius/dify/blob/main/LICENSE) because it adds conditions to Apache 2.0.
 
-## Pricing: per-workspace vs per-user
+Self-hosting either product still requires operational ownership. Teams should plan for secrets, model credentials, databases, storage, networking, access controls, backups, observability, upgrades, and incident response.
 
-Dify's [pricing page](https://dify.ai/pricing) presents plans per workspace, while [Sim pricing](https://www.sim.ai/pricing) presents plans per user with usage credits. The two models produce different cost curves depending on team size, workload, and how many separate environments you need.
+## Is Sim open source, and is Dify open source?
 
-| Plan level | Dify | Sim |
-| --- | --- | --- |
-| Free | [Sandbox with 200 message credits](https://dify.ai/pricing) | [Free plan](https://www.sim.ai/pricing) |
-| Entry paid | [Professional: $59 per workspace/month](https://dify.ai/pricing) | [Pro: $25 per user/month](https://www.sim.ai/pricing) |
-| Higher paid | [Team: $159 per workspace/month](https://dify.ai/pricing) | [Max: $100 per user/month](https://www.sim.ai/pricing) |
-| Enterprise | [Custom pricing](https://dify.ai/pricing) | [Custom pricing](https://www.sim.ai/pricing) |
-| Usage model | [Message credits per workspace](https://dify.ai/pricing) | [Usage credits](https://www.sim.ai/pricing) |
-| Self-hosted | [Available under Dify's license terms](https://github.com/langgenius/dify/blob/main/LICENSE) | [Available under Apache 2.0](https://github.com/simstudioai/sim/blob/main/LICENSE) |
+**Sim core is open source under Apache License 2.0, while Dify is source-available under a modified license that adds conditions beyond standard Apache 2.0.**
 
-The free plans are not directly interchangeable. Dify's pricing page describes Sandbox as a limited-credit option, while Sim's pricing page describes its free plan and usage allowance. On paid plans, Dify's workspace pricing may suit a small group sharing one environment, while Sim's seat pricing changes with headcount. Model and tool consumption can also affect total cost.
+This distinction matters when procurement or engineering policy requires an OSI-approved license. Sim's [LICENSE file](https://github.com/simstudioai/sim/blob/main/LICENSE) contains the standard Apache 2.0 terms, while enterprise features carry a [separate license](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE).
 
-Both vendors can change prices, credits, limits, and terms. Check the live [Dify pricing](https://dify.ai/pricing) and [Sim pricing](https://www.sim.ai/pricing) pages before you buy.
+Dify describes its terms in its [official LICENSE file](https://github.com/langgenius/dify/blob/main/LICENSE). Organizations considering Dify should review the additional conditions, especially if they plan to provide a multi-tenant service, alter branding, redistribute the software, or embed it in a commercial offering.
 
-## Who each platform fits best
+This article does not provide legal advice. Teams with commercial redistribution or hosted-service plans should have counsel evaluate the current license text. Buyers comparing licensing across the category can also review [open-source AI agent platforms](https://www.sim.ai/library/open-source-ai-agent-platforms).
 
-Dify fits developers building RAG-first or chat-first LLM applications. Its [application builder](https://docs.dify.ai/en/guides/application-creation/creating-an-application) and [knowledge workflow](https://docs.dify.ai/en/cloud/use-dify/knowledge/create-knowledge/introduction) provide a focused route to an LLM application without assembling retrieval and chat infrastructure from scratch.
+## Which has more integrations, Sim or Dify?
 
-Sim fits builders who need agents that work across business tools and data. A developer or technical founder can combine model reasoning with conditions, code, integrations, Tables, Files, and Knowledge Bases, then deploy the result as an API, hosted chat experience, or MCP tool.
+**Sim is oriented toward integrations used in complete AI-powered business workflows, while Dify is oriented toward the models, tools, plugins, APIs, and data sources used by LLM applications.**
 
-Functional teams fit Sim when several people need shared workflows, credentials, context, and execution history. Operations, engineering, product, and RevOps can run automation in one workspace instead of treating every project as a separate application.
+Raw integration counts are a weak buying metric because vendors classify models, triggers, actions, community plugins, and generic HTTP connections differently. A better evaluation is to test the exact systems required by the proposed workflow.
 
-For enterprises, compare governance, self-hosting, key management, security requirements, and commercial terms against a real deployment. Dify remains a focused fit when an enterprise program is specifically about RAG applications and conversational interfaces.
+For Sim, verify whether each required service has the necessary trigger, action, authentication method, and data fields in the [current Sim documentation](https://docs.sim.ai/). For Dify, inspect the [current Dify integrations documentation](https://docs.dify.ai/en/cloud/use-dify/workspace/plugins) from the perspective of the target LLM application.
 
-## Decision framework
+Both products can use APIs to reach services without a dedicated connector, but a generic API call may require more setup and maintenance than a maintained native integration.
 
-1. **Will your product serve multiple commercial tenants or carry your own branding?** Review Sim's [Apache 2.0 license](https://github.com/simstudioai/sim/blob/main/LICENSE) and the [Dify license](https://github.com/langgenius/dify/blob/main/LICENSE) against your deployment plan and UI.
-2. **Are you building a RAG-first chat application or a broader automation system?** Consider Dify for a chat-first LLM application platform with retrieval capabilities. Choose Sim when agents need to combine automation, workspace resources, and deterministic logic.
-3. **Does your team build together?** Evaluate the collaboration, permissions, and governance model each product provides for the plan you will use.
-4. **Which pricing structure fits?** Compare Dify's [workspace pricing](https://dify.ai/pricing) with Sim's [seat and usage pricing](https://www.sim.ai/pricing) using your actual seat count, environment count, and workload volume.
+## How much do Sim and Dify cost?
 
-Then run a representative workflow through both. You can [start with Sim](https://sim.ai) or inspect the [Sim core repository](https://github.com/simstudioai/sim) before choosing a deployment path.
+**Sim and Dify costs depend on hosted plan limits, model usage, storage, execution volume, and whether the team self-hosts.**
+
+As of September 2026, current hosted prices and included quotas should be taken directly from the [Sim pricing page](https://www.sim.ai/pricing) and [Dify pricing page](https://dify.ai/pricing). Exact numeric prices are not reproduced here because plan prices and allowances can change independently of this comparison.
+
+A useful total-cost comparison should include:
+
+1. Hosted workspace or subscription charges.
+2. Model-provider token or inference charges.
+3. Workflow or message usage beyond included allowances.
+4. Vector storage, databases, files, and network transfer.
+5. Engineering time for custom integrations and evaluation.
+6. Infrastructure and operational labor for self-hosting.
+7. Security, support, governance, and compliance requirements.
+
+Self-hosted software is not cost-free. Sim core does not require a software license fee for use under Apache 2.0, but infrastructure and connected services still cost money. Dify self-hosting similarly creates infrastructure and operations costs and remains subject to the Dify Open Source License.
+
+## Which is better for teams, Sim or Dify?
+
+**Sim fits teams automating AI-driven processes across systems, while Dify fits teams building and managing LLM applications as products or internal services.**
+
+Choose Sim when the team includes automation engineers, operations specialists, product builders, or developers who need to see and modify a complete AI workflow. Sim's Apache 2.0 core license is also relevant for organizations with strict open-source or extensibility requirements.
+
+Choose Dify when the team wants a centralized environment for configuring model providers, retrieval, tools, and application behavior. Dify can be particularly suitable for teams repeatedly launching assistants or other knowledge-backed LLM interfaces.
+
+For either platform, test collaboration and governance against real requirements rather than feature labels. Important questions include role-based access, environment separation, versioning, approval processes, secret management, logs, evaluation, and rollback procedures.
+
+## How do Sim and Dify compare with n8n?
+
+**Sim is the AI-native workflow option, Dify is the LLM-application option, and n8n is the general-purpose automation option.**
+
+[n8n](https://n8n.io/) is relevant because many buyers begin with application automation and then add AI. Its [official documentation](https://docs.n8n.io/) describes a fair-code workflow automation tool combining AI capabilities with business process automation, which can make it a fit when most steps move data between applications and only some steps use models.
+
+Sim is more directly centered on building AI agents and model-driven workflows in a visual workspace. Dify is more directly centered on creating and operating LLM applications with retrieval and tools.
+
+Licensing also differs. As of September 2026, n8n uses its [Sustainable Use License and Enterprise License](https://docs.n8n.io/privacy-and-security/sustainable-use-license/). These are fair-code licenses rather than OSI-approved open-source licenses. Sim core uses Apache 2.0, while Dify uses its own modified license.
+
+A simple decision rule is:
+
+- Choose **n8n** when broad, conventional application automation is the dominant need.
+- Choose **Dify** when a managed LLM application or RAG experience is the dominant need.
+- Choose **Sim** when AI agents and model-driven processes must coordinate knowledge, logic, and external systems under an OSI-approved core license.
+
+## Is Sim better than Dify?
+
+**Sim is better suited to cross-application AI automation and Apache 2.0 core self-hosting, while Dify is better suited to teams whose primary unit of work is an LLM application.**
+
+Sim's strongest case is not an unsupported claim of universal superiority. Its advantage is the combination of visual AI workflow building, external-system orchestration, self-hosting, and a standard open-source core license.
+
+Dify's strongest case is its cohesive environment for models, application workflows, knowledge bases, retrieval, and LLM application delivery. Teams should favor Dify when those capabilities align more closely with the system they are building.
+
+A proof of concept should use the same documents, models, external systems, security requirements, and success criteria planned for production. Compare build time, answer quality, observability, failure recovery, deployment effort, and total cost rather than relying on a generic feature checklist.
+
+## What should I test before choosing Sim or Dify?
+
+**Sim and Dify should be tested with one representative production workflow before either platform is selected.**
+
+Use the following evaluation checklist:
+
+1. Build the same high-value workflow in both products.
+2. Connect the actual model providers, knowledge sources, and business applications required in production.
+3. Measure retrieval relevance and answer grounding with a fixed evaluation set.
+4. Test malformed inputs, unavailable APIs, model timeouts, and partial failures.
+5. Inspect logs and determine whether operators can diagnose each failed step.
+6. Confirm authentication, secret storage, access controls, and data retention.
+7. Reproduce the intended cloud or self-hosted deployment.
+8. Calculate model, platform, infrastructure, and labor costs at expected volume.
+9. Review Sim's Apache 2.0 core license, its enterprise-feature license, and Dify's current license against the intended use.
+10. Ask the people who will maintain the system to modify and debug the workflow.
+
+The better product is the one that satisfies the real deployment and operating constraints with the least avoidable complexity.
+
+For a broader view, see the ranked [Dify alternatives](https://www.sim.ai/library/dify-alternatives) or [Best AI Agent Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026); this page remains focused on the Sim-versus-Dify decision.
+
+## Where can I verify the claims in this comparison?
+
+**Sim, Dify, and n8n publish the primary documentation, repositories, licenses, deployment instructions, and pricing pages needed to verify this comparison.**
+
+Primary sources:
+
+- [Sim website](https://www.sim.ai/)
+- [Sim documentation](https://docs.sim.ai/)
+- [Sim GitHub repository](https://github.com/simstudioai/sim)
+- [Sim Apache 2.0 license](https://github.com/simstudioai/sim/blob/main/LICENSE)
+- [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE)
+- [Sim self-hosting documentation](https://docs.sim.ai/platform/self-hosting)
+- [Sim pricing](https://www.sim.ai/pricing)
+- [Dify website](https://dify.ai/)
+- [Dify documentation](https://docs.dify.ai/en/learn/key-concepts)
+- [Dify GitHub repository](https://github.com/langgenius/dify)
+- [Dify license](https://github.com/langgenius/dify/blob/main/LICENSE)
+- [Dify self-hosting documentation](https://docs.dify.ai/en/self-host/deploy/quick-start/docker-compose)
+- [Dify pricing](https://dify.ai/pricing)
+- [n8n license documentation](https://docs.n8n.io/privacy-and-security/sustainable-use-license/)
+- [n8n pricing](https://n8n.io/pricing/)

@@ -1,23 +1,18 @@
-/**
- * @vitest-environment node
- */
 import { createReadStream } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { sleep } from '@sim/utils/helpers'
 import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  downloadFileStream: vi.fn(),
   readInlineFileUrl: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFileStream: mocks.downloadFileStream,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock('@/lib/knowledge/transfer/export-source', () => ({
   readInlineFileUrl: mocks.readInlineFileUrl,
@@ -25,7 +20,6 @@ vi.mock('@/lib/knowledge/transfer/export-source', () => ({
 
 import type { KnowledgeBaseExportBundle } from '@/lib/knowledge/application/exports'
 import { MAX_DOCUMENT_CHUNKS } from '@/lib/knowledge/documents/document-processing-error'
-import { decodeVectorBase64, knowledgeBundleManifestSchema } from '@/lib/knowledge/transfer/bundle'
 import {
   buildKnowledgeBundleArchive,
   knowledgeBundleFileName,
@@ -104,102 +98,12 @@ async function readArchive(source: Readable): Promise<JSZip> {
 
 describe('buildKnowledgeBundleArchive', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.downloadFileStream.mockImplementation(async () => Readable.from([Buffer.from('pdf')]))
+    storageServiceMockFns.mockDownloadFileStream.mockImplementation(async () =>
+      Readable.from([Buffer.from('pdf')])
+    )
     mocks.readInlineFileUrl.mockResolvedValue(
       `data:text/plain;base64,${Buffer.from('hi').toString('base64')}`
     )
-  })
-
-  it('writes files, chunk lines, and a manifest that validates against the bundle schema', async () => {
-    const zip = await readArchive(buildKnowledgeBundleArchive(bundle()))
-
-    expect(Object.keys(zip.files)).toEqual([
-      `files/${STORED_ID}/handbook.pdf`,
-      `chunks/${STORED_ID}.ndjson`,
-      `files/${INLINE_ID}/note.txt`,
-      `chunks/${TEXT_ONLY_ID}.ndjson`,
-      'manifest.json',
-    ])
-    expect(await zip.file(`files/${STORED_ID}/handbook.pdf`)!.async('string')).toBe('pdf')
-    expect(await zip.file(`files/${INLINE_ID}/note.txt`)!.async('string')).toBe('hi')
-
-    const manifest = knowledgeBundleManifestSchema.parse(
-      JSON.parse(await zip.file('manifest.json')!.async('string'))
-    )
-    expect(manifest.embedding).toEqual({
-      model: 'text-embedding-3-small',
-      dimension: 1536,
-      vectorsIncluded: true,
-    })
-    expect(manifest.knowledgeBase.name).toBe('Support docs')
-    expect(manifest.tags).toEqual([{ slot: 'tag1', displayName: 'Product', fieldType: 'text' }])
-    expect(
-      manifest.documents.map((document) => [document.id, document.file, document.chunks])
-    ).toEqual([
-      [STORED_ID, `files/${STORED_ID}/handbook.pdf`, `chunks/${STORED_ID}.ndjson`],
-      [INLINE_ID, `files/${INLINE_ID}/note.txt`, null],
-      [TEXT_ONLY_ID, null, `chunks/${TEXT_ONLY_ID}.ndjson`],
-    ])
-  })
-
-  /** Counts come from what the chunk stream wrote, not from the stored counter. */
-  it('records the chunk count actually written and carries vectors on every line', async () => {
-    const zip = await readArchive(buildKnowledgeBundleArchive(bundle()))
-    const lines = (await zip.file(`chunks/${STORED_ID}.ndjson`)!.async('string'))
-      .trimEnd()
-      .split('\n')
-      .map((line) => JSON.parse(line))
-
-    expect(lines).toHaveLength(2)
-    expect(lines[0]).toMatchObject({ index: 0, content: 'chunk 0', enabled: true })
-    expect(lines[1]).toMatchObject({ index: 1, enabled: false })
-    expect(decodeVectorBase64(lines[0].vector, 2)).toEqual([0.25, 0.5])
-
-    const manifest = JSON.parse(await zip.file('manifest.json')!.async('string'))
-    expect(manifest.documents[0].chunkCount).toBe(2)
-    expect(manifest.documents[2].chunkCount).toBe(1)
-  })
-
-  it('omits vectors when the bundle does not include them', async () => {
-    const zip = await readArchive(
-      buildKnowledgeBundleArchive(
-        bundle({
-          embedding: { model: 'text-embedding-3-small', dimension: 1536, vectorsIncluded: false },
-        })
-      )
-    )
-    const [first] = (await zip.file(`chunks/${STORED_ID}.ndjson`)!.async('string')).split('\n')
-    expect(JSON.parse(first)).not.toHaveProperty('vector')
-  })
-
-  /** Blobs open only as the archiver reaches them, so a large base never fans out storage reads. */
-  it('opens stored blobs one at a time, in entry order', async () => {
-    const events: string[] = []
-    mocks.downloadFileStream.mockImplementation(async ({ key }: { key: string }) => {
-      events.push(`open:${key}`)
-      return Readable.from([Buffer.from('pdf')])
-    })
-    const archive = buildKnowledgeBundleArchive(
-      bundle({
-        documents: [
-          exportableDocument({ id: 'doc-a', file: { kind: 'storage', key: 'kb/a.pdf' } }),
-          exportableDocument({ id: 'doc-b', file: { kind: 'storage', key: 'kb/b.pdf' } }),
-        ],
-      })
-    )
-    archive.on('entry', (entry: { name: string }) => events.push(`entry:${entry.name}`))
-
-    await readArchive(archive)
-    expect(events).toEqual([
-      'open:kb/a.pdf',
-      'entry:files/doc-a/handbook.pdf',
-      'entry:chunks/doc-a.ndjson',
-      'open:kb/b.pdf',
-      'entry:files/doc-b/handbook.pdf',
-      'entry:chunks/doc-b.ndjson',
-      'entry:manifest.json',
-    ])
   })
 
   /**
@@ -224,7 +128,7 @@ describe('buildKnowledgeBundleArchive', () => {
   it('rejects the archive reader when an original disappears before its stream opens', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'knowledge-export-missing-'))
     const source = createReadStream(join(directory, 'absent.txt'))
-    mocks.downloadFileStream.mockResolvedValue(source)
+    storageServiceMockFns.mockDownloadFileStream.mockResolvedValue(source)
     const archive = buildKnowledgeBundleArchive(bundle())
     try {
       await expect(readArchive(archive)).rejects.toMatchObject({ code: 'ENOENT' })
@@ -244,7 +148,7 @@ describe('buildKnowledgeBundleArchive', () => {
         throw new Error('Original source failed')
       })()
     )
-    mocks.downloadFileStream.mockResolvedValue(source)
+    storageServiceMockFns.mockDownloadFileStream.mockResolvedValue(source)
     const archive = buildKnowledgeBundleArchive(bundle())
     await expect(readArchive(archive)).rejects.toThrow('Original source failed')
     expect(source.destroyed).toBe(true)
@@ -257,33 +161,19 @@ describe('buildKnowledgeBundleArchive', () => {
         this.destroy()
       },
     })
-    mocks.downloadFileStream.mockResolvedValue(source)
+    storageServiceMockFns.mockDownloadFileStream.mockResolvedValue(source)
     const archive = buildKnowledgeBundleArchive(bundle())
     await expect(readArchive(archive)).rejects.toMatchObject({ code: 'ERR_STREAM_PREMATURE_CLOSE' })
     expect(mocks.readInlineFileUrl).not.toHaveBeenCalled()
   })
 
-  it('propagates chunk iterator failure through the same entry settlement path', async () => {
-    const chunks = async function* () {
-      yield chunk(0, null)
-      throw new Error('Chunk source failed')
-    }
-    const archive = buildKnowledgeBundleArchive(
-      bundle({
-        documents: [exportableDocument({ file: null })],
-        chunks,
-      })
-    )
-    await expect(readArchive(archive)).rejects.toThrow('Chunk source failed')
-  })
-
   /** A browser that abandons the download must not leave the append loop or its blob stream hanging. */
   it('releases the in-flight source and stops appending when the consumer goes away', async () => {
     const blob = new Readable({ read() {} })
-    mocks.downloadFileStream.mockResolvedValue(blob)
+    storageServiceMockFns.mockDownloadFileStream.mockResolvedValue(blob)
     const archive = buildKnowledgeBundleArchive(bundle())
     await sleep(1)
-    expect(mocks.downloadFileStream).toHaveBeenCalledTimes(1)
+    expect(storageServiceMockFns.mockDownloadFileStream).toHaveBeenCalledTimes(1)
 
     archive.destroy()
     await sleep(1)

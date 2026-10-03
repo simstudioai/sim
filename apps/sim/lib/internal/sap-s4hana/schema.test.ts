@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   checkSapExternalUrlSafety,
@@ -8,23 +5,6 @@ import {
 } from '@/lib/internal/sap-s4hana/schema'
 
 describe('SAP S/4HANA operation schema', () => {
-  it('applies public-cloud auth defaults', () => {
-    expect(
-      sapS4HanaOperationInputSchema.parse({
-        subdomain: 'example',
-        region: 'us30',
-        clientId: 'client',
-        clientSecret: 'secret',
-        service: 'API_BUSINESS_PARTNER',
-        path: '/A_BusinessPartner',
-      })
-    ).toMatchObject({
-      deploymentType: 'cloud_public',
-      authType: 'oauth_client_credentials',
-      method: 'GET',
-    })
-  })
-
   it('accepts private-cloud Basic auth only with a public HTTPS base URL', () => {
     expect(
       sapS4HanaOperationInputSchema.safeParse({

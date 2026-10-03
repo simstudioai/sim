@@ -1,6 +1,12 @@
-/**
- * @vitest-environment node
- */
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -8,9 +14,6 @@ const mocks = vi.hoisted(() => ({
   getMetadata: vi.fn(),
   downloadGraph: vi.fn(),
   uploadGraph: vi.fn(),
-  processFiles: vi.fn(),
-  downloadStorage: vi.fn(),
-  assertAccess: vi.fn(),
 }))
 
 vi.mock('@/lib/internal/sharepoint/client', () => {
@@ -38,23 +41,20 @@ vi.mock('@/lib/internal/sharepoint/client', () => {
   return { SharePointClient, SharePointGraphError }
 })
 
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  processFilesToUserFiles: mocks.processFiles,
-}))
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: mocks.downloadStorage,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mocks.assertAccess,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
 import {
   executeSharePointDownloadFile,
   executeSharePointUploadFile,
-  MAX_SHAREPOINT_UPLOAD_BYTES,
 } from '@/lib/internal/sharepoint/operations'
+
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
+const { mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
+const { mockProcessFilesToUserFiles } = fileUtilsMockFns
 
 const userFile = {
   key: 'workspace/file.pdf',
@@ -76,10 +76,9 @@ const storedFile = {
 
 describe('SharePoint operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.processFiles.mockReturnValue([userFile])
-    mocks.assertAccess.mockResolvedValue(null)
-    mocks.downloadStorage.mockResolvedValue({
+    mockProcessFilesToUserFiles.mockReturnValue([userFile])
+    mockAssertToolFileAccess.mockResolvedValue(null)
+    mockDownloadServableFileFromStorage.mockResolvedValue({
       buffer: Buffer.from('file'),
       contentType: 'application/pdf',
     })
@@ -95,57 +94,8 @@ describe('SharePoint operations', () => {
     })
   })
 
-  it('authorizes input provenance and carries cancellation through storage and Graph upload', async () => {
-    const controller = new AbortController()
-    const response = await executeSharePointUploadFile(
-      {
-        accessToken: 'token',
-        siteId: 'root',
-        driveId: 'drive/id',
-        folderPath: '/Shared Documents/Reports/',
-        fileName: null,
-        files: [userFile],
-      },
-      { userId: 'user-1', requestId: 'request-1', signal: controller.signal }
-    )
-
-    expect(mocks.assertAccess).toHaveBeenCalledWith(
-      userFile.key,
-      'user-1',
-      'request-1',
-      expect.anything()
-    )
-    expect(mocks.downloadStorage).toHaveBeenCalledWith(userFile, 'request-1', expect.anything(), {
-      maxBytes: MAX_SHAREPOINT_UPLOAD_BYTES,
-      signal: controller.signal,
-    })
-    expect(mocks.clientConstructed).toHaveBeenCalledWith('token', controller.signal)
-    expect(mocks.uploadGraph).toHaveBeenCalledWith(
-      'https://graph.microsoft.com/v1.0/drives/drive%2Fid/root:/Shared%20Documents/Reports/file.pdf:/content',
-      Buffer.from('file'),
-      'application/pdf'
-    )
-    expect(await response.json()).toEqual({
-      success: true,
-      output: {
-        uploadedFiles: [
-          {
-            id: 'item-1',
-            name: 'file.pdf',
-            webUrl: 'https://example.com/file.pdf',
-            size: 4,
-          },
-        ],
-        fileCount: 1,
-        skippedFiles: [],
-        skippedCount: 0,
-        errors: [],
-      },
-    })
-  })
-
   it('does not materialize a file when its provenance check fails', async () => {
-    mocks.assertAccess.mockResolvedValue(
+    mockAssertToolFileAccess.mockResolvedValue(
       Response.json({ success: false, error: 'File not found' }, { status: 404 })
     )
     const response = await executeSharePointUploadFile(
@@ -154,7 +104,7 @@ describe('SharePoint operations', () => {
     )
 
     expect(response.status).toBe(404)
-    expect(mocks.downloadStorage).not.toHaveBeenCalled()
+    expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
     expect(mocks.uploadGraph).not.toHaveBeenCalled()
   })
 

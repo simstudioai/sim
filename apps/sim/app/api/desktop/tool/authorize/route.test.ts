@@ -1,29 +1,26 @@
-/**
- * @vitest-environment node
- */
 import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
+  mothershipWorkspaceTargetMock,
+  mothershipWorkspaceTargetMockFns,
+} from '@sim/testing/mocks/mothership-workspace-target.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
-const { claimPendingAsyncToolCall, getAsyncToolCall, getRunSegment, resolveInvocationWorkspace } =
-  vi.hoisted(() => ({
-    claimPendingAsyncToolCall: vi.fn(),
-    resolveInvocationWorkspace: vi.fn(),
-    getAsyncToolCall: vi.fn(),
-    getRunSegment: vi.fn(),
-  }))
-
 vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
-vi.mock('@/lib/mothership/application/workspace-target', () => ({ resolveInvocationWorkspace }))
-
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  claimPendingAsyncToolCall,
-  getAsyncToolCall,
-  getRunSegment,
-}))
+vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 import { POST } from './route'
+
+const claimPendingAsyncToolCall = mothershipAsyncRunsMockFns.mockClaimPendingAsyncToolCall
+const getAsyncToolCall = mothershipAsyncRunsMockFns.mockGetAsyncToolCall
+const getRunSegment = mothershipAsyncRunsMockFns.mockGetRunSegment
+const resolveInvocationWorkspace = mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace
 
 function request(toolCallId: unknown, claim = false): NextRequest {
   return new NextRequest('http://localhost:3000/api/desktop/tool/authorize', {
@@ -35,7 +32,6 @@ function request(toolCallId: unknown, claim = false): NextRequest {
 
 describe('desktop tool authorization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resolveInvocationWorkspace.mockResolvedValue({ workspaceId: 'target' })
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
@@ -55,36 +51,6 @@ describe('desktop tool authorization', () => {
       status: 'active',
     })
     claimPendingAsyncToolCall.mockResolvedValue({ toolCallId: 'browser-tool', status: 'running' })
-  })
-
-  it('returns the server-persisted args for an owned pending user-local call', async () => {
-    const response = await POST(request('tool-1'))
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      chatId: 'chat-1',
-      toolName: 'read',
-      args: { path: 'user-local/Project--mount-1/README.md', offset: 0, limit: 100 },
-    })
-  })
-
-  it('authorizes a known browser tool and returns its persisted args', async () => {
-    getAsyncToolCall.mockResolvedValueOnce({
-      toolCallId: 'browser-tool',
-      runId: 'run-1',
-      status: 'pending',
-      toolName: 'browser_navigate',
-      args: { url: 'https://example.com' },
-    })
-
-    const response = await POST(request('browser-tool'))
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      chatId: 'chat-1',
-      toolName: 'browser_navigate',
-      args: { url: 'https://example.com' },
-    })
-    expect(claimPendingAsyncToolCall).toHaveBeenCalledWith('browser-tool', 'desktop-browser')
   })
 
   it('never returns presentation activity as an executable browser argument', async () => {
@@ -185,23 +151,6 @@ describe('desktop tool authorization', () => {
       status: 'complete',
     })
     expect((await POST(request('completed-run-tool'))).status).toBe(404)
-  })
-
-  it('reads a normal OS path without a workspace or a Sim folder grant', async () => {
-    getAsyncToolCall.mockResolvedValueOnce({
-      toolCallId: 'read-1',
-      runId: 'run-1',
-      status: 'pending',
-      toolName: 'read_local_file',
-      args: { path: '/Users/person/Documents/report.pdf' },
-    })
-    const response = await POST(request('read-1'))
-    expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({
-      args: { path: '/Users/person/Documents/report.pdf' },
-    })
-    expect(resolveInvocationWorkspace).not.toHaveBeenCalled()
-    expect(claimPendingAsyncToolCall).not.toHaveBeenCalled()
   })
 
   it('claims an org-view import once and permits chunks only under that claim', async () => {

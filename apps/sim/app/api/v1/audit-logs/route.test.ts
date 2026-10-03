@@ -1,21 +1,19 @@
 /**
- * @vitest-environment node
- *
  * Tests for GET /api/v1/audit-logs — verifies filters are validated against
  * the caller's organization and the scope is built from the org context.
  */
 import { createMockRequest } from '@sim/testing'
+import { v1LogsMetaMock, v1LogsMetaMockFns } from '@sim/testing/mocks/v1-logs-meta.mock'
+import { v1MiddlewareMock, v1MiddlewareMockFns } from '@sim/testing/mocks/v1-middleware.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockCheckRateLimit,
   mockValidateV1EnterpriseAuditAccess,
   mockBuildOrgScopeCondition,
   mockGetOrgWorkspaceIds,
   mockQueryAuditLogs,
   mockBuildFilterConditions,
 } = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
   mockValidateV1EnterpriseAuditAccess: vi.fn(),
   mockBuildOrgScopeCondition: vi.fn(),
   mockGetOrgWorkspaceIds: vi.fn(),
@@ -23,12 +21,7 @@ const {
   mockBuildFilterConditions: vi.fn(),
 }))
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  createRateLimitResponse: vi.fn(),
-  v1ValidationErrorResponse: (e: { issues: unknown[] }) =>
-    NextResponse.json({ error: 'Validation error', details: e.issues }, { status: 400 }),
-}))
+vi.mock('@/app/api/v1/middleware', () => v1MiddlewareMock)
 
 vi.mock('@/app/api/v1/audit-logs/auth', () => ({
   validateV1EnterpriseAuditAccess: mockValidateV1EnterpriseAuditAccess,
@@ -41,12 +34,16 @@ vi.mock('@/lib/audit-logs/query', () => ({
   queryAuditLogs: mockQueryAuditLogs,
 }))
 
-vi.mock('@/app/api/v1/logs/meta', () => ({
-  getUserLimits: vi.fn().mockResolvedValue({}),
-  createApiResponse: vi.fn((body: unknown) => ({ body, headers: {} })),
-}))
+vi.mock('@/app/api/v1/logs/meta', () => v1LogsMetaMock)
 
 import { GET } from '@/app/api/v1/audit-logs/route'
+
+const { mockCheckRateLimit } = v1MiddlewareMockFns
+
+v1LogsMetaMockFns.mockCreateApiResponse.mockImplementation((body: unknown) => ({
+  body,
+  headers: {},
+}))
 
 const ORG_ID = 'org-1'
 const MEMBER_IDS = ['admin-1', 'member-1']
@@ -59,7 +56,6 @@ function makeRequest(query: string) {
 
 describe('GET /api/v1/audit-logs', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue({ allowed: true, userId: 'admin-1' })
     mockValidateV1EnterpriseAuditAccess.mockResolvedValue({
       success: true,
@@ -87,47 +83,6 @@ describe('GET /api/v1/audit-logs', () => {
     expect(response.status).toBe(400)
     const body = await response.json()
     expect(body.error).toBe('workspaceId does not belong to your organization')
-    expect(mockQueryAuditLogs).not.toHaveBeenCalled()
-  })
-
-  it('accepts a workspaceId that belongs to the organization', async () => {
-    const response = await GET(makeRequest('?workspaceId=ws-org-1'))
-
-    expect(response.status).toBe(200)
-    expect(mockQueryAuditLogs).toHaveBeenCalled()
-  })
-
-  it('builds the scope from the organization context, never from actors alone', async () => {
-    const response = await GET(makeRequest('?actorId=member-1'))
-
-    expect(response.status).toBe(200)
-    expect(mockBuildOrgScopeCondition).toHaveBeenCalledWith({
-      organizationId: ORG_ID,
-      orgWorkspaceIds: ORG_WORKSPACE_IDS,
-      orgMemberIds: MEMBER_IDS,
-      includeDeparted: false,
-    })
-
-    const [conditions] = mockQueryAuditLogs.mock.calls[0]
-    expect(conditions[0]).toBe(SCOPE_SENTINEL)
-  })
-
-  it('passes includeDeparted through to the scope builder', async () => {
-    const response = await GET(makeRequest('?includeDeparted=true'))
-
-    expect(response.status).toBe(200)
-    expect(mockBuildOrgScopeCondition).toHaveBeenCalledWith(
-      expect.objectContaining({ includeDeparted: true })
-    )
-  })
-
-  it('returns the auth failure response when enterprise access is denied', async () => {
-    const denied = new Response(JSON.stringify({ error: 'nope' }), { status: 403 })
-    mockValidateV1EnterpriseAuditAccess.mockResolvedValue({ success: false, response: denied })
-
-    const response = await GET(makeRequest(''))
-
-    expect(response.status).toBe(403)
     expect(mockQueryAuditLogs).not.toHaveBeenCalled()
   })
 

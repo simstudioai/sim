@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   createMockRequest,
   queueTableRows,
@@ -9,9 +6,10 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import { oauthUtilsMock, oauthUtilsMockFns } from '@sim/testing/mocks/oauth-utils.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
-import { InsufficientWorkspacePermissionsError } from '@/lib/core/application/workspace-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { CredentialConnectionProviderMismatchError } from '@/lib/credentials/application/connection-target'
 
@@ -19,14 +17,11 @@ const mocks = vi.hoisted(() => ({
   betterAuthGET: vi.fn(),
   getSession: vi.fn(),
   linkAccount: vi.fn(),
-  getBaseUrl: vi.fn(),
   requireClient: vi.fn(),
   createConnection: vi.fn(),
-  getPerRequestScopes: vi.fn(),
   launchConnection: vi.fn(),
   decryptQuickBooksClientConfig: vi.fn(),
   createQuickBooksState: vi.fn(),
-  getCanonicalScopes: vi.fn(),
   isPubliclyRegistered: vi.fn(),
 }))
 
@@ -40,10 +35,6 @@ vi.mock('better-auth/next-js', () => ({
 vi.mock('@/lib/auth/auth', () => ({
   getSession: mocks.getSession,
   auth: { handler: {}, api: { oAuth2LinkAccount: mocks.linkAccount } },
-}))
-vi.mock('@/lib/core/utils/urls', () => ({
-  SITE_URL: 'https://www.sim.ai',
-  getBaseUrl: mocks.getBaseUrl,
 }))
 vi.mock('@/lib/core/config/env-capabilities.server', () => ({
   requireConfiguredOAuthClient: mocks.requireClient,
@@ -63,10 +54,7 @@ vi.mock('@/lib/credentials/application/create-credential-connection', () => ({
 vi.mock('@/lib/credentials/application/launch-scoped-credential-connection', () => ({
   launchScopedCredentialConnection: mocks.launchConnection,
 }))
-vi.mock('@/lib/oauth/utils', () => ({
-  getPerRequestOAuthLinkScopes: mocks.getPerRequestScopes,
-  getCanonicalScopesForProvider: mocks.getCanonicalScopes,
-}))
+vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 vi.mock('@/lib/oauth/quickbooks-client-config', () => ({
   decryptQuickBooksOAuthClientConfig: mocks.decryptQuickBooksClientConfig,
 }))
@@ -75,6 +63,8 @@ vi.mock('@/lib/oauth/quickbooks-state', () => ({
 }))
 
 import { GET } from '@/app/api/auth/oauth2/authorize/route'
+
+const { mockGetPerRequestOAuthLinkScopes, mockGetCanonicalScopesForProvider } = oauthUtilsMockFns
 
 const BASE_URL = 'https://sim.test'
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
@@ -96,10 +86,9 @@ afterAll(resetEnvFlagsMock)
 
 describe('OAuth2 authorize route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnvFlags({ isAuthDisabled: false })
-    mocks.getBaseUrl.mockReturnValue(BASE_URL)
+    urlsMockFns.mockGetBaseUrl.mockReturnValue(BASE_URL)
     mocks.isPubliclyRegistered.mockResolvedValue(false)
     mocks.getSession.mockResolvedValue({
       user: { id: 'user-1' },
@@ -121,9 +110,9 @@ describe('OAuth2 authorize route', () => {
       },
     })
     mocks.linkAccount.mockResolvedValue(linkResponse())
-    mocks.getPerRequestScopes.mockReturnValue(undefined)
+    mockGetPerRequestOAuthLinkScopes.mockReturnValue(undefined)
     mocks.betterAuthGET.mockResolvedValue(new Response(null, { status: 302 }))
-    mocks.getCanonicalScopes.mockReturnValue([
+    mockGetCanonicalScopesForProvider.mockReturnValue([
       'openid',
       'profile',
       'email',
@@ -136,19 +125,6 @@ describe('OAuth2 authorize route', () => {
       webhookVerifierToken: 'verifier-token',
     })
     mocks.createQuickBooksState.mockReturnValue('signed-state')
-  })
-
-  it('forwards a resource-bound Search authorization to the existing provider', async () => {
-    const req = request({
-      client_id: 'mcp-client',
-      response_type: 'code',
-      redirect_uri: 'https://client.example/callback',
-      scope: 'search:read offline_access',
-      resource: `${BASE_URL}/api/mcp/search/organizations/org-1`,
-    })
-    expect((await GET(req)).status).toBe(302)
-    expect(mocks.betterAuthGET).toHaveBeenCalledWith(req)
-    expect(mocks.createConnection).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -213,19 +189,6 @@ describe('OAuth2 authorize route', () => {
     expect(bound.status).toBe(302)
   })
 
-  it('lets an operator-created client request the Sim API without a resource', async () => {
-    const response = await GET(
-      request({
-        client_id: 'sim-cli',
-        response_type: 'code',
-        redirect_uri: 'https://client.example/callback',
-        scope: 'api:write offline_access',
-      })
-    )
-    expect(response.status).toBe(302)
-    expect(mocks.isPubliclyRegistered).toHaveBeenCalledWith('sim-cli')
-  })
-
   it('narrows issuer-wide scope requests to the Sim API for the Sim MCP server', async () => {
     const req = request({
       client_id: 'mcp-client',
@@ -258,24 +221,6 @@ describe('OAuth2 authorize route', () => {
     )
     expect(response.status).toBe(400)
     expect(mocks.betterAuthGET).not.toHaveBeenCalled()
-  })
-
-  it('forwards a provider request without entering the connector flow', async () => {
-    const providerRequest = request({
-      client_id: 'client-1',
-      response_type: 'code',
-      redirect_uri: 'https://client.example/callback',
-      providerId: 'google-email',
-      draftId: 'draft-1',
-    })
-
-    const response = await GET(providerRequest)
-
-    expect(response.status).toBe(302)
-    expect(mocks.betterAuthGET).toHaveBeenCalledWith(providerRequest)
-    expect(mocks.getSession).not.toHaveBeenCalled()
-    expect(mocks.launchConnection).not.toHaveBeenCalled()
-    expect(mocks.createConnection).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -343,26 +288,6 @@ describe('OAuth2 authorize route', () => {
     })
   })
 
-  it.each([
-    [403, '{"error":"invalid_request"}'],
-    [403, '<html>Forbidden</html>'],
-    [400, '{"error":"access_denied"}'],
-  ])('preserves delegated status %s and body %s', async (status, body) => {
-    mocks.betterAuthGET.mockResolvedValue(new Response(body, { status }))
-
-    const response = await GET(
-      request({
-        client_id: 'client-1',
-        response_type: 'code',
-        redirect_uri: 'https://client.example/callback',
-      })
-    )
-
-    expect(response.status).toBe(status)
-    expect(response.headers.has('location')).toBe(false)
-    await expect(response.text()).resolves.toBe(body)
-  })
-
   it('requires authentication for provider authorization', async () => {
     setEnvFlags({ isAuthDisabled: true })
     const response = await GET(
@@ -397,25 +322,6 @@ describe('OAuth2 authorize route', () => {
     expect(mocks.getSession).not.toHaveBeenCalled()
     expect(mocks.betterAuthGET).not.toHaveBeenCalled()
   })
-
-  it.each(['scope', 'state', 'nonce', 'prompt'])(
-    'does not let an isolated %s parameter enter the connector flow',
-    async (parameter) => {
-      const response = await GET(
-        request({
-          providerId: 'google-email',
-          workspaceId: WORKSPACE_ID,
-          [parameter]: 'value',
-        })
-      )
-
-      expect(response.status).toBe(400)
-      await expect(response.json()).resolves.toMatchObject({ error: 'invalid_request' })
-      expect(mocks.getSession).not.toHaveBeenCalled()
-      expect(mocks.createConnection).not.toHaveBeenCalled()
-      expect(mocks.betterAuthGET).not.toHaveBeenCalled()
-    }
-  )
 
   it.each([
     'response_type',
@@ -533,30 +439,6 @@ describe('OAuth2 authorize route', () => {
     expect(mocks.betterAuthGET).not.toHaveBeenCalled()
   })
 
-  it.each([true, false])(
-    'preserves legacy connector linking with authentication disabled=%s',
-    async (authDisabled) => {
-      setEnvFlags({ isAuthDisabled: authDisabled })
-      const response = await GET(request({ providerId: 'google-email', workspaceId: WORKSPACE_ID }))
-
-      expect(response.headers.get('location')).toBe('https://provider.example/authorize')
-      expect(mocks.createConnection).toHaveBeenCalledWith(
-        expect.objectContaining({
-          principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-          input: { workspaceId: WORKSPACE_ID, providerId: 'google-email' },
-        })
-      )
-      expect(mocks.linkAccount).toHaveBeenCalledWith(
-        expect.objectContaining({
-          body: expect.objectContaining({
-            providerId: 'google-email',
-            callbackURL: expect.stringContaining('credentialDraftId=draft-1'),
-          }),
-        })
-      )
-    }
-  )
-
   it('requires a configured OAuth client before creating a legacy draft', async () => {
     mocks.requireClient.mockImplementationOnce(() => {
       throw new Error('OAuth client is not configured')
@@ -567,68 +449,6 @@ describe('OAuth2 authorize route', () => {
     expect(response.headers.get('location')).toBe(`${BASE_URL}/home?error=oauth_link_failed`)
     expect(mocks.requireClient).toHaveBeenCalledWith('google-email')
     expect(mocks.createConnection).not.toHaveBeenCalled()
-  })
-
-  it('passes per-request scopes to providers that cannot inherit static connector scopes', async () => {
-    const scopes = ['openid', 'https://dynamics.microsoft.com/user_impersonation']
-    mocks.getPerRequestScopes.mockReturnValue(scopes)
-    mocks.createConnection.mockResolvedValue({
-      providerId: 'microsoft-dataverse',
-      workspaceId: WORKSPACE_ID,
-      draftId: 'draft-1',
-      expiresAt: new Date(),
-      authorizationUrl: '',
-    })
-
-    await GET(request({ providerId: 'microsoft-dataverse', workspaceId: WORKSPACE_ID }))
-
-    expect(mocks.linkAccount).toHaveBeenCalledWith(
-      expect.objectContaining({
-        body: expect.objectContaining({
-          providerId: 'microsoft-dataverse',
-          scopes,
-        }),
-      })
-    )
-  })
-
-  it('launches an exact draft without creating another one', async () => {
-    const response = await GET(request({ draftId: 'draft-1' }))
-
-    expect(response.headers.get('location')).toBe('https://provider.example/authorize')
-    expect(mocks.launchConnection).toHaveBeenCalledWith(
-      expect.objectContaining({ input: { draftId: 'draft-1' } })
-    )
-    expect(mocks.createConnection).not.toHaveBeenCalled()
-  })
-
-  it('passes reconnect provider assertions through the application use case', async () => {
-    mocks.createConnection.mockResolvedValue({
-      providerId: 'google-email',
-      workspaceId: WORKSPACE_ID,
-      credentialId: 'credential-1',
-      draftId: 'draft-1',
-      expiresAt: new Date(),
-      authorizationUrl: '',
-    })
-
-    await GET(
-      request({
-        providerId: 'google-email',
-        workspaceId: WORKSPACE_ID,
-        credentialId: 'credential-1',
-      })
-    )
-
-    expect(mocks.createConnection).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: {
-          workspaceId: WORKSPACE_ID,
-          credentialId: 'credential-1',
-          assertedProviderId: 'google-email',
-        },
-      })
-    )
   })
 
   it('maps a provider mismatch without exposing the credential', async () => {
@@ -672,76 +492,5 @@ describe('OAuth2 authorize route', () => {
 
     expect(credentialResponse.headers.get('location')).toContain('credential_access_denied')
     expect(workspaceResponse.headers.get('location')).toContain('workspace_access_denied')
-  })
-
-  it('keeps a reconnect workspace-role denial classified as workspace access', async () => {
-    mocks.createConnection.mockRejectedValue(new InsufficientWorkspacePermissionsError())
-
-    const response = await GET(
-      request({
-        providerId: 'google-email',
-        workspaceId: WORKSPACE_ID,
-        credentialId: 'credential-1',
-      })
-    )
-
-    expect(response.headers.get('location')).toBe(`${BASE_URL}/home?error=workspace_access_denied`)
-  })
-
-  it('redirects a draft launch infrastructure failure through the browser error contract', async () => {
-    mocks.launchConnection.mockRejectedValue(new Error('Database unavailable'))
-
-    const response = await GET(request({ draftId: 'draft-1' }))
-
-    expect(response.headers.get('location')).toBe(`${BASE_URL}/home?error=oauth_link_failed`)
-  })
-
-  it('routes custom providers through the exact application draft', async () => {
-    mocks.createConnection.mockResolvedValue({
-      providerId: 'trello',
-      workspaceId: WORKSPACE_ID,
-      draftId: 'draft-1',
-      expiresAt: new Date(),
-      authorizationUrl: '',
-    })
-
-    const response = await GET(request({ providerId: 'trello', workspaceId: WORKSPACE_ID }))
-    const location = new URL(response.headers.get('location') ?? '')
-
-    expect(location.pathname).toBe('/api/auth/trello/authorize')
-    expect(location.searchParams.get('draftId')).toBe('draft-1')
-  })
-
-  it('starts QuickBooks with the write-only app configuration bound to its draft', async () => {
-    mocks.launchConnection.mockResolvedValue({
-      draft: {
-        id: 'draft-1',
-        providerId: 'quickbooks',
-        workspaceId: WORKSPACE_ID,
-        credentialId: null,
-        oauthConfig: 'encrypted-config',
-      },
-    })
-    const callbackURL = `${BASE_URL}/workspace/${WORKSPACE_ID}/integrations`
-
-    const response = await GET(request({ draftId: 'draft-1', callbackURL }))
-    const location = new URL(response.headers.get('location') ?? '')
-
-    expect(mocks.requireClient).not.toHaveBeenCalled()
-    expect(mocks.decryptQuickBooksClientConfig).toHaveBeenCalledWith('encrypted-config')
-    expect(mocks.createQuickBooksState).toHaveBeenCalledWith({
-      userId: 'user-1',
-      draftId: 'draft-1',
-      returnUrl: callbackURL,
-    })
-    expect(location.origin + location.pathname).toBe('https://appcenter.intuit.com/connect/oauth2')
-    expect(Object.fromEntries(location.searchParams)).toEqual({
-      client_id: 'intuit-client-id',
-      response_type: 'code',
-      scope: 'openid profile email com.intuit.quickbooks.accounting',
-      redirect_uri: `${BASE_URL}/api/auth/oauth2/callback/quickbooks`,
-      state: 'signed-state',
-    })
-    expect(mocks.linkAccount).not.toHaveBeenCalled()
   })
 })

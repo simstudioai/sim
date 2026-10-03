@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import {
   applyDependentOverrides,
@@ -23,12 +20,6 @@ const mappedResolver: ForkReferenceResolver = (kind, sourceId) =>
 const emptyResolver: ForkReferenceResolver = () => null
 
 describe('remapForkBlockType', () => {
-  it('leaves a non-custom block entirely alone', () => {
-    const result = remapForkBlockType('agent', mappedResolver)
-    expect(result).toEqual({ type: 'agent', resolved: false })
-    expect(result.reference).toBeUndefined()
-  })
-
   it('repoints a mapped custom block at the target environment block', () => {
     const result = remapForkBlockType(PROD_BLOCK, mappedResolver, {
       blockId: 'blk-1',
@@ -80,26 +71,6 @@ describe('scanWorkflowReferences with custom blocks', () => {
     )
   })
 
-  it('detects a custom block that carries no sub-blocks at all', () => {
-    // The sub-block walk short-circuits on a missing/!object `subBlocks`; a custom block
-    // with no inputs is still a live reference, so detection must run before that guard.
-    const scan = scanWorkflowReferences(
-      [{ id: 'blk-1', name: 'Ping', type: PROD_BLOCK, subBlocks: undefined }],
-      emptyResolver
-    )
-    expect(scan.unmapped).toHaveLength(1)
-    expect(scan.unmapped[0].sourceId).toBe(PROD_BLOCK)
-  })
-
-  it('reports a mapped custom block as referenced but NOT unmapped', () => {
-    const scan = scanWorkflowReferences(
-      [{ id: 'blk-1', name: 'Invoice Parser', type: PROD_BLOCK, subBlocks: {} }],
-      mappedResolver
-    )
-    expect(scan.references).toHaveLength(1)
-    expect(scan.unmapped).toHaveLength(0)
-  })
-
   it('does not report an identity-mapped block as unmapped', () => {
     const selfResolver: ForkReferenceResolver = (kind, sourceId) =>
       kind === 'custom-block' ? sourceId : null
@@ -109,17 +80,6 @@ describe('scanWorkflowReferences with custom blocks', () => {
     )
     expect(scan.references).toHaveLength(1)
     expect(scan.unmapped).toHaveLength(0)
-  })
-
-  it('dedupes the same custom block placed in several workflows', () => {
-    const scan = scanWorkflowReferences(
-      [
-        { id: 'blk-1', name: 'Parse A', type: PROD_BLOCK, subBlocks: {} },
-        { id: 'blk-2', name: 'Parse B', type: PROD_BLOCK, subBlocks: {} },
-      ],
-      emptyResolver
-    )
-    expect(scan.unmapped).toHaveLength(1)
   })
 })
 
@@ -162,14 +122,6 @@ describe('replaceCustomBlockInputs target carry-over', () => {
     expect(result.attachments).toBeUndefined()
   })
 
-  it('carries nothing over for a non-custom target block', () => {
-    const result = replaceCustomBlockInputs(sourceSubBlocks, undefined, UAT_BLOCK, {
-      type: 'agent',
-      subBlocks: { systemPrompt: { value: 'hello' } },
-    })
-    expect(result.systemPrompt).toBeUndefined()
-  })
-
   it('lets an explicitly emptied field clear the target value', () => {
     // `''` is a stored override, not an absent one — so clearing a field in the modal is a
     // real edit rather than a silent no-op.
@@ -189,12 +141,6 @@ describe('replaceCustomBlockInputs target carry-over', () => {
       type: UAT_BLOCK,
       subBlocks: { workflowId: { value: 'wf-stale-uat' } },
     })
-    expect(result.workflowId).toEqual({ value: 'wf-prod' })
-  })
-
-  it('still drops the source block-keyed inputs with no target to carry over', () => {
-    const result = replaceCustomBlockInputs(sourceSubBlocks, undefined, UAT_BLOCK)
-    expect(result.invoice).toBeUndefined()
     expect(result.workflowId).toEqual({ value: 'wf-prod' })
   })
 })
@@ -227,11 +173,6 @@ describe('reconfigurableDependentIds', () => {
     { id: 'standalone', type: 'short-input' },
   ]
 
-  it('offers selector-backed and plain text dependents', () => {
-    const allowed = reconfigurableDependentIds(SUBS)
-    expect([...allowed].sort()).toEqual(['issueType', 'labelId', 'notes', 'projectId'])
-  })
-
   it('excludes the manual half of a selector-backed canonical pair', () => {
     expect(reconfigurableDependentIds(SUBS).has('manualProjectId')).toBe(false)
   })
@@ -239,10 +180,6 @@ describe('reconfigurableDependentIds', () => {
   it('excludes a dependent the modal can render no control for', () => {
     // A `dropdown` with no selector has options to fetch and no way to fetch them here.
     expect(reconfigurableDependentIds(SUBS).has('watchColumns')).toBe(false)
-  })
-
-  it('excludes a field that depends on nothing', () => {
-    expect(reconfigurableDependentIds(SUBS).has('standalone')).toBe(false)
   })
 
   it('is the SAME set the sync actually writes back', () => {

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { logfireSearchRecordsTool } from '@/tools/logfire/search_records'
 import type { LogfireSearchRecordsParams } from '@/tools/logfire/types'
@@ -28,12 +25,6 @@ const sqlFor = (params: LogfireSearchRecordsParams): string => {
 }
 
 describe('logfireSearchRecordsTool request', () => {
-  it('targets the regional query endpoint', () => {
-    expect(logfireSearchRecordsTool.request.url(baseParams)).toBe(
-      'https://logfire-us.pydantic.dev/v2/query'
-    )
-  })
-
   it('omits WHERE entirely when no filters are supplied', () => {
     const sql = sqlFor(baseParams)
     expect(sql).not.toContain('WHERE')

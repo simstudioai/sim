@@ -1,15 +1,12 @@
 import { db } from '@sim/db'
-import { DEFER_KNOWLEDGE_PROJECTION } from '@sim/db/knowledge-projection'
 import { knowledgeConnector } from '@sim/db/schema'
 import { and, eq, isNull, sql } from 'drizzle-orm'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import type { DbOrTx } from '@/lib/db/types'
 import {
   LEASE_PAGE_LOCK_TIMEOUT_MS,
   LEASE_PAGE_STATEMENT_TIMEOUT_MS,
   SYNC_LOCK_HEARTBEAT_INTERVAL_MS,
 } from '@/lib/knowledge/connectors/sync-limits'
-import { requestKnowledgeProjection } from '@/lib/knowledge/projection/enqueue'
 
 /**
  * Raised when a run discovers mid-flight that it no longer holds its sync lock.
@@ -246,27 +243,20 @@ export async function assertSyncLeaseHeldInTx(
 /**
  * Runs `write` as one connector-lease ACL page: a short transaction of its own whose first
  * statement sets its bounds, so a page that waits on a lock or runs long fails within them and
- * rolls back only itself, and its projection mode. While `knowledge-async-projection` is on, the
- * page's ACL writes only mark their documents and the knowledge projector rewrites their search
- * projection rows; off, the `document` ACL trigger still rewrites every filled row in the page's
- * own statement, which is what the row-bounded paging of these pages exists for. The flag is read
- * before the transaction opens, and a projector pass is requested once it commits. Every page that
- * assigns a connector document's ACL runs here, so this is the one place those writers choose the
- * mode.
+ * rolls back only itself. The `document` ACL trigger rewrites every filled search projection row of
+ * the page's documents in the page's own statement, which is what the row-bounded paging of these
+ * pages exists for. Every page that assigns a connector document's ACL runs here.
  */
 export async function aclPageTransaction<T>(
   write: (tx: DbOrTx) => Promise<T>,
   executor: Pick<typeof db, 'transaction'> = db
 ): Promise<T> {
-  const deferProjection = await isFeatureEnabled('knowledge-async-projection')
-  const written = await executor.transaction(async (tx) => {
+  return executor.transaction(async (tx) => {
     await tx.execute(
-      sql`SELECT set_config('lock_timeout', ${`${LEASE_PAGE_LOCK_TIMEOUT_MS}ms`}, true), set_config('statement_timeout', ${`${LEASE_PAGE_STATEMENT_TIMEOUT_MS}ms`}, true)${deferProjection ? sql.raw(`, ${DEFER_KNOWLEDGE_PROJECTION}`) : sql``}`
+      sql`SELECT set_config('lock_timeout', ${`${LEASE_PAGE_LOCK_TIMEOUT_MS}ms`}, true), set_config('statement_timeout', ${`${LEASE_PAGE_STATEMENT_TIMEOUT_MS}ms`}, true)`
     )
     return write(tx)
   })
-  await requestKnowledgeProjection()
-  return written
 }
 
 /** Runs one bounded page of writes in a short transaction of its own. */

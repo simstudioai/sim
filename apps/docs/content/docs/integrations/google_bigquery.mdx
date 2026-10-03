@@ -312,4 +312,19 @@ Insert rows into a Google BigQuery table using streaming insert
 |     ↳ `location` | string | Where the error occurred |
 |     ↳ `message` | string | Human-readable error description |
 
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Google BigQuery account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-bigquery` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/bigquery` | View and manage data in Google BigQuery |
+
 

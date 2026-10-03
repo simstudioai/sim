@@ -3,7 +3,6 @@
 import { Chip, ChipInput, ChipLink, Skeleton } from '@sim/emcn'
 import { RefreshCw, Search, SquareArrowUpRight } from '@sim/emcn/icons'
 import type { ConnectorDocumentFilter } from '@/lib/api/contracts/knowledge/connectors'
-import type { ResourceScope } from '@/lib/core/resource-scope'
 import { getDocumentIndexingStatus } from '@/lib/knowledge/documents/types'
 import { ConnectorDocumentStatusFilter } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-documents/connector-document-status-filter'
 import {
@@ -27,9 +26,6 @@ interface ConnectorDocumentsProps {
   search?: string
   searchControl?: { value: string; onChange: (value: string) => void }
   showToolbar?: boolean
-  progressScope?: ResourceScope
-  isSearchIndex?: boolean
-  syncing?: boolean
   filter: ConnectorDocumentFilter
   onFilterChange: (filter: ConnectorDocumentFilter) => void
 }
@@ -41,16 +37,11 @@ export function ConnectorDocuments({
   search,
   searchControl,
   showToolbar = true,
-  progressScope,
-  isSearchIndex = false,
-  syncing,
   onFilterChange,
 }: ConnectorDocumentsProps) {
   const query = useConnectorDocuments(knowledgeBaseId, connectorId, {
     filter,
     search,
-    progressScope,
-    syncing,
   })
   const { data, hasNextPage, isFetchingNextPage, fetchNextPage } = query
   const isLoading = query.isLoading || query.isPlaceholderData
@@ -79,9 +70,6 @@ export function ConnectorDocuments({
   return (
     <>
       <div className='flex flex-col gap-4'>
-        {isSearchIndex && (
-          <p className='text-[var(--text-body)] text-sm'>Documents you can access</p>
-        )}
         {showToolbar && (
           <div className='flex items-center gap-2'>
             {searchControl && (

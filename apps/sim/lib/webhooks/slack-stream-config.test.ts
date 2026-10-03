@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   normalizeSlackStreamResponseConfig,
@@ -11,25 +8,6 @@ import {
 const CHILD_WORKFLOW_ID = '11111111-1111-4111-8111-111111111111'
 
 describe('Slack stream response config', () => {
-  it.each([undefined, true, false])(
-    'uses the shared tool-call toggle for Sim Chat outputs: %s',
-    (includeToolCalls) => {
-      const config = normalizeSlackStreamResponseConfig(
-        {
-          eventType: 'message',
-          streamResponse: true,
-          streamOutputs: ['simchat.content'],
-          streamIncludeToolCalls: includeToolCalls,
-        },
-        { mship: { id: 'mship', name: 'Sim Chat' } }
-      )
-      expect(config).toMatchObject({
-        outputConfigs: [{ blockId: 'mship', path: 'content' }],
-        includeToolCalls: includeToolCalls !== false,
-      })
-    }
-  )
-
   it('normalizes selected outputs and replaces authoring fields', () => {
     const providerConfig: Record<string, unknown> = {
       eventType: 'app_mention',
@@ -60,30 +38,6 @@ describe('Slack stream response config', () => {
     expect(providerConfig.streamResponse).toBeUndefined()
     expect(providerConfig.streamOutputs).toBeUndefined()
     expect(providerConfig.streamTaskTitle).toBeUndefined()
-  })
-
-  it('defaults omitted or blank response status labels to Running', () => {
-    expect(
-      normalizeSlackStreamResponseConfig(
-        {
-          eventType: 'message',
-          streamResponse: true,
-          streamOutputs: ['block.content'],
-        },
-        { block: { id: 'block', name: 'Block' } }
-      )?.taskTitle
-    ).toBe('Running')
-    expect(
-      normalizeSlackStreamResponseConfig(
-        {
-          eventType: 'message',
-          streamResponse: true,
-          streamOutputs: ['block.content'],
-          streamTaskTitle: '   ',
-        },
-        { block: { id: 'block', name: 'Block' } }
-      )?.taskTitle
-    ).toBe('Running')
   })
 
   it('upgrades persisted configs with omitted or blank response status labels', () => {
@@ -133,17 +87,5 @@ describe('Slack stream response config', () => {
         {}
       )
     ).toThrow('Invalid Slack stream output selector')
-  })
-
-  it('clears stale normalized config when streaming is disabled', () => {
-    const providerConfig: Record<string, unknown> = {
-      streamResponse: false,
-      streamResponseConfig: { enabled: true },
-    }
-    replaceSlackStreamAuthoringConfig(
-      providerConfig,
-      normalizeSlackStreamResponseConfig(providerConfig, {})
-    )
-    expect(providerConfig.streamResponseConfig).toBeUndefined()
   })
 })

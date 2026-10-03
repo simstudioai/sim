@@ -1,28 +1,25 @@
-/**
- * @vitest-environment node
- */
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  getFile: vi.fn(),
-  loadContext: vi.fn(),
-  resolvePermission: vi.fn(),
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  getWorkspaceFile: mocks.getFile,
-  loadActiveWorkspaceFileContext: mocks.loadContext,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
 import {
   downloadWorkspaceFileRecord,
   readWorkspaceFileContentRecord,
 } from '@/lib/workspace-files/application/read-workspace-file-record'
+
+const mocks = {
+  getFile: workspaceFileManagerMockFns.mockGetWorkspaceFile,
+  loadContext: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 
 const context = {
   fileId: 'file-1',
@@ -40,7 +37,6 @@ const file = {
 
 describe('workspace file record reads', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('admin')
     mocks.getFile.mockResolvedValue(file)
@@ -54,7 +50,7 @@ describe('workspace file record reads', () => {
     async (useCase, operationId) => {
       await expect(
         useCase.execute({
-          principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+          principal: createSessionPrincipal(),
           input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
         })
       ).resolves.toEqual({ file })
@@ -73,7 +69,7 @@ describe('workspace file record reads', () => {
   it('rejects a foreign asserted workspace before reading file metadata', async () => {
     await expect(
       readWorkspaceFileContentRecord.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: { fileId: 'file-1', assertedWorkspaceId: 'other-workspace' },
       })
     ).rejects.toMatchObject({ code: 'not_found' })
@@ -84,7 +80,7 @@ describe('workspace file record reads', () => {
     mocks.resolvePermission.mockResolvedValue(null)
     await expect(
       readWorkspaceFileContentRecord.execute({
-        principal: { kind: 'session', userId: 'outsider', sessionId: 'session-2' },
+        principal: createSessionPrincipal({ userId: 'outsider', sessionId: 'session-2' }),
         input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
       })
     ).rejects.toThrow()

@@ -394,7 +394,7 @@ export const linearConnector: ConnectorConfig = {
 
   getDocument: async (
     accessToken: string,
-    sourceConfig: Record<string, unknown>,
+    _sourceConfig: Record<string, unknown>,
     externalId: string
   ): Promise<ExternalDocument | null> => {
     const data = await linearGraphQL(accessToken, ISSUE_BY_ID_QUERY, { id: externalId })

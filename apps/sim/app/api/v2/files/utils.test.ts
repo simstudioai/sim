@@ -1,18 +1,12 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
+import { describe, expect, it, vi } from 'vitest'
 
-const { mockFindUserEmailsByIds } = vi.hoisted(() => ({ mockFindUserEmailsByIds: vi.fn() }))
-
-vi.mock('@/lib/users/queries', () => ({
-  findUserEmailsByIds: mockFindUserEmailsByIds,
-  getUserEmailsByIds: vi.fn(),
-  requireResolvedUserEmail: vi.fn(),
-}))
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
 
 import type { WorkspaceFileVersionRecord } from '@/lib/uploads/contexts/workspace/workspace-file-versions'
 import { toV2FileVersions } from '@/app/api/v2/files/utils'
+
+const { mockFindUserEmailsByIds } = usersQueriesMockFns
 
 const version: WorkspaceFileVersionRecord = {
   fileId: 'file-1',
@@ -30,10 +24,6 @@ const version: WorkspaceFileVersionRecord = {
 }
 
 describe('toV2FileVersions', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('keeps authors whose accounts no longer exist, with a null email', async () => {
     mockFindUserEmailsByIds.mockResolvedValueOnce(new Map([['user-1', 'ada@example.com']]))
 

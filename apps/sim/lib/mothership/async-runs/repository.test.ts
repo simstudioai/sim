@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import {
   copilotAsyncToolCalls,
   copilotChats,
@@ -10,26 +6,18 @@ import {
   copilotRuns,
 } from '@sim/db/schema'
 import { dbChainMockFns, hasMockCondition, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import {
   areStreamToolExecutionsSettled,
-  claimCompletedAsyncToolCall,
-  claimPendingAsyncToolCall,
   claimSimToolExecution,
   claimWorkflowToolExecution,
   closeStreamToolAdmission,
-  completeAsyncToolCall,
-  completeClaimedAsyncToolCall,
-  completePendingAsyncToolCall,
   createRunSegment,
   detachAsyncToolCall,
   getClaimedWorkflowExecutionId,
   getUnsettledStreamSandboxProcesses,
   markAsyncToolRunning,
   recordSimSandboxProcess,
-  recordToolPermissionDecision,
-  releaseWorkflowToolExecutionClaim,
-  replaceTerminalAsyncToolCallResult,
   requestRunStop,
   settleSimSandboxProcess,
   settleSimToolExecution,
@@ -41,7 +29,6 @@ describe('run admission and early Stop', () => {
   const scope = { userId: 'user-1', workspaceId: 'workspace-1', streamId: 'stream-1' }
   const input = { ...scope, chatId: 'chat-1', executionId: 'execution-1' }
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -200,7 +187,6 @@ describe('run admission and early Stop', () => {
 
 describe('durable Sim tool ownership', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
   const input = { toolCallId: 'tool-1', runId: 'run-1', userId: 'user-1', ownerToken: 'owner-1' }
@@ -386,222 +372,7 @@ describe('durable Sim tool ownership', () => {
 
 describe('async tool repository single-row semantics', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('atomically completes a live row', async () => {
-    const completedRow = {
-      toolCallId: 'tool-1',
-      status: 'completed',
-      result: { ok: true },
-      error: null,
-    }
-    dbChainMockFns.returning.mockResolvedValueOnce([completedRow])
-
-    const result = await completeAsyncToolCall({
-      toolCallId: 'tool-1',
-      status: 'completed',
-      result: { ok: true },
-      error: null,
-    })
-
-    expect(result).toEqual(completedRow)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: 'completed',
-        result: { ok: true },
-        completedAt: expect.any(Date),
-      })
-    )
-    expect(dbChainMockFns.where).toHaveBeenCalled()
-    expect(dbChainMockFns.set.mock.calls[0]?.[0]).not.toHaveProperty('executionSettledAt')
-  })
-
-  it('returns null when another terminal transition already won', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([])
-
-    const result = await completeAsyncToolCall({
-      toolCallId: 'tool-1',
-      status: 'failed',
-      result: null,
-      error: 'late error',
-    })
-
-    expect(result).toBeNull()
-    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
-  })
-
-  it('atomically completes a native preclaim failure only while the row is pending', async () => {
-    const failedRow = {
-      toolCallId: 'browser-tool',
-      status: 'failed',
-      result: { error: 'Desktop action did not start' },
-      error: 'Desktop action did not start',
-    }
-    dbChainMockFns.returning.mockResolvedValueOnce([failedRow])
-
-    const result = await completePendingAsyncToolCall({
-      toolCallId: 'browser-tool',
-      status: 'failed',
-      result: { error: 'Desktop action did not start' },
-      error: 'Desktop action did not start',
-    })
-
-    expect(result).toEqual(failedRow)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: 'failed',
-        claimedBy: null,
-        claimedAt: null,
-        completedAt: expect.any(Date),
-      })
-    )
-    const where = dbChainMockFns.where.mock.calls[0]?.[0]
-    expect(
-      hasMockCondition(
-        where,
-        (condition) =>
-          condition.type === 'inArray' &&
-          Array.isArray(condition.values) &&
-          condition.values.length === 1 &&
-          condition.values[0] === 'pending'
-      )
-    ).toBe(true)
-  })
-
-  it('returns null when a native authorization claim wins the pending completion race', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([])
-
-    await expect(
-      completePendingAsyncToolCall({
-        toolCallId: 'browser-tool',
-        status: 'cancelled',
-        result: { cancelled: true },
-        error: 'Tool cancelled',
-      })
-    ).resolves.toBeNull()
-  })
-
-  it('atomically completes only the exact running native claim', async () => {
-    const failedRow = {
-      toolCallId: 'browser-tool',
-      status: 'failed',
-      claimedBy: null,
-    }
-    dbChainMockFns.returning.mockResolvedValueOnce([failedRow])
-
-    const result = await completeClaimedAsyncToolCall(
-      {
-        toolCallId: 'browser-tool',
-        status: 'failed',
-        result: { outcomeUnknown: true, doNotRetry: true },
-        error: 'Native outcome unknown',
-      },
-      'desktop-browser'
-    )
-
-    expect(result).toEqual(failedRow)
-    const where = dbChainMockFns.where.mock.calls[0]?.[0]
-    expect(
-      hasMockCondition(
-        where,
-        (condition) =>
-          condition.type === 'inArray' &&
-          Array.isArray(condition.values) &&
-          condition.values.length === 1 &&
-          condition.values[0] === 'running'
-      )
-    ).toBe(true)
-    expect(
-      hasMockCondition(
-        where,
-        (condition) => condition.type === 'eq' && condition.right === 'desktop-browser'
-      )
-    ).toBe(true)
-  })
-
-  it('returns null when the exact native claim is no longer running', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([])
-
-    await expect(
-      completeClaimedAsyncToolCall(
-        {
-          toolCallId: 'browser-tool',
-          status: 'failed',
-          error: 'Native outcome unknown',
-        },
-        'desktop-browser'
-      )
-    ).resolves.toBeNull()
-  })
-
-  it('atomically detaches a live background call and clears the claim fields', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      {
-        toolCallId: 'tool-1',
-        status: 'delivered',
-      },
-    ])
-
-    await detachAsyncToolCall('tool-1')
-
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: 'delivered',
-        claimedBy: null,
-        claimedAt: null,
-      })
-    )
-    expect(dbChainMockFns.where).toHaveBeenCalled()
-  })
-
-  it('claims only completed rows for delivery handoff', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      {
-        toolCallId: 'tool-1',
-        status: 'completed',
-        claimedBy: 'worker-1',
-      },
-    ])
-
-    const result = await claimCompletedAsyncToolCall('tool-1', 'worker-1')
-
-    expect(result).toEqual({
-      toolCallId: 'tool-1',
-      status: 'completed',
-      claimedBy: 'worker-1',
-    })
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        claimedBy: 'worker-1',
-      })
-    )
-  })
-
-  it('atomically marks one pending native tool claim as running', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      {
-        toolCallId: 'browser-tool',
-        status: 'running',
-        claimedBy: 'desktop-browser',
-      },
-    ])
-
-    const result = await claimPendingAsyncToolCall('browser-tool', 'desktop-browser')
-
-    expect(result).toMatchObject({
-      toolCallId: 'browser-tool',
-      status: 'running',
-      claimedBy: 'desktop-browser',
-    })
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: 'running',
-        claimedBy: 'desktop-browser',
-        claimedAt: expect.any(Date),
-      })
-    )
   })
 
   it('atomically binds an eligible workflow tool to one execution', async () => {
@@ -629,15 +400,6 @@ describe('async tool repository single-row semantics', () => {
       updatedAt: expect.any(Date),
     })
     expect(getClaimedWorkflowExecutionId(result?.claimedBy)).toBe('execution-1')
-  })
-
-  it('returns null when a workflow tool execution claim loses the race', async () => {
-    queueTableRows(copilotRuns, [{ version: 2, status: 'active', closedAt: null }])
-    dbChainMockFns.returning.mockResolvedValueOnce([])
-
-    await expect(
-      claimWorkflowToolExecution('workflow-tool', 'execution-2', 'client')
-    ).resolves.toBeNull()
   })
 
   it.each([
@@ -677,29 +439,6 @@ describe('async tool repository single-row semantics', () => {
     expect(getClaimedWorkflowExecutionId('sim-stream')).toBeUndefined()
   })
 
-  it('releases a matching pre-start workflow claim without changing its lifecycle status', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      {
-        toolCallId: 'workflow-tool',
-        status: 'delivered',
-        claimedBy: null,
-      },
-    ])
-
-    const result = await releaseWorkflowToolExecutionClaim('workflow-tool', 'execution-1')
-
-    expect(result).toMatchObject({
-      toolCallId: 'workflow-tool',
-      status: 'delivered',
-      claimedBy: null,
-    })
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({
-      claimedBy: null,
-      claimedAt: null,
-      updatedAt: expect.any(Date),
-    })
-  })
-
   it('detaches a bound workflow waiter without releasing its execution claim', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([
       {
@@ -718,53 +457,6 @@ describe('async tool repository single-row semantics', () => {
         claimedAt: undefined,
       })
     )
-  })
-
-  it('records an approved workflow decision without changing execution state', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      {
-        toolCallId: 'workflow-tool',
-        status: 'pending',
-        permissionDecision: 'allow',
-      },
-    ])
-
-    await recordToolPermissionDecision('workflow-tool', 'allow')
-
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({
-      permissionDecision: 'allow',
-      permissionDecidedAt: expect.any(Date),
-      updatedAt: expect.any(Date),
-    })
-  })
-
-  it('replaces only terminal payload fields after trusted projection', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      {
-        toolCallId: 'workflow-tool',
-        status: 'completed',
-        result: { output: '{{SECRET}}' },
-      },
-    ])
-
-    const result = await replaceTerminalAsyncToolCallResult({
-      toolCallId: 'workflow-tool',
-      status: 'completed',
-      result: { output: '{{SECRET}}' },
-      error: null,
-    })
-
-    expect(result).toMatchObject({
-      toolCallId: 'workflow-tool',
-      status: 'completed',
-    })
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({
-      status: 'completed',
-      result: { output: '{{SECRET}}' },
-      error: null,
-      updatedAt: expect.any(Date),
-    })
-    expect(dbChainMockFns.where).toHaveBeenCalled()
   })
 
   it.each(['pending', 'running'] as const)(

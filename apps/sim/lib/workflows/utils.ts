@@ -8,9 +8,6 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { materializeInlineExecutionValue } from '@/lib/execution/payloads/inline-materialization.server'
 import type { ExecutionMaterializationContext } from '@/lib/execution/payloads/materialization.server'
-import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
-import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { nextWorkflowSortOrder } from '@/lib/workflows/sort-order'
 import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 import type { ExecutionResult } from '@/executor/types'
 
@@ -293,6 +290,60 @@ export const workflowHasResponseBlock = (
   return responseBlock !== undefined
 }
 
+/** Headers that control the app origin or HTTP transport belong to the server. */
+const RESERVED_RESPONSE_HEADERS = new Set([
+  'accept-ch',
+  'accept-ch-lifetime',
+  'alt-svc',
+  'clear-site-data',
+  'connection',
+  'content-disposition',
+  'content-encoding',
+  'content-length',
+  'content-location',
+  'content-range',
+  'critical-ch',
+  'document-policy',
+  'keep-alive',
+  'link',
+  'location',
+  'nel',
+  'origin-agent-cluster',
+  'permissions-policy',
+  'proxy-authenticate',
+  'public-key-pins',
+  'public-key-pins-report-only',
+  'referrer-policy',
+  'refresh',
+  'report-to',
+  'reporting-endpoints',
+  'set-cookie',
+  'set-cookie2',
+  'strict-transport-security',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+  'www-authenticate',
+  'x-content-security-policy',
+  'x-dns-prefetch-control',
+  'x-download-options',
+  'x-frame-options',
+  'x-permitted-cross-domain-policies',
+  'x-sendfile',
+  'x-ua-compatible',
+  'x-webkit-csp',
+  'x-xss-protection',
+])
+
+const RESERVED_RESPONSE_HEADER_PREFIXES = [
+  'access-control-',
+  'content-security-policy',
+  'cross-origin-',
+  'sec-',
+  'x-accel-',
+  'x-middleware-',
+] as const
+
 export const createHttpResponseFromBlock = async (
   executionResult: Pick<ExecutionResult, 'output'>,
   context?: ExecutionMaterializationContext
@@ -300,10 +351,19 @@ export const createHttpResponseFromBlock = async (
   const { data = {}, status = 200, headers = {} } = executionResult.output
   const responseData = await materializeInlineExecutionValue(data, context)
 
-  const responseHeaders = new Headers({
-    'Content-Type': 'application/json',
-    ...headers,
-  })
+  const responseHeaders = new Headers()
+  for (const [name, value] of new Headers(headers)) {
+    if (
+      !RESERVED_RESPONSE_HEADERS.has(name) &&
+      !RESERVED_RESPONSE_HEADER_PREFIXES.some((prefix) => name.startsWith(prefix))
+    ) {
+      responseHeaders.set(name, value)
+    }
+  }
+
+  // JSON serialization does not escape HTML; enforce the MIME type after normalizing header names.
+  responseHeaders.set('Content-Type', 'application/json')
+  responseHeaders.set('X-Content-Type-Options', 'nosniff')
 
   return NextResponse.json(responseData, {
     status: status,
@@ -371,70 +431,6 @@ export async function validateWorkflowPermissions(
 
 // ── Workflow CRUD ──
 
-export interface CreateWorkflowInput {
-  userId: string
-  workspaceId: string
-  name: string
-  description?: string | null
-  folderId?: string | null
-}
-
-export async function createWorkflowRecord(params: CreateWorkflowInput) {
-  const { userId, workspaceId, name, description = null, folderId = null } = params
-  const workflowId = generateId()
-  const now = new Date()
-
-  const duplicateConditions = [
-    eq(workflowTable.workspaceId, workspaceId),
-    isNull(workflowTable.archivedAt),
-    eq(workflowTable.name, name),
-    ...(folderId ? [eq(workflowTable.folderId, folderId)] : [isNull(workflowTable.folderId)]),
-  ]
-  const [duplicateWorkflow] = await db
-    .select({ id: workflowTable.id })
-    .from(workflowTable)
-    .where(and(...duplicateConditions))
-    .limit(1)
-  if (duplicateWorkflow) {
-    throw new Error(
-      `A workflow named "${name}" already exists in this folder. Use a different name.`
-    )
-  }
-
-  const sortOrder = await nextWorkflowSortOrder(workspaceId, folderId)
-
-  await db.insert(workflowTable).values({
-    id: workflowId,
-    userId,
-    workspaceId,
-    folderId,
-    sortOrder,
-    name,
-    description,
-    lastSynced: now,
-    createdAt: now,
-    updatedAt: now,
-    isDeployed: false,
-    runCount: 0,
-    variables: {},
-  })
-
-  const { workflowState } = buildDefaultWorkflowArtifacts()
-  const saveResult = await saveWorkflowToNormalizedTables(workflowId, workflowState, {
-    /**
-     * Actorless: `buildDefaultWorkflowArtifacts` produces the platform's starter
-     * graph, so there is no caller-chosen block type for a group to judge.
-     */
-    workspaceId: null,
-    subjectUserId: null,
-  })
-  if (!saveResult.success) {
-    throw new Error(saveResult.error || 'Failed to save workflow state')
-  }
-
-  return { workflowId, name, workspaceId, folderId, sortOrder, createdAt: now, updatedAt: now }
-}
-
 export async function updateWorkflowRecord(
   workflowId: string,
   updates: { name?: string; description?: string; folderId?: string | null }
@@ -462,24 +458,6 @@ export async function setWorkflowVariables(workflowId: string, variables: Record
 }
 
 // ── Folder CRUD ──
-
-export async function verifyFolderWorkspace(
-  folderId: string,
-  workspaceId: string
-): Promise<boolean> {
-  const [row] = await db
-    .select({ id: folderTable.id })
-    .from(folderTable)
-    .where(
-      and(
-        eq(folderTable.id, folderId),
-        eq(folderTable.workspaceId, workspaceId),
-        eq(folderTable.resourceType, 'workflow')
-      )
-    )
-    .limit(1)
-  return Boolean(row)
-}
 
 export async function listFolders(workspaceId: string) {
   return db

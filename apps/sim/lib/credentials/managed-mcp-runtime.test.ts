@@ -1,18 +1,15 @@
-/** @vitest-environment node */
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { credentialGroupsAvailabilityMock } from '@sim/testing/mocks/credential-groups-availability.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ decrypt: vi.fn() }))
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mocks.decrypt,
-  encryptSecret: vi.fn(),
-}))
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: async () => true,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
 
 import { loadScopedManagedMcpRuntimeCredential } from '@/lib/credentials/managed-mcp'
+
+const mocks = { decrypt: encryptionMockFns.mockDecryptSecret }
 
 const row = {
   credentialId: 'mine',
@@ -35,7 +32,6 @@ const scope = { kind: 'organization', organizationId: 'org' } as const
 
 describe('personal scoped MCP runtime', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.decrypt.mockResolvedValue({
       decrypted: JSON.stringify({

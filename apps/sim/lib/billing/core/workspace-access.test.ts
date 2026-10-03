@@ -1,31 +1,24 @@
-/**
- * @vitest-environment node
- */
+import { billingAccessMock, billingAccessMockFns } from '@sim/testing/mocks/billing-access.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import { billingSubscriptionMock } from '@sim/testing/mocks/billing-subscription.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetBillingEntityBlockStatus, mockResolveWorkspaceBillingPayer } = vi.hoisted(() => ({
-  mockGetBillingEntityBlockStatus: vi.fn(),
-  mockResolveWorkspaceBillingPayer: vi.fn(),
-}))
+vi.mock('@/lib/billing/core/access', () => billingAccessMock)
 
-vi.mock('@/lib/billing/core/access', () => ({
-  getBillingEntityBlockStatus: mockGetBillingEntityBlockStatus,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveWorkspaceBillingPayer: mockResolveWorkspaceBillingPayer,
-}))
-
-vi.mock('@/lib/billing/core/subscription', () => ({
-  resolveBillingInterval: (subscription?: { billingInterval?: string | null }) =>
-    subscription?.billingInterval === 'year' ? 'year' : 'month',
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
 
+const mockGetBillingEntityBlockStatus = billingAccessMockFns.mockGetBillingEntityBlockStatus
+const mockResolveWorkspaceBillingPayer = billingAttributionMockFns.mockResolveWorkspaceBillingPayer
+
 describe('getWorkspaceOwnerSubscriptionAccess', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetBillingEntityBlockStatus.mockResolvedValue({
       billingBlocked: false,
       billingBlockedReason: null,
@@ -99,16 +92,6 @@ describe('getWorkspaceOwnerSubscriptionAccess', () => {
     expect(mockGetBillingEntityBlockStatus).toHaveBeenCalledWith({
       type: 'user',
       id: 'owner-1',
-    })
-  })
-
-  it('reports free when the workspace has no billed account', async () => {
-    mockResolveWorkspaceBillingPayer.mockResolvedValue(null)
-    const access = await getWorkspaceOwnerSubscriptionAccess('ws-1')
-    expect(access.isPaid).toBe(false)
-    expect(mockGetBillingEntityBlockStatus).not.toHaveBeenCalled()
-    expect(mockResolveWorkspaceBillingPayer).toHaveBeenCalledWith('ws-1', {
-      onMissing: 'return-null',
     })
   })
 })

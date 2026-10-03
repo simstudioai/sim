@@ -159,7 +159,7 @@ function createStructuredModelProjection(
 }
 
 export class GenericBlockHandler implements BlockHandler {
-  canHandle(block: SerializedBlock): boolean {
+  canHandle(): boolean {
     return true
   }
 

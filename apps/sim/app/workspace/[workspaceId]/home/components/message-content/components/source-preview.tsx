@@ -5,10 +5,8 @@ import { cn, OverflowText, Popover, PopoverAnchor, PopoverContent } from '@sim/e
 import { ArrowUpRight } from '@sim/emcn/icons'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { SourceIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip/source-icon'
-import {
-  handleExternalLinkClick,
-  linkSiteName,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
+import { useSourceNavigation } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
+import { linkSiteName } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { useLinkPreview } from '@/hooks/queries/link-preview'
 
@@ -107,6 +105,7 @@ export function SourcePreview({ source, children }: SourcePreviewProps) {
 
 /** Mounting with the popover gates metadata and image work behind deliberate intent. */
 function SourcePreviewContent({ source }: Pick<SourcePreviewProps, 'source'>) {
+  const navigate = useSourceNavigation(source)
   const { data } = useLinkPreview(
     (!source.connectorType || source.connectorType === 'github') &&
       source.url.startsWith('https://')
@@ -130,7 +129,8 @@ function SourcePreviewContent({ source }: Pick<SourcePreviewProps, 'source'>) {
           target='_blank'
           rel='noopener noreferrer'
           className='flex shrink-0 items-center gap-1 text-[var(--text-body)]'
-          onClick={(event) => handleExternalLinkClick(event, source.url)}
+          onClick={navigate}
+          onAuxClick={navigate}
         >
           Open <ArrowUpRight aria-hidden className='size-[14px]' />
         </a>

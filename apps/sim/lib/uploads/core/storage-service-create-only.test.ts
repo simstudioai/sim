@@ -1,29 +1,23 @@
-/** @vitest-environment node */
 import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { uploadsConfigMock } from '@sim/testing/mocks/uploads-config.mock'
+import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const state = vi.hoisted(() => ({ directory: '' }))
-vi.mock('@/lib/uploads/config', () => ({
-  USE_S3_STORAGE: false,
-  USE_BLOB_STORAGE: false,
-  USE_GCS_STORAGE: false,
-  getStorageConfig: () => ({}),
-}))
-vi.mock('@/lib/uploads/core/setup.server', () => ({
-  get UPLOAD_DIR_SERVER() {
-    return state.directory
-  },
-}))
+vi.mock('@/lib/uploads/config', () => uploadsConfigMock)
+vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 
+let directory = ''
+
 beforeAll(async () => {
-  state.directory = await mkdtemp(join(tmpdir(), 'sim-chat-image-'))
+  directory = await mkdtemp(join(tmpdir(), 'sim-chat-image-'))
+  setUploadDirServer(directory)
 })
 afterAll(async () => {
-  await rm(state.directory, { recursive: true, force: true })
+  await rm(directory, { recursive: true, force: true })
 })
 describe('metadata-free immutable local uploads', () => {
   it('publishes exactly one complete winner under concurrent retries', async () => {
@@ -45,8 +39,8 @@ describe('metadata-free immutable local uploads', () => {
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
     expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1)
     const winner = results.findIndex((result) => result.status === 'fulfilled')
-    expect(await readFile(join(state.directory, 'chat-images/image.webp'))).toEqual(buffers[winner])
-    expect(await readdir(join(state.directory, 'chat-images'))).toEqual(['image.webp'])
+    expect(await readFile(join(directory, 'chat-images/image.webp'))).toEqual(buffers[winner])
+    expect(await readdir(join(directory, 'chat-images'))).toEqual(['image.webp'])
   })
   it('aborted upload leaves no visible object', async () => {
     const controller = new AbortController()
@@ -62,7 +56,7 @@ describe('metadata-free immutable local uploads', () => {
         signal: controller.signal,
       })
     ).rejects.toThrow()
-    await expect(readFile(join(state.directory, 'cancelled.webp'))).rejects.toMatchObject({
+    await expect(readFile(join(directory, 'cancelled.webp'))).rejects.toMatchObject({
       code: 'ENOENT',
     })
   })

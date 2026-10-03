@@ -698,6 +698,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/workflows/[workflowId]/versions/[version]/revert/route'),
   },
   {
+    pattern: '/api/v2/workflows/{workflowId}/versions/compare',
+    load: () => import('@/app/api/v2/workflows/[workflowId]/versions/compare/route'),
+  },
+  {
     pattern: '/api/v2/workflows/folders',
     load: () => import('@/app/api/v2/workflows/folders/route'),
   },

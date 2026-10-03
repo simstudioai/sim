@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
 import { buildEffectiveChatTranscript } from '@/lib/mothership/chat/effective-transcript'

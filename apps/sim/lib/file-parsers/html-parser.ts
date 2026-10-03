@@ -337,10 +337,7 @@ function processListItem(
 }
 
 /** A table's own rows: direct `<tr>` children and those under its section elements. */
-function directRows(
-  $: cheerio.CheerioAPI,
-  table: cheerio.Cheerio<AnyNode>
-): cheerio.Cheerio<AnyNode> {
+function directRows(table: cheerio.Cheerio<AnyNode>): cheerio.Cheerio<AnyNode> {
   return table.children('thead, tbody, tfoot').children('tr').add(table.children('tr'))
 }
 
@@ -359,7 +356,7 @@ function topLevelNestedTables(
  */
 function flattenedTableCells($: cheerio.CheerioAPI, table: cheerio.Cheerio<AnyNode>): string[] {
   const cells: string[] = []
-  directRows($, table).each((_, row) => {
+  directRows(table).each((_, row) => {
     $(row)
       .children('td, th')
       .each((_, cell) => {
@@ -412,7 +409,7 @@ function processTable(
 ): void {
   contentParts.push('\n[Table]')
 
-  directRows($, table).each((_, row) => {
+  directRows(table).each((_, row) => {
     const cells: string[] = []
 
     $(row)

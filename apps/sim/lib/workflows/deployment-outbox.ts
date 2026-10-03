@@ -66,6 +66,7 @@ import {
 } from '@/lib/workflows/schedules'
 import { emitWorkflowDeployedEvent } from '@/lib/workspace-events/emitter'
 import type { WorkspaceOperationReport } from '@/lib/workspaces/operations/receipts'
+import { activateForkSyncProvenance } from '@/ee/workspace-forking/lib/promote/sync-provenance'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowDeploymentOutbox')
@@ -515,7 +516,7 @@ async function prepareDeploymentOperation(
     workflowId: payload.workflowId,
     operationId: payload.operationId,
     generation: payload.generation,
-    onActivateTransaction: async (tx) => {
+    onActivateTransaction: async (tx, activatedOperation) => {
       context.signal.throwIfAborted()
       await activateWebhookRegistrations(tx, {
         workflowId: payload.workflowId,
@@ -535,6 +536,7 @@ async function prepareDeploymentOperation(
         notify: false,
         throwOnError: true,
       })
+      await activateForkSyncProvenance(tx, activatedOperation)
       context.signal.throwIfAborted()
     },
   })

@@ -167,19 +167,19 @@ describe('external file ingress under durable enforcement', () => {
       })
     ).toBe(true)
 
-    /** A real unrecorded control proves this suite has not silently disabled enforcement. */
-    const unrecorded = await uploadExecutionFile(
+    /** A real unknown control proves missing evidence has not disabled protection failures. */
+    const unknown = await uploadExecutionFile(
       ids,
       IMAGE_BYTES,
-      'unrecorded.png',
+      'unknown.png',
       'image/png',
       ids.aliceId,
-      { status: 'unrecorded' }
+      { status: 'unknown' }
     )
     expect(
       await importWorkspaceFileSecretProvenanceForModelView({
         workspaceId: ids.workspaceId,
-        identity: await identityFor(unrecorded),
+        identity: await identityFor(unknown),
         view: 'opaque',
       })
     ).toBe(false)

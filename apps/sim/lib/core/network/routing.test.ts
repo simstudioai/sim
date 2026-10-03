@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import { parseOutboundJson, parseOutboundRoutingConfig } from '@/lib/core/network/routing'
 

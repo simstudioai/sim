@@ -12,9 +12,10 @@ import { searchIntegrationKeys } from '@/hooks/queries/utils/search-integration-
 
 export const SEARCH_INTEGRATIONS_STALE_TIME = 30_000
 
-export function useSearchIntegrations(organizationId: string) {
+export function useSearchIntegrations(organizationId: string, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: searchIntegrationKeys.list(organizationId),
+    enabled: Boolean(organizationId) && (options?.enabled ?? true),
     queryFn: async ({ signal }) =>
       (await requestJson(listSearchIntegrationsContract, { query: { organizationId }, signal }))
         .data,

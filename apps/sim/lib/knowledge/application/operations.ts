@@ -82,10 +82,6 @@ const ALL_PRINCIPAL_POLICY = {
   ],
   delegatedServices: ['copilot'],
 } as const
-const COPILOT_PRINCIPAL_POLICY = {
-  principalKinds: ['delegated'],
-  delegatedServices: ['copilot'],
-} as const
 
 const ALL_PRINCIPAL_WITH_EXECUTOR_POLICY = {
   principalKinds: [
@@ -97,13 +93,6 @@ const ALL_PRINCIPAL_WITH_EXECUTOR_POLICY = {
   ],
   delegatedServices: ['copilot', 'executor'],
 } as const
-
-const HTTP_PRINCIPAL_KINDS = [
-  'session',
-  'personal_api_key',
-  'oauth_access_token',
-  'workspace_api_key',
-] as const
 
 const HUMAN_AND_DELEGATED_PRINCIPAL_KINDS = [
   'session',
@@ -396,42 +385,6 @@ export const knowledgeOperations = {
       ...ALL_PRINCIPAL_POLICY,
     })
   ),
-  renameByVfsPath: defineKnowledgeOperation(
-    defineWorkspaceOperation({
-      id: 'knowledge.vfs.rename',
-      minimumRole: 'write',
-      workspaceApiKey: 'deny',
-      capability: 'knowledge.use',
-      ...COPILOT_PRINCIPAL_POLICY,
-    })
-  ),
-  moveByVfsPath: defineKnowledgeOperation(
-    defineWorkspaceOperation({
-      id: 'knowledge.vfs.move',
-      minimumRole: 'write',
-      workspaceApiKey: 'deny',
-      capability: 'knowledge.use',
-      ...COPILOT_PRINCIPAL_POLICY,
-    })
-  ),
-  manageVfsFolders: defineKnowledgeOperation(
-    defineWorkspaceOperation({
-      id: 'knowledge.vfs.folders.manage',
-      minimumRole: 'write',
-      workspaceApiKey: 'deny',
-      capability: 'knowledge.use',
-      ...COPILOT_PRINCIPAL_POLICY,
-    })
-  ),
-  deleteByVfsPath: defineKnowledgeOperation(
-    defineWorkspaceOperation({
-      id: 'knowledge.vfs.delete',
-      minimumRole: 'write',
-      workspaceApiKey: 'deny',
-      capability: 'knowledge.use',
-      ...COPILOT_PRINCIPAL_POLICY,
-    })
-  ),
   search: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.search',
@@ -538,16 +491,6 @@ export const knowledgeOperations = {
       workspaceApiKey: 'allow',
       capability: 'knowledge.use',
       ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
-    })
-  ),
-  bulkDeleteDocuments: defineKnowledgeOperation(
-    defineWorkspaceOperation({
-      id: 'knowledge.documents.bulk_delete',
-      oauthScope: 'api:write',
-      minimumRole: 'write',
-      workspaceApiKey: 'deny',
-      capability: 'knowledge.use',
-      ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
     })
   ),
   updateDocument: defineKnowledgeOperation(
@@ -817,25 +760,6 @@ export const knowledgeOperations = {
       delegatedServices: ['copilot'],
     })
   ),
-  readSearchSourceOverview: defineKnowledgeOperation(
-    defineWorkspaceOperation({
-      id: 'knowledge.search.sources.overview',
-      minimumRole: 'read',
-      workspaceApiKey: 'deny',
-      capability: 'knowledge.use',
-      principalKinds: ['session', 'delegated'],
-      delegatedServices: ['copilot'],
-    })
-  ),
-  readSearchSourceProgress: defineKnowledgeOperation(
-    defineWorkspaceOperation({
-      id: 'knowledge.search.sources.progress',
-      minimumRole: 'read',
-      workspaceApiKey: 'deny',
-      capability: 'knowledge.use',
-      principalKinds: ['session'],
-    })
-  ),
   listSearchIntegrations: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.search.integrations.list',
@@ -845,24 +769,6 @@ export const knowledgeOperations = {
       principalKinds: ['session'],
     }),
     { organizationDelegation: 'allow' }
-  ),
-  readOrganizationSearchOverview: defineKnowledgeOperation(
-    defineWorkspaceOperation({
-      id: 'knowledge.search.integrations.overview',
-      minimumRole: 'admin',
-      workspaceApiKey: 'deny',
-      capability: 'knowledge.use',
-      principalKinds: ['session'],
-    })
-  ),
-  readOrganizationSearchStats: defineKnowledgeOperation(
-    defineWorkspaceOperation({
-      id: 'knowledge.search.stats.read',
-      minimumRole: 'admin',
-      workspaceApiKey: 'deny',
-      capability: 'knowledge.use',
-      principalKinds: ['session'],
-    })
   ),
   approveSearchIntegration: defineKnowledgeOperation(
     defineWorkspaceOperation({
@@ -874,16 +780,6 @@ export const knowledgeOperations = {
     }),
     { organizationDelegation: 'allow' }
   ),
-  /** Sources with a personal connection, including identities used by mirrored ACLs. */
-  listWorkspaceMemberConnectors: defineKnowledgeOperation(
-    defineWorkspaceOperation({
-      id: 'knowledge.connectors.members.list',
-      minimumRole: 'read',
-      workspaceApiKey: 'deny',
-      capability: 'knowledge.use',
-      principalKinds: ['session'],
-    })
-  ),
   /**
    * A workspace reader connecting their own account for a member crawl or a
    * mirrored-ACL identity. Enrollment never creates crawler access grants.
@@ -891,48 +787,6 @@ export const knowledgeOperations = {
   enrollConnectorMember: defineKnowledgeOperation(
     defineWorkspaceOperation({
       id: 'knowledge.connectors.members.enroll',
-      minimumRole: 'read',
-      workspaceApiKey: 'deny',
-      capability: 'knowledge.use',
-      principalKinds: ['session'],
-    })
-  ),
-  /**
-   * Connecting a Sim Search source: any reader may connect their own account.
-   * The first connect of a source also creates its knowledge base and
-   * connector, which the use case reserves for an admin and refuses to anyone
-   * else with the way forward (ask an admin to connect the source first).
-   */
-  simSearchConnect: defineKnowledgeOperation(
-    defineWorkspaceOperation({
-      id: 'knowledge.simSearch.connect',
-      minimumRole: 'read',
-      workspaceApiKey: 'deny',
-      capability: 'knowledge.use',
-      principalKinds: ['session'],
-    })
-  ),
-  listPersonalSourceSetupAccounts: defineKnowledgeOperation(
-    defineWorkspaceOperation({
-      id: 'knowledge.search.personalSetup.accounts.list',
-      minimumRole: 'read',
-      workspaceApiKey: 'deny',
-      capability: 'knowledge.use',
-      principalKinds: ['session'],
-    })
-  ),
-  personalSourceSetup: defineKnowledgeOperation(
-    defineWorkspaceOperation({
-      id: 'knowledge.search.personalSetup',
-      minimumRole: 'read',
-      workspaceApiKey: 'deny',
-      capability: 'knowledge.use',
-      principalKinds: ['session'],
-    })
-  ),
-  createApprovedSearchSource: defineKnowledgeOperation(
-    defineWorkspaceOperation({
-      id: 'knowledge.search.sources.connectApproved',
       minimumRole: 'read',
       workspaceApiKey: 'deny',
       capability: 'knowledge.use',

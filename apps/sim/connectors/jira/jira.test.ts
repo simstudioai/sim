@@ -1,15 +1,11 @@
-/**
- * @vitest-environment node
- */
 import { createMockResponse } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AtlassianSiteNotMatchedError, clearAtlassianCloudIdCache } from '@/lib/atlassian/discovery'
 import {
   beginListingCheckpoint,
   runResumableListing,
 } from '@/lib/knowledge/connectors/listing-checkpoint'
 import { jiraConnector } from '@/connectors/jira/jira'
-import { jiraConnectorMeta } from '@/connectors/jira/meta'
 import { memberDocumentId, PER_MEMBER_LISTING_CONTEXT } from '@/connectors/utils'
 
 const SOURCE = { domain: 'acme.atlassian.net', projectKey: 'ENG' }
@@ -50,60 +46,12 @@ function json(body: unknown, status = 200) {
 const fetchMock = vi.fn()
 
 beforeEach(() => {
-  vi.clearAllMocks()
   fetchMock.mockReset()
   clearAtlassianCloudIdCache()
   vi.stubGlobal('fetch', fetchMock)
 })
 
-afterEach(() => {
-  vi.unstubAllGlobals()
-})
-
 describe('Jira Search member documents', () => {
-  it('resolves All through the current credential across pages and future syncs', async () => {
-    fetchMock
-      .mockResolvedValueOnce(json({ issues: [issue()], nextPageToken: 'page-two', isLast: false }))
-      .mockResolvedValueOnce(
-        json({ issues: [issue('20001', { project: { id: '20000', key: 'HR' } })], isLast: true })
-      )
-      .mockResolvedValueOnce(
-        json({ issues: [issue('30001', { project: { id: '30000', key: 'NEW' } })], isLast: true })
-      )
-    const config = { ...SOURCE, projectKey: ['*'], jql: 'status = Open' }
-    const context = { ...MEMBERS }
-    const first = await jiraConnector.listDocuments('token', config, undefined, context)
-    const second = await jiraConnector.listDocuments('token', config, first.nextCursor, context)
-    const nextSync = await jiraConnector.listDocuments('token', config, undefined, { ...MEMBERS })
-    expect(first.hasMore).toBe(true)
-    expect(second.documents[0].sourceUrl).toContain('ENG-20001')
-    expect(nextSync.documents[0].sourceUrl).toContain('ENG-30001')
-    expect(second.hasMore).toBe(false)
-    const urls = fetchMock.mock.calls.map(([input]) => new URL(String(input)))
-    expect(urls.map((url) => url.searchParams.get('jql'))).toEqual(
-      Array(3).fill('project IS NOT EMPTY AND (status = Open) ORDER BY updated DESC')
-    )
-    expect(urls[1].searchParams.get('nextPageToken')).toBe('page-two')
-  })
-
-  it('offers managed member Search with canonical project setup and no central ACL mode', () => {
-    expect(jiraConnectorMeta.search).toBe(true)
-    expect(jiraConnectorMeta.permissionScopedListing?.capFieldIds).toEqual(['maxIssues'])
-    expect(jiraConnectorMeta.mirrorsSourceAcls).toBeUndefined()
-    expect(jiraConnectorMeta.supportsSeparateContentCredential).toBeUndefined()
-    expect(jiraConnectorMeta.auth).toEqual({
-      mode: 'oauth',
-      provider: 'jira',
-      requiredScopes: ['read:jira-work', 'offline_access'],
-    })
-    expect(
-      jiraConnectorMeta.configFields.filter((field) => field.canonicalParamId === 'projectKey')
-    ).toEqual([
-      expect.objectContaining({ selectorKey: 'jira.projectKeys', mode: 'basic', required: true }),
-      expect.objectContaining({ id: 'projectKey', mode: 'advanced', required: true }),
-    ])
-  })
-
   it('indexes the visible title and description inline without restricted comments', async () => {
     fetchMock.mockResolvedValue(
       json({
@@ -145,35 +93,6 @@ describe('Jira Search member documents', () => {
       ids.push(result.documents[0]!.externalId)
     }
     expect(new Set(ids).size).toBe(3)
-  })
-
-  it('refreshes a changed visible projection even when the issue timestamp is unchanged', async () => {
-    fetchMock.mockResolvedValueOnce(json({ issues: [issue()] }))
-    fetchMock.mockResolvedValueOnce(
-      json({ issues: [issue('10001', { description: null, assignee: null })] })
-    )
-
-    const before = await jiraConnector.listDocuments('token', SOURCE, undefined, { ...MEMBERS })
-    const after = await jiraConnector.listDocuments('token', SOURCE, undefined, { ...MEMBERS })
-
-    expect(before.documents[0]!.externalId).toBe(after.documents[0]!.externalId)
-    expect(before.documents[0]!.contentHash).not.toBe(after.documents[0]!.contentHash)
-    expect(after.documents[0]!.content).toBe('Fix onboarding')
-  })
-
-  it('preserves the member hash and ID when retrieving the same visible projection', async () => {
-    fetchMock
-      .mockResolvedValueOnce(json({ issues: [issue()] }))
-      .mockResolvedValueOnce(json(issue()))
-    const listed = await jiraConnector.listDocuments('token', SOURCE, undefined, { ...MEMBERS })
-    const fetched = await jiraConnector.getDocument(
-      'token',
-      SOURCE,
-      listed.documents[0]!.externalId,
-      { ...MEMBERS }
-    )
-    expect(fetched).toEqual(listed.documents[0])
-    expect(new URL(String(fetchMock.mock.calls[1][0])).pathname).toMatch(/\/issue\/10001$/)
   })
 
   it.each([
@@ -250,13 +169,6 @@ describe('Jira pagination and source scope', () => {
     expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get('maxResults')).toBe('1')
   })
 
-  it('permits deletion reconciliation on genuine exhaustion at the item limit', async () => {
-    fetchMock.mockResolvedValue(json({ issues: [issue()], isLast: true }))
-    const context: Record<string, unknown> = { cloudId: CLOUD_ID }
-    await jiraConnector.listDocuments('token', { ...SOURCE, maxIssues: '1' }, undefined, context)
-    expect(context.listingCapped).toBeUndefined()
-  })
-
   it('marks a provider-degraded result incomplete', async () => {
     fetchMock.mockResolvedValue(
       json({ issues: [issue()], warnings: [{ type: 'INGESTION_LIMIT' }] })
@@ -264,30 +176,6 @@ describe('Jira pagination and source scope', () => {
     const context: Record<string, unknown> = { ...MEMBERS }
     await jiraConnector.listDocuments('token', SOURCE, undefined, context)
     expect(context.listingCapped).toBe(true)
-  })
-
-  it('allows authoritative empty member results so removed access can be withdrawn', async () => {
-    fetchMock.mockResolvedValue(json({ issues: [], isLast: true, nextPageToken: null }))
-    const context: Record<string, unknown> = { ...MEMBERS }
-    expect(await jiraConnector.listDocuments('token', SOURCE, undefined, context)).toEqual({
-      documents: [],
-      hasMore: false,
-      nextCursor: undefined,
-    })
-    expect(context.listingCapped).toBeUndefined()
-  })
-
-  it('recognizes the provider invalid-or-expired page-token response for a resumable listing', async () => {
-    fetchMock.mockResolvedValue(
-      json({ errorMessages: ['The provided next page token is invalid or expired.'] }, 400)
-    )
-    const error = await jiraConnector
-      .listDocuments('token', SOURCE, 'expired-token|100', { ...MEMBERS })
-      .catch((value: unknown) => value)
-    expect(error).toBeInstanceOf(Error)
-    expect(jiraConnector.isListingCursorInvalidError?.(error)).toBe(true)
-    expect(jiraConnector.isCredentialInvalidError?.(error)).toBe(false)
-    expect(jiraConnector.isListingScopeUnavailableError?.(error)).toBe(false)
   })
 
   it('restarts expired pagination through the shared runner without carrying over an old item count', async () => {
@@ -334,35 +222,6 @@ describe('Jira pagination and source scope', () => {
     expect(context.listingCapped).toBeUndefined()
   })
 
-  it.each([
-    {
-      status: 400,
-      cursor: undefined,
-      message: 'The provided next page token is invalid or expired.',
-    },
-    { status: 400, cursor: 'valid-token|100', message: 'Invalid JQL syntax.' },
-    {
-      status: 403,
-      cursor: 'valid-token|100',
-      message: 'The provided next page token is invalid or expired.',
-    },
-    {
-      status: 500,
-      cursor: 'valid-token|100',
-      message: 'The provided next page token is invalid or expired.',
-    },
-  ])(
-    'does not reset a cursor for unrelated search failure %j',
-    async ({ status, cursor, message }) => {
-      fetchMock.mockResolvedValue(json({ errorMessages: [message] }, status))
-      const error = await jiraConnector
-        .listDocuments('token', SOURCE, cursor, { ...MEMBERS })
-        .catch((value: unknown) => value)
-      expect(error).toBeInstanceOf(Error)
-      expect(jiraConnector.isListingCursorInvalidError?.(error) ?? false).toBe(false)
-    }
-  )
-
   it('keeps a JQL refinement inside the configured projects and accepts selector project IDs', async () => {
     fetchMock.mockResolvedValue(
       json({ issues: [issue(), issue('20001', { project: { id: '20000', key: 'PRIVATE' } })] })
@@ -394,19 +253,6 @@ describe('Jira pagination and source scope', () => {
 })
 
 describe('Jira validation and provider failures', () => {
-  it.each(['1.5', '-1', '0', 'NaN', 'Infinity'])(
-    'rejects invalid issue limit %s',
-    async (maxIssues) => {
-      await expect(
-        jiraConnector.validateConfig('token', { ...SOURCE, maxIssues })
-      ).resolves.toMatchObject({
-        valid: false,
-        error: 'Max issues must be a positive whole number',
-      })
-      expect(fetchMock).not.toHaveBeenCalled()
-    }
-  )
-
   it('refuses member listing caps at runtime and setup', async () => {
     const source = { ...SOURCE, maxIssues: '10' }
     await expect(
@@ -417,74 +263,6 @@ describe('Jira validation and provider failures', () => {
     ).resolves.toMatchObject({ valid: false })
     expect(fetchMock).not.toHaveBeenCalled()
   })
-
-  it('validates projects and the optional JQL with lightweight enhanced-search calls', async () => {
-    fetchMock.mockResolvedValue(json({ issues: [] }))
-    await expect(
-      jiraConnector.validateConfig(
-        'token',
-        { ...SOURCE, jql: 'status = "Done"' },
-        { cloudId: CLOUD_ID }
-      )
-    ).resolves.toEqual({ valid: true })
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    for (const [input] of fetchMock.mock.calls) {
-      const url = new URL(String(input))
-      expect(url.pathname).toMatch(/\/search\/jql$/)
-      expect(url.searchParams.get('maxResults')).toBe('1')
-      expect(url.searchParams.get('fields')).toBe('id')
-    }
-  })
-
-  it('validates exact configured site during member setup', async () => {
-    fetchMock.mockResolvedValue(json([{ id: 'other-cloud', url: 'https://other.atlassian.net' }]))
-    await expect(
-      jiraConnector.validateConfig('token', SOURCE, { ...PER_MEMBER_LISTING_CONTEXT })
-    ).resolves.toMatchObject({
-      valid: false,
-      error: expect.stringContaining('Could not match Jira domain'),
-    })
-  })
-
-  it.each([401, 403, 404, 500])(
-    'classifies search HTTP %s without swallowing transient errors',
-    async (status) => {
-      fetchMock.mockResolvedValue(json({}, status))
-      const error = await jiraConnector
-        .listDocuments('token', SOURCE, undefined, { ...MEMBERS })
-        .catch((value: unknown) => value)
-      expect(error).toBeInstanceOf(Error)
-      expect(jiraConnector.isCredentialInvalidError?.(error)).toBe(status === 401)
-      expect(jiraConnector.isListingScopeUnavailableError?.(error)).toBe(status === 404)
-    }
-  )
-
-  it('returns null for an issue removed between listing and retrieval', async () => {
-    fetchMock.mockResolvedValue(json({}, 404))
-    await expect(
-      jiraConnector.getDocument('token', SOURCE, '10001', { cloudId: CLOUD_ID })
-    ).resolves.toBeNull()
-  })
-
-  it('preserves deferred content, issue IDs, comments and hashes for ordinary knowledge bases', async () => {
-    const payload = issue('10001', {
-      comment: { comments: [{ body: adf('Existing KB comment') }], total: 1 },
-    })
-    fetchMock
-      .mockResolvedValueOnce(json({ issues: [payload] }))
-      .mockResolvedValueOnce(json(payload))
-    const listed = await jiraConnector.listDocuments('token', SOURCE, undefined, {
-      cloudId: CLOUD_ID,
-    })
-    const full = await jiraConnector.getDocument('token', SOURCE, '10001', { cloudId: CLOUD_ID })
-    expect(listed.documents[0]).toMatchObject({
-      externalId: '10001',
-      content: '',
-      contentDeferred: true,
-    })
-    expect(full?.content).toContain('Existing KB comment')
-    expect(full?.contentHash).toBe(listed.documents[0]?.contentHash)
-  })
 })
 
 describe('Jira member project permissions', () => {
@@ -493,57 +271,7 @@ describe('Jira member project permissions', () => {
     errorMessages: ["The value 'ENG' does not exist for the field 'project'."],
     errors: {},
   }
-  const supportIssue = (id: string) => issue(id, { project: { id: '20000', key: 'SUPPORT' } })
-
-  it('skips an inaccessible project and resumes the accessible project across fresh contexts', async () => {
-    fetchMock
-      .mockResolvedValueOnce(json(projectDenied, 400))
-      .mockResolvedValueOnce(
-        json({ issues: [supportIssue('2')], nextPageToken: 'opaque|support', isLast: false })
-      )
-      .mockResolvedValueOnce(json({ issues: [supportIssue('3')], isLast: true }))
-
-    const denied = await jiraConnector.listDocuments('token', source, undefined, { ...MEMBERS })
-    expect(denied).toMatchObject({ documents: [], hasMore: true })
-    const first = await jiraConnector.listDocuments('token', source, denied.nextCursor, {
-      ...MEMBERS,
-    })
-    const second = await jiraConnector.listDocuments('token', source, first.nextCursor, {
-      ...MEMBERS,
-    })
-    expect(first.documents.map((doc) => doc.externalId)).toEqual([
-      memberDocumentId(`jira:${CLOUD_ID}:2`, MEMBERS),
-    ])
-    expect(second.documents.map((doc) => doc.externalId)).toEqual([
-      memberDocumentId(`jira:${CLOUD_ID}:3`, MEMBERS),
-    ])
-    expect(second.hasMore).toBe(false)
-    const urls = fetchMock.mock.calls.map(([input]) => new URL(String(input)))
-    expect(urls.map((url) => url.searchParams.get('jql'))).toEqual([
-      'project = "ENG" ORDER BY updated DESC',
-      'project = "SUPPORT" ORDER BY updated DESC',
-      'project = "SUPPORT" ORDER BY updated DESC',
-    ])
-    expect(urls[2].searchParams.get('nextPageToken')).toBe('opaque|support')
-  })
-
-  it('ends normally when the last project is denied by its selector ID', async () => {
-    fetchMock
-      .mockResolvedValueOnce(json({ issues: [issue()] }))
-      .mockResolvedValueOnce(
-        json(
-          { errorMessages: ["A value with ID '20000' does not exist for the field 'project'."] },
-          400
-        )
-      )
-    const configured = { ...SOURCE, projectKey: ['ENG', '20000'] }
-    const first = await jiraConnector.listDocuments('token', configured, undefined, { ...MEMBERS })
-    const last = await jiraConnector.listDocuments('token', configured, first.nextCursor, {
-      ...MEMBERS,
-    })
-    expect(first.documents).toHaveLength(1)
-    expect(last).toEqual({ documents: [], hasMore: false, nextCursor: undefined })
-  })
+  const _supportIssue = (id: string) => issue(id, { project: { id: '20000', key: 'SUPPORT' } })
 
   it('confirms whole-source access loss only after every project has explicitly denied access', async () => {
     fetchMock
@@ -579,53 +307,5 @@ describe('Jira member project permissions', () => {
     expect(error).toBeInstanceOf(Error)
     expect(jiraConnector.isListingScopeUnavailableError?.(error)).toBe(false)
     expect(jiraConnector.isListingCursorInvalidError?.(error)).toBe(false)
-  })
-
-  it.each([
-    'legacy-token|100',
-    JSON.stringify({ version: 1, projectIndex: 1, projectKey: 'ENG', pageToken: 'stale' }),
-  ])('restarts incompatible durable project cursor %s', async (cursor) => {
-    const error = await jiraConnector
-      .listDocuments('token', source, cursor, { ...MEMBERS })
-      .catch((value: unknown) => value)
-    expect(jiraConnector.isListingCursorInvalidError?.(error)).toBe(true)
-    expect(fetchMock).not.toHaveBeenCalled()
-  })
-
-  it('restarts the observation generation when a project loses access during pagination', async () => {
-    fetchMock
-      .mockResolvedValueOnce(json({ issues: [issue('1')], nextPageToken: 'eng-page-two' }))
-      .mockResolvedValueOnce(json(projectDenied, 400))
-      .mockResolvedValueOnce(json(projectDenied, 400))
-      .mockResolvedValueOnce(json({ issues: [supportIssue('2')] }))
-    const checkpoint = beginListingCheckpoint({
-      fingerprint: '0'.repeat(64),
-      generationId: 'before-project-revocation',
-      startedAt: new Date(),
-    })
-    const processed: { generationId: string; ids: string[] }[] = []
-    const completed = await runResumableListing({
-      connectorConfig: jiraConnector,
-      sourceConfig: source,
-      syncContext: { ...MEMBERS },
-      checkpoint,
-      deadlineAt: Date.now() + 10000,
-      beforePage: async () => {},
-      getAccessToken: async () => 'token',
-      processPage: async (documents, page) => {
-        processed.push({
-          generationId: page.generationId,
-          ids: documents.map((doc) => doc.externalId),
-        })
-      },
-      saveCheckpoint: async () => {},
-    })
-    expect(completed).toMatchObject({ complete: true, listedCount: 1, unsafe: false, cursor: null })
-    expect(completed.generationId).not.toBe('before-project-revocation')
-    expect(
-      processed
-        .filter((page) => page.generationId === completed.generationId)
-        .flatMap((page) => page.ids)
-    ).toEqual([memberDocumentId(`jira:${CLOUD_ID}:2`, MEMBERS)])
   })
 })

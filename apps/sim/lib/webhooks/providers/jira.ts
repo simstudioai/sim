@@ -79,7 +79,7 @@ export const jiraHandler: WebhookProviderHandler = {
       extractProjectData,
       extractVersionData,
     } = await import('@/triggers/jira/utils')
-    const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
+    const providerConfig = toRecord(webhook.providerConfig)
     const triggerId = providerConfig.triggerId as string | undefined
 
     if (

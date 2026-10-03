@@ -1,14 +1,15 @@
-/** @vitest-environment node */
+import { remoteSandboxMock, remoteSandboxMockFns } from '@sim/testing/mocks/remote-sandbox.mock'
 import sharp from 'sharp'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-const { sandbox } = vi.hoisted(() => ({ sandbox: vi.fn() }))
-vi.mock('@/lib/execution/remote-sandbox', () => ({ executeInSandbox: sandbox }))
+vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
 
 import {
   renderDocumentForVision,
   resolveDocumentPages,
 } from '@/lib/workspace-files/render-document-for-vision'
+
+const sandbox = remoteSandboxMockFns.mockExecuteInSandbox
 
 async function result(first = 1, last = 1, total = 1) {
   const jpeg = await sharp({ create: { width: 3, height: 2, channels: 3, background: 'red' } })
@@ -36,8 +37,6 @@ describe('document page selection', () => {
 })
 
 describe('renderDocumentForVision', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   it.each(['pdf', 'docx', 'pptx'])(
     'renders compiled %s bytes through the document sandbox with cancellation and bounded binary output',
     async (ext) => {

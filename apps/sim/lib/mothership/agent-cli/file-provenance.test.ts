@@ -1,44 +1,36 @@
-/** @vitest-environment node */
 import { Readable } from 'node:stream'
 import { workspaceFiles } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { fileParsersMock, fileParsersMockFns } from '@sim/testing/mocks/file-parsers.mock'
+import {
+  mothershipWorkspaceTargetMock,
+  mothershipWorkspaceTargetMockFns,
+} from '@sim/testing/mocks/mothership-workspace-target.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { v2ApiKeyAuthModuleMock, v2RouteMocks } from '@sim/testing/mocks/v2-route.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import { workspaceUploadsMock } from '@sim/testing/mocks/workspace-uploads.mock'
 import sharp from 'sharp'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  file: vi.fn(),
-  context: vi.fn(),
-  reference: vi.fn(),
-  stream: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   render: vi.fn(),
-  permission: vi.fn(),
-  authenticate: vi.fn(),
-  buffer: vi.fn(),
-  decrypt: vi.fn(),
 }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null) => permission === 'read',
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  getWorkspaceFile: mocks.file,
-  loadActiveWorkspaceFileContext: mocks.context,
-  resolveWorkspaceFileReference: mocks.reference,
-  workspaceFileVfsPath: () => 'files/private.txt',
-}))
-vi.mock('@/lib/uploads/contexts/workspace', () => ({ fetchWorkspaceFileBuffer: mocks.buffer }))
-vi.mock('@/lib/file-parsers', () => ({
-  isSupportedFileType: () => true,
-  parseBuffer: async (buffer: Buffer) => ({ content: buffer.toString(), metadata: {} }),
-}))
-vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mocks.decrypt }))
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: class extends Error {},
-}))
-vi.mock('@/lib/uploads/core/storage-service', () => ({ downloadFileStream: mocks.stream }))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@/lib/file-parsers', () => fileParsersMock)
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 vi.mock('@/lib/workspace-files/application/resolve-rendered-workspace-artifact', () => ({
-  resolveRenderedWorkspaceArtifact: mocks.render,
+  resolveRenderedWorkspaceArtifact: hoisted.render,
 }))
 vi.mock('@/lib/execution/remote-sandbox/session-files', () => ({
   SESSION_SANDBOX_HOME: '/home/user',
@@ -51,14 +43,9 @@ vi.mock('@/lib/execution/remote-sandbox/session-file-snapshot', () => ({
 vi.mock('@/lib/mothership/chat/delegation', () => ({ mintDelegationToken: async () => 'fixture' }))
 
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
-// Chat-target admission is covered by workspace-target.test; retain real file authorization below.
-vi.mock('@/lib/mothership/application/workspace-target', () => ({
-  resolveInvocationWorkspace: async (owner: { userId: string }, workspaceId?: string) => ({
-    workspaceId: workspaceId ?? 'workspace',
-    userId: owner.userId,
-  }),
-}))
+vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
 vi.mock('@/lib/mothership/agent-cli/scoped-transport', () => ({
   createScopedCliTransport: () => globalThis.fetch,
 }))
@@ -69,7 +56,31 @@ import { executeSimCli } from '@/lib/mothership/tools/handlers/sim-cli'
 import { readWorkspaceFileArtifact } from '@/lib/workspace-files/application/read-workspace-file-artifact'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const principal = { kind: 'personal_api_key', userId: 'reader', keyId: 'fixture-key' } as const
+const mocks = {
+  ...hoisted,
+  file: workspaceFileManagerMockFns.mockGetWorkspaceFile,
+  context: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
+  reference: workspaceFileManagerMockFns.mockResolveWorkspaceFileReference,
+  stream: storageServiceMockFns.mockDownloadFileStream,
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  buffer: workspaceFileManagerMockFns.mockFetchWorkspaceFileBuffer,
+  decrypt: encryptionMockFns.mockDecryptSecret,
+}
+workspaceFileManagerMockFns.mockWorkspaceFileVfsPath.mockReturnValue('files/private.txt')
+fileParsersMockFns.mockIsSupportedFileType.mockReturnValue(true)
+fileParsersMockFns.mockParseBuffer.mockImplementation(async (buffer: Buffer) => ({
+  content: buffer.toString(),
+  metadata: {},
+}))
+// Chat-target admission is covered by workspace-target.test; retain real file authorization below.
+mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace.mockImplementation(
+  async (owner: { userId: string }, workspaceId?: string) => ({
+    workspaceId: workspaceId ?? 'workspace',
+    userId: owner.userId,
+  })
+)
+
+const principal = createPersonalApiKeyPrincipal({ userId: 'reader', keyId: 'fixture-key' })
 const content = 'PRIVATE_FILE_CANARY_FOR_LOCAL_TEST'
 const revision = new Date('2026-09-06T00:00:00Z')
 const file = {
@@ -117,10 +128,9 @@ function fileRequest(suffix = '', signal?: AbortSignal) {
 
 describe('file provenance at the actual CLI and model-result boundary', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.permission.mockResolvedValue('read')
-    mocks.authenticate.mockResolvedValue({ principal })
+    v2RouteMocks.authenticate.mockResolvedValue({ principal })
     vi.stubGlobal(
       'fetch',
       vi.fn(() => {
@@ -170,7 +180,7 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
     )
     expect(response.status).toBe(200)
     expect(await response.text()).toBe(content)
-    expect(mocks.authenticate).not.toHaveBeenCalled()
+    expect(v2RouteMocks.authenticate).not.toHaveBeenCalled()
     mocks.context.mockResolvedValue({
       workspaceId: 'foreign',
       fileId: 'file',
@@ -237,7 +247,7 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
     const projection = inspectToolResultForCopilot({ success: true, output }, trace, 'sim_cli')
     expect(JSON.stringify(projection.result)).toContain(content)
     expect(trace.isPermanentlyIncomplete()).toBe(false)
-    expect(mocks.authenticate).toHaveBeenCalledWith({
+    expect(v2RouteMocks.authenticate).toHaveBeenCalledWith({
       apiKey: 'fixture',
       bearer: null,
       malformedOAuthBearer: false,
@@ -308,6 +318,38 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
         inspectToolResultForCopilot({ success: true, output }, trace, 'sim_cli').result
       )
     ).not.toContain(content)
+  })
+
+  it('redacts generated document contents in a download renderer failure', async () => {
+    resetDbChainMock()
+    queueTableRows(workspaceFiles, [
+      {
+        fileContentUpdatedAt: revision,
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: revision,
+        status: 'exact',
+        entries: [
+          {
+            name: 'FILE_SECRET',
+            encryptedValue: 'fixture-ciphertext',
+            sourceUserId: 'reader',
+            sourceWorkspaceId: 'workspace',
+          },
+        ],
+      },
+    ])
+    mocks.file.mockResolvedValue({ ...file, name: 'private.pdf', type: 'text/x-pdflibjs' })
+    mocks.render.mockRejectedValue(
+      new OrchestrationError('conflict', `Document could not be generated: ${content}`)
+    )
+    const trace = registry()
+    const response = await readTransport(trace)(fileRequest())
+    expect(response.status).toBe(409)
+    const output = await response.text()
+    expect(output).toContain(content)
+    const projected = inspectToolResultForCopilot({ success: false, output }, trace, 'sim_cli')
+    expect(JSON.stringify(projected.result)).not.toContain(content)
+    expect(JSON.stringify(projected.result)).toContain('{{FILE_SECRET}}')
   })
 
   it.each(['sequential', 'parallel'])(
@@ -431,7 +473,9 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
   })
 
   it('rejects a credential for a different actor before looking up the file', async () => {
-    mocks.authenticate.mockResolvedValue({ principal: { ...principal, userId: 'someone-else' } })
+    v2RouteMocks.authenticate.mockResolvedValue({
+      principal: { ...principal, userId: 'someone-else' },
+    })
     const response = await readTransport()(fileRequest())
     expect(response.status).toBe(401)
     expect(mocks.context).not.toHaveBeenCalled()
@@ -448,7 +492,7 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
     vi.stubGlobal('fetch', fallback)
     expect(await (await readTransport()(url)).text()).toBe('fallback')
     expect(fallback).toHaveBeenCalledWith(url, undefined)
-    expect(mocks.authenticate).not.toHaveBeenCalled()
+    expect(v2RouteMocks.authenticate).not.toHaveBeenCalled()
   })
 
   it('refuses malformed query input before storage', async () => {
@@ -462,7 +506,7 @@ describe('file provenance at the actual CLI and model-result boundary', () => {
   it('does not begin a file lookup after Stop during authentication', async () => {
     const controller = new AbortController()
     const stopped = new Error('Stopped')
-    mocks.authenticate.mockImplementation(async () => {
+    v2RouteMocks.authenticate.mockImplementation(async () => {
       controller.abort(stopped)
       return { principal }
     })

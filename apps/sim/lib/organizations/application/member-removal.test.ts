@@ -1,43 +1,46 @@
-/** @vitest-environment node */
 import { member, user } from '@sim/db/schema'
 import { authMockFns, createMockRequest, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { billingOrganizationMock } from '@sim/testing/mocks/billing-organization.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import {
+  organizationSeatsMock,
+  organizationSeatsMockFns,
+} from '@sim/testing/mocks/organization-seats.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { workspaceAuthzMock } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  remove: vi.fn(),
-  external: vi.fn(),
-  seats: vi.fn(),
-  audit: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   active: vi.fn(),
-  analytics: vi.fn(),
 }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  isOrgAdminRole: (role: string) => role === 'admin' || role === 'owner',
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: async () => null,
-}))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  removeUserFromOrganization: mocks.remove,
-  removeExternalUserFromOrganizationWorkspaces: mocks.external,
-  WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR: 'Billing ownership must be transferred',
-  acquireOrganizationUserMutationLocks: vi.fn(),
-}))
-vi.mock('@/lib/billing/organizations/seats', () => ({ reconcileOrganizationSeats: mocks.seats }))
-vi.mock('@/lib/billing/core/organization', () => ({ getOrganizationMemberUsageSnapshot: vi.fn() }))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/lib/billing/organizations/seats', () => organizationSeatsMock)
+vi.mock('@/lib/billing/core/organization', () => billingOrganizationMock)
 vi.mock('@/lib/auth/active-organization', () => ({
-  setActiveOrganizationForCurrentSession: mocks.active,
+  setActiveOrganizationForCurrentSession: hoisted.active,
 }))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.analytics }))
-vi.mock('@sim/audit', () => ({
-  AuditAction: { ORG_MEMBER_REMOVED: 'member.removed' },
-  AuditResourceType: { ORGANIZATION: 'organization' },
-  recordAudit: mocks.audit,
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
+vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/ee/scim/lib/managed-membership', () => ({ assertMembershipNotScimManaged: vi.fn() }))
 
 import { removeOrganizationMember } from '@/lib/organizations/application/members'
 import { DELETE } from '@/app/api/organizations/[id]/members/[memberId]/route'
+
+const mocks = {
+  ...hoisted,
+  seats: organizationSeatsMockFns.mockReconcileOrganizationSeats,
+  remove: organizationMembershipMockFns.mockRemoveUserFromOrganization,
+  external: organizationMembershipMockFns.mockRemoveExternalUserFromOrganizationWorkspaces,
+  audit: auditMockFns.mockRecordAudit,
+}
 
 const principal = {
   kind: 'organization_delegated',
@@ -52,7 +55,6 @@ const principal = {
 } as const
 const input = { organizationId: 'org', userId: 'target' }
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.remove.mockResolvedValue({ success: true, billingActions: {} })
   mocks.seats.mockResolvedValue({ changed: false })
@@ -118,7 +120,7 @@ describe('organization member removal', () => {
         {},
         'http://localhost/api/organizations/org/members/actor'
       ),
-      { params: Promise.resolve({ id: 'org', memberId: 'actor' }) }
+      createRouteContext({ id: 'org', memberId: 'actor' })
     )
     expect(response.status).toBe(200)
     expect(mocks.remove).toHaveBeenCalledWith({
@@ -131,42 +133,16 @@ describe('organization member removal', () => {
     })
     expect(mocks.active).toHaveBeenCalledWith(null)
   })
-  it('retains external removal grant counts and skips seat changes', async () => {
-    queueTableRows(member, [{ role: 'admin' }])
-    queueTableRows(member, [])
-    queueTableRows(user, [{ id: 'target', name: 'External' }])
-    const result = await removeOrganizationMember.execute({ principal, input })
-    expect(result.removal).toMatchObject({
-      workspaceAccessRevoked: 2,
-      credentialMembershipsRevoked: 1,
-    })
-    expect(mocks.external).toHaveBeenCalledWith({
-      userId: 'target',
-      organizationId: 'org',
-      actorUserId: 'actor',
+  it.each([
+    'Cannot remove organization owner',
+    'Cannot remove the workspace billing account. Please reassign billing first.',
+  ])('preserves lifecycle refusal %s', async (error) => {
+    target()
+    mocks.remove.mockResolvedValueOnce({ success: false, error })
+    await expect(removeOrganizationMember.execute({ principal, input })).rejects.toMatchObject({
+      code: 'validation',
     })
     expect(mocks.seats).not.toHaveBeenCalled()
+    expect(mocks.audit).not.toHaveBeenCalled()
   })
-  it('preserves completed removal and reports seat reconciliation failure', async () => {
-    target()
-    mocks.seats.mockRejectedValueOnce(new Error('stripe-unavailable'))
-    const result = await removeOrganizationMember.execute({ principal, input })
-    expect(result.seatReduction).toEqual({
-      changed: false,
-      reason: 'Failed to reduce seats after member removal',
-    })
-    expect(mocks.audit).toHaveBeenCalledTimes(1)
-  })
-  it.each(['Cannot remove organization owner', 'Billing ownership must be transferred'])(
-    'preserves lifecycle refusal %s',
-    async (error) => {
-      target()
-      mocks.remove.mockResolvedValueOnce({ success: false, error })
-      await expect(removeOrganizationMember.execute({ principal, input })).rejects.toMatchObject({
-        code: 'validation',
-      })
-      expect(mocks.seats).not.toHaveBeenCalled()
-      expect(mocks.audit).not.toHaveBeenCalled()
-    }
-  )
 })

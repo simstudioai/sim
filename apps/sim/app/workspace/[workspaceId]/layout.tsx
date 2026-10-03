@@ -1,8 +1,10 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
+import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { resolveOrganizationEntryPath } from '@/lib/navigation/resolve-app-entry'
 import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
@@ -12,6 +14,7 @@ import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session
 import { WorkspaceAccessDenied } from '@/app/workspace/[workspaceId]/components/workspace-access-denied'
 import { WorkspaceChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import {
+  prefetchWorkspaceForkAvailability,
   prefetchWorkspaceHostContext,
   prefetchWorkspaceSidebar,
 } from '@/app/workspace/[workspaceId]/prefetch'
@@ -50,6 +53,11 @@ export default async function WorkspaceLayout({
   }
 
   const activeOrganizationId = getActiveOrganizationId(session)
+  const principal = {
+    kind: 'session',
+    userId: session.user.id,
+    sessionId: session.session.id,
+  } as const
   const [
     cookieStore,
     initialOrgSettings,
@@ -58,6 +66,7 @@ export default async function WorkspaceLayout({
     modelSelectorEnabled,
     planModeEnabled,
     organizationHref,
+    dashboardsEnabled,
   ] = await Promise.all([
     cookies(),
     hostContext.hostOrganizationId
@@ -74,11 +83,9 @@ export default async function WorkspaceLayout({
     isMothershipModelSelectorEnabled(),
     isPlanModeEnabled(),
     resolveOrganizationEntryPath(session),
-    prefetchWorkspaceAccess(queryClient, workspaceId, {
-      kind: 'session',
-      userId: session.user.id,
-      sessionId: session.session.id,
-    }),
+    isDashboardsEnabled(hostContext.hostOrganizationId),
+    prefetchWorkspaceAccess(queryClient, workspaceId, principal),
+    prefetchWorkspaceForkAvailability(queryClient, workspaceId, principal, hostContext),
   ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
@@ -86,6 +93,7 @@ export default async function WorkspaceLayout({
     <HydrationBoundary state={dehydrate(queryClient)}>
       <FeatureFlagsProvider
         flags={{
+          dashboards: dashboardsEnabled,
           'table-row-ttl': tableRowTtlEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-plan-mode': planModeEnabled,
@@ -108,12 +116,14 @@ export default async function WorkspaceLayout({
                 <SessionExpired />
                 <WorkspacePermissionsProvider>
                   <WorkspaceScopeSync />
-                  <WorkspaceChrome
-                    sidebar={<Sidebar organizationHref={organizationHref} />}
-                    initialSidebarCollapsed={initialSidebarCollapsed}
-                  >
-                    {children}
-                  </WorkspaceChrome>
+                  <SettingsNavigationProvider>
+                    <WorkspaceChrome
+                      sidebar={<Sidebar organizationHref={organizationHref} />}
+                      initialSidebarCollapsed={initialSidebarCollapsed}
+                    >
+                      {children}
+                    </WorkspaceChrome>
+                  </SettingsNavigationProvider>
                 </WorkspacePermissionsProvider>
               </div>
             </GlobalCommandsProvider>

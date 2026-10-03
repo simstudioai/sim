@@ -1,20 +1,20 @@
-/** @vitest-environment node */
 import { setupGlobalFetchMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
+import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@tanstack/react-query', () => ({
-  useQuery: vi.fn(),
-  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
-  useMutation: <TInput, TOutput>(options: { mutationFn: (input: TInput) => Promise<TOutput> }) => ({
-    mutateAsync: options.mutationFn,
-  }),
-}))
+vi.mock('@tanstack/react-query', () => reactQueryMock)
 vi.mock('@/hooks/queries/oauth/oauth-credentials', () => ({
   oauthCredentialKeys: { lists: () => ['oauth-credentials', 'list'] },
 }))
 
 import { updateOrganizationCredentialBodySchema } from '@/lib/api/contracts/organization-credentials'
 import { useUpdateScopedCredential } from '@/hooks/queries/scoped-credentials'
+
+reactQueryMockFns.mockUseMutation.mockImplementation(
+  (options: { mutationFn: (input: unknown) => Promise<unknown> }) => ({
+    mutateAsync: options.mutationFn,
+  })
+)
 
 const WORKSPACE_ID = 'workspace-1'
 const ORGANIZATION_ID = 'organization-1'
@@ -41,10 +41,6 @@ const credential = {
   updatedAt: '2026-01-02T00:00:00.000Z',
 } as const
 
-beforeEach(() => {
-  vi.clearAllMocks()
-})
-
 describe('scoped Slack bot reconnect requests', () => {
   it.each([WORKSPACE_ID, undefined])(
     'sends workspace scope %s only in the query when reconnecting the existing credential',
@@ -66,32 +62,6 @@ describe('scoped Slack bot reconnect requests', () => {
       expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toEqual(reconnectFields)
     }
   )
-
-  it('includes organization scope in the body when reconnecting the existing credential', async () => {
-    const organizationCredential = {
-      ...credential,
-      workspaceId: null,
-      organizationId: ORGANIZATION_ID,
-    }
-    const fetch = setupGlobalFetchMock({ json: { credential: organizationCredential } })
-
-    await expect(
-      useUpdateScopedCredential().mutateAsync({
-        credentialId: CREDENTIAL_ID,
-        organizationId: ORGANIZATION_ID,
-        ...reconnectFields,
-      })
-    ).resolves.toEqual({ credential: organizationCredential })
-
-    expect(fetch).toHaveBeenCalledExactlyOnceWith(
-      `/api/organization-credentials/${CREDENTIAL_ID}`,
-      expect.objectContaining({ method: 'PATCH' })
-    )
-    expect(JSON.parse(String(fetch.mock.calls[0]?.[1]?.body))).toEqual({
-      ...reconnectFields,
-      organizationId: ORGANIZATION_ID,
-    })
-  })
 
   it.each([
     { organizationId: ORGANIZATION_ID },

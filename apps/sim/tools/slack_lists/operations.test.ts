@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import { slackListsAccessSetTool } from '@/tools/slack_lists/access_set'
 import { slackListsCreateTool } from '@/tools/slack_lists/create'

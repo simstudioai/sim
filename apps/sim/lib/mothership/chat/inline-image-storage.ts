@@ -1,11 +1,6 @@
-import { createHash } from 'node:crypto'
 import sharp from 'sharp'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import {
-  INLINE_CHAT_IMAGE_PREFIX,
-  inlineImageRequestIdSchema,
-  normalizeInlineFileReference,
-} from '@/lib/mothership/chat/inline-image-reference'
+import { inlineChatImageKey } from '@/lib/mothership/chat/inline-image-key'
 import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
 import { downloadFile, uploadFile } from '@/lib/uploads/core/storage-service'
 
@@ -111,12 +106,4 @@ export async function loadInlineChatImage(
       throw new OrchestrationError('not_found', 'Image not found')
     throw error
   }
-}
-
-/** Stable per-message source identity makes replay independent of sandbox lifetime. */
-export function inlineChatImageKey(chatId: string, requestId: string, reference: string): string {
-  inlineImageRequestIdSchema.parse(chatId)
-  inlineImageRequestIdSchema.parse(requestId)
-  const digest = createHash('sha256').update(normalizeInlineFileReference(reference)).digest('hex')
-  return `${INLINE_CHAT_IMAGE_PREFIX}${chatId}/${requestId}/${digest}.webp`
 }

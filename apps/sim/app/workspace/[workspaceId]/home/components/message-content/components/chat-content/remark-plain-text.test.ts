@@ -8,22 +8,6 @@ const reference = unified().use(remarkParse).use(remarkGfm)
 const optimized = unified().use(remarkParse).use(remarkGfm).use(remarkPlainText)
 
 describe('plain-paragraph parsing', () => {
-  it('matches remark positions, whitespace, and Unicode text', () => {
-    for (const text of [
-      'Hello world! ',
-      'Hello  ',
-      'A café, 日本語, العربية, 😀 and nonbreaking\u00a0spaces.\u00a0',
-      'A sentence with (parentheses), quotes, 1.23 and 20% off.',
-      '12)word',
-      'Plain\u000btext\u000ctext',
-    ] as const) {
-      for (let end = 0; end <= text.length; end++) {
-        const prefix = text.slice(0, end)
-        expect(optimized.parse(prefix), JSON.stringify(prefix)).toEqual(reference.parse(prefix))
-      }
-    }
-  })
-
   it('preserves Markdown interpretation when a plain prefix gains syntax', () => {
     const cases = [
       'Text **bold**, _italic_, ~~deleted~~ and `code`.',

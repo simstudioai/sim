@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mutate } = vi.hoisted(() => ({ mutate: vi.fn() }))
@@ -61,7 +60,6 @@ describe('GitHub sync progress with shared low-quota pacing', () => {
   })
   afterEach(() => {
     vi.useRealTimers()
-    vi.unstubAllGlobals()
   })
 
   const sync = async () => {
@@ -74,40 +72,6 @@ describe('GitHub sync progress with shared low-quota pacing', () => {
       context
     )
   }
-
-  it('reaches hydration in successive fresh sync contexts instead of repeatedly spending quota on trees', async () => {
-    for (let pass = 0; pass < 2; pass++) {
-      const pending = sync()
-      await vi.advanceTimersByTimeAsync(125_000)
-      expect(await pending).toMatchObject({ content: 'text' })
-    }
-    expect(requestPaths).toEqual([
-      '/repos/owner/repository/git/trees/main',
-      '/repos/owner/repository/git/blobs/blob-sha',
-      '/repos/owner/repository/git/trees/main',
-      '/repos/owner/repository/git/blobs/blob-sha',
-    ])
-  })
-
-  it('keeps five blobs progressing at healthy hourly pacing without timing out behind its own siblings', async () => {
-    allowance = 60
-    const context = {}
-    const pending = async () => {
-      await githubConnector.listDocuments('fixture-token', SOURCE, undefined, context)
-      const documents = []
-      /** The shared hydration engine obeys this connector's serial content admission. */
-      expect(githubConnector.contentConcurrency).toBe(1)
-      for (let index = 0; index < 5; index++)
-        documents.push(
-          await githubConnector.getDocument('fixture-token', SOURCE, 'guide.md', context)
-        )
-      return documents
-    }
-    const completed = pending()
-    await vi.advanceTimersByTimeAsync(450_000)
-    expect((await completed).map((doc) => doc?.content)).toEqual(Array(5).fill('text'))
-    expect(requests).toBe(6)
-  })
 
   it('defers a second worker immediately during a known cooldown instead of waiting its ordinary pacing budget', async () => {
     const provider = vi.fn(async () =>

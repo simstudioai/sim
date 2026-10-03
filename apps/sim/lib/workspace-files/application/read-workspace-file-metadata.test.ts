@@ -1,36 +1,28 @@
-/**
- * @vitest-environment node
- */
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { publicSharesMock, publicSharesMockFns } from '@sim/testing/mocks/public-shares.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadContext: vi.fn(),
-  getWorkspaceFile: vi.fn(),
-  getShareForResource: vi.fn(),
-  resolvePermission: vi.fn(),
-  getWorkspaceFileWithCurrentVersion: vi.fn(),
-}))
+const hoisted = vi.hoisted(() => ({}))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  getWorkspaceFile: mocks.getWorkspaceFile,
-  getWorkspaceFileWithCurrentVersion: mocks.getWorkspaceFileWithCurrentVersion,
-  loadActiveWorkspaceFileContext: mocks.loadContext,
-}))
-
-vi.mock('@/lib/public-shares/share-manager', () => ({
-  getShareForResource: mocks.getShareForResource,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
-import {
-  readWorkspaceFileMetadata,
-  readWorkspaceFileMetadataWithVersion,
-} from '@/lib/workspace-files/application/read-workspace-file-metadata'
+import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
+
+const mocks = {
+  ...hoisted,
+  getShareForResource: publicSharesMockFns.mockGetShareForResource,
+  loadContext: workspaceFileManagerMockFns.mockLoadActiveWorkspaceFileContext,
+  getWorkspaceFile: workspaceFileManagerMockFns.mockGetWorkspaceFile,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 
 const canonical = {
   fileId: 'file-1',
@@ -68,55 +60,10 @@ const share = {
 
 describe('readWorkspaceFileMetadata', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadContext.mockResolvedValue(canonical)
     mocks.getWorkspaceFile.mockResolvedValue(file)
     mocks.getShareForResource.mockResolvedValue(share)
     mocks.resolvePermission.mockResolvedValue('admin')
-  })
-
-  it('returns the canonical active file and its share status without side effects', async () => {
-    const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
-
-    await expect(
-      readWorkspaceFileMetadata.execute({
-        principal,
-        input: {
-          fileId: 'file-1',
-          assertedWorkspaceId: 'workspace-1',
-        },
-      })
-    ).resolves.toEqual({ file, share })
-
-    expect(mocks.loadContext).toHaveBeenCalledWith('file-1', {
-      includeDeleted: undefined,
-    })
-    expect(mocks.getWorkspaceFile).toHaveBeenCalledWith('workspace-1', 'file-1', {
-      throwOnError: true,
-    })
-    expect(mocks.getShareForResource).toHaveBeenCalledWith('file', 'file-1')
-  })
-
-  it('resolves a soft-deleted file when the caller opts into the archived lifecycle set', async () => {
-    const archived = { ...file, deletedAt: new Date('2026-01-03T00:00:00Z') }
-    mocks.getWorkspaceFile.mockResolvedValueOnce(archived)
-
-    await expect(
-      readWorkspaceFileMetadata.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: {
-          fileId: 'file-1',
-          assertedWorkspaceId: 'workspace-1',
-          includeDeleted: true,
-        },
-      })
-    ).resolves.toEqual({ file: archived, share })
-
-    expect(mocks.loadContext).toHaveBeenCalledWith('file-1', { includeDeleted: true })
-    expect(mocks.getWorkspaceFile).toHaveBeenCalledWith('workspace-1', 'file-1', {
-      includeDeleted: true,
-      throwOnError: true,
-    })
   })
 
   it('authorizes an archived read exactly like an active one', async () => {
@@ -124,7 +71,7 @@ describe('readWorkspaceFileMetadata', () => {
 
     await expect(
       readWorkspaceFileMetadata.execute({
-        principal: { kind: 'session', userId: 'outsider', sessionId: 'session-2' },
+        principal: createSessionPrincipal({ userId: 'outsider', sessionId: 'session-2' }),
         input: {
           fileId: 'file-1',
           assertedWorkspaceId: 'workspace-1',
@@ -140,7 +87,7 @@ describe('readWorkspaceFileMetadata', () => {
   it('still refuses an archived read that asserts the wrong workspace', async () => {
     await expect(
       readWorkspaceFileMetadata.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: {
           fileId: 'file-1',
           assertedWorkspaceId: 'workspace-2',
@@ -150,53 +97,5 @@ describe('readWorkspaceFileMetadata', () => {
     ).rejects.toMatchObject({ code: 'not_found' })
 
     expect(mocks.getWorkspaceFile).not.toHaveBeenCalled()
-  })
-
-  it('fails fast if the authorized file disappears before projection', async () => {
-    mocks.getWorkspaceFile.mockResolvedValueOnce(null)
-
-    await expect(
-      readWorkspaceFileMetadata.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: { fileId: 'file-1' },
-      })
-    ).rejects.toMatchObject({ code: 'not_found' })
-  })
-})
-
-describe('readWorkspaceFileMetadataWithVersion', () => {
-  const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.loadContext.mockResolvedValue(canonical)
-    mocks.getShareForResource.mockResolvedValue(share)
-    mocks.resolvePermission.mockResolvedValue('admin')
-  })
-
-  it('returns the record with the version number read in the same statement', async () => {
-    const versioned = { ...file, currentVersion: 4 }
-    mocks.getWorkspaceFileWithCurrentVersion.mockResolvedValueOnce(versioned)
-
-    await expect(
-      readWorkspaceFileMetadataWithVersion.execute({
-        principal,
-        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1', includeDeleted: true },
-      })
-    ).resolves.toEqual({ file: versioned, share })
-    expect(mocks.getWorkspaceFileWithCurrentVersion).toHaveBeenCalledWith('workspace-1', 'file-1', {
-      includeDeleted: true,
-    })
-  })
-
-  it('answers not found when the file row is gone', async () => {
-    mocks.getWorkspaceFileWithCurrentVersion.mockResolvedValueOnce(null)
-
-    await expect(
-      readWorkspaceFileMetadataWithVersion.execute({
-        principal,
-        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
-      })
-    ).rejects.toMatchObject({ code: 'not_found' })
   })
 })

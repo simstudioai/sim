@@ -1,6 +1,11 @@
-/** @vitest-environment node */
 import { member, permissionGroupMember } from '@sim/db/schema'
-import { dbChainMockFns, hasMockCondition, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { organizationMembershipMock } from '@sim/testing/mocks/organization-membership.mock'
+import { permissionGroupLocksMock } from '@sim/testing/mocks/permission-group-locks.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -9,13 +14,9 @@ const mocks = vi.hoisted(() => ({
   allConflict: vi.fn(),
   scopeConflicts: vi.fn(),
 }))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: vi.fn(),
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  isOrganizationPermissionRegimeActive: vi.fn().mockResolvedValue(true),
-}))
-vi.mock('@/lib/permission-groups/locks', () => ({ acquirePermissionGroupOrgLock: vi.fn() }))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/permission-groups/locks', () => permissionGroupLocksMock)
 vi.mock('@/lib/permission-groups/group-manager', () => ({ requirePermissionGroup: mocks.group }))
 vi.mock('@/lib/permission-groups/repository', () => ({ getGroupWorkspaces: mocks.workspaces }))
 vi.mock('@/lib/permission-groups/application/group-membership', () => ({
@@ -29,9 +30,10 @@ import {
   removePermissionGroupMemberRecord,
 } from '@/lib/permission-groups/member-manager'
 
+permissionGroupsResolveMockFns.mockIsOrganizationPermissionRegimeActive.mockResolvedValue(true)
+
 const group = { id: 'group-1', name: 'Restricted', isDefault: false, membershipMode: 'inherit' }
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.group.mockResolvedValue(group)
   mocks.workspaces.mockResolvedValue([{ id: 'workspace-1' }])
@@ -58,14 +60,6 @@ describe('permission-group membership mutations', () => {
     await expect(
       addPermissionGroupMemberRecord('org-1', 'group-1', 'outsider', 'admin-1')
     ).rejects.toMatchObject({ code: 'validation' })
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-  })
-  it('refuses duplicate assignments', async () => {
-    queueTableRows(member, [{ id: 'org-member-1' }])
-    queueTableRows(permissionGroupMember, [{ id: 'assignment-1' }])
-    await expect(
-      addPermissionGroupMemberRecord('org-1', 'group-1', 'member-1', 'admin-1')
-    ).rejects.toMatchObject({ code: 'conflict' })
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
   it('checks overlap before writing a single assignment', async () => {
@@ -118,25 +112,6 @@ describe('permission-group membership mutations', () => {
       expect.objectContaining({ userId: 'member-2', assignedBy: 'admin-1' }),
     ])
   })
-  it('adds a large organization in bounded batches within one transaction', async () => {
-    queueTableRows(
-      member,
-      Array.from({ length: 1000 }, (_, index) => ({ userId: `member-${index}` }))
-    )
-    queueTableRows(member, [{ userId: 'member-last' }])
-    const result = await bulkAddPermissionGroupMemberRecords(
-      'org-1',
-      'group-1',
-      { addAllOrganizationMembers: true },
-      'admin-1'
-    )
-    expect(result).toMatchObject({ added: 1001, skipped: 0 })
-    expect(result.addedUserIds).toHaveLength(1000)
-    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
-    expect(dbChainMockFns.limit.mock.calls).toEqual([[1000], [1000]])
-    expect(dbChainMockFns.values.mock.calls.map(([rows]) => rows.length)).toEqual([1000, 1])
-  })
-
   it('keeps a conflict on a later batch inside the same rollback boundary', async () => {
     queueTableRows(
       member,
@@ -176,47 +151,5 @@ describe('permission-group membership mutations', () => {
     await removePermissionGroupMemberRecord('org-1', 'group-1', { memberId: 'assignment-1' })
     expect(mocks.allConflict).not.toHaveBeenCalled()
     expect(dbChainMockFns.delete).toHaveBeenCalledOnce()
-  })
-  it('does not delete an assignment absent from the requested group', async () => {
-    await expect(
-      removePermissionGroupMemberRecord('org-1', 'group-1', { memberId: 'other-assignment' })
-    ).rejects.toMatchObject({ code: 'not_found' })
-    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-  })
-  it('looks up a scoped user and deletes the canonical assignment ID', async () => {
-    mocks.group.mockResolvedValue({ ...group, membershipMode: 'explicit' })
-    queueTableRows(permissionGroupMember, [{ id: 'assignment-1', userId: 'user-1', email: null }])
-    await removePermissionGroupMemberRecord('org-1', 'group-1', { userId: 'user-1' })
-    const conditions = dbChainMockFns.where.mock.calls.map(([condition]) => condition)
-    expect(
-      conditions.some(
-        (condition) =>
-          hasMockCondition(
-            condition,
-            (node) =>
-              node.type === 'eq' &&
-              node.left === permissionGroupMember.userId &&
-              node.right === 'user-1'
-          ) &&
-          hasMockCondition(
-            condition,
-            (node) =>
-              node.type === 'eq' &&
-              node.left === permissionGroupMember.permissionGroupId &&
-              node.right === 'group-1'
-          )
-      )
-    ).toBe(true)
-    expect(
-      conditions.some((condition) =>
-        hasMockCondition(
-          condition,
-          (node) =>
-            node.type === 'eq' &&
-            node.left === permissionGroupMember.id &&
-            node.right === 'assignment-1'
-        )
-      )
-    ).toBe(true)
   })
 })

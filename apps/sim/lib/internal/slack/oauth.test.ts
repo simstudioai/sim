@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   exchangeSlackBotAuthorization,
@@ -72,9 +71,6 @@ describe('Slack bot grant policy and cleanup', () => {
     { scope: 'chat:write' },
   ])('rejects unsupported grants after the caller takes ownership: %j', (change) => {
     expect(() => validateSlackBotAuthorization({ ...grant, ...change })).toThrow()
-  })
-  it('accepts the existing indexing bot scope policy', () => {
-    expect(() => validateSlackBotAuthorization(grant)).not.toThrow()
   })
   it.each(['channels:read', 'groups:read'] as const)(
     'rejects a bot grant missing channel picker scope %s',

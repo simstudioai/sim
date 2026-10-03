@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { describe, expect, it } from 'vitest'
 import type { ChatMessage } from '@/app/workspace/[workspaceId]/home/types'
 import {

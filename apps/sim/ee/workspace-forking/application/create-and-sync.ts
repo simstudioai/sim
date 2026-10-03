@@ -29,6 +29,7 @@ export interface ForkInput {
   previewFingerprint?: string
 }
 export interface SyncInput extends SyncChoices {
+  expectedSourceVersions?: PromoteForkParams['expectedSourceVersions']
   dependentValues?: PromoteForkParams['dependentValues']
   workspaceId: string
   otherWorkspaceId: string
@@ -255,6 +256,7 @@ export const syncWorkspace = defineForkUseCase<
         ...syncContext(input, context),
         ...choices,
         dependentValues: input.dependentValues,
+        expectedSourceVersions: input.expectedSourceVersions,
         userId: context.userId,
         actorName: await loadActorName(context.userId),
         otherWorkspaceName: context.other!.name,

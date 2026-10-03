@@ -261,7 +261,6 @@ export default function Logs() {
     setFolderIds,
     setTriggers,
     setTimeRange,
-    setDateRange,
     clearDateRange,
   } = useLogFilters()
 

@@ -18,7 +18,6 @@ import {
 } from '@sim/emcn'
 import { ArrowLeft, ChevronDown, ChevronRight, Plus, Search } from '@sim/emcn/icons'
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { asServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'
 import { getIntegrationsForCredentialProvider } from '@/lib/integrations/credential-display'
@@ -83,8 +82,6 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useConnectorSetupStore } from '@/stores/connector-setup/store'
 
 const CONNECTOR_ENTRIES = Object.entries(CONNECTOR_META_REGISTRY)
-
-const WORKSPACE_ACCESS: ConnectorAccessSelection = { accessMode: 'workspace' }
 
 interface AddConnectorModalProps {
   scope?: ResourceScope
@@ -180,7 +177,7 @@ export function AddConnectorModal({
   )
   const { mutate: createConnector, isPending: isCreating } = useCreateConnector()
 
-  const liveSearch = useDeploymentShape().features.liveEnterpriseSearch && isSearchIndex
+  const liveSearch = isSearchIndex
   const canSetUpGitHubInstallation =
     canAdmin && isSearchIndex && selectedType === 'github' && scope.kind === 'organization'
   const connectorConfig = liveSearchSourceMeta(

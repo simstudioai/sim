@@ -2,12 +2,14 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { encodeSSEComment } from '@/lib/core/utils/sse'
 import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
-import { appendEvents } from './buffer'
-import type { PersistedStreamEventEnvelope } from './contract'
-import type { ChatStreamLease } from './controller-lease'
-import { createEvent } from './event'
-import { encodeSSEEnvelope } from './sse'
-import type { StreamEvent } from './types'
+import { appendEvents } from '@/lib/mothership/request/session/buffer'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
+import type { ChatStreamLease } from '@/lib/mothership/request/session/controller-lease'
+import { createEvent } from '@/lib/mothership/request/session/event'
+import { StreamReplayBudgetExhaustedError } from '@/lib/mothership/request/session/replay-budget'
+import { compactStreamEvent } from '@/lib/mothership/request/session/replay-compaction'
+import { encodeSSEEnvelope } from '@/lib/mothership/request/session/sse'
+import type { StreamEvent } from '@/lib/mothership/request/session/types'
 
 const logger = createLogger('StreamWriter')
 
@@ -24,6 +26,18 @@ export interface StreamWriterOptions {
   keepaliveMs?: number
   lease?: ChatStreamLease
   initialSeq?: number
+}
+
+/** The turn's closing verdict, which a refused writer still owes its live client. */
+function isTurnTerminalEvent(event: StreamEvent): boolean {
+  return (
+    event.type === MothershipStreamV1EventType.error ||
+    event.type === MothershipStreamV1EventType.complete
+  )
+}
+
+function ignoreReplayBudgetRefusal(error: unknown): void {
+  if (!(error instanceof StreamReplayBudgetExhaustedError)) throw error
 }
 
 /** Result used when the soft stop is already latched, so no further append is attempted. */
@@ -48,6 +62,7 @@ export class StreamWriter {
   private pendingEnvelopes: PersistedStreamEventEnvelope[] = []
   private persistenceTail: Promise<void> = Promise.resolve()
   private lastPersistenceError: Error | null = null
+  private replayBudgetError: StreamReplayBudgetExhaustedError | null = null
   private readonly lease?: ChatStreamLease
 
   constructor(options: StreamWriterOptions) {
@@ -114,23 +129,48 @@ export class StreamWriter {
     }
   }
 
+  /**
+   * Delivers an event and records it for replay. An oversized event is compacted
+   * first ({@link compactStreamEvent}): long strings are cut to their head, then
+   * long arrays to their head, then any bulk still past one replay write is
+   * replaced by a size note. The client and the replay buffer receive the same
+   * compacted copy, while the caller keeps the full event for dispatch.
+   *
+   * A leased writer persists before delivering. When the buffer refuses, the
+   * publish rejects with {@link StreamReplayBudgetExhaustedError}, and every later
+   * publish rejects the same way — except the turn's terminal `error`/`complete`,
+   * which are delivered unpersisted: the run row records that terminal state, and
+   * a reconnect replays it from there.
+   */
   publish(event: StreamEvent): void | Promise<void> {
-    const envelope = this.createEnvelope(event)
+    const envelope = this.createEnvelope(compactStreamEvent(event))
     if (this.lease) {
+      const lease = this.lease
       // A replacement must see every event the browser has received. Fence
       // persistence before delivery, and before dispatching the event's tool.
-      const delivery = this.persistenceTail.then(async () => {
-        const result = await appendEvents(
-          [envelope],
-          { streamId: this.streamId, ...(this.userId ? { userId: this.userId } : {}) },
-          this.lease
-        )
-        if (!result.persisted) {
-          this._persistenceStopped = true
-          throw new Error('Stream replay byte budget exhausted')
+      const persistThenDeliver = async () => {
+        if (!this.replayBudgetError) {
+          const result = await appendEvents(
+            [envelope],
+            { streamId: this.streamId, ...(this.userId ? { userId: this.userId } : {}) },
+            lease
+          )
+          if (!result.persisted) {
+            this._persistenceStopped = true
+            this.replayBudgetError = new StreamReplayBudgetExhaustedError(result.refusal)
+          }
         }
+        if (this.replayBudgetError && !isTurnTerminalEvent(event)) throw this.replayBudgetError
         this.enqueue(envelope)
         if (event.type === MothershipStreamV1EventType.complete) this._sawComplete = true
+      }
+      /*
+        Two-argument `then` rather than `.catch().then()`: an extra hop would delay
+        the append by one microtask behind the previous delivery.
+      */
+      const delivery = this.persistenceTail.then(persistThenDeliver, (error: unknown) => {
+        ignoreReplayBudgetRefusal(error)
+        return persistThenDeliver()
       })
       this.persistenceTail = delivery
       return delivery
@@ -148,7 +188,9 @@ export class StreamWriter {
 
   async flush(): Promise<void> {
     this.flushPendingPersistence()
-    await this.persistenceTail
+    // A refusal belongs to the publish it refused; later publishes consult
+    // `replayBudgetError`, and the finalizer's flush must not rethrow it.
+    await this.persistenceTail.catch(ignoreReplayBudgetRefusal)
     if (this.lastPersistenceError) {
       const error = this.lastPersistenceError
       this.lastPersistenceError = null

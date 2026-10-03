@@ -1,4 +1,8 @@
 import { createLogger } from '@sim/logger'
+import {
+  generateLoopBlocks,
+  generateParallelBlocks,
+} from '@sim/workflow-persistence/subflow-helpers'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
@@ -8,7 +12,6 @@ import { reindexRewrittenToolCanonicalModes } from '@/lib/workflows/subblocks/vi
 import { applyAgentToolUsageControlModes } from '@/lib/workflows/tool-input/usage-control'
 import { getBlock } from '@/blocks/registry'
 import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
-import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import {
   addConnectionsAsEdges,
   createValidatedEdge,

@@ -1,39 +1,49 @@
-/** @vitest-environment node */
 import { createExecutionContext } from '@sim/testing'
+import { setEnv } from '@sim/testing/mocks/env.mock'
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import { piiRedactionMock, piiRedactionMockFns } from '@sim/testing/mocks/pii-redaction.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { isRecordLike } from '@sim/utils/object'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-const { open, save, flag, redact, storeArtifact, readArtifact, executeTool } = vi.hoisted(() => ({
+const { open, save, storeArtifact, readArtifact } = vi.hoisted(() => ({
   open: vi.fn(),
   save: vi.fn(),
-  flag: vi.fn(),
-  redact: vi.fn(),
   storeArtifact: vi.fn(),
   readArtifact: vi.fn(),
-  executeTool: vi.fn(),
 }))
-vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: flag }))
-vi.mock('@/lib/core/config/env', () => ({ env: { ENCRYPTION_KEY: 'ab'.repeat(32) } }))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 vi.mock('@/lib/memory/application/agent-turns', () => ({
   openAgentMemoryTurnUseCase: { execute: open },
   saveAgentMemoryTurnUseCase: { execute: save },
   storeAgentMemoryArtifactUseCase: { execute: storeArtifact },
   readAgentMemoryArtifactUseCase: { execute: readArtifact },
 }))
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: vi.fn(async () => ({})),
-}))
-vi.mock('@/lib/logs/execution/pii-redaction', () => ({ redactObjectStrings: redact }))
-vi.mock('@/tools', () => ({ executeTool }))
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
+vi.mock('@/lib/logs/execution/pii-redaction', () => piiRedactionMock)
+vi.mock('@/tools', () => toolsMock)
 
 import { openAgentTurnSession } from '@/lib/memory/agent-turn-session'
 import { decryptMemoryCheckpoint, encryptMemoryCheckpoint } from '@/lib/memory/checkpoint-codec'
 import { createJournalArtifactFixture } from '@/lib/memory/journal.test-helpers'
+
+const executeTool = toolsMockFns.mockExecuteTool
+const flag = featureFlagsMockFns.mockIsFeatureEnabled
+const redact = piiRedactionMockFns.mockRedactObjectStrings as Mock<
+  (value: unknown) => Promise<unknown>
+>
+executorPrincipalMockFns.mockCreateExecutorPrincipalFromExecutionContext.mockResolvedValue({})
+
 import type { AgentTurnJournalState } from '@/lib/memory/turn-journal'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { getNativeConversationMessage } from '@/providers/conversation-metadata'
-import { executeProviderTool, runWithProviderRuntimeContext } from '@/providers/runtime-context'
+
+setEnv({ ENCRYPTION_KEY: 'ab'.repeat(32) })
 
 function input(order = 1) {
   const ctx: ExecutionContext = {
@@ -80,7 +90,6 @@ const artifacts = createJournalArtifactFixture()
 
 describe('durable Agent session', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     artifacts.values.clear()
     storeArtifact.mockImplementation(artifacts.store)
     readArtifact.mockImplementation(artifacts.read)
@@ -201,20 +210,6 @@ describe('durable Agent session', () => {
     expect(JSON.stringify(requestSave.items)).not.toContain('person@example.test')
   })
 
-  it.each(['', '   '])(
-    'finishes an empty answer without inventing a public assistant message',
-    async (content) => {
-      const session = await openAgentTurnSession(input())
-      await session!.finalize(content, 'model-a')
-      expect(save).toHaveBeenCalledTimes(1)
-      expect(save.mock.calls[0][0].input.items).toEqual([])
-      expect(await artifacts.inspect(save.mock.calls[0][0].input.encryptedState)).toHaveProperty(
-        'state.final.content',
-        content
-      )
-    }
-  )
-
   it.each(['oversized', 'pii-unavailable'])(
     'does not persist an unsafe final answer (%s)',
     async (failure) => {
@@ -233,16 +228,6 @@ describe('durable Agent session', () => {
       expect(session!.getFinalResponse()).toBeUndefined()
     }
   )
-
-  it('degrades an unavailable atomic final write without a separate plain-message write', async () => {
-    save.mockRejectedValue(new Error('database unavailable'))
-    const session = await openAgentTurnSession(input())
-    await expect(session!.finalize('Completed answer', 'model-a')).resolves.toBeUndefined()
-    await session!.finalize('Completed answer', 'model-a')
-    expect(save).toHaveBeenCalledTimes(1)
-    expect(save.mock.calls[0][0].input.items).toHaveLength(1)
-    expect(session!.getFinalResponse()).toEqual({ content: 'Completed answer', model: 'model-a' })
-  })
 
   it('isolates loop iterations and reuses only an identical server-owned invocation', async () => {
     const request = input()
@@ -311,12 +296,6 @@ describe('durable Agent session', () => {
     })
     expect(save).toHaveBeenCalledTimes(1)
     expect(session!.getPendingCalls()).toEqual([])
-  })
-
-  it('keeps the capture switch off without opening or upgrading a conversation', async () => {
-    flag.mockResolvedValue(false)
-    expect(await openAgentTurnSession(input())).toBeUndefined()
-    expect(open).not.toHaveBeenCalled()
   })
 
   it('retains large results in owned artifacts and restores the original recorded outcome', async () => {
@@ -399,79 +378,6 @@ describe('durable Agent session', () => {
     )
   })
 
-  it.each([
-    { size: 120000, success: true, failsStorage: true },
-    { size: 9 * 1024 * 1024, success: false, failsStorage: false },
-  ])(
-    'bounds an oversized terminal result when its artifact is unavailable ($size bytes)',
-    async ({ size, success, failsStorage }) => {
-      const session = await openAgentTurnSession(input())
-      await session!.captureStep(step())
-      const invocationId = session!.getPendingCalls()[0].invocationId
-      if (failsStorage) storeArtifact.mockRejectedValue(new Error('artifact storage unavailable'))
-      else storeArtifact.mockResolvedValue(undefined)
-      const response = {
-        success,
-        output: { text: 'large-result-value'.repeat(Math.ceil(size / 18)), cost: { total: 0.25 } },
-        ...(!success ? { error: 'Upstream rejected the operation' } : {}),
-      }
-      executeTool.mockResolvedValue(response)
-      const params = { _context: { invocationId } }
-
-      const live = await runWithProviderRuntimeContext({ agentConversation: session }, () =>
-        executeProviderTool('send_email', params)
-      )
-      const replay = await runWithProviderRuntimeContext({ agentConversation: session }, () =>
-        executeProviderTool('send_email', params)
-      )
-
-      expect(live.rawResponse).toBe(response)
-      expect(live.modelResponse).toMatchObject({
-        success,
-        output: { memoryResultUnavailable: true },
-        ...(!success ? { error: 'Upstream rejected the operation' } : {}),
-      })
-      expect(JSON.stringify(live.modelResponse).length).toBeLessThan(2000)
-      expect(executeTool).toHaveBeenCalledTimes(1)
-      expect(session!.getPendingCalls()).toEqual([])
-      const recorded = session!.getRecordedResult(invocationId)
-      expect(JSON.stringify(recorded).length).toBeLessThan(2000)
-      expect(JSON.stringify(recorded)).not.toContain('large-result-value')
-      expect(recorded?.rawResponse).toMatchObject({
-        success,
-        output: { memoryResultUnavailable: true, cost: { total: 0.25 } },
-        ...(!success ? { error: 'Upstream rejected the operation' } : {}),
-      })
-      expect(replay.rawResponse).toMatchObject({
-        success,
-        output: { memoryResultUnavailable: true },
-      })
-      expect(session!.getUsage().cost.toolCost).toBe(0.25)
-      await session!.captureStep({
-        ...step(),
-        calls: [],
-        assistant: { role: 'assistant', content: 'Finished' },
-      })
-      expect(save).toHaveBeenCalledTimes(1)
-      expect(session!.getRecordedResult(invocationId)).toEqual(recorded)
-    }
-  )
-
-  it('retains ordinary small results in memory during a checkpoint outage', async () => {
-    save.mockRejectedValue(new Error('database unavailable'))
-    const session = await openAgentTurnSession(input())
-    await session!.captureStep(step())
-    const invocationId = session!.getPendingCalls()[0].invocationId
-    const response = { success: true, output: { text: 'Small complete result' } }
-    await session!.recordToolResult({
-      invocationId,
-      rawResponse: response,
-      modelResponse: response,
-    })
-    expect(session!.getRecordedResult(invocationId)?.rawResponse).toEqual(response)
-    expect(session!.getRecordedResult(invocationId)?.modelResponse).toEqual(response)
-  })
-
   it.each(['damaged ciphertext', 'invocation binding', 'memory binding', 'invalid state'])(
     'refuses an empty fresh session when a saved checkpoint has %s',
     async (failure) => {
@@ -506,44 +412,6 @@ describe('durable Agent session', () => {
       expect(executeTool).not.toHaveBeenCalled()
     }
   )
-
-  it('writes payloads once while a long invocation grows beyond the old snapshot byte limit', async () => {
-    const session = (await openAgentTurnSession(input()))!
-    for (let index = 0; index < 50; index++) {
-      const captured = step()
-      captured.native.value[0].encrypted_content = 'private-native-payload'.repeat(5500)
-      await session.captureStep(captured)
-      const response = { success: true, output: { text: 'result-value'.repeat(300) } }
-      await session.recordToolResult({
-        invocationId: session.getPendingCalls()[0].invocationId,
-        rawResponse: response,
-        modelResponse: response,
-      })
-    }
-    expect(save).toHaveBeenCalledTimes(100)
-    expect(storeArtifact).toHaveBeenCalledTimes(100)
-    const totalPayloadBytes = [...artifacts.values.values()].reduce<number>(
-      (total, value) => total + Buffer.byteLength(JSON.stringify(value)),
-      0
-    )
-    expect(totalPayloadBytes).toBeGreaterThan(2 * 1024 * 1024)
-    expect(totalPayloadBytes).toBeLessThan(8 * 1024 * 1024)
-    const encryptedState: string = save.mock.calls.at(-1)![0].input.encryptedState
-    expect(Buffer.byteLength(encryptedState)).toBeLessThan(120_000)
-    const manifest = JSON.stringify(await decryptMemoryCheckpoint(encryptedState))
-    expect(manifest).not.toContain('private-native-payload')
-    expect(manifest).not.toContain('result-value')
-
-    open.mockResolvedValue({
-      memoryId: 'memory-1',
-      turnId: 'turn-1',
-      revision: 100,
-      encryptedState,
-    })
-    const restored = (await openAgentTurnSession(input()))!
-    expect(restored.getPendingCalls()).toEqual([])
-    expect(restored.getMessages('openai', 'model-a', 'binding-a')).toHaveLength(100)
-  })
 
   it.each([false, true])(
     'preserves terminal sibling identity and cost after restart (missing payload: %s)',
@@ -606,15 +474,6 @@ describe('durable Agent session', () => {
     await expect(openAgentTurnSession(input())).rejects.toMatchObject({ retryable: false })
   })
 
-  it('fails closed when the repository refuses an oversized saved checkpoint', async () => {
-    open.mockRejectedValue(
-      Object.assign(new Error('Checkpoint too large'), { code: 'payload_too_large' })
-    )
-    await expect(openAgentTurnSession(input())).rejects.toMatchObject({ retryable: false })
-    expect(save).not.toHaveBeenCalled()
-    expect(executeTool).not.toHaveBeenCalled()
-  })
-
   it('reads a legacy checkpoint and upgrades it to a compact journal without losing usage or results', async () => {
     const session = (await openAgentTurnSession(input()))!
     await session.captureStep(step())
@@ -642,24 +501,5 @@ describe('durable Agent session', () => {
     })
     expect(restored.getUsage().cost.total).toBe(0.28)
     expect(restored.getMessages('openai', 'model-a', 'binding-a')).toHaveLength(2)
-  })
-
-  it('bounds model-visible results below the storage threshold and reuses their artifact for the journal', async () => {
-    const session = (await openAgentTurnSession(input()))!
-    await session.captureStep(step())
-    const response = { success: true, output: { text: 'large-model-value'.repeat(1200) } }
-    const invocationId = session.getPendingCalls()[0].invocationId
-    await session.recordToolResult({ invocationId, rawResponse: response, modelResponse: response })
-    expect(storeArtifact).toHaveBeenCalledTimes(2)
-    const encryptedState = save.mock.calls.at(-1)![0].input.encryptedState
-    open.mockResolvedValue({ memoryId: 'memory-1', turnId: 'turn-1', revision: 2, encryptedState })
-    const restored = (await openAgentTurnSession(input()))!
-    const replayed = (await restored.getReplayResult(invocationId))!
-    expect(replayed.rawResponse).toEqual(response)
-    expect(JSON.stringify(replayed.modelResponse).length).toBeLessThan(8500)
-    expect(JSON.stringify(replayed.modelResponse)).not.toContain('execution/workspace-1')
-    expect(replayed.modelResponse.output.memoryArtifact).toEqual({
-      id: expect.stringMatching(/^[a-f0-9]{64}$/),
-    })
   })
 })

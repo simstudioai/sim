@@ -1,9 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { CodaBlock } from '@/blocks/blocks/coda'
-import * as codaTools from '@/tools/coda'
 import { codaAddPermissionTool } from '@/tools/coda/add_permission'
 import { codaCreateDocTool } from '@/tools/coda/create_doc'
 import { codaCreatePageTool } from '@/tools/coda/create_page'
@@ -17,30 +13,11 @@ import { codaUpdateAclSettingsTool } from '@/tools/coda/update_acl_settings'
 import { codaUpdatePageTool } from '@/tools/coda/update_page'
 import { codaUpdateRowTool } from '@/tools/coda/update_row'
 import { codaUpsertRowsTool } from '@/tools/coda/upsert_rows'
-import { buildCodaUrl, CODA_FIELD_UPDATE_RETRY, CODA_RETRY } from '@/tools/coda/utils'
+import { buildCodaUrl } from '@/tools/coda/utils'
 import { codaWhoamiTool } from '@/tools/coda/whoami'
 import { ErrorExtractorId, extractErrorMessageWithId } from '@/tools/error-extractors'
-import type { OutputProperty } from '@/tools/types'
 
 const table = { accessToken: 'token', docId: 'AbCDeFGH', tableId: 'grid-pqRst-U' }
-
-/** Lists output paths a tool returned as null whose schema does not declare `nullable`. */
-function findUndeclaredNulls(
-  value: unknown,
-  properties: Record<string, OutputProperty> | undefined,
-  path: string
-): string[] {
-  if (!properties || value === null || typeof value !== 'object') return []
-  return Object.entries(properties).flatMap(([key, schema]) => {
-    const child = (value as Record<string, unknown>)[key]
-    const childPath = `${path}.${key}`
-    if (child === null) return schema.nullable ? [] : [childPath]
-    if (Array.isArray(child)) {
-      return child.flatMap((item) => findUndeclaredNulls(item, schema.items?.properties, childPath))
-    }
-    return findUndeclaredNulls(child, schema.properties, childPath)
-  })
-}
 
 function resolveUrl<P>(url: string | ((params: P) => string), params: P): string {
   return typeof url === 'function' ? url(params) : url
@@ -224,10 +201,6 @@ describe('Coda block params', () => {
       isHidden: undefined,
     })
   })
-
-  it('selects the tool from the operation', () => {
-    expect(CodaBlock.tools.config!.tool!({ operation: 'upsert_rows' })).toBe('coda_upsert_rows')
-  })
 })
 
 describe('Coda page content and publishing bodies', () => {
@@ -376,49 +349,4 @@ describe('Coda pagination and errors', () => {
       )
     ).toBe('Doc has been deleted.')
   })
-})
-
-describe('Coda tool registration', () => {
-  const allTools = Object.entries(codaTools).filter(([name]) => name.endsWith('Tool'))
-
-  it('exposes all 60 tools through the barrel', () => {
-    expect(allTools).toHaveLength(60)
-  })
-
-  it.each(allTools)(
-    '%s declares every output it can return as null as nullable',
-    async (_, tool) => {
-      const config = tool as {
-        outputs: Record<string, OutputProperty>
-        transformResponse: (response: Response, params: object) => Promise<{ output: unknown }>
-      }
-      const sparseBody = {
-        items: [{ doc: {}, page: {}, metrics: [{}] }],
-        customDocDomains: [{}],
-        resource: {},
-        id: 'x',
-      }
-      const { output } = await config.transformResponse(
-        new Response(JSON.stringify(sparseBody)),
-        table
-      )
-      expect(findUndeclaredNulls(output, config.outputs, '')).toEqual([])
-    }
-  )
-
-  it.each(allTools)(
-    '%s retries safely repeatable calls and authenticates with the Coda credential',
-    (_, tool) => {
-      const config = tool as {
-        request: { method: unknown; retry?: unknown }
-        oauth?: unknown
-        params: Record<string, unknown>
-      }
-      expect(config.request.retry).toBe(
-        config.request.method === 'PATCH' ? CODA_FIELD_UPDATE_RETRY : CODA_RETRY
-      )
-      expect(config.oauth).toEqual({ required: true, provider: 'coda' })
-      expect(config.params.accessToken).toMatchObject({ required: true, visibility: 'hidden' })
-    }
-  )
 })

@@ -94,21 +94,3 @@ export function createMockRedis() {
     status: 'ready',
   }
 }
-
-export type MockRedis = ReturnType<typeof createMockRedis>
-
-/**
- * Clears all Redis mock calls.
- *
- * Also drops registered listeners: spy history and the listener registry are
- * separate state, and handlers left behind would be invoked by a later `emit`
- * on behalf of a client the test under way never created.
- */
-export function clearRedisMocks(redis: MockRedis) {
-  redis.removeAllListeners()
-  Object.values(redis).forEach((value) => {
-    if (typeof value === 'function' && 'mockClear' in value) {
-      value.mockClear()
-    }
-  })
-}

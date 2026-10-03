@@ -43,6 +43,12 @@ A member's personal file outside the source boundary is excluded even when their
 
 Drive search discovers matching files. Reads export Google Docs and Slides as text, read supported text/JSON files directly, and read formatted Sheet values from up to 20 sheets, 1,000 rows, and 52 columns per sheet. Other file types return metadata and a source link. Live Search does not run background attachment parsing or OCR.
 
+Reading a file also retrieves its comments and replies using the reader's existing Drive connection. Discussion text includes author names, creation and update times, quoted file context, resolved state, and resolve/reopen actions. Deleted comments and replies are omitted. The source file link and comment identifiers let you locate the discussion in Drive.
+
+Comments enrich the file read; they are not a separate global search index. Locate the file by its name, owner, folder, or content, then read it for discussion context. For example, `name contains 'Roadmap' and 'person@example.com' in owners` finds candidate files. Do not assume a phrase that appears only in a comment will discover every matching file.
+
+Discussion reads follow up to three pages of 20 comments, including each comment's full reply list, with a 120,000-character discussion limit and the provider response-size limit. A document begins with an incomplete-coverage notice if comments cannot be retrieved or a limit is reached. Available file content is preserved; open the source for the remaining discussion. Continue through the returned document offsets when the available content spans more than one read window.
+
 Google's own search freshness, export limits, and access settings determine availability. Link sharing alone does not make a file an unrestricted Search result; the current member and configured service boundary must authorize it.
 
 ## One service account for Drive, Gmail, and Calendar
@@ -99,3 +105,9 @@ https://www.googleapis.com/auth/drive.file
 ```
 
 The personal OAuth connection also supports workflow actions, so its declared scopes can be broader than Search’s read-only requests. The service credential uses the separate delegation scopes above.
+
+## Google Meet transcripts and notes
+
+Meet saves generated transcripts and smart notes as Google Docs in the organizer's Drive. Connect Drive to search and read these documents when you have access, including older artifacts that remain after Meet's conference API retention window. For example, use `fullText contains 'rollback' and mimeType = 'application/vnd.google-apps.document'`.
+
+Drive date filters use the file's modification time, not the meeting's start. Use [Google Meet](/search/google-meet) for recent conference transcripts with meeting dates and [Google Calendar](/search/google-calendar) for scheduled events. Transcription or note-taking must have been enabled during the meeting; Search cannot reconstruct a missing artifact.

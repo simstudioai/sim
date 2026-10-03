@@ -2,7 +2,6 @@ import type { MutableRefObject } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 import { vi } from 'vitest'
 import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
-import type { RevealedSimKeysByMessage } from '@/lib/mothership/chat/sim-key-redaction'
 import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
 import type {
   ActiveTurn,
@@ -72,7 +71,7 @@ export function makeStreamLoopDeps(overrides: Partial<StreamLoopDeps> = {}): Str
     chatIdRef: ref<string | undefined>(undefined),
     selectedChatIdRef: ref<string | undefined>(undefined),
     streamIdRef: ref<string | undefined>(undefined),
-    revealedSimKeysRef: ref<RevealedSimKeysByMessage>(new Map()),
+    revealedSimKeys: new Map(),
     pendingUserMsgRef: ref<PersistedMessage | null>(null),
     activeTurnRef: ref<ActiveTurn | null>(null),
     resourcesRef: ref<MothershipResource[]>([]),

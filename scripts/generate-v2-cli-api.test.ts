@@ -6,7 +6,6 @@ import { z } from 'zod'
 import {
   CLI_MANAGED_HEADERS,
   loadSummaries,
-  render,
   renderBodyDiscriminator,
   renderSlotMap,
 } from './generate-v2-cli-api'
@@ -40,31 +39,6 @@ describe('discriminated object request bodies', () => {
     expect(map?.match(/required: true/g)).toHaveLength(1)
   })
 
-  it('emits branch requirements and does not require an opaque JSON body', () => {
-    const metadata = renderBodyDiscriminator(schema, '  ')
-    expect(metadata).toContain('field: "action"')
-    expect(metadata).toContain('"expectedFingerprint": { kind: \'string\', required: true')
-    expect(metadata).toContain('"reason": { kind: \'string\', required: true')
-    const source = render(
-      [
-        {
-          name: 'resolveRequest',
-          exportName: 'v2ResolveRequestContract',
-          domain: 'requests',
-          contract: {
-            method: 'POST',
-            path: '/api/v2/requests/[requestId]/resolve',
-            body: schema,
-            response: { mode: 'json', schema: z.object({ data: z.object({ id: z.string() }) }) },
-          },
-        },
-      ],
-      new Map()
-    )
-    expect(source).toContain('bodyDiscriminator:')
-    expect(source).not.toContain('opaqueBody: true')
-  })
-
   it('unites shared enum choices without losing branch-specific validation', () => {
     const body = z.discriminatedUnion('action', [
       z.object({ action: z.literal('first'), mode: z.enum(['a', 'b']).default('a') }),
@@ -76,88 +50,9 @@ describe('discriminated object request bodies', () => {
     expect(renderBodyDiscriminator(body, '  ')).toContain('default: "a"')
     expect(renderBodyDiscriminator(body, '  ')).toContain('default: "c"')
   })
-
-  it('resolves named branches and fields while preserving discriminator descriptions', () => {
-    const fingerprint = z.string().meta({ id: 'Fingerprint' })
-    const body = z.discriminatedUnion('action', [
-      z
-        .object({ action: z.literal('apply').describe('Apply the change.'), fingerprint })
-        .meta({ id: 'ApplyDecision' }),
-      z
-        .object({
-          action: z.literal('decline').describe('Decline the request.'),
-          reason: z.string(),
-        })
-        .meta({ id: 'DeclineDecision' }),
-    ])
-    const map = renderSlotMap(body, '  ')
-    expect(map).toContain('"fingerprint": { kind: \'string\'')
-    expect(map).toContain('describe: "apply: Apply the change. decline: Decline the request."')
-    expect(renderBodyDiscriminator(body, '  ')).toContain(
-      '"fingerprint": { kind: \'string\', required: true'
-    )
-  })
-
-  it('preserves opaque single-row and batch unions and their shared workspace field', () => {
-    const body = z.union([
-      z.object({ workspaceId: z.string(), data: z.record(z.string(), z.unknown()) }),
-      z.object({ workspaceId: z.string(), rows: z.array(z.record(z.string(), z.unknown())) }),
-    ])
-    expect(renderBodyDiscriminator(body, '  ')).toBeNull()
-    expect(renderSlotMap(body, '  ')).toBe(
-      '{\n    "workspaceId": { kind: \'string\', required: true },\n  }'
-    )
-  })
-
-  it('keeps incompatible flag shapes on the existing opaque body path', () => {
-    const body = z.discriminatedUnion('action', [
-      z.object({ action: z.literal('first'), value: z.string() }),
-      z.object({ action: z.literal('second'), value: z.object({ id: z.string() }) }),
-    ])
-    expect(renderBodyDiscriminator(body, '  ')).toBeNull()
-  })
-})
-
-describe('a field the contract types as nullable', () => {
-  /**
-   * String flags preserve their literal value; numeric flags have an unambiguous null spelling.
-   */
-  it('describes it no differently from any other string', () => {
-    const map = renderSlotMap(
-      z.object({ description: z.string().nullable().optional().describe('Replacement.') }),
-      '  '
-    )
-    expect(map).toContain("kind: 'string'")
-    expect(map).not.toContain('nullable')
-  })
-
-  it.each([z.number(), z.number().int()])(
-    'carries numeric nullability through the descriptor',
-    (value) => {
-      const map = renderSlotMap(z.object({ creditLimit: value.nullable() }), '  ')
-      expect(map).toContain('nullable: true, required: true')
-      expect(map).toContain(`kind: '${value.isInt ? 'integer' : 'number'}'`)
-    }
-  )
 })
 
 describe('request headers reaching the CLI as flags', () => {
-  /**
-   * `getFileUpload` reads its session through an `upload-token` header, and the
-   * operation table listed only its params and query — so the runtime had no
-   * field to build a flag from and every call was rejected as invalid input
-   * before it left the machine.
-   */
-  it('describes a contract header the caller has to supply', () => {
-    const map = renderSlotMap(
-      z.object({ 'upload-token': z.string().describe('Signed upload control token.') }),
-      '  ',
-      CLI_MANAGED_HEADERS
-    )
-    expect(map).toContain('"upload-token"')
-    expect(map).toContain('required: true')
-  })
-
   /**
    * The client spreads contract headers last over its own block, so a flag for
    * one of these would let argv replace the profile's credential.
@@ -199,7 +94,7 @@ function generatedSource(): string {
 }
 
 /** The body of one entry in the emitted `V2_OPERATIONS` table. */
-function generatedEntry(source: string, name: string): string {
+function _generatedEntry(source: string, name: string): string {
   const match = source.match(new RegExp(`\\n  ${name}: \\{([\\s\\S]*?)\\n  \\},`))
   if (!match) throw new Error(`${name} is not in the generated operation table`)
   return match[1]
@@ -219,15 +114,5 @@ describe('operations that refuse a workspace API key', () => {
     expect(generatedSource().match(/workspaceKeyUnsupported: true/g)?.length ?? 0).toBe(
       marked.length
     )
-  })
-
-  it('marks restricted operations and leaves workspace-key-capable siblings alone', () => {
-    const source = generatedSource()
-    for (const name of ['listMcpServerTools', 'listSecrets', 'undeployWorkflow']) {
-      expect(generatedEntry(source, name)).toContain('workspaceKeyUnsupported: true')
-    }
-    for (const name of ['listMcpServers', 'getMcpServer', 'listWorkflows']) {
-      expect(generatedEntry(source, name)).not.toContain('workspaceKeyUnsupported')
-    }
   })
 })

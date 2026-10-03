@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import nodemailer from 'nodemailer'
+import nodemailer, { type SendMailOptions, type Transporter } from 'nodemailer'
 
 const logger = createLogger('SmtpClient')
 
@@ -12,7 +12,7 @@ export interface SmtpClientConfig {
   tls: { rejectUnauthorized: boolean; servername: string }
 }
 
-function closeTransporter(transporter: nodemailer.Transporter): void {
+function closeTransporter(transporter: Transporter): void {
   try {
     transporter.close()
   } catch (error) {
@@ -22,7 +22,7 @@ function closeTransporter(transporter: nodemailer.Transporter): void {
 
 export async function sendSmtpMessage(
   config: SmtpClientConfig,
-  message: nodemailer.SendMailOptions,
+  message: SendMailOptions,
   signal?: AbortSignal
 ): Promise<{ messageId?: string }> {
   signal?.throwIfAborted()

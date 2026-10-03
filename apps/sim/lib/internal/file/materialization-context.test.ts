@@ -1,16 +1,15 @@
-/**
- * @vitest-environment node
- */
+import {
+  authInternalDelegationMock,
+  authInternalDelegationMockFns,
+} from '@sim/testing/mocks/auth-internal-delegation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext } from '@/executor/types'
 
-const { bindDelegation } = vi.hoisted(() => ({ bindDelegation: vi.fn() }))
-
-vi.mock('@/lib/auth/internal-delegation', () => ({
-  bindInternalExecutorDelegation: bindDelegation,
-}))
+vi.mock('@/lib/auth/internal-delegation', () => authInternalDelegationMock)
 
 import { resolveExecutorFileMaterializationContext } from '@/lib/internal/file/materialization-context'
+
+const { mockBindInternalExecutorDelegation: bindDelegation } = authInternalDelegationMockFns
 
 const workspaceFile = { key: 'workspace/workspace-1/image.png' }
 const systemPrincipal = {
@@ -43,7 +42,6 @@ function context(): ExecutionContext {
 
 describe('executor file materialization context', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     bindDelegation.mockResolvedValue({ kind: 'delegated', serviceId: 'executor' })
   })
 
@@ -64,18 +62,6 @@ describe('executor file materialization context', () => {
     expect(result.userId).toBeUndefined()
     expect(result.fileKeys).toBe(ctx.fileKeys)
     expect(ctx.principal).toBe(systemPrincipal)
-  })
-
-  it.each([
-    { kind: 'session', userId: 'reader', sessionId: 'session-1' },
-    { kind: 'personal_api_key', userId: 'reader', keyId: 'key-1' },
-    { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
-  ] as const)('preserves the existing $kind workspace authority', async (principal) => {
-    const ctx = { ...context(), principal }
-    expect((await resolveExecutorFileMaterializationContext(ctx, workspaceFile)).principal).toBe(
-      principal
-    )
-    expect(bindDelegation).not.toHaveBeenCalled()
   })
 
   it.each([

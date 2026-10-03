@@ -131,22 +131,6 @@ interface SSHFileInfo {
 }
 
 // System info interface
-interface SSHSystemInfo {
-  hostname: string
-  os: string
-  architecture: string
-  uptime: number
-  memory: {
-    total: number
-    free: number
-    used: number
-  }
-  diskSpace: {
-    total: number
-    free: number
-    used: number
-  }
-}
 
 export interface SSHResponse extends ToolResponse {
   output: {

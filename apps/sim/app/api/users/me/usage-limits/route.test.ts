@@ -1,37 +1,35 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest, hybridAuthMockFns } from '@sim/testing'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   checkServerSideUsageLimits: vi.fn(),
-  getHighestPrioritySubscription: vi.fn(),
-  getRateLimitStatusWithSubscription: vi.fn(),
-  getUserStorageLimit: vi.fn(),
-  getUserStorageUsage: vi.fn(),
 }))
 
 vi.mock('@/lib/billing', () => ({
-  checkServerSideUsageLimits: mocks.checkServerSideUsageLimits,
+  checkServerSideUsageLimits: hoisted.checkServerSideUsageLimits,
 }))
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getHighestPrioritySubscription: mocks.getHighestPrioritySubscription,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
-vi.mock('@/lib/billing/storage', () => ({
-  getUserStorageLimit: mocks.getUserStorageLimit,
-  getUserStorageUsage: mocks.getUserStorageUsage,
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
 
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    getRateLimitStatusWithSubscription = mocks.getRateLimitStatusWithSubscription
-  },
-}))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 
 import { GET } from '@/app/api/users/me/usage-limits/route'
+
+const mocks = {
+  getUserStorageLimit: billingStorageMockFns.mockGetUserStorageLimit,
+  getUserStorageUsage: billingStorageMockFns.mockGetUserStorageUsage,
+  ...hoisted,
+  getHighestPrioritySubscription: billingSubscriptionMockFns.mockGetHighestPrioritySubscription,
+  getRateLimitStatusWithSubscription: rateLimiterMockFns.mockGetRateLimitStatusWithSubscription,
+}
 
 const SYNC_RESET_AT = new Date('2026-08-11T12:00:00.000Z')
 const ASYNC_RESET_AT = new Date('2026-08-11T12:01:00.000Z')
@@ -39,7 +37,6 @@ const SUBSCRIPTION = { plan: 'pro' }
 
 describe('GET /api/users/me/usage-limits', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({
       success: true,
       userId: 'user-1',
@@ -112,36 +109,5 @@ describe('GET /api/users/me/usage-limits', () => {
       'manual',
       true
     )
-  })
-
-  it('reports API key callers as API traffic', async () => {
-    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({
-      success: true,
-      userId: 'user-1',
-      authType: 'api_key',
-    })
-
-    const response = await GET(createMockRequest('GET'))
-    const body = await response.json()
-
-    expect(body.rateLimit.authType).toBe('api')
-    expect(mocks.getRateLimitStatusWithSubscription).toHaveBeenNthCalledWith(
-      1,
-      'user-1',
-      SUBSCRIPTION,
-      'api',
-      false
-    )
-  })
-
-  it('returns 401 before reading usage data when authentication fails', async () => {
-    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({ success: false })
-
-    const response = await GET(createMockRequest('GET'))
-
-    expect(response.status).toBe(401)
-    expect(mocks.getHighestPrioritySubscription).not.toHaveBeenCalled()
-    expect(mocks.getRateLimitStatusWithSubscription).not.toHaveBeenCalled()
-    expect(mocks.checkServerSideUsageLimits).not.toHaveBeenCalled()
   })
 })

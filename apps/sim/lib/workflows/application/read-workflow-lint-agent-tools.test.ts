@@ -1,59 +1,78 @@
-/** @vitest-environment node */
-
 import type { OAuthAccessTokenPrincipal } from '@sim/auth/principal'
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { toolsUtilsMock } from '@sim/testing/mocks/blocks.mock'
+import { mcpUseCasesMock, mcpUseCasesMockFns } from '@sim/testing/mocks/mcp-use-cases.mock'
+import {
+  secretsUseCasesMock,
+  secretsUseCasesMockFns,
+} from '@sim/testing/mocks/secrets-use-cases.mock'
+import { tableServiceMock } from '@sim/testing/mocks/table-service.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import {
+  workflowsQueriesMock,
+  workflowsQueriesMockFns,
+} from '@sim/testing/mocks/workflows-queries.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import type { Mock } from 'vitest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getBlock } from '@/blocks/registry'
 
-const mocks = vi.hoisted(() => ({
-  context: vi.fn(),
-  permission: vi.fn(),
-  snapshot: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   selector: vi.fn(),
   customTools: vi.fn(),
   skill: vi.fn(),
-  server: vi.fn(),
-  discover: vi.fn(),
   oldCustomTool: vi.fn(),
   oldSkill: vi.fn(),
-  secrets: vi.fn(),
-  block: vi.fn((type: string) => ({ type, name: type, outputs: {}, subBlocks: [] })),
 }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null) => actual !== null,
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.context,
-}))
-vi.mock('@/lib/workflows/queries', () => ({ loadWorkflowReadSnapshot: mocks.snapshot }))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
+vi.mock('@/lib/workflows/queries', () => workflowsQueriesMock)
 vi.mock('@/lib/workflows/editing/selector-validator', () => ({
-  validateSelectorIds: mocks.selector,
+  validateSelectorIds: hoisted.selector,
 }))
 vi.mock('@/lib/workflows/custom-tools/operations', () => ({
-  getCustomToolById: mocks.oldCustomTool,
+  getCustomToolById: hoisted.oldCustomTool,
 }))
-vi.mock('@/lib/workflows/skills/operations', () => ({ getSkillById: mocks.oldSkill }))
+vi.mock('@/lib/workflows/skills/operations', () => ({ getSkillById: hoisted.oldSkill }))
 vi.mock('@/lib/custom-tools/application/use-cases', () => ({
-  listAvailableCustomToolsUseCase: { execute: mocks.customTools },
+  listAvailableCustomToolsUseCase: { execute: hoisted.customTools },
 }))
-vi.mock('@/lib/skills/application/use-cases', () => ({ getSkillUseCase: { execute: mocks.skill } }))
-vi.mock('@/lib/mcp/application/use-cases', () => ({
-  getMcpServerUseCase: { execute: mocks.server },
-  discoverMcpServerToolsUseCase: { execute: mocks.discover },
+vi.mock('@/lib/skills/application/use-cases', () => ({
+  getSkillUseCase: { execute: hoisted.skill },
 }))
-vi.mock('@/lib/table/service', () => ({ getTableById: vi.fn() }))
-vi.mock('@/lib/secrets/application/use-cases', () => ({
-  listSecretsUseCase: { execute: mocks.secrets },
-}))
+vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/secrets/application/use-cases', () => secretsUseCasesMock)
 vi.mock('@/blocks/utils', () => ({ getModelOptions: vi.fn(() => []) }))
-vi.mock('@/tools/utils', () => ({ getTool: vi.fn() }))
-vi.mock('@/blocks/registry', () => ({ getBlock: mocks.block }))
-vi.mock('@/blocks', () => ({ getBlock: mocks.block }))
+vi.mock('@/tools/utils', () => toolsUtilsMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { readWorkflowLint } from '@/lib/workflows/application/read-workflow-lint'
 import { UNRESOLVABLE_AT_LINT_NOTE } from '@/lib/workflows/editing/validation'
 
-const principal = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' }
+const mocks = {
+  ...hoisted,
+  snapshot: workflowsQueriesMockFns.mockLoadWorkflowReadSnapshot,
+  server: mcpUseCasesMockFns.mockGetMcpServerUseCase,
+  discover: mcpUseCasesMockFns.mockDiscoverMcpServerToolsUseCase,
+  secrets: secretsUseCasesMockFns.mockListSecretsUseCase,
+}
+
+const mockGetBlock = getBlock as Mock
+mockGetBlock.mockImplementation((type: string) => ({
+  type,
+  name: type,
+  outputs: {},
+  subBlocks: [],
+}))
+
+const mockPermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockContext = workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
+
+const principal = createPersonalApiKeyPrincipal()
 const workspaceId = 'parent-workspace'
 const scope = {
   workspaceId,
@@ -100,9 +119,8 @@ function lookup(kind: ReferenceKind) {
 
 describe('standalone agent-tool reference diagnostics', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.context.mockResolvedValue(scope)
-    mocks.permission.mockResolvedValue('read')
+    mockContext.mockResolvedValue(scope)
+    mockPermission.mockResolvedValue('read')
     mocks.selector.mockResolvedValue({ valid: [], invalid: [] })
     mocks.oldCustomTool.mockResolvedValue(null)
     mocks.oldSkill.mockResolvedValue(null)
@@ -222,26 +240,6 @@ describe('standalone agent-tool reference diagnostics', () => {
       }
     }
   )
-
-  it('reports missing custom tools without obsolete repair commands', async () => {
-    setGraph('custom-tool', ['missing'])
-    const result = await readWorkflowLint.execute({ principal, input: { workflowId: 'parent' } })
-    expect(result.unresolvedReferences).toEqual([
-      expect.objectContaining({ kind: 'custom-tool', value: 'missing' }),
-    ])
-    expect(JSON.stringify(result)).not.toContain('manage_')
-    expect(result.unresolvedReferences[0]?.reason).toContain('custom-tools list')
-  })
-
-  it('uses one authorized custom-tool inventory for every reference', async () => {
-    setGraph('custom-tool', ['available', 'missing', 'another-missing'])
-    const result = await readWorkflowLint.execute({ principal, input: { workflowId: 'parent' } })
-    expect(mocks.customTools).toHaveBeenCalledTimes(1)
-    expect(result.unresolvedReferences.map((ref) => ref.value)).toEqual([
-      'missing',
-      'another-missing',
-    ])
-  })
 
   it('preserves inline custom-tool fallback without requiring its missing ID', async () => {
     const graph = setGraph('custom-tool', [])

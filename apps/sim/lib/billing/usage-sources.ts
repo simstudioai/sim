@@ -14,13 +14,6 @@ export const INTERNAL_USAGE_LOG_SOURCES = [
 
 export type InternalUsageLogSource = (typeof INTERNAL_USAGE_LOG_SOURCES)[number]
 
-export const INTERNAL_CHAT_BILLING_SOURCES = [
-  'copilot',
-  'workspace-chat',
-  'mcp_copilot',
-  'mothership_block',
-] as const satisfies readonly InternalUsageLogSource[]
-
 export const BILLING_USAGE_LOG_SOURCES = [
   'workflow',
   'wand',

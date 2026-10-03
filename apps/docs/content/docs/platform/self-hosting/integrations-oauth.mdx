@@ -60,6 +60,8 @@ https://sim.yourdomain.com/api/auth/oauth2/callback/google-drive
 
 Scopes are requested by Sim at authorization time; you generally do not need to pre-declare them, but Google and Microsoft require you to enable the corresponding APIs on the project/app first (for example Gmail API, Drive API, Calendar API).
 
+Each integration page ends with an **OAuth Scopes** section listing its redirect URI, environment variables, and every scope Sim requests, for example [Gmail](/integrations/gmail#oauth-scopes). Use it for providers that make you declare scopes on the app, such as Slack, and to confirm a connected account was granted everything Sim needs.
+
 </Step>
 
 <Step>
@@ -111,9 +113,11 @@ One app registration in [Entra ID](https://entra.microsoft.com) covers all of th
 
 | Environment variables | Provider IDs |
 |---|---|
-| `MICROSOFT_CLIENT_ID`<br />`MICROSOFT_CLIENT_SECRET` | `outlook`, `onedrive`, `sharepoint`, `microsoft-teams`, `microsoft-excel`, `microsoft-word`, `microsoft-planner`, `microsoft-dataverse`, `microsoft-ad` |
+| `MICROSOFT_CLIENT_ID`<br />`MICROSOFT_CLIENT_SECRET` | `outlook`, `onedrive`, `sharepoint`, `microsoft-teams`, `microsoft-excel`, `microsoft-word`, `microsoft-planner`, `microsoft-powerbi`, `microsoft-dataverse`, `microsoft-ad` |
 
 The same variables also power "Sign in with Microsoft".
+
+For Power BI, register `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/microsoft-powerbi` as a **Web** redirect URI. Sim requests the delegated Power BI API scopes `Workspace.Read.All`, `Report.Read.All`, and `Dataset.ReadWrite.All` with the explicit `https://analysis.windows.net/powerbi/api/` resource prefix, plus identity and offline-access scopes. Connect an organizational account from its home tenant. Power BI uses a separate connection from Microsoft Graph integrations; Credential Groups and service-principal authentication are not supported in this version. See the [Power BI integration](/integrations/powerbi) for permissions and tenant settings.
 
 ### GitHub Search
 
@@ -205,7 +209,7 @@ The private key must include its PEM header, footer, and contents. Sim accepts a
 
 Keep the private key and client secret in the deployment's server configuration; organization admins select installations in Sim without entering these secrets.
 
-The live Search application needs these five variables. If a worker also indexes ordinary GitHub knowledge bases, or Search has explicitly reverted to `SIM_SEARCH_LIVE=false`, configure the variables in that worker’s matching environment too. Updating the app’s secret store does not update a separately configured worker. Live Search does not schedule a GitHub indexing worker.
+The live Search application needs these five variables. If a worker also indexes ordinary GitHub knowledge bases, configure the variables in that worker’s matching environment too. Updating the app’s secret store does not update a separately configured worker. Live Search does not schedule a GitHub indexing worker.
 
 The **Client ID** is different from the numeric **App ID**. Use credentials from **Developer settings → GitHub Apps**. `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` belong to the separate GitHub sign-in integration and remain unchanged. Search does not read `GITHUB_REPO_CLIENT_ID` or `GITHUB_REPO_CLIENT_SECRET`.
 
@@ -263,13 +267,25 @@ read/write (`account`, `repository`, `repository:write`, `pullrequest`, `pullreq
 `pipeline`, `pipeline:write`, and `webhook`). The webhook permission is required for automatic
 trigger subscription management.
 
+Some providers need more setup than a client ID, secret, and redirect URI:
+
+| Service | Extra setup |
+|---|---|
+| Asana | Sim requests the `default` scope. Enable **Full permissions** under the app's OAuth settings, or Asana rejects the authorization. |
+| Attio | Enable the scopes listed on the [Attio page](/integrations/attio#oauth-scopes) in the app's Developer console; Attio grants scopes from the app, not the authorization request. |
+| Cal.com | Sim does not send a `scope` parameter, so connecting works only with a legacy Cal.com OAuth client: one with no scopes configured, or only `READ_BOOKING` and `READ_PROFILE`. Cal.com requires at least one scope on new clients and rejects their authorization without a `scope` parameter. |
+| DocuSign | `DOCUSIGN_AUTH_HOST` defaults to the demo host `account-d.docusign.com`. Set it to `account.docusign.com` for production accounts. |
+| Microsoft | Azure AD, Teams, and Planner request permissions that need tenant admin consent. For Dataverse and Dynamics 365, add the **Dynamics CRM** API's delegated `user_impersonation` permission. |
+| Notion | Enable the integration's **Read content**, **Update content**, **Insert content**, **Read comments**, **Insert comments**, and **User information with email addresses** capabilities. |
+| Zoho Desk and ManageEngine | Both use one Zoho client. Register both `zoho-desk` and `manageengine-sdp` redirect URIs on it if you use both. |
+
 ### Services with a different flow
 
 | Service | Configuration | Notes |
 |---|---|---|
 | **Instagram** | `INSTAGRAM_CLIENT_ID` / `INSTAGRAM_CLIENT_SECRET` | Instagram App ID/Secret from the Meta App Dashboard (Instagram → API setup with Instagram login). Redirect URI: `/api/auth/oauth2/callback/instagram`. **Publishing requires cloud object storage** — Meta fetches a public HTTPS URL, so local-disk storage will not work. |
 | **Shopify** | `SHOPIFY_CLIENT_ID` / `SHOPIFY_CLIENT_SECRET` | Redirect URI: `/api/auth/oauth2/callback/shopify`. Per-shop install flow. |
-| **Trello** | `TRELLO_API_KEY` | API-key based, not OAuth 2.0. Callback: `/api/auth/trello/callback`. |
+| **Trello** | `TRELLO_API_KEY` | API-key based, not OAuth 2.0. Callback: `/api/auth/trello/callback`. Add your Sim origin (`NEXT_PUBLIC_APP_URL`) to the API key's allowed origins, or Trello will not redirect back. |
 
 ## Non-OAuth integration credentials
 
@@ -309,7 +325,7 @@ When enabling the native Sim Slack trigger, configure all three variables togeth
 Your deployment must also be reachable from the provider's servers for webhook triggers to fire — a Sim instance on a private network can use polling triggers but not webhook triggers. Polling triggers additionally require the scheduler; see [Background Jobs](/platform/self-hosting/background-jobs).
 
 <FAQ items={[
-  { question: "Do I have to register an OAuth app for every integration?", answer: "Only for OAuth integrations your team uses. API-key integrations do not require an OAuth application. If an OAuth provider's credentials are unset, its connector cannot be connected. One Google app covers 15 connectors and one Microsoft app covers 9, so most deployments need only a handful of registrations."},
+  { question: "Do I have to register an OAuth app for every integration?", answer: "Only for OAuth integrations your team uses. API-key integrations do not require an OAuth application. If an OAuth provider's credentials are unset, its connector cannot be connected. One Google app covers 15 connectors and one Microsoft app covers 10, so most deployments need only a handful of registrations."},
   { question: "Users get a redirect_uri_mismatch error. What is wrong?", answer: "Almost always NEXT_PUBLIC_APP_URL does not match the URI registered with the provider. Check for http vs https, a trailing slash, an apex-vs-www difference, or a port. The URI Sim sends is built from NEXT_PUBLIC_APP_URL at request time."},
   { question: "Can I use the same OAuth app for staging and production?", answer: "Yes, if the provider allows multiple redirect URIs on one app — register both hosts. Providers that allow only one URI need a separate app per environment."},
   { question: "Why does the Instagram integration need cloud storage?", answer: "Meta fetches media from a public HTTPS URL rather than accepting an upload, so published files must live in S3, Azure Blob, or GCS. Local-disk storage cannot serve them. Gmail attachments and other integrations do not have this constraint." },

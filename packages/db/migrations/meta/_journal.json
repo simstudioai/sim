@@ -2675,6 +2675,83 @@
       "when": 1790284582673,
       "tag": "0382_workspace_file_search_dispatch_handoff",
       "breakpoints": true
+    },
+    {
+      "idx": 383,
+      "version": "7",
+      "when": 1790296491758,
+      "tag": "0383_workspace_visit",
+      "breakpoints": true
+    },
+    {
+      "idx": 384,
+      "version": "7",
+      "when": 1790383464399,
+      "tag": "0384_marvelous_maestro",
+      "breakpoints": true
+    },
+    {
+      "idx": 385,
+      "version": "7",
+      "when": 1790442555127,
+      "tag": "0385_document_connector_processing_recovery_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 386,
+      "version": "7",
+      "when": 1790458840414,
+      "tag": "0386_drop_redundant_and_unusable_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 387,
+      "version": "7",
+      "when": 1790459930776,
+      "tag": "0387_date_tag_range_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 388,
+      "version": "7",
+      "when": 1790465741392,
+      "tag": "0388_document_connector_reconciliation_v2_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 389,
+      "version": "7",
+      "when": 1790559081077,
+      "tag": "0389_member_resurrection_cursor",
+      "breakpoints": true
+    },
+    {
+      "idx": 390,
+      "version": "7",
+      "when": 1790562554468,
+      "tag": "0390_table_rows_version_at_commit",
+      "breakpoints": true
+    },
+    {
+      "idx": 391,
+      "version": "7",
+      "when": 1790647979450,
+      "tag": "0391_fork_sync_new_workflow_default",
+      "breakpoints": true
+    },
+    {
+      "idx": 392,
+      "version": "7",
+      "when": 1790723607543,
+      "tag": "0392_dashboard",
+      "breakpoints": true
+    },
+    {
+      "idx": 393,
+      "version": "7",
+      "when": 1790973503076,
+      "tag": "0393_fork_workflow_sync_provenance",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
 import { afterEach, describe, expect, it } from 'vitest'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'

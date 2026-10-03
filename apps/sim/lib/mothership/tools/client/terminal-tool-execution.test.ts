@@ -17,7 +17,6 @@ import { executeTerminalToolOnClient } from '@/lib/mothership/tools/client/termi
 
 describe('terminal client execution', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('Blob', NodeBlob)
     window.sessionStorage.clear()
     Object.defineProperty(navigator, 'sendBeacon', {

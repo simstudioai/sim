@@ -207,7 +207,6 @@ function zoomActionForTerminalCommand(command: TerminalShortcutCommand): Desktop
 
 const TerminalView = memo(function TerminalView({
   terminalId,
-  running,
   active,
   visible,
   scopeId,
@@ -219,7 +218,6 @@ const TerminalView = memo(function TerminalView({
   focusRequest,
 }: {
   terminalId: string
-  running: string | null
   active: boolean
   visible: boolean
   scopeId: string
@@ -742,7 +740,6 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
           <TerminalView
             key={tab.terminalId}
             terminalId={tab.terminalId}
-            running={tab.running}
             active={tab.terminalId === activeTerminalId}
             visible={visible}
             scopeId={scopeId}

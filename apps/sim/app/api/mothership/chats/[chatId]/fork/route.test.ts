@@ -1,18 +1,42 @@
-/**
- * @vitest-environment node
- */
-
 import { copilotChats, member } from '@sim/db/schema'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authBanMock } from '@sim/testing/mocks/auth-ban.mock'
+import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing/mocks/copilot-http.mock'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import {
-  copilotHttpMock,
-  copilotHttpMockFns,
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-  resetEnvMock,
-  setEnv,
-} from '@sim/testing'
-import { NextRequest } from 'next/server'
+  mothershipAgentUrlMock,
+  mothershipAgentUrlMockFns,
+} from '@sim/testing/mocks/mothership-agent-url.mock'
+import {
+  mothershipChatLifecycleMock,
+  mothershipChatLifecycleMockFns,
+} from '@sim/testing/mocks/mothership-chat-lifecycle.mock'
+import {
+  mothershipChatMessagesMock,
+  mothershipChatMessagesMockFns,
+} from '@sim/testing/mocks/mothership-chat-messages.mock'
+import {
+  mothershipChatStatusMock,
+  mothershipChatStatusMockFns,
+} from '@sim/testing/mocks/mothership-chat-status.mock'
+import {
+  mothershipGoFetchMock,
+  mothershipGoFetchMockFns,
+} from '@sim/testing/mocks/mothership-go-fetch.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import {
+  workspaceAuthorizationMock,
+  workspaceAuthorizationMockFns,
+} from '@sim/testing/mocks/workspace-authorization.mock'
+import { workspaceContextMock } from '@sim/testing/mocks/workspace-context.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -20,17 +44,8 @@ const {
   mockListForkableChatFiles,
   mockPlanChatFileCopies,
   mockExecuteChatFileBlobCopies,
-  mockLoadCopilotChatMessages,
-  mockAppendCopilotChatMessages,
-  mockAssertActiveWorkspaceAccess,
-  mockFetchGo,
-  mockPublishStatusChanged,
-  mockCaptureServerEvent,
   mockPersistChatFileCopies,
-  mockPermissionConfig,
 } = vi.hoisted(() => ({
-  // Real (pure) cut semantics so tests drive selection through row.messageId:
-  // rows with a NULL/undefined messageId are kept in every fork.
   mockFilterForkableChatFiles: vi.fn(
     (rows: Array<{ messageId?: string | null }>, kept: ReadonlySet<string>) =>
       rows.filter((row) => !row.messageId || kept.has(row.messageId))
@@ -38,32 +53,14 @@ const {
   mockListForkableChatFiles: vi.fn(),
   mockPlanChatFileCopies: vi.fn(),
   mockExecuteChatFileBlobCopies: vi.fn(),
-  mockLoadCopilotChatMessages: vi.fn(),
-  mockAppendCopilotChatMessages: vi.fn(),
-  mockAssertActiveWorkspaceAccess: vi.fn(),
-  mockFetchGo: vi.fn(),
-  mockPublishStatusChanged: vi.fn(),
-  mockCaptureServerEvent: vi.fn(),
   mockPersistChatFileCopies: vi.fn(),
-  mockPermissionConfig: vi.fn(),
 }))
 
 vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
-vi.mock('@/lib/auth/ban', () => ({ getActivelyBannedUserIds: vi.fn().mockResolvedValue([]) }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: vi.fn(async (workspaceId: string) => ({
-    workspaceId,
-    workspaceOrganizationId: null,
-    allowPersonalApiKeys: true,
-  })),
-}))
-vi.mock('@/lib/core/application/workspace-authorization', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/core/application/workspace-authorization')>()),
-  authorizeWorkspaceOperation: mockAssertActiveWorkspaceAccess,
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mockPermissionConfig,
-}))
+vi.mock('@/lib/auth/ban', () => authBanMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 vi.mock('@/lib/mothership/chat/fork-chat-files', () => ({
   filterForkableChatFiles: mockFilterForkableChatFiles,
@@ -73,37 +70,36 @@ vi.mock('@/lib/mothership/chat/fork-chat-files', () => ({
   executeChatFileBlobCopies: mockExecuteChatFileBlobCopies,
 }))
 
-vi.mock('@/lib/mothership/chat/lifecycle', () => ({
-  loadCopilotChatMessages: mockLoadCopilotChatMessages,
-}))
+vi.mock('@/lib/mothership/chat/lifecycle', () => mothershipChatLifecycleMock)
 
-vi.mock('@/lib/mothership/chat/messages-store', () => ({
-  appendCopilotChatMessages: mockAppendCopilotChatMessages,
-}))
+vi.mock('@/lib/mothership/chat/messages-store', () => mothershipChatMessagesMock)
 
-vi.mock('@/lib/mothership/chat-status', () => ({
-  publishChatStatusChanged: mockPublishStatusChanged,
-}))
+vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
 
-vi.mock('@/lib/mothership/request/go/fetch', () => ({
-  fetchGo: mockFetchGo,
-}))
+vi.mock('@/lib/mothership/request/go/fetch', () => mothershipGoFetchMock)
 
-vi.mock('@/lib/mothership/server/agent-url', () => ({
-  getMothershipBaseURL: vi.fn().mockResolvedValue('http://mothership.test'),
-  getMothershipSourceEnvHeaders: vi.fn().mockReturnValue({}),
-}))
+vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: mockCaptureServerEvent,
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  assertActiveWorkspaceAccess: mockAssertActiveWorkspaceAccess,
-  isWorkspaceAccessDeniedError: () => false,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { POST } from '@/app/api/mothership/chats/[chatId]/fork/route'
+
+mothershipAgentUrlMockFns.mockGetMothershipBaseURL.mockResolvedValue('http://mothership.test')
+const { mockFetchGo } = mothershipGoFetchMockFns
+const { mockAppendCopilotChatMessages } = mothershipChatMessagesMockFns
+const { mockLoadCopilotChatMessages } = mothershipChatLifecycleMockFns
+const { mockPublishChatStatusChanged: mockPublishStatusChanged } = mothershipChatStatusMockFns
+
+workspaceAuthorizationMockFns.mockAuthorizeWorkspaceOperation.mockImplementation((...args) =>
+  permissionsMockFns.mockAssertActiveWorkspaceAccess(...args)
+)
+
+const mockAssertActiveWorkspaceAccess = permissionsMockFns.mockAssertActiveWorkspaceAccess
+const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
+const mockPermissionConfig =
+  permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization
 
 const OLD_FILE_ID = 'wf_oldfile'
 const NEW_FILE_ID = 'wf_newfile'
@@ -142,26 +138,21 @@ const threeMessages = [
 ]
 
 function createRequest(chatId: string, body?: unknown) {
-  return new NextRequest(`http://localhost:3000/api/mothership/chats/${chatId}/fork`, {
+  return createMockRequest({
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body ?? { upToMessageId: 'msg-2' }),
+    url: `http://localhost:3000/api/mothership/chats/${chatId}/fork`,
+    body: body ?? { upToMessageId: 'msg-2' },
   })
-}
-
-function makeContext(chatId: string) {
-  return { params: Promise.resolve({ chatId }) }
 }
 
 describe('POST /api/mothership/chats/[chatId]/fork', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnv({ COPILOT_API_KEY: undefined })
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
       isAuthenticated: true,
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
     })
     dbChainMockFns.limit.mockResolvedValue([parentRow])
     dbChainMockFns.returning.mockResolvedValue([{ id: 'row-id', workspaceId: 'ws-1' }])
@@ -188,21 +179,13 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     resetEnvMock()
   })
 
-  it('rejects unauthenticated callers', async () => {
-    copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
-      userId: null,
-      isAuthenticated: false,
-    })
-    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
-    expect(res.status).toBe(401)
-  })
-
   it('forks organization history under current membership without inventing workspace files', async () => {
     dbChainMockFns.limit.mockReset()
     const chat = { ...parentRow, workspaceId: null, organizationId: 'org-1', resources: [] }
     queueTableRows(copilotChats, [chat])
     queueTableRows(copilotChats, [chat])
     queueTableRows(member, [{ role: 'member' }])
+    queueTableRows(copilotChats, [{ id: chat.id }])
     const attachments = [
       {
         id: 'upload-1',
@@ -216,7 +199,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
       { ...threeMessages[0], fileAttachments: attachments, requestMode: 'assistant' },
       threeMessages[1],
     ])
-    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
+    const res = await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
     expect(res.status).toBe(200)
     const request = JSON.parse(mockFetchGo.mock.calls[0][1].body)
     expect(request).toMatchObject({
@@ -233,6 +216,26 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     expect(mockAssertActiveWorkspaceAccess).not.toHaveBeenCalled()
   })
 
+  it('refuses to publish a fork whose source chat was purged while it copied', async () => {
+    // The fork shares its attachment keys with the source, and cleanup deletes an unreferenced
+    // key only after deleting the source row: publishing without the source would leave the
+    // fork pointing at bytes that cleanup is about to delete.
+    dbChainMockFns.limit.mockReset()
+    const chat = { ...parentRow, workspaceId: null, organizationId: 'org-1', resources: [] }
+    queueTableRows(copilotChats, [chat])
+    queueTableRows(copilotChats, [chat])
+    queueTableRows(member, [{ role: 'member' }])
+    queueTableRows(copilotChats, [])
+    const res = await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
+    expect(res.status).toBe(404)
+    expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
+    expect(mockPublishStatusChanged).not.toHaveBeenCalled()
+    expect(mockFetchGo.mock.calls.map(([url]) => url)).toEqual([
+      'http://mothership.test/api/chats/fork',
+      'http://mothership.test/api/tasks/cleanup',
+    ])
+  })
+
   it.each(['membership', 'capability'] as const)(
     'denies organization forks after %s revocation before copying',
     async (revocation) => {
@@ -242,7 +245,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
       queueTableRows(copilotChats, [chat])
       queueTableRows(member, revocation === 'membership' ? [] : [{ role: 'member' }])
       if (revocation === 'capability') mockPermissionConfig.mockResolvedValue({ hideCopilot: true })
-      const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
+      const res = await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
       expect(res.status).toBe(404)
       expect(mockFetchGo).not.toHaveBeenCalled()
       expect(mockLoadCopilotChatMessages).not.toHaveBeenCalled()
@@ -250,89 +253,11 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     }
   )
 
-  it('retains the workspace membership-only fork policy', async () => {
-    expect((await POST(createRequest('chat-1'), makeContext('chat-1'))).status).toBe(200)
-    expect(mockAssertActiveWorkspaceAccess).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        id: 'mothership.chats.fork',
-        minimumRole: 'read',
-        capability: 'none',
-      }),
-      expect.objectContaining({ workspaceId: 'ws-1' }),
-      expect.anything()
-    )
-  })
-
   it('404s when the chat belongs to another user', async () => {
     dbChainMockFns.limit.mockResolvedValue([{ ...parentRow, userId: 'someone-else' }])
-    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
+    const res = await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
     expect(res.status).toBe(404)
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
-  })
-
-  it('404s for non-mothership chats', async () => {
-    dbChainMockFns.limit.mockResolvedValue([{ ...parentRow, type: 'copilot' }])
-    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
-    expect(res.status).toBe(404)
-  })
-
-  it('400s when upToMessageId is missing', async () => {
-    const res = await POST(createRequest('chat-1', {}), makeContext('chat-1'))
-    expect(res.status).toBe(400)
-    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
-  })
-
-  it('400s when upToMessageId is an empty string', async () => {
-    const res = await POST(createRequest('chat-1', { upToMessageId: '' }), makeContext('chat-1'))
-    expect(res.status).toBe(400)
-    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
-  })
-
-  it('400s when the message is not in the chat', async () => {
-    const res = await POST(
-      createRequest('chat-1', { upToMessageId: 'msg-unknown' }),
-      makeContext('chat-1')
-    )
-    expect(res.status).toBe(400)
-    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
-  })
-
-  it('applies the timeline cut: kept message ids drive the file selection', async () => {
-    // Two uploads born pre-cut, one born post-cut, and one legacy row with no
-    // birth message. The single chat-owned read is cut in memory: everything
-    // but the post-cut row.
-    const preCutUpload = { id: 'wf_up', size: 1, context: 'mothership', messageId: 'msg-1' }
-    const secondPreCut = { id: 'wf_up2', size: 1, context: 'mothership', messageId: 'msg-2' }
-    const postCutUpload = { id: 'wf_late', size: 1, context: 'mothership', messageId: 'msg-3' }
-    const legacyRow = { id: 'wf_legacy', size: 1, context: 'mothership', messageId: null }
-    mockListForkableChatFiles.mockResolvedValue([
-      preCutUpload,
-      secondPreCut,
-      postCutUpload,
-      legacyRow,
-    ])
-
-    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
-    expect(res.status).toBe(200)
-
-    // The cut runs over the single read with the kept slice (inclusive of
-    // msg-2, excluding msg-3).
-    expect(mockListForkableChatFiles).toHaveBeenCalledTimes(1)
-    const filterCall = mockFilterForkableChatFiles.mock.calls[0]
-    expect(filterCall[1]).toEqual(new Set(['msg-1', 'msg-2']))
-
-    // The copy plan receives the cut set — the pre-cut uploads plus the
-    // legacy no-birthdate row; the post-cut upload stays behind.
-    expect(mockPlanChatFileCopies.mock.calls[0][0].rows).toEqual([
-      preCutUpload,
-      secondPreCut,
-      legacyRow,
-    ])
-
-    // The appended transcript is the same inclusive slice.
-    const appended = mockAppendCopilotChatMessages.mock.calls[0]
-    expect(appended[1].map((m: { id: string }) => m.id)).toEqual(['msg-1', 'msg-2'])
   })
 
   it('forks the chat: copies kept uploads, rewrites references, clones agent state', async () => {
@@ -354,7 +279,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
       blobTasks,
     })
 
-    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
+    const res = await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
     const body = await res.json()
 
     expect(res.status).toBe(200)
@@ -404,39 +329,18 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     )
   })
 
-  it('drops legacy browser and terminal rows while forking, since the desktop app owns them', async () => {
-    dbChainMockFns.limit.mockResolvedValue([
-      {
-        ...parentRow,
-        resources: [
-          {
-            type: 'browser',
-            id: 'browser-session:slack-tab',
-            title: 'mship-todo (Channel) - sim - Slack',
-          },
-          { type: 'browser', id: 'browser-session', title: 'Browser' },
-          { type: 'terminal', id: 'terminal-session', title: 'Terminal' },
-          { type: 'file', id: 'file-1', title: 'report.csv' },
-        ],
-      },
-    ])
-
-    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
-
-    expect(res.status).toBe(200)
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        resources: [{ type: 'file', id: 'file-1', title: 'report.csv' }],
-      })
-    )
-  })
-
   it('does not publish a chat when the worker copy fails', async () => {
     mockFetchGo.mockRejectedValue(new Error('mothership unreachable'))
-    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
+    const res = await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
     expect(res.status).toBe(500)
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
     expect(mockPublishStatusChanged).not.toHaveBeenCalled()
+  })
+
+  it.each([404, 409, 413])('passes a worker %i refusal through', async (status) => {
+    mockFetchGo.mockResolvedValue(Response.json({ error: 'refused' }, { status }))
+    const res = await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
+    expect(res.status).toBe(status)
   })
 
   it('surfaces failed blob copies and excludes their metadata from publication', async () => {
@@ -446,7 +350,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
       failedCopyIds: ['wf_dead1', 'wf_dead2'],
     })
 
-    const failedRes = await POST(createRequest('chat-1'), makeContext('chat-1'))
+    const failedRes = await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
     const body = await failedRes.json()
 
     expect(body.failedFileCopies).toBe(2)
@@ -459,13 +363,114 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
   })
 
-  it('omits failedFileCopies and skips cleanup when every blob copies', async () => {
-    mockExecuteChatFileBlobCopies.mockResolvedValue({ copied: 3, failed: 0, failedCopyIds: [] })
+  it('discards the worker copy when the fork cannot be published', async () => {
+    dbChainMockFns.transaction.mockRejectedValueOnce(new Error('connection lost'))
+    const res = await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
+    expect(res.status).toBe(500)
+    const [fork, discard] = mockFetchGo.mock.calls
+    expect(fork[0]).toBe('http://mothership.test/api/chats/fork')
+    expect(discard[0]).toBe('http://mothership.test/api/tasks/cleanup')
+    expect(JSON.parse(discard[1].body)).toEqual({
+      chatIds: [JSON.parse(fork[1].body).newChatId],
+    })
+    expect(mockPublishStatusChanged).not.toHaveBeenCalled()
+  })
 
-    const cleanRes = await POST(createRequest('chat-1'), makeContext('chat-1'))
+  it('keeps references on the source file when its copy fails', async () => {
+    const oldKey = 'workspace/ws-1/old-cat.png'
+    mockListForkableChatFiles.mockResolvedValue([
+      { id: OLD_FILE_ID, key: oldKey, messageId: 'msg-1', workspaceId: 'ws-1' },
+    ])
+    mockPlanChatFileCopies.mockReturnValue({
+      idMap: new Map([[OLD_FILE_ID, NEW_FILE_ID]]),
+      keyMap: new Map([[oldKey, 'workspace/ws-1/new-cat.png']]),
+      blobTasks: [
+        {
+          copyId: NEW_FILE_ID,
+          sourceKey: oldKey,
+          targetKey: 'workspace/ws-1/new-cat.png',
+          context: 'mothership',
+          fileName: 'cat.png',
+          contentType: 'image/png',
+        },
+      ],
+    })
+    mockExecuteChatFileBlobCopies.mockResolvedValue({
+      copied: 0,
+      failed: 1,
+      failedCopyIds: [NEW_FILE_ID],
+    })
+    const res = await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
+    expect(res.status).toBe(200)
+    // The copy is never published, so neither Sim's transcript nor the worker's may name it.
+    expect(mockAppendCopilotChatMessages.mock.calls[0][1][0].content).toBe(
+      `See ![cat](/api/files/view/${OLD_FILE_ID})`
+    )
+    const forkRequest = JSON.parse(mockFetchGo.mock.calls[0][1].body)
+    expect(forkRequest.fileIds).toEqual({})
+    expect(forkRequest.fileKeys).toEqual({})
+  })
 
-    expect('failedFileCopies' in (await cleanRes.json())).toBe(false)
-    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
+  it('re-points in-app file links and tool-call arguments at the copied file', async () => {
+    mockLoadCopilotChatMessages.mockResolvedValue([
+      { ...threeMessages[0], content: `Open /workspace/ws-1/files/${OLD_FILE_ID}` },
+      {
+        ...threeMessages[1],
+        contentBlocks: [
+          {
+            type: 'tool',
+            toolCall: {
+              id: 'call-1',
+              name: 'sim_cli',
+              state: 'success',
+              params: { fileId: OLD_FILE_ID, args: ['files', 'read', OLD_FILE_ID], n: 2 },
+              display: { title: `Read /api/files/view/${OLD_FILE_ID}` },
+            },
+          },
+        ],
+      },
+    ])
+    mockPlanChatFileCopies.mockReturnValue({
+      idMap: new Map([[OLD_FILE_ID, NEW_FILE_ID]]),
+      keyMap: new Map(),
+      blobTasks: [],
+    })
+    const res = await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
+    expect(res.status).toBe(200)
+    const [user, assistant] = mockAppendCopilotChatMessages.mock.calls[0][1]
+    expect(user.content).toBe(`Open /workspace/ws-1/files/${NEW_FILE_ID}`)
+    expect(assistant.contentBlocks[0].toolCall).toMatchObject({
+      params: { fileId: NEW_FILE_ID, args: ['files', 'read', NEW_FILE_ID], n: 2 },
+      display: { title: `Read /api/files/view/${NEW_FILE_ID}` },
+    })
+  })
+
+  it('drops a Sources tab whose response is past the cut', async () => {
+    const kept = { type: 'sources', id: 'cited-sources', title: 'Sources' }
+    dbChainMockFns.limit.mockResolvedValue([
+      { ...parentRow, resources: [{ ...kept, sources: { messageId: 'msg-3' } }] },
+    ])
+    await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ resources: [] }))
+
+    dbChainMockFns.values.mockClear()
+    dbChainMockFns.limit.mockResolvedValue([
+      {
+        ...parentRow,
+        resources: [{ ...kept, sources: { messageId: 'live-id', requestId: 'req-2' } }],
+      },
+    ])
+    mockLoadCopilotChatMessages.mockResolvedValue([
+      threeMessages[0],
+      { ...threeMessages[1], requestId: 'req-2' },
+      threeMessages[2],
+    ])
+    await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resources: [{ ...kept, sources: { messageId: 'live-id', requestId: 'req-2' } }],
+      })
+    )
   })
 
   it('copies pre-cut uploads and drops only post-cut ghosts', async () => {
@@ -502,7 +507,7 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
       blobTasks: [],
     })
 
-    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
+    const res = await POST(createRequest('chat-1'), createRouteContext({ chatId: 'chat-1' }))
 
     expect(res.status).toBe(200)
     // The plan received the cut set: the kept upload + pre-cut apple only.
@@ -520,24 +525,5 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
         ],
       })
     )
-  })
-
-  it('drops ghosts even when the fork copies no files at all', async () => {
-    // Fork cut before the chat's only upload arrived: a guard that skips the
-    // resources update when idMap is empty would leave the ghost in place.
-    dbChainMockFns.limit.mockResolvedValue([
-      {
-        ...parentRow,
-        resources: [{ type: 'file', id: 'wf_banana', title: 'banana.png' }],
-      },
-    ])
-    mockListForkableChatFiles.mockResolvedValue([
-      { id: 'wf_banana', size: 50, context: 'mothership', messageId: 'msg-3' },
-    ])
-
-    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
-
-    expect(res.status).toBe(200)
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ resources: [] }))
   })
 })

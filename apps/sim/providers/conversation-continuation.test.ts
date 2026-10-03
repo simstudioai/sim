@@ -1,13 +1,11 @@
-/** @vitest-environment node */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { providersConversationHistoryMock } from '@sim/testing/mocks/providers-conversation-history.mock'
+import { providersUtilsMock } from '@sim/testing/mocks/providers-utils.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/core/config/env', () => ({ env: { ENCRYPTION_KEY: 'ab'.repeat(32) } }))
-vi.mock('@/providers/conversation-history', () => ({
-  getConversationRequestContext: () => undefined,
-  getConfiguredConversationToolBinding: vi.fn(),
-}))
+vi.mock('@/providers/conversation-history', () => providersConversationHistoryMock)
 vi.mock('@/providers/runtime-context', () => ({ executeProviderTool: vi.fn() }))
-vi.mock('@/providers/utils', () => ({ prepareToolExecution: vi.fn() }))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 import { encryptMemoryCheckpoint } from '@/lib/memory/checkpoint-codec'
 import { AgentTurnStateMachine } from '@/lib/memory/turn-state'
@@ -24,6 +22,9 @@ import {
 import { executeProviderTool } from '@/providers/runtime-context'
 import type { Message, ProviderRequest } from '@/providers/types'
 import { prepareToolExecution } from '@/providers/utils'
+
+setEnv({ ENCRYPTION_KEY: 'ab'.repeat(32), AZURE_OPENAI_ENDPOINT: undefined })
+afterAll(resetEnvMock)
 
 const request: ProviderRequest = { model: 'model-a', apiKey: '', maxTokens: 100 }
 
@@ -42,7 +43,6 @@ function toolGroup(content = 'result'): Message[] {
 
 describe('durable conversation restoration and continuation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.mocked(prepareToolExecution).mockReturnValue({ executionParams: {}, toolParams: {} })
     vi.mocked(getConfiguredConversationToolBinding).mockReturnValue('configured-binding')
   })
