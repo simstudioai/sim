@@ -1,9 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, ChipInput, cn } from '@sim/emcn'
+import { ChipInput } from '@sim/emcn'
 import { Search, X } from '@sim/emcn/icons'
 import type { ColumnDefinition, WorkflowGroup } from '@/lib/table'
+import {
+  TableSidebarHeader,
+  TableSidebarHeaderAction,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-sidebar-header/table-sidebar-header'
+import { TableSidebarShell } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-sidebar-layout'
 import { ALL_ENRICHMENTS } from '@/enrichments'
 import { getEnrichment } from '@/enrichments/registry'
 import type { EnrichmentConfig as EnrichmentDef } from '@/enrichments/types'
@@ -27,16 +32,9 @@ interface EnrichmentsSidebarProps {
  */
 export function EnrichmentsSidebar({ open, ...rest }: EnrichmentsSidebarProps) {
   return (
-    <aside
-      role='dialog'
-      aria-label='Enrichments'
-      className={cn(
-        'absolute top-0 right-0 bottom-0 z-[var(--z-modal)] flex w-[400px] flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--bg)] transition-transform duration-200 ease-out',
-        open ? 'translate-x-0 shadow-overlay' : 'translate-x-full'
-      )}
-    >
+    <TableSidebarShell open={open} aria-label='Enrichments'>
       {open && <EnrichmentsSidebarBody {...rest} />}
-    </aside>
+    </TableSidebarShell>
   )
 }
 
@@ -71,19 +69,12 @@ function EnrichmentsSidebarBody({
   if (editGroup && !editEnrichment) {
     return (
       <div className='flex h-full flex-col'>
-        <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
+        <TableSidebarHeader>
           <h2 className='text-[var(--text-primary)] text-small'>Enrichment</h2>
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={onClose}
-            iconPadding='sm'
-            className='size-7 flex-none'
-            aria-label='Close'
-          >
+          <TableSidebarHeaderAction onClick={onClose} className='flex-none' aria-label='Close'>
             <X className='size-[14px]' />
-          </Button>
-        </div>
+          </TableSidebarHeaderAction>
+        </TableSidebarHeader>
         <div className='flex flex-1 items-center justify-center px-6 text-center'>
           <p className='text-[var(--text-tertiary)] text-small'>
             This enrichment ("{editGroup.enrichmentId}") is no longer available. Delete the column
@@ -118,19 +109,12 @@ function EnrichmentsSidebarBody({
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
+      <TableSidebarHeader>
         <h2 className='text-[var(--text-primary)] text-small'>Enrichments</h2>
-        <Button
-          variant='ghost'
-          size='sm'
-          onClick={onClose}
-          iconPadding='sm'
-          className='size-7 flex-none'
-          aria-label='Close'
-        >
+        <TableSidebarHeaderAction onClick={onClose} className='flex-none' aria-label='Close'>
           <X className='size-[14px]' />
-        </Button>
-      </div>
+        </TableSidebarHeaderAction>
+      </TableSidebarHeader>
 
       <div className='px-2 pt-3'>
         <ChipInput

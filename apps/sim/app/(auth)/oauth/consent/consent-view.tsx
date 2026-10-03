@@ -14,7 +14,6 @@ import {
   AuthSubmitButton,
   AuthTextLink,
 } from '@/app/(auth)/components'
-import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
 import { OAuthConsentLoading } from '@/app/(auth)/oauth/consent/loading'
 import {
   useOAuthConsent,
@@ -166,7 +165,8 @@ export function OAuthConsentView({
           variant='border'
           fullWidth
           disabled={isPending}
-          className={AUTH_BUTTON_CLASS}
+          size='lg'
+          align='center'
           onClick={() => decide(false)}
         >
           {consent.isPending && consent.variables === false ? 'Declining…' : 'Deny'}

@@ -4,11 +4,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
   Checkbox,
+  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalField,
   ChipModalHeader,
-  cn,
 } from '@sim/emcn'
 import { ManageWorkspace } from '@sim/emcn/icons'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -97,10 +97,10 @@ export function GroupedCheckboxList({
   const noneSelected = selectedValues.length === 0
 
   useEffect(() => {
-    if (activeSearchTarget?.subBlockId === subBlockId) {
+    if (!isPreview && activeSearchTarget?.subBlockId === subBlockId) {
       setOpen(true)
     }
-  }, [activeSearchTarget, subBlockId])
+  }, [activeSearchTarget, isPreview, subBlockId])
 
   useEffect(() => {
     if (!open || activeSearchTarget?.subBlockId !== subBlockId) return
@@ -113,26 +113,31 @@ export function GroupedCheckboxList({
 
   return (
     <>
-      <Button
-        variant='ghost'
-        disabled={disabled}
+      <Chip
+        variant='outline'
+        fullWidth
+        leftAdornment={
+          <ManageWorkspace className='size-4 shrink-0 opacity-50' data-preview-full-opacity />
+        }
+        disabled={disabled || isPreview}
+        data-preview-full-opacity={isPreview || undefined}
         onClick={() => setOpen(true)}
-        className={cn(
-          'flex w-full cursor-pointer justify-between rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] font-sans text-[var(--text-primary)] text-sm focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-[var(--surface-5)]',
-          'hover-hover:bg-[var(--surface-active)]'
-        )}
+        rightAdornment={
+          <SelectedCountDisplay
+            noneSelected={noneSelected}
+            allSelected={allSelected}
+            count={selectedValues.length}
+          />
+        }
       >
-        <span className='flex flex-1 items-center gap-2 truncate text-[var(--text-muted)]'>
-          <ManageWorkspace className='size-4 shrink-0 opacity-50' />
-          <span className='truncate'>Configure PII Types</span>
-        </span>
-        <SelectedCountDisplay
-          noneSelected={noneSelected}
-          allSelected={allSelected}
-          count={selectedValues.length}
-        />
-      </Button>
-      <ChipModal open={open} onOpenChange={setOpen} srTitle='Select PII Types to Detect' size='lg'>
+        Configure PII Types
+      </Chip>
+      <ChipModal
+        open={open && !isPreview}
+        onOpenChange={setOpen}
+        srTitle='Select PII Types to Detect'
+        size='lg'
+      >
         <ChipModalHeader onClose={() => setOpen(false)}>Select PII Types to Detect</ChipModalHeader>
         <ChipModalBody onWheel={(e) => e.stopPropagation()}>
           <ChipModalField

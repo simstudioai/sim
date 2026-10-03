@@ -2,6 +2,7 @@
 
 import type { ComponentType } from 'react'
 import {
+  BulkActionBar,
   BulkActionButton,
   cn,
   DropdownMenu,
@@ -91,57 +92,48 @@ export function ResourceActionBar({
         className
       )}
     >
-      <div className='flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5'>
-        <span
-          className={cn(
-            'px-1 text-small',
-            exceedsLimit ? 'text-[var(--text-error)]' : 'text-[var(--text-secondary)]'
-          )}
-        >
-          {exceedsLimit
-            ? `${selectedCount} selected · select ${maxSelectable} or fewer`
-            : `${selectedCount} selected`}
-        </span>
-        <div className='flex items-center gap-[5px]'>
-          {onDownload && (
-            <ActionButton
-              icon={Download}
-              label='Download'
-              onClick={onDownload}
-              disabled={actionsDisabled}
-            />
-          )}
-          {onMove && moveOptions && (
-            <DropdownMenu>
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <DropdownMenuTrigger asChild>
-                    <BulkActionButton aria-label='Move' disabled={actionsDisabled}>
-                      <Folder className='size-[12px]' />
-                    </BulkActionButton>
-                  </DropdownMenuTrigger>
-                </Tooltip.Trigger>
-                <Tooltip.Content side='top'>Move</Tooltip.Content>
-              </Tooltip.Root>
-              <DropdownMenuContent
-                side='top'
-                align='center'
-                className='max-h-[240px] overflow-y-auto'
-              >
-                {renderMoveOptions(moveOptions, onMove)}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-          {onDelete && (
-            <ActionButton
-              icon={Trash}
-              label='Delete'
-              onClick={onDelete}
-              disabled={actionsDisabled}
-            />
-          )}
-        </div>
-      </div>
+      <BulkActionBar
+        label={
+          <span className={exceedsLimit ? 'text-[var(--text-error)]' : undefined}>
+            {exceedsLimit
+              ? `${selectedCount} selected · select ${maxSelectable} or fewer`
+              : `${selectedCount} selected`}
+          </span>
+        }
+      >
+        {onDownload && (
+          <ActionButton
+            icon={Download}
+            label='Download'
+            onClick={onDownload}
+            disabled={actionsDisabled}
+          />
+        )}
+        {onMove && moveOptions && (
+          <DropdownMenu>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <BulkActionButton aria-label='Move' disabled={actionsDisabled}>
+                    <Folder className='size-[12px]' />
+                  </BulkActionButton>
+                </DropdownMenuTrigger>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>Move</Tooltip.Content>
+            </Tooltip.Root>
+            <DropdownMenuContent
+              side='top'
+              align='center'
+              className='max-h-[240px] overflow-y-auto'
+            >
+              {renderMoveOptions(moveOptions, onMove)}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+        {onDelete && (
+          <ActionButton icon={Trash} label='Delete' onClick={onDelete} disabled={actionsDisabled} />
+        )}
+      </BulkActionBar>
     </div>
   )
 }

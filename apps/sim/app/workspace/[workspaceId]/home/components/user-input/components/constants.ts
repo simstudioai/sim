@@ -62,7 +62,7 @@ export const PROMPT_TEXT_CLASSES = 'font-body text-[14px] leading-[24px] trackin
  * Box and typography shared by the textarea and its mirror overlay — both must
  * produce identical line wrapping so the overlay text sits exactly over the
  * (transparent) textarea text. The scale is the chat input's native prompt
- * scale (`text-[14px]`, `-0.015em` tracking); the task modal's body inherits it
+ * scale (`text-sm`, 14px at the default root, `-0.015em` tracking); the task modal's body inherits it
  * so the editor reads the same whether it's the chat input or inside the modal.
  */
 export const PROMPT_FIELD_CLASSES = cn(

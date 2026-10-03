@@ -22,6 +22,7 @@
 import * as React from 'react'
 import { Check } from '../../icons'
 import { cn } from '../../lib/cn'
+import { chipFilledSurfaceTokens, chipRadiusClass } from '../chip/chip-chrome'
 
 export interface InfoCardProps extends React.HTMLAttributes<HTMLDivElement> {}
 
@@ -31,14 +32,7 @@ export interface InfoCardProps extends React.HTMLAttributes<HTMLDivElement> {}
  * `ChipModalField`.
  */
 const InfoCard = React.forwardRef<HTMLDivElement, InfoCardProps>(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn(
-      'rounded-lg border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-4)]',
-      className
-    )}
-    {...props}
-  />
+  <div ref={ref} className={cn(chipRadiusClass, chipFilledSurfaceTokens, className)} {...props} />
 ))
 
 InfoCard.displayName = 'InfoCard'

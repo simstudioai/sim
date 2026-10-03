@@ -1,4 +1,4 @@
-import { BulkActionButton, cn, Tooltip } from '@sim/emcn'
+import { BulkActionBar, BulkActionButton, cn, Tooltip } from '@sim/emcn'
 import { Ban, Circle, Trash } from '@sim/emcn/icons'
 import { domAnimation, LazyMotion, m } from 'framer-motion'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -53,70 +53,70 @@ export function ActionBar({
         transition={{ duration: 0.2 }}
         className={cn('-translate-x-1/2 fixed bottom-6 left-1/2 z-[var(--z-dropdown)]', className)}
       >
-        <div className='flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5'>
-          <span className='px-1 text-[var(--text-secondary)] text-small'>
-            {isAllSelected ? totalCount : selectedCount} selected
-            {showSelectAllOption && (
-              <>
-                {' · '}
-                <button
-                  type='button'
-                  onClick={onSelectAll}
-                  className='text-[var(--brand-secondary)] hover-hover:underline'
-                >
-                  Select all
-                </button>
-              </>
-            )}
-            {isAllSelected && onClearSelectAll && (
-              <>
-                {' · '}
-                <button
-                  type='button'
-                  onClick={onClearSelectAll}
-                  className='text-[var(--brand-secondary)] hover-hover:underline'
-                >
-                  Clear
-                </button>
-              </>
-            )}
-          </span>
+        <BulkActionBar
+          label={
+            <>
+              {isAllSelected ? totalCount : selectedCount} selected
+              {showSelectAllOption && (
+                <>
+                  {' · '}
+                  <button
+                    type='button'
+                    onClick={onSelectAll}
+                    className='text-[var(--brand-secondary)] hover-hover:underline'
+                  >
+                    Select all
+                  </button>
+                </>
+              )}
+              {isAllSelected && onClearSelectAll && (
+                <>
+                  {' · '}
+                  <button
+                    type='button'
+                    onClick={onClearSelectAll}
+                    className='text-[var(--brand-secondary)] hover-hover:underline'
+                  >
+                    Clear
+                  </button>
+                </>
+              )}
+            </>
+          }
+        >
+          {showEnableButton && (
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <BulkActionButton aria-label='Enable' onClick={onEnable} disabled={isLoading}>
+                  <Circle className='size-[12px]' />
+                </BulkActionButton>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>Enable</Tooltip.Content>
+            </Tooltip.Root>
+          )}
 
-          <div className='flex items-center gap-[5px]'>
-            {showEnableButton && (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <BulkActionButton aria-label='Enable' onClick={onEnable} disabled={isLoading}>
-                    <Circle className='size-[12px]' />
-                  </BulkActionButton>
-                </Tooltip.Trigger>
-                <Tooltip.Content side='top'>Enable</Tooltip.Content>
-              </Tooltip.Root>
-            )}
+          {showDisableButton && (
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <BulkActionButton aria-label='Disable' onClick={onDisable} disabled={isLoading}>
+                  <Ban className='size-[12px]' />
+                </BulkActionButton>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>Disable</Tooltip.Content>
+            </Tooltip.Root>
+          )}
 
-            {showDisableButton && (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <BulkActionButton aria-label='Disable' onClick={onDisable} disabled={isLoading}>
-                    <Ban className='size-[12px]' />
-                  </BulkActionButton>
-                </Tooltip.Trigger>
-                <Tooltip.Content side='top'>Disable</Tooltip.Content>
-              </Tooltip.Root>
-            )}
-
-            {onDelete && canEdit && (
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <BulkActionButton aria-label='Delete' onClick={onDelete} disabled={isLoading}>
-                    <Trash className='size-[12px]' />
-                  </BulkActionButton>
-                </Tooltip.Trigger>
-                <Tooltip.Content side='top'>Delete</Tooltip.Content>
-              </Tooltip.Root>
-            )}
-          </div>
-        </div>
+          {onDelete && canEdit && (
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <BulkActionButton aria-label='Delete' onClick={onDelete} disabled={isLoading}>
+                  <Trash className='size-[12px]' />
+                </BulkActionButton>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>Delete</Tooltip.Content>
+            </Tooltip.Root>
+          )}
+        </BulkActionBar>
       </m.div>
     </LazyMotion>
   )

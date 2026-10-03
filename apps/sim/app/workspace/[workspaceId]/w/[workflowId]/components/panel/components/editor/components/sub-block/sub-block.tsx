@@ -302,7 +302,8 @@ const renderLabel = (
             {!wandState.isSearchActive ? (
               <Button
                 variant='active'
-                className='-my-1 h-5 py-0 text-xs'
+                size='inline'
+                className='-my-1'
                 onClick={wandState.onSearchClick}
               >
                 Generate
@@ -1244,6 +1245,7 @@ function SubBlockComponent({
       onMouseDown={handleMouseDown}
       data-workflow-search-subblock-id={config.id}
       data-workflow-search-canonical-id={config.canonicalParamId ?? config.id}
+      data-preview-readonly={(isPreview && !disabled) || undefined}
       className='subblock-content flex flex-col gap-2.5'
     >
       {renderLabel(

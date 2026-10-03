@@ -1,6 +1,6 @@
 'use client'
 
-import { Button, Combobox, Input } from '@sim/emcn'
+import { Chip, ChipCombobox, ChipInput } from '@sim/emcn'
 import type { WorkflowSearchReplacementOption } from '@/lib/workflows/search-replace/types'
 
 interface ReplacementControlsProps {
@@ -33,7 +33,7 @@ export function ReplacementControls({
   return (
     <div className='space-y-2'>
       {usesResourceReplacement ? (
-        <Combobox
+        <ChipCombobox
           options={compatibleResourceOptions.map((option) => ({
             label: option.label,
             value: option.value,
@@ -47,7 +47,7 @@ export function ReplacementControls({
           disabled={disabled || compatibleResourceOptions.length === 0}
         />
       ) : (
-        <Input
+        <ChipInput
           value={replacement}
           placeholder='Replace'
           disabled={disabled}
@@ -60,22 +60,22 @@ export function ReplacementControls({
           {eligibleCount} replaceable match{eligibleCount === 1 ? '' : 'es'}
         </span>
         <div className='flex gap-1.5'>
-          <Button
-            className='h-8 text-xs'
-            variant='default'
+          <Chip
+            type='button'
+            variant='outline'
             disabled={disabled || isApplying || !canReplaceActive}
             onClick={onReplaceActive}
           >
             Replace
-          </Button>
-          <Button
-            className='h-8 text-xs'
-            variant='active'
+          </Chip>
+          <Chip
+            type='button'
+            active
             disabled={disabled || isApplying || !canReplaceAll}
             onClick={onReplaceAll}
           >
             {isApplying ? 'Replacing...' : 'Replace All'}
-          </Button>
+          </Chip>
         </div>
       </div>
     </div>

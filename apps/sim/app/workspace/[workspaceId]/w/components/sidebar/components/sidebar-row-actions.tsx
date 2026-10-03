@@ -1,4 +1,5 @@
 import { type ButtonHTMLAttributes, forwardRef } from 'react'
+import { cn, mutedFocusRingClass } from '@sim/emcn'
 
 interface SidebarRowActionProps
   extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className' | 'type'> {
@@ -12,7 +13,7 @@ export const SidebarRowAction = forwardRef<HTMLButtonElement, SidebarRowActionPr
       {...props}
       ref={ref}
       type='button'
-      className='flex size-[18px] items-center justify-center rounded-sm focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--text-muted)_30%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-2)]'
+      className={cn('flex size-[18px] items-center justify-center rounded-sm', mutedFocusRingClass)}
     />
   )
 )

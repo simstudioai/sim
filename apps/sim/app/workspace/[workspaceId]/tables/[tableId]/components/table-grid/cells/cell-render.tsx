@@ -412,7 +412,7 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
             alt=''
             width={12}
             height={12}
-            className='shrink-0 rounded-[2px]'
+            className='shrink-0 rounded-xs'
             onError={(e) => {
               e.currentTarget.style.display = 'none'
             }}

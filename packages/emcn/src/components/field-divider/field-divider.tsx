@@ -1,4 +1,6 @@
+import { ChevronDown } from '../../icons'
 import { cn } from '../../lib/cn'
+import { Button, type ButtonProps } from '../button/button'
 
 const DASHED_DIVIDER_STYLE = {
   backgroundImage:
@@ -54,4 +56,41 @@ function FieldDivider({ className, subblockMarker = false, ...props }: FieldDivi
   )
 }
 
-export { DashedDividerLine, FieldDivider }
+export interface FieldDisclosureProps
+  extends Pick<ButtonProps, 'onClick' | 'disabled' | 'aria-controls' | 'children'> {
+  expanded: boolean
+}
+
+/**
+ * Controlled disclosure between field groups. The caller owns the label,
+ * expanded state and fields; this supplies the divider lines and rotating chevron.
+ *
+ * @example
+ * <FieldDisclosure expanded={expanded} onClick={onToggle}>
+ *   {expanded ? 'Hide additional fields' : 'Show additional fields'}
+ * </FieldDisclosure>
+ */
+function FieldDisclosure({ expanded, children, ...props }: FieldDisclosureProps) {
+  return (
+    <div className='flex items-center gap-2.5 px-0.5 pt-3.5 pb-3'>
+      <DashedDividerLine className='flex-1' />
+      <Button
+        {...props}
+        type='button'
+        variant='ghost'
+        size={null}
+        focusRing='muted'
+        aria-expanded={expanded}
+        className='gap-1.5 whitespace-nowrap p-0 text-small'
+      >
+        {children}
+        <ChevronDown
+          className={cn('size-[14px] transition-transform duration-200', expanded && 'rotate-180')}
+        />
+      </Button>
+      <DashedDividerLine className='flex-1' />
+    </div>
+  )
+}
+
+export { DashedDividerLine, FieldDisclosure, FieldDivider }

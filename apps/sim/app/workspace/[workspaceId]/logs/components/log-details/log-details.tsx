@@ -15,7 +15,6 @@ import {
   Badge,
   Button,
   Chip,
-  ChipInput,
   ChipModalTabs,
   Code,
   cn,
@@ -28,14 +27,13 @@ import {
   Duplicate,
   Eye,
   handleKeyboardActivation,
+  OverlayActionButton,
   Redo,
   Search as SearchIcon,
   Tooltip,
   useCopyToClipboard,
 } from '@sim/emcn'
 import {
-  ArrowDown,
-  ArrowUp,
   Check,
   ChevronUp,
   Clipboard,
@@ -59,6 +57,7 @@ import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-s
 import type { TraceSpan } from '@/lib/logs/types'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
+import { CodeSearchOverlay } from '@/app/workspace/[workspaceId]/components/code-search-overlay/code-search-overlay'
 /**
  * Deep imports on purpose: importing these back through the parent `logs/components`
  * barrel forms a parent->child cycle that would keep the barrel edge to the snapshot
@@ -158,7 +157,8 @@ export const WorkflowOutputSection = memo(
           <Code.Viewer
             code={jsonString}
             language='json'
-            className='max-h-[300px] min-h-0 max-w-full rounded-md border-0 bg-[var(--surface-4)]! [word-break:break-all] dark:bg-[var(--surface-3)]!'
+            appearance='inspection'
+            className='max-h-[300px] min-h-0 max-w-full [word-break:break-all]'
             wrapText
             searchQuery={isSearchActive ? searchQuery : undefined}
             currentMatchIndex={currentMatchIndex}
@@ -169,39 +169,35 @@ export const WorkflowOutputSection = memo(
             <div className='absolute top-[7px] right-[6px] z-10 flex gap-1'>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Button
+                  <OverlayActionButton
                     aria-label={copied ? 'Copied' : 'Copy'}
                     type='button'
-                    variant='default'
                     onClick={(e) => {
                       e.stopPropagation()
                       handleCopy()
                     }}
-                    className='size-[20px] cursor-pointer border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
                   >
                     {copied ? (
                       <Check className='size-[10px] text-[var(--text-success)]' />
                     ) : (
                       <Clipboard className='size-[10px]' />
                     )}
-                  </Button>
+                  </OverlayActionButton>
                 </Tooltip.Trigger>
                 <Tooltip.Content side='top'>{copied ? 'Copied' : 'Copy'}</Tooltip.Content>
               </Tooltip.Root>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Button
+                  <OverlayActionButton
                     aria-label='Search'
                     type='button'
-                    variant='default'
                     onClick={(e) => {
                       e.stopPropagation()
                       activateSearch()
                     }}
-                    className='size-[20px] cursor-pointer border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
                   >
                     <Search className='size-[10px]' />
-                  </Button>
+                  </OverlayActionButton>
                 </Tooltip.Trigger>
                 <Tooltip.Content side='top'>Search</Tooltip.Content>
               </Tooltip.Root>
@@ -211,54 +207,18 @@ export const WorkflowOutputSection = memo(
 
         {/* Search Overlay */}
         {isSearchActive && (
-          <div
-            role='presentation'
-            className='absolute top-0 right-0 z-30 flex h-[34px] items-center gap-1.5 rounded-sm border border-[var(--border)] bg-[var(--surface-1)] px-1.5 shadow-xs'
-            onClick={(e) => e.stopPropagation()}
-          >
-            <ChipInput
-              ref={searchInputRef}
-              type='text'
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder='Search...'
-              className='mr-0.5 w-[94px]'
-            />
-            <span
-              className={cn(
-                'min-w-[45px] text-center text-xs',
-                matchCount > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'
-              )}
-            >
-              {matchCount > 0 ? `${currentMatchIndex + 1}/${matchCount}` : '0/0'}
-            </span>
-            <Button
-              variant='ghost'
-              iconPadding='sm'
-              onClick={goToPreviousMatch}
-              disabled={matchCount === 0}
-              aria-label='Previous match'
-            >
-              <ArrowUp className='size-[12px]' />
-            </Button>
-            <Button
-              variant='ghost'
-              iconPadding='sm'
-              onClick={goToNextMatch}
-              disabled={matchCount === 0}
-              aria-label='Next match'
-            >
-              <ArrowDown className='size-[12px]' />
-            </Button>
-            <Button
-              variant='ghost'
-              iconPadding='sm'
-              onClick={closeSearch}
-              aria-label='Close search'
-            >
-              <X className='size-[12px]' />
-            </Button>
-          </div>
+          <CodeSearchOverlay
+            className='top-0 right-0'
+            inputKind='chip'
+            inputRef={searchInputRef}
+            query={searchQuery}
+            onQueryChange={setSearchQuery}
+            matchCount={matchCount}
+            currentMatchIndex={currentMatchIndex}
+            onPrevious={goToPreviousMatch}
+            onNext={goToNextMatch}
+            onClose={closeSearch}
+          />
         )}
 
         {/* Context Menu - rendered in portal to avoid transform/overflow clipping */}
@@ -517,7 +477,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                       target='_blank'
                       rel='noopener noreferrer'
                       prefetch={false}
-                      className='-mx-1.5 -my-0.5 group flex w-fit min-w-0 max-w-[calc(100%+0.75rem)] items-center gap-1.5 rounded-[5px] px-1.5 py-0.5 transition-colors hover-hover:bg-[var(--surface-active)] focus-visible:bg-[var(--surface-active)] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--text-muted)_30%,transparent)]'
+                      className='-mx-1.5 -my-0.5 group flex w-fit min-w-0 max-w-[calc(100%+0.75rem)] items-center gap-1.5 rounded-sm px-1.5 py-0.5 transition-colors hover-hover:bg-[var(--surface-active)] focus-visible:bg-[var(--surface-active)] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--text-muted)_30%,transparent)]'
                     >
                       <span className='inline-grid size-[14px] shrink-0 place-items-center'>
                         <Workflow className='col-start-1 row-start-1 size-[14px] text-[var(--text-icon)] opacity-100 blur-none transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-[0.25] group-hover:opacity-0 group-hover:blur-[2px] group-focus-visible:scale-[0.25] group-focus-visible:opacity-0 group-focus-visible:blur-[2px] motion-reduce:transition-none' />

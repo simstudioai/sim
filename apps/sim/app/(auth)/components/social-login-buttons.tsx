@@ -1,13 +1,12 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
-import { Chip, cn } from '@sim/emcn'
+import { Chip } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { GithubIcon, GoogleIcon, MicrosoftIcon } from '@/components/icons'
 import { client } from '@/lib/auth/auth-client'
 import { DEFAULT_POST_AUTH_ROUTE } from '@/app/(auth)/auth-redirect'
-import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
 
 const logger = createLogger('SocialLoginButtons')
 
@@ -73,7 +72,9 @@ export function SocialLoginButtons({
     <Chip
       fullWidth
       leftIcon={GithubIcon}
-      className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
+      variant='outline'
+      size='lg'
+      align='center'
       disabled={!githubAvailable || isGithubLoading}
       onClick={signInWithGithub}
     >
@@ -85,7 +86,9 @@ export function SocialLoginButtons({
     <Chip
       fullWidth
       leftIcon={GoogleIcon}
-      className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
+      variant='outline'
+      size='lg'
+      align='center'
       disabled={!googleAvailable || isGoogleLoading}
       onClick={signInWithGoogle}
     >
@@ -97,7 +100,9 @@ export function SocialLoginButtons({
     <Chip
       fullWidth
       leftIcon={MicrosoftIcon}
-      className={cn(AUTH_BUTTON_CLASS, 'border border-[var(--border-1)]')}
+      variant='outline'
+      size='lg'
+      align='center'
       disabled={!microsoftAvailable || isMicrosoftLoading}
       onClick={signInWithMicrosoft}
     >

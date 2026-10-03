@@ -27,24 +27,24 @@ export function MothershipChatSkeleton({
   return (
     <div className={styles.content}>
       <div className={styles.userRow}>
-        <Skeleton className='h-[40px] w-[55%] rounded-[16px]' />
+        <Skeleton className='h-[40px] w-[55%] rounded-2xl' />
       </div>
 
       <div className='space-y-3'>
-        <Skeleton className='h-[14px] w-[90%] rounded-[4px]' />
-        <Skeleton className='h-[14px] w-[75%] rounded-[4px]' />
-        <Skeleton className='h-[14px] w-[82%] rounded-[4px]' />
-        <Skeleton className='h-[14px] w-[40%] rounded-[4px]' />
+        <Skeleton className='h-[14px] w-[90%] rounded-sm' />
+        <Skeleton className='h-[14px] w-[75%] rounded-sm' />
+        <Skeleton className='h-[14px] w-[82%] rounded-sm' />
+        <Skeleton className='h-[14px] w-[40%] rounded-sm' />
       </div>
 
       <div className={styles.userRow}>
-        <Skeleton className='h-[32px] w-[40%] rounded-[16px]' />
+        <Skeleton className='h-[32px] w-[40%] rounded-2xl' />
       </div>
 
       <div className='space-y-3'>
-        <Skeleton className='h-[14px] w-[85%] rounded-[4px]' />
-        <Skeleton className='h-[14px] w-[70%] rounded-[4px]' />
-        <Skeleton className='h-[14px] w-[60%] rounded-[4px]' />
+        <Skeleton className='h-[14px] w-[85%] rounded-sm' />
+        <Skeleton className='h-[14px] w-[70%] rounded-sm' />
+        <Skeleton className='h-[14px] w-[60%] rounded-sm' />
       </div>
     </div>
   )

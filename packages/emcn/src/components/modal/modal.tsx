@@ -235,7 +235,7 @@ function hasOpenFloatingLayer() {
 
 /**
  * Clears a stale `pointer-events: none` lock Radix can leave on `<body>` when
- * this dialog closes while a nested modal popper (an open `ChipDropdown` /
+ * this dialog closes while a nested modal popper (an open `ChipSelect` /
  * `Select`) is still open: both layers' body locks tear down in the same tick
  * and the release is lost, freezing the page so nothing is clickable.
  *
@@ -266,7 +266,7 @@ function ModalBodyLockReleaser() {
 /**
  * Whether the current subtree renders inside a `ModalContent`.
  *
- * Floating EMCN controls (e.g. `ChipDropdown`) read this to switch their
+ * Floating EMCN controls (e.g. `ChipSelect`) read this to switch their
  * Radix popper to modal behavior. A non-modal popper portaled to `body`
  * underneath a modal dialog inherits the dialog's `pointer-events: none`
  * body lock and its outside-scroll lock, leaving the popper unclickable and

@@ -19,7 +19,7 @@ export function createDragPreview(info: DragItemInfo): HTMLElement {
   preview.style.cssText = `
     width: 250px;
     background: var(--surface-1);
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
     padding: 8px 9px;
     display: flex;
     align-items: center;
@@ -37,7 +37,7 @@ export function createDragPreview(info: DragItemInfo): HTMLElement {
     : document.createElement('div')
   iconContainer.style.width = '24px'
   iconContainer.style.height = '24px'
-  iconContainer.style.borderRadius = '6px'
+  iconContainer.style.borderRadius = 'var(--radius-md)'
   iconContainer.style.display = 'flex'
   iconContainer.style.alignItems = 'center'
   iconContainer.style.justifyContent = 'center'

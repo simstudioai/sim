@@ -569,7 +569,7 @@ export function DeployModal({
           />
           {deployError && (
             <div role='alert'>
-              <Badge variant='red' size='lg' dot className='max-w-full truncate'>
+              <Badge variant='red' size='md' dot className='max-w-full truncate'>
                 {deployError}
               </Badge>
             </div>
@@ -778,7 +778,7 @@ function StatusBadge({
     return (
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <Badge variant='amber' size='lg' dot className='cursor-default'>
+          <Badge variant='amber' size='md' dot className='cursor-default'>
             {isRetrying ? 'Retrying' : 'Pending'}
           </Badge>
         </Tooltip.Trigger>
@@ -802,7 +802,7 @@ function StatusBadge({
     return (
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <Badge variant='red' size='lg' dot className='cursor-default'>
+          <Badge variant='red' size='md' dot className='cursor-default'>
             Failed
           </Badge>
         </Tooltip.Trigger>
@@ -821,7 +821,7 @@ function StatusBadge({
   if (!isDeployed) return null
 
   return (
-    <Badge variant={needsRedeployment ? 'amber' : 'green'} size='lg' dot>
+    <Badge variant={needsRedeployment ? 'amber' : 'green'} size='md' dot>
       {needsRedeployment ? 'Update deployment' : 'Live'}
     </Badge>
   )

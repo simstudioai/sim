@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { BrowserDownloadInfo } from '@sim/desktop-bridge'
 import {
-  Button,
   cn,
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +17,7 @@ import {
   showBrowserDownloadInFolder,
   showBrowserDownloadsMenu,
 } from '@/lib/browser-agent/transport'
+import { BrowserToolbarButton } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-toolbar-button'
 
 /** Aggregate byte progress for the toolbar rail; unknown-size downloads are ignored. */
 export function aggregateDownloadPercent(downloads: BrowserDownloadInfo[]): number | null {
@@ -127,14 +127,11 @@ export function BrowserDownloads({ scopeId, open, requestOpen, onClose }: Browse
       }}
     >
       <DropdownMenuTrigger asChild>
-        <Button
+        <BrowserToolbarButton
           ref={buttonRef}
-          type='button'
-          variant='ghost-secondary'
-          size='sm'
           aria-label={label}
           title={label}
-          className='relative size-[30px] shrink-0 overflow-hidden p-0'
+          className='relative overflow-hidden'
           onClick={() => setHasUnviewedCompletion(false)}
         >
           {hasActiveDownloads ? (
@@ -160,7 +157,7 @@ export function BrowserDownloads({ scopeId, open, requestOpen, onClose }: Browse
               />
             </span>
           )}
-        </Button>
+        </BrowserToolbarButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' sideOffset={5} className='w-[320px]'>
         <DropdownMenuLabel>Downloads</DropdownMenuLabel>

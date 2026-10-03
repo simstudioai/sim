@@ -1,7 +1,7 @@
 'use client'
 
 import type React from 'react'
-import { BulkActionButton, cn, Tooltip } from '@sim/emcn'
+import { BulkActionBar, BulkActionButton, cn, Tooltip } from '@sim/emcn'
 import { Eye, PlayOutline, RefreshCw, Square } from '@sim/emcn/icons'
 import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
 
@@ -89,47 +89,42 @@ export function TableActionBar({
               className
             )}
           >
-            <div className='pointer-events-auto flex items-center gap-2 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5'>
-              <span className='px-1 text-[var(--text-secondary)] text-small'>
-                {selectedCellCount === 1
+            <BulkActionBar
+              className='pointer-events-auto'
+              label={
+                selectedCellCount === 1
                   ? 'Selected 1 workflow cell'
-                  : `Selected ${selectedCellCount} workflow cells`}
-              </span>
+                  : `Selected ${selectedCellCount} workflow cells`
+              }
+            >
+              {showPlay && (
+                <ActionIconButton label={playLabel} onClick={onPlay} disabled={isLoading}>
+                  <PlayOutline className='size-[12px]' />
+                </ActionIconButton>
+              )}
 
-              <div className='flex items-center gap-[5px]'>
-                {showPlay && (
-                  <ActionIconButton label={playLabel} onClick={onPlay} disabled={isLoading}>
-                    <PlayOutline className='size-[12px]' />
-                  </ActionIconButton>
-                )}
+              {showRefresh && (
+                <ActionIconButton label={refreshLabel} onClick={onRefresh} disabled={isLoading}>
+                  <RefreshCw className='size-[12px]' />
+                </ActionIconButton>
+              )}
 
-                {showRefresh && (
-                  <ActionIconButton label={refreshLabel} onClick={onRefresh} disabled={isLoading}>
-                    <RefreshCw className='size-[12px]' />
-                  </ActionIconButton>
-                )}
+              {runningCount > 0 && (
+                <ActionIconButton label={stopLabel} onClick={onStopWorkflows} disabled={isLoading}>
+                  <Square className='size-[12px]' />
+                </ActionIconButton>
+              )}
 
-                {runningCount > 0 && (
-                  <ActionIconButton
-                    label={stopLabel}
-                    onClick={onStopWorkflows}
-                    disabled={isLoading}
-                  >
-                    <Square className='size-[12px]' />
-                  </ActionIconButton>
-                )}
-
-                {onViewExecution && (
-                  <ActionIconButton
-                    label='View execution'
-                    onClick={onViewExecution}
-                    disabled={isLoading}
-                  >
-                    <Eye className='size-[12px]' />
-                  </ActionIconButton>
-                )}
-              </div>
-            </div>
+              {onViewExecution && (
+                <ActionIconButton
+                  label='View execution'
+                  onClick={onViewExecution}
+                  disabled={isLoading}
+                >
+                  <Eye className='size-[12px]' />
+                </ActionIconButton>
+              )}
+            </BulkActionBar>
           </m.div>
         )}
       </AnimatePresence>
@@ -152,12 +147,7 @@ function ActionIconButton({ label, onClick, disabled, children }: ActionIconButt
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
-        <BulkActionButton
-          onClick={onClick}
-          disabled={disabled}
-          surface='uniform'
-          aria-label={label}
-        >
+        <BulkActionButton onClick={onClick} disabled={disabled} aria-label={label}>
           {children}
         </BulkActionButton>
       </Tooltip.Trigger>

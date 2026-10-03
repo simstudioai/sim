@@ -1,4 +1,4 @@
-import { ChipDatePicker, ChipDropdown } from '@sim/emcn'
+import { ChipDatePicker, ChipSelect } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import {
@@ -20,11 +20,12 @@ export function SearchFilters({ sourceTypes }: SearchFiltersProps) {
       aria-label='Search filters'
       className='flex flex-wrap items-center gap-2 px-2 py-2'
     >
-      <ChipDropdown
+      <ChipSelect
         variant='ghost'
-        shape='round'
         aria-label={`Filter by source: ${filters.source ? (filters.source === 'upload' ? 'Uploads' : connectorDisplayName(filters.source)) : 'All sources'}`}
-        matchTriggerWidth={false}
+        dropdownWidth='content'
+        modal={false}
+        showSelectedCheck
         value={filters.source ?? ''}
         options={[
           { value: '', label: 'All sources' },
@@ -35,11 +36,12 @@ export function SearchFilters({ sourceTypes }: SearchFiltersProps) {
         ]}
         onChange={(source) => void setFilters({ source: source || null })}
       />
-      <ChipDropdown
+      <ChipSelect
         variant='ghost'
-        shape='round'
         aria-label={`Filter by date: ${UPDATED_WINDOWS.find((window) => window.id === filters.updated)?.label ?? 'Any time'}`}
-        matchTriggerWidth={false}
+        dropdownWidth='content'
+        modal={false}
+        showSelectedCheck
         value={filters.updated}
         options={UPDATED_WINDOWS.map((window) => ({ value: window.id, label: window.label }))}
         onChange={(value) => {

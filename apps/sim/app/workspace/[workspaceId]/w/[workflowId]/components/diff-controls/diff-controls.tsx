@@ -95,7 +95,7 @@ export const DiffControls = memo(function DiffControls() {
           }}
         >
           Accept
-          <kbd className='ml-2 rounded border border-white/20 bg-white/10 px-1.5 py-0.5 font-medium font-sans text-micro'>
+          <kbd className='ml-2 rounded-sm border border-white/20 bg-white/10 px-1.5 py-0.5 font-medium font-sans text-micro'>
             ⇧⌘<span className='translate-y-[-1px]'>⏎</span>
           </kbd>
         </button>

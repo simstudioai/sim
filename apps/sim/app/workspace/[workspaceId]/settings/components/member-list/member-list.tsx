@@ -14,7 +14,7 @@ interface MemberRowProps {
   image: string | null
   /** Muted trailing text, e.g. "Joined 6/3/2026" or "Invite pending". */
   status: string
-  /** Role control rendered before the actions menu (e.g. a `ChipDropdown`). */
+  /** Role control rendered before the actions menu (e.g. a `ChipSelect`). */
   roleControl?: ReactNode
   /** Trailing actions menu (e.g. the `...` `DropdownMenu`). */
   menu?: ReactNode

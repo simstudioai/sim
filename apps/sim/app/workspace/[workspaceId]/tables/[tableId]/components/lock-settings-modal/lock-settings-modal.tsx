@@ -95,7 +95,7 @@ export function LockSettingsModal({
           <ChipModalField
             key={field.key}
             type='custom'
-            className='flex-row items-center justify-between'
+            orientation='horizontal'
             title={
               <span className='inline-flex items-center gap-1.5'>
                 {field.label}

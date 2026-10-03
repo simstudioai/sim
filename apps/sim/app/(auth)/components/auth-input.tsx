@@ -1,20 +1,11 @@
 'use client'
 
 import * as React from 'react'
-import { ChipInput, type ChipInputProps, cn } from '@sim/emcn'
-import { AUTH_CONTROL_HEIGHT } from '@/app/(auth)/components/constants'
+import { ChipInput, type ChipInputProps } from '@sim/emcn'
 
-/**
- * The auth text field — a {@link ChipInput} raised to the auth control height
- * ({@link AUTH_CONTROL_HEIGHT}) so every labeled field on the auth and invite
- * surfaces shares one slightly-taller geometry. All chip props pass through
- * (`error`, `endAdornment`, `icon`, …); only the height is owned here, and a
- * caller's `className` (layout only) still composes on top.
- */
-export const AuthInput = React.forwardRef<HTMLInputElement, ChipInputProps>(
-  ({ className, ...props }, ref) => (
-    <ChipInput ref={ref} className={cn(AUTH_CONTROL_HEIGHT, className)} {...props} />
-  )
+/** Auth fields use the larger shared chip size while retaining native input props and refs. */
+export const AuthInput = React.forwardRef<HTMLInputElement, Omit<ChipInputProps, 'size'>>(
+  (props, ref) => <ChipInput {...props} ref={ref} size='lg' />
 )
 
 AuthInput.displayName = 'AuthInput'

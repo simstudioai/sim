@@ -48,7 +48,11 @@ setWidth: (width) => {
 
 ## Text Scale
 
-The `@theme` block in `apps/sim/app/_styles/globals.css`: `text-micro` 10px, `text-xs` 11px, `text-caption` 12px, `text-small` 13px, `text-sm` 14px (Tailwind default), `text-base` 15px, `text-md` 16px, `text-lg` 18px (Tailwind default). `text-xs` is 11px here, so a caption written as `text-xs` is a pixel short. Field titles use `text-small`; hints/errors use `text-caption`. A literal `text-[Npx]` is either a rename to the matching token or an unmigrated straggler.
+Use the named scale in `apps/sim/app/_styles/globals.css`: `text-micro`=10px, `text-xs`=11px, `text-caption`=12px, `text-small`=13px, `text-base`=15px, `text-md`=16px, `text-title`=28px, `text-title-lg`=32px, and `text-display`=40px. The explicitly adopted stock entries retain their rem units and default leading: `text-sm`=0.875rem, `text-lg`=1.125rem, `text-xl`=1.25rem, and `text-2xl`=1.5rem (14/18/20/24px at the default root size). Field titles use `text-small`; hints/errors use `text-caption`; workflow titles use `text-md`.
+
+Preserve explicit line heights when replacing arbitrary sizes. Where the old size inherited its line height, use `leading-[inherit]` if the named utility would otherwise add a different default. Keep document-relative heading/code recipes and the thinking loader's proportional label sizing distinct from ordinary UI text.
+
+Use `font-inter` within the existing scoped Inter loading boundary; the utility does not load the font globally. Keep monospace for code, JSON, and credentials.
 
 Icons default `size-[14px]`. Equal h/w → `size-*` (`size-[14px]`, `size-4`), never `h-N w-N` or `h-[Npx] w-[Npx]`.
 
@@ -68,7 +72,7 @@ A scroll region that can hide rows past an edge uses `useScrollEdges` with `scro
 
 ## Font Weight
 
-Three steps, Tailwind's stock scale, nothing else: **`font-normal` (400)**, **`font-medium` (500)**, **`font-semibold` (600)**. 400 is the document default, so body text, chip labels, sidebar items, and headings carry **no weight class at all** — they inherit. Reach for a class only to step *up* from body.
+Three steps, explicitly adopted from Tailwind's stock scale in globals.css, nothing else: **`font-normal` (400)**, **`font-medium` (500)**, **`font-semibold` (600)**. 400 is the document default, so body text, chip labels, sidebar items, and headings carry **no weight class at all** — they inherit. Reach for a class to step *up* from body or to reset meaningful inherited weight. Raw CSS references the same `--font-weight-normal`, `--font-weight-medium`, and `--font-weight-semibold` definitions; their values remain 400/500/600.
 
 Never write an arbitrary weight (`font-[380]`, `font-[450]`, …) or a `--font-weight-*` variable, and never set `fontWeight` in an inline `style`: values clustered between the three steps do not read as hierarchy. Off-scale values are acceptable only where the design system cannot reach — react-email templates and the static `apps/sim/emails/broadcasts/*.html`, which email clients render without CSS variables.
 

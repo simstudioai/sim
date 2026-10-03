@@ -536,12 +536,10 @@ const Pagination = memo(function Pagination({
               <Button
                 key={page}
                 type='button'
-                variant='ghost'
+                variant={page === currentPage ? 'subtle' : 'ghost'}
+                size='inline'
+                aria-current={page === currentPage ? 'page' : undefined}
                 onClick={() => onPageChange(page)}
-                className={cn(
-                  'h-auto p-0 text-sm hover-hover:bg-transparent hover-hover:text-[var(--text-body)]',
-                  page === currentPage ? 'text-[var(--text-body)]' : ''
-                )}
               >
                 {page}
               </Button>

@@ -3,7 +3,7 @@ export const chipFilledFillTokens = 'bg-[var(--surface-5)] dark:bg-[var(--surfac
 /**
  * The filled surface WITH a `--border-1` border, for chip FIELDS ({@link ChipInput},
  * {@link ChipTextarea}). The `filled` chip variant itself is borderless
- * ({@link chipFilledFillTokens}); pill triggers (`ChipDropdown`/`ChipSelect`/
+ * ({@link chipFilledFillTokens}); pill triggers (`ChipSelect`/
  * `ChipDatePicker`) opt into the border via `TRIGGER_BORDER_CLASS`.
  */
 export const chipFilledSurfaceTokens = `border border-[var(--border-1)] ${chipFilledFillTokens}`
@@ -17,7 +17,7 @@ export const chipPrimaryFillTokens =
   'bg-[var(--text-primary)] text-[var(--text-inverse)] dark:bg-white dark:text-[var(--bg)]'
 /** The default chip corner radius. `chipVariants`' `shape: 'round'` swaps it for `rounded-full`. */
 export const chipRadiusClass = 'rounded-lg'
-/** Filled surface shared by the chip text fields ({@link ChipInput}, {@link ChipTextarea}) — aligned with `Chip` / `ChipDropdown`. */
+/** Filled surface shared by the chip text fields ({@link ChipInput}, {@link ChipTextarea}) — aligned with `Chip` / `ChipSelect`. */
 export const chipFieldSurfaceClass = `${chipRadiusClass} ${chipFilledSurfaceTokens} transition-colors`
 /**
  * The raised "border + drop shadow" ring of the `border-shadow` chip variant: a
@@ -49,13 +49,20 @@ export const chipFieldTextClass =
  */
 export const chipContentGap = 'gap-1.5'
 
+/** Standard chip height, also shared by combobox fields. */
+export const chipHeightClass = 'h-[30px]'
+/** Shared control heights. Large controls follow the auth spacing scale. */
+export const chipSizeClasses = { md: chipHeightClass, lg: 'h-9' } as const
+/** Chip content geometry without height or radius, for sized controls. */
+export const chipContentGeometryClass = `items-center ${chipContentGap} px-2 text-left text-sm`
+
 /**
  * Chip pill geometry minus its corner radius — height, centering, gap, padding,
  * text size. `chipVariants` composes this with its `shape` variant so a raw
  * (non-`cn`) consumer never emits two competing radii; everything else reads
  * {@link chipGeometryClass}, which adds the default radius back.
  */
-export const chipGeometryUnroundedClass = `h-[30px] items-center ${chipContentGap} px-2 text-left text-sm`
+export const chipGeometryUnroundedClass = `${chipHeightClass} ${chipContentGeometryClass}`
 /**
  * Chip pill geometry — height, centering, gap, radius, padding, text size — with
  * NO interactivity (no `cursor-pointer`, no hover). `chipVariants` composes this

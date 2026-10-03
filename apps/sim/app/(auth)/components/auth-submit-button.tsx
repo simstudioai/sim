@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { Chip, Loader } from '@sim/emcn'
-import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
 
 interface AuthSubmitButtonProps {
   children: ReactNode
@@ -32,7 +31,8 @@ export function AuthSubmitButton({
       onClick={onClick}
       disabled={disabled || loading}
       fullWidth
-      className={AUTH_BUTTON_CLASS}
+      size='lg'
+      align='center'
     >
       {loading ? (
         <span className='flex items-center gap-2'>

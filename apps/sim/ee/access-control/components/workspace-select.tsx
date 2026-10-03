@@ -1,10 +1,10 @@
 'use client'
 
-import { ChipDropdown, type ChipDropdownProps } from '@sim/emcn'
+import { ChipSelect, type ChipSelectProps, cn } from '@sim/emcn'
 
 interface WorkspaceSelectProps
   extends Pick<
-    ChipDropdownProps,
+    ChipSelectProps,
     'id' | 'aria-label' | 'aria-labelledby' | 'aria-describedby' | 'aria-required' | 'aria-invalid'
   > {
   workspaceIds: string[]
@@ -38,18 +38,26 @@ export function WorkspaceSelect({
   ...fieldAria
 }: WorkspaceSelectProps) {
   return (
-    <ChipDropdown
+    <ChipSelect
+      placeholder={
+        isLoading
+          ? 'Loading workspaces…'
+          : allowAllWorkspaces
+            ? 'All workspaces'
+            : 'Select workspaces…'
+      }
+      modal={false}
       {...fieldAria}
-      multiple
+      multiSelect
       searchable
       align={fullWidth ? 'start' : 'end'}
-      matchTriggerWidth={fullWidth}
+      dropdownWidth={fullWidth ? 'trigger' : 'content'}
       options={options}
-      value={workspaceIds}
-      onChange={onChange}
+      multiSelectValues={workspaceIds}
+      onMultiSelectChange={onChange}
       disabled={disabled || isLoading}
       showAllOption={allowAllWorkspaces}
-      allLabel={
+      allOptionLabel={
         isLoading
           ? 'Loading workspaces…'
           : allowAllWorkspaces
@@ -58,7 +66,7 @@ export function WorkspaceSelect({
       }
       searchPlaceholder='Search workspaces…'
       fullWidth={fullWidth}
-      className={className}
+      className={cn(fullWidth ? undefined : 'w-auto max-w-none', className)}
     />
   )
 }

@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { cn, Input, Label } from '@sim/emcn'
-import { Eye, EyeOff } from '@sim/emcn/icons'
+import { cn, Label } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { AuthSubmitButton } from '@/app/(auth)/components'
+import { PublicAuthHeader } from '@/components/auth/public-auth-header'
+import { AuthSubmitButton, PasswordInput } from '@/app/(auth)/components'
 import { useChatPasswordAuth } from '@/hooks/queries/chats'
 
 const logger = createLogger('PasswordAuth')
@@ -16,7 +16,6 @@ interface PasswordAuthProps {
 
 export default function PasswordAuth({ identifier }: PasswordAuthProps) {
   const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
   const hasPasswordError = passwordErrors.length > 0
   const authenticate = useChatPasswordAuth(identifier)
@@ -46,14 +45,10 @@ export default function PasswordAuth({ identifier }: PasswordAuthProps) {
     <div className='flex flex-1 items-center justify-center px-4 py-16'>
       <div className='w-full max-w-[410px]'>
         <div className='flex flex-col items-center justify-center'>
-          <div className='space-y-1 text-center'>
-            <h1 className='text-balance text-[40px] text-[var(--text-primary)] leading-[110%] tracking-[-0.02em]'>
-              Password Required
-            </h1>
-            <p className='text-[color-mix(in_srgb,var(--text-muted)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
-              This chat is password-protected
-            </p>
-          </div>
+          <PublicAuthHeader
+            title='Password Required'
+            description='This chat is password-protected'
+          />
 
           <form
             onSubmit={(e) => {
@@ -67,37 +62,19 @@ export default function PasswordAuth({ identifier }: PasswordAuthProps) {
                 <Label htmlFor='password'>Password</Label>
               </div>
               <div className='relative'>
-                <div className='relative'>
-                  <Input
-                    id='password'
-                    name='password'
-                    required
-                    type={showPassword ? 'text' : 'password'}
-                    autoCapitalize='none'
-                    autoComplete='new-password'
-                    autoCorrect='off'
-                    placeholder='Enter password'
-                    value={password}
-                    onChange={handlePasswordChange}
-                    className={cn(
-                      'pr-10',
-                      hasPasswordError &&
-                        'border-[var(--text-error)] focus:border-[var(--text-error)]'
-                    )}
-                  />
-                  <button
-                    type='button'
-                    onClick={() => setShowPassword(!showPassword)}
-                    className='-translate-y-1/2 absolute top-1/2 right-3 text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]'
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showPassword ? (
-                      <EyeOff className='size-[18px]' />
-                    ) : (
-                      <Eye className='size-[18px]' />
-                    )}
-                  </button>
-                </div>
+                <PasswordInput
+                  id='password'
+                  name='password'
+                  required
+                  autoCapitalize='none'
+                  autoComplete='new-password'
+                  autoCorrect='off'
+                  placeholder='Enter password'
+                  value={password}
+                  onChange={handlePasswordChange}
+                  className='h-[34px]'
+                  error={hasPasswordError}
+                />
                 <div
                   className={cn(
                     'absolute right-0 left-0 z-10 grid transition-[grid-template-rows] duration-200 ease-out',

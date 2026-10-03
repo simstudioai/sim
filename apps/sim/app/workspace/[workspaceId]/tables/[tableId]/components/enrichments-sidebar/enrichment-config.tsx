@@ -21,6 +21,11 @@ import type { ColumnDefinition, WorkflowGroup, WorkflowGroupOutput } from '@/lib
 import { columnMatchesRef, getColumnId } from '@/lib/table/column-keys'
 import { deriveOutputColumnName } from '@/lib/table/column-naming'
 import { FieldError } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
+import {
+  TableSidebarHeader,
+  TableSidebarHeaderAction,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-sidebar-header/table-sidebar-header'
+import { TableSidebarScrollBody } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-sidebar-layout'
 import type { EnrichmentConfig as EnrichmentDef } from '@/enrichments/types'
 import {
   useAddWorkflowGroup,
@@ -232,33 +237,23 @@ export function EnrichmentConfig({
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
+      <TableSidebarHeader>
         <div className='flex min-w-0 items-center gap-1.5'>
-          <Button
-            variant='ghost'
-            size='sm'
+          <TableSidebarHeaderAction
             onClick={onBack}
-            iconPadding='sm'
-            className='size-7 flex-none'
+            className='flex-none'
             aria-label='Back to enrichments'
           >
             <ArrowLeft className='size-[14px]' />
-          </Button>
+          </TableSidebarHeaderAction>
           <OverflowText label={enrichment.name} className='text-[var(--text-primary)] text-small' />
         </div>
-        <Button
-          variant='ghost'
-          size='sm'
-          onClick={onClose}
-          iconPadding='sm'
-          className='size-7 flex-none'
-          aria-label='Close'
-        >
+        <TableSidebarHeaderAction onClick={onClose} className='flex-none' aria-label='Close'>
           <X className='size-[14px]' />
-        </Button>
-      </div>
+        </TableSidebarHeaderAction>
+      </TableSidebarHeader>
 
-      <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 pt-3 pb-2 [overflow-anchor:none]'>
+      <TableSidebarScrollBody>
         <div className='flex flex-col gap-[9.5px]'>
           <Label className='flex items-baseline gap-1.5 whitespace-nowrap pl-0.5'>Inputs</Label>
           {enrichment.inputs.length === 0 ? (
@@ -368,7 +363,7 @@ export function EnrichmentConfig({
             />
           </>
         )}
-      </div>
+      </TableSidebarScrollBody>
 
       <div className='flex items-center justify-end gap-2 border-[var(--border)] border-t px-2 py-3'>
         <Button variant='default' size='sm' onClick={onClose}>

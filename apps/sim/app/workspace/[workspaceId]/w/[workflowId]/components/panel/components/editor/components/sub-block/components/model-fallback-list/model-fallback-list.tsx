@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
-import { Button, Chip, Combobox, type ComboboxOption, Label, Tooltip } from '@sim/emcn'
+import { Button, Chip, ChipSelect, Combobox, type ComboboxOption, Label, Tooltip } from '@sim/emcn'
 import { ChevronDown, ChevronUp, Plus, Trash } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import { useParams } from 'next/navigation'
@@ -124,7 +124,7 @@ const FallbackRow = memo(function FallbackRow({
 
   return (
     <div data-fallback-row-id={row.id} className='min-w-0 rounded-sm border border-[var(--border)]'>
-      <div className='flex items-center justify-between gap-2 rounded-t-[4px] bg-[var(--surface-4)] px-2 py-1'>
+      <div className='flex items-center justify-between gap-2 rounded-t-sm bg-[var(--surface-4)] px-2 py-1'>
         <span className='text-[var(--text-secondary)] text-small'>{ordinalChoiceLabel(index)}</span>
         <div className='flex shrink-0 items-center gap-1'>
           {canMove && (
@@ -179,7 +179,7 @@ const FallbackRow = memo(function FallbackRow({
         </div>
       </div>
 
-      <div className='flex flex-col gap-2.5 rounded-b-[4px] border-[var(--border)] border-t bg-[var(--surface-2)] p-2'>
+      <div className='flex flex-col gap-2.5 rounded-b-sm border-[var(--border)] border-t bg-[var(--surface-2)] p-2'>
         <Combobox
           options={modelOptions}
           value={row.model}
@@ -212,14 +212,17 @@ const FallbackRow = memo(function FallbackRow({
         {tuningFields.map(({ knob, options }) => (
           <div key={knob} className='flex flex-col gap-2.5'>
             <Label className='pl-0.5'>{FALLBACK_TUNING_LABELS[knob]}</Label>
-            <Combobox
+            <ChipSelect
+              showSelectedCheck
+              dropdownWidth='trigger'
+              modal={false}
               options={options}
               value={row[knob] ?? options[0]?.value ?? ''}
               onChange={(value) => onChangeTuning(row.id, knob, value)}
               placeholder={`Select ${FALLBACK_TUNING_LABELS[knob].toLowerCase()}`}
               aria-label={`${ordinalChoiceLabel(index)} ${FALLBACK_TUNING_LABELS[knob].toLowerCase()}`}
               disabled={readOnly}
-              className='w-full'
+              className='w-full max-w-none'
             />
           </div>
         ))}

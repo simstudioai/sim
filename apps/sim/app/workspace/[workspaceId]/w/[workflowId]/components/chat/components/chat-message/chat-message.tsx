@@ -79,7 +79,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
         )}
 
         {formattedContent && !formattedContent.startsWith('Uploaded') && (
-          <div className='rounded-[4px] border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] py-[6px] transition-all duration-200'>
+          <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-[8px] py-[6px] transition-all duration-200'>
             <div className='whitespace-pre-wrap break-words font-sans text-[var(--text-primary)] text-sm leading-[1.25rem]'>
               <WordWrap text={formattedContent} />
             </div>

@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
-import { cn, InputOTP, InputOTPGroup, InputOTPSlot } from '@sim/emcn'
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@sim/emcn'
 import { POST_AUTH_REDIRECT_STORAGE_KEY } from '@/app/(auth)/auth-redirect'
 import {
   AuthFormMessage,
@@ -84,14 +84,16 @@ function VerificationForm({
             </p>
 
             <div className='flex justify-center'>
-              <InputOTP maxLength={6} value={otp} onChange={handleOtpChange} disabled={isLoading}>
+              <InputOTP
+                maxLength={6}
+                value={otp}
+                onChange={handleOtpChange}
+                disabled={isLoading}
+                aria-invalid={isInvalidOtp}
+              >
                 <InputOTPGroup>
                   {OTP_SLOTS.map((index) => (
-                    <InputOTPSlot
-                      key={index}
-                      index={index}
-                      className={cn(isInvalidOtp && 'border-[var(--text-error)]')}
-                    />
+                    <InputOTPSlot key={index} index={index} invalid={isInvalidOtp} />
                   ))}
                 </InputOTPGroup>
               </InputOTP>
@@ -149,8 +151,8 @@ function VerificationFormFallback() {
   return (
     <div className='text-center'>
       <div className='animate-pulse'>
-        <div className='mx-auto mb-4 h-8 w-48 rounded bg-[var(--surface-4)]' />
-        <div className='mx-auto h-4 w-64 rounded bg-[var(--surface-4)]' />
+        <div className='mx-auto mb-4 h-8 w-48 rounded-sm bg-[var(--surface-4)]' />
+        <div className='mx-auto h-4 w-64 rounded-sm bg-[var(--surface-4)]' />
       </div>
     </div>
   )

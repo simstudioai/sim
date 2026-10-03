@@ -772,7 +772,7 @@ export function WorkflowBlockView({
             <OverflowSpan
               value={humanizeBlockName(name)}
               className={cn(
-                'text-[17px]',
+                'text-md',
                 !isEnabled && runPathStatus !== 'success' && 'text-[var(--text-muted)]'
               )}
             />
@@ -957,7 +957,7 @@ export function WorkflowBlockView({
             )}
             {showErrorRow && (
               <div
-                className='flex h-[24px] shrink-0 items-center justify-between rounded-[6px] bg-[var(--surface-5)] pr-1 pl-2 dark:bg-[var(--surface-4)]'
+                className='flex h-[24px] shrink-0 items-center justify-between rounded-md bg-[var(--surface-5)] pr-1 pl-2 dark:bg-[var(--surface-4)]'
                 /* The card is a drag handle and the row holds a control, so the
                    pointer must not start a node drag here. */
                 onPointerDown={(event) => event.stopPropagation()}

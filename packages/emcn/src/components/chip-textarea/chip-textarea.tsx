@@ -27,6 +27,8 @@ export interface ChipTextareaProps
   extends Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'size'> {
   /** Marks the field invalid; swaps the border to the error token. */
   error?: boolean
+  /** Uses the shared monospace font for JSON, keys, and other structured text. */
+  monospace?: boolean
   /** Allows vertical user resizing. Off by default. */
   resizable?: boolean
   /**
@@ -41,7 +43,18 @@ export interface ChipTextareaProps
 
 /** Forwards its ref to the underlying `<textarea>`, exactly like a native textarea. */
 export const ChipTextarea = React.forwardRef<HTMLTextAreaElement, ChipTextareaProps>(
-  ({ className, error, resizable = false, viewOnly = false, readOnly, ...props }, ref) => (
+  (
+    {
+      className,
+      error,
+      monospace = false,
+      resizable = false,
+      viewOnly = false,
+      readOnly,
+      ...props
+    },
+    ref
+  ) => (
     <textarea
       ref={ref}
       readOnly={viewOnly || readOnly}
@@ -49,6 +62,7 @@ export const ChipTextarea = React.forwardRef<HTMLTextAreaElement, ChipTextareaPr
         'w-full px-2 py-1.5 disabled:cursor-not-allowed disabled:opacity-50',
         chipFieldSurfaceClass,
         chipFieldTextClass,
+        monospace && 'font-mono',
         error ? 'border-[var(--text-error)]' : undefined,
         resizable ? 'resize-y' : 'resize-none',
         viewOnly && 'cursor-default',

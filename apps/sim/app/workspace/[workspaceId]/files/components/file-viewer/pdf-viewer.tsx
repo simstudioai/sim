@@ -43,7 +43,7 @@ interface PdfViewerCoreProps {
 function PdfError({ error }: { error: string }) {
   return (
     <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
-      <p className='text-[14px] text-[var(--text-body)]'>Failed to preview PDF</p>
+      <p className='text-[var(--text-body)] text-sm leading-[inherit]'>Failed to preview PDF</p>
       <p className='text-[var(--text-muted)] text-small'>{error}</p>
     </div>
   )

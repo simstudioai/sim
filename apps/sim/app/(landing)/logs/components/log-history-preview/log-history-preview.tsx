@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useId, useRef, useState } from 'react'
-import { Badge, Chip, ChipDropdown, ChipInput } from '@sim/emcn'
+import { Badge, Chip, ChipInput, ChipSelect } from '@sim/emcn'
 import { Library, ListFilter, Search, X } from '@sim/emcn/icons'
 import {
   MenuPreviewHeader,
@@ -109,13 +109,16 @@ export function LogHistoryPreview() {
             onChange={(event) => setQuery(event.target.value)}
             className='mr-auto min-w-0 flex-1'
           />
-          <ChipDropdown
+          <ChipSelect
+            showSelectedCheck
+            modal={false}
+            className='w-auto max-w-none'
             leftIcon={ListFilter}
             aria-label={`Filter sample logs by status: ${FILTERS.find((option) => option.value === filter)?.label ?? filter}`}
             value={filter}
             options={FILTERS}
             onChange={setFilter}
-            matchTriggerWidth={false}
+            dropdownWidth='content'
           />
         </MenuPreviewToolbar>
         <div className='relative flex min-h-0 flex-1 flex-col'>

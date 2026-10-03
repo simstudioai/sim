@@ -275,7 +275,8 @@ function ClientCredentialAccountModalForm({
                     value={value}
                     onChange={(event) => setField(field.id, event.target.value)}
                     placeholder={field.placeholder}
-                    className='min-h-[120px] font-mono'
+                    monospace
+                    className='min-h-[120px]'
                     // Browser spell-check and autofill ship textarea contents to
                     // third-party services — an exfiltration route for a pasted
                     // private key. `ChipModalField type='textarea'` exposes none

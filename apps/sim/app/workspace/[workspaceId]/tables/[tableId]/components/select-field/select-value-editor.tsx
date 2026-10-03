@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { ChipDropdown } from '@sim/emcn'
+import { ChipSelect } from '@sim/emcn'
 import type { ColumnDefinition } from '@/lib/table'
 import { SelectPill, selectedOptionIds } from './select-pill'
 
@@ -18,7 +18,7 @@ const CLEAR_VALUE = ''
 
 /**
  * Option picker for `select`/`multiselect` cells in a form context (the row
- * modal) — a `ChipDropdown` pill that lists each option as its colored pill and
+ * modal) — a `ChipSelect` pill that lists each option as its colored pill and
  * writes option ids back through `onChange`. Inline grid editing uses a bare
  * `DropdownMenu` instead (see `InlineSelectEditor`).
  */
@@ -35,31 +35,30 @@ export function SelectValueEditor({
       (column.options ?? []).map((option) => ({
         value: option.id,
         label: <SelectPill option={option} />,
+        searchTerms: [option.name] as const,
       })),
     [column.options]
   )
 
   if (isMulti) {
     return (
-      <ChipDropdown
-        multiple
-        value={selectedOptionIds(column, value)}
+      <ChipSelect
+        placeholder='Select options'
+        modal={false}
+        className={fullWidth ? undefined : 'w-auto max-w-none'}
+        multiSelect
+        multiSelectValues={selectedOptionIds(column, value)}
         // A required multiselect can't be emptied — ignore the toggle that would
         // remove the last option, since an empty selection can never be committed.
-        onChange={(ids) => {
+        onMultiSelectChange={(ids) => {
           if (column.required && ids.length === 0) return
           onChange(ids)
         }}
         options={options}
         showAllOption={false}
-        // In multiple mode ChipDropdown ignores `placeholder` and renders
-        // `allLabel` when nothing is selected — which would read as if every
-        // option were chosen. There is no "All" entry here, so this is the
-        // empty label.
-        allLabel='Select options'
         align={align}
         fullWidth={fullWidth}
-        matchTriggerWidth={false}
+        dropdownWidth='content'
       />
     )
   }
@@ -69,19 +68,26 @@ export function SelectValueEditor({
   const singleOptions = column.required
     ? options
     : [
-        { value: CLEAR_VALUE, label: <span className='text-[var(--text-muted)]'>None</span> },
+        {
+          value: CLEAR_VALUE,
+          label: <span className='text-[var(--text-muted)]'>None</span>,
+          searchTerms: ['None'] as const,
+        },
         ...options,
       ]
 
   return (
-    <ChipDropdown
+    <ChipSelect
+      showSelectedCheck
+      modal={false}
+      className={fullWidth ? undefined : 'w-auto max-w-none'}
       value={selectedOptionIds(column, value)[0] ?? CLEAR_VALUE}
       onChange={(id) => onChange(id === CLEAR_VALUE ? null : id)}
       options={singleOptions}
       placeholder='Select an option'
       align={align}
       fullWidth={fullWidth}
-      matchTriggerWidth={false}
+      dropdownWidth='content'
     />
   )
 }

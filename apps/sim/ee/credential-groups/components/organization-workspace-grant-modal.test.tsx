@@ -57,7 +57,7 @@ describe('workspace integration grant editor', () => {
     return result
   }
   function integrationOption(label: string) {
-    const result = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+    const result = [...document.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]')].find(
       (element) => element.textContent === label
     )
     if (!result) throw new Error(`Missing ${label} option`)
@@ -71,8 +71,9 @@ describe('workspace integration grant editor', () => {
     )
   }
   async function closeIntegrations() {
+    const trigger = document.querySelector<HTMLButtonElement>('[aria-label="Integrations"]')
     await act(async () =>
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      trigger?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
     )
   }
   async function click(label: string) {
@@ -107,7 +108,9 @@ describe('workspace integration grant editor', () => {
   it('narrows broad access when a specific integration is selected', async () => {
     await render()
     await openIntegrations()
-    expect(document.querySelector('[role="menuitem"]')?.textContent).toBe('All integrations')
+    expect(document.querySelector('[role="menuitemcheckbox"]')?.textContent).toBe(
+      'All integrations'
+    )
     await act(async () => integrationOption('Gmail').click())
     await closeIntegrations()
     await click('Save access')

@@ -1,5 +1,5 @@
 import type { ComponentType, SVGProps } from 'react'
-import { Button, cn, Tooltip } from '@sim/emcn'
+import { Button, Tooltip } from '@sim/emcn'
 
 interface ToolbarButtonProps {
   /** Any SVG icon component, e.g. from `@sim/emcn/icons`. */
@@ -28,17 +28,15 @@ export function ToolbarButton({
       <Tooltip.Trigger asChild>
         <Button
           type='button'
-          variant={isActive ? 'active' : 'ghost'}
+          variant={isActive ? 'active' : 'quiet'}
           size='icon'
+          iconSize={{ base: 'touch', sm: 'regular' }}
           aria-label={label}
           aria-pressed={isActive}
           disabled={disabled}
           onPointerDown={(event) => event.preventDefault()}
           onClick={onClick}
-          className={cn(
-            'size-10 focus-visible:bg-[var(--surface-hover)] sm:size-[28px]',
-            !isActive && 'hover-hover:bg-[var(--surface-hover)]'
-          )}
+          className='focus-visible:bg-[var(--surface-hover)]'
         >
           <Icon className={iconSize === 'compact' ? 'size-[12px]' : 'size-[14px]'} />
         </Button>

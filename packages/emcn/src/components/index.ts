@@ -1,10 +1,10 @@
 export { Avatar, AvatarFallback, AvatarImage } from './avatar/avatar'
 export { Badge, type BadgeProps, badgeVariants } from './badge/badge'
 export { Banner } from './banner/banner'
+export { BulkActionBar, type BulkActionBarProps } from './bulk-action-bar/bulk-action-bar'
 export {
   BulkActionButton,
   type BulkActionButtonProps,
-  bulkActionButtonVariants,
 } from './bulk-action-button/bulk-action-button'
 export { Button, buttonVariants } from './button/button'
 export {
@@ -35,6 +35,7 @@ export {
   chipFilledSurfaceTokens,
   chipGeometryClass,
   chipGeometryUnroundedClass,
+  chipHeightClass,
   chipHoverSurfaceClass,
   chipIconSlotClass,
   chipPrimaryFillTokens,
@@ -56,15 +57,10 @@ export {
 } from './chip-copy-input/chip-copy-input'
 export { ChipDatePicker } from './chip-date-picker/chip-date-picker'
 export {
-  ChipDropdown,
-  type ChipDropdownOption,
-  type ChipDropdownProps,
-} from './chip-dropdown/chip-dropdown'
-export {
   ChipEmailsInput,
   type ChipEmailsInputProps,
 } from './chip-emails-input/chip-emails-input'
-export { ChipInput, type ChipInputProps } from './chip-input/chip-input'
+export { ChipInput, type ChipInputProps, chipInputVariants } from './chip-input/chip-input'
 export {
   type ChipConfirmAction,
   type ChipConfirmDefaultAction,
@@ -100,6 +96,7 @@ export {
   type ChipModalTab,
   ChipModalTabs,
   type ChipModalTabsProps,
+  chipModalFieldVariants,
   focusChipModalContent,
 } from './chip-modal/chip-modal'
 export { ChipSelect, type ChipSelectOption, type ChipSelectProps } from './chip-select/chip-select'
@@ -154,7 +151,12 @@ export {
   dropdownMenuRowClass,
 } from './dropdown-menu/dropdown-menu'
 export { Expandable, ExpandableContent } from './expandable/expandable'
-export { DashedDividerLine, FieldDivider } from './field-divider/field-divider'
+export {
+  DashedDividerLine,
+  FieldDisclosure,
+  type FieldDisclosureProps,
+  FieldDivider,
+} from './field-divider/field-divider'
 export { Info } from './info/info'
 export {
   InfoCard,
@@ -165,7 +167,13 @@ export {
   type InfoCardProps,
 } from './info-card/info-card'
 export { Input, type InputProps } from './input/input'
-export { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from './input-otp/input-otp'
+export {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSeparator,
+  InputOTPSlot,
+  type InputOTPSlotProps,
+} from './input-otp/input-otp'
 export { Label } from './label/label'
 export { Lightbox, type LightboxProps } from './lightbox/lightbox'
 export { focusFirstTextInput, focusFirstTextInputIn } from './modal/auto-focus'
@@ -198,6 +206,11 @@ export {
   overflowTextClipClass,
   overflowTextFadeClass,
 } from './overflow-text/overflow-text'
+export {
+  OverlayActionButton,
+  type OverlayActionButtonProps,
+  overlayActionButtonVariants,
+} from './overlay-action-button/overlay-action-button'
 export { pageHeadingClassName } from './page-heading/page-heading'
 export {
   Popover,
@@ -215,6 +228,10 @@ export {
 } from './popover/popover'
 export { POPOVER_ANIMATION_CLASSES } from './popover/popover-animation'
 export { ProgressItem } from './progress-item/progress-item'
+export {
+  ResourceEmptyState,
+  type ResourceEmptyStateProps,
+} from './resource-empty-state/resource-empty-state'
 export { RowActions, type RowActionsProps, rowActionsGroupClass } from './row-actions/row-actions'
 export { SecretInput } from './secret-input/secret-input'
 export { SecretReveal } from './secret-reveal/secret-reveal'

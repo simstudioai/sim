@@ -54,14 +54,14 @@
   padding: 0.5rem 0.75rem;
   text-align: left;
   vertical-align: top;
-  font-size: 14px;
+  font-size: var(--text-sm);
   line-height: 1.5rem;
 }
 
 .rich-markdown-prose th,
 .document-table th {
   background: var(--surface-4);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 /* Cell editors are invisible until focused: they take the cell's own typography and color. */

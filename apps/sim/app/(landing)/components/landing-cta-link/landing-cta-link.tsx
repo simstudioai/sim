@@ -9,7 +9,7 @@ type LandingCtaSize = 'compact' | 'default' | 'display'
 
 export type LandingCtaSection = PostHogEventMap['landing_cta_clicked']['section']
 
-interface LandingCtaLinkProps extends Omit<ChipLinkProps, 'variant'> {
+interface LandingCtaLinkProps extends Omit<ChipLinkProps, 'variant' | 'size'> {
   size?: LandingCtaSize
   variant?: 'primary' | 'outline'
   /** Adds the animated chevron used by demo actions. */

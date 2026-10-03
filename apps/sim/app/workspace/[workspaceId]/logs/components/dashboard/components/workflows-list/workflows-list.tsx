@@ -28,7 +28,7 @@ function WorkflowsListInner({
   return (
     <div className='flex h-full flex-col overflow-hidden rounded-md bg-[var(--surface-2)] dark:bg-[var(--surface-1)]'>
       {/* Table header */}
-      <div className='shrink-0 rounded-t-[6px] bg-[var(--surface-3)] px-6 py-2.5 dark:bg-[var(--surface-3)]'>
+      <div className='shrink-0 rounded-t-md bg-[var(--surface-3)] px-6 py-2.5 dark:bg-[var(--surface-3)]'>
         <div className='flex items-center gap-4'>
           <span className='w-[160px] shrink-0 text-[var(--text-tertiary)] text-caption'>
             Workflow

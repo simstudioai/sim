@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChipDropdown, type ChipDropdownOption } from '@sim/emcn'
+import { ChipSelect, type ChipSelectOption } from '@sim/emcn'
 import { ArrowRight } from '@sim/emcn/icons'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { formatVersionLabel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/format-version-label'
@@ -15,7 +15,7 @@ export type CompareSide = { kind: 'draft' } | { kind: 'version'; version: number
 const DRAFT_OPTION_VALUE = 'draft'
 
 /** The visible label of the selected option, so each picker's accessible name says what it holds. */
-function optionLabel(options: ChipDropdownOption[], value: string): string {
+function optionLabel(options: ChipSelectOption[], value: string): string {
   const label = options.find((option) => option.value === value)?.label
   return typeof label === 'string' ? label : ''
 }
@@ -60,7 +60,7 @@ export function CompareVersionsModal({
     base.kind === 'draft' || target.kind === 'draft'
   )
 
-  const options = useMemo((): ChipDropdownOption[] => {
+  const options = useMemo((): ChipSelectOption[] => {
     const sorted = [...versions].sort((a, b) => b.version - a.version)
     return [
       { value: DRAFT_OPTION_VALUE, label: 'Draft' },
@@ -99,19 +99,25 @@ export function CompareVersionsModal({
       header={
         <div className='flex items-center gap-2'>
           <span>Compare</span>
-          <ChipDropdown
+          <ChipSelect
             options={options}
             value={sideToValue(base)}
             onChange={(value) => setBase(valueToSide(value))}
             align='start'
+            dropdownWidth='trigger'
+            className='max-w-none'
+            showSelectedCheck
             aria-label={`Compare from ${optionLabel(options, sideToValue(base))}`}
           />
           <ArrowRight className='size-[12px] shrink-0 text-[var(--text-icon)]' />
-          <ChipDropdown
+          <ChipSelect
             options={options}
             value={sideToValue(target)}
             onChange={(value) => setTarget(valueToSide(value))}
             align='start'
+            dropdownWidth='trigger'
+            className='max-w-none'
+            showSelectedCheck
             aria-label={`Compare to ${optionLabel(options, sideToValue(target))}`}
           />
         </div>

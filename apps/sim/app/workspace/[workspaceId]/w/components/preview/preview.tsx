@@ -2,7 +2,15 @@
 
 import type React from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Button, cn, OverflowText, Tooltip } from '@sim/emcn'
+import {
+  Chip,
+  chipBorderShadowRing,
+  chipContentLabelClass,
+  chipGeometryClass,
+  cn,
+  OverflowText,
+  Tooltip,
+} from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { PreviewEditor } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-editor'
@@ -295,23 +303,21 @@ export function Preview({
         <div className='absolute top-3 left-[12px] z-20 flex items-center gap-1.5'>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <Button
-                variant='ghost'
-                onClick={handleGoBack}
-                className='flex h-[28px] gap-[5px] rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 shadow-xs hover-hover:bg-[var(--surface-4)]'
-              >
-                <ArrowLeft className='size-[12px]' />
-                <span className='text-caption'>Back</span>
-              </Button>
+              <Chip variant='border-shadow' leftIcon={ArrowLeft} onClick={handleGoBack}>
+                Back
+              </Chip>
             </Tooltip.Trigger>
             <Tooltip.Content side='bottom'>Go back to parent workflow</Tooltip.Content>
           </Tooltip.Root>
           {currentWorkflowName && (
-            <div className='flex h-[28px] max-w-[200px] items-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 shadow-xs'>
-              <OverflowText
-                label={currentWorkflowName}
-                className='text-[var(--text-secondary)] text-caption'
-              />
+            <div
+              className={cn(
+                chipGeometryClass,
+                chipBorderShadowRing,
+                'inline-flex max-w-[200px] bg-[var(--surface-2)]'
+              )}
+            >
+              <OverflowText label={currentWorkflowName} className={chipContentLabelClass} />
             </div>
           )}
         </div>

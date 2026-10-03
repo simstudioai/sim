@@ -64,7 +64,7 @@ export function BrowserTabIcon({ tabId, scopeId, className }: BrowserTabIconProp
               src={faviconUrl(hostname, 32)}
               alt=''
               className={cn(
-                'size-[16px] rounded-[3px]',
+                'size-[16px] rounded-sm',
                 !faviconLoaded && 'pointer-events-none absolute opacity-0'
               )}
               onLoad={() => setFavicon({ hostname, status: 'loaded' })}

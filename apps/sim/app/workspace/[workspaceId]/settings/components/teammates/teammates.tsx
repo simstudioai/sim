@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { ChipDropdown, Plus, toast } from '@sim/emcn'
+import { ChipSelect, Plus, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
@@ -238,11 +238,14 @@ export function Teammates() {
                 status={teammate.status}
                 roleControl={
                   <RoleLockTooltip reason={lockReason}>
-                    <ChipDropdown
+                    <ChipSelect
+                      showSelectedCheck
+                      modal={false}
+                      className='w-auto max-w-none'
                       value={teammate.role}
                       onChange={(role) => handleRoleChange(teammate, role as WorkspacePermission)}
                       options={ROLE_OPTIONS}
-                      matchTriggerWidth={false}
+                      dropdownWidth='content'
                       disabled={
                         teammate.isPending ||
                         !canManage ||

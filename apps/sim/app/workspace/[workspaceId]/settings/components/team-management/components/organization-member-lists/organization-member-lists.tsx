@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChipDropdown, ChipTag, toast } from '@sim/emcn'
+import { ChipSelect, ChipTag, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -138,7 +138,10 @@ export function OrganizationMemberLists({
         }
         roleControl={
           editable ? (
-            <ChipDropdown
+            <ChipSelect
+              showSelectedCheck
+              modal={false}
+              className='w-auto max-w-none'
               value={member.role}
               onChange={(role) =>
                 updateMemberRole
@@ -150,7 +153,7 @@ export function OrganizationMemberLists({
                   .catch((error) => logger.error('Failed to update member role', { error }))
               }
               options={ORG_ROLE_OPTIONS}
-              matchTriggerWidth={false}
+              dropdownWidth='content'
               disabled={updateMemberRole.isPending}
             />
           ) : (
@@ -263,7 +266,10 @@ export function OrganizationMemberLists({
           {isExternal ? 'External' : invitation.role === 'admin' ? 'Admin' : 'Member'}
         </ChipTag>
       ) : (
-        <ChipDropdown
+        <ChipSelect
+          showSelectedCheck
+          modal={false}
+          className='w-auto max-w-none'
           value={invitation.role === 'admin' ? 'admin' : 'member'}
           onChange={(role) =>
             updateInvitation
@@ -275,7 +281,7 @@ export function OrganizationMemberLists({
               .catch((error) => logger.error('Failed to update invitation role', { error }))
           }
           options={ORG_ROLE_OPTIONS}
-          matchTriggerWidth={false}
+          dropdownWidth='content'
           disabled={updateInvitation.isPending}
         />
       )
@@ -315,7 +321,10 @@ export function OrganizationMemberLists({
         }
         roleControl={
           <RoleLockTooltip reason={lockReason}>
-            <ChipDropdown
+            <ChipSelect
+              showSelectedCheck
+              modal={false}
+              className='w-auto max-w-none'
               value={access.permission}
               onChange={(permission) =>
                 updatePermissions
@@ -329,7 +338,7 @@ export function OrganizationMemberLists({
                   )
               }
               options={WORKSPACE_ROLE_OPTIONS}
-              matchTriggerWidth={false}
+              dropdownWidth='content'
               disabled={disabled}
             />
           </RoleLockTooltip>
@@ -364,7 +373,10 @@ export function OrganizationMemberLists({
     access: RosterWorkspaceAccess
   ) => {
     const roleControl = (
-      <ChipDropdown
+      <ChipSelect
+        showSelectedCheck
+        modal={false}
+        className='w-auto max-w-none'
         value={access.permission}
         onChange={(permission) =>
           updateInvitation
@@ -376,7 +388,7 @@ export function OrganizationMemberLists({
             .catch((error) => logger.error('Failed to update invitation grant', { error }))
         }
         options={WORKSPACE_ROLE_OPTIONS}
-        matchTriggerWidth={false}
+        dropdownWidth='content'
         disabled={!canManage || updateInvitation.isPending}
       />
     )

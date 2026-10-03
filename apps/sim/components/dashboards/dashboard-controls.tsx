@@ -4,7 +4,7 @@ import { useState } from 'react'
 import {
   Calendar,
   Chip,
-  ChipDropdown,
+  ChipSelect,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -126,13 +126,15 @@ export function DashboardControls({
           )}
         </PopoverContent>
       </Popover>
-      <ChipDropdown
+      <ChipSelect
         aria-label='Dashboard timezone'
         variant='outline'
         leftIcon={Clock}
-        className='shrink-0'
+        className='max-w-none shrink-0'
         value={zone}
-        matchTriggerWidth={false}
+        dropdownWidth='content'
+        modal={false}
+        showSelectedCheck
         options={[
           { value: 'local', label: zoneLabel },
           { value: 'utc', label: 'UTC' },

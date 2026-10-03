@@ -408,7 +408,7 @@ function DashboardInner({ stats, isLoading, error, searchQuery }: DashboardProps
                 </span>
               )}
             </div>
-            <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-2)] px-3.5 py-2.5 dark:bg-[var(--surface-1)]'>
+            <div className='flex-1 overflow-y-auto rounded-t-md bg-[var(--surface-2)] px-3.5 py-2.5 dark:bg-[var(--surface-1)]'>
               {globalDetails ? (
                 <LineChart
                   data={globalDetails.executionCounts}
@@ -433,7 +433,7 @@ function DashboardInner({ stats, isLoading, error, searchQuery }: DashboardProps
                 </span>
               )}
             </div>
-            <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-2)] px-3.5 py-2.5 dark:bg-[var(--surface-1)]'>
+            <div className='flex-1 overflow-y-auto rounded-t-md bg-[var(--surface-2)] px-3.5 py-2.5 dark:bg-[var(--surface-1)]'>
               {globalDetails ? (
                 <LineChart
                   data={globalDetails.failureCounts}
@@ -458,7 +458,7 @@ function DashboardInner({ stats, isLoading, error, searchQuery }: DashboardProps
                 </span>
               )}
             </div>
-            <div className='flex-1 overflow-y-auto rounded-t-[6px] bg-[var(--surface-2)] px-3.5 py-2.5 dark:bg-[var(--surface-1)]'>
+            <div className='flex-1 overflow-y-auto rounded-t-md bg-[var(--surface-2)] px-3.5 py-2.5 dark:bg-[var(--surface-1)]'>
               {globalDetails ? (
                 <LineChart
                   data={globalDetails.latencies}

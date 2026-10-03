@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
+import type { InputHTMLAttributes, ReactNode } from 'react'
 import { apiClientRequestMock } from '@sim/testing/mocks/api-client-request.mock'
 import { authClientMock } from '@sim/testing/mocks/auth-client.mock'
 import { envMockFns, resetEnvMock } from '@sim/testing/mocks/env.mock'
@@ -20,12 +20,16 @@ vi.mock('next/link', () => ({
 }))
 
 vi.mock('@sim/emcn', () => ({
-  Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button type='button' {...props}>
-      {children}
-    </button>
+  ChipLink: ({ href, children }: { href: string; children?: ReactNode }) => (
+    <a href={href}>{children}</a>
   ),
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+  ChipInput: ({
+    error: _error,
+    size: _size,
+    ...props
+  }: Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> & { error?: boolean; size?: string }) => (
+    <input {...props} />
+  ),
   Label: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   cn: (...values: unknown[]) => values.filter(Boolean).join(' '),
 }))

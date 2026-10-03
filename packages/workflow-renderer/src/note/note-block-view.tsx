@@ -108,7 +108,7 @@ const NOTE_REMARK_PLUGINS = [remarkGfm, remarkBreaks]
  */
 const NOTE_TASK_CHECKBOX_CLASS = [
   'mt-[3px] inline-grid size-[16px] shrink-0 appearance-none place-content-center',
-  'rounded-[3px] border border-[var(--border-1)] bg-transparent',
+  'rounded-sm border border-[var(--border-1)] bg-transparent',
   'checked:border-[var(--text-primary)] checked:bg-[var(--text-primary)]',
   "checked:after:size-[10px] checked:after:bg-[var(--surface-2)] checked:after:content-['']",
   'checked:after:[clip-path:polygon(14%_44%,0_65%,50%_100%,100%_16%,80%_0%,43%_62%)]',
@@ -251,14 +251,14 @@ const NOTE_COMPONENTS = {
     />
   ),
   inlineCode: ({ children }: { children?: ReactNode }) => (
-    <code className='whitespace-normal rounded bg-black/10 px-1 py-0.5 font-mono text-current text-xs'>
+    <code className='whitespace-normal rounded-sm bg-black/10 px-1 py-0.5 font-mono text-current text-xs'>
       {children}
     </code>
   ),
   code: ({ children, className, ...props }: { children?: ReactNode; className?: string }) => (
     <code
       {...props}
-      className='block whitespace-pre-wrap break-words rounded bg-black/15 p-2 text-current text-xs'
+      className='block whitespace-pre-wrap break-words rounded-sm bg-black/15 p-2 text-current text-xs'
     >
       {children}
     </code>
@@ -1017,7 +1017,7 @@ export function NoteBlockView({
                     }
                   }}
                   className={cn(
-                    'nodrag nopan nowheel h-7 w-full min-w-0 select-text border-none bg-transparent px-0 text-[17px] text-current caret-current outline-hidden focus-visible:outline-hidden',
+                    'nodrag nopan nowheel h-7 w-full min-w-0 select-text border-none bg-transparent px-0 text-current text-md caret-current outline-hidden focus-visible:outline-hidden',
                     colorOption.selectionClassName,
                     !isEnabled && 'opacity-50'
                   )}
@@ -1033,14 +1033,14 @@ export function NoteBlockView({
                     !isEnabled && 'opacity-50'
                   )}
                 >
-                  <OverflowSpan value={name ?? ''} className='text-[17px] text-current'>
+                  <OverflowSpan value={name ?? ''} className='text-current text-md'>
                     {renderMarkedName(name ?? '', nameSearchRange)}
                   </OverflowSpan>
                 </button>
               ) : (
                 <OverflowSpan
                   value={name ?? ''}
-                  className={cn('text-[17px] text-current', !isEnabled && 'opacity-50')}
+                  className={cn('text-current text-md', !isEnabled && 'opacity-50')}
                 >
                   {renderMarkedName(name ?? '', nameSearchRange)}
                 </OverflowSpan>
@@ -1058,7 +1058,8 @@ export function NoteBlockView({
                       event.stopPropagation()
                       onExpandedChange(!isExpanded)
                     }}
-                    className='nodrag nopan nowheel pointer-events-none ml-1 size-[24px] shrink-0 rounded-md border-none bg-transparent p-0 text-current opacity-0 transition-[background-color,color,opacity,transform] duration-150 hover-hover:bg-current/10 hover-hover:opacity-100 active:scale-[0.96] group-hover:pointer-events-auto group-hover:opacity-70 group-data-[node-selected]:pointer-events-auto group-data-[node-selected]:opacity-70'
+                    iconSize='compact-fixed'
+                    className='nodrag nopan nowheel pointer-events-none ml-1 shrink-0 rounded-md border-none bg-transparent text-current opacity-0 transition-[background-color,color,opacity,transform] duration-150 hover-hover:bg-current/10 hover-hover:opacity-100 active:scale-[0.96] group-hover:pointer-events-auto group-hover:opacity-70 group-data-[node-selected]:pointer-events-auto group-data-[node-selected]:opacity-70'
                   >
                     <span className='relative size-[14px]'>
                       <Expand
