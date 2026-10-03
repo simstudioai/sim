@@ -1,20 +1,22 @@
 import { z } from 'zod'
 import {
+  connectorPermissionConfigSchema,
+  connectorPermissionSummarySchema,
+} from '@/lib/api/contracts/knowledge/connector-permissions'
+import {
   knowledgeBaseParamsSchema,
   knowledgeConnectorParamsSchema,
   successResponseSchema,
 } from '@/lib/api/contracts/knowledge/shared'
-import {
-  booleanQueryFlagSchema,
-  resourceOwnerSchema,
-  workspaceIdSchema,
-} from '@/lib/api/contracts/primitives'
+import { booleanQueryFlagSchema, resourceOwnerSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { CONNECTOR_ACCESS_MODES } from '@/lib/knowledge/connectors/access-modes'
 import {
   DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_MUTATION_ITEMS,
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
+  MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH,
+  SEARCH_SOURCE_PAGE_SIZE,
 } from '@/lib/knowledge/constants'
 import { MEMBER_SYNC_STATUSES } from '@/lib/knowledge/types'
 
@@ -37,30 +39,44 @@ export const createConnectorBodySchema = z.object({
   connectorType: z.string().min(1),
   credentialId: z.string().min(1).optional(),
   apiKey: z.string().min(1).optional(),
+  permissionConfig: connectorPermissionConfigSchema.optional(),
   sourceConfig: z.record(z.string(), z.unknown()),
   syncIntervalMinutes: z.number().int().min(0).default(1440),
   accessMode: connectorRequestedAccessModeSchema.optional().default('workspace'),
 })
+export type CreateConnectorBody = z.input<typeof createConnectorBodySchema>
 
 export const updateConnectorAccessBodySchema = z.object({
   accessMode: connectorRequestedAccessModeSchema,
   /** Null removes dedicated content ingestion; omission preserves it in members mode. */
   credentialId: z.string().min(1).nullable().optional(),
+  sourceConfig: z.record(z.string(), z.unknown()).optional(),
+  syncIntervalMinutes: z.number().int().min(0).optional(),
 })
 export type UpdateConnectorAccessBody = z.input<typeof updateConnectorAccessBodySchema>
 
 export const updateConnectorBodySchema = z.object({
+  apiKey: z.string().min(1).max(4096).optional(),
+  permissionConfig: connectorPermissionConfigSchema.optional(),
   sourceConfig: z.record(z.string(), z.unknown()).optional(),
   syncIntervalMinutes: z.number().int().min(0).optional(),
   status: z.enum(['active', 'paused']).optional(),
 })
+export type UpdateConnectorBody = z.input<typeof updateConnectorBodySchema>
 
 export const deleteConnectorQuerySchema = z.object({
   /** Also hard-delete the documents the connector produced; kept by default. */
   deleteDocuments: booleanQueryFlagSchema.optional().default(false),
 })
 
+export const connectorDocumentFilterSchema = z.enum(['active', 'excluded', 'failed', 'skipped'])
+export type ConnectorDocumentFilter = z.output<typeof connectorDocumentFilterSchema>
+
 export const connectorDocumentsQuerySchema = z.object({
+  /** When present, selects the document set instead of the legacy inclusion flags. */
+  filter: connectorDocumentFilterSchema.optional(),
+  search: z.string().trim().max(MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_SEARCH_LENGTH).optional(),
+  failedOnly: booleanQueryFlagSchema.optional().default(false),
   includeExcluded: booleanQueryFlagSchema.optional(),
   limit: z.coerce
     .number()
@@ -71,6 +87,7 @@ export const connectorDocumentsQuerySchema = z.object({
     .default(DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE),
   offset: z.coerce.number().int().min(0).optional().default(0),
 })
+export type ConnectorDocumentsQuery = z.output<typeof connectorDocumentsQuerySchema>
 
 export const connectorDocumentsPatchBodySchema = z.object({
   operation: z.enum(['restore', 'exclude']),
@@ -96,6 +113,7 @@ export const connectorDataSchema = z
     id: z.string(),
     knowledgeBaseId: z.string(),
     connectorType: z.string(),
+    permissionConfig: connectorPermissionSummarySchema.optional(),
     credentialId: z.string().nullable(),
     sourceConfig: z.record(z.string(), z.unknown()),
     syncMode: z.string().nullable(),
@@ -153,6 +171,8 @@ export const syncLogDataSchema = z
     docsUnchanged: z.number(),
     docsSkipped: z.number().int().nonnegative().default(0),
     docsFailed: z.number(),
+    /** Older responses omit this; null records an unfinished listing. */
+    listedCount: z.number().int().nonnegative().nullable().optional(),
     errorMessage: z.string().nullable(),
   })
   .passthrough()
@@ -169,12 +189,17 @@ export const memberSyncLogDataSchema = z
     membersCompleted: z.number(),
     membersIncomplete: z.number(),
     membersFailed: z.number(),
+    /** Null for historical logs; absent from responses served by older deployments. */
+    docsFailed: z.number().int().nonnegative().nullable().optional(),
+    processingDispatchFailed: z.number().int().nonnegative().nullable().optional(),
     docsListed: z.number(),
     docsAdded: z.number(),
     docsUpdated: z.number(),
     docsUnchanged: z.number(),
     docsHydratedOnce: z.number(),
     observationsAdded: z.number(),
+    /** Absent from responses served by older deployments. */
+    observationsRenewed: z.number().int().nonnegative().optional(),
     observationsRemoved: z.number(),
     docsTombstoned: z.number(),
     docsResurrected: z.number(),
@@ -212,13 +237,21 @@ export const connectorDocumentDataSchema = z
     userExcluded: z.boolean(),
     uploadedAt: z.string(),
     processingStatus: z.string(),
+    processingOutcome: z.literal('skipped').nullable().default(null),
+    processingError: z.string().nullable().default(null),
   })
   .passthrough()
 export type ConnectorDocumentData = z.output<typeof connectorDocumentDataSchema>
 
 export const connectorDocumentsDataSchema = z.object({
   documents: z.array(connectorDocumentDataSchema),
-  counts: z.object({ active: z.number(), excluded: z.number() }),
+  counts: z.object({
+    active: z.number().int().nonnegative(),
+    excluded: z.number().int().nonnegative(),
+    failed: z.number().int().nonnegative().default(0),
+    skipped: z.number().int().nonnegative().default(0),
+  }),
+  hasMore: z.boolean().optional(),
 })
 export type ConnectorDocumentsData = z.output<typeof connectorDocumentsDataSchema>
 
@@ -277,37 +310,28 @@ export const updateKnowledgeConnectorAccessContract = defineRouteContract({
 })
 
 export const startKnowledgeConnectorMemberEnrollmentDataSchema = z.object({
-  /** The viewer's enrollment link; opening it connects their account. */
+  /** The viewer's invitation link or direct provider authorization URL. */
   url: z.string().url(),
 })
 export type StartKnowledgeConnectorMemberEnrollmentData = z.output<
   typeof startKnowledgeConnectorMemberEnrollmentDataSchema
 >
 
+export const searchConnectionOAuthQuerySchema = z.object({
+  oauthCompletionId: z.string().uuid().optional(),
+})
+export type SearchConnectionOAuthQuery = z.input<typeof searchConnectionOAuthQuerySchema>
+
 export const startKnowledgeConnectorMemberEnrollmentContract = defineRouteContract({
   method: 'POST',
   path: '/api/knowledge/[id]/connectors/[connectorId]/enroll',
   params: knowledgeConnectorParamsSchema,
+  query: searchConnectionOAuthQuerySchema,
   response: {
     mode: 'json',
     schema: successResponseSchema(startKnowledgeConnectorMemberEnrollmentDataSchema),
   },
 })
-
-/** A source's personal account or mirrored-ACL identity connection for the current viewer. */
-export const workspaceMemberConnectorSchema = z.object({
-  knowledgeBaseId: z.string(),
-  knowledgeBaseName: z.string(),
-  knowledgeBaseIsSearchIndex: z.boolean().optional(),
-  sourceDescription: z.string().max(240).optional(),
-  connectorId: z.string(),
-  connectorType: z.string(),
-  memberSyncStatus: z.enum(MEMBER_SYNC_STATUSES),
-  viewerMembership: viewerConnectorMembershipSchema,
-  /** Documents of this connector the viewer may read right now. */
-  viewerDocumentCount: z.number().int().nonnegative(),
-})
-export type WorkspaceMemberConnector = z.output<typeof workspaceMemberConnectorSchema>
 
 const searchSourceSummaryFields = {
   knowledgeBaseId: knowledgeBaseParamsSchema.shape.id,
@@ -315,47 +339,51 @@ const searchSourceSummaryFields = {
   connectorType: z.string().min(1).max(100),
   sourceDescription: z.string().max(240),
   accessMode: z.enum(['admin', 'members']),
+  isGitHubInstallation: z.boolean().default(false),
   availability: z.enum(['available', 'unavailable']),
   enabled: z.boolean(),
   approved: z.boolean().optional(),
-  isSyncing: z.boolean(),
-  lastSyncAt: z.string().datetime().nullable(),
-  hasSyncError: z.boolean(),
-  viewerDocumentCount: z.number().int().nonnegative(),
-  viewerEmailVerified: z.boolean(),
 }
 
-export const searchSourceSummarySchema = z.discriminatedUnion('connectionRequired', [
-  z.object({
-    ...searchSourceSummaryFields,
-    connectionRequired: z.literal(true),
-    viewerMembership: viewerConnectorMembershipSchema.nullable(),
-  }),
-  z.object({
-    ...searchSourceSummaryFields,
-    connectionRequired: z.literal(false),
-    viewerMembership: z.null(),
-  }),
-])
+export const searchSourceSummarySchema = z.object(searchSourceSummaryFields)
 export type SearchSourceSummary = z.output<typeof searchSourceSummarySchema>
+export interface ViewerSearchSourceAccount {
+  credentialId: string
+  displayName: string
+  status?: 'active' | 'needs_reauth'
+}
+
+export const searchSourceCursorSchema = z.object({
+  createdAt: z.string().datetime(),
+  id: knowledgeConnectorParamsSchema.shape.connectorId.max(255),
+  scope: z.string().min(1).max(64),
+})
+
+export const listSearchSourcesQuerySchema = resourceOwnerSchema.safeExtend({
+  cursor: z.string().min(1).max(1024).optional(),
+  connectorType: z.string().trim().min(1, 'connectorType cannot be empty').max(100).optional(),
+  excludeConnectorType: z
+    .string()
+    .trim()
+    .min(1, 'excludeConnectorType cannot be empty')
+    .max(100)
+    .optional(),
+  search: z.string().trim().max(200).optional(),
+})
+export type ListSearchSourcesQuery = z.input<typeof listSearchSourcesQuerySchema>
+
+export const searchSourcePageSchema = z.object({
+  sources: z.array(searchSourceSummarySchema).max(SEARCH_SOURCE_PAGE_SIZE),
+  nextCursor: z.string().max(1024).nullable(),
+})
+export type SearchSourcePage = z.output<typeof searchSourcePageSchema>
 
 export const listSearchSourcesContract = defineRouteContract({
   method: 'GET',
   path: '/api/knowledge/sim-search/sources',
-  query: resourceOwnerSchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(z.array(searchSourceSummarySchema)),
-  },
+  query: listSearchSourcesQuerySchema,
+  response: { mode: 'json', schema: successResponseSchema(searchSourcePageSchema) },
 })
-
-export const connectSimSearchConnectorBodySchema = resourceOwnerSchema.safeExtend({
-  connectorType: z.string().min(1, 'connectorType cannot be empty').max(100),
-  connectorId: knowledgeConnectorParamsSchema.shape.connectorId.max(255).optional(),
-  /** Settings identify a compatible source, or assert the configuration of a selected source. */
-  sourceConfig: z.record(z.string(), z.string().max(500)).optional(),
-})
-export type ConnectSimSearchConnectorBody = z.input<typeof connectSimSearchConnectorBodySchema>
 
 export const prepareSearchSourceBodySchema = resourceOwnerSchema.safeExtend({
   connectorType: z.string().min(1, 'connectorType cannot be empty').max(100),
@@ -376,38 +404,6 @@ export const prepareSearchSourceContract = defineRouteContract({
         credentialGroupId: z.string().uuid().optional(),
       }),
     }),
-  },
-})
-
-/**
- * One click on a Sim Search source: the workspace's Sim Search knowledge base
- * and per-member connector exist afterwards, and the caller gets the link that
- * connects their own account.
- */
-export const connectSimSearchConnectorContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/knowledge/sim-search/connect',
-  body: connectSimSearchConnectorBodySchema,
-  response: {
-    mode: 'json',
-    schema: z.object({
-      success: z.literal(true),
-      data: z.object({
-        knowledgeBaseId: z.string(),
-        connectorId: z.string(),
-        url: z.string().url(),
-      }),
-    }),
-  },
-})
-
-export const listWorkspaceMemberConnectorsContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/knowledge/member-connectors',
-  query: z.object({ workspaceId: workspaceIdSchema }),
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(z.array(workspaceMemberConnectorSchema)),
   },
 })
 

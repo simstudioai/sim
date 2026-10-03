@@ -63,6 +63,7 @@ export type SsoJitAdmissionResult =
 
 interface SuccessfulAdmission {
   result: SsoJitAdmissionResult
+  providerId: string
   userName?: string
   userEmail?: string
   organizationSubscriptionId?: string
@@ -87,10 +88,10 @@ async function runAdmissionTransaction(
       .for('share')
 
     if (!provider) {
-      return { result: { kind: 'denied', reason: 'provider-not-found' } }
+      return { providerId, result: { kind: 'denied', reason: 'provider-not-found' } }
     }
     if (!provider.domainVerified) {
-      return { result: { kind: 'denied', reason: 'provider-not-trusted' } }
+      return { providerId, result: { kind: 'denied', reason: 'provider-not-trusted' } }
     }
 
     const [[userRow], [linkedAccount]] = await Promise.all([
@@ -107,18 +108,18 @@ async function runAdmissionTransaction(
     ])
 
     if (!userRow) {
-      return { result: { kind: 'denied', reason: 'user-not-found' } }
+      return { providerId, result: { kind: 'denied', reason: 'user-not-found' } }
     }
     if (!linkedAccount) {
-      return { result: { kind: 'denied', reason: 'account-not-linked' } }
+      return { providerId, result: { kind: 'denied', reason: 'account-not-linked' } }
     }
     const userDomain = normalizeSSODomain(userRow.email)
     const providerDomain = normalizeSSODomain(provider.domain)
     if (!userDomain || !providerDomain || userDomain !== providerDomain) {
-      return { result: { kind: 'denied', reason: 'domain-mismatch' } }
+      return { providerId, result: { kind: 'denied', reason: 'domain-mismatch' } }
     }
 
-    const attribution = { userName: userRow.name, userEmail: userRow.email }
+    const attribution = { providerId, userName: userRow.name, userEmail: userRow.email }
     if (!provider.organizationId) {
       return {
         ...attribution,
@@ -310,6 +311,7 @@ async function runProvisioningPostCommitEffects(
         memberRole: 'member',
         operation: ssoJitAdmissionOperation.id,
         source: 'sso_jit',
+        providerId: admission.providerId,
       },
     })
     captureServerEvent(

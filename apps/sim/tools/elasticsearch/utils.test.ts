@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import * as elasticsearchTools from '@/tools/elasticsearch'
 import { buildBaseUrl, parseCloudId } from '@/tools/elasticsearch/utils'

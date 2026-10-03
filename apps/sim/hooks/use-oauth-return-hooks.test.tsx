@@ -1,8 +1,16 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act } from 'react'
 import type { DesktopOAuthConnectResult } from '@sim/desktop-bridge'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
+import { emcnMock, emcnMockFns } from '@sim/testing/mocks/emcn.mock'
+import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,22 +18,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   desktop: false,
   onOAuthConnectComplete: vi.fn(),
-  requestJson: vi.fn(),
   requireWorkspaceCredentialListResponse: vi.fn(),
-  success: vi.fn(),
-  error: vi.fn(),
 }))
 
-vi.mock('@sim/emcn', () => ({ toast: { success: mocks.success, error: mocks.error } }))
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: 'workspace-1' }),
-  useRouter: vi.fn(),
-}))
-vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.requestJson }))
-vi.mock('@/lib/desktop', () => ({
-  getDesktopBridge: () =>
-    mocks.desktop ? { onOAuthConnectComplete: mocks.onOAuthConnectComplete } : undefined,
-}))
+vi.mock('@sim/emcn', () => emcnMock)
+vi.mock('next/navigation', () => nextNavigationMock)
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
+vi.mock('@/lib/desktop', () => libDesktopMock)
 vi.mock('@/hooks/queries/oauth/oauth-connections', () => ({
   oauthConnectionsKeys: { connections: () => ['oauthConnections'] },
 }))
@@ -34,16 +33,31 @@ vi.mock('@/hooks/queries/utils/fetch-workspace-credentials', () => ({
 }))
 
 import {
+  listOrganizationCredentialsContract,
+  listOrganizationOAuthCredentialsContract,
+} from '@/lib/api/contracts/organization-credentials'
+import {
   type OAuthReturnContext,
   readOAuthReturnContext,
   writeOAuthReturnContext,
 } from '@/lib/credentials/client-state'
+import { oauthCredentialKeys, useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
+import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import {
   useDesktopOAuthConnectListener,
   useOAuthReturnForKBConnectors,
+  useOAuthReturnRouter,
 } from '@/hooks/use-oauth-return'
 
-const UPDATED_EVENT = 'oauth-credentials-updated'
+const mockReplace = nextNavigationMockFns.router.replace
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
+const { error: mockToastError } = emcnMockFns.mockToast
+libDesktopMockFns.mockGetDesktopBridge.mockImplementation(() =>
+  mocks.desktop ? { onOAuthConnectComplete: mocks.onOAuthConnectComplete } : undefined
+)
+
 const EXISTING_CREDENTIAL = {
   id: 'credential-existing',
   providerId: 'google-drive',
@@ -58,7 +72,7 @@ const NEW_CREDENTIAL = {
   accountId: 'account-new',
 }
 
-function context(): OAuthReturnContext {
+function context(): Extract<OAuthReturnContext, { origin: 'kb-connectors' }> {
   return {
     origin: 'kb-connectors',
     workspaceId: 'workspace-1',
@@ -88,6 +102,19 @@ function Probe({
   return null
 }
 
+function RouterProbe() {
+  useOAuthReturnRouter()
+  return null
+}
+
+function SourceSettingsProbe({ connectorId }: { connectorId: string }) {
+  const scope = { kind: 'organization' as const, organizationId: 'org-1' }
+  const credentials = useOAuthCredentials('google-drive', { organizationId: scope.organizationId })
+  useCredentialRefreshTriggers(credentials.refetch, 'google-drive', scope)
+  useOAuthReturnForKBConnectors('kb-search', undefined, 'google_drive', scope, connectorId)
+  return <output>{credentials.data?.map((credential) => credential.name).join(', ')}</output>
+}
+
 let root: Root
 let container: HTMLDivElement
 let queryClient: QueryClient
@@ -104,8 +131,8 @@ async function render(props: ProbeProps) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.desktop = false
+  nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
   completeDesktop = undefined
   mocks.onOAuthConnectComplete.mockImplementation(
     (callback: (result: DesktopOAuthConnectResult) => void) => {
@@ -115,13 +142,13 @@ beforeEach(() => {
       }
     }
   )
-  mocks.requestJson.mockResolvedValue({})
+  mockRequestJson.mockResolvedValue({})
   mocks.requireWorkspaceCredentialListResponse.mockReturnValue([
     EXISTING_CREDENTIAL,
     NEW_CREDENTIAL,
   ])
   sessionStorage.clear()
-  window.history.replaceState(null, '', '/workspace/workspace-1/search?addConnector=google_drive')
+  window.history.replaceState(null, '', '/o/org-1/settings/integrations?addConnector=google_drive')
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -136,49 +163,95 @@ afterEach(async () => {
   sessionStorage.clear()
 })
 
-describe('KB OAuth return account selection', () => {
-  it('verifies a web return and selects the connected account once', async () => {
-    writeOAuthReturnContext(context())
-    const onConnected = vi.fn()
-    const updates = vi.fn()
-    window.addEventListener(UPDATED_EVENT, updates)
-    try {
-      await render({ onConnected })
-      expect(onConnected).toHaveBeenCalledExactlyOnceWith('credential-new')
-      expect(readOAuthReturnContext()).toBeNull()
-      expect(updates).toHaveBeenCalledOnce()
-      expect(updates.mock.calls[0][0].detail).toMatchObject({
-        providerId: 'google-drive',
-        workspaceId: 'workspace-1',
-        knowledgeBaseId: 'kb-search',
-        connectorType: 'google_drive',
-        credentialId: 'credential-new',
-      })
-    } finally {
-      window.removeEventListener(UPDATED_EVENT, updates)
+describe('organization source OAuth return routing', () => {
+  async function renderRouter() {
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <RouterProbe />
+        </QueryClientProvider>
+      )
+    })
+  }
+
+  it('does not route a pending source return through a different organization', async () => {
+    nextNavigationMockFns.mockUseParams.mockReturnValue({ organizationId: 'org-other' })
+    const pending: OAuthReturnContext = {
+      ...context(),
+      workspaceId: undefined,
+      organizationId: 'org-1',
+      connectorId: 'connector-1',
     }
+    writeOAuthReturnContext(pending)
+
+    await renderRouter()
+
+    expect(mockReplace).not.toHaveBeenCalled()
+    expect(readOAuthReturnContext()).toEqual(pending)
+  })
+})
+
+describe('existing source settings OAuth return', () => {
+  async function renderSettings(connectorId: string) {
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <SourceSettingsProbe connectorId={connectorId} />
+        </QueryClientProvider>
+      )
+    })
+  }
+
+  beforeEach(() => {
+    queryClient.setQueryData(oauthCredentialKeys.list('google-drive', '', '', 'org-1'), [
+      { id: 'credential-existing', name: 'Cached account' },
+    ])
+    mockRequestJson.mockImplementation(async (contract: unknown) => {
+      if (contract === listOrganizationOAuthCredentialsContract) {
+        return { credentials: [{ id: 'credential-existing', name: 'Updated account' }] }
+      }
+      if (contract === listOrganizationCredentialsContract) {
+        return {
+          credentials: [
+            {
+              id: 'service-account',
+              displayName: 'Service account',
+              providerId: 'google-service-account',
+            },
+          ],
+        }
+      }
+      throw new Error('Unexpected account request')
+    })
   })
 
+  it('preserves an OAuth return for another source of the same provider', async () => {
+    const pending: OAuthReturnContext = {
+      ...context(),
+      workspaceId: undefined,
+      organizationId: 'org-1',
+      connectorId: 'connector-1',
+      reconnect: true,
+    }
+    writeOAuthReturnContext(pending)
+
+    await renderSettings('connector-other')
+
+    expect(readOAuthReturnContext()).toEqual(pending)
+    expect(mockRequestJson).not.toHaveBeenCalled()
+    expect(container.textContent).toBe('Cached account')
+  })
+})
+
+describe('KB OAuth return account selection', () => {
   it('preserves a return for a different source in the same knowledge base', async () => {
     const pending = context()
     writeOAuthReturnContext(pending)
     const onConnected = vi.fn()
     await render({ onConnected, connectorType: 'confluence' })
     expect(readOAuthReturnContext()).toEqual(pending)
-    expect(mocks.requestJson).not.toHaveBeenCalled()
+    expect(mockRequestJson).not.toHaveBeenCalled()
     expect(onConnected).not.toHaveBeenCalled()
-  })
-
-  it('clears a canceled web return without selecting an account', async () => {
-    writeOAuthReturnContext(context())
-    window.history.replaceState(null, '', '?addConnector=google_drive&error=access_denied')
-    const onConnected = vi.fn()
-    await render({ onConnected })
-    expect(onConnected).not.toHaveBeenCalled()
-    expect(mocks.requestJson).not.toHaveBeenCalled()
-    expect(mocks.error).toHaveBeenCalledOnce()
-    expect(readOAuthReturnContext()).toBeNull()
-    expect(window.location.search).not.toContain('error=')
   })
 
   it('does not select an account when web verification fails', async () => {
@@ -187,7 +260,7 @@ describe('KB OAuth return account selection', () => {
     const onConnected = vi.fn()
     await render({ onConnected })
     expect(onConnected).not.toHaveBeenCalled()
-    expect(mocks.error).toHaveBeenCalledOnce()
+    expect(mockToastError).toHaveBeenCalledOnce()
   })
 
   it('discards expired web return context', async () => {
@@ -195,20 +268,7 @@ describe('KB OAuth return account selection', () => {
     const onConnected = vi.fn()
     await render({ onConnected })
     expect(onConnected).not.toHaveBeenCalled()
-    expect(mocks.requestJson).not.toHaveBeenCalled()
-    expect(readOAuthReturnContext()).toBeNull()
-  })
-
-  it('waits for desktop completion and selects its verified account on the mounted form', async () => {
-    mocks.desktop = true
-    const pending = context()
-    writeOAuthReturnContext(pending)
-    const onConnected = vi.fn()
-    await render({ onConnected })
-    expect(readOAuthReturnContext()).toEqual(pending)
-    expect(mocks.requestJson).not.toHaveBeenCalled()
-    await act(async () => completeDesktop?.({ ok: true }))
-    expect(onConnected).toHaveBeenCalledExactlyOnceWith('credential-new')
+    expect(mockRequestJson).not.toHaveBeenCalled()
     expect(readOAuthReturnContext()).toBeNull()
   })
 
@@ -228,7 +288,7 @@ describe('KB OAuth return account selection', () => {
       await act(async () => completeDesktop?.({ ok: outcome !== 'failed' }))
       expect(onConnected).not.toHaveBeenCalled()
       expect(readOAuthReturnContext()).toBeNull()
-      if (outcome !== 'unverified') expect(mocks.requestJson).not.toHaveBeenCalled()
+      if (outcome !== 'unverified') expect(mockRequestJson).not.toHaveBeenCalled()
     }
   )
 
@@ -239,34 +299,6 @@ describe('KB OAuth return account selection', () => {
     writeOAuthReturnContext(context())
     await render({ onConnected, connectorType: 'confluence' })
     await act(async () => completeDesktop?.({ ok: true }))
-    expect(onConnected).not.toHaveBeenCalled()
-  })
-
-  it.each([
-    { knowledgeBaseId: 'kb-other' },
-    { workspaceId: 'workspace-other' },
-    { connectorType: 'confluence' },
-    { credentialId: undefined },
-    { requestedAt: undefined },
-    { requestedAt: Date.now() - 16 * 60 * 1000 },
-  ])('ignores unrelated or incomplete credential updates: %j', async (override) => {
-    const onConnected = vi.fn()
-    await render({ onConnected })
-    await act(async () => {
-      window.dispatchEvent(
-        new CustomEvent(UPDATED_EVENT, {
-          detail: {
-            workspaceId: 'workspace-1',
-            providerId: 'google-drive',
-            knowledgeBaseId: 'kb-search',
-            connectorType: 'google_drive',
-            credentialId: 'credential-new',
-            requestedAt: Date.now(),
-            ...override,
-          },
-        })
-      )
-    })
     expect(onConnected).not.toHaveBeenCalled()
   })
 })

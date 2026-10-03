@@ -9,6 +9,7 @@ import { deepseekProvider } from '@/providers/deepseek'
 import { fireworksProvider } from '@/providers/fireworks'
 import { googleProvider } from '@/providers/google'
 import { groqProvider } from '@/providers/groq'
+import { kieProvider } from '@/providers/kie'
 import { kimiProvider } from '@/providers/kimi'
 import { litellmProvider } from '@/providers/litellm'
 import { metaProvider } from '@/providers/meta'
@@ -21,6 +22,7 @@ import { openRouterProvider } from '@/providers/openrouter'
 import { sakanaProvider } from '@/providers/sakana'
 import { togetherProvider } from '@/providers/together'
 import type { ProviderConfig, ProviderId } from '@/providers/types'
+import { typesafeProvider } from '@/providers/typesafe'
 import { vertexProvider } from '@/providers/vertex'
 import { vllmProvider } from '@/providers/vllm'
 import { xAIProvider } from '@/providers/xai'
@@ -39,10 +41,12 @@ const providerRegistry: Record<ProviderId, ProviderConfig> = {
   cerebras: cerebrasProvider,
   groq: groqProvider,
   sakana: sakanaProvider,
+  typesafe: typesafeProvider,
   nvidia: nvidiaProvider,
   meta: metaProvider,
   zai: zaiProvider,
   kimi: kimiProvider,
+  kie: kieProvider,
   vllm: vllmProvider,
   litellm: litellmProvider,
   mistral: mistralProvider,

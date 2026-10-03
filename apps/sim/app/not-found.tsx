@@ -1,5 +1,5 @@
+import { StatusPageContent } from '@sim/emcn'
 import type { Metadata } from 'next'
-import { StatusPageContent } from '@/components/status-page'
 import { ReturnHomeLink } from '@/components/status-page/return-home-link'
 import { LogoShell } from '@/app/(landing)/components/logo-shell'
 

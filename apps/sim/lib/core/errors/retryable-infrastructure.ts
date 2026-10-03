@@ -16,10 +16,14 @@ const RETRYABLE_DB_ERROR_CODES = new Set([
 ])
 
 const RETRYABLE_NETWORK_ERROR_CODES = new Set([
+  'DNS_TIMEOUT',
+  'EAI_AGAIN',
   'ETIMEDOUT',
   'ECONNRESET',
   'ECONNREFUSED',
   'EPIPE',
+  'ERR_STREAM_PREMATURE_CLOSE',
+  'EHOSTUNREACH',
   'ENETDOWN',
   'ENETRESET',
   'ENETUNREACH',
@@ -92,6 +96,19 @@ export function describeRetryableInfrastructureError(
 
 export function isRetryableInfrastructureError(error: unknown): boolean {
   return Boolean(describeRetryableInfrastructureError(error))
+}
+
+/**
+ * A network-level failure only — a dropped, refused, or timed-out socket anywhere in the
+ * cause chain. Narrower than {@link isRetryableInfrastructureError}: database and application
+ * codes are excluded, so a caller replaying a billed request never mistakes one for a socket.
+ */
+export function isRetryableNetworkError(error: unknown): boolean {
+  return getErrorChain(error).some(
+    (candidate) =>
+      (typeof candidate.code === 'string' && RETRYABLE_NETWORK_ERROR_CODES.has(candidate.code)) ||
+      (typeof candidate.errno === 'string' && RETRYABLE_NETWORK_ERROR_CODES.has(candidate.errno))
+  )
 }
 
 /**

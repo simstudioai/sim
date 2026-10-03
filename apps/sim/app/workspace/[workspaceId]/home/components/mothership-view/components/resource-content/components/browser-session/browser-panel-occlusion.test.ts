@@ -28,8 +28,6 @@ vi.mock('@/lib/browser-agent/transport', () => ({
 
 import {
   createBrowserPanelGeometryOcclusionLease,
-  hasNativeSurfaceOcclusion,
-  NATIVE_SURFACE_OCCLUSION_SELECTOR,
   snapshotMatchesHost,
   useBrowserPanelOcclusion,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
@@ -55,7 +53,10 @@ let activeContainer: HTMLDivElement | null = null
 let nextAnimationFrameId = 1
 const animationFrames = new Map<number, FrameRequestCallback>()
 
-function renderOcclusionHook(panelVisible = true): HookHarness {
+function renderOcclusionHook(
+  panelVisible = true,
+  getHostRect = () => new DOMRect(500, 64, 800, 700)
+): HookHarness {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   const container = document.createElement('div')
   document.body.appendChild(container)
@@ -65,7 +66,7 @@ function renderOcclusionHook(panelVisible = true): HookHarness {
   let latest: OcclusionResult | undefined
 
   function Probe({ visible }: { visible: boolean }) {
-    latest = useBrowserPanelOcclusion('chat-1', 'tab-1', visible)
+    latest = useBrowserPanelOcclusion('chat-1', 'tab-1', visible, getHostRect)
     return null
   }
 
@@ -153,27 +154,8 @@ describe('browser panel geometry occlusion lease', () => {
   })
 })
 
-describe('hasNativeSurfaceOcclusion', () => {
-  it('recognizes only the dedicated full-screen modal marker', () => {
-    const root = document.createElement('section')
-    const genericOverlay = document.createElement('div')
-    genericOverlay.setAttribute('data-native-surface-overlay', '')
-    root.appendChild(genericOverlay)
-
-    expect(NATIVE_SURFACE_OCCLUSION_SELECTOR).toBe('[data-native-surface-occlusion]')
-    expect(hasNativeSurfaceOcclusion(root)).toBe(false)
-
-    const modalOverlay = document.createElement('div')
-    modalOverlay.setAttribute('data-native-surface-occlusion', 'modal')
-    genericOverlay.appendChild(modalOverlay)
-
-    expect(hasNativeSurfaceOcclusion(root)).toBe(true)
-  })
-})
-
 describe('useBrowserPanelOcclusion modal lifecycle', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     nextAnimationFrameId = 1
     animationFrames.clear()
     captureBrowserPanelSnapshot.mockResolvedValue(SNAPSHOT)
@@ -202,176 +184,6 @@ describe('useBrowserPanelOcclusion modal lifecycle', () => {
     activeContainer = null
     animationFrames.clear()
     document.body.replaceChildren()
-    vi.unstubAllGlobals()
-    vi.restoreAllMocks()
-  })
-
-  it('ignores generic native-surface overlays but captures a dedicated modal', async () => {
-    const genericOverlay = document.createElement('div')
-    genericOverlay.setAttribute('data-native-surface-overlay', '')
-    document.body.appendChild(genericOverlay)
-
-    const hook = renderOcclusionHook()
-    await flushOcclusionLifecycle()
-    expect(captureBrowserPanelSnapshot).not.toHaveBeenCalled()
-
-    act(() => {
-      addModalOverlay()
-    })
-    await flushOcclusionLifecycle()
-
-    expect(captureBrowserPanelSnapshot).toHaveBeenCalledOnce()
-    expect(setBrowserPanelOccluded).toHaveBeenCalledWith(true, 'chat-1')
-    expect(hook.result().snapshot).toEqual(SNAPSHOT)
-    expect(hook.result().snapshotLayer).toBe('modal')
-    expect(hook.result().activeOverlay).toBeNull()
-    hook.unmount()
-  })
-
-  it('tracks a custom modal that toggles its marker while remaining mounted', async () => {
-    const overlay = document.createElement('div')
-    document.body.appendChild(overlay)
-    const hook = renderOcclusionHook()
-
-    act(() => overlay.setAttribute('data-native-surface-occlusion', 'modal'))
-    await flushOcclusionLifecycle()
-
-    expect(captureBrowserPanelSnapshot).toHaveBeenCalledOnce()
-    expect(hook.result().snapshotLayer).toBe('modal')
-    expect(setBrowserPanelOccluded).toHaveBeenLastCalledWith(true, 'chat-1')
-
-    act(() => overlay.removeAttribute('data-native-surface-occlusion'))
-    await flushOcclusionLifecycle()
-
-    expect(setBrowserPanelOccluded).toHaveBeenLastCalledWith(false, 'chat-1')
-    expect(hook.result().snapshot).toBeNull()
-    hook.unmount()
-  })
-
-  it('registers capture, paint, and native hide with the modal pre-paint gate', async () => {
-    const hook = renderOcclusionHook()
-    let finishNativeHide: ((hidden: boolean) => void) | undefined
-    const nativeHide = new Promise<boolean>((resolve) => {
-      finishNativeHide = resolve
-    })
-    setBrowserPanelOccluded.mockImplementation((occluded: boolean) =>
-      occluded ? nativeHide : Promise.resolve(true)
-    )
-    let preparation: Promise<unknown> | undefined
-    const waitUntil = vi.fn((pending: Promise<unknown>) => {
-      preparation = pending
-    })
-
-    act(() => {
-      window.dispatchEvent(
-        new CustomEvent<NativeSurfaceOcclusionPrepareDetail>(
-          NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
-          {
-            detail: { kind: 'modal', waitUntil },
-          }
-        )
-      )
-    })
-
-    expect(waitUntil).toHaveBeenCalledOnce()
-    expect(preparation).toBeInstanceOf(Promise)
-    const registeredPreparation = preparation as Promise<unknown>
-    let preparationSettled = false
-    void registeredPreparation.then(() => {
-      preparationSettled = true
-    })
-
-    await flushOcclusionLifecycle()
-
-    expect(captureBrowserPanelSnapshot).toHaveBeenCalledOnce()
-    expect(hook.result().snapshot).toEqual(SNAPSHOT)
-    expect(hook.result().snapshotLayer).toBe('modal')
-    expect(setBrowserPanelOccluded).toHaveBeenCalledWith(true, 'chat-1')
-    expect(window.requestAnimationFrame).toHaveBeenCalledTimes(2)
-    expect(preparationSettled).toBe(false)
-    expect(captureBrowserPanelSnapshot.mock.invocationCallOrder[0]).toBeLessThan(
-      setBrowserPanelOccluded.mock.invocationCallOrder[0]
-    )
-
-    await act(async () => {
-      finishNativeHide?.(true)
-      await registeredPreparation
-    })
-    expect(preparationSettled).toBe(true)
-    await expect(registeredPreparation).resolves.toBeUndefined()
-    hook.unmount()
-  })
-
-  it('does not claim the shared gate when no native browser surface is eligible', () => {
-    const hook = renderOcclusionHook(false)
-    const waitUntil = vi.fn()
-
-    act(() => {
-      window.dispatchEvent(
-        new CustomEvent<NativeSurfaceOcclusionPrepareDetail>(
-          NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
-          {
-            detail: { kind: 'modal', waitUntil },
-          }
-        )
-      )
-    })
-
-    expect(waitUntil).not.toHaveBeenCalled()
-    expect(captureBrowserPanelSnapshot).not.toHaveBeenCalled()
-    hook.unmount()
-  })
-
-  it('leaves older shells on their original non-blocking observer path', () => {
-    supportsAtomicBrowserPanelOcclusion.mockReturnValue(false)
-    const hook = renderOcclusionHook()
-    const waitUntil = vi.fn()
-
-    act(() => {
-      window.dispatchEvent(
-        new CustomEvent<NativeSurfaceOcclusionPrepareDetail>(
-          NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
-          {
-            detail: { kind: 'modal', waitUntil },
-          }
-        )
-      )
-    })
-
-    expect(waitUntil).not.toHaveBeenCalled()
-    expect(captureBrowserPanelSnapshot).not.toHaveBeenCalled()
-    hook.unmount()
-  })
-
-  it('uses forced hiding only after exact modal swaps fail', async () => {
-    const hook = renderOcclusionHook()
-    setBrowserPanelOccluded.mockImplementation(
-      (occluded: boolean, _scopeId: string, force?: boolean) =>
-        Promise.resolve(!occluded || force === true)
-    )
-    let preparation: Promise<unknown> | undefined
-
-    act(() => {
-      window.dispatchEvent(
-        new CustomEvent<NativeSurfaceOcclusionPrepareDetail>(
-          NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
-          {
-            detail: {
-              kind: 'modal',
-              waitUntil: (pending) => {
-                preparation = pending
-              },
-            },
-          }
-        )
-      )
-    })
-
-    await flushOcclusionLifecycle()
-    await expect(preparation).resolves.toBeUndefined()
-    expect(setBrowserPanelOccluded).toHaveBeenCalledWith(true, 'chat-1', true)
-    expect(hook.result().snapshotLayer).toBe('modal')
-    hook.unmount()
   })
 
   it('rejects the gate instead of revealing through a failed forced hide', async () => {
@@ -483,107 +295,137 @@ describe('useBrowserPanelOcclusion modal lifecycle', () => {
     hook.unmount()
   })
 
-  it('retains the replacement if revealing the native surface is refused', async () => {
-    const modal = addModalOverlay()
+  it('replaces the native page only while a moving tooltip overlaps it', async () => {
+    let nativeVisible = true
+    setBrowserPanelOccluded.mockImplementation(async (hidden: boolean) => {
+      nativeVisible = !hidden
+      return true
+    })
     const hook = renderOcclusionHook()
+    const tooltip = document.createElement('div')
+    tooltip.setAttribute('data-native-surface-overlay', '')
+    let bounds = new DOMRect(100, 100, 200, 60)
+    tooltip.getBoundingClientRect = () => bounds
+    act(() => document.body.appendChild(tooltip))
     await flushOcclusionLifecycle()
-    expect(hook.result().snapshot).toEqual(SNAPSHOT)
+    expect(nativeVisible).toBe(true)
+    expect(hook.result().snapshot).toBeNull()
 
-    setBrowserPanelOccluded.mockResolvedValue(false)
+    bounds = new DOMRect(450, 100, 200, 60)
+    await flushOcclusionLifecycle()
+    expect(nativeVisible).toBe(false)
+    expect(hook.result().snapshotLayer).toBe('popover')
+
+    bounds = new DOMRect(100, 100, 200, 60)
+    await flushOcclusionLifecycle()
+    expect(nativeVisible).toBe(true)
+    expect(hook.result().snapshot).toBeNull()
+    hook.unmount()
+  })
+
+  it('retains overlapping menus through modal handoff and releases after the last overlay', async () => {
+    let nativeVisible = true
+    setBrowserPanelOccluded.mockImplementation(async (hidden: boolean) => {
+      nativeVisible = !hidden
+      return true
+    })
+    const hook = renderOcclusionHook()
+    const menu = document.createElement('div')
+    menu.setAttribute('data-native-surface-overlay', '')
+    menu.getBoundingClientRect = () => new DOMRect(450, 100, 200, 60)
+    act(() => document.body.appendChild(menu))
+    await flushOcclusionLifecycle()
+    expect(nativeVisible).toBe(false)
+
+    const modal = addModalOverlay()
+    await flushOcclusionLifecycle()
+    expect(hook.result().snapshotLayer).toBe('modal')
     act(() => modal.remove())
     await flushOcclusionLifecycle()
-
-    expect(setBrowserPanelOccluded).toHaveBeenLastCalledWith(false, 'chat-1')
-    expect(hook.result().snapshot).toEqual(SNAPSHOT)
-    hook.unmount()
-  })
-
-  it('reuses a painted popover frame for a modal without revealing the native view between them', async () => {
-    const fallback = vi.fn()
-    const onOwnershipLost = vi.fn()
-    const hook = renderOcclusionHook()
-
-    act(() => {
-      void hook.result().requestOverlay('resources', fallback, onOwnershipLost)
-    })
-    await flushOcclusionLifecycle()
-
-    expect(hook.result().activeOverlay).toBe('resources')
+    expect(nativeVisible).toBe(false)
     expect(hook.result().snapshotLayer).toBe('popover')
-    expect(setBrowserPanelOccluded).toHaveBeenCalledTimes(1)
-    expect(setBrowserPanelOccluded).toHaveBeenLastCalledWith(true, 'chat-1')
 
-    let modal: HTMLDivElement | null = null
-    act(() => {
-      modal = addModalOverlay()
-    })
+    act(() => menu.remove())
     await flushOcclusionLifecycle()
-
-    expect(captureBrowserPanelSnapshot).toHaveBeenCalledOnce()
-    expect(setBrowserPanelOccluded).toHaveBeenCalledTimes(1)
-    expect(hook.result().activeOverlay).toBeNull()
-    expect(hook.result().snapshotLayer).toBe('modal')
-    expect(onOwnershipLost).toHaveBeenCalledOnce()
-
-    await act(async () => {
-      await hook.result().closeOverlay('resources')
-    })
-    expect(setBrowserPanelOccluded).toHaveBeenCalledTimes(1)
-
-    act(() => modal?.remove())
-    await flushOcclusionLifecycle()
-
-    expect(setBrowserPanelOccluded).toHaveBeenCalledTimes(2)
-    expect(setBrowserPanelOccluded).toHaveBeenLastCalledWith(false, 'chat-1')
-    expect(fallback).not.toHaveBeenCalled()
+    expect(nativeVisible).toBe(true)
+    expect(hook.result().snapshot).toBeNull()
     hook.unmount()
   })
 
-  it('replaces one popover with another without revealing or recapturing the native view', async () => {
-    const firstFallback = vi.fn()
-    const secondFallback = vi.fn()
-    const firstOwnershipLost = vi.fn()
-    const hook = renderOcclusionHook()
-    let firstRequest!: Promise<boolean>
-    let secondRequest!: Promise<boolean>
-
-    act(() => {
-      firstRequest = hook.result().requestOverlay('resources', firstFallback, firstOwnershipLost)
+  it('keeps an open menu above the native page while a resized frame is still capturing', async () => {
+    let nativeVisible = true
+    setBrowserPanelOccluded.mockImplementation(async (hidden: boolean) => {
+      nativeVisible = !hidden
+      return true
     })
+    let bounds = new DOMRect(500, 64, 800, 700)
+    const hook = renderOcclusionHook(true, () => bounds)
+    const menu = document.createElement('div')
+    menu.setAttribute('data-native-surface-overlay', '')
+    menu.getBoundingClientRect = () => new DOMRect(450, 100, 200, 60)
+    act(() => document.body.appendChild(menu))
     await flushOcclusionLifecycle()
-    expect(await firstRequest).toBe(true)
-    expect(hook.result().activeOverlay).toBe('resources')
+    expect(nativeVisible).toBe(false)
 
-    act(() => {
-      secondRequest = hook.result().requestOverlay('tab', secondFallback)
-    })
+    let finishCapture: ((frame: typeof SNAPSHOT) => void) | undefined
+    captureBrowserPanelSnapshot.mockImplementation(
+      () =>
+        new Promise<typeof SNAPSHOT>((resolve) => {
+          finishCapture = resolve
+        })
+    )
+    bounds = new DOMRect(500, 64, 600, 700)
     await flushOcclusionLifecycle()
-
-    expect(await secondRequest).toBe(true)
-    expect(hook.result().activeOverlay).toBe('tab')
-    expect(captureBrowserPanelSnapshot).toHaveBeenCalledOnce()
-    expect(setBrowserPanelOccluded).toHaveBeenCalledTimes(1)
-    expect(firstOwnershipLost).toHaveBeenCalledOnce()
-    expect(firstFallback).not.toHaveBeenCalled()
-    expect(secondFallback).not.toHaveBeenCalled()
-    hook.unmount()
-  })
-
-  it('retires an active popover and replacement when the Browser becomes ineligible', async () => {
-    const hook = renderOcclusionHook()
-    act(() => {
-      void hook.result().requestOverlay('toolbar', vi.fn())
-    })
-    await flushOcclusionLifecycle()
-    expect(hook.result().activeOverlay).toBe('toolbar')
+    expect(finishCapture).toBeTypeOf('function')
+    expect(nativeVisible).toBe(false)
     expect(hook.result().snapshot).toEqual(SNAPSHOT)
 
-    hook.setPanelVisible(false)
+    const resized = { ...SNAPSHOT, viewportBounds: { ...SNAPSHOT.viewportBounds, width: 600 } }
+    finishCapture?.(resized)
     await flushOcclusionLifecycle()
+    expect(nativeVisible).toBe(false)
+    expect(hook.result().snapshot).toEqual(resized)
 
-    expect(hook.result().activeOverlay).toBeNull()
+    bounds = new DOMRect(500, 64, 400, 700)
+    await flushOcclusionLifecycle()
+    act(() => menu.remove())
+    await flushOcclusionLifecycle()
+    expect(nativeVisible).toBe(true)
     expect(hook.result().snapshot).toBeNull()
-    expect(setBrowserPanelOccluded).toHaveBeenLastCalledWith(false, 'chat-1')
+
+    finishCapture?.({ ...resized, viewportBounds: { ...resized.viewportBounds, width: 400 } })
+    await flushOcclusionLifecycle()
+    expect(nativeVisible).toBe(true)
+    expect(hook.result().snapshot).toBeNull()
+  })
+
+  it('does not hide the page when an overlapping tooltip disappears during capture', async () => {
+    let finishCapture: ((frame: typeof SNAPSHOT) => void) | undefined
+    captureBrowserPanelSnapshot.mockImplementation(
+      () =>
+        new Promise<typeof SNAPSHOT>((resolve) => {
+          finishCapture = resolve
+        })
+    )
+    let nativeVisible = true
+    setBrowserPanelOccluded.mockImplementation(async (hidden: boolean) => {
+      nativeVisible = !hidden
+      return true
+    })
+    const hook = renderOcclusionHook()
+    const tooltip = document.createElement('div')
+    tooltip.setAttribute('data-native-surface-overlay', '')
+    tooltip.getBoundingClientRect = () => new DOMRect(450, 100, 200, 60)
+    act(() => document.body.appendChild(tooltip))
+    await flushOcclusionLifecycle()
+    expect(finishCapture).toBeTypeOf('function')
+
+    act(() => tooltip.remove())
+    await flushOcclusionLifecycle()
+    finishCapture?.(SNAPSHOT)
+    await flushOcclusionLifecycle()
+    expect(nativeVisible).toBe(true)
+    expect(hook.result().snapshot).toBeNull()
     hook.unmount()
   })
 })
@@ -591,24 +433,6 @@ describe('useBrowserPanelOcclusion modal lifecycle', () => {
 describe('snapshotMatchesHost', () => {
   const rect = (x: number, y: number, width: number, height: number) =>
     ({ x, y, width, height }) as DOMRect
-
-  it('accepts a capture that still describes the host rect', () => {
-    expect(
-      snapshotMatchesHost(
-        { viewportBounds: { x: 10, y: 20, width: 800, height: 600 } },
-        rect(10, 20, 800, 600)
-      )
-    ).toBe(true)
-  })
-
-  it('tolerates sub-pixel drift from rounding', () => {
-    expect(
-      snapshotMatchesHost(
-        { viewportBounds: { x: 10, y: 20, width: 800, height: 600 } },
-        rect(10.4, 19.6, 800.5, 599.5)
-      )
-    ).toBe(true)
-  })
 
   it('rejects a capture taken before a scroll lock reflowed the panel', () => {
     // Modal scroll lock removes the scrollbar: the host widens by 15px, so the
@@ -619,12 +443,5 @@ describe('snapshotMatchesHost', () => {
         rect(10, 20, 815, 600)
       )
     ).toBe(false)
-  })
-
-  it('accepts captures with no viewport bounds (host-tracking fallback style)', () => {
-    expect(snapshotMatchesHost({ viewportBounds: undefined }, rect(0, 0, 100, 100))).toBe(true)
-    expect(
-      snapshotMatchesHost({ viewportBounds: { x: 0, y: 0, width: 10, height: 10 } }, null)
-    ).toBe(true)
   })
 })

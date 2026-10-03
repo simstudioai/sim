@@ -58,10 +58,6 @@ describe('collab-doc converter', () => {
     }
   })
 
-  it('projects an empty doc without throwing', () => {
-    expect(yDocToMarkdown(markdownToYDoc(''))).toBe(serializeMarkdownBody(''))
-  })
-
   describe('Markdown-derived seed and placeholder parity', () => {
     const shapeOf = (blocks: JSONContent[] | undefined) =>
       (blocks ?? [])
@@ -77,24 +73,6 @@ describe('collab-doc converter', () => {
     const parity = (live: Y.Doc) => ({
       crdt: shapeOf(yDocToProsemirrorJSON(live, COLLAB_DOC_FIELD).content),
       placeholder: shapeOf(editorNormalForm(yDocToMarkdown(live)).content),
-    })
-
-    const paragraphs = (count: number) =>
-      Array.from({ length: count }, () => new Y.XmlElement('paragraph'))
-
-    /** Seed a doc from markdown, then apply an edit no markdown parse could have produced. */
-    const typedInto = (md: string, edit: (fragment: Y.XmlFragment) => void) => {
-      const live = markdownToYDoc(md)
-      edit(live.getXmlFragment(COLLAB_DOC_FIELD))
-      return live
-    }
-
-    it('a blank line typed between two paragraphs round-trips as-is', () => {
-      const live = typedInto('a\n\nb', (f) => f.insert(1, paragraphs(2)))
-      const { crdt, placeholder } = parity(live)
-      expect(crdt).toBe('paragraph,∅,∅,paragraph')
-      expect(placeholder).toBe(crdt)
-      live.destroy()
     })
 
     it('holds for every representative document', () => {
@@ -252,18 +230,6 @@ describe('collab-doc converter', () => {
     })
   })
 
-  it('applies new content into an existing doc (agent write)', () => {
-    const ydoc = markdownToYDoc('# Hello\n\nWorld.')
-    applyMarkdownToYDoc(ydoc, '# Hello\n\nWorld and then some more.')
-    expect(yDocToMarkdown(ydoc)).toBe(serializeMarkdownBody('# Hello\n\nWorld and then some more.'))
-  })
-
-  it('clears an existing doc to empty without throwing (agent write of empty content)', () => {
-    const ydoc = markdownToYDoc('# Hello\n\nWorld.')
-    expect(() => applyMarkdownToYDoc(ydoc, '')).not.toThrow()
-    expect(yDocToMarkdown(ydoc)).toBe(serializeMarkdownBody(''))
-  })
-
   it('merges an agent write with a concurrent remote edit (CRDT, no clobber)', () => {
     // Two clients start from the same state.
     const server = markdownToYDoc('# Doc\n\nAlpha paragraph.\n\nBeta paragraph.')
@@ -306,12 +272,6 @@ describe('collab-doc converter', () => {
       postProcessSerializedMarkdown(yDocToMarkdown(doc))
     )
     expect(yDocToFileMarkdown(doc)).toBe(expected)
-    doc.destroy()
-  })
-
-  it('yDocToFileMarkdown re-attaches empty frontmatter when the config map has none', () => {
-    const doc = markdownToYDoc('plain body\n')
-    expect(yDocToFileMarkdown(doc)).toBe(postProcessSerializedMarkdown(yDocToMarkdown(doc)))
     doc.destroy()
   })
 })

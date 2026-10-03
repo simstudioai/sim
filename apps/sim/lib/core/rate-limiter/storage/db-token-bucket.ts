@@ -94,16 +94,20 @@ export class DbTokenBucket implements RateLimitStorageAdapter {
         ...new Set([...options.cooldownKeys, ...reservations.map((item) => item.key)]),
       ].sort()
       const createdAt = new Date()
-      for (const key of keys) {
-        const reservation = reservations.find((item) => item.key === key)
+      if (keys.length > 0) {
         await tx
           .insert(rateLimitBucket)
-          .values({
-            key,
-            tokens: String(reservation?.config.maxTokens ?? 0),
-            lastRefillAt: createdAt,
-            updatedAt: createdAt,
-          })
+          .values(
+            keys.map((key) => {
+              const reservation = reservations.find((item) => item.key === key)
+              return {
+                key,
+                tokens: String(reservation?.config.maxTokens ?? 0),
+                lastRefillAt: createdAt,
+                updatedAt: createdAt,
+              }
+            })
+          )
           .onConflictDoNothing()
       }
       const rows = await tx

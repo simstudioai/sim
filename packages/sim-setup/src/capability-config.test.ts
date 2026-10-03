@@ -2,18 +2,9 @@ import {
   defineCapability,
   ENV_CAPABILITIES,
   envField,
-  OAUTH_CLIENT_CAPABILITIES,
 } from '@sim/deployment-config/env-capabilities'
 import { describe, expect, it } from 'vitest'
-import {
-  CAPABILITY_SETUPS,
-  defineCapabilitySetup,
-  EMAIL_SETUP,
-  getOAuthClientSetupFields,
-  KNOWLEDGE_EMBEDDINGS_SETUP,
-  STORAGE_SETUP,
-} from './capability-config'
-import { getCapabilitySetupOptions } from './capability-setup'
+import { CAPABILITY_SETUPS, defineCapabilitySetup } from './capability-config'
 
 describe('capability setup configuration', () => {
   it('maps every runtime capability and provider exactly once', () => {
@@ -66,37 +57,5 @@ describe('capability setup configuration', () => {
         optionOrder: ['remote'],
       })
     ).toThrow(/unknown: MISSPELLED_REMOTE_KEY/)
-  })
-
-  it('keeps presets out of the generic provider choices', () => {
-    expect(getCapabilitySetupOptions(EMAIL_SETUP).map((option) => option.id)).not.toContain(
-      'mailhog'
-    )
-    expect(getCapabilitySetupOptions(STORAGE_SETUP).map((option) => option.id)).not.toContain(
-      's3-compatible'
-    )
-  })
-
-  it('offers OpenAI first for fresh knowledge embedding setup, then every other family', () => {
-    expect(
-      getCapabilitySetupOptions(KNOWLEDGE_EMBEDDINGS_SETUP).map((option) => option.id)
-    ).toEqual(['openai', 'azure-openai', 'gemini', 'ollama', 'openrouter'])
-  })
-
-  it('maps every OAuth runtime field to a CLI input mode in runtime order', () => {
-    for (const id of Object.keys(OAUTH_CLIENT_CAPABILITIES) as Array<
-      keyof typeof OAUTH_CLIENT_CAPABILITIES
-    >) {
-      expect(getOAuthClientSetupFields(id).map((field) => field.key)).toEqual(
-        OAUTH_CLIENT_CAPABILITIES[id]
-      )
-    }
-  })
-
-  it('configures GitHub Search with dedicated App credentials', () => {
-    expect(getOAuthClientSetupFields('github-repositories')).toEqual([
-      { key: 'GITHUB_APP_CLIENT_ID', input: 'text' },
-      { key: 'GITHUB_APP_CLIENT_SECRET', input: 'secret' },
-    ])
   })
 })

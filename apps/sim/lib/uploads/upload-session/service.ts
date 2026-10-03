@@ -5,13 +5,13 @@ import {
   requirePrincipalSubjectUserId,
 } from '@sim/auth/principal'
 import { db, dbFor } from '@sim/db'
-import { uploadSession } from '@sim/db/schema'
+import { organization, uploadSession, user } from '@sim/db/schema'
 import { safeCompare } from '@sim/security/compare'
 import { sha256Hex } from '@sim/security/hash'
 import { generateSecureToken } from '@sim/security/tokens'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, inArray, isNull, lt, or } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import {
   checkStorageQuotaForBillingContext,
   resolveStorageBillingContext,
@@ -19,8 +19,15 @@ import {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateUniqueExecutionFileKey } from '@/lib/uploads/contexts/execution/utils'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
+import { assertOrganizationAttachmentControlBinding } from '@/lib/uploads/contexts/organization-assistant/binding'
+import { assertOrganizationLogoControlBinding } from '@/lib/uploads/contexts/organization-logo/binding'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
+import {
+  ASSISTANT_IMAGE_MAX_BYTES,
+  isAssistantImageType,
+} from '@/lib/uploads/shared/assistant-images'
 import {
   MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE,
   MAX_WORKSPACE_FILE_SIZE,
@@ -47,6 +54,13 @@ import type {
   UploadStorageProvider,
   UploadTransferMethod,
 } from '@/lib/uploads/upload-session/types'
+import {
+  bindWorkspaceFileUploadProvenance,
+  WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY,
+  type WorkspaceFileUploadSource,
+} from '@/lib/uploads/upload-session/workspace-file-provenance'
+import { isImageFileType } from '@/lib/uploads/utils/file-utils'
+import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 
 export const UPLOAD_SESSION_PUT_MAX_BYTES = 50 * 1024 * 1024
 export const UPLOAD_SESSION_PART_SIZE = 8 * 1024 * 1024
@@ -122,6 +136,13 @@ export interface UploadSessionAuthBinding {
     | { kind: 'workspace_api_key'; workspaceId: string; keyId: string }
     | {
         kind: 'delegated'
+        serviceId: 'copilot'
+        subjectUserId: string
+        audience: string
+        chatId: string
+      }
+    | {
+        kind: 'delegated'
         serviceId: 'executor'
         subjectUserId: string
         audience: string
@@ -180,7 +201,13 @@ interface CreateUploadSessionBaseParams {
 
 export type CreateUploadSessionParams = CreateUploadSessionBaseParams &
   (
-    | { purpose: 'workspace_file'; workspaceId: string; principal: Principal }
+    | {
+        purpose: 'workspace_file'
+        workspaceId: string
+        principal: Principal
+        /** Trusted runtime source classification, never a public upload input. */
+        secretProvenance?: WorkspaceFileUploadSource
+      }
     | { purpose: 'table_import'; workspaceId: string; principal?: Principal }
     | {
         purpose: 'knowledge_document'
@@ -189,7 +216,21 @@ export type CreateUploadSessionParams = CreateUploadSessionBaseParams &
         principal: Principal
       }
     | { purpose: 'profile_picture'; workspaceId?: null }
+    | {
+        purpose: 'organization_logo'
+        organizationId: string
+        expectedLogo: string | null
+        principal: Principal
+        workspaceId?: never
+      }
     | { purpose: 'workspace_logo' | 'mothership_attachment'; workspaceId: string }
+    | {
+        purpose: 'mothership_attachment'
+        requestMode?: 'agent' | 'assistant' | 'plan'
+        organizationId: string
+        principal: Principal
+        workspaceId?: never
+      }
     | {
         purpose: 'execution_attachment'
         workspaceId: string
@@ -206,18 +247,56 @@ export async function createUploadSession(
   validateFile(params)
   const id = params.id ?? generateId()
   const uploadToken = generateSecureToken(32)
-  const workspaceId = params.purpose === 'profile_picture' ? null : params.workspaceId
+  const workspaceId = params.purpose === 'profile_picture' ? null : (params.workspaceId ?? null)
   const metadata = { ...(params.metadata ?? {}) }
+  if (params.purpose === 'organization_logo') {
+    if (params.principal.kind !== 'session' || params.principal.userId !== params.userId) {
+      throw new UploadSessionError('forbidden', 'Organization logos require the uploading session')
+    }
+    metadata.organizationLogo = {
+      organizationId: params.organizationId,
+      expectedLogo: params.expectedLogo,
+      userId: params.userId,
+      sessionId: params.principal.sessionId,
+    }
+  }
+  if (params.purpose === 'mothership_attachment' && 'organizationId' in params) {
+    if (params.principal.kind !== 'session' || params.principal.userId !== params.userId) {
+      throw new UploadSessionError(
+        'forbidden',
+        'Organization attachments require the uploading session'
+      )
+    }
+    metadata.organizationAttachment = {
+      requestMode: params.requestMode ?? 'assistant',
+      organizationId: params.organizationId,
+      userId: params.userId,
+      sessionId: params.principal.sessionId,
+    }
+  }
+  if (params.purpose === 'workspace_file') {
+    delete metadata[WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY]
+    if (params.secretProvenance !== undefined) {
+      metadata[WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY] = bindWorkspaceFileUploadProvenance(
+        params.workspaceId,
+        params.secretProvenance
+      )
+    }
+  }
   if (params.purpose === 'workspace_file' || params.purpose === 'knowledge_document') {
     if (!workspaceId) throw new Error(`${params.purpose} upload is missing workspaceId`)
     if (!params.principal) {
       throw new Error(`${params.purpose} upload requires an authenticated principal`)
     }
-    metadata.authBinding = createUploadSessionAuthBinding(params.principal, workspaceId)
+    metadata.authBinding = createUploadSessionAuthBinding(params.principal, workspaceId, {
+      copilotDelegationAudience:
+        params.purpose === 'workspace_file' ? WORKSPACE_FILES_DELEGATION_AUDIENCE : 'sim:knowledge',
+    })
   } else if (params.purpose === 'table_import' && params.principal) {
     if (!workspaceId) throw new Error('table_import upload is missing workspaceId')
     metadata.authBinding = createUploadSessionAuthBinding(params.principal, workspaceId, {
       executorDelegationAudience: 'sim:tables',
+      copilotDelegationAudience: 'sim:tables',
     })
   }
   const { storageContext, finalKey } = resolveUploadStorage(params, id)
@@ -419,9 +498,12 @@ export async function getPrincipalKnowledgeDocumentUploadSession(params: {
 export function createUploadSessionAuthBinding(
   principal: Principal,
   workspaceId: string,
-  options: { executorDelegationAudience?: string } = {}
+  options: { executorDelegationAudience?: string; copilotDelegationAudience?: string } = {}
 ): UploadSessionAuthBinding {
   switch (principal.kind) {
+    case 'slack_app':
+    case 'slack_installation':
+      throw new UploadSessionError('forbidden', 'Slack installations cannot create uploads')
     case 'session':
       return {
         version: 1,
@@ -454,6 +536,31 @@ export function createUploadSessionAuthBinding(
         principal: { kind: principal.kind, workspaceId, keyId: principal.keyId },
       }
     case 'delegated': {
+      if (principal.serviceId === 'copilot') {
+        if (
+          principal.workspaceId !== workspaceId ||
+          principal.audience !==
+            (options.copilotDelegationAudience ?? WORKSPACE_FILES_DELEGATION_AUDIENCE) ||
+          !principal.resourceScope?.chatId ||
+          principal.expiresAt <= new Date()
+        ) {
+          throw new UploadSessionError(
+            'forbidden',
+            'Copilot upload requires current chat and workspace authority'
+          )
+        }
+        return {
+          version: 1,
+          workspaceId,
+          principal: {
+            kind: 'delegated',
+            serviceId: 'copilot',
+            subjectUserId: requirePrincipalSubjectUserId(principal),
+            audience: principal.audience,
+            chatId: principal.resourceScope.chatId,
+          },
+        }
+      }
       if (
         options.executorDelegationAudience === undefined ||
         !isExecutorWorkflowExecutionPrincipal(principal) ||
@@ -497,6 +604,14 @@ export function assertUploadSessionAuthBinding(
   session: UploadSessionRecord,
   principal: Principal
 ): void {
+  if (session.purpose === 'organization_logo') {
+    assertOrganizationLogoControlBinding(session, principal)
+    return
+  }
+  if (session.purpose === 'mothership_attachment' && session.workspaceId === null) {
+    assertOrganizationAttachmentControlBinding(session, principal)
+    return
+  }
   if (!isPrincipalBoundUploadPurpose(session.purpose)) return
   const candidate = session.metadata.authBinding
   if (candidate === undefined) {
@@ -526,12 +641,21 @@ export function assertUploadSessionAuthBinding(
             ? principal.kind === 'workspace_api_key' &&
               bound.workspaceId === principal.workspaceId &&
               bound.keyId === principal.keyId
-            : isExecutorWorkflowExecutionPrincipal(principal) &&
-              principal.workspaceId === session.workspaceId &&
-              principal.subjectUserId === bound.subjectUserId &&
-              principal.audience === bound.audience &&
-              principal.delegationContext.workflowId === bound.workflowId &&
-              principal.delegationContext.executionId === bound.executionId)
+            : bound.serviceId === 'copilot'
+              ? principal.kind === 'delegated' &&
+                principal.serviceId === 'copilot' &&
+                principal.workspaceId === session.workspaceId &&
+                principal.subjectUserId === bound.subjectUserId &&
+                principal.audience === bound.audience &&
+                principal.audience === copilotUploadAudience(session.purpose) &&
+                principal.resourceScope?.chatId === bound.chatId &&
+                principal.expiresAt > new Date()
+              : isExecutorWorkflowExecutionPrincipal(principal) &&
+                principal.workspaceId === session.workspaceId &&
+                principal.subjectUserId === bound.subjectUserId &&
+                principal.audience === bound.audience &&
+                principal.delegationContext.workflowId === bound.workflowId &&
+                principal.delegationContext.executionId === bound.executionId)
   if (!matches) throw uploadNotFound()
 }
 
@@ -605,6 +729,8 @@ export async function createUploadPartUrls(params: {
 
 export async function completeUploadSession<T>(params: {
   session: UploadSessionRecord
+  /** Host evidence for the completed byte stream; never sourced from request JSON. */
+  secretProvenance?: WorkspaceFileSecretProvenance
   finalize: (session: UploadSessionRecord) => Promise<{ value: T; completedFileId?: string }>
   loadCompleted?: (session: UploadSessionRecord) => Promise<T>
 }): Promise<{ session: UploadSessionRecord; value: T; alreadyCompleted: boolean }> {
@@ -634,7 +760,14 @@ export async function completeUploadSession<T>(params: {
       params.session.id,
       leaseId,
       recoveringFinalization ? ['finalizing'] : ['uploading', 'completing'],
-      recoveringFinalization ? 'finalizing' : 'completing'
+      recoveringFinalization ? 'finalizing' : 'completing',
+      db,
+      params.session.purpose === 'workspace_file' && params.session.workspaceId
+        ? bindWorkspaceFileUploadProvenance(
+            params.session.workspaceId,
+            params.secretProvenance ?? { status: 'unknown' }
+          )
+        : undefined
     )),
     uploadToken: params.session.uploadToken,
   }
@@ -910,6 +1043,27 @@ export async function cleanupExpiredUploadSessions(): Promise<{
     .where(
       and(
         inArray(uploadSession.status, ['completed', 'aborted', 'expired']),
+        /** Retain ownership records for active logos so replacements remain eligible for cleanup. */
+        sql`NOT (
+          ${uploadSession.status} = 'completed'
+          AND ${uploadSession.purpose} = 'organization_logo'
+          AND EXISTS (
+            SELECT 1 FROM ${organization}
+            WHERE ${organization.id} = ${uploadSession.metadata}->'organizationLogo'->>'organizationId'
+              AND ${organization.logo} = ${uploadSession.metadata}->>'organizationLogoPath'
+          )
+        )`,
+        /** Keep private images while both their uploader and organization exist. */
+        sql`NOT (
+          ${uploadSession.status} = 'completed'
+          AND ${uploadSession.purpose} = 'mothership_attachment'
+          AND ${uploadSession.workspaceId} IS NULL
+          AND EXISTS (SELECT 1 FROM ${user} WHERE ${user.id} = ${uploadSession.userId})
+          AND EXISTS (
+            SELECT 1 FROM ${organization}
+            WHERE ${organization.id} = ${uploadSession.metadata}->'organizationAttachment'->>'organizationId'
+          )
+        )`,
         lt(uploadSession.completedAt, terminalCutoff),
         or(
           isNull(uploadSession.processingLeaseId),
@@ -931,7 +1085,12 @@ export async function cleanupExpiredUploadSessions(): Promise<{
         candidate.status,
         cleanupDb
       )
-      if (claimed.status === 'aborted' || claimed.status === 'expired') {
+      if (
+        claimed.status === 'aborted' ||
+        claimed.status === 'expired' ||
+        claimed.purpose === 'organization_logo' ||
+        (claimed.purpose === 'mothership_attachment' && claimed.workspaceId === null)
+      ) {
         await deleteOwnedFinalObject(claimed)
       } else if (claimed.status !== 'completed') {
         throw new Error(`Invalid terminal upload status ${claimed.status}`)
@@ -1041,7 +1200,8 @@ async function claimSession(
   leaseId: string,
   statuses: UploadSessionStatus[],
   nextStatus: UploadSessionStatus = 'completing',
-  database: typeof db = db
+  database: typeof db = db,
+  fileProvenance?: ReturnType<typeof bindWorkspaceFileUploadProvenance>
 ): Promise<UploadSessionRecord> {
   const now = new Date()
   const [row] = await database
@@ -1052,6 +1212,14 @@ async function claimSession(
       processingLeaseExpiresAt: new Date(now.getTime() + PROCESSING_LEASE_MS),
       error: null,
       updatedAt: now,
+      /** Seal once with the completion lease; recovery must retain the first claim's evidence. */
+      ...(fileProvenance
+        ? {
+            metadata: sql`CASE WHEN ${uploadSession.metadata}->${WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY}->>'pending' = 'true'
+              THEN jsonb_set(${uploadSession.metadata}, ARRAY[${WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY}]::text[], ${JSON.stringify(fileProvenance)}::jsonb)
+              ELSE ${uploadSession.metadata} END`,
+          }
+        : {}),
     })
     .where(
       and(
@@ -1199,7 +1367,35 @@ function validateFile(params: CreateUploadSessionParams): void {
   if (params.fileSize > maximum) {
     throw new UploadSessionError('validation', `File size exceeds maximum of ${maximum} bytes`)
   }
-  if (params.purpose !== 'profile_picture' && !params.workspaceId.trim()) {
+  if (
+    params.purpose === 'organization_logo' &&
+    (!params.organizationId.trim() || !isImageFileType(params.contentType))
+  ) {
+    throw new UploadSessionError(
+      'validation',
+      'Organization logos must be image files with an organizationId'
+    )
+  }
+  const organizationAttachment =
+    params.purpose === 'mothership_attachment' && 'organizationId' in params
+  if (
+    organizationAttachment &&
+    (!params.organizationId.trim() ||
+      (params.requestMode !== 'agent' &&
+        params.requestMode !== 'plan' &&
+        (params.fileSize > ASSISTANT_IMAGE_MAX_BYTES || !isAssistantImageType(params.contentType))))
+  ) {
+    throw new UploadSessionError(
+      'validation',
+      'Assistant attachments must be PNG, JPEG, GIF, or WebP images up to 5 MB'
+    )
+  }
+  if (
+    params.purpose !== 'profile_picture' &&
+    params.purpose !== 'organization_logo' &&
+    !organizationAttachment &&
+    !params.workspaceId?.trim()
+  ) {
     throw new UploadSessionError('validation', 'workspaceId must not be empty')
   }
   if (params.purpose === 'knowledge_document' && !params.knowledgeBaseId.trim()) {
@@ -1215,7 +1411,11 @@ function validateFile(params: CreateUploadSessionParams): void {
 
 function maximumFileSize(purpose: UploadSessionPurpose): number {
   if (purpose === 'knowledge_document') return MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE
-  if (purpose === 'profile_picture' || purpose === 'workspace_logo') {
+  if (
+    purpose === 'profile_picture' ||
+    purpose === 'workspace_logo' ||
+    purpose === 'organization_logo'
+  ) {
     return UPLOAD_SESSION_ASSET_MAX_BYTES
   }
   if (purpose === 'execution_attachment') return MAX_WORKSPACE_FORMDATA_FILE_SIZE
@@ -1226,9 +1426,20 @@ function requiresStorageQuota(purpose: UploadSessionPurpose): boolean {
   return purpose === 'workspace_file' || purpose === 'knowledge_document'
 }
 
+function copilotUploadAudience(purpose: UploadSessionPurpose): string | undefined {
+  if (purpose === 'workspace_file') return WORKSPACE_FILES_DELEGATION_AUDIENCE
+  if (purpose === 'knowledge_document') return 'sim:knowledge'
+  if (purpose === 'table_import') return 'sim:tables'
+  return undefined
+}
+
 function isPrincipalBoundUploadPurpose(purpose: UploadSessionPurpose): boolean {
   return (
-    purpose === 'workspace_file' || purpose === 'knowledge_document' || purpose === 'table_import'
+    purpose === 'workspace_file' ||
+    purpose === 'knowledge_document' ||
+    purpose === 'table_import' ||
+    purpose === 'mothership_attachment' ||
+    purpose === 'organization_logo'
   )
 }
 
@@ -1257,12 +1468,23 @@ function resolveUploadStorage(
         storageContext: 'profile-pictures',
         finalKey: `profile-pictures/${buildStorageKeySegment(`${id}-`, params.fileName)}`,
       }
+    case 'organization_logo':
+      return {
+        storageContext: 'organization-logos',
+        finalKey: `organization-logos/${params.organizationId}/${buildStorageKeySegment(`${id}-`, params.fileName)}`,
+      }
     case 'workspace_logo':
       return {
         storageContext: 'workspace-logos',
         finalKey: `workspace-logos/${params.workspaceId}/${buildStorageKeySegment(`${id}-`, params.fileName)}`,
       }
     case 'mothership_attachment':
+      if ('organizationId' in params) {
+        return {
+          storageContext: 'mothership',
+          finalKey: `assistant/${params.organizationId}/${params.userId}/${id}/${buildStorageKeySegment('', params.fileName)}`,
+        }
+      }
       return {
         storageContext: 'mothership',
         finalKey: generateWorkspaceFileKey(params.workspaceId, params.fileName),
@@ -1289,6 +1511,7 @@ function isStorageContext(value: string): value is StorageContext {
     'knowledge-base',
     'profile-pictures',
     'workspace-logos',
+    'organization-logos',
     'mothership',
     'execution',
   ].includes(value)
@@ -1310,6 +1533,13 @@ function isUploadSessionAuthBinding(value: unknown): value is UploadSessionAuthB
     return typeof principal.userId === 'string' && typeof principal.clientId === 'string'
   }
   if (principal.kind === 'delegated') {
+    if (principal.serviceId === 'copilot')
+      return (
+        typeof principal.subjectUserId === 'string' &&
+        typeof principal.audience === 'string' &&
+        typeof principal.chatId === 'string' &&
+        principal.chatId.length > 0
+      )
     return (
       principal.serviceId === 'executor' &&
       typeof principal.subjectUserId === 'string' &&

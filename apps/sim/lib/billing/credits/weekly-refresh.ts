@@ -24,6 +24,7 @@ import { db } from '@sim/db'
 import { usageLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, gte, lt, or, sql, sum } from 'drizzle-orm'
+import { readLedgerBounded } from '@/lib/billing/core/ledger-read'
 import type { BillingEntity, UsageQueryPeriod } from '@/lib/billing/core/usage-log'
 import type { DbClient } from '@/lib/db/types'
 
@@ -88,29 +89,31 @@ export async function computeBillingPeriodUsageWithWeeklyRefresh(
 
   const startEpoch = Math.floor(refreshPeriodStart.getTime() / 1000)
   const capEpoch = Math.floor(cap.getTime() / 1000)
-  const rows = await executor
-    .select({
-      weekIndex:
-        sql<number>`FLOOR((LEAST(GREATEST(EXTRACT(EPOCH FROM ${usageLog.createdAt}), ${startEpoch}), ${capEpoch - 1}) - ${startEpoch}) / 604800)`.as(
-          'week_index'
+  const rows = await readLedgerBounded(executor, (tx) =>
+    tx
+      .select({
+        weekIndex:
+          sql<number>`FLOOR((LEAST(GREATEST(EXTRACT(EPOCH FROM ${usageLog.createdAt}), ${startEpoch}), ${capEpoch - 1}) - ${startEpoch}) / 604800)`.as(
+            'week_index'
+          ),
+        ledgerTotal:
+          sql<string>`SUM(SUM(${usageLog.cost}) FILTER (WHERE ${ledgerPeriodFilter})) OVER ()`.as(
+            'ledger_total'
+          ),
+        refreshWeekTotal: sql<string>`SUM(${usageLog.cost}) FILTER (WHERE ${refreshFilter})`.as(
+          'refresh_week_total'
         ),
-      ledgerTotal:
-        sql<string>`SUM(SUM(${usageLog.cost}) FILTER (WHERE ${ledgerPeriodFilter})) OVER ()`.as(
-          'ledger_total'
-        ),
-      refreshWeekTotal: sql<string>`SUM(${usageLog.cost}) FILTER (WHERE ${refreshFilter})`.as(
-        'refresh_week_total'
-      ),
-    })
-    .from(usageLog)
-    .where(
-      and(
-        eq(usageLog.billingEntityType, billingEntity.type),
-        eq(usageLog.billingEntityId, billingEntity.id),
-        scanFilter
+      })
+      .from(usageLog)
+      .where(
+        and(
+          eq(usageLog.billingEntityType, billingEntity.type),
+          eq(usageLog.billingEntityId, billingEntity.id),
+          scanFilter
+        )
       )
-    )
-    .groupBy(sql`week_index`)
+      .groupBy(sql`week_index`)
+  )
 
   let refreshConsumed = 0
   for (const row of rows) {
@@ -169,23 +172,25 @@ export async function computeWeeklyRefreshConsumed(
   // refresh in the period's final week rather than fall out of the deduction.
   const startEpoch = Math.floor(periodStart.getTime() / 1000)
   const capEpoch = Math.floor(cap.getTime() / 1000)
-  const rows = await executor
-    .select({
-      weekIndex:
-        sql<number>`FLOOR((LEAST(GREATEST(EXTRACT(EPOCH FROM ${usageLog.createdAt}), ${startEpoch}), ${capEpoch - 1}) - ${startEpoch}) / 604800)`.as(
-          'week_index'
-        ),
-      weekTotal: sum(usageLog.cost).as('week_total'),
-    })
-    .from(usageLog)
-    .where(
-      and(
-        eq(usageLog.billingEntityType, billingEntity.type),
-        eq(usageLog.billingEntityId, billingEntity.id),
-        eq(usageLog.billingPeriodStart, periodStart)
+  const rows = await readLedgerBounded(executor, (tx) =>
+    tx
+      .select({
+        weekIndex:
+          sql<number>`FLOOR((LEAST(GREATEST(EXTRACT(EPOCH FROM ${usageLog.createdAt}), ${startEpoch}), ${capEpoch - 1}) - ${startEpoch}) / 604800)`.as(
+            'week_index'
+          ),
+        weekTotal: sum(usageLog.cost).as('week_total'),
+      })
+      .from(usageLog)
+      .where(
+        and(
+          eq(usageLog.billingEntityType, billingEntity.type),
+          eq(usageLog.billingEntityId, billingEntity.id),
+          eq(usageLog.billingPeriodStart, periodStart)
+        )
       )
-    )
-    .groupBy(sql`week_index`)
+      .groupBy(sql`week_index`)
+  )
 
   let totalConsumed = 0
   for (const row of rows) {

@@ -270,4 +270,24 @@ Convert a Microsoft Word (.docx) document to PDF using Microsoft Graph and retur
 | --------- | ---- | ----------- |
 | `file` | file | The converted PDF, stored in execution files |
 
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Microsoft Word account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/microsoft-word` |
+| Environment variables | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `openid` | Standard authentication |
+| `profile` | Access profile information |
+| `email` | Access email address |
+| `Files.Read` | Read your Word documents in OneDrive |
+| `Files.ReadWrite` | Read, create, and edit your Word documents in OneDrive |
+| `Files.Read.All` | Read Word documents you can access, including SharePoint libraries |
+| `Files.ReadWrite.All` | Read, create, and edit Word documents you have access to, including SharePoint libraries |
+| `offline_access` | Access account when not using the application |
+
 

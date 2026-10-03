@@ -1,15 +1,8 @@
-.track {
-  animation: marquee 16s linear infinite;
-}
-
-.viewport:hover .track,
-.viewport:focus-visible .track,
-.viewport[data-dragging] .track {
-  animation-play-state: paused;
-}
-
-@media (prefers-reduced-motion: reduce) {
+@media (prefers-reduced-motion: no-preference) {
   .track {
+    animation: marquee 16s linear infinite;
+  }
+  .track:hover {
     animation-play-state: paused;
   }
 }

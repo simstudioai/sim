@@ -2,6 +2,7 @@
 
 import { type ReactNode, useCallback, useId, useMemo, useRef, useState } from 'react'
 import {
+  Avatar,
   Checkbox,
   Chip,
   ChipConfirmModal,
@@ -47,12 +48,12 @@ import {
   groupTabParam,
   groupTabUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
-import {
-  MemberAvatar,
-  MemberRow,
-} from '@/app/workspace/[workspaceId]/settings/components/member-list'
+import { MemberRow } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'
@@ -333,7 +334,7 @@ function AddMembersModal({
                           className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
                         >
                           <Checkbox checked={isSelected} />
-                          <MemberAvatar name={name} image={member.user?.image ?? null} />
+                          <Avatar size='xs' name={name} src={member.user?.image} aria-hidden />
                           <div className='min-w-0 flex-1'>
                             <OverflowText
                               label={name}
@@ -777,7 +778,7 @@ export function GroupDetail({
     viewingGroup.id
   )
   const { data: roster } = useOrganizationRoster(organizationId)
-  const { data: blacklistedProvidersData } = useBlacklistedProviders({ enabled: true })
+  const blacklistedProviders = useBlacklistedProviders()
 
   // Recompute when custom (deploy-as-block) blocks or the viewer's block
   // visibility hydrate into the overlay.
@@ -817,11 +818,10 @@ export function GroupDetail({
   const visibleBlocks = useMemo(() => allBlocks.filter((b) => !b.hideFromToolbar), [allBlocks])
 
   const allProviderIds = useMemo(() => {
-    const allIds = getAllProviderIds()
-    const blacklist = blacklistedProvidersData?.blacklistedProviders ?? []
-    if (blacklist.length === 0) return allIds
-    return allIds.filter((id) => !blacklist.includes(id.toLowerCase()))
-  }, [blacklistedProvidersData])
+    if (!blacklistedProviders.isSuccess) return []
+    const blacklist = blacklistedProviders.data.blacklistedProviders
+    return getAllProviderIds().filter((id) => !blacklist.includes(id.toLowerCase()))
+  }, [blacklistedProviders.data, blacklistedProviders.isSuccess])
 
   /** Maps every tool id to ALL block types that expose it (some tools are shared across blocks). */
   const toolBlockTypes = useMemo(() => {
@@ -1618,50 +1618,63 @@ export function GroupDetail({
           </>
         )}
 
-        {configTab === 'providers' && (
-          <div className='flex flex-col gap-7'>
-            <div className='flex items-center gap-2'>
-              <ChipInput
-                icon={Search}
-                placeholder='Search providers...'
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className='min-w-0 flex-1'
-              />
-              <StatusFilterChip
-                value={statusFilter}
-                onChange={(next) => void setStatusFilter(next)}
-              />
-              <Chip
-                onClick={() => setProvidersAllowed(filteredProviders, !filteredProvidersAllAllowed)}
-                disabled={filteredProviders.length === 0}
-              >
-                {filteredProvidersAllAllowed ? 'Deselect All' : 'Select All'}
-              </Chip>
-            </div>
-            {filteredProviders.length === 0 ? (
-              <SettingsEmptyState variant='inline'>
-                No providers match your filters.
-              </SettingsEmptyState>
-            ) : (
-              <div className='flex flex-col gap-0.5'>
-                {filteredProviders.map((providerId) => (
-                  <ProviderRow
-                    key={providerId}
-                    providerId={providerId}
-                    isProviderAllowed={isProviderAllowed(providerId)}
-                    onToggleProvider={() => toggleProvider(providerId)}
-                    deniedCount={deniedCountByProvider[providerId] ?? 0}
-                    workspaceId={workspaceId}
-                    isAllowed={isModelAllowed}
-                    onToggle={toggleModel}
-                    onSetDenied={setModelsDenied}
-                  />
-                ))}
+        {configTab === 'providers' &&
+          (blacklistedProviders.isError ? (
+            <SettingsQueryErrorState
+              error={blacklistedProviders.error}
+              fallback='Could not load provider availability'
+              isRetrying={blacklistedProviders.isFetching}
+              onRetry={() => void blacklistedProviders.refetch()}
+              variant='inline'
+            />
+          ) : !blacklistedProviders.isSuccess ? (
+            <SettingsEmptyState variant='inline'>Loading providers</SettingsEmptyState>
+          ) : (
+            <div className='flex flex-col gap-7'>
+              <div className='flex items-center gap-2'>
+                <ChipInput
+                  icon={Search}
+                  placeholder='Search providers...'
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className='min-w-0 flex-1'
+                />
+                <StatusFilterChip
+                  value={statusFilter}
+                  onChange={(next) => void setStatusFilter(next)}
+                />
+                <Chip
+                  onClick={() =>
+                    setProvidersAllowed(filteredProviders, !filteredProvidersAllAllowed)
+                  }
+                  disabled={filteredProviders.length === 0}
+                >
+                  {filteredProvidersAllAllowed ? 'Deselect All' : 'Select All'}
+                </Chip>
               </div>
-            )}
-          </div>
-        )}
+              {filteredProviders.length === 0 ? (
+                <SettingsEmptyState variant='inline'>
+                  No providers match your filters.
+                </SettingsEmptyState>
+              ) : (
+                <div className='flex flex-col gap-0.5'>
+                  {filteredProviders.map((providerId) => (
+                    <ProviderRow
+                      key={providerId}
+                      providerId={providerId}
+                      isProviderAllowed={isProviderAllowed(providerId)}
+                      onToggleProvider={() => toggleProvider(providerId)}
+                      deniedCount={deniedCountByProvider[providerId] ?? 0}
+                      workspaceId={workspaceId}
+                      isAllowed={isModelAllowed}
+                      onToggle={toggleModel}
+                      onSetDenied={setModelsDenied}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
 
         {configTab === 'blocks' && (
           <div className='flex flex-col gap-7'>

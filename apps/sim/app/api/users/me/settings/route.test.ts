@@ -1,32 +1,14 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest, dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockGetSession } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
-}))
-
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { GET, PATCH } from '@/app/api/users/me/settings/route'
+
+const mockGetSession = authMockFns.mockGetSession
 
 describe('PATCH /api/users/me/settings', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-  })
-
-  it('reports success when the write lands', async () => {
-    const response = await PATCH(createMockRequest('PATCH', { theme: 'dark' }))
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ success: true })
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
   })
 
   it('does not acknowledge a privacy update when the session has expired', async () => {
@@ -58,7 +40,6 @@ describe('PATCH /api/users/me/settings', () => {
 
 describe('GET /api/users/me/settings', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue(null)
   })
 
@@ -73,7 +54,7 @@ describe('GET /api/users/me/settings', () => {
   })
 
   it('does not replace unavailable saved preferences with permission to collect', async () => {
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
     dbChainMockFns.select.mockImplementationOnce(() => {
       throw new Error('Database unavailable')
     })

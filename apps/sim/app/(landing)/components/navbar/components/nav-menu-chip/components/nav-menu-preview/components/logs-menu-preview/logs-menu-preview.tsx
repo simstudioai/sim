@@ -1,26 +1,13 @@
 import { Chip, cn } from '@sim/emcn'
 import { ChevronDown, Search } from '@sim/emcn/icons'
-import { LogsRunGraph } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/logs-menu-preview/components/logs-run-graph/logs-run-graph'
 import { MenuPreviewFrame } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-frame'
 import { MenuPreviewHeader } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-header/menu-preview-header'
+import { LogsRunGraph } from '@/app/(landing)/components/shared/logs-run-graph'
+import { SUMMARY_STATS } from '@/app/(landing)/components/shared/logs-run-graph/constants'
 
 interface LogsMenuPreviewProps {
   layout?: 'menu' | 'hero'
 }
-
-/** Successful runs grouped into hourly buckets, following the earlier RunHealth overview. */
-const RUN_COUNTS = [
-  3, 5, 4, 6, 4, 7, 5, 6, 8, 5, 7, 6, 9, 6, 8, 7, 10, 6, 8, 7, 9, 8, 6, 7,
-] as const
-const RUN_BUCKETS = RUN_COUNTS.map((count, hour) => ({ hour, count }))
-const COMPLETED_RUNS = RUN_COUNTS.reduce<number>((total, count) => total + count, 0)
-
-const SUMMARY_STATS = [
-  { label: 'Success rate', value: '100%' },
-  { label: 'Median run', value: '21.8s' },
-  { label: 'Completed', value: String(COMPLETED_RUNS) },
-  { label: 'Cost', value: `$${(COMPLETED_RUNS * 0.11).toFixed(2)}` },
-] as const
 
 /** A successful-only sample of the earlier high-level Logs overview and run-volume graph. */
 export function LogsMenuPreview({ layout = 'menu' }: LogsMenuPreviewProps) {
@@ -63,7 +50,7 @@ export function LogsMenuPreview({ layout = 'menu' }: LogsMenuPreviewProps) {
               </div>
             ))}
           </div>
-          <LogsRunGraph buckets={RUN_BUCKETS} />
+          <LogsRunGraph />
           <div className='mt-1.5 flex justify-between text-[var(--text-secondary)] text-caption'>
             <span>24 hours ago</span>
             <span>Now</span>

@@ -128,8 +128,10 @@ export async function uploadToBlob(
   size?: number,
   preserveKey?: boolean,
   metadata?: Record<string, string>,
-  createOnly = false
+  createOnly = false,
+  signal?: AbortSignal
 ): Promise<FileInfo> {
+  signal?.throwIfAborted()
   let config: BlobConfig
   let fileSize: number
   let shouldPreserveKey: boolean
@@ -165,13 +167,16 @@ export async function uploadToBlob(
     Object.assign(blobMetadata, sanitizeStorageMetadata(metadata, 8000))
   }
 
+  signal?.throwIfAborted()
   await blockBlobClient.upload(file, fileSize, {
+    ...(signal ? { abortSignal: signal } : {}),
     blobHTTPHeaders: {
       blobContentType: contentType,
     },
     metadata: blobMetadata,
     ...(createOnly ? { conditions: { ifNoneMatch: '*' } } : {}),
   })
+  signal?.throwIfAborted()
 
   const servePath = `/api/files/serve/${encodeURIComponent(uniqueKey)}`
 
@@ -182,37 +187,6 @@ export async function uploadToBlob(
     size: fileSize,
     type: contentType,
   }
-}
-
-/**
- * Generate a presigned URL for direct file access
- * @param key Blob name
- * @param expiresIn Time in seconds until URL expires
- * @returns Presigned URL
- */
-export async function getPresignedUrl(key: string, expiresIn = 3600) {
-  const { BlobSASPermissions, generateBlobSASQueryParameters, StorageSharedKeyCredential } =
-    await import('@azure/storage-blob')
-  const blobServiceClient = await getBlobServiceClient()
-  const containerClient = blobServiceClient.getContainerClient(BLOB_CONFIG.containerName)
-  const blockBlobClient = containerClient.getBlockBlobClient(key)
-
-  const { accountName, accountKey } = getAccountCredentials()
-
-  const sasOptions = {
-    containerName: BLOB_CONFIG.containerName,
-    blobName: key,
-    permissions: BlobSASPermissions.parse('r'), // Read permission
-    startsOn: new Date(),
-    expiresOn: new Date(Date.now() + expiresIn * 1000),
-  }
-
-  const sasToken = generateBlobSASQueryParameters(
-    sasOptions,
-    new StorageSharedKeyCredential(accountName, accountKey)
-  ).toString()
-
-  return `${blockBlobClient.url}?${sasToken}`
 }
 
 /**
@@ -552,9 +526,18 @@ export async function deleteFromBlob(key: string): Promise<void>
  * @param key Blob name
  * @param customConfig Custom Blob configuration
  */
-export async function deleteFromBlob(key: string, customConfig: BlobConfig): Promise<void>
+export async function deleteFromBlob(
+  key: string,
+  customConfig: BlobConfig | undefined,
+  signal?: AbortSignal
+): Promise<void>
 
-export async function deleteFromBlob(key: string, customConfig?: BlobConfig): Promise<void> {
+export async function deleteFromBlob(
+  key: string,
+  customConfig?: BlobConfig,
+  signal?: AbortSignal
+): Promise<void> {
+  signal?.throwIfAborted()
   const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
   let blobServiceClient: BlobServiceClientType
   let containerName: string
@@ -583,7 +566,9 @@ export async function deleteFromBlob(key: string, customConfig?: BlobConfig): Pr
   const containerClient = blobServiceClient.getContainerClient(containerName)
   const blockBlobClient = containerClient.getBlockBlobClient(key)
 
-  await blockBlobClient.deleteIfExists()
+  signal?.throwIfAborted()
+  await blockBlobClient.deleteIfExists(...(signal ? [{ abortSignal: signal }] : []))
+  signal?.throwIfAborted()
 }
 
 /**

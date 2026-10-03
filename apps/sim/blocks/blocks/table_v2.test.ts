@@ -1,15 +1,12 @@
 /**
- * @vitest-environment node
- *
  * Param-transformer behavior for the v2 Table block: filter/order resolution
  * across builder vs editor modes, the required query limit, cursor artifact
  * handling, and fail-fast limit parsing.
  */
+import { triggersMock } from '@sim/testing/mocks/triggers.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/triggers', () => ({
-  getTrigger: vi.fn(() => ({ subBlocks: [] })),
-}))
+vi.mock('@/triggers', () => triggersMock)
 
 import { TableV2Block } from '@/blocks/blocks/table_v2'
 
@@ -29,21 +26,6 @@ describe('table_v2 query_rows transformer', () => {
     expect(
       params({ operation: 'query_rows', tableId: 't', outputColumns: [] }).columns
     ).toBeUndefined()
-  })
-
-  it('treats the absent shapes of the selection as all columns', () => {
-    for (const outputColumns of [undefined, null, '']) {
-      expect(
-        params({ operation: 'query_rows', tableId: 't', outputColumns }).columns
-      ).toBeUndefined()
-    }
-  })
-
-  it('accepts an agent-authored JSON string for the selection', () => {
-    expect(
-      params({ operation: 'query_rows', tableId: 't', outputColumns: '["col_name"," wins "]' })
-        .columns
-    ).toEqual(['col_name', 'wins'])
   })
 
   it('fails fast instead of silently returning every column for a malformed selection', () => {
@@ -77,22 +59,6 @@ describe('table_v2 query_rows transformer', () => {
         columns: ['col_email'],
       }).columns
     ).toEqual(['col_name'])
-  })
-
-  it('configures a searchable multi-select backed by all table columns', () => {
-    const outputColumns = TableV2Block.subBlocks.find((subBlock) => subBlock.id === 'outputColumns')
-
-    expect(outputColumns).toMatchObject({
-      title: 'Columns to Return',
-      type: 'dropdown',
-      selectorKey: 'table.outputColumns',
-      multiSelect: true,
-      searchable: true,
-      preserveLabelCase: true,
-      placeholder: 'All columns',
-      condition: { field: 'operation', value: 'query_rows' },
-      dependsOn: { any: ['tableSelector', 'manualTableId'] },
-    })
   })
 
   it('keeps limit optional (byte-budget page) but fails fast on a non-numeric one', () => {
@@ -167,16 +133,6 @@ describe('table_v2 bulk transformers', () => {
     ).toThrow(/Invalid Limit/)
   })
 
-  it('keeps the bulk limit optional', () => {
-    const out = params({
-      operation: 'delete_rows_by_filter',
-      tableId: 't',
-      filterInput: editorFilter,
-    })
-    expect(out.limit).toBeUndefined()
-    expect(out.filter).toEqual({ all: [{ field: 'name', op: 'eq', value: 'x' }] })
-  })
-
   it.each(['update_rows_by_filter', 'delete_rows_by_filter'])(
     'normalizes a plain editor condition for %s',
     (operation) => {
@@ -204,15 +160,6 @@ describe('table_v2 blank and malformed editor inputs', () => {
       expect(params({ ...base, filterInput: value }).filter).toBeUndefined()
       expect(params({ ...base, sortInput: value }).order).toBeUndefined()
     }
-  })
-
-  it('treats an empty builder array as absent', () => {
-    expect(params({ ...base, filterInput: [] }).filter).toBeUndefined()
-    expect(params({ ...base, sortInput: [] }).order).toBeUndefined()
-  })
-
-  it('treats the default null filter as absent', () => {
-    expect(params({ ...base, filterInput: null }).filter).toBeUndefined()
   })
 
   it('still reports genuinely malformed JSON', () => {

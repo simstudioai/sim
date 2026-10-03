@@ -1,9 +1,11 @@
 'use client'
 
-import type { ComponentType, ReactNode } from 'react'
+import { type ComponentType, type ReactNode, useRef } from 'react'
 import * as RadioGroup from '@radix-ui/react-radio-group'
+import { useScrollEdges } from '../../hooks/use-scroll-edges'
 import { cn } from '../../lib/cn'
-import { chipVariants } from '../chip/chip'
+import { segmentedControlItemVariants, segmentedControlVariants } from '../chip/segmented-control'
+import { scrollFadeAttributes, scrollFadeXClass } from '../scroll-fade/scroll-fade'
 
 /**
  * One segment in a {@link ChipSwitch}. `label` accepts a `ReactNode` so callers
@@ -16,6 +18,8 @@ export interface ChipSwitchOption<T extends string = string> {
   label: ReactNode
   /** Optional leading icon rendered before the label. */
   icon?: ComponentType<{ className?: string }>
+  /** Disables this option without changing the current selection. */
+  disabled?: boolean
 }
 
 /**
@@ -28,6 +32,10 @@ export interface ChipSwitchProps<T extends string = string> {
   value: T
   /** Invoked with the next selection when a segment is clicked. */
   onChange: (value: T) => void
+  /** Disables every option while preserving the current selection. */
+  disabled?: boolean
+  /** Compact controls use a 22px outer height for dense settings rows. */
+  size?: 'default' | 'compact'
   /** Optional accessible label for the radio group. */
   'aria-label'?: string
   /** Extra classes merged onto the outer container. */
@@ -35,16 +43,9 @@ export interface ChipSwitchProps<T extends string = string> {
 }
 
 /**
- * A pill-shaped segmented switch built from the chip language: each segment is
- * a {@link chipVariants}-styled button — `border-shadow` when active, `ghost`
- * when not — so text size, padding, height, and rounding match {@link Chip}
- * exactly. The active segment is a flat lifted surface against the trough
- * (`--surface-2` light / `--surface-6` dark, no shadow) for a clean, even pill.
- *
- * The trough is pinned to `w-fit` so it always hugs its segments: `inline-flex`
- * alone does not survive a flex column, where `align-items: stretch` blockifies
- * the container and pulls it edge to edge. A caller-supplied width class still
- * wins through {@link cn}.
+ * A segmented chip with the same 30px outer height as `ChipDropdown`. Its
+ * inset segments share their chrome with `ChipButtonGroup`. Radix owns radio-group
+ * focus, arrow-key selection, and disabled-option behavior.
  *
  * @example
  * <ChipSwitch
@@ -60,21 +61,25 @@ export function ChipSwitch<T extends string>({
   options,
   value,
   onChange,
+  disabled = false,
+  size = 'default',
   'aria-label': ariaLabel,
   className,
 }: ChipSwitchProps<T>) {
+  const groupRef = useRef<HTMLDivElement>(null)
+  const edges = useScrollEdges(groupRef, { axis: 'x' })
   return (
     <RadioGroup.Root
+      ref={groupRef}
+      {...scrollFadeAttributes(edges)}
       value={value}
+      disabled={disabled}
       onValueChange={(next) => {
         const option = options.find((entry) => entry.value === next)
-        if (option) onChange(option.value)
+        if (!disabled && option && !option.disabled) onChange(option.value)
       }}
       aria-label={ariaLabel}
-      className={cn(
-        'inline-flex w-fit items-center rounded-[10px] bg-[var(--surface-5)] p-[2px] dark:bg-[var(--surface-4)]',
-        className
-      )}
+      className={cn(scrollFadeXClass, segmentedControlVariants({ size }), className)}
     >
       {options.map((option) => {
         const Icon = option.icon
@@ -83,17 +88,10 @@ export function ChipSwitch<T extends string>({
           <RadioGroup.Item
             key={option.value}
             value={option.value}
-            className={cn(
-              chipVariants({
-                variant: isActive ? 'border-shadow' : 'default',
-              }),
-              'justify-center',
-              isActive
-                ? 'text-[var(--text-primary)] shadow-none hover-hover:bg-[var(--surface-2)] dark:bg-[var(--surface-6)] dark:shadow-none dark:hover-hover:bg-[var(--surface-6)]'
-                : 'text-[var(--text-muted)] hover-hover:bg-transparent hover-hover:text-[var(--text-primary)]'
-            )}
+            disabled={option.disabled}
+            className={cn(segmentedControlItemVariants({ active: isActive, size }))}
           >
-            {Icon ? <Icon className='size-[14px] shrink-0' /> : null}
+            {Icon ? <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' /> : null}
             {option.label}
           </RadioGroup.Item>
         )

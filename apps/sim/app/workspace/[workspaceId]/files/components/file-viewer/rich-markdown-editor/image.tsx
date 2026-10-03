@@ -24,13 +24,7 @@ const PIXEL_SIZE = /^\d+(?:\.\d+)?px$/
  * Drag-to-resize image node view (handle at the bottom-right, revealed on selection). Dragging
  * commits the new pixel width to the `width` attribute, which serializes to `<img width>`.
  */
-export function ResizableImageView({
-  node,
-  updateAttributes,
-  selected,
-  editor,
-  getPos,
-}: ReactNodeViewProps) {
+export function ResizableImageView({ node, selected, editor, getPos }: ReactNodeViewProps) {
   const source = useFileContentSource()
   const imageRef = useRef<HTMLImageElement>(null)
   const dragAbortRef = useRef<AbortController | null>(null)
@@ -122,7 +116,12 @@ export function ResizableImageView({
         !editor.isDestroyed &&
         isCurrentTarget()
       ) {
-        updateAttributes({ width: String(finalWidth), height: null })
+        const position = getPos()
+        if (typeof position !== 'number') return
+        const tr = editor.state.tr
+          .setNodeAttribute(position, 'width', String(finalWidth))
+          .setNodeAttribute(position, 'height', null)
+        editor.view.dispatch(tr.setSelection(NodeSelection.create(tr.doc, position)))
       }
     }
     if (binding) {
@@ -223,9 +222,6 @@ export function ResizableImageView({
       src={source.resolveImageSrc(attrs.src)}
       alt={attrs.alt ?? ''}
       title={attrs.title ?? undefined}
-      // When editable, the image itself is the drag handle — grab anywhere on it to reorder. (The node
-      // view's wrapper is forced `draggable=false` by the React renderer, so the handle must be a child;
-      // the resize button sits outside this element, so it keeps its own pointer behavior.)
       draggable={editable}
       data-drag-handle={editable ? '' : undefined}
       style={imageStyle}

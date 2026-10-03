@@ -1,31 +1,29 @@
-/**
- * @vitest-environment node
- */
 import { mkdir, readFile, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { resetDbChainMock } from '@sim/testing'
+import { uploadsConfigMock } from '@sim/testing/mocks/uploads-config.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { testDirectory, mockInsertMetadata } = vi.hoisted(() => ({
-  testDirectory: `/tmp/sim-knowledge-upload-compensation-${process.pid}`,
-  mockInsertMetadata: vi.fn(),
-}))
+const testDirectory = `/tmp/sim-knowledge-upload-compensation-${process.pid}`
 
-vi.mock('@/lib/uploads/core/setup.server', () => ({ UPLOAD_DIR_SERVER: testDirectory }))
-vi.mock('@/lib/uploads/config', () => ({
-  USE_BLOB_STORAGE: false,
-  USE_S3_STORAGE: false,
-  USE_GCS_STORAGE: false,
-  getStorageConfig: () => ({}),
-}))
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  insertFileMetadata: vi.fn(),
-  insertImmutableFileMetadata: mockInsertMetadata,
-}))
+vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
+vi.mock('@/lib/uploads/config', () => uploadsConfigMock)
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 import { LOCAL_UPLOAD_METADATA_SUFFIX } from '@/lib/uploads/core/storage-key'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { writeLocalPutObject } from '@/lib/uploads/upload-session/provider'
+
+setUploadDirServer(testDirectory)
+
+const mockInsertFileMetadata = uploadsMetadataMockFns.mockInsertFileMetadata
+const mockDeleteFileMetadata = uploadsMetadataMockFns.mockDeleteFileMetadata
+const mockInsertMetadata = uploadsMetadataMockFns.mockInsertImmutableFileMetadata
 
 const KEY = 'kb/document.txt'
 const ORIGINAL_ERROR = new Error('organization no longer exists')
@@ -60,9 +58,10 @@ async function writeOtherAttempt() {
 
 describe('local cache upload compensation', () => {
   beforeEach(async () => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockInsertMetadata.mockReset().mockResolvedValue({ id: 'file-1' })
+    mockInsertFileMetadata.mockReset().mockResolvedValue({ id: 'file-1' })
+    mockDeleteFileMetadata.mockReset().mockResolvedValue(undefined)
     await rm(testDirectory, { recursive: true, force: true })
     await mkdir(testDirectory, { recursive: true })
   })
@@ -82,6 +81,28 @@ describe('local cache upload compensation', () => {
       stat(join(testDirectory, `${KEY}${LOCAL_UPLOAD_METADATA_SUFFIX}`))
     ).rejects.toMatchObject({ code: 'ENOENT' })
   })
+
+  it.each(['execution', 'copilot'] as const)(
+    'removes owned new local %s uploads if metadata persistence fails',
+    async (context) => {
+      const key = `${context}/unique-id/file.txt`
+      mockInsertFileMetadata.mockRejectedValueOnce(ORIGINAL_ERROR)
+      await expect(
+        uploadFile({
+          file: Buffer.from('hello'),
+          fileName: 'file.txt',
+          customKey: key,
+          preserveKey: true,
+          cleanupOnMetadataFailure: true,
+          context,
+          contentType: 'text/plain',
+          metadata: { userId: 'user-1' },
+        })
+      ).rejects.toBe(ORIGINAL_ERROR)
+      await expect(stat(join(testDirectory, key))).rejects.toMatchObject({ code: 'ENOENT' })
+      expect(mockDeleteFileMetadata).toHaveBeenCalledExactlyOnceWith(key)
+    }
+  )
 
   it('does not replace or delete a preexisting object', async () => {
     await writeOtherAttempt()

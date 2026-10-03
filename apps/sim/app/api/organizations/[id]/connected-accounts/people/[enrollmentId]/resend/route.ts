@@ -16,7 +16,11 @@ export const POST = defineInternalJsonRoute({
   operation: organizationAccountManagementOperations.resend,
   rateLimit: internalRateLimits.user({ bucketName: 'organization-connected-accounts' }),
   errorPolicy: internalOrchestrationErrorPolicy,
-  mapInput: ({ params }) => ({ organizationId: params.id, enrollmentId: params.enrollmentId }),
+  mapInput: ({ params, query }) => ({
+    organizationId: params.id,
+    enrollmentId: params.enrollmentId,
+    ...query,
+  }),
   useCase: resendOrganizationAccountInvitation,
   present: ({ credentialGroupEnrollment }) => ({ credentialGroupEnrollment }),
 })

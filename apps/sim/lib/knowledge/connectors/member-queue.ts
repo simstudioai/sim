@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { knowledgeBase, knowledgeConnector } from '@sim/db/schema'
+import { knowledgeBase, knowledgeConnector, knowledgeConnectorMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -14,8 +14,11 @@ import {
   resolveSystemOrganizationBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
+import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
 import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
+import { requiresConnectorIndexing } from '@/lib/knowledge/connectors/indexing-policy'
+import { assertManualSyncCooldown } from '@/lib/knowledge/connectors/manual-sync-cooldown'
 import { executeMemberSync } from '@/lib/knowledge/connectors/member-sync-engine'
 import {
   SYNC_DISPATCH_FAILED_ERROR,
@@ -26,7 +29,6 @@ import {
   MEMBER_LOCKABLE_CONNECTOR_STATUSES,
   RUNNABLE_CONNECTOR_STATUSES,
 } from '@/lib/knowledge/connectors/sync-lock'
-import { isTriggerAvailable } from '@/lib/knowledge/documents/service'
 
 const logger = createLogger('ConnectorMemberSyncQueue')
 
@@ -49,6 +51,10 @@ export interface MemberSyncPayload {
 }
 
 export interface DispatchMemberSyncOptions {
+  /** Manual requests wait briefly after a successful run and make every active member due. */
+  manual?: boolean
+  /** A fresh OAuth grant makes only this account due, without resetting other members. */
+  connectedCredentialId?: string
   billingAttribution: BillingAttributionSnapshot
   /** The scheduled instant this dispatch was made for; a changed schedule makes it stale. */
   expectedNextMemberSyncAt?: Date
@@ -100,34 +106,55 @@ export function assertMemberSyncPayload(value: unknown): MemberSyncPayload {
  */
 async function markMemberSyncPending(
   connectorId: string,
-  expectedNextMemberSyncAt: Date | undefined
+  expectedNextMemberSyncAt: Date | undefined,
+  manual: boolean,
+  connectedCredentialId: string | undefined
 ): Promise<string | null> {
   const dispatchToken = generateId()
-  const now = new Date()
-  const taken = await db
-    .update(knowledgeConnector)
-    .set({
-      memberSyncStatus: 'pending',
-      memberSyncLockToken: dispatchToken,
-      memberSyncLockLeaseAt: now,
-      updatedAt: now,
-    })
-    .where(
-      and(
-        eq(knowledgeConnector.id, connectorId),
-        eq(knowledgeConnector.accessMode, 'members'),
-        inArray(knowledgeConnector.status, MEMBER_LOCKABLE_CONNECTOR_STATUSES),
-        inArray(knowledgeConnector.memberSyncStatus, QUEUEABLE_MEMBER_SYNC_STATUSES),
-        ...(expectedNextMemberSyncAt
-          ? [eq(knowledgeConnector.nextMemberSyncAt, expectedNextMemberSyncAt)]
-          : []),
-        isNull(knowledgeConnector.memberSyncLockToken),
-        isNull(knowledgeConnector.syncLockToken),
-        connectorIsLive()
+  const claim = async (tx: Pick<typeof db, 'select' | 'update'>) => {
+    if (manual) await assertManualSyncCooldown(tx, connectorId, 'member')
+    const now = new Date()
+    const taken = await tx
+      .update(knowledgeConnector)
+      .set({
+        memberSyncStatus: 'pending',
+        memberSyncLockToken: dispatchToken,
+        memberSyncLockLeaseAt: now,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(knowledgeConnector.id, connectorId),
+          eq(knowledgeConnector.accessMode, 'members'),
+          inArray(knowledgeConnector.status, MEMBER_LOCKABLE_CONNECTOR_STATUSES),
+          inArray(knowledgeConnector.memberSyncStatus, QUEUEABLE_MEMBER_SYNC_STATUSES),
+          ...(expectedNextMemberSyncAt
+            ? [eq(knowledgeConnector.nextMemberSyncAt, expectedNextMemberSyncAt)]
+            : []),
+          isNull(knowledgeConnector.memberSyncLockToken),
+          isNull(knowledgeConnector.syncLockToken),
+          connectorIsLive()
+        )
       )
-    )
-    .returning({ id: knowledgeConnector.id })
-  return taken.length > 0 ? dispatchToken : null
+      .returning({ id: knowledgeConnector.id })
+    if (taken.length === 0) return null
+    if (manual || connectedCredentialId) {
+      await tx
+        .update(knowledgeConnectorMember)
+        .set({ nextAttemptAt: now, updatedAt: now })
+        .where(
+          and(
+            eq(knowledgeConnectorMember.connectorId, connectorId),
+            eq(knowledgeConnectorMember.status, 'active'),
+            !manual && connectedCredentialId
+              ? eq(knowledgeConnectorMember.credentialId, connectedCredentialId)
+              : undefined
+          )
+        )
+    }
+    return dispatchToken
+  }
+  return manual || connectedCredentialId ? db.transaction(claim) : claim(db)
 }
 
 async function describeUnacceptedMemberSync(
@@ -141,6 +168,7 @@ async function describeUnacceptedMemberSync(
       memberSyncStatus: knowledgeConnector.memberSyncStatus,
       nextMemberSyncAt: knowledgeConnector.nextMemberSyncAt,
       syncLockToken: knowledgeConnector.syncLockToken,
+      memberSyncLockToken: knowledgeConnector.memberSyncLockToken,
       archivedAt: knowledgeConnector.archivedAt,
       deletedAt: knowledgeConnector.deletedAt,
     })
@@ -161,7 +189,14 @@ async function describeUnacceptedMemberSync(
   ) {
     return 'The member sync schedule changed after this run was scheduled'
   }
-  return 'A member sync is already queued or running for this connector'
+  if (row.memberSyncLockToken) {
+    return 'A member sync is already queued or running for this connector'
+  }
+  /**
+   * No checked condition explains the refusal. Naming a cause here instead once hid a connector
+   * that was refused on every attempt for days, because the reason read as ordinary contention.
+   */
+  return 'The connector refused the claim while no lock or status explains it'
 }
 
 /**
@@ -239,6 +274,7 @@ export async function dispatchMemberSync(
       workspaceId: knowledgeBase.workspaceId,
       organizationId: knowledgeBase.organizationId,
       kbDeletedAt: knowledgeBase.deletedAt,
+      isSearchIndex: knowledgeBase.isSearchIndex,
     })
     .from(knowledgeConnector)
     .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
@@ -249,6 +285,8 @@ export async function dispatchMemberSync(
     logger.warn('Skipping member sync dispatch: connector not found', { connectorId, requestId })
     return { queued: false, reason: 'Connector no longer exists' }
   }
+  if (!requiresConnectorIndexing(row.isSearchIndex))
+    return { queued: false, reason: 'This source is searched live and does not require indexing.' }
   if (row.kbDeletedAt) {
     logger.warn('Skipping member sync dispatch: knowledge base is deleted', {
       connectorId,
@@ -304,7 +342,12 @@ export async function dispatchMemberSync(
   }
   assertBillingAttributionOwner(payload.billingAttribution, row)
 
-  const dispatchToken = await markMemberSyncPending(connectorId, options.expectedNextMemberSyncAt)
+  const dispatchToken = await markMemberSyncPending(
+    connectorId,
+    options.expectedNextMemberSyncAt,
+    options.manual === true,
+    options.connectedCredentialId
+  )
   if (!dispatchToken) {
     const reason = await describeUnacceptedMemberSync(connectorId, options.expectedNextMemberSyncAt)
     logger.info('Skipping member sync dispatch: connector is not accepting a queued run', {
@@ -372,6 +415,7 @@ export async function dispatchMemberSyncsForCredentialOption(input: {
   workspaceId?: string
   organizationId?: string
   credentialGroupOptionId: string
+  connectedCredentialId?: string
 }): Promise<void> {
   const connectors = await db
     .select({ id: knowledgeConnector.id })
@@ -396,7 +440,10 @@ export async function dispatchMemberSyncsForCredentialOption(input: {
       : await resolveSystemBillingAttribution(scope.workspaceId)
   for (const connector of connectors) {
     try {
-      const dispatch = await dispatchMemberSync(connector.id, { billingAttribution })
+      const dispatch = await dispatchMemberSync(connector.id, {
+        billingAttribution,
+        connectedCredentialId: input.connectedCredentialId,
+      })
       if (!dispatch.queued) {
         logger.info('Member sync after a member connected was not queued', {
           connectorId: connector.id,

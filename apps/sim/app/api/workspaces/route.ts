@@ -19,6 +19,7 @@ import {
   getWorkspaceCreationPolicy,
   WorkspaceCreationCapabilityWithheldError,
   WorkspaceCreationContextChangedError,
+  WorkspaceOwnerMissingError,
 } from '@/lib/workspaces/policy'
 
 const logger = createLogger('Workspaces')
@@ -86,6 +87,10 @@ export const GET = withRouteHandler(async (request: Request) => {
           scope,
         })
         return NextResponse.json(refreshedPayload)
+      }
+      /** A cached session cookie outlived the account it belongs to. */
+      if (error instanceof WorkspaceOwnerMissingError) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
       throw error
     }
@@ -206,6 +211,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         },
         { status: 409 }
       )
+    }
+    /** A cached session cookie outlived the account it belongs to. */
+    if (error instanceof WorkspaceOwnerMissingError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     /**
      * A lock timeout is contention, not a fault: creation serializes on the

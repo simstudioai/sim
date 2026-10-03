@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { TraceSpan } from '@/lib/logs/types'
-import { stripCloneSuffixes } from '@/executor/utils/subflow-utils'
+import { stripCloneSuffixes } from '@/executor/utils/subflow-node-id-codec'
 
 const logger = createLogger('IterationGrouping')
 

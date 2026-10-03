@@ -9,6 +9,7 @@ import { randomFloat } from '@sim/utils/random'
 import { env } from '@/lib/core/config/env'
 import { getConfiguredCacheProvider } from '@/lib/core/config/env-capabilities.server'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { captureOutboundScope } from '@/lib/core/network/context.server'
 import {
   type SecureFetchOptions,
   secureFetchWithValidation,
@@ -160,6 +161,7 @@ const QUEUE_RETRY_DELAY_MS = 1000
 const DISTRIBUTED_LEASE_GRACE_MS = 30000
 
 interface PendingExecution {
+  runInOutboundScope: ReturnType<typeof captureOutboundScope>
   resolve: (result: IsolatedVMExecutionResult) => void
   timeout: ReturnType<typeof setTimeout>
   ownerKey: string
@@ -199,6 +201,7 @@ interface QueuedExecution {
  * against the queue-to-worker handoff.
  */
 interface ExecutionState {
+  runInOutboundScope: ReturnType<typeof captureOutboundScope>
   cancelled: boolean
   queueId?: number
   workerId?: number
@@ -730,7 +733,7 @@ function handleBrokerMessage(
   }
 
   Promise.resolve()
-    .then(() => handler(args))
+    .then(() => pending.runInOutboundScope(() => handler(args)))
     .then((resultValue) => {
       if (pending.cancelled) {
         sendResponse({ error: 'Execution cancelled' })
@@ -809,6 +812,18 @@ function handleWorkerMessage(workerId: number, message: unknown) {
   }
 
   if (msg.type === 'fetch') {
+    const pending =
+      typeof msg.executionId === 'number'
+        ? workerInfo?.pendingExecutions.get(msg.executionId)
+        : undefined
+    if (!pending || pending.cancelled) {
+      workerInfo?.process.send({
+        type: 'fetchResponse',
+        fetchId: msg.fetchId,
+        response: JSON.stringify({ error: 'Execution no longer active' }),
+      })
+      return
+    }
     const { fetchId, requestId, url, optionsJson } = msg as {
       fetchId: number
       requestId: string
@@ -847,7 +862,8 @@ function handleWorkerMessage(workerId: number, message: unknown) {
         return
       }
     }
-    secureFetch(requestId, url, options)
+    pending
+      .runInOutboundScope(() => secureFetch(requestId, url, options))
       .then((response) => {
         try {
           workerInfo?.process.send({ type: 'fetchResponse', fetchId, response })
@@ -1200,6 +1216,7 @@ function dispatchToWorker(
   }, req.timeoutMs + 1000)
 
   workerInfo.pendingExecutions.set(execId, {
+    runInOutboundScope: state.runInOutboundScope,
     resolve,
     timeout,
     ownerKey: ownerState.ownerKey,
@@ -1472,7 +1489,7 @@ export async function executeInIsolatedVM(
   // An undetermined lease cannot reject the execution: the per-process pool and
   // the per-owner active/queued limits above still bound this work.
 
-  const state: ExecutionState = { cancelled: false }
+  const state: ExecutionState = { cancelled: false, runInOutboundScope: captureOutboundScope() }
 
   return new Promise<IsolatedVMExecutionResult>((resolve) => {
     let abortListener: (() => void) | null = null

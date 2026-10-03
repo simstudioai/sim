@@ -32,6 +32,8 @@ export interface PermissionConfigResult {
   filterBlocks: <T extends { type: string }>(blocks: T[]) => T[]
   filterProviders: (providerIds: string[]) => string[]
   isBlockAllowed: (blockType: string) => boolean
+  /** Presentation-only hint; request creation revalidates the deployed public catalog. */
+  isBlockRequestable: (blockType: string) => boolean
   /**
    * Whether a model is usable at all: allowed by the model denylist *and* by
    * the provider allowlist. Both gates apply to every model field, so this is
@@ -148,6 +150,36 @@ export function usePermissionConfig(): PermissionConfigResult {
     }
   }, [hostContext?.features?.credentialGroups, integrationAvailability, allowedAccessControlTypes])
 
+  const isBlockRequestable = useMemo(() => {
+    const deploymentAllowlist = intersectAccessControlAllowlists(
+      null,
+      envAllowlistData?.allowedIntegrations ?? null
+    )
+    return (blockType: string): boolean => {
+      if (isLoading || !isIntegrationAvailabilityReady || isBlockAllowed(blockType)) return false
+      if (isBlockTypeAccessControlExempt(blockType)) return false
+      if (blockType === 'credential_group' && !hostContext?.features?.credentialGroups) return false
+      const availability = integrationAvailability.get(blockType.toLowerCase())
+      if (
+        isDeploymentGatedIntegrationType(blockType) &&
+        availability &&
+        (availability.state === 'unavailable' || availability.state === 'misconfigured')
+      )
+        return false
+      return (
+        deploymentAllowlist === null ||
+        deploymentAllowlist.has(resolveAccessControlBlockType(blockType))
+      )
+    }
+  }, [
+    envAllowlistData,
+    isLoading,
+    isIntegrationAvailabilityReady,
+    isBlockAllowed,
+    hostContext?.features?.credentialGroups,
+    integrationAvailability,
+  ])
+
   const isModelUsable = useMemo(
     () =>
       createModelAccessGate({
@@ -198,6 +230,7 @@ export function usePermissionConfig(): PermissionConfigResult {
       filterBlocks,
       filterProviders,
       isBlockAllowed,
+      isBlockRequestable,
       isModelUsable,
       isToolAllowed,
       isInvitationsDisabled,
@@ -217,6 +250,7 @@ export function usePermissionConfig(): PermissionConfigResult {
       filterBlocks,
       filterProviders,
       isBlockAllowed,
+      isBlockRequestable,
       isModelUsable,
       isToolAllowed,
       isInvitationsDisabled,

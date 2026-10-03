@@ -1,7 +1,11 @@
-/**
- * @vitest-environment node
- */
-
+import { collectStream } from '@sim/testing/helpers/async'
+import { providersMock } from '@sim/testing/mocks/providers.mock'
+import {
+  providersConversationHistoryMock,
+  providersConversationHistoryMockFns,
+} from '@sim/testing/mocks/providers-conversation-history.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -14,63 +18,41 @@ import {
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { ProviderToolConfig, TimeSegment } from '@/providers/types'
 
-const { mockExecuteTool, mockPrepareToolExecution } = vi.hoisted(() => ({
-  mockExecuteTool: vi.fn(),
-  mockPrepareToolExecution: vi.fn(),
-}))
+providersMock.MAX_TOOL_ITERATIONS = 5
+const mockCapture = providersConversationHistoryMockFns.mockCaptureProviderConversationStep
 
-vi.mock('@/tools', () => ({
-  executeTool: mockExecuteTool,
-}))
-
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  prepareToolExecution: mockPrepareToolExecution,
-  calculateCost: () => ({ input: 0.01, output: 0.02, total: 0.03 }),
-  sumToolCosts: () => 0,
-  /** Minimal faithful tracking: marks the forced tool used when the model called it. */
-  trackForcedToolUsage: (
-    toolCalls: Array<{ function?: { name?: string } }>,
-    toolChoice: unknown,
-    _logger: unknown,
-    _provider: unknown,
-    _forcedTools: string[],
-    usedForcedTools: string[]
-  ) => {
+const mockPrepareToolExecution = providersUtilsMockFns.mockPrepareToolExecution
+const mockExecuteTool = toolsMockFns.mockExecuteTool
+providersUtilsMockFns.mockCalculateCost.mockReturnValue({ input: 0.01, output: 0.02, total: 0.03 })
+/** Minimal faithful tracking: marks the forced tool used when the model called it. */
+providersUtilsMockFns.mockTrackForcedToolUsage.mockImplementation(
+  (toolCalls, toolChoice, _logger, _provider, _forcedTools, usedForcedTools = []) => {
     const forcedName =
       toolChoice && typeof toolChoice === 'object'
         ? (toolChoice as { function?: { name?: string } }).function?.name
         : undefined
     const usedNow = Boolean(
-      forcedName && toolCalls.some((toolCall) => toolCall.function?.name === forcedName)
+      forcedName &&
+        (toolCalls as Array<{ function?: { name?: string } }>).some(
+          (toolCall) => toolCall.function?.name === forcedName
+        )
     )
     return {
       hasUsedForcedTool: usedNow || usedForcedTools.length > 0,
       usedForcedTools: usedNow && forcedName ? [...usedForcedTools, forcedName] : usedForcedTools,
     }
-  },
-}))
-
-vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 5 }))
-
-async function collectEvents(
-  stream: ReadableStream<AgentStreamEvent>
-): Promise<AgentStreamEvent[]> {
-  const events: AgentStreamEvent[] = []
-  const reader = stream.getReader()
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    events.push(value)
   }
-  return events
-}
+)
 
-function toolThenAnswerChunks(toolName: string, args: string, answer: string) {
+vi.mock('@/providers/conversation-history', () => providersConversationHistoryMock)
+
+vi.mock('@/tools', () => toolsMock)
+
+vi.mock('@/providers/utils', () => providersUtilsMock)
+
+vi.mock('@/providers', () => providersMock)
+
+function toolThenAnswerChunks(toolName: string, args: string) {
   return [
     {
       choices: [
@@ -150,7 +132,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
       call += 1
       if (call === 1) {
         return (async function* () {
-          yield* toolThenAnswerChunks('lookup', '{}', '')
+          yield* toolThenAnswerChunks('lookup', '{}')
         })()
       }
       return (async function* () {
@@ -185,7 +167,22 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
       onComplete: () => {},
     })
 
-    await collectEvents(stream)
+    await collectStream(stream)
+
+    expect(mockCapture).toHaveBeenCalledTimes(2)
+    expect(mockCapture.mock.calls[0][2]).toMatchObject({
+      role: 'assistant',
+      reasoning_content: 'I should call the tool. ',
+      tool_calls: [{ id: 'call_1', function: { name: 'lookup', arguments: '{}' } }],
+    })
+    expect(mockCapture.mock.invocationCallOrder[0]).toBeLessThan(
+      mockExecuteTool.mock.invocationCallOrder[0]
+    )
+    expect(mockCapture.mock.calls[1][2]).toMatchObject({
+      role: 'assistant',
+      content: 'done',
+      reasoning_content: 'final thought',
+    })
 
     expect(createStream).toHaveBeenCalledTimes(2)
     const secondTurnMessages = messageHistory[1] as Array<Record<string, unknown>>
@@ -285,7 +282,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
       })()
     })
 
-    const events = await collectEvents(
+    const events = await collectStream(
       createOpenAICompatStreamingToolLoopStream({
         providerName: 'OpenRouter',
         request: {
@@ -334,7 +331,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
       call += 1
       if (call === 1) {
         return (async function* () {
-          yield* toolThenAnswerChunks('lookup', '{}', '')
+          yield* toolThenAnswerChunks('lookup', '{}')
         })()
       }
       return (async function* () {
@@ -362,7 +359,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
       onComplete: () => {},
     })
 
-    await collectEvents(stream)
+    await collectStream(stream)
 
     const secondTurnMessages = messageHistory[1] as Array<Record<string, unknown>>
     const assistantWithTools = secondTurnMessages.find(
@@ -381,7 +378,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
       call += 1
       if (call === 1) {
         return (async function* () {
-          yield* toolThenAnswerChunks('lookup', '{}', '')
+          yield* toolThenAnswerChunks('lookup', '{}')
         })()
       }
       return (async function* () {
@@ -392,7 +389,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
       })()
     })
 
-    const events = await collectEvents(
+    const events = await collectStream(
       createOpenAICompatStreamingToolLoopStream({
         providerName: 'Deepseek',
         request: {
@@ -438,7 +435,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
       call += 1
       if (call === 1) {
         return (async function* () {
-          yield* toolThenAnswerChunks('lookup', '{"query": "unterminated', '')
+          yield* toolThenAnswerChunks('lookup', '{"query": "unterminated')
         })()
       }
       return (async function* () {
@@ -449,7 +446,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
       })()
     })
 
-    const events = await collectEvents(
+    const events = await collectStream(
       createOpenAICompatStreamingToolLoopStream({
         providerName: 'Deepseek',
         request: {
@@ -487,7 +484,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
         call += 1
         if (call === 1) {
           return (async function* () {
-            yield* toolThenAnswerChunks('lookup', argumentsJson, '')
+            yield* toolThenAnswerChunks('lookup', argumentsJson)
           })()
         }
         return (async function* () {
@@ -498,7 +495,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
         })()
       })
 
-      await collectEvents(
+      await collectStream(
         createOpenAICompatStreamingToolLoopStream({
           providerName: 'Deepseek',
           request: {
@@ -524,7 +521,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
   it('fails an unexpected tool AbortError and reports completed usage', async () => {
     const createStream = vi.fn(async () => {
       return (async function* () {
-        yield* toolThenAnswerChunks('lookup', '{}', '')
+        yield* toolThenAnswerChunks('lookup', '{}')
       })()
     })
     mockExecuteTool.mockRejectedValueOnce(new DOMException('cancelled', 'AbortError'))
@@ -546,7 +543,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
       onComplete,
     })
 
-    await expect(collectEvents(stream)).rejects.toMatchObject({ name: 'AbortError' })
+    await expect(collectStream(stream)).rejects.toMatchObject({ name: 'AbortError' })
     expect(createStream).toHaveBeenCalledTimes(1)
     expect(onComplete).toHaveBeenLastCalledWith(
       expect.objectContaining({ tokens: { input: 5, output: 3, total: 8 } })
@@ -564,7 +561,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
       call += 1
       if (call === 1) {
         return (async function* () {
-          yield* toolThenAnswerChunks('lookup', '{}', '')
+          yield* toolThenAnswerChunks('lookup', '{}')
         })()
       }
       return (async function* () {
@@ -576,7 +573,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
     })
     mockExecuteTool.mockResolvedValueOnce({ success: true, output })
 
-    await collectEvents(
+    await collectStream(
       createOpenAICompatStreamingToolLoopStream({
         providerName: 'Deepseek',
         request: {
@@ -632,7 +629,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
       })()
     })
 
-    await collectEvents(
+    await collectStream(
       createOpenAICompatStreamingToolLoopStream({
         providerName: 'Deepseek',
         request: {
@@ -671,7 +668,7 @@ describe('createOpenAICompatStreamingToolLoopStream', () => {
     const onComplete = vi.fn()
     const timeSegments: TimeSegment[] = []
 
-    const events = await collectEvents(
+    const events = await collectStream(
       createOpenAICompatStreamingToolLoopStream({
         providerName: 'OpenAI',
         request: { model: 'gpt-4.1', apiKey: 'k', messages: [] },

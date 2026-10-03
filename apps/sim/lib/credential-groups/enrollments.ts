@@ -16,6 +16,7 @@ import { normalizeEmail, truncate } from '@sim/utils/string'
 import { and, asc, count, desc, eq, inArray, isNull, lt, or, type SQL, sql } from 'drizzle-orm'
 import { renderCredentialGroupInvitationEmail } from '@/components/emails/credential-groups/render'
 import { getCredentialGroupInvitationSubject } from '@/components/emails/subjects'
+import { searchFilter } from '@/lib/api/list-query'
 import {
   type ResourceScope,
   resourceScopeFields,
@@ -43,9 +44,11 @@ import type {
   CredentialGroupEnrollmentRecord,
   InviteCredentialGroupEnrollmentsInput,
 } from '@/lib/credential-groups/types'
-import type { DbOrTx } from '@/lib/db/types'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import type { DbTransaction } from '@/lib/db/types'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
+import { isSearchProviderEnabled } from '@/lib/sim-search/live/provider-rollout'
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const DELIVERY_CONCURRENCY = 5
@@ -57,7 +60,9 @@ type EnrollmentRow = typeof credentialGroupEnrollment.$inferSelect
 export type CredentialGroupEnrollmentStatus = EnrollmentRow['status']
 
 export interface ListCredentialGroupEnrollmentFilters {
+  optionId?: string
   email?: string
+  search?: string
   statuses?: CredentialGroupEnrollmentStatus[]
 }
 
@@ -80,6 +85,7 @@ export type RevokedEnrollmentPolicy = 'reactivate' | 'reject'
 interface SendInvitationOptions {
   expectedEnrollmentId?: string
   revokedEnrollment: RevokedEnrollmentPolicy
+  searchConnection?: { optionId: string; providerName: string }
 }
 
 interface IssuedInvitation {
@@ -169,25 +175,29 @@ export interface CredentialGroupEnrollmentCompletion {
 
 /** Serializes OAuth grant persistence and administrative revocation for one enrollment. */
 export async function lockCredentialGroupEnrollmentLifecycle(
-  executor: DbOrTx,
+  executor: DbTransaction,
   enrollmentId: string
 ): Promise<void> {
   if (!enrollmentId.trim()) throw new Error('Credential group enrollment ID is required')
-  await executor.execute(
-    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`credential-group-enrollment:${enrollmentId}`}, 0))`
+  await acquireAdvisoryXactLock(
+    executor,
+    'credential_group_enrollment',
+    `credential-group-enrollment:${enrollmentId}`
   )
 }
 
 /** Serializes invitation issuance before an enrollment row is known or locked. */
 async function lockCredentialGroupInvitationTarget(
-  executor: DbOrTx,
+  executor: DbTransaction,
   groupId: string,
   email: string
 ): Promise<void> {
   if (!groupId.trim()) throw new Error('Credential group ID is required')
   if (!email.trim()) throw new Error('Credential group enrollment email is required')
-  await executor.execute(
-    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`credential-group-invitation:${groupId}:${email}`}, 0))`
+  await acquireAdvisoryXactLock(
+    executor,
+    'credential_group_invitation',
+    `credential-group-invitation:${groupId}:${email}`
   )
 }
 
@@ -608,12 +618,20 @@ async function sendInvitation(
     invitationLink,
     tokenHash,
   } = await issueInvitation(context, userId, email, options)
+  const focusedLink = new URL(invitationLink)
+  if (options.searchConnection) {
+    focusedLink.searchParams.set('optionId', options.searchConnection.optionId)
+    focusedLink.searchParams.set('returnTo', 'search')
+  }
   const html = await renderCredentialGroupInvitationEmail({
     recipientEmail: email,
     inviterName,
     workspaceName: context.workspaceName,
     credentialGroupName: context.groupName,
-    invitationLink,
+    invitationLink: focusedLink.toString(),
+    ...(options.searchConnection
+      ? { searchProviderName: options.searchConnection.providerName }
+      : {}),
   })
   const result = await sendEmail({
     to: email,
@@ -681,27 +699,42 @@ export async function listCredentialGroupEnrollments(
       `Credential group enrollment limit must be between 1 and ${MAX_ENROLLMENT_PAGE_SIZE}`
     )
   }
+  const search = filters.search?.trim() || undefined
+  if (search && search.length > 320) {
+    throw new CredentialGroupEnrollmentError('People search must be at most 320 characters', 400)
+  }
   const [group] = await db
     .select({ options: credentialGroup.options })
     .from(credentialGroup)
     .where(and(eq(credentialGroup.id, groupId), resourceScopeCondition(credentialGroup, scope)))
     .limit(1)
   if (!group) throw new CredentialGroupEnrollmentError('Credential group not found', 404)
+  if (
+    filters.optionId &&
+    !group.options.some((option) => option.id === filters.optionId && option.status === 'active')
+  ) {
+    throw new CredentialGroupEnrollmentError('Account provider is no longer available', 404)
+  }
   const activeOptionIds = group.options
-    .filter((option) => option.status === 'active')
-    .map((option) => option.id)
-  const activeMcpServers = await db
-    .select({ id: mcpServers.id, name: mcpServers.name })
-    .from(mcpServers)
-    .where(
-      and(
-        resourceScopeCondition(mcpServers, scope),
-        eq(mcpServers.credentialGroupId, groupId),
-        eq(mcpServers.authType, 'oauth'),
-        eq(mcpServers.enabled, true),
-        isNull(mcpServers.deletedAt)
-      )
+    .filter(
+      (option) =>
+        option.status === 'active' && (!filters.optionId || option.id === filters.optionId)
     )
+    .map((option) => option.id)
+  const activeMcpServers = filters.optionId
+    ? []
+    : await db
+        .select({ id: mcpServers.id, name: mcpServers.name })
+        .from(mcpServers)
+        .where(
+          and(
+            resourceScopeCondition(mcpServers, scope),
+            eq(mcpServers.credentialGroupId, groupId),
+            eq(mcpServers.authType, 'oauth'),
+            eq(mcpServers.enabled, true),
+            isNull(mcpServers.deletedAt)
+          )
+        )
   const activeMcpServerById = new Map(activeMcpServers.map((server) => [server.id, server]))
 
   const cursorPosition = cursor ? decodeCredentialGroupEnrollmentCursor(cursor) : undefined
@@ -715,6 +748,7 @@ export async function listCredentialGroupEnrollments(
         eq(credentialGroup.id, groupId),
         resourceScopeCondition(credentialGroup, scope),
         filters.email ? eq(credentialGroupEnrollment.email, filters.email) : undefined,
+        searchFilter(credentialGroupEnrollment.email, search),
         filters.statuses?.length
           ? inArray(credentialGroupEnrollment.status, filters.statuses)
           : undefined,
@@ -761,7 +795,7 @@ export async function listCredentialGroupEnrollments(
                   eq(credential.type, 'managed_oauth'),
                   inArray(credential.credentialGroupOptionId, activeOptionIds)
                 ),
-                eq(credential.type, 'personal_token')
+                filters.optionId ? undefined : eq(credential.type, 'personal_token')
               )
             )
           )
@@ -846,7 +880,8 @@ export async function inviteCredentialGroupEnrollments(
   groupId: string,
   userId: string,
   inviterName: string,
-  body: InviteCredentialGroupEnrollmentsInput
+  body: InviteCredentialGroupEnrollmentsInput,
+  searchConnection?: { optionId: string; providerName: string }
 ) {
   const scope = credentialGroupScope(scopeInput)
   const context = await getInvitationContext(scope, groupId)
@@ -863,6 +898,7 @@ export async function inviteCredentialGroupEnrollments(
         try {
           const enrollment = await sendInvitation(context, userId, inviterName, email, {
             revokedEnrollment: 'reactivate',
+            ...(searchConnection ? { searchConnection } : {}),
           })
           return { email, success: true as const, enrollment }
         } catch (error) {
@@ -932,32 +968,13 @@ export async function createCredentialGroupSelfEnrollmentLink(
   }
 }
 
-export async function createCredentialGroupInvitationLink(
-  scopeInput: string | ResourceScope,
-  groupId: string,
-  /** See {@link issueInvitation}: the issuer is attribution, never the authority. */
-  userId: string | undefined,
-  email: string,
-  /** See {@link inviteCredentialGroupEnrollment}. */
-  revokedEnrollment: RevokedEnrollmentPolicy = 'reactivate'
-): Promise<CredentialGroupInvitationLink> {
-  const scope = credentialGroupScope(scopeInput)
-  const context = await getInvitationContext(scope, groupId)
-  const issued = await issueInvitation(context, userId, normalizeEmail(email), {
-    revokedEnrollment,
-  })
-  return {
-    enrollment: toCredentialGroupEnrollment(issued.enrollment),
-    invitationLink: issued.invitationLink,
-  }
-}
-
 export async function resendCredentialGroupEnrollment(
   scopeInput: string | ResourceScope,
   groupId: string,
   enrollmentId: string,
   userId: string,
-  inviterName: string
+  inviterName: string,
+  searchConnection?: { optionId: string; providerName: string }
 ): Promise<CredentialGroupEnrollmentRecord> {
   const scope = credentialGroupScope(scopeInput)
   const context = await getInvitationContext(scope, groupId)
@@ -977,6 +994,7 @@ export async function resendCredentialGroupEnrollment(
   return sendInvitation(context, userId, inviterName, row.enrollment.email, {
     expectedEnrollmentId: enrollmentId,
     revokedEnrollment: 'reject',
+    ...(searchConnection ? { searchConnection } : {}),
   })
 }
 
@@ -1437,6 +1455,11 @@ async function credentialGroupMcpOAuthContextFromRow(
     throw new Error(`Credential Group MCP server ${server.id} has no managed connector ID`)
   }
   getManagedMcpConnector(server.managedConnectorId)
+  if (
+    server.managedConnectorId === 'zoom' &&
+    !(await isSearchProviderEnabled('zoom', resourceScopeFromOwner(row)))
+  )
+    return null
   return {
     enrollmentId: row.enrollment.id,
     userId: row.enrollment.userId,

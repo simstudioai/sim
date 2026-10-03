@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import type { OAuth2Tokens } from 'better-auth/oauth2'
 import type { GenericOAuthConfig } from 'better-auth/plugins'
 import { OAuth2Client, type TokenPayload } from 'google-auth-library'
@@ -11,7 +11,7 @@ import { verifyGitHubRepositoriesIdentity } from '@/lib/oauth/github-repositorie
 import { deriveMicrosoftEmailVerified, mapMicrosoftProfileToUser } from '@/lib/oauth/microsoft'
 import { SALESFORCE_LOGIN_HOSTS } from '@/lib/oauth/salesforce'
 import { isTerminalRefreshError } from '@/lib/oauth/terminal-errors'
-import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
+import { getCanonicalScopesForProvider, isScopeSatisfiedBy } from '@/lib/oauth/utils'
 import { MONDAY_API_URL, MONDAY_API_VERSION } from '@/tools/monday/utils'
 
 const GOOGLE_OPENID_SCOPE = 'openid'
@@ -62,14 +62,12 @@ export interface ManagedOAuthConnectorConfig {
    */
   scopeless?: boolean
   nonceVerification: 'id_token' | 'state_only'
-  includeLoginHint: boolean
   prompt?: string
   authorizationUrlParams?: Record<string, string>
   getAuthorizationAppId(clientId: string): string
   verifyIdentity(params: {
     tokens: OAuth2Tokens
     clientId: string
-    expectedEmail?: string
   }): Promise<ManagedOAuthConnectorIdentity>
   hasRequiredScopes(grantedScopes: string[], requiredScopes: string[]): boolean
   isTerminalRefreshError(errorCode: string | undefined): boolean
@@ -93,7 +91,7 @@ function hasRequiredGoogleScopes(
   const granted = new Set(grantedScopes.map(canonicalGoogleScope))
   return requiredScopes.every((requestedScope) => {
     const required = canonicalGoogleScope(requestedScope)
-    if (granted.has(required)) return true
+    if (granted.has(required) || isScopeSatisfiedBy(required, granted)) return true
     return (
       providerId === 'google-email' &&
       granted.has(GMAIL_MODIFY_SCOPE) &&
@@ -120,7 +118,6 @@ export function createGoogleManagedOAuthConnector(providerId: string): ManagedOA
     requiresRefreshToken: true,
     pkce: true,
     nonceVerification: 'id_token',
-    includeLoginHint: true,
     prompt: 'consent select_account',
     authorizationUrlParams: { include_granted_scopes: 'false' },
     getAuthorizationAppId(clientId) {
@@ -199,7 +196,6 @@ export function createAtlassianManagedOAuthConnector(
     requiresRefreshToken: true,
     pkce: false,
     nonceVerification: 'state_only',
-    includeLoginHint: false,
     prompt: 'consent',
     authorizationUrlParams: { audience: 'api.atlassian.com' },
     getAuthorizationAppId(clientId) {
@@ -350,7 +346,6 @@ export function createMicrosoftManagedOAuthConnector(
     requiresRefreshToken: true,
     pkce: true,
     nonceVerification: 'id_token',
-    includeLoginHint: true,
     prompt: 'select_account',
     getAuthorizationAppId(clientId) {
       return `microsoft:${createHash('sha256').update(clientId).digest('hex')}`
@@ -521,7 +516,6 @@ export function createUserInfoManagedOAuthConnector(
     requiresRefreshToken: options.requiresRefreshToken,
     pkce: options.pkce ?? false,
     nonceVerification: 'state_only',
-    includeLoginHint: false,
     ...(options.scopeless ? { scopeless: true } : {}),
     ...(options.prompt ? { prompt: options.prompt } : {}),
     ...(options.authorizationUrlParams
@@ -659,7 +653,6 @@ function createAttioManagedOAuthConnector(): ManagedOAuthConnectorConfig {
     requiresRefreshToken: false,
     pkce: false,
     nonceVerification: 'state_only',
-    includeLoginHint: false,
     getAuthorizationAppId(clientId) {
       return `attio:${createHash('sha256').update(clientId).digest('hex')}`
     },
@@ -745,7 +738,6 @@ function createBitbucketManagedOAuthConnector(): ManagedOAuthConnectorConfig {
     requiresRefreshToken: true,
     pkce: false,
     nonceVerification: 'state_only',
-    includeLoginHint: false,
     getAuthorizationAppId(clientId) {
       return `bitbucket:${createHash('sha256').update(clientId).digest('hex')}`
     },
@@ -838,7 +830,7 @@ const USER_INFO_MANAGED_OAUTH_CONNECTORS = new Map<string, () => ManagedOAuthCon
         },
         parse: (profile) => {
           const account = asProfileRecord(profile, 'Dropbox')
-          const name = isRecordLike(account.name) ? account.name : {}
+          const name = toRecord(account.name)
           return withOptionalIdentityFields(
             {
               providerSubjectId: requireIdentityField(account.account_id, 'Dropbox account id'),
@@ -897,15 +889,15 @@ const USER_INFO_MANAGED_OAUTH_CONNECTORS = new Map<string, () => ManagedOAuthCon
            * `bot.owner.user`. A workspace-owned internal integration reports
            * `{ type: 'workspace' }` and identifies nobody, which cannot be bound to an invitation.
            */
-          const bot = isRecordLike(self.bot) ? self.bot : {}
-          const owner = isRecordLike(bot.owner) ? bot.owner : {}
+          const bot = toRecord(self.bot)
+          const owner = toRecord(bot.owner)
           if (owner.type !== 'user') {
             throw new Error(
               'Notion returned a workspace-owned integration, which identifies no person to bind this invitation to'
             )
           }
           const user = asProfileRecord(owner.user, 'Notion')
-          const person = isRecordLike(user.person) ? user.person : {}
+          const person = toRecord(user.person)
           return withOptionalIdentityFields(
             {
               providerSubjectId: requireIdentityField(user.id, 'Notion user id'),
@@ -985,12 +977,11 @@ const USER_INFO_MANAGED_OAUTH_CONNECTORS = new Map<string, () => ManagedOAuthCon
       pkce: true,
       scopeless: true,
       nonceVerification: 'state_only',
-      includeLoginHint: false,
       getAuthorizationAppId(clientId) {
         return `github-repositories:${createHash('sha256').update(clientId).digest('hex')}`
       },
-      verifyIdentity({ tokens, expectedEmail }) {
-        return verifyGitHubRepositoriesIdentity(tokens.accessToken ?? '', expectedEmail)
+      verifyIdentity({ tokens }) {
+        return verifyGitHubRepositoriesIdentity(tokens.accessToken ?? '')
       },
       hasRequiredScopes(_grantedScopes, requiredScopes) {
         return requiredScopes.length === 0
@@ -1013,7 +1004,7 @@ const USER_INFO_MANAGED_OAUTH_CONNECTORS = new Map<string, () => ManagedOAuthCon
         scopes: {
           from: 'profile',
           read: (profile) => {
-            const metadata = isRecordLike(profile) ? profile : {}
+            const metadata = toRecord(profile)
             if (Array.isArray(metadata.scopes)) {
               return metadata.scopes.filter((scope): scope is string => typeof scope === 'string')
             }
@@ -1144,7 +1135,7 @@ const USER_INFO_MANAGED_OAUTH_CONNECTORS = new Map<string, () => ManagedOAuthCon
         parse: (profile) => {
           const envelope = asProfileRecord(profile, 'Asana')
           const user = asProfileRecord(envelope.data, 'Asana')
-          const photo = isRecordLike(user.photo) ? user.photo : {}
+          const photo = toRecord(user.photo)
           return withOptionalIdentityFields(
             {
               providerSubjectId: requireIdentityField(user.gid, 'Asana user id'),

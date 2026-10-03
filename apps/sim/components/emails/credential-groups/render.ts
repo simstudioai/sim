@@ -7,6 +7,7 @@ export async function renderCredentialGroupInvitationEmail(params: {
   workspaceName: string
   credentialGroupName: string
   invitationLink: string
+  searchProviderName?: string
 }): Promise<string> {
   return await render(CredentialGroupInvitationEmail(params))
 }

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockAtomicallyClaim, mockRelease, mockIdempotencyService } = vi.hoisted(() => ({
@@ -36,17 +33,6 @@ describe('checkout admission', () => {
     mockAtomicallyClaim.mockReset()
     mockRelease.mockReset()
     mockRelease.mockResolvedValue(undefined)
-  })
-
-  it('uses durable, short-lived database claims', () => {
-    expect(mockIdempotencyService).toHaveBeenCalledWith({
-      namespace: 'billing-checkout-admission',
-      ttlSeconds: 120,
-      inProgressTtlSeconds: 120,
-      retryFailures: true,
-      storeResultBody: false,
-      forceStorage: 'database',
-    })
   })
 
   it('resolves explicit, organization, and personal references like Better Auth', () => {

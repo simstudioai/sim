@@ -12,4 +12,3 @@ export {
 } from './nav-menu-chip'
 export { NavbarAuthPill } from './navbar-auth-pill'
 export { NavbarShell } from './navbar-shell'
-export { SimWordmark } from './sim-wordmark'

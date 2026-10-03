@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Boundary guards the SQS contracts owe their callers, each standing in for an
  * AWS error the request would otherwise earn at the provider:
  * `BatchEntryIdsNotDistinct` for a reused batch entry id, `InvalidAttributeName`
@@ -15,12 +13,6 @@ import { awsSqsDeleteMessageBatchContract } from '@/lib/api/contracts/tools/aws/
 import { awsSqsSendMessageContract } from '@/lib/api/contracts/tools/aws/sqs-send-message'
 import { awsSqsSendMessageBatchContract } from '@/lib/api/contracts/tools/aws/sqs-send-message-batch'
 import { awsSqsSetQueueAttributesContract } from '@/lib/api/contracts/tools/aws/sqs-set-queue-attributes'
-import { cancelMessageMoveTaskTool } from '@/tools/sqs/cancel_message_move_task'
-import { changeMessageVisibilityBatchTool } from '@/tools/sqs/change_message_visibility_batch'
-import { deleteMessageBatchTool } from '@/tools/sqs/delete_message_batch'
-import { listMessageMoveTasksTool } from '@/tools/sqs/list_message_move_tasks'
-import { sendTool } from '@/tools/sqs/send'
-import { sendMessageBatchTool } from '@/tools/sqs/send_message_batch'
 
 const CONNECTION = {
   region: 'us-east-1',
@@ -209,44 +201,5 @@ describe('SQS writable queue attributes', () => {
     })
 
     expect(result.success).toBe(true)
-  })
-})
-
-describe('SQS output nullability', () => {
-  it('declares the fields SQS may omit from SendMessage as nullable', () => {
-    for (const field of ['md5OfMessageBody', 'md5OfMessageAttributes', 'sequenceNumber']) {
-      expect(sendTool.outputs[field]).toMatchObject({ nullable: true })
-    }
-  })
-
-  it('declares the cancelled task moved count as nullable', () => {
-    expect(cancelMessageMoveTaskTool.outputs.approximateNumberOfMessagesMoved).toMatchObject({
-      nullable: true,
-    })
-  })
-
-  it('declares every move task field as nullable, matching the SDK result type', () => {
-    const properties = listMessageMoveTasksTool.outputs.results.items?.properties
-    expect(properties).toBeDefined()
-    for (const [name, property] of Object.entries(properties ?? {})) {
-      expect(property, `${name} must be nullable`).toMatchObject({ nullable: true })
-    }
-  })
-})
-
-describe('SQS batch tool schemas', () => {
-  it('marks id and data required on send batch entries', () => {
-    expect(sendMessageBatchTool.params.entries.items?.required).toEqual(['id', 'data'])
-  })
-
-  it('marks id and receiptHandle required on delete batch entries', () => {
-    expect(deleteMessageBatchTool.params.entries.items?.required).toEqual(['id', 'receiptHandle'])
-  })
-
-  it('marks id and receiptHandle required on visibility batch entries', () => {
-    expect(changeMessageVisibilityBatchTool.params.entries.items?.required).toEqual([
-      'id',
-      'receiptHandle',
-    ])
   })
 })

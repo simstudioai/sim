@@ -1,11 +1,10 @@
-import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
+import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/credential-extractor'
+import { materializeWorkflowComparisonState } from '@/lib/workflows/persistence/comparison-state'
 import { getWorkflowDeploymentVersion } from '@/lib/workflows/persistence/utils'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -37,6 +36,9 @@ export interface ReadWorkflowVersionInput {
   workflowId: string
   assertedWorkspaceId?: string
   version: number | 'active'
+  expectedDeploymentVersionId?: string
+  /** Stored snapshots remain pinned; comparison previews apply the current runtime migrations. */
+  representation?: 'stored' | 'comparison'
   /**
    * Serves the pinned graph with credential values intact. Reserved for first-party session
    * surfaces that render the version inside its own workspace UI, which already serve the same
@@ -48,26 +50,23 @@ export interface ReadWorkflowVersionInput {
 
 export const readWorkflowVersion = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.readVersion,
-  resolveContext: ({
-    principal,
-    input,
-  }: {
-    principal: Principal
-    input: ReadWorkflowVersionInput
-  }) =>
-    resolveActiveWorkflowApplicationContext({
-      workflowId: input.workflowId,
-      assertedWorkspaceId: assertedWorkflowWorkspaceId(principal, input.assertedWorkspaceId),
-    }),
+  resolveContext: resolvePrincipalWorkflowContext<ReadWorkflowVersionInput>,
   async execute({ principal, input, context }) {
     const version = await getWorkflowDeploymentVersion(context.workflowId, input.version)
-    if (!version?.state) {
+    if (
+      !version?.state ||
+      (input.expectedDeploymentVersionId !== undefined &&
+        version.id !== input.expectedDeploymentVersionId)
+    ) {
       throw new OrchestrationError('not_found', 'Deployment version not found')
     }
-    const state = version.state
-    if (!isWorkflowState(state)) {
+    if (!isWorkflowState(version.state)) {
       throw new Error('Deployment version contains invalid workflow state')
     }
+    const state =
+      input.representation === 'comparison'
+        ? await materializeWorkflowComparisonState(context.workflowId, version, context.workspaceId)
+        : version.state
     const presentedState = input.includeCredentialValues ? state : sanitizeVersionState(state)
     logger.info('Read workflow version', {
       workspaceId: context.workspaceId,

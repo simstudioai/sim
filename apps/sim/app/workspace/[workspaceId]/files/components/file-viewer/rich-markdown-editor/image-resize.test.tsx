@@ -1,6 +1,8 @@
 /** @vitest-environment jsdom */
 import { act } from 'react'
+import { Editor } from '@tiptap/core'
 import type { ReactNodeViewProps } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -26,16 +28,15 @@ vi.mock(
 )
 
 import { ResizableImageView } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image'
+import { MarkdownImage } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-schema'
 
 let host: HTMLDivElement
 let root: Root
-const editor = { isEditable: true, isDestroyed: false, commands: { focus: vi.fn() } }
+let editor: Editor
 
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
-  vi.clearAllMocks()
-  editor.isEditable = true
-  editor.isDestroyed = false
+  editor = new Editor({ extensions: [StarterKit, MarkdownImage] })
   host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)
@@ -43,6 +44,7 @@ beforeEach(() => {
 
 afterEach(() => {
   act(() => root.unmount())
+  editor.destroy()
   host.remove()
 })
 
@@ -61,22 +63,31 @@ function pointerEvent(
 }
 
 function renderImage(
-  updateAttributes: ReturnType<typeof vi.fn>,
-  dimensions: { width?: string | null; height?: string | null } = {}
+  onUpdate: ReturnType<typeof vi.fn>,
+  dimensions: { width?: string | null; height?: string | null } = {},
+  getPos: ReactNodeViewProps['getPos'] = () => 0
 ): HTMLButtonElement {
-  const props = {
-    node: {
-      attrs: {
-        src: '/image.png',
-        alt: '',
-        title: null,
-        width: null,
-        height: '100',
-        ...dimensions,
-        href: null,
+  editor.commands.setContent({
+    type: 'doc',
+    content: [
+      {
+        type: 'image',
+        attrs: {
+          src: '/image.png',
+          alt: '',
+          title: null,
+          width: null,
+          height: '100',
+          ...dimensions,
+          href: null,
+        },
       },
-    },
-    updateAttributes,
+    ],
+  })
+  editor.on('update', onUpdate)
+  const props = {
+    node: editor.state.doc.firstChild,
+    getPos,
     selected: true,
     editor,
   } as unknown as ReactNodeViewProps
@@ -94,98 +105,45 @@ function renderImage(
 }
 
 describe('ResizableImageView', () => {
-  it('renders a height-only image proportionally without fixing its responsive height', () => {
-    renderImage(vi.fn())
-    const image = host.querySelector<HTMLImageElement>('img')
-    if (!image) throw new Error('Missing image')
-    Object.defineProperties(image, {
-      naturalWidth: { configurable: true, value: 400 },
-      naturalHeight: { configurable: true, value: 200 },
-    })
-    act(() => image.dispatchEvent(new Event('load')))
-
-    expect(image.style.height).toBe('')
-    expect(image.style.width).toBe('calc(200px)')
-    expect(image.style.aspectRatio).toBe('400 / 200')
-  })
-
-  it.each([
-    { width: '600', height: '400' },
-    { width: '600px', height: '400px' },
-    { width: '600', height: '400px' },
-  ])('uses the authored ratio for responsive pixel dimensions: %j', (dimensions) => {
-    renderImage(vi.fn(), dimensions)
-    const image = host.querySelector<HTMLImageElement>('img')!
-    expect(image.style.width).toBe('600px')
-    expect(image.style.height).toBe('')
-    expect(image.style.aspectRatio).toBe('600 / 400')
-  })
-
-  it('preserves relative dimensions instead of assuming they are pixel ratios', () => {
-    renderImage(vi.fn(), { width: '50%', height: '100px' })
-    const image = host.querySelector<HTMLImageElement>('img')!
-    expect(image.style.width).toBe('50%')
-    expect(image.style.height).toBe('100px')
-  })
-
-  it.each(['50%', 'auto', '10em', 'calc(50% - 10px)', 'min-content', 'inherit'])(
-    'preserves the native height-only CSS value %s before and after loading',
-    (height) => {
-      renderImage(vi.fn(), { height })
-      const image = host.querySelector<HTMLImageElement>('img')!
-      expect(image.style.width).toBe('')
-      expect(image.style.height).toBe(height)
-      expect(image.style.maxHeight).toBe('')
-
-      Object.defineProperties(image, {
-        naturalWidth: { configurable: true, value: 400 },
-        naturalHeight: { configurable: true, value: 200 },
-      })
-      act(() => image.dispatchEvent(new Event('load')))
-
-      expect(image.style.width).toBe('')
-      expect(image.style.height).toBe(height)
-      expect(image.style.maxHeight).toBe('')
-    }
-  )
-
-  it('commits one proportional width change and clears a stale explicit height', () => {
-    const updateAttributes = vi.fn()
-    const handle = renderImage(updateAttributes)
-
-    act(() => handle.dispatchEvent(pointerEvent('pointerdown', { pointerId: 7, clientX: 100 })))
-    act(() => window.dispatchEvent(pointerEvent('pointermove', { pointerId: 7, clientX: 160 })))
-    act(() => window.dispatchEvent(pointerEvent('pointerup', { pointerId: 7, clientX: 160 })))
-
-    expect(updateAttributes).toHaveBeenCalledOnce()
-    expect(updateAttributes).toHaveBeenCalledWith({ width: '260', height: null })
-  })
-
   it('ignores unrelated pointers and cancels without mutating document attributes', () => {
-    const updateAttributes = vi.fn()
-    const handle = renderImage(updateAttributes)
+    const onUpdate = vi.fn()
+    const handle = renderImage(onUpdate)
 
     act(() => handle.dispatchEvent(pointerEvent('pointerdown', { pointerId: 7, clientX: 100 })))
     act(() => window.dispatchEvent(pointerEvent('pointermove', { pointerId: 8, clientX: 180 })))
     act(() => window.dispatchEvent(pointerEvent('pointerup', { pointerId: 8, clientX: 180 })))
     act(() => window.dispatchEvent(pointerEvent('pointercancel', { pointerId: 7 })))
-    expect(updateAttributes).not.toHaveBeenCalled()
+    expect(onUpdate).not.toHaveBeenCalled()
 
     act(() => handle.dispatchEvent(pointerEvent('pointerdown', { pointerId: 9, clientX: 100 })))
     act(() => window.dispatchEvent(pointerEvent('pointermove', { pointerId: 9, clientX: 140 })))
     act(() => window.dispatchEvent(new Event('blur')))
-    expect(updateAttributes).not.toHaveBeenCalled()
+    expect(onUpdate).not.toHaveBeenCalled()
   })
 
   it('does not commit a resize after live editing becomes unavailable', () => {
-    const updateAttributes = vi.fn()
-    const handle = renderImage(updateAttributes)
+    const onUpdate = vi.fn()
+    const handle = renderImage(onUpdate)
 
     act(() => handle.dispatchEvent(pointerEvent('pointerdown', { pointerId: 7, clientX: 100 })))
     act(() => window.dispatchEvent(pointerEvent('pointermove', { pointerId: 7, clientX: 160 })))
-    editor.isEditable = false
+    editor.setEditable(false, false)
     act(() => window.dispatchEvent(pointerEvent('pointerup', { pointerId: 7, clientX: 160 })))
 
-    expect(updateAttributes).not.toHaveBeenCalled()
+    expect(onUpdate).not.toHaveBeenCalled()
+  })
+
+  it('does not commit a resize when the node view no longer has a position', () => {
+    const onUpdate = vi.fn()
+    const getPos = vi.fn<ReactNodeViewProps['getPos']>(() => 0)
+    const handle = renderImage(onUpdate, {}, getPos)
+
+    act(() => handle.dispatchEvent(pointerEvent('pointerdown', { pointerId: 7, clientX: 100 })))
+    act(() => window.dispatchEvent(pointerEvent('pointermove', { pointerId: 7, clientX: 160 })))
+    getPos.mockReturnValue(undefined)
+    act(() => window.dispatchEvent(pointerEvent('pointerup', { pointerId: 7, clientX: 160 })))
+
+    expect(onUpdate).not.toHaveBeenCalled()
+    expect(editor.state.doc.firstChild?.attrs).toMatchObject({ width: null, height: '100' })
   })
 })

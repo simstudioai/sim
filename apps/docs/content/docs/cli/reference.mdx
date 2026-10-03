@@ -26,7 +26,7 @@ These apply to every command, and may be written before or after it.
 
 ## sim login
 
-Sign in through the browser and store the login for the profile
+Log in through the browser and store the login for the profile
 
 ```bash
 sim login [options]
@@ -84,7 +84,7 @@ sim whoami [options]
 
 ## sim configure
 
-Set a profile's endpoint, default workspace, or output format
+Switch a profile's default workspace, or set its endpoint or output format
 
 ```bash
 sim configure [options]
@@ -100,6 +100,24 @@ sim configure [options]
 | `--set-workspace <id>` | No | Default workspace for workspace-scoped commands. |
 | `--set-output <format>` | No | Default output format (table \| json \| yaml \| text). |
 | `--unset <key...>` | No | Remove settings (endpoint, workspace, output). |
+
+</CommandTable>
+
+## sim update
+
+Update this global CLI installation to the newest release on its channel
+
+```bash
+sim update [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--package-manager <manager>` | No | Package manager that installed this copy. Accepted values: `npm`, `pnpm`, `bun`, `yarn`. |
 
 </CommandTable>
 
@@ -171,6 +189,52 @@ sim profiles add <name> [options]
 
 </CommandTable>
 
+## sim telemetry
+
+### sim telemetry status
+
+Show whether usage reporting is on, and why not if it is off
+
+```bash
+sim telemetry status
+```
+
+### sim telemetry enable
+
+Turn usage reporting on for this machine
+
+```bash
+sim telemetry enable
+```
+
+### sim telemetry disable
+
+Turn usage reporting off for this machine
+
+```bash
+sim telemetry disable
+```
+
+## sim cli
+
+### sim cli search
+
+Find the command for a task, described in plain words
+
+```bash
+sim cli search <query...>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `query...` | Yes | What you want to do, e.g. "cancel a workflow run" |
+
+</CommandTable>
+
 ## sim audit-logs
 
 Also spelled `sim audit-log`.
@@ -236,7 +300,7 @@ sim audit-logs list [options]
 
 ### sim billing status
 
-Show billing status and current-period credit usage (credits and storage require an OAuth login or personal API key)
+Show billing status, credits spent this period, and storage used (credits and storage require an OAuth login or personal API key)
 
 ```bash
 sim billing status [options]
@@ -313,7 +377,9 @@ sim blocks list [options]
 | `--search <value>` | No | Case-insensitive substring match against the block id, name, and description. |
 | `--category <value>` | No | Restrict to one toolbar category. Accepted values: `blocks`, `tools`, `triggers`. |
 | `--capability <value>` | No | Restrict to blocks that can start a workflow — the `triggers` category, blocks declaring `triggerAllowed`, and blocks with trigger-mode fields. Accepted values: `trigger`. |
-| `--source <value>` | No | Restrict to built-in blocks or this workspace's deployed custom blocks. Accepted values: `builtin`, `custom`. |
+| `--source <value>` | No | Restrict to shipped blocks or to this workspace’s deployed custom blocks. Accepted values: `builtin`, `custom`. |
+| `--include-sunset` | No | Include `legacy` and `deprecated` blocks. Off by default: a sunset block keeps executing where it is already placed, but it is not offered for new authoring. Each returned entry carries `sunset.replacedBy`, the block to build with instead. |
+| `--no-include-sunset` | No | Send --include-sunset as false. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `id`, `name`, `category`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
@@ -362,6 +428,9 @@ sim connector-types list [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--search <value>` | No | Case-insensitive substring match against the connector name. |
+| `--detail <value>` | No | Projection of each item. `summary` (the default) carries the identifier, name, description, and auth mode; `full` adds the version, the complete auth settings, the `sourceConfig` field schema, incremental-sync support, and tag definitions. Accepted values: `summary`, `full`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 
 </CommandTable>
 
@@ -698,7 +767,7 @@ sim files batch-delete [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--file-ids <value...>` | Yes | File identifiers to update. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--file-ids <value...>` | Yes | File identifiers to delete. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
@@ -865,6 +934,176 @@ sim files delete <fileId> [options]
 
 </CommandTable>
 
+### sim files versions delete
+
+Permanently delete a previous version of a file
+
+```bash
+sim files versions delete <fileId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+| `version` | Yes | Version number. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim files versions describe
+
+Show the metadata of one version of a file
+
+```bash
+sim files versions describe <fileId> <version>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+| `version` | Yes | Version number. |
+
+</CommandTable>
+
+### sim files versions list
+
+List the recorded versions of a file
+
+```bash
+sim files versions list <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `version`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+### sim files versions read
+
+Read the text content of one version of a file as JSON or YAML
+
+```bash
+sim files versions read <fileId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+| `version` | Yes | Version number. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--max-bytes <value>` | No | Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit. |
+| `--offset <value>` | No | First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line. |
+| `--limit <value>` | No | How many lines to return from `offset`. Absent reads to the end. |
+
+</CommandTable>
+
+### sim files versions revert
+
+Make a previous version of a file current again
+
+```bash
+sim files versions revert <fileId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+| `version` | Yes | Version number. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--expected-current-version <value>` | No | Revert only while this is still the current version; otherwise the request fails with `409`. Omit to revert whatever is current. Collaborative edits and repeated workflow writes that fold into the current version keep its number, so prefer `expectedRevision` to guard content. |
+| `--expected-revision <value>` | No | Revert only while the file still holds the content this revision names, as returned by Get File Metadata or an earlier write; otherwise the request fails with `409`. Unlike a version number, it also catches edits that folded into the current version. |
+
+</CommandTable>
+
+### sim files versions download
+
+Download the content of one version of a file
+
+```bash
+sim files versions download <fileId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | File identifier. |
+| `version` | Yes | Version number. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-o, --output-file <path>` | No | Write content to a file instead of stdout. |
+| `--force` | No | Overwrite --output-file if it already exists. |
+
+</CommandTable>
+
 ### sim files edit
 
 Apply one exact or anchor-based edit to a text file
@@ -890,6 +1129,7 @@ sim files edit <fileId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--edit <json\|@file>` | Yes | One edit object: &#123;"mode":"search_replace","search":"old","content":"new","replaceAll":false&#125;, &#123;"mode":"replace_between","beforeAnchor":"start line","afterAnchor":"end line","content":"new"&#125;, &#123;"mode":"insert_after","anchor":"line","content":"new"&#125;, or &#123;"mode":"delete_between","startAnchor":"first line deleted","endAnchor":"ending line kept"&#125;. Anchored modes also accept occurrence starting at 1 (JSON, or @path / @- to read a file or stdin). |
+| `--expected-revision <value>` | No | Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on. |
 
 </CommandTable>
 
@@ -965,7 +1205,7 @@ sim files share set <fileId> [options]
 | --- | --- | --- |
 | `--is-active <true\|false>` | Yes | Whether the share should resolve. Disabling preserves the token and the whole access configuration, so re-enabling restores the share as it was; enabling rewrites the credentials the resulting mode does not use. Accepted values: `true`, `false`. |
 | `--auth-type <value>` | No | How access to the share is gated. The stored mode is kept when omitted. Enabling `public` clears the stored password and empties `allowedEmails`; `password` empties `allowedEmails`; `email` and `sso` clear the stored password. Accepted values: `public`, `password`, `email`, `sso`. |
-| `--password <value>` | No | Password for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400. |
+| `--password <value>` | No | Password of 15 to 1024 characters for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400. Taken literally, except that a request from the Sim agent resolves a whole-value `&#123;&#123;ENV_VAR&#125;&#125;` reference to that variable before the rules apply. |
 | `--allowed-emails <value...>` | No | Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 
 </CommandTable>
@@ -1018,7 +1258,7 @@ Also available as `sim files mv`.
 
 ### sim files read
 
-Read a file’s text content
+Read a file’s text content as JSON or YAML
 
 ```bash
 sim files read <fileId> [options]
@@ -1030,7 +1270,7 @@ sim files read <fileId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `fileId` | Yes | File identifier. |
+| `fileId` | Yes | File identifier, or the file’s VFS path: `files/&lt;folder&gt;/&lt;name&gt;`, or `uploads/&lt;name&gt;` for a Chat upload. |
 
 </CommandTable>
 
@@ -1041,7 +1281,7 @@ sim files read <fileId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--max-bytes <value>` | No | Optional ceiling on the source bytes fed to the parser, lowering but never raising the server limit. |
-| `--offset <value>` | No | First line to return, 1-based. Absent starts at the first line. |
+| `--offset <value>` | No | First line to return, 1-based; 0 also starts at the first line. Absent starts at the first line. |
 | `--limit <value>` | No | How many lines to return from `offset`. Absent reads to the end. |
 
 </CommandTable>
@@ -1169,6 +1409,7 @@ sim files set-content <fileId> [options]
 | --- | --- | --- |
 | `--content <value>` | Yes | Complete replacement content for the file. The 70,000,000-character bound guards the JSON envelope; the decoded bytes must be at most 50 MiB, and a longer base64 payload is rejected with `413`. |
 | `--encoding <value>` | No | Content encoding. Accepted values: `utf-8`, `base64`. |
+| `--expected-revision <value>` | No | Revision from Get File Metadata or an earlier write; the request is refused with `409` when the content moved on. |
 
 </CommandTable>
 
@@ -1203,7 +1444,7 @@ sim files upload <path> [options]
 
 ### sim files get
 
-Get a file’s content
+Download a file’s content to stdout or a local file
 
 ```bash
 sim files get <fileId> [options]
@@ -1731,7 +1972,7 @@ sim knowledge documents batch-update <knowledgeBaseId> [options]
 
 ### sim knowledge documents delete
 
-Delete Document
+Delete a document from a knowledge base
 
 ```bash
 sim knowledge documents delete <knowledgeBaseId> <documentId> [options]
@@ -1941,8 +2182,8 @@ sim knowledge connectors create <knowledgeBaseId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--connector-type <value>` | Yes | Registered connector type. |
-| `--credential-id <value>` | No | OAuth credential identifier for connectors that require OAuth. |
-| `--api-key <value>` | No | Write-only API key for connectors that use API-key authentication. |
+| `--credential-id <value>` | No | OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types); omit it for `apiKey` connectors. |
+| `--api-key <value>` | No | Write-only API key for connector types whose `auth.mode` is `apiKey` (see connector types), or a personal access token for an OAuth connector that also accepts one, such as GitHub. Send it instead of `credentialId`. Pass a raw key, or a secret reference written as the whole value `&#123;&#123;SECRET_NAME&#125;&#125;`, which the server resolves; `$SECRET_NAME` is not a reference. |
 | `--source-config <json\|@file>` | Yes | Connector-specific source selection and filtering configuration. (JSON, or @path / @- to read a file or stdin). |
 | `--sync-interval-minutes <value>` | No | Scheduled synchronization interval in minutes; zero disables scheduling. |
 
@@ -2405,6 +2646,36 @@ sim knowledge mv <knowledgeBaseId> <folder>
 
 </CommandTable>
 
+### sim knowledge export
+
+Export a knowledge base as a .simkb.zip bundle
+
+```bash
+sim knowledge export <knowledgeBaseId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `knowledgeBaseId` | Yes | Knowledge base to export |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-o, --output-file <path>` | No | Write the bundle to this path instead of the name the server suggests; pass - to stream it to stdout. |
+| `--force` | No | Overwrite --output-file if it already exists. |
+| `--no-vectors` | No | Leave chunk vectors out of the bundle, so an import re-embeds every chunk. |
+
+</CommandTable>
+
 ### sim knowledge ls
 
 List knowledge resources and child folders together
@@ -2480,6 +2751,8 @@ sim logs get <runId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
+| `--include-workflow-state` | No | Include the saved workflow snapshot (default: true). Set false to omit block configuration from a log read. Other run fields are unchanged. |
+| `--no-include-workflow-state` | No | Send --include-workflow-state as false. |
 | `--trace` | No | Show expanded trace spans with inputs, outputs, errors, timing, and cost. |
 
 </CommandTable>
@@ -2502,15 +2775,18 @@ sim logs stats [options]
 | `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--trigger <value...>` | No | Comma-separated trigger types to include. An empty entry is rejected. The vocabulary is open, so an unrecognized member selects no runs; the literal `all` disables this filter. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--level <value>` | No | Severity level to include. Accepted values: `info`, `error`. |
+| `--include-handled-errors` | No | Whether runs with a handled block error are counted as `handledErrorRuns`, and whether `level=error` also selects them. Off by default: counting them scans each run’s stored trace. |
+| `--no-include-handled-errors` | No | Send --include-handled-errors as false. |
 | `--start-date <value>` | No | Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
 | `--end-date <value>` | No | Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
-| `--segment-count <value>` | No | Number of time buckets, up to 500. Exactly this many are returned, each at least one minute wide. Short windows extend past the requested end and include empty trailing buckets. |
+| `--segment-count <value>` | No | Number of equal time buckets to divide the window into, from 1 to 500. It is the ceiling on how many buckets a series carries: with `includeEmpty=true` exactly this many are returned, otherwise only the buckets holding at least one run. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty. |
+| `--include-empty <value>` | No | Whether buckets with no runs are included in every series. Off by default, so each series carries only the buckets that hold at least one run; set it to publish exactly `segmentCount` buckets per series, empty ones included. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected. Accepted values: `true`, `1`, `yes`, `on`, `y`, `enabled`, `false`, `0`, `no`, `off`, `n`, `disabled`. |
 
 </CommandTable>
 
 ### sim logs list
 
-List Logs
+List run logs, such as failed or errored runs, by workflow, trigger or time
 
 ```bash
 sim logs list [options]
@@ -2537,6 +2813,8 @@ sim logs list [options]
 | `--include-final-output` | No | Include final output in JSON or YAML output (implies full detail). |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
 | `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--include-handled-errors` | No | Whether `level=error` also selects runs that finished at `info` after a block error was recovered by an error path. Off by default: such a run succeeded, so it is an error only to a caller auditing error handling. Every row reports `hasHandledErrors` whether or not this is set. Job runs carry no block trace, so the flag never widens that branch. |
+| `--no-include-handled-errors` | No | Send --include-handled-errors as false. |
 | `--status <value>` | No | Comma-separated execution statuses to include, from `pending` \| `running` \| `paused` \| `redacting` \| `completed` \| `failed` \| `cancelled`. An empty entry is rejected. ANDed with `level`, which reports severity rather than lifecycle. |
 | `--workflow-name <value>` | No | Case-insensitive substring match against the run's workflow name. Runs whose workflow has been deleted match nothing, because the name is no longer joinable. |
 | `--include-job-runs` | No | Include Chat and Sim-agent jobs alongside workflow runs. Jobs use `kind: "job"` and have no workflow or cost ledger. Workflow, folder, model, or status filters exclude jobs. This option is valid only when sorting by `startedAt`. |
@@ -2550,7 +2828,7 @@ sim logs list [options]
 
 ### sim logs follow
 
-Watch runs as they arrive, printing each new run once
+Watch runs live as they arrive, printing each new run once
 
 ```bash
 sim logs follow [options]
@@ -2750,6 +3028,892 @@ Show what this API supports and which limits apply
 sim meta status
 ```
 
+## sim organizations
+
+### sim organizations access-requests cancel
+
+Cancel Organization Access Request (OAuth login or personal API key required)
+
+```bash
+sim organizations access-requests cancel <requestId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `requestId` | Yes | Access request identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+### sim organizations access-requests create
+
+Create Organization Access Request (OAuth login or personal API key required)
+
+```bash
+sim organizations access-requests create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--target <json\|@file>` | Yes | Target returned by Discover Workspace Access Requests or Discover Organization Access Requests. The target must currently be requestable. (JSON, or @path / @- to read a file or stdin). |
+| `--reason <value>` | No | Why the acting user needs this access. |
+
+</CommandTable>
+
+### sim organizations access-requests discover
+
+Discover Organization Access Requests (OAuth login or personal API key required)
+
+```bash
+sim organizations access-requests discover [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--search <value>` | No | Case-insensitive substring match against the access item label. |
+| `--target-kind <value>` | No | Category of access to discover. Accepted values: `feature`, `integration`, `provider`, `model`, `tool`, `knowledge_connector`, `file_share_auth`, `chat_deploy_auth`, `usage_limit`. |
+| `--state <value>` | No | Filter by the acting user’s current access. Requestable items can be submitted for review. Accepted values: `allowed`, `requestable`, `unavailable`. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `label`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+### sim organizations access-requests settings get
+
+Get Organization Access Request Settings (OAuth login or personal API key required)
+
+```bash
+sim organizations access-requests settings get [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+### sim organizations access-requests settings update
+
+Update Organization Access Request Settings (OAuth login or personal API key required)
+
+```bash
+sim organizations access-requests settings update [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--allow-requests <true\|false>` | Yes | Allow new requests and approvals. Disabling requests preserves history and still allows cancellation and decline. Accepted values: `true`, `false`. |
+
+</CommandTable>
+
+### sim organizations access-requests mine
+
+List My Organization Access Requests (OAuth login or personal API key required)
+
+```bash
+sim organizations access-requests mine [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--status <value>` | No | Filter by request status; omit to include all statuses. Accepted values: `pending`, `fulfilled`, `declined`, `cancelled`, `closed`. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `createdAt`, `targetLabel`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+### sim organizations access-requests list
+
+List Organization Access Requests (OAuth login or personal API key required)
+
+```bash
+sim organizations access-requests list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--status <value>` | No | Filter by request status; omit to include all statuses. Accepted values: `pending`, `fulfilled`, `declined`, `cancelled`, `closed`. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `createdAt`, `targetLabel`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--search <value>` | No | Case-insensitive substring match against the target label or requester name or email. |
+
+</CommandTable>
+
+### sim organizations access-requests preview
+
+Preview Organization Access Request (OAuth login or personal API key required)
+
+```bash
+sim organizations access-requests preview <requestId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `requestId` | Yes | Access request identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+### sim organizations access-requests resolve
+
+Resolve Organization Access Request (OAuth login or personal API key required)
+
+```bash
+sim organizations access-requests resolve <requestId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `requestId` | Yes | Access request identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--action <value>` | Yes | apply: Apply the reviewed change to the governing group or member credit cap. decline: Decline the request without changing permissions or credit limits. Accepted values: `apply`, `decline`. |
+| `--expected-fingerprint <value>` | No | Fingerprint from Preview Organization Access Request. Review its changes and impact before applying; a stale preview returns a conflict. Available when action is apply. Required when action is apply. |
+| `--new-limit-credits <value>` | No | Required only for a usage-limit request: a whole-number credit cap greater than the current cap. Omit for permission requests. Available when action is apply. |
+| `--reason <value>` | No | Required explanation for declining this request. Available when action is decline. Required when action is decline. |
+
+</CommandTable>
+
+### sim organizations invitations create
+
+Create Organization Invitation (OAuth login or personal API key required)
+
+```bash
+sim organizations invitations create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--email <value>` | Yes | Email address of the person to invite. |
+| `--role <value>` | No | Organization role to offer. Defaults to member; grants no workspace-specific permissions. Accepted values: `member`, `admin`. |
+
+</CommandTable>
+
+### sim organizations invitations get
+
+Get Organization Invitation (OAuth login or personal API key required)
+
+```bash
+sim organizations invitations get <invitationId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `invitationId` | Yes | Invitation identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+### sim organizations invitations list
+
+List Organization Invitations (OAuth login or personal API key required)
+
+```bash
+sim organizations invitations list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--search <value>` | No | Case-insensitive substring match against the invitee email. |
+| `--status <value>` | No | Filter by current invitation status. Omit to include all statuses. Accepted values: `pending`, `accepted`, `rejected`, `cancelled`, `expired`. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `email`, `createdAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+### sim organizations invitations workspaces
+
+List Organization Invitation Workspaces (OAuth login or personal API key required)
+
+```bash
+sim organizations invitations workspaces <invitationId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `invitationId` | Yes | Invitation identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--search <value>` | No | Case-insensitive substring match against the workspace name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `id`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+### sim organizations invitations resend
+
+Resend Organization Invitation (OAuth login or personal API key required)
+
+```bash
+sim organizations invitations resend <invitationId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `invitationId` | Yes | Invitation identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+### sim organizations invitations revoke
+
+Revoke Organization Invitation (OAuth login or personal API key required)
+
+```bash
+sim organizations invitations revoke <invitationId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `invitationId` | Yes | Invitation identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim organizations get
+
+Get Organization (OAuth login or personal API key required)
+
+```bash
+sim organizations get <organizationId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `organizationId` | Yes | Organization identifier. |
+
+</CommandTable>
+
+### sim organizations members usage-limit get
+
+Get Organization Member Credit Limit (OAuth login or personal API key required)
+
+```bash
+sim organizations members usage-limit get <userId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `userId` | Yes | User ID of an organization member or external collaborator with workspace access in this organization. Use List Organization Members or List Workspace Members to find it. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+### sim organizations members usage-limit update
+
+Update Organization Member Credit Limit (OAuth login or personal API key required)
+
+```bash
+sim organizations members usage-limit update <userId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `userId` | Yes | User ID of an organization member or external collaborator with workspace access in this organization. Use List Organization Members or List Workspace Members to find it. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--credit-limit <number\|null>` | Yes | Credit cap for this person. Send null to clear the cap or 0 to prevent further credit-consuming usage. Organization limits still apply. |
+
+</CommandTable>
+
+### sim organizations members list
+
+List Organization Members (OAuth login or personal API key required)
+
+```bash
+sim organizations members list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--search <value>` | No | Case-insensitive substring match against member name or email. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `email`, `joinedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+
+</CommandTable>
+
+### sim organizations members remove
+
+Remove Organization Member (OAuth login or personal API key required)
+
+```bash
+sim organizations members remove <userId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `userId` | Yes | User identifier of the organization member. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim organizations members update
+
+Update Organization Member (OAuth login or personal API key required)
+
+```bash
+sim organizations members update <userId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `userId` | Yes | User identifier of the organization member. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--role <value>` | Yes | New organization role. Ownership transfers use a separate operation. Accepted values: `member`, `admin`. |
+
+</CommandTable>
+
+### sim organizations usage breakdown
+
+Get Organization Usage Breakdown (OAuth login or personal API key required)
+
+```bash
+sim organizations usage breakdown [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--preset <value>` | No | Reporting window. Custom requires startDate and endDate and is capped at 92 days; other presets reject those bounds. Resolved billing windows are capped at 366 days. Accepted values: `current-period`, `previous-period`, `7d`, `30d`, `custom`. |
+| `--start-date <value>` | No | First calendar date included, in the selected timezone. Requires preset=custom. |
+| `--end-date <value>` | No | Last calendar date included, in the selected timezone. Requires preset=custom. |
+| `--timezone <value>` | No | IANA timezone for calendar boundaries; defaults to UTC. |
+| `--dimension <value>` | Yes | Usage grouping dimension. Accepted values: `member`, `workspace`, `workflow`, `model`, `byok`, `source`. |
+| `--limit <value>` | No | Maximum ranked groups to return. Remaining usage is summarized in other. Must be a whole number from 1 to 100. Defaults to 50. |
+
+</CommandTable>
+
+### sim organizations usage summary
+
+Get Organization Usage Summary (OAuth login or personal API key required)
+
+```bash
+sim organizations usage summary [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--preset <value>` | No | Reporting window. Custom requires startDate and endDate and is capped at 92 days; other presets reject those bounds. Resolved billing windows are capped at 366 days. Accepted values: `current-period`, `previous-period`, `7d`, `30d`, `custom`. |
+| `--start-date <value>` | No | First calendar date included, in the selected timezone. Requires preset=custom. |
+| `--end-date <value>` | No | Last calendar date included, in the selected timezone. Requires preset=custom. |
+| `--timezone <value>` | No | IANA timezone for calendar boundaries; defaults to UTC. |
+
+</CommandTable>
+
+### sim organizations usage events
+
+List Organization Usage Events (OAuth login or personal API key required)
+
+```bash
+sim organizations usage events [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--preset <value>` | No | Reporting window. Custom requires startDate and endDate and is capped at 92 days; other presets reject those bounds. Resolved billing windows are capped at 366 days. Accepted values: `current-period`, `previous-period`, `7d`, `30d`, `custom`. |
+| `--start-date <value>` | No | First calendar date included, in the selected timezone. Requires preset=custom. |
+| `--end-date <value>` | No | Last calendar date included, in the selected timezone. Requires preset=custom. |
+| `--timezone <value>` | No | IANA timezone for calendar boundaries; defaults to UTC. |
+| `--source <value>` | No | Restrict events to one product surface. Accepted values: `workflow`, `wand`, `sim-chat`, `mcp_copilot`, `mothership_block`, `knowledge-base`, `voice-input`, `enrichment`, `voice-output`, `api-tool`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `createdAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+
+</CommandTable>
+
+### sim organizations list
+
+List Organizations (OAuth login or personal API key required)
+
+```bash
+sim organizations list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against the organization name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+
+</CommandTable>
+
+### sim organizations workspaces
+
+List Organization Workspaces (OAuth login or personal API key required)
+
+```bash
+sim organizations workspaces [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--search <value>` | No | Case-insensitive substring match against the workspace name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `id`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+
+</CommandTable>
+
+## sim permission-groups
+
+Also spelled `sim permission-group`.
+
+### sim permission-groups members add
+
+Add Permission Group Member (OAuth login or personal API key required)
+
+```bash
+sim permission-groups members add [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--group <value>` | Yes | Permission group identifier. |
+| `--user <value>` | Yes | Existing organization member to add. |
+
+</CommandTable>
+
+### sim permission-groups members batch-add
+
+Bulk Add Permission Group Members (OAuth login or personal API key required)
+
+```bash
+sim permission-groups members batch-add [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--group <value>` | Yes | Permission group identifier. |
+| `--user <value...>` | No | User IDs to add; cannot be combined with --all-members (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--all-members` | No | Add every current organization member; cannot be combined with --user. |
+
+</CommandTable>
+
+### sim permission-groups members list
+
+List Permission Group Members (OAuth login or personal API key required)
+
+```bash
+sim permission-groups members list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--group <value>` | Yes | Permission group identifier. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `assignedAt`, `userId`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+
+</CommandTable>
+
+### sim permission-groups members remove
+
+Remove Permission Group Member (OAuth login or personal API key required)
+
+```bash
+sim permission-groups members remove <userId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `userId` | Yes | User identifier of the member to remove. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--group <value>` | Yes | Permission group identifier. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim permission-groups create
+
+Create Permission Group (OAuth login or personal API key required)
+
+```bash
+sim permission-groups create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--name <value>` | Yes | Group name, unique within the organization. |
+| `--description <value>` | No | Optional group description. |
+| `--config <json\|@file>` | No | Permission restrictions to set. Omitted keys use the default permission configuration. (JSON, or @path / @- to read a file or stdin). |
+| `--default` | No | Whether the group is the organization default. Only one group can be the default. |
+| `--no-default` | No | Send --default as false. |
+| `--workspace-ids <json\|@file>` | No | Workspace IDs targeted by a non-default group. Required when creating a non-default group; omit for a default group. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+### sim permission-groups delete
+
+Delete Permission Group (OAuth login or personal API key required)
+
+```bash
+sim permission-groups delete <groupId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `groupId` | Yes | Permission group identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim permission-groups get
+
+Get Permission Group (OAuth login or personal API key required)
+
+```bash
+sim permission-groups get <groupId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `groupId` | Yes | Permission group identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+
+</CommandTable>
+
+### sim permission-groups list
+
+List Permission Groups (OAuth login or personal API key required)
+
+```bash
+sim permission-groups list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--search <value>` | No | Case-insensitive substring match against the group name. |
+| `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+
+</CommandTable>
+
+### sim permission-groups update
+
+Update Permission Group (OAuth login or personal API key required)
+
+```bash
+sim permission-groups update <groupId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `groupId` | Yes | Permission group identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--organization <value>` | Yes | Organization identifier. |
+| `--name <value>` | No | Group name, unique within the organization. |
+| `--description <value>` | No | Group description. Null or an empty string clears it; omission leaves it unchanged. (--description null sends the word, not JSON null). |
+| `--config <json\|@file>` | No | Patch of permission restrictions. Omitted keys remain unchanged; each supplied array replaces that entire list. (JSON, or @path / @- to read a file or stdin). |
+| `--default` | No | Whether the group is the organization default. Only one group can be the default. |
+| `--no-default` | No | Send --default as false. |
+| `--workspace-ids <json\|@file>` | No | Workspace identifiers for a non-default group. Required on creation; an empty update makes the group inactive. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
 ## sim sandboxes
 
 Also spelled `sim sandbox`.
@@ -2932,7 +4096,7 @@ sim secrets list [options]
 
 ### sim secrets set
 
-Create or replace a named secret (OAuth login or personal API key required)
+Create or replace a named secret, such as an API key or environment variable (OAuth login or personal API key required)
 
 ```bash
 sim secrets set <name> [options]
@@ -2959,6 +4123,50 @@ sim secrets set <name> [options]
 | `--description <description>` | No | What the secret is for, shown to teammates; workspace scope only. Omit to leave an existing description unchanged. |
 | `--unredacted` | No | Opt the workspace secret out of redaction: its value then appears in plaintext in run logs, model-visible content, and files, including publicly shared log links. Workspace scope only — sending it for a personal secret is rejected. Omit it to leave the current setting untouched. Pass --no-unredacted to restore redaction. |
 | `--no-unredacted` | No | Send --unredacted as false. |
+
+</CommandTable>
+
+## sim selectors
+
+### sim selectors get
+
+Get Selector Option (OAuth login or personal API key required)
+
+```bash
+sim selectors get [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--selector-key <value>` | Yes | Registered selector key for discovering this field’s destination options. Accepted values: `airtable.bases`, `airtable.tables`, `asana.workspaces`, `attio.lists`, `attio.objects`, `bigquery.datasets`, `bigquery.tables`, `bitbucket.workspaces`, `bitbucket.repositories`, `calcom.eventTypes`, `calcom.schedules`, `clickup.workspaces`, `clickup.spaces`, `clickup.folders`, `clickup.lists`, `coda.docs`, `coda.pages`, `coda.tables`, `coda.columns`, `coda.rows`, `coda.formulas`, `coda.controls`, `coda.folders`, `coda.permissions`, `confluence.spaces`, `confluence.spacesById`, `confluence.pages`, `google.tasks.lists`, `gmail.labels`, `google.calendar`, `google.drive`, `google.sheets`, `harmonic.savedSearches`, `hubspot.lists`, `hubspot.owners`, `hubspot.pipelines`, `hubspot.pipelineStages`, `hubspot.properties`, `jsm.requestTypes`, `jsm.serviceDesks`, `microsoft.planner.plans`, `notion.databases`, `notion.pages`, `netsuite.recordTypes`, `netsuite.asyncTasks`, `pipedrive.pipelines`, `sharepoint.lists`, `trello.boards`, `zoho_desk.organizations`, `zoho_desk.departments`, `zoho_desk.agents`, `zoom.meetings`, `slack.channels`, `snowflake.databases`, `snowflake.schemas`, `snowflake.tables`, `snowflake.warehouses`, `snowflake.roles`, `snowflake.fileFormats`, `snowflake.procedures`, `slack.users`, `outlook.folders`, `outlook.calendars`, `microsoft.teams`, `microsoft.chats`, `microsoft.channels`, `microsoft.planner`, `onedrive.files`, `onedrive.folders`, `sharepoint.sites`, `microsoft.excel`, `microsoft.excel.drives`, `microsoft.excel.sheets`, `microsoft.word`, `wealthbox.contacts`, `jira.issues`, `jira.projects`, `jira.projectKeys`, `linear.projects`, `linear.teams`, `monday.boards`, `monday.groups`, `webflow.sites`, `webflow.collections`, `webflow.items`, `planetscale.databases`, `powerbi.workspaces`, `powerbi.datasets`, `powerbi.reports`, `planetscale.branches`, `planetscale.backups`, `planetscale.deployRequests`, `cloudwatch.logGroups`, `cloudwatch.logStreams`, `imap.mailboxes`, `mcp.tools`, `managedAgent.agents`, `managedAgent.environments`, `managedAgent.vaults`, `managedAgent.memoryStores`, `knowledge.documents`, `sim.workflows`, `table.columns`, `table.outputColumns`, `workspace.secretNames`, `workspace.sandboxes`, `providers.ollamaEmbeddingModels`, `providers.openrouterEmbeddingModels`. |
+| `--context <json\|@file>` | No | Only the dependencies declared by the selector, such as oauthCredential and channelId. Missing OAuth connections require human authorization. (JSON, or @path / @- to read a file or stdin). |
+| `--id <value>` | Yes | Resource identifier. |
+
+</CommandTable>
+
+### sim selectors list
+
+List Selector Options (OAuth login or personal API key required)
+
+```bash
+sim selectors list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--selector-key <value>` | Yes | Registered selector key for discovering this field’s destination options. Accepted values: `airtable.bases`, `airtable.tables`, `asana.workspaces`, `attio.lists`, `attio.objects`, `bigquery.datasets`, `bigquery.tables`, `bitbucket.workspaces`, `bitbucket.repositories`, `calcom.eventTypes`, `calcom.schedules`, `clickup.workspaces`, `clickup.spaces`, `clickup.folders`, `clickup.lists`, `coda.docs`, `coda.pages`, `coda.tables`, `coda.columns`, `coda.rows`, `coda.formulas`, `coda.controls`, `coda.folders`, `coda.permissions`, `confluence.spaces`, `confluence.spacesById`, `confluence.pages`, `google.tasks.lists`, `gmail.labels`, `google.calendar`, `google.drive`, `google.sheets`, `harmonic.savedSearches`, `hubspot.lists`, `hubspot.owners`, `hubspot.pipelines`, `hubspot.pipelineStages`, `hubspot.properties`, `jsm.requestTypes`, `jsm.serviceDesks`, `microsoft.planner.plans`, `notion.databases`, `notion.pages`, `netsuite.recordTypes`, `netsuite.asyncTasks`, `pipedrive.pipelines`, `sharepoint.lists`, `trello.boards`, `zoho_desk.organizations`, `zoho_desk.departments`, `zoho_desk.agents`, `zoom.meetings`, `slack.channels`, `snowflake.databases`, `snowflake.schemas`, `snowflake.tables`, `snowflake.warehouses`, `snowflake.roles`, `snowflake.fileFormats`, `snowflake.procedures`, `slack.users`, `outlook.folders`, `outlook.calendars`, `microsoft.teams`, `microsoft.chats`, `microsoft.channels`, `microsoft.planner`, `onedrive.files`, `onedrive.folders`, `sharepoint.sites`, `microsoft.excel`, `microsoft.excel.drives`, `microsoft.excel.sheets`, `microsoft.word`, `wealthbox.contacts`, `jira.issues`, `jira.projects`, `jira.projectKeys`, `linear.projects`, `linear.teams`, `monday.boards`, `monday.groups`, `webflow.sites`, `webflow.collections`, `webflow.items`, `planetscale.databases`, `powerbi.workspaces`, `powerbi.datasets`, `powerbi.reports`, `planetscale.branches`, `planetscale.backups`, `planetscale.deployRequests`, `cloudwatch.logGroups`, `cloudwatch.logStreams`, `imap.mailboxes`, `mcp.tools`, `managedAgent.agents`, `managedAgent.environments`, `managedAgent.vaults`, `managedAgent.memoryStores`, `knowledge.documents`, `sim.workflows`, `table.columns`, `table.outputColumns`, `workspace.secretNames`, `workspace.sandboxes`, `providers.ollamaEmbeddingModels`, `providers.openrouterEmbeddingModels`. |
+| `--context <json\|@file>` | No | Only the dependencies declared by the selector, such as oauthCredential and channelId. Missing OAuth connections require human authorization. (JSON, or @path / @- to read a file or stdin). |
+| `--search <value>` | No | Provider option search text. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
 
 </CommandTable>
 
@@ -3285,7 +4493,7 @@ sim tables groups create <tableId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--group <json\|@file>` | Yes | Workflow or enrichment producer definition. (JSON, or @path / @- to read a file or stdin). |
-| `--output-columns <json\|@file>` | Yes | Columns created for producer outputs. (JSON, or @path / @- to read a file or stdin). |
+| `--output-columns <json\|@file>` | No | Columns to create for producer outputs. An entry naming a column the table already has attaches that column to the group instead of creating it (its `type` must match), and an output whose column already exists may omit its entry entirely — so `[]` attaches existing columns only. (JSON, or @path / @- to read a file or stdin). |
 | `--auto-run` | No | Whether to schedule existing rows after group creation. |
 | `--no-auto-run` | No | Send --auto-run as false. |
 
@@ -3577,7 +4785,7 @@ sim tables rows list <tableId> [options]
 
 ### sim tables rows query
 
-Query Rows
+Query rows with a filter and sort
 
 ```bash
 sim tables rows query <tableId> [options]
@@ -3829,7 +5037,7 @@ sim tables dispatches get <tableId> <dispatchId>
 
 ### sim tables dispatches list
 
-List Active Run Dispatches
+List Run Dispatches
 
 ```bash
 sim tables dispatches list <tableId>
@@ -4261,8 +5469,8 @@ sim tables views update <tableId> <viewId> [options]
 | `--name <value>` | No | Replacement saved-view display name. |
 | `--config <json\|@file>` | No | Complete replacement saved-view configuration. (JSON, or @path / @- to read a file or stdin). |
 | `--config-patch <json\|@file>` | No | Saved-view configuration fields to shallow-merge. (JSON, or @path / @- to read a file or stdin). |
-| `--is-default` | No | Whether to promote this view to the table default. |
-| `--no-is-default` | No | Send --is-default as false. |
+| `--default` | No | Whether to promote this view to the table default. |
+| `--no-default` | No | Send --default as false. |
 
 </CommandTable>
 
@@ -4296,7 +5504,7 @@ sim tables delete <tableId> [options]
 
 ### sim tables enrichment get
 
-Get Enrichment Run Detail
+Get Row Group Run
 
 ```bash
 sim tables enrichment get <tableId> <rowId> <groupId>
@@ -4862,7 +6070,7 @@ sim workflows activate create <workflowId> <version> [options]
 
 ### sim workflows operations apply
 
-Apply Workflow Operations (OAuth login or personal API key required)
+Edit a workflow’s blocks, connections and settings with a batch of operations (OAuth login or personal API key required)
 
 ```bash
 sim workflows operations apply <workflowId> [options]
@@ -4884,7 +6092,7 @@ sim workflows operations apply <workflowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--dry-run` | No | Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified. |
+| `--dry-run` | No | Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs. |
 | `--no-dry-run` | No | Send --dry-run as false. |
 | `--operations <json\|@file>` | Yes | Edits to apply, in a single batch, keyed by operation_type: [&#123;"operation_type":"add","block_id":"my-fn","params":&#123;"type":"function","name":"My Fn","inputs":&#123;"code":"return &#123;ok:true&#125;"&#125;&#125;&#125;,&#123;"operation_type":"edit","block_id":"&lt;uuid&gt;","params":&#123;"name":"Renamed","connections":&#123;"success":"my-fn"&#125;&#125;&#125;,&#123;"operation_type":"delete","block_id":"&lt;uuid&gt;"&#125;]. Also extract_from_subflow, whose params carry &#123;"subflowId":"&lt;loop-id&gt;"&#125;, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId (JSON, or @path / @- to read a file or stdin). |
 | `--atomic` | No | Fail the whole batch when any operation is declined or any block input would be dropped. The default applies what it can and reports the rest in `skipped` and `inputValidationErrors`; `true` writes nothing and answers `409` instead. |
@@ -4978,7 +6186,7 @@ sim workflows runs get <runId> [options]
 | --- | --- | --- |
 | `--workflow <workflowId>` | Yes | Workflow ID. |
 | `--include-output` | No | Include the final output in JSON or YAML output. |
-| `--select-output <value...>` | No | Include blockId or blockId.path values in JSON or YAML output; block names are not resolved on a finished run (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--select-output <value...>` | No | Include blockName.path or blockId.path values (e.g. agent_1.content) in JSON or YAML output; names resolve against the workflow’s current blocks, and missing paths are omitted (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--include-file-base64` | No | Inline each produced file's bytes as base64. Requires `includeOutput`. A file above the inline ceiling answers `413` naming its download path; fetch large files from `downloadPath` instead. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
 | `--base64-max-bytes <value>` | No | Per-file inline ceiling, lowering but never raising the server limit of 16 MiB. |
@@ -5069,6 +6277,113 @@ sim workflows runs wait <runId> [options]
 
 </CommandTable>
 
+### sim workflows versions compare
+
+Compare Workflow Versions
+
+```bash
+sim workflows versions compare <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--base <value>` | Yes | Deployment version to compare from. |
+| `--target <value>` | Yes | Deployment version to compare to, in the same workflow. |
+
+</CommandTable>
+
+### sim workflows versions get
+
+Get Workflow Version
+
+```bash
+sim workflows versions get <workflowId> <version>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+| `version` | Yes | Numeric deployment version. |
+
+</CommandTable>
+
+### sim workflows versions list
+
+List Workflow Versions
+
+```bash
+sim workflows versions list <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+### sim workflows versions update
+
+Update Workflow Version
+
+```bash
+sim workflows versions update <workflowId> <version> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+| `version` | Yes | Numeric deployment version. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | New label for the deployment version. |
+| `--description <value>` | No | New release note for the deployment version, or null to clear it. (--description null sends the word, not JSON null). |
+
+</CommandTable>
+
 ### sim workflows create
 
 Create Workflow
@@ -5085,7 +6400,7 @@ sim workflows create [options]
 | --- | --- | --- |
 | `--name <value>` | Yes | Workflow name. |
 | `--description <value>` | No | Optional workflow description. |
-| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+| `--folder <value>` | No | Existing folder path (leading / optional); create it first with sim workflows mkdir &lt;path&gt;. |
 
 </CommandTable>
 
@@ -5283,7 +6598,7 @@ sim workflows chat publish <workflowId> [options]
 | `--description <value>` | No | Description shown to visitors. Omitted clears it. |
 | `--customizations <json\|@file>` | No | Presentation overrides. Omitted fields take platform defaults. (JSON, or @path / @- to read a file or stdin). |
 | `--auth-type <value>` | No | How visitors are gated. `public` leaves the chat open to anyone holding the URL. Accepted values: `public`, `password`, `email`, `sso`. |
-| `--password <value>` | No | Write-only password. Required whenever `authType` is `password`, and rejected otherwise. Never readable back. |
+| `--password <value>` | No | Write-only password of 15 to 1024 characters, not only whitespace. Required whenever `authType` is `password`, and rejected otherwise. Never readable back. Taken literally, except that a request from the Sim agent resolves a whole-value `&#123;&#123;ENV_VAR&#125;&#125;` reference to that variable before the rules apply. |
 | `--allowed-emails <json\|@file>` | No | Email addresses or domains admitted under `email` and `sso` gating. At least one is required for those modes. (JSON, or @path / @- to read a file or stdin). |
 | `--output-configs <json\|@file>` | No | Block outputs to surface to visitors. Omitted surfaces none. (JSON, or @path / @- to read a file or stdin). |
 | `--include-thinking` | No | Allow visitors to receive provider thinking events. |
@@ -5379,14 +6694,14 @@ sim workflows run <workflowId> [options]
 | `--input <json\|@file>` | No | Trigger input as JSON (JSON, or @path / @- to read a file or stdin). |
 | `--async` | No | Queue the run and return immediately. |
 | `--execution-timeout-seconds <value>` | No | Maximum duration of an asynchronous run, in seconds, capped by the plan's execution timeout. Requires `async: true`; otherwise returns `400`. |
-| `--select-output <value...>` | No | Return streamed outputs as blockName.path or childWorkflowId.blockName.path; selecting a child workflow applies to every invocation, requires --follow (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--select-output <value...>` | No | Return blockName.path values (e.g. agent_1.content), or childWorkflowId.blockName.path for a child workflow (applies to every invocation) — in blockOutputs on a sync run, or from the streamed result with --follow; missing paths are omitted. Not available with --async (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--include-file-base64` | No | Inline eligible output files as base64 content. Rejected when `async` is true. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
 | `--base64-max-bytes <value>` | No | Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true. |
 | `--run-id <value>` | No | One-shot identifier for this run; NOT an idempotency key — reusing a claimed value fails with RUN_ID_CONFLICT instead of replaying the first result, and a fresh value starts another run. |
 | `--manual` | No | Run the current saved workflow state instead of the active deployment. |
-| `--trigger <blockId>` | No | Enter a manual run through this runnable trigger (requires --manual). |
-| `--mock-payload` | No | Use the selected trigger's server-derived mock payload (requires --manual). |
+| `--trigger <blockId>` | No | Enter the run through this runnable trigger; runs the current saved workflow state (implies --manual). |
+| `--mock-payload` | No | Use the selected trigger's server-derived mock payload; runs the current saved workflow state (implies --manual). |
 | `--from-block <blockId>` | No | Run manually from this saved workflow block. |
 | `--source-run <runId>` | No | Prior run whose persisted state supplies upstream outputs (requires --from-block). |
 | `--follow` | No | Stream the run as it happens; progress on stderr, result on stdout. The stream reports only success and output, so the result omits the run id and timings a non-streaming run returns. |
@@ -5400,7 +6715,7 @@ sim workflows run <workflowId> [options]
 Print a workflow as a portable JSON document
 
 ```bash
-sim workflows export <workflowId>
+sim workflows export <workflowId> [options]
 ```
 
 **Arguments**
@@ -5410,6 +6725,18 @@ sim workflows export <workflowId>
 | Argument | Required | Description |
 | --- | --- | --- |
 | `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--include-references` | No | Include non-secret resource identities for mapped import. |
+| `--include-workspace-bindings` | No | Whether to keep workspace-scoped bindings — table, knowledge base, document, folder, channel, and other resource selectors — in the exported state. Defaults to false, the sharing-safe export in which those ids are cleared because they resolve nowhere else. Send true for a same-workspace round trip so the re-imported workflow can run without re-selecting them. Credentials, passwords, and table sub-block values are cleared either way. |
+| `--no-include-workspace-bindings` | No | Send --include-workspace-bindings as false. |
 
 </CommandTable>
 
@@ -5519,7 +6846,7 @@ sim workflows state replace <workflowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--dry-run` | No | Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified. |
+| `--dry-run` | No | Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs. |
 | `--no-dry-run` | No | Send --dry-run as false. |
 | `--blocks <json\|@file>` | Yes | Blocks keyed by block id. (JSON, or @path / @- to read a file or stdin). |
 | `--edges <json\|@file>` | Yes | Directed connections between blocks. (JSON, or @path / @- to read a file or stdin). |
@@ -5527,84 +6854,6 @@ sim workflows state replace <workflowId> [options]
 | `--parallels <json\|@file>` | No | Ignored on write: parallel containers are recomputed from `blocks`. (JSON, or @path / @- to read a file or stdin). |
 | `--variables <json\|@file>` | No | Replacement variable set. Omit to leave the stored variables untouched. (JSON, or @path / @- to read a file or stdin). |
 | `-y, --yes` | No | Confirm this operation (required unless --dry-run). |
-
-</CommandTable>
-
-### sim workflows versions get
-
-Get Workflow Version
-
-```bash
-sim workflows versions get <workflowId> <version>
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `workflowId` | Yes | Unique workflow identifier. |
-| `version` | Yes | Numeric deployment version. |
-
-</CommandTable>
-
-### sim workflows versions list
-
-List Workflow Versions
-
-```bash
-sim workflows versions list <workflowId> [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `workflowId` | Yes | Unique workflow identifier. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
-| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
-
-</CommandTable>
-
-### sim workflows versions update
-
-Update Workflow Version
-
-```bash
-sim workflows versions update <workflowId> <version> [options]
-```
-
-**Arguments**
-
-<CommandTable>
-
-| Argument | Required | Description |
-| --- | --- | --- |
-| `workflowId` | Yes | Unique workflow identifier. |
-| `version` | Yes | Numeric deployment version. |
-
-</CommandTable>
-
-**Options**
-
-<CommandTable>
-
-| Option | Required | Description |
-| --- | --- | --- |
-| `--name <value>` | No | New label for the deployment version. |
-| `--description <value>` | No | New release note for the deployment version, or null to clear it. (--description null sends the word, not JSON null). |
 
 </CommandTable>
 
@@ -5626,6 +6875,13 @@ sim workflows import [options]
 | `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
 | `--name <value>` | No | Override for the imported workflow name. |
 | `--description <value>` | No | Override for the imported workflow description. |
+| `--mappings <json\|@file>` | No | Mappings keyed by resource type and source identifier. (JSON, or @path / @- to read a file or stdin). |
+| `--bindings <json\|@file>` | No | Resolved and unresolved source occurrences with their destination selections. (JSON, or @path / @- to read a file or stdin). |
+| `--dependent-values <json\|@file>` | No | Destination-dependent choices keyed by source workflow, block, and field identities. (JSON, or @path / @- to read a file or stdin). |
+| `--request-id <value>` | No | Stable client request ID for reconciliation and identical retries. |
+| `--preview-fingerprint <value>` | No | Fingerprint of the reviewed preview and its choices. |
+| `--wait` | No | Wait for the committed operation to finish; missing configuration and failure exit nonzero. |
+| `--wait-timeout <seconds>` | No | Maximum operation wait in seconds (default 3600; 0 waits indefinitely). |
 
 </CommandTable>
 
@@ -5670,6 +6926,30 @@ sim workflows move [options]
 | --- | --- | --- |
 | `--workflow <value...>` | Yes | Workflows to move. Duplicates are collapsed. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--to <value>` | Yes | Destination folder path; / moves the workflows to the workspace root. |
+
+</CommandTable>
+
+### sim workflows import-preview
+
+Preview Workflow Import
+
+```bash
+sim workflows import-preview [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <json\|@file>` | Yes | Workflow export object, bare workflow state, or JSON string containing either form. (JSON, or @path / @- to read a file or stdin). |
+| `--folder <value>` | No | Folder path as shown in the app; the leading / is optional. |
+| `--name <value>` | No | Override for the imported workflow name. |
+| `--description <value>` | No | Override for the imported workflow description. |
+| `--mappings <json\|@file>` | No | Mappings keyed by resource type and source identifier. (JSON, or @path / @- to read a file or stdin). |
+| `--bindings <json\|@file>` | No | Resolved and unresolved source occurrences with their destination selections. (JSON, or @path / @- to read a file or stdin). |
+| `--dependent-values <json\|@file>` | No | Destination-dependent choices keyed by source workflow, block, and field identities. (JSON, or @path / @- to read a file or stdin). |
 
 </CommandTable>
 
@@ -5877,6 +7157,132 @@ sim workflows mkdir <path>
 
 Also spelled `sim workspace`.
 
+### sim workspaces access-requests cancel
+
+Cancel Workspace Access Request (OAuth login or personal API key required)
+
+```bash
+sim workspaces access-requests cancel <requestId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `requestId` | Yes | Access request identifier. |
+
+</CommandTable>
+
+### sim workspaces access-requests create
+
+Create Workspace Access Request (OAuth login or personal API key required)
+
+```bash
+sim workspaces access-requests create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--target <json\|@file>` | Yes | Target returned by Discover Workspace Access Requests or Discover Organization Access Requests. The target must currently be requestable. (JSON, or @path / @- to read a file or stdin). |
+| `--reason <value>` | No | Why the acting user needs this access. |
+
+</CommandTable>
+
+### sim workspaces access-requests discover
+
+Discover Workspace Access Requests (OAuth login or personal API key required)
+
+```bash
+sim workspaces access-requests discover [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--search <value>` | No | Case-insensitive substring match against the access item label. |
+| `--target-kind <value>` | No | Category of access to discover. Accepted values: `feature`, `integration`, `provider`, `model`, `tool`, `knowledge_connector`, `file_share_auth`, `chat_deploy_auth`, `usage_limit`. |
+| `--state <value>` | No | Filter by the acting user’s current access. Requestable items can be submitted for review. Accepted values: `allowed`, `requestable`, `unavailable`. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `label`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+### sim workspaces access-requests mine
+
+List My Workspace Access Requests (OAuth login or personal API key required)
+
+```bash
+sim workspaces access-requests mine [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--status <value>` | No | Filter by request status; omit to include all statuses. Accepted values: `pending`, `fulfilled`, `declined`, `cancelled`, `closed`. |
+| `--sort-by <value>` | No | Field used to sort the result. Accepted values: `createdAt`, `targetLabel`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+
+</CommandTable>
+
+### sim workspaces invitations create
+
+Create Workspace Invitations (OAuth login or personal API key required)
+
+```bash
+sim workspaces invitations create [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--emails <value...>` | Yes | Email addresses to invite. Each address is processed separately; inspect failed for unsuccessful recipients. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--permission <value>` | No | Workspace permission to grant. Existing workspace access is preserved. Accepted values: `admin`, `write`, `read`. |
+| `--membership <value>` | No | Organization membership: member or admin uses a seat when billing is enabled. External grants workspace access only and requires an eligible paid account when billing is enabled. Existing members of another organization remain external. Accepted values: `member`, `admin`, `external`. |
+
+</CommandTable>
+
+### sim workspaces fork
+
+Fork Workspace (OAuth login or personal API key required)
+
+```bash
+sim workspaces fork [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | Display name of the workflow or workspace. |
+| `--copy <json\|@file>` | No | Explicit resource selections to copy into the new fork; omitted resource kinds are not copied. (JSON, or @path / @- to read a file or stdin). |
+| `--request-id <value>` | Yes | Stable client request ID for reconciliation and identical retries. |
+| `--preview-fingerprint <value>` | Yes | Fingerprint of the reviewed preview and its choices. |
+| `--wait` | No | Wait for the committed operation to finish; missing configuration and failure exit nonzero. |
+| `--wait-timeout <seconds>` | No | Maximum operation wait in seconds (default 3600; 0 waits indefinitely). |
+
+</CommandTable>
+
 ### sim workspaces get
 
 Get Workspace
@@ -5884,6 +7290,182 @@ Get Workspace
 ```bash
 sim workspaces get
 ```
+
+### sim workspaces fork-availability
+
+Get Workspace Fork Availability (OAuth login or personal API key required)
+
+```bash
+sim workspaces fork-availability
+```
+
+### sim workspaces lineage
+
+Get Workspace Fork Lineage (OAuth login or personal API key required)
+
+```bash
+sim workspaces lineage
+```
+
+### sim workspaces mappings get
+
+Get Workspace Fork Mappings (OAuth login or personal API key required)
+
+```bash
+sim workspaces mappings get [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--other-workspace-id <value>` | Yes | Workspace on the other side of the direct fork edge. |
+| `--direction <value>` | Yes | Push means current to other; pull means other to current, independent of parent/child orientation. Accepted values: `push`, `pull`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--sort-by <value>` | No | Supported stable sort key for this collection. Accepted values: `id`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`. |
+
+</CommandTable>
+
+### sim workspaces mappings update
+
+Update Workspace Fork Mappings (OAuth login or personal API key required)
+
+```bash
+sim workspaces mappings update [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--other-workspace-id <value>` | Yes | Workspace on the other side of the direct fork edge. |
+| `--direction <value>` | Yes | Push means current to other; pull means other to current, independent of parent/child orientation. Accepted values: `push`, `pull`. |
+| `--mappings <json\|@file>` | Yes | Mappings keyed by resource type and source identifier. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+### sim workspaces operations get
+
+Get Workspace Operation
+
+```bash
+sim workspaces operations get <operationId>
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `operationId` | Yes | Durable operation identifier to use for polling. |
+
+</CommandTable>
+
+### sim workspaces operations list
+
+List Workspace Operations
+
+```bash
+sim workspaces operations list [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--request-id <value>` | No | Stable client request ID for reconciliation and identical retries. |
+
+</CommandTable>
+
+### sim workspaces operations wait
+
+Wait for copy and deployment readiness; exit 3 for configuration, 1 for failure, or 4 for timeout
+
+```bash
+sim workspaces operations wait <operationId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `operationId` | Yes | Operation ID returned by import, fork, push, or pull |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--wait-timeout <seconds>` | No | Maximum total wait (default 3600; 0 waits indefinitely). |
+
+</CommandTable>
+
+### sim workspaces permission-config
+
+Get Workspace Permission Config (OAuth login or personal API key required)
+
+```bash
+sim workspaces permission-config
+```
+
+### sim workspaces children
+
+List Workspace Fork Children (OAuth login or personal API key required)
+
+```bash
+sim workspaces children [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--sort-by <value>` | No | Supported stable sort key for this collection. Accepted values: `createdAt`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `desc`. |
+
+</CommandTable>
+
+### sim workspaces fork-resources
+
+List Workspace Fork Resources (OAuth login or personal API key required)
+
+```bash
+sim workspaces fork-resources [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--kind <value>` | Yes | Resource or operation kind. Accepted values: `files`, `tables`, `knowledgeBases`, `customTools`, `skills`, `mcpServers`, `workflowMcpServers`. |
+| `--sort-by <value>` | No | Supported stable sort key for this collection. Accepted values: `id`. |
+| `--sort-order <value>` | No | Sort direction. Accepted values: `asc`. |
+
+</CommandTable>
 
 ### sim workspaces members
 
@@ -5920,5 +7502,183 @@ sim workspaces list [options]
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `name`, `createdAt`, `updatedAt`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
+
+</CommandTable>
+
+### sim workspaces fork-preview
+
+Preview Workspace Fork (OAuth login or personal API key required)
+
+```bash
+sim workspaces fork-preview [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--name <value>` | No | Display name of the workflow or workspace. |
+| `--copy <json\|@file>` | No | Explicit resource selections to copy into the new fork; omitted resource kinds are not copied. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+### sim workspaces pull-preview
+
+Preview Workspace Pull (OAuth login or personal API key required)
+
+```bash
+sim workspaces pull-preview [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--other-workspace-id <value>` | Yes | Workspace on the other side of the direct fork edge. |
+| `--mappings <json\|@file>` | No | Mappings keyed by resource type and source identifier. (JSON, or @path / @- to read a file or stdin). |
+| `--dependent-values <json\|@file>` | No | Destination-dependent choices keyed by source workflow, block, and field identities. (JSON, or @path / @- to read a file or stdin). |
+| `--copy-resources <json\|@file>` | No | Explicit source resources to copy before syncing the workflows. (JSON, or @path / @- to read a file or stdin). |
+| `--drop-references <json\|@file>` | No | Source-deleted references explicitly acknowledged for removal; live source references cannot be dropped. (JSON, or @path / @- to read a file or stdin). |
+| `--trigger-mappings <json\|@file>` | No | Public trigger path choices from preview.triggerSlots, addressed by source workflow and block IDs. Duplicate or unavailable choices are rejected. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+### sim workspaces push-preview
+
+Preview Workspace Push (OAuth login or personal API key required)
+
+```bash
+sim workspaces push-preview [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--other-workspace-id <value>` | Yes | Workspace on the other side of the direct fork edge. |
+| `--mappings <json\|@file>` | No | Mappings keyed by resource type and source identifier. (JSON, or @path / @- to read a file or stdin). |
+| `--dependent-values <json\|@file>` | No | Destination-dependent choices keyed by source workflow, block, and field identities. (JSON, or @path / @- to read a file or stdin). |
+| `--copy-resources <json\|@file>` | No | Explicit source resources to copy before syncing the workflows. (JSON, or @path / @- to read a file or stdin). |
+| `--drop-references <json\|@file>` | No | Source-deleted references explicitly acknowledged for removal; live source references cannot be dropped. (JSON, or @path / @- to read a file or stdin). |
+| `--trigger-mappings <json\|@file>` | No | Public trigger path choices from preview.triggerSlots, addressed by source workflow and block IDs. Duplicate or unavailable choices are rejected. (JSON, or @path / @- to read a file or stdin). |
+
+</CommandTable>
+
+### sim workspaces pull
+
+Pull Workspace (OAuth login or personal API key required)
+
+```bash
+sim workspaces pull [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--other-workspace-id <value>` | Yes | Workspace on the other side of the direct fork edge. |
+| `--mappings <json\|@file>` | No | Mappings keyed by resource type and source identifier. (JSON, or @path / @- to read a file or stdin). |
+| `--dependent-values <json\|@file>` | No | Destination-dependent choices keyed by source workflow, block, and field identities. (JSON, or @path / @- to read a file or stdin). |
+| `--copy-resources <json\|@file>` | No | Explicit source resources to copy before syncing the workflows. (JSON, or @path / @- to read a file or stdin). |
+| `--drop-references <json\|@file>` | No | Source-deleted references explicitly acknowledged for removal; live source references cannot be dropped. (JSON, or @path / @- to read a file or stdin). |
+| `--trigger-mappings <json\|@file>` | No | Public trigger path choices from preview.triggerSlots, addressed by source workflow and block IDs. Duplicate or unavailable choices are rejected. (JSON, or @path / @- to read a file or stdin). |
+| `--request-id <value>` | Yes | Stable client request ID for reconciliation and identical retries. |
+| `--preview-fingerprint <value>` | Yes | Fingerprint of the reviewed preview and its choices. |
+| `--wait` | No | Wait for the committed operation to finish; missing configuration and failure exit nonzero. |
+| `--wait-timeout <seconds>` | No | Maximum operation wait in seconds (default 3600; 0 waits indefinitely). |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim workspaces push
+
+Push Workspace (OAuth login or personal API key required)
+
+```bash
+sim workspaces push [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--other-workspace-id <value>` | Yes | Workspace on the other side of the direct fork edge. |
+| `--mappings <json\|@file>` | No | Mappings keyed by resource type and source identifier. (JSON, or @path / @- to read a file or stdin). |
+| `--dependent-values <json\|@file>` | No | Destination-dependent choices keyed by source workflow, block, and field identities. (JSON, or @path / @- to read a file or stdin). |
+| `--copy-resources <json\|@file>` | No | Explicit source resources to copy before syncing the workflows. (JSON, or @path / @- to read a file or stdin). |
+| `--drop-references <json\|@file>` | No | Source-deleted references explicitly acknowledged for removal; live source references cannot be dropped. (JSON, or @path / @- to read a file or stdin). |
+| `--trigger-mappings <json\|@file>` | No | Public trigger path choices from preview.triggerSlots, addressed by source workflow and block IDs. Duplicate or unavailable choices are rejected. (JSON, or @path / @- to read a file or stdin). |
+| `--request-id <value>` | Yes | Stable client request ID for reconciliation and identical retries. |
+| `--preview-fingerprint <value>` | Yes | Fingerprint of the reviewed preview and its choices. |
+| `--wait` | No | Wait for the committed operation to finish; missing configuration and failure exit nonzero. |
+| `--wait-timeout <seconds>` | No | Maximum operation wait in seconds (default 3600; 0 waits indefinitely). |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim workspaces fork-rollback
+
+Rollback Workspace Fork (OAuth login or personal API key required)
+
+```bash
+sim workspaces fork-rollback [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--other-workspace-id <value>` | Yes | Workspace on the other side of the direct fork edge. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim workspaces unlink
+
+Unlink Workspace Fork (OAuth login or personal API key required)
+
+```bash
+sim workspaces unlink [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--other-workspace-id <value>` | Yes | Workspace on the other side of the direct fork edge. |
+| `-y, --yes` | Yes | Confirm this operation. |
+
+</CommandTable>
+
+### sim workspaces sync-exclusions
+
+Update Workspace Fork Exclusions (OAuth login or personal API key required)
+
+```bash
+sim workspaces sync-exclusions [options]
+```
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--workflow <value...>` | Yes | Workflow identifiers in the current workspace. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--fork-sync-excluded <true\|false>` | Yes | Whether the named workflows should be skipped as sync sources and targets. Accepted values: `true`, `false`. |
 
 </CommandTable>

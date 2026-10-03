@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { document, workspaceFiles } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -23,7 +20,6 @@ const UPLOAD_ID = 'attempt-1'
 
 describe('cleanupUnboundKnowledgeUpload', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockHead.mockResolvedValue({ uploadId: UPLOAD_ID, version: 'etag-1' })
     mockDeleteVersion.mockResolvedValue(undefined)

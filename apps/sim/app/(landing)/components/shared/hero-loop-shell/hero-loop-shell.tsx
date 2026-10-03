@@ -42,7 +42,7 @@ export function HeroLoopShell({
 }: HeroLoopShellProps) {
   const workspace = (
     <>
-      <div data-preview-sidebar='' className={cn(mode === 'native' && 'max-md:hidden')}>
+      <div className={cn(mode === 'native' && 'max-md:hidden')}>
         <EnterpriseSidebar
           workspaceName={workspaceName}
           profileName={profileName}

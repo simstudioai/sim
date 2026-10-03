@@ -1,3 +1,4 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import type {
   MintlifyFeedbackEntry,
   MintlifyGetFeedbackParams,
@@ -9,7 +10,6 @@ import {
   mintlifyHeaders,
   pathSegment,
   readMintlifyJson,
-  toNullableString,
 } from '@/tools/mintlify/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -18,17 +18,17 @@ function toFeedbackEntries(value: unknown): MintlifyFeedbackEntry[] {
   return value.map((item) => {
     const entry = (item ?? {}) as Record<string, unknown>
     return {
-      id: toNullableString(entry.id),
-      path: toNullableString(entry.path),
-      comment: toNullableString(entry.comment),
-      createdAt: toNullableString(entry.createdAt),
-      source: toNullableString(entry.source),
-      status: toNullableString(entry.status),
+      id: toStringOrNull(entry.id),
+      path: toStringOrNull(entry.path),
+      comment: toStringOrNull(entry.comment),
+      createdAt: toStringOrNull(entry.createdAt),
+      source: toStringOrNull(entry.source),
+      status: toStringOrNull(entry.status),
       helpful: typeof entry.helpful === 'boolean' ? entry.helpful : null,
-      contact: toNullableString(entry.contact),
-      code: toNullableString(entry.code),
-      filename: toNullableString(entry.filename),
-      lang: toNullableString(entry.lang),
+      contact: toStringOrNull(entry.contact),
+      code: toStringOrNull(entry.code),
+      filename: toStringOrNull(entry.filename),
+      lang: toStringOrNull(entry.lang),
     }
   })
 }
@@ -119,7 +119,7 @@ export const mintlifyGetFeedbackTool: ToolConfig<
       success: true,
       output: {
         feedback: toFeedbackEntries(data.feedback),
-        nextCursor: toNullableString(data.nextCursor),
+        nextCursor: toStringOrNull(data.nextCursor),
         hasMore: data.hasMore === true,
       },
     }

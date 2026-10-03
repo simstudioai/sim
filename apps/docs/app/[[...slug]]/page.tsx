@@ -116,6 +116,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
   if (!page) notFound()
 
   const data = page.data as unknown as PageData & {
+    lastModified?: Date
     _openapi?: { method?: string }
     getAPIPageProps?: () => ApiPageProps
   }
@@ -125,9 +126,10 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
   // width so the lesson hero/video gets the room (chapters live in-page instead).
   const isAcademy = slug?.[0] === 'academy'
   const isCli = slug?.[0] === 'cli'
+  const isMcp = slug?.[0] === 'mcp'
 
   const rawNeighbours = findNeighbour(source.pageTree, page.url)
-  // Academy, API Reference, and CLI are self-contained sections; keep prev/next
+  // Academy, API Reference, CLI, and MCP are self-contained sections; keep prev/next
   // inside the section instead of spilling into the main documentation tree.
   // Match both the section's pages (`/<slug>/...`) and its index (`/<slug>`).
   const sectionSlug = isApiReference
@@ -136,7 +138,9 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
       ? 'academy'
       : isCli
         ? 'cli'
-        : null
+        : isMcp
+          ? 'mcp'
+          : null
   const inSection = (url?: string) =>
     url != null && (url.includes(`/${sectionSlug}/`) || url.endsWith(`/${sectionSlug}`))
   const neighbours = sectionSlug
@@ -243,6 +247,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
         title={data.title}
         description={data.description || ''}
         url={`${BASE_URL}${page.url}`}
+        dateModified={data.lastModified?.toISOString()}
         breadcrumb={breadcrumbs}
       />
       <DocsPage
@@ -370,7 +375,6 @@ export async function generateMetadata(props: { params: Promise<{ slug?: string[
       creator: '@simdotai',
       site: '@simdotai',
     },
-    canonical: fullUrl,
     alternates: {
       canonical: fullUrl,
     },

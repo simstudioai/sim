@@ -1,24 +1,25 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import { permissionGroupLocksMock } from '@sim/testing/mocks/permission-group-locks.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationUserMutationLocks: vi.fn(async () => undefined),
-  getUserOrganization: vi.fn(async () => null),
-}))
-vi.mock('@/lib/permission-groups/locks', () => ({
-  acquirePermissionGroupOrgLock: vi.fn(async () => undefined),
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  isOrganizationPermissionRegimeActive: vi.fn(async () => false),
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/lib/permission-groups/locks', () => permissionGroupLocksMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 vi.mock('@/lib/permission-groups/capability-assertions', () => ({
   isEntitledOrganizationCapabilityWithheld: vi.fn(async () => false),
 }))
 
 import { rotateOAuthRefreshToken } from '@/lib/auth/oauth-token-family'
+
+organizationMembershipMockFns.mockGetUserOrganization.mockResolvedValue(null)
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.example')
+afterAll(resetUrlsMock)
 
 const resource = 'https://sim.example/api/mcp/search/organizations/one'
 const credentials = { clientId: 'search-client', method: 'none' as const }
@@ -72,7 +73,6 @@ function queueGrant(target: string | null, grantedScopes = scopes) {
 
 describe('OAuth refresh audience binding', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -127,6 +127,21 @@ describe('OAuth refresh audience binding', () => {
       expect.objectContaining({ resource, scopes: ['offline_access'] })
     )
   })
+
+  it.each([undefined, 'https://sim.example/api/mcp/search/workspace-one'])(
+    'does not renew a removed workspace resource when resource is %s',
+    async (requestedResource) => {
+      queueGrant('https://sim.example/api/mcp/search/workspace-one')
+      const result = await rotateOAuthRefreshToken({
+        credentials,
+        refreshToken: 'sim_ort_original',
+        ...(requestedResource ? { resource: requestedResource } : {}),
+      })
+      expect(result).toMatchObject({ success: false, error: 'invalid_target' })
+      expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+      expect(dbChainMockFns.values).not.toHaveBeenCalled()
+    }
+  )
 
   it('preserves unscoped API grants and refuses scope escalation', async () => {
     queueGrant(null, ['api:read', 'offline_access'])

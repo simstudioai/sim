@@ -6,6 +6,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { generateSlug, isAdminOrOwner, type Member } from '@/lib/workspaces/organization'
@@ -53,6 +54,7 @@ export function TeamManagement({
   canInviteMembers,
 }: TeamManagementProps) {
   const { data: session } = useSession()
+  const { billingEnabled } = useDeploymentShape()
   const { isInvitationsDisabled } = usePermissionConfig()
   const invitationsDisabled =
     canInviteMembers === undefined ? isInvitationsDisabled : !canInviteMembers
@@ -71,7 +73,7 @@ export function TeamManagement({
    * organization page derives its plan from organization billing, so avoid that unrelated read
    * on the normal first paint.
    */
-  const shouldLoadRecoverySubscription = !isLoading && !orgError && !organization
+  const shouldLoadRecoverySubscription = billingEnabled && !isLoading && !orgError && !organization
   const { data: userSubscriptionData, isPending: isRecoverySubscriptionPending } =
     useSubscriptionData({
       enabled: shouldLoadRecoverySubscription,
@@ -89,7 +91,7 @@ export function TeamManagement({
     isFetchedAfterMount: isOrganizationBillingFetchedAfterMount,
     isFetching: isOrganizationBillingFetching,
     refetch: refetchOrganizationBilling,
-  } = useOrganizationBilling(organizationId, { enabled: adminOrOwner })
+  } = useOrganizationBilling(organizationId, { enabled: billingEnabled && adminOrOwner })
 
   const {
     data: roster,
@@ -148,7 +150,7 @@ export function TeamManagement({
    * `client.subscription.list`, which does not reliably surface org-scoped
    * subscriptions.
    */
-  const orgBilling = organizationBillingData?.data ?? null
+  const orgBilling = billingEnabled ? (organizationBillingData?.data ?? null) : null
   const orgSubscription = orgBilling
     ? {
         id: orgBilling.organizationId,
@@ -367,7 +369,8 @@ export function TeamManagement({
             : []
         }
       >
-        {adminOrOwner &&
+        {billingEnabled &&
+          adminOrOwner &&
           ((organizationBillingError ||
             (isOrganizationBillingFetching && isOrganizationBillingFetchedAfterMount)) &&
           organizationBillingData === undefined ? (

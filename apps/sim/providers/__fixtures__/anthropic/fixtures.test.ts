@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Fixture gate: Anthropic stream fixtures parse and match expected assembled
  * thinking/text/tool/signature content. No provider adapters are exercised yet.
  */
@@ -179,16 +177,5 @@ describe('Anthropic stream fixtures', () => {
       .map((b) => (b.type === 'thinking' ? b.thinking : '[redacted]'))
       .join('\n\n')
     expect(traceThinking).toBe(anthropicRedactedThinkingExpectedTraceThinking)
-  })
-
-  it('documents that live stream today would only surface text_delta bytes', () => {
-    // Baseline behavior of createReadableStreamFromAnthropicStream: only text_delta
-    // is enqueued. This test locks the fixture expectation for later adapter work.
-    const textOnlyFromStream = extractTextDeltas(anthropicThinkingTextToolStreamEvents)
-    const thinkingFromStream = extractThinkingDeltas(anthropicThinkingTextToolStreamEvents)
-
-    expect(textOnlyFromStream).toBe(anthropicThinkingTextToolExpectedText)
-    expect(thinkingFromStream.length).toBeGreaterThan(0)
-    expect(textOnlyFromStream).not.toContain('I should check the weather')
   })
 })

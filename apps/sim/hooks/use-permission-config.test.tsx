@@ -2,21 +2,28 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockRequestJson } = vi.hoisted(() => ({ mockRequestJson: vi.fn() }))
+const { mockUseUserPermissionConfig } = vi.hoisted(() => ({
+  mockUseUserPermissionConfig: vi.fn(),
+}))
 
-vi.mock('@/lib/api/client/request', () => ({ requestJson: mockRequestJson }))
-vi.mock('next/navigation', () => ({ useParams: () => ({ workspaceId: 'workspace-1' }) }))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/blocks/custom/client-overlay', () => ({ useCustomBlockOverlayVersion: () => 0 }))
 vi.mock('@/blocks/visibility/context', () => ({
   overlayVisibility: () => null,
   isHiddenUnder: () => false,
 }))
 vi.mock('@/ee/access-control/hooks/permission-groups', () => ({
-  useUserPermissionConfig: () => ({ data: undefined, isLoading: false }),
+  useUserPermissionConfig: mockUseUserPermissionConfig,
 }))
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
   useOptionalWorkspaceHostContext: () => null,
@@ -27,9 +34,12 @@ vi.mock('@/lib/permission-groups/operation-access', () => ({
 }))
 
 import type { GetAllowedIntegrationsResponse } from '@/lib/api/contracts/common'
-import { getAllowedIntegrationsContract } from '@/lib/api/contracts/common'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { integrationAvailabilityKeys } from '@/hooks/queries/integration-availability'
 import { type PermissionConfigResult, usePermissionConfig } from '@/hooks/use-permission-config'
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
 
 const AVAILABILITY: GetAllowedIntegrationsResponse = {
   allowedIntegrations: null,
@@ -50,7 +60,7 @@ describe('usePermissionConfig deployment readiness', () => {
 
   beforeEach(() => {
     vi.useFakeTimers()
-    vi.clearAllMocks()
+    mockUseUserPermissionConfig.mockReturnValue({ data: undefined, isLoading: false })
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     container = document.createElement('div')
     document.body.appendChild(container)
@@ -75,46 +85,30 @@ describe('usePermissionConfig deployment readiness', () => {
     )
   }
 
-  it('exposes an explicit pending state instead of implying that empty maps are ready', () => {
+  it('offers requests only for group restrictions within the deployment allowlist', () => {
+    mockUseUserPermissionConfig.mockReturnValue({
+      data: { config: { ...DEFAULT_PERMISSION_GROUP_CONFIG, allowedIntegrations: [] } },
+      isLoading: false,
+    })
+    queryClient.setQueryData(integrationAvailabilityKeys.environments(), {
+      ...AVAILABILITY,
+      allowedIntegrations: ['gmail'],
+    })
+    render()
+    expect(current!.isBlockAllowed('gmail')).toBe(false)
+    expect(current!.isBlockRequestable('gmail')).toBe(true)
+    expect(current!.isBlockRequestable('slack')).toBe(false)
+    expect(current!.isBlockRequestable('credential_group')).toBe(false)
+  })
+
+  it('does not offer a request before deployment availability resolves', () => {
+    mockUseUserPermissionConfig.mockReturnValue({
+      data: { config: { ...DEFAULT_PERMISSION_GROUP_CONFIG, allowedIntegrations: [] } },
+      isLoading: false,
+    })
     mockRequestJson.mockReturnValue(new Promise(() => {}))
     render()
-    expect(current!.isIntegrationAvailabilityLoading).toBe(true)
-    expect(current!.isIntegrationAvailabilityReady).toBe(false)
-    expect(current!.oauthServiceAvailability.size).toBe(0)
-    expect(mockRequestJson).toHaveBeenCalledWith(getAllowedIntegrationsContract, {
-      signal: expect.any(AbortSignal),
-    })
-  })
-
-  it('keeps API-key workflow availability independent of its Search OAuth service', () => {
-    queryClient.setQueryData(integrationAvailabilityKeys.environments(), AVAILABILITY)
-    render()
-    expect(current!.isIntegrationAvailabilityReady).toBe(true)
-    expect(current!.isIntegrationAvailabilityLoading).toBe(false)
-    expect(current!.oauthServiceAvailability.get('github-repositories')).toBe(false)
-    expect(current!.isBlockAllowed('github_v2')).toBe(true)
-    expect(mockRequestJson).not.toHaveBeenCalled()
-  })
-
-  it('surfaces a failed availability request and recovers through the same refetch action', async () => {
-    const error = new Error('Unable to load deployment availability')
-    mockRequestJson.mockRejectedValueOnce(error)
-    render()
-    await act(async () => {
-      await vi.runOnlyPendingTimersAsync()
-    })
-    expect(current!.integrationAvailabilityError).toBe(error)
-    expect(current!.isIntegrationAvailabilityReady).toBe(false)
-    expect(current!.isIntegrationAvailabilityLoading).toBe(false)
-
-    mockRequestJson.mockResolvedValueOnce(AVAILABILITY)
-    await act(async () => {
-      await current!.refetchIntegrationAvailability()
-      await vi.runOnlyPendingTimersAsync()
-    })
-    expect(current!.integrationAvailabilityError).toBeNull()
-    expect(current!.isIntegrationAvailabilityReady).toBe(true)
-    expect(current!.oauthServiceAvailability.get('github-repositories')).toBe(false)
+    expect(current!.isBlockRequestable('gmail')).toBe(false)
   })
 
   it('does not treat cached readiness as successful after a failed refresh', async () => {

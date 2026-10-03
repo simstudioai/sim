@@ -36,8 +36,6 @@ afterEach(async () => {
   await vi.advanceTimersByTimeAsync(10)
   host.remove()
   vi.useRealTimers()
-  vi.unstubAllGlobals()
-  vi.restoreAllMocks()
 })
 async function render(
   value = 'before TARGET after',
@@ -65,9 +63,10 @@ function editor() {
 async function submit(
   method: 'paste' | 'drop',
   target: Editor,
-  files = [new File(['image'], 'image.png', { type: 'image/png' })]
+  files = [new File(['image'], 'image.png', { type: 'image/png' })],
+  selection: number | { from: number; to: number } = 8
 ) {
-  await act(async () => target.commands.setTextSelection(8))
+  await act(async () => target.commands.setTextSelection(selection))
   if (method === 'drop') vi.spyOn(target.view, 'posAtCoords').mockReturnValue({ pos: 8, inside: 0 })
   const transfer = { files, items: [], types: ['Files'], getData: () => '' }
   const event = new Event(method, { bubbles: true, cancelable: true })
@@ -81,39 +80,94 @@ async function submit(
 }
 
 describe('field upload completion boundary', () => {
-  it('invalidates an upload even when streaming ends before completion', async () => {
-    const pending = Promise.withResolvers<{ url: string; alt: string }>()
-    upload.mockReturnValueOnce(pending.promise)
-    await render()
-    const owner = editor()
-    await submit('paste', owner)
-    await render('replacement streamed content', false, true)
-    await render('replacement streamed content')
-    expect(owner.isEditable).toBe(true)
-    const before = owner.getJSON()
-    onChange.mockClear()
-    await act(async () => pending.resolve({ url: 'https://sim.ai/late.png', alt: 'Late' }))
-    expect(owner.getJSON()).toEqual(before)
-    expect(onChange).not.toHaveBeenCalled()
-  })
+  it.each(['paste', 'drop'] as const)(
+    '%s uploads a non-portable image without losing its accompanying fragment',
+    async (method) => {
+      const pending = Promise.withResolvers<{ url: string; alt: string }>()
+      upload.mockReturnValueOnce(pending.promise)
+      await render()
+      const owner = editor()
+      const before = owner.getJSON()
+      await act(async () => owner.commands.setTextSelection({ from: 8, to: 14 }))
+      if (method === 'drop')
+        vi.spyOn(owner.view, 'posAtCoords').mockReturnValue({ pos: 8, inside: 0 })
+      const html =
+        '<p>Lead</p><h2>Caption</h2><p><a href="/destination"><img src="/api/workspaces/source/files/inline?fileId=image" alt="Original alt" width="123"></a><strong>Tail</strong><img src="/other.png" alt="Other"></p>'
+      const event = new MouseEvent(method, { bubbles: true, cancelable: true })
+      Object.defineProperty(event, method === 'paste' ? 'clipboardData' : 'dataTransfer', {
+        value: {
+          files: [new File(['image'], 'image.png', { type: 'image/png' })],
+          items: [],
+          types: ['Files', 'text/html'],
+          getData: (type: string) => (type === 'text/html' ? html : ''),
+        },
+      })
+      await act(async () => owner.view.dom.dispatchEvent(event))
+      expect(upload).toHaveBeenCalledOnce()
+      expect(owner.getJSON()).toEqual(before)
+      await act(async () => owner.commands.insertContentAt(1, 'prefix '))
+      await act(async () => pending.resolve({ url: '/api/files/view/uploaded', alt: 'New alt' }))
+      expect(owner.state.doc.textContent).toBe(
+        method === 'paste'
+          ? 'prefix before LeadCaptionTail after'
+          : 'prefix before LeadCaptionTailTARGET after'
+      )
+      expect(host.querySelector('h2')?.textContent).toBe('Caption')
+      expect(host.querySelector('strong')?.textContent).toBe('Tail')
+      expect(host.querySelector('a')?.getAttribute('href')).toBe('/destination')
+      expect(
+        Array.from(host.querySelectorAll('img')).map((image) => image.getAttribute('src'))
+      ).toEqual(['/api/files/view/uploaded', '/other.png'])
+      expect(host.querySelector('img')?.getAttribute('alt')).toBe('Original alt')
+      expect(owner.getMarkdown()).toContain('width="123"')
+      expect(owner.getMarkdown()).not.toContain('/inline?')
+      expect(() => owner.state.doc.check()).not.toThrow()
+    }
+  )
 
-  it('maps an upload anchor through edits without showing upload controls', async () => {
-    const pending = Promise.withResolvers<{ url: string; alt: string }>()
-    upload.mockReturnValueOnce(pending.promise)
-    await render()
-    const owner = editor()
-    await submit('paste', owner)
-    expect(host.querySelector('[data-image-upload-placeholder]')).toBeNull()
-    await act(async () => owner.commands.insertContentAt(1, 'new prefix '))
-    await act(async () => pending.resolve({ url: 'https://sim.ai/mapped.png', alt: 'Mapped' }))
-    expect(owner.getJSON().content?.map((node) => node.type)).toEqual([
-      'paragraph',
-      'image',
-      'paragraph',
-    ])
-    expect(owner.getJSON().content?.[0].content?.[0].text).toBe('new prefix before ')
-    expect(owner.getJSON().content?.[2].content?.[0].text).toBe('TARGET after')
-  })
+  it.each(['paste', 'drop'] as const)(
+    '%s preserves the whole HTML slice when the payload also contains a bitmap file',
+    async (method) => {
+      await render()
+      const owner = editor()
+      await act(async () => owner.commands.setTextSelection({ from: 8, to: 14 }))
+      if (method === 'drop')
+        vi.spyOn(owner.view, 'posAtCoords').mockReturnValue({ pos: 8, inside: 0 })
+      const html =
+        '<p>Lead</p><h2>Caption</h2><p><a href="https://sim.ai/link"><img src="https://sim.ai/one.png" alt="One" width="123"></a>Tail<img src="https://sim.ai/two.png" alt="Two" width="234"></p>'
+      const transfer = {
+        files: [new File(['image'], 'image.png', { type: 'image/png' })],
+        items: [],
+        types: ['text/html', 'text/plain', 'Files'],
+        getData: (type: string) =>
+          type === 'text/html' ? html : type === 'text/plain' ? 'CaptionTail' : '',
+      }
+      const event = new MouseEvent(method, { bubbles: true, cancelable: true })
+      Object.defineProperty(event, method === 'paste' ? 'clipboardData' : 'dataTransfer', {
+        value: transfer,
+      })
+      await act(async () => owner.view.dom.dispatchEvent(event))
+      expect(event.defaultPrevented).toBe(true)
+      expect(upload).not.toHaveBeenCalled()
+      expect(host.querySelector('h2')?.textContent).toBe('Caption')
+      expect(owner.state.doc.textContent).toContain('Tail')
+      expect(Array.from(host.querySelectorAll('img')).map((image) => image.alt)).toEqual([
+        'One',
+        'Two',
+      ])
+      const images: Array<{ src: string; width: string; href: string | null }> = []
+      owner.state.doc.descendants((node) => {
+        if (node.type.name === 'image' || node.type.name === 'inlineImage') {
+          images.push({ src: node.attrs.src, width: node.attrs.width, href: node.attrs.href })
+        }
+      })
+      expect(images).toEqual([
+        { src: 'https://sim.ai/one.png', width: '123', href: 'https://sim.ai/link' },
+        { src: 'https://sim.ai/two.png', width: '234', href: null },
+      ])
+      expect(() => owner.state.doc.check()).not.toThrow()
+    }
+  )
 
   it('does not insert after the upload anchor is deleted', async () => {
     const pending = Promise.withResolvers<{ url: string; alt: string }>()
@@ -125,30 +179,6 @@ describe('field upload completion boundary', () => {
     const before = owner.getJSON()
     await act(async () => pending.resolve({ url: 'https://sim.ai/deleted.png', alt: 'Deleted' }))
     expect(owner.getJSON()).toEqual(before)
-  })
-
-  it('keeps successful images in batch order when another upload fails', async () => {
-    const first = Promise.withResolvers<{ url: string; alt: string }>()
-    const last = Promise.withResolvers<{ url: string; alt: string }>()
-    upload
-      .mockReturnValueOnce(first.promise)
-      .mockRejectedValueOnce(new Error('upload failed'))
-      .mockReturnValueOnce(last.promise)
-    await render()
-    const owner = editor()
-    await submit(
-      'paste',
-      owner,
-      ['first', 'failed', 'last'].map(
-        (name) => new File(['image'], `${name}.png`, { type: 'image/png' })
-      )
-    )
-    await act(async () => first.resolve({ url: 'https://sim.ai/first.png', alt: 'First' }))
-    await act(async () => last.resolve({ url: 'https://sim.ai/last.png', alt: 'Last' }))
-    expect(
-      Array.from(host.querySelectorAll('img')).map((image) => image.getAttribute('alt'))
-    ).toEqual(['First', 'Last'])
-    expect(upload).toHaveBeenCalledTimes(3)
   })
 
   it.each(
@@ -184,19 +214,6 @@ describe('field upload completion boundary', () => {
       if (action === 'disabled' || action === 'streaming') expect(current.isEditable).toBe(false)
       if (action === 'unmount') expect(original.isDestroyed).toBe(true)
       if (action === 'identity') expect(current).not.toBe(original)
-    }
-  )
-  it.each(['paste', 'drop'] as const)(
-    '%s successful completion inserts into an unchanged editable host',
-    async (method) => {
-      const pending = Promise.withResolvers<{ url: string; alt: string }>()
-      upload.mockReturnValueOnce(pending.promise)
-      await render()
-      const owner = editor()
-      await submit(method, owner)
-      await act(async () => pending.resolve({ url: 'https://sim.ai/success.png', alt: 'Success' }))
-      expect(host.querySelector('img')?.getAttribute('src')).toBe('https://sim.ai/success.png')
-      expect(onChange).toHaveBeenCalledOnce()
     }
   )
 })

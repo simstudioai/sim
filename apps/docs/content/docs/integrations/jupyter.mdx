@@ -6,7 +6,7 @@ description: Manage files, notebooks, kernels, and sessions on a Jupyter server
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 <BlockInfoCard 
-  type="jupyter"
+  type="jupyter_v2"
   color="#FFFFFF"
 />
 
@@ -61,7 +61,7 @@ List files, notebooks, and subdirectories at a path on a Jupyter server
 
 ### Jupyter Get Content
 
-Read a file or notebook from a Jupyter server
+Download a file as a stored file, or read structured notebook and directory content
 
 #### Input
 
@@ -75,11 +75,11 @@ Read a file or notebook from a Jupyter server
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `name` | string | File or notebook name |
-| `path` | string | Path relative to the server root |
-| `mimetype` | string | MIME type of the content |
-| `text` | string | Text content, for text files and notebooks \(JSON-stringified\) |
-| `file` | file | Binary content stored as a file, for base64-format content |
+| `file` | file | Downloaded file |
+| `text` | string | JSON-stringified notebook or directory content |
+| `name` | string | Notebook or directory name |
+| `path` | string | Notebook or directory path |
+| `mimetype` | string | Notebook or directory MIME type |
 
 ### Jupyter Create File
 

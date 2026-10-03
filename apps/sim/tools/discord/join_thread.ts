@@ -39,7 +39,7 @@ export const discordJoinThreadTool: ToolConfig<DiscordJoinThreadParams, DiscordJ
       }),
     },
 
-    transformResponse: async (response) => {
+    transformResponse: async () => {
       return {
         success: true,
         output: {

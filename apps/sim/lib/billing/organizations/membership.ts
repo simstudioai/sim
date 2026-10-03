@@ -48,10 +48,14 @@ import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
-import type { DbOrTx } from '@/lib/db/types'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
+import { isRetryableTransactionError } from '@/lib/db/transaction'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
+import { requireMemberManagementAuthority } from '@/lib/organizations/members/authority'
 import {
   revokePersonalApiKeysTx,
   revokeUserSessionsTx,
@@ -74,14 +78,16 @@ export const MEMBER_BILLING_RECONCILIATION_EVENT_TYPE = 'billing.reconcile-membe
 
 /** Serializes organization-wide owner, seat, move, and membership decisions. */
 export async function acquireOrganizationMutationLock(
-  tx: DbOrTx,
+  tx: DbTransaction,
   organizationId: string
 ): Promise<void> {
   await tx.execute(
     sql`select set_config('lock_timeout', ${`${ORG_MEMBERSHIP_LOCK_TIMEOUT_MS}ms`}, true)`
   )
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtextextended(${`organization-mutation:${organizationId}`}, 0))`
+  await acquireAdvisoryXactLock(
+    tx,
+    'organization_mutation',
+    `organization-mutation:${organizationId}`
   )
 }
 
@@ -98,16 +104,14 @@ export async function acquireOrganizationMutationLock(
  * the wait (it raises SQLSTATE 55P03 instead of hanging) if a holder is stuck.
  */
 export async function acquireOrgMembershipLock(
-  tx: DbOrTx,
+  tx: DbTransaction,
   userId: string,
   organizationId: string
 ): Promise<void> {
   await tx.execute(
     sql`select set_config('lock_timeout', ${`${ORG_MEMBERSHIP_LOCK_TIMEOUT_MS}ms`}, true)`
   )
-  await tx.execute(
-    sql`select pg_advisory_xact_lock(hashtextextended(${`${userId}:${organizationId}`}, 0))`
-  )
+  await acquireAdvisoryXactLock(tx, 'organization_membership', `${userId}:${organizationId}`)
 }
 
 /**
@@ -122,7 +126,7 @@ export async function acquireOrgMembershipLock(
  * transfer and refuses the insert.
  */
 export async function acquireOrganizationUserMutationLocks(
-  tx: DbOrTx,
+  tx: DbTransaction,
   params: { userId: string; organizationIds: string[] }
 ): Promise<void> {
   const organizationIds = [...new Set(params.organizationIds)].sort()
@@ -481,6 +485,12 @@ export interface RemoveMemberParams {
   revokePersonalApiKeys?: boolean
   /** The caller's own session token, kept alive when a member removes themselves. */
   spareSessionToken?: string
+  /** Verified session row to preserve during a self-removal. */
+  spareSessionId?: string
+  /** Acting member whose management authority is rechecked under the mutation lock. */
+  actorUserId?: string
+  /** Legacy compound callers consume failure results; application use cases propagate errors. */
+  onError?: 'return-failure' | 'throw'
   /**
    * Only remove the member when they hold no remaining permission on any of the
    * org's workspaces, evaluated atomically under the membership lock. Used by
@@ -627,7 +637,7 @@ interface MembershipValidationResult {
  * back together in the caller's transaction.
  */
 export async function ensureUserInOrganizationTx(
-  tx: DbOrTx,
+  tx: DbTransaction,
   params: AddMemberParams
 ): Promise<EnsureMemberResult> {
   const {
@@ -873,7 +883,7 @@ async function applyPaidOrgJoinBillingTx(
  * and the personal-Pro transition.
  */
 export async function reapplyPaidOrgJoinBillingForExistingMemberTx(
-  tx: DbOrTx,
+  tx: DbTransaction,
   userId: string,
   organizationId: string,
   options: { sourceOperationId?: string } = {}
@@ -956,7 +966,10 @@ export async function withInvitationSafeOrganizationAccessMutation<T>(
     scope: InvitationRemovalScope
     additionalOrganizationIds?: string[]
   },
-  operation: (tx: DbOrTx, locked: { workspaceIds: string[]; invitationIds: string[] }) => Promise<T>
+  operation: (
+    tx: DbTransaction,
+    locked: { workspaceIds: string[]; invitationIds: string[] }
+  ) => Promise<T>
 ): Promise<T> {
   let candidate = await getInvitationRemovalLockSnapshot(db, params)
 
@@ -1279,6 +1292,9 @@ export async function removeUserFromOrganization(
     requireNoOrgWorkspaceAccess = false,
     revokePersonalApiKeys = false,
     spareSessionToken,
+    spareSessionId,
+    actorUserId,
+    onError = 'return-failure',
   } = params
 
   const billingActions = {
@@ -1311,6 +1327,8 @@ export async function removeUserFromOrganization(
     const result = await withInvitationSafeOrganizationAccessMutation(
       { userId, organizationId, scope: 'all' },
       async (tx, { workspaceIds, invitationIds }) => {
+        if (actorUserId)
+          await requireMemberManagementAuthority(tx, organizationId, actorUserId, userId)
         if (requireNoOrgWorkspaceAccess && workspaceIds.length > 0) {
           const [remainingAccess] = await tx
             .select({ id: permissions.id })
@@ -1335,8 +1353,9 @@ export async function removeUserFromOrganization(
           .returning({ id: member.id })
 
         if (deletedMember.length === 0) {
-          throw new Error(
-            'Member could not be removed — they may have been promoted to owner concurrently'
+          throw new OrchestrationError(
+            'conflict',
+            'The membership changed before removal. Refresh and try again.'
           )
         }
 
@@ -1391,6 +1410,7 @@ export async function removeUserFromOrganization(
           userId,
           organizationId,
           ...(spareSessionToken ? { spareSessionToken } : {}),
+          ...(spareSessionId ? { spareSessionId } : {}),
         })
         if (revokePersonalApiKeys) await revokePersonalApiKeysTx(tx, { userId })
         await endDirectoryMembershipTx(tx, { userId, organizationId })
@@ -1519,6 +1539,7 @@ export async function removeUserFromOrganization(
     if (error instanceof WorkspaceBillingAccountRemovalError) {
       return { success: false, error: error.message, billingActions }
     }
+    if (onError === 'throw') throw error
 
     logger.error('Failed to remove user from organization', {
       userId,
@@ -1537,6 +1558,7 @@ export async function removeUserFromOrganization(
 export async function removeExternalUserFromOrganizationWorkspaces(params: {
   userId: string
   organizationId: string
+  actorUserId?: string
 }): Promise<RemoveExternalWorkspaceAccessResult> {
   const { userId, organizationId } = params
 
@@ -1566,12 +1588,18 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
     } = await withInvitationSafeOrganizationAccessMutation(
       { userId, organizationId, scope: 'external' },
       async (tx, { workspaceIds, invitationIds }) => {
+        if (params.actorUserId)
+          await requireMemberManagementAuthority(tx, organizationId, params.actorUserId)
         const [currentMember] = await tx
           .select({ id: member.id })
           .from(member)
           .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
           .limit(1)
-        if (currentMember) throw new Error('User is an organization member')
+        if (currentMember)
+          throw new OrchestrationError(
+            'conflict',
+            'User is now an organization member. Refresh before removing them.'
+          )
 
         await setOrgMemberUsageLimit(organizationId, userId, null, undefined, tx)
 
@@ -1686,6 +1714,7 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
       pendingInvitationsCancelled,
     }
   } catch (error) {
+    if (error instanceof OrchestrationError || isRetryableTransactionError(error)) throw error
     if (error instanceof WorkspaceBillingAccountRemovalError) {
       return {
         success: false,

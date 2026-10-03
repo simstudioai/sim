@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { getBYOKKey } from '@/lib/api-key/byok'
-import { getRotatingApiKey } from '@/lib/core/config/api-keys'
+import { getRotatingApiKey, hasRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/env-flags'
 import {
@@ -29,6 +29,20 @@ import { isSupportedRerankerModel } from '@/lib/knowledge/reranker-models'
 const logger = createLogger('Reranker')
 
 const RERANK_OPERATION_TIMEOUT_MS = 30_000
+
+/**
+ * Whether a search for this workspace could be reranked at all: a workspace key, or one of the
+ * platform's. A surface that reranks "when configured" asks this before spending a call on it.
+ */
+export async function hasRerankerCredential(
+  workspaceId?: string,
+  userApiKey?: string
+): Promise<boolean> {
+  /** The same policy as the key resolver: a caller's own key counts only off hosted Sim. */
+  if (!isHosted && userApiKey) return true
+  if (env.COHERE_API_KEY || hasRotatingApiKey('cohere')) return true
+  return Boolean(workspaceId && (await getBYOKKey(workspaceId, 'cohere')))
+}
 
 /**
  * Cohere bills per "search unit" = one query with up to 100 documents.
@@ -68,7 +82,7 @@ class RerankAPIError extends Error {
 async function resolveCohereKey(
   workspaceId?: string | null,
   userApiKey?: string
-): Promise<{ apiKey: string; isBYOK: boolean }> {
+): Promise<{ apiKey: string; isBYOK: boolean; isHostedCredential: boolean }> {
   /**
    * Mirrors the agent block hosted-key pattern (`injectHostedKeyIfNeeded`):
    * on self-hosted the user-supplied key from the block field flows through
@@ -76,20 +90,20 @@ async function resolveCohereKey(
    * platform env, so any user-supplied value is ignored.
    */
   if (!isHosted && userApiKey) {
-    return { apiKey: userApiKey, isBYOK: false }
+    return { apiKey: userApiKey, isBYOK: false, isHostedCredential: false }
   }
   if (workspaceId) {
     const byokResult = await getBYOKKey(workspaceId, 'cohere')
     if (byokResult) {
       logger.info('Using BYOK key for Cohere reranker', { scope: byokResult.scope })
-      return { apiKey: byokResult.apiKey, isBYOK: true }
+      return { apiKey: byokResult.apiKey, isBYOK: true, isHostedCredential: false }
     }
   }
   if (env.COHERE_API_KEY) {
-    return { apiKey: env.COHERE_API_KEY, isBYOK: false }
+    return { apiKey: env.COHERE_API_KEY, isBYOK: false, isHostedCredential: isHosted }
   }
   try {
-    return { apiKey: getRotatingApiKey('cohere'), isBYOK: false }
+    return { apiKey: getRotatingApiKey('cohere'), isBYOK: false, isHostedCredential: isHosted }
   } catch {
     throw new Error(
       'No Cohere API key configured. Set COHERE_API_KEY_1/2/3 (rotation) or COHERE_API_KEY.'
@@ -135,7 +149,10 @@ export async function rerank<T extends RerankItem>(
     throw new Error(`Unsupported reranker model: ${options.model}`)
   }
 
-  const { apiKey, isBYOK } = await resolveCohereKey(options.workspaceId, options.apiKey)
+  const { apiKey, isBYOK, isHostedCredential } = await resolveCohereKey(
+    options.workspaceId,
+    options.apiKey
+  )
   const cappedItems =
     items.length > MAX_DOCUMENTS_PER_RERANK ? items.slice(0, MAX_DOCUMENTS_PER_RERANK) : items
   if (items.length > MAX_DOCUMENTS_PER_RERANK) {
@@ -155,6 +172,7 @@ export async function rerank<T extends RerankItem>(
     async (signal) => {
       await waitForProviderAdmission({
         ...identity,
+        isHostedCredential,
         signal,
         maxWaitMs: Math.max(0, deadlineAt - Date.now()),
       })

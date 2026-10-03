@@ -1,6 +1,9 @@
-/**
- * @vitest-environment node
- */
+import {
+  largeValueMetadataMock,
+  largeValueMetadataMockFns,
+} from '@sim/testing/mocks/large-value-metadata.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import {
@@ -12,26 +15,23 @@ import {
   getLargeValueMaterializationError,
   isLargeValueRef,
 } from '@/lib/execution/payloads/large-value-ref'
-import { compactExecutionPayload, compactSubflowResults } from '@/lib/execution/payloads/serializer'
-import type { UserFile } from '@/executor/types'
+import {
+  compactBlockLogs,
+  compactBlockOutput,
+  compactExecutionPayload,
+  compactSubflowResults,
+} from '@/lib/execution/payloads/serializer'
+import type { TraceSpan } from '@/lib/logs/types'
+import type { BlockLog, UserFile } from '@/executor/types'
 
-const { mockDownloadFile, mockRegisterLargeValueOwner, mockUploadFile } = vi.hoisted(() => ({
-  mockDownloadFile: vi.fn(),
-  mockRegisterLargeValueOwner: vi.fn(),
-  mockUploadFile: vi.fn(),
-}))
+const { mockUploadFile } = storageServiceMockFns
 
-vi.mock('@/lib/uploads', () => ({
-  StorageService: {
-    downloadFile: mockDownloadFile,
-    uploadFile: mockUploadFile,
-  },
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
-  addLargeValueReference: vi.fn(),
-  registerLargeValueOwner: mockRegisterLargeValueOwner,
-}))
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => largeValueMetadataMock)
+
+const mockRegisterLargeValueOwner = largeValueMetadataMockFns.mockRegisterLargeValueOwner
 
 const TEST_EXECUTION_CONTEXT = {
   workspaceId: 'workspace-1',
@@ -42,16 +42,9 @@ const TEST_EXECUTION_CONTEXT = {
 
 describe('compactExecutionPayload', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     clearLargeValueCacheForTests()
     mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
     mockRegisterLargeValueOwner.mockResolvedValue(true)
-  })
-
-  it('keeps small JSON payloads inline', async () => {
-    const value = { result: { id: 'event-1', text: 'hello' } }
-
-    await expect(compactExecutionPayload(value, { thresholdBytes: 1024 })).resolves.toEqual(value)
   })
 
   it('strips UserFile base64 by default while preserving metadata', async () => {
@@ -307,5 +300,241 @@ describe('compactExecutionPayload', () => {
 
     expect(error.message).toContain('This execution value is too large to inline (22.2 MB)')
     expect(error.message).not.toContain('lv_CQcekP8gSJI5')
+  })
+})
+
+/**
+ * A child workflow's spans as the workflow block reports them: a loop whose one
+ * iteration holds two block spans, each with a `resultBytes` payload.
+ */
+function childWorkflowSpans(resultBytes: number): TraceSpan[] {
+  const blockSpan = (id: string): TraceSpan => ({
+    id,
+    name: id,
+    type: 'function',
+    duration: 1,
+    startTime: '2026-09-29T00:00:00.000Z',
+    endTime: '2026-09-29T00:00:00.001Z',
+    output: { result: 'x'.repeat(resultBytes) },
+  })
+  return [
+    {
+      id: 'loop',
+      name: 'Loop',
+      type: 'loop',
+      duration: 2,
+      startTime: '2026-09-29T00:00:00.000Z',
+      endTime: '2026-09-29T00:00:00.002Z',
+      children: [
+        {
+          id: 'iteration-0',
+          name: 'Iteration 0',
+          type: 'loop-iteration',
+          duration: 2,
+          startTime: '2026-09-29T00:00:00.000Z',
+          endTime: '2026-09-29T00:00:00.002Z',
+          children: [blockSpan('span-a'), blockSpan('span-b')],
+        },
+      ],
+    },
+  ]
+}
+
+/** Spans whose payloads each exceed the 4 KiB test threshold, so each spills on its own. */
+const spansWithLargePayloads = () => childWorkflowSpans(8192)
+
+/**
+ * Spans whose payloads each stay under the 4 KiB test threshold but whose
+ * iteration `children` together exceed it — the shape generic compaction
+ * turned into a manifest nested inside the tree.
+ */
+const spansTooLargeAsAWhole = () => childWorkflowSpans(2500)
+
+/** Asserts the loop → iteration → block span nesting survived with every `children` an array. */
+function expectSpanTree(spans: unknown): void {
+  expect(Array.isArray(spans)).toBe(true)
+  const [loop] = spans as TraceSpan[]
+  expect(Array.isArray(loop.children)).toBe(true)
+  const [iteration] = loop.children ?? []
+  expect(Array.isArray(iteration.children)).toBe(true)
+  expect(iteration.children?.map((span) => span.id)).toEqual(['span-a', 'span-b'])
+}
+
+describe('compacting span trees', () => {
+  const options = { thresholdBytes: 4096, requireDurable: true, ...TEST_EXECUTION_CONTEXT }
+
+  beforeEach(() => {
+    clearLargeValueCacheForTests()
+    mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
+    mockRegisterLargeValueOwner.mockResolvedValue(true)
+  })
+
+  const childWorkflowLog = (overrides: Partial<BlockLog>): BlockLog => ({
+    blockId: 'child-workflow',
+    blockType: 'workflow',
+    startedAt: '2026-09-29T00:00:00.000Z',
+    endedAt: '2026-09-29T00:00:00.002Z',
+    durationMs: 2,
+    success: true,
+    ...overrides,
+  })
+
+  it('splits a block output child span tree off, spilling each oversized payload', async () => {
+    const compacted = await compactBlockOutput(
+      { result: 'done', childTraceSpans: spansWithLargePayloads() },
+      options
+    )
+
+    expect(compacted.output).toEqual({ result: 'done' })
+    expectSpanTree(compacted.childTraceSpans)
+    const [loop] = compacted.childTraceSpans as TraceSpan[]
+    const spilled = loop.children?.[0].children?.[0]
+    expect(isLargeValueRef(spilled?.output?.result)).toBe(true)
+  })
+
+  it('keeps the skeleton of a block output child span tree too large as a whole', async () => {
+    const compacted = await compactBlockOutput(
+      { result: 'done', childTraceSpans: spansTooLargeAsAWhole() },
+      options
+    )
+
+    expect(compacted.output).toEqual({ result: 'done' })
+    expectSpanTree(compacted.childTraceSpans)
+    const [loop] = compacted.childTraceSpans as TraceSpan[]
+    expect(loop.children?.[0].children?.[0].output).toBeUndefined()
+  })
+
+  it('drops malformed span entries so an oversized tree still keeps its skeleton', async () => {
+    const spans = spansTooLargeAsAWhole()
+    const iteration = spans[0].children?.[0]
+    iteration?.children?.push(null as unknown as TraceSpan)
+
+    const compacted = await compactBlockOutput(
+      { childTraceSpans: [...spans, undefined as unknown as TraceSpan] },
+      options
+    )
+
+    expectSpanTree(compacted.childTraceSpans)
+    expect(compacted.childTraceSpans).toHaveLength(1)
+  })
+
+  it('keeps the skeleton when span metadata itself was spilled', async () => {
+    const spans = spansTooLargeAsAWhole()
+    const blockSpan = spans[0].children?.[0].children?.[0]
+    Object.assign(blockSpan ?? {}, {
+      modelToolCalls: Array.from({ length: 8 }, (_, index) => ({
+        name: `tool-${index}`,
+        arguments: { query: 'q'.repeat(1024) },
+      })),
+      toolCalls: Array.from({ length: 8 }, (_, index) => ({
+        name: `tool-${index}`,
+        input: 'i'.repeat(1024),
+      })),
+      providerTiming: { segments: [{ assistantContent: 'a'.repeat(8192) }] },
+    })
+
+    const compacted = await compactBlockOutput({ childTraceSpans: spans }, options)
+
+    expectSpanTree(compacted.childTraceSpans)
+  })
+
+  it('keeps nested child workflow trees in the skeleton', async () => {
+    const nestedWorkflowSpan: TraceSpan = {
+      id: 'nested-workflow',
+      name: 'Nested Workflow',
+      type: 'workflow',
+      duration: 2,
+      startTime: '2026-09-29T00:00:00.000Z',
+      endTime: '2026-09-29T00:00:00.002Z',
+      output: { result: 'done', childTraceSpans: spansTooLargeAsAWhole() },
+    }
+
+    const compacted = await compactBlockOutput({ childTraceSpans: [nestedWorkflowSpan] }, options)
+
+    const [nested] = compacted.childTraceSpans as TraceSpan[]
+    expect(nested.output?.result).toBeUndefined()
+    expectSpanTree(nested.output?.childTraceSpans)
+  })
+
+  it('drops a child span tree whose skeleton alone exceeds the threshold', async () => {
+    const spans = Array.from({ length: 64 }, (_, index) => ({
+      ...spansTooLargeAsAWhole()[0],
+      id: `loop-${index}`,
+    }))
+
+    const compacted = await compactBlockOutput({ childTraceSpans: spans }, options)
+
+    expect(compacted.childTraceSpans).toBeUndefined()
+  })
+
+  it('rejects a child span tree too large as a whole when large values are rejected', async () => {
+    await expect(
+      compactBlockOutput(
+        { childTraceSpans: spansTooLargeAsAWhole() },
+        { ...options, rejectLargeValues: true }
+      )
+    ).rejects.toThrow()
+  })
+
+  it('still spills a block output whose fields together exceed the threshold', async () => {
+    const compacted = await compactBlockOutput(
+      {
+        first: 'a'.repeat(2500),
+        second: 'b'.repeat(2500),
+        childTraceSpans: spansWithLargePayloads(),
+      },
+      options
+    )
+
+    expect(isLargeValueRef(compacted.output)).toBe(true)
+    expectSpanTree(compacted.childTraceSpans)
+  })
+
+  it('keeps block log child span trees whole or as a skeleton', async () => {
+    const compacted =
+      (await compactBlockLogs(
+        [
+          childWorkflowLog({ childTraceSpans: spansWithLargePayloads() }),
+          childWorkflowLog({ childTraceSpans: spansTooLargeAsAWhole() }),
+        ],
+        options
+      )) ?? []
+
+    expectSpanTree(compacted[0]?.childTraceSpans)
+    expectSpanTree(compacted[1]?.childTraceSpans)
+    const [loop] = compacted[1]?.childTraceSpans ?? []
+    expect(loop.children?.[0].children?.[0].output).toBeUndefined()
+  })
+
+  it('keeps a nested child workflow span tree shaped as a tree', async () => {
+    const nestedWorkflowSpan: TraceSpan = {
+      id: 'nested-workflow',
+      name: 'Nested Workflow',
+      type: 'workflow',
+      duration: 2,
+      startTime: '2026-09-29T00:00:00.000Z',
+      endTime: '2026-09-29T00:00:00.002Z',
+      output: { result: 'done', childTraceSpans: spansWithLargePayloads() },
+    }
+
+    const compacted = await compactBlockOutput({ childTraceSpans: [nestedWorkflowSpan] }, options)
+
+    const [nested] = compacted.childTraceSpans as TraceSpan[]
+    expect(nested.output?.result).toBe('done')
+    expectSpanTree(nested.output?.childTraceSpans)
+  })
+
+  it('terminates on a cyclic span tree', async () => {
+    const span: TraceSpan = {
+      id: 'cyclic',
+      name: 'Cyclic',
+      type: 'function',
+      duration: 1,
+      startTime: '2026-09-29T00:00:00.000Z',
+      endTime: '2026-09-29T00:00:00.001Z',
+    }
+    span.children = [span]
+
+    await expect(compactBlockOutput({ childTraceSpans: [span] }, options)).resolves.toBeDefined()
   })
 })

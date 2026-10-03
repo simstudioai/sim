@@ -24,7 +24,7 @@ import { and, asc, eq, gt, isNull, ne, or, sql } from 'drizzle-orm'
 import { lockCredentialGroupEnrollmentLifecycle } from '@/lib/credential-groups/enrollments'
 import { requireOrganizationAccountsSetup } from '@/lib/credential-groups/organization-setup'
 import { decryptPersonalToken, encryptPersonalToken } from '@/lib/credentials/gitlab-personal-token'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 
 const logger = createLogger('MigrateGitLabPersonalTokens')
 const BATCH_SIZE = 100
@@ -62,7 +62,11 @@ async function assertUniqueIdentities(executor: DbOrTx, organizationId: string) 
     )
 }
 
-async function migrateToken(executor: DbOrTx, credentialId: string, options: MigrationOptions) {
+async function migrateToken(
+  executor: DbTransaction,
+  credentialId: string,
+  options: MigrationOptions
+) {
   const [initial] = await executor
     .select()
     .from(credential)

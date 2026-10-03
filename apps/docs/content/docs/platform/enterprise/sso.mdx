@@ -8,7 +8,7 @@ import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 import { FAQ } from '@/components/ui/faq'
 import { Image } from '@/components/ui/image'
 
-Single Sign-On lets your team sign in to Sim through your company's identity provider instead of managing separate passwords. Sim supports both OIDC and SAML 2.0.
+Single Sign-On lets your team sign in to Sim through your company's identity provider instead of managing separate passwords. Sim supports both OIDC and SAML 2.0, and an organization can use more than one identity provider at a time.
 
 ---
 
@@ -36,7 +36,9 @@ Go to **Settings → Organization → Single sign-on**. The page has three tabs:
 | **Domains** | DNS verification shared by SSO and SCIM |
 | **Provisioning** | SCIM connection, tokens, rules, group mappings, and activity |
 
-Use **Domains** to verify ownership, then return to **Sign-in** to configure your provider. Switching tabs preserves an unsaved sign-in draft while you stay on this page; use **Save** or **Update** to commit it. The selected tab is included in the URL, so it can be bookmarked or shared. On self-hosted deployments, Provisioning appears when SCIM is enabled.
+Use **Domains** to verify ownership, then return to **Sign-in** to configure your provider. Switching tabs preserves an unsaved sign-in draft while you stay on this page; use **Save** or **Update** to commit it. The selected tab and provider are included in the URL, so they can be bookmarked or shared. On self-hosted deployments, Provisioning appears when SCIM is enabled.
+
+An organization can run several identity providers at once: Okta for `eng.acme.com` and Microsoft Entra ID for `acme.com`, for example. **Sign-in** lists them; select **Add identity provider** for another, or a row to view, edit, or delete one. Sim routes each sign-in by the email domain. When a domain has more than one provider, the one marked **Primary** is used, which is how you [switch identity providers](#switching-identity-providers) without downtime.
 
 ### 2. Choose a protocol
 
@@ -47,7 +49,7 @@ Use **Domains** to verify ownership, then return to **Sign-in** to configure you
 
 ### 3. Fill in the form
 
-<Image src="/static/enterprise/sso-form.png" alt="Sign-in tab showing the OIDC configuration form with advanced options collapsed" width={832} height={1095} />
+<Image src="/static/enterprise/sso-form.png" alt="Sign-in tab showing the OIDC configuration form with advanced options collapsed" width={832} height={1095} className="mx-auto h-auto w-full max-w-md" />
 
 **Fields required for both protocols:**
 
@@ -79,7 +81,7 @@ Use **Domains** to verify ownership, then return to **Sign-in** to configure you
 
 ### 4. Copy the callback URL
 
-Copy **Callback URL** for OIDC or **ACS URL (Reply URL)** for SAML. This is the endpoint that receives your identity provider's authentication response. Register it in your IdP before saving. If you set a SAML **Callback URL override** under Advanced options, the copyable ACS URL uses that override.
+Copy **Callback URL** for OIDC or **ACS URL (Reply URL)** for SAML. This is the endpoint that receives your identity provider's authentication response. Register it in your IdP before saving. On Sim Cloud, `<your-sim-domain>` is `www.sim.ai`; self-hosted deployments use their own domain. If you set a SAML **Callback URL override** under Advanced options, the copyable ACS URL uses that override.
 
 **OIDC providers** (Okta, Microsoft Entra ID, Google Workspace, Auth0):
 ```
@@ -99,13 +101,26 @@ Click **Save**. To test, sign out and use the **Sign in with SSO** button on the
 
 ## Editing and advanced configuration
 
-For a saved connection, open **Sign-in** and select **Edit**. The Provider ID remains fixed. A saved OIDC client secret appears as a mask with a suffix when available; **Replace** lets you enter a new secret, and **Keep saved** cancels that replacement. Select **Update** to save the provider, or **Discard** to abandon changes.
+For a saved connection, open **Sign-in**, select the provider, and select **Edit**. The Provider ID remains fixed. **Delete** removes that sign-in path only: accounts and memberships it admitted stay. If you delete the primary provider and the domain has another verified provider, that one becomes primary; otherwise people at the domain sign in another way until a provider serves it again. A saved OIDC client secret appears as a mask with a suffix when available; **Replace** lets you enter a new secret, and **Keep saved** cancels that replacement. Select **Update** to save the provider, or **Discard** to abandon changes.
 
 **Advanced options** contains OIDC scopes and optional authorization, token, and JWKS endpoint overrides. For SAML, it contains Audience, Callback URL override, signed-assertion requirements, NameID format, and optional IdP metadata XML. **Attribute mapping** lets either protocol override the email, name, and stable user-ID claim names. Leave a mapping blank to use the protocol default.
 
 SCIM settings save immediately in the **Provisioning** tab. Its **Disable just-in-time provisioning** rule overrides Automatic first-sign-in membership while the connection is active and entitled. Existing members can still sign in. See [directory provisioning](/platform/enterprise/scim#provisioning-and-sso-together).
 
 Follow the [Okta](/platform/enterprise/scim/okta) or [Microsoft Entra](/platform/enterprise/scim/entra) provisioning walkthrough to connect a SCIM app and verify synchronization separately from sign-in.
+
+## Switching identity providers
+
+To move a domain from one identity provider to another, for example from Microsoft Entra ID to Okta, set up the new provider next to the current one and switch when it works. Nobody loses access along the way.
+
+1. **Add the new provider** under **Sign-in** with the same verified domain. It is saved alongside the current provider, which stays **Primary**, so sign-in does not change yet.
+2. **Test it.** Open the new provider and copy its **Test sign-in link**. Anyone at the domain who opens the link signs in through the new provider; everyone else still uses the current one.
+3. **Make it primary.** Select **Make primary** on the new provider. From their next sign-in, everyone at the domain goes through it. People already signed in stay signed in.
+4. **Remove the old provider** once you are confident, or keep it to switch back with **Make primary**.
+
+The first time someone signs in through the new provider, Sim links it to their existing account by email address, so their workspaces and membership carry over. This requires the new provider to send the same email addresses as the old one.
+
+---
 
 ## Provider Guides
 
@@ -125,7 +140,11 @@ Follow the [Okta](/platform/enterprise/scim/okta) or [Microsoft Entra](/platform
    ```
 4. Under **Assignments**, grant access to the relevant users or groups
 5. Copy the **Client ID** and **Client Secret** from the app's **General** tab
-6. Copy your Okta organization domain from the account menu in the Admin Console, e.g. `dev-1234567.okta.com`. The Admin Console's `-admin` hostname is a different URL. See [Find your Okta domain](https://developer.okta.com/docs/guides/find-your-domain/main/).
+6. To open Sim from the Okta dashboard, set **Login initiated by** to **Either Okta or App**, show the app icon to users, choose **Redirect to app to initiate login (OIDC Compliant)**, and set **Initiate login URI** to the provider's **Initiate login URL** from Sim:
+   ```
+   https://<your-sim-domain>/sso/launch/okta
+   ```
+7. Copy your Okta organization domain from the account menu in the Admin Console, e.g. `dev-1234567.okta.com`. The Admin Console's `-admin` hostname is a different URL. See [Find your Okta domain](https://developer.okta.com/docs/guides/find-your-domain/main/).
 
 **In Sim:**
 
@@ -285,10 +304,12 @@ Once SSO is configured, users with your domain (`company.com`) can sign in throu
 
 1. User goes to `sim.ai` and clicks **Sign in with SSO**
 2. They enter their work email (e.g. `alice@company.com`)
-3. Sim redirects them to your identity provider
+3. Sim looks up the provider that serves `company.com` and redirects them to it
 4. After authenticating, they are returned to Sim
 5. If **First sign-in** is **Automatic**, Sim adds them to the organization as a Member, growing a Team seat count or validating available fixed-seat capacity
 6. They land in an accessible workspace, or see a clear no-access state until an admin grants workspace access
+
+People can also open Sim straight from an OIDC identity provider's app dashboard, such as the Okta tile. Open **Sign-in**, select the provider, and copy its **Initiate login URL** from **Identity provider**. Set it as the app's initiate login URI in your identity provider. Sim starts sign-in through that provider without asking for an email, and only when the provider's domain is verified and the request comes from its own issuer. People who are already signed in go straight to Sim.
 
 With **Automatic** provisioning, no invitation is required for organization membership. The join follows the organization's seat policy and does not infer a role from IdP claims: every newly provisioned user starts as a Member. Team subscriptions grow their billed seat count with membership; fixed-seat plans reject the join when capacity is full. With **Invite only**, SSO proves identity but does not create new membership or workspace access; new access must be granted separately, while existing organization membership and workspace access remain available.
 
@@ -298,8 +319,18 @@ With **Automatic** provisioning, no invitation is required for organization memb
 
 SSO provisioning creates internal organization members but does not grant workspace access. To grant workspace access from your identity provider, use [directory provisioning](/platform/enterprise/scim) and map a pushed group to a workspace. External workspace members are different: they are invited to a specific workspace without joining your organization or consuming one of your seats. Existing invitations and external access take precedence over automatic provisioning so their intended role and workspace grants are preserved.
 
+## Require single sign-on
+
+By default members can sign in with a password, an email code, or your identity provider. To make single sign-on the only way in, open **Settings → Organization → Single sign-on → Sign-in** and set **Allowed sign-in methods** to **Single sign-on**. It becomes available once the organization has an identity provider on a verified domain.
+
+- The requirement is checked when a session is created, so turning it on signs nobody out. Members keep working and meet the requirement at their next sign-in. To end current sessions too, use **Sign out all members** under **Settings → Organization → Security**.
+- Organization owners keep every sign-in method. If the identity provider breaks, an owner can still sign in with a password — setting one through **Forgot password** if they only ever signed in through the identity provider — and turn the requirement back off.
+- If the last identity provider is deleted or its domain verification lapses, the requirement stops being enforced instead of locking the organization out, and you can switch back to any method at any time.
+- Desktop app handoff from an already signed-in browser keeps working, because that session derives from one the requirement already admitted.
+- A member who tries a password, an email code, or a social sign-in such as Google or GitHub sees a message telling them to sign in through their identity provider.
+
 <Callout type="info">
-  Password-based login remains available. Forcing all organization members to use SSO exclusively is not yet supported.
+  Turning the requirement off restores password and email sign-in immediately for everyone.
 </Callout>
 
 ---
@@ -311,7 +342,11 @@ SSO provisioning creates internal organization members but does not grant worksp
   },
   {
     question: "What is the Domain field used for?",
-    answer: "The domain (e.g. company.com) is how Sim routes users to the right identity provider. When a user enters their email on the SSO sign-in page, Sim matches their email domain to a registered SSO provider and redirects them there."
+    answer: "The domain (e.g. company.com) is how Sim routes users to the right identity provider. When a user enters their email on the SSO sign-in page, Sim matches their email domain to the provider that serves it and redirects them there. If a domain has more than one provider, Sim uses the one marked Primary."
+  },
+  {
+    question: "Can we use more than one identity provider?",
+    answer: "Yes. Different domains can use different providers, for example Okta for eng.acme.com and Microsoft Entra ID for acme.com. A domain can also have several providers while you move between them: sign-in uses its primary provider, and the others are reachable through a test sign-in link. SCIM provisioning stays organization-wide and works alongside any number of providers."
   },
   {
     question: "Do I need to provide OIDC endpoints manually?",
@@ -327,7 +362,7 @@ SSO provisioning creates internal organization members but does not grant worksp
   },
   {
     question: "Can I still use email/password login after enabling SSO?",
-    answer: "Yes. Enabling SSO does not disable password-based login. Users can still sign in with their email and password if they have one. Forced SSO (requiring all users on the domain to use SSO) is not yet supported."
+    answer: "Yes, unless you require single sign-on. Enabling SSO does not disable password login on its own; set Allowed sign-in methods to Single sign-on to refuse password, email-code, and social sign-in for members. Organization owners keep password sign-in as a way back in if the identity provider breaks, and can set a password through Forgot password if they never had one."
   },
   {
     question: "A user already has an account with the same email — what happens when they sign in with SSO?",
@@ -343,7 +378,7 @@ SSO provisioning creates internal organization members but does not grant worksp
   },
   {
     question: "How do I update or replace an existing SSO configuration?",
-    answer: "Open Settings → Organization → Single sign-on → Sign-in and select Edit. Change the fields and select Update. The Provider ID cannot be changed; replacing it requires deleting the provider and creating a new one."
+    answer: "Open Settings → Organization → Single sign-on → Sign-in, select the provider, and select Edit. Change the fields and select Update. The Provider ID cannot be changed; replacing it means deleting the provider and adding a new one."
   }
 ]} />
 

@@ -30,6 +30,7 @@ import {
   processOutboxEventById,
 } from '@/lib/core/outbox/service'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
 import { computeInvitationExpiry, INVITATION_EXPIRY_DAYS } from '@/lib/invitations/expiry'
 import { MAX_INVITE_EMAILS, MAX_INVITE_WORKSPACES } from '@/lib/invitations/limits'
@@ -492,8 +493,10 @@ export async function createEnterpriseOwnerClaim(
   })
   const requestKey = buildClaimRequestKey(input, normalized)
   const result = await db.transaction(async (tx) => {
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtextextended(${`enterprise-owner-claim:${normalized.ownerEmail}`}, 0))`
+    await acquireAdvisoryXactLock(
+      tx,
+      'enterprise_owner_claim',
+      `enterprise-owner-claim:${normalized.ownerEmail}`
     )
     const [accountCreatedDuringReview] = await tx
       .select({ id: user.id })

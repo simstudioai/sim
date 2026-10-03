@@ -10,14 +10,24 @@ import { createAnthropicStreamingToolLoopStream } from '@/providers/anthropic/st
 import { buildAnthropicStructuredOutputSchema } from '@/providers/anthropic/structured-output-schema'
 import {
   addAnthropicUsage,
+  buildAnthropicModelUsage,
   buildAnthropicUsageCost,
   buildAnthropicUsageTokens,
   createAnthropicUsageAccumulator,
+  toAnthropicModelUsage,
 } from '@/providers/anthropic/usage'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromAnthropicStream,
 } from '@/providers/anthropic/utils'
+import {
+  isConversationContextError,
+  prepareConversationGeneration,
+} from '@/providers/conversation-generation'
+import {
+  captureProviderConversationStep,
+  recordProviderConversationToolError,
+} from '@/providers/conversation-history'
 import {
   getMaxOutputTokensForModel,
   getThinkingCapability,
@@ -133,7 +143,8 @@ const ANTHROPIC_THINKING_OUTPUT_HEADROOM = 4096
 
 /**
  * Checks if a model supports adaptive thinking (thinking.type: "adaptive").
- * Fable 5 and Fable 5.1 support ONLY adaptive thinking (always on; type: "disabled" is rejected).
+ * Fable 5, Fable 5.1, and Opus 5.5 support ONLY adaptive thinking (always on; type: "disabled" is rejected).
+ * Sonnet 5.5 is adaptive by default and rejects type: "disabled"; its lowest setting is "between_tools".
  * Sonnet 5 supports ONLY adaptive thinking (manual budget_tokens returns a 400 error).
  * Opus 5, Opus 4.8, and Opus 4.7 support ONLY adaptive thinking (no extended thinking / budget_tokens).
  * Opus 4.6 and Sonnet 4.6 support both extended and adaptive thinking — use adaptive.
@@ -159,9 +170,14 @@ function supportsAdaptiveThinking(modelId: string): boolean {
 /**
  * Builds the thinking configuration for the Anthropic API based on model capabilities and level.
  *
- * - Fable 5.1, Fable 5, Sonnet 5, Opus 5, Opus 4.8, Opus 4.7: Uses adaptive thinking only (no extended thinking support)
+ * - Fable 5.1, Fable 5, Sonnet 5.5, Sonnet 5, Opus 5.5, Opus 5, Opus 4.8, Opus 4.7: Uses adaptive thinking only (no extended thinking support)
  * - Opus 4.6, Sonnet 4.6: Uses adaptive thinking with effort parameter
  * - Other models: Uses budget_tokens-based extended thinking
+ *
+ * The `none` level returns null (send no thinking config) unless the model
+ * declares `capabilities.thinking.noneMode`: Sonnet 5.5 rejects
+ * `type: "disabled"`, so `none` becomes `type: "between_tools"`, which turns
+ * off up-front thinking and takes no effort or display field.
  *
  * The newest Claude generations default `thinking.display` to `omitted`
  * (empty thinking blocks, no thinking deltas). Their registry entries mark
@@ -180,7 +196,19 @@ export function buildThinkingConfig(
   outputConfig?: Anthropic.Messages.OutputConfig
 } | null {
   const capability = getThinkingCapability(modelId)
-  if (!capability || !capability.levels.includes(thinkingLevel)) {
+  if (!capability) {
+    return null
+  }
+
+  if (thinkingLevel === 'none') {
+    if (capability.noneMode !== 'between_tools') return null
+    return {
+      // double-cast-allowed: @anthropic-ai/sdk 0.115 predates the between_tools thinking type (typed from 0.129)
+      thinking: { type: 'between_tools' } as unknown as Anthropic.Messages.ThinkingConfigParam,
+    }
+  }
+
+  if (!capability.levels.includes(thinkingLevel)) {
     return null
   }
 
@@ -235,10 +263,11 @@ async function createMessage(
     )
     return stream.finalMessage()
   }
+  // Explicit `stream: false`: Anthropic-compatible proxies (Kie) treat an absent flag as true.
   return anthropic.messages.create(
-    payload as Anthropic.Messages.MessageCreateParamsNonStreaming,
+    { ...(payload as Anthropic.Messages.MessageCreateParamsNonStreaming), stream: false },
     options
-  ) as Promise<Anthropic.Messages.Message>
+  )
 }
 
 /**
@@ -348,9 +377,8 @@ export async function executeAnthropicProviderRequest(
     }
   }
 
-  // Add extended thinking configuration if supported and requested
-  // The 'none' sentinel means "disable thinking" — skip configuration entirely.
-  if (request.thinkingLevel && request.thinkingLevel !== 'none') {
+  // The 'none' sentinel means "disable thinking": no config, unless the model declares a noneMode.
+  if (request.thinkingLevel) {
     const thinkingConfig = buildThinkingConfig(
       request.model,
       request.thinkingLevel,
@@ -395,11 +423,15 @@ export async function executeAnthropicProviderRequest(
       // Per Anthropic docs: thinking is not compatible with temperature or top_k modifications.
       payload.temperature = undefined
 
-      const isAdaptive = thinkingConfig.thinking.type === 'adaptive'
-      logger.info(
-        `Using ${isAdaptive ? 'adaptive' : 'extended'} thinking for model: ${modelId} with ${isAdaptive ? `effort: ${request.thinkingLevel}` : `budget: ${(thinkingConfig.thinking as { budget_tokens: number }).budget_tokens}`}`
-      )
-    } else {
+      if (request.thinkingLevel === 'none') {
+        logger.info(`Using between_tools thinking for model: ${modelId}`)
+      } else {
+        const isAdaptive = thinkingConfig.thinking.type === 'adaptive'
+        logger.info(
+          `Using ${isAdaptive ? 'adaptive' : 'extended'} thinking for model: ${modelId} with ${isAdaptive ? `effort: ${request.thinkingLevel}` : `budget: ${(thinkingConfig.thinking as { budget_tokens: number }).budget_tokens}`}`
+        )
+      }
+    } else if (request.thinkingLevel !== 'none') {
       logger.warn(
         `Thinking level "${describeModelLevel(request.thinkingLevel)}" not supported for model: ${modelId}, ignoring`
       )
@@ -500,10 +532,10 @@ export async function executeAnthropicProviderRequest(
     const providerStartTimeISO = new Date(providerStartTime).toISOString()
 
     const streamResponse = await anthropic.messages.create(
-      {
+      await prepareConversationGeneration(request, 'anthropic', {
         ...payload,
         stream: true,
-      } as Anthropic.Messages.MessageCreateParamsStreaming,
+      } as Anthropic.Messages.MessageCreateParamsStreaming),
       request.abortSignal ? { signal: request.abortSignal } : undefined
     )
 
@@ -519,7 +551,13 @@ export async function executeAnthropicProviderRequest(
       createStream: ({ output, finalizeTiming }) =>
         createReadableStreamFromAnthropicStream(
           streamResponse as AsyncIterable<RawMessageStreamEvent>,
-          ({ content, usage, thinking }) => {
+          async ({ content, usage, thinking, nativeContent }) => {
+            await captureProviderConversationStep(
+              request,
+              'anthropic',
+              nativeContent,
+              buildAnthropicModelUsage(usage)
+            )
             const tokens = buildAnthropicUsageTokens(usage)
             const cost = buildAnthropicUsageCost(request.model, usage)
             output.content = content
@@ -557,7 +595,17 @@ export async function executeAnthropicProviderRequest(
     const forcedTools = preparedTools?.forcedTools || []
     let usedForcedTools: string[] = []
 
-    let currentResponse = await createMessage(anthropic, payload, request.abortSignal)
+    let currentResponse = await createMessage(
+      anthropic,
+      await prepareConversationGeneration(request, 'anthropic', payload),
+      request.abortSignal
+    )
+    await captureProviderConversationStep(
+      request,
+      'anthropic',
+      currentResponse.content,
+      toAnthropicModelUsage(currentResponse.usage)
+    )
     const firstResponseTime = Date.now() - initialCallTime
 
     let content = ''
@@ -646,6 +694,12 @@ export async function executeAnthropicProviderRequest(
 
             const tool = request.tools?.find((t) => t.id === toolName)
             if (!tool) {
+              await recordProviderConversationToolError(
+                request,
+                toolUse.id,
+                toolName,
+                `Tool "${toolName}" is not available`
+              )
               const toolCallEndTime = Date.now()
               return {
                 toolUseId,
@@ -694,6 +748,12 @@ export async function executeAnthropicProviderRequest(
               throw error
             }
             const toolCallEndTime = Date.now()
+            await recordProviderConversationToolError(
+              request,
+              toolUse.id,
+              toolName,
+              getErrorMessage(error, 'Tool execution failed')
+            )
             logger.error('Error processing tool call:', { error, toolName })
 
             return {
@@ -719,16 +779,8 @@ export async function executeAnthropicProviderRequest(
         const toolResultBlocks: Anthropic.Messages.ToolResultBlockParam[] = []
 
         for (const executionResult of executionResults) {
-          const {
-            toolUseId,
-            toolName,
-            toolArgs,
-            toolParams,
-            result,
-            startTime,
-            endTime,
-            duration,
-          } = executionResult
+          const { toolUseId, toolName, toolParams, result, startTime, endTime, duration } =
+            executionResult
           const modelResult =
             'modelResult' in executionResult && executionResult.modelResult
               ? executionResult.modelResult
@@ -853,7 +905,18 @@ export async function executeAnthropicProviderRequest(
 
         const nextModelStartTime = Date.now()
 
-        currentResponse = await createMessage(anthropic, nextPayload, request.abortSignal)
+        currentResponse = await createMessage(
+          anthropic,
+          await prepareConversationGeneration(request, 'anthropic', nextPayload),
+          request.abortSignal
+        )
+
+        await captureProviderConversationStep(
+          request,
+          'anthropic',
+          currentResponse.content,
+          toAnthropicModelUsage(currentResponse.usage)
+        )
 
         const nextCheckResult = checkForForcedToolUsage(
           currentResponse,
@@ -943,7 +1006,7 @@ export async function executeAnthropicProviderRequest(
       duration: totalDuration,
     })
 
-    if (isAbortError(error) || request.abortSignal?.aborted) {
+    if (isAbortError(error) || request.abortSignal?.aborted || isConversationContextError(error)) {
       throw error
     }
 

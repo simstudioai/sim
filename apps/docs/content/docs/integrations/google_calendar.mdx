@@ -311,6 +311,35 @@ Invite attendees to an existing Google Calendar event. Returns API-aligned field
 | `creator` | json | Event creator |
 | `organizer` | json | Event organizer |
 
+### Google Calendar Respond to Invitation
+
+RSVP to a Google Calendar event (accept, decline, or tentative) as the connected account. Only your own response changes; other guests are left untouched. Returns API-aligned fields only.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `calendarId` | string | No | Google Calendar ID the invitation appears on \(e.g., primary or calendar@group.calendar.google.com\) |
+| `eventId` | string | Yes | Google Calendar event ID to respond to. Use a recurring-event instance ID \(as returned by List Events or Get Recurring Instances\) to respond to a single occurrence; the series ID responds to every occurrence. |
+| `responseStatus` | string | Yes | Your response: accepted, declined, or tentative |
+| `comment` | string | No | Optional note to include with your response |
+| `sendUpdates` | string | No | Who to notify about your response: all, externalOnly, or none |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Event ID |
+| `htmlLink` | string | Event link |
+| `status` | string | Event status |
+| `summary` | string | Event title |
+| `start` | json | Event start |
+| `end` | json | Event end |
+| `responseStatus` | string | Your confirmed response \(accepted, declined, or tentative\) |
+| `comment` | string | Your response comment |
+| `attendees` | json | Event attendees |
+| `organizer` | json | Event organizer |
+
 ### Google Calendar Free/Busy
 
 Query free/busy information for one or more Google Calendars. Returns API-aligned fields only.
@@ -480,8 +509,6 @@ Revoke an access control rule (sharing) from a calendar. Returns API-aligned fie
 | `ruleId` | string | Removed ACL rule ID |
 | `deleted` | boolean | Whether removal was successful |
 
-
-
 ## Triggers
 
 A **Trigger** is a block that starts a workflow when an event happens in this service.
@@ -523,4 +550,21 @@ Triggers when events are created, updated, or cancelled in Google Calendar
 |   ↳ `organizer` | json | Event organizer |
 | `calendarId` | string | Calendar ID |
 | `timestamp` | string | Event processing timestamp in ISO format |
+
+
+## OAuth Scopes
+
+Sim requests these scopes when someone connects a Google Calendar account. On a self-hosted deployment, register your own app with the provider using the settings below. See [Integrations & OAuth](/platform/self-hosting/integrations-oauth) for the full setup.
+
+| Setting | Value |
+| ------- | ----- |
+| Redirect URI | `<NEXT_PUBLIC_APP_URL>/api/auth/oauth2/callback/google-calendar` |
+| Environment variables | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+
+| Scope | Description |
+| ----- | ----------- |
+| `https://www.googleapis.com/auth/userinfo.email` | View email address |
+| `https://www.googleapis.com/auth/userinfo.profile` | View basic profile info |
+| `https://www.googleapis.com/auth/calendar` | View and manage calendar |
+
 
