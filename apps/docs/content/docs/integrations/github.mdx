@@ -125,10 +125,10 @@ Create comments on GitHub PRs
 | `id` | number | Comment ID |
 | `body` | string | Comment body |
 | `html_url` | string | GitHub web URL |
-| `path` | string | File path \(for file comments\) |
-| `line` | number | Line number \(for file comments\) |
-| `side` | string | Side \(LEFT/RIGHT for diff comments\) |
-| `commit_id` | string | Commit SHA |
+| `path` | string | File path \(if file comment\) |
+| `line` | number | Line number |
+| `side` | string | Diff side |
+| `commit_id` | string | Commit ID |
 | `created_at` | string | Creation timestamp |
 | `updated_at` | string | Last update timestamp |
 
@@ -916,10 +916,10 @@ Get detailed information about a specific branch in a GitHub repository, includi
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `name` | string | Branch name |
 | `commit` | object | Commit reference info |
 |   ↳ `sha` | string | Commit SHA |
 |   ↳ `url` | string | Commit API URL |
+| `name` | string | Branch name |
 | `protected` | boolean | Whether branch is protected |
 | `protection` | json | Protection settings object |
 | `protection_url` | string | URL to protection settings |
@@ -1263,7 +1263,7 @@ Get detailed information about a specific issue in a GitHub repository
 |   ↳ `created_at` | string | Creation timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
 |   ↳ `closed_at` | string | Close timestamp |
-| `closed_by` | object | User who closed the issue |
+| `closed_by` | object | GitHub user object |
 |   ↳ `login` | string | GitHub username |
 |   ↳ `id` | number | User ID |
 |   ↳ `avatar_url` | string | Avatar image URL |
@@ -1303,7 +1303,7 @@ Close an issue in a GitHub repository
 | `created_at` | string | Creation timestamp |
 | `updated_at` | string | Last update timestamp |
 | `closed_at` | string | Close timestamp |
-| `state_reason` | string | State reason \(completed/not_planned\) |
+| `state_reason` | string | Reason for closing |
 | `labels` | array | Array of label objects |
 |   ↳ `id` | number | Label ID |
 |   ↳ `node_id` | string | GraphQL node ID |

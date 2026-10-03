@@ -56,7 +56,7 @@ Take a payment using a payment source such as a card nonce or a card on file
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment` | object | The created payment object |
+| `payment` | object | Square Payment object |
 |   ↳ `id` | string | Unique ID for the payment |
 |   ↳ `status` | string | Payment status \(APPROVED, PENDING, COMPLETED, CANCELED, or FAILED\) |
 |   ↳ `amount_money` | object | Monetary amount with a currency |
@@ -111,7 +111,7 @@ Retrieve details for a single payment by its ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment` | object | The retrieved payment object |
+| `payment` | object | Square Payment object |
 |   ↳ `id` | string | Unique ID for the payment |
 |   ↳ `status` | string | Payment status \(APPROVED, PENDING, COMPLETED, CANCELED, or FAILED\) |
 |   ↳ `amount_money` | object | Monetary amount with a currency |
@@ -224,7 +224,7 @@ Cancel (void) an authorized payment that has not been captured
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment` | object | The canceled payment object |
+| `payment` | object | Square Payment object |
 |   ↳ `id` | string | Unique ID for the payment |
 |   ↳ `status` | string | Payment status \(APPROVED, PENDING, COMPLETED, CANCELED, or FAILED\) |
 |   ↳ `amount_money` | object | Monetary amount with a currency |
@@ -280,7 +280,7 @@ Capture (complete) a payment that was authorized with delayed capture
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `payment` | object | The completed payment object |
+| `payment` | object | Square Payment object |
 |   ↳ `id` | string | Unique ID for the payment |
 |   ↳ `status` | string | Payment status \(APPROVED, PENDING, COMPLETED, CANCELED, or FAILED\) |
 |   ↳ `amount_money` | object | Monetary amount with a currency |
@@ -339,7 +339,7 @@ Refund all or part of a completed payment
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `refund` | object | The created refund object |
+| `refund` | object | Square PaymentRefund object |
 |   ↳ `id` | string | Unique ID for the refund |
 |   ↳ `status` | string | Refund status \(PENDING, COMPLETED, REJECTED, or FAILED\) |
 |   ↳ `amount_money` | object | Monetary amount with a currency |
@@ -372,7 +372,7 @@ Retrieve a single payment refund by its ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `refund` | object | The retrieved refund object |
+| `refund` | object | Square PaymentRefund object |
 |   ↳ `id` | string | Unique ID for the refund |
 |   ↳ `status` | string | Refund status \(PENDING, COMPLETED, REJECTED, or FAILED\) |
 |   ↳ `amount_money` | object | Monetary amount with a currency |
@@ -452,7 +452,7 @@ Create a new customer profile in the Square customer directory
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `customer` | object | The created customer object |
+| `customer` | object | Square Customer object |
 |   ↳ `id` | string | Unique ID for the customer |
 |   ↳ `given_name` | string | First name of the customer |
 |   ↳ `family_name` | string | Last name of the customer |
@@ -502,7 +502,7 @@ Retrieve a single customer profile by its ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `customer` | object | The retrieved customer object |
+| `customer` | object | Square Customer object |
 |   ↳ `id` | string | Unique ID for the customer |
 |   ↳ `given_name` | string | First name of the customer |
 |   ↳ `family_name` | string | Last name of the customer |
@@ -663,7 +663,7 @@ Update fields on an existing customer profile
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `customer` | object | The updated customer object |
+| `customer` | object | Square Customer object |
 |   ↳ `id` | string | Unique ID for the customer |
 |   ↳ `given_name` | string | First name of the customer |
 |   ↳ `family_name` | string | Last name of the customer |
@@ -775,7 +775,7 @@ Retrieve a single location by its ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `location` | object | The retrieved location object |
+| `location` | object | Square Location object |
 |   ↳ `id` | string | Unique ID for the location |
 |   ↳ `name` | string | Name of the location |
 |   ↳ `address` | object | Physical address |
@@ -822,7 +822,7 @@ Create an order with line items, taxes, discounts, and fulfillments
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `order` | object | The created order object |
+| `order` | object | Square Order object |
 |   ↳ `id` | string | Unique ID for the order |
 |   ↳ `location_id` | string | ID of the location for the order |
 |   ↳ `reference_id` | string | Optional external reference for the order |
@@ -872,7 +872,7 @@ Retrieve a single order by its ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `order` | object | The retrieved order object |
+| `order` | object | Square Order object |
 |   ↳ `id` | string | Unique ID for the order |
 |   ↳ `location_id` | string | ID of the location for the order |
 |   ↳ `reference_id` | string | Optional external reference for the order |
@@ -977,7 +977,7 @@ Pay for an order using one or more already-approved payments
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `order` | object | The paid order object |
+| `order` | object | Square Order object |
 |   ↳ `id` | string | Unique ID for the order |
 |   ↳ `location_id` | string | ID of the location for the order |
 |   ↳ `reference_id` | string | Optional external reference for the order |
@@ -1028,7 +1028,7 @@ Create a draft invoice for an existing order and customer
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | object | The created invoice object |
+| `invoice` | object | Square Invoice object |
 |   ↳ `id` | string | Unique ID for the invoice |
 |   ↳ `version` | number | Optimistic concurrency version of the invoice |
 |   ↳ `location_id` | string | ID of the location for the invoice |
@@ -1068,7 +1068,7 @@ Retrieve a single invoice by its ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | object | The retrieved invoice object |
+| `invoice` | object | Square Invoice object |
 |   ↳ `id` | string | Unique ID for the invoice |
 |   ↳ `version` | number | Optimistic concurrency version of the invoice |
 |   ↳ `location_id` | string | ID of the location for the invoice |
@@ -1192,7 +1192,7 @@ Publish a draft invoice so it is sent to the customer and becomes payable
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | object | The published invoice object |
+| `invoice` | object | Square Invoice object |
 |   ↳ `id` | string | Unique ID for the invoice |
 |   ↳ `version` | number | Optimistic concurrency version of the invoice |
 |   ↳ `location_id` | string | ID of the location for the invoice |
@@ -1233,7 +1233,7 @@ Cancel a published invoice that is unpaid or partially paid
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `invoice` | object | The canceled invoice object |
+| `invoice` | object | Square Invoice object |
 |   ↳ `id` | string | Unique ID for the invoice |
 |   ↳ `version` | number | Optimistic concurrency version of the invoice |
 |   ↳ `location_id` | string | ID of the location for the invoice |
@@ -1293,7 +1293,7 @@ Create or update a catalog object such as an item, variation, or category
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `object` | object | The created or updated catalog object |
+| `object` | object | Square CatalogObject |
 |   ↳ `type` | string | Type of catalog object \(ITEM, ITEM_VARIATION, CATEGORY, IMAGE, etc.\) |
 |   ↳ `id` | string | Unique ID for the catalog object |
 |   ↳ `version` | number | Optimistic concurrency version of the object |
@@ -1325,7 +1325,7 @@ Retrieve a single catalog object by its ID
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `object` | object | The retrieved catalog object |
+| `object` | object | Square CatalogObject |
 |   ↳ `type` | string | Type of catalog object \(ITEM, ITEM_VARIATION, CATEGORY, IMAGE, etc.\) |
 |   ↳ `id` | string | Unique ID for the catalog object |
 |   ↳ `version` | number | Optimistic concurrency version of the object |
@@ -1424,7 +1424,7 @@ Upload an image and attach it to the catalog, optionally to a specific item
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `object` | object | The created catalog image object |
+| `object` | object | Square CatalogObject |
 |   ↳ `type` | string | Type of catalog object \(ITEM, ITEM_VARIATION, CATEGORY, IMAGE, etc.\) |
 |   ↳ `id` | string | Unique ID for the catalog object |
 |   ↳ `version` | number | Optimistic concurrency version of the object |
