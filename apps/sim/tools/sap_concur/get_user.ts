@@ -1,14 +1,13 @@
-import type { GetUserParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { GetUserParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
+  baseSapConcurInput,
   scimUserOutputProperties,
-  transformSapConcurProxyResponse,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getUserTool: ToolConfig<GetUserParams, SapConcurProxyResponse> = {
+export const getUserTool: InternalToolConfig<GetUserParams, SapConcurResponse> = {
   id: 'sap_concur_get_user',
   name: 'SAP Concur Get User',
   description: 'Get a single user by UUID (GET /profile/identity/v4.1/Users/{id}).',
@@ -75,25 +74,22 @@ export const getUserTool: ToolConfig<GetUserParams, SapConcurProxyResponse> = {
       description: 'Comma-separated SCIM attributes to exclude from the response',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const userUuid = trimRequired(params.userUuid, 'userUuid')
       const query: Record<string, string> = {}
       if (params.attributes?.trim()) query.attributes = params.attributes.trim()
       if (params.excludedAttributes?.trim())
         query.excludedAttributes = params.excludedAttributes.trim()
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/profile/identity/v4.1/Users/${encodeURIComponent(userUuid)}`,
         method: 'GET',
         ...(Object.keys(query).length > 0 ? { query } : {}),
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

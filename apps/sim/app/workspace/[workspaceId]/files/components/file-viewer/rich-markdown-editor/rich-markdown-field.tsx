@@ -1,26 +1,42 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ChipTextarea, chipFieldSurfaceClass, cn } from '@sim/emcn'
-import type { JSONContent } from '@tiptap/core'
+import { ChipTextarea, chipFieldSurfaceClass, cn, toast } from '@sim/emcn'
+import { formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
+import type { JSONContent, Range } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
-import { createMarkdownEditorExtensions } from './editor-extensions'
-import { moveDraggedImageNode } from './image-drag-move'
-import { extractImageFiles, isInlineRouteSrc, shouldSkipFileUpload } from './image-paste'
+import { createMarkdownEditorExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions'
+import { moveDraggedImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-drag-move'
+import {
+  extractImageFiles,
+  getImageFileFallback,
+  type ImageFileFallback,
+  normalizePastedImageSources,
+  resolveImageFileFallback,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-paste'
+import {
+  beginImageUploads,
+  findImageUpload,
+  finishImageUpload,
+  removeImageUpload,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-upload'
 import {
   applyFrontmatter,
   postProcessSerializedMarkdown,
   splitFrontmatter,
-} from './markdown-fidelity'
-import { parseMarkdownToDoc } from './markdown-parse'
-import { useEditorMentions } from './mention'
-import { EditorBubbleMenu } from './menus/bubble-menu'
-import { LinkHoverCard } from './menus/link-hover-card'
-import { normalizeMarkdownContent } from './normalize-content'
-import { isRoundTripSafe } from './round-trip-safety'
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
+import { parseMarkdownToDoc } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
+import { isPlainTextPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-paste'
+import { MarkdownStreamingContext } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-streaming-context'
+import { useEditorMentions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention'
+import { EditorBubbleMenu } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/bubble-menu'
+import { LinkHoverCard } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/link-hover-card'
+import { normalizeMarkdownContent } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/normalize-content'
+import { assessRawMarkdownPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/paste-admission'
+import { isRoundTripSafe } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/round-trip-safety'
 import '@sim/emcn/components/code/code.css'
-import '../document-table.css'
-import './rich-markdown-editor.css'
+import '@/app/workspace/[workspaceId]/files/components/file-viewer/document-table.css'
+import '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor.css'
 
 /**
  * Sends the formatting toolbar back to its body portal instead of anchoring it inside the editor's
@@ -32,6 +48,12 @@ import './rich-markdown-editor.css'
  * container is how {@link EditorBubbleMenu} spells "portal to the body".
  */
 const BODY_PORTAL: React.RefObject<HTMLDivElement | null> = { current: null }
+
+function warnRichMarkdownPasteLimit() {
+  toast.warning('Paste is too large for rich-text editing', {
+    description: `Keep this document under ${formatPasteLimit(PASTE_LIMITS.RICH_MARKDOWN_BYTES)}, or import the content as a file.`,
+  })
+}
 
 interface RichMarkdownFieldProps {
   /** Current markdown value. Seeds the editor once on mount; external changes only apply while {@link isStreaming}. */
@@ -110,7 +132,7 @@ interface RichMarkdownFieldProps {
 /**
  * The WYSIWYG editor for round-trip-safe content (chosen by {@link RichMarkdownField}). The file-less
  * sibling of {@link RichMarkdownEditor}'s loaded editor: same TipTap extensions, parser, and menus but
- * no file loading, autosave, or image upload.
+ * no file loading or autosave.
  */
 function LoadedRichMarkdownField({
   value,
@@ -145,13 +167,11 @@ function LoadedRichMarkdownField({
   /** The body last reflected into the editor — updated on local edits and on each streamed sync. */
   const lastSyncedBodyRef = useRef(initialSplit.body)
   const onChangeRef = useRef(onChange)
-  onChangeRef.current = onChange
   const onPasteTextRef = useRef(onPasteText)
-  onPasteTextRef.current = onPasteText
   const uploadImageRef = useRef(uploadImage)
-  uploadImageRef.current = uploadImage
   const autoFocusAtRef = useRef(autoFocusAt)
   const editorInstanceRef = useRef<ReturnType<typeof useEditor>>(null)
+  const uploadGenerationRef = useRef(0)
 
   /**
    * The `/Image` slash command opens this hidden picker; `pendingImagePosRef` holds the caret
@@ -161,36 +181,43 @@ function LoadedRichMarkdownField({
   const pendingImagePosRef = useRef<number | null>(null)
 
   /**
-   * Sequential upload-then-insert, mirroring the file editor's own image flow:
-   * each image inserts at the evolving position so a multi-image paste lands in
-   * order, and a failed upload skips its insert without aborting the rest. The
-   * upload mutation owns user feedback.
+   * Reuse the file editor's mapped anchors without adding upload chrome to embedded fields.
+   * A streamed replacement invalidates the batch even if editing resumes before upload completes.
    */
-  const insertImagesRef = useRef<(images: File[], at: number) => Promise<void>>(() =>
-    Promise.resolve()
-  )
-  insertImagesRef.current = async (images, at) => {
+  async function insertImages(images: File[], range: Range, fallback?: ImageFileFallback | null) {
     const upload = uploadImageRef.current
     const owner = editorInstanceRef.current
-    if (!upload || !owner) return
-    let position = at
-    for (const image of images) {
-      const result = await upload(image).catch(() => null)
-      /* Bail if the editor unmounted (note closed) while the upload ran. */
-      if (!result || editorInstanceRef.current !== owner || owner.isDestroyed) continue
-      const safePosition = Math.min(position, owner.state.doc.content.size)
-      try {
-        owner
-          .chain()
-          .insertContentAt(safePosition, {
-            type: 'image',
-            attrs: { src: result.url, alt: result.alt },
-          })
-          .run()
-        position = owner.state.selection.to
-      } catch {
-        position = owner.state.doc.content.size
+    if (!upload || !owner || owner.isDestroyed || !owner.isEditable) return
+    const generation = uploadGenerationRef.current
+    const anchors = beginImageUploads(
+      owner,
+      range,
+      images.map(() => '')
+    )
+    const canInsert = () =>
+      editorInstanceRef.current === owner &&
+      !owner.isDestroyed &&
+      owner.isEditable &&
+      uploadGenerationRef.current === generation
+    try {
+      for (const [index, image] of images.entries()) {
+        if (!canInsert()) break
+        const anchor = anchors[index]
+        if (!anchor || findImageUpload(owner, anchor) === null) continue
+        const result = await upload(image).catch(() => null)
+        if (!canInsert()) break
+        if (result)
+          finishImageUpload(
+            owner,
+            anchor,
+            result.url,
+            result.alt,
+            fallback ? resolveImageFileFallback(fallback, result.url) : undefined
+          )
+        else removeImageUpload(owner, anchor)
       }
+    } finally {
+      for (const anchor of anchors) removeImageUpload(owner, anchor)
     }
   }
 
@@ -203,7 +230,17 @@ function LoadedRichMarkdownField({
   const [canonicalSeed] = useState(() => normalizeMarkdownContent(value))
 
   /** TipTap extensions are stateful — build them once per mount so each field gets its own placeholder. */
-  const [extensions] = useState(() => createMarkdownEditorExtensions({ placeholder }))
+  const [extensions] = useState(() =>
+    createMarkdownEditorExtensions({
+      placeholder,
+      pasteAdmission: {
+        maxResultBytes: PASTE_LIMITS.RICH_MARKDOWN_BYTES,
+        getCurrentText: () => lastSyncedBodyRef.current,
+        getFrontmatter: () => frontmatterRef.current,
+        onRejected: warnRichMarkdownPasteLimit,
+      },
+    })
+  )
   const [initialContent] = useState<JSONContent>(() => parseMarkdownToDoc(initialSplit.body))
 
   const editor = useEditor({
@@ -231,15 +268,21 @@ function LoadedRichMarkdownField({
         ),
         // Claim ⌘K so the bubble-menu link editor wins over the global search palette.
         'data-owned-shortcuts': 'Mod+K',
+        'data-paste-max-bytes': String(PASTE_LIMITS.RICH_MARKDOWN_BYTES),
+        'data-paste-max-html-bytes': String(PASTE_LIMITS.RICH_MARKDOWN_BYTES),
+        'data-paste-handles-images': uploadImage ? 'true' : 'false',
       },
-      handlePaste: (view, event) => {
+      transformPasted: (slice, view) => normalizePastedImageSources(slice, view.state.doc),
+      handlePaste: (view, event, slice) => {
+        if (!view.editable) return false
+        const currentEditor = editorInstanceRef.current
+        if (currentEditor && isPlainTextPaste(currentEditor)) return false
         const images = uploadImageRef.current ? extractImageFiles(event.clipboardData) : []
-        /* Copying an image already in the document puts its file on the clipboard too. Let the
-           html through instead of uploading a second copy of something already hosted. */
         const clipboardHtml = event.clipboardData?.getData('text/html') ?? ''
-        if (images.length > 0 && !shouldSkipFileUpload(images, clipboardHtml, isInlineRouteSrc)) {
+        const fallback = getImageFileFallback(slice, images)
+        if (images.length > 0 && (!clipboardHtml || !slice.content.size || fallback)) {
           event.preventDefault()
-          void insertImagesRef.current(images, view.state.selection.from)
+          void insertImages(images, view.state.selection, fallback)
           return true
         }
         const handler = onPasteTextRef.current
@@ -248,23 +291,19 @@ function LoadedRichMarkdownField({
         if (!text) return false
         return handler(text)
       },
-      /**
-       * Mirrors the file editor's order: reposition an image dragged from inside the document, then
-       * bail on a same-page copy of an already-hosted one so ProseMirror inserts it from the html
-       * instead of uploading a duplicate, then upload anything genuinely new. Any remaining file drop
-       * is swallowed so the browser doesn't navigate to it and tear down the host; internal text drags
-       * carry no files and fall through.
-       */
-      handleDrop: (view, event) => {
+      handleDrop: (view, event, slice, moved) => {
+        if (!view.editable) return false
         const html = event.dataTransfer?.getData('text/html') ?? ''
         const images = uploadImageRef.current ? extractImageFiles(event.dataTransfer) : []
-        if (moveDraggedImageNode(view, event, { images, html })) return true
-        if (shouldSkipFileUpload(images, html, isInlineRouteSrc)) return false
+        const uploadFallback = getImageFileFallback(slice, images)
+        if (!uploadFallback && moveDraggedImageNode(view, event, slice, moved)) return true
+        if (html && slice.content.size > 0 && !uploadFallback) return false
         if (event.dataTransfer?.files.length) {
           event.preventDefault()
           if (images.length > 0) {
             const dropPos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos
-            void insertImagesRef.current(images, dropPos ?? view.state.selection.from)
+            const at = dropPos ?? view.state.selection.from
+            void insertImages(images, { from: at, to: at }, uploadFallback)
           }
           return true
         }
@@ -274,7 +313,6 @@ function LoadedRichMarkdownField({
     /* Resolved after creation, not via `autofocus`: mapping a point to a
        document position needs the editor's DOM laid out. */
     onCreate: ({ editor }) => {
-      editorInstanceRef.current = editor
       const point = autoFocusAtRef.current
       if (!point) return
       const resolved = editor.view.posAtCoords({ left: point.clientX, top: point.clientY })
@@ -288,6 +326,20 @@ function LoadedRichMarkdownField({
     },
   })
 
+  useLayoutEffect(() => {
+    onChangeRef.current = onChange
+    onPasteTextRef.current = onPasteText
+    uploadImageRef.current = uploadImage
+  }, [onChange, onPasteText, uploadImage])
+
+  /** React can unmount the field before TipTap's deferred destruction runs. */
+  useLayoutEffect(() => {
+    editorInstanceRef.current = editor
+    return () => {
+      editorInstanceRef.current = null
+    }
+  }, [editor])
+
   /** Mirrors an externally-driven value (AI generation) into the editor, then settles to editable. */
   const wasStreamingRef = useRef(isStreaming)
   useEffect(() => {
@@ -296,8 +348,9 @@ function LoadedRichMarkdownField({
     frontmatterRef.current = frontmatter
 
     if (isStreaming) {
+      if (!wasStreamingRef.current) uploadGenerationRef.current++
       wasStreamingRef.current = true
-      if (editor.isEditable) editor.setEditable(false)
+      if (editor.isEditable) editor.setEditable(false, false)
       if (body === lastSyncedBodyRef.current) return
       lastSyncedBodyRef.current = body
       const el = containerRef.current
@@ -320,7 +373,7 @@ function LoadedRichMarkdownField({
         })
       }
     }
-    if (editor.isEditable !== !disabled) editor.setEditable(!disabled)
+    if (editor.isEditable !== !disabled) editor.setEditable(!disabled, false)
   }, [editor, value, isStreaming, disabled])
 
   /**
@@ -388,19 +441,21 @@ function LoadedRichMarkdownField({
               pendingImagePosRef.current ?? editorInstanceRef.current?.state.selection.from ?? 0
             pendingImagePosRef.current = null
             input.value = ''
-            if (images.length > 0) void insertImagesRef.current(images, at)
+            if (images.length > 0) void insertImages(images, { from: at, to: at })
           }}
         />
       )}
-      <EditorContent
-        editor={editor}
-        className={cn(
-          'flex flex-1 flex-col',
-          isBare
-            ? proseClassName
-            : 'selection:bg-[var(--selection-bg)] selection:text-[var(--text-primary)] dark:selection:bg-[var(--selection-dark)] dark:selection:text-white'
-        )}
-      />
+      <MarkdownStreamingContext value={isStreaming}>
+        <EditorContent
+          editor={editor}
+          className={cn(
+            'flex flex-1 flex-col',
+            isBare
+              ? proseClassName
+              : 'selection:bg-[var(--selection-bg)] selection:text-[var(--text-primary)] dark:selection:bg-[var(--selection-dark)] dark:selection:text-white'
+          )}
+        />
+      </MarkdownStreamingContext>
     </div>
   )
 }
@@ -459,7 +514,22 @@ function RawMarkdownField({
 
   const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const text = event.clipboardData.getData('text/plain')
-    if (text && onPasteText?.(text)) event.preventDefault()
+    if (!text) return
+    if (onPasteText?.(text)) {
+      event.preventDefault()
+      return
+    }
+
+    const admission = assessRawMarkdownPaste({
+      pastedText: text,
+      currentText: value,
+      selectionStart: event.currentTarget.selectionStart,
+      selectionEnd: event.currentTarget.selectionEnd,
+    })
+    if (admission.accepted) return
+
+    event.preventDefault()
+    warnRichMarkdownPasteLimit()
   }
 
   /* A bare host paints its own surface, so the raw fallback is a plain
@@ -472,11 +542,12 @@ function RawMarkdownField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         onPaste={handlePaste}
+        data-paste-max-bytes={PASTE_LIMITS.RICH_MARKDOWN_BYTES}
         placeholder={placeholder}
         readOnly={isStreaming || lockedView}
         tabIndex={lockedView ? -1 : undefined}
         className={cn(
-          'w-full resize-none border-none bg-transparent p-0 text-current caret-current outline-none focus-visible:outline-none',
+          'w-full resize-none border-none bg-transparent p-0 text-current caret-current outline-hidden focus-visible:outline-hidden',
           'scrollbar-none placeholder:text-current placeholder:opacity-55',
           lockedView && 'select-none opacity-50',
           autoGrow && 'overflow-hidden',
@@ -493,6 +564,7 @@ function RawMarkdownField({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       onPaste={handlePaste}
+      data-paste-max-bytes={PASTE_LIMITS.RICH_MARKDOWN_BYTES}
       placeholder={placeholder}
       error={error}
       viewOnly={lockedView}

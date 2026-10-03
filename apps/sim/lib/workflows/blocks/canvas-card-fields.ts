@@ -1,5 +1,5 @@
 import {
-  type CanonicalIndex,
+  buildCanonicalIndexForSurface,
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
   isSubBlockFeatureEnabled,
@@ -29,9 +29,15 @@ export interface CardFieldsOptions {
   advanced: boolean
   /** Current subblock values, for conditions and canonical mode resolution. */
   values: Record<string, unknown>
-  canonicalIndex: CanonicalIndex
   canonicalModeOverrides?: CanonicalModeOverrides
-  /** The card is showing the block as a trigger, which swaps the subblock set. */
+  /**
+   * The card is showing the block as a trigger, which swaps the subblock set — and with it the
+   * canonical index, which this derives rather than accepts. A caller that supplied its own could
+   * hand in one built for the other surface, and every caller did: a mixed action/trigger block's
+   * trigger fields all collapse into the action pairs they share a `canonicalParamId` with, so
+   * `isSubBlockVisibleForMode` matched none of them and dropped Airtable's Base ID and Table ID,
+   * Webflow's Site and Collection, and eight blocks' trigger Credentials off the card entirely.
+   */
   triggerMode?: boolean
   /** Ids an async reactive condition has hidden; runtime-only, empty in checks. */
   hiddenIds?: ReadonlySet<string>
@@ -75,13 +81,13 @@ export function getCardSubBlocks(
   const {
     advanced,
     values,
-    canonicalIndex,
     canonicalModeOverrides,
     triggerMode = false,
     hiddenIds,
     titleOperationSubBlockId,
   } = options
 
+  const canonicalIndex = buildCanonicalIndexForSurface(config.subBlocks, triggerMode)
   const isPureTriggerBlock = Boolean(config.triggers?.enabled && config.category === 'triggers')
 
   return config.subBlocks.filter((subBlock) => {

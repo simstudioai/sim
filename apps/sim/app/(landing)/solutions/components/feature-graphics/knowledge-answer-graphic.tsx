@@ -13,7 +13,7 @@ import styles from '@/app/(landing)/solutions/components/feature-graphics/knowle
  * `--surface-3` fill), the agent's grounded answer reads back as plain
  * `--text-primary` prose, and the tile's highlight is the citation — a
  * white source card in the audit tile's exact chrome (`--white` fill,
- * 1px `--border-1` hairline, `rounded-xl`, `shadow-sm`) pairing a
+ * 1px `--border-1` hairline, `rounded-xl`, `shadow-xs`) pairing a
  * `BookOpen` icon in the lifecycle header's outlined `size-6` icon box
  * with the knowledge-base document the answer came from.
  *
@@ -59,7 +59,7 @@ export function KnowledgeAnswerGraphic({
         <div className='flex w-full max-w-[312px] flex-col gap-3 sm:max-lg:[@container(min-width:500px)]:max-w-[400px]'>
           <div
             className={cn(
-              'max-w-[85%] self-end rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-3 py-2 text-[var(--text-primary)] text-caption leading-[1.5]',
+              'max-w-[85%] self-end rounded-lg border border-[var(--border-1)] bg-[var(--white)] px-3 py-2 text-[var(--text-primary)] text-caption leading-[1.5] dark:bg-[var(--surface-4)]',
               styles.stepQuestion
             )}
           >
@@ -77,7 +77,7 @@ export function KnowledgeAnswerGraphic({
 
           <div
             className={cn(
-              'flex items-center gap-2.5 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-sm',
+              'flex items-center gap-2.5 rounded-xl border border-[var(--border-1)] bg-[var(--white)] px-3 py-2.5 shadow-xs dark:bg-[var(--surface-4)]',
               styles.stepSource
             )}
           >
@@ -90,7 +90,7 @@ export function KnowledgeAnswerGraphic({
               <BookOpen className='size-[14px] text-[var(--text-icon)]' />
             </span>
             <span className='min-w-0 flex-1'>
-              <span className='block truncate font-medium text-[var(--text-primary)] text-small'>
+              <span className='block truncate text-[var(--text-primary)] text-small'>
                 {sourceLabel}
               </span>
               <span className='block truncate text-[var(--text-muted)] text-caption'>

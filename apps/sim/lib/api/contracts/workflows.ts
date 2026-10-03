@@ -333,6 +333,13 @@ export type ReorderWorkflowsBody = z.input<typeof reorderWorkflowsBodySchema>
 
 export const executeWorkflowRunFromBlockSchema = z.object({
   startBlockId: requiredFieldSchema('Start block ID is required'),
+  /**
+   * Mocked upstream outputs keyed by block name or id: each entry becomes that
+   * block's state (marked executed) so the start block runs in isolation
+   * without a prior execution — and overlays the resolved snapshot when one
+   * exists. Names resolve server-side with the executor's own normalization.
+   */
+  variableInputs: z.record(z.string(), z.unknown()).optional(),
   sourceSnapshot: z
     .object({
       blockStates: z.record(z.string(), z.any()),
@@ -509,13 +516,6 @@ export const importWorkflowAsSuperuserBodySchema = z.object({
 
 export type ImportWorkflowAsSuperuserBody = z.input<typeof importWorkflowAsSuperuserBodySchema>
 
-export const importWorkflowAsSuperuserPermissiveBodySchema = z
-  .object({
-    workflowId: z.string().optional(),
-    targetWorkspaceId: z.string().optional(),
-  })
-  .passthrough()
-
 export const importWorkflowAsSuperuserResponseSchema = z.object({
   success: z.literal(true),
   newWorkflowId: z.string(),
@@ -662,34 +662,17 @@ export const workflowExecutionStatusQuerySchema = z.object({
     ),
 })
 
-/**
- * Cancellation outcomes produced by the cancellation service, and so the whole
- * vocabulary the public v2 endpoint can return — `cancelWorkflowRun` delegates
- * its outcome to that service. Mirrors `CancelWorkflowExecutionReason` in
- * `lib/execution/cancel-workflow-execution` (contracts stay import-clean of
- * server modules). Keeping the internal route's extra outcomes out of here is
- * what stops the published v2 schema advertising reasons v2 cannot emit.
- */
+/** Mirrors the surface-neutral cancellation service's complete outcome vocabulary. */
 export const cancelWorkflowExecutionReasonSchema = z.enum([
   'recorded',
+  'already_cancelled',
+  'already_completed',
+  'already_failed',
   'redis_unavailable',
   'redis_write_failed',
   'paused_event_publish_failed',
   'paused_database_cancel_failed',
-])
-
-/**
- * The internal route's vocabulary. It resolves four outcomes before the service
- * is ever reached: `queue_cancelled` (the run was still queued, so no execution
- * log row existed), `already_cancelled` (reconciling a run already cancelled),
- * and the two stop-signal failures. Several ride on `success: true` responses,
- * so validating them against the service enum makes `requestJson` reject
- * cancellations that genuinely applied.
- */
-export const internalCancelWorkflowExecutionReasonSchema = z.enum([
-  ...cancelWorkflowExecutionReasonSchema.options,
   'queue_cancelled',
-  'already_cancelled',
   'active_resume_signal_failed',
   'cancellation_not_finalized',
 ])
@@ -701,7 +684,7 @@ const cancelWorkflowExecutionResponseSchema = z.object({
   durablyRecorded: z.boolean(),
   locallyAborted: z.boolean(),
   pausedCancelled: z.boolean(),
-  reason: internalCancelWorkflowExecutionReasonSchema.optional(),
+  reason: cancelWorkflowExecutionReasonSchema.optional(),
 })
 
 export type CancelWorkflowExecutionResponse = z.output<typeof cancelWorkflowExecutionResponseSchema>

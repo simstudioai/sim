@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   concealCrossTenantResourceError,
@@ -248,12 +245,12 @@ const internalPolicies: Array<{
     notFoundMessage: 'Knowledge base not found',
   },
   {
-    route: 'POST /api/knowledge/[id]/documents',
+    route: 'Knowledge document upload internal operation',
     policy: internalKnowledgeErrorPolicies.uploads,
     notFoundMessage: 'Knowledge base not found',
   },
   {
-    route: 'POST /api/knowledge/search',
+    route: 'Knowledge search internal operation',
     policy: internalKnowledgeErrorPolicies.search,
     notFoundMessage: 'Knowledge base not found',
   },

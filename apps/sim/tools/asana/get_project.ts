@@ -1,7 +1,10 @@
 import type { AsanaGetProjectParams, AsanaProjectRecordResponse } from '@/tools/asana/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const asanaGetProjectTool: ToolConfig<AsanaGetProjectParams, AsanaProjectRecordResponse> = {
+export const asanaGetProjectTool: InternalToolConfig<
+  AsanaGetProjectParams,
+  AsanaProjectRecordResponse
+> = {
   id: 'asana_get_project',
   name: 'Asana Get Project',
   description: 'Retrieve a single Asana project by its GID',
@@ -27,13 +30,8 @@ export const asanaGetProjectTool: ToolConfig<AsanaGetProjectParams, AsanaProject
     },
   },
 
-  request: {
-    url: '/api/tools/asana/get-project',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       accessToken: params.accessToken,
       projectGid: params.projectGid,
     }),

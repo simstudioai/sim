@@ -9,14 +9,21 @@ import {
 } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId, generateShortId } from '@sim/utils/id'
+import { omit, toRecord } from '@sim/utils/object'
 import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { listWebhooksContract, upsertWebhookContract } from '@/lib/api/contracts/webhooks'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { authorizeCredentialUseForAuth } from '@/lib/auth/credential-access'
+import { AuthType } from '@/lib/auth/hybrid'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  capabilityRefusal,
+  isWorkspaceCapabilityWithheld,
+} from '@/lib/permission-groups/capability-assertions'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { resolveEnvVarsInObject } from '@/lib/webhooks/env-resolver'
 import {
@@ -43,6 +50,7 @@ async function revertSavedWebhook(
       .update(webhook)
       .set({
         workflowId: existingWebhook.workflowId,
+        deploymentVersionId: existingWebhook.deploymentVersionId,
         blockId: existingWebhook.blockId,
         path: existingWebhook.path,
         provider: existingWebhook.provider,
@@ -267,8 +275,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         id: workflow.id,
         userId: workflow.userId,
         workspaceId: workflow.workspaceId,
+        deploymentVersionId: workflowDeploymentVersion.id,
       })
       .from(workflow)
+      .leftJoin(
+        workflowDeploymentVersion,
+        and(
+          eq(workflowDeploymentVersion.workflowId, workflow.id),
+          eq(workflowDeploymentVersion.isActive, true)
+        )
+      )
       .where(eq(workflow.id, workflowId))
       .limit(1)
 
@@ -336,6 +352,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         )
       }
 
+      const imapDeploymentCondition =
+        provider === 'imap'
+          ? workflowRecord.deploymentVersionId
+            ? eq(webhook.deploymentVersionId, workflowRecord.deploymentVersionId)
+            : isNull(webhook.deploymentVersionId)
+          : undefined
       const ownExisting = await db
         .select({ id: webhook.id })
         .from(webhook)
@@ -343,7 +365,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           and(
             eq(webhook.path, finalPath),
             eq(webhook.workflowId, workflowId),
-            isNull(webhook.archivedAt)
+            isNull(webhook.archivedAt),
+            imapDeploymentCondition
           )
         )
         .limit(1)
@@ -354,7 +377,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     let savedWebhook: any = null
     let existingWebhook: any = null
-    const originalProviderConfig = providerConfig || {}
+    /**
+     * `userId` is server-owned: the polling token resolver falls back to that
+     * user's own OAuth account when no credential is set. It is neither accepted
+     * from the client nor carried forward from a stored row; Gmail and Outlook
+     * polling setup derive it again from the credential after the save.
+     */
+    const originalProviderConfig: Record<string, unknown> = omit(providerConfig || {}, ['userId'])
     let resolvedProviderConfig = await resolveEnvVarsInObject(
       originalProviderConfig,
       userId,
@@ -369,7 +398,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       providerConfig: providerConfigOverride,
     })
 
-    const userProvided = originalProviderConfig as Record<string, unknown>
+    const userProvided = originalProviderConfig
     const configToSave: Record<string, unknown> = { ...userProvided }
 
     if (targetWebhookId) {
@@ -381,15 +410,95 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       existingWebhook = existingRows[0] || null
     }
 
+    /**
+     * permission-group-enforced: triggers.webhook — a raw upsert handler with no
+     * application operation to declare the capability on, so it is asserted
+     * here.
+     *
+     * Creation and reactivation, because both end with a workflow newly
+     * reachable from an inbound webhook: this upsert always writes
+     * `isActive: true`, so re-saving a dormant webhook turns it back on exactly
+     * as `PATCH /api/webhooks/[id]` would, and that route already gates the same
+     * transition.
+     *
+     * Re-saving an already-active webhook is not gated. It changes the config of
+     * an endpoint that is already reachable and adds no exposure, and refusing
+     * it would strand a member unable to repair a live integration — the same
+     * reason inbound delivery is never gated. Inbound delivery runs with no
+     * session to resolve a group against, and refusing there would break live
+     * integrations at the provider rather than in Sim. Removing existing
+     * exposure stays a deliberate act of deleting or deactivating the webhook.
+     */
+    if (!existingWebhook || existingWebhook.isActive === false) {
+      const withheld = workflowRecord.workspaceId
+        ? await isWorkspaceCapabilityWithheld(
+            userId,
+            workflowRecord.workspaceId,
+            'triggers.webhook'
+          )
+        : false
+      if (withheld) {
+        logger.warn(
+          `[${requestId}] Webhook ${existingWebhook ? 'reactivation' : 'creation'} blocked by permission group`,
+          {
+            userId,
+            workflowId,
+          }
+        )
+        return NextResponse.json({ error: capabilityRefusal('triggers.webhook') }, { status: 403 })
+      }
+    }
+
     const shouldRecreateSubscription =
       existingWebhook &&
       shouldRecreateExternalWebhookSubscription({
         previousProvider: existingWebhook.provider as string,
         nextProvider: provider,
-        previousConfig: ((existingWebhook.providerConfig as Record<string, unknown>) ||
-          {}) as Record<string, unknown>,
+        previousConfig: toRecord(existingWebhook.providerConfig),
         nextConfig: resolvedProviderConfig,
       })
+
+    /**
+     * Subscription handlers, pollers, and subscription cleanup look `credentialId`
+     * up by id alone and mint tokens as its owner, so every credential this save
+     * acts with must be usable by the actor in the workflow's workspace before
+     * anything is subscribed, cleaned up, or saved: the requested one, and the
+     * stored one when it is merged back (the request omits `credentialId`) or
+     * cleans up the previous subscription (recreation).
+     */
+    const usesStoredCredential =
+      existingWebhook && (shouldRecreateSubscription || !('credentialId' in originalProviderConfig))
+    const credentialIds = [
+      originalProviderConfig.credentialId,
+      usesStoredCredential ? existingWebhook.providerConfig?.credentialId : undefined,
+    ].filter((id) => id != null && id !== '')
+
+    /** The row stores the unresolved text, so only a literal credential id can be authorized. */
+    if (
+      resolvedProviderConfig.credentialId !== originalProviderConfig.credentialId ||
+      !credentialIds.every((id): id is string => typeof id === 'string')
+    ) {
+      return NextResponse.json(
+        { error: 'providerConfig.credentialId must be a literal credential id' },
+        { status: 400 }
+      )
+    }
+
+    for (const credentialId of new Set(credentialIds)) {
+      const credentialAccess = await authorizeCredentialUseForAuth(
+        { success: true, userId, authType: AuthType.SESSION },
+        { credentialId, workflowId }
+      )
+      if (!credentialAccess.ok) {
+        logger.warn(`[${requestId}] Webhook credential reference denied`, {
+          userId,
+          workflowId,
+          credentialId,
+          reason: credentialAccess.error,
+        })
+        return NextResponse.json({ error: credentialAccess.error }, { status: 403 })
+      }
+    }
 
     if (!existingWebhook || shouldRecreateSubscription) {
       try {
@@ -415,12 +524,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         )
       }
     } else {
-      mergeNonUserFields(
-        configToSave,
-        (existingWebhook.providerConfig as Record<string, unknown>) || {},
-        userProvided
-      )
+      mergeNonUserFields(configToSave, toRecord(existingWebhook.providerConfig), userProvided)
     }
+    configToSave.userId = undefined
 
     try {
       if (targetWebhookId) {
@@ -435,6 +541,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           .set({
             blockId,
             provider,
+            ...(provider === 'imap'
+              ? { deploymentVersionId: workflowRecord.deploymentVersionId ?? null }
+              : {}),
             providerConfig: configToSave,
             isActive: true,
             updatedAt: new Date(),
@@ -455,6 +564,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           .values({
             id: webhookId,
             workflowId,
+            ...(provider === 'imap'
+              ? { deploymentVersionId: workflowRecord.deploymentVersionId ?? null }
+              : {}),
             blockId,
             path: finalPath,
             provider,
@@ -506,6 +618,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           const success = await pollingHandler.configurePolling({
             webhook: savedWebhook,
             requestId,
+            userId,
+            workspaceId:
+              typeof workflowRecord.workspaceId === 'string' ? workflowRecord.workspaceId : null,
+            deploymentVersionId: savedWebhook.deploymentVersionId ?? null,
           })
 
           if (!success) {

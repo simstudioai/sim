@@ -1,4 +1,4 @@
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 import {
   WINDCHILL_SINGLE_MUTATION_OUTPUTS,
   type WindchillParams,
@@ -9,7 +9,7 @@ import {
   transformWindchillInternalResponse,
 } from '@/tools/windchill/utils'
 
-export const windchillReviseDocumentTool: ToolConfig<WindchillParams, WindchillResponse> = {
+export const windchillReviseDocumentTool: InternalToolConfig<WindchillParams, WindchillResponse> = {
   id: 'windchill_revise_document',
   name: 'Windchill Revise Document',
   description: 'Create a new revision of one document',
@@ -47,12 +47,8 @@ export const windchillReviseDocumentTool: ToolConfig<WindchillParams, WindchillR
       description: 'Optional target revision identifier when override-on-revise is enabled',
     },
   },
-  request: {
-    url: '/api/tools/windchill',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => buildWindchillInternalBody('windchill_revise_document', params),
-    internalAuth: 'executor_delegation',
+  operation: {
+    input: (params) => buildWindchillInternalBody('windchill_revise_document', params),
   },
   transformResponse: (response) =>
     transformWindchillInternalResponse('windchill_revise_document', response),

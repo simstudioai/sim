@@ -4,7 +4,6 @@
  * is the connection-string auth mode documented as a standalone alternative
  * across .env.example, helm/sim/values.yaml, and env.ts.
  *
- * @vitest-environment node
  *
  * Under `isolate: false` the storage-service module may already be cached from
  * another test file, bound to the real `@/lib/uploads/config` namespace, so a
@@ -14,7 +13,7 @@
  * Azure SDK are pulled in via dynamic `import()` at call time, so regular
  * `vi.mock` registrations still apply to them.
  */
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 import * as uploadsConfig from '@/lib/uploads/config'
 import { headObject } from '@/lib/uploads/core/storage-service'
 
@@ -51,15 +50,7 @@ setFlag('USE_S3_STORAGE', false)
 setFlag('USE_BLOB_STORAGE', true)
 setFlag('USE_GCS_STORAGE', false)
 
-const getStorageConfigSpy = vi
-  .spyOn(uploadsConfig, 'getStorageConfig')
-  // Connection-string-only: accountName/accountKey intentionally absent.
-  .mockReturnValue({
-    containerName: 'workspace-files',
-    accountName: undefined,
-    accountKey: undefined,
-    connectionString: CONNECTION_STRING,
-  })
+let getStorageConfigSpy: MockInstance<typeof uploadsConfig.getStorageConfig>
 
 afterAll(() => {
   for (const [flag, value] of originalFlagValues) {
@@ -70,8 +61,8 @@ afterAll(() => {
 
 describe('Azure Blob storage — connection-string-only auth', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    getStorageConfigSpy.mockReturnValue({
+    /** Connection-string-only: accountName/accountKey intentionally absent. */
+    getStorageConfigSpy = vi.spyOn(uploadsConfig, 'getStorageConfig').mockReturnValue({
       containerName: 'workspace-files',
       accountName: undefined,
       accountKey: undefined,

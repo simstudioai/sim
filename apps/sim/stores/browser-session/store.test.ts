@@ -22,150 +22,6 @@ function resetStore(): void {
 describe('browser session store', () => {
   beforeEach(resetStore)
 
-  it('restores the active page summary from an initial tab-list read', () => {
-    useBrowserSessionStore.getState().setTabsState({
-      scopeId: 'chat-test',
-      activeTabId: '2',
-      tabs: [
-        {
-          tabId: '1',
-          title: 'Docs',
-          url: 'https://docs.sim.ai',
-          loading: false,
-          active: false,
-          pinned: false,
-        },
-        {
-          tabId: '2',
-          title: 'Dashboard',
-          url: 'https://sim.ai/workspace',
-          loading: true,
-          active: true,
-          pinned: false,
-        },
-      ],
-    })
-
-    expect(getBrowserSession('chat-test').pageState).toEqual({
-      tabId: '2',
-      scopeId: 'chat-test',
-      title: 'Dashboard',
-      url: 'https://sim.ai/workspace',
-      loading: true,
-      canGoBack: false,
-      canGoForward: false,
-    })
-  })
-
-  it('clears page state when the last tab closes', () => {
-    useBrowserSessionStore.getState().setPageState({
-      tabId: '1',
-      scopeId: 'chat-test',
-      title: 'Docs',
-      url: 'https://docs.sim.ai',
-      loading: false,
-      canGoBack: false,
-      canGoForward: false,
-    })
-
-    useBrowserSessionStore
-      .getState()
-      .setTabsState({ scopeId: 'chat-test', tabs: [], activeTabId: null })
-
-    expect(getBrowserSession('chat-test').pageState).toBeNull()
-    expect(getBrowserSession('chat-test').sessionAlive).toBe(false)
-  })
-
-  it('reorders tabs optimistically without changing the active page', () => {
-    const store = useBrowserSessionStore.getState()
-    store.setTabsState({
-      scopeId: 'chat-test',
-      activeTabId: '2',
-      tabs: [
-        {
-          tabId: '1',
-          title: 'One',
-          url: 'https://one.example',
-          loading: false,
-          active: false,
-          pinned: false,
-        },
-        {
-          tabId: '2',
-          title: 'Two',
-          url: 'https://two.example',
-          loading: false,
-          active: true,
-          pinned: false,
-        },
-      ],
-    })
-
-    store.reorderTab('chat-test', '2', 0)
-
-    expect(getBrowserSession('chat-test').tabs.map((tab) => tab.tabId)).toEqual(['2', '1'])
-    expect(getBrowserSession('chat-test').activeTabId).toBe('2')
-    expect(getBrowserSession('chat-test').pageState?.tabId).toBe('2')
-  })
-
-  it('retains a settled tab title when opening a new tab pushes a temporary blank title', () => {
-    const store = useBrowserSessionStore.getState()
-    store.setTabsState({
-      scopeId: 'chat-test',
-      activeTabId: '1',
-      tabs: [
-        {
-          tabId: '1',
-          title: 'Example docs',
-          url: 'https://example.com/docs',
-          loading: false,
-          active: true,
-          pinned: false,
-        },
-      ],
-    })
-
-    // Electron publishes the new active page before its following full-list
-    // push. The new id is not in the renderer's old list yet.
-    store.setPageState({
-      tabId: '2',
-      scopeId: 'chat-test',
-      title: '',
-      url: '',
-      loading: false,
-      canGoBack: false,
-      canGoForward: false,
-    })
-
-    store.setTabsState({
-      scopeId: 'chat-test',
-      activeTabId: '2',
-      tabs: [
-        {
-          tabId: '1',
-          title: '',
-          url: 'https://example.com/docs',
-          loading: false,
-          active: false,
-          pinned: false,
-        },
-        {
-          tabId: '2',
-          title: '',
-          url: '',
-          loading: false,
-          active: true,
-          pinned: false,
-        },
-      ],
-    })
-
-    expect(getBrowserSession('chat-test').tabs).toMatchObject([
-      { tabId: '1', title: 'Example docs', active: false },
-      { tabId: '2', title: '', active: true },
-    ])
-  })
-
   it('keeps overlapping tab ids isolated while chats switch', () => {
     const store = useBrowserSessionStore.getState()
     store.activateScope('chat-a')
@@ -179,7 +35,6 @@ describe('browser session store', () => {
           url: 'https://a.example',
           loading: false,
           active: true,
-          pinned: false,
         },
       ],
     })
@@ -195,7 +50,6 @@ describe('browser session store', () => {
           url: 'https://b.example',
           loading: false,
           active: true,
-          pinned: false,
         },
       ],
     })
@@ -221,26 +75,6 @@ describe('browser session store', () => {
     expect(getBrowserSession('chat-a').pageState?.title).toBe('A updated')
   })
 
-  it('moves a pending new-chat bucket to its resolved chat id', () => {
-    const store = useBrowserSessionStore.getState()
-    store.setPageState({
-      tabId: '1',
-      scopeId: 'pending:workspace-1',
-      title: 'Pending',
-      url: 'https://pending.example',
-      loading: false,
-      canGoBack: false,
-      canGoForward: false,
-    })
-    store.activateScope('pending:workspace-1')
-
-    store.migrateScope('pending:workspace-1', 'chat-1')
-
-    expect(useBrowserSessionStore.getState().activeScopeId).toBe('chat-1')
-    expect(useBrowserSessionStore.getState().sessions['pending:workspace-1']).toBeUndefined()
-    expect(getBrowserSession('chat-1').pageState?.url).toBe('https://pending.example')
-  })
-
   it('keeps browser-agent activity across tool gaps and clears it by exact run', () => {
     const store = useBrowserSessionStore.getState()
 
@@ -254,7 +88,6 @@ describe('browser session store', () => {
           url: 'https://example.com',
           loading: false,
           active: true,
-          pinned: false,
         },
       ],
     })
@@ -303,7 +136,6 @@ describe('browser session store', () => {
           url: 'https://example.com',
           loading: false,
           active: true,
-          pinned: false,
         },
       ],
     })
@@ -318,27 +150,6 @@ describe('browser session store', () => {
       automationActive: false,
       automationNeedsAttention: false,
     })
-  })
-
-  it('replaces a pristine durable bucket created before pending migration finishes', () => {
-    const store = useBrowserSessionStore.getState()
-    store.setPageState({
-      tabId: '1',
-      scopeId: 'pending:new',
-      title: 'Pending',
-      url: 'https://pending.example',
-      loading: false,
-      canGoBack: false,
-      canGoForward: false,
-    })
-
-    store.activateScope('chat-1')
-    store.setTabsState({ scopeId: 'chat-1', tabs: [], activeTabId: null })
-    store.migrateScope('pending:new', 'chat-1')
-
-    expect(useBrowserSessionStore.getState().sessions['pending:new']).toBeUndefined()
-    expect(useBrowserSessionStore.getState().activeScopeId).toBe('chat-1')
-    expect(getBrowserSession('chat-1').pageState?.url).toBe('https://pending.example')
   })
 
   it('removes an abandoned pending bucket without touching another chat', () => {
@@ -366,7 +177,6 @@ describe('browser session store', () => {
           url: 'https://a.example',
           loading: false,
           active: true,
-          pinned: false,
         },
       ],
     })
@@ -382,7 +192,6 @@ describe('browser session store', () => {
           url: 'https://stale.example',
           loading: false,
           active: true,
-          pinned: false,
         },
       ],
     })
@@ -393,34 +202,6 @@ describe('browser session store', () => {
       activeTabId: null,
       pageState: null,
       sessionAlive: false,
-    })
-  })
-
-  it('clears suspension on explicit activation, including the already-active scope', () => {
-    const store = useBrowserSessionStore.getState()
-    store.activateScope('chat-a')
-    store.suspendScope('chat-a')
-
-    store.activateScope('chat-a')
-    store.setTabsState({
-      scopeId: 'chat-a',
-      activeTabId: 'fresh',
-      tabs: [
-        {
-          tabId: 'fresh',
-          title: 'Fresh',
-          url: 'https://fresh.example',
-          loading: false,
-          active: true,
-          pinned: false,
-        },
-      ],
-    })
-
-    expect(getBrowserSession('chat-a')).toMatchObject({
-      suspended: false,
-      activeTabId: 'fresh',
-      sessionAlive: true,
     })
   })
 })

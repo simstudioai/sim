@@ -160,7 +160,6 @@ export function buildSkillsSystemPromptSection(skills: SkillMetadata[]): string 
 export function buildLoadSkillTool(skillNames: string[]) {
   return {
     id: 'load_skill',
-    name: 'load_skill',
     description: `Load a skill to get specialized instructions. Available skills: ${skillNames.join(', ')}`,
     params: {},
     parameters: {

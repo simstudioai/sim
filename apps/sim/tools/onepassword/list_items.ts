@@ -2,9 +2,12 @@ import type {
   OnePasswordListItemsParams,
   OnePasswordListItemsResponse,
 } from '@/tools/onepassword/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listItemsTool: ToolConfig<OnePasswordListItemsParams, OnePasswordListItemsResponse> = {
+export const listItemsTool: InternalToolConfig<
+  OnePasswordListItemsParams,
+  OnePasswordListItemsResponse
+> = {
   id: 'onepassword_list_items',
   name: '1Password List Items',
   description: 'List items in a vault. Returns summaries without field values.',
@@ -48,11 +51,8 @@ export const listItemsTool: ToolConfig<OnePasswordListItemsParams, OnePasswordLi
     },
   },
 
-  request: {
-    url: '/api/tools/onepassword/list-items',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       connectionMode: params.connectionMode,
       serviceAccountToken: params.serviceAccountToken,
       serverUrl: params.serverUrl,

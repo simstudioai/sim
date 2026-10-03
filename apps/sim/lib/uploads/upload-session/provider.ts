@@ -52,7 +52,8 @@ export type { UploadStorageProvider } from '@/lib/uploads/upload-session/types'
  * Multipart parts are re-signed on demand by the per-surface `.../parts`
  * endpoints, so a long-lived multipart session always outlives its part URLs
  * and recovers by asking for new ones. A whole-object PUT has no such endpoint
- * and needs none: it is size-capped by `UPLOAD_SESSION_PUT_MAX_BYTES`, is
+ * and needs none: it is size-capped by the provider's single-PUT ceiling
+ * (`UPLOAD_SESSION_PUT_MAX_BYTES`, or `UPLOAD_SESSION_LOCAL_PUT_MAX_BYTES` for `local`), is
  * issued and used within one client call, and is not resumable — an expired PUT
  * URL and an interrupted PUT have the identical recovery of starting a new
  * session. Nothing durable is written in either case, because the transfer is
@@ -139,7 +140,9 @@ export async function initiateMultipartProviderUpload(params: {
     return { provider, providerUploadId: result.uploadId }
   }
   if (provider === 'gcs') {
-    const { initiateGcsMultipartUpload } = await import('@/lib/uploads/providers/gcs/client')
+    const { initiateGcsMultipartUpload } = await import(
+      '@/lib/uploads/providers/google-cloud-storage/client'
+    )
     const result = await initiateGcsMultipartUpload({
       fileName: params.fileName,
       contentType: params.contentType,
@@ -228,7 +231,9 @@ export async function createPutProviderTransfer(params: {
     })
     return { method: 'put', ...transfer, expiresAt: signedExpiresAt }
   }
-  const { getGcsPresignedUploadUrl } = await import('@/lib/uploads/providers/gcs/client')
+  const { getGcsPresignedUploadUrl } = await import(
+    '@/lib/uploads/providers/google-cloud-storage/client'
+  )
   const transfer = await getGcsPresignedUploadUrl(
     params.key,
     params.contentType,
@@ -306,7 +311,9 @@ export async function getMultipartProviderPartUrls(params: {
       expiresAt,
     }))
   }
-  const { getGcsMultipartPartUrls } = await import('@/lib/uploads/providers/gcs/client')
+  const { getGcsMultipartPartUrls } = await import(
+    '@/lib/uploads/providers/google-cloud-storage/client'
+  )
   const urls = await getGcsMultipartPartUrls(
     params.key,
     params.providerUploadId,
@@ -340,7 +347,9 @@ export async function listMultipartProviderParts(params: {
     const { listMultipartParts } = await import('@/lib/uploads/providers/blob/client')
     return listMultipartParts(params.key, createBlobConfig(config))
   }
-  const { listGcsMultipartParts } = await import('@/lib/uploads/providers/gcs/client')
+  const { listGcsMultipartParts } = await import(
+    '@/lib/uploads/providers/google-cloud-storage/client'
+  )
   return listGcsMultipartParts(params.key, params.providerUploadId, createGcsConfig(config))
 }
 
@@ -396,7 +405,9 @@ export async function completeMultipartProviderUpload(params: {
     )
     return
   }
-  const { completeGcsMultipartUpload } = await import('@/lib/uploads/providers/gcs/client')
+  const { completeGcsMultipartUpload } = await import(
+    '@/lib/uploads/providers/google-cloud-storage/client'
+  )
   await completeGcsMultipartUpload(
     params.key,
     params.providerUploadId,
@@ -424,8 +435,8 @@ export async function headProviderObject(params: {
         ? await import('@/lib/uploads/providers/blob/client').then(({ headBlobObject }) =>
             headBlobObject(params.key, createBlobConfig(config))
           )
-        : await import('@/lib/uploads/providers/gcs/client').then(({ headGcsObject }) =>
-            headGcsObject(params.key, createGcsConfig(config))
+        : await import('@/lib/uploads/providers/google-cloud-storage/client').then(
+            ({ headGcsObject }) => headGcsObject(params.key, createGcsConfig(config))
           )
   if (!head) return null
   if (!head.contentType || !head.uploadId || !head.version) {
@@ -468,7 +479,9 @@ export async function deleteProviderObjectVersion(params: {
     })
     return
   }
-  const { deleteGcsObjectVersion } = await import('@/lib/uploads/providers/gcs/client')
+  const { deleteGcsObjectVersion } = await import(
+    '@/lib/uploads/providers/google-cloud-storage/client'
+  )
   await deleteGcsObjectVersion({
     key: params.key,
     generation: params.version,
@@ -501,7 +514,9 @@ export async function abortProviderUpload(params: {
       const { abortMultipartUpload } = await import('@/lib/uploads/providers/blob/client')
       await abortMultipartUpload(params.key, params.uploadId, createBlobConfig(config))
     } else {
-      const { abortGcsMultipartUpload } = await import('@/lib/uploads/providers/gcs/client')
+      const { abortGcsMultipartUpload } = await import(
+        '@/lib/uploads/providers/google-cloud-storage/client'
+      )
       await abortGcsMultipartUpload(params.key, params.providerUploadId, createGcsConfig(config))
     }
   }
@@ -514,7 +529,9 @@ export async function writeLocalPutObject(params: {
   expectedSize: number
   contentType: string
   metadata: Record<string, string>
+  signal?: AbortSignal
 }): Promise<void> {
+  params.signal?.throwIfAborted()
   const { Readable, Transform } = await import('node:stream')
   const destination = localObjectPath(params.key)
   const { object: temporary, metadata: temporaryMetadata } = localStagedPaths(params.uploadId)
@@ -538,8 +555,10 @@ export async function writeLocalPutObject(params: {
     await pipeline(
       Readable.fromWeb(params.body as Parameters<typeof Readable.fromWeb>[0]),
       counter,
-      createWriteStream(temporary, { flags: 'wx' })
+      createWriteStream(temporary, { flags: 'wx' }),
+      { signal: params.signal }
     )
+    params.signal?.throwIfAborted()
     if (bytes !== params.expectedSize) {
       throw new LocalUploadBodyError(`Upload has ${bytes} bytes; expected ${params.expectedSize}`)
     }
@@ -548,6 +567,7 @@ export async function writeLocalPutObject(params: {
       contentType: params.contentType,
       metadata: { ...params.metadata, uploadId: params.uploadId },
     })
+    params.signal?.throwIfAborted()
     await publishLocalObject(
       temporary,
       temporaryMetadata,
@@ -559,6 +579,7 @@ export async function writeLocalPutObject(params: {
       rm(temporary, { force: true }),
       rm(temporaryMetadata, { force: true }),
     ])
+    params.signal?.throwIfAborted()
     if (error instanceof LocalUploadBodyError) throw error
     throw new Error(getErrorMessage(error, 'Failed to store PUT upload'), { cause: error })
   }

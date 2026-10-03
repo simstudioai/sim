@@ -1,0 +1,7 @@
+# Helm removes a key from the merged values when it is overridden with null.
+app:
+  envDefaults:
+    FREE_TABLES_LIMIT: null
+    FREE_TABLE_ROWS_LIMIT: null
+  env:
+    FREE_STORAGE_LIMIT_GB: null

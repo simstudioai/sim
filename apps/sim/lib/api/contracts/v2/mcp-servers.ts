@@ -177,7 +177,7 @@ export const v2McpServerDeleteDataSchema = z
 export type V2McpServerDeleteData = z.output<typeof v2McpServerDeleteDataSchema>
 
 export const v2McpServerParamsSchema = z.object({
-  id: nonEmptyIdSchema.describe('Unique MCP server identifier.'),
+  mcpServerId: nonEmptyIdSchema.describe('Unique MCP server identifier.'),
 })
 export type V2McpServerParams = z.output<typeof v2McpServerParamsSchema>
 
@@ -217,9 +217,7 @@ export const v2CreateMcpServerBodySchema = z
       .describe('Optional server description.'),
     transport: mcpTransportSchema
       .optional()
-      .describe(
-        'Transport used to communicate with the server. Applied server-side as `streamable-http` when omitted on create.'
-      )
+      .describe('Transport protocol. Defaults to `streamable-http` on creation.')
       .meta({ default: 'streamable-http' }),
     url: v2McpServerUrlSchema,
     /**
@@ -247,9 +245,7 @@ export const v2CreateMcpServerBodySchema = z
       .min(1000, 'timeout must be at least 1000ms')
       .max(300000, 'timeout must be at most 300000ms')
       .optional()
-      .describe(
-        'Per-request timeout in milliseconds. Applied server-side as 30000 when omitted on create.'
-      )
+      .describe('Per-request timeout in milliseconds. Defaults to 30000 on creation.')
       .meta({ default: 30_000 }),
     retries: z
       .number()
@@ -257,14 +253,12 @@ export const v2CreateMcpServerBodySchema = z
       .min(0, 'retries cannot be negative')
       .max(10, 'retries must be at most 10')
       .optional()
-      .describe('Number of retries per request. Applied server-side as 3 when omitted on create.')
+      .describe('Number of retries per request. Defaults to 3 on creation.')
       .meta({ default: 3 }),
     enabled: z
       .boolean()
       .optional()
-      .describe(
-        'Whether the server tools are available to workflows. Applied server-side as true when omitted on create.'
-      )
+      .describe("Whether workflows can use the server's tools. Defaults to true on creation.")
       .meta({ default: true }),
     oauthClientId: z
       .string()
@@ -367,7 +361,7 @@ export const v2ListMcpServerToolsQuerySchema = v2McpServerWorkspaceQuerySchema
       .optional()
       .default(false)
       .describe(
-        'Bypass the short-lived per-workspace tool cache and reconnect under your own credentials. A cached result reflects whichever workspace member last ran discovery, so this is the only way to pick up a tool added since then; it costs a live round trip.'
+        "Refresh tools using your credentials. Otherwise results may reuse another workspace member's recent discovery and omit newly added tools."
       ),
   })
   .strict()
@@ -404,7 +398,7 @@ export const v2CreateMcpServerContract = defineRouteContract({
 
 export const v2GetMcpServerContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/mcp-servers/[id]',
+  path: '/api/v2/mcp-servers/[mcpServerId]',
   params: v2McpServerParamsSchema,
   query: v2McpServerWorkspaceQuerySchema,
   response: {
@@ -415,7 +409,7 @@ export const v2GetMcpServerContract = defineRouteContract({
 
 export const v2UpdateMcpServerContract = defineRouteContract({
   method: 'PATCH',
-  path: '/api/v2/mcp-servers/[id]',
+  path: '/api/v2/mcp-servers/[mcpServerId]',
   query: noInputSchema,
   params: v2McpServerParamsSchema,
   body: v2UpdateMcpServerBodySchema,
@@ -427,7 +421,7 @@ export const v2UpdateMcpServerContract = defineRouteContract({
 
 export const v2DeleteMcpServerContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/v2/mcp-servers/[id]',
+  path: '/api/v2/mcp-servers/[mcpServerId]',
   params: v2McpServerParamsSchema,
   query: v2McpServerWorkspaceQuerySchema,
   response: {
@@ -444,7 +438,7 @@ export const v2DeleteMcpServerContract = defineRouteContract({
  */
 export const v2ListMcpServerToolsContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/mcp-servers/[id]/tools',
+  path: '/api/v2/mcp-servers/[mcpServerId]/tools',
   params: v2McpServerParamsSchema,
   query: v2ListMcpServerToolsQuerySchema,
   response: {

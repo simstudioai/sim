@@ -1,5 +1,47 @@
+import { escapeRegExp } from '@sim/utils/string'
 import { transformTable } from '@/tools/shared/table'
 import type { TableRow } from '@/tools/types'
+
+const FIRST_PARTY_API_HOST_REWRITES: Readonly<Record<string, string>> = {
+  'https://sim.ai': 'www.sim.ai',
+  'https://staging.sim.ai': 'www.staging.sim.ai',
+  'https://dev.sim.ai': 'www.dev.sim.ai',
+}
+const CREDENTIAL_HEADER_NAMES = new Set([
+  'authorization',
+  'proxy-authorization',
+  'cookie',
+  'x-api-key',
+  'api-key',
+  'apikey',
+  'x-auth-token',
+  'x-access-token',
+])
+const CREDENTIAL_HEADER_SEGMENT =
+  /(^|[-_])(?:api[-_]?key|auth(?:orization)?|access[-_]?token|token|cookie|secret)(?:$|[-_])/i
+
+/** Returns custom header names that conventionally carry credentials. */
+export function getCredentialHeaderNames(
+  headers: TableRow[] | Record<string, unknown> | string | null | undefined
+): string[] {
+  return Object.keys(transformTable(headers ?? null)).filter((name) => {
+    const normalized = name.toLowerCase()
+    return CREDENTIAL_HEADER_NAMES.has(normalized) || CREDENTIAL_HEADER_SEGMENT.test(normalized)
+  })
+}
+
+/** Avoids Sim's environment-specific apex-to-www redirects for first-party API requests. */
+export function canonicalizeFirstPartyApiUrl(url: string): string {
+  try {
+    const parsed = new URL(url)
+    const canonicalHost = FIRST_PARTY_API_HOST_REWRITES[parsed.origin]
+    if (canonicalHost && (parsed.pathname === '/api' || parsed.pathname.startsWith('/api/'))) {
+      parsed.hostname = canonicalHost
+      return parsed.toString()
+    }
+  } catch {}
+  return url
+}
 
 /**
  * Creates a set of default headers used in HTTP requests.
@@ -41,6 +83,37 @@ export const getDefaultHeaders = (
 }
 
 /**
+ * A path parameter key must start like a JavaScript identifier, using the same character classes
+ * path-to-regexp uses for `:name` parameters. That excludes an empty key and one starting with a
+ * digit or `/`, the shapes that matched the scheme separator or a port; the rest of the key is left
+ * as callers use it.
+ */
+const PATH_PARAM_KEY = /^[$_\p{ID_Start}][^\s/?#]*$/u
+const PATH_PARAM_NAME_CONTINUE = '[$\\u200c\\u200d\\p{ID_Continue}]'
+
+/**
+ * Replaces the first `:key` placeholder for each path parameter with its URL-encoded value.
+ *
+ * A placeholder ends where an identifier would, so `:id` never matches inside `:idx`, and longer
+ * keys are substituted first, so `:user-id` is not consumed by a `user` key. A plain string replace
+ * let an empty key strip the scheme's colon (`https://` became `https//`), a numeric key rewrite a
+ * port, and `:id` match inside `:idx`.
+ */
+function substitutePathParams(url: string, pathParams: Record<string, string>): string {
+  const entries = Object.entries(pathParams)
+    .filter(([key]) => PATH_PARAM_KEY.test(key))
+    .sort(([a], [b]) => b.length - a.length)
+  let substituted = url
+  for (const [key, value] of entries) {
+    substituted = substituted.replace(
+      new RegExp(`:${escapeRegExp(key)}(?!${PATH_PARAM_NAME_CONTINUE})`, 'u'),
+      () => encodeURIComponent(value)
+    )
+  }
+  return substituted
+}
+
+/**
  * Processes a URL with path parameters and query parameters
  * @param url Base URL to process
  * @param pathParams Path parameters to replace in the URL
@@ -57,9 +130,7 @@ export const processUrl = (
   }
 
   if (pathParams) {
-    Object.entries(pathParams).forEach(([key, value]) => {
-      url = url.replace(`:${key}`, encodeURIComponent(value))
-    })
+    url = substitutePathParams(url, pathParams)
   }
 
   if (queryParams) {
@@ -80,5 +151,5 @@ export const processUrl = (
     }
   }
 
-  return url
+  return canonicalizeFirstPartyApiUrl(url)
 }

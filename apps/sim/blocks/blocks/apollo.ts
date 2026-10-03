@@ -3,12 +3,11 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { ApolloIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { ApolloResponse } from '@/tools/apollo/types'
 
 /** Identifies a person by email when available, otherwise by given name. */
 const PERSON_IDENTITY_FIELD = ['email', 'first_name'] as const
 
-export const ApolloBlock: BlockConfig<ApolloResponse> = {
+export const ApolloBlock: BlockConfig = {
   type: 'apollo',
   name: 'Apollo',
   description: 'Search, enrich, and manage contacts with Apollo.io',

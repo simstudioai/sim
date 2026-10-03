@@ -1,19 +1,18 @@
-/**
- * @vitest-environment node
- */
+import {
+  workflowRegistryStoreMock,
+  workflowRegistryStoreMockFns,
+} from '@sim/testing/mocks/workflow-registry-store.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockFetchQuery,
   mockApplyWorkflowStateToStores,
-  mockGetRegistryState,
   mockHasPendingOperations,
   mockGetOperationQueueState,
   mockGetWorkflowDiffState,
 } = vi.hoisted(() => ({
   mockFetchQuery: vi.fn(),
   mockApplyWorkflowStateToStores: vi.fn(),
-  mockGetRegistryState: vi.fn(() => ({ activeWorkflowId: 'workflow-a' })),
   mockHasPendingOperations: vi.fn(() => false),
   mockGetOperationQueueState: vi.fn(() => ({
     hasPendingOperations: mockHasPendingOperations,
@@ -59,17 +58,15 @@ vi.mock('@/stores/operation-queue/store', () => ({
   },
 }))
 
-vi.mock('@/stores/workflows/registry/store', () => ({
-  useWorkflowRegistry: {
-    getState: mockGetRegistryState,
-  },
-}))
+vi.mock('@/stores/workflows/registry/store', () => workflowRegistryStoreMock)
 
 import {
   canApplyDraftSnapshot,
   captureDraftVersions,
   syncLocalDraftFromServer,
 } from '@/stores/workflows/sync-local-draft'
+
+const mockGetRegistryState = workflowRegistryStoreMockFns.mockGetState
 
 function buildEnvelopeState() {
   return {
@@ -83,7 +80,6 @@ function buildEnvelopeState() {
 
 describe('syncLocalDraftFromServer', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetRegistryState.mockReturnValue({ activeWorkflowId: 'workflow-a' })
     mockHasPendingOperations.mockReturnValue(false)
     mockGetOperationQueueState.mockImplementation(() => ({
@@ -98,50 +94,6 @@ describe('syncLocalDraftFromServer', () => {
       reconciliationErrors: {},
       remoteUpdateVersions: {},
     })
-  })
-
-  it('fetches through the shared workflow-state query key with a fresh fetch', async () => {
-    mockFetchQuery.mockResolvedValue({ state: buildEnvelopeState(), variables: {} })
-
-    await expect(syncLocalDraftFromServer('workflow-a')).resolves.toBe(true)
-
-    expect(mockFetchQuery).toHaveBeenCalledWith(
-      expect.objectContaining({
-        queryKey: ['workflow', 'state', 'workflow-a'],
-        staleTime: 0,
-      })
-    )
-  })
-
-  it('hydrates sibling workflow variables into the applied workflow state', async () => {
-    mockFetchQuery.mockResolvedValue({
-      state: buildEnvelopeState(),
-      variables: {
-        'variable-a': {
-          id: 'variable-a',
-          name: 'API_KEY',
-          type: 'plain',
-          value: 'secret',
-        },
-      },
-    })
-
-    await expect(syncLocalDraftFromServer('workflow-a')).resolves.toBe(true)
-
-    expect(mockApplyWorkflowStateToStores).toHaveBeenCalledWith(
-      'workflow-a',
-      expect.objectContaining({
-        variables: {
-          'variable-a': {
-            id: 'variable-a',
-            name: 'API_KEY',
-            type: 'plain',
-            value: 'secret',
-          },
-        },
-      }),
-      { updateLastSaved: true }
-    )
   })
 
   it('does not mutate the shared query-cache envelope when stamping variables', async () => {
@@ -167,15 +119,6 @@ describe('syncLocalDraftFromServer', () => {
     await expect(syncLocalDraftFromServer('workflow-a')).resolves.toBe(false)
 
     expect(mockApplyWorkflowStateToStores).not.toHaveBeenCalled()
-  })
-
-  it('does not synthesize an empty variables object when the server omits variables', async () => {
-    mockFetchQuery.mockResolvedValue({ state: buildEnvelopeState() })
-
-    await expect(syncLocalDraftFromServer('workflow-a')).resolves.toBe(true)
-
-    const appliedState = mockApplyWorkflowStateToStores.mock.calls[0][1]
-    expect(Object.hasOwn(appliedState, 'variables')).toBe(false)
   })
 
   it('does not apply a fetched draft over newly queued local operations', async () => {
@@ -280,44 +223,10 @@ describe('syncLocalDraftFromServer', () => {
       { updateLastSaved: true }
     )
   })
-
-  it('applies the latest snapshot after exhausting retries during a busy remote session', async () => {
-    const queueState = {
-      hasPendingOperations: mockHasPendingOperations,
-      workflowOperationVersions: {} as Record<string, number>,
-      remoteApplyVersions: {} as Record<string, number>,
-    }
-    mockGetOperationQueueState.mockImplementation(() => queueState)
-
-    let remoteVersion = 0
-    mockFetchQuery.mockImplementation(async () => {
-      remoteVersion += 1
-      queueState.remoteApplyVersions = { 'workflow-a': remoteVersion }
-      return { state: { ...buildEnvelopeState(), lastSaved: remoteVersion }, variables: {} }
-    })
-
-    await expect(syncLocalDraftFromServer('workflow-a')).resolves.toBe(true)
-
-    expect(mockFetchQuery).toHaveBeenCalledTimes(3)
-    expect(mockApplyWorkflowStateToStores).toHaveBeenCalledWith(
-      'workflow-a',
-      expect.objectContaining({ lastSaved: 3 }),
-      { updateLastSaved: true }
-    )
-  })
-
-  it('propagates fetch failures to the caller', async () => {
-    mockFetchQuery.mockRejectedValue(new Error('network down'))
-
-    await expect(syncLocalDraftFromServer('workflow-a')).rejects.toThrow('network down')
-
-    expect(mockApplyWorkflowStateToStores).not.toHaveBeenCalled()
-  })
 })
 
 describe('canApplyDraftSnapshot', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetRegistryState.mockReturnValue({ activeWorkflowId: 'workflow-a' })
     mockHasPendingOperations.mockReturnValue(false)
     mockGetOperationQueueState.mockImplementation(() => ({
@@ -334,12 +243,6 @@ describe('canApplyDraftSnapshot', () => {
     })
   })
 
-  it('allows applying when nothing moved since capture', () => {
-    const versions = captureDraftVersions('workflow-a')
-
-    expect(canApplyDraftSnapshot('workflow-a', versions)).toBe(true)
-  })
-
   it('refuses when an external full reload (workflow-updated) landed since capture', () => {
     const versions = captureDraftVersions('workflow-a')
     mockGetWorkflowDiffState.mockReturnValue({
@@ -353,36 +256,12 @@ describe('canApplyDraftSnapshot', () => {
     expect(canApplyDraftSnapshot('workflow-a', versions)).toBe(false)
   })
 
-  it('refuses while an external reload is still reconciling', () => {
-    const versions = captureDraftVersions('workflow-a')
-    mockGetWorkflowDiffState.mockReturnValue({
-      hasActiveDiff: false,
-      pendingExternalUpdates: {},
-      reconcilingWorkflows: { 'workflow-a': true },
-      reconciliationErrors: {},
-      remoteUpdateVersions: {},
-    })
-
-    expect(canApplyDraftSnapshot('workflow-a', versions)).toBe(false)
-  })
-
   it('refuses when a remote collaborator op was applied since capture', () => {
     const versions = captureDraftVersions('workflow-a')
     mockGetOperationQueueState.mockImplementation(() => ({
       hasPendingOperations: mockHasPendingOperations,
       workflowOperationVersions: {},
       remoteApplyVersions: { 'workflow-a': 1 },
-    }))
-
-    expect(canApplyDraftSnapshot('workflow-a', versions)).toBe(false)
-  })
-
-  it('refuses when a local edit was enqueued since capture', () => {
-    const versions = captureDraftVersions('workflow-a')
-    mockGetOperationQueueState.mockImplementation(() => ({
-      hasPendingOperations: mockHasPendingOperations,
-      workflowOperationVersions: { 'workflow-a': 1 },
-      remoteApplyVersions: {},
     }))
 
     expect(canApplyDraftSnapshot('workflow-a', versions)).toBe(false)

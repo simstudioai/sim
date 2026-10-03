@@ -1,6 +1,11 @@
 import { createLogger } from '@sim/logger'
 import type { ServiceNowReadParams, ServiceNowReadResponse } from '@/tools/servicenow/types'
-import { createBasicAuthHeader } from '@/tools/servicenow/utils'
+import {
+  buildServiceNowHeaders,
+  normalizeInstanceUrl,
+  parseServiceNowResponse,
+  toRecordArray,
+} from '@/tools/servicenow/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ServiceNowReadRecordTool')
@@ -84,10 +89,7 @@ export const readRecordTool: ToolConfig<ServiceNowReadParams, ServiceNowReadResp
 
   request: {
     url: (params) => {
-      const baseUrl = params.instanceUrl.trim().replace(/\/$/, '')
-      if (!baseUrl) {
-        throw new Error('ServiceNow instance URL is required')
-      }
+      const baseUrl = normalizeInstanceUrl(params.instanceUrl)
       let url = `${baseUrl}/api/now/table/${params.tableName.trim()}`
 
       const queryParams = new URLSearchParams()
@@ -109,7 +111,7 @@ export const readRecordTool: ToolConfig<ServiceNowReadParams, ServiceNowReadResp
         queryParams.append('sysparm_limit', params.limit.toString())
       }
 
-      if (params.offset !== undefined && params.offset !== null) {
+      if (params.offset !== undefined && params.offset !== null && String(params.offset) !== '') {
         queryParams.append('sysparm_offset', params.offset.toString())
       }
 
@@ -125,27 +127,20 @@ export const readRecordTool: ToolConfig<ServiceNowReadParams, ServiceNowReadResp
       return queryString ? `${url}?${queryString}` : url
     },
     method: 'GET',
-    headers: (params) => {
-      if (!params.username || !params.password) {
-        throw new Error('ServiceNow username and password are required')
-      }
-      return {
-        Authorization: createBasicAuthHeader(params.username, params.password),
-        Accept: 'application/json',
-      }
-    },
+    headers: (params) => buildServiceNowHeaders(params),
   },
 
   transformResponse: async (response: Response) => {
     try {
-      const data = await response.json()
+      const data = await parseServiceNowResponse(response)
 
-      if (!response.ok) {
-        const error = data.error || data
-        throw new Error(typeof error === 'string' ? error : error.message || JSON.stringify(error))
-      }
-
-      const records = Array.isArray(data.result) ? data.result : [data.result]
+      /**
+       * `toRecordArray` drops non-object members instead of wrapping them. The
+       * old `[data.result]` wrap turned an envelope with no `result` into a
+       * one-element `[null]` array reported as `recordCount: 1`, so a caller
+       * reading `records[0].sys_id` crashed on a response that had said success.
+       */
+      const records = toRecordArray(data.result)
 
       return {
         success: true,

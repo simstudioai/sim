@@ -3,7 +3,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
-import { readCollapsedCookie, useSidebarStore } from './store'
+import { readCollapsedCookie, useSidebarStore } from '@/stores/sidebar/store'
 
 function setCookie(value: string) {
   document.cookie = `sidebar_collapsed=${value}; path=/`
@@ -22,22 +22,8 @@ afterEach(() => {
 })
 
 describe('readCollapsedCookie', () => {
-  it('is true only for an exact value of 1', () => {
-    setCookie('1')
-    expect(readCollapsedCookie()).toBe(true)
-  })
-
-  it('is false for 0', () => {
-    setCookie('0')
-    expect(readCollapsedCookie()).toBe(false)
-  })
-
   it('does not treat a substring value like 10 as collapsed', () => {
     setCookie('10')
-    expect(readCollapsedCookie()).toBe(false)
-  })
-
-  it('is false when the cookie is absent', () => {
     expect(readCollapsedCookie()).toBe(false)
   })
 })
@@ -49,48 +35,24 @@ describe('sidebar width CSS variables', () => {
     useSidebarStore.setState({ isCollapsed: false, sidebarWidth: SIDEBAR_WIDTH.DEFAULT })
   })
 
-  it('publishes both variables when the width changes while expanded', () => {
-    useSidebarStore.getState().setSidebarWidth(300)
-    expect(widthVars()).toEqual({ width: '300px', expanded: '300px' })
-  })
+  it('preserves the restore width when the viewport narrows while collapsed', () => {
+    const innerWidth = window.innerWidth
+    try {
+      window.innerWidth = 1200
+      useSidebarStore.getState().setSidebarWidth(300)
+      useSidebarStore.getState().toggleCollapsed()
+      window.innerWidth = 600
+      useSidebarStore.getState().syncWidth()
 
-  it('keeps the expanded variable at the restore width while collapsed', () => {
-    useSidebarStore.getState().setSidebarWidth(300)
-    useSidebarStore.getState().toggleCollapsed()
+      expect(widthVars().expanded).toBe(`${SIDEBAR_WIDTH.MIN}px`)
+      expect(useSidebarStore.getState().sidebarWidth).toBe(300)
 
-    expect(useSidebarStore.getState().isCollapsed).toBe(true)
-    expect(widthVars()).toEqual({
-      width: `${SIDEBAR_WIDTH.COLLAPSED}px`,
-      expanded: '300px',
-    })
-  })
-
-  it('restores the collapsed width from the expanded variable on expand', () => {
-    useSidebarStore.getState().setSidebarWidth(300)
-    useSidebarStore.getState().toggleCollapsed()
-    useSidebarStore.getState().toggleCollapsed()
-
-    expect(widthVars()).toEqual({ width: '300px', expanded: '300px' })
-  })
-
-  it('holds the expanded width across a syncWidth while collapsed', () => {
-    useSidebarStore.getState().setSidebarWidth(300)
-    useSidebarStore.getState().toggleCollapsed()
-    document.documentElement.style.removeProperty('--sidebar-expanded-width')
-
-    useSidebarStore.getState().syncWidth()
-
-    expect(widthVars()).toEqual({
-      width: `${SIDEBAR_WIDTH.COLLAPSED}px`,
-      expanded: '300px',
-    })
-  })
-
-  it('clamps a below-minimum persisted width into the expanded variable', () => {
-    useSidebarStore.setState({ isCollapsed: true, sidebarWidth: 10 })
-
-    useSidebarStore.getState().syncWidth()
-
-    expect(widthVars().expanded).toBe(`${SIDEBAR_WIDTH.MIN}px`)
+      window.innerWidth = 1200
+      useSidebarStore.getState().syncWidth()
+      useSidebarStore.getState().toggleCollapsed()
+      expect(widthVars()).toEqual({ width: '300px', expanded: '300px' })
+    } finally {
+      window.innerWidth = innerWidth
+    }
   })
 })

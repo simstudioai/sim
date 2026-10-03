@@ -1,3 +1,5 @@
+import { isRecordLike } from '@sim/utils/object'
+import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 import { wizaHosting } from '@/tools/wiza/hosting'
 import type { WizaProspectSearchParams, WizaProspectSearchResponse } from '@/tools/wiza/types'
@@ -10,6 +12,7 @@ export const wizaProspectSearchTool: ToolConfig<
   name: 'Wiza Prospect Search',
   description: "Search Wiza's database of prospects using person, company, and financial filters",
   version: '1.0.0',
+  errorExtractor: ErrorExtractorId.WIZA_ERRORS,
 
   hosting: wizaHosting<WizaProspectSearchParams>(() => {
     // Prospect search returns profiles without contact data and consumes no credits;
@@ -155,12 +158,7 @@ export const wizaProspectSearchTool: ToolConfig<
         body.size = Math.max(0, Math.min(params.size, 30))
       }
 
-      if (
-        params.filters &&
-        typeof params.filters === 'object' &&
-        !Array.isArray(params.filters) &&
-        Object.keys(params.filters).length > 0
-      ) {
+      if (isRecordLike(params.filters) && Object.keys(params.filters).length > 0) {
         body.filters = params.filters
         return body
       }

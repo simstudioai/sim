@@ -14,15 +14,18 @@
  */
 
 /** Bun version mirrored from the root packageManager field. */
-export const PI_BUN_VERSION = '1.3.14'
+export const PI_BUN_VERSION = '1.4.2'
+
+/** Exact Pi version mirrored from the app dependencies and lockfile. */
+export const PI_PACKAGE_VERSION = '1.0.0'
 
 /** Exact global package versions mirrored from package.json and bun.lock. */
 export const PI_GLOBAL_NPM_PACKAGES = [
   `bun@${PI_BUN_VERSION}`,
-  '@earendil-works/pi-coding-agent@0.80.10',
-  '@earendil-works/pi-agent-core@0.80.10',
-  '@earendil-works/pi-ai@0.80.10',
-  '@earendil-works/pi-tui@0.80.10',
+  `@earendil-works/pi-coding-agent@${PI_PACKAGE_VERSION}`,
+  `@earendil-works/pi-agent-core@${PI_PACKAGE_VERSION}`,
+  `@earendil-works/pi-ai@${PI_PACKAGE_VERSION}`,
+  `@earendil-works/pi-tui@${PI_PACKAGE_VERSION}`,
 ] as const
 
 /**
@@ -46,7 +49,7 @@ export const PI_APT = [
 ] as const
 
 /**
- * Pi 0.80 requires Node >= 22.19 — higher than the Node 20 both the E2B base and
+ * Pi 1.0 requires Node >= 22.19 — higher than the Node 20 both the E2B base and
  * the other two sandbox images carry, so this image installs its own.
  */
 export const PI_NODE_MAJOR = 22
@@ -57,13 +60,6 @@ export const PI_NODE_VERSION_ASSERT =
 
 /** Fails the build loudly if the sandbox does not contain the repository's Bun version. */
 export const PI_BUN_VERSION_ASSERT = `test "$(bun --version)" = "${PI_BUN_VERSION}"`
-
-/**
- * The review tools run `python3 /workspace/sim-review-tools.py`
- * (`cloud-review-tools.ts:15`). E2B's `code-interpreter-v1` base ships Python, so
- * only the Daytona image has to provide it explicitly.
- */
-export const PI_REQUIRES_PYTHON3 = true
 
 /**
  * vCPU and RAM for the Pi sandbox, shared for the same reason the package lists

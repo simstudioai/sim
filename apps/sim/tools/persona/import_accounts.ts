@@ -3,9 +3,9 @@ import type {
   PersonaImportAccountsResponse,
 } from '@/tools/persona/types'
 import { IMPORTER_OUTPUT_PROPERTIES } from '@/tools/persona/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const personaImportAccountsTool: ToolConfig<
+export const personaImportAccountsTool: InternalToolConfig<
   PersonaImportAccountsParams,
   PersonaImportAccountsResponse
 > = {
@@ -30,13 +30,8 @@ export const personaImportAccountsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/persona/import-accounts',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       apiKey: params.apiKey,
       file: params.file,
     }),

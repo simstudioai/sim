@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toRecord } from '@sim/utils/object'
 import { NextResponse } from 'next/server'
 import { validateJiraSignature } from '@/lib/webhooks/providers/jira'
 import type {
@@ -30,7 +31,7 @@ export const confluenceHandler: WebhookProviderHandler = {
       extractPagePermissionsData,
       extractUserData,
     } = await import('@/triggers/confluence/utils')
-    const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
+    const providerConfig = toRecord(webhook.providerConfig)
     const triggerId = providerConfig.triggerId as string | undefined
     if (triggerId?.startsWith('confluence_comment_')) {
       return { input: extractCommentData(body) }

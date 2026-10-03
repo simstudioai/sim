@@ -4,7 +4,7 @@
  *
  * `apps/sim/tools/registry.ts` is a ~9,000-line barrel importing all 4,300+
  * tools. Each `ToolConfig` mixes plain data (`params`, `outputs`, `name`) with
- * closures (`request.headers`, `transformResponse`, `directExecution`,
+ * closures (`request.headers`, `transformResponse`,
  * `postProcess`), and it is those closures — and the SDK clients and API
  * helpers they reach — that make the barrel cost ~4,700 modules to compile.
  *
@@ -36,6 +36,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { deriveHostedApiKeySupport } from '../apps/sim/tools/hosted-api-key'
 import { tools } from '../apps/sim/tools/registry'
 import { hasToolId } from '../apps/sim/tools/tool-ids'
 import type { ToolConfig } from '../apps/sim/tools/types'
@@ -51,12 +52,22 @@ const OUTPUTS_PATH = resolve(GENERATED_DIR, 'tool-outputs.ts')
 /**
  * Fields copied into `tool-metadata.ts`. Every one must be plain data.
  *
- * Deliberately excluded: `request`, `transformResponse`, `directExecution`,
+ * Deliberately excluded: `request`, `transformResponse`,
  * `postProcess` (closures, and the whole reason the registry is expensive);
  * `hosting` and `schemaEnrichment` (contain predicates/`enrichSchema`, and are
  * only consumed server-side); `outputs` (emitted separately).
+ *
+ * `hosting` is excluded but not lost: `hostedApiKey` below carries the one bit
+ * of it a caller needs, derived into plain data.
  */
-const METADATA_FIELDS = ['name', 'description', 'version', 'params', 'oauth'] as const
+const METADATA_FIELDS = [
+  'name',
+  'description',
+  'version',
+  'params',
+  'oauth',
+  'personalToken',
+] as const
 
 type ToolRecord = Record<string, ToolConfig>
 
@@ -134,6 +145,13 @@ function build(registry: ToolRecord) {
         entry[field] = tool[field]
       }
     }
+    /**
+     * Derived, never copied. `hosting` itself holds closures and would trip
+     * `findFunctionPaths`; this is the serializable answer to "does Sim supply
+     * the API key", which is otherwise only discoverable by reading the tool's
+     * source.
+     */
+    entry.hostedApiKey = deriveHostedApiKeySupport(tool.hosting)
     metadata[toolId] = entry
     if (tool.outputs !== undefined) outputs[toolId] = tool.outputs
   }

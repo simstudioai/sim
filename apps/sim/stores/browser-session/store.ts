@@ -1,4 +1,11 @@
-import type { BrowserPageState, BrowserTabState, BrowserTabsState } from '@sim/browser-protocol'
+import type {
+  BrowserMediaPermissionRequest,
+  BrowserPageIssue,
+  BrowserPageState,
+  BrowserSitePermissionRequest,
+  BrowserTabState,
+  BrowserTabsState,
+} from '@sim/browser-protocol'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import {
@@ -40,7 +47,6 @@ interface BrowserSessionState {
     runIds: readonly string[],
     options?: { hardResetScopeIds?: readonly string[] }
   ) => void
-  reorderTab: (scopeId: string, tabId: string, targetIndex: number) => void
   setSessionAlive: (alive: boolean, scopeId: string) => void
 }
 
@@ -78,6 +84,55 @@ function isPristineSession(session: BrowserSessionData): boolean {
   )
 }
 
+function pageIssueEqual(a: BrowserPageIssue | undefined, b: BrowserPageIssue | undefined): boolean {
+  if (a === b) return true
+  if (!a || !b || a.kind !== b.kind || a.url !== b.url) return false
+  if (a.kind === 'load-error') {
+    return b.kind === 'load-error' && a.code === b.code && a.description === b.description
+  }
+  if (a.kind === 'crashed') return b.kind === 'crashed' && a.reason === b.reason
+  return true
+}
+
+function mediaPermissionRequestEqual(
+  a: BrowserMediaPermissionRequest | undefined,
+  b: BrowserMediaPermissionRequest | undefined
+): boolean {
+  if (a === b) return true
+  return Boolean(
+    a &&
+      b &&
+      a.requestId === b.requestId &&
+      a.origin === b.origin &&
+      a.devices.length === b.devices.length &&
+      a.devices.every((device, index) => device === b.devices[index])
+  )
+}
+
+function retainMediaPermissionRequest(
+  current: BrowserMediaPermissionRequest | undefined,
+  incoming: BrowserMediaPermissionRequest | undefined
+): BrowserMediaPermissionRequest | undefined {
+  return mediaPermissionRequestEqual(current, incoming) ? current : incoming
+}
+
+function sitePermissionRequestEqual(
+  a: BrowserSitePermissionRequest | undefined,
+  b: BrowserSitePermissionRequest | undefined
+): boolean {
+  return Boolean(
+    a === b ||
+      (a && b && a.requestId === b.requestId && a.tabId === b.tabId && a.origin === b.origin)
+  )
+}
+
+function retainSitePermissionRequest(
+  current: BrowserSitePermissionRequest | undefined,
+  incoming: BrowserSitePermissionRequest | undefined
+): BrowserSitePermissionRequest | undefined {
+  return sitePermissionRequestEqual(current, incoming) ? current : incoming
+}
+
 function tabFieldsEqual(a: BrowserTabState, b: BrowserTabState): boolean {
   return (
     a.tabId === b.tabId &&
@@ -85,7 +140,7 @@ function tabFieldsEqual(a: BrowserTabState, b: BrowserTabState): boolean {
     a.title === b.title &&
     a.loading === b.loading &&
     a.active === b.active &&
-    a.pinned === b.pinned
+    pageIssueEqual(a.issue, b.issue)
   )
 }
 
@@ -110,6 +165,7 @@ function retainSettledTabTitles(
     if (
       incoming.title.trim() === '' &&
       !incoming.loading &&
+      !incoming.issue &&
       current?.url === incoming.url &&
       current.title.trim() !== ''
     ) {
@@ -129,7 +185,10 @@ function pageStateEqual(a: BrowserPageState | null, b: BrowserPageState | null):
     a.title === b.title &&
     a.loading === b.loading &&
     a.canGoBack === b.canGoBack &&
-    a.canGoForward === b.canGoForward
+    a.canGoForward === b.canGoForward &&
+    pageIssueEqual(a.issue, b.issue) &&
+    mediaPermissionRequestEqual(a.mediaPermissionRequest, b.mediaPermissionRequest) &&
+    sitePermissionRequestEqual(a.sitePermissionRequest, b.sitePermissionRequest)
   )
 }
 
@@ -190,14 +249,26 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
           const { scopeId } = pageState
           return withSession(state, scopeId, (current) => {
             if (current.suspended) return current
+            const nextPageState = {
+              ...pageState,
+              mediaPermissionRequest: retainMediaPermissionRequest(
+                current.pageState?.mediaPermissionRequest,
+                pageState.mediaPermissionRequest
+              ),
+              sitePermissionRequest: retainSitePermissionRequest(
+                current.pageState?.sitePermissionRequest,
+                pageState.sitePermissionRequest
+              ),
+            }
             const nextTabs = current.tabs.map((tab) =>
-              tab.tabId === pageState.tabId
+              tab.tabId === nextPageState.tabId
                 ? {
                     ...tab,
-                    url: pageState.url,
-                    title: pageState.title,
-                    loading: pageState.loading,
+                    url: nextPageState.url,
+                    title: nextPageState.title,
+                    loading: nextPageState.loading,
                     active: true,
+                    issue: nextPageState.issue,
                   }
                 : tab.active
                   ? { ...tab, active: false }
@@ -206,17 +277,17 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
             const tabs = tabsEqual(current.tabs, nextTabs) ? current.tabs : nextTabs
             if (
               tabs === current.tabs &&
-              current.activeTabId === pageState.tabId &&
+              current.activeTabId === nextPageState.tabId &&
               current.sessionAlive &&
-              pageStateEqual(current.pageState, pageState)
+              pageStateEqual(current.pageState, nextPageState)
             ) {
               return current
             }
             return {
               ...current,
-              pageState,
+              pageState: nextPageState,
               sessionAlive: true,
-              activeTabId: pageState.tabId,
+              activeTabId: nextPageState.tabId,
               tabs,
             }
           })
@@ -252,6 +323,7 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
                     loading: activeTab.loading,
                     canGoBack: false,
                     canGoForward: false,
+                    ...(activeTab.issue ? { issue: activeTab.issue } : {}),
                   }
             const sessionAlive = tabs.length > 0
             if (
@@ -355,22 +427,6 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
           )
           return changed ? { sessions } : {}
         }),
-      reorderTab: (scopeId, tabId, targetIndex) =>
-        set((state) =>
-          withSession(state, scopeId, (current) => {
-            const currentIndex = current.tabs.findIndex((tab) => tab.tabId === tabId)
-            if (currentIndex < 0 || !Number.isFinite(targetIndex)) return current
-            const nextIndex = Math.max(
-              0,
-              Math.min(current.tabs.length - 1, Math.trunc(targetIndex))
-            )
-            if (currentIndex === nextIndex) return current
-            const tabs = [...current.tabs]
-            const [tab] = tabs.splice(currentIndex, 1)
-            tabs.splice(nextIndex, 0, tab)
-            return { ...current, tabs }
-          })
-        ),
       setSessionAlive: (alive, scopeId) =>
         set((state) => {
           return withSession(state, scopeId, (current) => {

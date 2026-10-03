@@ -6,13 +6,14 @@ export const azureDevopsConnectorMeta: ConnectorMeta = {
   name: 'Azure DevOps',
   description:
     'Sync wiki pages, work items, and repository files from an Azure DevOps project into your knowledge base',
-  version: '1.1.0',
+  version: '1.1.1',
   icon: AzureIcon,
 
   auth: {
     mode: 'apiKey',
     label: 'Personal Access Token',
-    placeholder: 'Enter your Azure DevOps PAT (scopes: Wiki Read, Work Items Read, Code Read)',
+    placeholder:
+      'Enter your Azure DevOps PAT (scopes: Project and Team Read, Wiki Read, Work Items Read, Code Read)',
   },
 
   /**

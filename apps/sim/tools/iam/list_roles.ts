@@ -1,7 +1,7 @@
 import type { IAMListRolesParams, IAMListRolesResponse } from '@/tools/iam/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listRolesTool: ToolConfig<IAMListRolesParams, IAMListRolesResponse> = {
+export const listRolesTool: InternalToolConfig<IAMListRolesParams, IAMListRolesResponse> = {
   id: 'iam_list_roles',
   name: 'IAM List Roles',
   description: 'List IAM roles in your AWS account',
@@ -46,11 +46,8 @@ export const listRolesTool: ToolConfig<IAMListRolesParams, IAMListRolesResponse>
     },
   },
 
-  request: {
-    url: '/api/tools/iam/list-roles',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

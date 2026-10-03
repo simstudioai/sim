@@ -1,0 +1,67 @@
+# CI-only OVERLAY for the kind install test. The name deliberately avoids the
+# `ci/*-values.yaml` suffix: `ct lint` treats every file matching that glob as a
+# standalone values set, and this one is a partial layered on default-values.yaml.
+#
+# Shrinks resource requests so the default configuration schedules on a small CI
+# runner. Layered on top of ci/default-values.yaml. Dummy sizing — never use in
+# a deployment.
+
+# Pin every first-party image to the published :latest rather than letting the
+# tag default to Chart.AppVersion. appVersion names the release the chart ships
+# WITH, and version tags are cut by the main-branch merge commit that releases
+# it (detect-version in ci.yml) — so on the PR that raises appVersion, the tag
+# it names does not exist yet and the install would sit in ImagePullBackOff
+# until --wait times out. That circularity is why appVersion went unbumped from
+# chart 1.2.0 to 1.6.3. This test asks whether the chart installs, not which
+# application build it installs, so any published image answers it.
+app:
+  image:
+    tag: "latest"
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+realtime:
+  image:
+    tag: "latest"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+migrations:
+  image:
+    tag: "latest"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+postgresql:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+  persistence:
+    size: 2Gi
+
+redis:
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi

@@ -1,4 +1,5 @@
 import type { ToolConfig } from '@/tools/types'
+import { safeUrlPathSegment } from '@/tools/url-path'
 import type { VercelCheckResponse, VercelGetCheckParams } from '@/tools/vercel/types'
 
 export const vercelGetCheckTool: ToolConfig<VercelGetCheckParams, VercelCheckResponse> = {
@@ -46,7 +47,7 @@ export const vercelGetCheckTool: ToolConfig<VercelGetCheckParams, VercelCheckRes
       if (params.teamId) query.set('teamId', params.teamId.trim())
       if (params.slug) query.set('slug', params.slug.trim())
       const qs = query.toString()
-      return `https://api.vercel.com/v1/deployments/${params.deploymentId.trim()}/checks/${params.checkId.trim()}${qs ? `?${qs}` : ''}`
+      return `https://api.vercel.com/v1/deployments/${safeUrlPathSegment(params.deploymentId, 'deploymentId')}/checks/${safeUrlPathSegment(params.checkId, 'checkId')}${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params: VercelGetCheckParams) => ({

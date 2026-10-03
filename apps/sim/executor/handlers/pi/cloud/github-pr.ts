@@ -6,10 +6,10 @@
  * repository a credential is pointed at and which commit a write lands on.
  */
 
+import { isRecordLike } from '@sim/utils/object'
 import { executeTool } from '@/tools'
 import { GITHUB_GRAPHQL_URL, githubGraphQlHeaders, readGraphQlData } from '@/tools/github/graphql'
 import {
-  isRecord,
   nullableBoolean,
   nullableString,
   requiredBoolean,
@@ -65,7 +65,7 @@ function requiredSha(record: Record<string, unknown>, field: string, context: st
 }
 
 export function parsePullRequestSnapshot(value: unknown): PullRequestSnapshot {
-  if (!isRecord(value)) throw new Error(`${PULL_REQUEST_RESPONSE_CONTEXT} must be an object`)
+  if (!isRecordLike(value)) throw new Error(`${PULL_REQUEST_RESPONSE_CONTEXT} must be an object`)
 
   const head = requiredRecord(value, 'head', PULL_REQUEST_RESPONSE_CONTEXT)
   const base = requiredRecord(value, 'base', PULL_REQUEST_RESPONSE_CONTEXT)
@@ -179,7 +179,7 @@ export async function findOpenPrForBranch(
   }
 
   const output = result.output
-  if (!isRecord(output)) {
+  if (!isRecordLike(output)) {
     throw new Error('GitHub pull request list response.output must be an object')
   }
   const items = output.items
@@ -193,7 +193,7 @@ export async function findOpenPrForBranch(
     throw new Error(`Update PR found multiple open pull requests for branch ${params.branch}`)
   }
 
-  if (!isRecord(items[0])) {
+  if (!isRecordLike(items[0])) {
     throw new Error('GitHub pull request list response item must be an object')
   }
   const pullNumber = requiredNumber(items[0], 'number', 'GitHub pull request list response item')

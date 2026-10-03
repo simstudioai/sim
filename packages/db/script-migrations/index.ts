@@ -1,15 +1,32 @@
+import { reconcileOAuthProviderLifecycleMigration } from '@sim/db/script-migrations/0012_reconcile_oauth_provider_lifecycle'
+import { backfillLegacyKnowledgeBaseWorkspacesMigration } from '@sim/db/script-migrations/0013_backfill_legacy_knowledge_base_workspaces'
+import { requireKnowledgeBaseOwnerMigration } from '@sim/db/script-migrations/0014_require_knowledge_base_owner'
+import { backfillSearchVectorsMigration } from '@sim/db/script-migrations/0016_backfill_search_vectors'
+import { indexSearchDocumentsMigration } from '@sim/db/script-migrations/0017_index_search_documents'
+import { repairWorkspaceFileContentRevisionMigration } from '@sim/db/script-migrations/0018_repair_workspace_file_content_revision'
+import { tinKeywordProjectionMigration } from '@sim/db/script-migrations/0019_tin_keyword_projection'
+import { projectionSourceAclBackfillMigration } from '@sim/db/script-migrations/0022_projection_source_acl_backfill'
+import { projectionAclSkipUnfilledMigration } from '@sim/db/script-migrations/0023_projection_acl_skip_unfilled'
+import { knowledgeProjectionAsyncMigration } from '@sim/db/script-migrations/0024_knowledge_projection_async'
+import { scopeKeywordProjectionsMigration } from '@sim/db/script-migrations/0025_scope_keyword_projections'
+import { userTableSchemaForWriteMigration } from '@sim/db/script-migrations/0026_user_table_schema_for_write'
 import type { Sql } from 'postgres'
 import { backfillTableOrderKeys } from './0001_backfill_table_order_keys'
 import { backfillPausedBillingAttribution } from './0002_backfill_paused_billing_attribution'
 import { backfillWorkspaceStorageUsage } from './0003_backfill_workspace_storage_usage'
 import { backfillForkKnowledgeBaseFileOwnership } from './0004_backfill_fork_kb_file_ownership'
-import type { ScriptMigration } from './types'
+import { repairUnknownTableRowProvenance } from './0005_repair_unknown_table_row_provenance'
+import { repairUnknownTableRowProvenanceSecondPass } from './0006_repair_unknown_table_row_provenance_second_pass'
+import { repairUnknownWorkspaceFileProvenance } from './0007_repair_unknown_workspace_file_provenance'
+import { backfillCredentialGroupResourcePolicies } from './0010_backfill_credential_group_resource_policies'
+import { remapLegacyKnowledgeConnectorCredentialsMigration } from './0011_remap_legacy_knowledge_connector_credentials'
+import { type ScriptMigration, ScriptMigrationDeferred } from './types'
 
 export type { ScriptMigration } from './types'
 
 /**
  * Ordered, append-only registry of script migrations. An entry may be deleted
- * once a later SQL migration supersedes it (accepting that deployments which
+ * once a later migration supersedes it (accepting that deployments which
  * never ran it skip the backfill) — never renamed or reordered.
  */
 export const scriptMigrations: readonly ScriptMigration[] = [
@@ -17,6 +34,34 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   backfillPausedBillingAttribution,
   backfillWorkspaceStorageUsage,
   backfillForkKnowledgeBaseFileOwnership,
+  repairUnknownTableRowProvenance,
+  repairUnknownTableRowProvenanceSecondPass,
+  repairUnknownWorkspaceFileProvenance,
+  backfillCredentialGroupResourcePolicies,
+  remapLegacyKnowledgeConnectorCredentialsMigration,
+  reconcileOAuthProviderLifecycleMigration,
+  backfillLegacyKnowledgeBaseWorkspacesMigration,
+  requireKnowledgeBaseOwnerMigration,
+  /** 0016 completes partially applied 0015 binary projections together with the new search vectors. */
+  backfillSearchVectorsMigration,
+  indexSearchDocumentsMigration,
+  /** 0358 stops new sub-millisecond revisions; this retires the ones that predate it. */
+  repairWorkspaceFileContentRevisionMigration,
+  tinKeywordProjectionMigration,
+  /** 0022 supersedes 0021, whose synchronous backfill could not finish inside a deploy. */
+  projectionSourceAclBackfillMigration,
+  /** 0023 stops document ACL changes from writing chunks the 0022 backfill has not filled. */
+  projectionAclSkipUnfilledMigration,
+  /** 0024 marks changed documents for the knowledge projector and lets writers defer to it. */
+  knowledgeProjectionAsyncMigration,
+  /** 0025 keeps the keyword projections for search indexes only. */
+  scopeKeywordProjectionsMigration,
+  /** 0026 installs the schema guard every table row write takes before it validates. */
+  userTableSchemaForWriteMigration,
+  /**
+   * Search retirement (0027–0029) is an operator-run maintenance command, not a deploy step:
+   * run `packages/db/scripts/retire-indexed-search.ts --help` for usage.
+   */
 ]
 
 /**
@@ -28,10 +73,18 @@ export const scriptMigrations: readonly ScriptMigration[] = [
  *
  * Fails fast: a missing required env var or a throwing `up` aborts the run
  * before the name is recorded, so the migration retries on the next upgrade.
+ * A deferred `up` is not recorded either, but lets the later migrations run.
+ *
+ * `migrations` defaults to the registry and exists so a test can apply a
+ * synthetic list: a deferral followed by a later migration is otherwise
+ * uncoverable while the only deferring migration is the last registered entry.
  */
-export async function runScriptMigrations(sql: Sql): Promise<void> {
+export async function runScriptMigrations(
+  sql: Sql,
+  migrations: readonly ScriptMigration[] = scriptMigrations
+): Promise<void> {
   const names = new Set<string>()
-  for (const migration of scriptMigrations) {
+  for (const migration of migrations) {
     if (names.has(migration.name)) {
       throw new Error(`Duplicate script migration name: ${migration.name}`)
     }
@@ -59,7 +112,7 @@ export async function runScriptMigrations(sql: Sql): Promise<void> {
   const appliedRows = await sql<{ name: string }[]>`SELECT name FROM script_migrations`
   const applied = new Set(appliedRows.map((row) => row.name))
 
-  const pending = scriptMigrations.filter((migration) => !applied.has(migration.name))
+  const pending = migrations.filter((migration) => !applied.has(migration.name))
   if (pending.length === 0) {
     console.log('No pending script migrations.')
     return
@@ -75,11 +128,18 @@ export async function runScriptMigrations(sql: Sql): Promise<void> {
     }
     console.log(`Applying script migration ${migration.name}...`)
     const startedAt = Date.now()
-    await migration.up(sql)
-    await sql`
-      INSERT INTO script_migrations (name) VALUES (${migration.name})
-      ON CONFLICT (name) DO NOTHING
-    `
+    try {
+      await migration.up(sql)
+    } catch (error) {
+      if (!(error instanceof ScriptMigrationDeferred)) throw error
+      console.log(`Script migration ${migration.name} deferred: ${error.message}`)
+      continue
+    }
+    await sql.begin(async (tx) => {
+      for (const name of [migration.name, ...(migration.supersedes ?? [])]) {
+        await tx`INSERT INTO script_migrations (name) VALUES (${name}) ON CONFLICT (name) DO NOTHING`
+      }
+    })
     console.log(`Script migration ${migration.name} applied in ${Date.now() - startedAt}ms.`)
   }
 }

@@ -22,7 +22,8 @@ export const v1UserLimitsSchema = z.object({
     }),
   }),
   usage: z.object({
-    currentPeriodCost: z.number(),
+    /** `null` when the caller's permission group withholds spend (`logs.cost`). */
+    currentPeriodCost: z.number().nullable(),
     limit: z.number(),
     plan: z.string(),
     isExceeded: z.boolean(),

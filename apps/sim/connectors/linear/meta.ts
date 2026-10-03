@@ -10,6 +10,15 @@ export const linearConnectorMeta: ConnectorMeta = {
 
   auth: { mode: 'oauth', provider: 'linear', requiredScopes: ['read'] },
 
+  /**
+   * `IssueFilter.updatedAt` is a `DateComparator`, so a sync can narrow to
+   * issues touched since the last run instead of walking the full dataset.
+   * Latent today: `knowledgeConnector.syncMode` defaults to `'full'` and
+   * nothing writes it, so `shouldRunIncrementalSync` never selects this path.
+   */
+  supportsIncrementalSync: true,
+
+  permissionScopedListing: { capFieldIds: ['maxIssues'] },
   configFields: [
     {
       id: 'teamSelector',

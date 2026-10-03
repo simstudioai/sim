@@ -1,16 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import type {
-  DesktopPreferenceKey,
-  DesktopPreferences,
-  DesktopUpdateState,
-} from '@sim/desktop-bridge'
+import { useEffect, useState } from 'react'
+import type { DesktopPreferenceKey, DesktopPreferences } from '@sim/desktop-bridge'
 import { Label, Switch, toast } from '@sim/emcn'
 import { useParams, useRouter } from 'next/navigation'
-import { getDesktopBridge, getDesktopShellVersion, getDesktopUpdates } from '@/lib/desktop'
+import { getDesktopBridge, getDesktopShellVersion } from '@/lib/desktop'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { useDesktopUpdateState } from '@/hooks/use-desktop-update-state'
 
 interface PreferenceRowProps {
   id: string
@@ -35,8 +32,8 @@ export function Desktop() {
   const workspaceId = params.workspaceId as string
   const [preferences, setPreferences] = useState<DesktopPreferences | null>(null)
   const [pendingPreference, setPendingPreference] = useState<DesktopPreferenceKey | null>(null)
-  const [updateState, setUpdateState] = useState<DesktopUpdateState>({ status: 'idle' })
-  const [shellVersion, setShellVersion] = useState<string | undefined>(undefined)
+  const updateState = useDesktopUpdateState()
+  const shellVersion = getDesktopShellVersion()
 
   useEffect(() => {
     const bridge = getDesktopBridge()
@@ -50,19 +47,7 @@ export function Desktop() {
       .catch(() => toast.error('Could not load desktop settings'))
   }, [router, workspaceId])
 
-  useEffect(() => {
-    setShellVersion(getDesktopShellVersion())
-    const updates = getDesktopUpdates()
-    if (!updates) return
-    const unsubscribe = updates.onState(setUpdateState)
-    void updates
-      .getState()
-      .then(setUpdateState)
-      .catch(() => {})
-    return unsubscribe
-  }, [])
-
-  const updatePreference = useCallback(async (key: DesktopPreferenceKey, value: boolean) => {
+  const updatePreference = async (key: DesktopPreferenceKey, value: boolean) => {
     const settings = getDesktopBridge()?.settings
     if (!settings) return
     setPendingPreference(key)
@@ -73,7 +58,7 @@ export function Desktop() {
     } finally {
       setPendingPreference(null)
     }
-  }, [])
+  }
 
   if (!preferences) {
     return null
@@ -88,7 +73,9 @@ export function Desktop() {
         <div className='flex flex-col gap-3'>
           {shellVersion && (
             <div className='flex items-center justify-between'>
-              <Label>Version</Label>
+              <Label asChild>
+                <span>Version</span>
+              </Label>
               <span className='text-[var(--text-muted)] text-sm'>
                 {updateState.status === 'ready' && updateState.version
                   ? `${shellVersion} → ${updateState.version} on restart`

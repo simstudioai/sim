@@ -25,7 +25,9 @@ import {
   type FolderPathIndex,
   folderNameFromPath,
   parentFolderPath,
+  parseFolderPath,
   requireNonRootFolderPath,
+  resolveFolderMoveDestination,
 } from '@/lib/folders/paths'
 import {
   assertFolderCollectionHasRoom,
@@ -296,19 +298,30 @@ async function executeRelocateFolderByPath(
 ): Promise<FolderPathMutationResult> {
   try {
     requireNonRootFolderPath(params.path)
-    requireNonRootFolderPath(params.destinationPath)
-    const name = validatePathLeafName(params.destinationPath)
+    /** The root is a valid destination — "move to the top level" — so only canonical form is checked here. */
+    parseFolderPath(params.destinationPath)
 
-    const folder = await withTransactionRetry(
+    const { folder, destinationPath } = await withTransactionRetry(
       async (tx) => {
         await acquireFolderMutationLock(tx, params.workspaceId, params.resourceType)
         const index = await loadActiveFolderPathIndex(params.workspaceId, params.resourceType, tx, {
           maxRows: params.maxFolderRows,
         })
         const folderId = resolveRequiredFolderId(index, params.path)
-        if (index.idByPath.has(params.destinationPath)) throw new Error(DUPLICATE_NAME_ERROR)
+        /**
+         * Resolved under the lock, against the same index the collision check
+         * reads: whether the destination names an existing folder decides
+         * whether this is a move into it or a rename onto it.
+         */
+        const destinationPath = resolveFolderMoveDestination(
+          index,
+          params.path,
+          params.destinationPath
+        )
+        if (index.idByPath.has(destinationPath)) throw new Error(DUPLICATE_NAME_ERROR)
+        const name = validatePathLeafName(destinationPath)
 
-        const destinationParentPath = parentFolderPath(params.destinationPath)
+        const destinationParentPath = parentFolderPath(destinationPath)
         if (
           destinationParentPath === params.path ||
           destinationParentPath.startsWith(`${params.path}/`)
@@ -342,7 +355,7 @@ async function executeRelocateFolderByPath(
           )
           .returning()
         if (!updated) throw new Error('Folder not found')
-        return updated
+        return { folder: updated, destinationPath }
       },
       { label: 'relocate-folder-by-path' }
     )
@@ -355,10 +368,10 @@ async function executeRelocateFolderByPath(
         resourceType: AuditResourceType.FOLDER,
         resourceId: folder.id,
         resourceName: folder.name,
-        description: `Moved ${folderResourceConfig(params.resourceType).label} folder to "${params.destinationPath}"`,
+        description: `Moved ${folderResourceConfig(params.resourceType).label} folder to "${destinationPath}"`,
         metadata: {
           sourcePath: params.path,
-          destinationPath: params.destinationPath,
+          destinationPath,
           folderResourceType: params.resourceType,
         },
       })
@@ -366,7 +379,7 @@ async function executeRelocateFolderByPath(
     if (params.effects !== false) {
       await notifyFolderResourceChanged(params.resourceType, params.workspaceId)
     }
-    return { success: true, folder, path: params.destinationPath }
+    return { success: true, folder, path: destinationPath }
   } catch (error) {
     const result = pathMutationError(error)
     if (params.throwInfrastructure && result.errorCode === 'internal') throw error
@@ -374,7 +387,12 @@ async function executeRelocateFolderByPath(
   }
 }
 
-/** Renames, moves, or both by replacing one canonical path with another. */
+/**
+ * Renames, moves, or both. A destination naming an existing folder — the root
+ * included — receives the source as a child (`mv` semantics, see
+ * {@link resolveFolderMoveDestination}); any other destination becomes the
+ * source's new path. `path` on the result is where the folder actually landed.
+ */
 export async function relocateFolderByPath(
   params: RelocateFolderByPathParams
 ): Promise<FolderPathMutationResult> {
@@ -665,7 +683,17 @@ export async function createFolder(params: CreateFolderParams): Promise<FolderMu
   }
 }
 
-export async function updateFolder(params: UpdateFolderParams): Promise<FolderMutationResult> {
+export async function updateFolder(
+  params: UpdateFolderParams,
+  /**
+   * `notify: false` for a caller that mutates several folders in one gesture
+   * and sends a single batch notification of its own. Every per-folder notify
+   * carries an identical body and triggers an identical workspace-wide
+   * invalidation, so a batch would otherwise fan out one internal round trip
+   * per item. Omitted, the orchestration notifies as before.
+   */
+  options?: { notify?: boolean }
+): Promise<FolderMutationResult> {
   const config = folderResourceConfig(params.resourceType)
 
   try {
@@ -748,7 +776,9 @@ export async function updateFolder(params: UpdateFolderParams): Promise<FolderMu
     })
 
     // Live resource list (e.g. tables): a rename/move changes the folder in the browser.
-    await notifyFolderResourceChanged(params.resourceType, params.workspaceId)
+    if (options?.notify ?? true) {
+      await notifyFolderResourceChanged(params.resourceType, params.workspaceId)
+    }
     return { success: true, folder }
   } catch (error) {
     if (getPostgresErrorCode(error) === '23505') {
@@ -769,7 +799,20 @@ export async function updateFolder(params: UpdateFolderParams): Promise<FolderMu
  * its original stamp (the cascade only archives active folders), so anything archived under
  * the new stamp would never match on restore and would be stranded permanently.
  */
-export async function deleteFolder(params: DeleteFolderParams): Promise<DeleteFolderResult> {
+export async function deleteFolder(
+  params: DeleteFolderParams,
+  /**
+   * `projectAudit: false` for a caller that projects `FOLDER_DELETED` itself —
+   * an application use case attributes the entry to the acting `Principal`,
+   * which the `actorId: userId` entry below cannot express for a non-human
+   * principal. Omitted, the orchestration keeps recording its own entry, so
+   * every existing caller is unchanged.
+   *
+   * `notify: false` for a caller deleting several folders in one gesture that
+   * sends a single batch notification of its own — see {@link bulkDeleteFolders}.
+   */
+  options?: { projectAudit?: boolean; notify?: boolean }
+): Promise<DeleteFolderResult> {
   const existing = await withFolderTreeLock(params.workspaceId, params.resourceType, async (tx) => {
     const [row] = await tx
       .select({ deletedAt: folderTable.deletedAt })
@@ -790,8 +833,8 @@ export async function deleteFolder(params: DeleteFolderParams): Promise<DeleteFo
   }
 
   return deleteFolderWithoutTreeLock(params, existing.deletedAt, {
-    projectAudit: true,
-    notify: true,
+    projectAudit: options?.projectAudit ?? true,
+    notify: options?.notify ?? true,
   })
 }
 
@@ -859,9 +902,17 @@ async function deleteFolderWithoutTreeLock(
  * a folder whose parent is still archived is re-rooted, and the restored name is
  * deduplicated against the *resolved* parent's active siblings — the caller cannot rename
  * an archived folder, so a taken name would otherwise make it permanently unrestorable.
+ *
+ * The tree lock is taken inside the folder-row transaction at the end, not around the whole
+ * restore. Wrapping everything in `withFolderTreeLock` — as this once did — ran the pool reads
+ * below and the `restoreChildren` hook's own transactions inside a transaction callback, which
+ * the `@sim/db` tripwire refuses outside production: every table-folder restore 500ed in dev
+ * while the file-folder restore, which does all its work on the locked handle, kept working.
+ * `deleteFolder` releases its lock before the cascade for the same reason.
  */
-async function restoreFolderWithoutTreeLock(
-  params: RestoreFolderParams
+async function restoreFolderTree(
+  params: RestoreFolderParams,
+  options: { projectAudit: boolean }
 ): Promise<RestoreFolderResult> {
   const { resourceType, folderId, workspaceId, userId, folderName } = params
   const config = folderResourceConfig(resourceType)
@@ -924,6 +975,7 @@ async function restoreFolderWithoutTreeLock(
   let counts: { folders: number; children: number }
   try {
     counts = await db.transaction(async (tx) => {
+      await acquireFolderMutationLock(tx, workspaceId, resourceType)
       const now = new Date()
 
       let resolvedParentId = folder.parentId
@@ -994,31 +1046,42 @@ async function restoreFolderWithoutTreeLock(
 
   logger.info('Restored folder and all contents', { folderId, resourceType, counts })
 
-  recordAudit({
-    workspaceId,
-    actorId: userId,
-    action: AuditAction.FOLDER_RESTORED,
-    resourceType: AuditResourceType.FOLDER,
-    resourceId: folderId,
-    resourceName: folderName ?? folder.name,
-    description: `Restored ${config.label} folder "${folderName ?? folder.name}"`,
-    metadata: {
-      folderResourceType: resourceType,
-      affected: {
-        [config.countKey]: counts.children,
-        subfolders: Math.max(counts.folders - 1, 0),
+  if (options.projectAudit) {
+    recordAudit({
+      workspaceId,
+      actorId: userId,
+      action: AuditAction.FOLDER_RESTORED,
+      resourceType: AuditResourceType.FOLDER,
+      resourceId: folderId,
+      resourceName: folderName ?? folder.name,
+      description: `Restored ${config.label} folder "${folderName ?? folder.name}"`,
+      metadata: {
+        folderResourceType: resourceType,
+        affected: {
+          [config.countKey]: counts.children,
+          subfolders: Math.max(counts.folders - 1, 0),
+        },
       },
-    },
-  })
+    })
+  }
 
   // Live resource list (e.g. tables): a restore brings the folder and its contents back.
   await notifyFolderResourceChanged(resourceType, workspaceId)
   return { success: true, restoredItems: toCascadeCounts(config, counts) }
 }
 
-/** Restores a folder while serializing against every writer for the resource tree. */
-export async function restoreFolder(params: RestoreFolderParams): Promise<RestoreFolderResult> {
-  return withFolderTreeLock(params.workspaceId, params.resourceType, () =>
-    restoreFolderWithoutTreeLock(params)
-  )
+/**
+ * Restores a folder, serializing the folder-row write against every writer for the resource
+ * tree (see {@link restoreFolderTree} for why the lock is scoped that narrowly).
+ *
+ * `projectAudit: false` for a caller that projects `FOLDER_RESTORED` itself — an application
+ * use case attributes the entry to the acting `Principal`, which the `actorId: userId` entry
+ * inside cannot express for a non-human principal. Omitted, the orchestration keeps recording
+ * its own entry, so every existing caller is unchanged. Mirrors {@link deleteFolder}.
+ */
+export async function restoreFolder(
+  params: RestoreFolderParams,
+  options?: { projectAudit?: boolean }
+): Promise<RestoreFolderResult> {
+  return restoreFolderTree(params, { projectAudit: options?.projectAudit ?? true })
 }

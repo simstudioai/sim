@@ -11,14 +11,11 @@ import type { WorkspaceUseCaseAuditEntry } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
-import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
+import { notifyWorkflowUpdated, notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import {
-  type ActiveWorkflowApplicationContext,
-  resolveActiveWorkflowApplicationContext,
-} from '@/lib/workflows/application/context'
+import type { ActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
+import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { requireWorkflowTransition } from '@/lib/workflows/application/transition-result'
 import {
   resolveWorkflowFolderPath,
@@ -62,19 +59,6 @@ interface WorkflowUpdateResult {
     runCount: number
     lastRunAt: Date | null
   }
-}
-
-function resolveWorkflowUpdateContext({
-  principal,
-  input,
-}: {
-  principal: Principal
-  input: UpdateWorkflowInput
-}) {
-  return resolveActiveWorkflowApplicationContext({
-    workflowId: input.workflowId,
-    assertedWorkspaceId: assertedWorkflowWorkspaceId(principal, input.assertedWorkspaceId),
-  })
 }
 
 async function requireMutableWorkflowUpdate(
@@ -249,16 +233,20 @@ function projectWorkflowUpdateAudit(args: {
   return entries
 }
 
-function notifyAfterWorkflowUpdate(args: {
+async function notifyAfterWorkflowUpdate(args: {
   context: ActiveWorkflowApplicationContext
   result: WorkflowUpdateResult
 }) {
-  return args.result.changes.length > 0 ? notifyWorkflowUpdated(args.context.workflowId) : undefined
+  if (args.result.changes.length === 0) return
+  await Promise.all([
+    notifyWorkflowUpdated(args.context.workflowId),
+    notifyWorkspaceWorkflowsChanged(args.context.workspaceId),
+  ])
 }
 
 export const updateWorkflow = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.update,
-  resolveContext: resolveWorkflowUpdateContext,
+  resolveContext: resolvePrincipalWorkflowContext<UpdateWorkflowInput>,
   execute: executeWorkflowUpdate,
   projectAudit: projectWorkflowUpdateAudit,
   afterSuccess: notifyAfterWorkflowUpdate,
@@ -266,7 +254,7 @@ export const updateWorkflow = defineAuthorizedWorkflowUseCase({
 
 export const updateWorkflowPolicy = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.updatePolicy,
-  resolveContext: resolveWorkflowUpdateContext,
+  resolveContext: resolvePrincipalWorkflowContext<UpdateWorkflowInput>,
   execute: executeWorkflowUpdate,
   projectAudit: projectWorkflowUpdateAudit,
   afterSuccess: notifyAfterWorkflowUpdate,

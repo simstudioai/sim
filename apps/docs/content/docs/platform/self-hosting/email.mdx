@@ -1,0 +1,171 @@
+---
+title: Email
+description: Configure transactional email for invitations, verification, and notifications
+---
+
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Sim sends workspace invitations, email verification, password resets, and notifications. Configure at least one provider.
+
+<Callout type="warn">
+  With no provider configured, nothing is sent and nothing errors — the mailer logs a single line with the recipient, subject, and sender, then reports success. On a production deployment that means workspace invitations silently never arrive. The message body is **not** logged, so an email missed this way cannot be recovered from the logs.
+</Callout>
+
+## Provider selection
+
+There is no provider flag. Every provider whose variables are set becomes active, and the mailer tries them in this fixed order, falling through to the next one only when the previous **fails**:
+
+**Resend → AWS SES → SMTP → Azure Communication Services → Gmail**
+
+So the earliest configured provider handles normal traffic, and any others act as automatic failover. Configuring one is the simple case; configuring two gives you a fallback path at the cost of mail occasionally leaving from a different sender.
+
+## Shared settings
+
+| Variable | Description |
+|---|---|
+| `FROM_EMAIL_ADDRESS` | Sender address, e.g. `Sim <noreply@example.com>` |
+| `EMAIL_DOMAIN` | Fallback domain when `FROM_EMAIL_ADDRESS` is unset — sends as `noreply@EMAIL_DOMAIN` |
+| `EMAIL_VERIFICATION_ENABLED` | Set `true` to require email verification at signup |
+
+The sender address must be one your provider is authorized to send as. A mismatch is the most common cause of mail that is accepted by the provider and then silently dropped or spam-filtered downstream.
+
+## Providers
+
+<Tabs items={['Resend', 'AWS SES', 'SMTP', 'Azure ACS', 'Gmail']}>
+  <Tab value="Resend">
+
+Simplest option if you have no existing mail infrastructure.
+
+```bash
+RESEND_API_KEY=re_...
+FROM_EMAIL_ADDRESS="Sim <noreply@yourdomain.com>"
+```
+
+Verify your sending domain in the Resend dashboard and add the DNS records it gives you before sending in production.
+
+  </Tab>
+  <Tab value="AWS SES">
+
+```bash
+AWS_SES_REGION=us-east-1
+FROM_EMAIL_ADDRESS="Sim <noreply@yourdomain.com>"
+```
+
+Credentials resolve through the standard AWS provider chain — environment variables, shared config, ECS/EKS task role (IRSA), EC2 instance profile, or SSO. On EKS, attach an IRSA role with `ses:SendEmail` and `ses:SendRawEmail` and set no keys at all.
+
+<Callout type="warn">
+  New SES accounts are in the **sandbox**, which only permits sending to verified addresses. Invitations to your team will fail until you request production access. Verify the sending domain and configure DKIM as well.
+</Callout>
+
+  </Tab>
+  <Tab value="SMTP">
+
+Works with any relay — Postfix, SendGrid, Mailgun, Google Workspace SMTP relay, or MailHog for local testing.
+
+```bash
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587          # 465 implicit TLS, 587 STARTTLS, 25 plain
+SMTP_USER=apikey       # omit for unauthenticated relays
+SMTP_PASS=...          # omit for unauthenticated relays
+# SMTP_SECURE=true     # only for implicit TLS. Leave unset on 587 — it is
+                       # automatic on 465, and forcing it on a STARTTLS port fails to connect
+# SMTP_EHLO_NAME=mail.yourdomain.com   # only if the relay expects an identity other
+                       # than the domain Sim is served from
+FROM_EMAIL_ADDRESS="Sim <noreply@yourdomain.com>"
+```
+
+Sim greets the relay with the domain it is served from, derived from `NEXT_PUBLIC_APP_URL`, so `SMTP_EHLO_NAME` is rarely needed. Without that derivation the underlying mail library would fall back to the address literal `[127.0.0.1]` on Kubernetes, where pod hostnames have no dot — a greeting strict relays reject outright.
+
+For Google Workspace without a service account:
+
+```bash
+SMTP_HOST=smtp-relay.gmail.com
+SMTP_PORT=587
+```
+
+The relay must be configured to accept mail from your deployment's egress IP in the Workspace admin console. It needs no service account and no domain-wide delegation, so prefer it over the Gmail API path unless you cannot allowlist a stable egress IP.
+
+  </Tab>
+  <Tab value="Azure ACS">
+
+```bash
+AZURE_ACS_CONNECTION_STRING=endpoint=https://...;accesskey=...
+FROM_EMAIL_ADDRESS="Sim <noreply@yourdomain.com>"
+```
+
+Provision an Email Communication Service, connect a verified domain, then link it to the Communication Service resource. The sender address must belong to the linked domain.
+
+  </Tab>
+  <Tab value="Gmail">
+
+GCP has no first-party transactional email service, so the Google-native path is the Gmail API with a Google Workspace sender.
+
+```bash
+GMAIL_CREDENTIALS_JSON='{"type":"service_account",...}'
+GMAIL_SENDER=noreply@yourdomain.com
+FROM_EMAIL_ADDRESS="Sim <noreply@yourdomain.com>"
+```
+
+Setup:
+
+1. Create a service account and download its JSON key.
+2. In the Workspace admin console → **Security → Access and data control → API controls → Domain-wide delegation → Add new**, add the service account's `client_id` with the scope `https://www.googleapis.com/auth/gmail.send`.
+3. Set `GMAIL_SENDER` to the Workspace user the service account impersonates.
+
+<Callout type="warn">
+  `FROM_EMAIL_ADDRESS` must match `GMAIL_SENDER` or one of its registered aliases. Gmail rewrites unrecognized From addresses, so a mismatch produces mail that sends successfully but arrives from the wrong address.
+</Callout>
+
+<Callout type="info">
+  Gmail caps sending at roughly 2,000 messages per day per user — ample for invitations and verification on most deployments. If you need more, switch to the Workspace SMTP relay or Resend; both are configuration-only changes.
+</Callout>
+
+Keep the JSON on one line when pasting it into a values file:
+
+```bash
+jq -c . service-account-key.json
+```
+
+  </Tab>
+</Tabs>
+
+## Kubernetes
+
+Email credentials are secrets. Supply them through your secret store rather than plain values:
+
+```yaml
+app:
+  env:
+    FROM_EMAIL_ADDRESS: "Sim <noreply@yourdomain.com>"
+    RESEND_API_KEY: "re_..."      # via External Secrets or an existing Secret
+```
+
+In the default and External Secrets modes, `app.env` keys are written into a chart-managed Secret and mounted via `envFrom`, so values do not appear in pod specs. A secret committed to `values.yaml` is still a secret in your git history — pass it through External Secrets or a pre-created Secret instead.
+
+## Verifying
+
+Invite a user to a workspace from workspace settings and watch the app logs:
+
+```bash
+kubectl logs -n simstudio -l app.kubernetes.io/component=app --tail=100 | grep -i mail
+```
+
+| What you see | Meaning |
+|---|---|
+| A single log line with recipient, subject, and sender, and no delivery | No provider is configured — the mailer no-opped |
+| A provider API error | Credentials or sender address problem; the error names which |
+| Success, but nothing arrives | Delivered to the provider — check the provider's dashboard, then spam filtering, SPF, and DKIM |
+
+## Troubleshooting
+
+**"Delegation denied" / `unauthorized_client` (Gmail)** — the domain-wide delegation entry is missing or has the wrong client ID or scope. Re-check the admin console entry against the `client_id` in the service-account JSON, and confirm the scope is exactly `https://www.googleapis.com/auth/gmail.send`.
+
+**Mail rejected with a From-address error** — the sender is not authorized for the provider's verified domain. Align `FROM_EMAIL_ADDRESS` with the verified domain (and with `GMAIL_SENDER` on the Gmail path).
+
+**SES rejects recipients** — the account is still in the SES sandbox. Request production access.
+
+**Mail lands in spam** — configure SPF, DKIM, and DMARC for your sending domain. This is on your DNS, not on Sim.
+
+**SMTP fails at the greeting with `421-4.7.0 Try again later, closing connection. (EHLO)`** — the relay rejected how the client identified itself, not your credentials or IP allowlist. Strict relays, Google Workspace's among them, refuse a greeting that is not a fully-qualified domain name. Sim greets with the domain it is served from, so this should not occur; if it does, set `SMTP_EHLO_NAME` to a dotted hostname the relay accepts. Older releases always greeted as `[127.0.0.1]` on Kubernetes — upgrade rather than working around it.
+

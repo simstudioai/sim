@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
-import clsx from 'clsx'
+import { cn } from '@sim/emcn'
 import { useShallow } from 'zustand/react/shallow'
 import { buildFolderTree, getFolderPath } from '@/lib/folders/tree'
 import { EmptyAreaContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/empty-area-context-menu'
@@ -9,7 +9,6 @@ import { FolderItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/c
 import { WorkflowItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/workflow-item/workflow-item'
 import {
   SidebarListContext,
-  useContextMenu,
   useDragDrop,
   useFolderSelection,
   useSidebarListContextValue,
@@ -20,6 +19,7 @@ import {
   groupWorkflowsByFolder,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
+import { useContextMenu } from '@/hooks/use-context-menu'
 import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -445,7 +445,7 @@ export const WorkflowList = memo(function WorkflowList({
         <div key={folder.id} className='relative'>
           <DropIndicatorLine show={showBefore} level={level} position='before' />
           <div
-            className={clsx(
+            className={cn(
               'pointer-events-none absolute inset-0 z-10 rounded-sm',
               showInside && isDragging ? 'bg-[var(--text-subtle)] opacity-10' : 'hidden'
             )}
@@ -557,7 +557,7 @@ export const WorkflowList = memo(function WorkflowList({
       <div
         role='tree'
         aria-label='Workflows'
-        className='flex min-h-full flex-col pb-2'
+        className='flex min-h-full flex-col'
         onClick={handleContainerClick}
         onContextMenu={handleContainerContextMenu}
         onKeyDown={(e) => {
@@ -570,12 +570,12 @@ export const WorkflowList = memo(function WorkflowList({
         data-empty-area
       >
         <div
-          className={clsx('relative flex-1 rounded-sm', !hasRootItems && 'min-h-[26px]')}
+          className={cn('relative flex-1 rounded-sm', !hasRootItems && 'min-h-[26px]')}
           {...rootDropZoneHandlers}
           data-empty-area
         >
           <div
-            className={clsx(
+            className={cn(
               'pointer-events-none absolute inset-0 z-10 rounded-sm',
               showRootInside && isDragging ? 'bg-[var(--text-subtle)] opacity-10' : 'hidden'
             )}

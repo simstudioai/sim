@@ -1,36 +1,29 @@
-import { type NextRequest, NextResponse } from 'next/server'
 import { pausedWorkflowExecutionByIdContract } from '@/lib/api/contracts/workflows'
-import { parseRequest } from '@/lib/api/server'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
-import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
+import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
+import { internalWorkflowErrorPolicies, internalWorkflowReadAuth } from '@/lib/workflows/api'
+import { workflowOperations } from '@/lib/workflows/application/operations'
+import { readPausedWorkflowExecution } from '@/lib/workflows/application/read-paused-workflow-execution'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export const GET = withRouteHandler(
-  async (
-    request: NextRequest,
-    context: { params: Promise<{ id: string; executionId: string }> }
-  ) => {
-    const parsed = await parseRequest(pausedWorkflowExecutionByIdContract, request, context)
-    if (!parsed.success) return parsed.response
-    const { id: workflowId, executionId } = parsed.data.params
-
-    const access = await validateWorkflowAccess(request, workflowId, false)
-    if (access.error) {
-      return NextResponse.json({ error: access.error.message }, { status: access.error.status })
-    }
-
-    const detail = await PauseResumeManager.getPausedExecutionDetail({
-      workflowId,
-      executionId,
-    })
-
-    if (!detail) {
-      return NextResponse.json({ error: 'Paused execution not found' }, { status: 404 })
-    }
-
-    return NextResponse.json(detail)
-  }
-)
+export const GET = defineInternalJsonRoute({
+  contract: pausedWorkflowExecutionByIdContract,
+  auth: internalWorkflowReadAuth,
+  operation: workflowOperations.readPausedExecution,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve existing authenticated paused-execution detail behavior',
+  }),
+  errorPolicy: internalWorkflowErrorPolicies.concealWorkflowAuthorization,
+  mapInput: ({ params }) => ({
+    workflowId: params.id,
+    executionId: params.executionId,
+  }),
+  useCase: readPausedWorkflowExecution,
+  responseHeaders: () => ({ 'Cache-Control': 'private, no-store' }),
+  present: (executionDetail) => ({
+    ...executionDetail,
+    pausePoints: executionDetail.pausePoints.map((pausePoint) => ({ ...pausePoint })),
+    queue: executionDetail.queue.map((queueEntry) => ({ ...queueEntry })),
+  }),
+})

@@ -18,7 +18,7 @@ export interface CredentialAccessResult {
   credentialOwnerUserId?: string
   workspaceId?: string
   resolvedCredentialId?: string
-  credentialType?: 'oauth' | 'service_account'
+  credentialType?: 'oauth' | 'managed_oauth' | 'service_account'
 }
 
 const NO_CREDENTIAL_ACCESS =
@@ -55,6 +55,7 @@ export async function authorizeCredentialUse(
   params: {
     credentialId: string
     workflowId?: string
+    workspaceId?: string
     requireWorkflowIdForInternal?: boolean
     callerUserId?: string
   }
@@ -75,10 +76,11 @@ export async function authorizeCredentialUseForAuth(
   params: {
     credentialId: string
     workflowId?: string
+    workspaceId?: string
     callerUserId?: string
   }
 ): Promise<CredentialAccessResult> {
-  const { credentialId, workflowId, callerUserId } = params
+  const { credentialId, workflowId, workspaceId, callerUserId } = params
 
   if (!auth.success || !auth.userId) {
     return { ok: false, error: auth.error || 'Authentication required' }
@@ -112,16 +114,32 @@ export async function authorizeCredentialUseForAuth(
     return { ok: false, error: 'Workflow not found' }
   }
 
-  const scopeWorkspaceId = workflowContext?.workspaceId ?? null
+  if (workflowContext?.workspaceId && workspaceId && workflowContext.workspaceId !== workspaceId) {
+    return { ok: false, error: 'Credential is not accessible from this workspace' }
+  }
+
+  const scopeWorkspaceId = workflowContext?.workspaceId ?? workspaceId ?? null
   const platformCredential = platformAccess.credential
 
   if (platformCredential) {
+    if (!platformCredential.workspaceId)
+      return {
+        ok: false,
+        error: 'Organization credentials require organization-scoped authorization',
+      }
     if (scopeWorkspaceId && scopeWorkspaceId !== platformCredential.workspaceId) {
       return { ok: false, error: 'Credential is not accessible from this workflow workspace' }
     }
 
     const accessError = credentialAccessError(platformAccess)
     if (accessError) return { ok: false, error: accessError }
+
+    if (platformCredential.type === 'managed_oauth') {
+      return {
+        ok: false,
+        error: 'Managed credential access requires scoped workflow delegation',
+      }
+    }
 
     if (platformCredential.type === 'service_account') {
       return {
@@ -176,6 +194,7 @@ export async function authorizeCredentialUseForAuth(
 
   let firstRejection: string | null = null
   for (const workspaceCredential of workspaceCredentials) {
+    if (!workspaceCredential.workspaceId) continue
     const accessError = credentialAccessError(
       await getCredentialActorContext(workspaceCredential.id, actingUserId)
     )

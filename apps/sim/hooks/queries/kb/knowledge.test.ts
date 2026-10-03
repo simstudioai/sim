@@ -1,75 +1,115 @@
-/**
- * @vitest-environment node
- */
-
+import { apiClientRequestMock } from '@sim/testing/mocks/api-client-request.mock'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { deploymentShapeMock } from '@sim/testing/mocks/deployment-shape.mock'
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
+import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  requestJson: vi.fn(),
-  useMutation: vi.fn(),
-  invalidateQueries: vi.fn(),
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
-vi.mock('@tanstack/react-query', () => ({
-  keepPreviousData: Symbol('keepPreviousData'),
-  useInfiniteQuery: vi.fn(),
-  useMutation: mocks.useMutation,
-  useQuery: vi.fn(),
-  useQueryClient: vi.fn(() => ({ invalidateQueries: mocks.invalidateQueries })),
-}))
+vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 
-vi.mock('@sim/emcn', () => ({
-  toast: { error: vi.fn(), success: vi.fn() },
-}))
+vi.mock('@tanstack/react-query', () => reactQueryMock)
 
-vi.mock('@/lib/api/client/request', () => ({
-  requestJson: mocks.requestJson,
-}))
+vi.mock('@sim/emcn', () => emcnMock)
 
-import { useBulkDocumentOperation, useDeleteDocument } from '@/hooks/queries/kb/knowledge'
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
+
+import {
+  useDocumentChunkSearchQuery,
+  useDocumentQuery,
+  useKnowledgeBasesQuery,
+  useKnowledgeChunksQuery,
+  useWorkspaceKnowledgeSearch,
+} from '@/hooks/queries/kb/knowledge'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
-interface CapturedMutation {
-  onSettled: (data: unknown, error: unknown, variables: Record<string, unknown>) => void
+const mocks = {
+  live: false,
+  useMutation: reactQueryMockFns.mockUseMutation,
+  useQuery: reactQueryMockFns.mockUseQuery,
+  invalidateQueries: reactQueryMockFns.mockQueryClient.invalidateQueries,
+  getQueryData: reactQueryMockFns.mockQueryClient.getQueryData,
+}
+authClientMockFns.mockUseSession.mockReturnValue({ data: { user: { id: 'reader' } } })
+
+interface CapturedQuery {
+  queryKey: readonly unknown[]
+  queryFn: (context: { signal: AbortSignal }) => Promise<unknown>
+  retry?: boolean
+  placeholderData?: (
+    previous: unknown,
+    query: { queryKey: readonly unknown[]; state?: { status: string; isInvalidated: boolean } }
+  ) => unknown
 }
 
-function captureMutation(build: () => unknown): CapturedMutation {
-  let captured: CapturedMutation | undefined
-  mocks.useMutation.mockImplementation((options: CapturedMutation) => {
+function captureQuery(build: () => unknown): CapturedQuery {
+  let captured: CapturedQuery | undefined
+  mocks.useQuery.mockImplementation((options: CapturedQuery) => {
     captured = options
     return {}
   })
   build()
-  if (!captured) throw new Error('useMutation was not called')
+  if (!captured) throw new Error('useQuery was not called')
   return captured
 }
 
-describe('knowledge document mutations', () => {
+describe('knowledge query placeholder scope', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    mocks.live = false
   })
 
-  it('invalidates the knowledge-base lists when a document is deleted', () => {
-    const mutation = captureMutation(() => useDeleteDocument())
-
-    mutation.onSettled(undefined, undefined, { knowledgeBaseId: 'kb-1', documentId: 'doc-1' })
-
-    expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: knowledgeKeys.lists() })
+  it('does not carry a prior workspace list or document detail into another resource', () => {
+    expect(
+      captureQuery(() => useKnowledgeBasesQuery('workspace-2')).placeholderData
+    ).toBeUndefined()
+    expect(captureQuery(() => useDocumentQuery('kb-2', 'doc-2')).placeholderData).toBeUndefined()
   })
 
-  it('invalidates the knowledge-base lists on a bulk delete', () => {
-    const mutation = captureMutation(() => useBulkDocumentOperation())
-
-    mutation.onSettled(undefined, undefined, { knowledgeBaseId: 'kb-1', operation: 'delete' })
-
-    expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: knowledgeKeys.lists() })
+  it.each([
+    [
+      'chunks',
+      () => useKnowledgeChunksQuery({ knowledgeBaseId: 'kb-1', documentId: 'doc-1', offset: 50 }),
+    ],
+    [
+      'chunk search',
+      () =>
+        useDocumentChunkSearchQuery({
+          knowledgeBaseId: 'kb-1',
+          documentId: 'doc-1',
+          search: 'new',
+        }),
+    ],
+  ])('keeps %s placeholders only for the same document', (_name, build) => {
+    const query = captureQuery(build)
+    const previous = [{ content: 'Previously authorized content' }]
+    expect(
+      query.placeholderData?.(previous, { queryKey: knowledgeKeys.chunks('kb-1', 'doc-1', 'old') })
+    ).toBe(previous)
+    expect(
+      query.placeholderData?.(previous, { queryKey: knowledgeKeys.chunks('kb-1', 'doc-2', 'old') })
+    ).toBeUndefined()
+    expect(
+      query.placeholderData?.(previous, { queryKey: knowledgeKeys.chunks('kb-2', 'doc-1', 'old') })
+    ).toBeUndefined()
   })
 
-  it('leaves the knowledge-base lists alone on a bulk enable', () => {
-    const mutation = captureMutation(() => useBulkDocumentOperation())
-
-    mutation.onSettled(undefined, undefined, { knowledgeBaseId: 'kb-1', operation: 'enable' })
-
-    expect(mocks.invalidateQueries).not.toHaveBeenCalledWith({ queryKey: knowledgeKeys.lists() })
+  it('partitions search cache entries by filter and reader', () => {
+    const query = captureQuery(() =>
+      useWorkspaceKnowledgeSearch('workspace-1', 'new query', { source: 'slack' })
+    )
+    expect(query.queryKey).toEqual([
+      ...knowledgeKeys.search('workspace-1', 'new query', { source: 'slack' }, 20, 'reader'),
+      'live',
+    ])
+    expect(knowledgeKeys.search('workspace-1', 'query', { source: 'slack' })).not.toEqual(
+      knowledgeKeys.search('workspace-1', 'query', { source: 'gitlab' })
+    )
+    expect(knowledgeKeys.search('workspace-1', 'query', {}, 20, 'reader')).not.toEqual(
+      knowledgeKeys.search('workspace-1', 'query', {}, 20, 'another-reader')
+    )
+    expect(knowledgeKeys.search('workspace-1', 'query', {}, 5)).not.toEqual(
+      knowledgeKeys.search('workspace-1', 'query', {}, 20)
+    )
   })
 })

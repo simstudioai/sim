@@ -1,6 +1,6 @@
 'use client'
 
-import { type ErrorBoundaryProps, ErrorState } from '@/app/workspace/[workspaceId]/components'
+import { type ErrorBoundaryProps, ErrorState } from '@/app/workspace/[workspaceId]/components/error'
 
 export default function WorkspaceError({ error, reset }: ErrorBoundaryProps) {
   return (

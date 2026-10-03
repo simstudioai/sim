@@ -1,0 +1,107 @@
+/**
+ * Maps a knowledge base's stored vector width onto the one pgvector column that
+ * holds it. Every read and write of a chunk's vector goes through here, so the
+ * column choice, the distance expression, and the index each width is served by
+ * can never drift apart.
+ */
+
+import { embedding, embeddingSearch } from '@sim/db/schema'
+import { type SQL, sql } from 'drizzle-orm'
+import type { KbEmbeddingDimensions } from '@/lib/knowledge/embedding-models'
+
+type VectorField = 'embedding' | 'embedding384' | 'embedding768' | 'embedding1024' | 'embedding3072'
+
+/**
+ * Column per stored width. `embedding` is the original 1536 column, kept under
+ * its bare name so rows written before the other widths existed stay put.
+ */
+const VECTOR_FIELD_BY_WIDTH = {
+  384: 'embedding384',
+  768: 'embedding768',
+  1024: 'embedding1024',
+  1536: 'embedding',
+  3072: 'embedding3072',
+} as const satisfies Record<KbEmbeddingDimensions, VectorField>
+
+const VECTOR_FIELDS = Object.values(VECTOR_FIELD_BY_WIDTH) as readonly VectorField[]
+
+const CANDIDATE_COLUMN_BY_WIDTH = {
+  384: embeddingSearch.vector384,
+  512: embeddingSearch.vector512,
+  768: embeddingSearch.vector768,
+  1024: embeddingSearch.vector1024,
+  1536: embeddingSearch.vector,
+  3072: embeddingSearch.vector3072,
+} as const
+
+export function embeddingVectorColumn(dimensions: KbEmbeddingDimensions) {
+  return embedding[VECTOR_FIELD_BY_WIDTH[dimensions]]
+}
+
+/**
+ * The vector slice of an `embedding` row: the column for this width carries the
+ * vector and every other width is explicitly NULL.
+ *
+ * Every width is named rather than just the one in use so an update that
+ * re-embeds a chunk at a different width clears the column it used to live in.
+ * Omitting the others satisfies an insert but leaves an update holding two
+ * vectors, which `embedding_width_check` rejects.
+ */
+export function embeddingVectorValues(
+  dimensions: KbEmbeddingDimensions,
+  vector: number[]
+): Record<VectorField, number[] | null> {
+  const target = VECTOR_FIELD_BY_WIDTH[dimensions]
+  return Object.fromEntries(
+    VECTOR_FIELDS.map((field) => [field, field === target ? vector : null])
+  ) as Record<VectorField, number[] | null>
+}
+
+/**
+ * Cosine distance between a chunk's vector and the query vector, used for the
+ * search layer's exact rerank over an already-bounded candidate set.
+ *
+ * `embedding` carries no ANN index — approximate retrieval runs against the
+ * compact `embedding_search` projection — so this expression is never expected
+ * to match one, and its caller wraps it to keep the planner from trying.
+ *
+ * The 3,072 column keeps its `halfvec` cast: the width that made the cast
+ * necessary is unchanged, and `packages/db/schema.ts` records that the
+ * half-precision comparison moved no distance measurably for the one model
+ * that emits this width.
+ */
+export function embeddingDistance(
+  dimensions: KbEmbeddingDimensions,
+  queryVector: string
+): SQL<number> {
+  if (dimensions === 3072) {
+    return sql<number>`${embedding.embedding3072}::halfvec(3072) <=> ${queryVector}::halfvec(3072)`
+  }
+  return sql<number>`${embeddingVectorColumn(dimensions)} <=> ${queryVector}::vector`
+}
+
+/** Only models trained for prefix shortening can use a smaller candidate dimension. */
+export function embeddingCandidateDimensions(dimensions: KbEmbeddingDimensions, model: string) {
+  if (
+    dimensions > 512 &&
+    (model === 'text-embedding-3-small' || model === 'text-embedding-3-large')
+  ) {
+    return 512
+  }
+  return dimensions
+}
+
+/** Candidate scores never escape retrieval; final scores use the original vector's cosine distance. */
+export function embeddingCandidateDistance(
+  dimensions: KbEmbeddingDimensions,
+  queryVector: string,
+  model: string
+): SQL<number> {
+  const candidateDimensions = embeddingCandidateDimensions(dimensions, model)
+  const width = sql.raw(String(candidateDimensions))
+  const query =
+    candidateDimensions === dimensions
+      ? sql`${queryVector}::halfvec(${width})`
+      : sql`subvector(${queryVector}::vector, 1, ${width})::halfvec(${width})`
+  return sql<number>`${CANDIDATE_COLUMN_BY_WIDTH[candidateDimensions]} <=> ${query}`
+}

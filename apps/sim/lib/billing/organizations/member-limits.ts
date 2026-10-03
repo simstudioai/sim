@@ -1,14 +1,61 @@
 import { db } from '@sim/db'
-import { organizationMemberUsageLimit, usageLog, workspace } from '@sim/db/schema'
+import {
+  member,
+  organizationMemberUsageLimit,
+  permissions,
+  usageLog,
+  workspace,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, gte, isNull, lt, or, sql } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
+import { readLedgerBounded } from '@/lib/billing/core/ledger-read'
+import { resolveSubscriptionUsagePeriod } from '@/lib/billing/core/reporting-period'
+import type { UsageQueryPeriod } from '@/lib/billing/core/usage-log'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('OrgMemberLimits')
+
+/**
+ * Includes external collaborators whose explicit workspace access belongs to the organization.
+ * Retained grants on archived workspaces still qualify so their caps remain manageable.
+ * Mutations hold the organization fence before requesting a shared relationship lock;
+ * together these stabilize workspace scope and access through the write.
+ */
+export async function isOrgMemberUsageLimitTarget(
+  organizationId: string,
+  userId: string,
+  options: { executor?: DbOrTx; forShare?: boolean } = {}
+): Promise<boolean> {
+  const executor = options.executor ?? db
+  const memberQuery = executor
+    .select({ id: member.id })
+    .from(member)
+    .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
+    .limit(1)
+  const [organizationMember] = options.forShare ? await memberQuery.for('share') : await memberQuery
+  if (organizationMember) return true
+
+  const workspaceQuery = executor
+    .select({ id: permissions.id })
+    .from(permissions)
+    .innerJoin(workspace, eq(workspace.id, permissions.entityId))
+    .where(
+      and(
+        eq(permissions.userId, userId),
+        eq(permissions.entityType, 'workspace'),
+        eq(workspace.organizationId, organizationId)
+      )
+    )
+    .limit(1)
+  const [workspaceMember] = options.forShare
+    ? await workspaceQuery.for('share', { of: permissions })
+    : await workspaceQuery
+  return Boolean(workspaceMember)
+}
 
 /**
  * Read a member's per-organization usage limit (dollars). Returns `null` when no
@@ -95,36 +142,47 @@ export async function setOrgMemberUsageLimit(
 export async function getOrgMemberUsageForBillingPeriod(
   organizationId: string,
   userId: string,
-  billingPeriod: { start: Date; end: Date }
+  billingPeriod: UsageQueryPeriod
 ): Promise<number> {
-  const [row] = await db
-    .select({ cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)` })
-    .from(usageLog)
-    .leftJoin(workspace, eq(workspace.id, usageLog.workspaceId))
-    .where(
-      and(
-        eq(usageLog.userId, userId),
-        or(
-          and(
-            eq(usageLog.billingEntityType, 'organization'),
-            eq(usageLog.billingEntityId, organizationId),
-            eq(usageLog.billingPeriodStart, billingPeriod.start),
-            eq(usageLog.billingPeriodEnd, billingPeriod.end)
-          ),
-          and(
-            isNull(usageLog.billingEntityType),
-            isNull(usageLog.billingEntityId),
-            eq(workspace.organizationId, organizationId),
-            or(
-              isNull(workspace.organizationAssignedAt),
-              gte(usageLog.createdAt, workspace.organizationAssignedAt)
-            ),
-            gte(usageLog.createdAt, billingPeriod.start),
-            lt(usageLog.createdAt, billingPeriod.end)
-          )
+  const [row] = await readLedgerBounded(db, (tx) =>
+    tx
+      .select({ cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)` })
+      .from(usageLog)
+      .leftJoin(workspace, eq(workspace.id, usageLog.workspaceId))
+      .where(
+        and(
+          eq(usageLog.userId, userId),
+          ...(billingPeriod.source === 'reporting'
+            ? [
+                eq(usageLog.billingEntityType, 'organization'),
+                eq(usageLog.billingEntityId, organizationId),
+                gte(usageLog.createdAt, billingPeriod.start),
+                lt(usageLog.createdAt, billingPeriod.end),
+              ]
+            : [
+                or(
+                  and(
+                    eq(usageLog.billingEntityType, 'organization'),
+                    eq(usageLog.billingEntityId, organizationId),
+                    eq(usageLog.billingPeriodStart, billingPeriod.start),
+                    eq(usageLog.billingPeriodEnd, billingPeriod.end)
+                  ),
+                  and(
+                    isNull(usageLog.billingEntityType),
+                    isNull(usageLog.billingEntityId),
+                    eq(workspace.organizationId, organizationId),
+                    or(
+                      isNull(workspace.organizationAssignedAt),
+                      gte(usageLog.createdAt, workspace.organizationAssignedAt)
+                    ),
+                    gte(usageLog.createdAt, billingPeriod.start),
+                    lt(usageLog.createdAt, billingPeriod.end)
+                  )
+                ),
+              ])
         )
       )
-    )
+  )
 
   return Number.parseFloat(row?.cost ?? '0')
 }
@@ -150,10 +208,10 @@ export async function getOrgMemberUsageForCurrentPeriod(
     prefetchedSubscription === undefined
       ? await getOrganizationSubscription(organizationId)
       : prefetchedSubscription
-  const billingPeriod =
-    subscription?.periodStart && subscription.periodEnd
-      ? { start: subscription.periodStart, end: subscription.periodEnd }
-      : defaultBillingPeriod()
+  const billingPeriod = resolveSubscriptionUsagePeriod(subscription) ?? {
+    ...defaultBillingPeriod(),
+    source: 'default' as const,
+  }
 
   return getOrgMemberUsageForBillingPeriod(organizationId, userId, billingPeriod)
 }

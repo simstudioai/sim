@@ -8,7 +8,6 @@ import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { Home } from '@/app/workspace/[workspaceId]/home/home'
 import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
 import { prefetchHomeSurface } from '@/app/workspace/[workspaceId]/home/prefetch'
-import { resolveTableViewsEnabled } from '@/app/workspace/[workspaceId]/home/resolve-table-views-flag'
 
 export const metadata: Metadata = {
   title: 'Chat',
@@ -31,20 +30,11 @@ export default async function ChatPage({ params }: ChatPageProps) {
   const [{ workspaceId, chatId }, session] = await Promise.all([params, getSession()])
   const userId = session?.user?.id
   const queryClient = getQueryClient()
-  const [tableViewsEnabled] = await Promise.all([
-    resolveTableViewsEnabled(workspaceId, userId),
-    prefetchHomeSurface(queryClient, workspaceId, userId),
-  ])
+  await prefetchHomeSurface(queryClient, workspaceId, userId)
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
       <Suspense fallback={<HomeFallback />}>
-        <Home
-          key={chatId}
-          chatId={chatId}
-          userName={session?.user?.name}
-          userId={userId}
-          tableViewsEnabled={tableViewsEnabled}
-        />
+        <Home key={chatId} chatId={chatId} userName={session?.user?.name} userId={userId} />
       </Suspense>
     </HydrationBoundary>
   )

@@ -1,8 +1,11 @@
 'use client'
 
 import type React from 'react'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import {
+  ChipModal,
+  ChipModalBody,
+  ChipModalHeader,
   cn,
   DropdownMenu,
   DropdownMenuContent,
@@ -10,11 +13,6 @@ import {
   DropdownMenuTrigger,
   Duplicate,
   Loader,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalHeader,
 } from '@sim/emcn'
 import { CircleAlert } from '@sim/emcn/icons'
 import { createPortal } from 'react-dom'
@@ -62,6 +60,7 @@ export function ExecutionSnapshot({
   onClose = () => {},
 }: ExecutionSnapshotProps) {
   const { data, isLoading, error } = useExecutionSnapshot(executionId)
+  const modalDescriptionId = useId()
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 })
@@ -136,7 +135,7 @@ export function ExecutionSnapshot({
           className={cn('flex flex-col items-center justify-center gap-4 p-8', className)}
           style={{ height, width }}
         >
-          <div className='flex items-center gap-3 text-[var(--text-warning)]'>
+          <div className='flex items-center gap-3 text-[var(--warning)]'>
             <CircleAlert className='size-[20px]' />
             <span className='text-base'>Logged State Not Found</span>
           </div>
@@ -205,25 +204,26 @@ export function ExecutionSnapshot({
   if (isModal) {
     return (
       <>
-        <Modal
+        <ChipModal
           open={isOpen}
           onOpenChange={(open) => {
             if (!open) {
               onClose()
             }
           }}
+          srTitle='Workflow State'
+          aria-describedby={modalDescriptionId}
+          size='full'
+          className='h-[90vh] [&>div]:h-full'
         >
-          <ModalContent size='full' className='flex h-[90vh] flex-col'>
-            <ModalHeader>Workflow State</ModalHeader>
-
-            <ModalBody className='!p-0 min-h-0 flex-1 overflow-hidden'>
-              <ModalDescription className='sr-only'>
-                View the workflow state snapshot for this execution
-              </ModalDescription>
-              {renderContent()}
-            </ModalBody>
-          </ModalContent>
-        </Modal>
+          <ChipModalHeader onClose={onClose}>Workflow State</ChipModalHeader>
+          <ChipModalBody fullBleed>
+            <p id={modalDescriptionId} className='sr-only'>
+              View the workflow state snapshot for this execution
+            </p>
+            {renderContent()}
+          </ChipModalBody>
+        </ChipModal>
         {canvasContextMenu}
       </>
     )

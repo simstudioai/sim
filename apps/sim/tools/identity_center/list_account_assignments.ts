@@ -2,15 +2,16 @@ import type {
   IdentityCenterListAccountAssignmentsParams,
   IdentityCenterListAccountAssignmentsResponse,
 } from '@/tools/identity_center/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const listAccountAssignmentsTool: ToolConfig<
+export const listAccountAssignmentsTool: InternalToolConfig<
   IdentityCenterListAccountAssignmentsParams,
   IdentityCenterListAccountAssignmentsResponse
 > = {
   id: 'identity_center_list_account_assignments',
-  name: 'Identity Center List Account Assignments',
-  description: 'List all account assignments for a specific user or group across all accounts',
+  name: 'Identity Center List Account Assignments For Principal',
+  description:
+    'List every account and permission set a specific user or group is assigned. Use List Assignments For Account to go the other way, from an account to its principals.',
   version: '1.0.0',
 
   params: {
@@ -54,7 +55,7 @@ export const listAccountAssignmentsTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of assignments to return',
+      description: 'Maximum number of assignments to return (1-100)',
     },
     nextToken: {
       type: 'string',
@@ -64,11 +65,8 @@ export const listAccountAssignmentsTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/identity-center/list-account-assignments',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,
@@ -97,9 +95,17 @@ export const listAccountAssignmentsTool: ToolConfig<
 
   outputs: {
     assignments: {
-      type: 'json',
-      description:
-        'List of account assignments with accountId, permissionSetArn, principalType, principalId',
+      type: 'array',
+      description: 'Accounts and permission sets the principal is assigned',
+      items: {
+        type: 'object',
+        properties: {
+          accountId: { type: 'string', description: 'AWS account ID' },
+          permissionSetArn: { type: 'string', description: 'Permission set ARN' },
+          principalType: { type: 'string', description: 'Principal type (USER or GROUP)' },
+          principalId: { type: 'string', description: 'Identity Store user or group ID' },
+        },
+      },
     },
     nextToken: {
       type: 'string',

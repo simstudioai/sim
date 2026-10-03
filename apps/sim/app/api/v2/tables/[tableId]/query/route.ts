@@ -27,6 +27,7 @@ function queryRowCursorScope(tableId: string): string {
 export const POST = defineV2JsonRoute({
   contract: v2QueryRowsContract,
   operation: tableOperations.queryRows,
+  /** POST carries structured filters but performs a read-only query. */
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2TableRowsErrorPolicy,
@@ -40,12 +41,15 @@ export const POST = defineV2JsonRoute({
     limit:
       body.limit === undefined ? V2_DEFAULT_ROW_LIMIT : body.limit === 0 ? undefined : body.limit,
     includeTotal: false,
+    includeRunState: body.includeRunState,
   }),
   useCase: queryTableRows,
-  present: ({ table, rows, nextCursor }, { params }) => {
+  present: ({ table, rows, nextCursor }, { params, body }) => {
     const toNamedRow = namedRowMapper(table.schema.columns)
     return {
-      data: rows.map((row) => toApiRow(row, toNamedRow)),
+      data: rows.map((row) =>
+        toApiRow(row, toNamedRow, body.includeRunState ? row.executions : undefined)
+      ),
       nextCursor: nextCursor
         ? encodeScopedCursor(queryRowCursorScope(params.tableId), nextCursor)
         : null,

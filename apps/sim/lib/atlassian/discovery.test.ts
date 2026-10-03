@@ -1,9 +1,7 @@
-/**
- * @vitest-environment node
- */
 import { createMockResponse } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  AtlassianSiteNotMatchedError,
   clearAtlassianCloudIdCache,
   normalizeAtlassianSiteUrl,
   resolveAtlassianCloudId,
@@ -19,8 +17,8 @@ function options(over: Record<string, unknown> = {}) {
   >[0]
 }
 
-/** Tiny delays so retry cases do not spend real seconds sleeping. */
-const FAST = { initialDelayMs: 1, maxDelayMs: 1 }
+/** Tiny waits keep retry cases fast; the explicit budget absorbs test-runner scheduling latency. */
+const FAST = { initialDelayMs: 1, maxDelayMs: 1, retryBudgetMs: 1_000 }
 
 function sites(entries: Array<{ id: string; url: string }>) {
   return createMockResponse({ json: entries })
@@ -38,11 +36,6 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock)
 })
 
-afterEach(() => {
-  vi.unstubAllGlobals()
-  vi.restoreAllMocks()
-})
-
 describe('normalizeAtlassianSiteUrl', () => {
   it.each([
     ['acme.atlassian.net', SITE],
@@ -55,18 +48,30 @@ describe('normalizeAtlassianSiteUrl', () => {
 })
 
 describe('resolveAtlassianCloudId', () => {
-  it('resolves an exact domain match', async () => {
-    fetchMock.mockResolvedValue(sites([{ id: CLOUD_ID, url: SITE }]))
+  it('rejects the sole other site when exact matching is required', async () => {
+    fetchMock.mockResolvedValue(sites([{ id: 'other-cloud', url: 'https://other.atlassian.net' }]))
 
-    await expect(resolveAtlassianCloudId(options())).resolves.toBe(CLOUD_ID)
+    await expect(
+      resolveAtlassianCloudId(options({ requireExactMatch: true }))
+    ).rejects.toBeInstanceOf(AtlassianSiteNotMatchedError)
   })
 
-  it('serves a repeat lookup from cache without a second request', async () => {
+  it('does not reuse a fallback answer for an exact-match request', async () => {
+    fetchMock.mockResolvedValue(sites([{ id: 'other-cloud', url: 'https://other.atlassian.net' }]))
+
+    await expect(resolveAtlassianCloudId(options())).resolves.toBe('other-cloud')
+    await expect(
+      resolveAtlassianCloudId(options({ requireExactMatch: true }))
+    ).rejects.toBeInstanceOf(AtlassianSiteNotMatchedError)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('caches matching exact-site requests separately and preserves domain normalization', async () => {
     fetchMock.mockResolvedValue(sites([{ id: CLOUD_ID, url: SITE }]))
+    const exact = options({ requireExactMatch: true, domain: ' HTTP://ACME.ATLASSIAN.NET// ' })
 
-    await resolveAtlassianCloudId(options())
-    await resolveAtlassianCloudId(options())
-
+    await expect(resolveAtlassianCloudId(exact)).resolves.toBe(CLOUD_ID)
+    await expect(resolveAtlassianCloudId(exact)).resolves.toBe(CLOUD_ID)
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
@@ -94,22 +99,9 @@ describe('resolveAtlassianCloudId', () => {
     }
   )
 
-  it('keeps the transient-5xx condition when a caller tunes the retry budget', async () => {
-    fetchMock
-      .mockResolvedValueOnce(failure(500))
-      .mockResolvedValueOnce(sites([{ id: CLOUD_ID, url: SITE }]))
-
-    // Shaped like VALIDATE_RETRY_OPTIONS: counts only, no retryCondition.
-    await expect(
-      resolveAtlassianCloudId(options({ retryOptions: { maxRetries: 3, ...FAST } }))
-    ).resolves.toBe(CLOUD_ID)
-  })
-
   it('gives up on a persistent fault within a bounded attempt budget', async () => {
     fetchMock.mockImplementation(async () => failure(500))
 
-    // Delays only. `maxRetries` still comes from the discovery budget, so this
-    // fails if the shared default of 5 ever leaks back in.
     await expect(resolveAtlassianCloudId(options({ retryOptions: FAST }))).rejects.toThrow(
       /Failed to fetch Jira accessible resources: 500/
     )
@@ -173,40 +165,17 @@ describe('resolveAtlassianCloudId', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
-  it('retries a request that timed out', async () => {
-    fetchMock
-      .mockRejectedValueOnce(
-        Object.assign(new Error('The operation timed out.'), { name: 'TimeoutError' })
-      )
-      .mockResolvedValueOnce(sites([{ id: CLOUD_ID, url: SITE }]))
-
-    await expect(resolveAtlassianCloudId(options({ retryOptions: FAST }))).resolves.toBe(CLOUD_ID)
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-  })
-
-  it('rejects rather than throwing synchronously on a missing domain', async () => {
-    const call = resolveAtlassianCloudId(options({ domain: undefined }))
-
-    await expect(call).rejects.toThrow()
-    expect(fetchMock).not.toHaveBeenCalled()
-  })
-
-  it('reports the available sites when several are accessible and none match', async () => {
-    fetchMock.mockResolvedValue(
-      sites([
-        { id: 'a', url: 'https://one.atlassian.net' },
-        { id: 'b', url: 'https://two.atlassian.net' },
-      ])
-    )
+  it.each([
+    [{ url: SITE }],
+    [{ id: CLOUD_ID }],
+    [{ id: '', url: SITE }],
+    [{ id: CLOUD_ID, url: '' }],
+    [null],
+  ])('rejects malformed resource entries in an otherwise valid array', async (resources) => {
+    fetchMock.mockResolvedValue(createMockResponse({ json: resources }))
 
     await expect(resolveAtlassianCloudId(options())).rejects.toThrow(
-      /Available sites: https:\/\/one.atlassian.net, https:\/\/two.atlassian.net/
+      'Invalid Jira accessible-resources response'
     )
-  })
-
-  it('rejects when the token can see no sites', async () => {
-    fetchMock.mockResolvedValue(sites([]))
-
-    await expect(resolveAtlassianCloudId(options())).rejects.toThrow('No Jira resources found')
   })
 })

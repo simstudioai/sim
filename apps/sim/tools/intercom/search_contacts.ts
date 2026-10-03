@@ -133,7 +133,7 @@ const searchContactsBase = {
       let query
       try {
         query = JSON.parse(params.query)
-      } catch (error) {
+      } catch {
         // If not JSON, treat as simple text search
         query = {
           field: 'name',

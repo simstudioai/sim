@@ -13,6 +13,10 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { getMcpSafeErrorDiagnostics } from '@/lib/mcp/error-diagnostics'
 import { McpOauthRedirectRequired } from '@/lib/mcp/oauth'
+import {
+  createCoordinatedMcpOauthFetch,
+  createMcpEndpointFetch,
+} from '@/lib/mcp/oauth/coordinated-fetch'
 import { createGuardedMcpFetch, createPinnedPrivateMcpFetch } from '@/lib/mcp/pinned-fetch'
 import {
   type McpClientOptions,
@@ -21,6 +25,7 @@ import {
   type McpConsentRequest,
   type McpConsentResponse,
   McpError,
+  McpOauthAuthorizationRequiredError,
   type McpSecurityPolicy,
   type McpServerConfig,
   type McpTool,
@@ -47,7 +52,10 @@ function classifyConnectionOutcome(
   error: unknown,
   authType: McpServerConfig['authType']
 ): ConnectionOutcome {
-  if (error instanceof McpOauthRedirectRequired) {
+  if (
+    error instanceof McpOauthRedirectRequired ||
+    error instanceof McpOauthAuthorizationRequiredError
+  ) {
     return 'authorization_required'
   }
   if (error instanceof UnauthorizedError) {
@@ -62,6 +70,12 @@ function classifyConnectionOutcome(
 
 interface McpClientConnectOptions {
   isCancelled?: () => boolean
+  signal?: AbortSignal
+}
+
+interface McpToolCallOptions {
+  signal?: AbortSignal
+  timeoutMs?: number
 }
 
 export class McpClient {
@@ -94,25 +108,44 @@ export class McpClient {
       throw new McpError('URL required for Streamable HTTP transport')
     }
 
-    if (this.config.authType === 'oauth' && this.authProvider == null) {
-      throw new McpError('OAuth MCP server requires an authProvider')
+    if (
+      this.config.authType === 'oauth' &&
+      this.authProvider == null &&
+      !options.oauthCredentials
+    ) {
+      throw new McpError('OAuth MCP server requires OAuth credentials')
+    }
+    if (options.oauthCredentials && this.authProvider) {
+      throw new McpError('OAuth MCP server must use one authentication strategy')
     }
     const useOauth = this.config.authType === 'oauth'
-    // `resolvedIP` non-null signals the SSRF policy is active for this server (it is null in
-    // allowlist mode / localhost-on-self-hosted); the guard validates addresses per-connect.
-    // A private/loopback resolvedIP only reaches here on self-hosted (where the policy
-    // permits it) — the guarded lookup would filter it, so that case keeps the legacy pin
-    // to the validated address (old behavior + its anti-rebinding property).
-    const guarded = resolvedIP
-      ? isPrivateIp(resolvedIP)
-        ? createPinnedPrivateMcpFetch(resolvedIP)
-        : createGuardedMcpFetch()
+    // The transport never runs on the global fetch: the guard validates addresses
+    // per-connect and redirects per-hop whether or not a caller validated the URL
+    // first. A private/loopback resolvedIP only reaches here on a self-hosted
+    // deployment whose policy permits it, and that case pins to the address that
+    // was validated rather than to whatever the name resolves to next.
+    const guarded =
+      resolvedIP && isPrivateIp(resolvedIP)
+        ? createPinnedPrivateMcpFetch(resolvedIP, this.config.url)
+        : createGuardedMcpFetch(this.config.url)
+    this.closeGuardedTransport = guarded.close
+    const oauthFetch = useOauth
+      ? createMcpEndpointFetch(guarded.fetch, {
+          serverUrl: this.config.url,
+          headers: this.config.headers,
+        })
       : undefined
-    this.closeGuardedTransport = guarded?.close
+    const transportFetch =
+      options.oauthCredentials && oauthFetch
+        ? createCoordinatedMcpOauthFetch(options.oauthCredentials, {
+            serverUrl: this.config.url,
+            fetch: oauthFetch,
+          })
+        : (oauthFetch ?? guarded.fetch)
     this.transport = new StreamableHTTPClientTransport(new URL(this.config.url), {
       authProvider: useOauth ? this.authProvider : undefined,
-      requestInit: { headers: this.config.headers },
-      ...(guarded ? { fetch: guarded.fetch } : {}),
+      ...(useOauth ? {} : { requestInit: { headers: this.config.headers } }),
+      fetch: transportFetch,
     })
 
     this.client = new Client(
@@ -176,8 +209,9 @@ export class McpClient {
     try {
       await this.client.connect(this.transport, {
         timeout: timeoutMs,
+        signal: options.signal,
       })
-      if (options.isCancelled?.()) {
+      if (options.signal?.aborted || options.isCancelled?.()) {
         await this.client.close().catch((error) => {
           logger.warn(`Error closing cancelled connection to ${this.config.name}:`, error)
         })
@@ -268,7 +302,10 @@ export class McpClient {
     return { ...this.connectionStatus }
   }
 
-  async listTools(): Promise<McpTool[]> {
+  async listTools(
+    signal?: AbortSignal,
+    options: { requireComplete?: boolean } = {}
+  ): Promise<McpTool[]> {
     if (!this.isConnected) {
       throw new McpConnectionError('Not connected to server', this.config.name)
     }
@@ -313,6 +350,7 @@ export class McpClient {
             timeout: Math.min(idleTimeoutMs, remainingMs),
             maxTotalTimeout: remainingMs,
             resetTimeoutOnProgress: true,
+            signal,
             onprogress: (progress) => {
               logger.debug(`Tool discovery progress from ${this.config.name}`, {
                 serverId: this.config.id,
@@ -373,10 +411,17 @@ export class McpClient {
           toolsCollected: tools.length,
           pagesFetched,
         })
+        if (options.requireComplete) {
+          throw new McpConnectionError(
+            `Tool discovery was truncated by the ${truncated} limit`,
+            this.config.name
+          )
+        }
       }
 
       return tools
     } catch (error) {
+      signal?.throwIfAborted()
       logger.error(`Failed to list tools from server ${this.config.name}`, {
         serverId: this.config.id,
         phase: 'tools/list',
@@ -388,6 +433,8 @@ export class McpClient {
         sessionIdPresent: Boolean(this.transport.sessionId),
         error: getMcpSafeErrorDiagnostics(error),
       })
+      if (options.requireComplete) throw error
+
       // At least one page succeeded → keep its (possibly empty) partial result rather than
       // failing discovery and marking the server unhealthy; only a page-one failure throws.
       if (pagesFetched > 0) return tools
@@ -395,7 +442,7 @@ export class McpClient {
     }
   }
 
-  async callTool(toolCall: McpToolCall): Promise<McpToolResult> {
+  async callTool(toolCall: McpToolCall, options: McpToolCallOptions = {}): Promise<McpToolResult> {
     if (!this.isConnected) {
       throw new McpConnectionError('Not connected to server', this.config.name)
     }
@@ -429,7 +476,13 @@ export class McpClient {
       const sdkResult = await this.client.callTool(
         { name: toolCall.name, arguments: toolCall.arguments },
         undefined,
-        { timeout: getMaxExecutionTimeout() }
+        {
+          timeout:
+            options.timeoutMs !== undefined && options.timeoutMs > 0
+              ? options.timeoutMs
+              : getMaxExecutionTimeout(),
+          signal: options.signal,
+        }
       )
 
       return sdkResult as McpToolResult

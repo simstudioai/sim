@@ -1,4 +1,5 @@
 import {
+  listsSubfolders,
   type V2File,
   v2CreateFileContract,
   v2ListFilesContract,
@@ -8,6 +9,7 @@ import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { createWorkspaceFile } from '@/lib/workspace-files/application/create-workspace-file'
+import { workspaceFileRevisionField } from '@/lib/workspace-files/application/file-revision'
 import { queryWorkspaceFilePage } from '@/lib/workspace-files/application/list-workspace-files'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { MAX_WORKSPACE_FILE_INLINE_BODY_BYTES } from '@/lib/workspace-files/orchestration'
@@ -23,12 +25,19 @@ function fileCursorFilters(query: {
   scope?: string
   folderPath?: string
   search?: string
+  recursive?: boolean
 }) {
   return cursorScopeKey(cursorRoute(v2ListFilesContract), {
     workspaceId: query.workspaceId,
     scope: query.scope,
     folderPath: query.folderPath,
     search: query.search,
+    /**
+     * Keyed on the resolved value, not the raw parameter: omitting `recursive` beside a
+     * search asks for the same page as sending `recursive=true`, so keying on the parameter
+     * would reject a cursor between two requests that select identical rows.
+     */
+    recursive: String(listsSubfolders(query)),
   })
 }
 
@@ -44,6 +53,7 @@ export const GET = defineV2JsonRoute({
     scope: query.scope,
     folderPath: query.folderPath,
     search: query.search,
+    recursive: listsSubfolders(query),
     sortBy: query.sortBy,
     sortOrder: query.sortOrder,
     limit: query.limit,
@@ -84,5 +94,10 @@ export const POST = defineV2JsonRoute({
     exactName: true,
   }),
   useCase: createWorkspaceFile,
-  present: async ({ file }) => ({ data: await toV2File(file) }),
+  present: async ({ file }) => ({
+    data: {
+      ...(await toV2File(file)),
+      ...workspaceFileRevisionField(file),
+    },
+  }),
 })

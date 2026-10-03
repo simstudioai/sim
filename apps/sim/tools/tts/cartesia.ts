@@ -1,7 +1,7 @@
 import type { CartesiaTtsParams, TtsBlockResponse } from '@/tools/tts/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const cartesiaTtsTool: ToolConfig<CartesiaTtsParams, TtsBlockResponse> = {
+export const cartesiaTtsTool: InternalToolConfig<CartesiaTtsParams, TtsBlockResponse> = {
   id: 'tts_cartesia',
   name: 'Cartesia TTS',
   description: 'Convert text to speech using Cartesia Sonic (ultra-low latency)',
@@ -60,22 +60,12 @@ export const cartesiaTtsTool: ToolConfig<CartesiaTtsParams, TtsBlockResponse> = 
     },
   },
 
-  request: {
+  operation: {
     modelInput: {
       mode: 'project',
       select: (params) => ({ text: params.text }),
     },
-    url: '/api/tools/tts/unified',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (
-      params: CartesiaTtsParams & {
-        _context?: { workspaceId?: string; workflowId?: string; executionId?: string }
-      }
-    ) => ({
-      provider: 'cartesia',
+    input: (params) => ({
       text: params.text,
       apiKey: params.apiKey,
       modelId: params.modelId || 'sonic-3',
@@ -88,9 +78,6 @@ export const cartesiaTtsTool: ToolConfig<CartesiaTtsParams, TtsBlockResponse> = 
       },
       speed: params.speed,
       emotion: params.emotion,
-      workspaceId: params._context?.workspaceId,
-      workflowId: params._context?.workflowId,
-      executionId: params._context?.executionId,
     }),
   },
 

@@ -1,4 +1,6 @@
-import type { SendLogsParams, SendLogsResponse } from '@/tools/datadog/types'
+import { filterUndefined } from '@sim/utils/object'
+import type { LogEntry, SendLogsParams, SendLogsResponse } from '@/tools/datadog/types'
+import { datadogErrorMessage, parseJsonParam, resolveDatadogSite } from '@/tools/datadog/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendLogsTool: ToolConfig<SendLogsParams, SendLogsResponse> = {
@@ -13,7 +15,7 @@ export const sendLogsTool: ToolConfig<SendLogsParams, SendLogsResponse> = {
       required: true,
       visibility: 'user-or-llm',
       description:
-        'JSON array of log entries. Each entry should have message and optionally ddsource, ddtags, hostname, service.',
+        'JSON array of log entries. Each entry should have message and optionally ddsource, ddtags, hostname, service. Sim fills in ddsource="custom" when an entry omits it — that is a Sim default, not a Datadog one; set ddsource yourself to have Datadog apply the matching integration log pipeline.',
     },
     apiKey: {
       type: 'string',
@@ -31,14 +33,9 @@ export const sendLogsTool: ToolConfig<SendLogsParams, SendLogsResponse> = {
 
   request: {
     url: (params) => {
-      const site = params.site || 'datadoghq.com'
+      const site = resolveDatadogSite(params.site)
       // Logs API uses a different subdomain
-      const logsHost =
-        site === 'datadoghq.com'
-          ? 'http-intake.logs.datadoghq.com'
-          : site === 'datadoghq.eu'
-            ? 'http-intake.logs.datadoghq.eu'
-            : `http-intake.logs.${site}`
+      const logsHost = `http-intake.logs.${site}`
       return `https://${logsHost}/api/v2/logs`
     },
     method: 'POST',
@@ -47,33 +44,31 @@ export const sendLogsTool: ToolConfig<SendLogsParams, SendLogsResponse> = {
       'DD-API-KEY': params.apiKey,
     }),
     body: (params) => {
-      let logs: any[]
-      try {
-        logs = typeof params.logs === 'string' ? JSON.parse(params.logs) : params.logs
-      } catch {
-        throw new Error('Invalid JSON in logs parameter')
+      const logs = parseJsonParam<LogEntry[]>(params.logs, 'logs parameter')
+      if (!Array.isArray(logs) || logs.length === 0) {
+        throw new Error('logs must be a non-empty JSON array of log entries')
       }
 
-      // Ensure each log entry has the required format
-      return logs.map((log: any) => ({
-        ddsource: log.ddsource || 'custom',
-        ddtags: log.ddtags || '',
-        hostname: log.hostname || '',
-        message: log.message,
-        service: log.service || '',
-      }))
+      /**
+       * Every extra key is preserved: Datadog's log intake accepts arbitrary
+       * additional properties as the log's structured attributes, so rebuilding each
+       * entry from a fixed field list would silently discard them. Empty optional
+       * fields are dropped rather than sent blank, which would otherwise suppress
+       * Datadog's own host inference and write an empty reserved `service` attribute.
+       */
+      return logs.map((log) => filterUndefined({ ...log, ddsource: log.ddsource || 'custom' }))
     },
   },
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}))
+      const message = await datadogErrorMessage(response)
       return {
         success: false,
         output: {
           success: false,
         },
-        error: errorData.errors?.[0] || `HTTP ${response.status}: ${response.statusText}`,
+        error: message,
       }
     }
 

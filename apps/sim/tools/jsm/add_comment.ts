@@ -1,8 +1,8 @@
 import type { JsmAddCommentParams, JsmAddCommentResponse } from '@/tools/jsm/types'
 import { USER_OUTPUT_PROPERTIES } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmAddCommentTool: ToolConfig<JsmAddCommentParams, JsmAddCommentResponse> = {
+export const jsmAddCommentTool: InternalToolConfig<JsmAddCommentParams, JsmAddCommentResponse> = {
   id: 'jsm_add_comment',
   name: 'JSM Add Comment',
   description: 'Add a comment (public or internal) to a service request in Jira Service Management',
@@ -52,13 +52,8 @@ export const jsmAddCommentTool: ToolConfig<JsmAddCommentParams, JsmAddCommentRes
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/comment',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

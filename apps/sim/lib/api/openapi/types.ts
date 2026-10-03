@@ -1,5 +1,6 @@
 import type { z } from 'zod'
 import type { AnyApiRouteContract, ApiSchema, JsonResponseMode } from '@/lib/api/contracts/types'
+import type { ApplicationOperation } from '@/lib/core/application/operation'
 
 export type OpenApiSecurityRequirement = Readonly<Record<string, readonly string[]>>
 
@@ -50,6 +51,19 @@ export interface OpenApiErrorResponse {
   status: number
   description: string
   headers?: readonly string[]
+  /**
+   * The body this status is documented with, validated against the document's `errorSchema`
+   * at generation time.
+   *
+   * Required, because the alternative is what every status rendered before it existed: the
+   * error schema's single shared example, so the reference answered `400 BAD_REQUEST` under
+   * the `401`, `404`, and `500` tabs alike. A reference that confidently shows the wrong
+   * body is worse than one that shows none.
+   *
+   * The document's own layer assembles it — only that layer knows how its codes pair with
+   * statuses — and this generator checks it parses.
+   */
+  example: unknown
 }
 
 export interface OpenApiSuccessMetadata {
@@ -71,6 +85,8 @@ export type OpenApiOperationSuccess =
     }
 
 export interface OpenApiOperationMetadata {
+  /** Canonical policy shared with every adapter for this application operation. */
+  applicationOperation: Pick<ApplicationOperation, 'id' | 'oauthScope'>
   operationId: string
   summary: string
   description: string

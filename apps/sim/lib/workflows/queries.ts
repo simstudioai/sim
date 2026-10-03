@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
-import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 import type { WorkflowListItem } from '@/lib/api/contracts/workflows'
 import {
   type CursorKey,
@@ -65,6 +65,8 @@ const WORKFLOW_SORTS = {
 export interface ListWorkspaceWorkflowsInput {
   workspaceId: string
   folderId?: string | null
+  /** `active` (default) or `archived`; `all` is deliberately unavailable here. */
+  scope?: 'active' | 'archived'
   deployedOnly: boolean
   search?: string
   sortBy: WorkflowSortBy
@@ -104,7 +106,7 @@ export async function listWorkspaceWorkflows(input: ListWorkspaceWorkflowsInput)
     .where(
       and(
         eq(workflow.workspaceId, input.workspaceId),
-        isNull(workflow.archivedAt),
+        input.scope === 'archived' ? isNotNull(workflow.archivedAt) : isNull(workflow.archivedAt),
         folderCondition,
         input.deployedOnly ? eq(workflow.isDeployed, true) : undefined,
         searchFilter(workflow.name, input.search),

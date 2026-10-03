@@ -1,284 +1,1816 @@
-/**
- * @vitest-environment node
- */
+import { databaseMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
+import {
+  billingUsageReservationMock,
+  billingUsageReservationMockFns,
+} from '@sim/testing/mocks/billing-usage-reservation.mock'
+import {
+  humanInTheLoopManagerMock,
+  humanInTheLoopManagerMockFns,
+} from '@sim/testing/mocks/human-in-the-loop-manager.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockAbortManualExecution,
-  mockBeginPausedCancellation,
-  mockBlockQueuedResumes,
-  mockCancelWorkflowGroupExecution,
-  mockCaptureServerEvent,
-  mockClearPausedCancellationIntent,
-  mockCompletePausedCancellation,
-  mockGetJobQueue,
-  mockGetPausedCancellationStatus,
   mockMarkExecutionCancelled,
+  mockClearExecutionCancellation,
+  mockAbortManualExecution,
+  mockFinalizeExecutionStream,
+  mockReadExecutionMetaState,
+  mockWriteEvent,
+  mockWriteTerminalEvent,
+  mockCancelByExecution,
+  mockCancelWorkflowGroupExecution,
   mockPublishWorkflowGroupCancellationEvent,
-  mockReleaseExecutionSlot,
-  mockUpdateSet,
-  mockResolveWorkflowExecutionOwnership,
 } = vi.hoisted(() => ({
-  mockAbortManualExecution: vi.fn(),
-  mockBeginPausedCancellation: vi.fn(),
-  mockBlockQueuedResumes: vi.fn(),
-  mockCancelWorkflowGroupExecution: vi.fn(),
-  mockCaptureServerEvent: vi.fn(),
-  mockClearPausedCancellationIntent: vi.fn(),
-  mockCompletePausedCancellation: vi.fn(),
-  mockGetJobQueue: vi.fn(),
-  mockGetPausedCancellationStatus: vi.fn(),
   mockMarkExecutionCancelled: vi.fn(),
+  mockClearExecutionCancellation: vi.fn(),
+  mockAbortManualExecution: vi.fn(),
+  mockFinalizeExecutionStream: vi.fn(),
+  mockReadExecutionMetaState: vi.fn(),
+  mockWriteEvent: vi.fn(),
+  mockWriteTerminalEvent: vi.fn(),
+  mockCancelByExecution: vi.fn(),
+  mockCancelWorkflowGroupExecution: vi.fn(),
   mockPublishWorkflowGroupCancellationEvent: vi.fn(),
-  mockReleaseExecutionSlot: vi.fn(),
-  mockUpdateSet: vi.fn(),
-  mockResolveWorkflowExecutionOwnership: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    update: () => ({
-      set: (values: unknown) => {
-        mockUpdateSet(values)
-        return { where: () => Promise.resolve(undefined) }
-      },
-    }),
-  },
-}))
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
 
-vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
-  releaseExecutionSlot: mockReleaseExecutionSlot,
-}))
-
-vi.mock('@/lib/table/workflow-group-cancellation', () => ({
-  cancelWorkflowGroupExecution: mockCancelWorkflowGroupExecution,
-  publishWorkflowGroupCancellationEvent: mockPublishWorkflowGroupCancellationEvent,
-}))
+vi.mock('@/lib/billing/calculations/usage-reservation', () => billingUsageReservationMock)
 
 vi.mock('@/lib/execution/cancellation', () => ({
-  markExecutionCancelled: mockMarkExecutionCancelled,
+  markExecutionCancelled: (...args: unknown[]) => mockMarkExecutionCancelled(...args),
+  clearExecutionCancellation: (...args: unknown[]) => mockClearExecutionCancellation(...args),
 }))
 
 vi.mock('@/lib/execution/manual-cancellation', () => ({
-  abortManualExecution: mockAbortManualExecution,
+  abortManualExecution: (...args: unknown[]) => mockAbortManualExecution(...args),
+}))
+
+vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => humanInTheLoopManagerMock)
+
+vi.mock('@/lib/table/workflow-group-cancellation', () => ({
+  cancelWorkflowGroupExecution: (...args: unknown[]) => mockCancelWorkflowGroupExecution(...args),
+  publishWorkflowGroupCancellationEvent: (...args: unknown[]) =>
+    mockPublishWorkflowGroupCancellationEvent(...args),
 }))
 
 vi.mock('@/lib/execution/event-buffer', () => ({
+  finalizeExecutionStream: (...args: unknown[]) => mockFinalizeExecutionStream(...args),
+  readExecutionMetaState: (...args: unknown[]) => mockReadExecutionMetaState(...args),
   createExecutionEventWriter: () => ({
-    writeTerminal: vi.fn().mockResolvedValue(undefined),
+    write: (...args: unknown[]) => mockWriteEvent(...args),
+    writeTerminal: (...args: unknown[]) => mockWriteTerminalEvent(...args),
     close: vi.fn().mockResolvedValue(undefined),
   }),
-  readExecutionMetaState: vi.fn().mockResolvedValue({ status: 'missing' }),
 }))
 
-vi.mock('@/lib/core/async-jobs', () => ({
-  getJobQueue: mockGetJobQueue,
-}))
+import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
+import { OrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  type CancelWorkflowExecutionInput,
+  cancelWorkflowExecution,
+  WorkflowExecutionNotFoundError,
+} from '@/lib/execution/cancel-workflow-execution'
+import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-already-terminal-error'
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: mockCaptureServerEvent,
-}))
+const mockReleaseExecutionSlot = billingUsageReservationMockFns.mockReleaseExecutionSlot
+const { mockGetJobQueue } = asyncJobsMockFns
+const {
+  mockBeginPausedCancellation,
+  mockStagePausedCancellation,
+  mockBlockQueuedResumesForCancellation,
+  mockClearPausedCancellationIntent,
+  mockCompletePausedCancellation,
+  mockFinalizePausedCancellationForTerminalRun,
+  mockGetPausedCancellationStatus,
+  mockGetActiveResumeCancellationTarget,
+  mockGetActiveResumeCancellationTargets,
+  mockRollbackActiveResumeCancellation,
+} = humanInTheLoopManagerMockFns
 
-vi.mock('@/lib/workflows/executor/execution-job-ids', () => ({
-  WORKFLOW_EXECUTION_JOB_ID_PREFIX: 'workflow-execution:',
-}))
-
-vi.mock('@/lib/workflows/executor/execution-queries', () => ({
-  resolveWorkflowExecutionOwnership: mockResolveWorkflowExecutionOwnership,
-}))
-
-vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => ({
-  PauseResumeManager: {
-    beginPausedCancellation: mockBeginPausedCancellation,
-    getPausedCancellationStatus: mockGetPausedCancellationStatus,
-    blockQueuedResumesForCancellation: mockBlockQueuedResumes,
-    clearPausedCancellationIntent: mockClearPausedCancellationIntent,
-    completePausedCancellation: mockCompletePausedCancellation,
-  },
-}))
-
-import { cancelWorkflowExecution } from '@/lib/execution/cancel-workflow-execution'
-
-const INPUT = {
-  executionId: 'execution-1',
-  workflowId: 'workflow-1',
-  userId: 'user-1',
+const INPUT: CancelWorkflowExecutionInput = {
+  workflowId: 'wf-1',
+  executionId: 'ex-1',
   workspaceId: 'workspace-1',
+  attributedUserId: 'user-1',
+}
+
+async function cancelAsResponse(
+  overrides: Partial<CancelWorkflowExecutionInput> = {}
+): Promise<Response> {
+  try {
+    const result = await cancelWorkflowExecution({ ...INPUT, ...overrides })
+    const body = cancelWorkflowExecutionContract.response.schema.parse(result)
+    return Response.json(body)
+  } catch (error) {
+    if (error instanceof WorkflowExecutionNotFoundError) {
+      return Response.json({ error: error.message }, { status: 404 })
+    }
+    if (error instanceof OrchestrationError) {
+      return Response.json(
+        { error: error.message },
+        { status: statusForOrchestrationError(error.code) }
+      )
+    }
+    if (error instanceof Error) {
+      return Response.json({ error: error.message }, { status: 500 })
+    }
+    throw error
+  }
+}
+
+const POST = async (..._args: unknown[]) => cancelAsResponse()
+const makeRequest = () => undefined
+const makeParams = () => undefined
+
+const ACTIVE_RESUME_TARGET = {
+  resumeEntryId: 'resume-entry-1',
+  pausedExecutionId: 'paused-1',
+  parentExecutionId: 'ex-1',
+  resumeExecutionId: 'resume-ex-1',
+}
+
+const REPLACEMENT_ACTIVE_RESUME_TARGET = {
+  ...ACTIVE_RESUME_TARGET,
+  resumeEntryId: 'resume-entry-2',
+  resumeExecutionId: 'resume-ex-2',
 }
 
 describe('cancelWorkflowExecution', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-    mockResolveWorkflowExecutionOwnership.mockResolvedValue({
-      belongsToWorkflow: true,
-      workflowGroupWorkspaceId: null,
-    })
-    mockBeginPausedCancellation.mockResolvedValue(false)
-    mockGetPausedCancellationStatus.mockResolvedValue(null)
-    mockMarkExecutionCancelled.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
-    mockAbortManualExecution.mockReturnValue(false)
-    mockBlockQueuedResumes.mockResolvedValue(undefined)
-    mockClearPausedCancellationIntent.mockResolvedValue(undefined)
-    mockCompletePausedCancellation.mockResolvedValue(true)
-    mockReleaseExecutionSlot.mockResolvedValue(undefined)
-    mockPublishWorkflowGroupCancellationEvent.mockResolvedValue(undefined)
-    mockGetJobQueue.mockResolvedValue({
-      getJob: vi.fn().mockResolvedValue(null),
-      cancelJob: vi.fn(),
-    })
+    resetDbChainMock()
+    dbChainMockFns.limit.mockResolvedValue([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: null,
+        status: 'running',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    dbChainMockFns.returning.mockResolvedValue([{ status: 'cancelled' }])
+    mockCancelByExecution.mockReset().mockResolvedValue(0)
+    mockGetJobQueue.mockReset().mockResolvedValue({ cancelByExecution: mockCancelByExecution })
+    mockReleaseExecutionSlot.mockReset().mockResolvedValue(undefined)
+    mockCancelWorkflowGroupExecution.mockReset().mockResolvedValue({ kind: 'not_workflow_group' })
+    mockPublishWorkflowGroupCancellationEvent.mockReset().mockResolvedValue(undefined)
+    mockClearExecutionCancellation.mockReset().mockResolvedValue(undefined)
+    mockMarkExecutionCancelled
+      .mockReset()
+      .mockResolvedValue({ durablyRecorded: false, reason: 'redis_unavailable' })
+    mockAbortManualExecution.mockReset().mockReturnValue(false)
+    mockBeginPausedCancellation.mockReset().mockResolvedValue(false)
+    mockStagePausedCancellation.mockReset().mockResolvedValue({ kind: 'not_paused' })
+    mockBlockQueuedResumesForCancellation.mockReset().mockResolvedValue(false)
+    mockClearPausedCancellationIntent.mockReset().mockResolvedValue(undefined)
+    mockCompletePausedCancellation.mockReset().mockResolvedValue(false)
+    mockFinalizePausedCancellationForTerminalRun.mockReset().mockResolvedValue(true)
+    mockGetPausedCancellationStatus.mockReset().mockResolvedValue(null)
+    mockGetActiveResumeCancellationTarget.mockReset().mockResolvedValue(null)
+    mockGetActiveResumeCancellationTargets.mockReset().mockResolvedValue([])
+    mockRollbackActiveResumeCancellation.mockReset().mockResolvedValue(true)
+    mockFinalizeExecutionStream.mockReset().mockResolvedValue(true)
+    mockReadExecutionMetaState.mockReset().mockResolvedValue({ status: 'missing' })
+    mockWriteEvent.mockReset().mockResolvedValue({ eventId: 1 })
+    mockWriteTerminalEvent.mockReset().mockResolvedValue({ eventId: 1 })
   })
 
-  it('releases the plan concurrency reservation after a successful cancellation', async () => {
-    const result = await cancelWorkflowExecution(INPUT)
-
-    expect(result.success).toBe(true)
-    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('execution-1')
-  })
-
-  it('keeps the reservation held when nothing could be cancelled', async () => {
+  it('returns success when cancellation was durably recorded', async () => {
     mockMarkExecutionCancelled.mockResolvedValue({
-      durablyRecorded: false,
-      reason: 'redis_unavailable',
+      durablyRecorded: true,
+      reason: 'recorded',
     })
 
-    const result = await cancelWorkflowExecution(INPUT)
+    const response = await POST(makeRequest(), makeParams())
 
-    expect(result.success).toBe(false)
-    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      executionId: 'ex-1',
+      redisAvailable: true,
+      durablyRecorded: true,
+      locallyAborted: false,
+      pausedCancelled: false,
+      reason: 'recorded',
+    })
+    expect(mockCancelByExecution).toHaveBeenCalledWith(
+      {
+        workflowId: 'wf-1',
+        executionId: 'ex-1',
+        rootJobId: 'workflow-execution:ex-1',
+      },
+      'standalone'
+    )
+    expect(mockMarkExecutionCancelled).toHaveBeenCalledWith('ex-1', {
+      executionDeadlineAt: null,
+    })
+    expect(mockClearExecutionCancellation).not.toHaveBeenCalled()
   })
 
-  it('cancels and publishes the table cell sidecar of a workflow-group execution', async () => {
-    mockResolveWorkflowExecutionOwnership.mockResolvedValue({
-      belongsToWorkflow: true,
-      workflowGroupWorkspaceId: 'workspace-1',
-    })
-    const cancelled = {
-      kind: 'cancelled' as const,
+  it('atomically claims one workflow-group attempt before signalling it', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: 'workflow_group',
+        status: 'running',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockCancelWorkflowGroupExecution.mockResolvedValue({
+      kind: 'cancelled',
       tableId: 'table-1',
       rowId: 'row-1',
       groupId: 'group-1',
-    }
-    mockCancelWorkflowGroupExecution.mockResolvedValue(cancelled)
+    })
+    mockMarkExecutionCancelled.mockResolvedValue({
+      durablyRecorded: true,
+      reason: 'recorded',
+    })
 
-    const result = await cancelWorkflowExecution(INPUT)
+    const response = await POST(makeRequest(), makeParams())
 
-    expect(result.success).toBe(true)
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      executionId: 'ex-1',
+      redisAvailable: true,
+      durablyRecorded: true,
+      reason: 'recorded',
+    })
     expect(mockCancelWorkflowGroupExecution).toHaveBeenCalledWith({
       workspaceId: 'workspace-1',
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
+      workflowId: 'wf-1',
+      executionId: 'ex-1',
     })
-    expect(mockPublishWorkflowGroupCancellationEvent).toHaveBeenCalledWith(cancelled, 'execution-1')
-    expect(mockUpdateSet).not.toHaveBeenCalled()
-    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('execution-1')
+    expect(mockCancelWorkflowGroupExecution.mock.invocationCallOrder[0]).toBeLessThan(
+      mockMarkExecutionCancelled.mock.invocationCallOrder[0]
+    )
+    expect(mockMarkExecutionCancelled.mock.invocationCallOrder[0]).toBeLessThan(
+      mockPublishWorkflowGroupCancellationEvent.mock.invocationCallOrder[0]
+    )
+    expect(mockCancelByExecution).not.toHaveBeenCalled()
+    expect(mockStagePausedCancellation).toHaveBeenCalledWith('ex-1', 'wf-1')
+    expect(mockClearPausedCancellationIntent).not.toHaveBeenCalled()
   })
 
-  it.each([
-    [{ kind: 'conflict' as const, status: 'completed' }, 'cannot be cancelled while completed'],
-    [{ kind: 'not_workflow_group' as const }, 'no longer the active table execution'],
-  ])(
-    'releases the reservation before reporting a refused workflow-group cell claim as a conflict',
-    async (outcome, message) => {
-      mockResolveWorkflowExecutionOwnership.mockResolvedValue({
-        belongsToWorkflow: true,
-        workflowGroupWorkspaceId: 'workspace-1',
-      })
-      mockCancelWorkflowGroupExecution.mockResolvedValue(outcome)
-
-      await expect(cancelWorkflowExecution(INPUT)).rejects.toMatchObject({
-        code: 'conflict',
-        message: expect.stringContaining(message),
-      })
-      expect(mockPublishWorkflowGroupCancellationEvent).not.toHaveBeenCalled()
-      expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('execution-1')
-    }
-  )
-
-  it.each([
-    [{ kind: 'conflict' as const, status: 'completed' }],
-    [{ kind: 'not_workflow_group' as const }],
-  ])(
-    'keeps the reservation held when a refused claim follows a paused cancellation',
-    async (outcome) => {
-      mockResolveWorkflowExecutionOwnership.mockResolvedValue({
-        belongsToWorkflow: true,
-        workflowGroupWorkspaceId: 'workspace-1',
-      })
-      mockBeginPausedCancellation.mockResolvedValue(true)
-      mockCancelWorkflowGroupExecution.mockResolvedValue(outcome)
-
-      await expect(cancelWorkflowExecution(INPUT)).rejects.toMatchObject({ code: 'conflict' })
-      expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
-    }
-  )
-
-  it.each([
-    [{ kind: 'conflict' as const, status: 'completed' }],
-    [{ kind: 'not_workflow_group' as const }],
-  ])(
-    'keeps the reservation held when a refused claim follows a failed cancellation',
-    async (outcome) => {
-      mockResolveWorkflowExecutionOwnership.mockResolvedValue({
-        belongsToWorkflow: true,
-        workflowGroupWorkspaceId: 'workspace-1',
-      })
-      mockMarkExecutionCancelled.mockResolvedValue({
-        durablyRecorded: false,
-        reason: 'redis_unavailable',
-      })
-      mockCancelWorkflowGroupExecution.mockResolvedValue(outcome)
-
-      await expect(cancelWorkflowExecution(INPUT)).rejects.toMatchObject({ code: 'conflict' })
-      expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
-    }
-  )
-
-  it('releases the reservation and rethrows when the workflow-group cancel fails unexpectedly', async () => {
-    mockResolveWorkflowExecutionOwnership.mockResolvedValue({
-      belongsToWorkflow: true,
-      workflowGroupWorkspaceId: 'workspace-1',
-    })
-    const failure = new Error('Workflow-group cancellation lost its locked workflow-log claim')
-    mockCancelWorkflowGroupExecution.mockRejectedValue(failure)
-
-    await expect(cancelWorkflowExecution(INPUT)).rejects.toBe(failure)
-    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('execution-1')
-    expect(mockPublishWorkflowGroupCancellationEvent).not.toHaveBeenCalled()
-    expect(mockUpdateSet).not.toHaveBeenCalled()
-  })
-
-  it('keeps the reservation held when an unexpected workflow-group failure follows a paused cancellation', async () => {
-    mockResolveWorkflowExecutionOwnership.mockResolvedValue({
-      belongsToWorkflow: true,
-      workflowGroupWorkspaceId: 'workspace-1',
-    })
-    mockBeginPausedCancellation.mockResolvedValue(true)
-    mockCancelWorkflowGroupExecution.mockRejectedValue(new Error('serialization conflict'))
-
-    await expect(cancelWorkflowExecution(INPUT)).rejects.toThrow('serialization conflict')
-    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
-  })
-
-  it('keeps the reservation held when an unexpected workflow-group failure follows a failed cancellation', async () => {
-    mockResolveWorkflowExecutionOwnership.mockResolvedValue({
-      belongsToWorkflow: true,
-      workflowGroupWorkspaceId: 'workspace-1',
+  it('keeps a claimed group cancellation retryable when signalling fails', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: 'workflow_group',
+        status: 'running',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockCancelWorkflowGroupExecution.mockResolvedValue({
+      kind: 'cancelled',
+      tableId: 'table-1',
+      rowId: 'row-1',
+      groupId: 'group-1',
     })
     mockMarkExecutionCancelled.mockResolvedValue({
       durablyRecorded: false,
       reason: 'redis_unavailable',
     })
-    mockCancelWorkflowGroupExecution.mockRejectedValue(new Error('serialization conflict'))
 
-    await expect(cancelWorkflowExecution(INPUT)).rejects.toThrow('serialization conflict')
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      durablyRecorded: false,
+      reason: 'redis_unavailable',
+    })
+    expect(mockMarkExecutionCancelled).toHaveBeenCalledOnce()
+    expect(mockCancelWorkflowGroupExecution).toHaveBeenCalledOnce()
+    expect(mockPublishWorkflowGroupCancellationEvent).not.toHaveBeenCalled()
+    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
+    expect(mockCancelByExecution).not.toHaveBeenCalled()
+  })
+
+  it('clears a staged pause when a vanished group target prevents active-resume rollback', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: 'workflow_group',
+        status: 'running',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockStagePausedCancellation.mockResolvedValue({
+      kind: 'active_resume',
+      target: ACTIVE_RESUME_TARGET,
+    })
+    mockMarkExecutionCancelled.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
+    mockRollbackActiveResumeCancellation.mockResolvedValue(false)
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Workflow group execution is no longer the active table execution',
+    })
+    expect(mockRollbackActiveResumeCancellation).toHaveBeenCalledWith(
+      'ex-1',
+      'wf-1',
+      'resume-entry-1'
+    )
+    expect(mockClearPausedCancellationIntent).toHaveBeenCalledWith('ex-1', 'wf-1')
+  })
+
+  it('accepts an exact in-process group abort without cancelling its carrier', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: 'workflow_group',
+        status: 'running',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockMarkExecutionCancelled.mockResolvedValue({
+      durablyRecorded: false,
+      reason: 'redis_unavailable',
+    })
+    mockAbortManualExecution.mockReturnValue(true)
+    mockCancelWorkflowGroupExecution.mockResolvedValue({
+      kind: 'cancelled',
+      tableId: 'table-1',
+      rowId: 'row-1',
+      groupId: 'group-1',
+    })
+    mockCompletePausedCancellation.mockResolvedValue(true)
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      durablyRecorded: false,
+      locallyAborted: true,
+      reason: 'redis_unavailable',
+    })
+    expect(mockCancelWorkflowGroupExecution).toHaveBeenCalledOnce()
+    expect(mockCancelByExecution).not.toHaveBeenCalled()
+  })
+
+  it('does not cancel a shared carrier when an idle workflow-group pause appears', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: 'workflow_group',
+        status: 'running',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockMarkExecutionCancelled.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
+    mockCancelWorkflowGroupExecution.mockResolvedValue({
+      kind: 'cancelled',
+      tableId: 'table-1',
+      rowId: 'row-1',
+      groupId: 'group-1',
+    })
+    mockStagePausedCancellation
+      .mockResolvedValueOnce({ kind: 'not_paused' })
+      .mockResolvedValue({ kind: 'idle' })
+    mockCompletePausedCancellation.mockResolvedValue(true)
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      pausedCancelled: true,
+      reason: 'recorded',
+    })
+    expect(mockCancelByExecution).not.toHaveBeenCalled()
+    expect(mockStagePausedCancellation.mock.invocationCallOrder[1]).toBeLessThan(
+      mockWriteTerminalEvent.mock.invocationCallOrder[0]
+    )
+    expect(mockCompletePausedCancellation).toHaveBeenCalledWith('ex-1', 'wf-1')
+  })
+
+  it('leaves a late workflow-group pause retryable when event publication fails', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: 'workflow_group',
+        status: 'running',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockMarkExecutionCancelled.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
+    mockCancelWorkflowGroupExecution.mockResolvedValue({
+      kind: 'cancelled',
+      tableId: 'table-1',
+      rowId: 'row-1',
+      groupId: 'group-1',
+    })
+    mockStagePausedCancellation
+      .mockResolvedValueOnce({ kind: 'not_paused' })
+      .mockResolvedValue({ kind: 'idle' })
+    mockWriteTerminalEvent.mockRejectedValue(new Error('Redis unavailable'))
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      pausedCancelled: false,
+      reason: 'paused_event_publish_failed',
+    })
+    expect(mockCancelWorkflowGroupExecution).toHaveBeenCalledOnce()
+    expect(mockCancelWorkflowGroupExecution.mock.invocationCallOrder[0]).toBeLessThan(
+      mockWriteTerminalEvent.mock.invocationCallOrder[0]
+    )
+    expect(mockCompletePausedCancellation).not.toHaveBeenCalled()
+    expect(mockClearPausedCancellationIntent).not.toHaveBeenCalled()
+  })
+
+  it('cancels an active workflow-group resume without cancelling its shared carrier', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: 'workflow_group',
+        status: 'running',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockStagePausedCancellation.mockResolvedValue({
+      kind: 'active_resume',
+      target: ACTIVE_RESUME_TARGET,
+    })
+    mockGetActiveResumeCancellationTarget.mockResolvedValue(ACTIVE_RESUME_TARGET)
+    mockMarkExecutionCancelled.mockResolvedValue({
+      durablyRecorded: false,
+      reason: 'redis_unavailable',
+    })
+    mockCancelByExecution.mockResolvedValue(1)
+    mockCancelWorkflowGroupExecution.mockResolvedValue({
+      kind: 'cancelled',
+      tableId: 'table-1',
+      rowId: 'row-1',
+      groupId: 'group-1',
+    })
+    mockCompletePausedCancellation.mockResolvedValue(true)
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      pausedCancelled: true,
+      reason: 'recorded',
+    })
+    expect(mockCancelByExecution).toHaveBeenCalledOnce()
+    expect(mockCancelByExecution).toHaveBeenCalledWith(
+      { workflowId: 'wf-1', executionId: 'ex-1' },
+      'resume'
+    )
+    expect(mockMarkExecutionCancelled).toHaveBeenCalledWith('resume-ex-1', {
+      executionDeadlineAt: null,
+    })
+    expect(mockCancelWorkflowGroupExecution).toHaveBeenCalledOnce()
+    expect(mockCancelWorkflowGroupExecution.mock.invocationCallOrder[0]).toBeLessThan(
+      mockMarkExecutionCancelled.mock.invocationCallOrder[0]
+    )
+    expect(mockCompletePausedCancellation).toHaveBeenCalledWith('ex-1', 'wf-1')
+    expect(mockWriteTerminalEvent.mock.invocationCallOrder[0]).toBeLessThan(
+      mockCompletePausedCancellation.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('keeps a claimed active group resume retryable when no stop backend accepts it', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: 'workflow_group',
+        status: 'running',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockStagePausedCancellation.mockResolvedValue({
+      kind: 'active_resume',
+      target: ACTIVE_RESUME_TARGET,
+    })
+    mockGetActiveResumeCancellationTarget.mockResolvedValue(ACTIVE_RESUME_TARGET)
+    mockCancelWorkflowGroupExecution.mockResolvedValue({
+      kind: 'cancelled',
+      tableId: 'table-1',
+      rowId: 'row-1',
+      groupId: 'group-1',
+    })
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      durablyRecorded: true,
+      locallyAborted: false,
+      pausedCancelled: false,
+      reason: 'active_resume_signal_failed',
+    })
+    expect(mockMarkExecutionCancelled).toHaveBeenCalledWith('resume-ex-1', {
+      executionDeadlineAt: null,
+    })
+    expect(mockCancelByExecution).toHaveBeenCalledWith(
+      { workflowId: 'wf-1', executionId: 'ex-1' },
+      'resume'
+    )
+    expect(mockCancelWorkflowGroupExecution.mock.invocationCallOrder[0]).toBeLessThan(
+      mockMarkExecutionCancelled.mock.invocationCallOrder[0]
+    )
+    expect(mockRollbackActiveResumeCancellation).not.toHaveBeenCalled()
+    expect(mockPublishWorkflowGroupCancellationEvent).not.toHaveBeenCalled()
+  })
+
+  it('rechecks for a pause after the group terminal claim waits on persistence', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: 'workflow_group',
+        status: 'running',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockMarkExecutionCancelled.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
+    mockCancelWorkflowGroupExecution.mockResolvedValue({
+      kind: 'cancelled',
+      tableId: 'table-1',
+      rowId: 'row-1',
+      groupId: 'group-1',
+    })
+    mockStagePausedCancellation
+      .mockResolvedValueOnce({ kind: 'not_paused' })
+      .mockResolvedValue({ kind: 'idle' })
+    mockCompletePausedCancellation.mockResolvedValue(true)
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      pausedCancelled: true,
+      reason: 'recorded',
+    })
+    expect(mockCancelWorkflowGroupExecution.mock.invocationCallOrder[0]).toBeLessThan(
+      mockStagePausedCancellation.mock.invocationCallOrder[1]
+    )
+    expect(mockStagePausedCancellation.mock.invocationCallOrder[1]).toBeLessThan(
+      mockWriteTerminalEvent.mock.invocationCallOrder[0]
+    )
+    expect(mockWriteTerminalEvent.mock.invocationCallOrder[0]).toBeLessThan(
+      mockCompletePausedCancellation.mock.invocationCallOrder[0]
+    )
+    expect(mockWriteTerminalEvent).toHaveBeenCalledOnce()
+  })
+
+  it('rechecks for a regular pause after the terminal claim waits on persistence', async () => {
+    mockMarkExecutionCancelled.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
+    mockStagePausedCancellation
+      .mockResolvedValueOnce({ kind: 'not_paused' })
+      .mockResolvedValue({ kind: 'idle' })
+    mockCompletePausedCancellation.mockResolvedValue(true)
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      pausedCancelled: true,
+      reason: 'recorded',
+    })
+    expect(databaseMock.db.update.mock.invocationCallOrder[0]).toBeLessThan(
+      mockStagePausedCancellation.mock.invocationCallOrder[1]
+    )
+    expect(mockStagePausedCancellation.mock.invocationCallOrder[1]).toBeLessThan(
+      mockWriteTerminalEvent.mock.invocationCallOrder[0]
+    )
+    expect(mockWriteTerminalEvent.mock.invocationCallOrder[0]).toBeLessThan(
+      mockCompletePausedCancellation.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('uses generic cancellation for a regular Table-trigger-block execution', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: null,
+        status: 'running',
+        trigger: 'table',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockMarkExecutionCancelled.mockResolvedValue({
+      durablyRecorded: true,
+      reason: 'recorded',
+    })
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    expect(mockCancelWorkflowGroupExecution).not.toHaveBeenCalled()
+    expect(mockMarkExecutionCancelled).toHaveBeenCalledWith('ex-1', {
+      executionDeadlineAt: null,
+    })
+    expect(mockCancelByExecution).toHaveBeenCalledOnce()
+  })
+
+  it('returns 409 without generic cancellation when the exact group attempt is stale', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: 'workflow_group',
+        status: 'running',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockMarkExecutionCancelled.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
+    mockCancelWorkflowGroupExecution.mockResolvedValue({
+      kind: 'conflict',
+      status: 'no_longer_active',
+    })
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Workflow group execution cannot be cancelled while no_longer_active',
+    })
+    expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+    expect(mockPublishWorkflowGroupCancellationEvent).not.toHaveBeenCalled()
+    expect(mockCancelByExecution).not.toHaveBeenCalled()
+    expect(mockStagePausedCancellation).toHaveBeenCalledOnce()
+    expect(mockClearExecutionCancellation).not.toHaveBeenCalled()
+    expect(mockClearPausedCancellationIntent).not.toHaveBeenCalled()
+  })
+
+  it('terminalizes a durable workflow-group log after its table sidecar was deleted', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: 'workflow_group',
+        status: 'running',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockMarkExecutionCancelled.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
+    mockCancelWorkflowGroupExecution.mockResolvedValue({ kind: 'cancelled_without_sidecar' })
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      executionId: 'ex-1',
+      reason: 'recorded',
+    })
+    expect(mockMarkExecutionCancelled).toHaveBeenCalledOnce()
+    expect(mockCancelByExecution).not.toHaveBeenCalled()
+    expect(mockClearExecutionCancellation).not.toHaveBeenCalled()
+    expect(mockClearPausedCancellationIntent).not.toHaveBeenCalled()
+  })
+
+  it('returns unsuccessful response when Redis is unavailable', async () => {
+    mockMarkExecutionCancelled.mockResolvedValue({
+      durablyRecorded: false,
+      reason: 'redis_unavailable',
+    })
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      executionId: 'ex-1',
+      redisAvailable: false,
+      durablyRecorded: false,
+      locallyAborted: false,
+      pausedCancelled: false,
+      reason: 'redis_unavailable',
+    })
+  })
+
+  it('returns unsuccessful response when Redis persistence fails', async () => {
+    mockMarkExecutionCancelled.mockResolvedValue({
+      durablyRecorded: false,
+      reason: 'redis_write_failed',
+    })
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      executionId: 'ex-1',
+      redisAvailable: true,
+      durablyRecorded: false,
+      locallyAborted: false,
+      pausedCancelled: false,
+      reason: 'redis_write_failed',
+    })
+  })
+
+  it('returns success when local fallback aborts execution without Redis durability', async () => {
+    mockMarkExecutionCancelled.mockResolvedValue({
+      durablyRecorded: false,
+      reason: 'redis_unavailable',
+    })
+    mockAbortManualExecution.mockReturnValue(true)
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      executionId: 'ex-1',
+      redisAvailable: false,
+      durablyRecorded: false,
+      locallyAborted: true,
+      pausedCancelled: false,
+      reason: 'redis_unavailable',
+    })
+  })
+
+  it('returns success when the queue backend cancels the active job', async () => {
+    mockMarkExecutionCancelled.mockResolvedValue({
+      durablyRecorded: false,
+      reason: 'redis_unavailable',
+    })
+    mockCancelByExecution.mockResolvedValue(1)
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      executionId: 'ex-1',
+      durablyRecorded: false,
+      locallyAborted: false,
+      reason: 'queue_cancelled',
+    })
+    expect(mockClearExecutionCancellation).not.toHaveBeenCalled()
+  })
+
+  it('cancels a queued execution before its workflow log exists', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    mockCancelByExecution.mockResolvedValueOnce(1)
+    mockMarkExecutionCancelled.mockResolvedValueOnce({
+      durablyRecorded: true,
+      reason: 'recorded',
+    })
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      executionId: 'ex-1',
+      redisAvailable: true,
+      durablyRecorded: true,
+      locallyAborted: false,
+      pausedCancelled: false,
+      reason: 'queue_cancelled',
+    })
+    expect(mockCancelByExecution).toHaveBeenCalledWith(
+      {
+        workflowId: 'wf-1',
+        executionId: 'ex-1',
+        rootJobId: 'workflow-execution:ex-1',
+      },
+      'standalone'
+    )
+    expect(mockMarkExecutionCancelled).toHaveBeenCalledWith('ex-1')
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('ex-1')
+    expect(mockClearExecutionCancellation).not.toHaveBeenCalled()
+  })
+
+  it('does not use an unscoped local abort before its workflow log exists', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(404)
+    await expect(response.json()).resolves.toEqual({ error: 'Execution not found' })
+    expect(mockAbortManualExecution).not.toHaveBeenCalled()
+    expect(mockCancelByExecution).toHaveBeenCalledWith(
+      {
+        workflowId: 'wf-1',
+        executionId: 'ex-1',
+        rootJobId: 'workflow-execution:ex-1',
+      },
+      'standalone'
+    )
+    expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
+    expect(mockClearExecutionCancellation).not.toHaveBeenCalled()
+  })
+
+  it('finishes cancellation when a failed active-resume rollback detects a replacement', async () => {
+    mockStagePausedCancellation
+      .mockResolvedValueOnce({ kind: 'active_resume', target: ACTIVE_RESUME_TARGET })
+      .mockResolvedValueOnce({
+        kind: 'active_resume',
+        target: REPLACEMENT_ACTIVE_RESUME_TARGET,
+      })
+    mockGetActiveResumeCancellationTarget.mockResolvedValueOnce(REPLACEMENT_ACTIVE_RESUME_TARGET)
+    mockRollbackActiveResumeCancellation.mockResolvedValueOnce(false)
+    mockMarkExecutionCancelled
+      .mockResolvedValueOnce({ durablyRecorded: false, reason: 'redis_unavailable' })
+      .mockResolvedValueOnce({ durablyRecorded: true, reason: 'recorded' })
+      .mockResolvedValueOnce({ durablyRecorded: true, reason: 'recorded' })
+    mockCompletePausedCancellation.mockResolvedValueOnce(true)
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      durablyRecorded: true,
+      pausedCancelled: true,
+      reason: 'recorded',
+    })
+    expect(mockRollbackActiveResumeCancellation).toHaveBeenCalledWith(
+      'ex-1',
+      'wf-1',
+      'resume-entry-1'
+    )
+    expect(mockMarkExecutionCancelled).toHaveBeenNthCalledWith(1, 'resume-ex-1', {
+      executionDeadlineAt: null,
+    })
+    expect(mockMarkExecutionCancelled).toHaveBeenNthCalledWith(2, 'resume-ex-1', {
+      executionDeadlineAt: null,
+    })
+    expect(mockMarkExecutionCancelled).toHaveBeenNthCalledWith(3, 'resume-ex-2', {
+      executionDeadlineAt: null,
+    })
+    expect(mockCompletePausedCancellation).toHaveBeenCalledWith('ex-1', 'wf-1')
+  })
+
+  it('finishes late pause cancellation when rollback detects a replacement resume', async () => {
+    mockStagePausedCancellation
+      .mockResolvedValueOnce({ kind: 'not_paused' })
+      .mockResolvedValueOnce({ kind: 'active_resume', target: ACTIVE_RESUME_TARGET })
+      .mockResolvedValueOnce({
+        kind: 'active_resume',
+        target: REPLACEMENT_ACTIVE_RESUME_TARGET,
+      })
+    mockGetActiveResumeCancellationTarget.mockResolvedValueOnce(REPLACEMENT_ACTIVE_RESUME_TARGET)
+    mockRollbackActiveResumeCancellation.mockResolvedValueOnce(false)
+    mockMarkExecutionCancelled
+      .mockResolvedValueOnce({ durablyRecorded: false, reason: 'redis_unavailable' })
+      .mockResolvedValueOnce({ durablyRecorded: false, reason: 'redis_unavailable' })
+      .mockResolvedValueOnce({ durablyRecorded: true, reason: 'recorded' })
+      .mockResolvedValueOnce({ durablyRecorded: true, reason: 'recorded' })
+    mockCompletePausedCancellation.mockResolvedValueOnce(true)
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      durablyRecorded: true,
+      pausedCancelled: true,
+      reason: 'recorded',
+    })
+    expect(mockRollbackActiveResumeCancellation).toHaveBeenCalledWith(
+      'ex-1',
+      'wf-1',
+      'resume-entry-1'
+    )
+    expect(mockMarkExecutionCancelled).toHaveBeenNthCalledWith(1, 'ex-1', {
+      executionDeadlineAt: null,
+    })
+    expect(mockMarkExecutionCancelled).toHaveBeenNthCalledWith(2, 'resume-ex-1', {
+      executionDeadlineAt: null,
+    })
+    expect(mockMarkExecutionCancelled).toHaveBeenNthCalledWith(3, 'resume-ex-1', {
+      executionDeadlineAt: null,
+    })
+    expect(mockMarkExecutionCancelled).toHaveBeenNthCalledWith(4, 'resume-ex-2', {
+      executionDeadlineAt: null,
+    })
+    expect(mockCompletePausedCancellation).toHaveBeenCalledWith('ex-1', 'wf-1')
+  })
+
+  it('does not treat replacement queue cancellation as confirmation of the original stop', async () => {
+    mockStagePausedCancellation
+      .mockResolvedValueOnce({ kind: 'active_resume', target: ACTIVE_RESUME_TARGET })
+      .mockResolvedValueOnce({
+        kind: 'active_resume',
+        target: REPLACEMENT_ACTIVE_RESUME_TARGET,
+      })
+    mockGetActiveResumeCancellationTarget
+      .mockResolvedValueOnce(REPLACEMENT_ACTIVE_RESUME_TARGET)
+      .mockResolvedValueOnce(REPLACEMENT_ACTIVE_RESUME_TARGET)
+    mockRollbackActiveResumeCancellation.mockResolvedValueOnce(false)
+    mockCancelByExecution.mockResolvedValue(1)
+    mockMarkExecutionCancelled
+      .mockResolvedValueOnce({ durablyRecorded: false, reason: 'redis_unavailable' })
+      .mockResolvedValueOnce({ durablyRecorded: false, reason: 'redis_unavailable' })
+      .mockResolvedValueOnce({ durablyRecorded: true, reason: 'recorded' })
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      pausedCancelled: false,
+      reason: 'active_resume_signal_failed',
+    })
+    expect(mockMarkExecutionCancelled).toHaveBeenNthCalledWith(1, 'resume-ex-1', {
+      executionDeadlineAt: null,
+    })
+    expect(mockMarkExecutionCancelled).toHaveBeenNthCalledWith(2, 'resume-ex-1', {
+      executionDeadlineAt: null,
+    })
+    expect(mockMarkExecutionCancelled).toHaveBeenNthCalledWith(3, 'resume-ex-2', {
+      executionDeadlineAt: null,
+    })
+    expect(mockWriteTerminalEvent).not.toHaveBeenCalled()
+    expect(mockCompletePausedCancellation).not.toHaveBeenCalled()
+  })
+
+  it('returns success when a paused HITL execution is cancelled directly in the database', async () => {
+    mockStagePausedCancellation.mockResolvedValue({ kind: 'idle' })
+    mockCompletePausedCancellation.mockResolvedValue(true)
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      executionId: 'ex-1',
+      redisAvailable: true,
+      durablyRecorded: true,
+      locallyAborted: false,
+      pausedCancelled: true,
+      reason: 'recorded',
+    })
+    expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+    expect(mockWriteTerminalEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'execution:cancelled',
+        executionId: 'ex-1',
+        workflowId: 'wf-1',
+      }),
+      'cancelled'
+    )
+    expect(mockFinalizeExecutionStream).not.toHaveBeenCalled()
+  })
+
+  it('claims the paused workflow-group sidecar before publishing and finalizing', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: 'workflow_group',
+        status: 'running',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockCancelWorkflowGroupExecution.mockResolvedValue({
+      kind: 'cancelled',
+      tableId: 'table-1',
+      rowId: 'row-1',
+      groupId: 'group-1',
+    })
+    mockStagePausedCancellation.mockResolvedValue({ kind: 'idle' })
+    mockCompletePausedCancellation.mockResolvedValue(true)
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      durablyRecorded: true,
+      pausedCancelled: true,
+      reason: 'recorded',
+    })
+    expect(mockStagePausedCancellation.mock.invocationCallOrder[0]).toBeLessThan(
+      mockWriteTerminalEvent.mock.invocationCallOrder[0]
+    )
+    expect(mockCancelWorkflowGroupExecution.mock.invocationCallOrder[0]).toBeLessThan(
+      mockWriteTerminalEvent.mock.invocationCallOrder[0]
+    )
+    expect(mockWriteTerminalEvent.mock.invocationCallOrder[0]).toBeLessThan(
+      mockCompletePausedCancellation.mock.invocationCallOrder[0]
+    )
+    expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+    expect(mockCancelByExecution).not.toHaveBeenCalled()
+    expect(mockWriteTerminalEvent).toHaveBeenCalledOnce()
+    expect(mockCompletePausedCancellation).toHaveBeenCalledWith('ex-1', 'wf-1')
+  })
+
+  it('keeps a paused workflow-group cancellation reserved when event publication fails', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: 'workflow_group',
+        status: 'running',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockStagePausedCancellation.mockResolvedValue({ kind: 'idle' })
+    mockCancelWorkflowGroupExecution.mockResolvedValue({
+      kind: 'cancelled',
+      tableId: 'table-1',
+      rowId: 'row-1',
+      groupId: 'group-1',
+    })
+    mockWriteTerminalEvent.mockRejectedValue(new Error('Redis unavailable'))
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      pausedCancelled: false,
+      reason: 'paused_event_publish_failed',
+    })
+    expect(mockCompletePausedCancellation).not.toHaveBeenCalled()
+    expect(mockCancelWorkflowGroupExecution).toHaveBeenCalledOnce()
+    expect(mockClearPausedCancellationIntent).not.toHaveBeenCalled()
+    expect(mockCancelByExecution).not.toHaveBeenCalled()
+  })
+
+  it('publishes paused cancellation event even when Redis cancellation is recorded', async () => {
+    mockStagePausedCancellation.mockResolvedValue({ kind: 'idle' })
+    mockCompletePausedCancellation.mockResolvedValue(true)
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      executionId: 'ex-1',
+      durablyRecorded: true,
+      pausedCancelled: true,
+    })
+    expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+    expect(mockWriteTerminalEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'execution:cancelled',
+        executionId: 'ex-1',
+        workflowId: 'wf-1',
+      }),
+      'cancelled'
+    )
+    expect(mockFinalizeExecutionStream).not.toHaveBeenCalled()
+  })
+
+  it('does not confirm paused cancellation when terminal event publication fails', async () => {
+    mockStagePausedCancellation.mockResolvedValue({ kind: 'idle' })
+    mockCompletePausedCancellation.mockResolvedValue(true)
+    mockWriteTerminalEvent.mockRejectedValue(new Error('Redis unavailable'))
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      executionId: 'ex-1',
+      redisAvailable: false,
+      durablyRecorded: true,
+      locallyAborted: false,
+      pausedCancelled: false,
+      reason: 'paused_event_publish_failed',
+    })
+    expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+    expect(mockCompletePausedCancellation).not.toHaveBeenCalled()
+    expect(mockWriteTerminalEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'execution:cancelled',
+        executionId: 'ex-1',
+        workflowId: 'wf-1',
+      }),
+      'cancelled'
+    )
+    expect(mockFinalizeExecutionStream).not.toHaveBeenCalled()
+  })
+
+  it('finishes reconciliation when the pause row is already cancelled', async () => {
+    mockStagePausedCancellation.mockResolvedValue({ kind: 'idle' })
+    mockCompletePausedCancellation.mockResolvedValue(true)
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      pausedCancelled: true,
+      reason: 'recorded',
+    })
+    expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+    expect(mockWriteTerminalEvent.mock.invocationCallOrder[0]).toBeLessThan(
+      mockCompletePausedCancellation.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('stops before lookup when cancellation is already aborted', async () => {
+    const controller = new AbortController()
+    controller.abort()
+
+    const response = await cancelAsResponse({
+      abortSignal: controller.signal,
+    })
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Request aborted before workflow run cancellation could be applied.',
+    })
+    expect(databaseMock.db.select).not.toHaveBeenCalled()
+    expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+  })
+
+  it('stops before mutation when cancellation is aborted during execution lookup', async () => {
+    const controller = new AbortController()
+    dbChainMockFns.limit.mockImplementationOnce(async () => {
+      controller.abort()
+      return [
+        {
+          executionDeadlineAt: null,
+          executionOrigin: null,
+          status: 'running',
+          workspaceId: 'workspace-1',
+        },
+      ]
+    })
+
+    const response = await cancelAsResponse({
+      abortSignal: controller.signal,
+    })
+
+    expect(response.status).toBe(409)
+    expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+    expect(mockAbortManualExecution).not.toHaveBeenCalled()
+    expect(mockCancelByExecution).not.toHaveBeenCalled()
+  })
+
+  it('rolls back pause staging when cancellation is aborted during staging', async () => {
+    const controller = new AbortController()
+    mockStagePausedCancellation.mockImplementationOnce(async () => {
+      controller.abort()
+      return { kind: 'idle' }
+    })
+
+    const response = await cancelAsResponse({
+      abortSignal: controller.signal,
+    })
+
+    expect(response.status).toBe(409)
+    expect(mockClearPausedCancellationIntent).toHaveBeenCalledWith('ex-1', 'wf-1')
+    expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+    expect(mockAbortManualExecution).not.toHaveBeenCalled()
+    expect(mockCancelByExecution).not.toHaveBeenCalled()
+  })
+
+  it('finishes cancellation when an aborted idle-pause rollback fails', async () => {
+    const controller = new AbortController()
+    mockStagePausedCancellation.mockImplementationOnce(async () => {
+      controller.abort()
+      return { kind: 'idle' }
+    })
+    mockClearPausedCancellationIntent.mockRejectedValueOnce(new Error('database unavailable'))
+    mockCompletePausedCancellation.mockResolvedValue(true)
+
+    const response = await cancelAsResponse({
+      abortSignal: controller.signal,
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      pausedCancelled: true,
+      reason: 'recorded',
+    })
+    expect(mockClearPausedCancellationIntent).toHaveBeenCalledWith('ex-1', 'wf-1')
+    expect(mockWriteTerminalEvent).toHaveBeenCalledOnce()
+    expect(mockCompletePausedCancellation).toHaveBeenCalledWith('ex-1', 'wf-1')
+  })
+
+  it('rolls back an active resume staged while cancellation is aborted', async () => {
+    const controller = new AbortController()
+    mockStagePausedCancellation.mockImplementationOnce(async () => {
+      controller.abort()
+      return { kind: 'active_resume', target: ACTIVE_RESUME_TARGET }
+    })
+
+    const response = await cancelAsResponse({
+      abortSignal: controller.signal,
+    })
+
+    expect(response.status).toBe(409)
+    expect(mockRollbackActiveResumeCancellation).toHaveBeenCalledWith(
+      'ex-1',
+      'wf-1',
+      'resume-entry-1'
+    )
+    expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+  })
+
+  it('rolls back pause staging for an already-cancelled execution when cancellation is aborted', async () => {
+    const controller = new AbortController()
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: null,
+        status: 'cancelled',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockStagePausedCancellation.mockImplementationOnce(async () => {
+      controller.abort()
+      return { kind: 'idle' }
+    })
+
+    const response = await cancelAsResponse({
+      abortSignal: controller.signal,
+    })
+
+    expect(response.status).toBe(409)
+    expect(mockClearPausedCancellationIntent).toHaveBeenCalledWith('ex-1', 'wf-1')
+    expect(mockWriteTerminalEvent).not.toHaveBeenCalled()
+    expect(mockCompletePausedCancellation).not.toHaveBeenCalled()
     expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
   })
 
-  it('leaves a standalone execution untouched by the workflow-group path', async () => {
-    await cancelWorkflowExecution(INPUT)
+  it('finishes cancellation when an aborted active-resume stage cannot be rolled back', async () => {
+    const controller = new AbortController()
+    mockStagePausedCancellation.mockImplementationOnce(async () => {
+      controller.abort()
+      return { kind: 'active_resume', target: ACTIVE_RESUME_TARGET }
+    })
+    mockRollbackActiveResumeCancellation.mockResolvedValueOnce(false)
+    mockMarkExecutionCancelled.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
+    mockCompletePausedCancellation.mockResolvedValue(true)
 
-    expect(mockCancelWorkflowGroupExecution).not.toHaveBeenCalled()
+    const response = await cancelAsResponse({
+      abortSignal: controller.signal,
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({ success: true, pausedCancelled: true })
+    expect(mockRollbackActiveResumeCancellation).toHaveBeenCalledWith(
+      'ex-1',
+      'wf-1',
+      'resume-entry-1'
+    )
+    expect(mockMarkExecutionCancelled).toHaveBeenCalledWith('resume-ex-1', {
+      executionDeadlineAt: null,
+    })
+  })
+
+  it('returns 404 when the execution does not belong to the workflow', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(404)
+    expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+    expect(mockCancelByExecution).toHaveBeenCalledWith(
+      {
+        workflowId: 'wf-1',
+        executionId: 'ex-1',
+        rootJobId: 'workflow-execution:ex-1',
+      },
+      'standalone'
+    )
+  })
+
+  it('treats an already-cancelled execution as an idempotent success', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { executionDeadlineAt: null, status: 'cancelled', workspaceId: 'workspace-1' },
+    ])
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      durablyRecorded: false,
+      reason: 'already_cancelled',
+    })
+    expect(mockCancelByExecution).not.toHaveBeenCalled()
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('ex-1')
+  })
+
+  it('reconciles the exact sidecar when a workflow-group log is already cancelled', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: 'workflow_group',
+        status: 'cancelled',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockCancelWorkflowGroupExecution.mockResolvedValue({
+      kind: 'already_cancelled',
+      tableId: 'table-1',
+      rowId: 'row-1',
+      groupId: 'group-1',
+    })
+    mockMarkExecutionCancelled.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      reason: 'already_cancelled',
+    })
+    expect(mockCancelWorkflowGroupExecution).toHaveBeenCalledWith({
+      workspaceId: 'workspace-1',
+      workflowId: 'wf-1',
+      executionId: 'ex-1',
+    })
+    expect(mockMarkExecutionCancelled).toHaveBeenCalledWith('ex-1', {
+      executionDeadlineAt: null,
+    })
+    expect(mockPublishWorkflowGroupCancellationEvent).toHaveBeenCalledOnce()
+    expect(mockCancelByExecution).not.toHaveBeenCalled()
+  })
+
+  it('finishes workflow-group reconciliation when abort arrives during its durable commit', async () => {
+    const controller = new AbortController()
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: 'workflow_group',
+        status: 'cancelled',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockCancelWorkflowGroupExecution.mockImplementationOnce(async () => {
+      controller.abort()
+      return {
+        kind: 'already_cancelled',
+        tableId: 'table-1',
+        rowId: 'row-1',
+        groupId: 'group-1',
+      }
+    })
+    mockStagePausedCancellation.mockResolvedValue({ kind: 'idle' })
+    mockCompletePausedCancellation.mockResolvedValue(true)
+
+    const response = await cancelAsResponse({
+      abortSignal: controller.signal,
+    })
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({ success: true, pausedCancelled: true })
+    expect(mockClearPausedCancellationIntent).not.toHaveBeenCalled()
+    expect(mockPublishWorkflowGroupCancellationEvent).toHaveBeenCalledOnce()
+    expect(mockCompletePausedCancellation).toHaveBeenCalledWith('ex-1', 'wf-1')
+  })
+
+  it('does not finalize an already-cancelled group retry until exact stop is accepted', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: 'workflow_group',
+        status: 'cancelled',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockCancelWorkflowGroupExecution.mockResolvedValue({
+      kind: 'already_cancelled',
+      tableId: 'table-1',
+      rowId: 'row-1',
+      groupId: 'group-1',
+    })
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      redisAvailable: false,
+      reason: 'redis_unavailable',
+    })
     expect(mockPublishWorkflowGroupCancellationEvent).not.toHaveBeenCalled()
-    expect(mockUpdateSet).toHaveBeenCalledWith(expect.objectContaining({ status: 'cancelled' }))
+    expect(mockWriteTerminalEvent).not.toHaveBeenCalled()
+    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
+  })
+
+  it('repairs a stranded active resume when the group log is already cancelled', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: 'workflow_group',
+        status: 'cancelled',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockStagePausedCancellation.mockResolvedValue({
+      kind: 'active_resume',
+      target: ACTIVE_RESUME_TARGET,
+    })
+    mockGetActiveResumeCancellationTarget.mockResolvedValue(ACTIVE_RESUME_TARGET)
+    mockAbortManualExecution.mockReturnValue(true)
+    mockCancelByExecution.mockResolvedValue(1)
+    mockCompletePausedCancellation.mockResolvedValue(true)
+    mockCancelWorkflowGroupExecution.mockResolvedValue({
+      kind: 'already_cancelled',
+      tableId: 'table-1',
+      rowId: 'row-1',
+      groupId: 'group-1',
+    })
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      locallyAborted: true,
+      pausedCancelled: true,
+      reason: 'already_cancelled',
+    })
+    expect(mockCancelByExecution).toHaveBeenCalledWith(
+      { workflowId: 'wf-1', executionId: 'ex-1' },
+      'resume'
+    )
+    expect(mockAbortManualExecution).toHaveBeenCalledWith('resume-ex-1')
+    expect(mockCompletePausedCancellation).toHaveBeenCalledWith('ex-1', 'wf-1')
+    expect(mockWriteTerminalEvent).toHaveBeenCalledOnce()
+    expect(mockWriteTerminalEvent.mock.invocationCallOrder[0]).toBeLessThan(
+      mockCompletePausedCancellation.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('repairs a stranded active resume when a regular workflow log is already cancelled', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: null,
+        status: 'cancelled',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockStagePausedCancellation.mockResolvedValue({
+      kind: 'active_resume',
+      target: ACTIVE_RESUME_TARGET,
+    })
+    mockGetActiveResumeCancellationTarget.mockResolvedValue(ACTIVE_RESUME_TARGET)
+    mockAbortManualExecution.mockReturnValue(true)
+    mockCancelByExecution.mockResolvedValue(1)
+    mockCompletePausedCancellation.mockResolvedValue(true)
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      locallyAborted: true,
+      pausedCancelled: true,
+      reason: 'already_cancelled',
+    })
+    expect(mockCancelByExecution).toHaveBeenCalledWith(
+      { workflowId: 'wf-1', executionId: 'ex-1' },
+      'resume'
+    )
+    expect(mockWriteTerminalEvent.mock.invocationCallOrder[0]).toBeLessThan(
+      mockCompletePausedCancellation.mock.invocationCallOrder[0]
+    )
+    expect(mockCancelWorkflowGroupExecution).not.toHaveBeenCalled()
+  })
+
+  it('keeps an already-cancelled active resume retryable when publication fails', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: null,
+        status: 'cancelled',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockStagePausedCancellation.mockResolvedValue({
+      kind: 'active_resume',
+      target: ACTIVE_RESUME_TARGET,
+    })
+    mockGetActiveResumeCancellationTarget.mockResolvedValue(ACTIVE_RESUME_TARGET)
+    mockMarkExecutionCancelled.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
+    mockWriteTerminalEvent.mockRejectedValue(new Error('Redis unavailable'))
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      pausedCancelled: false,
+      reason: 'paused_event_publish_failed',
+    })
+    expect(mockCompletePausedCancellation).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when an already-cancelled group sidecar cannot be reconciled', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: 'workflow_group',
+        status: 'cancelled',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockCancelWorkflowGroupExecution.mockResolvedValue({
+      kind: 'conflict',
+      status: 'completed',
+    })
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Workflow group execution cannot be reconciled while completed',
+    })
+  })
+
+  it('reports a reconciliation failure for an already-cancelled group sidecar', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: 'workflow_group',
+        status: 'cancelled',
+        workspaceId: 'workspace-1',
+      },
+    ])
+    mockCancelWorkflowGroupExecution.mockRejectedValue(new Error('database unavailable'))
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({ error: 'database unavailable' })
+  })
+
+  it.each(['completed', 'failed'] as const)(
+    'raises a typed conflict when a standalone execution is already %s',
+    async (executionStatus) => {
+      dbChainMockFns.limit.mockResolvedValueOnce([
+        { status: executionStatus, workspaceId: 'workspace-1' },
+      ])
+
+      const error = await cancelWorkflowExecution(INPUT).catch((caught: unknown) => caught)
+
+      expect(error).toBeInstanceOf(WorkflowRunAlreadyTerminalError)
+      expect(error).toEqual(
+        expect.objectContaining({
+          code: 'conflict',
+          executionId: 'ex-1',
+          executionStatus,
+          redisAvailable: true,
+          locallyAborted: false,
+        })
+      )
+      expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+      expect(mockCancelByExecution).not.toHaveBeenCalled()
+    }
+  )
+
+  it('keeps workflow-group terminal conflicts strict', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionOrigin: 'workflow_group',
+        status: 'completed',
+        workspaceId: 'workspace-1',
+      },
+    ])
+
+    await expect(cancelWorkflowExecution(INPUT)).rejects.toMatchObject({
+      name: 'OrchestrationError',
+      code: 'conflict',
+      message: 'Execution cannot be cancelled while completed',
+    })
+    expect(mockMarkExecutionCancelled).not.toHaveBeenCalled()
+    expect(mockCancelByExecution).not.toHaveBeenCalled()
+  })
+
+  it('returns 409 when completion wins the terminal database race', async () => {
+    mockMarkExecutionCancelled.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
+    const returning = vi.fn().mockResolvedValue([])
+    const where = vi.fn(() => ({ returning }))
+    databaseMock.db.update.mockReturnValueOnce({ set: vi.fn(() => ({ where })) })
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        { executionDeadlineAt: null, status: 'running', workspaceId: 'workspace-1' },
+      ])
+      .mockResolvedValueOnce([{ status: 'completed' }])
+
+    const error = await cancelWorkflowExecution(INPUT).catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(WorkflowRunAlreadyTerminalError)
+    expect(error).toEqual(
+      expect.objectContaining({
+        code: 'conflict',
+        executionId: 'ex-1',
+        executionStatus: 'completed',
+        redisAvailable: true,
+        locallyAborted: false,
+      })
+    )
+    expect(returning).toHaveBeenCalledOnce()
+    expect(mockClearExecutionCancellation).toHaveBeenCalledWith('ex-1')
+    expect(mockWriteTerminalEvent).not.toHaveBeenCalled()
+    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
+  })
+
+  it('finalizes paused cancellation state when resume completion wins the log claim', async () => {
+    mockStagePausedCancellation.mockResolvedValue({ kind: 'idle' })
+    const returning = vi.fn().mockResolvedValue([])
+    const where = vi.fn(() => ({ returning }))
+    databaseMock.db.update.mockReturnValueOnce({ set: vi.fn(() => ({ where })) })
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        { executionDeadlineAt: null, status: 'running', workspaceId: 'workspace-1' },
+      ])
+      .mockResolvedValueOnce([{ status: 'completed' }])
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Execution cannot be cancelled while completed',
+    })
+    expect(mockWriteTerminalEvent).not.toHaveBeenCalled()
+    expect(mockCompletePausedCancellation).not.toHaveBeenCalled()
+    expect(mockFinalizePausedCancellationForTerminalRun).toHaveBeenCalledWith('ex-1', 'wf-1', [])
+  })
+
+  it('retries paused cancellation finalization before returning a terminal-race conflict', async () => {
+    mockStagePausedCancellation.mockResolvedValue({ kind: 'idle' })
+    mockFinalizePausedCancellationForTerminalRun.mockRejectedValueOnce(
+      new Error('database unavailable')
+    )
+    const returning = vi.fn().mockResolvedValue([])
+    const where = vi.fn(() => ({ returning }))
+    databaseMock.db.update.mockReturnValueOnce({ set: vi.fn(() => ({ where })) })
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        { executionDeadlineAt: null, status: 'running', workspaceId: 'workspace-1' },
+      ])
+      .mockResolvedValueOnce([{ status: 'completed' }])
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Execution cannot be cancelled while completed',
+    })
+    expect(mockFinalizePausedCancellationForTerminalRun).toHaveBeenCalledTimes(2)
+    expect(mockWriteTerminalEvent).not.toHaveBeenCalled()
+  })
+
+  it('keeps the active-resume stop marker when a terminal parent wins the log claim', async () => {
+    mockStagePausedCancellation.mockResolvedValue({
+      kind: 'active_resume',
+      target: ACTIVE_RESUME_TARGET,
+    })
+    mockGetActiveResumeCancellationTargets.mockResolvedValue([ACTIVE_RESUME_TARGET])
+    mockMarkExecutionCancelled.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
+    const returning = vi.fn().mockResolvedValue([])
+    const where = vi.fn(() => ({ returning }))
+    databaseMock.db.update.mockReturnValueOnce({ set: vi.fn(() => ({ where })) })
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        { executionDeadlineAt: null, status: 'running', workspaceId: 'workspace-1' },
+      ])
+      .mockResolvedValueOnce([{ status: 'completed' }])
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Execution cannot be cancelled while completed',
+    })
+    expect(mockFinalizePausedCancellationForTerminalRun).toHaveBeenCalledWith('ex-1', 'wf-1', [
+      'resume-entry-1',
+    ])
+    expect(mockRollbackActiveResumeCancellation).not.toHaveBeenCalled()
+    expect(mockClearPausedCancellationIntent).not.toHaveBeenCalled()
+    expect(mockClearExecutionCancellation).not.toHaveBeenCalled()
+  })
+
+  it('does not finalize a claimed resume that cannot be stopped after its parent is terminal', async () => {
+    mockGetActiveResumeCancellationTargets.mockResolvedValue([ACTIVE_RESUME_TARGET])
+    mockGetActiveResumeCancellationTarget.mockResolvedValue(ACTIVE_RESUME_TARGET)
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        executionDeadlineAt: null,
+        executionOrigin: null,
+        status: 'completed',
+        workspaceId: 'workspace-1',
+      },
+    ])
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({
+      error: 'Failed to reconcile paused execution after cancellation was rejected',
+    })
+    expect(mockMarkExecutionCancelled).toHaveBeenCalledTimes(3)
+    expect(mockMarkExecutionCancelled).toHaveBeenCalledWith('resume-ex-1', {
+      executionDeadlineAt: null,
+    })
+    expect(mockFinalizePausedCancellationForTerminalRun).not.toHaveBeenCalled()
+    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
+  })
+
+  it('treats a concurrent cancellation as an idempotent success', async () => {
+    mockMarkExecutionCancelled.mockResolvedValue({ durablyRecorded: true, reason: 'recorded' })
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        { executionDeadlineAt: null, status: 'running', workspaceId: 'workspace-1' },
+      ])
+      .mockResolvedValueOnce([{ status: 'cancelled' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({ success: true, reason: 'recorded' })
+    expect(mockClearExecutionCancellation).not.toHaveBeenCalled()
+    expect(mockWriteTerminalEvent).toHaveBeenCalledTimes(1)
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('ex-1')
+  })
+
+  it('updates execution log status in DB when durably recorded', async () => {
+    const mockReturning = vi.fn().mockResolvedValue([{ status: 'cancelled' }])
+    const mockWhere = vi.fn(() => ({ returning: mockReturning }))
+    const mockSet = vi.fn(() => ({ where: mockWhere }))
+    databaseMock.db.update.mockReturnValueOnce({ set: mockSet })
+    mockMarkExecutionCancelled.mockResolvedValue({
+      durablyRecorded: true,
+      reason: 'recorded',
+    })
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({ success: true, reason: 'recorded' })
+    expect(databaseMock.db.update).toHaveBeenCalled()
+    expect(mockSet).toHaveBeenCalledWith({
+      status: 'cancelled',
+      endedAt: expect.any(Date),
+      totalDurationMs: expect.anything(),
+      executionDeadlineAt: null,
+    })
+  })
+
+  it('updates execution log status in DB when locally aborted', async () => {
+    const mockReturning = vi.fn().mockResolvedValue([{ status: 'cancelled' }])
+    const mockWhere = vi.fn(() => ({ returning: mockReturning }))
+    const mockSet = vi.fn(() => ({ where: mockWhere }))
+    databaseMock.db.update.mockReturnValueOnce({ set: mockSet })
+    mockMarkExecutionCancelled.mockResolvedValue({
+      durablyRecorded: false,
+      reason: 'redis_unavailable',
+    })
+    mockAbortManualExecution.mockReturnValue(true)
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      reason: 'redis_unavailable',
+    })
+    expect(databaseMock.db.update).toHaveBeenCalled()
+    expect(mockSet).toHaveBeenCalledWith({
+      status: 'cancelled',
+      endedAt: expect.any(Date),
+      totalDurationMs: expect.anything(),
+      executionDeadlineAt: null,
+    })
+  })
+
+  it('claims the execution log before finalizing a paused cancellation', async () => {
+    mockStagePausedCancellation.mockResolvedValue({ kind: 'idle' })
+
+    await POST(makeRequest(), makeParams())
+
+    expect(databaseMock.db.update).toHaveBeenCalled()
+  })
+
+  it('does not confirm cancellation until the terminal database update succeeds', async () => {
+    mockMarkExecutionCancelled.mockResolvedValue({
+      durablyRecorded: true,
+      reason: 'recorded',
+    })
+    databaseMock.db.update.mockReturnValueOnce({
+      set: vi.fn(() => ({
+        where: vi.fn(() => {
+          throw new Error('DB connection failed')
+        }),
+      })),
+    })
+
+    const response = await POST(makeRequest(), makeParams())
+
+    expect(response.status).toBe(200)
+    const data = await response.json()
+    expect(data).toMatchObject({
+      success: false,
+      reason: 'cancellation_not_finalized',
+    })
+    expect(mockClearExecutionCancellation).not.toHaveBeenCalled()
   })
 })

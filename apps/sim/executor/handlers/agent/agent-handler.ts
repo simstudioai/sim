@@ -1,19 +1,27 @@
-import { db } from '@sim/db'
-import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
-import { isPlainRecord } from '@sim/utils/object'
+import { getErrorMessage, toError } from '@sim/utils/errors'
+import { isPlainRecord, omit } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
 import {
   projectModelSchemaAnnotations,
   projectResolvedModelInput,
   selectModelSchemaInputPaths,
 } from '@/lib/execution/model-input-provenance'
+import { readAvailableCustomToolByIdOrTitleAsExecutor } from '@/lib/internal/custom-tools/read-available-by-id-or-title'
+import { resolveExecutorFileMaterializationContext } from '@/lib/internal/file/materialization-context'
+import { discoverMcpServerToolsAsExecutor } from '@/lib/internal/mcp/discover-tools'
+import {
+  readWorkflowInputFieldsForTool,
+  readWorkflowMetadataForTool,
+} from '@/lib/internal/workflows/read-tool-enrichment'
+import { assertValidMcpServerToolBindings, MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
+import { resolveMcpToolBinding } from '@/lib/mcp/tool-binding'
 import type { McpToolSchema } from '@/lib/mcp/types'
 import { createMcpToolId } from '@/lib/mcp/utils'
+import { type AgentTurnSession, openAgentTurnSession } from '@/lib/memory/agent-turn-session'
+import { MEMORY } from '@/lib/memory/constants'
+import { createAgentMemoryRetrievalTool } from '@/lib/memory/retrieval-tool'
 import {
   type AutoMediaKind,
   type AutoRoutingResult,
@@ -27,24 +35,38 @@ import {
   MODEL_SUPPORTED_IMAGE_MIME_TYPES,
   processFilesToUserFiles,
   type RawFileInput,
+  tryInferContextFromKey,
 } from '@/lib/uploads/utils/file-utils'
-import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
+import {
+  appendUnavailableAttachmentNotice,
+  selectModelBoundFileInputPaths,
+} from '@/lib/uploads/utils/model-input'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
+import {
+  type FallbackModelCandidate,
+  resolveFallbackTuning,
+} from '@/lib/workflows/blocks/fallback-models'
 import { resolveCustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
-import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
-import { getAllBlocks } from '@/blocks'
+import {
+  getAgentToolUsageControlMode,
+  resolveAgentToolUsageControl,
+} from '@/lib/workflows/tool-input/usage-control'
+import { getAllBlocks, getBlock } from '@/blocks'
 import { assembleCustomBlockInputMapping, isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockOutput } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import {
+  assertPermissionsAllowed,
   validateBlockType,
-  validateCustomToolsAllowed,
-  validateMcpToolsAllowed,
   validateModelProvider,
-  validateSkillsAllowed,
 } from '@/ee/access-control/utils/permission-check'
 import { AGENT, BlockType, DEFAULTS, stripCustomToolPrefix } from '@/executor/constants'
-import { memoryService } from '@/executor/handlers/agent/memory'
+import { isRetryableBlockError } from '@/executor/execution/block-retry'
+import {
+  getMemoryMessageAppendKey,
+  getMemoryMessageTurnId,
+  memoryService,
+} from '@/executor/handlers/agent/memory'
 import {
   buildLoadSkillTool,
   buildSkillsSystemPromptSection,
@@ -52,15 +74,27 @@ import {
 } from '@/executor/handlers/agent/skills-resolver'
 import type {
   AgentInputs,
+  FileNameProjection,
   Message,
   StreamingConfig,
   ToolInput,
 } from '@/executor/handlers/agent/types'
 import { parseResponseFormat } from '@/executor/handlers/shared/response-format'
-import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/executor/types'
+import type {
+  BlockHandler,
+  BlockNodeMetadata,
+  ExecutionContext,
+  StreamingExecution,
+  UserFile,
+} from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
-import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
+import {
+  getModelFallbacks,
+  PROVIDER_FAMILY_CREDENTIAL_FIELDS,
+  recordModelFallbacks,
+  resolveFallbackApiKey,
+} from '@/executor/utils/model-fallbacks'
 import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import { prepareResolvedSecretProjectedInputs } from '@/executor/utils/resolved-secret-input-projection'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
@@ -68,6 +102,7 @@ import type {
   ResolvedSecretInputPath,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
+import { annotateDuplicateToolBindings } from '@/executor/utils/tool-binding-labels'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
 import {
@@ -78,18 +113,23 @@ import {
   supportsFileAttachments,
 } from '@/providers/attachments'
 import {
+  copyNativeConversationMessage,
+  isConversationHistoryNotice,
+} from '@/providers/conversation-metadata'
+import {
   canUseProviderLargeFilePath,
   getInlineHydrationMaxBytes,
 } from '@/providers/file-attachments.server'
-import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
+import { isAutoModel, isEvaluationModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
 import {
   type ProviderToolInputProvenance,
   registerProviderToolInputProvenance,
   registerProviderToolModelInputRegistry,
 } from '@/providers/tool-input-provenance'
 import type { ProviderToolConfig } from '@/providers/types'
-import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
+import { getProviderFromModel, isDeepResearchModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
+import { buildJsonSchemaParamShapes, decodeToolParams } from '@/tools/param-shape'
 import { filterSchemaForLLM, type ToolSchema, ToolSchemaEnrichmentError } from '@/tools/params'
 import { getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
@@ -119,11 +159,72 @@ const AGENT_RAW_PROVIDER_ERROR_INPUT_PATHS: readonly ResolvedSecretInputPath[] =
   ['thinkingLevel'],
   ['promptCaching'],
   ['previousInteractionId'],
+  ['fallbackModels'],
 ]
 
 interface IndexedToolInput {
   tool: ToolInput
   toolIndex: number
+}
+
+/**
+ * Removes the sim-auto identity preamble from the system messages built for a
+ * routed primary. A fallback the builder named is not a pool model, so it must
+ * not be told to hide which model it is. Messages are built once per block run
+ * (building them appends to memory), which is why this strips rather than
+ * rebuilds.
+ */
+function stripAutoPreamble(messages: Message[] | undefined): Message[] | undefined {
+  if (!messages) return messages
+  const prefix = `${SIM_AUTO_SYSTEM_PREAMBLE}\n\n`
+  return messages.flatMap((message) => {
+    if (message.role !== 'system' || typeof message.content !== 'string') return [message]
+    if (message.content === SIM_AUTO_SYSTEM_PREAMBLE) return []
+    if (!message.content.startsWith(prefix)) return [message]
+    return [{ ...message, content: message.content.slice(prefix.length) }]
+  })
+}
+
+/** One model in the order the block tries them; the primary carries the block's own key. */
+interface ModelCandidate extends FallbackModelCandidate {
+  isPrimary: boolean
+  /**
+   * What the trace calls this model when it fails. A routed sim-auto primary
+   * shows as the auto identity, since naming the pool model is the leak that
+   * `applyAutoModelLabel` exists to close.
+   */
+  traceName?: string
+}
+
+interface ExecuteAcrossModelsConfig {
+  candidates: ModelCandidate[]
+  retryPrimaryOnStreamStart: boolean
+  primaryModel: string
+  /**
+   * The model the builder configured, which is what the editor showed the
+   * per-row tuning fields against. Under sim-auto that is the auto id, not the
+   * pool model routed for this run, so a row's value applies whatever was routed.
+   */
+  configuredModel: string
+  primaryProviderId: string
+  messages: Message[] | undefined
+  /** Provider id to hydrated messages; seeded with the primary, filled per fallback provider. */
+  hydratedByProvider: Map<string, Message[] | undefined>
+  fileProjection: ReturnType<AgentBlockHandler['projectFileNamesForModel']>
+  modelInputs: AgentInputs
+  /**
+   * The system prompt without the sim-auto identity preamble, present only when
+   * the primary was auto-routed: a fallback the builder named is not a pool
+   * model and must not be told to hide which model it is.
+   */
+  fallbackSystemPrompt?: string
+  formattedTools: ProviderToolConfig[]
+  responseFormat: any
+  streaming: boolean
+  settledInputRegistry: ResolvedSecretTraceRegistry | undefined
+  resultRegistry: ResolvedSecretTraceRegistry | undefined
+  providerErrorRegistry: ResolvedSecretTraceRegistry | undefined
+  agentConversation?: AgentTurnSession
 }
 
 interface FormattedAgentTools {
@@ -217,15 +318,23 @@ export class AgentBlockHandler implements BlockHandler {
   async execute(
     ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: AgentInputs
+    inputs: AgentInputs,
+    nodeMetadata?: BlockNodeMetadata
   ): Promise<BlockOutput | StreamingExecution> {
+    /** Inactive fields can remain saved when the builder switches model modalities. */
+    inputs = isEvaluationModel(inputs.model || AGENT.DEFAULT_MODEL)
+      ? {
+          model: inputs.model,
+          apiKey: inputs.apiKey,
+          evaluationState: inputs.evaluationState,
+          evaluationQuestions: inputs.evaluationQuestions,
+        }
+      : inputs
+    ctx.mcpBlockId = block.id
     const providerErrorRegistry = ctx.resolvedSecretTraceRegistry?.forkForInputPaths(
       AGENT_RAW_PROVIDER_ERROR_INPUT_PATHS
     )
     ctx.errorResolvedSecretTraceRegistry = providerErrorRegistry
-    const toolIndexByRef = new Map<ToolInput, number>(
-      (inputs.tools || []).map((tool, index) => [tool, index] as const)
-    )
     const privateAgentSelectorInputPaths: ResolvedSecretInputPath[] = []
     let responseFormatModelInputPaths: ResolvedSecretInputPath[] = []
     let privateAgentSelectorsSettled = false
@@ -241,6 +350,10 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     try {
+      const tools = this.resolveToolUsageControls(inputs.tools || [], block.canonicalModes)
+      const toolIndexByRef = new Map<ToolInput, number>(
+        tools.map((tool, index) => [tool, index] as const)
+      )
       const privateAgentSelectors = this.getPrivateAgentSelectorInputPaths(ctx, inputs, [])
       privateAgentSelectorInputPaths.push(...privateAgentSelectors.inputPaths)
       if (!privateAgentSelectors.complete) {
@@ -260,8 +373,7 @@ export class AgentBlockHandler implements BlockHandler {
         }
       )
       responseFormatModelInputPaths = responseFormatProjection.inputPaths
-      const filteredTools = await this.filterUnavailableMcpTools(ctx, inputs.tools || [])
-      const filteredInputs = { ...inputs, tools: filteredTools }
+      const filteredInputs = { ...inputs, tools }
       this.assertInputPathsDoNotResolveSecrets(
         ctx,
         this.getMessageStructuralInputPaths(filteredInputs),
@@ -276,6 +388,10 @@ export class AgentBlockHandler implements BlockHandler {
           userPrompt: filteredInputs.userPrompt,
           messages: filteredInputs.messages,
           memories: filteredInputs.memories,
+          ...(isEvaluationModel(filteredInputs.model || AGENT.DEFAULT_MODEL) && {
+            evaluationState: filteredInputs.evaluationState,
+            evaluationQuestions: filteredInputs.evaluationQuestions,
+          }),
         },
         coreModelInputPaths
       )
@@ -291,7 +407,9 @@ export class AgentBlockHandler implements BlockHandler {
         ...modelInputProjection.value,
         responseFormat: responseFormatProjection.value,
       }
-      const projectedToolInputs = this.projectToolInputsForProvenance(ctx, inputs.tools || [])
+      /** The system prompt as the model may see it, before any auto-routing preamble joins it. */
+      const projectedSystemPrompt = modelInputs.systemPrompt
+      const projectedToolInputs = this.projectToolInputsForProvenance(ctx, tools)
 
       await this.validateToolPermissions(ctx, filteredInputs.tools || [])
 
@@ -357,7 +475,12 @@ export class AgentBlockHandler implements BlockHandler {
       const skillInputs = filteredInputs.skills ?? []
       let skillMetadata: Array<{ name: string; description: string }> = []
       if (skillInputs.length > 0 && ctx.workspaceId) {
-        await validateSkillsAllowed(ctx.userId, ctx.workspaceId, ctx)
+        await assertPermissionsAllowed({
+          userId: ctx.userId,
+          workspaceId: ctx.workspaceId,
+          toolKind: 'skill',
+          ctx,
+        })
         skillMetadata = await resolveSkillMetadata(skillInputs, ctx.workspaceId)
         if (skillMetadata.length > 0) {
           const skillNames = skillMetadata.map((s) => s.name)
@@ -366,33 +489,48 @@ export class AgentBlockHandler implements BlockHandler {
       }
 
       const streamingConfig = this.getStreamingConfig(ctx, block)
-      const messages = await this.buildMessages(ctx, filteredInputs, modelInputs, skillMetadata)
-      const messagesWithInputFiles = this.attachFilesToLastUserMessage(
+      const agentConversation =
+        filteredInputs.memoryType &&
+        filteredInputs.memoryType !== 'none' &&
+        filteredInputs.conversationId &&
+        nodeMetadata &&
+        nodeMetadata.executionOrder !== undefined &&
+        !modelInputs.previousInteractionId &&
+        !isDeepResearchModel(model)
+          ? await openAgentTurnSession({
+              ctx,
+              blockId: block.id,
+              nodeId: nodeMetadata.nodeId,
+              executionOrder: nodeMetadata.executionOrder,
+              conversationId: filteredInputs.conversationId,
+            })
+          : undefined
+      const messagesWithInputFiles = await this.buildMessages(
         ctx,
-        messages,
-        filteredInputs.files,
-        fileProjection.projectedFiles,
-        fileProjection.projectedNameByFile,
-        fileProjection.directNameInputPaths
+        filteredInputs,
+        modelInputs,
+        skillMetadata,
+        fileProjection,
+        agentConversation
       )
-      const messagesWithFiles = await this.hydrateMessageFilesForProvider(
-        ctx,
-        messagesWithInputFiles,
-        providerId,
-        fileProjection.projectedNameByFile,
-        fileProjection.modelBoundInputPaths
-      )
-
-      const providerRequest = this.buildProviderRequest({
-        ctx,
-        providerId,
-        model,
-        messages: messagesWithFiles,
-        inputs: modelInputs,
-        formattedTools: formatted.tools,
-        responseFormat,
-        streaming: streamingConfig.shouldUseStreaming ?? false,
-      })
+      /**
+       * The primary hydrates before the registries settle and fork, as it always
+       * has: hydration imports file provenance into the live registry, and the
+       * result fork below must carry it. Fallbacks on another provider hydrate
+       * inside the chain and re-fork there.
+       */
+      const hydratedByProvider = new Map<string, Message[] | undefined>([
+        [
+          providerId,
+          await this.hydrateMessageFilesForProvider(
+            ctx,
+            messagesWithInputFiles,
+            providerId,
+            fileProjection.projectedNameByFile,
+            fileProjection.modelBoundInputPaths
+          ),
+        ],
+      ])
 
       settlePrivateAgentSelectors()
 
@@ -411,21 +549,88 @@ export class AgentBlockHandler implements BlockHandler {
           })
         }
       }
-      const result = await this.executeProviderRequest(
+
+      /**
+       * Retry on fail retries the selected model; the fallbacks join only on the
+       * try after which the executor promises no other. Until then a failure of
+       * the primary is left to escape, so the executor's policy can replay it.
+       *
+       * A follow-up turn of a deep-research interaction lives on the primary's
+       * provider; another model has none of that conversation, so a green answer
+       * from it would be built on a fresh context. Such a request never falls back.
+       */
+      const configuredFallbacks = getModelFallbacks(
         ctx,
-        providerRequest,
         block,
-        responseFormat,
-        resultRegistry,
-        providerErrorRegistry
+        filteredInputs.fallbackModels,
+        logger
       )
-      if (resultRegistry) ctx.resolvedSecretTraceRegistry = resultRegistry
+      if (configuredFallbacks.some((candidate) => isEvaluationModel(candidate.model))) {
+        throw new Error('Evaluation models cannot serve as chat fallbacks')
+      }
+      const retry = nodeMetadata?.retry
+      const fallbacksHeld = retry !== undefined && !retry.isFinalTry
+      const fallbackCandidates =
+        modelInputs.previousInteractionId || fallbacksHeld
+          ? []
+          : configuredFallbacks.filter(
+              (candidate) => candidate.model.toLowerCase() !== model.toLowerCase()
+            )
+      if (configuredFallbacks.length > 0 && modelInputs.previousInteractionId) {
+        logger.info('Fallback models skipped for a deep-research follow-up turn', {
+          blockId: block.id,
+        })
+      } else if (configuredFallbacks.length > 0 && fallbacksHeld) {
+        logger.info('Fallback models held for the final try', {
+          blockId: block.id,
+          attempt: retry.attempt,
+          maxTries: retry.maxTries,
+        })
+      }
+      const candidates: ModelCandidate[] = [
+        {
+          model,
+          apiKey: modelInputs.apiKey,
+          isPrimary: true,
+          ...(autoRouting ? { traceName: SIM_AUTO_MODEL_ID } : {}),
+        },
+        ...fallbackCandidates.map((candidate) => ({ ...candidate, isPrimary: false })),
+      ]
+      const {
+        result,
+        servedModel,
+        resultRegistry: servedRegistry,
+      } = await this.executeAcrossModels(ctx, block, {
+        candidates,
+        retryPrimaryOnStreamStart:
+          fallbacksHeld && configuredFallbacks.length > 0 && !modelInputs.previousInteractionId,
+        primaryModel: model,
+        configuredModel: autoRouting ? SIM_AUTO_MODEL_ID : model,
+        primaryProviderId: providerId,
+        messages: messagesWithInputFiles,
+        hydratedByProvider,
+        fileProjection,
+        modelInputs,
+        fallbackSystemPrompt: autoRouting ? projectedSystemPrompt : undefined,
+        formattedTools: formatted.tools,
+        responseFormat,
+        streaming: streamingConfig.shouldUseStreaming ?? false,
+        settledInputRegistry,
+        resultRegistry,
+        providerErrorRegistry,
+        agentConversation,
+      })
+      if (servedRegistry) ctx.resolvedSecretTraceRegistry = servedRegistry
 
       if (autoRouting && autoRouting.billableRoutingCost > 0) {
         this.applyRoutingCost(result, autoRouting.billableRoutingCost)
       }
 
-      if (autoRouting) {
+      /**
+       * A fallback the builder named explicitly is not a pool model, so it keeps
+       * its own name; only the routed pool model hides behind the auto label.
+       */
+      if (autoRouting && servedModel === model) {
         this.applyAutoModelLabel(result, model)
       }
 
@@ -433,19 +638,49 @@ export class AgentBlockHandler implements BlockHandler {
         const streamingResult = result as StreamingExecution
         streamingResult.diagnosticResolvedSecretTraceRegistry = providerErrorRegistry
         if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
-          return this.wrapStreamForMemoryPersistence(ctx, filteredInputs, streamingResult)
+          return this.wrapStreamForMemoryPersistence(
+            ctx,
+            filteredInputs,
+            streamingResult,
+            servedModel,
+            agentConversation
+          )
         }
         return streamingResult
       }
 
       if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
-        await this.persistResponseToMemory(ctx, filteredInputs, result as BlockOutput)
+        await this.persistResponseToMemory(
+          ctx,
+          filteredInputs,
+          result as BlockOutput,
+          servedModel,
+          agentConversation
+        )
       }
 
       return result
     } finally {
       settlePrivateAgentSelectors()
     }
+  }
+
+  private resolveToolUsageControls(
+    tools: ToolInput[],
+    canonicalModes?: Record<string, 'basic' | 'advanced'>
+  ): ToolInput[] {
+    return tools.map((tool, toolIndex) => {
+      if (getAgentToolUsageControlMode(toolIndex, canonicalModes) === 'basic') return tool
+
+      const usageControl = resolveAgentToolUsageControl(tool, toolIndex, canonicalModes)
+      if (!usageControl) {
+        throw new Error(
+          `Tool ${toolIndex + 1} mode must resolve to Auto, Force, or None before the Agent can run.`
+        )
+      }
+
+      return { ...tool, usageControl }
+    })
   }
 
   /**
@@ -587,84 +822,30 @@ export class AgentBlockHandler implements BlockHandler {
   private async validateToolPermissions(ctx: ExecutionContext, tools: ToolInput[]): Promise<void> {
     if (!Array.isArray(tools) || tools.length === 0) return
 
-    const hasMcpTools = tools.some((t) => t.type === 'mcp')
+    const hasMcpTools = tools.some(
+      (t) => t.type === 'mcp' || t.type === MCP_SERVER_ADVANCED_TOOL_TYPE
+    )
     const hasCustomTools = tools.some((t) => t.type === 'custom-tool')
 
     if (hasMcpTools) {
-      await validateMcpToolsAllowed(ctx.userId, ctx.workspaceId, ctx)
+      await assertPermissionsAllowed({
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+        toolKind: 'mcp',
+        ctx,
+      })
     }
 
     if (hasCustomTools) {
-      await validateCustomToolsAllowed(ctx.userId, ctx.workspaceId, ctx)
+      await assertPermissionsAllowed({
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+        toolKind: 'custom',
+        ctx,
+      })
     }
   }
 
-  private async filterUnavailableMcpTools(
-    ctx: ExecutionContext,
-    tools: ToolInput[]
-  ): Promise<ToolInput[]> {
-    if (!Array.isArray(tools) || tools.length === 0) return tools
-
-    const mcpTools = tools.filter((t) => t.type === 'mcp')
-    if (mcpTools.length === 0) return tools
-
-    const serverIds = [...new Set(mcpTools.map((t) => t.params?.serverId).filter(Boolean))]
-    if (serverIds.length === 0) return tools
-
-    if (!ctx.workspaceId) {
-      logger.warn('Skipping MCP availability filtering without workspace scope')
-      return tools
-    }
-
-    const availableServerIds = new Set<string>()
-    if (serverIds.length > 0) {
-      try {
-        const servers = await db
-          .select({ id: mcpServers.id, connectionStatus: mcpServers.connectionStatus })
-          .from(mcpServers)
-          .where(
-            and(
-              eq(mcpServers.workspaceId, ctx.workspaceId),
-              inArray(mcpServers.id, serverIds),
-              isNull(mcpServers.deletedAt)
-            )
-          )
-
-        for (const server of servers) {
-          if (server.connectionStatus === 'connected') {
-            availableServerIds.add(server.id)
-          }
-        }
-      } catch (error) {
-        logger.warn(
-          'Failed to check MCP server availability, including all tools',
-          projectAgentDiagnosticMetadata(
-            ctx,
-            getErrorDiagnosticMetadata(error),
-            getErrorDiagnosticFallback(error)
-          )
-        )
-        for (const serverId of serverIds) {
-          availableServerIds.add(serverId)
-        }
-      }
-    }
-
-    return tools.filter((tool) => {
-      if (tool.type !== 'mcp') return true
-      const serverId = tool.params?.serverId
-      if (!serverId) return false
-      return availableServerIds.has(serverId)
-    })
-  }
-
-  /**
-   * `canonicalModes` overrides are keyed by each tool's position in the ORIGINAL, unfiltered
-   * tools array (matching what the editor wrote), not by `tool.type` - so two tool entries of
-   * the same type (e.g. two Table tools) resolve independently. `toolIndexByRef` preserves that
-   * original position across the mcp-availability filter and the mcp/other split below, both of
-   * which would otherwise renumber tools by their post-filter position.
-   */
   private projectToolInputsForProvenance(
     ctx: ExecutionContext,
     inputTools: ToolInput[]
@@ -684,6 +865,10 @@ export class AgentBlockHandler implements BlockHandler {
     return projection.value.tools as ToolInput[]
   }
 
+  /**
+   * Preserve original tool indexes through disabled-tool filtering and MCP grouping
+   * so canonical modes and secret provenance stay attached to the configured tool.
+   */
   private async formatTools(
     ctx: ExecutionContext,
     inputTools: ToolInput[],
@@ -705,8 +890,11 @@ export class AgentBlockHandler implements BlockHandler {
         const root = ['tools', String(toolIndex)] as const
         const paths: ResolvedSecretInputPath[] = [[...root, 'type']]
         if (tool.operation !== undefined) paths.push([...root, 'operation'])
+        if (tool.type === 'mcp' || tool.type === MCP_SERVER_ADVANCED_TOOL_TYPE) {
+          paths.push([...root, 'params', 'serverId'])
+        }
         if (tool.type === 'mcp') {
-          paths.push([...root, 'params', 'serverId'], [...root, 'params', 'toolName'])
+          paths.push([...root, 'params', 'toolName'])
         }
         if (tool.type === 'custom-tool' && !tool.customToolId) {
           paths.push([...root, 'title'], [...root, 'schema', 'function', 'name'])
@@ -717,6 +905,7 @@ export class AgentBlockHandler implements BlockHandler {
     )
 
     const mcpTools: IndexedToolInput[] = []
+    const advancedMcpServers: IndexedToolInput[] = []
     const otherTools: IndexedToolInput[] = []
     const inputProvenance = new Map<
       ProviderToolConfig,
@@ -749,9 +938,14 @@ export class AgentBlockHandler implements BlockHandler {
       return formattedTool
     }
 
+    assertValidMcpServerToolBindings(filtered.map(({ tool }) => tool))
     for (const entry of filtered) {
       if (entry.tool.type === 'mcp') {
         mcpTools.push(entry)
+      } else if (entry.tool.type === MCP_SERVER_ADVANCED_TOOL_TYPE) {
+        const serverId = entry.tool.params?.serverId
+        if (typeof serverId === 'string' && !serverId.trim()) continue
+        advancedMcpServers.push(entry)
       } else {
         otherTools.push(entry)
       }
@@ -796,20 +990,19 @@ export class AgentBlockHandler implements BlockHandler {
       })
     )
 
-    const mcpResults = await this.processMcpToolsBatched(
+    const mcpResults = await this.processMcpToolsBatched(ctx, mcpTools, trackInputProvenance)
+    const advancedMcpResults = await this.processAdvancedMcpServers(
       ctx,
-      mcpTools,
-      trackInputProvenance,
-      projectedToolInputs
+      advancedMcpServers,
+      trackInputProvenance
     )
 
-    const allTools = [...otherResults, ...mcpResults]
-    return {
-      tools: allTools.filter(
-        (tool): tool is ProviderToolConfig => tool !== null && tool !== undefined
-      ),
-      inputProvenance,
-    }
+    const allTools = [...otherResults, ...mcpResults, ...advancedMcpResults]
+    const tools = allTools.filter(
+      (tool): tool is ProviderToolConfig => tool !== null && tool !== undefined
+    )
+    await annotateDuplicateToolBindings(ctx, tools)
+    return { tools, inputProvenance }
   }
 
   private assertInputPathsDoNotResolveSecrets(
@@ -843,9 +1036,14 @@ export class AgentBlockHandler implements BlockHandler {
     const formattedParams = formattedTool.params ?? {}
 
     if (isCustomBlockType(tool.type)) {
+      // Same sub-blocks the raw copy was assembled with, so both sides decode alike and
+      // the projection keeps the shape the provenance registry compares.
       return {
         ...formattedParams,
-        inputMapping: assembleCustomBlockInputMapping(projectedParams),
+        inputMapping: assembleCustomBlockInputMapping(
+          projectedParams,
+          formattedTool.customBlockInputFields
+        ),
       }
     }
 
@@ -855,10 +1053,18 @@ export class AgentBlockHandler implements BlockHandler {
         Object.hasOwn(projectedParams, key) ? projectedParams[key] : formattedParams[key],
       ])
     )
-    if (tool.type === 'mcp' || tool.type === 'custom-tool') return alignedParams
-
-    const blockInputs = getAllBlocks().find((block) => block.type === tool.type)?.inputs
-    return prepareResolvedSecretProjectedInputs(alignedParams, blockInputs, formattedParams)
+    // An MCP tool has no block, so its only structured keys are the ones its own
+    // `paramsTransform` decodes. A custom tool has neither.
+    const blockInputs =
+      tool.type &&
+      tool.type !== 'mcp' &&
+      tool.type !== MCP_SERVER_ADVANCED_TOOL_TYPE &&
+      tool.type !== 'custom-tool'
+        ? getBlock(tool.type)?.inputs
+        : undefined
+    return prepareResolvedSecretProjectedInputs(alignedParams, blockInputs, formattedParams, {
+      additionalStructuredKeys: formattedTool.jsonShapedParamKeys,
+    })
   }
 
   private async createCustomTool(
@@ -867,7 +1073,12 @@ export class AgentBlockHandler implements BlockHandler {
     projectedTool?: ToolInput,
     toolIndex?: number
   ): Promise<any> {
-    const userProvidedParams = tool.params || {}
+    const userProvidedParams = omit(tool.params || {}, [
+      'serverId',
+      'toolName',
+      'serverName',
+      'connectionId',
+    ])
 
     let schema = tool.schema
     let modelSchema = projectedTool?.schema ?? schema
@@ -965,7 +1176,6 @@ export class AgentBlockHandler implements BlockHandler {
     const toolId = `${AGENT.CUSTOM_TOOL_PREFIX}${title}`
     const base: any = {
       id: toolId,
-      name: schema.function.name,
       description: projectedDescription || '',
       params: userProvidedParams,
       parameters: {
@@ -985,7 +1195,7 @@ export class AgentBlockHandler implements BlockHandler {
     ctx: ExecutionContext,
     customToolId: string
   ): Promise<{ schema: any; title: string } | null> {
-    if (!ctx.userId) {
+    if (!ctx.userId && !ctx.executorDelegationOrigin?.subjectUserId) {
       logger.error(
         'Cannot fetch custom tool without userId',
         projectAgentDiagnosticMetadata(
@@ -998,10 +1208,10 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     try {
-      const tool = await getCustomToolById({
-        toolId: customToolId,
-        userId: ctx.userId,
-        workspaceId: ctx.workspaceId,
+      const tool = await readAvailableCustomToolByIdOrTitleAsExecutor({
+        context: ctx,
+        identifier: customToolId,
+        lookup: 'id',
       })
 
       if (!tool) {
@@ -1034,8 +1244,7 @@ export class AgentBlockHandler implements BlockHandler {
   }
 
   /**
-   * Process MCP tools using cached schemas from build time.
-   * Note: Unavailable tools are already filtered by filterUnavailableMcpTools.
+   * Discovers authorized schemas once per selected server and rejects missing operations.
    */
   private async processMcpToolsBatched(
     ctx: ExecutionContext,
@@ -1043,322 +1252,94 @@ export class AgentBlockHandler implements BlockHandler {
     trackInputProvenance: (
       formattedTool: ProviderToolConfig | null,
       entry: IndexedToolInput
-    ) => ProviderToolConfig | null,
-    projectedToolInputs?: ToolInput[]
+    ) => ProviderToolConfig | null
   ): Promise<Array<ProviderToolConfig | null>> {
-    if (mcpTools.length === 0) return []
-
+    const byServer = new Map<string, Awaited<ReturnType<typeof discoverMcpServerToolsAsExecutor>>>()
     const results: Array<ProviderToolConfig | null> = []
-    const toolsWithSchema: IndexedToolInput[] = []
-    const toolsNeedingDiscovery: IndexedToolInput[] = []
-
     for (const entry of mcpTools) {
-      const { tool } = entry
-      const serverId = tool.params?.serverId
-      const toolName = tool.params?.toolName
-
-      if (!serverId || !toolName) {
-        logger.error(
-          'MCP tool missing serverId or toolName',
-          projectAgentDiagnosticMetadata(
-            ctx,
-            getToolDiagnosticMetadata(tool),
-            getToolDiagnosticFallback(tool)
-          )
-        )
-        continue
+      const { serverId, toolName } = resolveMcpToolBinding(entry.tool)
+      let discovered = byServer.get(serverId)
+      if (!discovered) {
+        discovered = await this.discoverMcpToolsForServer(ctx, serverId)
+        byServer.set(serverId, discovered)
       }
-
-      if (tool.schema) {
-        toolsWithSchema.push(entry)
-      } else {
-        logger.warn(
-          'MCP tool missing cached schema, will need discovery',
-          projectAgentDiagnosticMetadata(
-            ctx,
-            getToolDiagnosticMetadata(tool),
-            getToolDiagnosticFallback(tool)
-          )
-        )
-        toolsNeedingDiscovery.push(entry)
-      }
+      const tool = discovered.find((candidate) => candidate.name === toolName)
+      if (!tool) throw new Error(`MCP operation "${toolName}" is missing or not permitted`)
+      const created = await this.createMcpToolFromDiscoveredData(entry.tool, tool, serverId)
+      results.push(trackInputProvenance(created, entry))
     }
-
-    for (const entry of toolsWithSchema) {
-      const { tool } = entry
-      try {
-        const created = await this.createMcpToolFromCachedSchema(
-          ctx,
-          tool,
-          projectedToolInputs?.[entry.toolIndex],
-          entry.toolIndex
-        )
-        if (created) results.push(trackInputProvenance(created, entry))
-      } catch (error) {
-        if (error instanceof AgentToolInputSafetyError) throw error
-        logger.error(
-          'Error creating MCP tool from cached schema',
-          projectAgentDiagnosticMetadata(
-            ctx,
-            { ...getToolDiagnosticMetadata(tool), ...getErrorDiagnosticMetadata(error) },
-            { ...getToolDiagnosticFallback(tool), ...getErrorDiagnosticFallback(error) }
-          )
-        )
-      }
-    }
-
-    if (toolsNeedingDiscovery.length > 0) {
-      const discoveredResults = await this.processMcpToolsWithDiscovery(
-        ctx,
-        toolsNeedingDiscovery,
-        trackInputProvenance
-      )
-      results.push(...discoveredResults)
-    }
-
     return results
   }
 
-  /**
-   * Create MCP tool from cached schema. No MCP server connection required.
-   */
-  private async createMcpToolFromCachedSchema(
+  private async processAdvancedMcpServers(
     ctx: ExecutionContext,
-    tool: ToolInput,
-    projectedTool?: ToolInput,
-    toolIndex?: number
-  ): Promise<any> {
-    const { serverId, toolName, serverName, ...userProvidedParams } = tool.params || {}
-    const projectedSchema = projectedTool?.schema ?? tool.schema
-    if (projectedSchema !== undefined && !isPlainRecord(projectedSchema)) {
-      refuseResolvedSecretProjection({
-        site: 'agent.mcpToolSchemaShape',
-        message: AGENT_TOOL_INPUT_REFUSAL,
-        registry: ctx.resolvedSecretTraceRegistry,
-        inputPath: 'tools',
-        createError: toAgentToolInputSafetyError,
-      })
-    }
-    const schemaProjection = projectModelSchemaAnnotations(tool.schema, projectedSchema)
-    if (!schemaProjection.safe || !isPlainRecord(schemaProjection.value)) {
-      refuseResolvedSecretProjection({
-        site: 'agent.mcpToolSchemaAnnotations',
-        message: AGENT_TOOL_INPUT_REFUSAL,
-        registry: ctx.resolvedSecretTraceRegistry,
-        inputPath: 'tools',
-        createError: toAgentToolInputSafetyError,
-      })
-    }
-    const projectedServerName =
-      typeof projectedTool?.params?.serverName === 'string'
-        ? projectedTool.params.serverName
-        : serverName
-    if (schemaProjection.value.type !== 'object') {
-      refuseResolvedSecretProjection({
-        site: 'agent.mcpToolSchemaType',
-        message: AGENT_TOOL_INPUT_REFUSAL,
-        registry: ctx.resolvedSecretTraceRegistry,
-        inputPath: 'tools',
-        createError: toAgentToolInputSafetyError,
-      })
-    }
-    const schema: McpToolSchema = { ...schemaProjection.value, type: 'object' }
-    const schemaDescription =
-      typeof schema.description === 'string' ? schema.description : undefined
-    if (toolIndex !== undefined) {
-      const schemaPaths = selectModelSchemaInputPaths(tool.schema, [
-        'tools',
-        String(toolIndex),
-        'schema',
-      ])
-      this.assertInputPathsDoNotResolveSecrets(
-        ctx,
-        schemaPaths.semanticInputPaths,
-        'Agent structural model inputs cannot contain secret references'
-      )
-    }
-    return this.buildMcpTool({
-      serverId,
-      toolName,
-      description:
-        schemaDescription || `MCP tool ${toolName} from ${projectedServerName || serverId}`,
-      schema,
-      userProvidedParams,
-      usageControl: tool.usageControl,
-    })
-  }
-
-  /**
-   * Fallback for legacy tools without cached schemas. Groups by server to minimize connections.
-   */
-  private async processMcpToolsWithDiscovery(
-    ctx: ExecutionContext,
-    mcpTools: IndexedToolInput[],
+    entries: IndexedToolInput[],
     trackInputProvenance: (
       formattedTool: ProviderToolConfig | null,
       entry: IndexedToolInput
     ) => ProviderToolConfig | null
   ): Promise<Array<ProviderToolConfig | null>> {
-    const toolsByServer = new Map<string, IndexedToolInput[]>()
-    for (const entry of mcpTools) {
-      const { tool } = entry
-      const serverId = tool.params?.serverId
-      if (!toolsByServer.has(serverId)) {
-        toolsByServer.set(serverId, [])
-      }
-      toolsByServer.get(serverId)!.push(entry)
-    }
-
-    const serverDiscoveryResults = await Promise.all(
-      Array.from(toolsByServer.entries()).map(async ([serverId, tools]) => {
-        try {
-          const discoveredTools = await this.discoverMcpToolsForServer(ctx, serverId)
-          return { serverId, tools, discoveredTools, error: null as Error | null }
-        } catch (error) {
-          logger.error(
-            'Failed to discover tools from MCP server',
-            projectAgentDiagnosticMetadata(
-              ctx,
-              { serverId, ...getErrorDiagnosticMetadata(error) },
-              { hasServerId: serverId.length > 0, ...getErrorDiagnosticFallback(error) }
-            )
-          )
-          return { serverId, tools, discoveredTools: [] as any[], error: error as Error }
-        }
+    const results = await Promise.all(
+      entries.map(async (entry) => {
+        const serverId = entry.tool.params?.serverId
+        if (!serverId) throw new Error('MCP Server (Advanced) requires params.serverId')
+        const tools = await this.discoverMcpToolsForServer(ctx, serverId)
+        if (!tools.length)
+          throw new Error(`No permitted MCP operations are available for ${serverId}`)
+        return Promise.all(
+          tools.map(async (tool) => {
+            const created = await this.buildMcpTool({
+              serverId: serverId,
+              toolName: tool.name,
+              description: tool.description || `MCP tool ${tool.name} from ${tool.serverName}`,
+              schema: tool.inputSchema,
+              userProvidedParams: {},
+              usageControl: entry.tool.usageControl,
+            })
+            return trackInputProvenance(created, entry)
+          })
+        )
       })
     )
-
-    const results: Array<ProviderToolConfig | null> = []
-    for (const { serverId, tools, discoveredTools, error } of serverDiscoveryResults) {
-      if (error) continue
-
-      for (const entry of tools) {
-        const { tool } = entry
-        try {
-          const toolName = tool.params?.toolName
-          const mcpTool = discoveredTools.find((t: any) => t.name === toolName)
-
-          if (!mcpTool) {
-            logger.error(
-              'MCP tool not found on server',
-              projectAgentDiagnosticMetadata(
-                ctx,
-                { toolName, serverId },
-                { hasToolName: Boolean(toolName), hasServerId: serverId.length > 0 }
-              )
-            )
-            continue
-          }
-
-          const created = await this.createMcpToolFromDiscoveredData(ctx, tool, mcpTool, serverId)
-          if (created) results.push(trackInputProvenance(created, entry))
-        } catch (error) {
-          logger.error(
-            'Error creating MCP tool',
-            projectAgentDiagnosticMetadata(
-              ctx,
-              { ...getToolDiagnosticMetadata(tool), ...getErrorDiagnosticMetadata(error) },
-              { ...getToolDiagnosticFallback(tool), ...getErrorDiagnosticFallback(error) }
-            )
-          )
-        }
-      }
-    }
-
-    return results
+    return results.flat()
   }
 
-  /**
-   * Discover tools from a single MCP server with retry logic.
-   */
-  private async discoverMcpToolsForServer(ctx: ExecutionContext, serverId: string): Promise<any[]> {
+  /** Discovers one server's tools through the authorized MCP operation. */
+  private async discoverMcpToolsForServer(ctx: ExecutionContext, serverId: string) {
     if (!ctx.workspaceId) {
       throw new Error('workspaceId is required for MCP tool discovery')
     }
     if (!ctx.workflowId) {
-      throw new Error('workflowId is required for internal JWT authentication')
+      throw new Error('workflowId is required for MCP tool discovery')
     }
 
-    const headers = await buildAuthHeaders(ctx.userId)
-    const url = buildAPIUrl('/api/mcp/tools/discover', {
-      serverId,
+    return discoverMcpServerToolsAsExecutor({
       workspaceId: ctx.workspaceId,
-      workflowId: ctx.workflowId,
-      ...(ctx.userId ? { userId: ctx.userId } : {}),
+      context: {
+        workflowId: ctx.workflowId,
+        workspaceId: ctx.workspaceId,
+        executionId: ctx.executionId,
+        userId: ctx.userId,
+        executorDelegationOrigin: ctx.executorDelegationOrigin,
+        mcpBlockId: ctx.mcpBlockId,
+      },
+      serverId,
+      signal: ctx.abortSignal,
     })
-
-    const maxAttempts = 2
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      try {
-        const response = await fetch(url.toString(), { method: 'GET', headers })
-
-        if (!response.ok) {
-          const errorText = await response.text()
-          if (this.isRetryableError(errorText) && attempt < maxAttempts - 1) {
-            logger.warn(
-              '[AgentHandler] Session error discovering tools, retrying',
-              projectAgentDiagnosticMetadata(
-                ctx,
-                { serverId, attempt: attempt + 1 },
-                { hasServerId: serverId.length > 0, attempt: attempt + 1 }
-              )
-            )
-            await sleep(100)
-            continue
-          }
-          throw new Error(`Failed to discover tools: ${response.status} ${errorText}`)
-        }
-
-        const data = await response.json()
-        if (!data.success) {
-          throw new Error(data.error || 'Failed to discover MCP tools')
-        }
-
-        return data.data.tools
-      } catch (error) {
-        const errorMsg = toError(error).message
-        if (this.isRetryableError(errorMsg) && attempt < maxAttempts - 1) {
-          logger.warn(
-            '[AgentHandler] Retryable error discovering tools',
-            projectAgentDiagnosticMetadata(
-              ctx,
-              { serverId, attempt: attempt + 1, ...getErrorDiagnosticMetadata(error) },
-              {
-                hasServerId: serverId.length > 0,
-                attempt: attempt + 1,
-                ...getErrorDiagnosticFallback(error),
-              }
-            )
-          )
-          await sleep(100)
-          continue
-        }
-        throw error
-      }
-    }
-
-    throw new Error(
-      `Failed to discover tools from server ${serverId} after ${maxAttempts} attempts`
-    )
-  }
-
-  private isRetryableError(errorMsg: string): boolean {
-    const lowerMsg = errorMsg.toLowerCase()
-    return lowerMsg.includes('session') || lowerMsg.includes('400') || lowerMsg.includes('404')
   }
 
   private async createMcpToolFromDiscoveredData(
-    ctx: ExecutionContext,
     tool: ToolInput,
-    mcpTool: any,
+    mcpTool: Awaited<ReturnType<typeof discoverMcpServerToolsAsExecutor>>[number],
     serverId: string
-  ): Promise<any> {
-    const { toolName, ...userProvidedParams } = tool.params || {}
+  ): Promise<ProviderToolConfig> {
+    const { toolName } = resolveMcpToolBinding(tool)
+    const userProvidedParams = tool.params || {}
     return this.buildMcpTool({
       serverId,
       toolName,
       description: mcpTool.description || `MCP tool ${toolName} from ${mcpTool.serverName}`,
-      schema: mcpTool.inputSchema || { type: 'object', properties: {} },
+      schema: mcpTool.inputSchema,
       userProvidedParams,
       usageControl: tool.usageControl,
     })
@@ -1371,17 +1352,32 @@ export class AgentBlockHandler implements BlockHandler {
     schema: McpToolSchema
     userProvidedParams: Record<string, unknown>
     usageControl?: 'auto' | 'force' | 'none'
-  }) {
+  }): Promise<ProviderToolConfig> {
     const filteredSchema = filterSchemaForLLM(config.schema, config.userProvidedParams)
     const toolId = createMcpToolId(config.serverId, config.toolName)
 
+    // An MCP tool row renders its arguments through the same sub-block controls a block
+    // tool uses, so its stored values are stringified the same way and need the same
+    // decode. The shapes come from the tool's own JSON Schema, which is what chose the
+    // controls in the first place.
+    const paramShapes = buildJsonSchemaParamShapes(config.schema)
+    const jsonShapedParamKeys = [...paramShapes]
+      .filter(([, shape]) => shape === 'json')
+      .map(([paramId]) => paramId)
+
     return {
       id: toolId,
-      name: config.toolName,
       description: config.description,
-      parameters: filteredSchema,
+      parameters: {
+        ...filteredSchema,
+        type: filteredSchema.type,
+        properties: filteredSchema.properties ?? {},
+        required: filteredSchema.required ?? [],
+      },
       params: config.userProvidedParams,
       usageControl: config.usageControl || 'auto',
+      paramsTransform: (params: Record<string, unknown>) => decodeToolParams(params, paramShapes),
+      ...(jsonShapedParamKeys.length > 0 && { jsonShapedParamKeys }),
     }
   }
 
@@ -1396,9 +1392,7 @@ export class AgentBlockHandler implements BlockHandler {
       getAllBlocks,
       getToolAsync: (toolId: string) =>
         getToolAsync(toolId, {
-          workflowId: ctx.workflowId,
-          userId: ctx.userId,
-          workspaceId: ctx.workspaceId,
+          executionContext: ctx,
         }),
       getTool,
       canonicalModes,
@@ -1407,10 +1401,13 @@ export class AgentBlockHandler implements BlockHandler {
         workspaceId: ctx.workspaceId,
         executionId: ctx.executionId,
         userId: ctx.userId,
+        executorDelegationOrigin: ctx.executorDelegationOrigin,
       },
       toolIndex,
       resolveCustomBlockBinding: (blockType: string) =>
         resolveCustomBlockToolBinding(blockType, ctx.workspaceId),
+      readWorkflowInputFields: readWorkflowInputFieldsForTool,
+      readWorkflowMetadata: readWorkflowMetadataForTool,
     })
 
     if (transformedTool) {
@@ -1439,10 +1436,15 @@ export class AgentBlockHandler implements BlockHandler {
     ctx: ExecutionContext,
     inputs: AgentInputs,
     modelInputs: AgentInputs,
-    skillMetadata: Array<{ name: string; description: string }> = []
+    skillMetadata: Array<{ name: string; description: string }>,
+    fileProjection: ReturnType<AgentBlockHandler['projectFileNamesForModel']>,
+    agentConversation?: AgentTurnSession
   ): Promise<Message[] | undefined> {
     const messages: Message[] = []
     const memoryEnabled = inputs.memoryType && inputs.memoryType !== 'none'
+    const pendingMemoryMessages: Array<{ raw: Message; model: Message; appendKey: string }> = []
+    let persistedUserPrompt = false
+    let seedMessageCount = 0
 
     // 1. Extract and validate messages from messages-input subblock
     const inputMessages = this.extractValidMessages(inputs.messages)
@@ -1453,8 +1455,25 @@ export class AgentBlockHandler implements BlockHandler {
 
     // 2. Handle native memory: seed on first run, then fetch and append new user input
     if (memoryEnabled && ctx.workspaceId) {
-      const memoryMessages = await memoryService.fetchMemoryMessages(ctx, inputs)
+      const memoryMessages = await memoryService.fetchMemoryMessages(
+        ctx,
+        inputs,
+        fileProjection.projectedNameByFile,
+        {
+          richHistory: Boolean(agentConversation),
+          excludeTurnId: agentConversation?.turnId,
+          memoryId: agentConversation?.memoryId,
+        }
+      )
       const hasExisting = memoryMessages.length > 0
+      persistedUserPrompt = Boolean(
+        agentConversation &&
+          memoryMessages.some(
+            (message) =>
+              getMemoryMessageTurnId(message) === agentConversation.turnId &&
+              getMemoryMessageAppendKey(message) === 'user-prompt'
+          )
+      )
 
       if (!hasExisting && conversationMessages.length > 0) {
         const taggedMessages = conversationMessages.map((m) =>
@@ -1463,7 +1482,14 @@ export class AgentBlockHandler implements BlockHandler {
         const rawTaggedMessages = rawConversationMessages.map((m) =>
           m.role === 'user' ? { ...m, executionId: ctx.executionId } : m
         )
-        await memoryService.seedMemory(ctx, inputs, rawTaggedMessages)
+        for (let index = 0; index < taggedMessages.length; index++) {
+          pendingMemoryMessages.push({
+            raw: rawTaggedMessages[index],
+            model: taggedMessages[index],
+            appendKey: `seed:${index}`,
+          })
+        }
+        seedMessageCount = taggedMessages.length
         messages.push(...taggedMessages)
       } else {
         messages.push(...memoryMessages)
@@ -1483,14 +1509,20 @@ export class AgentBlockHandler implements BlockHandler {
               })
             }
             const userMessageInThisRun = memoryMessages.some(
-              (m) => m.role === 'user' && m.executionId === ctx.executionId
+              (m) =>
+                m.role === 'user' &&
+                (agentConversation
+                  ? getMemoryMessageTurnId(m) === agentConversation.turnId &&
+                    getMemoryMessageAppendKey(m) !== 'user-prompt'
+                  : m.executionId === ctx.executionId)
             )
             if (!userMessageInThisRun) {
               const taggedMessage = { ...latestUserFromInput, executionId: ctx.executionId }
               messages.push(taggedMessage)
-              await memoryService.appendToMemory(ctx, inputs, {
-                ...latestRawUserFromInput,
-                executionId: ctx.executionId,
+              pendingMemoryMessages.push({
+                raw: { ...latestRawUserFromInput, executionId: ctx.executionId },
+                model: taggedMessage,
+                appendKey: 'input',
               })
             }
           }
@@ -1520,16 +1552,17 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     // 6. Handle legacy userPrompt - this is NEW input each run
-    if (inputs.userPrompt) {
+    if (inputs.userPrompt && !persistedUserPrompt) {
       this.addUserPrompt(messages, modelInputs.userPrompt)
 
       if (memoryEnabled) {
         const userMessages = messages.filter((m) => m.role === 'user')
         const lastUserMessage = userMessages[userMessages.length - 1]
         if (lastUserMessage) {
-          await memoryService.appendToMemory(ctx, inputs, {
-            ...lastUserMessage,
-            content: this.formatUserPrompt(inputs.userPrompt),
+          pendingMemoryMessages.push({
+            raw: { ...lastUserMessage, content: this.formatUserPrompt(inputs.userPrompt) },
+            model: lastUserMessage,
+            appendKey: 'user-prompt',
           })
         }
       }
@@ -1555,7 +1588,45 @@ export class AgentBlockHandler implements BlockHandler {
       }
     }
 
-    return messages.length > 0 ? messages : undefined
+    const messagesWithFiles = this.attachFilesToLastUserMessage(
+      ctx,
+      messages.length > 0 ? messages : undefined,
+      inputs.files,
+      fileProjection.projectedFiles,
+      fileProjection.projectedNameByFile,
+      fileProjection.directNameInputPaths
+    )
+
+    /** Persist the complete turn before provider hydration adds bytes or transient handles. */
+    const lastUserMessage = messages
+      .filter((message) => message.role === 'user' && !isConversationHistoryNotice(message))
+      .at(-1)
+    const attachedUserMessage = messagesWithFiles
+      ?.filter((message) => message.role === 'user' && !isConversationHistoryNotice(message))
+      .at(-1)
+    const messagesToStore = pendingMemoryMessages.map(({ raw, model }) =>
+      model === lastUserMessage && attachedUserMessage?.files
+        ? { ...raw, files: attachedUserMessage.files }
+        : raw
+    )
+    if (agentConversation?.memoryId) {
+      for (let index = 0; index < messagesToStore.length; index++) {
+        await memoryService.appendToMemory(ctx, inputs, messagesToStore[index], {
+          memoryId: agentConversation.memoryId,
+          turnId: agentConversation.turnId,
+          appendKey: pendingMemoryMessages[index].appendKey,
+        })
+      }
+    } else if (seedMessageCount > 0) {
+      await memoryService.seedMemory(ctx, inputs, messagesToStore.slice(0, seedMessageCount))
+    }
+    if (!agentConversation?.memoryId) {
+      for (const message of messagesToStore.slice(seedMessageCount)) {
+        await memoryService.appendToMemory(ctx, inputs, message)
+      }
+    }
+
+    return messagesWithFiles
   }
 
   private attachFilesToLastUserMessage(
@@ -1563,7 +1634,7 @@ export class AgentBlockHandler implements BlockHandler {
     messages: Message[] | undefined,
     filesInput: unknown,
     projectedFilesInput: unknown,
-    projectedNameByFile: WeakMap<object, { name: string; inputPath: ResolvedSecretInputPath }>,
+    projectedNameByFile: WeakMap<object, FileNameProjection>,
     directNameInputPaths: readonly ResolvedSecretInputPath[]
   ): Message[] | undefined {
     const normalizedFiles = normalizeFileInput(filesInput)
@@ -1586,7 +1657,7 @@ export class AgentBlockHandler implements BlockHandler {
 
     let lastUserMessageIndex = -1
     for (let index = messages.length - 1; index >= 0; index--) {
-      if (messages[index].role === 'user') {
+      if (messages[index].role === 'user' && !isConversationHistoryNotice(messages[index])) {
         lastUserMessageIndex = index
         break
       }
@@ -1624,11 +1695,15 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     const lastUserMessage = messages[lastUserMessageIndex]
+    const filesByKey = new Map(
+      [...(lastUserMessage.files ?? []), ...userFiles].map((file) => [file.key || file.id, file])
+    )
     const nextMessages = [...messages]
     nextMessages[lastUserMessageIndex] = {
       ...lastUserMessage,
-      files: [...(lastUserMessage.files ?? []), ...userFiles],
+      files: Array.from(filesByKey.values()),
     }
+    copyNativeConversationMessage(lastUserMessage, nextMessages[lastUserMessageIndex])
 
     return nextMessages
   }
@@ -1637,7 +1712,7 @@ export class AgentBlockHandler implements BlockHandler {
     ctx: ExecutionContext,
     messages: Message[] | undefined,
     providerId: string,
-    projectedNameByFile: WeakMap<object, { name: string; inputPath: ResolvedSecretInputPath }>,
+    projectedNameByFile: WeakMap<object, FileNameProjection>,
     modelBoundInputPaths: ResolvedSecretInputPath[]
   ): Promise<Message[] | undefined> {
     if (!messages?.some((message) => message.files?.length)) {
@@ -1648,7 +1723,6 @@ export class AgentBlockHandler implements BlockHandler {
       throw new Error(`File attachments are not supported for provider "${providerId}"`)
     }
 
-    const requestId = ctx.executionId || ctx.workflowId || 'agent-files'
     const nextMessages = [...messages]
 
     const inlineMaxBytes = getInlineHydrationMaxBytes(providerId)
@@ -1660,34 +1734,46 @@ export class AgentBlockHandler implements BlockHandler {
       }
 
       const unsafeGeneratedDocumentFiles = new Set<string>()
-      const hydratedFiles = await hydrateUserFilesWithBase64(message.files, {
-        requestId,
-        workspaceId: ctx.workspaceId,
-        workflowId: ctx.workflowId,
-        executionId: ctx.executionId,
-        largeValueExecutionIds: ctx.largeValueExecutionIds,
-        largeValueKeys: ctx.largeValueKeys,
-        fileKeys: ctx.fileKeys,
-        allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
-        userId: ctx.userId,
-        logger,
-        maxBytes: inlineMaxBytes,
-        onServableFileContributors: async (file, contributors) => {
-          if (!ctx.workspaceId) return
-          for (const identity of contributors) {
-            const safe = await importWorkspaceFileSecretProvenanceForModelView({
-              workspaceId: ctx.workspaceId,
-              identity,
-              registry: ctx.resolvedSecretTraceRegistry,
-              view: 'opaque',
-            })
-            if (!safe) {
-              unsafeGeneratedDocumentFiles.add(`${file.key}:${file.id}`)
-              return
-            }
-          }
-        },
+      const groups = new Map<boolean, Array<{ file: UserFile; index: number }>>()
+      message.files.forEach((file, index) => {
+        const workspaceFile =
+          ctx.principal?.kind === 'system' && tryInferContextFromKey(file.key) === 'workspace'
+        const group = groups.get(workspaceFile) ?? []
+        group.push({ file, index })
+        groups.set(workspaceFile, group)
       })
+      const hydratedFiles = [...message.files]
+      await Promise.all(
+        [...groups.values()].map(async (group) => {
+          const hydrated = await hydrateUserFilesWithBase64(
+            group.map(({ file }) => file),
+            {
+              ...(await resolveExecutorFileMaterializationContext(ctx, group[0].file)),
+              logger,
+              maxBytes: inlineMaxBytes,
+              onServableFileContributors: async (file, contributors) => {
+                if (!ctx.workspaceId) return
+                for (const identity of contributors) {
+                  const safe = await importWorkspaceFileSecretProvenanceForModelView({
+                    workspaceId: ctx.workspaceId,
+                    identity,
+                    registry: ctx.resolvedSecretTraceRegistry,
+                    view: 'opaque',
+                    ...(ctx.userId ? { actorUserId: ctx.userId } : {}),
+                  })
+                  if (!safe) {
+                    unsafeGeneratedDocumentFiles.add(`${file.key}:${file.id}`)
+                    return
+                  }
+                }
+              },
+            }
+          )
+          group.forEach(({ index }, fileIndex) => {
+            hydratedFiles[index] = hydrated[fileIndex]
+          })
+        })
+      )
 
       const modelSafeHydratedFiles = hydratedFiles.flatMap((file, fileIndex) => {
         if (unsafeGeneratedDocumentFiles.has(`${file.key}:${file.id}`)) return []
@@ -1703,7 +1789,7 @@ export class AgentBlockHandler implements BlockHandler {
           return [file]
         }
 
-        modelBoundInputPaths.push(nameProjection.inputPath)
+        if (nameProjection.inputPath) modelBoundInputPaths.push(nameProjection.inputPath)
         const extension = getFileExtension(file.name)
         const suffix = extension ? `.${extension}` : ''
         const keepsSuffix =
@@ -1756,10 +1842,16 @@ export class AgentBlockHandler implements BlockHandler {
         )
       }
 
+      const omittedCount = hydratedFiles.length - modelSafeHydratedFiles.length
       nextMessages[messageIndex] = {
         ...message,
+        content:
+          omittedCount > 0
+            ? appendUnavailableAttachmentNotice(message.content ?? '', omittedCount)
+            : message.content,
         files: modelSafeHydratedFiles,
       }
+      copyNativeConversationMessage(message, nextMessages[messageIndex])
     }
 
     return nextMessages
@@ -1826,7 +1918,7 @@ export class AgentBlockHandler implements BlockHandler {
     } else {
       try {
         content = JSON.stringify(systemPrompt, null, 2)
-      } catch (error) {
+      } catch {
         content = String(systemPrompt)
       }
     }
@@ -1875,6 +1967,9 @@ export class AgentBlockHandler implements BlockHandler {
     for (let toolIndex = 0; toolIndex < (inputs.tools?.length ?? 0); toolIndex++) {
       if (inputs.tools?.[toolIndex]?.customToolId) {
         candidatePaths.push(['tools', String(toolIndex), 'customToolId'])
+      }
+      if (inputs.tools?.[toolIndex]?.usageControlExpression) {
+        candidatePaths.push(['tools', String(toolIndex), 'usageControlExpression'])
       }
     }
     for (let skillIndex = 0; skillIndex < (inputs.skills?.length ?? 0); skillIndex++) {
@@ -2229,7 +2324,7 @@ export class AgentBlockHandler implements BlockHandler {
     inputs: AgentInputs
   ): {
     projectedFiles: unknown
-    projectedNameByFile: WeakMap<object, { name: string; inputPath: ResolvedSecretInputPath }>
+    projectedNameByFile: WeakMap<object, FileNameProjection>
     directNameInputPaths: ResolvedSecretInputPath[]
     modelBoundInputPaths: ResolvedSecretInputPath[]
   } {
@@ -2329,10 +2424,7 @@ export class AgentBlockHandler implements BlockHandler {
       }
     }
 
-    const projectedNameByFile = new WeakMap<
-      object,
-      { name: string; inputPath: ResolvedSecretInputPath }
-    >()
+    const projectedNameByFile = new WeakMap<object, FileNameProjection>()
     const projectedMessages = Array.isArray(projection.value.messages)
       ? projection.value.messages
       : []
@@ -2411,6 +2503,9 @@ export class AgentBlockHandler implements BlockHandler {
 
   private getModelInputPaths(inputs: AgentInputs): ResolvedSecretInputPath[] {
     const paths: ResolvedSecretInputPath[] = [['systemPrompt'], ['userPrompt']]
+    if (isEvaluationModel(inputs.model || AGENT.DEFAULT_MODEL)) {
+      paths.push(['evaluationState'], ['evaluationQuestions'])
+    }
     for (let index = 0; index < (inputs.messages?.length ?? 0); index++) {
       const message = inputs.messages?.[index]
       const messageRoot = ['messages', String(index)] as const
@@ -2448,6 +2543,302 @@ export class AgentBlockHandler implements BlockHandler {
     return paths
   }
 
+  /**
+   * Runs the provider request against each candidate in order until one answers.
+   *
+   * Which model serves the request is decided here, inside one handler
+   * invocation. How many invocations the block gets is the executor's retry
+   * policy, and the caller keeps the fallbacks out of the candidate list until
+   * the final try, so with retry on the block runs the primary alone on every
+   * earlier try and walks the whole chain once.
+   *
+   * Falling through is deliberately as indiscriminate as block retry
+   * (`isRetryableBlockError`): a provider error carries no status, so an
+   * overloaded upstream cannot be told from any other failure, and a builder who
+   * lists fallbacks wants the block to answer. Only a stop and an explicitly
+   * non-retryable failure end the chain early. The abort signal is checked
+   * before the error itself because `handleExecutionError` rewrites a timeout
+   * into a plain `Error` without a cause, which the predicate would then treat
+   * as replayable.
+   *
+   * Messages are built once by the caller, since building them appends to
+   * memory. Hydration runs per provider, because attachment support and the
+   * inline budget differ, and is cached so two candidates on one provider do
+   * not download the same files twice. A fallback whose provider is
+   * blacklisted, not permitted, or cannot take the attachments is skipped
+   * rather than counted as a failed try.
+   *
+   * A streaming candidate is accepted only once its first chunk has arrived
+   * (`primeStreamingExecution`), so a startup failure inside the stream still
+   * falls through; that wait is skipped when no candidate follows, which keeps
+   * blocks without fallbacks on today's path.
+   *
+   * When every candidate fails, the last attempted candidate's error is thrown
+   * exactly as it escaped `executeProviderRequest`, with the registries that
+   * call installed for its projection, so error ports and the block-level
+   * error handling see the shapes they see today. The models that failed are
+   * written to the block log on every exit, cleared as well as set, because
+   * block retry reuses one log entry across tries.
+   */
+  private async executeAcrossModels(
+    ctx: ExecutionContext,
+    block: SerializedBlock,
+    config: ExecuteAcrossModelsConfig
+  ): Promise<{
+    result: BlockOutput | StreamingExecution
+    servedModel: string
+    resultRegistry: ResolvedSecretTraceRegistry | undefined
+  }> {
+    const { hydratedByProvider } = config
+    let resultRegistry = config.resultRegistry
+    const failedModels: string[] = []
+    let lastError: unknown
+    let lastErrorRegistries:
+      | {
+          error: ResolvedSecretTraceRegistry | undefined
+          resolved: ResolvedSecretTraceRegistry | undefined
+        }
+      | undefined
+
+    for (let index = 0; index < config.candidates.length; index++) {
+      const candidate = config.candidates[index]
+      const hasNext = index < config.candidates.length - 1
+
+      /** A run stopped while a candidate was being skipped must not start another. */
+      if (!candidate.isPrimary && ctx.abortSignal?.aborted) break
+
+      let candidateProviderId: string
+      if (candidate.isPrimary) {
+        candidateProviderId = config.primaryProviderId
+      } else {
+        try {
+          candidateProviderId = getProviderFromModel(candidate.model)
+          await validateModelProvider(ctx.userId, ctx.workspaceId, candidate.model, ctx)
+        } catch (error) {
+          this.warnFallbackSkipped(ctx, block, candidate.model, 'unusable', error)
+          continue
+        }
+      }
+
+      let messages: Message[] | undefined
+      if (hydratedByProvider.has(candidateProviderId)) {
+        messages = hydratedByProvider.get(candidateProviderId)
+      } else {
+        try {
+          messages = await this.hydrateMessageFilesForProvider(
+            ctx,
+            config.messages,
+            candidateProviderId,
+            config.fileProjection.projectedNameByFile,
+            config.fileProjection.modelBoundInputPaths
+          )
+        } catch (error) {
+          if (candidate.isPrimary) throw error
+          this.warnFallbackSkipped(
+            ctx,
+            block,
+            candidate.model,
+            'cannot take the attached files',
+            error
+          )
+          continue
+        }
+        hydratedByProvider.set(candidateProviderId, messages)
+        /** Hydration imported this provider's file provenance; the result fork must carry it. */
+        resultRegistry = config.settledInputRegistry?.forkForInputPaths([])
+      }
+
+      /**
+       * A fallback's own key applies only while its key field is visible. On the
+       * primary's provider it reuses the block's key; otherwise the provider layer resolves BYOK or
+       * the platform key, or reports that a key is required, which counts as
+       * this candidate failing. A previous interaction id belongs to the primary's
+       * provider alone. Tuning is re-resolved against the fallback's own
+       * capabilities so the request is one its provider accepts.
+       */
+      let inputs: AgentInputs = config.modelInputs
+      if (!candidate.isPrimary) {
+        const { adjustments, ...tuning } = resolveFallbackTuning(
+          candidate,
+          config.configuredModel,
+          config.modelInputs
+        )
+        const sameProvider = candidateProviderId === config.primaryProviderId
+        inputs = {
+          ...(sameProvider
+            ? config.modelInputs
+            : omit(config.modelInputs, [...PROVIDER_FAMILY_CREDENTIAL_FIELDS, 'vertexCredential'])),
+          apiKey: resolveFallbackApiKey({
+            candidate,
+            configuredModel: config.configuredModel,
+            sameProvider,
+            primaryApiKey: config.modelInputs.apiKey,
+            blockId: block.id,
+            logger,
+          }),
+          previousInteractionId: undefined,
+          ...(config.fallbackSystemPrompt !== undefined
+            ? { systemPrompt: config.fallbackSystemPrompt }
+            : {}),
+          ...tuning,
+        }
+        if (adjustments.length > 0) {
+          logger.info(
+            'Fallback model tuning adjusted',
+            projectAgentDiagnosticMetadata(
+              ctx,
+              { blockId: block.id, model: candidate.model, adjustments },
+              { blockId: block.id, adjustmentCount: adjustments.length }
+            )
+          )
+        }
+      }
+
+      const providerRequest = this.buildProviderRequest({
+        ctx,
+        providerId: candidateProviderId,
+        model: candidate.model,
+        messages:
+          !candidate.isPrimary && config.fallbackSystemPrompt !== undefined
+            ? stripAutoPreamble(messages)
+            : messages,
+        inputs,
+        formattedTools: config.formattedTools,
+        responseFormat: config.responseFormat,
+        streaming: config.streaming,
+      })
+
+      try {
+        let result = await this.executeProviderRequest(
+          ctx,
+          providerRequest,
+          block,
+          config.responseFormat,
+          resultRegistry,
+          config.providerErrorRegistry,
+          config.agentConversation
+        )
+        if ((hasNext || config.retryPrimaryOnStreamStart) && this.isStreamingExecution(result)) {
+          result = await this.primeStreamingExecution(result as StreamingExecution)
+        }
+        recordModelFallbacks(ctx, block, failedModels)
+        return {
+          result,
+          servedModel: config.agentConversation?.getFinalResponse()?.model ?? candidate.model,
+          resultRegistry,
+        }
+      } catch (error) {
+        lastError = error
+        failedModels.push(candidate.traceName ?? candidate.model)
+        if (!hasNext || ctx.abortSignal?.aborted || !isRetryableBlockError(error)) {
+          recordModelFallbacks(ctx, block, failedModels.slice(0, -1))
+          throw error
+        }
+
+        /**
+         * `executeProviderRequest` installed the failed attempt's error
+         * registry, which is the only one that knows secrets a tool call
+         * activated; the warn is projected against it before the next candidate
+         * starts from the settled inputs again. The pair is kept so a rethrow
+         * after every remaining candidate was skipped projects the same way.
+         */
+        const errorRegistry = ctx.errorResolvedSecretTraceRegistry
+        const diagnosticCtx = errorRegistry
+          ? { ...ctx, resolvedSecretTraceRegistry: errorRegistry }
+          : ctx
+        logger.warn(
+          'Agent model failed; trying fallback',
+          projectAgentDiagnosticMetadata(
+            diagnosticCtx,
+            {
+              blockId: block.id,
+              failedModel: candidate.model,
+              nextModel: config.candidates[index + 1].model,
+              candidate: index + 1,
+              error: getErrorMessage(error),
+            },
+            { blockId: block.id, candidate: index + 1 }
+          )
+        )
+        lastErrorRegistries = { error: errorRegistry, resolved: ctx.resolvedSecretTraceRegistry }
+        ctx.errorResolvedSecretTraceRegistry = config.providerErrorRegistry
+        ctx.resolvedSecretTraceRegistry = config.settledInputRegistry
+      }
+    }
+
+    /** Reached only when every candidate after the last failure was skipped. */
+    if (lastErrorRegistries) {
+      ctx.errorResolvedSecretTraceRegistry = lastErrorRegistries.error
+      ctx.resolvedSecretTraceRegistry = lastErrorRegistries.resolved
+    }
+    recordModelFallbacks(ctx, block, failedModels.slice(0, -1))
+    throw lastError
+  }
+
+  /**
+   * Warns that a fallback candidate was passed over, projected like every other
+   * diagnostic so a model id resolved from a reference never reaches the log.
+   * A skipped candidate is not a failed try: it never appears in `modelFallbacks`.
+   */
+  private warnFallbackSkipped(
+    ctx: ExecutionContext,
+    block: SerializedBlock,
+    model: string,
+    reason: 'unusable' | 'cannot take the attached files',
+    error: unknown
+  ): void {
+    logger.warn(
+      `Fallback model ${reason}; skipping`,
+      projectAgentDiagnosticMetadata(
+        ctx,
+        { blockId: block.id, model, error: getErrorMessage(error) },
+        { blockId: block.id }
+      )
+    )
+  }
+
+  /**
+   * Waits for a streaming candidate's first chunk before accepting it.
+   *
+   * With tools attached, providers open the stream first and issue the initial
+   * upstream request inside it, so a 429 at startup would otherwise surface
+   * only when the executor drains the stream, past every fallback. Reading one
+   * chunk moves that failure back inside the candidate loop; the chunk is
+   * re-emitted at the head of the returned stream, and nothing has reached the
+   * client yet, so the next candidate cannot duplicate output. A stream that
+   * fails after its first chunk stays a stream failure, as it is today.
+   */
+  private async primeStreamingExecution(result: StreamingExecution): Promise<StreamingExecution> {
+    const reader = result.stream.getReader()
+    const first = await reader.read()
+    /**
+     * A stream that closes before its first chunk answered nothing; with another
+     * candidate waiting that is a startup failure to fall through from, not an
+     * empty answer to return. The last candidate is never primed, so a block
+     * without fallbacks still returns such a stream as it always has.
+     */
+    if (first.done) {
+      throw new Error('Provider stream closed before its first chunk')
+    }
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(first.value)
+      },
+      async pull(controller) {
+        const next = await reader.read()
+        if (next.done) {
+          controller.close()
+          return
+        }
+        controller.enqueue(next.value)
+      },
+      cancel(reason) {
+        return reader.cancel(reason)
+      },
+    })
+    return { ...result, stream }
+  }
+
   private buildProviderRequest(config: {
     ctx: ExecutionContext
     providerId: string
@@ -2462,14 +2853,18 @@ export class AgentBlockHandler implements BlockHandler {
       config
 
     const validMessages = this.validateMessages(messages)
+    const configuredHistoryTokens = Number(inputs.slidingWindowTokens)
 
     const { blockData, blockNameMapping } = collectBlockData(ctx)
 
     return {
       provider: providerId,
       model,
+      evaluation: isEvaluationModel(model)
+        ? { state: inputs.evaluationState, questions: inputs.evaluationQuestions }
+        : undefined,
       systemPrompt: validMessages ? undefined : inputs.systemPrompt,
-      context: validMessages ? undefined : stringifyJSON(messages),
+      context: validMessages || isEvaluationModel(model) ? undefined : stringifyJSON(messages),
       tools: formattedTools,
       temperature:
         inputs.temperature != null && inputs.temperature !== ''
@@ -2492,7 +2887,17 @@ export class AgentBlockHandler implements BlockHandler {
       userId: ctx.userId,
       executionId: ctx.executionId,
       stream: streaming,
-      messages: messages?.map(({ executionId, ...msg }) => msg),
+      memoryHistoryTokens:
+        inputs.memoryType === 'sliding_window_tokens'
+          ? Number.isFinite(configuredHistoryTokens) && configuredHistoryTokens > 0
+            ? Math.floor(configuredHistoryTokens)
+            : MEMORY.DEFAULT_SLIDING_WINDOW_TOKENS
+          : undefined,
+      messages: messages?.map((message) => {
+        const { executionId, ...providerMessage } = message
+        copyNativeConversationMessage(message, providerMessage)
+        return providerMessage
+      }),
       environmentVariables: normalizeStringRecord(ctx.environmentVariables),
       workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
       blockData,
@@ -2529,7 +2934,8 @@ export class AgentBlockHandler implements BlockHandler {
     block: SerializedBlock,
     responseFormat: any,
     modelRuntimeRegistry: ResolvedSecretTraceRegistry | undefined,
-    providerErrorRegistry: ResolvedSecretTraceRegistry | undefined
+    providerErrorRegistry: ResolvedSecretTraceRegistry | undefined,
+    agentConversation?: AgentTurnSession
   ): Promise<BlockOutput | StreamingExecution> {
     const providerId = providerRequest.provider
     const model = providerRequest.model
@@ -2549,15 +2955,24 @@ export class AgentBlockHandler implements BlockHandler {
       }
 
       const { blockData, blockNameMapping } = collectBlockData(ctx)
+      const agentMemoryRetrieval = agentConversation?.memoryId
+        ? createAgentMemoryRetrievalTool({
+            executionContext: ctx,
+            memoryId: agentConversation.memoryId,
+          })
+        : undefined
 
       const response = await executeProviderRequest(
         providerId,
         {
           model,
+          evaluation: providerRequest.evaluation,
           systemPrompt:
             'systemPrompt' in providerRequest ? providerRequest.systemPrompt : undefined,
           context: 'context' in providerRequest ? providerRequest.context : undefined,
-          tools: providerRequest.tools,
+          tools: agentMemoryRetrieval
+            ? [...(providerRequest.tools ?? []), agentMemoryRetrieval.tool]
+            : providerRequest.tools,
           temperature: providerRequest.temperature,
           maxTokens: providerRequest.maxTokens,
           apiKey: finalApiKey,
@@ -2598,6 +3013,11 @@ export class AgentBlockHandler implements BlockHandler {
         {
           resolvedSecretTraceRegistry: modelRuntimeRegistry,
           executionContext: ctx,
+          agentConversation,
+          agentMemoryRetrieval,
+          agentMemoryContext: agentConversation
+            ? { historyTokens: providerRequest.memoryHistoryTokens }
+            : undefined,
         }
       )
 
@@ -2686,14 +3106,31 @@ export class AgentBlockHandler implements BlockHandler {
   private wrapStreamForMemoryPersistence(
     ctx: ExecutionContext,
     inputs: AgentInputs,
-    streamingExec: StreamingExecution
+    streamingExec: StreamingExecution,
+    servedModel: string,
+    agentConversation?: AgentTurnSession
   ): StreamingExecution {
     return {
       ...streamingExec,
       onFullContent: async (content: string) => {
-        if (!content.trim()) return
         try {
-          await memoryService.appendToMemory(ctx, inputs, { role: 'assistant', content })
+          await streamingExec.onFullContent?.(content)
+        } catch (error) {
+          logger.error(
+            'Streaming completion callback failed',
+            projectAgentDiagnosticMetadata(
+              ctx,
+              getErrorDiagnosticMetadata(error),
+              getErrorDiagnosticFallback(error)
+            )
+          )
+        }
+        if (!content.trim()) {
+          await agentConversation?.finalize('', servedModel)
+          return
+        }
+        try {
+          await this.appendFinalMemory(ctx, inputs, content, servedModel, agentConversation)
         } catch (error) {
           logger.error(
             'Failed to persist streaming response',
@@ -2711,18 +3148,20 @@ export class AgentBlockHandler implements BlockHandler {
   private async persistResponseToMemory(
     ctx: ExecutionContext,
     inputs: AgentInputs,
-    result: BlockOutput
+    result: BlockOutput,
+    servedModel: string,
+    agentConversation?: AgentTurnSession
   ): Promise<void> {
-    const content = (result as any)?.content
+    const content =
+      agentConversation?.getFinalAssistantContent() ??
+      (isPlainRecord(result) ? result.content : undefined)
     if (!content || typeof content !== 'string') {
+      await agentConversation?.finalize('', servedModel)
       return
     }
 
     try {
-      await memoryService.appendToMemory(ctx, inputs, { role: 'assistant', content })
-      logger.debug('Persisted assistant response to memory', {
-        workflowId: ctx.workflowId,
-      })
+      await this.appendFinalMemory(ctx, inputs, content, servedModel, agentConversation)
     } catch (error) {
       logger.error(
         'Failed to persist response to memory',
@@ -2733,6 +3172,21 @@ export class AgentBlockHandler implements BlockHandler {
         )
       )
     }
+  }
+
+  private async appendFinalMemory(
+    ctx: ExecutionContext,
+    inputs: AgentInputs,
+    content: string,
+    model: string,
+    agentConversation?: AgentTurnSession
+  ): Promise<void> {
+    if (agentConversation?.memoryId) {
+      await agentConversation.finalize(content, model)
+      return
+    }
+    await memoryService.appendToMemory(ctx, inputs, { role: 'assistant', content })
+    await agentConversation?.finalize(content, model)
   }
 
   private processProviderResponse(
@@ -2815,7 +3269,7 @@ export class AgentBlockHandler implements BlockHandler {
         ...extractedJson,
         ...this.createResponseMetadata(result),
       }
-    } catch (error) {
+    } catch {
       logger.error(
         'LLM did not adhere to structured response format',
         projectAgentDiagnosticMetadata(
@@ -2842,6 +3296,7 @@ export class AgentBlockHandler implements BlockHandler {
   private processStandardResponse(result: any): BlockOutput {
     return {
       content: result.content,
+      ...(result.answers && { answers: result.answers }),
       ...this.createResponseMetadata(result),
       ...(result.interactionId && { interactionId: result.interactionId }),
     }

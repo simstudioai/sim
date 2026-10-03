@@ -4,7 +4,6 @@ import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { deployWorkflowContract } from '@/lib/api/contracts/deployments'
 import {
-  getScheduleByIdContract,
   getScheduleContract,
   listWorkspaceSchedulesContract,
   reactivateScheduleContract,
@@ -17,7 +16,6 @@ import { deploymentKeys } from '@/hooks/queries/deployments'
 const logger = createLogger('ScheduleQueries')
 
 export const SCHEDULE_LIST_STALE_TIME = 30 * 1000
-export const SCHEDULE_DETAIL_STALE_TIME = 30 * 1000
 export const SCHEDULE_BLOCK_STALE_TIME = 30 * 1000
 
 export const scheduleKeys = {
@@ -92,28 +90,6 @@ export function useWorkspaceSchedules(workspaceId?: string, options?: { enabled?
     // desktop app): a background refetch regenerates occurrence ids, so any
     // consumer holding one across a refetch would lose it mid-edit.
     refetchOnWindowFocus: false,
-  })
-}
-
-/**
- * Fetch a single workflow schedule by id — a lightweight by-id read instead of
- * the whole-workspace `useWorkspaceSchedules` fetch.
- */
-export function useScheduleById(scheduleId?: string) {
-  return useQuery({
-    queryKey: scheduleKeys.byId(scheduleId ?? ''),
-    queryFn: async ({ signal }) => {
-      if (!scheduleId) throw new Error('Schedule ID required')
-
-      const data = await requestJson(getScheduleByIdContract, {
-        params: { id: scheduleId },
-        signal,
-      })
-      return data.schedule
-    },
-    enabled: Boolean(scheduleId),
-    staleTime: SCHEDULE_DETAIL_STALE_TIME,
-    placeholderData: keepPreviousData,
   })
 }
 

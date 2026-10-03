@@ -1,16 +1,24 @@
 import { z } from 'zod'
-import { knowledgeBaseDataSchema } from '@/lib/api/contracts/knowledge/base'
+import {
+  chunkingConfigFieldsSchema,
+  knowledgeBaseDataSchema,
+  withChunkingConfigRules,
+} from '@/lib/api/contracts/knowledge/base'
 import { documentDataSchema } from '@/lib/api/contracts/knowledge/documents'
 import {
   knowledgeBaseParamsSchema,
+  knowledgeConnectorParamsSchema,
   knowledgeDocumentParamsSchema,
   nullableWireDateSchema,
 } from '@/lib/api/contracts/knowledge/shared'
-import { noInputSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  booleanQueryFlagSchema,
+  noInputSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   KNOWLEDGE_TAG_FILTER_OPERATORS_BY_FIELD_TYPE,
-  v1ChunkingConfigSchema,
   v1CreateKnowledgeBaseBodySchema,
   v1KnowledgeSearchBodySchema,
   v1KnowledgeWorkspaceQuerySchema,
@@ -30,6 +38,7 @@ import {
   v2ListFoldersQuerySchema,
   v2PaginationFields,
   v2RelocateFolderBodySchema,
+  v2ResourceWebUrlSchema,
   v2SearchSchema,
   v2SortFields,
   v2TimestampSchema,
@@ -41,13 +50,19 @@ import {
   v2UploadTokenHeadersSchema,
   v2UploadTransferSchema,
 } from '@/lib/api/contracts/v2/uploads'
-import { DEFAULT_CHUNKING_CONFIG } from '@/lib/knowledge/constants'
+import {
+  DEFAULT_CHUNKING_CONFIG,
+  MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_MUTATION_ITEMS,
+} from '@/lib/knowledge/constants'
 import {
   DEFAULT_RERANKER_MODEL,
   rerankerModelSchema,
   rerankerStatusSchema,
 } from '@/lib/knowledge/reranker-models'
-import { knowledgeDocumentUploadMetadataSchema } from '@/lib/knowledge/upload-metadata'
+import {
+  KNOWLEDGE_DOCUMENT_UPLOAD_RECIPES,
+  knowledgeDocumentUploadMetadataSchema,
+} from '@/lib/knowledge/upload-metadata'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 
 /**
@@ -116,6 +131,7 @@ export const v2KnowledgeBaseSchema = knowledgeBaseDataSchema
     id: knowledgeBaseDataSchema.shape.id
       .describe('Unique knowledge base identifier.')
       .meta({ examples: ['7c9e6679-7425-40de-944b-e07fc1f90ae7'] }),
+    webUrl: v2ResourceWebUrlSchema,
     name: knowledgeBaseDataSchema.shape.name
       .describe('Human-readable knowledge base name.')
       .meta({ examples: ['Product Documentation'] }),
@@ -123,6 +139,7 @@ export const v2KnowledgeBaseSchema = knowledgeBaseDataSchema
       .describe('Knowledge base description, or null when none is set.')
       .meta({ examples: ['All product documentation and guides'] }),
     tokenCount: knowledgeBaseDataSchema.shape.tokenCount
+      .unwrap()
       .describe('Total tokens across indexed documents.')
       .meta({ examples: [48213] }),
     embeddingModel: knowledgeBaseDataSchema.shape.embeddingModel
@@ -149,8 +166,17 @@ export const v2KnowledgeBaseSchema = knowledgeBaseDataSchema
       .describe('Current email address of the knowledge base owner.')
       .meta({ examples: ['owner@example.com'] }),
     folderPath: v2FolderPathSchema
-      .describe('Canonical containing-folder path; `/` is the workspace root.')
+      .describe(
+        'Canonical containing-folder path; `/` is the workspace root. Resolved against active folders only, so an archived knowledge base whose containing folder was archived with it reports `/`.'
+      )
       .meta({ examples: ['/Product'] }),
+    /** Non-null only for a knowledge base a `DELETE` archived; see `scope` on the list. */
+    deletedAt: v2TimestampSchema
+      .nullable()
+      .describe(
+        'ISO 8601 archive timestamp, or null while active. Use List Knowledge Bases with `scope=archived` to find archived knowledge bases.'
+      )
+      .meta({ format: 'date-time', examples: ['2026-01-16T09:00:00Z'] }),
   })
   .strict()
   .meta({
@@ -244,7 +270,7 @@ export type V2KnowledgeDocumentSummary = z.output<typeof v2KnowledgeDocumentSumm
  *   because a slot is the addressable column and a display name is only unique
  *   per knowledge base and may be renamed.
  *
- * `GET /api/v2/knowledge/{id}/tags` is the mapping between the two. A slot that
+ * `GET /api/v2/knowledge/{knowledgeBaseId}/tags` is the mapping between the two. A slot that
  * holds a value but has no definition in the knowledge base appears under its
  * raw slot name, matching how knowledge search projects the same columns.
  */
@@ -256,7 +282,7 @@ export const v2KnowledgeDocumentTagsSchema = z
       .describe('Tag value; dates are ISO 8601 strings and an unset tag is null.')
   )
   .describe(
-    'Document tag values keyed by tag display name. Writes address the same tags by slot (`tag1`..`tag7`); resolve names to slots with GET /api/v2/knowledge/{id}/tags.'
+    'Document tag values keyed by display name. Writes use slots such as `tag1`; use List Tags to map names to slots.'
   )
   .meta({ examples: [{ category: 'billing', priority: 2 }] })
 
@@ -357,8 +383,22 @@ export const v2KnowledgeSearchResultSchema = z
       .meta({ examples: [{ category: 'billing', priority: 2 }] }),
     similarity: z
       .number()
-      .describe('Similarity score for vector search; tag-only matches use 1.')
+      .describe(
+        'Cosine similarity between the query embedding and the chunk (1 - cosine distance), reported the same way in `vector` and `hybrid` mode; tag-only matches use 1. In `hybrid` mode results are not ordered by this value — see `rankScore`.'
+      )
       .meta({ examples: [0.8423] }),
+    rankScore: z
+      .number()
+      .describe(
+        'The retrieval score, or reranker score when reranked. In `vector` mode it equals `similarity`; in `hybrid` mode it is the reciprocal-rank-fusion score (a sum of 1/(60 + rank) over the lexical and vector legs, so a chunk both legs ranked first scores 2/61); when a reranker ordered the results it is `rerankerScore`. Recency boosting may reorder retrieval results without changing this score; `rank` always reflects returned order.'
+      )
+      .meta({ examples: [0.0328] }),
+    rank: z
+      .number()
+      .int()
+      .positive()
+      .describe('1-based position in the returned order.')
+      .meta({ examples: [1] }),
     rerankerScore: z
       .number()
       .optional()
@@ -428,17 +468,21 @@ export const v2UploadKnowledgeDocumentQuerySchema = z
   .strict()
 export type V2UploadKnowledgeDocumentQuery = z.output<typeof v2UploadKnowledgeDocumentQuerySchema>
 
-export const v2KnowledgeBaseParamsSchema = knowledgeBaseParamsSchema.extend({
-  id: knowledgeBaseParamsSchema.shape.id.describe('Unique knowledge base identifier.'),
+export const v2KnowledgeBaseParamsSchema = knowledgeBaseParamsSchema.omit({ id: true }).extend({
+  knowledgeBaseId: knowledgeBaseParamsSchema.shape.id.describe('Unique knowledge base identifier.'),
 })
 export type V2KnowledgeBaseParams = z.output<typeof v2KnowledgeBaseParamsSchema>
 
-export const v2KnowledgeDocumentParamsSchema = knowledgeDocumentParamsSchema.extend({
-  id: knowledgeDocumentParamsSchema.shape.id.describe('Unique knowledge base identifier.'),
-  documentId: knowledgeDocumentParamsSchema.shape.documentId.describe(
-    'Unique knowledge document identifier.'
-  ),
-})
+export const v2KnowledgeDocumentParamsSchema = knowledgeDocumentParamsSchema
+  .omit({ id: true })
+  .extend({
+    knowledgeBaseId: knowledgeDocumentParamsSchema.shape.id.describe(
+      'Unique knowledge base identifier.'
+    ),
+    documentId: knowledgeDocumentParamsSchema.shape.documentId.describe(
+      'Unique knowledge document identifier.'
+    ),
+  })
 export type V2KnowledgeDocumentParams = z.output<typeof v2KnowledgeDocumentParamsSchema>
 
 export const v2KnowledgeDocumentUploadParamsSchema = v2KnowledgeBaseParamsSchema.extend({
@@ -455,10 +499,14 @@ const v2KnowledgeDocumentProcessingOptionsSchema =
     .extend({
       recipe: knowledgeDocumentUploadMetadataSchema.shape.processingOptions
         .unwrap()
-        .shape.recipe.describe('Optional document processing recipe.'),
+        .shape.recipe.describe(
+          `Optional document processing recipe. One of: ${KNOWLEDGE_DOCUMENT_UPLOAD_RECIPES.join(', ')}.`
+        ),
       lang: knowledgeDocumentUploadMetadataSchema.shape.processingOptions
         .unwrap()
-        .shape.lang.describe('Optional document language code.'),
+        .shape.lang.describe(
+          'Optional document language: hyphen-separated letter and digit subtags such as `en`, `en-US`, or `zh-Hant-TW`. Only that shape is validated, not full BCP-47 conformance.'
+        ),
     })
     .strict()
 
@@ -572,13 +620,30 @@ export const v2KnowledgeBaseSortFields = ['name', 'createdAt', 'updatedAt'] as c
 export type V2KnowledgeBaseSortBy = (typeof v2KnowledgeBaseSortFields)[number]
 
 /**
- * KB list query: v1's workspace scope plus the v2 search/sort convention and a
- * folder filter. v1's own list query stays untouched — it does not implement
- * these, and advertising a param a route ignores is worse than not having it.
+ * Listing scopes. Two-valued, mirroring `v2FileScopeSchema`, `v2TableScopeSchema`
+ * and `v2WorkflowScopeSchema` rather than the three-valued internal
+ * `KnowledgeBaseScope`: `all` drops the `deleted_at` predicate entirely and
+ * degrades to a full workspace scan, and a caller that wants both sets can walk
+ * two pages.
+ */
+export const v2KnowledgeBaseScopeSchema = z.enum(['active', 'archived'])
+
+export type V2KnowledgeBaseScope = z.output<typeof v2KnowledgeBaseScopeSchema>
+
+/**
+ * KB list query: v1's workspace scope plus the v2 search/sort convention, a
+ * lifecycle scope, and a folder filter. v1's own list query stays untouched — it
+ * does not implement these, and advertising a param a route ignores is worse than
+ * not having it.
  */
 export const v2ListKnowledgeBasesQuerySchema = z
   .object({
     workspaceId: workspaceIdSchema.describe('Workspace whose knowledge bases should be listed.'),
+    scope: v2KnowledgeBaseScopeSchema
+      .default('active')
+      .describe(
+        'Lifecycle scope: active or archived knowledge bases. Use Restore Knowledge Base to recover archived entries. Folder paths resolve only active folders, so filtering by an archived folder returns no matches.'
+      ),
     folderPath: v2FolderPathInputSchema
       .optional()
       .describe(`Restrict results to knowledge bases in this folder. ${V2_FOLDER_FILTER_MISS}`),
@@ -590,26 +655,38 @@ export const v2ListKnowledgeBasesQuerySchema = z
 
 export type V2ListKnowledgeBasesQuery = z.output<typeof v2ListKnowledgeBasesQuerySchema>
 
-const v2KnowledgeChunkingConfigInputSchema = v1ChunkingConfigSchema
-  .extend({
-    maxSize: v1ChunkingConfigSchema.shape.maxSize
-      .describe('Maximum chunk size in tokens.')
-      .meta({ examples: [1024] }),
-    minSize: v1ChunkingConfigSchema.shape.minSize
-      .describe('Minimum chunk size in characters.')
-      .meta({ examples: [100] }),
-    overlap: v1ChunkingConfigSchema.shape.overlap
-      .describe('Number of overlapping characters between adjacent chunks.')
-      .meta({ examples: [200] }),
-  })
-  .meta({
-    id: 'V2KnowledgeChunkingConfigInput',
-    title: 'Knowledge chunking configuration input',
-    description: 'Chunking configuration applied when processing documents.',
-  })
+const v2KnowledgeChunkingConfigInputSchema = withChunkingConfigRules(
+  chunkingConfigFieldsSchema
+    .extend({
+      maxSize: chunkingConfigFieldsSchema.shape.maxSize
+        .default(DEFAULT_CHUNKING_CONFIG.maxSize)
+        .describe('Maximum chunk size in tokens.')
+        .meta({ examples: [1024] }),
+      minSize: chunkingConfigFieldsSchema.shape.minSize
+        .default(DEFAULT_CHUNKING_CONFIG.minSize)
+        .describe('Minimum chunk size in characters.')
+        .meta({ examples: [100] }),
+      overlap: chunkingConfigFieldsSchema.shape.overlap
+        .default(DEFAULT_CHUNKING_CONFIG.overlap)
+        .describe('Number of overlapping characters between adjacent chunks.')
+        .meta({ examples: [200] }),
+      strategy: chunkingConfigFieldsSchema.shape.strategy.describe(
+        'Chunking strategy applied during document processing. `regex` additionally requires `strategyOptions.pattern`.'
+      ),
+      strategyOptions: chunkingConfigFieldsSchema.shape.strategyOptions.describe(
+        'Strategy-specific tuning options. `strictBoundaries` is accepted only with `strategy: "regex"`.'
+      ),
+    })
+    .strict()
+).meta({
+  id: 'V2KnowledgeChunkingConfigInput',
+  title: 'Knowledge chunking configuration input',
+  description:
+    'Chunking configuration applied when processing documents. On update this object is replaced wholesale rather than merged, so a caller preserving one key must read, modify, and write the whole object back.',
+})
 
 export const v2CreateKnowledgeBaseBodySchema = v1CreateKnowledgeBaseBodySchema
-  .safeExtend({
+  .extend({
     workspaceId: workspaceIdSchema.describe('Workspace in which to create the knowledge base.'),
     name: v1CreateKnowledgeBaseBodySchema.shape.name
       .describe('Human-readable knowledge base name.')
@@ -659,8 +736,13 @@ export const v2UpdateKnowledgeBaseBodySchema = z
   })
 
 /**
- * KB list, keyset-paginated over the active sort. Search, folder filter, and
- * sort all run in the query, not over its result.
+ * KB list, keyset-paginated over the active sort. Lifecycle scope, search, folder
+ * filter, and sort all run in the query, not over its result.
+ *
+ * Archived knowledge bases are `scope=archived` on this list rather than a
+ * sibling path, matching files, tables, and workflows. The two reads bind one
+ * semantic operation — the archived set is the same rows under a different
+ * `deleted_at` predicate, not a different resource.
  *
  * Before pagination this list returned `nextCursor` while rejecting `limit` and
  * `cursor` outright, so it advertised a pagination scheme no caller could
@@ -690,7 +772,7 @@ export const v2CreateKnowledgeBaseContract = defineRouteContract({
 
 export const v2GetKnowledgeBaseContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/knowledge/[id]',
+  path: '/api/v2/knowledge/[knowledgeBaseId]',
   params: v2KnowledgeBaseParamsSchema,
   query: v1KnowledgeWorkspaceQuerySchema
     .extend({
@@ -705,13 +787,35 @@ export const v2GetKnowledgeBaseContract = defineRouteContract({
   },
 })
 
+export const v2ExportKnowledgeBaseQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the knowledge base.'),
+    vectors: booleanQueryFlagSchema
+      .optional()
+      .default(true)
+      .describe(
+        'Include chunk vectors so an import into a deployment with the same embedding model reuses them instead of re-embedding.'
+      ),
+  })
+  .strict()
+
+export type V2ExportKnowledgeBaseQuery = z.input<typeof v2ExportKnowledgeBaseQuerySchema>
+
+export const v2ExportKnowledgeBaseContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/export',
+  params: v2KnowledgeBaseParamsSchema,
+  query: v2ExportKnowledgeBaseQuerySchema,
+  response: { mode: 'binary' },
+})
+
 /**
  * PATCH, not PUT: every mutable field is optional and a `superRefine` requires
  * at least one, so this is a partial update rather than a replacement.
  */
 export const v2UpdateKnowledgeBaseContract = defineRouteContract({
   method: 'PATCH',
-  path: '/api/v2/knowledge/[id]',
+  path: '/api/v2/knowledge/[knowledgeBaseId]',
   query: noInputSchema,
   params: v2KnowledgeBaseParamsSchema,
   body: v2UpdateKnowledgeBaseBodySchema,
@@ -723,7 +827,7 @@ export const v2UpdateKnowledgeBaseContract = defineRouteContract({
 
 export const v2DeleteKnowledgeBaseContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/v2/knowledge/[id]',
+  path: '/api/v2/knowledge/[knowledgeBaseId]',
   params: v2KnowledgeBaseParamsSchema,
   query: v1KnowledgeWorkspaceQuerySchema
     .extend({
@@ -836,8 +940,16 @@ export const MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS = 10
  */
 export const MAX_V2_KNOWLEDGE_SEARCH_QUERY_LENGTH = 8192 * 4
 
-export const v2KnowledgeSearchBodySchema = v1KnowledgeSearchBodySchema
-  .safeExtend({
+/**
+ * Rebuilt from the v1 shape rather than extended from the v1 schema: v1 carries
+ * the "query or tagFilters" rule as a bare `.refine`, which reports at path `[]`,
+ * so no client could attach the failure to a field. The rule is restated below as
+ * a `superRefine` with a `path` — extending v1 would inherit the pathless issue
+ * alongside it and report the same violation twice.
+ */
+export const v2KnowledgeSearchBodySchema = z
+  .object({
+    ...v1KnowledgeSearchBodySchema.shape,
     workspaceId: v1KnowledgeSearchBodySchema.shape.workspaceId.describe(
       'Workspace that owns the knowledge bases.'
     ),
@@ -855,9 +967,14 @@ export const v2KnowledgeSearchBodySchema = v1KnowledgeSearchBodySchema
         `Natural-language query; required when tag filters are omitted. At most ${MAX_V2_KNOWLEDGE_SEARCH_QUERY_LENGTH} characters — longer text exceeds the embedding model's per-input token ceiling and would be truncated before the billed search ran.`
       )
       .meta({ examples: ['How do I reset my password?'] }),
-    topK: v1KnowledgeSearchBodySchema.shape.topK.describe(
-      'Maximum number of search results to return. Must be a whole number between 1 and 100; the boundary schema only bounds the range, so a fractional value is admitted here and then rejected with 400 during search.'
-    ),
+    topK: z
+      .number()
+      .min(1, 'topK must be at least 1')
+      .max(100, 'topK cannot exceed 100')
+      .default(10)
+      .describe(
+        'Maximum number of search results to return. Must be a whole number between 1 and 100.'
+      ),
     tagFilters: z
       .array(v2KnowledgeSearchTagFilterSchema)
       .max(
@@ -866,7 +983,7 @@ export const v2KnowledgeSearchBodySchema = v1KnowledgeSearchBodySchema
       )
       .optional()
       .describe(
-        `Structured tag filters, at most ${MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS} of them. Every filter must hold, including two that name the same tag: repeating one tag narrows the result rather than widening it, matching \`GET /api/v2/knowledge/{id}/documents\`. To match either of two values for one tag, issue a search per value. Each filtered tag must resolve to the same slot and field type in every knowledge base selected; one missing from any of them, or defined inconsistently across them, is rejected rather than ignored, and those knowledge bases must be searched separately. List the available names with \`GET /api/v2/knowledge/{id}/tags\`.`
+        `Up to ${MAX_V2_KNOWLEDGE_DOCUMENT_TAG_FILTERS} filters combined with AND; repeating a tag narrows results. To express OR, run separate searches. Every tag must exist with the same slot and field type in each selected knowledge base or the request is rejected. List valid names with the knowledge-base tag-list operation.`
       ),
     searchMode: v1KnowledgeSearchBodySchema.shape.searchMode.describe(
       'Retrieval strategy: vector is semantic-only, while hybrid also runs full-text search.'
@@ -909,6 +1026,22 @@ export const v2KnowledgeSearchBodySchema = v1KnowledgeSearchBodySchema
    * parameters never arrived.
    */
   .strict()
+  /**
+   * A search with neither a query nor a tag filter has nothing to retrieve on.
+   * Reported on `query`, the field a caller who sent neither is most likely to be
+   * missing, so the failure lands on an input instead of on the request as a whole.
+   */
+  .superRefine((body, ctx) => {
+    const hasQuery = Boolean(body.query && body.query.trim().length > 0)
+    const hasTagFilters = Boolean(body.tagFilters && body.tagFilters.length > 0)
+    if (!hasQuery && !hasTagFilters) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['query'],
+        message: 'Either query or tagFilters must be provided',
+      })
+    }
+  })
 export type V2KnowledgeSearchBody = z.input<typeof v2KnowledgeSearchBodySchema>
 
 export const v2SearchKnowledgeContract = defineRouteContract({
@@ -1007,7 +1140,7 @@ export type V2ListKnowledgeDocumentsQuery = z.output<typeof v2ListKnowledgeDocum
 
 export const v2ListKnowledgeDocumentsContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/knowledge/[id]/documents',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents',
   params: v2KnowledgeBaseParamsSchema,
   query: v2ListKnowledgeDocumentsQuerySchema,
   response: {
@@ -1018,7 +1151,7 @@ export const v2ListKnowledgeDocumentsContract = defineRouteContract({
 
 export const v2UploadKnowledgeDocumentContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/knowledge/[id]/documents',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents',
   params: v2KnowledgeBaseParamsSchema,
   query: v2UploadKnowledgeDocumentQuerySchema,
   response: {
@@ -1030,7 +1163,7 @@ export const v2UploadKnowledgeDocumentContract = defineRouteContract({
 
 export const v2CreateKnowledgeDocumentUploadContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/knowledge/[id]/documents/uploads',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/uploads',
   query: noInputSchema,
   params: v2KnowledgeBaseParamsSchema,
   body: v2CreateKnowledgeDocumentUploadBodySchema,
@@ -1043,7 +1176,7 @@ export const v2CreateKnowledgeDocumentUploadContract = defineRouteContract({
 
 export const v2AbortKnowledgeDocumentUploadContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/v2/knowledge/[id]/documents/uploads/[uploadId]',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]',
   params: v2KnowledgeDocumentUploadParamsSchema,
   query: v2UploadKnowledgeDocumentQuerySchema,
   headers: v2UploadTokenHeadersSchema,
@@ -1052,7 +1185,7 @@ export const v2AbortKnowledgeDocumentUploadContract = defineRouteContract({
 
 export const v2CreateKnowledgeDocumentUploadPartUrlsContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/knowledge/[id]/documents/uploads/[uploadId]/parts',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]/parts',
   params: v2KnowledgeDocumentUploadParamsSchema,
   query: v2UploadKnowledgeDocumentQuerySchema,
   headers: v2UploadTokenHeadersSchema,
@@ -1062,7 +1195,7 @@ export const v2CreateKnowledgeDocumentUploadPartUrlsContract = defineRouteContra
 
 export const v2CompleteKnowledgeDocumentUploadContract = defineRouteContract({
   method: 'POST',
-  path: '/api/v2/knowledge/[id]/documents/uploads/[uploadId]/complete',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]/complete',
   params: v2KnowledgeDocumentUploadParamsSchema,
   query: v2UploadKnowledgeDocumentQuerySchema,
   headers: v2UploadTokenHeadersSchema,
@@ -1071,7 +1204,7 @@ export const v2CompleteKnowledgeDocumentUploadContract = defineRouteContract({
 
 export const v2GetKnowledgeDocumentContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/knowledge/[id]/documents/[documentId]',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]',
   params: v2KnowledgeDocumentParamsSchema,
   query: v1KnowledgeWorkspaceQuerySchema
     .extend({
@@ -1092,6 +1225,7 @@ export const v2GetKnowledgeDocumentContract = defineRouteContract({
  */
 export const v2KnowledgeTagSchema = z
   .object({
+    id: z.string().describe('Tag definition ID used by Update Tag and Delete Tag.'),
     displayName: z
       .string()
       .describe('Display name used by tag filters and by tag values on document reads.')
@@ -1122,7 +1256,7 @@ export type V2KnowledgeTag = z.output<typeof v2KnowledgeTagSchema>
  */
 export const v2ListKnowledgeTagsContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/knowledge/[id]/tags',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/tags',
   params: v2KnowledgeBaseParamsSchema,
   query: v1KnowledgeWorkspaceQuerySchema
     .extend({
@@ -1305,7 +1439,7 @@ const v2UpdateKnowledgeDocumentDataSchema = z.union([
 
 export const v2UpdateKnowledgeDocumentContract = defineRouteContract({
   method: 'PATCH',
-  path: '/api/v2/knowledge/[id]/documents/[documentId]',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]',
   query: noInputSchema,
   params: v2KnowledgeDocumentParamsSchema,
   body: v2UpdateKnowledgeDocumentBodySchema,
@@ -1324,7 +1458,7 @@ export const MAX_V2_BULK_KNOWLEDGE_DOCUMENTS = 100
  * `enable` and `disable` only. A bulk `delete` is deliberately absent: the
  * underlying bulk operation records no semantic audit, so a public bulk delete
  * would remove a knowledge base's documents leaving no `DOCUMENT_DELETED`
- * entries, while `DELETE /api/v2/knowledge/{id}/documents/{documentId}` audits
+ * entries, while `DELETE /api/v2/knowledge/{knowledgeBaseId}/documents/{documentId}` audits
  * every single deletion. Delete documents one request at a time.
  */
 export const v2BulkKnowledgeDocumentsBodySchema = z
@@ -1408,7 +1542,7 @@ export const v2BulkKnowledgeDocumentsDataSchema = z
 
 export const v2BulkUpdateKnowledgeDocumentsContract = defineRouteContract({
   method: 'PATCH',
-  path: '/api/v2/knowledge/[id]/documents',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents',
   query: noInputSchema,
   params: v2KnowledgeBaseParamsSchema,
   body: v2BulkKnowledgeDocumentsBodySchema,
@@ -1420,7 +1554,7 @@ export const v2BulkUpdateKnowledgeDocumentsContract = defineRouteContract({
 
 export const v2DeleteKnowledgeDocumentContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/v2/knowledge/[id]/documents/[documentId]',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]',
   params: v2KnowledgeDocumentParamsSchema,
   query: v1KnowledgeWorkspaceQuerySchema
     .extend({
@@ -1432,5 +1566,499 @@ export const v2DeleteKnowledgeDocumentContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2KnowledgeDeleteDataSchema),
+  },
+})
+
+export const v2KnowledgeConnectorSchema = z
+  .object({
+    id: z.string().min(1).describe('Unique connector identifier.'),
+    knowledgeBaseId: z.string().min(1).describe('Knowledge base synced by the connector.'),
+    connectorType: z.string().min(1).describe('Registered external source type.'),
+    credentialId: z
+      .string()
+      .nullable()
+      .describe('OAuth credential identifier, or null for API-key and unauthenticated sources.'),
+    sourceConfig: z
+      .record(z.string(), z.unknown().describe('Connector-specific source configuration value.'))
+      .describe('Connector-specific source selection and filtering configuration.'),
+    syncMode: z.string().describe('Synchronization mode used by the connector.'),
+    syncIntervalMinutes: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe('Scheduled synchronization interval in minutes; zero disables scheduled syncs.'),
+    status: z
+      .enum(['active', 'paused', 'pending', 'syncing', 'error', 'disabled'])
+      .describe('Current connector state. `pending` means a sync is queued but not yet running.'),
+    lastSyncAt: v2TimestampSchema
+      .nullable()
+      .describe('Time of the most recent synchronization, or null before the first sync.'),
+    lastSyncError: z
+      .string()
+      .nullable()
+      .describe('Most recent synchronization error, or null when none is recorded.'),
+    lastSyncDocCount: z
+      .number()
+      .int()
+      .nonnegative()
+      .nullable()
+      .describe('Documents observed by the most recent synchronization.'),
+    nextSyncAt: v2TimestampSchema
+      .nullable()
+      .describe('Next scheduled synchronization time, or null when not scheduled.'),
+    consecutiveFailures: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe('Number of consecutive synchronization failures.'),
+    createdAt: v2TimestampSchema.describe('Time the connector was created.'),
+    updatedAt: v2TimestampSchema.describe('Time the connector was last updated.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2KnowledgeConnector',
+    title: 'Knowledge connector',
+    description: 'An external document source linked to a knowledge base, without secret material.',
+  })
+export type V2KnowledgeConnector = z.output<typeof v2KnowledgeConnectorSchema>
+
+export const v2KnowledgeConnectorSyncLogSchema = z
+  .object({
+    id: z.string().min(1).describe('Unique synchronization log identifier.'),
+    connectorId: z.string().min(1).describe('Connector that produced the log.'),
+    status: z.string().min(1).describe('Synchronization outcome or current state.'),
+    startedAt: v2TimestampSchema.describe('Time synchronization started.'),
+    completedAt: v2TimestampSchema
+      .nullable()
+      .describe('Time synchronization completed, or null while it is running.'),
+    docsAdded: z.number().int().nonnegative().describe('Documents added.'),
+    docsUpdated: z.number().int().nonnegative().describe('Documents updated.'),
+    docsDeleted: z.number().int().nonnegative().describe('Documents deleted.'),
+    docsUnchanged: z.number().int().nonnegative().describe('Documents unchanged.'),
+    docsSkipped: z
+      .number()
+      .int()
+      .nonnegative()
+      .default(0)
+      .describe('Documents intentionally skipped because they could not be indexed safely.'),
+    docsFailed: z.number().int().nonnegative().describe('Documents that failed to synchronize.'),
+    errorMessage: z.string().nullable().describe('Synchronization error, or null.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2KnowledgeConnectorSyncLog',
+    title: 'Knowledge connector sync log',
+    description: 'One synchronization attempt for a knowledge connector.',
+  })
+export type V2KnowledgeConnectorSyncLog = z.output<typeof v2KnowledgeConnectorSyncLogSchema>
+
+export const v2KnowledgeConnectorDetailSchema = v2KnowledgeConnectorSchema
+  .extend({
+    syncLogs: z
+      .array(v2KnowledgeConnectorSyncLogSchema)
+      .describe('The ten most recent synchronization attempts.'),
+  })
+  .meta({
+    id: 'V2KnowledgeConnectorDetail',
+    title: 'Knowledge connector detail',
+    description: 'A knowledge connector and its recent synchronization history.',
+  })
+export type V2KnowledgeConnectorDetail = z.output<typeof v2KnowledgeConnectorDetailSchema>
+
+export const v2KnowledgeConnectorDocumentSchema = z
+  .object({
+    id: z.string().min(1).describe('Unique document identifier.'),
+    filename: z.string().min(1).describe('Document filename.'),
+    externalId: z.string().nullable().describe('Identifier assigned by the external source.'),
+    sourceUrl: z.string().nullable().describe('Original external source URL.'),
+    enabled: z.boolean().describe('Whether the document is enabled for knowledge search.'),
+    userExcluded: z
+      .boolean()
+      .describe('Whether a user explicitly excluded the document from connector sync results.'),
+    createdAt: v2TimestampSchema.describe('Time the document was first synchronized.'),
+    processingStatus: z.string().describe('Current document processing state.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2KnowledgeConnectorDocument',
+    title: 'Knowledge connector document',
+    description: 'A knowledge document produced by an external connector.',
+  })
+export type V2KnowledgeConnectorDocument = z.output<typeof v2KnowledgeConnectorDocumentSchema>
+
+export const v2KnowledgeConnectorParamsSchema = knowledgeConnectorParamsSchema
+  .omit({ id: true })
+  .extend({
+    knowledgeBaseId: knowledgeConnectorParamsSchema.shape.id.describe(
+      'Knowledge base that owns the connector.'
+    ),
+    connectorId: knowledgeConnectorParamsSchema.shape.connectorId.describe(
+      'Connector selected for the operation.'
+    ),
+  })
+  .strict()
+export type V2KnowledgeConnectorParams = z.output<typeof v2KnowledgeConnectorParamsSchema>
+
+export const v2KnowledgeConnectorWorkspaceQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the knowledge base.'),
+  })
+  .strict()
+export type V2KnowledgeConnectorWorkspaceQuery = z.output<
+  typeof v2KnowledgeConnectorWorkspaceQuerySchema
+>
+
+export const v2KnowledgeConnectorSortFields = ['connectorType', 'createdAt', 'updatedAt'] as const
+
+export const v2ListKnowledgeConnectorsQuerySchema = v2KnowledgeConnectorWorkspaceQuerySchema
+  .extend({
+    ...v2SortFields(v2KnowledgeConnectorSortFields, {
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    }),
+    ...v2PaginationFields({ description: 'Maximum connectors to return per page.' }),
+  })
+  .strict()
+export type V2ListKnowledgeConnectorsQuery = z.output<typeof v2ListKnowledgeConnectorsQuerySchema>
+
+export const v2CreateKnowledgeConnectorBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the knowledge base.'),
+    connectorType: z.string().trim().min(1).max(100).describe('Registered connector type.'),
+    credentialId: z
+      .string()
+      .trim()
+      .min(1)
+      .max(255)
+      .optional()
+      .describe(
+        'OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types); omit it for `apiKey` connectors.'
+      ),
+    apiKey: z
+      .string()
+      .min(1)
+      .max(10_000)
+      .optional()
+      .describe(
+        'Write-only API key for connector types whose `auth.mode` is `apiKey` (see connector types), or a personal access token for an OAuth connector that also accepts one, such as GitHub. Send it instead of `credentialId`. Pass a raw key, or a secret reference written as the whole value `{{SECRET_NAME}}`, which the server resolves; `$SECRET_NAME` is not a reference.'
+      ),
+    sourceConfig: z
+      .record(z.string(), z.unknown().describe('Connector-specific source configuration value.'))
+      .describe('Connector-specific source selection and filtering configuration.'),
+    syncIntervalMinutes: z
+      .number()
+      .int()
+      .min(0)
+      .max(525_600)
+      .default(1440)
+      .describe('Scheduled synchronization interval in minutes; zero disables scheduling.'),
+  })
+  .strict()
+export type V2CreateKnowledgeConnectorBody = z.input<typeof v2CreateKnowledgeConnectorBodySchema>
+
+export const v2UpdateKnowledgeConnectorBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the knowledge base.'),
+    sourceConfig: z
+      .record(z.string(), z.unknown().describe('Connector-specific source configuration value.'))
+      .optional()
+      .describe(
+        'Replacement source selection and filtering configuration. Updating a runnable connector queues synchronization; paused connectors remain paused.'
+      ),
+    syncIntervalMinutes: z
+      .number()
+      .int()
+      .min(0)
+      .max(525_600)
+      .optional()
+      .describe('New scheduled synchronization interval in minutes.'),
+    status: z.enum(['active', 'paused']).optional().describe('New connector state.'),
+  })
+  .strict()
+  .superRefine((body, ctx) => {
+    if (
+      body.sourceConfig === undefined &&
+      body.syncIntervalMinutes === undefined &&
+      body.status === undefined
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['sourceConfig'],
+        message: 'At least one of sourceConfig, syncIntervalMinutes, or status is required',
+      })
+    }
+  })
+export type V2UpdateKnowledgeConnectorBody = z.input<typeof v2UpdateKnowledgeConnectorBodySchema>
+
+export const v2DeleteKnowledgeConnectorQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the knowledge base.'),
+    deleteDocuments: booleanQueryFlagSchema
+      .optional()
+      .default(false)
+      .describe('Also permanently delete documents produced by this connector.'),
+  })
+  .strict()
+export type V2DeleteKnowledgeConnectorQuery = z.input<typeof v2DeleteKnowledgeConnectorQuerySchema>
+
+export const v2SyncKnowledgeConnectorBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the knowledge base.'),
+    rehydrate: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe('Re-fetch and re-index every existing connector document.'),
+  })
+  .strict()
+export type V2SyncKnowledgeConnectorBody = z.input<typeof v2SyncKnowledgeConnectorBodySchema>
+
+export const v2ListKnowledgeConnectorDocumentsQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the knowledge base.'),
+    includeExcluded: booleanQueryFlagSchema
+      .optional()
+      .default(false)
+      .describe('Include documents explicitly excluded by a user.'),
+    ...v2PaginationFields({ description: 'Maximum connector documents to return per page.' }),
+  })
+  .strict()
+export type V2ListKnowledgeConnectorDocumentsQuery = z.output<
+  typeof v2ListKnowledgeConnectorDocumentsQuerySchema
+>
+
+export const v2UpdateKnowledgeConnectorDocumentsBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the knowledge base.'),
+    operation: z
+      .enum(['restore', 'exclude'])
+      .describe('Whether to restore or exclude the selected documents.'),
+    documentIds: z
+      .array(z.string().min(1).max(255))
+      .min(1, 'At least one document id is required')
+      .max(MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_MUTATION_ITEMS)
+      .describe('Connector document identifiers to update.'),
+  })
+  .strict()
+export type V2UpdateKnowledgeConnectorDocumentsBody = z.input<
+  typeof v2UpdateKnowledgeConnectorDocumentsBodySchema
+>
+
+export const v2KnowledgeConnectorDeleteDataSchema = z
+  .object({
+    id: z.string().min(1).describe('Deleted connector identifier.'),
+    deleted: z.literal(true).describe('Whether the connector was deleted.'),
+    documentsDeleted: z.number().int().nonnegative().describe('Connector documents deleted.'),
+    documentsKept: z.number().int().nonnegative().describe('Connector documents retained.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2KnowledgeConnectorDeleteData',
+    title: 'Knowledge connector deletion data',
+    description: 'Connector deletion acknowledgement and affected document counts.',
+  })
+export type V2KnowledgeConnectorDeleteData = z.output<typeof v2KnowledgeConnectorDeleteDataSchema>
+
+export const v2KnowledgeConnectorSyncDataSchema = z
+  .object({
+    id: z.string().min(1).describe('Connector queued for synchronization.'),
+    syncTriggered: z.literal(true).describe('Whether synchronization was queued.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2KnowledgeConnectorSyncData',
+    title: 'Knowledge connector sync data',
+    description: 'Acknowledgement that connector synchronization was queued.',
+  })
+export type V2KnowledgeConnectorSyncData = z.output<typeof v2KnowledgeConnectorSyncDataSchema>
+
+export const v2KnowledgeConnectorDocumentsUpdateDataSchema = z
+  .object({
+    operation: z.enum(['restore', 'exclude']).describe('Operation that was applied.'),
+    updatedCount: z.number().int().nonnegative().describe('Documents changed.'),
+    documentIds: z.array(z.string()).describe('Identifiers of documents changed.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2KnowledgeConnectorDocumentsUpdateData',
+    title: 'Knowledge connector documents update data',
+    description: 'Outcome of restoring or excluding connector documents.',
+  })
+export type V2KnowledgeConnectorDocumentsUpdateData = z.output<
+  typeof v2KnowledgeConnectorDocumentsUpdateDataSchema
+>
+
+export const v2ListKnowledgeConnectorsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/connectors',
+  params: v2KnowledgeBaseParamsSchema,
+  query: v2ListKnowledgeConnectorsQuerySchema,
+  response: { mode: 'json', schema: v2CursorListResponse(v2KnowledgeConnectorSchema) },
+})
+
+export const v2CreateKnowledgeConnectorContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/connectors',
+  params: v2KnowledgeBaseParamsSchema,
+  query: noInputSchema,
+  body: v2CreateKnowledgeConnectorBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2KnowledgeConnectorSchema), status: 201 },
+})
+
+export const v2GetKnowledgeConnectorContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]',
+  params: v2KnowledgeConnectorParamsSchema,
+  query: v2KnowledgeConnectorWorkspaceQuerySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2KnowledgeConnectorDetailSchema) },
+})
+
+export const v2UpdateKnowledgeConnectorContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]',
+  params: v2KnowledgeConnectorParamsSchema,
+  query: noInputSchema,
+  body: v2UpdateKnowledgeConnectorBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2KnowledgeConnectorSchema) },
+})
+
+export const v2DeleteKnowledgeConnectorContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]',
+  params: v2KnowledgeConnectorParamsSchema,
+  query: v2DeleteKnowledgeConnectorQuerySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2KnowledgeConnectorDeleteDataSchema) },
+})
+
+export const v2SyncKnowledgeConnectorContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/sync',
+  params: v2KnowledgeConnectorParamsSchema,
+  query: noInputSchema,
+  body: v2SyncKnowledgeConnectorBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2KnowledgeConnectorSyncDataSchema) },
+})
+
+export const v2ListKnowledgeConnectorDocumentsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/documents',
+  params: v2KnowledgeConnectorParamsSchema,
+  query: v2ListKnowledgeConnectorDocumentsQuerySchema,
+  response: { mode: 'json', schema: v2CursorListResponse(v2KnowledgeConnectorDocumentSchema) },
+})
+
+export const v2UpdateKnowledgeConnectorDocumentsContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/connectors/[connectorId]/documents',
+  params: v2KnowledgeConnectorParamsSchema,
+  query: noInputSchema,
+  body: v2UpdateKnowledgeConnectorDocumentsBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2KnowledgeConnectorDocumentsUpdateDataSchema),
+  },
+})
+
+export const v2RestoreKnowledgeBaseBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the knowledge base.'),
+  })
+  .strict()
+
+export type V2RestoreKnowledgeBaseBody = z.input<typeof v2RestoreKnowledgeBaseBodySchema>
+
+/**
+ * Restore is idempotent: restoring a knowledge base that is already active
+ * answers `200` with its current representation rather than `409`, so a retry
+ * after a dropped response cannot look like a failure. No audit entry is
+ * recorded for that no-op.
+ */
+export const v2RestoreKnowledgeBaseContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/restore',
+  query: noInputSchema,
+  params: v2KnowledgeBaseParamsSchema,
+  body: v2RestoreKnowledgeBaseBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2KnowledgeBaseSchema),
+  },
+})
+
+/**
+ * Indexes files already in workspace storage.
+ *
+ * Without it a file the server already holds has to be downloaded and
+ * re-uploaded byte-for-byte through `POST /api/v2/knowledge/{knowledgeBaseId}/documents`
+ * purely to be indexed. Each reference is authorized against the *file's* own
+ * canonical context, so naming a file the caller cannot read fails that entry
+ * rather than the request.
+ */
+export const v2AddWorkspaceFilesToKnowledgeBaseBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns both the files and the base.'),
+    fileReferences: z
+      .array(z.string().min(1, 'fileReferences entries cannot be empty'))
+      .min(1, 'fileReferences must contain at least one file')
+      .max(
+        MAX_V2_BULK_KNOWLEDGE_DOCUMENTS,
+        `fileReferences cannot contain more than ${MAX_V2_BULK_KNOWLEDGE_DOCUMENTS} files`
+      )
+      .describe(
+        'Workspace file identifiers or storage keys to index. Duplicates resolving to the same file are indexed once.'
+      ),
+  })
+  .strict()
+
+export type V2AddWorkspaceFilesToKnowledgeBaseBody = z.input<
+  typeof v2AddWorkspaceFilesToKnowledgeBaseBodySchema
+>
+
+export const v2AddedWorkspaceFileDocumentSchema = z
+  .object({
+    documentId: z.string().describe('Identifier of the queued knowledge document.'),
+    filename: z.string().describe('Filename recorded on the knowledge document.'),
+    mimeType: z.string().describe('MIME type of the source workspace file.'),
+    fileSize: z.number().int().nonnegative().describe('File size in bytes.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2AddedWorkspaceFileDocument',
+    title: 'Indexed workspace file',
+    description: 'A workspace file that was queued for indexing into a knowledge base.',
+  })
+
+/**
+ * Partial success is a `200` with a populated `failed` array, not a `207`: v2
+ * has exactly two body shapes and a multi-status is neither. A reference lands
+ * in `failed` when it names no readable file, exceeds the size limit, carries an
+ * unsupported type, or carries secret provenance that blocks ingestion.
+ */
+export const v2AddWorkspaceFilesToKnowledgeBaseDataSchema = z
+  .object({
+    knowledgeBaseId: z.string().describe('Knowledge base the files were added to.'),
+    added: z
+      .array(v2AddedWorkspaceFileDocumentSchema)
+      .describe('Files queued for indexing, in request order.'),
+    failed: z
+      .array(z.string())
+      .describe('References that could not be indexed, echoed exactly as they were sent.'),
+  })
+  .strict()
+  .meta({
+    id: 'V2AddWorkspaceFilesToKnowledgeBaseData',
+    title: 'Add workspace files data',
+    description: 'Outcome of indexing workspace files into a knowledge base.',
+  })
+
+export const v2AddWorkspaceFilesToKnowledgeBaseContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v2/knowledge/[knowledgeBaseId]/documents/from-workspace-files',
+  query: noInputSchema,
+  params: v2KnowledgeBaseParamsSchema,
+  body: v2AddWorkspaceFilesToKnowledgeBaseBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2AddWorkspaceFilesToKnowledgeBaseDataSchema),
   },
 })

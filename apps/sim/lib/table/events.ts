@@ -14,6 +14,7 @@
  * in-memory `lastEventId` no longer matches), so both are intentionally fixed here.
  */
 
+import { fingerprintClientId } from '@/lib/api/client-id'
 import {
   appendEvent,
   type EventLogConfig,
@@ -24,6 +25,16 @@ import {
 
 export const TABLE_EVENT_TTL_SECONDS = 60 * 60 // 1 hour
 export const TABLE_EVENT_CAP = 5000
+/**
+ * Byte ceiling for one table's buffer.
+ *
+ * An event carries a cell's outputs, and a dispatch across many rows emits one per
+ * cell, so `TABLE_EVENT_CAP` entries says nothing about the bytes they hold — a table
+ * of large text cells reaches hundreds of megabytes well inside the entry cap. 32 MB
+ * is far above what an interactive dispatch buffers in its TTL and far below what one
+ * table may cost a shared Redis.
+ */
+export const TABLE_EVENT_MAX_BYTES = 32 * 1024 * 1024
 /** Max events returned by a single read; the SSE route drains in chunks. */
 export const TABLE_EVENT_READ_CHUNK = 500
 
@@ -32,6 +43,7 @@ const TABLE_EVENT_LOG: EventLogConfig = {
   prefix: 'table:stream:',
   ttlSeconds: TABLE_EVENT_TTL_SECONDS,
   cap: TABLE_EVENT_CAP,
+  maxBytes: TABLE_EVENT_MAX_BYTES,
   readChunk: TABLE_EVENT_READ_CHUNK,
 }
 
@@ -102,7 +114,7 @@ export type TableEvent =
   | {
       /** A dispatch was stopped because the billed account is over its usage
        *  limit. The client surfaces an upgrade prompt and redirects to billing.
-       *  The dispatch is halted via `markDispatchComplete` and the blocked
+       *  The dispatch is halted via `completeDispatchIfActive` and the blocked
        *  cells' pre-stamps are cleared so they revert to un-run. `dispatchId`
        *  is absent for cascade/auto-fire payloads with no owning dispatch. */
       kind: 'usageLimitReached'
@@ -118,6 +130,14 @@ export type TableEvent =
        *  translation on the wire. */
       kind: 'edit'
       tableId: string
+      /**
+       * One-way digest naming the tab whose request caused this edit, when that tab is known to
+       * reconcile the change locally — so it can skip refetching what it already holds. Digested
+       * rather than raw because every subscriber sees this field; a raw id could be replayed by a
+       * collaborator to make someone else's tab suppress a refetch it needed. Absent means
+       * "unattributed" — every client refetches, which is the pre-existing behavior.
+       */
+      originatorId?: string
     }
   | {
       /** A user changed the table's structure (added/updated/deleted a column, or
@@ -179,20 +199,37 @@ export async function appendTableEvent(event: TableEvent): Promise<TableEventEnt
   })
 }
 
-// The mutating client receives its own signal too (the stream carries no originator id)
-// and self-refetches. Data-correct — signals fire after the write commits, so the refetch
-// returns the committed state, and in-flight edits are protected by the update/delete
-// hooks' cancelQueries. The one caveat is an own row-CREATE on a scrolled, multi-page
-// table, which can briefly reshuffle loaded pages (the create hook otherwise skips that
-// refetch); if that ever proves visible, stamp an originator id so the actor ignores its
-// own signal.
-
 /**
  * Signal collaborators that a user changed row data so they refetch the rows live.
  * Fire-and-forget — a Redis blip must never fail the write that triggered it.
+ *
+ * Unattributed, so every subscriber refetches — including the client that made the write. Correct
+ * for any write whose client hook does not already apply the server's answer locally: bulk and
+ * filter-scoped writes, imports, copilot edits, run dispatch.
  */
 export function signalTableRowsChanged(tableId: string): void {
   void appendTableEvent({ kind: 'edit', tableId })
+}
+
+/**
+ * As {@link signalTableRowsChanged}, but names the tab that caused the write so that tab can skip
+ * its own refetch — which for it is pure duplication: on a scrolled table the broadcast re-fetches
+ * every loaded page, and on delete it races the refetch the hook already issued.
+ *
+ * Use ONLY where the client hook reconciles the change from the mutation's own response across
+ * every cached rows query — the single-row create, update, and delete paths. On a bulk or
+ * filter-scoped write the actor genuinely needs the refetch, and suppressing it would leave that
+ * client showing stale rows. The call sites are pinned by `events.attribution.test.ts`.
+ */
+export function signalTableRowsChangedByActor(tableId: string, clientId: string | undefined): void {
+  if (!clientId) {
+    void appendTableEvent({ kind: 'edit', tableId })
+    return
+  }
+  // Digested, never raw — every subscriber sees this event, and a raw id would be replayable.
+  void fingerprintClientId(clientId).then((originatorId) =>
+    appendTableEvent({ kind: 'edit', tableId, originatorId })
+  )
 }
 
 /**

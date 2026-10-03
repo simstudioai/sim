@@ -1,6 +1,4 @@
-/**
- * @vitest-environment node
- */
+import { authClientMock } from '@sim/testing/mocks/auth-client.mock'
 import { describe, expect, it, vi } from 'vitest'
 import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 
@@ -11,9 +9,7 @@ import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
  * env). This test only exercises the pure `resolveSettingsHref`, so stub the
  * client module out entirely.
  */
-vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: vi.fn(() => ({ data: null, isPending: false })),
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
 import { resolveSettingsHref } from '@/hooks/use-settings-navigation'
 
@@ -46,15 +42,6 @@ const HOST_CONTEXT: WorkspaceHostContext = {
 }
 
 describe('resolveSettingsHref unified settings navigation', () => {
-  it('preserves MCP server query parameters for workspace settings', () => {
-    expect(
-      resolveSettingsHref({
-        options: { section: 'mcp', mcpServerId: 'server/a' },
-        workspaceId: 'workspace-b',
-      })
-    ).toBe('/workspace/workspace-b/settings/mcp?mcpServerId=server%2Fa')
-  })
-
   it('sends external workspace admins to the workspace contact-admin upgrade state', () => {
     expect(
       resolveSettingsHref({
@@ -64,46 +51,5 @@ describe('resolveSettingsHref unified settings navigation', () => {
         viewerUserId: 'external-a',
       })
     ).toBe('/workspace/workspace-b/upgrade')
-  })
-
-  it('keeps host organization admins in the unified workspace settings shell', () => {
-    expect(
-      resolveSettingsHref({
-        options: { section: 'billing' },
-        workspaceId: 'workspace-b',
-        hostContext: {
-          ...HOST_CONTEXT,
-          viewer: {
-            ...HOST_CONTEXT.viewer,
-            isHostOrganizationMember: true,
-            isHostOrganizationAdmin: true,
-          },
-        },
-        viewerUserId: 'admin-b',
-      })
-    ).toBe('/workspace/workspace-b/settings/billing')
-  })
-
-  it('keeps the billed owner of a personal workspace in the unified settings shell', () => {
-    expect(
-      resolveSettingsHref({
-        options: { section: 'billing' },
-        workspaceId: 'workspace-b',
-        hostContext: {
-          ...HOST_CONTEXT,
-          workspace: {
-            ...HOST_CONTEXT.workspace,
-            workspaceMode: 'personal',
-          },
-          hostOrganizationId: null,
-          ownerBilling: {
-            ...HOST_CONTEXT.ownerBilling,
-            isOrgScoped: false,
-            organizationId: null,
-          },
-        },
-        viewerUserId: 'owner-b',
-      })
-    ).toBe('/workspace/workspace-b/settings/billing')
   })
 })

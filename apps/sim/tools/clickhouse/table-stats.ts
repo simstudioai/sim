@@ -1,7 +1,10 @@
 import type { ClickHouseRowsResponse, ClickHouseTableStatsParams } from '@/tools/clickhouse/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const tableStatsTool: ToolConfig<ClickHouseTableStatsParams, ClickHouseRowsResponse> = {
+export const tableStatsTool: InternalToolConfig<
+  ClickHouseTableStatsParams,
+  ClickHouseRowsResponse
+> = {
   id: 'clickhouse_table_stats',
   name: 'ClickHouse Table Stats',
   description: 'Get row counts and on-disk size for tables in the connected database',
@@ -52,13 +55,8 @@ export const tableStatsTool: ToolConfig<ClickHouseTableStatsParams, ClickHouseRo
     },
   },
 
-  request: {
-    url: '/api/tools/clickhouse/table-stats',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

@@ -23,7 +23,7 @@ function secretCursorFilters(query: { workspaceId: string; scope?: string; searc
   })
 }
 
-/** GET /api/v2/secrets — List secret names and metadata without reading their values. */
+/** GET /api/v2/secrets — List secret metadata; visible (unredacted) secrets carry their value. */
 export const GET = defineV2JsonRoute({
   contract: v2ListSecretsContract,
   operation: secretOperations.list,
@@ -40,8 +40,19 @@ export const GET = defineV2JsonRoute({
     ),
   }),
   useCase: listSecretsUseCase,
-  present: ({ secrets, userId, nextCursorKeys }, { query }) => ({
-    data: secrets.map((secret) => toV2Secret(secret, userId)),
+  present: ({ secrets, values, userId, nextCursorKeys }, { query }) => ({
+    data: secrets.map((secret) =>
+      toV2Secret(
+        secret,
+        userId,
+        /**
+         * Own-property read: a secret may legally be named `constructor` or `toString`,
+         * and a bare index on a missing key would hand the inherited function to the
+         * serializer and fail response validation for the whole page.
+         */
+        secret.envKey && Object.hasOwn(values, secret.envKey) ? values[secret.envKey] : undefined
+      )
+    ),
     nextCursor: writeSortedCursor(
       nextCursorKeys,
       query.sortBy,

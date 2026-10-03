@@ -1,4 +1,3 @@
-import Script from 'next/script'
 import { serializeJsonLd } from '@/lib/json-ld'
 import { DOCS_BASE_URL } from '@/lib/urls'
 
@@ -6,7 +5,6 @@ interface StructuredDataProps {
   title: string
   description: string
   url: string
-  lang: string
   dateModified?: string
   breadcrumb?: Array<{ name: string; url: string }>
 }
@@ -15,7 +13,6 @@ export function StructuredData({
   title,
   description,
   url,
-  lang,
   dateModified,
   breadcrumb,
 }: StructuredDataProps) {
@@ -28,7 +25,6 @@ export function StructuredData({
     headline: title,
     description: description,
     url: url,
-    ...(dateModified && { datePublished: dateModified }),
     ...(dateModified && { dateModified }),
     author: {
       '@type': 'Organization',
@@ -48,7 +44,7 @@ export function StructuredData({
       '@type': 'WebPage',
       '@id': url,
     },
-    inLanguage: lang,
+    inLanguage: 'en',
     isPartOf: {
       '@type': 'WebSite',
       name: 'Sim Documentation',
@@ -103,7 +99,7 @@ export function StructuredData({
 
   return (
     <>
-      <Script
+      <script
         id={`article-json-ld-${structuredDataId}`}
         type='application/ld+json'
         dangerouslySetInnerHTML={{
@@ -111,7 +107,7 @@ export function StructuredData({
         }}
       />
       {breadcrumbStructuredData && (
-        <Script
+        <script
           id={`breadcrumb-json-ld-${structuredDataId}`}
           type='application/ld+json'
           dangerouslySetInnerHTML={{
@@ -120,7 +116,7 @@ export function StructuredData({
         />
       )}
       {(url === baseUrl || url === `${baseUrl}/`) && (
-        <Script
+        <script
           id={`software-json-ld-${structuredDataId}`}
           type='application/ld+json'
           dangerouslySetInnerHTML={{

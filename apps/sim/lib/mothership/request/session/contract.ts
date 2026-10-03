@@ -1,0 +1,525 @@
+import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
+import type {
+  MothershipStreamV1EventEnvelope,
+  MothershipStreamV1StreamRef,
+  MothershipStreamV1StreamScope,
+  MothershipStreamV1Trace,
+} from '@/lib/mothership/generated/mothership-stream-v1'
+import {
+  MothershipStreamV1CompletionStatus,
+  MothershipStreamV1EventType,
+  MothershipStreamV1RunKind,
+  MothershipStreamV1SessionKind,
+  MothershipStreamV1SpanPayloadKind,
+  MothershipStreamV1TextChannel,
+  MothershipStreamV1ToolPhase,
+} from '@/lib/mothership/generated/mothership-stream-v1'
+import type {
+  StreamActivityCheckpoint,
+  StreamTextCompletion,
+  StreamTextPosition,
+  StreamToolReplay,
+} from '@/lib/mothership/generated/protocol'
+import { ResourcePayload } from '@/lib/mothership/generated/resources'
+import type { FilePreviewTargetKind } from './file-preview-session-contract'
+
+type JsonRecord = Record<string, unknown>
+
+const FILE_PREVIEW_PHASE = {
+  start: 'file_preview_start',
+  target: 'file_preview_target',
+  editMeta: 'file_preview_edit_meta',
+  content: 'file_preview_content',
+  complete: 'file_preview_complete',
+} as const
+
+type EnvelopeToStreamEvent<T> = T extends {
+  type: infer TType
+  payload: infer TPayload
+  scope?: infer TScope
+}
+  ? {
+      type: TType
+      payload: TType extends 'text'
+        ? TPayload & StreamTextPosition
+        : TType extends 'complete'
+          ? TPayload & StreamTextCompletion & StreamActivityCheckpoint
+          : TType extends 'tool'
+            ? TPayload & StreamToolReplay
+            : TType extends 'resource'
+              ? ResourcePayload
+              : TType extends 'run'
+                ? TPayload & StreamActivityCheckpoint
+                : TPayload
+      scope?: Exclude<TScope, undefined>
+      /** Wire ordering key, carried off the envelope; absent on synthetic events. */
+      seq?: number
+    }
+  : never
+
+export type SyntheticFilePreviewPhase = (typeof FILE_PREVIEW_PHASE)[keyof typeof FILE_PREVIEW_PHASE]
+
+export interface SyntheticFilePreviewTarget {
+  kind: FilePreviewTargetKind
+  fileId?: string
+  fileName?: string
+}
+
+export interface SyntheticFilePreviewStartPayload {
+  previewPhase: typeof FILE_PREVIEW_PHASE.start
+  toolCallId: string
+  toolName: 'prepare_file_edit'
+}
+
+export interface SyntheticFilePreviewTargetPayload {
+  operation?: string
+  previewPhase: typeof FILE_PREVIEW_PHASE.target
+  target: SyntheticFilePreviewTarget
+  title?: string
+  toolCallId: string
+  toolName: 'prepare_file_edit'
+}
+
+export interface SyntheticFilePreviewEditMetaPayload {
+  edit: JsonRecord
+  previewPhase: typeof FILE_PREVIEW_PHASE.editMeta
+  toolCallId: string
+  toolName: 'prepare_file_edit'
+}
+
+export interface SyntheticFilePreviewContentPayload {
+  content: string
+  contentMode: 'delta' | 'snapshot'
+  edit?: JsonRecord
+  fileId?: string
+  fileName: string
+  operation?: string
+  previewPhase: typeof FILE_PREVIEW_PHASE.content
+  previewVersion: number
+  targetKind?: string
+  toolCallId: string
+  toolName: 'prepare_file_edit'
+}
+
+export interface SyntheticFilePreviewCompletePayload {
+  fileId?: string
+  output?: unknown
+  previewPhase: typeof FILE_PREVIEW_PHASE.complete
+  previewVersion?: number
+  toolCallId: string
+  toolName: 'prepare_file_edit'
+}
+
+export type SyntheticFilePreviewPayload =
+  | SyntheticFilePreviewStartPayload
+  | SyntheticFilePreviewTargetPayload
+  | SyntheticFilePreviewEditMetaPayload
+  | SyntheticFilePreviewContentPayload
+  | SyntheticFilePreviewCompletePayload
+
+export interface SyntheticFilePreviewEventEnvelope {
+  payload: SyntheticFilePreviewPayload
+  scope?: MothershipStreamV1StreamScope
+  seq: number
+  stream: MothershipStreamV1StreamRef
+  trace?: MothershipStreamV1Trace
+  ts: string
+  type: 'tool'
+  v: 1
+}
+
+type ResourceEnvelope = Extract<MothershipStreamV1EventEnvelope, { type: 'resource' }>
+type ToolEnvelope = Extract<MothershipStreamV1EventEnvelope, { type: 'tool' }>
+type ToolReplayEnvelope<T extends ToolEnvelope = ToolEnvelope> = T extends ToolEnvelope
+  ? Omit<T, 'payload'> & { payload: T['payload'] & StreamToolReplay }
+  : never
+
+type ContractEventEnvelope =
+  | Exclude<MothershipStreamV1EventEnvelope, { type: 'resource' | 'tool' }>
+  | ToolReplayEnvelope
+  | (Omit<ResourceEnvelope, 'payload'> & {
+      payload: ResourcePayload
+    })
+
+export type PersistedStreamEventEnvelope = ContractEventEnvelope | SyntheticFilePreviewEventEnvelope
+
+export type ContractStreamEvent = EnvelopeToStreamEvent<ContractEventEnvelope>
+export type SyntheticStreamEvent = EnvelopeToStreamEvent<SyntheticFilePreviewEventEnvelope>
+export type SessionStreamEvent = ContractStreamEvent | SyntheticStreamEvent
+export type StreamEvent = SessionStreamEvent
+export type ToolCallStreamEvent = Extract<
+  ContractStreamEvent,
+  { type: 'tool'; payload: { phase: 'call' } }
+>
+export type ToolArgsDeltaStreamEvent = Extract<
+  ContractStreamEvent,
+  { type: 'tool'; payload: { phase: 'args_delta' } }
+>
+export type ToolResultStreamEvent = Extract<
+  ContractStreamEvent,
+  { type: 'tool'; payload: { phase: 'result' } }
+>
+export type SubagentSpanStreamEvent = Extract<
+  ContractStreamEvent,
+  { type: 'span'; payload: { kind: 'subagent' } }
+>
+
+export interface ParseStreamEventEnvelopeSuccess {
+  ok: true
+  event: PersistedStreamEventEnvelope
+}
+
+export interface ParseStreamEventEnvelopeFailure {
+  errors?: string[]
+  message: string
+  ok: false
+  reason: 'invalid_json' | 'invalid_stream_event'
+}
+
+export type ParseStreamEventEnvelopeResult =
+  | ParseStreamEventEnvelopeSuccess
+  | ParseStreamEventEnvelopeFailure
+
+// Structural helpers (CSP-safe – no codegen / eval / new Function)
+
+function isOptionalString(value: unknown): value is string | undefined {
+  return value === undefined || typeof value === 'string'
+}
+
+function isOptionalFiniteNumber(value: unknown): value is number | undefined {
+  return value === undefined || (typeof value === 'number' && Number.isFinite(value))
+}
+
+function isStreamRef(value: unknown): value is MothershipStreamV1StreamRef {
+  return (
+    isRecordLike(value) &&
+    typeof value.streamId === 'string' &&
+    value.streamId.length > 0 &&
+    isOptionalString(value.chatId) &&
+    isOptionalString(value.cursor)
+  )
+}
+
+function isTrace(value: unknown): value is MothershipStreamV1Trace {
+  return (
+    isRecordLike(value) &&
+    typeof value.requestId === 'string' &&
+    isOptionalString(value.goTraceId) &&
+    isOptionalString(value.spanId)
+  )
+}
+
+function isStreamScope(value: unknown): value is MothershipStreamV1StreamScope {
+  return (
+    isRecordLike(value) &&
+    value.lane === 'subagent' &&
+    isOptionalString(value.agentId) &&
+    isOptionalString(value.parentToolCallId)
+  )
+}
+
+// Contract envelope validator (replaces Ajv runtime compilation)
+//
+// Validates the envelope shell (v, seq, ts, stream, trace?, scope?) and that
+// `type` is one of the known event types with a non-null payload object.
+// Per-payload-variant validation is intentionally lightweight: the server
+// already performs strict schema validation; the client only needs enough
+// structural checking to safely dispatch inside the switch statement.
+
+const KNOWN_EVENT_TYPES: ReadonlySet<string> = new Set(Object.values(MothershipStreamV1EventType))
+
+function isValidEnvelopeShell(value: unknown): value is JsonRecord & {
+  v: 1
+  seq: number
+  ts: string
+  stream: MothershipStreamV1StreamRef
+  type: string
+  payload: JsonRecord
+} {
+  if (!isRecordLike(value)) return false
+  if (value.v !== 1) return false
+  if (typeof value.seq !== 'number' || !Number.isFinite(value.seq)) return false
+  if (typeof value.ts !== 'string') return false
+  if (!isStreamRef(value.stream)) return false
+  if (value.trace !== undefined && !isTrace(value.trace)) return false
+  if (value.scope !== undefined && !isStreamScope(value.scope)) return false
+  if (typeof value.type !== 'string' || !KNOWN_EVENT_TYPES.has(value.type)) return false
+  if (!isRecordLike(value.payload)) return false
+  return true
+}
+
+function isValidSessionPayload(payload: JsonRecord): boolean {
+  const kind = payload.kind
+  if (typeof kind !== 'string') return false
+  switch (kind) {
+    case MothershipStreamV1SessionKind.start:
+      return true
+    case MothershipStreamV1SessionKind.chat:
+      return typeof payload.chatId === 'string'
+    case MothershipStreamV1SessionKind.title:
+      return typeof payload.title === 'string'
+    case MothershipStreamV1SessionKind.trace:
+      return typeof payload.requestId === 'string'
+    default:
+      return false
+  }
+}
+
+function isValidTextPayload(payload: JsonRecord): boolean {
+  return (
+    (payload.channel === MothershipStreamV1TextChannel.assistant ||
+      payload.channel === MothershipStreamV1TextChannel.thinking) &&
+    typeof payload.text === 'string' &&
+    (payload.textOffset === undefined ||
+      (typeof payload.textOffset === 'number' &&
+        Number.isSafeInteger(payload.textOffset) &&
+        payload.textOffset >= 0))
+  )
+}
+
+function isValidToolPayload(payload: JsonRecord): boolean {
+  if (payload.replay !== undefined && payload.replay !== true) return false
+  if (typeof payload.toolCallId !== 'string') return false
+  if (typeof payload.toolName !== 'string') return false
+  const phase = payload.phase
+  return (
+    phase === MothershipStreamV1ToolPhase.call ||
+    phase === MothershipStreamV1ToolPhase.args_delta ||
+    phase === MothershipStreamV1ToolPhase.result
+  )
+}
+
+function isValidSpanPayload(payload: JsonRecord): boolean {
+  const kind = payload.kind
+  return (
+    kind === MothershipStreamV1SpanPayloadKind.subagent ||
+    kind === MothershipStreamV1SpanPayloadKind.structured_result ||
+    kind === MothershipStreamV1SpanPayloadKind.subagent_result
+  )
+}
+
+function isValidResourcePayload(payload: JsonRecord): boolean {
+  return ResourcePayload.safeParse(payload).success
+}
+
+/** Every run kind the generated contract names is valid here — a hand-kept list rejected
+ * `steering_applied` before steering shipped and `task_armed` the day background tasks
+ * did, and an unknown-but-contracted kind escalates to FatalSseEventError, killing the
+ * live turn. The contract is the list. */
+const CONTRACT_RUN_KINDS = new Set<string>(Object.values(MothershipStreamV1RunKind))
+
+function isValidActivityCheckpoint(payload: JsonRecord): boolean {
+  const receipt = payload.activityReceipt
+  return (
+    receipt === undefined ||
+    (isRecordLike(receipt) &&
+      typeof receipt.emitterId === 'string' &&
+      receipt.emitterId.length > 0 &&
+      receipt.emitterId.length <= 128 &&
+      typeof receipt.sequence === 'number' &&
+      Number.isSafeInteger(receipt.sequence) &&
+      receipt.sequence >= 0)
+  )
+}
+
+function isValidRunPayload(payload: JsonRecord): boolean {
+  return (
+    typeof payload.kind === 'string' &&
+    CONTRACT_RUN_KINDS.has(payload.kind) &&
+    isValidActivityCheckpoint(payload)
+  )
+}
+
+function isValidErrorPayload(payload: JsonRecord): boolean {
+  return typeof payload.message === 'string' || typeof payload.error === 'string'
+}
+
+function isValidCompletePayload(payload: JsonRecord): boolean {
+  return typeof payload.status === 'string' && isValidActivityCheckpoint(payload)
+}
+
+function isContractEnvelope(value: unknown): value is ContractEventEnvelope {
+  if (!isValidEnvelopeShell(value)) return false
+  const payload = value.payload as JsonRecord
+  switch (value.type) {
+    case MothershipStreamV1EventType.session:
+      return isValidSessionPayload(payload)
+    case MothershipStreamV1EventType.text:
+      return isValidTextPayload(payload)
+    case MothershipStreamV1EventType.tool:
+      return isValidToolPayload(payload)
+    case MothershipStreamV1EventType.span:
+      return isValidSpanPayload(payload)
+    case MothershipStreamV1EventType.resource:
+      return isValidResourcePayload(payload)
+    case MothershipStreamV1EventType.run:
+      return isValidRunPayload(payload)
+    case MothershipStreamV1EventType.error:
+      return isValidErrorPayload(payload)
+    case MothershipStreamV1EventType.complete:
+      return isValidCompletePayload(payload)
+    default:
+      return false
+  }
+}
+
+// Synthetic file-preview envelope validators
+
+function isSyntheticEnvelopeBase(value: unknown): value is Omit<
+  SyntheticFilePreviewEventEnvelope,
+  'payload'
+> & {
+  payload?: unknown
+} {
+  return (
+    isRecordLike(value) &&
+    value.v === 1 &&
+    value.type === 'tool' &&
+    typeof value.seq === 'number' &&
+    Number.isFinite(value.seq) &&
+    typeof value.ts === 'string' &&
+    isStreamRef(value.stream) &&
+    (value.trace === undefined || isTrace(value.trace)) &&
+    (value.scope === undefined || isStreamScope(value.scope))
+  )
+}
+
+function isSyntheticFilePreviewTarget(value: unknown): value is SyntheticFilePreviewTarget {
+  return (
+    isRecordLike(value) &&
+    (value.kind === 'new_file' || value.kind === 'file_id') &&
+    isOptionalString(value.fileId) &&
+    isOptionalString(value.fileName)
+  )
+}
+
+function isSyntheticFilePreviewPayload(value: unknown): value is SyntheticFilePreviewPayload {
+  if (!isRecordLike(value)) {
+    return false
+  }
+
+  if (typeof value.toolCallId !== 'string' || value.toolName !== 'prepare_file_edit') {
+    return false
+  }
+
+  switch (value.previewPhase) {
+    case FILE_PREVIEW_PHASE.start:
+      return true
+    case FILE_PREVIEW_PHASE.target:
+      return (
+        isSyntheticFilePreviewTarget(value.target) &&
+        isOptionalString(value.operation) &&
+        isOptionalString(value.title)
+      )
+    case FILE_PREVIEW_PHASE.editMeta:
+      return isRecordLike(value.edit)
+    case FILE_PREVIEW_PHASE.content:
+      return (
+        typeof value.content === 'string' &&
+        (value.contentMode === 'delta' || value.contentMode === 'snapshot') &&
+        typeof value.previewVersion === 'number' &&
+        Number.isFinite(value.previewVersion) &&
+        typeof value.fileName === 'string' &&
+        isOptionalString(value.fileId) &&
+        isOptionalString(value.targetKind) &&
+        isOptionalString(value.operation) &&
+        (value.edit === undefined || isRecordLike(value.edit))
+      )
+    case FILE_PREVIEW_PHASE.complete:
+      return isOptionalString(value.fileId) && isOptionalFiniteNumber(value.previewVersion)
+    default:
+      return false
+  }
+}
+
+export function isSyntheticFilePreviewEventEnvelope(
+  value: unknown
+): value is SyntheticFilePreviewEventEnvelope {
+  return isSyntheticEnvelopeBase(value) && isSyntheticFilePreviewPayload(value.payload)
+}
+
+// Stream event type guards
+
+/** The one terminal-status predicate — complete | error | cancelled. */
+export function isTerminalStreamStatus(
+  status: string | null | undefined
+): status is MothershipStreamV1CompletionStatus {
+  return (
+    status === MothershipStreamV1CompletionStatus.complete ||
+    status === MothershipStreamV1CompletionStatus.error ||
+    status === MothershipStreamV1CompletionStatus.cancelled
+  )
+}
+
+export function isToolCallStreamEvent(event: SessionStreamEvent): event is ToolCallStreamEvent {
+  return event.type === 'tool' && isRecordLike(event.payload) && event.payload.phase === 'call'
+}
+
+export function isToolArgsDeltaStreamEvent(
+  event: SessionStreamEvent
+): event is ToolArgsDeltaStreamEvent {
+  return (
+    event.type === 'tool' && isRecordLike(event.payload) && event.payload.phase === 'args_delta'
+  )
+}
+
+export function isToolResultStreamEvent(event: SessionStreamEvent): event is ToolResultStreamEvent {
+  return event.type === 'tool' && isRecordLike(event.payload) && event.payload.phase === 'result'
+}
+
+export function isSubagentSpanStreamEvent(
+  event: SessionStreamEvent
+): event is SubagentSpanStreamEvent {
+  return event.type === 'span' && isRecordLike(event.payload) && event.payload.kind === 'subagent'
+}
+
+// Public contract validators & parsers
+
+export function isContractStreamEventEnvelope(value: unknown): value is ContractEventEnvelope {
+  return isContractEnvelope(value)
+}
+
+export function parsePersistedStreamEventEnvelope(value: unknown): ParseStreamEventEnvelopeResult {
+  if (isContractEnvelope(value)) {
+    return { ok: true, event: value }
+  }
+
+  if (isSyntheticFilePreviewEventEnvelope(value)) {
+    return { ok: true, event: value }
+  }
+
+  const hints: string[] = []
+  if (!isRecordLike(value)) {
+    hints.push('value is not an object')
+  } else {
+    if (value.v !== 1) hints.push(`unexpected v=${JSON.stringify(value.v)}`)
+    if (typeof value.type !== 'string') hints.push('missing type')
+    else if (!KNOWN_EVENT_TYPES.has(value.type)) hints.push(`unknown type="${value.type}"`)
+    if (!isRecordLike(value.payload)) hints.push('missing or invalid payload')
+  }
+
+  return {
+    ok: false,
+    reason: 'invalid_stream_event',
+    message: 'A stream event failed validation.',
+    ...(hints.length > 0 ? { errors: hints } : {}),
+  }
+}
+
+export function parsePersistedStreamEventEnvelopeJson(raw: string): ParseStreamEventEnvelopeResult {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch (error) {
+    const rawMessage = getErrorMessage(error, 'Invalid JSON')
+    return {
+      ok: false,
+      reason: 'invalid_json',
+      message: 'Received invalid JSON while parsing a stream event.',
+      ...(rawMessage ? { errors: [rawMessage] } : {}),
+    }
+  }
+
+  return parsePersistedStreamEventEnvelope(parsed)
+}

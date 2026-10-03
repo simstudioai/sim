@@ -27,7 +27,7 @@ export const deleteZoneTool: ToolConfig<CloudflareDeleteZoneParams, CloudflareDe
     },
 
     request: {
-      url: (params) => `https://api.cloudflare.com/client/v4/zones/${params.zoneId}`,
+      url: (params) => `https://api.cloudflare.com/client/v4/zones/${params.zoneId.trim()}`,
       method: 'DELETE',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,

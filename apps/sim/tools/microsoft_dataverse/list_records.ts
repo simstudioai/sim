@@ -93,6 +93,12 @@ export const dataverseListRecordsTool: ToolConfig<
       return `${baseUrl}/api/data/v9.2/${params.entitySetName.trim()}${query}`
     },
     method: 'GET',
+    /**
+     * Dataverse endpoints redirect (file downloads issue a signed storage URL,
+     * and environment hosts redirect between regional origins), so drop the
+     * bearer token rather than forward it to whatever origin answers.
+     */
+    stripAuthOnRedirect: true,
     headers: (params) => {
       // Dataverse ignores $top entirely when Prefer: odata.maxpagesize is also sent, so the
       // page-size preference is only applied when the caller hasn't requested an explicit $top.

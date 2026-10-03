@@ -1,13 +1,17 @@
-import type { GetTravelProfileParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
+import type { GetTravelProfileParams, SapConcurResponse } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
+  baseSapConcurInput,
   buildListQuery,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  transformSapConcurResponse,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getTravelProfileTool: ToolConfig<GetTravelProfileParams, SapConcurProxyResponse> = {
+/**
+ * Travel Profile v2 serves this endpoint as XML only (Content-Type: application/xml, schema
+ * TravelUserProfile.xsd) — there is no JSON representation. The direct operation therefore surfaces
+ * the payload as a raw XML string in `data`, which downstream blocks are expected to parse.
+ */
+export const getTravelProfileTool: InternalToolConfig<GetTravelProfileParams, SapConcurResponse> = {
   id: 'sap_concur_get_travel_profile',
   name: 'SAP Concur Get Travel Profile',
   description:
@@ -69,166 +73,28 @@ export const getTravelProfileTool: ToolConfig<GetTravelProfileParams, SapConcurP
       description: 'Identifier value (login id, xml sync id, or UUID)',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const query = buildListQuery({
         userid_type: params.useridType,
         userid_value: params.useridValue,
       })
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: '/api/travelprofile/v2.0/profile',
         method: 'GET',
+        accept: 'application/xml',
         query: Object.keys(query).length > 0 ? query : undefined,
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {
-      type: 'json',
+      type: 'string',
       description:
-        'Travel profile payload. Concur returns XML; downstream may parse it to a best-effort JSON object with the documented top-level sections.',
-      properties: {
-        General: {
-          type: 'json',
-          description:
-            'General profile info (NamePrefix, FirstName, MiddleName, LastName, NameSuffix, JobTitle, CompanyEmployeeID, EmailAddress, RuleClass, TravelConfigID, etc.)',
-          optional: true,
-        },
-        Telephones: {
-          type: 'json',
-          description: 'Telephone numbers (Telephone[] with Type, CountryCode, PhoneNumber, etc.)',
-          optional: true,
-        },
-        Addresses: {
-          type: 'json',
-          description: 'Address records (Address[] with Type, Street, City, StateProvince, etc.)',
-          optional: true,
-        },
-        DriversLicenses: {
-          type: 'array',
-          description: 'Drivers license records',
-          optional: true,
-          items: { type: 'json' },
-        },
-        NationalIDs: {
-          type: 'array',
-          description: 'National ID records',
-          optional: true,
-          items: { type: 'json' },
-        },
-        EmailAddresses: {
-          type: 'json',
-          description: 'Email addresses (EmailAddress[] with Type, Address, Contact, Verified)',
-          optional: true,
-        },
-        EmergencyContact: {
-          type: 'json',
-          description: 'Emergency contact (Name, Relationship, Phones, Address)',
-          optional: true,
-        },
-        Air: {
-          type: 'json',
-          description: 'Air travel preferences (HomeAirport, Seat, Meal, AirOther, AirMemberships)',
-          optional: true,
-        },
-        Rail: {
-          type: 'json',
-          description: 'Rail preferences (Seat, Coach, Berth, Other, RailMemberships)',
-          optional: true,
-        },
-        Hotel: {
-          type: 'json',
-          description:
-            'Hotel preferences (SmokingCode, RoomType, HotelOther, HotelMemberships, Accessibility flags)',
-          optional: true,
-        },
-        Car: {
-          type: 'json',
-          description: 'Car rental preferences (CarSmokingCode, CarType, CarMemberships, etc.)',
-          optional: true,
-        },
-        CustomFields: {
-          type: 'json',
-          description: 'Custom-defined fields configured by the company',
-          optional: true,
-        },
-        RatePreferences: {
-          type: 'json',
-          description: 'Rate preferences (e.g. AAA, AARP, government, military rates)',
-          optional: true,
-        },
-        DiscountCodes: {
-          type: 'json',
-          description: 'Discount codes available to the traveler',
-          optional: true,
-        },
-        HasNoPassport: {
-          type: 'boolean',
-          description: 'Whether the traveler has no passport on file',
-          optional: true,
-        },
-        Roles: {
-          type: 'json',
-          description: 'Role assignments (TravelManager, Assistant, etc.)',
-          optional: true,
-        },
-        Sponsors: {
-          type: 'json',
-          description: 'Sponsor information for guest travelers',
-          optional: true,
-        },
-        TSAInfo: {
-          type: 'json',
-          description: 'TSA SecureFlight info (Gender, DateOfBirth, NoMiddleName, etc.)',
-          optional: true,
-        },
-        Passports: {
-          type: 'json',
-          description: 'Passport documents (Passport[] with PassportNumber, Country, Expiration)',
-          optional: true,
-        },
-        Visas: {
-          type: 'json',
-          description: 'Visa documents (Visa[] with VisaNationality, VisaNumber, etc.)',
-          optional: true,
-        },
-        UnusedTickets: {
-          type: 'json',
-          description: 'Unused ticket records',
-          optional: true,
-        },
-        SouthwestUnusedTickets: {
-          type: 'json',
-          description: 'Southwest-specific unused ticket records',
-          optional: true,
-        },
-        AdvantageMemberships: {
-          type: 'json',
-          description: 'Advantage program memberships',
-          optional: true,
-        },
-        XmlSyncId: {
-          type: 'string',
-          description: 'XML sync identifier for the user',
-          optional: true,
-        },
-        LoginId: {
-          type: 'string',
-          description: 'Concur login id',
-          optional: true,
-        },
-        ProfileLastModifiedUTC: {
-          type: 'string',
-          description: 'UTC timestamp the profile was last modified',
-          optional: true,
-        },
-      },
+        'Raw XML travel profile document returned by Concur (Travel Profile v2 emits application/xml only, per the TravelUserProfile.xsd schema, so this is a string and not a parsed object). The Profile root element contains General, EmergencyContact, Telephones, Addresses, NationalIDs, DriversLicenses, HasNoPassport, Passports, Visas, EmailAddresses, RatePreferences, DiscountCodes, Air, Rail, Car, Hotel, CustomFields, Roles, Sponsors, TSAInfo, UnusedTickets, SouthwestUnusedTickets, and AdvantageMemberships. LoginId is an attribute of the <ProfileResponse> element returned by create/update, not a child element; XmlProfileSyncID and ProfileLastModifiedUTC belong to the Travel Profile summaries (ProfileSummary) response, not to this document.',
     },
   },
 }

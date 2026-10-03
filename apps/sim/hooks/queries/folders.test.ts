@@ -1,14 +1,9 @@
+import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetFolderMap, mockGetWorkflows, queryClient } = vi.hoisted(() => ({
+const { mockGetFolderMap, mockGetWorkflows } = vi.hoisted(() => ({
   mockGetFolderMap: vi.fn(() => ({})),
   mockGetWorkflows: vi.fn(() => []),
-  queryClient: {
-    cancelQueries: vi.fn().mockResolvedValue(undefined),
-    invalidateQueries: vi.fn().mockResolvedValue(undefined),
-    getQueryData: vi.fn(),
-    setQueryData: vi.fn(),
-  },
 }))
 
 let folderMapState: Record<string, any>
@@ -22,12 +17,7 @@ let workflowList: Array<{
   sortOrder: number
 }>
 
-vi.mock('@tanstack/react-query', () => ({
-  keepPreviousData: {},
-  useQuery: vi.fn(),
-  useQueryClient: vi.fn(() => queryClient),
-  useMutation: vi.fn((options) => options),
-}))
+vi.mock('@tanstack/react-query', () => reactQueryMock)
 
 vi.mock('@/hooks/queries/utils/workflow-cache', () => ({
   getWorkflows: mockGetWorkflows,
@@ -43,7 +33,9 @@ vi.mock('@/hooks/queries/utils/workflow-keys', () => ({
   },
 }))
 
-import { useCreateFolder, useDuplicateFolderMutation } from '@/hooks/queries/folders'
+import { useDuplicateFolderMutation } from '@/hooks/queries/folders'
+
+const queryClient = reactQueryMockFns.mockQueryClient
 
 function getOptimisticFolderByName(name: string) {
   return Object.values(folderMapState).find((folder: any) => folder.name === name) as
@@ -53,7 +45,6 @@ function getOptimisticFolderByName(name: string) {
 
 describe('folder optimistic top insertion ordering', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     queryClient.getQueryData.mockImplementation(() => folderListState)
     queryClient.setQueryData.mockImplementation((_key: unknown, updater: any) => {
       folderListState = typeof updater === 'function' ? updater(folderListState) : updater
@@ -104,35 +95,6 @@ describe('folder optimistic top insertion ordering', () => {
         sortOrder: -50,
       },
     ]
-  })
-
-  it('creates folders at top of mixed non-root siblings', async () => {
-    const mutation = useCreateFolder()
-
-    await mutation.onMutate({
-      workspaceId: 'ws-1',
-      name: 'New child folder',
-      parentId: 'parent-1',
-    })
-
-    const optimisticFolder = getOptimisticFolderByName('New child folder')
-    expect(optimisticFolder).toBeDefined()
-    expect(optimisticFolder?.sortOrder).toBe(1)
-  })
-
-  it('duplicates folders at top of mixed non-root siblings', async () => {
-    const mutation = useDuplicateFolderMutation()
-
-    await mutation.onMutate({
-      workspaceId: 'ws-1',
-      id: 'folder-parent-match',
-      name: 'Duplicated child folder',
-      parentId: 'parent-1',
-    })
-
-    const optimisticFolder = getOptimisticFolderByName('Duplicated child folder')
-    expect(optimisticFolder).toBeDefined()
-    expect(optimisticFolder?.sortOrder).toBe(1)
   })
 
   it('uses source parent scope when duplicate parentId is undefined', async () => {

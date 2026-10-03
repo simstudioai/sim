@@ -1,5 +1,7 @@
 import { SlackIcon } from '@/components/icons'
+import { isSlackExtendedScopesEnabled } from '@/lib/core/config/env-flags'
 import { getScopesForService } from '@/lib/oauth/utils'
+import type { SubBlockConfig } from '@/blocks/types'
 import {
   SLACK_ALL_EVENT_OPTIONS,
   SLACK_SOURCE_OPTIONS,
@@ -17,10 +19,16 @@ const THREAD_FILTER_EVENTS = slackEventsSupportingFilter('threads')
 const EMOJI_FILTER_EVENTS = slackEventsSupportingFilter('emoji')
 const NAME_FILTER_EVENTS = slackEventsSupportingFilter('name')
 const INTERACTION_FILTER_EVENTS = slackEventsSupportingFilter('interaction')
+const COMMAND_FILTER_EVENTS = slackEventsSupportingFilter('command')
 // Bot/own toggles gate UI visibility only (the route applies them unconditionally),
 // so they are not catalog `filters`.
 const BOT_FILTER_EVENTS = ['message', 'app_mention']
 const OWN_MESSAGE_EVENTS = ['message', 'app_mention', 'reaction_added', 'reaction_removed']
+const STREAM_RESPONSE_EVENTS = ['message', 'app_mention', 'assistant_thread_started']
+const CUSTOM_BOT_REACTIVE_CONDITION = {
+  watchFields: ['customBotCredential'],
+  requiredType: 'service_account' as const,
+}
 
 /**
  * Unified Slack trigger. A single credential picker lists both the native Sim
@@ -32,17 +40,60 @@ const OWN_MESSAGE_EVENTS = ['message', 'app_mention', 'reaction_added', 'reactio
  * - Native Sim app: events route by Slack `team_id` on the official shared app
  *   (derived at deploy time via `auth.test`, no path or app setup). Only the
  *   events the shared app subscribes to are usable; the deploy path enforces
- *   that (`SIM_SUBSCRIBED_EVENTS`), so the event picker offers every event
- *   rather than mutating its option set with the selected credential.
+ *   that (`SIM_SUBSCRIBED_EVENTS`). Legacy Assistant event choices require a
+ *   native OAuth credential because custom apps use Agent View instead.
  *
- * The trigger is only reachable through the preview-gated `slack_v2` block, so
- * the native Sim-app mode inherits that gate — no separate env flag.
+ * Native Sim-app mode is a deployment capability controlled by the existing
+ * Slack extended-scopes env pair. Custom bots stay available independently.
  */
+export function getSlackTriggerCredentialSubBlock(extendedScopesEnabled: boolean): SubBlockConfig {
+  if (!extendedScopesEnabled) {
+    return {
+      id: 'customBotCredential',
+      title: 'Custom Bot',
+      type: 'oauth-input',
+      canonicalParamId: 'botCredential',
+      serviceId: 'slack',
+      credentialKind: 'service-account',
+      credentialLabels: {
+        serviceAccountGroup: 'Custom bots',
+        serviceAccountConnect: 'Set up a custom bot',
+      },
+      requiredScopes: getScopesForService('slack'),
+      placeholder: 'Select custom bot',
+      description: 'Choose a custom Slack bot you set up once and reuse across triggers.',
+      required: true,
+      mode: 'trigger',
+    }
+  }
+
+  return {
+    id: 'customBotCredential',
+    title: 'Slack Account',
+    type: 'oauth-input',
+    canonicalParamId: 'botCredential',
+    serviceId: 'slack',
+    credentialKind: 'any',
+    credentialLabels: {
+      oauthGroup: 'Sim app',
+      oauthConnect: 'Connect the Sim app',
+      serviceAccountGroup: 'Custom bots',
+      serviceAccountConnect: 'Set up a custom bot',
+    },
+    requiredScopes: getScopesForService('slack'),
+    placeholder: 'Select Slack account or bot',
+    description:
+      'Connect the native Sim Slack app, or choose a custom Slack bot you set up once and reuse across triggers and actions.',
+    required: true,
+    mode: 'trigger',
+  }
+}
+
 export const slackOAuthTrigger: TriggerConfig = {
   id: 'slack_oauth',
   name: 'Slack',
   provider: 'slack_app',
-  description: 'Trigger from Slack events (mentions, messages, reactions)',
+  description: 'Trigger from Slack events, interactions, and slash commands',
   version: '1.0.0',
   icon: SlackIcon,
 
@@ -58,26 +109,7 @@ export const slackOAuthTrigger: TriggerConfig = {
       required: true,
       mode: 'trigger',
     },
-    {
-      id: 'customBotCredential',
-      title: 'Slack Account',
-      type: 'oauth-input',
-      canonicalParamId: 'botCredential',
-      serviceId: 'slack',
-      credentialKind: 'any',
-      credentialLabels: {
-        oauthGroup: 'Sim app',
-        oauthConnect: 'Connect the Sim app',
-        serviceAccountGroup: 'Custom bots',
-        serviceAccountConnect: 'Set up a custom bot',
-      },
-      requiredScopes: getScopesForService('slack'),
-      placeholder: 'Select Slack account or bot',
-      description:
-        'Connect the native Sim Slack app, or choose a custom Slack bot you set up once and reuse across triggers and actions.',
-      required: true,
-      mode: 'trigger',
-    },
+    getSlackTriggerCredentialSubBlock(isSlackExtendedScopesEnabled),
     {
       id: 'manualBotCredential',
       title: 'Bot Credential ID',
@@ -141,6 +173,103 @@ export const slackOAuthTrigger: TriggerConfig = {
       condition: { field: 'eventType', value: THREAD_FILTER_EVENTS },
     },
     {
+      id: 'streamResponse',
+      title: 'Enable agent session',
+      type: 'switch',
+      defaultValue: false,
+      description:
+        'Create a Slack agent session and stream selected workflow outputs into the conversation that started this run. Custom bots only.',
+      required: false,
+      mode: 'trigger',
+      condition: { field: 'eventType', value: STREAM_RESPONSE_EVENTS },
+      reactiveCondition: CUSTOM_BOT_REACTIVE_CONDITION,
+    },
+    {
+      id: 'streamOutputs',
+      title: 'Outputs to stream',
+      type: 'workflow-output-selector',
+      placeholder: 'Select workflow outputs',
+      description:
+        'Use `<blockName>.<outputPath>` for this workflow or `<childWorkflowId>.<blockName>.<outputPath>` for a child workflow. Selecting a child workflow applies to every invocation of it. Agent outputs stream live; other outputs are sent when the block completes.',
+      required: {
+        field: 'streamResponse',
+        value: true,
+        and: { field: 'eventType', value: STREAM_RESPONSE_EVENTS },
+      },
+      mode: 'trigger',
+      condition: {
+        field: 'streamResponse',
+        value: true,
+        and: { field: 'eventType', value: STREAM_RESPONSE_EVENTS },
+      },
+      reactiveCondition: CUSTOM_BOT_REACTIVE_CONDITION,
+    },
+    {
+      id: 'streamTaskTitle',
+      title: 'Response status label',
+      type: 'short-input',
+      placeholder: 'Running (default)',
+      description:
+        'Optional status Slack shows while each selected response is being produced. Leave empty to use Running.',
+      required: false,
+      mode: 'trigger',
+      condition: {
+        field: 'streamResponse',
+        value: true,
+        and: { field: 'eventType', value: STREAM_RESPONSE_EVENTS },
+      },
+      reactiveCondition: CUSTOM_BOT_REACTIVE_CONDITION,
+    },
+    {
+      id: 'streamTaskDisplayMode',
+      title: 'Task display',
+      type: 'dropdown',
+      options: [
+        { label: 'Timeline', id: 'timeline' },
+        { label: 'Plan', id: 'plan' },
+      ],
+      value: () => 'timeline',
+      description: 'Choose how Slack displays thinking and tool progress.',
+      required: false,
+      mode: 'trigger',
+      condition: {
+        field: 'streamResponse',
+        value: true,
+        and: { field: 'eventType', value: STREAM_RESPONSE_EVENTS },
+      },
+      reactiveCondition: CUSTOM_BOT_REACTIVE_CONDITION,
+    },
+    {
+      id: 'streamIncludeThinking',
+      title: 'Include thinking updates',
+      type: 'switch',
+      defaultValue: false,
+      description: 'Show agent thinking as Slack task updates while the response is generated.',
+      required: false,
+      mode: 'trigger',
+      condition: {
+        field: 'streamResponse',
+        value: true,
+        and: { field: 'eventType', value: STREAM_RESPONSE_EVENTS },
+      },
+      reactiveCondition: CUSTOM_BOT_REACTIVE_CONDITION,
+    },
+    {
+      id: 'streamIncludeToolCalls',
+      title: 'Include tool calls',
+      type: 'switch',
+      defaultValue: true,
+      description: 'Show Agent and Sim Chat tool execution progress as Slack task updates.',
+      required: false,
+      mode: 'trigger',
+      condition: {
+        field: 'streamResponse',
+        value: true,
+        and: { field: 'eventType', value: STREAM_RESPONSE_EVENTS },
+      },
+      reactiveCondition: CUSTOM_BOT_REACTIVE_CONDITION,
+    },
+    {
       id: 'emoji',
       title: 'Emoji',
       type: 'short-input',
@@ -170,6 +299,17 @@ export const slackOAuthTrigger: TriggerConfig = {
       required: false,
       mode: 'trigger',
       condition: { field: 'eventType', value: INTERACTION_FILTER_EVENTS },
+    },
+    {
+      id: 'commandFilter',
+      title: 'Command',
+      type: 'short-input',
+      placeholder: '/ask-sim',
+      description:
+        'Restrict this trigger to one slash command. Leave empty to fire for every command configured on the bot.',
+      required: false,
+      mode: 'trigger',
+      condition: { field: 'eventType', value: COMMAND_FILTER_EVENTS },
     },
     {
       id: 'filterBotMessages',

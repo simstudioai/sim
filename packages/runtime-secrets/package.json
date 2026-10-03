@@ -6,7 +6,7 @@
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
-    "bun": ">=1.2.13",
+    "bun": ">=1.4.2",
     "node": ">=20.0.0"
   },
   "exports": {
@@ -25,7 +25,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@aws-sdk/client-secrets-manager": "3.1032.0",
+    "@aws-sdk/client-secrets-manager": "3.1117.0",
     "@sim/logger": "workspace:*",
     "@sim/utils": "workspace:*"
   },
@@ -33,6 +33,6 @@
     "@sim/tsconfig": "workspace:*",
     "@types/node": "24.2.1",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.0"
+    "vitest": "^5.0.1"
   }
 }

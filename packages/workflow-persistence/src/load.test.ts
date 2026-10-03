@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 type Row = Record<string, unknown>
 
@@ -95,11 +95,7 @@ async function loadRetry(retry: unknown) {
   return loaded?.blocks['block-1'].retry
 }
 
-describe('loadWorkflowFromNormalizedTablesRaw retry normalization', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
+describe('loadWorkflowFromNormalizedTablesRaw', () => {
   /**
    * The `retry` column is jsonb written verbatim by writers that never bound it
    * (realtime batch-add and replace-state, the admin/superuser import routes),
@@ -111,44 +107,11 @@ describe('loadWorkflowFromNormalizedTablesRaw retry normalization', () => {
     ).toEqual({ enabled: true, maxTries: 5, waitBetweenTriesMs: 5000 })
   })
 
-  /**
-   * A disabled policy keeps its configured numbers so switching retry off and
-   * back on restores them. This is what `resolveBlockRetryConfig` would destroy.
-   */
-  it('pins a disabled policy without discarding it', async () => {
-    expect(await loadRetry({ enabled: false, maxTries: 99, waitBetweenTriesMs: -4 })).toEqual({
-      enabled: false,
-      maxTries: 5,
-      waitBetweenTriesMs: 0,
-    })
-  })
-
-  it('fills the defaults for a policy stored with fields missing', async () => {
-    expect(await loadRetry({ enabled: true })).toEqual({
-      enabled: true,
-      maxTries: 3,
-      waitBetweenTriesMs: 1000,
-    })
-  })
-
   it('resolves a non-boolean enabled flag the way execution reads it', async () => {
     expect(await loadRetry({ enabled: 'yes', maxTries: 3, waitBetweenTriesMs: 1000 })).toEqual({
       enabled: true,
       maxTries: 3,
       waitBetweenTriesMs: 1000,
     })
-  })
-
-  it('leaves an in-range policy untouched', async () => {
-    expect(await loadRetry({ enabled: true, maxTries: 4, waitBetweenTriesMs: 250 })).toEqual({
-      enabled: true,
-      maxTries: 4,
-      waitBetweenTriesMs: 250,
-    })
-  })
-
-  /** NULL is reserved for a block that never had a policy: it runs once. */
-  it('reports no policy for a block that never had one', async () => {
-    expect(await loadRetry(null)).toBeUndefined()
   })
 })

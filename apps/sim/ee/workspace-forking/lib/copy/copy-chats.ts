@@ -1,10 +1,11 @@
 import { chat } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { randomInt } from '@sim/utils/random'
+import { slugify } from '@sim/utils/string'
 import { and, inArray, isNull } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
-import { isRecord } from '@/lib/workflows/persistence/remap-internal-ids'
 
 const logger = createLogger('WorkspaceForkCopyChats')
 
@@ -18,14 +19,14 @@ export interface ForkChatCopyPair {
   workflowName: string
 }
 
-/** Lowercase a display name into the chat identifier charset (`[a-z0-9-]`), bounded. */
+/**
+ * Lowercase a display name into the chat identifier charset (`[a-z0-9-]`), bounded.
+ *
+ * The trailing strip runs again after the bound: truncation can land mid-run and
+ * leave a hyphen the pre-truncation strip never saw.
+ */
 function slugifyForIdentifier(value: string): string {
-  const slug = value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 24)
-    .replace(/-+$/g, '')
+  const slug = slugify(value).slice(0, 24).replace(/-+$/g, '')
   return slug || 'chat'
 }
 
@@ -47,7 +48,7 @@ function remapChatOutputConfigs(
 ): unknown {
   if (!Array.isArray(value)) return value
   return value.map((entry) => {
-    if (!isRecord(entry) || typeof entry.blockId !== 'string') return entry
+    if (!isRecordLike(entry) || typeof entry.blockId !== 'string') return entry
     return { ...entry, blockId: resolveBlockId(targetWorkflowId, entry.blockId) }
   })
 }

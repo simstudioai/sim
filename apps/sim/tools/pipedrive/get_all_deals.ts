@@ -21,6 +21,11 @@ export const pipedriveGetAllDealsTool: ToolConfig<
   description: 'Retrieve all deals from Pipedrive with optional filters',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'pipedrive',
+  },
+
   params: {
     accessToken: {
       type: 'string',
@@ -104,7 +109,7 @@ export const pipedriveGetAllDealsTool: ToolConfig<
     headers: (params) => getPipedriveAuthHeaders(params),
   },
 
-  transformResponse: async (response: Response, params?: PipedriveGetAllDealsParams) => {
+  transformResponse: async (response: Response) => {
     const data = await response.json()
 
     if (!data.success) {

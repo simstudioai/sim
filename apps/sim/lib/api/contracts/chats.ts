@@ -1,5 +1,7 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { formatInternalOutputSelector } from '@/lib/workflows/streaming/output-selector'
 
 export const chatAuthTypeSchema = z.enum(['public', 'password', 'email', 'sso'])
 export type ChatAuthType = z.output<typeof chatAuthTypeSchema>
@@ -10,6 +12,7 @@ export type ChatAuthType = z.output<typeof chatAuthTypeSchema>
  * would lock every visitor out of the deployment permanently.
  */
 const MAX_CHAT_PASSWORD_CHARS = 1024
+const MIN_CHAT_PASSWORD_CHARS = 15
 
 /**
  * Password accepted when setting or changing a chat deployment's password. The
@@ -24,6 +27,10 @@ export const chatDeploymentPasswordSchema = z
     (password) => password.length === 0 || password.trim().length > 0,
     'Password cannot contain only whitespace'
   )
+  .refine(
+    (password) => password.length === 0 || password.length >= MIN_CHAT_PASSWORD_CHARS,
+    `Password must be at least ${MIN_CHAT_PASSWORD_CHARS} characters`
+  )
 
 export const chatIdParamsSchema = z.object({
   id: z.string().min(1),
@@ -33,12 +40,22 @@ export const chatIdentifierParamsSchema = z.object({
   identifier: z.string().min(1),
 })
 
-export const chatOutputConfigSchema = z.object({
-  blockId: z.string().min(1),
-  path: z.string().min(1),
-})
+export const chatOutputConfigSchema = z
+  .object({
+    workflowId: z.string().min(1).optional(),
+    blockId: z.string().min(1),
+    path: z.string().min(1),
+  })
+  .superRefine((config, ctx) => {
+    try {
+      formatInternalOutputSelector(config.blockId, config.path, config.workflowId)
+    } catch (error) {
+      ctx.addIssue({ code: 'custom', message: getErrorMessage(error, 'Invalid output config') })
+    }
+  })
 
 export const deployedChatOutputConfigSchema = z.object({
+  workflowId: z.string().optional(),
   blockId: z.string(),
   path: z.string().optional(),
 })

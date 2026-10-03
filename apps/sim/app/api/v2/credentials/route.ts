@@ -1,39 +1,26 @@
-import type { V2Credential } from '@/lib/api/contracts/v2/credentials'
-import { v2ListCredentialsContract } from '@/lib/api/contracts/v2/credentials'
+import {
+  v2CreateServiceAccountCredentialContract,
+  v2ListCredentialsContract,
+} from '@/lib/api/contracts/v2/credentials'
 import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import {
+  createV2ResourceConcealmentPolicy,
   defineV2JsonRoute,
   v2ApiKeyAuth,
-  v2OrchestrationErrorPolicy,
   v2RateLimits,
 } from '@/lib/api/server/routes'
 import { listWorkspaceCredentials } from '@/lib/credentials/application/list-workspace-credentials'
 import { credentialOperations } from '@/lib/credentials/application/operations'
-import type { VisibleWorkspaceCredential } from '@/lib/credentials/queries'
+import { toV2Credential } from '@/lib/credentials/application/presentation'
+import { createServiceAccountCredentialUseCase } from '@/lib/credentials/application/service-account'
 import { readSortedCursor, writeSortedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-/** Serialize connection metadata field by field so encrypted columns can never reach the wire. */
-function toV2Credential(row: VisibleWorkspaceCredential): V2Credential {
-  if (row.type !== 'oauth' && row.type !== 'service_account') {
-    throw new Error(`Secret credential type ${row.type} reached the credentials API`)
-  }
-
-  return {
-    id: row.id,
-    type: row.type,
-    displayName: row.displayName,
-    description: row.description,
-    providerId: row.providerId,
-    accountId: row.accountId,
-    hasServiceAccountKey: row.hasServiceAccountKey,
-    role: row.role,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  }
-}
+const credentialWorkspaceErrorPolicy = createV2ResourceConcealmentPolicy({
+  notFoundMessage: 'Workspace not found',
+})
 
 /** Every param that changes which credentials, in which order, this list returns. */
 function credentialCursorFilters(query: {
@@ -56,7 +43,7 @@ export const GET = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: credentialOperations.listConnections,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2OrchestrationErrorPolicy,
+  errorPolicy: credentialWorkspaceErrorPolicy,
   mapInput: ({ query }) => ({
     ...query,
     cursorKeys: readSortedCursor(
@@ -76,4 +63,26 @@ export const GET = defineV2JsonRoute({
       credentialCursorFilters(query)
     ),
   }),
+})
+
+/** POST /api/v2/credentials — Create and verify a service-account credential. */
+export const POST = defineV2JsonRoute({
+  contract: v2CreateServiceAccountCredentialContract,
+  auth: v2ApiKeyAuth,
+  operation: credentialOperations.createServiceAccount,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: credentialWorkspaceErrorPolicy,
+  mapInput: ({ body }) => ({
+    workspaceId: body.workspaceId,
+    providerId: body.providerId,
+    displayName: body.displayName,
+    description: body.description,
+    id: body.id,
+    ...body.credentials,
+  }),
+  useCase: createServiceAccountCredentialUseCase,
+  present: ({ credential, hasServiceAccountKey, role }) => ({
+    data: toV2Credential({ ...credential, hasServiceAccountKey, role }),
+  }),
+  statusForResult: ({ created }) => (created ? 201 : 200),
 })

@@ -2,9 +2,9 @@ import type {
   ClickHouseMessageResponse,
   ClickHouseTruncateTableParams,
 } from '@/tools/clickhouse/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const truncateTableTool: ToolConfig<
+export const truncateTableTool: InternalToolConfig<
   ClickHouseTruncateTableParams,
   ClickHouseMessageResponse
 > = {
@@ -58,13 +58,8 @@ export const truncateTableTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/clickhouse/truncate-table',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port),
       database: params.database,

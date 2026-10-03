@@ -1,7 +1,7 @@
 import type { IAMGetUserParams, IAMGetUserResponse } from '@/tools/iam/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const getUserTool: ToolConfig<IAMGetUserParams, IAMGetUserResponse> = {
+export const getUserTool: InternalToolConfig<IAMGetUserParams, IAMGetUserResponse> = {
   id: 'iam_get_user',
   name: 'IAM Get User',
   description: 'Get detailed information about an IAM user',
@@ -34,11 +34,8 @@ export const getUserTool: ToolConfig<IAMGetUserParams, IAMGetUserResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/iam/get-user',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

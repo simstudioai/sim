@@ -1,7 +1,7 @@
 import type { JsmCreateOrganizationParams, JsmCreateOrganizationResponse } from '@/tools/jsm/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const jsmCreateOrganizationTool: ToolConfig<
+export const jsmCreateOrganizationTool: InternalToolConfig<
   JsmCreateOrganizationParams,
   JsmCreateOrganizationResponse
 > = {
@@ -42,13 +42,8 @@ export const jsmCreateOrganizationTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/jsm/organization',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       domain: params.domain,
       accessToken: params.accessToken,
       cloudId: params.cloudId,

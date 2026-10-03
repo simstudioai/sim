@@ -1,7 +1,7 @@
 import type { SESSendTemplatedEmailParams, SESSendTemplatedEmailResponse } from '@/tools/ses/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const sendTemplatedEmailTool: ToolConfig<
+export const sendTemplatedEmailTool: InternalToolConfig<
   SESSendTemplatedEmailParams,
   SESSendTemplatedEmailResponse
 > = {
@@ -73,11 +73,8 @@ export const sendTemplatedEmailTool: ToolConfig<
     },
   },
 
-  request: {
-    url: '/api/tools/ses/send-templated-email',
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       region: params.region,
       accessKeyId: params.accessKeyId,
       secretAccessKey: params.secretAccessKey,

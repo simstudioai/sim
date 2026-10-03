@@ -1,13 +1,9 @@
 import type { NetSuiteGetAsyncStatusParams, NetSuiteResponse } from '@/tools/netsuite/types'
-import {
-  encodePathSegment,
-  executeNetSuiteRequest,
-  netsuiteAuthParamFields,
-  requiredTrim,
-} from '@/tools/netsuite/utils'
-import type { ToolConfig } from '@/tools/types'
+import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
+import { createInternalToolOperationInput } from '@/tools/operation-input'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const netsuiteGetAsyncStatusTool: ToolConfig<
+export const netsuiteGetAsyncStatusTool: InternalToolConfig<
   NetSuiteGetAsyncStatusParams,
   NetSuiteResponse
 > = {
@@ -37,39 +33,9 @@ export const netsuiteGetAsyncStatusTool: ToolConfig<
       description: 'Task ID; required when view is task',
     },
   },
-  request: { url: () => '', method: 'POST', headers: () => ({}) },
-  directExecution: (params, signal) =>
-    executeNetSuiteRequest(
-      params,
-      () => {
-        const view = params.view ?? 'job'
-        if (view !== 'job' && view !== 'tasks' && view !== 'task') {
-          throw new Error('Async status view must be job, tasks, or task')
-        }
-        const jobPath = `/services/rest/async/v1/job/${encodePathSegment(params.jobId, 'Job ID')}`
-        if (view === 'job') {
-          return {
-            method: 'GET',
-            path: jobPath,
-            success: { status: 200, body: 'object', validator: 'async-job' },
-          }
-        }
-        const taskPath =
-          view === 'task'
-            ? `/${encodePathSegment(requiredTrim(params.taskId ?? '', 'Task ID'), 'Task ID')}`
-            : ''
-        return {
-          method: 'GET',
-          path: `${jobPath}/task${taskPath}`,
-          success: {
-            status: 200,
-            body: 'object',
-            validator: view === 'task' ? 'async-task' : 'async-task-collection',
-          },
-        }
-      },
-      signal
-    ),
+  operation: {
+    input: createInternalToolOperationInput,
+  },
   outputs: {
     status: { type: 'number', description: 'HTTP status returned by NetSuite' },
     data: {

@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { StructuredFilter } from '@/lib/knowledge/types'
 
 /**
@@ -6,18 +7,6 @@ import type { StructuredFilter } from '@/lib/knowledge/types'
 export interface DocumentTagEntry {
   tagName: string
   value: string
-}
-
-/**
- * Tag filter entry format used in search tool.
- */
-interface TagFilterEntry {
-  tagName: string
-  tagSlot?: string
-  tagValue: string | number | boolean
-  fieldType?: string
-  operator?: string
-  valueTo?: string | number
 }
 
 /**
@@ -85,7 +74,7 @@ function filterValidDocumentTags(tags: unknown[]): DocumentTagEntry[] {
 export function parseDocumentTags(value: unknown): DocumentTagEntry[] {
   if (!value) return []
 
-  if (typeof value === 'object' && !Array.isArray(value) && value !== null) {
+  if (isRecordLike(value)) {
     return Object.entries(value)
       .filter(([tagName, tagValue]) => {
         if (!tagName || tagName.trim() === '') return false

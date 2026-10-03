@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentType, useEffect, useState } from 'react'
+import { type ComponentType, useState } from 'react'
 import {
   ChipModal,
   ChipModalBody,
@@ -13,7 +13,12 @@ import {
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isApiClientError } from '@/lib/api/client/errors'
-import { serviceAccountJsonSchema } from '@/lib/api/contracts/credentials'
+import { type AtlassianProduct, serviceAccountJsonSchema } from '@/lib/api/contracts/credentials'
+import {
+  resourceScopeFields,
+  resourceScopeFromOwner,
+  resourceScopeKey,
+} from '@/lib/core/resource-scope'
 import {
   type ClientCredentialAccountProviderId,
   getClientCredentialAccountDescriptor,
@@ -25,19 +30,19 @@ import {
 import { getServiceAccountCoverageSentence } from '@/lib/integrations/credential-display'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+  GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 import { ClientCredentialAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/client-credential-account-modal'
 import { TokenServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/token-service-account-modal'
 import { ConnectSlackBotModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-slack-bot-modal/connect-slack-bot-modal'
+import { withBrandIcon } from '@/blocks/brand-icon'
 import {
-  useCreateWorkspaceCredential,
-  useUpdateWorkspaceCredential,
-} from '@/hooks/queries/credentials'
+  useCreateScopedCredential,
+  useUpdateScopedCredential,
+} from '@/hooks/queries/scoped-credentials'
 
 const logger = createLogger('ConnectServiceAccountModal')
-
-const GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID = 'google-service-account' as const
 
 export type ServiceAccountProviderId =
   | typeof GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID
@@ -106,8 +111,11 @@ function messageForAtlassianError(err: unknown): string {
 interface ConnectServiceAccountModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   serviceAccountProviderId: ServiceAccountProviderId
+  atlassianProduct?: AtlassianProduct
+  atlassianSetupGuideUrl?: string
   serviceName: string
   serviceIcon: ComponentType<{ className?: string }>
   /**
@@ -127,7 +135,7 @@ interface ConnectServiceAccountModalProps {
 /**
  * Connect-service-account modal mounted from the per-integration detail page.
  * Self-contained: takes the resolved SA provider + service metadata from the
- * caller and submits via `useCreateWorkspaceCredential`. Branches the body
+ * caller and submits via `useCreateScopedCredential`. Branches the body
  * based on `serviceAccountProviderId`:
  *
  * - `google-service-account`: JSON-paste + drag/drop. Validated client-side
@@ -140,7 +148,10 @@ export function ConnectServiceAccountModal({
   open,
   onOpenChange,
   workspaceId,
+  organizationId,
   serviceAccountProviderId,
+  atlassianProduct,
+  atlassianSetupGuideUrl,
   serviceName,
   serviceIcon,
   credentialId,
@@ -155,6 +166,7 @@ export function ConnectServiceAccountModal({
         open={open}
         onOpenChange={onOpenChange}
         workspaceId={workspaceId}
+        organizationId={organizationId}
         descriptor={clientCredentialDescriptor}
         serviceName={serviceName}
         serviceIcon={serviceIcon}
@@ -172,6 +184,7 @@ export function ConnectServiceAccountModal({
         open={open}
         onOpenChange={onOpenChange}
         workspaceId={workspaceId}
+        organizationId={organizationId}
         descriptor={tokenDescriptor}
         serviceName={serviceName}
         serviceIcon={serviceIcon}
@@ -188,6 +201,7 @@ export function ConnectServiceAccountModal({
         open={open}
         onOpenChange={onOpenChange}
         workspaceId={workspaceId}
+        organizationId={organizationId}
         credentialId={credentialId}
         initialDisplayName={credentialDisplayName}
         initialDescription={credentialDescription}
@@ -198,9 +212,12 @@ export function ConnectServiceAccountModal({
   if (serviceAccountProviderId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID) {
     return (
       <AtlassianServiceAccountModal
+        atlassianProduct={atlassianProduct}
+        setupGuideUrl={atlassianSetupGuideUrl}
         open={open}
         onOpenChange={onOpenChange}
         workspaceId={workspaceId}
+        organizationId={organizationId}
         serviceName={serviceName}
         serviceIcon={serviceIcon}
         credentialId={credentialId}
@@ -215,6 +232,7 @@ export function ConnectServiceAccountModal({
       open={open}
       onOpenChange={onOpenChange}
       workspaceId={workspaceId}
+      organizationId={organizationId}
       serviceName={serviceName}
       serviceIcon={serviceIcon}
       credentialId={credentialId}
@@ -228,7 +246,8 @@ export function ConnectServiceAccountModal({
 interface ProviderModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  workspaceId: string
+  workspaceId?: string
+  organizationId?: string
   serviceName: string
   serviceIcon: ComponentType<{ className?: string }>
   /** When set, reconnect (rotate secrets on) this credential in place. */
@@ -245,10 +264,21 @@ interface ProviderModalProps {
  * and validates against the shared `serviceAccountJsonSchema` so the same
  * shape errors render here as in the server route.
  */
-function GoogleServiceAccountModal({
+function GoogleServiceAccountModal(props: ProviderModalProps) {
+  if (!props.open) return null
+  return (
+    <GoogleServiceAccountModalForm
+      key={`${resourceScopeKey(resourceScopeFromOwner(props))}:${props.credentialId ?? 'new'}`}
+      {...props}
+    />
+  )
+}
+
+function GoogleServiceAccountModalForm({
   open,
   onOpenChange,
   workspaceId,
+  organizationId,
   serviceName,
   serviceIcon: ServiceIcon,
   credentialId,
@@ -262,17 +292,8 @@ function GoogleServiceAccountModal({
   const [description, setDescription] = useState(initialDescription ?? '')
   const [error, setError] = useState<string | null>(null)
 
-  const createCredential = useCreateWorkspaceCredential()
-  const updateCredential = useUpdateWorkspaceCredential()
-
-  useEffect(() => {
-    if (open) return
-    setJsonInput('')
-    setUploadedFileName(null)
-    setDisplayName(initialDisplayName ?? '')
-    setDescription(initialDescription ?? '')
-    setError(null)
-  }, [open, initialDisplayName, initialDescription])
+  const createCredential = useCreateScopedCredential()
+  const updateCredential = useUpdateScopedCredential()
 
   /**
    * Try to auto-populate display name from the JSON `client_email`. Silent on
@@ -327,6 +348,7 @@ function GoogleServiceAccountModal({
       let connectedCredentialId = credentialId
       if (credentialId) {
         await updateCredential.mutateAsync({
+          ...resourceScopeFields(resourceScopeFromOwner({ workspaceId, organizationId })),
           credentialId,
           serviceAccountJson: trimmed,
           displayName: displayName.trim() || undefined,
@@ -334,8 +356,9 @@ function GoogleServiceAccountModal({
         })
       } else {
         const created = await createCredential.mutateAsync({
-          workspaceId,
+          ...resourceScopeFields(resourceScopeFromOwner({ workspaceId, organizationId })),
           type: 'service_account',
+          providerId: GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
           displayName: displayName.trim() || undefined,
           description: description.trim() || undefined,
           serviceAccountJson: trimmed,
@@ -360,7 +383,7 @@ function GoogleServiceAccountModal({
       onOpenChange={onOpenChange}
       srTitle={`Add ${serviceName} service account`}
     >
-      <ChipModalHeader icon={ServiceIcon} onClose={() => onOpenChange(false)}>
+      <ChipModalHeader icon={withBrandIcon(ServiceIcon)} onClose={() => onOpenChange(false)}>
         Add {serviceName} service account
       </ChipModalHeader>
       <ChipModalBody>
@@ -430,40 +453,49 @@ function GoogleServiceAccountModal({
   )
 }
 
+interface AtlassianServiceAccountModalProps extends ProviderModalProps {
+  atlassianProduct?: AtlassianProduct
+  setupGuideUrl?: string
+}
+
 /**
  * Atlassian service-account flow. Accepts an API token + site domain and
  * validates server-side against the Atlassian API. Maps the route's
  * `error.code` to descriptive copy so users know whether the token, domain,
  * or upstream availability is at fault.
  */
-function AtlassianServiceAccountModal({
+function AtlassianServiceAccountModal(props: AtlassianServiceAccountModalProps) {
+  if (!props.open) return null
+  return (
+    <AtlassianServiceAccountModalForm
+      key={`${resourceScopeKey(resourceScopeFromOwner(props))}:${props.credentialId ?? 'new'}`}
+      {...props}
+    />
+  )
+}
+
+function AtlassianServiceAccountModalForm({
+  atlassianProduct,
+  setupGuideUrl = ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL,
   open,
   onOpenChange,
   workspaceId,
+  organizationId,
   serviceName,
   serviceIcon: ServiceIcon,
   credentialId,
   initialDisplayName,
   initialDescription,
   onCreated,
-}: ProviderModalProps) {
+}: AtlassianServiceAccountModalProps) {
   const [apiToken, setApiToken] = useState('')
   const [domain, setDomain] = useState('')
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
   const [description, setDescription] = useState(initialDescription ?? '')
   const [error, setError] = useState<string | null>(null)
 
-  const createCredential = useCreateWorkspaceCredential()
-  const updateCredential = useUpdateWorkspaceCredential()
-
-  useEffect(() => {
-    if (open) return
-    setApiToken('')
-    setDomain('')
-    setDisplayName(initialDisplayName ?? '')
-    setDescription(initialDescription ?? '')
-    setError(null)
-  }, [open, initialDisplayName, initialDescription])
+  const createCredential = useCreateScopedCredential()
+  const updateCredential = useUpdateScopedCredential()
 
   const trimmedToken = apiToken.trim()
   const normalizedDomain = normalizeAtlassianDomain(domain)
@@ -480,19 +512,22 @@ function AtlassianServiceAccountModal({
       let connectedCredentialId = credentialId
       if (credentialId) {
         await updateCredential.mutateAsync({
+          ...resourceScopeFields(resourceScopeFromOwner({ workspaceId, organizationId })),
           credentialId,
           apiToken: trimmedToken,
           domain: normalizedDomain,
+
           displayName: displayName.trim() || undefined,
           description: description.trim() || undefined,
         })
       } else {
         const created = await createCredential.mutateAsync({
-          workspaceId,
+          ...resourceScopeFields(resourceScopeFromOwner({ workspaceId, organizationId })),
           type: 'service_account',
           providerId: ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
           apiToken: trimmedToken,
           domain: normalizedDomain,
+          atlassianProduct,
           displayName: displayName.trim() || undefined,
           description: description.trim() || undefined,
         })
@@ -512,11 +547,20 @@ function AtlassianServiceAccountModal({
       onOpenChange={onOpenChange}
       srTitle={`Add ${serviceName} service account`}
     >
-      <ChipModalHeader icon={ServiceIcon} onClose={() => onOpenChange(false)}>
+      <ChipModalHeader icon={withBrandIcon(ServiceIcon)} onClose={() => onOpenChange(false)}>
         Add {serviceName} service account
       </ChipModalHeader>
       <ChipModalBody>
-        <ChipModalField type='custom' title='API token' required hint={ATLASSIAN_COVERAGE_HINT}>
+        <ChipModalField
+          type='custom'
+          title='API token'
+          required
+          hint={
+            atlassianProduct === 'confluence'
+              ? 'Use a service-account token with Confluence access. Required scopes are listed in the setup guide.'
+              : ATLASSIAN_COVERAGE_HINT
+          }
+        >
           {(aria) => (
             <SecretInput
               {...aria}
@@ -580,7 +624,7 @@ function AtlassianServiceAccountModal({
         secondaryActions={[
           {
             label: 'Setup guide',
-            onClick: () => openDocs(ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL),
+            onClick: () => openDocs(setupGuideUrl),
           },
         ]}
         primaryAction={{

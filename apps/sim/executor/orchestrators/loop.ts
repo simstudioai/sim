@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { executeInIsolatedVM } from '@/lib/execution/isolated-vm'
 import { compactSubflowResults } from '@/lib/execution/payloads/serializer'
 import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/references'
@@ -17,24 +16,21 @@ import type { EdgeManager } from '@/executor/execution/edge-manager'
 import type { LoopScope } from '@/executor/execution/state'
 import type { BlockStateController, ContextExtensions } from '@/executor/execution/types'
 import type { ExecutionContext, NormalizedBlockOutput } from '@/executor/types'
-import type { LoopConfigWithNodes } from '@/executor/types/loop'
 import { createReferencePattern } from '@/executor/utils/reference-validation'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
-import { mergeSubflowSecretProvenance } from '@/executor/utils/subflow-secret-provenance'
 import {
-  addSubflowErrorLog,
+  buildLoopSentinelEndId,
+  buildLoopSentinelStartId,
   buildParallelSentinelEndId,
   buildParallelSentinelStartId,
-  buildSentinelEndId,
-  buildSentinelStartId,
-  emitSubflowSuccessEvents,
   extractBaseBlockId,
   extractLoopIdFromSentinel,
   extractParallelIdFromSentinel,
-} from '@/executor/utils/subflow-utils'
+} from '@/executor/utils/subflow-node-id-codec'
+import { mergeSubflowSecretProvenance } from '@/executor/utils/subflow-secret-provenance'
+import { addSubflowErrorLog, emitSubflowSuccessEvents } from '@/executor/utils/subflow-utils'
 import { resolveArrayInputAsync } from '@/executor/utils/subflow-utils.server'
 import type { VariableResolver } from '@/executor/variables/resolver'
-import type { SerializedLoop } from '@/serializer/types'
 
 const logger = createLogger('LoopOrchestrator')
 
@@ -77,7 +73,7 @@ export class LoopOrchestrator {
   ) {}
 
   async initializeLoopScope(ctx: ExecutionContext, loopId: string): Promise<LoopScope> {
-    const loopConfig = this.dag.loopConfigs.get(loopId) as SerializedLoop | undefined
+    const loopConfig = this.dag.loopConfigs.get(loopId)
     if (!loopConfig) {
       throw new Error(`Loop config not found: ${loopId}`)
     }
@@ -152,7 +148,7 @@ export class LoopOrchestrator {
             resolutionCtx,
             loopConfig.forEachItems,
             this.resolver,
-            buildSentinelStartId(loopId)
+            buildLoopSentinelStartId(loopId)
           )
         } catch (error) {
           const errorMessage = `ForEach loop resolution failed: ${toError(error).message}`
@@ -273,14 +269,11 @@ export class LoopOrchestrator {
       }
     }
 
-    const useRedis = isRedisCancellationEnabled() && !!ctx.executionId
-    let isCancelled = false
-    if (useRedis) {
-      isCancelled = await isExecutionCancelled(ctx.executionId!)
-    } else {
-      isCancelled = ctx.abortSignal?.aborted ?? false
-    }
-    if (isCancelled) {
+    // Exiting normally is safe only because the engine aborts this signal exclusively via
+    // `signalCancelled`, so the run is already flagged cancelled. Never read the durable
+    // cancellation flag here instead — the engine would not have seen it, and this clean exit
+    // would then complete the run successfully.
+    if (ctx.abortSignal?.aborted) {
       logger.info('Loop execution cancelled', { loopId, iteration: scope.iteration })
       return await this.createExitResult(ctx, loopId, scope)
     }
@@ -420,7 +413,7 @@ export class LoopOrchestrator {
    * on the next outer iteration.
    */
   private resetNestedLoopScopes(loopId: string, ctx: ExecutionContext): void {
-    const loopConfig = this.dag.loopConfigs.get(loopId) as LoopConfigWithNodes | undefined
+    const loopConfig = this.dag.loopConfigs.get(loopId)
     if (!loopConfig) return
 
     for (const nodeId of loopConfig.nodes) {
@@ -449,7 +442,7 @@ export class LoopOrchestrator {
    * next outer loop iteration.
    */
   private resetNestedParallelScopes(loopId: string, ctx: ExecutionContext): void {
-    const loopConfig = this.dag.loopConfigs.get(loopId) as LoopConfigWithNodes | undefined
+    const loopConfig = this.dag.loopConfigs.get(loopId)
     if (!loopConfig) return
 
     for (const nodeId of loopConfig.nodes) {
@@ -511,11 +504,11 @@ export class LoopOrchestrator {
     if (visited.has(loopId)) return new Set()
     visited.add(loopId)
 
-    const loopConfig = this.dag.loopConfigs.get(loopId) as LoopConfigWithNodes | undefined
+    const loopConfig = this.dag.loopConfigs.get(loopId)
     if (!loopConfig) return new Set()
 
-    const sentinelStartId = buildSentinelStartId(loopId)
-    const sentinelEndId = buildSentinelEndId(loopId)
+    const sentinelStartId = buildLoopSentinelStartId(loopId)
+    const sentinelEndId = buildLoopSentinelEndId(loopId)
     const result = new Set([sentinelStartId, sentinelEndId])
 
     for (const nodeId of loopConfig.nodes) {
@@ -613,7 +606,7 @@ export class LoopOrchestrator {
   }
 
   restoreLoopEdges(loopId: string): void {
-    const loopConfig = this.dag.loopConfigs.get(loopId) as LoopConfigWithNodes | undefined
+    const loopConfig = this.dag.loopConfigs.get(loopId)
     if (!loopConfig) {
       logger.warn('Loop config not found for edge restoration', { loopId })
       return
@@ -656,8 +649,8 @@ export class LoopOrchestrator {
       const loopId = extractLoopIdFromSentinel(sourceId)
       return (
         !!loopId &&
-        sourceId === buildSentinelStartId(loopId) &&
-        targetId === buildSentinelEndId(loopId)
+        sourceId === buildLoopSentinelStartId(loopId) &&
+        targetId === buildLoopSentinelEndId(loopId)
       )
     }
 

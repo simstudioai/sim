@@ -1,57 +1,62 @@
 import { createLogger } from '@sim/logger'
-import { type NextRequest, NextResponse } from 'next/server'
 import { deleteSandboxContract, updateSandboxContract } from '@/lib/api/contracts/sandboxes'
-import { parseRequest } from '@/lib/api/server'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
-  deleteWorkspaceSandbox,
-  updateWorkspaceSandbox,
-} from '@/lib/execution/remote-sandbox/workspace-sandboxes'
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import { sandboxOperations } from '@/lib/sandboxes/application/operations'
 import {
-  authorizeSandboxMutation,
-  sandboxMutationErrorResponse,
-} from '@/app/api/workspaces/[id]/sandboxes/authorize'
+  deleteWorkspaceSandboxUseCase,
+  updateWorkspaceSandboxUseCase,
+} from '@/lib/sandboxes/application/use-cases'
+import { internalSandboxResourceErrorPolicy } from '@/app/api/workspaces/[id]/sandboxes/error-policy'
 
 const logger = createLogger('WorkspaceSandboxAPI')
 
-type SandboxContext = { params: Promise<{ id: string; sandboxId: string }> }
-
-export const PATCH = withRouteHandler(async (request: NextRequest, context: SandboxContext) => {
-  const { id: workspaceId, sandboxId } = await context.params
-
-  const authorized = await authorizeSandboxMutation(workspaceId)
-  if (!authorized.ok) return authorized.response
-
-  const parsed = await parseRequest(updateSandboxContract, request, context)
-  if (!parsed.success) return parsed.response
-  try {
-    const sandbox = await updateWorkspaceSandbox(workspaceId, sandboxId, parsed.data.body)
-    logger.info('Updated workspace sandbox', { workspaceId, sandboxId })
-    return NextResponse.json({ sandbox })
-  } catch (error) {
-    const response = sandboxMutationErrorResponse(error)
-    if (response) return response
-    throw error
-  }
+const rateLimit = internalRateLimits.none({
+  reason: 'Build admission is the per-workspace budget the use case enforces',
 })
 
-export const DELETE = withRouteHandler(async (request: NextRequest, context: SandboxContext) => {
-  const { id: workspaceId, sandboxId } = await context.params
+export const PATCH = defineInternalJsonRoute({
+  contract: updateSandboxContract,
+  auth: internalSessionAuth,
+  operation: sandboxOperations.update,
+  rateLimit,
+  errorPolicy: internalSandboxResourceErrorPolicy,
+  mapInput: ({ params, body }) => ({
+    workspaceId: params.id,
+    sandboxId: params.sandboxId,
+    ...body,
+    source: 'settings' as const,
+  }),
+  useCase: updateWorkspaceSandboxUseCase,
+  onSuccess: ({ input }) => {
+    logger.info('Updated workspace sandbox', {
+      workspaceId: input.workspaceId,
+      sandboxId: input.sandboxId,
+    })
+  },
+  present: ({ sandbox }) => ({ sandbox }),
+})
 
-  const authorized = await authorizeSandboxMutation(workspaceId)
-  if (!authorized.ok) return authorized.response
-
-  const parsed = await parseRequest(deleteSandboxContract, request, context)
-  if (!parsed.success) return parsed.response
-
-  try {
-    await deleteWorkspaceSandbox(workspaceId, sandboxId)
-  } catch (error) {
-    const response = sandboxMutationErrorResponse(error)
-    if (response) return response
-    throw error
-  }
-
-  logger.info('Deleted workspace sandbox', { workspaceId, sandboxId })
-  return NextResponse.json({ success: true })
+export const DELETE = defineInternalJsonRoute({
+  contract: deleteSandboxContract,
+  auth: internalSessionAuth,
+  operation: sandboxOperations.delete,
+  rateLimit,
+  errorPolicy: internalSandboxResourceErrorPolicy,
+  mapInput: ({ params }) => ({
+    workspaceId: params.id,
+    sandboxId: params.sandboxId,
+    source: 'settings' as const,
+  }),
+  useCase: deleteWorkspaceSandboxUseCase,
+  onSuccess: ({ input }) => {
+    logger.info('Deleted workspace sandbox', {
+      workspaceId: input.workspaceId,
+      sandboxId: input.sandboxId,
+    })
+  },
+  present: () => ({ success: true as const }),
 })

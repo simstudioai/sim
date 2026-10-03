@@ -80,7 +80,7 @@ export const runCloudPlanPi: PiBackendRun<PiCloudPlanRunParams> = async (params,
   const thinking = mapThinkingLevel(params.thinkingLevel) ?? 'medium'
   const lifetimeMs = resolvePiRunLifetimeMs(context.signal)
 
-  return withPiSandbox({ lifetimeMs }, async (runner) => {
+  return withPiSandbox({ lifetimeMs, cost: context.sandboxCost }, async (runner) => {
     try {
       const clone = await raceAbort(
         runner.run(PLAN_CLONE_SCRIPT, {

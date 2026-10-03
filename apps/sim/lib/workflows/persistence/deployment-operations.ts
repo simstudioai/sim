@@ -4,6 +4,7 @@ import type { DbOrTx } from '@sim/workflow-persistence/types'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
 import type { InferSelectModel } from 'drizzle-orm'
 import { and, desc, eq, inArray, or, sql } from 'drizzle-orm'
+import type { DbTransaction } from '@/lib/db/types'
 import {
   canTransitionDeploymentOperation,
   createDeploymentReadiness,
@@ -70,6 +71,15 @@ export interface DeploymentOperationGeneration {
   generation: number
 }
 
+/**
+ * Identifies the operation a fenced step belongs to, optionally narrowed to
+ * the version it targets and the statuses it may currently hold.
+ */
+export type DeploymentOperationFence = DeploymentOperationGeneration & {
+  deploymentVersionId?: string
+  statuses?: readonly DeploymentOperationStatus[]
+}
+
 export interface WorkflowDeploymentStatus {
   activeDeployment: {
     deploymentVersionId: string
@@ -86,7 +96,10 @@ export interface MarkDeploymentComponentReadinessParams extends DeploymentOperat
 }
 
 export interface ActivateDeploymentOperationParams extends DeploymentOperationGeneration {
-  onActivateTransaction?: (tx: DbOrTx, operation: WorkflowDeploymentOperation) => Promise<void>
+  onActivateTransaction?: (
+    tx: DbTransaction,
+    operation: WorkflowDeploymentOperation
+  ) => Promise<void>
 }
 
 interface PrepareOperationContext {
@@ -282,10 +295,7 @@ export async function getDeploymentOperation(
  * Confirms an operation still owns the workflow's latest generation.
  */
 export async function isDeploymentOperationCurrent(
-  params: DeploymentOperationGeneration & {
-    deploymentVersionId?: string
-    statuses?: readonly DeploymentOperationStatus[]
-  },
+  params: DeploymentOperationFence,
   executor: Pick<DbOrTx, 'select'> = db
 ): Promise<boolean> {
   const [latestOperation] = await executor
@@ -322,6 +332,19 @@ export async function isDeploymentVersionProtectedByCurrentOperation(
   deploymentVersionId: string,
   executor: Pick<DbOrTx, 'select'> = db
 ): Promise<boolean> {
+  return (await getProtectedDeploymentVersionId(workflowId, executor)) === deploymentVersionId
+}
+
+/**
+ * The deployment version the current operation is still preparing, or null
+ * once the latest operation is terminal. Cleanup must leave this version
+ * alone: it is inactive until cutover, yet its schedules and webhook
+ * candidates are live preparation state.
+ */
+export async function getProtectedDeploymentVersionId(
+  workflowId: string,
+  executor: Pick<DbOrTx, 'select'> = db
+): Promise<string | null> {
   const [latestOperation] = await executor
     .select({
       deploymentVersionId: workflowDeploymentOperation.deploymentVersionId,
@@ -333,12 +356,42 @@ export async function isDeploymentVersionProtectedByCurrentOperation(
     .orderBy(desc(workflowDeploymentOperation.generation))
     .limit(1)
 
-  return (
-    latestOperation?.deploymentVersionId === deploymentVersionId &&
-    latestOperation.protocolVersion === DEPLOYMENT_OPERATION_PROTOCOL_VERSION &&
-    isDeploymentOperationStatus(latestOperation.status) &&
-    IN_FLIGHT_STATUSES.includes(latestOperation.status)
-  )
+  if (
+    !latestOperation ||
+    latestOperation.protocolVersion !== DEPLOYMENT_OPERATION_PROTOCOL_VERSION ||
+    !isDeploymentOperationStatus(latestOperation.status) ||
+    !IN_FLIGHT_STATUSES.includes(latestOperation.status)
+  ) {
+    return null
+  }
+  return latestOperation.deploymentVersionId
+}
+
+/**
+ * True when the given deployment version is the workflow's active one.
+ * Cleanup re-checks this immediately before any provider teardown because a
+ * version can be re-activated between a batch being selected and its rows
+ * being processed, and the fenced row delete that follows cannot undo a
+ * provider call.
+ */
+export async function isDeploymentVersionActive(
+  workflowId: string,
+  deploymentVersionId: string,
+  executor: Pick<DbOrTx, 'select'> = db
+): Promise<boolean> {
+  const [versionRow] = await executor
+    .select({ id: workflowDeploymentVersion.id })
+    .from(workflowDeploymentVersion)
+    .where(
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflowId),
+        eq(workflowDeploymentVersion.id, deploymentVersionId),
+        eq(workflowDeploymentVersion.isActive, true)
+      )
+    )
+    .limit(1)
+
+  return Boolean(versionRow)
 }
 
 /**

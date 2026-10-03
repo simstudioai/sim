@@ -1,4 +1,3 @@
-import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { getRemainingExecutionMs } from '@/lib/core/execution-limits'
 import {
   normalizeRecord,
@@ -7,10 +6,13 @@ import {
 } from '@/lib/core/utils/records'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
+import { NonRetryableExecutionError } from '@/lib/execution/non-retryable-error'
 import { mergeFileKeys, mergeLargeValueKeys } from '@/lib/execution/payloads/access-keys'
+import { normalizeSecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
 import { BlockType } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
+import { attachTrustedExecutionCost } from '@/executor/utils/errors'
 import {
   FUNCTION_BLOCK_CONTEXT_VARS_KEY,
   FUNCTION_BLOCK_DISPLAY_CODE_KEY,
@@ -77,6 +79,8 @@ export class FunctionBlockHandler implements BlockHandler {
             mountedSecrets: inputs.mountedSecrets,
           })
 
+    const unredactedSecretNames = ctx.resolvedSecretTraceRegistry?.getUnredactedSecretNames() ?? []
+
     const toolParams = {
       code: codeContent,
       ...(sourceCode ? { sourceCode } : {}),
@@ -84,6 +88,7 @@ export class FunctionBlockHandler implements BlockHandler {
       timeout,
       ...(inputs.sandboxId ? { sandboxId: inputs.sandboxId } : {}),
       ...(secretMountPolicy ?? {}),
+      ...(unredactedSecretNames.length > 0 ? { unredactedSecretNames } : {}),
       envVars: normalizeStringRecord(ctx.environmentVariables),
       workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
       blockData: {},
@@ -107,12 +112,18 @@ export class FunctionBlockHandler implements BlockHandler {
     const result = await executeTool('function_execute', toolParams, { executionContext: ctx })
 
     if (!result.success) {
-      throw new Error(result.error || 'Function execution failed')
+      const error =
+        result.retryable === false
+          ? new NonRetryableExecutionError(result.error || 'Function execution is indeterminate')
+          : new Error(result.error || 'Function execution failed')
+      attachTrustedExecutionCost(error, result.output?.cost)
+      throw error
     }
 
     mergeLargeValueKeys(ctx, result.largeValueKeys ?? [])
     mergeFileKeys(ctx, result.fileKeys ?? [])
 
+    attachTrustedExecutionCost(result.output, result.output?.cost)
     return result.output
   }
 }

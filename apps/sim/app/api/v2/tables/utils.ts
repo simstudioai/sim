@@ -1,8 +1,23 @@
-import type { V2ApiTable } from '@/lib/api/contracts/v2/tables'
-import type { RowData, TableDefinition, TableSchema } from '@/lib/table'
+import { toStringOrNull } from '@sim/utils/coerce'
+import type {
+  V2ApiTable,
+  V2EnrichmentProviderOutcome,
+  V2EnrichmentRunDetail,
+  V2RowGroupEnrichment,
+  V2RowRunState,
+} from '@/lib/api/contracts/v2/tables'
+import { getBaseUrl } from '@/lib/core/utils/urls'
+import { workspaceResourceWebUrl } from '@/lib/resources'
+import type { RowData, TableDefinition, TableRowSummary, TableSchema } from '@/lib/table'
 import { getMaxRowsPerTable } from '@/lib/table/billing'
 import { buildColumnNameById, remapViewConfigColumnRefs } from '@/lib/table/column-keys'
-import type { ColumnDefinition } from '@/lib/table/types'
+import type {
+  ColumnDefinition,
+  EnrichmentRunDetail,
+  RowExecutionMetadata,
+  RowExecutions,
+  WorkflowGroup,
+} from '@/lib/table/types'
 import type { TableView } from '@/lib/table/views/service'
 import { normalizeColumn } from '@/lib/table/wire'
 import { getUserEmailsByIds, requireResolvedUserEmail } from '@/lib/users/queries'
@@ -47,10 +62,12 @@ function serializeApiTable(
   table: TableDefinition,
   folderPath: string,
   ownerEmail: string,
-  maxRows: number
+  maxRows: number,
+  baseUrl: string
 ): V2ApiTable {
   return {
     id: table.id,
+    webUrl: workspaceResourceWebUrl(baseUrl, table.workspaceId, 'table', table.id),
     name: table.name,
     description: table.description ?? null,
     ownerEmail,
@@ -88,7 +105,8 @@ export async function toApiTable(table: TableDefinition, folderPath: string): Pr
     table,
     folderPath,
     requireResolvedUserEmail(emailByUserId, table.createdBy),
-    maxRows
+    maxRows,
+    getBaseUrl()
   )
 }
 
@@ -106,12 +124,14 @@ export async function toApiTables(
     ),
   ])
   const maxRowsByWorkspaceId = new Map(limits)
+  const baseUrl = getBaseUrl()
   return entries.map(({ table, folderPath }) =>
     serializeApiTable(
       table,
       folderPath,
       requireResolvedUserEmail(emailByUserId, table.createdBy),
-      requireMaxRows(maxRowsByWorkspaceId, table.workspaceId)
+      requireMaxRows(maxRowsByWorkspaceId, table.workspaceId),
+      baseUrl
     )
   )
 }
@@ -167,16 +187,153 @@ interface ApiRowInput {
 }
 
 /**
- * Normalized public row shape: `{ id, data, createdAt, updatedAt }`, no storage
- * internals (`position`/`orderKey`/`executions`). Callers pass a
- * `namedRowMapper(schema.columns)` so `data` is keyed by column NAME and select
- * cells surface their option NAME rather than the stored option id.
+ * Projects the stored per-`(row, group)` execution sidecar onto the public
+ * `runState` map.
+ *
+ * `jobId` is dropped — it is the async scheduler's own identity and addresses
+ * nothing a caller can reach — and so is `enrichmentDetails`, which is never
+ * hydrated on this path and has its own sub-resource. The two optional storage
+ * fields are defaulted so the published schema can declare them required, which
+ * is what lets a client read `blockErrors` without a presence check.
  */
-export function toApiRow(row: ApiRowInput, toNamedRow: (data: RowData) => RowData) {
+function toApiRunState(executions: RowExecutions): Record<string, V2RowRunState> {
+  const runState: Record<string, V2RowRunState> = {}
+  for (const [groupId, execution] of Object.entries(executions)) {
+    runState[groupId] = toApiRunStateEntry(execution)
+  }
+  return runState
+}
+
+/** One group's run state on one row, in the published shape. */
+function toApiRunStateEntry(execution: RowExecutionMetadata): V2RowRunState {
+  return {
+    /** Stored as `cancelled`; published as `canceled`. See presentV2TableDispatch. */
+    status: execution.status === 'cancelled' ? 'canceled' : execution.status,
+    executionId: execution.executionId,
+    workflowId: execution.workflowId,
+    error: execution.error,
+    runningBlockIds: execution.runningBlockIds ?? [],
+    blockErrors: execution.blockErrors ?? {},
+    canceledAt: execution.cancelledAt ?? null,
+  }
+}
+
+/** The inputs to {@link toApiRowGroupEnrichment}, as the use case returns them. */
+export interface RowGroupEnrichmentInput {
+  row: TableRowSummary
+  group: WorkflowGroup
+  runState: RowExecutionMetadata | null
+  detail: EnrichmentRunDetail | null
+}
+
+/**
+ * One group's outcome on one row: the run state `includeRunState` publishes,
+ * the group's output cells read out of the row, and the provider cascade.
+ *
+ * `outputs` is keyed by column NAME through the same `namedRowMapper` the row
+ * reads use, and every output column the group declares is present — `null`
+ * when the run has not written it — so a caller can tell "not populated" from
+ * "not an output of this group". `runState: null` is the group never having
+ * run for this row; the row itself always answers.
+ */
+export function toApiRowGroupEnrichment(
+  input: RowGroupEnrichmentInput,
+  toNamedRow: (data: RowData) => RowData,
+  toColumnName: (id: string) => string
+): V2RowGroupEnrichment {
+  const named = toNamedRow(input.row.data)
+  const outputs: RowData = {}
+  for (const output of input.group.outputs) {
+    const name = toColumnName(output.columnName)
+    outputs[name] = named[name] ?? null
+  }
+  return {
+    groupId: input.group.id,
+    runState: input.runState ? toApiRunStateEntry(input.runState) : null,
+    outputs,
+    cascade: toApiEnrichmentDetail(input.detail),
+  }
+}
+
+/**
+ * Normalized public row shape: `{ id, data, createdAt, updatedAt }`, plus
+ * `runState` when — and only when — the caller opted in.
+ *
+ * Storage internals stay off the wire: `position` and `orderKey` are a
+ * fractional index that is nullable mid-backfill and that a caller cannot mint.
+ * The per-cell execution sidecar is NOT one of them — it holds run outcomes of
+ * runs this same API starts, which is why it is reachable through
+ * `includeRunState` rather than stripped. Do not "restore" the strip.
+ *
+ * Callers pass a `namedRowMapper(schema.columns)` so `data` is keyed by column
+ * NAME and select cells surface their option NAME rather than the stored option
+ * id.
+ */
+export function toApiRow(
+  row: ApiRowInput,
+  toNamedRow: (data: RowData) => RowData,
+  runState?: RowExecutions
+) {
   return {
     id: row.id,
     data: toNamedRow(row.data),
+    ...(runState ? { runState: toApiRunState(runState) } : {}),
     createdAt: toIso(row.createdAt),
     updatedAt: toIso(row.updatedAt),
+  }
+}
+
+/** Reads a stored field that the published shape declares as a plain number. */
+function storedNumber(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+/**
+ * Reads a stored timestamp, keeping only a value the published `date-time`
+ * format will accept. A Postgres literal or a half-written blob becomes `null`
+ * rather than failing response validation.
+ */
+function storedTimestamp(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const parsed = Date.parse(value)
+  return Number.isNaN(parsed) ? null : new Date(parsed).toISOString()
+}
+
+function toApiEnrichmentProvider(value: unknown): V2EnrichmentProviderOutcome {
+  const provider = (value ?? {}) as Record<string, unknown>
+  return {
+    id: toStringOrNull(provider.id) ?? '',
+    label: toStringOrNull(provider.label) ?? '',
+    toolId: toStringOrNull(provider.toolId) ?? '',
+    status: toStringOrNull(provider.status) ?? 'not_run',
+    cost: storedNumber(provider.cost),
+    durationMs: storedNumber(provider.durationMs),
+    error: toStringOrNull(provider.error),
+  }
+}
+
+/**
+ * Projects the stored enrichment cascade blob onto the published detail shape.
+ *
+ * `tableRowExecutions.enrichmentDetails` is schemaless JSONB read back through
+ * a bare `as` cast, so the domain type is the writer's intent, not a property of
+ * the column. Every declared key is projected with a default here so a blob
+ * written by an older runner — or one whose shape drifts — degrades to a partial
+ * answer instead of turning a well-formed `GET` into a `500` at response
+ * validation.
+ */
+export function toApiEnrichmentDetail(
+  detail: EnrichmentRunDetail | null
+): V2EnrichmentRunDetail | null {
+  if (!detail || typeof detail !== 'object') return null
+  const stored: Record<string, unknown> = { ...detail }
+  return {
+    startedAt: storedTimestamp(stored.startedAt),
+    completedAt: storedTimestamp(stored.completedAt),
+    durationMs: storedNumber(stored.durationMs),
+    totalCost: storedNumber(stored.totalCost),
+    matchedProvider: toStringOrNull(stored.matchedProvider),
+    aborted: stored.aborted === true,
+    providers: Array.isArray(stored.providers) ? stored.providers.map(toApiEnrichmentProvider) : [],
   }
 }

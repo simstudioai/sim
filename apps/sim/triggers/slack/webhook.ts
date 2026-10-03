@@ -53,6 +53,15 @@ export const slackWebhookTrigger: TriggerConfig = {
       mode: 'trigger',
     },
     {
+      id: 'botCredential',
+      title: 'Migrated Slack Bot Credential',
+      type: 'short-input',
+      mode: 'trigger',
+      hidden: true,
+      hideFromPreview: true,
+      hideFromCopilot: true,
+    },
+    {
       id: 'setupWizard',
       title: 'Slack app setup',
       type: 'modal',

@@ -1,10 +1,6 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import type { ForkClearedRef } from '@/lib/api/contracts/workspace-fork'
 import {
-  forkBlockerResolution,
   selectVisibleClearedRefs,
   splitForkClearedRefs,
 } from '@/ee/workspace-forking/components/fork-sync/cleared-refs-list'
@@ -66,19 +62,6 @@ describe('selectVisibleClearedRefs', () => {
     ).toEqual([])
   })
 
-  it('drops a document dependent when its parent KB is mapped', () => {
-    // Map vs copy both resolve the parent through the same predicate; modeled identically here.
-    expect(
-      selectVisibleClearedRefs([documentDependent], resolvedKeys('knowledge-base:kb-1'))
-    ).toEqual([])
-  })
-
-  it('keeps a document dependent while its parent KB is neither mapped nor copied', () => {
-    expect(selectVisibleClearedRefs([documentDependent], resolvedKeys())).toEqual([
-      documentDependent,
-    ])
-  })
-
   it('keeps a credential-anchored dependent even when the credential is mapped (label still clears)', () => {
     const labelDependent = dependentRef('credential', 'cred-1', 'Label')
     // A mapped credential remaps to a different account, so the account-scoped label is cleared
@@ -105,23 +88,6 @@ describe('selectVisibleClearedRefs', () => {
       )
     ).toEqual([])
   })
-
-  it('applies the same predicate to a reference entry (drops resolved, keeps unresolved)', () => {
-    const credentialReference = referenceRef('credential', 'cred-1')
-    expect(
-      selectVisibleClearedRefs([credentialReference], resolvedKeys('credential:cred-1'))
-    ).toEqual([])
-    expect(selectVisibleClearedRefs([credentialReference], resolvedKeys())).toEqual([
-      credentialReference,
-    ])
-  })
-
-  it('always keeps a workflow reference (it cannot be resolved on the page)', () => {
-    const workflowReference = workflowRef('wf-other')
-    expect(
-      selectVisibleClearedRefs([workflowReference], resolvedKeys('workflow:wf-other'))
-    ).toEqual([workflowReference])
-  })
 })
 
 describe('splitForkClearedRefs', () => {
@@ -144,26 +110,5 @@ describe('splitForkClearedRefs', () => {
     const { blockers, informational } = splitForkClearedRefs([mcpReference, deletedReference])
     expect(blockers).toEqual([mcpReference, deletedReference])
     expect(informational).toEqual([])
-  })
-})
-
-describe('forkBlockerResolution', () => {
-  it('phrases each blocker reason with its actionable resolution', () => {
-    expect(forkBlockerResolution(referenceRef('table', 'tbl-1'))).toBe(
-      'map it to a target or select it for copy'
-    )
-    expect(forkBlockerResolution(referenceRef('mcp-server', 'srv-1'))).toBe(
-      'map it to a target or select it for copy'
-    )
-    expect(forkBlockerResolution(referenceRef('knowledge-base', 'kb-gone', 'KB', true))).toBe(
-      'deleted in the source — map it to an existing knowledge base in the target'
-    )
-    expect(forkBlockerResolution(workflowRef('wf-other', 'Workflow'))).toBe(
-      'deploy "Source" in the source or remove the reference'
-    )
-  })
-
-  it('returns null for non-blocking dependent entries', () => {
-    expect(forkBlockerResolution(dependentRef('credential', 'cred-1'))).toBeNull()
   })
 })

@@ -1,7 +1,5 @@
-/**
- * @vitest-environment node
- */
-import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { mockEnvObject } from '@sim/testing/mocks/env.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -9,16 +7,14 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
  * billing-disabled opt-in check reads them at call time. Seeding them here
  * mirrors production, where both reads observe the same process env.
  */
-const { mockEnv } = vi.hoisted(() => ({
-  mockEnv: {
-    RATE_LIMIT_FREE_SYNC: '25',
-    RATE_LIMIT_FREE_API_ENDPOINT: '10',
-  } as Record<string, string | undefined>,
-}))
-
-vi.mock('@/lib/core/config/env', () => ({ env: mockEnv }))
+await vi.hoisted(async () => {
+  const { setEnv } = await import('@sim/testing/mocks/env.mock')
+  setEnv({ RATE_LIMIT_FREE_SYNC: '25', RATE_LIMIT_FREE_API_ENDPOINT: '10' })
+})
 
 import { getRateLimit } from '@/lib/core/rate-limiter/types'
+
+const mockEnv = mockEnvObject
 
 afterAll(resetEnvFlagsMock)
 

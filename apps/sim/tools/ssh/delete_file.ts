@@ -1,7 +1,7 @@
 import type { SSHDeleteFileParams, SSHResponse } from '@/tools/ssh/types'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const deleteFileTool: ToolConfig<SSHDeleteFileParams, SSHResponse> = {
+export const deleteFileTool: InternalToolConfig<SSHDeleteFileParams, SSHResponse> = {
   id: 'ssh_delete_file',
   name: 'SSH Delete File',
   description: 'Delete a file or directory from the remote SSH server',
@@ -64,13 +64,8 @@ export const deleteFileTool: ToolConfig<SSHDeleteFileParams, SSHResponse> = {
     },
   },
 
-  request: {
-    url: '/api/tools/ssh/delete-file',
-    method: 'POST',
-    headers: () => ({
-      'Content-Type': 'application/json',
-    }),
-    body: (params) => ({
+  operation: {
+    input: (params) => ({
       host: params.host,
       port: Number(params.port) || 22,
       username: params.username,

@@ -3,6 +3,8 @@ import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import type { ProviderTiming, TraceSpan } from '@/lib/logs/types'
 import {
+  CHILD_EXECUTION_ID_OUTPUT_KEY,
+  CHILD_TRACE_DISABLED_OUTPUT_KEY,
   isConditionBlockType,
   isWorkflowBlockType,
   stripCustomToolPrefix,
@@ -70,6 +72,39 @@ function getToolCallErrorMessage(
 }
 
 /**
+ * Lifts a custom block's child-run handle off a tool result onto the tool span,
+ * the way {@link createBaseSpan} lifts it off a block log.
+ *
+ * A custom block invoked as an Agent tool produces a real child run, and the
+ * handle rides its tool output — but the tool span is where a reader can act on
+ * it: `hydrateChildTraces` walks nested children, so a tool span carrying
+ * `childExecutionId` joins its child exactly like a canvas block's span does.
+ * The keys are stripped from the displayed output because they are plumbing, and
+ * a raw execution id shown in a tool result reads like data the tool returned.
+ */
+function liftChildTraceHandle(output: Record<string, unknown> | undefined): {
+  output: Record<string, unknown> | undefined
+  handle: Pick<TraceSpan, 'childExecutionId' | 'childTraceDisabled'>
+} {
+  if (!output) return { output, handle: {} }
+  const hasExecutionId = typeof output[CHILD_EXECUTION_ID_OUTPUT_KEY] === 'string'
+  const hasDisabledMarker = output[CHILD_TRACE_DISABLED_OUTPUT_KEY] === true
+  if (!hasExecutionId && !hasDisabledMarker) return { output, handle: {} }
+
+  const {
+    [CHILD_EXECUTION_ID_OUTPUT_KEY]: executionId,
+    [CHILD_TRACE_DISABLED_OUTPUT_KEY]: _disabled,
+    ...rest
+  } = output
+  return {
+    output: rest,
+    handle: hasExecutionId
+      ? { childExecutionId: executionId as string }
+      : { childTraceDisabled: true },
+  }
+}
+
+/**
  * Creates a TraceSpan from a BlockLog. Returns null for invalid logs.
  *
  * Children are unified under `span.children` regardless of source:
@@ -121,8 +156,11 @@ function createBaseSpan(log: ValidBlockLog): TraceSpan {
     input: log.input,
     output,
     ...(childIds ?? {}),
+    ...(log.childExecution ? { childExecutionId: log.childExecution.executionId } : {}),
+    ...(log.childTraceDisabled ? { childTraceDisabled: true } : {}),
     ...(log.errorHandled && { errorHandled: true }),
     ...(log.tries !== undefined && { tries: log.tries }),
+    ...(log.modelFallbacks?.length && { modelFallbacks: log.modelFallbacks }),
     ...(log.loopId && { loopId: log.loopId }),
     ...(log.parallelId && { parallelId: log.parallelId }),
     ...(log.iterationIndex !== undefined && { iterationIndex: log.iterationIndex }),
@@ -138,7 +176,16 @@ function createBaseSpan(log: ValidBlockLog): TraceSpan {
  * the block-level error into output so the UI renders it alongside data.
  */
 function extractDisplayOutput(log: ValidBlockLog): Record<string, unknown> {
-  const { childWorkflowSnapshotId, childWorkflowId, ...rest } = log.output ?? {}
+  // `childTraceSpans` is dropped defensively as well as by `filterOutputForLog`: the spans
+  // ride a block's output to reach the live stream, and a producer whose block config does
+  // not declare them hidden would otherwise persist another workspace's spans here, where
+  // nothing downstream would ever strip them again.
+  const {
+    childWorkflowSnapshotId,
+    childWorkflowId,
+    childTraceSpans: _childTraceSpans,
+    ...rest
+  } = log.output ?? {}
   return log.error ? { ...rest, error: log.error } : rest
 }
 
@@ -246,7 +293,9 @@ function buildChildrenFromTimeSegments(
       const currentIndex = toolCallIndices.get(normalizedName) ?? 0
       const match = callsForName[currentIndex]
       toolCallIndices.set(normalizedName, currentIndex + 1)
-      const output = normalizeTraceOutput(match?.result ?? match?.output)
+      const { output, handle } = liftChildTraceHandle(
+        normalizeTraceOutput(match?.result ?? match?.output)
+      )
       const errorMessage = getToolCallErrorMessage(match, segment.errorMessage)
       const errorHandled = Boolean(
         errorMessage && span.type === 'agent' && span.status === 'success'
@@ -263,6 +312,7 @@ function buildChildrenFromTimeSegments(
         input: match?.arguments ?? match?.input,
         output: match?.error ? { error: match.error, ...output } : output,
         ...(errorHandled && { errorHandled: true }),
+        ...handle,
       }
       if (segment.toolCallId) toolChild.toolCallId = segment.toolCallId
       if (segment.errorType) toolChild.errorType = segment.errorType
@@ -329,7 +379,7 @@ function buildChildrenFromToolCalls(span: TraceSpan, log: ValidBlockLog): TraceS
   return toolCalls.map((tc, index) => {
     const startTime = tc.startTime ?? log.startedAt
     const endTime = tc.endTime ?? log.endedAt
-    const output = normalizeTraceOutput(tc.result ?? tc.output)
+    const { output, handle } = liftChildTraceHandle(normalizeTraceOutput(tc.result ?? tc.output))
     const errorMessage = getToolCallErrorMessage(tc)
     const errorHandled = Boolean(errorMessage && span.type === 'agent' && span.status === 'success')
     return {
@@ -344,6 +394,7 @@ function buildChildrenFromToolCalls(span: TraceSpan, log: ValidBlockLog): TraceS
       output: tc.error ? { error: tc.error, ...output } : output,
       ...(errorMessage && { errorMessage }),
       ...(errorHandled && { errorHandled: true }),
+      ...handle,
     }
   })
 }
@@ -395,8 +446,11 @@ function resolveToolCallsList(output: NormalizedBlockOutput | undefined): BlockT
 
 /** Extracts and flattens child workflow trace spans into the parent span's children. */
 function attachChildWorkflowSpans(span: TraceSpan, log: ValidBlockLog): void {
-  const childTraceSpans = log.childTraceSpans ?? log.output?.childTraceSpans
-  if (!childTraceSpans?.length) return
+  const childTraceSpans = readChildSpans(
+    log.childTraceSpans ?? log.output?.childTraceSpans,
+    'childTraceSpans'
+  )
+  if (childTraceSpans.length === 0) return
 
   span.children = flattenWorkflowChildren(childTraceSpans)
   span.output = stripChildTraceSpansFromOutput(span.output)
@@ -407,10 +461,21 @@ function isSyntheticWorkflowWrapper(span: TraceSpan): boolean {
   return span.type === 'workflow' && !span.blockId
 }
 
+/**
+ * Reads a list of child spans, or `[]` when absent. Anything other than an
+ * array (for example a span list that was spilled to a large-value reference)
+ * is dropped with a warning so one malformed subtree cannot fail the trace.
+ */
+function readChildSpans(value: unknown, source: 'children' | 'childTraceSpans'): TraceSpan[] {
+  if (value === undefined || value === null) return []
+  if (Array.isArray(value)) return value
+  logger.warn('Dropping child spans that are not a list', { source, shape: typeof value })
+  return []
+}
+
 /** Reads nested `childTraceSpans` off a span's output, or `[]` if absent. */
 function extractOutputChildren(output: TraceSpan['output']): TraceSpan[] {
-  const nested = (output as { childTraceSpans?: TraceSpan[] } | undefined)?.childTraceSpans
-  return Array.isArray(nested) ? nested : []
+  return readChildSpans(output?.childTraceSpans, 'childTraceSpans')
 }
 
 /** Returns a copy of `output` with `childTraceSpans` removed, or undefined unchanged. */
@@ -422,29 +487,32 @@ function stripChildTraceSpansFromOutput(
   return rest
 }
 
-/** Recursively flattens synthetic workflow wrappers, preserving real block spans. */
-function flattenWorkflowChildren(spans: TraceSpan[]): TraceSpan[] {
+/**
+ * Recursively flattens synthetic workflow wrappers, preserving real block spans.
+ *
+ * Shared with read-time custom-block hydration so a cross-workspace child nests
+ * under its boundary span exactly the way an in-process child workflow does.
+ */
+export function flattenWorkflowChildren(spans: TraceSpan[]): TraceSpan[] {
   const flattened: TraceSpan[] = []
 
   for (const span of spans) {
     if (isSyntheticWorkflowWrapper(span)) {
-      if (span.children?.length) {
-        flattened.push(...flattenWorkflowChildren(span.children))
-      }
+      flattened.push(...flattenWorkflowChildren(readChildSpans(span.children, 'children')))
       continue
     }
 
-    const directChildren = span.children ?? []
+    const directChildren = readChildSpans(span.children, 'children')
     const outputChildren = extractOutputChildren(span.output)
     const allChildren = [...directChildren, ...outputChildren]
 
     const nextSpan: TraceSpan = { ...span }
     if (allChildren.length > 0) {
       nextSpan.children = flattenWorkflowChildren(allChildren)
+    } else if (!Array.isArray(span.children)) {
+      nextSpan.children = undefined
     }
-    if (outputChildren.length > 0) {
-      nextSpan.output = stripChildTraceSpansFromOutput(nextSpan.output)
-    }
+    nextSpan.output = stripChildTraceSpansFromOutput(nextSpan.output)
 
     flattened.push(nextSpan)
   }

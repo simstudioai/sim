@@ -1,7 +1,8 @@
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { isPlainRecord } from '@sim/utils/object'
+import { isPlainRecord, isRecordLike } from '@sim/utils/object'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { PiiBlockOutputRedaction } from '@/executor/execution/types'
 import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-handler'
@@ -72,6 +73,7 @@ export function buildCustomBlockExecutionContext(
     abortSignal?: AbortSignal
     resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
     executorDelegationOrigin?: ExecutorDelegationOrigin
+    principal?: WorkflowExecutionPrincipal
     /** The invoking run's in-flight block-output redaction policy. */
     piiBlockOutputRedaction?: PiiBlockOutputRedaction
   }
@@ -83,6 +85,7 @@ export function buildCustomBlockExecutionContext(
     workflowId: context.workflowId ?? 'custom-block-tool',
     workspaceId: context.workspaceId,
     userId: context.userId,
+    principal: options.principal,
     executorDelegationOrigin: options.executorDelegationOrigin,
     executionId,
     isDeployedContext: context.isDeployedContext,
@@ -110,6 +113,7 @@ export function buildCustomBlockExecutionContext(
       workflowId: context.workflowId,
       workspaceId: context.workspaceId,
       userId: context.userId,
+      principal: options.principal,
       billingAttribution: context.billingAttribution,
       executionMode: 'sync',
     },
@@ -133,6 +137,7 @@ export async function runCustomBlockTool(
   options: {
     abortSignal?: AbortSignal
     resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+    principal?: WorkflowExecutionPrincipal
   } = {}
 ): Promise<ToolResponse> {
   if (!params.blockType) {
@@ -143,6 +148,7 @@ export async function runCustomBlockTool(
     environmentVariables: {},
     abortSignal: options.abortSignal,
     resolvedSecretTraceRegistry: options.resolvedSecretTraceRegistry,
+    principal: options.principal,
   })
   const block: SerializedBlock = {
     id: generateId(),
@@ -160,8 +166,7 @@ export async function runCustomBlockTool(
     })
     // Custom blocks never stream (no `onStream` on the synthetic ctx), so the
     // handler always returns the projected BlockOutput object.
-    const normalized: Record<string, any> =
-      output && typeof output === 'object' && !Array.isArray(output) ? output : { result: output }
+    const normalized: Record<string, any> = isRecordLike(output) ? output : { result: output }
     return { success: true, output: normalized }
   } catch (error) {
     // The handler throws a consumer-safe `ChildWorkflowError` on failure. The

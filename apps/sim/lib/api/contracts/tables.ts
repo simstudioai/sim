@@ -1,7 +1,9 @@
 import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import {
+  booleanQueryFlagSchema,
   folderIdSchema,
+  MAX_ID_LENGTH,
   privateSecretProvenanceBundleSchema,
   requiredFieldSchema,
   workspaceIdSchema,
@@ -31,6 +33,7 @@ import {
   FILTER_OPS,
   MAX_RUN_TARGET_ROW_IDS,
   MAX_SELECT_OPTIONS,
+  MAX_TABLE_BATCH_ITEMS,
   NAME_PATTERN,
   SORT_DIRECTIONS,
   TABLE_LIMITS,
@@ -50,7 +53,9 @@ export const domainObjectSchema = <T>() => z.custom<T>(isRecordLike)
  * Column types are a fixed enum derived from `COLUMN_TYPES` so callers cannot
  * send arbitrary strings the server would reject downstream.
  */
-export const columnTypeSchema = z.enum(COLUMN_TYPES)
+export const columnTypeSchema = z
+  .enum(COLUMN_TYPES)
+  .meta({ omitEnumValuesFromOpenApi: ['ttl'] as const })
 
 /** One choice in a `select` column. `id` is the stable cell key. */
 export const selectOptionSchema = z.object({
@@ -349,6 +354,25 @@ export const tableDefinitionSchema = domainObjectSchema<TableDefinition>()
 export const tableRowSchema = domainObjectSchema<TableRow>()
 
 /**
+ * One row as the single-row routes actually emit it: the stored cells plus
+ * position, with timestamps already serialized.
+ *
+ * Deliberately not {@link tableRowSchema}. That one describes a `TableRow`,
+ * which carries the per-cell `executions` sidecar and `Date` objects — accurate
+ * for the list and query routes, which return exactly that, and wrong for the
+ * single-row routes, which have always projected a narrower object with ISO
+ * strings. Two shapes on the wire need two schemas; collapsing them would make
+ * one of the two lie to its clients.
+ */
+export const tableRowWireSchema = z.object({
+  id: z.string(),
+  data: rowDataSchema,
+  position: z.number(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
+/**
  * Plain-object base for the single-row insert body. Kept un-refined so callers
  * (e.g. the v1 public contract) can `.omit()` fields before applying
  * {@link rowAnchorMutexRefine} — Zod forbids `.omit()` on a refined schema.
@@ -456,9 +480,7 @@ const nonEmptyFilterSchema = domainObjectSchema<Filter>().refine(
   { message: 'Filter must not be empty' }
 )
 
-const filterSchema = domainObjectSchema<Filter>()
-
-/* --------------------------- v2 predicate grammar --------------------------- */
+// v2 predicate grammar
 
 /**
  * Body cap for the row-query routes. A query body is a predicate tree plus a
@@ -480,12 +502,10 @@ const MAX_SORT_KEYS = 16
  * it reaches the OpenAPI description of every endpoint taking a predicate.
  */
 const PREDICATE_OPERATOR_GRAMMAR = [
-  'Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`.',
-  'Membership: `in`, `nin` (array operand).',
-  'Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand).',
-  'Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`.',
-  'Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`.',
-  'A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+  'Operators: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`; `in`/`nin` take arrays; `isEmpty`, `isNotEmpty`, `isNull`, and `isNotNull` take no operand.',
+  'Text operators are `contains`, `ncontains`, `startsWith`, `endsWith`, `like`, `nlike`, `ilike`, and `nilike`. Contains variants are case-insensitive and literal; `like`/`nlike` are case-sensitive, while `ilike`/`nilike` are case-insensitive.',
+  '`*` is the only wildcard; `%`, `_`, and backslash are literal.',
+  'For `select` columns, single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names resolve to IDs.',
 ].join(' ')
 
 /**
@@ -587,8 +607,7 @@ const PREDICATE_LEAF_JSON_SCHEMA = {
     op: {
       type: 'string',
       enum: [...FILTER_OPS],
-      description:
-        'Comparison operator. The `TablePredicate` schema description carries the grammar for all of them.',
+      description: PREDICATE_OPERATOR_GRAMMAR,
     },
     value: {
       description:
@@ -643,13 +662,15 @@ const predicateGroupsJsonSchema = (selfRef: string) =>
  * to claim it was: its `ncontains` is `NOT (data @> '{"tags":["opt"]}')`, and
  * `data` is never NULL, so an absent or null cell makes the containment test
  * false and the negation true — the same include-nulls behaviour as every other
- * negation. Pinned by `__tests__/sql.test.ts`.
+ * negation. Pinned by `sql.test.ts`.
  */
-const PREDICATE_TREE_DESCRIPTION = [
-  `Recursive predicate tree. Each group node is exactly one non-empty \`all\` or \`any\` array whose members are further groups or \`{ field, op, value }\` conditions; the root must be a group, not a bare condition. At most ${MAX_PREDICATE_GROUP_SIZE} members per group, ${MAX_PREDICATE_DEPTH} levels of nesting, and ${MAX_PREDICATE_NODES} nodes in total.`,
-  'The negating operators include nulls: `ne`, `nin`, `ncontains`, `nlike`, and `nilike` match rows whose column is null or absent, so "not X" is not the complement of "X" over a nullable column. That holds for every column type, multi-select included. To exclude nulls, `all`-combine the negation with `isNotEmpty` (multi-select) or `isNotNull`.',
-  PREDICATE_OPERATOR_GRAMMAR,
-].join(' ')
+const PREDICATE_LIMITS_DESCRIPTION = `Limits: ${MAX_PREDICATE_GROUP_SIZE} members per group, ${MAX_PREDICATE_DEPTH} levels, and ${MAX_PREDICATE_NODES} nodes.`
+const PREDICATE_NEGATION_DESCRIPTION =
+  'The negating operators include nulls and absent cells, multi-select included; combine with `isNotNull` or `isNotEmpty` to exclude them.'
+const PREDICATE_OPERATOR_SUMMARY =
+  'Pattern operators use `*` as the only wildcard; `%`, `_`, and backslash are literal. Select operators: single-select uses `eq`/`ne`/`in`/`nin`; multi-select uses `contains`/`ncontains`; option names resolve to IDs. Full operand rules are documented on `op`.'
+const PREDICATE_TREE_DESCRIPTION = `Recursive non-empty \`all\`/\`any\` groups containing groups or conditions; the root cannot be a condition. ${PREDICATE_LIMITS_DESCRIPTION} ${PREDICATE_NEGATION_DESCRIPTION} ${PREDICATE_OPERATOR_SUMMARY}`
+const PREDICATE_INPUT_DESCRIPTION = `One condition or a recursive \`all\`/\`any\` group, normalized to a grouped predicate. ${PREDICATE_LIMITS_DESCRIPTION} ${PREDICATE_NEGATION_DESCRIPTION} ${PREDICATE_OPERATOR_SUMMARY}`
 
 /**
  * The canonical grouped predicate schema for dual-grammar boundaries. Keeping
@@ -679,8 +700,7 @@ export const predicateInputSchema = predicateBoundarySchema
   .meta({
     id: 'TablePredicateInput',
     title: 'Table predicate input',
-    description:
-      'A single `{ field, op, value }` condition or a group, normalized to a grouped predicate after validation. Same grammar and limits as `TablePredicate`.',
+    description: PREDICATE_INPUT_DESCRIPTION,
     oneOf: [
       ...predicateGroupsJsonSchema('#/$defs/TablePredicateInput'),
       PREDICATE_LEAF_JSON_SCHEMA,
@@ -800,19 +820,39 @@ export const tableRowsQueryBaseSchema = z.object({
         .optional()
     )
     .default(0),
+  /**
+   * Absent, null, and empty all fall through to the `true` default, so a bare request still
+   * gets its count. Everything else goes to {@link booleanQueryFlagSchema}, which accepts a real
+   * boolean as well as the URL strings — `requestJson` parses this schema on the CLIENT before
+   * building the URL, so the value arrives as the caller's own type, and a string-only coercion
+   * silently read the grid's `includeTotal: param === 0` as `false` — leaving `totalCount` null on
+   * every table, and select-all falling back to the unfiltered row count.
+   *
+   * Unparseable values now reject rather than resolving to `false`, matching `limit` and `offset`
+   * in this same schema, which have always thrown on garbage.
+   */
   includeTotal: z
     .preprocess(
-      (value) =>
-        value === null || value === undefined || value === '' ? undefined : value === 'true',
-      z.boolean().optional()
+      (value) => (value === null || value === undefined || value === '' ? undefined : value),
+      booleanQueryFlagSchema.optional()
     )
     .default(true),
 })
 
-export const tableRowsQuerySchema = tableRowsQueryBaseSchema.refine(
-  (data) => !(data.after && data.sort),
-  { message: 'after cursor cannot be combined with sort — cursors paginate the default order' }
+const unboundedTableRowsLimitSchema = z.preprocess(
+  (value) => (value === null || value === undefined || value === '' ? undefined : Number(value)),
+  z
+    .number({ error: 'Limit must be a number' })
+    .int('Limit must be an integer')
+    .min(1, 'Limit must be at least 1')
+    .optional()
 )
+
+export const tableRowsQuerySchema = tableRowsQueryBaseSchema
+  .extend({ limit: unboundedTableRowsLimitSchema })
+  .refine((data) => !(data.after && data.sort), {
+    message: 'after cursor cannot be combined with sort — cursors paginate the default order',
+  })
 
 export const updateRowsByFilterBodySchema = z.object({
   workspaceId: workspaceIdSchema,
@@ -893,21 +933,6 @@ export const importTableAsyncBodySchema = z.object({
 })
 
 export type ImportTableAsyncBody = z.input<typeof importTableAsyncBodySchema>
-
-export const importTableAsyncContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/table/import-async',
-  body: importTableAsyncBodySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(
-      z.object({
-        tableId: z.string(),
-        importId: z.string(),
-      })
-    ),
-  },
-})
 
 export const getTableContract = defineRouteContract({
   method: 'GET',
@@ -1049,17 +1074,25 @@ export const rowQueryBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   predicate: predicateInputSchema.optional(),
   sort: sortSpecSchema.optional(),
+  columns: z
+    .array(
+      requiredFieldSchema('Column reference must not be empty').max(
+        MAX_ID_LENGTH,
+        'Column reference is too long'
+      )
+    )
+    .max(
+      TABLE_LIMITS.MAX_COLUMNS_PER_TABLE,
+      `Cannot select more than ${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE} columns`
+    )
+    .optional()
+    .describe(
+      'Stable column identifiers or column names to include. Omit or pass an empty array for all columns; a reference that matches no column is ignored.'
+    ),
   // Omitted limit returns the ENTIRE matching result, failing fast (400) when
   // it exceeds the response byte budget. An explicit limit caps the page row
   // count; the byte budget may still end a page early with nextCursor set.
-  limit: z.preprocess(
-    (value) => (value === null || value === undefined || value === '' ? undefined : Number(value)),
-    z
-      .number({ error: 'Limit must be a number' })
-      .int('Limit must be an integer')
-      .min(1, 'Limit must be at least 1')
-      .optional()
-  ),
+  limit: unboundedTableRowsLimitSchema,
   cursor: z.string().min(1, 'cursor must be a non-empty token').optional(),
 })
 
@@ -1251,22 +1284,6 @@ export const importIntoTableAsyncBodySchema = z.object({
 
 export type ImportIntoTableAsyncBody = z.input<typeof importIntoTableAsyncBodySchema>
 
-export const importIntoTableAsyncContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/table/[tableId]/import-async',
-  params: tableIdParamsSchema,
-  body: importIntoTableAsyncBodySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(
-      z.object({
-        tableId: z.string(),
-        importId: z.string(),
-      })
-    ),
-  },
-})
-
 /**
  * `createColumns` form field — a JSON-encoded array of CSV header names that
  * the import should auto-create as new columns on the target table.
@@ -1310,22 +1327,6 @@ export const exportTableAsyncBodySchema = z.object({
 
 export type ExportTableAsyncBody = z.input<typeof exportTableAsyncBodySchema>
 
-/**
- * Kickoff for a background export (large tables — small ones use the synchronous streaming
- * `/export` route). The worker generates the file, uploads it to workspace storage, and the
- * client fetches a presigned URL from the download contract once the job is `ready`.
- */
-export const exportTableAsyncContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/table/[tableId]/export-async',
-  params: tableIdParamsSchema,
-  body: exportTableAsyncBodySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(z.object({ tableId: z.string(), jobId: z.string() })),
-  },
-})
-
 export const tableJobSummarySchema = z.object({
   jobId: z.string(),
   tableId: z.string(),
@@ -1364,18 +1365,6 @@ export const exportDownloadQuerySchema = z.object({
   jobId: requiredFieldSchema('Job ID is required'),
 })
 
-/** Resolves a completed export job to a short-lived presigned download URL. */
-export const exportDownloadContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/table/[tableId]/export/download',
-  params: tableIdParamsSchema,
-  query: exportDownloadQuerySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(z.object({ url: z.string().min(1), fileName: z.string() })),
-  },
-})
-
 /**
  * `mapping` form field — a JSON-encoded `CsvHeaderMapping` (CSV header →
  * column name, or `null` to skip the header).
@@ -1410,11 +1399,27 @@ export const upsertTableRowContract = defineRouteContract({
     mode: 'json',
     schema: successResponseSchema(
       z.object({
-        row: tableRowSchema,
+        row: tableRowWireSchema,
         operation: z.enum(['insert', 'update']),
         message: z.string(),
       })
     ),
+  },
+})
+
+/**
+ * Reads one row. The sibling of {@link updateTableRowContract} and
+ * {@link deleteTableRowContract}, which take their workspace scope from a body;
+ * a GET has none, so it is asserted on the query string instead.
+ */
+export const getTableRowContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/table/[tableId]/rows/[rowId]',
+  params: tableRowParamsSchema,
+  query: getTableQuerySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ row: tableRowWireSchema })),
   },
 })
 
@@ -1427,7 +1432,7 @@ export const updateTableRowContract = defineRouteContract({
     mode: 'json',
     schema: successResponseSchema(
       z.object({
-        row: tableRowSchema,
+        row: tableRowWireSchema,
         message: z.string(),
       })
     ),
@@ -1446,6 +1451,23 @@ export const batchUpdateTableRowsContract = defineRouteContract({
         message: z.string(),
         updatedCount: z.number(),
         updatedRowIds: z.array(z.string()),
+      })
+    ),
+  },
+})
+
+export const updateTableRowsByFilterContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/table/[tableId]/rows',
+  params: tableIdParamsSchema,
+  body: updateRowsByFilterBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(
+      z.object({
+        message: z.string(),
+        updatedCount: z.number(),
+        updatedRowIds: z.array(z.string()).optional(),
       })
     ),
   },
@@ -1611,7 +1633,7 @@ export const addWorkflowGroupBodySchema = z.object({
         .array(workflowGroupInputMappingSchema)
         .optional()
         .describe('Workflow inputs mapped from table columns.'),
-      /** Which workflow state per-cell runs execute against. Defaults to `'live'`. */
+      /** Which workflow state per-cell runs execute against. Defaults to `'deployed'`. */
       deploymentMode: workflowGroupDeploymentModeSchema
         .optional()
         .describe('Workflow state used for cell runs.'),
@@ -1684,8 +1706,16 @@ export const updateWorkflowGroupBodySchema = z.object({
   deploymentMode: workflowGroupDeploymentModeSchema
     .optional()
     .describe('Replacement workflow execution mode.'),
-  /** Update the group's provenance. Omit to leave unchanged. */
-  type: workflowGroupTypeSchema.optional().describe('Replacement workflow-group producer type.'),
+  /**
+   * Echo of the group's provenance. A producer is fixed at creation: this body
+   * has no `enrichmentId` field, so it can never supply the coordinate a new
+   * type would need. A `type` that differs from the stored one is a 400.
+   */
+  type: workflowGroupTypeSchema
+    .optional()
+    .describe(
+      "Workflow-group producer type. Must match the group's stored type — a group's producer cannot be changed after creation."
+    ),
   /** Toggle the group's persisted auto-run flag. Omit to leave unchanged. */
   autoRun: z.boolean().optional().describe('Replacement automatic-run setting.'),
 })
@@ -1812,22 +1842,6 @@ export const cancelTableJobBodySchema = z.object({
   workspaceId: workspaceIdSchema,
   jobId: requiredFieldSchema('Job ID is required'),
 })
-
-/**
- * Cancel an in-flight async table job (import or delete). The worker stops at its next ownership
- * check; committed work (inserted/deleted rows) is left in place.
- */
-export const cancelTableJobContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/table/[tableId]/job/cancel',
-  params: tableIdParamsSchema,
-  body: cancelTableJobBodySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema(z.object({ canceled: z.boolean() })),
-  },
-})
-export type CancelTableJobBody = z.input<typeof cancelTableJobBodySchema>
 
 /**
  * Run modes for `POST /api/table/[tableId]/columns/run`:
@@ -2131,7 +2145,7 @@ export const updateTableViewBodySchema = z
       .min(1, 'Workspace ID is required')
       .describe('Workspace that owns the table.'),
     name: viewNameSchema.optional().describe('Replacement saved-view display name.'),
-    /** Full replace. Use for an explicit Save, where dropping a removed filter is the point. */
+    /** Full replacement for callers that own the complete configuration snapshot. */
     config: tableViewConfigSchema
       .optional()
       .describe('Complete replacement saved-view configuration.'),
@@ -2190,3 +2204,125 @@ export type TableViewWire = z.output<typeof tableViewSchema>
 export type TableViewConfigInput = z.input<typeof tableViewConfigSchema>
 export type CreateTableViewBody = z.input<typeof createTableViewBodySchema>
 export type UpdateTableViewBody = z.input<typeof updateTableViewBodySchema>
+
+const bulkTableIdListSchema = z
+  .array(requiredFieldSchema('id entries cannot be empty'))
+  .max(MAX_TABLE_BATCH_ITEMS, `cannot contain more than ${MAX_TABLE_BATCH_ITEMS} ids`)
+  .default([])
+
+/**
+ * Bounds a mixed selection from the Tables list, which interleaves folder rows
+ * and table rows in one grid. Both lists travel in one request so a mixed
+ * selection commits as one authorized operation instead of a client-sequenced
+ * fan-out.
+ *
+ * The cap is on the combined count: each list is individually bounded first so
+ * a 10,000-entry array is rejected before the combined arithmetic, and folders
+ * cost more than tables because they cascade.
+ */
+function refineBoundedTableSelection(
+  selection: { tableIds: string[]; folderIds: string[] },
+  ctx: z.RefinementCtx
+): void {
+  const total = selection.tableIds.length + selection.folderIds.length
+  if (total === 0) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['tableIds'],
+      message: 'At least one table or folder must be selected',
+    })
+    return
+  }
+  if (total > MAX_TABLE_BATCH_ITEMS) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['tableIds'],
+      message: `tableIds and folderIds cannot contain more than ${MAX_TABLE_BATCH_ITEMS} ids combined`,
+    })
+  }
+}
+
+export const bulkMoveTablesBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns every selected item.'),
+    tableIds: bulkTableIdListSchema.describe('Tables to move, by identifier.'),
+    folderIds: bulkTableIdListSchema.describe('Table folders to re-parent, by identifier.'),
+    targetFolderId: folderIdSchema
+      .nullable()
+      .describe('Destination folder in the table folder tree. `null` is the workspace root.'),
+  })
+  .superRefine(refineBoundedTableSelection)
+export type BulkMoveTablesBody = z.input<typeof bulkMoveTablesBodySchema>
+
+export const bulkDeleteTablesBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns every selected item.'),
+    tableIds: bulkTableIdListSchema.describe('Tables to archive, by identifier.'),
+    folderIds: bulkTableIdListSchema.describe(
+      'Table folders to delete, by identifier. Each cascades to everything inside it.'
+    ),
+  })
+  .superRefine(refineBoundedTableSelection)
+export type BulkDeleteTablesBody = z.input<typeof bulkDeleteTablesBodySchema>
+
+const bulkTableItemKindSchema = z.enum(['table', 'folder'])
+
+const bulkTableItemSchema = z.object({
+  kind: bulkTableItemKindSchema,
+  id: z.string(),
+  name: z.string(),
+})
+
+/** An id nothing active resolved to. Carries no name, because nothing was found to name. */
+const bulkTableMissingSchema = z.object({ kind: bulkTableItemKindSchema, id: z.string() })
+
+/**
+ * An item the batch reached but could not act on for a reason the caller can
+ * act on in turn — a delete lock, a folder cycle. Distinct from `notFound`,
+ * which also absorbs the items the caller may not write to.
+ */
+const bulkTableFailureSchema = bulkTableItemSchema.extend({ reason: z.string() })
+
+/**
+ * Items dropped because a selected folder already carries them: a table filed
+ * inside a selected folder, or a subfolder of another selected folder.
+ */
+const bulkTableSkippedSchema = z.array(bulkTableItemSchema)
+
+export const bulkMoveTablesContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/bulk-move',
+  body: bulkMoveTablesBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(
+      z.object({
+        moved: z.array(bulkTableItemSchema),
+        skipped: bulkTableSkippedSchema,
+        notFound: z.array(bulkTableMissingSchema),
+        failed: z.array(bulkTableFailureSchema),
+      })
+    ),
+  },
+})
+export const bulkDeleteTablesContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/bulk-delete',
+  body: bulkDeleteTablesBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(
+      z.object({
+        deleted: z.array(bulkTableItemSchema),
+        skipped: bulkTableSkippedSchema,
+        notFound: z.array(bulkTableMissingSchema),
+        failed: z.array(bulkTableFailureSchema),
+        /** Totals across the explicit archives and every folder cascade they triggered. */
+        deletedItems: z.object({
+          tables: z.number().int(),
+          folders: z.number().int(),
+        }),
+      })
+    ),
+  },
+})

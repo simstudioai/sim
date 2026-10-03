@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
+  MANAGED_OAUTH_DELEGATION_HEADER,
   oauthTokenGetContract,
   oauthTokenPostContract,
 } from '@/lib/api/contracts/oauth-connections'
@@ -11,8 +12,13 @@ import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { authenticateManagedOAuthDelegation } from '@/lib/credentials/application/managed-oauth-delegation'
 import { getCredential, getOAuthToken } from '@/lib/oauth/credential-service'
-import { completeOAuthCredentialToken, resolveCredentialToken } from '@/lib/oauth/token-resolution'
+import {
+  completeOAuthCredentialToken,
+  resolveCredentialAccessToken,
+  validateOAuthCredentialContext,
+} from '@/lib/oauth/token-resolution'
 import { captureServerEvent } from '@/lib/posthog/server'
 
 export const dynamic = 'force-dynamic'
@@ -50,6 +56,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       credentialId,
       credentialAccountUserId,
       providerId,
+      toolId,
       workflowId,
       scopes,
       impersonateEmail,
@@ -115,15 +122,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     }
 
-    const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-    const result = await resolveCredentialToken(auth, {
+    const managedOAuthDelegation = parsed.data.headers?.[MANAGED_OAUTH_DELEGATION_HEADER]
+    const result = await resolveCredentialAccessToken({
       requestId,
       credentialId,
       workflowId: workflowId ?? undefined,
+      toolId,
       scopes,
       impersonateEmail,
       callerUserId,
       auditRequest: request,
+      authenticate: () => checkSessionOrInternalAuth(request, { requireWorkflowId: false }),
+      resolveManagedPrincipal: managedOAuthDelegation
+        ? (managedCredentialId: string) =>
+            authenticateManagedOAuthDelegation(managedOAuthDelegation, managedCredentialId)
+        : undefined,
     })
 
     if (!result.ok) {
@@ -182,6 +195,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     if (!credential) {
       return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+    }
+
+    const contextValidation = validateOAuthCredentialContext(credential)
+    if (!contextValidation.ok) {
+      return NextResponse.json({ error: contextValidation.error }, { status: 401 })
     }
 
     if (!credential.accessToken) {

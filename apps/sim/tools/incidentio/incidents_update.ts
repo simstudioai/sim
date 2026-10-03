@@ -102,7 +102,6 @@ export const incidentsUpdateTool: ToolConfig<
           id: incident.id,
           name: incident.name,
           summary: incident.summary,
-          description: incident.description,
           mode: incident.mode,
           call_url: incident.call_url,
           severity: incident.severity
@@ -127,7 +126,7 @@ export const incidentsUpdateTool: ToolConfig<
             : undefined,
           created_at: incident.created_at,
           updated_at: incident.updated_at,
-          incident_url: incident.incident_url,
+          permalink: incident.permalink,
           slack_channel_id: incident.slack_channel_id,
           slack_channel_name: incident.slack_channel_name,
           visibility: incident.visibility,
@@ -143,8 +142,7 @@ export const incidentsUpdateTool: ToolConfig<
       properties: {
         id: { type: 'string', description: 'Incident ID' },
         name: { type: 'string', description: 'Incident name' },
-        summary: { type: 'string', description: 'Brief summary of the incident' },
-        description: { type: 'string', description: 'Detailed description of the incident' },
+        summary: { type: 'string', description: 'Brief summary of the incident', optional: true },
         mode: { type: 'string', description: 'Incident mode (e.g., standard, retrospective)' },
         call_url: { type: 'string', description: 'URL for the incident call/bridge' },
         severity: {
@@ -175,7 +173,11 @@ export const incidentsUpdateTool: ToolConfig<
         },
         created_at: { type: 'string', description: 'Creation timestamp' },
         updated_at: { type: 'string', description: 'Last update timestamp' },
-        incident_url: { type: 'string', description: 'URL to the incident' },
+        permalink: {
+          type: 'string',
+          description: 'Permalink to the incident in incident.io',
+          optional: true,
+        },
         slack_channel_id: { type: 'string', description: 'Associated Slack channel ID' },
         slack_channel_name: { type: 'string', description: 'Associated Slack channel name' },
         visibility: { type: 'string', description: 'Incident visibility' },

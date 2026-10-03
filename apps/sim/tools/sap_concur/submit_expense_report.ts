@@ -1,20 +1,19 @@
-import type { SapConcurProxyResponse, SubmitExpenseReportParams } from '@/tools/sap_concur/types'
+import type { SapConcurResponse, SubmitExpenseReportParams } from '@/tools/sap_concur/types'
 import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
+  baseSapConcurInput,
+  transformSapConcurResponse,
   trimRequired,
 } from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const submitExpenseReportTool: ToolConfig<
+export const submitExpenseReportTool: InternalToolConfig<
   SubmitExpenseReportParams,
-  SapConcurProxyResponse
+  SapConcurResponse
 > = {
   id: 'sap_concur_submit_expense_report',
   name: 'SAP Concur Submit Expense Report',
   description:
-    'Submit an expense report into the workflow via Expense Report v4 (PATCH /expensereports/v4/users/{userId}/reports/{reportId}/submit).',
+    'Submit an expense report into the workflow via Expense Report v4 (PATCH /expensereports/v4/users/{userId}/reports/{reportId}/submit). Takes no request body.',
   version: '1.0.0',
   params: {
     datacenter: {
@@ -71,30 +70,19 @@ export const submitExpenseReportTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Expense report ID to submit',
     },
-    body: {
-      type: 'json',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        "Optional body. Concur docs don't define a payload for this action; pass an empty object if uncertain.",
-    },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => {
+  operation: {
+    input: (params) => {
       const userId = trimRequired(params.userId, 'userId')
       const reportId = trimRequired(params.reportId, 'reportId')
       return {
-        ...baseProxyBody(params),
+        ...baseSapConcurInput(params),
         path: `/expensereports/v4/users/${encodeURIComponent(userId)}/reports/${encodeURIComponent(reportId)}/submit`,
         method: 'PATCH',
-        body: params.body ?? {},
       }
     },
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: { type: 'json', description: 'Empty (204 No Content)' },

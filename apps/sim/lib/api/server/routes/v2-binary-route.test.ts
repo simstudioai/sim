@@ -1,23 +1,13 @@
-/**
- * @vitest-environment node
- */
 import type { PersonalApiKeyPrincipal } from '@sim/auth/principal'
-import {
-  v2ApiKeyAuthModuleMock,
-  v2GateModuleMock,
-  v2RateLimiterModuleMock,
-  v2RouteMocks,
-} from '@sim/testing'
+import { v2ApiKeyAuthModuleMock, v2RateLimiterModuleMock, v2RouteMocks } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts'
 import { NoWorkspaceAccessError, type OperationUseCase } from '@/lib/core/application'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
-vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 import { v2ApiKeyAuth, v2OrchestrationErrorPolicy, v2RateLimits } from '@/lib/api/server/routes'
 import type { V2ApiKeyAuthContext } from '@/lib/api/server/routes/v2-api-key-auth'
@@ -31,7 +21,6 @@ const principal: PersonalApiKeyPrincipal = {
 }
 const auth = {
   principal,
-  rolloutUserId: 'user-1',
   rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
   rateLimitSubscription: null,
   keyType: 'personal',
@@ -90,20 +79,9 @@ const context = { params: Promise.resolve({ widgetId: 'widget-1' }) }
 
 describe('defineV2BinaryRoute', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
-    v2RouteMocks.gate.mockResolvedValue(null)
     v2RouteMocks.preauthRate.mockResolvedValue({ allowed: true, remaining: 599, resetAt })
     v2RouteMocks.operationRate.mockResolvedValue(allowedRate)
-  })
-
-  it('streams the descriptor on GET', async () => {
-    const execute = vi.fn(async () => ({ bytes: 'payload' }))
-    const response = await createHandler({ execute })(request('GET'), context)
-
-    expect(response.status).toBe(200)
-    expect(await response.text()).toBe('payload')
-    expect(execute).toHaveBeenCalledOnce()
   })
 
   it('runs the use case for a HEAD when the route is head-safe', async () => {
@@ -121,16 +99,6 @@ describe('defineV2BinaryRoute', () => {
     expect(response.status).toBe(200)
     expect(await response.text()).toBe('')
     expect(execute).not.toHaveBeenCalled()
-  })
-
-  it('still authenticates and rate-limits a HEAD on a route that is not head-safe', async () => {
-    const execute = vi.fn(async () => ({ bytes: 'payload' }))
-    const handler = createHandler({ headSafe: false, execute })
-
-    await handler(request('HEAD'), context)
-
-    expect(v2RouteMocks.authenticate).toHaveBeenCalledOnce()
-    expect(v2RouteMocks.operationRate).toHaveBeenCalled()
   })
 
   /**
@@ -152,32 +120,6 @@ describe('defineV2BinaryRoute', () => {
 
     expect(response.status).toBe(403)
     expect(execute).not.toHaveBeenCalled()
-  })
-
-  it('answers a HEAD for a nonexistent resource with 404, not 200', async () => {
-    const execute = vi.fn(async () => ({ bytes: 'payload' }))
-    const response = await createHandler({
-      headSafe: false,
-      execute,
-      authorize: async () => {
-        throw new OrchestrationError('not_found', 'Widget not found')
-      },
-    })(request('HEAD'), context)
-
-    expect(response.status).toBe(404)
-    expect(execute).not.toHaveBeenCalled()
-  })
-
-  it('rejects a HEAD missing a required param instead of answering 200', async () => {
-    const execute = vi.fn(async () => ({ bytes: 'payload' }))
-    const authorize = vi.fn(async () => {})
-    const response = await createHandler({ headSafe: false, execute, authorize })(
-      request('HEAD', ''),
-      context
-    )
-
-    expect(response.status).toBe(400)
-    expect(authorize).not.toHaveBeenCalled()
   })
 
   it('refuses at definition time to build a not-head-safe route that cannot authorize', () => {

@@ -42,15 +42,6 @@ export const STORAGE_FILE_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 /**
- * Complete storage file object output definition
- */
-export const STORAGE_FILE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Storage file object with metadata',
-  properties: STORAGE_FILE_OUTPUT_PROPERTIES,
-}
-
-/**
  * Output definition for storage bucket objects
  * @see https://github.com/supabase/storage-js/blob/main/src/lib/types.ts
  */
@@ -73,15 +64,6 @@ export const STORAGE_BUCKET_OUTPUT_PROPERTIES = {
     optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete storage bucket object output definition
- */
-export const STORAGE_BUCKET_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Storage bucket object with configuration',
-  properties: STORAGE_BUCKET_OUTPUT_PROPERTIES,
-}
 
 /**
  * Output definition for storage upload response.
@@ -158,65 +140,6 @@ export const STORAGE_DOWNLOAD_OUTPUT_PROPERTIES = {
   data: { type: 'string', description: 'Base64 encoded file content' },
   size: { type: 'number', description: 'File size in bytes' },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Complete download file object output definition
- */
-export const STORAGE_DOWNLOAD_FILE_OUTPUT: OutputProperty = {
-  type: 'object',
-  description: 'Downloaded file with content and metadata',
-  properties: STORAGE_DOWNLOAD_OUTPUT_PROPERTIES,
-}
-
-/**
- * Output definition for public URL response
- */
-export const STORAGE_PUBLIC_URL_OUTPUT_PROPERTIES = {
-  publicUrl: { type: 'string', description: 'The public URL to access the file' },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Output definition for signed URL response
- */
-export const STORAGE_SIGNED_URL_OUTPUT_PROPERTIES = {
-  signedUrl: { type: 'string', description: 'The temporary signed URL to access the file' },
-} as const satisfies Record<string, OutputProperty>
-
-/**
- * Storage files array output definition for list operations
- */
-export const STORAGE_FILES_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of file objects with metadata',
-  items: {
-    type: 'object',
-    properties: STORAGE_FILE_OUTPUT_PROPERTIES,
-  },
-}
-
-/**
- * Storage buckets array output definition for list buckets operations
- */
-export const STORAGE_BUCKETS_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of bucket objects',
-  items: {
-    type: 'object',
-    properties: STORAGE_BUCKET_OUTPUT_PROPERTIES,
-  },
-}
-
-/**
- * Storage deleted files array output definition
- */
-export const STORAGE_DELETED_FILES_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of deleted file objects',
-  items: {
-    type: 'object',
-    properties: STORAGE_DELETED_FILE_OUTPUT_PROPERTIES,
-  },
-}
 
 /**
  * Output definition for foreign key reference in column schema
@@ -314,18 +237,6 @@ export const INTROSPECT_TABLE_OUTPUT_PROPERTIES = {
     },
   },
 } as const satisfies Record<string, OutputProperty>
-
-/**
- * Introspect tables array output definition
- */
-export const INTROSPECT_TABLES_OUTPUT: OutputProperty = {
-  type: 'array',
-  description: 'Array of table schemas with columns, keys, and indexes',
-  items: {
-    type: 'object',
-    properties: INTROSPECT_TABLE_OUTPUT_PROPERTIES,
-  },
-}
 
 export interface SupabaseQueryParams {
   apiKey: string

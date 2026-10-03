@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
+import { capabilityGovernedAuthUserId } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   FUNCTIONAL_OUTPUTS_UNAVAILABLE_MESSAGE,
@@ -11,6 +12,7 @@ import { getWorkflowExecutionStatus } from '@/lib/workflows/executor/execution-s
 import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
 
 const logger = createLogger('WorkflowExecutionStatusAPI')
+
 export const GET = withRouteHandler(
   async (
     request: NextRequest,
@@ -33,6 +35,8 @@ export const GET = withRouteHandler(
         executionId,
         includeOutput,
         selectedOutputs,
+        workspaceId: access.workflow.workspaceId,
+        viewerUserId: capabilityGovernedAuthUserId(access.auth),
       })
     } catch (error) {
       if (error instanceof FunctionalOutputsUnavailableError) {

@@ -3,137 +3,94 @@
 import { useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { usePostHog } from 'posthog-js/react'
+import { getSettingsPermissionConfigKey } from '@/components/settings/navigation'
 import { useSession } from '@/lib/auth/auth-client'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { captureEvent } from '@/lib/posthog/client'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { General } from '@/app/workspace/[workspaceId]/settings/components/general/general'
 import { SettingsSectionProvider } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   getSettingsSectionMeta,
-  isBillingEnabled,
   type SettingsSection,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { SECTION_MODULES } from '@/app/workspace/[workspaceId]/settings/section-warmers'
+import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 
-const Admin = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/admin/admin').then((m) => m.Admin)
+const Admin = dynamic(() => SECTION_MODULES.admin().then((m) => m.Admin))
+const ApiKeys = dynamic(() => SECTION_MODULES.apikeys().then((m) => m.ApiKeys))
+const BYOK = dynamic(() => SECTION_MODULES.byok().then((m) => m.BYOK))
+const Forks = dynamic(() => SECTION_MODULES.forks().then((m) => m.Forks))
+const Secrets = dynamic(() => SECTION_MODULES.secrets().then((m) => m.Secrets))
+const OrganizationConnectedAccounts = dynamic(() =>
+  SECTION_MODULES['connected-accounts']().then((m) => m.OrganizationConnectedAccounts)
 )
-const ApiKeys = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/api-keys/api-keys').then(
-    (m) => m.ApiKeys
-  )
-)
-const BYOK = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/byok/byok').then((m) => m.BYOK)
-)
-const Forks = dynamic(() => import('@/ee/workspace-forking/components/forks').then((m) => m.Forks))
-const Secrets = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets').then((m) => m.Secrets)
-)
-const Sandboxes = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/sandboxes/sandboxes').then(
-    (m) => m.Sandboxes
-  )
-)
-const CustomTools = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/custom-tools/custom-tools').then(
-    (m) => m.CustomTools
-  )
-)
-const Inbox = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/inbox/inbox').then((m) => m.Inbox)
-)
-const MCP = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/mcp/mcp').then((m) => m.MCP)
-)
-const Mothership = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/mothership/mothership').then(
-    (m) => m.Mothership
-  )
-)
+const Sandboxes = dynamic(() => SECTION_MODULES.sandboxes().then((m) => m.Sandboxes))
+const CustomTools = dynamic(() => SECTION_MODULES['custom-tools']().then((m) => m.CustomTools))
+const Inbox = dynamic(() => SECTION_MODULES.inbox().then((m) => m.Inbox))
+const MCP = dynamic(() => SECTION_MODULES.mcp().then((m) => m.MCP))
+const Mothership = dynamic(() => SECTION_MODULES.mothership().then((m) => m.Mothership))
 const RecentlyDeleted = dynamic(() =>
-  import(
-    '@/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted'
-  ).then((m) => m.RecentlyDeleted)
+  SECTION_MODULES['recently-deleted']().then((m) => m.RecentlyDeleted)
 )
-const SelfHost = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/self-host/self-host').then(
-    (m) => m.SelfHost
-  )
-)
-const Billing = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/billing/billing').then((m) => m.Billing)
-)
-const Teammates = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/teammates/teammates').then(
-    (m) => m.Teammates
-  )
-)
-const TeamManagement = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/team-management/team-management').then(
-    (m) => m.TeamManagement
-  )
-)
+const SelfHost = dynamic(() => SECTION_MODULES['self-host']().then((m) => m.SelfHost))
+const Billing = dynamic(() => SECTION_MODULES.billing().then((m) => m.Billing))
+const Teammates = dynamic(() => SECTION_MODULES.teammates().then((m) => m.Teammates))
+const TeamManagement = dynamic(() => SECTION_MODULES.organization().then((m) => m.TeamManagement))
 const WorkflowMcpServers = dynamic(() =>
-  import(
-    '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/workflow-mcp-servers'
-  ).then((m) => m.WorkflowMcpServers)
+  SECTION_MODULES['workflow-mcp-servers']().then((m) => m.WorkflowMcpServers)
 )
 const AccessControl = dynamic(() =>
-  import('@/ee/access-control/components/access-control').then((m) => m.AccessControl)
+  SECTION_MODULES['access-control']().then((m) => m.AccessControl)
 )
-const CustomBlocks = dynamic(() =>
-  import('@/ee/custom-blocks/components/custom-blocks').then((m) => m.CustomBlocks)
+const AccessRequestsSettings = dynamic(() =>
+  SECTION_MODULES.requests().then((m) => m.AccessRequestsSettings)
 )
-const AuditLogs = dynamic(() =>
-  import('@/ee/audit-logs/components/audit-logs').then((m) => m.AuditLogs)
-)
-const SSO = dynamic(() => import('@/ee/sso/components/sso-settings').then((m) => m.SSO))
-const SessionPolicySettings = dynamic(() =>
-  import('@/ee/session-policy/components/session-policy-settings').then(
-    (m) => m.SessionPolicySettings
-  )
-)
+const CustomBlocks = dynamic(() => SECTION_MODULES['custom-blocks']().then((m) => m.CustomBlocks))
+const AuditLogs = dynamic(() => SECTION_MODULES['audit-logs']().then((m) => m.AuditLogs))
+const SSO = dynamic(() => SECTION_MODULES.sso().then((m) => m.SSO))
 const DataRetentionSettings = dynamic(() =>
-  import('@/ee/data-retention/components/data-retention-settings').then(
-    (m) => m.DataRetentionSettings
-  )
+  SECTION_MODULES['data-retention']().then((m) => m.DataRetentionSettings)
 )
 const DataDrainsSettings = dynamic(() =>
-  import('@/ee/data-drains/components/data-drains-settings').then((m) => m.DataDrainsSettings)
+  SECTION_MODULES['data-drains']().then((m) => m.DataDrainsSettings)
 )
-const Desktop = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/desktop/desktop').then((m) => m.Desktop)
+const OrganizationSecuritySettings = dynamic(() =>
+  SECTION_MODULES.security().then((m) => m.OrganizationSecuritySettings)
 )
-const Browser = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/browser/browser').then((m) => m.Browser)
-)
-const Terminal = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/terminal/terminal').then(
-    (m) => m.Terminal
-  )
-)
-const WhitelabelingSettings = dynamic(
-  () =>
-    import('@/ee/whitelabeling/components/whitelabeling-settings').then(
-      (m) => m.WhitelabelingSettings
-    ),
-  { ssr: false }
+const UsageMonitoring = dynamic(() => SECTION_MODULES.usage().then((m) => m.UsageMonitoring))
+const Desktop = dynamic(() => SECTION_MODULES.desktop().then((m) => m.Desktop))
+const Browser = dynamic(() => SECTION_MODULES.browser().then((m) => m.Browser))
+const Terminal = dynamic(() => SECTION_MODULES.terminal().then((m) => m.Terminal))
+const WhitelabelingSettings = dynamic(() =>
+  SECTION_MODULES.whitelabeling().then((m) => m.WhitelabelingSettings)
 )
 
 interface SettingsPageProps {
   section: SettingsSection
 }
 
-export function SettingsPage({ section }: SettingsPageProps) {
+export function SettingsPage(props: SettingsPageProps) {
+  const configKey = getSettingsPermissionConfigKey(props.section)
+  if (!configKey) return <SettingsPageContent {...props} />
+  return (
+    <PermissionAccessBoundary configKey={configKey}>
+      <SettingsPageContent {...props} />
+    </PermissionAccessBoundary>
+  )
+}
+
+function SettingsPageContent({ section }: SettingsPageProps) {
   const { data: session, isPending: sessionLoading } = useSession()
   const hostContext = useWorkspaceHostContext()
+  const { billingEnabled } = useDeploymentShape()
   const posthog = usePostHog()
 
   const isAdminRole = session?.user?.role === 'admin'
   const normalizedSection: SettingsSection =
     (section as string) === 'subscription' ? 'billing' : section
   const effectiveSection =
-    !isBillingEnabled && (normalizedSection === 'billing' || normalizedSection === 'organization')
+    !billingEnabled && normalizedSection === 'billing'
       ? 'general'
       : normalizedSection === 'admin' && !sessionLoading && !isAdminRole
         ? 'general'
@@ -158,41 +115,59 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'browser' && <Browser />}
       {effectiveSection === 'terminal' && <Terminal />}
       {effectiveSection === 'secrets' && <Secrets />}
+      {effectiveSection === 'connected-accounts' && organizationId && (
+        <OrganizationConnectedAccounts organizationId={organizationId} />
+      )}
       {effectiveSection === 'access-control' && organizationId && (
         <AccessControl
           organizationId={organizationId}
           isOrganizationAdmin={hostContext.viewer.isHostOrganizationAdmin}
+          requestsHref={`/workspace/${hostContext.workspace.id}/settings/requests`}
+        />
+      )}
+      {effectiveSection === 'requests' && organizationId && (
+        <AccessRequestsSettings
+          scope={{ kind: 'workspace', workspaceId: hostContext.workspace.id }}
+          reviewOrganizationId={
+            hostContext.viewer.isHostOrganizationAdmin ? organizationId : undefined
+          }
         />
       )}
       {effectiveSection === 'custom-blocks' && <CustomBlocks />}
       {effectiveSection === 'audit-logs' && organizationId && (
         <AuditLogs organizationId={organizationId} />
       )}
+      {effectiveSection === 'usage' && organizationId && (
+        <UsageMonitoring
+          organizationId={organizationId}
+          eventsHref={`/workspace/${hostContext.workspace.id}/settings/usage/events`}
+          auditLogsHref={`/workspace/${hostContext.workspace.id}/settings/audit-logs`}
+        />
+      )}
       {effectiveSection === 'apikeys' && <ApiKeys scope='combined' />}
-      {isBillingEnabled && effectiveSection === 'billing' && (
+      {billingEnabled && effectiveSection === 'billing' && (
         <Billing
           scope={organizationId ? 'organization' : 'account'}
           organizationId={organizationId ?? undefined}
-          governingWorkspaceName={hostContext.workspace.name}
           creditUsageHref={`/workspace/${hostContext.workspace.id}/settings/billing/credit-usage`}
         />
       )}
       {effectiveSection === 'teammates' && <Teammates />}
-      {isBillingEnabled && effectiveSection === 'organization' && organizationId && (
+      {effectiveSection === 'organization' && organizationId && (
         <TeamManagement
           organizationId={organizationId}
           billingHref={`/workspace/${hostContext.workspace.id}/settings/billing`}
         />
       )}
       {effectiveSection === 'sso' && organizationId && <SSO organizationId={organizationId} />}
-      {effectiveSection === 'sessions' && organizationId && (
-        <SessionPolicySettings key={organizationId} organizationId={organizationId} />
-      )}
       {effectiveSection === 'data-retention' && organizationId && (
         <DataRetentionSettings organizationId={organizationId} />
       )}
       {effectiveSection === 'data-drains' && organizationId && (
         <DataDrainsSettings organizationId={organizationId} />
+      )}
+      {effectiveSection === 'security' && organizationId && (
+        <OrganizationSecuritySettings organizationId={organizationId} />
       )}
       {effectiveSection === 'whitelabeling' && organizationId && (
         <WhitelabelingSettings organizationId={organizationId} />

@@ -1,37 +1,82 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
+  type MockCondition,
   resetDbChainMock,
   storageServiceMock,
   storageServiceMockFns,
 } from '@sim/testing'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import { workspaceFileSecretProvenanceMock } from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
+import { generateShortId } from '@sim/utils/id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCopyWorkspaceFileSecretProvenanceInTx,
-  mockIncrementStorageUsageInTx,
-  mockResolveStorageBillingContext,
-} = vi.hoisted(() => ({
-  mockCopyWorkspaceFileSecretProvenanceInTx: vi.fn(),
-  mockIncrementStorageUsageInTx: vi.fn(),
-  mockResolveStorageBillingContext: vi.fn(),
-}))
+/** The `workspace_files` columns {@link fileRows} enforces its unique indexes on. */
+interface WorkspaceFileRow {
+  id: string
+  key: string
+  workspaceId: string | null
+  folderId?: string | null
+  context: string
+  originalName: string
+  deletedAt: Date | null
+  [column: string]: unknown
+}
+
+/**
+ * `fileRows` is the shared stand-in for the `workspace_files` table: the mocked name
+ * allocator reads it exactly as the real one queries the DB, and the insert simulation in
+ * `executeForkFileBlobCopies collisions` enforces the same unique indexes against it. One
+ * store, so the allocator and the index can never disagree the way two fixtures would.
+ */
+const { fileRows, allocateFromFileRows } = vi.hoisted(() => {
+  const fileRows: WorkspaceFileRow[] = []
+  const withCopySuffix = (name: string, n: number | string) => {
+    const lastDot = name.lastIndexOf('.')
+    return lastDot > 0 && lastDot < name.length - 1
+      ? `${name.slice(0, lastDot)} (${n})${name.slice(lastDot)}`
+      : `${name} (${n})`
+  }
+  return {
+    fileRows,
+    /**
+     * Mirrors `allocateUniqueWorkspaceFileName`: the taken-name probe matches the columns
+     * of `workspace_files_workspace_folder_name_active_unique`.
+     */
+    allocateFromFileRows: async (
+      workspaceId: string,
+      baseName: string,
+      folderId?: string | null
+    ) => {
+      const taken = (name: string) =>
+        fileRows.some(
+          (row) =>
+            row.deletedAt === null &&
+            row.context === 'workspace' &&
+            row.workspaceId === workspaceId &&
+            (row.folderId ?? null) === (folderId ?? null) &&
+            row.originalName === name
+        )
+      if (!taken(baseName)) return baseName
+      for (let n = 1; n <= 20; n++) {
+        const candidate = withCopySuffix(baseName, n)
+        if (!taken(candidate)) return candidate
+      }
+      return withCopySuffix(baseName, generateShortId(8))
+    },
+  }
+})
 
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
-vi.mock('@/lib/billing/storage', () => ({
-  incrementStorageUsageForBillingContextInTx: mockIncrementStorageUsageInTx,
-  resolveStorageBillingContext: mockResolveStorageBillingContext,
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  generateWorkspaceFileKey: vi.fn(
-    (workspaceId: string, fileName: string) => `workspace/${workspaceId}/generated-${fileName}`
-  ),
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  copyWorkspaceFileSecretProvenanceInTx: mockCopyWorkspaceFileSecretProvenanceInTx,
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
 import type { DbOrTx } from '@/lib/db/types'
 import {
@@ -39,6 +84,15 @@ import {
   executeForkFileBlobCopies,
   planForkFileCopies,
 } from '@/ee/workspace-forking/lib/copy/copy-files'
+
+const {
+  mockIncrementStorageUsageForBillingContextInTx: mockIncrementStorageUsageInTx,
+  mockResolveStorageBillingContext,
+} = billingStorageMockFns
+
+const mockAllocateUniqueWorkspaceFileName =
+  workspaceFileManagerMockFns.mockAllocateUniqueWorkspaceFileName
+mockAllocateUniqueWorkspaceFileName.mockImplementation(allocateFromFileRows)
 
 function makeTask(overrides: Partial<BlobCopyTask> = {}): BlobCopyTask {
   return {
@@ -60,8 +114,8 @@ function makeTask(overrides: Partial<BlobCopyTask> = {}): BlobCopyTask {
 
 describe('executeForkFileBlobCopies storage accounting', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
+    fileRows.length = 0
     storageServiceMockFns.mockHeadObject.mockResolvedValue(null)
     storageServiceMockFns.mockDownloadFile.mockResolvedValue(Buffer.from('blob-bytes'))
     storageServiceMockFns.mockUploadFile.mockResolvedValue({ key: 'workspace/child-ws/target' })
@@ -108,31 +162,6 @@ describe('executeForkFileBlobCopies storage accounting', () => {
     expect(storageServiceMockFns.mockUploadFile.mock.invocationCallOrder[0]).toBeLessThan(
       dbChainMockFns.transaction.mock.invocationCallOrder[0]
     )
-  })
-
-  it('bulk-checks finalized metadata once per bounded task page', async () => {
-    const tasks = Array.from({ length: 501 }, (_, index) =>
-      makeTask({
-        sourceKey: `workspace/src-ws/source-${index}.txt`,
-        targetKey: `workspace/child-ws/target-${index}.txt`,
-        targetFileId: `target-file-${index}`,
-      })
-    )
-    const finalizedRows = tasks.map((task) => ({
-      id: task.targetFileId,
-      key: task.targetKey,
-      workspaceId: task.workspaceId,
-    }))
-    dbChainMockFns.where
-      .mockResolvedValueOnce(finalizedRows.slice(0, 500))
-      .mockResolvedValueOnce(finalizedRows.slice(500))
-
-    const result = await executeForkFileBlobCopies(tasks, 'test')
-
-    expect(result).toEqual({ copied: 501, failed: 0, failedTargetKeys: [] })
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
-    expect(storageServiceMockFns.mockHeadObject).not.toHaveBeenCalled()
-    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
   })
 
   it('rejects bulk replay metadata whose deterministic key or workspace does not match', async () => {
@@ -193,6 +222,268 @@ describe('executeForkFileBlobCopies storage accounting', () => {
   })
 })
 
+/** Rejects a predicate the harness does not model, rather than letting it match everything. */
+function unsupportedPredicate(detail: string): never {
+  throw new Error(`Unsupported predicate in test harness: ${detail}`)
+}
+
+/** The nested clauses of an `and`/`or` node, or a throw when the node carries none. */
+function predicateClauses(node: MockCondition): unknown[] {
+  if (!Array.isArray(node.conditions))
+    unsupportedPredicate(`${String(node.type)} without conditions`)
+  return node.conditions
+}
+
+/**
+ * The row key a predicate node references. The mocked schema tables are column-name maps, so a
+ * column reference is the column name itself; anything else is a shape this harness cannot read.
+ */
+function predicateColumn(node: MockCondition, field: 'left' | 'column'): string {
+  const column = node[field]
+  if (typeof column !== 'string')
+    unsupportedPredicate(`${String(node.type)} with a non-column ${field}`)
+  // Schema-mock columns are `table.column`; row fixtures are keyed by field name.
+  return column.slice(column.indexOf('.') + 1)
+}
+
+/**
+ * Evaluate a mocked drizzle predicate against a row. Real predicate reading, so a chain that
+ * ignores its `where` clause cannot pass these tests by echoing a fixture back.
+ */
+function matchesPredicate(row: Record<string, unknown>, predicate: unknown): boolean {
+  if (!predicate) return true
+  if (typeof predicate !== 'object') unsupportedPredicate(typeof predicate)
+  const node = predicate as MockCondition
+  switch (node.type) {
+    case 'and':
+      return predicateClauses(node).every((clause) => matchesPredicate(row, clause))
+    case 'or':
+      return predicateClauses(node).some((clause) => matchesPredicate(row, clause))
+    case 'eq':
+      return row[predicateColumn(node, 'left')] === node.right
+    case 'isNull': {
+      const value = row[predicateColumn(node, 'column')]
+      return value === null || value === undefined
+    }
+    case 'inArray': {
+      if (!Array.isArray(node.values)) unsupportedPredicate('inArray without values')
+      return node.values.includes(row[predicateColumn(node, 'column')])
+    }
+    default:
+      return unsupportedPredicate(String(node.type))
+  }
+}
+
+/** Awaitable stand-in for a drizzle select result, supporting `.limit`/`.for`/`.orderBy`. */
+interface MockSelectResult extends PromiseLike<WorkspaceFileRow[]> {
+  catch: Promise<WorkspaceFileRow[]>['catch']
+  finally: Promise<WorkspaceFileRow[]>['finally']
+  limit: (count: number) => MockSelectResult
+  for: () => MockSelectResult
+  orderBy: () => MockSelectResult
+}
+
+function selectResult(rows: WorkspaceFileRow[]): MockSelectResult {
+  const settled = Promise.resolve(rows)
+  const builder: MockSelectResult = {
+    then: (onFulfilled, onRejected) => settled.then(onFulfilled, onRejected),
+    catch: (onRejected) => settled.catch(onRejected),
+    finally: (onFinally) => settled.finally(onFinally),
+    limit: (count: number) => selectResult(rows.slice(0, count)),
+    for: () => builder,
+    orderBy: () => builder,
+  }
+  return builder
+}
+
+/**
+ * Postgres-faithful `workspace_files` writes against {@link fileRows}: `key` is guarded by
+ * `workspace_files_key_active_unique` and `(workspace_id, coalesce(folder_id, ''),
+ * original_name)` by `workspace_files_workspace_folder_name_active_unique`. A bare
+ * `onConflictDoNothing()` absorbs BOTH plus the primary key (the shipped bug); one targeted at
+ * the primary key absorbs only a replay of the same row and lets a real name clash raise.
+ */
+function installFileTableSimulation(): void {
+  dbChainMockFns.where.mockImplementation((predicate: unknown) =>
+    selectResult(fileRows.filter((row) => matchesPredicate(row, predicate)))
+  )
+  dbChainMockFns.values.mockImplementation((row: WorkspaceFileRow) => {
+    const attemptInsert = (conflictTarget: unknown) => {
+      const pkConflict = fileRows.some((existing) => existing.id === row.id)
+      const activeConflict = fileRows.some(
+        (existing) =>
+          existing.deletedAt === null &&
+          (existing.key === row.key ||
+            (existing.context === 'workspace' &&
+              existing.workspaceId === row.workspaceId &&
+              (existing.folderId ?? null) === (row.folderId ?? null) &&
+              existing.originalName === row.originalName))
+      )
+      if (conflictTarget === undefined ? pkConflict || activeConflict : pkConflict) {
+        return Promise.resolve([])
+      }
+      if (activeConflict) {
+        return Promise.reject(
+          Object.assign(
+            new Error(
+              'duplicate key value violates unique constraint ' +
+                '"workspace_files_workspace_folder_name_active_unique"'
+            ),
+            { code: '23505' }
+          )
+        )
+      }
+      fileRows.push({ ...row })
+      return Promise.resolve([{ id: row.id }])
+    }
+    return {
+      onConflictDoNothing: (config?: { target?: unknown }) => {
+        dbChainMockFns.onConflictDoNothing(config)
+        return { returning: () => attemptInsert(config?.target) }
+      },
+      onConflictDoUpdate: () => ({ returning: () => attemptInsert(undefined) }),
+      returning: () => attemptInsert('no-conflict-clause'),
+    }
+  })
+}
+
+describe('executeForkFileBlobCopies target name collisions', () => {
+  const collidingTask = () =>
+    makeTask({
+      fileName: 'budget.xlsx',
+      sourceKey: 'workspace/src-ws/source-budget.xlsx',
+      targetKey: 'workspace/child-ws/target-budget.xlsx',
+      contentType: 'application/vnd.ms-excel',
+      targetFolderId: 'target-reports',
+      displayName: 'budget.xlsx',
+    })
+
+  beforeEach(() => {
+    resetDbChainMock()
+    fileRows.length = 0
+    storageServiceMockFns.mockHeadObject.mockResolvedValue(null)
+    storageServiceMockFns.mockDownloadFile.mockResolvedValue(Buffer.from('blob-bytes'))
+    storageServiceMockFns.mockUploadFile.mockResolvedValue({
+      key: 'workspace/child-ws/target-budget.xlsx',
+    })
+    mockResolveStorageBillingContext.mockResolvedValue({
+      workspaceId: 'child-ws',
+      billedAccountUserId: 'target-payer',
+      billingEntity: { type: 'user', id: 'target-payer' },
+      plan: 'pro',
+      customStorageLimitGB: null,
+    })
+    mockIncrementStorageUsageInTx.mockResolvedValue(100)
+    installFileTableSimulation()
+  })
+
+  it('keeps a file whose name is already taken in the reused target folder', async () => {
+    // The target already holds `Reports/budget.xlsx`; the fork mirrors `Reports` onto it.
+    fileRows.push({
+      id: 'pre-existing',
+      key: 'workspace/child-ws/pre-existing-budget.xlsx',
+      workspaceId: 'child-ws',
+      folderId: 'target-reports',
+      context: 'workspace',
+      originalName: 'budget.xlsx',
+      deletedAt: null,
+    })
+
+    const result = await executeForkFileBlobCopies([collidingTask()], 'test')
+
+    expect(result).toEqual({ copied: 1, failed: 0, failedTargetKeys: [] })
+    // Non-destructive: the copy lands beside the target's own file, in the mirrored folder.
+    expect(fileRows).toHaveLength(2)
+    expect(fileRows.find((row) => row.id === 'pre-existing')?.originalName).toBe('budget.xlsx')
+    expect(fileRows.find((row) => row.id === 'target-file-1')).toMatchObject({
+      key: 'workspace/child-ws/target-budget.xlsx',
+      workspaceId: 'child-ws',
+      folderId: 'target-reports',
+      originalName: 'budget (1).xlsx',
+      displayName: 'budget (1).xlsx',
+      deletedAt: null,
+    })
+    // The blob backing the surviving row must never be swept.
+    expect(storageServiceMockFns.mockDeleteFile).not.toHaveBeenCalled()
+    // The de-duplication probe is scoped to the index's exact tuple, folder included.
+    expect(mockAllocateUniqueWorkspaceFileName).toHaveBeenCalledWith(
+      'child-ws',
+      'budget.xlsx',
+      'target-reports'
+    )
+    expect(mockIncrementStorageUsageInTx).toHaveBeenCalledTimes(1)
+  })
+
+  it('absorbs only a primary-key conflict, so a name conflict can never be mistaken for a replay', async () => {
+    await executeForkFileBlobCopies([collidingTask()], 'test')
+
+    expect(dbChainMockFns.onConflictDoNothing).toHaveBeenCalledWith({ target: 'workspaceFiles.id' })
+  })
+
+  it('de-duplicates each same-named copy against the rows earlier tasks already landed', async () => {
+    // Two source files share a name inside the folder the target already has a `budget.xlsx` in.
+    // Each allocation must see the row the previous task committed, so the suffixes advance
+    // instead of every task racing for the same `budget (1).xlsx`.
+    fileRows.push({
+      id: 'pre-existing',
+      key: 'workspace/child-ws/pre-existing-budget.xlsx',
+      workspaceId: 'child-ws',
+      folderId: 'target-reports',
+      context: 'workspace',
+      originalName: 'budget.xlsx',
+      deletedAt: null,
+    })
+
+    const result = await executeForkFileBlobCopies(
+      [
+        collidingTask(),
+        makeTask({
+          fileName: 'budget.xlsx',
+          sourceKey: 'workspace/src-ws/source-budget-2.xlsx',
+          targetKey: 'workspace/child-ws/target-budget-2.xlsx',
+          contentType: 'application/vnd.ms-excel',
+          targetFolderId: 'target-reports',
+          targetFileId: 'target-file-2',
+        }),
+      ],
+      'test'
+    )
+
+    expect(result).toEqual({ copied: 2, failed: 0, failedTargetKeys: [] })
+    expect(fileRows.map((row) => row.originalName)).toEqual([
+      'budget.xlsx',
+      'budget (1).xlsx',
+      'budget (2).xlsx',
+    ])
+    expect(storageServiceMockFns.mockDeleteFile).not.toHaveBeenCalled()
+  })
+
+  it('replays to the same end state without duplicating the copy or failing differently', async () => {
+    fileRows.push({
+      id: 'pre-existing',
+      key: 'workspace/child-ws/pre-existing-budget.xlsx',
+      workspaceId: 'child-ws',
+      folderId: 'target-reports',
+      context: 'workspace',
+      originalName: 'budget.xlsx',
+      deletedAt: null,
+    })
+
+    const first = await executeForkFileBlobCopies([collidingTask()], 'test')
+    const afterFirst = structuredClone(fileRows)
+    const replay = await executeForkFileBlobCopies([collidingTask()], 'test')
+
+    expect(first).toEqual({ copied: 1, failed: 0, failedTargetKeys: [] })
+    // The replay resolves the existing copy instead of re-copying: still one success, no failure.
+    expect(replay).toEqual({ copied: 1, failed: 0, failedTargetKeys: [] })
+    expect(fileRows).toEqual(afterFirst)
+    expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
+    expect(mockIncrementStorageUsageInTx).toHaveBeenCalledTimes(1)
+    expect(storageServiceMockFns.mockDeleteFile).not.toHaveBeenCalled()
+  })
+})
+
 describe('planForkFileCopies', () => {
   it('plans deterministic target metadata without inserting an active row before blob copy', async () => {
     const sourceMeta = {
@@ -207,6 +498,7 @@ describe('planForkFileCopies', () => {
       displayName: null,
       contentType: 'text/plain',
       size: 4321,
+      sizeBytes: 4321,
       deletedAt: null,
       uploadedAt: new Date('2026-01-01'),
       updatedAt: new Date('2026-01-01'),

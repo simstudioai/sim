@@ -1,4 +1,5 @@
 ---
+description: Settings page layout and SettingsPanel design-system compliance
 paths:
   - "apps/sim/app/workspace/*/settings/**"
   - "apps/sim/app/workspace/*/{integrations,skills,upgrade}/**"
@@ -13,8 +14,9 @@ The Next.js `settings/[section]/layout.tsx` owns all settings page chrome via
 `SettingsHeaderShell` — a fixed header bar (a left back chip + right-aligned
 action chips), a scroll region, and a centered `max-w-[48rem]` content column led
 by a **title + description from navigation metadata**. The chrome stays mounted
-across section navigation (it never re-renders or re-lays-out). Each section
-renders through the **`SettingsPanel`** registrar
+across section navigation. Its routed title and description are available before
+the section body resolves. Each section renders through the **`SettingsPanel`**
+registrar
 (`@/app/workspace/[workspaceId]/settings/components/settings-panel`), which feeds
 the shell its header data and renders only the section body. Sections supply
 **data**, never chrome.
@@ -82,38 +84,41 @@ return (
   `children` instead and omit the prop.
 - `title?` / `description?` — overrides for the nav-driven defaults. **Only** for a
   detail sub-view that needs a different heading; normal pages never pass these.
+  A top-level page's header identity must remain stable while its data loads:
+  never replace navigation metadata with client-fetched copy after first paint.
+  Put data-dependent context in the page body instead.
 - `scrollContainerRef?: React.Ref<HTMLDivElement>` — forwards a ref to the scroll
   region (e.g. programmatic scroll-to-bottom).
 
 ## Title + description live in navigation metadata
 
 `apps/sim/components/settings/navigation.ts` is the single source of truth (the
-`settings/navigation.ts` in the route tree is only a re-export shim). Every `NavigationItem` carries a one-line `description`; `SettingsPanel`
+`settings/navigation.ts` in the route tree is only a re-export shim). Each `SETTINGS_SECTION_REGISTRY` entry's one-line description is
+`unified.description` (a plane projection's `planes.<plane>.description` overrides it where that
+plane's scope differs), or, for a section that exists only on a standalone plane, its
+`planes.<plane>.description`; `SettingsPanel`
 resolves both via `getSettingsSectionMeta(plane, section)` and the
 `SettingsSectionProvider` the settings shell wraps around the active section.
 
 Adding a new settings page:
 
-1. Add the section id to the `UnifiedSettingsSection` union + a `NavigationItem`
-   (with `label` **and** `description`) in `components/settings/navigation.ts`. Keep descriptions verb-first, one line,
+1. Add the section id to the `UnifiedSettingsSection` union + a `SETTINGS_SECTION_REGISTRY`
+   entry (with `label` **and** its description, as described above) in `components/settings/navigation.ts`. Keep descriptions verb-first, one line,
    ~40–55 chars, in the product voice (see `.claude/rules/constitution.md`).
-2. Render the component inside the shell's `effectiveSection` switch in
-   `settings/[section]/settings.tsx`.
+2. Register its module in `SECTION_MODULES` (`settings/section-warmers.ts`) and render it
+   inside the shell's `effectiveSection` switch in `settings/[section]/settings.tsx`.
 3. Build the component body inside `<SettingsPanel>` — no shell, no title block.
+4. When a real second consumer or server boundary needs it, extract client-safe React Query options;
+   otherwise keep them with the hook. Approved intent warmers reuse those exact options and must keep
+   `check-tool-registry-boundary` green. Warm only authorized destinations, preserve the current
+   section during the transition, and follow `sim-react-performance.md` recovery rules; never render
+   temporary default data that will be replaced after load.
 
 ## Text-scale tokens (no literal pixel sizes)
 
-Settings pages never use a literal `text-[Npx]` class — always the named Tailwind
-scale token from `apps/sim/tailwind.config.ts`'s `fontSize` extension (`text-micro`
-10px, `text-xs` 11px, `text-caption` 12px, `text-small` 13px, `text-sm` 14px
-[Tailwind default, unmodified], `text-base` 15px, `text-md` 16px, `text-lg` 18px
-[Tailwind default]). A literal size is either a straight rename to the equivalent
-token (if the pixel value matches one exactly) or a sign the page never migrated —
-grep `text-\[1[0-8]px\]` under `apps/sim/app/workspace/*/settings/**` and
-`apps/sim/ee/**` to find stragglers.
-
-Watch `text-xs`: it is 11px here, so a "caption" written as `text-xs` is a pixel
-short. See `sim-styling.md` for the full scale.
+Settings pages never use a literal `text-[Npx]` class — always a named token from
+the scale in `sim-styling.md` ("Text Scale"). Find stragglers with
+`rg 'text-\[1[0-8]px\]' apps/sim/app/workspace apps/sim/ee`.
 
 The two-line list row (title over a muted subtitle — a name + email, a tool name
 + description, a server name + status) is **not something you build**: it is
@@ -241,11 +246,13 @@ and — on activatable rows only — the hover band. Never hand-roll any of it, 
   `RESOURCE_TILE_FILL` for a glyph, `RESOURCE_TILE_PLAIN` for a brand logo or favicon.
 
 
-**Member avatars are deliberately two components, not one.** `member-list.tsx`
-renders a 14px neutral marker for the dense Teammates/Organization roster, where
-the email is the primary content; `components/permissions/member-row.tsx` renders
-a 36px `getUserColor`-hashed avatar for member *management* rows that carry a name,
-an email, and a role control. Same shape, different job — do not merge them.
+**One member avatar.** Every member list, owner cell, and ranking renders emcn
+`<Avatar size='xs' name={…} src={…} />` — a 14px photo, or the initial on the
+neutral disc. Pass `aria-hidden` only when the member's name is visibly rendered
+beside it; an email-only row (`MemberRow`) keeps the avatar labelled because it
+carries the name. Never hand-roll an avatar or give a person a `getUserColor`
+hash; per-person colors belong to live collaboration (presence, cursors), where
+the color matches that person's cursor.
 
 ## Header action order
 
@@ -344,7 +351,7 @@ shells. Reach for it before hand-rolling a `Chip`.
     shared `<UnsavedChangesModal open={guard.showUnsavedModal}
     onOpenChange={guard.setShowUnsavedModal} onDiscard={guard.confirmDiscard} />`
     (from `@/app/workspace/[workspaceId]/components/credential-detail`). The
-    in-view header **Discard** chip (via `SaveDiscardActions onDiscard`) is a
+    in-view header **Discard** chip (via `saveDiscardActions({ onDiscard })`) is a
     *reset to original* — distinct from the back-confirm's discard, which leaves.
 - **`useSettingsBeforeUnload`** is mounted by the settings shells
   (`settings/layout.tsx` and `components/settings/standalone-settings-shell.tsx`) —
@@ -380,9 +387,9 @@ A settings page is design-system-clean when:
 - [ ] Its main return is a `<SettingsPanel>` (or `<>…<SettingsPanel>…</>` with modal siblings) — no hand-rolled shell/header/scroll/column.
 - [ ] It renders **no** hand-rolled `<h1>`/description title block — the title comes from nav metadata.
 - [ ] Header chips are in `actions`; a standalone search is in the `search` prop.
-- [ ] Its `NavigationItem` has an accurate, consistent-length `description`.
+- [ ] Its registry entry has an accurate, consistent-length `description`.
 - [ ] Detail sub-views and entitlement/loading gates keep their own chrome (intentional).
-- [ ] If it has editable state: Save/Discard go through `SaveDiscardActions`, dirty is wired via `useSettingsUnsavedGuard` (called before any early-return gate), and there is **no** hand-rolled Save button / `beforeunload` / "Unsaved changes" modal.
+- [ ] If it has editable state: Save/Discard go through `saveDiscardActions()`, dirty is wired via `useSettingsUnsavedGuard` (called before any early-return gate), and there is **no** hand-rolled Save button / `beforeunload` / "Unsaved changes" modal.
 - [ ] No business logic, handlers, or conditional rendering changed by the migration — except where the shared primitive makes a gate structural (a permission gate becomes `onClick={can ? … : undefined}` + `navigable={can}`, which renders a plain non-interactive row).
 - [ ] No literal `text-[Npx]` classes — named scale tokens only (see "Text-scale tokens" above).
 - [ ] Every **resource** list row (a thing with an identity — a tool, a server, a key, a credential) is a `SettingsResourceRow` in a `RESOURCE_LIST_STACK`/`RESOURCE_LIST_GRID` — no wrapper `<button>`/`<Link>`, no hand-passed arrow, no re-derived title/subtitle spans. Rows with a genuinely different shape stay bespoke, and draw their own arrow with `RESOURCE_ROW_ARROW_CLASSES`: multi-line bodies (inbox tasks), tabular columns (billing invoices, credit usage), grids (secrets), and the member rows (see the avatar note above).
@@ -390,4 +397,4 @@ A settings page is design-system-clean when:
 - [ ] Decorative trailing content is in `badge`, not `trailing`.
 - [ ] Labeled sections use `SettingsSection`; read-only fields use `SettingsField`; empty/loading/error use `SettingsEmptyState`.
 - [ ] Delete is a plain `id:'delete'` header action behind a `ChipConfirmModal`; `destructive` is reserved for bulk actions.
-- [ ] `tsc`, `biome`, and the page's tests pass.
+- [ ] The local gate in the root `CLAUDE.md` ("How your work is checked") passes.

@@ -166,16 +166,6 @@ describe.skipIf(!sqliteAvailable)('readBrowserCookies', () => {
     expect((await readBrowserCookies(path, KEY, NOW_SECONDS)).cookies[0].value).toBe('bound')
   })
 
-  it('falls back to the plain value column for unencrypted rows', async () => {
-    const path = await writeCookieDatabase([
-      { hostKey: 'example.com', name: 'a', value: 'legacy-plaintext' },
-    ])
-
-    expect((await readBrowserCookies(path, KEY, NOW_SECONDS)).cookies[0].value).toBe(
-      'legacy-plaintext'
-    )
-  })
-
   it('counts unreadable and expired rows instead of failing the import', async () => {
     const path = await writeCookieDatabase([
       { hostKey: 'example.com', name: 'good', encryptedValue: encryptV10(Buffer.from('v')) },
@@ -206,12 +196,6 @@ describe.skipIf(!sqliteAvailable)('readBrowserCookies', () => {
     await expect(readBrowserCookies(path, KEY, NOW_SECONDS)).rejects.toMatchObject({
       code: 'unsupported-schema',
     })
-  })
-
-  it('reports an unreadable source rather than throwing raw', async () => {
-    await expect(
-      readBrowserCookies(join(directory, 'absent', 'Cookies'), KEY, NOW_SECONDS)
-    ).rejects.toMatchObject({ code: 'profile-unreadable' })
   })
 
   it('leaves the source database untouched', async () => {

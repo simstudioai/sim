@@ -2,8 +2,11 @@ import { db } from '@sim/db'
 import { tableRowExecutions, userTableDefinitions, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { and, eq, inArray } from 'drizzle-orm'
+import { cancelledExecutionLogFields } from '@/lib/logs/execution/cancellation'
 import { appendTableEvent } from '@/lib/table/events'
+import { normalizeBlockErrors } from '@/lib/table/rows/run-state'
 
 const logger = createLogger('WorkflowGroupCancellation')
 const ACTIVE_WORKFLOW_GROUP_STATUSES = ['queued', 'running', 'pending'] as const
@@ -34,13 +37,28 @@ export type PublishableWorkflowGroupCancellation =
   | CancelledWorkflowGroupExecution
   | AlreadyCancelledWorkflowGroupExecution
 
+/**
+ * The durable terminal writes this request's own transaction performed. Each
+ * flag is read off that statement's returned row, so it cannot drift from the
+ * write: the transaction updates the workflow log only, the cell sidecar only,
+ * or both, and `kind` alone collapses those cases.
+ */
+export interface WorkflowGroupCancellationWrites {
+  /** This transaction moved the workflow execution log to `cancelled`. */
+  workflowLogTerminalized: boolean
+  /** This transaction moved the table cell sidecar to `cancelled`. */
+  sidecarCancelled: boolean
+}
+
+type WithCancellationWrites<TResult> = TResult & { writes: WorkflowGroupCancellationWrites }
+
 export type WorkflowGroupExecutionCancellationResult =
-  | { kind: 'not_workflow_group' }
-  | { kind: 'conflict'; status: string }
-  | { kind: 'cancelled_without_sidecar' }
-  | { kind: 'already_cancelled_without_sidecar' }
-  | CancelledWorkflowGroupExecution
-  | AlreadyCancelledWorkflowGroupExecution
+  | WithCancellationWrites<{ kind: 'not_workflow_group' }>
+  | WithCancellationWrites<{ kind: 'conflict'; status: string }>
+  | WithCancellationWrites<{ kind: 'cancelled_without_sidecar' }>
+  | WithCancellationWrites<{ kind: 'already_cancelled_without_sidecar' }>
+  | WithCancellationWrites<CancelledWorkflowGroupExecution>
+  | WithCancellationWrites<AlreadyCancelledWorkflowGroupExecution>
 
 interface WorkflowGroupExecutionTarget {
   tableId: string
@@ -50,21 +68,11 @@ interface WorkflowGroupExecutionTarget {
   blockErrors: unknown
 }
 
-function normalizeBlockErrors(value: unknown): Record<string, string> | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
-
-  const blockErrors: Record<string, string> = {}
-  for (const [blockId, error] of Object.entries(value)) {
-    if (typeof error === 'string') blockErrors[blockId] = error
-  }
-  return Object.keys(blockErrors).length > 0 ? blockErrors : undefined
-}
-
 function getExecutionCorrelationSource(value: unknown): string | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  if (!isRecordLike(value)) return null
   const executionData = value as Record<string, unknown>
   const correlation = executionData.correlation
-  if (!correlation || typeof correlation !== 'object' || Array.isArray(correlation)) return null
+  if (!isRecordLike(correlation)) return null
   const source = (correlation as Record<string, unknown>).source
   return typeof source === 'string' ? source : null
 }
@@ -89,11 +97,19 @@ function hasDurableWorkflowGroupOrigin(executionData: unknown): boolean {
  *
  * This helper only claims durable database state. Publish its `cancelled` result after
  * the exact execution has been signalled with `publishWorkflowGroupCancellationEvent`.
+ *
+ * Every result carries `writes`, the terminal writes this transaction actually
+ * performed, so a caller reporting durability never has to infer it from `kind`.
  */
 export async function cancelWorkflowGroupExecution(
   options: CancelWorkflowGroupExecutionOptions
 ): Promise<WorkflowGroupExecutionCancellationResult> {
   const transition = await db.transaction(async (tx) => {
+    const writes: WorkflowGroupCancellationWrites = {
+      workflowLogTerminalized: false,
+      sidecarCancelled: false,
+    }
+
     const workflowLog = await tx
       .select({
         status: workflowExecutionLogs.status,
@@ -133,25 +149,26 @@ export async function cancelWorkflowGroupExecution(
       .then((rows) => rows[0])
 
     if (!workflowLog) {
-      return { result: { kind: 'conflict', status: 'no_longer_active' } as const }
+      return { result: { kind: 'conflict', status: 'no_longer_active' } as const, writes }
     }
 
     if (!target) {
       if (!hasDurableWorkflowGroupOrigin(workflowLog.executionData)) {
-        return { result: { kind: 'not_workflow_group' } as const }
+        return { result: { kind: 'not_workflow_group' } as const, writes }
       }
 
       const workflowLogActive = workflowLog.status === 'running' || workflowLog.status === 'pending'
       if (!workflowLogActive && workflowLog.status !== 'cancelled') {
-        return { result: { kind: 'conflict', status: workflowLog.status } as const }
+        return { result: { kind: 'conflict', status: workflowLog.status } as const, writes }
       }
       if (workflowLog.status === 'cancelled') {
-        return { result: { kind: 'already_cancelled_without_sidecar' } as const }
+        return { result: { kind: 'already_cancelled_without_sidecar' } as const, writes }
       }
 
+      const cancelledAt = new Date()
       const [cancelledLog] = await tx
         .update(workflowExecutionLogs)
-        .set({ status: 'cancelled', endedAt: new Date(), executionDeadlineAt: null })
+        .set(cancelledExecutionLogFields(cancelledAt))
         .where(
           and(
             eq(workflowExecutionLogs.workspaceId, options.workspaceId),
@@ -162,10 +179,11 @@ export async function cancelWorkflowGroupExecution(
         )
         .returning({ status: workflowExecutionLogs.status })
 
-      if (cancelledLog?.status !== 'cancelled') {
+      writes.workflowLogTerminalized = cancelledLog?.status === 'cancelled'
+      if (!writes.workflowLogTerminalized) {
         throw new Error('Workflow-group cancellation lost its locked workflow-log claim')
       }
-      return { result: { kind: 'cancelled_without_sidecar' } as const }
+      return { result: { kind: 'cancelled_without_sidecar' } as const, writes }
     }
 
     const workflowLogActive = workflowLog.status === 'running' || workflowLog.status === 'pending'
@@ -177,17 +195,17 @@ export async function cancelWorkflowGroupExecution(
     const sidecarClaimable = sidecarActive || cancellationOwnedSidecarError
 
     if (!workflowLogActive && workflowLog.status !== 'cancelled') {
-      return { result: { kind: 'conflict', status: workflowLog.status } as const }
+      return { result: { kind: 'conflict', status: workflowLog.status } as const, writes }
     }
     if (!sidecarClaimable && target.status !== 'cancelled') {
-      return { result: { kind: 'conflict', status: target.status } as const }
+      return { result: { kind: 'conflict', status: target.status } as const, writes }
     }
 
     const now = new Date()
     if (workflowLogActive) {
       const [cancelledLog] = await tx
         .update(workflowExecutionLogs)
-        .set({ status: 'cancelled', endedAt: now, executionDeadlineAt: null })
+        .set(cancelledExecutionLogFields(now))
         .where(
           and(
             eq(workflowExecutionLogs.workspaceId, options.workspaceId),
@@ -198,7 +216,8 @@ export async function cancelWorkflowGroupExecution(
         )
         .returning({ status: workflowExecutionLogs.status })
 
-      if (cancelledLog?.status !== 'cancelled') {
+      writes.workflowLogTerminalized = cancelledLog?.status === 'cancelled'
+      if (!writes.workflowLogTerminalized) {
         throw new Error('Workflow-group cancellation lost its locked workflow-log claim')
       }
     }
@@ -229,7 +248,8 @@ export async function cancelWorkflowGroupExecution(
         )
         .returning({ status: tableRowExecutions.status })
 
-      if (cancelledSidecar?.status !== 'cancelled') {
+      writes.sidecarCancelled = cancelledSidecar?.status === 'cancelled'
+      if (!writes.sidecarCancelled) {
         throw new Error('Workflow-group cancellation lost its locked table-sidecar claim')
       }
     }
@@ -240,16 +260,17 @@ export async function cancelWorkflowGroupExecution(
       rowId: target.rowId,
       groupId: target.groupId,
     }
-    return { result, blockErrors: target.blockErrors }
+    return { result, writes, blockErrors: target.blockErrors }
   })
 
   if (transition.result.kind !== 'cancelled' && transition.result.kind !== 'already_cancelled') {
-    return transition.result
+    return { ...transition.result, writes: transition.writes }
   }
 
   const blockErrors = normalizeBlockErrors(transition.blockErrors)
   return {
     ...transition.result,
+    writes: transition.writes,
     ...(blockErrors ? { blockErrors } : {}),
   }
 }

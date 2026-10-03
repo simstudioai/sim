@@ -1,8 +1,7 @@
 import { EnrowIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import type { EnrowResponse } from '@/tools/enrow/types'
 
-export const EnrowBlock: BlockConfig<EnrowResponse> = {
+export const EnrowBlock: BlockConfig = {
   type: 'enrow',
   name: 'Enrow',
   description: 'Find and verify B2B emails with triple-verified accuracy',
@@ -38,7 +37,7 @@ export const EnrowBlock: BlockConfig<EnrowResponse> = {
       value: () => 'enrow_find_email',
     },
 
-    // --- Find Email ---
+    // Find Email
     {
       id: 'fullname',
       title: 'Full Name',
@@ -64,7 +63,7 @@ export const EnrowBlock: BlockConfig<EnrowResponse> = {
       mode: 'advanced',
     },
 
-    // --- Verify Email ---
+    // Verify Email
     {
       id: 've_email',
       title: 'Email Address',
@@ -74,7 +73,7 @@ export const EnrowBlock: BlockConfig<EnrowResponse> = {
       condition: { field: 'operation', value: 'enrow_verify_email' },
     },
 
-    // --- API Key (hidden on hosted Sim for operations with hosted-key support) ---
+    // API Key (hidden on hosted Sim for operations with hosted-key support)
     {
       id: 'apiKey',
       title: 'API Key',
@@ -128,9 +127,10 @@ export const EnrowBlock: BlockConfig<EnrowResponse> = {
     email: { type: 'string', description: 'Email address found or verified' },
     qualification: { type: 'string', description: '"valid" or "invalid"' },
     fullname: { type: 'string', description: 'Full name of the person (find only)' },
+    firstname: { type: 'string', description: 'First name of the person (find only)' },
+    lastname: { type: 'string', description: 'Last name of the person (find only)' },
     company_name: { type: 'string', description: 'Company name (find only)' },
     company_domain: { type: 'string', description: 'Company domain (find only)' },
-    linkedin_url: { type: 'string', description: 'LinkedIn URL of the person (find only)' },
   },
 }
 

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { HANDLE_POSITIONS } from '@sim/workflow-renderer'
 import { describe, expect, it, vi } from 'vitest'
 import { layoutBlocksCore } from '@/lib/workflows/autolayout/core'

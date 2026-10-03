@@ -10,9 +10,9 @@ import { and, eq, isNull, or } from 'drizzle-orm'
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
-  checkAttributedUsageLimits,
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
+import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import {
@@ -23,6 +23,7 @@ import {
   isTimeoutAbortReason,
   type TimeoutAbortController,
 } from '@/lib/core/execution-limits'
+import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import {
   registerManualExecutionAborter,
@@ -39,7 +40,7 @@ import { appendTableEvent } from '@/lib/table/events'
 import {
   createExactEmptyTableRowSecretProvenance,
   createTableRowSecretProvenanceFromRegistry,
-  loadTableRowSecretProvenance,
+  TableRowProvenanceReader,
 } from '@/lib/table/rows/secret-provenance'
 import type {
   RowData,
@@ -54,11 +55,57 @@ import {
   type QueuedWorkflowGroupCellPayload,
   type WorkflowGroupCellPayload,
 } from '@/lib/table/workflow-columns'
+import { flattenWorkflowOutputs } from '@/lib/workflows/blocks/flatten-outputs'
+import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
+import type { DeployedWorkflowData } from '@/lib/workflows/persistence/utils'
+import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export type { WorkflowGroupCellPayload }
 
 const logger = createLogger('TriggerWorkflowGroupCell')
+
+/**
+ * Fails before workflow execution when saved table mappings are incompatible
+ * with the latest active deployment loaded for this cell run.
+ */
+export function assertWorkflowGroupMatchesLatestDeployment(
+  group: WorkflowGroup,
+  deployment: DeployedWorkflowData
+): void {
+  const validOutputs = new Set(
+    flattenWorkflowOutputs(Object.values(deployment.blocks), deployment.edges).map(
+      (output) => `${output.blockId}::${output.path}`
+    )
+  )
+  const invalidOutput = group.outputs.find(
+    (output) => !validOutputs.has(`${output.blockId}::${output.path}`)
+  )
+  if (invalidOutput) {
+    throw new Error(
+      `Workflow group ${group.id} output ${invalidOutput.blockId}::${invalidOutput.path} is not available in the latest active deployment`
+    )
+  }
+
+  const startCandidate = TriggerUtils.findStartBlock(deployment.blocks, 'manual')
+  if (!startCandidate) {
+    throw new Error('Workflow is missing a Start trigger')
+  }
+
+  const validInputNames = new Set(
+    normalizeInputFormatValue(startCandidate.block.subBlocks?.inputFormat?.value).map(
+      (input) => input.name
+    )
+  )
+  const invalidInput = (group.inputMappings ?? []).find(
+    (mapping) => !validInputNames.has(mapping.inputName)
+  )
+  if (invalidInput) {
+    throw new Error(
+      `Workflow group ${group.id} input ${invalidInput.inputName} is not available in the latest active deployment`
+    )
+  }
+}
 
 function requirePayloadBillingAttribution(
   payload: WorkflowGroupCellPayload
@@ -102,7 +149,7 @@ export function buildTableAbortState(args: {
     executionId,
     jobId: null,
     workflowId,
-    error: timedOut ? getTimeoutErrorMessage(null, timeoutMs) : 'Cancelled',
+    error: timedOut ? getTimeoutErrorMessage(timeoutMs) : 'Cancelled',
     runningBlockIds: [],
   }
 }
@@ -183,6 +230,8 @@ export function buildTableUsageLimitClear(args: {
     secretProvenance: undefined,
     workspaceId,
     executionsPatch: { [groupId]: null },
+    /** Clearing a pre-stamp writes no cell values and fires no enrichment. */
+    capabilityGovernedUserId: null,
     cancellationGuard: { groupId, executionId },
   }
 }
@@ -253,6 +302,7 @@ export async function executeWorkflowGroupCellJob(
     const { getTableById } = await import('@/lib/table/service')
     const { getRowById } = await import('@/lib/table/rows/service')
     const { pickNextEligibleGroupForRow } = await import('@/lib/table/workflow-columns')
+    const { readStampedCapabilitySubject } = await import('@/lib/table/rows/executions')
 
     let currentPayload = payload
     while (true) {
@@ -296,6 +346,13 @@ export async function executeWorkflowGroupCellJob(
         // Re-derive so a workflow group after an enrichment group doesn't keep a stale enrichmentId.
         enrichmentId: next.enrichmentId,
         executionId: generateId(),
+        /**
+         * The marker was stamped by whichever dispatch requested THIS cell,
+         * which is not necessarily the one that queued this carrier. Its gate
+         * belongs to the person who asked for it, so take the subject off the
+         * stamp rather than carrying our own into someone else's request.
+         */
+        capabilityGovernedUserId: await readStampedCapabilitySubject(rowId, next.id),
       }
     }
   } finally {
@@ -314,12 +371,14 @@ export async function runRowCascadeLoop(
   const { getTableById } = await import('@/lib/table/service')
   const { getRowById } = await import('@/lib/table/rows/service')
   const { pickNextEligibleGroupForRow } = await import('@/lib/table/workflow-columns')
+  const { readStampedCapabilitySubject } = await import('@/lib/table/rows/executions')
 
   let currentGroupId = payload.groupId
   let currentWorkflowId = payload.workflowId
   // Fresh executionId per iteration: SQL guard rejects writes whose id ≠
   // row.executions[gid].executionId, so we need a new claim per group.
   let currentExecutionId = payload.executionId
+  let currentCapabilityGovernedUserId = payload.capabilityGovernedUserId
 
   while (true) {
     if (signal?.aborted) {
@@ -329,6 +388,7 @@ export async function runRowCascadeLoop(
           groupId: currentGroupId,
           workflowId: currentWorkflowId,
           executionId: currentExecutionId,
+          capabilityGovernedUserId: currentCapabilityGovernedUserId,
         },
         signal
       )
@@ -352,6 +412,7 @@ export async function runRowCascadeLoop(
         groupId: currentGroupId,
         workflowId: currentWorkflowId,
         executionId: currentExecutionId,
+        capabilityGovernedUserId: currentCapabilityGovernedUserId,
       },
       signal,
       freshTable,
@@ -368,6 +429,17 @@ export async function runRowCascadeLoop(
     if (!freshRow) break
     const next = pickNextEligibleGroupForRow(freshTable, freshRow, currentGroupId)
     if (!next) break
+    const nextExec = freshRow.executions?.[next.id]
+    /**
+     * A dep-fill cascade stays under the subject that started it. A group
+     * carrying an unclaimed pre-stamp is a different thing — an explicit
+     * request from another dispatch that this cascade is draining — so it runs
+     * under the subject stamped with that request.
+     */
+    currentCapabilityGovernedUserId =
+      nextExec?.status === 'pending' && nextExec.executionId == null
+        ? await readStampedCapabilitySubject(rowId, next.id)
+        : currentCapabilityGovernedUserId
     currentGroupId = next.id
     currentWorkflowId = next.workflowId
     currentExecutionId = generateId()
@@ -389,19 +461,13 @@ async function runWorkflowAndWriteTerminal(
   const billingAttribution = requirePayloadBillingAttribution(payload)
   const timeoutController = createWorkflowGroupAttemptTimeoutController(payload, signal)
   const attemptSignal = timeoutController.signal
-  // Read from the live `group`, not the payload: in a cascade the payload is the
-  // first group's snapshot, so a downstream group with a different version must
-  // use its own setting (same reason `workflowId` is re-derived per iteration).
-  const deploymentMode = group.deploymentMode
   const requestId = `wfgrp-${executionId}`
 
   try {
     return await runWithRequestContext({ requestId }, async () => {
-      const { getRowById } = await import('@/lib/table/rows/service')
+      const { getRowById, getRowSummaryById } = await import('@/lib/table/rows/service')
       const { executeWorkflow } = await import('@/lib/workflows/executor/execute-workflow')
-      const { loadWorkflowFromNormalizedTables, loadDeployedWorkflowState } = await import(
-        '@/lib/workflows/persistence/utils'
-      )
+      const { loadDeployedWorkflowState } = await import('@/lib/workflows/persistence/utils')
       const {
         buildCancelledExecution,
         createWorkflowCellProgressWriter,
@@ -426,6 +492,40 @@ async function runWorkflowAndWriteTerminal(
           eventOutputs,
           secretProvenance,
         })
+
+      /**
+       * Dispatch-level cancellation guard.
+       *
+       * The dispatcher blocks on a whole window at a time, so cancelling its
+       * `table_run_dispatches` row stops the NEXT window and nothing that is
+       * already queued: those cells still invoke tools and write their results.
+       * That gap is what account deletion falls into — it cancels the departing
+       * account's dispatches and then deletes the user row, while the cells the
+       * last window queued keep running under a subject that no longer exists.
+       *
+       * The row cannot be reached the other way: `table_row_executions` carries
+       * no dispatch column, so there is nothing to cancel per cell. Reading the
+       * owning dispatch here is the dispatch-linked stop, and it costs one
+       * indexed primary-key read against a whole workflow run.
+       *
+       * `cancelled`, or a row that is gone — nothing deletes a dispatch but the
+       * table cascade, so a missing one means the table it belonged to is gone.
+       * `complete` deliberately does not stop the cell: it is the ordinary
+       * terminal state a dispatch reaches while its last window is finishing.
+       */
+      if (dispatchId) {
+        const { readDispatch } = await import('@/lib/table/dispatcher')
+        const owningDispatch = await readDispatch(dispatchId)
+        if (!owningDispatch || owningDispatch.status === 'cancelled') {
+          logger.info(
+            `Skipping cell — owning dispatch is cancelled (table=${tableId} row=${rowId} group=${groupId} dispatch=${dispatchId})`
+          )
+          await writeState(
+            buildCancelledExecution({ executionId, workflowId, blockErrors: undefined })
+          )
+          return 'cancelled'
+        }
+      }
 
       /** Pre-execution cancellation guard: a cell cancelled while it sat in the
        *  queue (e.g. trigger.dev concurrency backlog) must not run once it
@@ -475,7 +575,7 @@ async function runWorkflowAndWriteTerminal(
          * Gate the exact workspace payer and member cap before hosted-key cost.
          * A denial clears the cell pre-stamp and surfaces the upgrade state.
          */
-        const usage = await checkAttributedUsageLimits(enrichmentBillingAttribution)
+        const usage = await checkExecutionUsageLimits(enrichmentBillingAttribution)
         if (usage.isExceeded) {
           logger.warn(
             `Usage limit reached — halting enrichment (table=${tableId} row=${rowId} group=${groupId})`
@@ -513,44 +613,57 @@ async function runWorkflowAndWriteTerminal(
         })
         if (pickedUp === 'skipped') return 'error'
 
-        // Map table columns → enrichment input ids (skip this group's own outputs).
-        // `columnName` holds a column id; the mapper resolves select ids to names.
-        const ownOutputColumns = new Set(group.outputs.map((o) => o.columnName))
-        const enrichmentInputMappings = (group.inputMappings ?? []).filter(
-          (mapping) => !ownOutputColumns.has(mapping.columnName)
-        )
-        const enrichInputs = mapInputValues(row.data, table.schema.columns, enrichmentInputMappings)
-
-        // Skip (don't error) rows missing a required input — common when a table
-        // is partially filled. Clear any prior output values so a stale result
-        // doesn't linger (and doesn't mark the group `completed`-and-filled, which
-        // would block the auto cascade from re-enriching once inputs return).
-        const isEmpty = isEmptyCellValue
-        const missingRequired = enrichment.inputs.some(
-          (i) => i.required && isEmpty(enrichInputs[i.id])
-        )
-        if (missingRequired) {
-          const clearPatch: RowData = {}
-          for (const out of group.outputs) {
-            if (!isEmpty(row.data[out.columnName])) clearPatch[out.columnName] = ''
-          }
-          await writeState(
-            {
-              status: 'completed',
-              executionId,
-              jobId: null,
-              workflowId: statusId,
-              error: null,
-              enrichmentDetails: skippedEnrichmentDetail(enrichment),
-            },
-            clearPatch,
-            undefined,
-            createExactEmptyTableRowSecretProvenance(clearPatch)
-          )
-          return 'completed'
-        }
-
         try {
+          // Map table columns → enrichment input ids (skip this group's own outputs).
+          // `columnName` holds a column id; the mapper resolves select ids to names.
+          const ownOutputColumns = new Set(group.outputs.map((o) => o.columnName))
+          const enrichmentInputMappings = (group.inputMappings ?? []).filter(
+            (mapping) => !ownOutputColumns.has(mapping.columnName)
+          )
+          const readProvenance = new TableRowProvenanceReader(
+            { userId: enrichmentBillingAttribution.actorUserId, workspaceId },
+            new Set(enrichmentInputMappings.map((mapping) => mapping.columnName))
+          )
+          const inputSource = await getRowSummaryById(tableId, rowId, workspaceId, readProvenance)
+          if (!inputSource) {
+            logger.warn(`Row ${rowId} vanished before enrichment input could be read`)
+            return 'error'
+          }
+          const enrichInputs = mapInputValues(
+            inputSource.data,
+            table.schema.columns,
+            enrichmentInputMappings
+          )
+
+          // Skip (don't error) rows missing a required input — common when a table
+          // is partially filled. Clear any prior output values so a stale result
+          // doesn't linger (and doesn't mark the group `completed`-and-filled, which
+          // would block the auto cascade from re-enriching once inputs return).
+          const isEmpty = isEmptyCellValue
+          const missingRequired = enrichment.inputs.some(
+            (i) => i.required && isEmpty(enrichInputs[i.id])
+          )
+          if (missingRequired) {
+            const clearPatch: RowData = {}
+            for (const out of group.outputs) {
+              if (!isEmpty(inputSource.data[out.columnName])) clearPatch[out.columnName] = ''
+            }
+            await writeState(
+              {
+                status: 'completed',
+                executionId,
+                jobId: null,
+                workflowId: statusId,
+                error: null,
+                enrichmentDetails: skippedEnrichmentDetail(enrichment),
+              },
+              clearPatch,
+              undefined,
+              createExactEmptyTableRowSecretProvenance(clearPatch)
+            )
+            return 'completed'
+          }
+
           if (attemptSignal.aborted) {
             await writeState({
               ...buildTableAbortState({
@@ -563,32 +676,33 @@ async function runWorkflowAndWriteTerminal(
             })
             return 'error'
           }
-          const inputProvenance = await loadTableRowSecretProvenance(
-            [
-              {
-                id: row.id,
-                updatedAt: row.updatedAt,
-                selectedValues: Object.fromEntries(
-                  enrichmentInputMappings.map((mapping) => [
-                    mapping.columnName,
-                    row.data[mapping.columnName],
-                  ])
-                ),
-              },
-            ],
-            { userId: enrichmentBillingAttribution.actorUserId, workspaceId }
-          )
+          const inputProvenance = readProvenance.exportProvenance()
           const enrichmentRegistry = new ResolvedSecretTraceRegistry([], inputProvenance.scope)
           await enrichmentRegistry.importCrossingProvenance(inputProvenance, enrichInputs, {
             trusted: true,
           })
-          const { result, cost, detail } = await runEnrichment(enrichment, enrichInputs, {
-            tableId,
-            rowId,
-            workspaceId,
-            signal: attemptSignal,
-            resolvedSecretTraceRegistry: enrichmentRegistry,
-          })
+          const { result, cost, detail } = await withResourceOutboundScope({ workspaceId }, () =>
+            runEnrichment(enrichment, enrichInputs, {
+              tableId,
+              rowId,
+              workspaceId,
+              /**
+               * The person who asked, not who pays. `triggeredByUserId` is an
+               * attribution: for a workspace-API-key run it names the workspace's
+               * billing owner, and running that bystander's tool denylist against
+               * an actorless request is wrong in both directions — it fails cells
+               * nobody meant to govern, and it skips the denylist for the person
+               * who actually triggered one. The governed subject is carried
+               * separately from the dispatch. `null` means no per-tool gate
+               * applies, which is the documented behavior for an actorless run —
+               * stated, because the field is required precisely so it cannot be
+               * skipped by omission.
+               */
+              userId: payload.capabilityGovernedUserId ?? null,
+              signal: attemptSignal,
+              resolvedSecretTraceRegistry: enrichmentRegistry,
+            })
+          )
 
           // An abort during the cascade must not be recorded as a completed cell.
           if (attemptSignal.aborted) {
@@ -693,32 +807,22 @@ async function runWorkflowAndWriteTerminal(
           return 'error'
         }
 
-        // `deployed` groups run the workflow's latest active deployment; `live`
-        // (default) runs the editable draft. A `deployed` group whose workflow
-        // has never been deployed fails the cell — no silent fallback to draft.
-        let normalizedData: Awaited<ReturnType<typeof loadWorkflowFromNormalizedTables>>
-        if (deploymentMode === 'deployed') {
-          try {
-            normalizedData = await loadDeployedWorkflowState(workflowId, workspaceId)
-          } catch (err) {
-            // Surface the real reason (missing deployment vs. transient DB/migration
-            // failure) rather than always claiming the workflow isn't deployed.
-            await writeState({
-              status: 'error',
-              executionId,
-              jobId: null,
-              workflowId,
-              error: toError(err).message,
-            })
-            return 'error'
-          }
-        } else {
-          normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
+        let normalizedData: Awaited<ReturnType<typeof loadDeployedWorkflowState>>
+        try {
+          normalizedData = await loadDeployedWorkflowState(workflowId, workspaceId)
+          assertWorkflowGroupMatchesLatestDeployment(group, normalizedData)
+        } catch (err) {
+          await writeState({
+            status: 'error',
+            executionId,
+            jobId: null,
+            workflowId,
+            error: toError(err).message,
+          })
+          return 'error'
         }
-        const startBlock = normalizedData
-          ? Object.values(normalizedData.blocks).find((b) => b?.type === 'start_trigger')
-          : undefined
-        if (!startBlock) {
+        const startCandidate = TriggerUtils.findStartBlock(normalizedData.blocks, 'manual')
+        if (!startCandidate) {
           await writeState({
             status: 'error',
             executionId,
@@ -757,9 +861,12 @@ async function runWorkflowAndWriteTerminal(
               workflowRecord,
               userId: payload.triggeredByUserId ?? workflowRecord.userId,
               useAuthenticatedUserAsActor: Boolean(payload.triggeredByUserId),
+              // Falls back to the workflow owner when nobody triggered this.
+              userIdIsStoredReference: !payload.triggeredByUserId,
               triggerType: 'workflow',
               checkDeployment: false,
               checkRateLimit: false,
+              includeActorSubscription: true,
               skipConcurrencyReservation: true,
               logPreprocessingErrors: false,
               billingAttribution,
@@ -908,10 +1015,26 @@ async function runWorkflowAndWriteTerminal(
         const inputColumns = table.schema.columns.filter(
           (c) => !ownOutputColumnIds.has(getColumnId(c))
         )
+        const inputMappings = group.inputMappings ?? []
+        const readProvenance = new TableRowProvenanceReader(
+          { userId: workflowRecord.userId, workspaceId },
+          new Set([
+            ...inputColumns.map(getColumnId),
+            ...inputMappings.map((mapping) => mapping.columnName),
+          ])
+        )
+        const inputSource = await getRowSummaryById(tableId, rowId, workspaceId, readProvenance)
+        if (!inputSource) {
+          logger.warn(`Row ${rowId} vanished before workflow input could be read`)
+          return 'error'
+        }
         // One column list drives both the row and its headers so they cannot drift.
         // The mapper also resolves select option ids to names — the workflow author
         // sees "Open", not `opt_a1b2`.
-        const inputRow = fillMissingColumns(namedRowMapper(inputColumns)(row.data), inputColumns)
+        const inputRow = fillMissingColumns(
+          namedRowMapper(inputColumns)(inputSource.data),
+          inputColumns
+        )
         const headers = inputColumns.map((c) => c.name)
 
         // When the group has explicit input mappings, feed the workflow's
@@ -919,8 +1042,7 @@ async function runWorkflowAndWriteTerminal(
         // Otherwise fall back to spreading every non-output column by name, so a
         // Start field still resolves when it matches a column name. `row`/`rawRow`
         // always carry the full (name-keyed) row for downstream reference.
-        const inputMappings = group.inputMappings ?? []
-        const mappedInputs = mapInputValues(row.data, table.schema.columns, inputMappings)
+        const mappedInputs = mapInputValues(inputSource.data, table.schema.columns, inputMappings)
 
         const input = {
           ...(inputMappings.length > 0 ? mappedInputs : inputRow),
@@ -934,21 +1056,7 @@ async function runWorkflowAndWriteTerminal(
           tableName,
           timestamp: new Date().toISOString(),
         }
-        const rowInputProvenance = await loadTableRowSecretProvenance(
-          [
-            {
-              id: row.id,
-              updatedAt: row.updatedAt,
-              selectedValues: Object.fromEntries(
-                inputColumns.map((column) => {
-                  const columnId = getColumnId(column)
-                  return [columnId, row.data[columnId]]
-                })
-              ),
-            },
-          ],
-          { userId: workflowRecord.userId, workspaceId }
-        )
+        const rowInputProvenance = readProvenance.exportProvenance()
         const inputRegistry = new ResolvedSecretTraceRegistry([], rowInputProvenance.scope)
         await inputRegistry.importCrossingProvenance(rowInputProvenance, input, { trusted: true })
 
@@ -998,13 +1106,27 @@ async function runWorkflowAndWriteTerminal(
           actorUserId,
           {
             enabled: true,
+            /**
+             * The gate, which is not the actor above. `actorUserId` is an
+             * attribution: for a workspace-API-key run it names the workspace's
+             * billing owner, so gating the run's tools on it applies a
+             * bystander's denylist and skips the requester's. Declared
+             * explicitly — `null` is the actorless run, which the executor
+             * reads as "no per-tool gate", exactly as the enrichment half of
+             * this worker already does.
+             */
+            capabilityGovernedUserId: payload.capabilityGovernedUserId,
+            principal: {
+              kind: 'system',
+              serviceId: 'table',
+              workspaceId,
+              workflowId,
+            },
             executionMode: 'sync',
             workflowTriggerType: 'table',
-            triggerBlockId: startBlock.id,
-            // `deployed` groups execute the latest active deployment; everything
-            // else runs the editable draft (the table default). Matches the
-            // state loaded above for start-block / output-block resolution.
-            useDraftState: deploymentMode !== 'deployed',
+            triggerBlockId: startCandidate.blockId,
+            useDraftState: false,
+            workflowStateOverride: normalizedData,
             abortSignal: attemptSignal,
             onBlockStart: progressWriter.onBlockStart,
             onBlockComplete: progressWriter.onBlockComplete,
@@ -1043,6 +1165,12 @@ async function runWorkflowAndWriteTerminal(
             groupId,
             workflowId,
             workspaceId,
+            /**
+             * The gate has to survive the pause. Nothing downstream of a resume
+             * can re-derive it: the marker this cell was stamped with is long
+             * claimed, and the resume worker's own payload has no dispatch.
+             */
+            capabilityGovernedUserId: payload.capabilityGovernedUserId,
           })
           return 'paused'
         }

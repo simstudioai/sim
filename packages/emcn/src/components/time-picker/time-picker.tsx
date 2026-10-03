@@ -36,7 +36,7 @@ import { Popover, PopoverAnchor, PopoverContent } from '../popover/popover'
  * Matches the input and combobox styling patterns.
  */
 const timePickerVariants = cva(
-  'flex w-full rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-sans text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none disabled:cursor-not-allowed disabled:opacity-50 transition-colors',
+  'flex w-full rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 font-sans text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-hidden disabled:cursor-not-allowed disabled:opacity-50 transition-colors',
   {
     variants: {
       variant: {
@@ -240,7 +240,7 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
               </span>
               <ChevronDown
                 className={cn(
-                  'ml-2 size-[14px] flex-shrink-0 opacity-50 transition-transform',
+                  'ml-2 size-[14px] shrink-0 opacity-50 transition-transform',
                   open && 'rotate-180'
                 )}
               />
@@ -256,7 +256,7 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
             <div className='flex items-center gap-1.5'>
               <input
                 ref={hourInputRef}
-                className='w-[40px] rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-1.5 py-[5px] text-center font-sans text-[var(--text-primary)] text-small outline-none transition-colors placeholder:text-[var(--text-muted)]'
+                className='w-[40px] rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-1.5 py-[5px] text-center font-sans text-[var(--text-primary)] text-small outline-hidden transition-colors placeholder:text-[var(--text-muted)]'
                 value={hour}
                 onChange={handleHourChange}
                 onBlur={handleHourBlur}
@@ -268,7 +268,7 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
               />
               <span className='text-[var(--text-muted)] text-small'>:</span>
               <input
-                className='w-[40px] rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-1.5 py-[5px] text-center font-sans text-[var(--text-primary)] text-small outline-none transition-colors placeholder:text-[var(--text-muted)]'
+                className='w-[40px] rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-1.5 py-[5px] text-center font-sans text-[var(--text-primary)] text-small outline-hidden transition-colors placeholder:text-[var(--text-muted)]'
                 value={minute}
                 onChange={handleMinuteChange}
                 onBlur={handleMinuteBlur}

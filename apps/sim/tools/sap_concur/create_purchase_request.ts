@@ -1,14 +1,10 @@
-import type { CreatePurchaseRequestParams, SapConcurProxyResponse } from '@/tools/sap_concur/types'
-import {
-  baseProxyBody,
-  SAP_CONCUR_PROXY_URL,
-  transformSapConcurProxyResponse,
-} from '@/tools/sap_concur/utils'
-import type { ToolConfig } from '@/tools/types'
+import type { CreatePurchaseRequestParams, SapConcurResponse } from '@/tools/sap_concur/types'
+import { baseSapConcurInput, transformSapConcurResponse } from '@/tools/sap_concur/utils'
+import type { InternalToolConfig } from '@/tools/types'
 
-export const createPurchaseRequestTool: ToolConfig<
+export const createPurchaseRequestTool: InternalToolConfig<
   CreatePurchaseRequestParams,
-  SapConcurProxyResponse
+  SapConcurResponse
 > = {
   id: 'sap_concur_create_purchase_request',
   name: 'SAP Concur Create Purchase Request',
@@ -61,21 +57,19 @@ export const createPurchaseRequestTool: ToolConfig<
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Purchase request payload',
+      description:
+        'Purchase request payload. Required: exactly one of userId, userEmail, or userLoginId; currencyCode (ISO 4217); and lineItems[]. Each line item requires purchaseType (GOODS or SERVICES), vendorCode, vendorAddressCode, description, quantity, and unitPrice.',
     },
   },
-  request: {
-    url: SAP_CONCUR_PROXY_URL,
-    method: 'POST',
-    headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      ...baseProxyBody(params),
+  operation: {
+    input: (params) => ({
+      ...baseSapConcurInput(params),
       path: `/purchaserequest/v4/purchaserequests`,
       method: 'POST',
       body: params.body,
     }),
   },
-  transformResponse: transformSapConcurProxyResponse,
+  transformResponse: transformSapConcurResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by Concur' },
     data: {

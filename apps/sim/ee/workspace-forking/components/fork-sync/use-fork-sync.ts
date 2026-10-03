@@ -1,6 +1,13 @@
 'use client'
 
-import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from 'react'
+import {
+  type Dispatch,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 import { toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import type {
@@ -30,11 +37,15 @@ import {
   forkVisibleCopyables,
   isForkRequiredComplete,
 } from '@/ee/workspace-forking/components/fork-sync/copy-reconciliation'
+import { isForkSyncConfigurableField } from '@/ee/workspace-forking/components/fork-sync/custom-block-input-control'
 import {
+  type DependentReconfigState,
   dependentKey,
   effectiveCopyDependentValue,
   effectiveDependentValue,
+  isDependentInvalidated,
 } from '@/ee/workspace-forking/components/fork-sync/dependent-value'
+import type { ForkComparisonSelection } from '@/ee/workspace-forking/components/fork-sync/fork-comparison-modal'
 import {
   forkDyingTriggerUrls,
   forkTriggerChoices,
@@ -58,14 +69,17 @@ export type MappableMappingKind = Exclude<ForkMappingEntry['kind'], 'knowledge-d
 
 /** Section label + display order per mapping kind (one mapping group per kind). */
 const MAPPING_SECTION: Record<MappableMappingKind, { label: string; order: number }> = {
+  sandbox: { label: 'Sandboxes', order: 12 },
   credential: { label: 'Credentials', order: 0 },
   'env-var': { label: 'Secrets', order: 1 },
   table: { label: 'Tables', order: 2 },
   'knowledge-base': { label: 'Knowledge bases', order: 3 },
-  file: { label: 'Files', order: 4 },
-  'mcp-server': { label: 'MCP servers', order: 5 },
-  'custom-tool': { label: 'Custom tools', order: 6 },
-  skill: { label: 'Skills', order: 7 },
+  'file-folder': { label: 'File folders', order: 4 },
+  file: { label: 'Files', order: 5 },
+  'mcp-server': { label: 'MCP servers', order: 6 },
+  'custom-tool': { label: 'Custom tools', order: 7 },
+  'custom-block': { label: 'Custom blocks', order: 8 },
+  skill: { label: 'Skills', order: 9 },
 }
 
 /** Shared empty owners map for the pull direction so the options mapper never re-allocates. */
@@ -102,8 +116,10 @@ export interface ForkSyncController {
   otherWorkspaceName: string
   /**
    * The workspace this sync WRITES, named for user-facing copy: the other workspace on push,
-   * "this workspace" on pull. Derived once here so every surface that names the target - the
-   * overwrite confirm, the Trigger URLs heading - says the same thing.
+   * this one on pull. Always a NAME rather than "the target" - the page header shows the OTHER
+   * workspace's name, so an unnamed target reads as that one even on pull. Falls back to
+   * "this workspace" only until the name loads. Derived once here so every surface that names
+   * it - the overwrite confirm, the Trigger URLs heading - says the same thing.
    */
   targetWorkspaceName: string
   isLoading: boolean
@@ -145,8 +161,8 @@ export interface ForkSyncController {
    */
   sourceWorkspaceId: string
   /** In-session dependent re-picks, keyed by `dependentKey`. */
-  reconfig: Record<string, string>
-  setReconfig: Dispatch<SetStateAction<Record<string, string>>>
+  reconfig: DependentReconfigState
+  setReconfig: Dispatch<SetStateAction<DependentReconfigState>>
   /** Keys the backend offers as copy candidates, for the entry rows' "Copy instead" affordance. */
   copyableKeys: ReadonlySet<string>
   /** Copyables actually selected for copy (visible + checked), keyed `${kind}:${sourceId}`. */
@@ -183,6 +199,10 @@ export interface ForkSyncController {
   dependentClears: ForkClearedRef[]
   /** Deployed-workflow change list (update → create → archive, then by name). */
   workflowChanges: ForkWorkflowChange[]
+  comparisonReady: boolean
+  comparisonSelection: ForkComparisonSelection | null
+  openComparison: (change: Exclude<ForkWorkflowChange, { action: 'archive' }>) => void
+  closeComparison: () => void
   /** Names of target workflows this sync archives, for the confirm modal. */
   archivedWorkflowNames: string[]
   /**
@@ -212,6 +232,12 @@ export interface ForkSyncController {
   mcpReauthCount: number
   inlineSecretCount: number
   dirty: boolean
+  /**
+   * Whether a direction switch would discard anything chosen this session: unsaved mapping edits,
+   * a copy selection that differs from the default, accepted dropped references, or trigger URL
+   * choices. Broader than {@link dirty}, which only tracks what Save persists.
+   */
+  hasSessionChoices: boolean
   saving: boolean
   save: () => void
   discard: () => void
@@ -231,9 +257,21 @@ const entryKey = (entry: ForkMappingEntry) => forkRefKey(entry)
  * the dependents). Pure over (entry, in-session targets) so the inline render, the Sync
  * gate, and the payload build share one predicate instead of drifting copies.
  */
-function shouldReconfigureEntry(entry: ForkMappingEntry, targets: Record<string, string>): boolean {
+export function shouldReconfigureEntry(
+  entry: ForkMappingEntry,
+  targets: Record<string, string>
+): boolean {
   const next = targets[entryKey(entry)] ?? entry.targetId ?? ''
   if (next === '') return false
+  // A custom block pointed at a DIFFERENT block needs its inputs configured for as long as
+  // that mapping stands, not only in the session where it was picked. Every other kind can
+  // fall through to the in-session test because an unchanged mapping leaves its stored
+  // dependent values valid — a Gmail label picked under the same credential still resolves.
+  // A custom block has no such continuity: its sub-blocks are keyed by the SOURCE block's
+  // Start field ids, so under a different target they describe fields that do not exist and
+  // nothing carries over. Treating it as settled once saved is what left the fields hidden
+  // behind "no changes required" on every sync after the first.
+  if (entry.kind === 'custom-block') return next !== entry.sourceId
   return entry.suggested || next !== (entry.targetId ?? '')
 }
 
@@ -270,12 +308,15 @@ function takenTargetOwners(
  */
 export function useForkSync(params: {
   workspaceId: string
+  /** This workspace's name, for copy that must say which side a pull overwrites. */
+  workspaceName?: string
   otherWorkspaceId?: string
   otherWorkspaceName: string
   direction: ForkDirection
   enabled: boolean
 }): ForkSyncController {
-  const { workspaceId, otherWorkspaceId, otherWorkspaceName, direction, enabled } = params
+  const { workspaceId, workspaceName, otherWorkspaceId, otherWorkspaceName, direction, enabled } =
+    params
 
   // User's IN-SESSION mapping overrides only - NOT the source of truth. The displayed/persisted
   // target falls back to each entry's stored `targetId` (see `targetFor`), so a reopened edge
@@ -286,7 +327,7 @@ export function useForkSync(params: {
   // `dependentKey`. Folded into the full effective set sent on save/sync, which the server
   // persists as the stored mapping - so the selection survives every future sync without
   // re-picking.
-  const [reconfig, setReconfig] = useState<Record<string, string>>({})
+  const [reconfig, setReconfig] = useState<DependentReconfigState>({})
   // Referenced-but-unmapped resources the user chose to copy into the target (keyed by
   // `${kind}:${sourceId}`); default-selected once the diff loads. Selected ones are copied on
   // sync so their references resolve to the copy instead of being cleared.
@@ -302,23 +343,31 @@ export function useForkSync(params: {
   // stored in the target block's `triggerPath`, so later syncs preserve it with no input at all.
   // `''` is the explicit "mint a new URL" choice, distinct from an absent key (take the default).
   const [triggerAdoptions, setTriggerAdoptions] = useState<Record<string, string>>({})
-  const [submitting, setSubmitting] = useState(false)
+  const [comparisonSelection, setComparisonSelection] = useState<ForkComparisonSelection | null>(
+    null
+  )
+  const [reviewedSourceVersions, setReviewedSourceVersions] = useState<Record<string, string>>({})
+  const sessionKey = JSON.stringify([workspaceId, direction, otherWorkspaceId])
+  const [previousSessionKey, setPreviousSessionKey] = useState(sessionKey)
 
-  // Drop every in-session choice when the direction (or edge) changes - the mapping set,
-  // copy candidates, and blockers all depend on it.
-  useEffect(() => {
+  if (previousSessionKey !== sessionKey) {
+    setPreviousSessionKey(sessionKey)
     setTargets({})
     setReconfig({})
     setCopySelected(new Set())
     setCopyDefaulted(false)
     setDroppedRefs(new Set())
     setTriggerAdoptions({})
-  }, [direction, otherWorkspaceId])
+    setComparisonSelection(null)
+    setReviewedSourceVersions({})
+  }
 
   const mapping = useForkMapping({ workspaceId, otherWorkspaceId, direction, enabled })
   const diff = useForkDiff({ workspaceId, otherWorkspaceId, direction, enabled })
   const updateMapping = useUpdateForkMapping()
   const promote = usePromoteFork()
+  const submitting = promote.isPending
+  const comparisonReady = enabled && !!diff.data && !diff.isPlaceholderData && !diff.isError
 
   const entries = useMemo<ForkMappingEntry[]>(() => mapping.data?.entries ?? [], [mapping.data])
   const dependentReconfigs = useMemo(
@@ -541,6 +590,9 @@ export function useForkSync(params: {
   // instead, so it's skipped here.
   const reconfigComplete = dependentReconfigs.every((field) => {
     if (!field.required) return true
+    // A field the modal renders no control for can never satisfy this gate — see
+    // `isForkSyncConfigurableField`.
+    if (!isForkSyncConfigurableField(field)) return true
     const parent = entryForDependent(field)
     if (!parent) return true
     const resolution = resolutionFor(parent)
@@ -554,6 +606,9 @@ export function useForkSync(params: {
   const reconfigPendingByKind = new Set<MappableMappingKind>()
   for (const field of dependentReconfigs) {
     if (!field.required) continue
+    // Mirrors the Sync gate above: a field it cannot block on must not make the kind's badge
+    // read "Needs setup" forever either.
+    if (!isForkSyncConfigurableField(field)) continue
     const parent = entryForDependent(field)
     if (!parent) continue
     const resolution = resolutionFor(parent)
@@ -685,8 +740,11 @@ export function useForkSync(params: {
   // effective value: re-pick, stored, or blank-after-change) or copy-selected (re-pick, stored,
   // or the source reference; promote translates a source document id to its copied counterpart
   // at write time). The server persists this verbatim as the stored mapping; fields whose
-  // parent is unresolved are omitted (they can't be configured). This is the whole "what's in
-  // the mapping goes in" contract, shared by Save and Sync so the two persist identically.
+  // parent is unresolved are omitted because they can't be configured. A field invalidated by
+  // an in-block provider re-pick is submitted as `''`: required fields gate Sync until re-picked,
+  // while optional/LLM-fillable fields must land empty rather than retain a source value scoped
+  // to the old provider. This is the whole "what's in the mapping goes in" contract, shared by
+  // Save and Sync so the two persist identically.
   const buildDependentValues = () =>
     dependentReconfigs.flatMap((field) => {
       const parent = entryForDependent(field)
@@ -723,9 +781,12 @@ export function useForkSync(params: {
 
   // A dependent re-pick that differs from its stored value also dirties the editor. A re-pick
   // under a changed parent is covered by `targetsDirty` (the parent override is the change).
+  // An automatically invalidated field is covered by the provider override that caused it; it
+  // must not independently dirty an editor after that provider has been restored to baseline.
   const reconfigDirty = useMemo(
     () =>
       dependentReconfigs.some((field) => {
+        if (isDependentInvalidated(field, reconfig)) return false
         const repicked = reconfig[dependentKey(field)]
         return repicked !== undefined && repicked !== field.currentValue
       }),
@@ -734,8 +795,27 @@ export function useForkSync(params: {
 
   const dirty = targetsDirty || reconfigDirty
 
+  // Compared over the visible candidates only - the ones a sync would send - so keys left behind
+  // by a completed copy never read as a change. A candidate defaults to selected when referenced.
+  const copySelectionChanged = useMemo(
+    () =>
+      copyDefaulted &&
+      visibleCopyables.some(
+        (candidate) => copySelected.has(forkRefKey(candidate)) !== candidate.referenced
+      ),
+    [copyDefaulted, visibleCopyables, copySelected]
+  )
+
+  const hasSessionChoices =
+    dirty ||
+    copySelectionChanged ||
+    droppedRefs.size > 0 ||
+    Object.keys(triggerAdoptions).length > 0
+
   const save = () => {
     if (!otherWorkspaceId || !dirty || updateMapping.isPending) return
+    const submittedTargets = targets
+    const submittedReconfig = reconfig
     updateMapping.mutate(
       {
         workspaceId,
@@ -751,8 +831,8 @@ export function useForkSync(params: {
       },
       {
         onSuccess: () => {
-          setTargets({})
-          setReconfig({})
+          setTargets((current) => (current === submittedTargets ? {} : current))
+          setReconfig((current) => (current === submittedReconfig ? {} : current))
           toast.success('Mapping saved')
         },
         onError: (error) => toast.error(getErrorMessage(error, 'Failed to save mapping')),
@@ -819,15 +899,46 @@ export function useForkSync(params: {
   const triggerChoiceFor = (sourceBlockId: string): string =>
     chosenTriggerPaths.get(sourceBlockId) ?? ''
 
+  const openComparison = useCallback<ForkSyncController['openComparison']>(
+    (change) => {
+      if (!comparisonReady || change.comparison.status !== 'available') return
+      setComparisonSelection({
+        sourceWorkflowId: change.sourceWorkflowId,
+        comparison: change.comparison,
+      })
+      setReviewedSourceVersions((current) => ({
+        ...current,
+        [change.sourceWorkflowId]: change.comparison.target.id,
+      }))
+    },
+    [comparisonReady]
+  )
+  const closeComparison = useCallback(() => setComparisonSelection(null), [])
+
   const discard = () => {
     setTargets({})
     setReconfig({})
     setTriggerAdoptions({})
+    setReviewedSourceVersions({})
+    setComparisonSelection(null)
   }
 
   const sync = async () => {
-    if (!otherWorkspaceId) return
-    setSubmitting(true)
+    if (!otherWorkspaceId || !diff.data) return
+    const submittedReviewedVersions = reviewedSourceVersions
+    const sourceVersions = new Map(
+      diff.data.sourceVersions.map((source) => [source.workflowId, source.deploymentVersionId])
+    )
+    for (const [workflowId, deploymentVersionId] of Object.entries(reviewedSourceVersions))
+      sourceVersions.set(workflowId, deploymentVersionId)
+    const expectedSourceVersions = Array.from(
+      sourceVersions,
+      ([workflowId, deploymentVersionId]) => ({ workflowId, deploymentVersionId })
+    )
+    const submittedTargets = targets
+    const submittedReconfig = reconfig
+    const submittedDroppedRefs = droppedRefs
+    const submittedTriggerAdoptions = triggerAdoptions
     // Capture every payload from the state at confirm time, before any await - the page's
     // controls stay mounted during the run (unlike the old modal, which blocked its UI), so a
     // mid-flight edit must not leak into the promote body.
@@ -862,10 +973,6 @@ export function useForkSync(params: {
         adoptPath: triggerAdoptions[mapping.sourceBlockId] || null,
       }))
     try {
-      await updateMapping.mutateAsync({
-        workspaceId,
-        body: { otherWorkspaceId, direction, entries: mappingEntries },
-      })
       const copyResources = {
         knowledgeBases: selectedCopyables
           .filter((c) => c.kind === 'knowledge-base')
@@ -885,6 +992,8 @@ export function useForkSync(params: {
         body: {
           otherWorkspaceId,
           direction,
+          mappings: mappingEntries,
+          expectedSourceVersions,
           // Once the diff has loaded, ALWAYS send the full effective set - including `[]`,
           // which means "every dependent went away" and must reconcile/clear the live replace
           // targets' stored rows. Collapsing `[]` into omission would make the backend
@@ -922,6 +1031,16 @@ export function useForkSync(params: {
         return
       }
 
+      // The run committed the in-session choices: the mapping entries and dependent values are
+      // stored, and the accepted drops and trigger choices are applied. Drop only the exact
+      // snapshots it submitted; edits made while the request was in flight were not committed by
+      // this run and must remain available for the next Save/Sync.
+      setReviewedSourceVersions((current) => (current === submittedReviewedVersions ? {} : current))
+      setTargets((current) => (current === submittedTargets ? {} : current))
+      setReconfig((current) => (current === submittedReconfig ? {} : current))
+      setDroppedRefs((current) => (current === submittedDroppedRefs ? new Set() : current))
+      setTriggerAdoptions((current) => (current === submittedTriggerAdoptions ? {} : current))
+
       const target = otherWorkspaceName || 'the workspace'
       const label = direction === 'pull' ? `Pulled from "${target}"` : `Pushed to "${target}"`
       // A sync only commits once every reference is mapped/copied and every required dependent
@@ -956,15 +1075,14 @@ export function useForkSync(params: {
       }
     } catch (error) {
       toast.error(getErrorMessage(error, 'Sync failed'))
-    } finally {
-      setSubmitting(false)
     }
   }
 
   return {
     direction,
     otherWorkspaceName,
-    targetWorkspaceName: direction === 'push' ? otherWorkspaceName : 'this workspace',
+    targetWorkspaceName:
+      direction === 'push' ? otherWorkspaceName : workspaceName || 'this workspace',
     isLoading: enabled && mapping.isLoading,
     isError: mapping.isError,
     errorMessage: mapping.isError ? getErrorMessage(mapping.error, 'Failed to load mapping') : null,
@@ -1001,6 +1119,10 @@ export function useForkSync(params: {
     blockingRefs,
     dependentClears,
     workflowChanges,
+    comparisonReady,
+    comparisonSelection,
+    openComparison,
+    closeComparison,
     archivedWorkflowNames,
     triggerUrlChanges,
     triggerMappings,
@@ -1013,6 +1135,7 @@ export function useForkSync(params: {
     mcpReauthCount: diff.data?.mcpReauthServerIds.length ?? 0,
     inlineSecretCount: diff.data?.inlineSecretSources.length ?? 0,
     dirty,
+    hasSessionChoices,
     saving: updateMapping.isPending,
     save,
     discard,

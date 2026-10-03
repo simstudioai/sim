@@ -1,10 +1,22 @@
 /**
  * Tests for OAuth credentials API route
- *
- * @vitest-environment node
  */
 
-import { hybridAuthMockFns, permissionsMock, workflowsUtilsMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  hybridAuthMockFns,
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+  permissionsMock,
+  permissionsMockFns,
+  resetDbChainMock,
+  resetPermissionGroupScopeMock,
+  workflowsUtilsMock,
+} from '@sim/testing'
+import {
+  credentialsAccessMock,
+  credentialsAccessMockFns,
+} from '@sim/testing/mocks/credentials-access.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,11 +24,20 @@ vi.mock('@/lib/credentials/oauth', () => ({
   syncWorkspaceOAuthCredentialsForUser: vi.fn(),
 }))
 
+vi.mock('@/lib/credentials/access', () => credentialsAccessMock)
+
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+
+import { getCanonicalScopesForProvider, getMissingRequiredScopes } from '@/lib/oauth/utils'
+import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET } from '@/app/api/auth/oauth/credentials/route'
+
+const { mockCanUseCredential } = credentialsAccessMockFns
+mockCanUseCredential.mockImplementation(() => true)
 
 describe('OAuth Credentials API Route', () => {
   function createMockRequestWithQuery(method = 'GET', queryParams = ''): NextRequest {
@@ -25,69 +46,255 @@ describe('OAuth Credentials API Route', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
+    resetDbChainMock()
+    resetPermissionGroupScopeMock()
+    mockCanUseCredential.mockReturnValue(true)
   })
 
-  it('should handle unauthenticated user', async () => {
-    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
-      success: false,
-      error: 'Authentication required',
-    })
-
-    const req = createMockRequestWithQuery('GET', '?provider=google')
-
-    const response = await GET(req)
-    const data = await response.json()
-
-    expect(response.status).toBe(401)
-    expect(data.error).toBe('User not authenticated')
-  })
-
-  it('should handle missing provider parameter', async () => {
+  it('does not expose a managed credential requested by exact ID', async () => {
     hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
       success: true,
       userId: 'user-123',
       authType: 'session',
     })
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'managed-credential-1',
+        workspaceId: 'workspace-1',
+        type: 'managed_oauth',
+        displayName: 'Managed Gmail',
+        providerId: 'google-email',
+        accountId: null,
+        updatedAt: new Date('2026-01-01T00:00:00Z'),
+        accountProviderId: null,
+        accountScope: null,
+        accountUpdatedAt: null,
+      },
+    ])
 
-    const req = createMockRequestWithQuery('GET')
-
-    const response = await GET(req)
-    const data = await response.json()
-
-    expect(response.status).toBe(400)
-    expect(data.error).toBe('Provider or credentialId is required')
-  })
-
-  it('should handle no credentials found', async () => {
-    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
-      success: true,
-      userId: 'user-123',
-      authType: 'session',
-    })
-
-    const req = createMockRequestWithQuery('GET', '?provider=github')
-
-    const response = await GET(req)
-    const data = await response.json()
+    const response = await GET(
+      createMockRequestWithQuery('GET', '?credentialId=managed-credential-1')
+    )
 
     expect(response.status).toBe(200)
-    expect(data.credentials).toHaveLength(0)
+    await expect(response.json()).resolves.toEqual({ credentials: [] })
   })
 
-  it('should return empty credentials when no workspace context', async () => {
-    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
-      success: true,
-      userId: 'user-123',
-      authType: 'session',
+  describe.each(['list', 'detail'] as const)('OAuth grant scopes in %s responses', (mode) => {
+    const workspaceId = '3f1c8a54-1c2e-4a1b-9d6e-2b7c5a9f0e11'
+
+    beforeEach(() => {
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockReset().mockResolvedValue({
+        success: true,
+        userId: 'user-123',
+        authType: 'session',
+      })
+      permissionsMockFns.mockCheckWorkspaceAccess.mockResolvedValue({
+        exists: true,
+        hasAccess: true,
+        canWrite: true,
+        canAdmin: true,
+      })
+      permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue(
+        DEFAULT_PERMISSION_GROUP_CONFIG
+      )
     })
 
-    const req = createMockRequestWithQuery('GET', '?provider=google-email')
+    async function requestCredential(providerId: string, scope: string | null) {
+      const row = {
+        id: 'credential-1',
+        workspaceId,
+        type: 'oauth',
+        displayName: 'Connected account',
+        providerId,
+        accountId: 'account-1',
+        scope,
+        updatedAt: new Date('2026-01-01T00:00:00Z'),
+        accountProviderId: providerId,
+        accountScope: scope,
+        accountUpdatedAt: new Date('2026-01-01T00:00:00Z'),
+      }
+      if (mode === 'detail') {
+        dbChainMockFns.limit.mockResolvedValueOnce([row])
+      } else {
+        dbChainMockFns.where.mockResolvedValueOnce([row]).mockResolvedValueOnce([])
+      }
+      const query =
+        mode === 'detail'
+          ? '?credentialId=credential-1'
+          : `?provider=${providerId}&workspaceId=${workspaceId}`
+      const response = await GET(createMockRequestWithQuery('GET', query))
+      expect(response.status).toBe(200)
+      const data = await response.json()
+      expect(data.credentials).toHaveLength(1)
+      return data.credentials[0]
+    }
 
-    const response = await GET(req)
-    const data = await response.json()
+    it.each([null, '', ' \t\n '])(
+      'does not synthesize a Confluence grant from missing scope metadata %j',
+      async (scope) => {
+        const credential = await requestCredential('confluence', scope)
 
-    expect(response.status).toBe(200)
-    expect(data.credentials).toHaveLength(0)
+        expect(credential.scopes).toEqual([])
+        expect(
+          getMissingRequiredScopes(credential, getCanonicalScopesForProvider('confluence'))
+        ).toContain('read:group:confluence')
+      }
+    )
+
+    it('preserves the actual older Confluence grant and identifies missing group access', async () => {
+      const requiredScopes = getCanonicalScopesForProvider('confluence')
+      const previousGrant = requiredScopes.filter((scope) => scope !== 'read:group:confluence')
+      const credential = await requestCredential('confluence', previousGrant.join(','))
+
+      expect(credential.scopes).toEqual(previousGrant)
+      expect(getMissingRequiredScopes(credential, requiredScopes)).toEqual([
+        'read:group:confluence',
+      ])
+    })
+
+    it.each([null, '', ' \t\n '])(
+      'preserves the Box omitted-scope fallback for %j',
+      async (scope) => {
+        const credential = await requestCredential('box', scope)
+        const requiredScopes = getCanonicalScopesForProvider('box')
+
+        expect(requiredScopes.length).toBeGreaterThan(0)
+        expect(credential.scopes).toEqual(requiredScopes)
+        expect(getMissingRequiredScopes(credential, requiredScopes)).toEqual([])
+      }
+    )
+  })
+
+  /** The session/executor split documented on {@link integrationsWithheldFromSession} in the route. */
+  describe('integrations.manage', () => {
+    const INTEGRATIONS_WITHHELD = {
+      ...DEFAULT_PERMISSION_GROUP_CONFIG,
+      hideIntegrationsTab: true,
+    }
+
+    function authenticatedAs(authType: 'session' | 'internal_jwt') {
+      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
+        success: true,
+        userId: 'user-123',
+        authType,
+      })
+    }
+
+    function governedBy(config: typeof DEFAULT_PERMISSION_GROUP_CONFIG) {
+      permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue(config)
+    }
+
+    function callWithWorkspace() {
+      return GET(
+        createMockRequestWithQuery(
+          'GET',
+          '?provider=google-email&workspaceId=3f1c8a54-1c2e-4a1b-9d6e-2b7c5a9f0e11'
+        )
+      )
+    }
+
+    beforeEach(() => {
+      authenticatedAs('session')
+      permissionsMockFns.mockCheckWorkspaceAccess.mockResolvedValue({
+        exists: true,
+        hasAccess: true,
+        canWrite: true,
+        canAdmin: true,
+      })
+    })
+
+    it('refuses a session whose group withholds Integrations', async () => {
+      governedBy(INTEGRATIONS_WITHHELD)
+
+      const response = await callWithWorkspace()
+
+      expect(response.status).toBe(403)
+      await expect(response.json()).resolves.toEqual({
+        error: expect.stringContaining("your organization's permission group"),
+      })
+    })
+
+    /**
+     * The one that matters. A run resolving its credential must not be refused
+     * by a group that describes what a person may open.
+     */
+    it('does not refuse the executor under the same withholding group', async () => {
+      authenticatedAs('internal_jwt')
+      governedBy(INTEGRATIONS_WITHHELD)
+      dbChainMockFns.where.mockResolvedValue([])
+
+      const response = await callWithWorkspace()
+
+      expect(response.status).toBe(200)
+      expect(permissionGroupScopeMockFns.mockResolvePermissionGroupConfig).not.toHaveBeenCalled()
+    })
+
+    /**
+     * A `credentialId` lookup can arrive with no workspace in the query, so the
+     * gate above never runs; the credential names the workspace whose group
+     * governs it.
+     */
+    it('refuses a session credentialId lookup using the credential own workspace', async () => {
+      governedBy(INTEGRATIONS_WITHHELD)
+      dbChainMockFns.limit.mockResolvedValueOnce([
+        {
+          id: 'credential-1',
+          workspaceId: 'workspace-1',
+          type: 'oauth',
+          displayName: 'Gmail',
+          providerId: 'google-email',
+          accountId: 'account-1',
+          updatedAt: new Date('2026-01-01T00:00:00Z'),
+          accountProviderId: 'google-email',
+          accountScope: 'email',
+          accountUpdatedAt: new Date('2026-01-01T00:00:00Z'),
+        },
+      ])
+
+      const response = await GET(createMockRequestWithQuery('GET', '?credentialId=credential-1'))
+
+      expect(response.status).toBe(403)
+      expect(permissionGroupScopeMockFns.mockResolvePermissionGroupConfig).toHaveBeenCalledWith(
+        'user-123',
+        'workspace-1',
+        undefined
+      )
+    })
+
+    /**
+     * The asserted `workspaceId` is the caller's to choose. Pairing one their
+     * group leaves alone with a credential from one it governs must not read
+     * the credential out.
+     */
+    it('refuses a credential whose own workspace is withheld, whatever workspace is asserted', async () => {
+      permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockImplementation(
+        async (_userId: string, workspaceId: string) =>
+          workspaceId === 'workspace-1' ? INTEGRATIONS_WITHHELD : DEFAULT_PERMISSION_GROUP_CONFIG
+      )
+      dbChainMockFns.limit.mockResolvedValueOnce([
+        {
+          id: 'credential-1',
+          workspaceId: 'workspace-1',
+          type: 'oauth',
+          displayName: 'Gmail',
+          providerId: 'google-email',
+          accountId: 'account-1',
+          updatedAt: new Date('2026-01-01T00:00:00Z'),
+          accountProviderId: 'google-email',
+          accountScope: 'email',
+          accountUpdatedAt: new Date('2026-01-01T00:00:00Z'),
+        },
+      ])
+
+      const response = await GET(
+        createMockRequestWithQuery(
+          'GET',
+          '?credentialId=credential-1&workspaceId=3f1c8a54-1c2e-4a1b-9d6e-2b7c5a9f0e11'
+        )
+      )
+
+      expect(response.status).toBe(403)
+    })
   })
 })

@@ -2,7 +2,6 @@ import { MicrosoftPlannerIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import type { MicrosoftPlannerResponse } from '@/tools/microsoft_planner/types'
 
 interface MicrosoftPlannerBlockParams {
   oauthCredential: string
@@ -37,7 +36,7 @@ interface MicrosoftPlannerBlockParams {
 const PLAN_FIELD = ['planSelector', 'planId'] as const
 const READ_TASK_FIELD = ['taskSelector', 'manualReadTaskId'] as const
 
-export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
+export const MicrosoftPlannerBlock: BlockConfig = {
   type: 'microsoft_planner',
   name: 'Microsoft Planner',
   description: 'Manage tasks, plans, and buckets in Microsoft Planner',
@@ -164,7 +163,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       placeholder: 'Enter credential ID',
     },
 
-    // Plan selector - basic mode
     {
       id: 'planSelector',
       title: 'Plan',
@@ -204,7 +202,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       },
     },
 
-    // Plan ID - advanced mode
     {
       id: 'planId',
       title: 'Plan ID',
@@ -242,7 +239,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       dependsOn: ['credential'],
     },
 
-    // Task ID selector - for read_task (basic mode)
     {
       id: 'taskSelector',
       title: 'Task ID',
@@ -256,7 +252,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       canonicalParamId: 'readTaskId',
     },
 
-    // Manual Task ID - for read_task (advanced mode)
     {
       id: 'manualReadTaskId',
       title: 'Manual Task ID',
@@ -282,7 +277,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       dependsOn: ['credential'],
     },
 
-    // Bucket ID for bucket operations
     {
       id: 'bucketIdForRead',
       title: 'Bucket ID',
@@ -293,7 +287,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       dependsOn: ['credential'],
     },
 
-    // ETag for update/delete operations
     {
       id: 'etag',
       title: 'ETag',
@@ -316,7 +309,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       dependsOn: ['credential'],
     },
 
-    // Task fields for create/update
     {
       id: 'title',
       title: 'Task Title',
@@ -326,7 +318,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       required: { field: 'operation', value: 'create_task' },
     },
 
-    // Name for bucket operations
     {
       id: 'name',
       title: 'Bucket Name',
@@ -346,7 +337,6 @@ export const MicrosoftPlannerBlock: BlockConfig<MicrosoftPlannerResponse> = {
       condition: { field: 'operation', value: ['update_task_details'] },
     },
 
-    // Due Date
     {
       id: 'dueDateTime',
       title: 'Due Date',
@@ -369,7 +359,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
     },
 
-    // Start Date
     {
       id: 'startDateTime',
       title: 'Start Date',
@@ -393,7 +382,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       },
     },
 
-    // Assignee
     {
       id: 'assigneeUserId',
       title: 'Assignee User ID',
@@ -402,7 +390,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: ['create_task', 'update_task'] },
     },
 
-    // Bucket ID for task
     {
       id: 'bucketId',
       title: 'Bucket ID',
@@ -411,7 +398,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: ['create_task', 'update_task'] },
     },
 
-    // Priority
     {
       id: 'priority',
       title: 'Priority',
@@ -421,7 +407,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: ['create_task', 'update_task'] },
     },
 
-    // Percent Complete
     {
       id: 'percentComplete',
       title: 'Percent Complete',
@@ -431,7 +416,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: ['create_task', 'update_task'] },
     },
 
-    // Checklist for task details
     {
       id: 'checklist',
       title: 'Checklist (JSON)',
@@ -442,7 +426,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: ['update_task_details'] },
     },
 
-    // References for task details
     {
       id: 'references',
       title: 'References (JSON)',
@@ -453,7 +436,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: ['update_task_details'] },
     },
 
-    // Preview Type
     {
       id: 'previewType',
       title: 'Preview Type',
@@ -463,7 +445,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: ['update_task_details'] },
     },
 
-    // Group ID for create plan
     {
       id: 'groupId',
       title: 'Microsoft 365 Group ID',
@@ -474,7 +455,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       dependsOn: ['credential'],
     },
 
-    // Plan title for create/update plan
     {
       id: 'planTitle',
       title: 'Plan Title',
@@ -518,7 +498,6 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
       condition: { field: 'operation', value: ['update_plan_details'] },
     },
 
-    // Shared with for plan details
     {
       id: 'sharedWith',
       title: 'Shared With (JSON)',
@@ -599,7 +578,7 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
           groupId,
           planId,
           readTaskId, // Canonical param from taskSelector (basic) or manualReadTaskId (advanced) for read_task
-          updateTaskId, // Task ID for update/delete operations
+          updateTaskId,
           bucketId,
           bucketIdForRead,
           title,
@@ -626,17 +605,14 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
           oauthCredential,
         }
 
-        // Handle different task ID fields based on operation
         const effectiveReadTaskId = readTaskId ? String(readTaskId).trim() : ''
         const effectiveUpdateTaskId = updateTaskId ? String(updateTaskId).trim() : ''
         const effectiveBucketId = (bucketIdForRead || bucketId || '').trim()
 
-        // List Plans
         if (operation === 'list_plans') {
           return baseParams
         }
 
-        // Read Plan
         if (operation === 'read_plan') {
           return {
             ...baseParams,
@@ -644,7 +620,6 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
           }
         }
 
-        // Create Plan
         if (operation === 'create_plan') {
           return {
             ...baseParams,
@@ -653,7 +628,6 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
           }
         }
 
-        // Update Plan
         if (operation === 'update_plan') {
           return {
             ...baseParams,
@@ -663,7 +637,6 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
           }
         }
 
-        // Get Plan Details
         if (operation === 'get_plan_details') {
           return {
             ...baseParams,
@@ -671,7 +644,6 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
           }
         }
 
-        // Update Plan Details
         if (operation === 'update_plan_details') {
           const updatePlanDetailsParams: MicrosoftPlannerBlockParams = {
             ...baseParams,
@@ -687,7 +659,6 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
           return updatePlanDetailsParams
         }
 
-        // Delete Plan
         if (operation === 'delete_plan') {
           return {
             ...baseParams,
@@ -696,7 +667,6 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
           }
         }
 
-        // List Buckets
         if (operation === 'list_buckets') {
           return {
             ...baseParams,
@@ -704,7 +674,6 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
           }
         }
 
-        // Read Bucket
         if (operation === 'read_bucket') {
           return {
             ...baseParams,
@@ -712,7 +681,6 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
           }
         }
 
-        // Create Bucket
         if (operation === 'create_bucket') {
           return {
             ...baseParams,
@@ -721,7 +689,6 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
           }
         }
 
-        // Update Bucket
         if (operation === 'update_bucket') {
           const updateBucketParams: MicrosoftPlannerBlockParams = {
             ...baseParams,
@@ -734,7 +701,6 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
           return updateBucketParams
         }
 
-        // Delete Bucket
         if (operation === 'delete_bucket') {
           return {
             ...baseParams,
@@ -743,7 +709,6 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
           }
         }
 
-        // Read Task
         if (operation === 'read_task') {
           const readParams: MicrosoftPlannerBlockParams = { ...baseParams }
 
@@ -756,7 +721,6 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
           return readParams
         }
 
-        // Create Task
         if (operation === 'create_task') {
           const createParams: MicrosoftPlannerBlockParams = {
             ...baseParams,
@@ -789,7 +753,6 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
           return createParams
         }
 
-        // Update Task
         if (operation === 'update_task') {
           const updateParams: MicrosoftPlannerBlockParams = {
             ...baseParams,
@@ -825,7 +788,6 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
           return updateParams
         }
 
-        // Delete Task
         if (operation === 'delete_task') {
           return {
             ...baseParams,
@@ -834,7 +796,6 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
           }
         }
 
-        // Get Task Details
         if (operation === 'get_task_details') {
           return {
             ...baseParams,
@@ -842,7 +803,6 @@ Return ONLY the comma-separated category keys - no explanations, no extra text.`
           }
         }
 
-        // Update Task Details
         if (operation === 'update_task_details') {
           const updateDetailsParams: MicrosoftPlannerBlockParams = {
             ...baseParams,

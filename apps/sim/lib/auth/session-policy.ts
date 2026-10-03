@@ -3,10 +3,12 @@ import type { SessionPolicySettings } from '@sim/db/schema'
 import { organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq, sql } from 'drizzle-orm'
+import { LRUCache } from 'lru-cache'
 import { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'
 import { getMemberOrganizationId, invalidateMembershipCache } from '@/lib/auth/security-policy'
 import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
 import { isSessionPoliciesEnabled } from '@/lib/core/config/env-flags'
+import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('SessionPolicy')
 
@@ -20,12 +22,20 @@ export interface ResolvedSessionPolicy {
   idleTimeoutHours: number | null
 }
 
-interface PolicyCacheEntry {
-  policy: ResolvedSessionPolicy
-  fetchedAt: number
-}
-
-const policyCache = new Map<string, PolicyCacheEntry>()
+/**
+ * Read on every session create and refresh, keyed by organization, so an
+ * unbounded `Map` grew for the life of the process. `LRUCache` supplies both
+ * the TTL and a ceiling; `invalidateSessionPolicyCache` still evicts by key.
+ *
+ * The ceiling is a memory backstop rather than an operating limit: exceeding it
+ * only costs an extra indexed lookup per miss, which is what happened before
+ * any caching existed, but it would be a hit-rate cliff on a warm path. Entries
+ * are a few dozen bytes, so the headroom is nearly free.
+ */
+const policyCache = new LRUCache<string, ResolvedSessionPolicy>({
+  max: 20_000,
+  ttl: SESSION_POLICY_CACHE_TTL_MS,
+})
 
 const NO_POLICY: ResolvedSessionPolicy = {
   maxSessionHours: null,
@@ -41,17 +51,17 @@ const NO_POLICY: ResolvedSessionPolicy = {
  * longer manage them.
  */
 export async function getSessionPolicy(
-  organizationId: string | null | undefined
+  organizationId: string | null | undefined,
+  executor: DbOrTx = db
 ): Promise<ResolvedSessionPolicy> {
   if (!organizationId) return NO_POLICY
 
-  const cached = policyCache.get(organizationId)
-  if (cached && Date.now() - cached.fetchedAt < SESSION_POLICY_CACHE_TTL_MS) {
-    return cached.policy
-  }
+  /** Uncommitted policy reads must neither consume nor populate the shared cache. */
+  const cached = executor === db ? policyCache.get(organizationId) : undefined
+  if (cached) return cached
 
   try {
-    const [row] = await db
+    const [row] = await executor
       .select({ settings: organization.sessionPolicySettings })
       .from(organization)
       .where(eq(organization.id, organizationId))
@@ -60,14 +70,15 @@ export async function getSessionPolicy(
     const settings: SessionPolicySettings = row?.settings ?? {}
     const hasBounds = Boolean(settings.maxSessionHours || settings.idleTimeoutHours)
     const isEntitled =
-      !hasBounds || (await isOrganizationFeatureEntitled(organizationId, isSessionPoliciesEnabled))
+      !hasBounds ||
+      (await isOrganizationFeatureEntitled(organizationId, isSessionPoliciesEnabled, executor))
     const policy: ResolvedSessionPolicy = isEntitled
       ? {
           maxSessionHours: settings.maxSessionHours ?? null,
           idleTimeoutHours: settings.idleTimeoutHours ?? null,
         }
       : NO_POLICY
-    policyCache.set(organizationId, { policy, fetchedAt: Date.now() })
+    if (executor === db) policyCache.set(organizationId, policy)
     return policy
   } catch (error) {
     logger.error('Failed to resolve session policy; applying no policy', {
@@ -136,7 +147,8 @@ interface ClampableSession {
  */
 export async function clampExpiryForSession(
   session: ClampableSession,
-  freshMembershipOrgId?: string | null
+  freshMembershipOrgId?: string | null,
+  executor: DbOrTx = db
 ): Promise<Date | undefined> {
   // Better Auth context values can cross a serialization boundary — normalize
   // date fields in case they arrive as ISO strings rather than Dates.
@@ -147,10 +159,10 @@ export async function clampExpiryForSession(
   const organizationId =
     freshMembershipOrgId !== undefined
       ? freshMembershipOrgId
-      : await getMemberOrganizationId(session.userId)
+      : await getMemberOrganizationId(session.userId, executor)
   if (!organizationId) return expiresAt
 
-  const policy = await getSessionPolicy(organizationId)
+  const policy = await getSessionPolicy(organizationId, executor)
   const createdAt = session.createdAt ? new Date(session.createdAt) : new Date()
   return clampSessionExpiry(policy, createdAt, expiresAt)
 }

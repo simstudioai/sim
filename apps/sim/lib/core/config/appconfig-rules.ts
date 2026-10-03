@@ -10,11 +10,12 @@
 
 /**
  * A single gating rule. A gate is open for a context when ANY clause matches:
- * the global `enabled` default, the org/user allowlists, or `adminEnabled` for
- * platform admins. An absent clause never matches.
+ * the global `enabled` default, the workspace/org/user allowlists, or
+ * `adminEnabled` for platform admins. An absent clause never matches.
  */
 export interface AppConfigGateRule {
   enabled?: boolean
+  workspaceIds?: string[]
   orgIds?: string[]
   userIds?: string[]
   adminEnabled?: boolean
@@ -28,6 +29,7 @@ export interface AppConfigGateRule {
 export interface AppConfigGateContext {
   userId?: string | null
   orgId?: string | null
+  workspaceId?: string | null
   isAdmin?: boolean
 }
 
@@ -44,6 +46,8 @@ export function normalizeRule(value: unknown): AppConfigGateRule | null {
   const rule: AppConfigGateRule = {}
   if (typeof obj.enabled === 'boolean') rule.enabled = obj.enabled
   if (typeof obj.adminEnabled === 'boolean') rule.adminEnabled = obj.adminEnabled
+  const workspaceIds = normalizeIds(obj.workspaceIds)
+  if (workspaceIds) rule.workspaceIds = workspaceIds
   const orgIds = normalizeIds(obj.orgIds)
   if (orgIds) rule.orgIds = orgIds
   const userIds = normalizeIds(obj.userIds)
@@ -75,6 +79,7 @@ export function matchesRule(
   if (rule.enabled) return true
   if (ctx.userId && rule.userIds?.includes(ctx.userId)) return true
   if (ctx.orgId && rule.orgIds?.includes(ctx.orgId)) return true
+  if (ctx.workspaceId && rule.workspaceIds?.includes(ctx.workspaceId)) return true
   if (rule.adminEnabled && isAdmin) return true
   return false
 }
