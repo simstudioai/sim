@@ -30,7 +30,7 @@ function getSearchLimit(value: unknown): number {
 function getSearchParams(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   return {
-    query: searchParams.get('query') || searchParams.get('q') || '',
+    query: (searchParams.get('query') || searchParams.get('q') || '').slice(0, MAX_QUERY_LENGTH),
     limit: getSearchLimit(searchParams.get('limit')),
   }
 }
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
   try {
     const { query, limit } = getSearchParams(request)
 
-    if (query.trim().length === 0 || query.length > MAX_QUERY_LENGTH) {
+    if (query.trim().length === 0) {
       return NextResponse.json([])
     }
 
