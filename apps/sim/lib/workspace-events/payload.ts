@@ -3,6 +3,7 @@ import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
   SIM_FINAL_OUTPUT_MAX_BYTES,
   type SimEventType,
+  type SimPlainEventType,
   type SimRuleEventType,
 } from '@/lib/workspace-events/constants'
 import type {
@@ -86,7 +87,9 @@ function summarizeRun(context: ExecutionEventContext): SimRunSummary {
  * the condition that fired, so it nests under `triggeringRun`.
  */
 export function buildExecutionEventPayload(params: {
-  event: 'execution_success' | 'execution_error' | SimRuleEventType
+  event:
+    | Exclude<SimPlainEventType, 'agent_tool_error' | 'workflow_deployed' | 'workflow_undeployed'>
+    | SimRuleEventType
   workflowName: string
   context: ExecutionEventContext
 }): SimEventPayload {
