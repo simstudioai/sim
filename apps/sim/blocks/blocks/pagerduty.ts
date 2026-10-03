@@ -146,7 +146,7 @@ export const PagerDutyBlock: BlockConfig = {
       },
     },
 
-    // --- List Incidents fields ---
+    // List Incidents fields
     {
       id: 'statuses',
       title: 'Statuses',
@@ -238,7 +238,7 @@ export const PagerDutyBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // --- Get Incident fields ---
+    // Get Incident fields
     {
       id: 'getIncidentId',
       title: 'Incident ID',
@@ -248,7 +248,7 @@ export const PagerDutyBlock: BlockConfig = {
       condition: { field: 'operation', value: 'get_incident' },
     },
 
-    // --- Create Incident fields ---
+    // Create Incident fields
     {
       id: 'title',
       title: 'Title',
@@ -308,7 +308,7 @@ export const PagerDutyBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // --- Update Incident fields ---
+    // Update Incident fields
     {
       id: 'updateIncidentId',
       title: 'Incident ID',
@@ -367,7 +367,7 @@ export const PagerDutyBlock: BlockConfig = {
       condition: { field: 'operation', value: 'update_incident' },
       mode: 'advanced',
     },
-    // --- Snooze Incident fields ---
+    // Snooze Incident fields
     {
       id: 'snoozeIncidentId',
       title: 'Incident ID',
@@ -385,7 +385,7 @@ export const PagerDutyBlock: BlockConfig = {
       condition: { field: 'operation', value: 'snooze_incident' },
     },
 
-    // --- Merge Incidents fields ---
+    // Merge Incidents fields
     {
       id: 'mergeTargetIncidentId',
       title: 'Target Incident ID',
@@ -403,7 +403,7 @@ export const PagerDutyBlock: BlockConfig = {
       condition: { field: 'operation', value: 'merge_incidents' },
     },
 
-    // --- Add Note fields ---
+    // Add Note fields
     {
       id: 'noteIncidentId',
       title: 'Incident ID',
@@ -421,7 +421,7 @@ export const PagerDutyBlock: BlockConfig = {
       condition: { field: 'operation', value: 'add_note' },
     },
 
-    // --- List Incident Alerts fields ---
+    // List Incident Alerts fields
     {
       id: 'alertsIncidentId',
       title: 'Incident ID',
@@ -460,7 +460,7 @@ export const PagerDutyBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // --- List Services fields ---
+    // List Services fields
     {
       id: 'serviceQuery',
       title: 'Search Query',
@@ -485,7 +485,7 @@ export const PagerDutyBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // --- Get Service fields ---
+    // Get Service fields
     {
       id: 'getServiceId',
       title: 'Service ID',
@@ -495,7 +495,7 @@ export const PagerDutyBlock: BlockConfig = {
       condition: { field: 'operation', value: 'get_service' },
     },
 
-    // --- List On-Calls fields ---
+    // List On-Calls fields
     {
       id: 'oncallEscalationPolicyIds',
       title: 'Escalation Policy IDs',
@@ -556,7 +556,7 @@ export const PagerDutyBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // --- List Escalation Policies fields ---
+    // List Escalation Policies fields
     {
       id: 'escalationPolicyQuery',
       title: 'Search Query',
@@ -581,7 +581,7 @@ export const PagerDutyBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // --- List Schedules fields ---
+    // List Schedules fields
     {
       id: 'scheduleQuery',
       title: 'Search Query',
@@ -606,7 +606,7 @@ export const PagerDutyBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // --- List Users fields ---
+    // List Users fields
     {
       id: 'userQuery',
       title: 'Search Query',
@@ -631,7 +631,7 @@ export const PagerDutyBlock: BlockConfig = {
       mode: 'advanced',
     },
 
-    // --- Send Event fields ---
+    // Send Event fields
     {
       id: 'eventAction',
       title: 'Event Action',

@@ -98,22 +98,6 @@ export function formatDate(date: Date): string {
 }
 
 /**
- * Formats a date string to absolute format for tooltip display
- * @param dateString - ISO date string to format
- * @returns A formatted date string (e.g., "Jan 22, 2026, 01:30 PM")
- */
-export function formatAbsoluteDate(dateString: string): string {
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-/**
  * Format a time into a short format
  * @param date - The date to format
  * @returns A formatted time string in the format "h:mm A"
@@ -124,40 +108,6 @@ export function formatTime(date: Date): string {
     minute: '2-digit',
     hour12: true,
   })
-}
-
-/**
- * Format a time with seconds and timezone
- * @param date - The date to format
- * @param includeTimezone - Whether to include the timezone abbreviation
- * @returns A formatted time string in the format "h:mm:ss AM/PM TZ"
- */
-export function formatTimeWithSeconds(date: Date, includeTimezone = true): string {
-  return date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: true,
-    timeZoneName: includeTimezone ? 'short' : undefined,
-  })
-}
-
-/**
- * Format an ISO timestamp into a compact format for UI display
- * @param iso - ISO timestamp string
- * @returns A formatted string in "MM-DD HH:mm" format
- */
-export function formatCompactTimestamp(iso: string): string {
-  try {
-    const d = new Date(iso)
-    const mm = String(d.getMonth() + 1).padStart(2, '0')
-    const dd = String(d.getDate()).padStart(2, '0')
-    const hh = String(d.getHours()).padStart(2, '0')
-    const min = String(d.getMinutes()).padStart(2, '0')
-    return `${mm}-${dd} ${hh}:${min}`
-  } catch {
-    return iso
-  }
 }
 
 /**

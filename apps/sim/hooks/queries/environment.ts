@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   removeWorkspaceEnvironmentContract,
@@ -26,19 +26,38 @@ export const environmentKeys = {
   workspace: (workspaceId: string) => [...environmentKeys.workspaces(), workspaceId] as const,
 }
 
+export function personalEnvironmentQueryOptions() {
+  return queryOptions({
+    queryKey: environmentKeys.personal(),
+    queryFn: ({ signal }) => fetchPersonalEnvironment(signal),
+    staleTime: PERSONAL_ENVIRONMENT_STALE_TIME,
+    retryOnMount: true,
+    // Pinned off (not inheriting the desktop QueryClient default): the secrets
+    // manager seeds an editable form from this data, so a background focus
+    // refetch during a concurrent edit would drop the user's unsaved rows.
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function workspaceEnvironmentQueryOptions(workspaceId: string) {
+  return queryOptions({
+    queryKey: environmentKeys.workspace(workspaceId),
+    queryFn: ({ signal }) => fetchWorkspaceEnvironment(workspaceId, signal),
+    staleTime: WORKSPACE_ENVIRONMENT_STALE_TIME,
+    retryOnMount: true,
+    // See personalEnvironmentQueryOptions: seeds an editable form, so a focus refetch
+    // during a concurrent workspace-env edit must not clobber unsaved rows.
+    refetchOnWindowFocus: false,
+  })
+}
+
 /**
  * Hook to fetch personal environment variables
  */
 export function usePersonalEnvironment(options?: { enabled?: boolean }) {
   return useQuery({
-    queryKey: environmentKeys.personal(),
-    queryFn: ({ signal }) => fetchPersonalEnvironment(signal),
+    ...personalEnvironmentQueryOptions(),
     enabled: options?.enabled ?? true,
-    staleTime: PERSONAL_ENVIRONMENT_STALE_TIME,
-    // Pinned off (not inheriting the desktop QueryClient default): the secrets
-    // manager seeds an editable form from this data, so a background focus
-    // refetch during a concurrent edit would drop the user's unsaved rows.
-    refetchOnWindowFocus: false,
   })
 }
 
@@ -50,13 +69,8 @@ export function useWorkspaceEnvironment<TData = WorkspaceEnvironmentData>(
   options?: { enabled?: boolean; select?: (data: WorkspaceEnvironmentData) => TData }
 ) {
   return useQuery({
-    queryKey: environmentKeys.workspace(workspaceId),
-    queryFn: ({ signal }) => fetchWorkspaceEnvironment(workspaceId, signal),
+    ...workspaceEnvironmentQueryOptions(workspaceId),
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
-    staleTime: WORKSPACE_ENVIRONMENT_STALE_TIME,
-    // See usePersonalEnvironment: seeds an editable form, so a focus refetch
-    // during a concurrent workspace-env edit must not clobber unsaved rows.
-    refetchOnWindowFocus: false,
     select: options?.select,
   })
 }

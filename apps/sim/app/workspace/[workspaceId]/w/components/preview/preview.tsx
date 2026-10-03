@@ -298,7 +298,7 @@ export function Preview({
               <Button
                 variant='ghost'
                 onClick={handleGoBack}
-                className='flex h-[28px] items-center gap-[5px] rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 text-[var(--text-secondary)] shadow-xs hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
+                className='flex h-[28px] gap-[5px] rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 shadow-xs hover-hover:bg-[var(--surface-4)]'
               >
                 <ArrowLeft className='size-[12px]' />
                 <span className='text-caption'>Back</span>

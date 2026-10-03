@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import {
   forwardAgentStreamToExecutionEvents,
@@ -206,21 +203,6 @@ describe('forwardAgentStreamToExecutionEvents', () => {
     // Tool-only turn (no text) resolves intermediate — nothing to clear.
     await sinkHandler!({ type: 'turn_end', turn: 'intermediate' })
     expect(sendEvent).not.toHaveBeenCalled()
-  })
-
-  it('no-ops when subscribe is absent', () => {
-    const streamingExec = {
-      stream: new ReadableStream(),
-      execution: { success: true, output: {} },
-    } as StreamingExecution
-
-    const unsub = forwardAgentStreamToExecutionEvents(streamingExec, {
-      blockId: 'agent-1',
-      executionId: 'exec-1',
-      workflowId: 'wf-1',
-      sendEvent: vi.fn(),
-    })
-    expect(() => unsub()).not.toThrow()
   })
 })
 

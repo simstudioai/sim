@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { normalizeQuestion, toList } from '@/tools/jotform/normalize'
 import type {
   JotformCreateQuestionsParams,
@@ -6,7 +7,6 @@ import type {
 import {
   buildJotformHeaders,
   buildJotformUrl,
-  isRecord,
   parseJotformResponse,
   requireValue,
   toJsonArray,
@@ -75,7 +75,7 @@ export const createQuestionsTool: ToolConfig<
 
       const indexed: Record<string, unknown> = {}
       questions.forEach((question, index) => {
-        if (!isRecord(question)) {
+        if (!isRecordLike(question)) {
           throw new Error('Every entry in questions must be a JSON object.')
         }
         indexed[String(index + 1)] = question

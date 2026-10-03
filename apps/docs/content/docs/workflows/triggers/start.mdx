@@ -1,5 +1,5 @@
 ---
-title: Start
+title: Start Trigger
 description: The Start block is the default trigger — it collects typed inputs and runs the workflow from the editor, an API call, or chat.
 ---
 
@@ -21,7 +21,7 @@ Every workflow starts with a Start block in the trigger slot. Keep it when one e
 
 Define the fields the workflow accepts. Each field has a name and a type — `string`, `number`, `boolean`, `object`, `array`, or `files` — and becomes available downstream as `<start.fieldName>`. A `customerId` field reads as `<start.customerId>`.
 
-- Give a field a **default value** to prefill the manual-run form. Defaults are ignored on deployed runs.
+- Give a field a **default value** to prefill the manual-run form and supply a fallback when the caller omits it or sends `null`. A supplied value, including an empty string, overrides the default.
 - **File** fields accept uploads from both chat and API callers.
 - Reorder fields to control how they appear in the editor form.
 

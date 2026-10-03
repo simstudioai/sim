@@ -19,7 +19,7 @@ import {
 interface ManualExecutionInput
   extends Omit<ExecuteWorkflowInput, 'input' | 'mode' | 'requestedTimeoutSeconds'> {
   input?: unknown
-  mode: 'sync' | 'stream'
+  mode: 'sync' | 'stream' | 'sync-result-stream'
 }
 
 export interface ExecuteManualWorkflowInput extends ManualExecutionInput {
@@ -90,10 +90,7 @@ export const executeManualWorkflowOperation = defineAuthorizedWorkflowUseCase({
       )
     }
     const state = await loadManualState(context.workflowId)
-    const options = resolveTriggerRunOptions(
-      mergeSubblockStateWithValues(state.blocks),
-      state.edges
-    )
+    const options = resolveTriggerRunOptions(mergeSubblockStateWithValues(state.blocks))
     if (options.length === 0) {
       throw new OrchestrationError(
         'validation',

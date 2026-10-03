@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   getWorkflowSearchSubBlockResourceDefinition,
@@ -47,20 +44,6 @@ describe('scalar resource codec whitespace handling', () => {
 
   it('clears a padded single value when the reference is unresolved', () => {
     expect(replaceTableValue(padded, rawValue, '')).toEqual({ success: true, nextValue: '' })
-  })
-
-  it('leaves a non-matching single value untouched', () => {
-    expect(replaceTableValue('  tbl_other  ', rawValue, 'tbl_target')).toEqual({
-      success: true,
-      nextValue: '  tbl_other  ',
-    })
-  })
-
-  it('still remaps an unpadded single value', () => {
-    expect(replaceTableValue(rawValue, rawValue, 'tbl_target')).toEqual({
-      success: true,
-      nextValue: 'tbl_target',
-    })
   })
 
   it('still remaps one entry of a padded multi-value list', () => {

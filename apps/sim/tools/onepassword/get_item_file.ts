@@ -81,12 +81,7 @@ export const getItemFileTool: InternalToolConfig<
     return {
       success: true,
       output: {
-        file: {
-          name: data.file.name,
-          mimeType: data.file.mimeType,
-          data: data.file.data,
-          size: data.file.size,
-        },
+        file: data.file,
       },
     }
   },

@@ -3,9 +3,8 @@ import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { CodeLanguage, getLanguageDisplayName } from '@/lib/execution/languages'
 import { SANDBOX_OUTPUT_DIR } from '@/lib/execution/remote-sandbox/sandbox-paths'
 import type { BlockConfig } from '@/blocks/types'
-import type { CodeExecutionOutput } from '@/tools/function/types'
 
-export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
+export const FunctionBlock: BlockConfig = {
   type: 'function',
   name: 'Function',
   description: 'Run custom logic',

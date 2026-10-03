@@ -1,3 +1,4 @@
+import { omit } from '@sim/utils/object'
 import { BoxCompanyIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
@@ -7,9 +8,11 @@ import { normalizeFileInput } from '@/blocks/utils'
 /** Canonical pair for the upload payload: file picker in basic mode, file reference in advanced. */
 const UPLOAD_FILE_FIELD = ['uploadFile', 'fileRef'] as const
 
-export const BoxBlock: BlockConfig = {
+export const BoxBlock = {
   type: 'box',
-  name: 'Box',
+  name: 'Box (Legacy)',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'box_v2' },
   description: 'Manage files, folders, and e-signatures with Box',
   longDescription:
     'Integrate Box into your workflow to manage files, folders, and e-signatures. Upload and download files, search content, create folders, send documents for e-signature, track signing status, and more.',
@@ -657,6 +660,28 @@ export const BoxBlock: BlockConfig = {
     count: 'number',
     nextMarker: 'string',
   },
+} satisfies BlockConfig
+
+export const BoxV2Block: BlockConfig = {
+  ...BoxBlock,
+  type: 'box_v2',
+  name: 'Box',
+  hideFromToolbar: false,
+  sunset: undefined,
+  tools: {
+    ...BoxBlock.tools,
+    access: BoxBlock.tools.access.map((toolId) =>
+      toolId === 'box_download_file' ? 'box_download_file_v2' : toolId
+    ),
+    config: {
+      ...BoxBlock.tools.config,
+      tool: (params) => {
+        const toolId = BoxBlock.tools.config.tool(params)
+        return toolId === 'box_download_file' ? 'box_download_file_v2' : toolId
+      },
+    },
+  },
+  outputs: omit(BoxBlock.outputs, ['content']),
 }
 
 export const BoxBlockMeta = {

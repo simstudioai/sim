@@ -27,10 +27,12 @@ import {
   executeOnePasswordUpdateItem,
   type OnePasswordOperationContext,
 } from '@/lib/internal/onepassword/operations'
+import { isInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 import { parseInternalToolInput } from '@/lib/internal/tool-operations/parse-input'
 import type {
   InternalToolOperationCall,
   InternalToolOperationHandler,
+  InternalToolOperationResult,
 } from '@/lib/internal/tool-operations/types'
 
 const logger = createLogger('OnePasswordToolExecution')
@@ -40,7 +42,7 @@ async function executeOperation<C extends AnyApiRouteContract>(
   request: InternalToolOperationCall,
   operation: (input: ContractBody<C>, context: OnePasswordOperationContext) => Promise<unknown>,
   failureMessage: string
-): Promise<Response> {
+): Promise<InternalToolOperationResult> {
   request.signal?.throwIfAborted()
   const parsed = parseInternalToolInput(contract, request.input)
   if (!parsed.success) return parsed.response
@@ -48,7 +50,7 @@ async function executeOperation<C extends AnyApiRouteContract>(
   try {
     const result = await operation(parsed.data, { signal: request.signal })
     request.signal?.throwIfAborted()
-    return Response.json(result)
+    return isInternalToolFileResult(result) ? result : Response.json(result)
   } catch (error) {
     request.signal?.throwIfAborted()
     if (error instanceof OnePasswordOperationError) {
@@ -64,7 +66,9 @@ async function executeOperation<C extends AnyApiRouteContract>(
   }
 }
 
-export const executeOnePasswordTool: InternalToolOperationHandler = async (request) => {
+export const executeOnePasswordTool: InternalToolOperationHandler<
+  InternalToolOperationResult
+> = async (request) => {
   switch (request.toolId) {
     case 'onepassword_list_vaults':
       return executeOperation(

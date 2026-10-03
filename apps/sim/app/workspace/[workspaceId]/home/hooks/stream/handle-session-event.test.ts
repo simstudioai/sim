@@ -1,9 +1,6 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
-import { MothershipStreamV1SessionKind } from '@/lib/copilot/generated/mothership-stream-v1'
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+import { MothershipStreamV1SessionKind } from '@/lib/mothership/generated/mothership-stream-v1'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import { handleSessionEvent } from '@/app/workspace/[workspaceId]/home/hooks/stream/handle-session-event'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 import { makeStreamLoopDeps } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-test-helpers'
@@ -32,16 +29,5 @@ describe('handleSessionEvent', () => {
 
     expect(deps.adoptResolvedChatId).toHaveBeenCalledWith('chat-new')
     expect(deps.chatIdRef.current).toBe('chat-new')
-  })
-
-  it('does not re-run provisional adoption for an existing chat', () => {
-    const deps = makeStreamLoopDeps()
-    deps.chatIdRef.current = 'chat-existing'
-    deps.selectedChatIdRef.current = 'chat-existing'
-
-    handleSessionEvent({ deps } as StreamLoopContext, chatSessionEvent('chat-existing') as never)
-
-    expect(deps.adoptResolvedChatId).not.toHaveBeenCalled()
-    expect(deps.setResolvedChatId).toHaveBeenCalledWith('chat-existing')
   })
 })

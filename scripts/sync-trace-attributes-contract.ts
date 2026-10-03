@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { formatGeneratedSource } from './format-generated-source'
 
 /**
- * Generate `apps/sim/lib/copilot/generated/trace-attributes-v1.ts`
+ * Generate `apps/sim/lib/mothership/generated/trace-attributes-v1.ts`
  * from the Go-side `contracts/trace-attributes-v1.schema.json`
  * contract.
  *
@@ -35,7 +35,7 @@ const DEFAULT_CONTRACT_PATH = resolve(
   ROOT,
   '../copilot/copilot/contracts/trace-attributes-v1.schema.json'
 )
-const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/copilot/generated/trace-attributes-v1.ts')
+const OUTPUT_PATH = resolve(ROOT, 'apps/sim/lib/mothership/generated/trace-attributes-v1.ts')
 
 function extractAttrKeys(schema: Record<string, unknown>): string[] {
   const defs = (schema.$defs ?? {}) as Record<string, unknown>

@@ -10,7 +10,7 @@ interface SsoDomainRow {
   id: string
   domain: string
   status: string
-  verificationToken: string
+  verificationToken: string | null
   verifiedAt: Date | null
 }
 
@@ -35,7 +35,9 @@ export function toDomainResponse(
     verifiedAt: row.verifiedAt ? row.verifiedAt.toISOString() : null,
     challengeHost: buildChallengeHost(row.domain),
     txtRecordValue:
-      status === 'pending' && includeToken ? buildTxtRecordValue(row.verificationToken) : null,
+      status === 'pending' && includeToken && row.verificationToken
+        ? buildTxtRecordValue(row.verificationToken)
+        : null,
   }
 }
 

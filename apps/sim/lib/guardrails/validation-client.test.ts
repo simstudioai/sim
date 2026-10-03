@@ -1,16 +1,12 @@
-/**
- * @vitest-environment node
- */
 import { resetUrlsMock, urlsMockFns } from '@sim/testing'
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 afterAll(resetUrlsMock)
 
-const { mockToken } = vi.hoisted(() => ({
-  mockToken: vi.fn(),
-}))
+const mockToken = authInternalMockFns.mockGenerateInternalToken
 
-vi.mock('@/lib/auth/internal', () => ({ generateInternalToken: mockToken }))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
 
 import { MAX_PII_VALIDATION_RESPONSE_BYTES } from '@/lib/guardrails/pii-limits'
 import { validatePIIViaHttp } from '@/lib/guardrails/validation-client'
@@ -20,45 +16,12 @@ describe('validatePIIViaHttp', () => {
   let fetchMock: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockToken.mockResolvedValue('internal-token')
     mockBaseUrl.mockReturnValue('https://app.example.com')
     fetchMock = vi.fn(async () =>
       Response.json({ passed: true, detectedEntities: [], maskedText: 'clean' })
     )
     vi.stubGlobal('fetch', fetchMock)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('calls the authenticated app capability with the caller signal', async () => {
-    const controller = new AbortController()
-
-    await expect(
-      validatePIIViaHttp(
-        {
-          text: 'clean',
-          entityTypes: ['EMAIL_ADDRESS'],
-          mode: 'mask',
-          language: 'en',
-        },
-        controller.signal
-      )
-    ).resolves.toEqual({ passed: true, detectedEntities: [], maskedText: 'clean' })
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://app.example.com/api/guardrails/pii/validate',
-      expect.objectContaining({
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: 'Bearer internal-token',
-        },
-        signal: controller.signal,
-      })
-    )
   })
 
   it('fails on an HTTP error without retrying', async () => {

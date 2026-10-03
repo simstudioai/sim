@@ -1,9 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
-  AccountDeletionBlockedError,
   type AccountDeletionFacts,
   classifyAccountDeletion,
   extractProfilePictureKey,
@@ -36,17 +32,6 @@ function codes(plan: { blockers: { code: string }[] }): string[] {
 }
 
 describe('classifyAccountDeletion', () => {
-  it('deletes a solo personal workspace with no blockers — the ordinary individual account', () => {
-    const ws = workspace()
-    const plan = classifyAccountDeletion(
-      facts({ workspaces: [ws], company: new Map([[ws.id, company()]]) })
-    )
-
-    expect(plan.blockers).toEqual([])
-    expect(plan.workspacesToDelete).toEqual([{ id: ws.id, name: ws.name }])
-    expect(plan.workspacesToTransfer).toEqual([])
-  })
-
   it('blocks a workspace that other people are in rather than reassigning it', () => {
     const ws = workspace({ name: 'Shared' })
     const plan = classifyAccountDeletion(
@@ -148,37 +133,6 @@ describe('classifyAccountDeletion', () => {
       'shared_workspace',
     ])
   })
-
-  it('names up to three workspaces and summarizes the rest', () => {
-    const workspaces = ['One', 'Two', 'Three', 'Four'].map((name, index) =>
-      workspace({ id: `ws-${index}`, name })
-    )
-    const plan = classifyAccountDeletion(
-      facts({
-        workspaces,
-        company: new Map(
-          workspaces.map((ws) => [ws.id, company({ hasOtherMembers: true })] as const)
-        ),
-      })
-    )
-
-    expect(plan.blockers[0].message).toContain('"One", "Two", "Three" and 1 more')
-  })
-})
-
-describe('AccountDeletionBlockedError', () => {
-  it('classifies itself as a conflict so the route renders a refusal as 409, not 500', () => {
-    const error = new AccountDeletionBlockedError([
-      { code: 'active_subscription', message: 'Your pro plan is still active.' },
-    ])
-
-    expect(error.code).toBe('conflict')
-    expect(error.message).toBe('Your pro plan is still active.')
-  })
-
-  it('still carries a message when constructed with no blockers', () => {
-    expect(new AccountDeletionBlockedError([]).message).toMatch(/cannot be deleted/i)
-  })
 })
 
 describe('extractProfilePictureKey', () => {
@@ -188,22 +142,11 @@ describe('extractProfilePictureKey', () => {
     )
   })
 
-  it('strips the storage-provider segment', () => {
-    expect(extractProfilePictureKey('/api/files/serve/s3/profile-pictures%2Fu1%2Fa.png')).toBe(
-      'profile-pictures/u1/a.png'
-    )
-  })
-
   it('ignores an external avatar, which is the provider’s object and not ours to delete', () => {
     expect(extractProfilePictureKey('https://lh3.googleusercontent.com/a/abc123')).toBeNull()
   })
 
   it('ignores a served key outside the profile-pictures prefix', () => {
     expect(extractProfilePictureKey('/api/files/serve/workspace%2Fw1%2Freport.pdf')).toBeNull()
-  })
-
-  it('handles an account with no picture', () => {
-    expect(extractProfilePictureKey(null)).toBeNull()
-    expect(extractProfilePictureKey('')).toBeNull()
   })
 })

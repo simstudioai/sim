@@ -1,8 +1,8 @@
+import { toStringOrNull } from '@sim/utils/coerce'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { SplunkListAppsParams, SplunkListAppsResponse } from '@/tools/splunk/types'
 import {
   asBoolean,
-  asString,
   buildSplunkHeaders,
   buildSplunkUrl,
   getEntryContent,
@@ -58,13 +58,13 @@ export const listAppsTool: ToolConfig<SplunkListAppsParams, SplunkListAppsRespon
           const content = getEntryContent(entry)
           return {
             name: getEntryName(entry),
-            id: asString(entry.id),
-            updated: asString(entry.updated),
-            label: asString(content.label),
-            version: asString(content.version),
-            author: asString(content.author),
-            description: asString(content.description),
-            details: asString(content.details),
+            id: toStringOrNull(entry.id),
+            updated: toStringOrNull(entry.updated),
+            label: toStringOrNull(content.label),
+            version: toStringOrNull(content.version),
+            author: toStringOrNull(content.author),
+            description: toStringOrNull(content.description),
+            details: toStringOrNull(content.details),
             disabled: asBoolean(content.disabled),
             visible: asBoolean(content.visible),
             configured: asBoolean(content.configured),

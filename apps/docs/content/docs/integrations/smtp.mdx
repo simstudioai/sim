@@ -11,15 +11,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 />
 
 {/* MANUAL-CONTENT-START:intro */}
-The SMTP block sends email through any standard SMTP mail server, including Gmail, Outlook, and self-hosted or custom mail servers. It connects directly using the server hostname, port, and credentials you provide rather than a vendor-specific API.
-
-With the SMTP block, you can:
-
-- **Connect to any SMTP server**: Configure host, port, and security protocol (TLS, SSL, or none) for the mail server of your choice
-- **Control message content and formatting**: Set sender, recipients, subject, and body, with support for either plain text or HTML content
-- **Reach multiple recipients and attach files**: Add CC and BCC recipients, set a reply-to address, and attach files to the outgoing email
-
-In Sim, the SMTP block allows your agents to send emails as part of a workflow by supplying connection details and message content, then confirming delivery through the returned success status and message ID. This makes it possible to notify recipients, deliver generated reports, or trigger email-based alerts directly from a workflow, with the block reporting the message ID on success or an error message if sending fails.
+The SMTP block sends email through a mail server using its hostname, port, security protocol, and credentials. Set the sender, recipients, subject, and plain-text or HTML body; add CC, BCC, reply-to, and attachments as needed. Inspect the returned send status and message ID, or the error if sending fails.
 {/* MANUAL-CONTENT-END */}
 
 

@@ -25,6 +25,16 @@ import {
 
 export const TABLE_EVENT_TTL_SECONDS = 60 * 60 // 1 hour
 export const TABLE_EVENT_CAP = 5000
+/**
+ * Byte ceiling for one table's buffer.
+ *
+ * An event carries a cell's outputs, and a dispatch across many rows emits one per
+ * cell, so `TABLE_EVENT_CAP` entries says nothing about the bytes they hold — a table
+ * of large text cells reaches hundreds of megabytes well inside the entry cap. 32 MB
+ * is far above what an interactive dispatch buffers in its TTL and far below what one
+ * table may cost a shared Redis.
+ */
+export const TABLE_EVENT_MAX_BYTES = 32 * 1024 * 1024
 /** Max events returned by a single read; the SSE route drains in chunks. */
 export const TABLE_EVENT_READ_CHUNK = 500
 
@@ -33,6 +43,7 @@ const TABLE_EVENT_LOG: EventLogConfig = {
   prefix: 'table:stream:',
   ttlSeconds: TABLE_EVENT_TTL_SECONDS,
   cap: TABLE_EVENT_CAP,
+  maxBytes: TABLE_EVENT_MAX_BYTES,
   readChunk: TABLE_EVENT_READ_CHUNK,
 }
 

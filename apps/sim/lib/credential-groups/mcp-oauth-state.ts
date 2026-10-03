@@ -1,9 +1,12 @@
 import { sha256Hex } from '@sim/security/hash'
+import { isValidUuid } from '@sim/utils/id'
 import { getRedisClient } from '@/lib/core/config/redis'
+import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
+import { assertCredentialGroupOAuthAttemptVersion } from '@/lib/credential-groups/oauth-attempt-version'
 
 const MCP_OAUTH_ATTEMPT_TTL_MS = 10 * 60 * 1000
-const MCP_OAUTH_ATTEMPT_VERSION = 1 as const
+const MCP_OAUTH_ATTEMPT_VERSION = 3 as const
 const MCP_OAUTH_STATE_PREFIX = 'mcp_cg_'
 
 const CONSUME_SCRIPT = `
@@ -25,7 +28,15 @@ return #keys
 `
 
 interface StoredCredentialGroupMcpOAuthAttempt {
+  completionId?: string
+  returnTo?: 'integrations'
+  oauthConfigVersion: number
+  configurationFingerprint?: string
+  userId: string
   version: typeof MCP_OAUTH_ATTEMPT_VERSION
+  workspaceId?: string
+  organizationId?: string
+  email: string
   enrollmentId: string
   credentialGroupId: string
   mcpServerId: string
@@ -35,7 +46,15 @@ interface StoredCredentialGroupMcpOAuthAttempt {
 }
 
 export interface CredentialGroupMcpOAuthAttempt {
+  completionId?: string
+  returnTo?: 'integrations'
+  oauthConfigVersion: number
+  configurationFingerprint?: string
+  userId: string
   state: string
+  workspaceId?: string
+  organizationId?: string
+  email: string
   enrollmentId: string
   credentialGroupId: string
   mcpServerId: string
@@ -63,6 +82,26 @@ function isStoredAttempt(value: unknown): value is StoredCredentialGroupMcpOAuth
   const candidate = value as Record<string, unknown>
   return (
     candidate.version === MCP_OAUTH_ATTEMPT_VERSION &&
+    typeof candidate.oauthConfigVersion === 'number' &&
+    Number.isInteger(candidate.oauthConfigVersion) &&
+    candidate.oauthConfigVersion > 0 &&
+    (candidate.configurationFingerprint === undefined ||
+      (typeof candidate.configurationFingerprint === 'string' &&
+        /^[a-f0-9]{64}$/.test(candidate.configurationFingerprint))) &&
+    (candidate.completionId === undefined ||
+      (typeof candidate.completionId === 'string' && isValidUuid(candidate.completionId))) &&
+    (candidate.returnTo === undefined || candidate.returnTo === 'integrations') &&
+    typeof candidate.userId === 'string' &&
+    candidate.userId.length > 0 &&
+    ((typeof candidate.workspaceId === 'string' &&
+      candidate.workspaceId.length > 0 &&
+      candidate.organizationId === undefined) ||
+      (typeof candidate.organizationId === 'string' &&
+        candidate.organizationId.length > 0 &&
+        candidate.workspaceId === undefined)) &&
+    typeof candidate.email === 'string' &&
+    candidate.email.length >= 3 &&
+    candidate.email.length <= 320 &&
     typeof candidate.enrollmentId === 'string' &&
     typeof candidate.credentialGroupId === 'string' &&
     typeof candidate.mcpServerId === 'string' &&
@@ -77,13 +116,24 @@ export function isCredentialGroupMcpOAuthState(state: string): boolean {
 }
 
 export async function createCredentialGroupMcpOAuthAttempt(params: {
+  completionId?: string
+  returnTo?: 'integrations'
+  oauthConfigVersion: number
+  configurationFingerprint?: string
+  userId: string
   state: string
+  workspaceId?: string
+  organizationId?: string
+  email: string
   enrollmentId: string
   credentialGroupId: string
   mcpServerId: string
   codeVerifier: string
   invitationToken: string
 }): Promise<void> {
+  if (params.completionId !== undefined && !isValidUuid(params.completionId)) {
+    throw new Error('OAuth completion requires a valid correlation ID')
+  }
   if (!isCredentialGroupMcpOAuthState(params.state)) {
     throw new Error('Managed MCP OAuth state has an invalid prefix')
   }
@@ -94,6 +144,13 @@ export async function createCredentialGroupMcpOAuthAttempt(params: {
   ])
   const attempt: StoredCredentialGroupMcpOAuthAttempt = {
     version: MCP_OAUTH_ATTEMPT_VERSION,
+    completionId: params.completionId,
+    returnTo: params.returnTo,
+    oauthConfigVersion: params.oauthConfigVersion,
+    configurationFingerprint: params.configurationFingerprint,
+    userId: params.userId,
+    ...resourceScopeFields(resourceScopeFromOwner(params)),
+    email: params.email,
     enrollmentId: params.enrollmentId,
     credentialGroupId: params.credentialGroupId,
     mcpServerId: params.mcpServerId,
@@ -121,6 +178,7 @@ export async function consumeCredentialGroupMcpOAuthAttempt(
   if (raw === null) return null
   if (typeof raw !== 'string') throw new Error('Credential Group MCP OAuth state is malformed')
   const parsed: unknown = JSON.parse(raw)
+  assertCredentialGroupOAuthAttemptVersion(parsed, MCP_OAUTH_ATTEMPT_VERSION)
   if (!isStoredAttempt(parsed)) throw new Error('Credential Group MCP OAuth state is malformed')
   await requireRedis().srem(serverAttemptsKey(parsed.mcpServerId), attemptKey(state))
   if (Date.now() - parsed.createdAt > MCP_OAUTH_ATTEMPT_TTL_MS) return null
@@ -130,6 +188,13 @@ export async function consumeCredentialGroupMcpOAuthAttempt(
   ])
   return {
     state,
+    completionId: parsed.completionId,
+    returnTo: parsed.returnTo,
+    oauthConfigVersion: parsed.oauthConfigVersion,
+    configurationFingerprint: parsed.configurationFingerprint,
+    userId: parsed.userId,
+    ...resourceScopeFields(resourceScopeFromOwner(parsed)),
+    email: parsed.email,
     enrollmentId: parsed.enrollmentId,
     credentialGroupId: parsed.credentialGroupId,
     mcpServerId: parsed.mcpServerId,

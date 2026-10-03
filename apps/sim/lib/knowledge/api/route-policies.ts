@@ -10,11 +10,18 @@ import {
   v2OrchestrationErrorPolicy,
 } from '@/lib/api/server/routes'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { internalPersonalCredentialConnectionErrorPolicy } from '@/lib/credentials/api/route-policies'
+import {
+  isBYOKEmbeddingCredentialRejection,
+  isBYOKEmbeddingQuotaExhaustion,
+  isEmbeddingQuotaExhaustion,
+} from '@/lib/embeddings'
 import { KNOWLEDGE_DELEGATION_AUDIENCE } from '@/lib/knowledge/application/authorization'
 import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
 import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'
 import { KnowledgeSearchProvenanceUnavailableError } from '@/lib/knowledge/application/search'
 import { KnowledgeDocumentUnsupportedMediaTypeError } from '@/lib/knowledge/application/upload-sessions'
+import { SearchDeadlineError } from '@/lib/knowledge/search/budget'
 import { v2Error } from '@/app/api/v2/lib/response'
 
 function internalKnowledgeErrorPolicy(unhandledMessage: string): InternalErrorPolicy {
@@ -38,6 +45,18 @@ const internalKnowledgeUploadErrorPolicy: InternalErrorPolicy = {
     internalErrorResponse(500, { error: 'Failed to process knowledge upload request' }),
 }
 
+const BYOK_EMBEDDING_QUOTA_SEARCH_MESSAGE =
+  "Knowledge search could not run: this workspace's embedding API key (Settings > Provider API keys) has no remaining quota. Add credit with the provider or replace the key."
+const BYOK_EMBEDDING_REJECTED_SEARCH_MESSAGE =
+  "Knowledge search could not run: this workspace's embedding API key (Settings > Provider API keys) was rejected. Update the key and try again."
+const PLATFORM_EMBEDDING_QUOTA_SEARCH_MESSAGE =
+  'Knowledge search is temporarily unavailable because the embedding provider has no remaining quota. Try again later.'
+
+/**
+ * Names the failures a caller can act on instead of collapsing them into the generic
+ * vector-search `500`. Every status stays `5xx`, so retry and alerting behavior keyed
+ * on server errors is unchanged; only the message and the specific code differ.
+ */
 const internalKnowledgeSearchErrorPolicy: InternalErrorPolicy = {
   project(error) {
     if (error instanceof KnowledgeUsageLimitExceededError) {
@@ -45,6 +64,18 @@ const internalKnowledgeSearchErrorPolicy: InternalErrorPolicy = {
     }
     if (error instanceof KnowledgeSearchProvenanceUnavailableError) {
       return internalErrorResponse(422, { error: error.message })
+    }
+    if (isBYOKEmbeddingQuotaExhaustion(error)) {
+      return internalErrorResponse(503, { error: BYOK_EMBEDDING_QUOTA_SEARCH_MESSAGE })
+    }
+    if (isEmbeddingQuotaExhaustion(error)) {
+      return internalErrorResponse(503, { error: PLATFORM_EMBEDDING_QUOTA_SEARCH_MESSAGE })
+    }
+    if (isBYOKEmbeddingCredentialRejection(error)) {
+      return internalErrorResponse(502, { error: BYOK_EMBEDDING_REJECTED_SEARCH_MESSAGE })
+    }
+    if (error instanceof SearchDeadlineError) {
+      return internalErrorResponse(504, { error: error.message })
     }
     return internalOrchestrationErrorPolicy.project(error)
   },
@@ -73,6 +104,7 @@ function concealKnowledgeBase(base: InternalErrorPolicy): InternalErrorPolicy {
 export const internalKnowledgeErrorPolicies = {
   list: internalKnowledgeErrorPolicy('Failed to fetch knowledge bases'),
   read: concealKnowledgeBase(internalKnowledgeErrorPolicy('Failed to fetch knowledge base')),
+  export: concealKnowledgeBase(internalKnowledgeErrorPolicy('Failed to export knowledge base')),
   create: internalKnowledgeErrorPolicy('Failed to create knowledge base'),
   update: concealKnowledgeBase(internalKnowledgeErrorPolicy('Failed to update knowledge base')),
   delete: concealKnowledgeBase(internalKnowledgeErrorPolicy('Failed to delete knowledge base')),
@@ -110,6 +142,7 @@ export const internalKnowledgeErrorPolicies = {
     internalKnowledgeErrorPolicy('Failed to process knowledge tag request')
   ),
   connectors: concealKnowledgeBase(internalKnowledgeErrorPolicy('Internal server error')),
+  connectAccount: concealKnowledgeBase(internalPersonalCredentialConnectionErrorPolicy),
   uploads: concealKnowledgeBase(internalKnowledgeUploadErrorPolicy),
 } as const
 
@@ -117,6 +150,9 @@ const v2KnowledgeUsageErrorPolicy = {
   render(error) {
     if (error instanceof KnowledgeUsageLimitExceededError) {
       return v2Error('USAGE_LIMIT_EXCEEDED', error.message)
+    }
+    if (error instanceof KnowledgeSearchProvenanceUnavailableError) {
+      return v2Error('CONFLICT', error.message)
     }
     return v2OrchestrationErrorPolicy.render(error)
   },

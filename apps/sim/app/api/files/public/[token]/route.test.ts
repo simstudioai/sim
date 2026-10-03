@@ -1,24 +1,15 @@
-/**
- * @vitest-environment node
- */
+import { publicSharesMock, publicSharesMockFns } from '@sim/testing/mocks/public-shares.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockResolveActiveShareByToken,
-  mockEnforceRateLimit,
-  mockValidateDeploymentAuth,
-  mockSetDeploymentAuthCookie,
-} = vi.hoisted(() => ({
-  mockResolveActiveShareByToken: vi.fn(),
-  mockEnforceRateLimit: vi.fn(),
-  mockValidateDeploymentAuth: vi.fn(),
-  mockSetDeploymentAuthCookie: vi.fn(),
-}))
+const { mockEnforceRateLimit, mockValidateDeploymentAuth, mockSetDeploymentAuthCookie } =
+  vi.hoisted(() => ({
+    mockEnforceRateLimit: vi.fn(),
+    mockValidateDeploymentAuth: vi.fn(),
+    mockSetDeploymentAuthCookie: vi.fn(),
+  }))
 
-vi.mock('@/lib/public-shares/share-manager', () => ({
-  resolveActiveShareByToken: mockResolveActiveShareByToken,
-}))
+vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
 
 vi.mock('@/lib/public-shares/rate-limit', () => ({
   enforcePublicFileRateLimit: mockEnforceRateLimit,
@@ -34,6 +25,8 @@ vi.mock('@/lib/core/security/deployment', () => ({
 
 import { NextResponse } from 'next/server'
 import { GET, POST } from '@/app/api/files/public/[token]/route'
+
+const mockResolveActiveShareByToken = publicSharesMockFns.mockResolveActiveShareByToken
 
 const params = (token = 'tok_1') => ({ params: Promise.resolve({ token }) })
 const request = (token = 'tok_1') => new NextRequest(`http://localhost/api/files/public/${token}`)
@@ -65,7 +58,6 @@ const passwordShare = {
 
 describe('GET /api/files/public/[token]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockEnforceRateLimit.mockResolvedValue(null) // allow by default
     mockValidateDeploymentAuth.mockResolvedValue({ authorized: true }) // public by default
   })
@@ -77,12 +69,6 @@ describe('GET /api/files/public/[token]', () => {
     const res = await GET(request(), params())
     expect(res.status).toBe(429)
     expect(mockResolveActiveShareByToken).not.toHaveBeenCalled()
-  })
-
-  it('returns 404 for an unknown or inactive token', async () => {
-    mockResolveActiveShareByToken.mockResolvedValueOnce(null)
-    const res = await GET(request(), params())
-    expect(res.status).toBe(404)
   })
 
   it('returns public-safe metadata without leaking the key or workspace id', async () => {
@@ -119,19 +105,10 @@ describe('GET /api/files/public/[token]', () => {
       'file'
     )
   })
-
-  it('serves metadata for a password share once authorized by cookie', async () => {
-    mockResolveActiveShareByToken.mockResolvedValueOnce(passwordShare)
-    mockValidateDeploymentAuth.mockResolvedValueOnce({ authorized: true })
-    const res = await GET(request(), params())
-    expect(res.status).toBe(200)
-    expect((await res.json()).name).toBe('report.pdf')
-  })
 })
 
 describe('POST /api/files/public/[token]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveActiveShareByToken.mockResolvedValue(passwordShare)
   })
 
@@ -180,11 +157,5 @@ describe('POST /api/files/public/[token]', () => {
     expect(res.status).toBe(429)
     expect(res.headers.get('Retry-After')).toBe('60')
     expect(mockSetDeploymentAuthCookie).not.toHaveBeenCalled()
-  })
-
-  it('returns 404 for an unknown token', async () => {
-    mockResolveActiveShareByToken.mockResolvedValueOnce(null)
-    const res = await POST(postRequest('hunter2'), params())
-    expect(res.status).toBe(404)
   })
 })

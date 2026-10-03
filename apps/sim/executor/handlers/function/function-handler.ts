@@ -1,4 +1,3 @@
-import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { getRemainingExecutionMs } from '@/lib/core/execution-limits'
 import {
   normalizeRecord,
@@ -9,6 +8,7 @@ import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
 import { NonRetryableExecutionError } from '@/lib/execution/non-retryable-error'
 import { mergeFileKeys, mergeLargeValueKeys } from '@/lib/execution/payloads/access-keys'
+import { normalizeSecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
 import { BlockType } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'

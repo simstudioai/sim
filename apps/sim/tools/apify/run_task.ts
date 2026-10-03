@@ -26,7 +26,7 @@ export const apifyRunTaskTool: ToolConfig<RunTaskParams, RunTaskResult> = {
       required: false,
       visibility: 'user-or-llm',
       description:
-        'JSON string that overrides the task\'s saved input. Example: {"startUrls": [{"url": "https://example.com"}]}',
+        'JSON string that overrides the task\'s saved input. Example: { "startUrls": [ { "url": "https://example.com" } ] }',
     },
     itemLimit: {
       type: 'number',

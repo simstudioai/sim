@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -39,7 +36,6 @@ function mockTwentyPages(
 
 describe('CloudWatch shared listings', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.createCloudWatchLogsClient.mockReturnValue({
       send: mocks.send,
       destroy: mocks.destroy,

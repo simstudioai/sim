@@ -80,6 +80,13 @@ export interface GoogleCalendarInviteParams extends BaseGoogleCalendarParams {
   replaceExisting?: boolean
 }
 
+export interface GoogleCalendarRespondParams extends BaseGoogleCalendarParams {
+  eventId: string
+  responseStatus: 'accepted' | 'declined' | 'tentative'
+  comment?: string
+  sendUpdates?: 'all' | 'externalOnly' | 'none'
+}
+
 interface GoogleCalendarMoveParams extends BaseGoogleCalendarParams {
   eventId: string
   destinationCalendarId: string
@@ -154,6 +161,7 @@ export type GoogleCalendarToolParams =
   | GoogleCalendarDeleteParams
   | GoogleCalendarQuickAddParams
   | GoogleCalendarInviteParams
+  | GoogleCalendarRespondParams
   | GoogleCalendarMoveParams
   | GoogleCalendarInstancesParams
   | GoogleCalendarFreeBusyParams
@@ -200,13 +208,6 @@ interface ListMetadata {
   timeZone: string
 }
 
-interface GoogleCalendarToolResponse extends ToolResponse {
-  output: {
-    content: string
-    metadata: EventMetadata | ListMetadata
-  }
-}
-
 export interface GoogleCalendarCreateResponse extends ToolResponse {
   output: {
     content: string
@@ -249,40 +250,10 @@ export interface GoogleCalendarInviteResponse extends ToolResponse {
   }
 }
 
-interface GoogleCalendarEvent {
-  id: string
-  status: string
-  htmlLink: string
-  created: string
-  updated: string
-  summary: string
-  description?: string
-  location?: string
-  start: {
-    dateTime?: string
-    date?: string
-    timeZone?: string
-  }
-  end: {
-    dateTime?: string
-    date?: string
-    timeZone?: string
-  }
-  attendees?: CalendarAttendee[]
-  creator?: {
-    email: string
-    displayName?: string
-  }
-  organizer?: {
-    email: string
-    displayName?: string
-  }
-  reminders?: {
-    useDefault: boolean
-    overrides?: Array<{
-      method: string
-      minutes: number
-    }>
+export interface GoogleCalendarRespondResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: EventMetadata
   }
 }
 
@@ -537,6 +508,7 @@ export type GoogleCalendarResponse =
   | GoogleCalendarGetResponse
   | GoogleCalendarQuickAddResponse
   | GoogleCalendarInviteResponse
+  | GoogleCalendarRespondResponse
   | GoogleCalendarUpdateResponse
   | GoogleCalendarDeleteResponse
   | GoogleCalendarMoveResponse

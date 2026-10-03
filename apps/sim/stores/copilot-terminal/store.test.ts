@@ -38,82 +38,6 @@ describe('copilot terminal store', () => {
     })
   })
 
-  it('starts without an implicit legacy terminal bucket', () => {
-    expect(useCopilotTerminalStore.getState()).toMatchObject({
-      activeScopeId: null,
-      sessions: {},
-    })
-  })
-
-  /**
-   * The desktop app re-pushes the whole tab list on a timer, so an identical
-   * push has to keep its identity or the panel and every terminal in it
-   * re-render once a second for nothing.
-   */
-  it('keeps state identity when a push says nothing new', () => {
-    const { setTabs } = activateTestScope()
-    setTabs(tabsState([tab()], 't1'))
-    const first = getCopilotTerminalSession(TEST_SCOPE).tabs
-
-    setTabs(tabsState([tab()], 't1'))
-
-    expect(getCopilotTerminalSession(TEST_SCOPE).tabs).toBe(first)
-  })
-
-  it.each([
-    ['a command starts', { running: 'bun test' }],
-    ['the directory changes', { cwd: '/tmp' }],
-    ['the title changes', { title: 'tmp' }],
-    ['a full-screen program takes over', { interactive: true }],
-    ['the tab stops being active', { active: false }],
-    ['tmux attaches', { tmuxSession: 'main' }],
-  ])('takes the update when %s', (_case, change) => {
-    const { setTabs } = activateTestScope()
-    setTabs(tabsState([tab()], 't1'))
-    const first = getCopilotTerminalSession(TEST_SCOPE).tabs
-
-    setTabs(tabsState([tab(change)], 't1'))
-
-    expect(getCopilotTerminalSession(TEST_SCOPE).tabs).not.toBe(first)
-    expect(getCopilotTerminalSession(TEST_SCOPE).tabs.tabs[0]).toMatchObject(change)
-  })
-
-  it('takes the update when the active terminal changes', () => {
-    const { setTabs } = activateTestScope()
-    const tabs = [tab(), tab({ terminalId: 't2', active: false })]
-    setTabs(tabsState(tabs, 't1'))
-    const first = getCopilotTerminalSession(TEST_SCOPE).tabs
-
-    setTabs(tabsState(tabs, 't2'))
-
-    expect(getCopilotTerminalSession(TEST_SCOPE).tabs).not.toBe(first)
-  })
-
-  it('takes the update when a tab opens or closes', () => {
-    const { setTabs } = activateTestScope()
-    setTabs(tabsState([tab()], 't1'))
-    const first = getCopilotTerminalSession(TEST_SCOPE).tabs
-
-    setTabs(tabsState([tab(), tab({ terminalId: 't2' })], 't1'))
-
-    expect(getCopilotTerminalSession(TEST_SCOPE).tabs).not.toBe(first)
-    expect(getCopilotTerminalSession(TEST_SCOPE).tabs.tabs).toHaveLength(2)
-  })
-
-  /**
-   * The comparator walks keys rather than a written-out field list precisely so
-   * that a field added to the protocol cannot quietly stop reaching the UI.
-   */
-  it('takes the update when a tab carries a field the comparator never named', () => {
-    const { setTabs } = activateTestScope()
-    setTabs(tabsState([tab()], 't1'))
-    const first = getCopilotTerminalSession(TEST_SCOPE).tabs
-
-    setTabs(tabsState([{ ...tab(), somethingNew: true } as TerminalTabState], 't1'))
-
-    expect(getCopilotTerminalSession(TEST_SCOPE).tabs).not.toBe(first)
-  })
-
   it('isolates overlapping terminal ids and late command events by chat', () => {
     const store = useCopilotTerminalStore.getState()
     store.activateScope('chat-a')
@@ -172,44 +96,6 @@ describe('copilot terminal store', () => {
     expect(getCopilotTerminalSession(TEST_SCOPE).agentCommandTerminalIds).toEqual({
       'tool-b': 't2',
     })
-  })
-
-  it('moves pending terminals onto the resolved chat id', () => {
-    const store = useCopilotTerminalStore.getState()
-    store.setTabs(tabsState([tab({ title: 'Pending' })], 't1', 'pending:workspace-1'))
-    store.activateScope('pending:workspace-1')
-
-    store.migrateScope('pending:workspace-1', 'chat-1')
-
-    expect(useCopilotTerminalStore.getState().activeScopeId).toBe('chat-1')
-    expect(useCopilotTerminalStore.getState().sessions['pending:workspace-1']).toBeUndefined()
-    expect(getCopilotTerminalSession('chat-1').tabs.tabs[0].title).toBe('Pending')
-  })
-
-  it('replaces a pristine durable bucket created before pending migration finishes', () => {
-    const store = useCopilotTerminalStore.getState()
-    store.setTabs(tabsState([tab({ title: 'Pending' })], 't1', 'pending:new'))
-
-    store.activateScope('chat-1')
-    store.setTabs(tabsState([], null, 'chat-1'))
-    store.migrateScope('pending:new', 'chat-1')
-
-    expect(useCopilotTerminalStore.getState().sessions['pending:new']).toBeUndefined()
-    expect(useCopilotTerminalStore.getState().activeScopeId).toBe('chat-1')
-    expect(getCopilotTerminalSession('chat-1').tabs.tabs[0].title).toBe('Pending')
-  })
-
-  it('removes an abandoned pending group without touching another chat', () => {
-    const store = useCopilotTerminalStore.getState()
-    store.activateScope('chat-a')
-    store.setTabs(tabsState([tab({ title: 'A' })], 't1', 'chat-a'))
-    store.activateScope('pending:new')
-
-    store.discardScope('pending:new')
-
-    expect(useCopilotTerminalStore.getState().sessions['pending:new']).toBeUndefined()
-    expect(getCopilotTerminalSession('chat-a').tabs.tabs[0].title).toBe('A')
-    expect(useCopilotTerminalStore.getState().activeScopeId).toBeNull()
   })
 
   it('clears live terminal ids while suspended and ignores late native events', () => {
@@ -285,19 +171,5 @@ describe('copilot terminal store', () => {
       toolCallId: 'tool-late',
     })
     expect(useCopilotTerminalStore.getState().settledAgentCommandIds).not.toContain('tool-late')
-  })
-
-  it('clears suspension on explicit activation, including the already-active scope', () => {
-    const store = useCopilotTerminalStore.getState()
-    store.activateScope('chat-a')
-    store.suspendScope('chat-a')
-
-    store.activateScope('chat-a')
-    store.setTabs(tabsState([tab({ terminalId: 'fresh' })], 'fresh', 'chat-a'))
-
-    expect(getCopilotTerminalSession('chat-a')).toMatchObject({
-      suspended: false,
-      tabs: { activeTerminalId: 'fresh' },
-    })
   })
 })

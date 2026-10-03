@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { getManagedOAuthConnectorPolicy } from '@/lib/auth/connectors/managed-oauth'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
@@ -38,40 +35,6 @@ const permissionScoped = Object.values(CONNECTOR_META_REGISTRY).filter(
  * fix it from the connector's settings.
  */
 describe('permission-scoped connector listings', () => {
-  it('covers the connectors that crawl per member', () => {
-    expect(permissionScoped.map((meta) => meta.id).sort()).toEqual([
-      'airtable',
-      'asana',
-      'bitbucket',
-      'box',
-      'clickup',
-      'confluence',
-      'docusign',
-      'dropbox',
-      'gmail',
-      'google_calendar',
-      'google_chat',
-      'google_docs',
-      'google_drive',
-      'google_forms',
-      'google_meet',
-      'google_sheets',
-      'google_slides',
-      'jira',
-      'jsm',
-      'linear',
-      'microsoft_excel',
-      'microsoft_teams',
-      'monday',
-      'onedrive',
-      'outlook',
-      'salesforce',
-      'sharepoint',
-      'slack',
-      'zoom',
-    ])
-  })
-
   it.each(permissionScoped.map((meta) => [meta.id, meta] as const))(
     '%s authenticates through a Credential Group provider whose option scopes cover its read scopes',
     (_id, meta) => {

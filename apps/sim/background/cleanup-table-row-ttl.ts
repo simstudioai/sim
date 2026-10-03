@@ -2,9 +2,10 @@ import { dbFor } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { task } from '@trigger.dev/sdk'
-import { sql } from 'drizzle-orm'
+import { type SQL, sql } from 'drizzle-orm'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { getColumnId } from '@/lib/table/column-keys'
+import { validatedTimestampSql } from '@/lib/table/column-types/timestamp-sql'
 import { getDeleteSnapshotBatchSize, TABLE_LIMITS } from '@/lib/table/constants'
 import { signalTableRowsChanged } from '@/lib/table/events'
 import { assertRowDelete, TableLockedError } from '@/lib/table/mutation-locks'
@@ -13,6 +14,7 @@ import type { DeletedTableRow } from '@/lib/table/rows/ordering'
 import { withLockedTable } from '@/lib/table/service'
 import { fireTableTrigger } from '@/lib/table/trigger'
 import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
+import { TTL_TIMESTAMP_VALIDATION } from '@/lib/table/ttl-values'
 import type { RowData, TableSchema } from '@/lib/table/types'
 
 const logger = createLogger('CleanupTableRowTtl')
@@ -58,7 +60,12 @@ export interface TableRowTtlCleanupResult {
   limitReached: boolean
 }
 
-async function listExpiredTtlTables(nowEpochSeconds: number): Promise<ExpiredTtlTableRef[]> {
+/** Shares PostgreSQL's validated instant projection with Expiration comparisons. */
+function expiredTtlPredicate(cell: SQL, nowUtc: string): SQL {
+  return sql`${validatedTimestampSql(cell, TTL_TIMESTAMP_VALIDATION)} <= ${nowUtc}::timestamptz`
+}
+
+async function listExpiredTtlTables(nowUtc: string): Promise<ExpiredTtlTableRef[]> {
   const rows = await cleanupDb.execute<ExpiredTtlTableRef>(sql`
     SELECT
       ${userTableDefinitions.id} AS id,
@@ -75,21 +82,16 @@ async function listExpiredTtlTables(nowEpochSeconds: number): Promise<ExpiredTtl
           ON table_row.table_id = ${userTableDefinitions.id}
          AND table_row.workspace_id = ${userTableDefinitions.workspaceId}
         WHERE ttl_column.column_definition->>'type' = 'ttl'
-          AND jsonb_typeof(
-            table_row.data->COALESCE(
-              ttl_column.column_definition->>'id',
-              ttl_column.column_definition->>'name'
-            )
-          ) = 'number'
-          AND (
-            table_row.data->>COALESCE(
-              ttl_column.column_definition->>'id',
-              ttl_column.column_definition->>'name'
-            )
-          )::numeric <= ${nowEpochSeconds}
+          AND ${expiredTtlPredicate(
+            sql`table_row.data->>COALESCE(
+            ttl_column.column_definition->>'id',
+            ttl_column.column_definition->>'name'
+          )`,
+            nowUtc
+          )}
       )
     ORDER BY
-      md5(${userTableDefinitions.id} || ${nowEpochSeconds}::text),
+      md5(${userTableDefinitions.id} || ${nowUtc}::text),
       ${userTableDefinitions.id}
     LIMIT ${TTL_CLEANUP_MAX_BATCHES}
   `)
@@ -144,7 +146,7 @@ async function deleteExpiredTableRowBatch(
   tableId: string,
   workspaceId: string,
   columnKey: string,
-  nowEpochSeconds: number,
+  nowUtc: string,
   batchSize: number,
   after?: TtlCleanupCursor
 ): Promise<DeletedTtlRows> {
@@ -164,8 +166,7 @@ async function deleteExpiredTableRowBatch(
             ? sql`AND (table_row.created_at, table_row.id) > (${after.createdAt}::timestamp, ${after.id})`
             : sql``
         }
-        AND jsonb_typeof(table_row.data->${columnKey}) = 'number'
-        AND (table_row.data->>${columnKey})::numeric <= ${nowEpochSeconds}
+        AND ${expiredTtlPredicate(sql`table_row.data->>${columnKey}`, nowUtc)}
       ORDER BY table_row.created_at, table_row.id
       LIMIT ${batchSize}
       FOR UPDATE OF table_row SKIP LOCKED
@@ -201,7 +202,7 @@ async function deleteExpiredTableRowBatch(
 
 async function deleteExpiredRowsForTable(
   ref: ExpiredTtlTableRef,
-  nowEpochSeconds: number,
+  nowUtc: string,
   batchSize: number,
   after?: TtlCleanupCursor
 ): Promise<DeletedTtlBatch> {
@@ -226,7 +227,7 @@ async function deleteExpiredRowsForTable(
           table.id,
           table.workspaceId,
           getColumnId(ttlColumn),
-          nowEpochSeconds,
+          nowUtc,
           batchSize,
           after
         )
@@ -260,7 +261,7 @@ async function deleteExpiredRowsForTable(
   }
 }
 
-/** Deletes rows whose table TTL cell is at or before the current Unix epoch second. */
+/** Deletes rows whose table TTL cell is at or before the current UTC instant. */
 export async function runCleanupTableRowTtl(
   signal?: AbortSignal
 ): Promise<TableRowTtlCleanupResult> {
@@ -270,9 +271,9 @@ export async function runCleanupTableRowTtl(
     return { batches: 0, deleted: 0, limitReached: false }
   }
 
-  const nowEpochSeconds = Math.floor(Date.now() / 1000)
+  const nowUtc = new Date(Date.now()).toISOString()
   const batchSize = getDeleteSnapshotBatchSize()
-  const tableRefs = await listExpiredTtlTables(nowEpochSeconds)
+  const tableRefs = await listExpiredTtlTables(nowUtc)
   const tableStates: TtlTableCleanupState[] = tableRefs.map((ref) => ({
     ref,
     deleted: 0,
@@ -280,6 +281,7 @@ export async function runCleanupTableRowTtl(
   }))
   let deleted = 0
   let batches = 0
+  let failedTables = 0
 
   try {
     while (
@@ -291,12 +293,21 @@ export async function runCleanupTableRowTtl(
         if (state.complete) continue
         if (batches === TTL_CLEANUP_MAX_BATCHES || signal?.aborted) break
 
-        const batch = await deleteExpiredRowsForTable(
-          state.ref,
-          nowEpochSeconds,
-          batchSize,
-          state.after
-        )
+        let batch: DeletedTtlBatch
+        try {
+          batch = await deleteExpiredRowsForTable(state.ref, nowUtc, batchSize, state.after)
+        } catch (error) {
+          batches++
+          failedTables++
+          state.complete = true
+          logger.error('Table row TTL cleanup failed; skipping table for this run', {
+            tableId: state.ref.id,
+            workspaceId: state.ref.workspaceId,
+            deleted: state.deleted,
+            error,
+          })
+          continue
+        }
         if (!batch.attempted) {
           state.complete = true
           continue
@@ -318,7 +329,7 @@ export async function runCleanupTableRowTtl(
   const limitReached =
     batches === TTL_CLEANUP_MAX_BATCHES &&
     (tableStates.some((state) => !state.complete) || tableRefs.length === TTL_CLEANUP_MAX_BATCHES)
-  logger.info('Table row TTL cleanup completed', { batches, deleted, limitReached })
+  logger.info('Table row TTL cleanup completed', { batches, deleted, failedTables, limitReached })
   return { batches, deleted, limitReached }
 }
 
