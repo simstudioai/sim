@@ -64,6 +64,8 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
   // NetSuite remains an API-key catalog integration, like Snowflake, while its
   // block uses the shared reusable-credential selector.
   'netsuite-service-account': [],
+  // EPM Platform follows the same API-key catalog/reusable credential pattern.
+  'oracle-epm-service-account': [],
   'pipedrive-service-account': ['pipedrive'],
   'salesforce-service-account': ['salesforce'],
   'shopify-service-account': ['shopify'],
