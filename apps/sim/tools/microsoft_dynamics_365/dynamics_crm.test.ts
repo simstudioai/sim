@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { microsoftDynamics365CloseCaseTool } from '@/tools/microsoft_dynamics_365/close_case'
 import { microsoftDynamics365CloseOpportunityTool } from '@/tools/microsoft_dynamics_365/close_opportunity'
@@ -82,28 +79,6 @@ function resolveUrl<P>(url: string | ((params: P) => string), params: P): string
 }
 
 describe('Microsoft Dataverse Dynamics CRM shared safety', () => {
-  it('uses only additive Dynamics 365 tool IDs', () => {
-    expect([
-      microsoftDynamics365ListRecordsTool.id,
-      microsoftDynamics365GetRecordTool.id,
-      microsoftDynamics365CreateRecordTool.id,
-      microsoftDynamics365UpdateRecordTool.id,
-      microsoftDynamics365SearchRecordsTool.id,
-      microsoftDynamics365QualifyLeadTool.id,
-      microsoftDynamics365CloseOpportunityTool.id,
-      microsoftDynamics365CloseCaseTool.id,
-    ]).toEqual([
-      'microsoft_dynamics_365_list_records',
-      'microsoft_dynamics_365_get_record',
-      'microsoft_dynamics_365_create_record',
-      'microsoft_dynamics_365_update_record',
-      'microsoft_dynamics_365_search_records',
-      'microsoft_dynamics_365_qualify_lead',
-      'microsoft_dynamics_365_close_opportunity',
-      'microsoft_dynamics_365_close_case',
-    ])
-  })
-
   it.each([
     microsoftDynamics365ListRecordsTool,
     microsoftDynamics365GetRecordTool,

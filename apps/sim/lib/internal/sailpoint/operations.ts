@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { filterUndefined, isRecordLike } from '@sim/utils/object'
+import { filterUndefined, isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   getSailPointErrorMessage,
@@ -320,7 +320,7 @@ async function executeLoad(
   )
   if (!result.ok) return providerFailure(result)
   if (isAccountLoad) {
-    const body = isRecordLike(result.data) ? result.data : null
+    const body = toRecordOrNull(result.data)
     if (!body || !isRecordLike(body.task)) {
       return failureResponse('SailPoint returned an invalid account-load task response', 502)
     }

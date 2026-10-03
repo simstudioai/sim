@@ -1,8 +1,10 @@
+'use client'
+
 import { useMemo } from 'react'
 import { cn } from '@sim/emcn'
+import dynamic from 'next/dynamic'
 import { StageBlockCard } from '@/app/(landing)/components/hero/components/hero-platform-loop/stage-block-card'
 import {
-  blockHeight,
   handleAnchors,
   STAGE_BLOCKS,
   STAGE_CANVAS,
@@ -12,11 +14,25 @@ import {
 import {
   BLOCK_WIDTH,
   type BlockDef,
+  blockHeight,
 } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
 import { ResponsiveDesignStage } from '@/app/(landing)/components/shared/responsive-design-stage'
 
 /** Breathing room between the canvas bounds and the card edges, in card px. */
 const STAGE_MARGIN = 20
+
+/**
+ * The interactive stage mounts React Flow and the production renderers. It is
+ * loaded on demand so the staged loops (and every page that renders them) never
+ * ship that graph; the homepage fetches it with the lazily mounted hero loop.
+ */
+const ProductionWorkflowStage = dynamic(
+  () =>
+    import(
+      '@/app/(landing)/components/hero/components/hero-platform-loop/production-workflow-stage'
+    ).then((mod) => mod.ProductionWorkflowStage),
+  { ssr: false }
+)
 
 interface HeroWorkflowStageProps {
   /** How many of the stage's blocks (in build order) are on canvas. */
@@ -27,46 +43,31 @@ interface HeroWorkflowStageProps {
   edges?: ReadonlyArray<readonly [string, string]>
   /** Design-space bounding box of the block layout. Defaults with them. */
   canvas?: { width: number; height: number }
-  /**
-   * Block to dress with the selection ring - graphite (`--text-secondary`)
-   * rather than the real canvas's blue, per the landing pages' grayscale
-   * language - the workflows hero uses this for its "being edited" beat.
-   * Off by default, so existing stages are unchanged.
-   */
+  /** Block to dress with the selection ring in the timed, non-interactive loops. */
+  selectedId?: string
+  /** Mounts the shared production node and edge renderers in a real React Flow canvas. */
+  interactive?: boolean
+}
+
+interface StagedHeroWorkflowStageProps {
+  builtCount: number
+  blocks: BlockDef[]
+  edges: ReadonlyArray<readonly [string, string]>
+  canvas: { width: number; height: number }
   selectedId?: string
 }
 
-/**
- * The hero window's live workflow canvas - the right-pane counterpart of the
- * chat loop. A fixed HTML design surface owns both the edge and block
- * coordinate systems, so drawing a line or revealing a block never changes
- * the canvas's measured scale. SVG renders only the native edge paths; block
- * cards stay in ordinary HTML to avoid WebKit's foreignObject compositing bugs.
- * Blocks pop in one by one as `builtCount` advances and edges stroke-draw once
- * both endpoints exist.
- *
- * Decorative and `aria-hidden` (via the parent frame), so blocks are NOT
- * draggable - `pointer-events-none`, matching the rest of the hero animation.
- *
- * Blocks reuse the hero-visual's {@link WorkflowBlockContent} (the faithful
- * icon-tile + rows card body) in a card shell with vertical-flow handle nubs
- * (top in / bottom out), matching the real editor's vertical layout.
- *
- * The staged flow is injectable (`blocks`/`edges`/`canvas`), defaulting to the
- * homepage's lead-enrichment flow - the enterprise loop stages its own flow
- * through the same component.
- */
-export function HeroWorkflowStage({
+/** Timed, non-interactive workflow stage used by the secondary landing loops. */
+function StagedHeroWorkflowStage({
   builtCount,
-  blocks = STAGE_BLOCKS,
-  edges = STAGE_EDGES,
-  canvas = STAGE_CANVAS,
+  blocks,
+  edges,
+  canvas,
   selectedId,
-}: HeroWorkflowStageProps) {
-  const blocksById = useMemo(() => new Map(blocks.map((b) => [b.id, b])), [blocks])
-
+}: StagedHeroWorkflowStageProps) {
+  const blocksById = useMemo(() => new Map(blocks.map((block) => [block.id, block])), [blocks])
   const builtIds = useMemo(
-    () => new Set(blocks.slice(0, builtCount).map((b) => b.id)),
+    () => new Set(blocks.slice(0, builtCount).map((block) => block.id)),
     [blocks, builtCount]
   )
 
@@ -89,12 +90,13 @@ export function HeroWorkflowStage({
           const target = blocksById.get(to)
           if (!source || !target) return null
           const visible = builtIds.has(from) && builtIds.has(to)
-          const s = handleAnchors(source).out
-          const t = handleAnchors(target).in
+          const sourceAnchor = handleAnchors(source).out
+          const targetAnchor = handleAnchors(target).in
+
           return (
             <path
               key={`${from}-${to}`}
-              d={verticalSmoothStep(s.x, s.y, t.x, t.y)}
+              d={verticalSmoothStep(sourceAnchor.x, sourceAnchor.y, targetAnchor.x, targetAnchor.y)}
               pathLength={1}
               stroke='var(--workflow-edge)'
               strokeWidth={2}
@@ -110,6 +112,7 @@ export function HeroWorkflowStage({
 
       {blocks.map((block) => {
         const built = builtIds.has(block.id)
+
         return (
           <div
             key={block.id}
@@ -136,5 +139,39 @@ export function HeroWorkflowStage({
         )
       })}
     </ResponsiveDesignStage>
+  )
+}
+
+/**
+ * Landing workflow stage. The homepage demo uses the exact production renderer
+ * inside React Flow; secondary timed loops retain their staged presentation.
+ */
+export function HeroWorkflowStage({
+  builtCount,
+  blocks = STAGE_BLOCKS,
+  edges = STAGE_EDGES,
+  canvas = STAGE_CANVAS,
+  selectedId,
+  interactive = false,
+}: HeroWorkflowStageProps) {
+  if (interactive) {
+    return (
+      <ProductionWorkflowStage
+        builtCount={builtCount}
+        blocks={blocks}
+        edges={edges}
+        canvas={canvas}
+      />
+    )
+  }
+
+  return (
+    <StagedHeroWorkflowStage
+      builtCount={builtCount}
+      blocks={blocks}
+      edges={edges}
+      canvas={canvas}
+      selectedId={selectedId}
+    />
   )
 }

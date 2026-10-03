@@ -1,4 +1,5 @@
-import { isRecordLike } from '@sim/utils/object'
+import { toBooleanOrNull, toStringOrNull } from '@sim/utils/coerce'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import type {
   VantaControl,
   VantaControlDetail,
@@ -34,19 +35,11 @@ type JsonRecord = Record<string, unknown>
  * normalizers can run on it; non-object bodies normalize to all-null fields.
  */
 export function asVantaRecord(value: unknown): JsonRecord {
-  return isRecordLike(value) ? value : {}
-}
-
-function getString(value: unknown): string | null {
-  return typeof value === 'string' ? value : null
+  return toRecord(value)
 }
 
 function getNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
-}
-
-function getBoolean(value: unknown): boolean | null {
-  return typeof value === 'boolean' ? value : null
 }
 
 function getStringArray(value: unknown): string[] {
@@ -66,14 +59,14 @@ export function extractVantaError(data: unknown, fallback: string): string {
   if (!isRecordLike(data)) return fallback
 
   if (isRecordLike(data.error)) {
-    const nested = getString(data.error.message) ?? getString(data.error.code)
+    const nested = toStringOrNull(data.error.message) ?? toStringOrNull(data.error.code)
     if (nested) return nested
   }
 
   return (
-    getString(data.message) ??
-    getString(data.error_description) ??
-    getString(data.error) ??
+    toStringOrNull(data.message) ??
+    toStringOrNull(data.error_description) ??
+    toStringOrNull(data.error) ??
     fallback
   )
 }
@@ -136,35 +129,35 @@ export function getVantaListResults(data: unknown): {
 export function normalizeVantaPageInfo(value: unknown): VantaPageInfo | null {
   if (!isRecordLike(value)) return null
   return {
-    startCursor: getString(value.startCursor),
-    endCursor: getString(value.endCursor),
-    hasNextPage: getBoolean(value.hasNextPage) ?? false,
-    hasPreviousPage: getBoolean(value.hasPreviousPage) ?? false,
+    startCursor: toStringOrNull(value.startCursor),
+    endCursor: toStringOrNull(value.endCursor),
+    hasNextPage: toBooleanOrNull(value.hasNextPage) ?? false,
+    hasPreviousPage: toBooleanOrNull(value.hasPreviousPage) ?? false,
   }
 }
 
 function normalizeVantaOwner(value: unknown): VantaOwner | null {
   if (!isRecordLike(value)) return null
   return {
-    id: getString(value.id),
-    displayName: getString(value.displayName),
-    emailAddress: getString(value.emailAddress),
+    id: toStringOrNull(value.id),
+    displayName: toStringOrNull(value.displayName),
+    emailAddress: toStringOrNull(value.emailAddress),
   }
 }
 
 function normalizeVantaCustomFields(value: unknown): VantaCustomField[] {
   return getRecordArray(value).map((field) => ({
-    label: getString(field.label),
-    value: Array.isArray(field.value) ? getStringArray(field.value) : getString(field.value),
+    label: toStringOrNull(field.label),
+    value: Array.isArray(field.value) ? getStringArray(field.value) : toStringOrNull(field.value),
   }))
 }
 
 export function normalizeVantaFramework(resource: JsonRecord): VantaFramework {
   return {
-    id: getString(resource.id),
-    displayName: getString(resource.displayName),
-    shorthandName: getString(resource.shorthandName),
-    description: getString(resource.description),
+    id: toStringOrNull(resource.id),
+    displayName: toStringOrNull(resource.displayName),
+    shorthandName: toStringOrNull(resource.shorthandName),
+    description: toStringOrNull(resource.description),
     numControlsCompleted: getNumber(resource.numControlsCompleted),
     numControlsTotal: getNumber(resource.numControlsTotal),
     numDocumentsPassing: getNumber(resource.numDocumentsPassing),
@@ -178,19 +171,19 @@ function normalizeVantaFrameworkRequirementControl(
   resource: JsonRecord
 ): VantaFrameworkRequirementControl {
   return {
-    id: getString(resource.id),
-    externalId: getString(resource.externalId),
-    name: getString(resource.name),
-    description: getString(resource.description),
+    id: toStringOrNull(resource.id),
+    externalId: toStringOrNull(resource.externalId),
+    name: toStringOrNull(resource.name),
+    description: toStringOrNull(resource.description),
   }
 }
 
 function normalizeVantaFrameworkRequirement(resource: JsonRecord): VantaFrameworkRequirement {
   return {
-    id: getString(resource.id),
-    name: getString(resource.name),
-    shorthand: getString(resource.shorthand),
-    description: getString(resource.description),
+    id: toStringOrNull(resource.id),
+    name: toStringOrNull(resource.name),
+    shorthand: toStringOrNull(resource.shorthand),
+    description: toStringOrNull(resource.description),
     controls: getRecordArray(resource.controls).map(normalizeVantaFrameworkRequirementControl),
   }
 }
@@ -199,9 +192,9 @@ function normalizeVantaFrameworkRequirementCategory(
   resource: JsonRecord
 ): VantaFrameworkRequirementCategory {
   return {
-    id: getString(resource.id),
-    name: getString(resource.name),
-    shorthand: getString(resource.shorthand),
+    id: toStringOrNull(resource.id),
+    name: toStringOrNull(resource.name),
+    shorthand: toStringOrNull(resource.shorthand),
     requirements: getRecordArray(resource.requirements).map(normalizeVantaFrameworkRequirement),
   }
 }
@@ -217,25 +210,25 @@ export function normalizeVantaFrameworkDetail(resource: JsonRecord): VantaFramew
 
 export function normalizeVantaControl(resource: JsonRecord): VantaControl {
   return {
-    id: getString(resource.id),
-    externalId: getString(resource.externalId),
-    name: getString(resource.name),
-    description: getString(resource.description),
-    source: getString(resource.source),
+    id: toStringOrNull(resource.id),
+    externalId: toStringOrNull(resource.externalId),
+    name: toStringOrNull(resource.name),
+    description: toStringOrNull(resource.description),
+    source: toStringOrNull(resource.source),
     domains: getStringArray(resource.domains),
     owner: normalizeVantaOwner(resource.owner),
-    role: getString(resource.role),
+    role: toStringOrNull(resource.role),
     customFields: normalizeVantaCustomFields(resource.customFields),
-    creationDate: getString(resource.creationDate),
-    modificationDate: getString(resource.modificationDate),
+    creationDate: toStringOrNull(resource.creationDate),
+    modificationDate: toStringOrNull(resource.modificationDate),
   }
 }
 
 export function normalizeVantaControlDetail(resource: JsonRecord): VantaControlDetail {
   return {
     ...normalizeVantaControl(resource),
-    note: getString(resource.note),
-    status: getString(resource.status),
+    note: toStringOrNull(resource.note),
+    status: toStringOrNull(resource.status),
     numDocumentsPassing: getNumber(resource.numDocumentsPassing),
     numDocumentsTotal: getNumber(resource.numDocumentsTotal),
     numTestsPassing: getNumber(resource.numTestsPassing),
@@ -249,30 +242,32 @@ export function normalizeVantaTest(resource: JsonRecord): VantaTest {
     : null
   const deactivatedStatusInfo = isRecordLike(resource.deactivatedStatusInfo)
     ? {
-        isDeactivated: getBoolean(resource.deactivatedStatusInfo.isDeactivated),
-        deactivatedReason: getString(resource.deactivatedStatusInfo.deactivatedReason),
-        lastUpdatedDate: getString(resource.deactivatedStatusInfo.lastUpdatedDate),
+        isDeactivated: toBooleanOrNull(resource.deactivatedStatusInfo.isDeactivated),
+        deactivatedReason: toStringOrNull(resource.deactivatedStatusInfo.deactivatedReason),
+        lastUpdatedDate: toStringOrNull(resource.deactivatedStatusInfo.lastUpdatedDate),
       }
     : null
   const remediationStatusInfo = isRecordLike(resource.remediationStatusInfo)
     ? {
-        status: getString(resource.remediationStatusInfo.status),
-        soonestRemediateByDate: getString(resource.remediationStatusInfo.soonestRemediateByDate),
+        status: toStringOrNull(resource.remediationStatusInfo.status),
+        soonestRemediateByDate: toStringOrNull(
+          resource.remediationStatusInfo.soonestRemediateByDate
+        ),
         itemCount: getNumber(resource.remediationStatusInfo.itemCount),
       }
     : null
 
   return {
-    id: getString(resource.id),
-    name: getString(resource.name),
-    description: getString(resource.description),
-    failureDescription: getString(resource.failureDescription),
-    remediationDescription: getString(resource.remediationDescription),
-    category: getString(resource.category),
-    status: getString(resource.status),
+    id: toStringOrNull(resource.id),
+    name: toStringOrNull(resource.name),
+    description: toStringOrNull(resource.description),
+    failureDescription: toStringOrNull(resource.failureDescription),
+    remediationDescription: toStringOrNull(resource.remediationDescription),
+    category: toStringOrNull(resource.category),
+    status: toStringOrNull(resource.status),
     integrations: getStringArray(resource.integrations),
-    lastTestRunDate: getString(resource.lastTestRunDate),
-    latestFlipDate: getString(resource.latestFlipDate),
+    lastTestRunDate: toStringOrNull(resource.lastTestRunDate),
+    latestFlipDate: toStringOrNull(resource.latestFlipDate),
     version,
     deactivatedStatusInfo,
     remediationStatusInfo,
@@ -282,46 +277,46 @@ export function normalizeVantaTest(resource: JsonRecord): VantaTest {
 
 export function normalizeVantaTestEntity(resource: JsonRecord): VantaTestEntity {
   return {
-    id: getString(resource.id),
-    entityStatus: getString(resource.entityStatus),
-    displayName: getString(resource.displayName),
-    responseType: getString(resource.responseType),
-    deactivatedReason: getString(resource.deactivatedReason),
-    createdDate: getString(resource.createdDate),
-    lastUpdatedDate: getString(resource.lastUpdatedDate),
+    id: toStringOrNull(resource.id),
+    entityStatus: toStringOrNull(resource.entityStatus),
+    displayName: toStringOrNull(resource.displayName),
+    responseType: toStringOrNull(resource.responseType),
+    deactivatedReason: toStringOrNull(resource.deactivatedReason),
+    createdDate: toStringOrNull(resource.createdDate),
+    lastUpdatedDate: toStringOrNull(resource.lastUpdatedDate),
   }
 }
 
 export function normalizeVantaDocument(resource: JsonRecord): VantaDocument {
   return {
-    id: getString(resource.id),
-    title: getString(resource.title),
-    description: getString(resource.description),
-    category: getString(resource.category),
-    ownerId: getString(resource.ownerId),
-    isSensitive: getBoolean(resource.isSensitive),
-    uploadStatus: getString(resource.uploadStatus),
-    uploadStatusDate: getString(resource.uploadStatusDate),
-    url: getString(resource.url),
+    id: toStringOrNull(resource.id),
+    title: toStringOrNull(resource.title),
+    description: toStringOrNull(resource.description),
+    category: toStringOrNull(resource.category),
+    ownerId: toStringOrNull(resource.ownerId),
+    isSensitive: toBooleanOrNull(resource.isSensitive),
+    uploadStatus: toStringOrNull(resource.uploadStatus),
+    uploadStatusDate: toStringOrNull(resource.uploadStatusDate),
+    url: toStringOrNull(resource.url),
   }
 }
 
 export function normalizeVantaDocumentDetail(resource: JsonRecord): VantaDocumentDetail {
   const deactivatedStatus = isRecordLike(resource.deactivatedStatus)
     ? {
-        isDeactivated: getBoolean(resource.deactivatedStatus.isDeactivated),
-        reason: getString(resource.deactivatedStatus.reason),
-        creationDate: getString(resource.deactivatedStatus.creationDate),
-        expiration: getString(resource.deactivatedStatus.expiration),
+        isDeactivated: toBooleanOrNull(resource.deactivatedStatus.isDeactivated),
+        reason: toStringOrNull(resource.deactivatedStatus.reason),
+        creationDate: toStringOrNull(resource.deactivatedStatus.creationDate),
+        expiration: toStringOrNull(resource.deactivatedStatus.expiration),
       }
     : null
 
   return {
     ...normalizeVantaDocument(resource),
-    note: getString(resource.note),
-    nextRenewalDate: getString(resource.nextRenewalDate),
-    renewalCadence: getString(resource.renewalCadence),
-    reminderWindow: getString(resource.reminderWindow),
+    note: toStringOrNull(resource.note),
+    nextRenewalDate: toStringOrNull(resource.nextRenewalDate),
+    renewalCadence: toStringOrNull(resource.renewalCadence),
+    reminderWindow: toStringOrNull(resource.reminderWindow),
     subscribers: getStringArray(resource.subscribers),
     deactivatedStatus,
   }
@@ -329,59 +324,59 @@ export function normalizeVantaDocumentDetail(resource: JsonRecord): VantaDocumen
 
 export function normalizeVantaUploadedFile(resource: JsonRecord): VantaUploadedFile {
   const uploadedBy = isRecordLike(resource.uploadedBy)
-    ? { id: getString(resource.uploadedBy.id), type: getString(resource.uploadedBy.type) }
+    ? { id: toStringOrNull(resource.uploadedBy.id), type: toStringOrNull(resource.uploadedBy.type) }
     : null
 
   return {
-    id: getString(resource.id),
-    fileName: getString(resource.fileName),
-    title: getString(resource.title),
-    description: getString(resource.description),
-    mimeType: getString(resource.mimeType),
+    id: toStringOrNull(resource.id),
+    fileName: toStringOrNull(resource.fileName),
+    title: toStringOrNull(resource.title),
+    description: toStringOrNull(resource.description),
+    mimeType: toStringOrNull(resource.mimeType),
     uploadedBy,
-    creationDate: getString(resource.creationDate),
-    updatedDate: getString(resource.updatedDate),
-    deletionDate: getString(resource.deletionDate),
-    effectiveDate: getString(resource.effectiveDate),
-    url: getString(resource.url),
+    creationDate: toStringOrNull(resource.creationDate),
+    updatedDate: toStringOrNull(resource.updatedDate),
+    deletionDate: toStringOrNull(resource.deletionDate),
+    effectiveDate: toStringOrNull(resource.effectiveDate),
+    url: toStringOrNull(resource.url),
   }
 }
 
 export function normalizeVantaPerson(resource: JsonRecord): VantaPerson {
   const name = isRecordLike(resource.name)
     ? {
-        first: getString(resource.name.first),
-        last: getString(resource.name.last),
-        display: getString(resource.name.display),
+        first: toStringOrNull(resource.name.first),
+        last: toStringOrNull(resource.name.last),
+        display: toStringOrNull(resource.name.display),
       }
     : null
   const employment = isRecordLike(resource.employment)
     ? {
-        status: getString(resource.employment.status),
-        startDate: getString(resource.employment.startDate),
-        endDate: getString(resource.employment.endDate),
-        jobTitle: getString(resource.employment.jobTitle),
+        status: toStringOrNull(resource.employment.status),
+        startDate: toStringOrNull(resource.employment.startDate),
+        endDate: toStringOrNull(resource.employment.endDate),
+        jobTitle: toStringOrNull(resource.employment.jobTitle),
       }
     : null
   const leaveInfo = isRecordLike(resource.leaveInfo)
     ? {
-        status: getString(resource.leaveInfo.status),
-        startDate: getString(resource.leaveInfo.startDate),
-        endDate: getString(resource.leaveInfo.endDate),
+        status: toStringOrNull(resource.leaveInfo.status),
+        startDate: toStringOrNull(resource.leaveInfo.startDate),
+        endDate: toStringOrNull(resource.leaveInfo.endDate),
       }
     : null
   const tasksSummary = isRecordLike(resource.tasksSummary)
     ? {
-        status: getString(resource.tasksSummary.status),
-        dueDate: getString(resource.tasksSummary.dueDate),
-        completionDate: getString(resource.tasksSummary.completionDate),
+        status: toStringOrNull(resource.tasksSummary.status),
+        dueDate: toStringOrNull(resource.tasksSummary.dueDate),
+        completionDate: toStringOrNull(resource.tasksSummary.completionDate),
       }
     : null
 
   return {
-    id: getString(resource.id),
-    userId: getString(resource.userId),
-    emailAddress: getString(resource.emailAddress),
+    id: toStringOrNull(resource.id),
+    userId: toStringOrNull(resource.userId),
+    emailAddress: toStringOrNull(resource.emailAddress),
     name,
     employment,
     leaveInfo,
@@ -392,16 +387,16 @@ export function normalizeVantaPerson(resource: JsonRecord): VantaPerson {
 
 function normalizeVantaPolicyDocument(resource: JsonRecord): VantaPolicyDocument {
   return {
-    language: getString(resource.language),
-    slugId: getString(resource.slugId),
-    url: getString(resource.url),
+    language: toStringOrNull(resource.language),
+    slugId: toStringOrNull(resource.slugId),
+    url: toStringOrNull(resource.url),
   }
 }
 
 export function normalizeVantaPolicy(resource: JsonRecord): VantaPolicy {
   const latestApprovedVersion = isRecordLike(resource.latestApprovedVersion)
     ? {
-        versionId: getString(resource.latestApprovedVersion.versionId),
+        versionId: toStringOrNull(resource.latestApprovedVersion.versionId),
         documents: getRecordArray(resource.latestApprovedVersion.documents).map(
           normalizeVantaPolicyDocument
         ),
@@ -409,13 +404,13 @@ export function normalizeVantaPolicy(resource: JsonRecord): VantaPolicy {
     : null
 
   return {
-    id: getString(resource.id),
-    name: getString(resource.name),
-    description: getString(resource.description),
-    status: getString(resource.status),
-    approvedAtDate: getString(resource.approvedAtDate),
+    id: toStringOrNull(resource.id),
+    name: toStringOrNull(resource.name),
+    description: toStringOrNull(resource.description),
+    status: toStringOrNull(resource.status),
+    approvedAtDate: toStringOrNull(resource.approvedAtDate),
     latestVersionStatus: isRecordLike(resource.latestVersion)
-      ? getString(resource.latestVersion.status)
+      ? toStringOrNull(resource.latestVersion.status)
       : null,
     latestApprovedVersion,
   }
@@ -424,56 +419,58 @@ export function normalizeVantaPolicy(resource: JsonRecord): VantaPolicy {
 export function normalizeVantaVendor(resource: JsonRecord): VantaVendor {
   const authDetails = isRecordLike(resource.authDetails)
     ? {
-        method: getString(resource.authDetails.method),
-        passwordMFA: getBoolean(resource.authDetails.passwordMFA),
+        method: toStringOrNull(resource.authDetails.method),
+        passwordMFA: toBooleanOrNull(resource.authDetails.passwordMFA),
         passwordMinimumLength: getNumber(resource.authDetails.passwordMinimumLength),
-        passwordRequiresNumber: getBoolean(resource.authDetails.passwordRequiresNumber),
-        passwordRequiresSymbol: getBoolean(resource.authDetails.passwordRequiresSymbol),
+        passwordRequiresNumber: toBooleanOrNull(resource.authDetails.passwordRequiresNumber),
+        passwordRequiresSymbol: toBooleanOrNull(resource.authDetails.passwordRequiresSymbol),
       }
     : null
   const contractAmount = isRecordLike(resource.contractAmount)
     ? {
         amount: getNumber(resource.contractAmount.amount),
-        currency: getString(resource.contractAmount.currency),
+        currency: toStringOrNull(resource.contractAmount.currency),
       }
     : null
   const latestDecision = isRecordLike(resource.latestDecision)
     ? {
-        status: getString(resource.latestDecision.status),
-        lastUpdatedAt: getString(resource.latestDecision.lastUpdatedAt),
+        status: toStringOrNull(resource.latestDecision.status),
+        lastUpdatedAt: toStringOrNull(resource.latestDecision.lastUpdatedAt),
       }
     : null
   const procurementRequest = isRecordLike(resource.linkedTaskTrackerTaskProcurementRequest)
     ? {
-        url: getString(resource.linkedTaskTrackerTaskProcurementRequest.url),
-        service: getString(resource.linkedTaskTrackerTaskProcurementRequest.service),
+        url: toStringOrNull(resource.linkedTaskTrackerTaskProcurementRequest.url),
+        service: toStringOrNull(resource.linkedTaskTrackerTaskProcurementRequest.service),
       }
     : null
 
   return {
-    id: getString(resource.id),
-    name: getString(resource.name),
-    status: getString(resource.status),
-    websiteUrl: getString(resource.websiteUrl),
-    category: isRecordLike(resource.category) ? getString(resource.category.displayName) : null,
-    servicesProvided: getString(resource.servicesProvided),
-    additionalNotes: getString(resource.additionalNotes),
-    accountManagerName: getString(resource.accountManagerName),
-    accountManagerEmail: getString(resource.accountManagerEmail),
-    securityOwnerUserId: getString(resource.securityOwnerUserId),
-    businessOwnerUserId: getString(resource.businessOwnerUserId),
-    inherentRiskLevel: getString(resource.inherentRiskLevel),
-    residualRiskLevel: getString(resource.residualRiskLevel),
-    isRiskAutoScored: getBoolean(resource.isRiskAutoScored),
-    isVisibleToAuditors: getBoolean(resource.isVisibleToAuditors),
+    id: toStringOrNull(resource.id),
+    name: toStringOrNull(resource.name),
+    status: toStringOrNull(resource.status),
+    websiteUrl: toStringOrNull(resource.websiteUrl),
+    category: isRecordLike(resource.category)
+      ? toStringOrNull(resource.category.displayName)
+      : null,
+    servicesProvided: toStringOrNull(resource.servicesProvided),
+    additionalNotes: toStringOrNull(resource.additionalNotes),
+    accountManagerName: toStringOrNull(resource.accountManagerName),
+    accountManagerEmail: toStringOrNull(resource.accountManagerEmail),
+    securityOwnerUserId: toStringOrNull(resource.securityOwnerUserId),
+    businessOwnerUserId: toStringOrNull(resource.businessOwnerUserId),
+    inherentRiskLevel: toStringOrNull(resource.inherentRiskLevel),
+    residualRiskLevel: toStringOrNull(resource.residualRiskLevel),
+    isRiskAutoScored: toBooleanOrNull(resource.isRiskAutoScored),
+    isVisibleToAuditors: toBooleanOrNull(resource.isVisibleToAuditors),
     riskAttributeIds: getStringArray(resource.riskAttributeIds),
-    vendorHeadquarters: getString(resource.vendorHeadquarters),
-    contractStartDate: getString(resource.contractStartDate),
-    contractRenewalDate: getString(resource.contractRenewalDate),
-    contractTerminationDate: getString(resource.contractTerminationDate),
+    vendorHeadquarters: toStringOrNull(resource.vendorHeadquarters),
+    contractStartDate: toStringOrNull(resource.contractStartDate),
+    contractRenewalDate: toStringOrNull(resource.contractRenewalDate),
+    contractTerminationDate: toStringOrNull(resource.contractTerminationDate),
     contractAmount,
-    nextSecurityReviewDueDate: getString(resource.nextSecurityReviewDueDate),
-    lastSecurityReviewCompletionDate: getString(resource.lastSecurityReviewCompletionDate),
+    nextSecurityReviewDueDate: toStringOrNull(resource.nextSecurityReviewDueDate),
+    lastSecurityReviewCompletionDate: toStringOrNull(resource.lastSecurityReviewCompletionDate),
     authDetails,
     customFields: normalizeVantaCustomFields(resource.customFields),
     latestDecision,
@@ -482,52 +479,52 @@ export function normalizeVantaVendor(resource: JsonRecord): VantaVendor {
 }
 
 function getComputerStatusOutcome(value: unknown): string | null {
-  return isRecordLike(value) ? getString(value.outcome) : null
+  return isRecordLike(value) ? toStringOrNull(value.outcome) : null
 }
 
 export function normalizeVantaMonitoredComputer(resource: JsonRecord): VantaMonitoredComputer {
   const operatingSystem = isRecordLike(resource.operatingSystem)
     ? {
-        type: getString(resource.operatingSystem.type),
-        version: getString(resource.operatingSystem.version),
+        type: toStringOrNull(resource.operatingSystem.type),
+        version: toStringOrNull(resource.operatingSystem.version),
       }
     : null
 
   return {
-    id: getString(resource.id),
-    integrationId: getString(resource.integrationId),
-    lastCheckDate: getString(resource.lastCheckDate),
+    id: toStringOrNull(resource.id),
+    integrationId: toStringOrNull(resource.integrationId),
+    lastCheckDate: toStringOrNull(resource.lastCheckDate),
     screenlock: getComputerStatusOutcome(resource.screenlock),
     diskEncryption: getComputerStatusOutcome(resource.diskEncryption),
     passwordManager: getComputerStatusOutcome(resource.passwordManager),
     antivirusInstallation: getComputerStatusOutcome(resource.antivirusInstallation),
     operatingSystem,
     owner: normalizeVantaOwner(resource.owner),
-    serialNumber: getString(resource.serialNumber),
-    udid: getString(resource.udid),
+    serialNumber: toStringOrNull(resource.serialNumber),
+    udid: toStringOrNull(resource.udid),
   }
 }
 
 export function normalizeVantaRiskScenario(resource: JsonRecord): VantaRiskScenario {
   return {
-    riskId: getString(resource.riskId),
-    description: getString(resource.description),
+    riskId: toStringOrNull(resource.riskId),
+    description: toStringOrNull(resource.description),
     likelihood: getNumber(resource.likelihood),
     impact: getNumber(resource.impact),
     residualLikelihood: getNumber(resource.residualLikelihood),
     residualImpact: getNumber(resource.residualImpact),
     categories: getStringArray(resource.categories),
     ciaCategories: getStringArray(resource.ciaCategories),
-    treatment: getString(resource.treatment),
-    owner: getString(resource.owner),
-    note: getString(resource.note),
-    riskRegister: getString(resource.riskRegister),
+    treatment: toStringOrNull(resource.treatment),
+    owner: toStringOrNull(resource.owner),
+    note: toStringOrNull(resource.note),
+    riskRegister: toStringOrNull(resource.riskRegister),
     customFields: normalizeVantaCustomFields(resource.customFields),
-    isArchived: getBoolean(resource.isArchived),
-    reviewStatus: getString(resource.reviewStatus),
+    isArchived: toBooleanOrNull(resource.isArchived),
+    reviewStatus: toStringOrNull(resource.reviewStatus),
     requiredApprovers: getStringArray(resource.requiredApprovers),
-    type: getString(resource.type),
-    identificationDate: getString(resource.identificationDate),
+    type: toStringOrNull(resource.type),
+    identificationDate: toStringOrNull(resource.identificationDate),
   }
 }
 
@@ -535,30 +532,30 @@ export function normalizeVantaVulnerabilityRemediation(
   resource: JsonRecord
 ): VantaVulnerabilityRemediation {
   return {
-    id: getString(resource.id),
-    vulnerabilityId: getString(resource.vulnerabilityId),
-    vulnerableAssetId: getString(resource.vulnerableAssetId),
-    severity: getString(resource.severity),
-    detectedDate: getString(resource.detectedDate),
-    slaDeadlineDate: getString(resource.slaDeadlineDate),
-    remediationDate: getString(resource.remediationDate),
+    id: toStringOrNull(resource.id),
+    vulnerabilityId: toStringOrNull(resource.vulnerabilityId),
+    vulnerableAssetId: toStringOrNull(resource.vulnerableAssetId),
+    severity: toStringOrNull(resource.severity),
+    detectedDate: toStringOrNull(resource.detectedDate),
+    slaDeadlineDate: toStringOrNull(resource.slaDeadlineDate),
+    remediationDate: toStringOrNull(resource.remediationDate),
   }
 }
 
 function normalizeVantaVulnerableAssetScanner(resource: JsonRecord): VantaVulnerableAssetScanner {
   return {
-    resourceId: getString(resource.resourceId),
-    integrationId: getString(resource.integrationId),
-    targetId: getString(resource.targetId),
-    imageDigest: getString(resource.imageDigest),
-    imagePushedAtDate: getString(resource.imagePushedAtDate),
+    resourceId: toStringOrNull(resource.resourceId),
+    integrationId: toStringOrNull(resource.integrationId),
+    targetId: toStringOrNull(resource.targetId),
+    imageDigest: toStringOrNull(resource.imageDigest),
+    imagePushedAtDate: toStringOrNull(resource.imagePushedAtDate),
     imageTags: getStringArray(resource.imageTags),
     assetTags: getRecordArray(resource.assetTags).map((tag) => ({
-      key: getString(tag.key),
-      value: getString(tag.value),
+      key: toStringOrNull(tag.key),
+      value: toStringOrNull(tag.value),
     })),
-    parentAccountOrOrganization: getString(resource.parentAccountOrOrganization),
-    biosUuid: getString(resource.biosUuid),
+    parentAccountOrOrganization: toStringOrNull(resource.parentAccountOrOrganization),
+    biosUuid: toStringOrNull(resource.biosUuid),
     ipv4s: getStringArray(resource.ipv4s),
     ipv6s: getStringArray(resource.ipv6s),
     macAddresses: getStringArray(resource.macAddresses),
@@ -570,11 +567,11 @@ function normalizeVantaVulnerableAssetScanner(resource: JsonRecord): VantaVulner
 
 export function normalizeVantaVulnerableAsset(resource: JsonRecord): VantaVulnerableAsset {
   return {
-    id: getString(resource.id),
-    name: getString(resource.name),
-    assetType: getString(resource.assetType),
-    hasBeenScanned: getBoolean(resource.hasBeenScanned),
-    imageScanTag: getString(resource.imageScanTag),
+    id: toStringOrNull(resource.id),
+    name: toStringOrNull(resource.name),
+    assetType: toStringOrNull(resource.assetType),
+    hasBeenScanned: toBooleanOrNull(resource.hasBeenScanned),
+    imageScanTag: toStringOrNull(resource.imageScanTag),
     scanners: getRecordArray(resource.scanners).map(normalizeVantaVulnerableAssetScanner),
   }
 }
@@ -582,35 +579,35 @@ export function normalizeVantaVulnerableAsset(resource: JsonRecord): VantaVulner
 export function normalizeVantaVulnerability(resource: JsonRecord): VantaVulnerability {
   const deactivateMetadata = isRecordLike(resource.deactivateMetadata)
     ? {
-        isVulnDeactivatedIndefinitely: getBoolean(
+        isVulnDeactivatedIndefinitely: toBooleanOrNull(
           resource.deactivateMetadata.isVulnDeactivatedIndefinitely
         ),
-        deactivatedUntilDate: getString(resource.deactivateMetadata.deactivatedUntilDate),
-        deactivationReason: getString(resource.deactivateMetadata.deactivationReason),
-        deactivatedOnDate: getString(resource.deactivateMetadata.deactivatedOnDate),
-        deactivatedBy: getString(resource.deactivateMetadata.deactivatedBy),
+        deactivatedUntilDate: toStringOrNull(resource.deactivateMetadata.deactivatedUntilDate),
+        deactivationReason: toStringOrNull(resource.deactivateMetadata.deactivationReason),
+        deactivatedOnDate: toStringOrNull(resource.deactivateMetadata.deactivatedOnDate),
+        deactivatedBy: toStringOrNull(resource.deactivateMetadata.deactivatedBy),
       }
     : null
 
   return {
-    id: getString(resource.id),
-    name: getString(resource.name),
-    description: getString(resource.description),
-    severity: getString(resource.severity),
-    vulnerabilityType: getString(resource.vulnerabilityType),
-    integrationId: getString(resource.integrationId),
-    targetId: getString(resource.targetId),
-    packageIdentifier: getString(resource.packageIdentifier),
+    id: toStringOrNull(resource.id),
+    name: toStringOrNull(resource.name),
+    description: toStringOrNull(resource.description),
+    severity: toStringOrNull(resource.severity),
+    vulnerabilityType: toStringOrNull(resource.vulnerabilityType),
+    integrationId: toStringOrNull(resource.integrationId),
+    targetId: toStringOrNull(resource.targetId),
+    packageIdentifier: toStringOrNull(resource.packageIdentifier),
     cvssSeverityScore: getNumber(resource.cvssSeverityScore),
     scannerScore: getNumber(resource.scannerScore),
-    isFixable: getBoolean(resource.isFixable),
-    fixedVersion: getString(resource.fixedVersion),
-    remediateByDate: getString(resource.remediateByDate),
-    firstDetectedDate: getString(resource.firstDetectedDate),
-    sourceDetectedDate: getString(resource.sourceDetectedDate),
-    lastDetectedDate: getString(resource.lastDetectedDate),
-    scanSource: getString(resource.scanSource),
-    externalURL: getString(resource.externalURL),
+    isFixable: toBooleanOrNull(resource.isFixable),
+    fixedVersion: toStringOrNull(resource.fixedVersion),
+    remediateByDate: toStringOrNull(resource.remediateByDate),
+    firstDetectedDate: toStringOrNull(resource.firstDetectedDate),
+    sourceDetectedDate: toStringOrNull(resource.sourceDetectedDate),
+    lastDetectedDate: toStringOrNull(resource.lastDetectedDate),
+    scanSource: toStringOrNull(resource.scanSource),
+    externalURL: toStringOrNull(resource.externalURL),
     relatedVulns: getStringArray(resource.relatedVulns),
     relatedUrls: getStringArray(resource.relatedUrls),
     deactivateMetadata,

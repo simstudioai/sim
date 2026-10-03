@@ -2,9 +2,8 @@
 
 import type { MouseEvent, ReactNode } from 'react'
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
-import { cn } from '@sim/emcn'
+import { bindPreviewWheelZoom, cn } from '@sim/emcn'
 import { PreviewToolbar } from './preview-toolbar'
-import { bindPreviewWheelZoom } from './preview-wheel-zoom'
 
 const ZOOM_MIN = 0.25
 const ZOOM_MAX = 4

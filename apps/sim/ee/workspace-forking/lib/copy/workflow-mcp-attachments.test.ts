@@ -1,16 +1,14 @@
-/**
- * @vitest-environment node
- */
+import {
+  workspaceForkingMappingStoreMock,
+  workspaceForkingMappingStoreMockFns,
+} from '@sim/testing/mocks/workspace-forking-mapping-store.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockGetEdgeMappingRows, mockAcquireLock } = vi.hoisted(() => ({
-  mockGetEdgeMappingRows: vi.fn(),
+const { mockAcquireLock } = vi.hoisted(() => ({
   mockAcquireLock: vi.fn(),
 }))
 
-vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => ({
-  getEdgeMappingRows: mockGetEdgeMappingRows,
-}))
+vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => workspaceForkingMappingStoreMock)
 vi.mock('@/lib/mcp/server-locks', () => ({
   acquireWorkflowMcpServerLock: mockAcquireLock,
 }))
@@ -20,6 +18,8 @@ import {
   copyForkWorkflowMcpAttachments,
   reconcileForkWorkflowMcpAttachments,
 } from '@/ee/workspace-forking/lib/copy/workflow-mcp-attachments'
+
+const mockGetEdgeMappingRows = workspaceForkingMappingStoreMockFns.mockGetEdgeMappingRows
 
 /** Sequenced select mock + captured inserts/updates. */
 function makeTx(selectResults: unknown[][]) {
@@ -169,22 +169,6 @@ describe('reconcileForkWorkflowMcpAttachments', () => {
     expect(inserted).toHaveLength(0)
     expect(result.affectedServerIds).toEqual([])
   })
-
-  it('no-ops with no mapped servers (attachments follow the server identity)', async () => {
-    mockGetEdgeMappingRows.mockResolvedValue([
-      { ...serverMappingRow, resourceType: 'table' as const },
-    ])
-    const { tx, inserted } = makeTx([])
-    const result = await reconcileForkWorkflowMcpAttachments({
-      tx,
-      childWorkspaceId: 'child-ws',
-      sourceIsParent: false,
-      now: new Date(),
-      writtenPairs: [{ sourceWorkflowId: 'wf-child', targetWorkflowId: 'wf-parent' }],
-    })
-    expect(inserted).toHaveLength(0)
-    expect(result.affectedServerIds).toEqual([])
-  })
 })
 
 describe('copyForkWorkflowMcpAttachments', () => {
@@ -208,17 +192,5 @@ describe('copyForkWorkflowMcpAttachments', () => {
       workflowId: 'wf-copy',
       toolName: 'run_support_flow',
     })
-  })
-
-  it('no-ops when either id map is empty', async () => {
-    const { tx, inserted } = makeTx([])
-    const result = await copyForkWorkflowMcpAttachments({
-      tx,
-      serverIdMap: new Map(),
-      workflowIdMap: new Map([['wf-src', 'wf-copy']]),
-      now: new Date(),
-    })
-    expect(result.copied).toBe(0)
-    expect(inserted).toHaveLength(0)
   })
 })

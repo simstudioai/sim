@@ -2,22 +2,14 @@
  * Pins the response-key mappings and Link-header pagination the Circleback tools rely on.
  * Wrong top-level keys fail silently as empty results, and a broken cursor parse would
  * silently end pagination after one page, so both are asserted against realistic payloads.
- *
- * @vitest-environment node
  */
+import { jsonResponse } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import { getMeetingTool } from '@/tools/circleback/get_meeting'
 import { listActionItemsTool } from '@/tools/circleback/list_action_items'
 import { listMeetingsTool } from '@/tools/circleback/list_meetings'
 import { updateActionItemTool } from '@/tools/circleback/update_action_item'
 import { mapMeeting, parseNextCursor, toIdList, toStringList } from '@/tools/circleback/utils'
-
-function jsonResponse(body: unknown, init?: { status?: number; link?: string }): Response {
-  return new Response(JSON.stringify(body), {
-    status: init?.status ?? 200,
-    headers: init?.link ? { link: init.link } : undefined,
-  })
-}
 
 const rawMeeting = {
   id: 'm1',
@@ -53,13 +45,17 @@ const rawMeeting = {
 describe('circleback pagination', () => {
   it('extracts the cursor from an RFC 8288 next link', () => {
     const response = jsonResponse([], {
-      link: '<https://circleback.ai/api/meetings?ownership=Mine&cursor=cur_2>; rel="next", <https://circleback.ai/api/meetings>; rel="first"',
+      headers: {
+        link: '<https://circleback.ai/api/meetings?ownership=Mine&cursor=cur_2>; rel="next", <https://circleback.ai/api/meetings>; rel="first"',
+      },
     })
     expect(parseNextCursor(response)).toBe('cur_2')
   })
 
   it('resolves a relative next link against the API base', () => {
-    const response = jsonResponse([], { link: '</api/meetings?cursor=rel_2>; rel="next"' })
+    const response = jsonResponse([], {
+      headers: { link: '</api/meetings?cursor=rel_2>; rel="next"' },
+    })
     expect(parseNextCursor(response)).toBe('rel_2')
   })
 
@@ -67,7 +63,7 @@ describe('circleback pagination', () => {
     expect(parseNextCursor(jsonResponse([]))).toBeNull()
     expect(
       parseNextCursor(
-        jsonResponse([], { link: '<https://circleback.ai/api/meetings>; rel="prev"' })
+        jsonResponse([], { headers: { link: '<https://circleback.ai/api/meetings>; rel="prev"' } })
       )
     ).toBeNull()
   })
@@ -75,7 +71,7 @@ describe('circleback pagination', () => {
   it('list meetings surfaces the cursor and hasMore from the header', async () => {
     const result = await listMeetingsTool.transformResponse?.(
       jsonResponse([rawMeeting], {
-        link: '<https://circleback.ai/api/meetings?cursor=cur_2>; rel="next"',
+        headers: { link: '<https://circleback.ai/api/meetings?cursor=cur_2>; rel="next"' },
       }),
       { params: {} } as never
     )

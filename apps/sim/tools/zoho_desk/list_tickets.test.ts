@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { ZohoDeskBlock } from '@/blocks/blocks/zoho-desk'
 import { zohoDeskListTicketsTool } from '@/tools/zoho_desk/list_tickets'

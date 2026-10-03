@@ -13,7 +13,7 @@ Every command below also accepts the [global options](/cli/commands#global-optio
 sim tools execute <toolId> [options]
 ```
 
-Run one built-in tool and print what it produced (personal API key required)
+Run one built-in tool and print what it produced (OAuth login or personal API key required)
 
 **Arguments**
 
@@ -70,6 +70,6 @@ sim tools list [options]
 | `--oauth-provider <value>` | No | Restrict to tools that authenticate against this OAuth service. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `id`, `name`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
-| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>

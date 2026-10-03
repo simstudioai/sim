@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, extname, join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'

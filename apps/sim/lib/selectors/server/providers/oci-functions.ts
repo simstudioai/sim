@@ -41,6 +41,7 @@ function requiredId(value: unknown): string {
 async function prepareDestination(args: ExecuteServerSelectorArgs) {
   const access = args.credential?.access
   if (
+    !args.workspaceId ||
     !access?.ok ||
     !access.resolvedCredentialId ||
     access.credentialType !== 'service_account' ||

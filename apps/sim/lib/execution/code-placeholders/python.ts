@@ -2,6 +2,7 @@ import { sha256Hex } from '@sim/security/hash'
 import {
   applySourceEdits,
   CodePlaceholderCompileError,
+  CodePlaceholderInvariantError,
   createCodePlaceholderCompilationContext,
   isOffsetInRanges,
   type SourceEdit,
@@ -243,7 +244,7 @@ function createSentinel(code: string): string {
     const sentinel = `__sim_placeholder_${digest}__`
     if (!code.includes(sentinel)) return sentinel
   }
-  throw new CodePlaceholderCompileError('Unable to allocate a collision-free Python marker')
+  throw new CodePlaceholderInvariantError('Unable to allocate a collision-free Python marker')
 }
 
 function pythonTriviaGap(

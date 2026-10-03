@@ -39,7 +39,6 @@ export const ContentFrontmatterSchema = z
         })
       )
       .optional(),
-    canonical: z.string().url(),
     draft: z.boolean().default(false),
     featured: z.boolean().default(false),
     /**

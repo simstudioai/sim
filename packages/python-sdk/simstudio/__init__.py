@@ -10,6 +10,7 @@ from datetime import datetime
 import time
 import random
 import os
+import platform
 
 import requests
 
@@ -20,7 +21,21 @@ MAX_EXECUTION_TIMEOUT_SECONDS = 604_800
 # rather than silently reporting True.
 _SUCCESSFUL_RUN_STATUSES = ('completed', 'paused')
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
+
+
+def _client_headers() -> Dict[str, str]:
+    """
+    Identify this SDK to the API on every request, the way every official Sim
+    client does, so a server log line or analytics event can say which client
+    made the call. ``X-Sim-Client-Info`` is the header the server reads.
+    """
+    python_version = platform.python_version()
+    return {
+        'User-Agent': f'simstudio-python-sdk/{__version__} python/{python_version}',
+        'X-Sim-Client-Info': f'sdk-python/{__version__}; python/{python_version}',
+    }
+
 __all__ = [
     "SimStudioClient",
     "SimStudioError",
@@ -125,14 +140,15 @@ class SimStudioClient:
     
     Args:
         api_key: Your Sim API key
-        base_url: Base URL for the Sim API (defaults to https://sim.ai)
+        base_url: Base URL for the Sim API (defaults to https://www.sim.ai)
     """
     
-    def __init__(self, api_key: str, base_url: str = "https://sim.ai"):
+    def __init__(self, api_key: str, base_url: str = "https://www.sim.ai"):
         self.api_key = api_key
         self.base_url = base_url.rstrip('/')
         self._session = requests.Session()
         self._session.headers.update({
+            **_client_headers(),
             'X-API-Key': self.api_key,
             'Content-Type': 'application/json',
         })

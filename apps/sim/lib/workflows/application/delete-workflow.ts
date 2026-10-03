@@ -1,13 +1,12 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
+import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { notifyWorkflowDeleted, notifyWorkspaceWorkflowsChanged } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
+import { resolvePrincipalWorkflowContext } from '@/lib/workflows/application/principal-scope'
 import { requireWorkflowTransition } from '@/lib/workflows/application/transition-result'
 import { deleteWorkflowRecord } from '@/lib/workflows/orchestration'
 
@@ -20,11 +19,7 @@ export interface DeleteWorkflowInput {
 
 export const deleteWorkflow = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.delete,
-  resolveContext: ({ principal, input }: { principal: Principal; input: DeleteWorkflowInput }) =>
-    resolveActiveWorkflowApplicationContext({
-      workflowId: input.workflowId,
-      assertedWorkspaceId: assertedWorkflowWorkspaceId(principal, input.assertedWorkspaceId),
-    }),
+  resolveContext: resolvePrincipalWorkflowContext<DeleteWorkflowInput>,
   async execute({ principal, context }) {
     try {
       await assertWorkflowMutable(context.workflowId)

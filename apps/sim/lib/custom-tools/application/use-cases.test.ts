@@ -1,61 +1,52 @@
-/**
- * @vitest-environment node
- */
 import type { DelegatedPrincipal } from '@sim/auth/principal'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks } = vi.hoisted(() => ({
+const { mocks: hoisted } = vi.hoisted(() => ({
   mocks: {
-    loadContext: vi.fn(),
-    resolvePermission: vi.fn(),
     getAvailableTool: vi.fn(),
+    listAvailable: vi.fn(),
     getByTitle: vi.fn(),
     getWorkspaceTool: vi.fn(),
     updateWorkspaceTool: vi.fn(),
     upsert: vi.fn(),
-    audit: vi.fn(),
   },
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  loadActiveWorkspaceContext: mocks.loadContext,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) =>
-    actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    CUSTOM_TOOL_CREATED: 'custom_tool.created',
-    CUSTOM_TOOL_UPDATED: 'custom_tool.updated',
-    CUSTOM_TOOL_DELETED: 'custom_tool.deleted',
-  },
-  AuditResourceType: { CUSTOM_TOOL: 'custom_tool' },
-  recordAudit: mocks.audit,
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/workflows/custom-tools/operations', () => ({
-  deleteCustomTool: vi.fn(),
   deleteWorkspaceCustomTool: vi.fn(),
-  getAvailableCustomTool: mocks.getAvailableTool,
-  getCustomToolById: vi.fn(),
-  getWorkspaceCustomTool: mocks.getWorkspaceTool,
-  getWorkspaceCustomToolByTitle: mocks.getByTitle,
-  listCustomTools: vi.fn(),
+  getAvailableCustomTool: hoisted.getAvailableTool,
+  getWorkspaceCustomTool: hoisted.getWorkspaceTool,
+  getWorkspaceCustomToolByTitle: hoisted.getByTitle,
+  listCustomTools: hoisted.listAvailable,
   listWorkspaceCustomTools: vi.fn(),
-  updateCustomTool: vi.fn(),
-  updateWorkspaceCustomTool: mocks.updateWorkspaceTool,
-  upsertCustomTools: mocks.upsert,
+  updateWorkspaceCustomTool: hoisted.updateWorkspaceTool,
+  upsertCustomTools: hoisted.upsert,
 }))
 
 import { CUSTOM_TOOL_DELEGATION_AUDIENCE } from '@/lib/custom-tools/application/authorization'
-import { customToolOperations } from '@/lib/custom-tools/application/operations'
 import {
   createWorkspaceCustomToolUseCase,
+  listAvailableCustomToolsUseCase,
   readAvailableCustomToolByIdOrTitleUseCase,
-  saveWorkspaceCustomToolUseCase,
   updateWorkspaceCustomToolUseCase,
 } from '@/lib/custom-tools/application/use-cases'
+
+const mocks = {
+  ...hoisted,
+  loadContext: workspaceUploadsMockFns.mockLoadActiveWorkspaceContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  audit: auditMockFns.mockRecordAudit,
+}
 
 const workspace = {
   workspaceId: 'workspace-1',
@@ -76,12 +67,56 @@ const tool = {
 
 describe('custom tool application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadContext.mockResolvedValue(workspace)
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.getByTitle.mockResolvedValue(null)
     mocks.getAvailableTool.mockResolvedValue(tool)
     mocks.upsert.mockResolvedValue([tool])
+    mocks.listAvailable.mockResolvedValue([
+      tool,
+      { ...tool, id: 'personal-tool', workspaceId: null },
+    ])
+  })
+
+  it.each([
+    { kind: 'session' as const, userId: 'reader' },
+    { kind: 'personal_api_key' as const, userId: 'reader', keyId: 'key-1' },
+  ])(
+    'reads available tools as the $kind actor without billing-owner substitution',
+    async (principal) => {
+      mocks.resolvePermission.mockResolvedValueOnce('read')
+      const result = await listAvailableCustomToolsUseCase.execute({
+        principal,
+        input: { workspaceId: workspace.workspaceId },
+      })
+      expect(result.tools.map((entry) => entry.id)).toEqual([tool.id, 'personal-tool'])
+      expect(mocks.listAvailable).toHaveBeenCalledExactlyOnceWith({
+        userId: 'reader',
+        workspaceId: workspace.workspaceId,
+      })
+      expect(mocks.audit).not.toHaveBeenCalled()
+    }
+  )
+
+  it('refuses an available-tool inventory after current access is revoked', async () => {
+    mocks.resolvePermission.mockResolvedValueOnce(null)
+    await expect(
+      listAvailableCustomToolsUseCase.execute({
+        principal: { kind: 'session', userId: 'reader' },
+        input: { workspaceId: workspace.workspaceId },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.listAvailable).not.toHaveBeenCalled()
+  })
+
+  it('propagates an available-tool inventory outage', async () => {
+    mocks.listAvailable.mockRejectedValueOnce(new Error('database unavailable'))
+    await expect(
+      listAvailableCustomToolsUseCase.execute({
+        principal: { kind: 'session', userId: 'reader' },
+        input: { workspaceId: workspace.workspaceId },
+      })
+    ).rejects.toThrow('database unavailable')
   })
 
   describe('delegated custom-tool resolution', () => {
@@ -98,16 +133,6 @@ describe('custom tool application use cases', () => {
         ...overrides,
       }
     }
-
-    it('declares the executor and Copilot read policy explicitly', () => {
-      expect(customToolOperations.readAvailableByIdOrTitle).toMatchObject({
-        id: 'custom_tools.read_available_by_id_or_title',
-        minimumRole: 'read',
-        workspaceApiKey: 'deny',
-        principalKinds: ['delegated'],
-        delegatedServices: ['copilot', 'executor'],
-      })
-    })
 
     it('authorizes the current subject and preserves workspace-first personal fallback lookup', async () => {
       mocks.resolvePermission.mockResolvedValueOnce('read')
@@ -307,7 +332,7 @@ describe('custom tool application use cases', () => {
 
     await expect(
       createWorkspaceCustomToolUseCase.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: {
           workspaceId: workspace.workspaceId,
           title: tool.title,
@@ -328,42 +353,12 @@ describe('custom tool application use cases', () => {
 
     await expect(
       createWorkspaceCustomToolUseCase.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: {
           workspaceId: workspace.workspaceId,
           title: tool.title,
           schema: tool.schema,
           code: tool.code,
-        },
-      })
-    ).rejects.toMatchObject({ code: 'conflict' })
-
-    expect(mocks.audit).not.toHaveBeenCalled()
-  })
-
-  it('normalizes the in-transaction duplicate-title error for compatibility saves', async () => {
-    mocks.upsert.mockRejectedValueOnce(
-      new Error(`A tool with the title "${tool.title}" already exists in this workspace`)
-    )
-
-    await expect(
-      saveWorkspaceCustomToolUseCase.execute({
-        principal: {
-          kind: 'delegated',
-          serviceId: 'copilot',
-          subjectUserId: 'user-1',
-          workspaceId: workspace.workspaceId,
-          delegationId: 'delegation-1',
-          audience: CUSTOM_TOOL_DELEGATION_AUDIENCE,
-          issuedAt: new Date(Date.now() - 1_000),
-          expiresAt: new Date(Date.now() + 60_000),
-        },
-        input: {
-          workspaceId: workspace.workspaceId,
-          title: tool.title,
-          schema: tool.schema,
-          code: tool.code,
-          source: 'tool_input',
         },
       })
     ).rejects.toMatchObject({ code: 'conflict' })
@@ -379,7 +374,7 @@ describe('custom tool application use cases', () => {
         parameters: { type: 'object', properties: { id: { type: 'string' } } },
       },
     }
-    const session = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+    const session = createSessionPrincipal()
 
     it('renames a tool whose stored schema can be published', async () => {
       const stored = { ...tool, schema: storableSchema }

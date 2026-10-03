@@ -65,8 +65,8 @@ export default function WorkflowsPage() {
   const canCreate = !permissionsLoading && canEdit
 
   return (
-    <div className='flex h-full w-full flex-col overflow-hidden bg-[var(--bg)]'>
-      <div className='relative h-full w-full flex-1 bg-[var(--bg)]'>
+    <div className='flex size-full flex-col overflow-hidden bg-[var(--bg)]'>
+      <div className='relative size-full flex-1 bg-[var(--bg)]'>
         <div className='workflow-container flex h-full items-center justify-center bg-[var(--bg)]'>
           {isError ? (
             // This is the landing route now, so a failed list fetch would

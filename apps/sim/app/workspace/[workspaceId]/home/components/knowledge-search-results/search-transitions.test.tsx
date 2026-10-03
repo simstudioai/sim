@@ -1,0 +1,366 @@
+/** @vitest-environment jsdom */
+
+import { act } from 'react'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import {
+  kbConnectorsQueriesMock,
+  kbConnectorsQueriesMockFns,
+} from '@sim/testing/mocks/kb-connectors-queries.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
+import {
+  organizationProviderMock,
+  organizationProviderMockFns,
+} from '@sim/testing/mocks/organization-provider.mock'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  userId: 'reader',
+  summarize: vi.fn(),
+  urlUpdate: vi.fn(),
+}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
+vi.mock('next/navigation', () => nextNavigationMock)
+vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
+vi.mock('@/hooks/use-speech-to-text', () => ({
+  useSpeechToText: () => ({ isSupported: false }),
+}))
+vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
+vi.mock(
+  '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card',
+  () => ({
+    SourceCard: ({
+      source,
+      onSummarize,
+    }: {
+      source: { title: string; url: string }
+      onSummarize?: (source: { title: string; url: string }) => void
+    }) => (
+      <div>
+        <a href={source.url} data-source-link>
+          {source.title}
+        </a>
+        <button type='button'>Copy link</button>
+        {onSummarize && (
+          <button type='button' onClick={() => onSummarize(source)}>
+            Summarize
+          </button>
+        )}
+      </div>
+    ),
+  })
+)
+
+import type {
+  WorkspaceKnowledgeSearchBody,
+  WorkspaceKnowledgeSearchData,
+} from '@/lib/api/contracts/knowledge'
+import {
+  resetDeploymentShape,
+  resolveDeploymentShape,
+  seedDeploymentShape,
+} from '@/lib/core/config/deployment-shape'
+import type { ResourceScope } from '@/lib/core/resource-scope'
+import { SearchLandingHistory } from '@/app/o/[organizationId]/components/search-landing-history'
+import { OrganizationSearch } from '@/app/o/[organizationId]/search/search'
+import { KnowledgeSearchResults } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/knowledge-search-results'
+import { searchHistoryKeys } from '@/hooks/queries/search-history'
+import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
+import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
+
+nextNavigationMockFns.mockUsePathname.mockReturnValue('/o/organization/search')
+authClientMockFns.mockUseSession.mockImplementation(() => ({
+  data: { user: { id: mocks.userId } },
+}))
+organizationProviderMockFns.mockUseOrganizationContext.mockImplementation(() => ({
+  organization: { id: 'organization', name: 'Acme' },
+  searchAccess: { memberScoped: true },
+}))
+kbConnectorsQueriesMockFns.mockUseSearchIndex.mockImplementation(() => ({
+  data: { knowledgeBaseId: 'index' },
+  isPending: false,
+}))
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
+
+interface PendingSearch {
+  body: WorkspaceKnowledgeSearchBody
+  signal: AbortSignal
+  resolve: (data: { data: WorkspaceKnowledgeSearchData }) => void
+  reject: (error: Error) => void
+}
+
+let root: Root
+let container: HTMLDivElement
+let client: QueryClient
+let requests: PendingSearch[]
+
+beforeEach(() => {
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date('2026-01-15T12:00:00Z'))
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+  )
+  resetDeploymentShape()
+  useMothershipDraftsStore.setState({ drafts: {} })
+  mocks.userId = 'reader'
+  requests = []
+  mockRequestJson.mockImplementation(
+    (_contract, input) =>
+      new Promise((resolve, reject) => {
+        requests.push({ ...input, resolve, reject })
+      })
+  )
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  container = document.createElement('div')
+  document.body.append(container)
+  root = createRoot(container)
+})
+
+afterEach(() => {
+  act(() => root.unmount())
+  client.clear()
+  container.remove()
+  vi.useRealTimers()
+})
+
+async function render({
+  scope = { kind: 'organization', organizationId: 'organization' },
+  query = 'launch',
+  params = '',
+  organizationPage = false,
+  filters,
+  topK,
+}: {
+  scope?: ResourceScope
+  query?: string
+  params?: string
+  organizationPage?: boolean
+  filters?: import('@/lib/api/contracts/knowledge').WorkspaceSearchFilters
+  topK?: number
+} = {}) {
+  await act(async () => {
+    root.render(
+      <QueryClientProvider client={client}>
+        <NuqsTestingAdapter hasMemory searchParams={params} onUrlUpdate={mocks.urlUpdate}>
+          {organizationPage ? (
+            <OrganizationSearch userId='reader' />
+          ) : (
+            <KnowledgeSearchResults
+              scope={scope}
+              query={query}
+              filters={filters}
+              topK={topK}
+              onSummarize={mocks.summarize}
+            />
+          )}
+        </NuqsTestingAdapter>
+      </QueryClientProvider>
+    )
+  })
+}
+
+async function complete(
+  index: number,
+  { title = 'Release plan', partial = false, empty = false, count = 1 } = {}
+) {
+  await act(async () => {
+    requests[index].resolve({
+      data: {
+        query: requests[index].body.query,
+        results: empty
+          ? []
+          : Array.from({ length: count }, (_, n) => {
+              const name = n === 0 ? title : `${title} ${n + 1}`
+              return {
+                documentId: name,
+                knowledgeBaseId: 'index',
+                knowledgeBaseName: 'Search index',
+                documentName: name,
+                sourceUrl: `https://example.com/release/${n}`,
+                connectorType: requests[index].body.filters?.source ?? 'slack',
+                sourceModifiedAt: null,
+                author: null,
+                content: 'launch details',
+                chunkIndex: 0,
+                similarity: 0.9,
+              }
+            }),
+        retrieval: {
+          status: partial ? 'partial' : 'complete',
+          timedOutLegs: partial ? ['vector'] : [],
+        },
+      },
+    })
+    await vi.advanceTimersByTimeAsync(1)
+  })
+}
+
+describe('live search submission feedback', () => {
+  it.each(['launch', 'edited draft', ''])(
+    'cancels with draft %j, ignores late results, and allows a fresh submission',
+    async (draft) => {
+      const shape = resolveDeploymentShape()
+      seedDeploymentShape({ ...shape, features: shape.features })
+      await render({ organizationPage: true, params: '?q=launch' })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1)
+      })
+      expect(requests).toHaveLength(1)
+      await act(async () => {
+        const input = container.querySelector('textarea')!
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+          input,
+          draft
+        )
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+      await act(async () => {
+        const stop = container.querySelector<HTMLButtonElement>('button[aria-label="Stop search"]')
+        if (!stop) throw new Error('No stop control for the pending search')
+        stop.click()
+        await vi.advanceTimersByTimeAsync(1)
+      })
+      expect(requests[0].signal.aborted).toBe(true)
+      expect(container.querySelector('textarea')!.value).toBe(draft)
+      await complete(0, { title: 'Cancelled result' })
+      expect(
+        client
+          .getQueriesData({ queryKey: knowledgeKeys.searches() })
+          .every(([, data]) => data === undefined)
+      ).toBe(true)
+      await act(async () => {
+        const input = container.querySelector('textarea')!
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+          input,
+          'launch'
+        )
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+      await act(async () => {
+        container.querySelector<HTMLButtonElement>('button[aria-label="Search"]')!.click()
+        await vi.advanceTimersByTimeAsync(1)
+      })
+      expect(requests).toHaveLength(2)
+      await complete(1, { title: 'Fresh result' })
+      expect(
+        client
+          .getQueriesData<WorkspaceKnowledgeSearchData>({ queryKey: knowledgeKeys.searches() })
+          .flatMap(([, data]) => data?.results.map((result) => result.documentId) ?? [])
+      ).toEqual(['Fresh result'])
+    }
+  )
+
+  it('acknowledges the submitted query before exposing refinement controls', async () => {
+    const shape = resolveDeploymentShape()
+    seedDeploymentShape({ ...shape, features: shape.features })
+    await render({ organizationPage: true, params: '?q=launch' })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(requests).toHaveLength(1)
+    expect(
+      [...container.querySelectorAll('button')].some(
+        (element) => element.textContent === 'All sources'
+      )
+    ).toBe(false)
+    expect(
+      container.querySelector<HTMLButtonElement>('button[aria-label="Stop search"]')?.disabled
+    ).toBe(false)
+    await complete(0)
+    expect(
+      container.querySelector<HTMLButtonElement>('button[aria-label="Search"]')?.disabled
+    ).toBe(false)
+    expect(container.querySelector('[role="group"][aria-label="Search filters"]')).not.toBeNull()
+    await act(async () => {
+      const input = container.querySelector('textarea')!
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+        input,
+        'roadmap'
+      )
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const submit = async () =>
+      act(async () => {
+        container
+          .querySelector('textarea')!
+          .dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+        await vi.advanceTimersByTimeAsync(100)
+      })
+    await submit()
+    expect(requests).toHaveLength(2)
+    expect(requests[1].body.query).toBe('roadmap')
+    await submit()
+    expect(requests).toHaveLength(2)
+    await complete(1)
+    await submit()
+    expect(requests).toHaveLength(3)
+    expect(requests[2].body.query).toBe('roadmap')
+  })
+})
+
+it('removes cached private history when access is denied during revalidation', async () => {
+  client.setQueryData(searchHistoryKeys.list('organization', 'reader'), {
+    sources: [
+      {
+        url: 'https://example.com/private',
+        title: 'Private document',
+        viewedAt: new Date().toISOString(),
+      },
+    ],
+    queries: [{ query: 'private query', searchedAt: new Date().toISOString() }],
+  })
+  await act(async () => {
+    root.render(
+      <QueryClientProvider client={client}>
+        <SearchLandingHistory organizationId='organization' userId='reader' onSearch={() => {}}>
+          <input aria-label='Search' />
+        </SearchLandingHistory>
+      </QueryClientProvider>
+    )
+    await vi.advanceTimersByTimeAsync(1)
+  })
+  expect(container.querySelector('a[href="https://example.com/private"]')).not.toBeNull()
+  mockRequestJson.mockRejectedValue(new Error('Forbidden'))
+  await act(async () => {
+    await client.invalidateQueries({ queryKey: searchHistoryKeys.list('organization', 'reader') })
+    await vi.advanceTimersByTimeAsync(1)
+  })
+  expect(container.querySelector('a[href="https://example.com/private"]')).toBeNull()
+  expect(container.querySelector('[aria-label="Recent activity"]')).toBeNull()
+})
+
+it('keeps an unsent draft when a different recent search is opened', async () => {
+  const draftKey = 'reader:organization:organization:search'
+  useMothershipDraftsStore
+    .getState()
+    .setDraft(draftKey, { text: 'unfinished question', searchQuery: '' })
+  client.setQueryData(searchHistoryKeys.list('organization', 'reader'), {
+    sources: [],
+    queries: [{ query: 'launch', searchedAt: new Date().toISOString() }],
+  })
+  await render({ organizationPage: true })
+  const recent = [...container.querySelectorAll('button')].find(
+    (button) => button.textContent === 'launch'
+  )
+  expect(recent).not.toBeUndefined()
+  await act(async () => {
+    recent!.click()
+    await vi.advanceTimersByTimeAsync(1)
+  })
+  expect(useMothershipDraftsStore.getState().drafts[draftKey]?.text).toBe('unfinished question')
+  expect(requests.at(-1)?.body.query).toBe('launch')
+})

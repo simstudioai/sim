@@ -2,8 +2,9 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
+import { fetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import type { RetryOptions } from '@/lib/knowledge/documents/utils'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { linearConnectorMeta } from '@/connectors/linear/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
@@ -393,7 +394,7 @@ export const linearConnector: ConnectorConfig = {
 
   getDocument: async (
     accessToken: string,
-    sourceConfig: Record<string, unknown>,
+    _sourceConfig: Record<string, unknown>,
     externalId: string
   ): Promise<ExternalDocument | null> => {
     const data = await linearGraphQL(accessToken, ISSUE_BY_ID_QUERY, { id: externalId })

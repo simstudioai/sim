@@ -14,7 +14,12 @@ import {
   type McpWorkspaceContext,
   resolveMcpServerContext,
   resolveMcpWorkspaceContext,
+  resolveOrganizationMcpServerContext,
 } from '@/lib/mcp/application/context'
+import {
+  loadMcpOperationAccess,
+  type McpOperationAccess,
+} from '@/lib/mcp/application/operation-access'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import {
   applyMcpServerMutationEffects,
@@ -30,6 +35,7 @@ import {
   type McpServerSortBy,
 } from '@/lib/mcp/queries'
 import { mcpService } from '@/lib/mcp/service'
+import { compileMcpToolSchema } from '@/lib/mcp/tool-schema'
 import type { McpAuthType } from '@/lib/mcp/types'
 import { generateMcpServerId } from '@/lib/mcp/utils'
 
@@ -110,7 +116,20 @@ export const discoverMcpToolsUseCase = defineAuthorizedWorkspaceUseCase({
        */
       input.refresh ? 'skip-cache' : 'cache-aside'
     )
-    return { tools }
+    const accessByServer = new Map<string, McpOperationAccess>()
+    for (const serverId of new Set(tools.map((tool) => tool.serverId))) {
+      const canonical = await resolveMcpServerContext(context.workspaceId, serverId)
+      accessByServer.set(
+        serverId,
+        await loadMcpOperationAccess(principal, {
+          workspaceId: context.workspaceId,
+          serverId: canonical.server.id,
+        })
+      )
+    }
+    const authorized = tools.filter((tool) => accessByServer.get(tool.serverId)?.allows(tool.name))
+    for (const tool of authorized) compileMcpToolSchema(tool.inputSchema)
+    return { tools: authorized }
   },
 })
 
@@ -163,6 +182,10 @@ export const discoverMcpServerToolsUseCase = defineAuthorizedWorkspaceUseCase({
     }
 
     const userId = requireMcpCredentialUserId(principal)
+    const allowed = await loadMcpOperationAccess(principal, {
+      workspaceId: context.workspaceId,
+      serverId: context.server.id,
+    })
     const refresh = input.refresh ? 'skip-cache' : 'cache-aside'
     const tools =
       input.signal || input.requireComplete
@@ -180,19 +203,23 @@ export const discoverMcpServerToolsUseCase = defineAuthorizedWorkspaceUseCase({
             context.workspaceId,
             refresh
           )
-    return { tools }
+    const authorized = tools.filter((tool) => allowed.allows(tool.name))
+    for (const tool of authorized) compileMcpToolSchema(tool.inputSchema)
+    return { tools: authorized }
   },
 })
 
-export interface GetMcpServerInput {
-  workspaceId: string
-  serverId: string
-}
+export type GetMcpServerInput = { serverId: string } & (
+  | { workspaceId: string; organizationId?: never }
+  | { workspaceId?: never; organizationId: string }
+)
 
 export const getMcpServerUseCase = defineAuthorizedWorkspaceUseCase({
   operation: mcpServerOperations.read,
   resolveContext: ({ input }: { input: GetMcpServerInput }) =>
-    resolveMcpServerContext(input.workspaceId, input.serverId),
+    input.organizationId
+      ? resolveOrganizationMcpServerContext(input.organizationId, input.serverId)
+      : resolveMcpServerContext(input.workspaceId!, input.serverId),
   authorizationOptions,
   async execute({ context }) {
     return { server: context.server }
@@ -444,7 +471,7 @@ export const deleteMcpServerUseCase = defineAuthorizedWorkspaceUseCase({
   resolveContext: ({ input }: { input: DeleteMcpServerInput }) =>
     resolveMcpServerContext(input.workspaceId, input.serverId),
   authorizationOptions,
-  async execute({ principal, input, context }) {
+  async execute({ principal, context }) {
     if (context.server.managedConnectorId) {
       throw new OrchestrationError(
         'conflict',

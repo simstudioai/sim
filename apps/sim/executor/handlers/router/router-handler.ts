@@ -16,8 +16,8 @@ import {
   isRouterV2BlockType,
   ROUTER,
 } from '@/executor/constants'
-import type { BlockHandler, ExecutionContext } from '@/executor/types'
-import { executeBlockProviderRequest } from '@/executor/utils/provider-request'
+import type { BlockHandler, BlockNodeMetadata, ExecutionContext } from '@/executor/types'
+import { executeModelRequestWithFallbacks } from '@/executor/utils/model-fallback-request'
 import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
@@ -49,15 +49,16 @@ export class RouterBlockHandler implements BlockHandler {
   async execute(
     ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>
+    inputs: Record<string, any>,
+    nodeMetadata?: BlockNodeMetadata
   ): Promise<BlockOutput> {
     const isV2 = isRouterV2BlockType(block.metadata?.id)
 
     if (isV2) {
-      return this.executeV2(ctx, block, inputs)
+      return this.executeV2(ctx, block, inputs, nodeMetadata)
     }
 
-    return this.executeLegacy(ctx, block, inputs)
+    return this.executeLegacy(ctx, block, inputs, nodeMetadata)
   }
 
   /**
@@ -66,7 +67,8 @@ export class RouterBlockHandler implements BlockHandler {
   private async executeLegacy(
     ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>
+    inputs: Record<string, any>,
+    nodeMetadata?: BlockNodeMetadata
   ): Promise<BlockOutput> {
     const promptModelInputPaths: ResolvedSecretInputPath[] = [['prompt']]
     const modelInputProjection = projectResolvedModelInput(
@@ -139,7 +141,12 @@ export class RouterBlockHandler implements BlockHandler {
         workspaceId: ctx.workspaceId,
       }
 
-      const result = await executeBlockProviderRequest({
+      const { result, usedFallback } = await executeModelRequestWithFallbacks({
+        block,
+        configuredModel: routerConfig.model,
+        fallbackModels: inputs.fallbackModels,
+        fallbackSystemPrompt: systemPrompt,
+        retry: nodeMetadata?.retry,
         ctx,
         providerId,
         request: providerRequest,
@@ -172,7 +179,7 @@ export class RouterBlockHandler implements BlockHandler {
 
       return {
         prompt: inputs.prompt,
-        model: resolved.autoRouting ? SIM_AUTO_MODEL_ID : result.model,
+        model: resolved.autoRouting && !usedFallback ? SIM_AUTO_MODEL_ID : result.model,
         tokens: {
           input: tokens.input || DEFAULTS.TOKENS.PROMPT,
           output: tokens.output || DEFAULTS.TOKENS.COMPLETION,
@@ -206,7 +213,8 @@ export class RouterBlockHandler implements BlockHandler {
   private async executeV2(
     ctx: ExecutionContext,
     block: SerializedBlock,
-    inputs: Record<string, any>
+    inputs: Record<string, any>,
+    nodeMetadata?: BlockNodeMetadata
   ): Promise<BlockOutput> {
     const routes = this.parseRoutes(inputs.routes)
 
@@ -321,7 +329,12 @@ export class RouterBlockHandler implements BlockHandler {
         },
       }
 
-      const result = await executeBlockProviderRequest({
+      const { result, usedFallback } = await executeModelRequestWithFallbacks({
+        block,
+        configuredModel: routerConfig.model,
+        fallbackModels: inputs.fallbackModels,
+        fallbackSystemPrompt: systemPrompt,
+        retry: nodeMetadata?.retry,
         ctx,
         providerId,
         request: providerRequest,
@@ -389,7 +402,7 @@ export class RouterBlockHandler implements BlockHandler {
 
       return {
         context: inputs.context,
-        model: resolved.autoRouting ? SIM_AUTO_MODEL_ID : result.model,
+        model: resolved.autoRouting && !usedFallback ? SIM_AUTO_MODEL_ID : result.model,
         tokens: {
           input: tokens.input || DEFAULTS.TOKENS.PROMPT,
           output: tokens.output || DEFAULTS.TOKENS.COMPLETION,

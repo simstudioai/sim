@@ -140,7 +140,6 @@ export const KalshiBlock: BlockConfig = {
       ],
       value: () => 'get_markets',
     },
-    // Auth fields (for authenticated operations)
     {
       id: 'keyId',
       title: 'API Key ID',
@@ -184,7 +183,6 @@ export const KalshiBlock: BlockConfig = {
       },
       required: true,
     },
-    // Get Markets fields
     {
       id: 'status',
       title: 'Status',
@@ -228,7 +226,6 @@ export const KalshiBlock: BlockConfig = {
         ],
       },
     },
-    // Get Market fields - ticker is REQUIRED for get_market (path param)
     {
       id: 'ticker',
       title: 'Market Ticker',
@@ -237,7 +234,6 @@ export const KalshiBlock: BlockConfig = {
       required: true,
       condition: { field: 'operation', value: ['get_market', 'get_orderbook'] },
     },
-    // Ticker filter for get_orders and get_positions - OPTIONAL
     {
       id: 'tickerFilter',
       title: 'Market Ticker',
@@ -246,7 +242,6 @@ export const KalshiBlock: BlockConfig = {
       condition: { field: 'operation', value: ['get_orders', 'get_positions', 'get_settlements'] },
       mode: 'advanced',
     },
-    // Nested markets option
     {
       id: 'withNestedMarkets',
       title: 'Include Markets',
@@ -258,7 +253,6 @@ export const KalshiBlock: BlockConfig = {
       condition: { field: 'operation', value: ['get_events', 'get_event'] },
       mode: 'advanced',
     },
-    // Get Orders fields
     {
       id: 'orderStatus',
       title: 'Order Status',
@@ -272,7 +266,6 @@ export const KalshiBlock: BlockConfig = {
       condition: { field: 'operation', value: ['get_orders'] },
       mode: 'advanced',
     },
-    // Get Fills timestamp filters
     {
       id: 'minTs',
       title: 'Min Timestamp',
@@ -315,7 +308,6 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
         generationType: 'timestamp',
       },
     },
-    // Get Candlesticks fields
     {
       id: 'seriesTickerCandlesticks',
       title: 'Series Ticker',
@@ -386,7 +378,6 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
       required: true,
       condition: { field: 'operation', value: ['get_candlesticks', 'get_event_candlesticks'] },
     },
-    // Get Fills fields
     {
       id: 'tickerFills',
       title: 'Market Ticker',
@@ -403,7 +394,6 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
       condition: { field: 'operation', value: ['get_fills'] },
       mode: 'advanced',
     },
-    // Get Series by Ticker fields
     {
       id: 'seriesTickerGet',
       title: 'Series Ticker',
@@ -412,7 +402,6 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
       required: true,
       condition: { field: 'operation', value: ['get_series_by_ticker'] },
     },
-    // Get Series List fields
     {
       id: 'category',
       title: 'Category',
@@ -429,7 +418,6 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
       condition: { field: 'operation', value: ['get_series_list'] },
       mode: 'advanced',
     },
-    // Order ID for get_order, cancel_order, amend_order
     {
       id: 'orderIdParam',
       title: 'Order ID',
@@ -438,7 +426,6 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
       required: true,
       condition: { field: 'operation', value: ['get_order', 'cancel_order', 'amend_order'] },
     },
-    // Create Order fields
     {
       id: 'tickerOrder',
       title: 'Market Ticker',
@@ -593,7 +580,6 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
       condition: { field: 'operation', value: ['create_order'] },
       mode: 'advanced',
     },
-    // Pagination fields
     {
       id: 'limit',
       title: 'Limit',
@@ -727,12 +713,10 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
         } = params
         const cleanParams: Record<string, any> = {}
 
-        // Map orderStatus to status for get_orders
         if (operation === 'get_orders' && orderStatus) {
           cleanParams.status = orderStatus
         }
 
-        // Map tickerFilter to ticker for get_orders, get_positions, and get_settlements
         if (
           (operation === 'get_orders' ||
             operation === 'get_positions' ||
@@ -742,12 +726,10 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
           cleanParams.ticker = tickerFilter
         }
 
-        // Map tickerFills to ticker for get_fills
         if (operation === 'get_fills' && tickerFills) {
           cleanParams.ticker = tickerFills
         }
 
-        // Map fields for get_candlesticks
         if (operation === 'get_candlesticks') {
           if (seriesTickerCandlesticks) cleanParams.seriesTicker = seriesTickerCandlesticks
           if (tickerCandlesticks) cleanParams.ticker = tickerCandlesticks
@@ -758,12 +740,10 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
           cleanParams.seriesTicker = seriesTickerCandlesticks
         }
 
-        // Map seriesTickerGet to seriesTicker for get_series_by_ticker
         if (operation === 'get_series_by_ticker' && seriesTickerGet) {
           cleanParams.seriesTicker = seriesTickerGet
         }
 
-        // Map orderIdParam to orderId for get_order, cancel_order, amend_order
         if (
           (operation === 'get_order' ||
             operation === 'cancel_order' ||
@@ -773,22 +753,18 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
           cleanParams.orderId = orderIdParam
         }
 
-        // Map tickerOrder to ticker for create_order, amend_order
         if ((operation === 'create_order' || operation === 'amend_order') && tickerOrder) {
           cleanParams.ticker = tickerOrder
         }
 
-        // Map orderType to type for create_order
         if (operation === 'create_order' && orderType) {
           cleanParams.type = orderType
         }
 
-        // Map countAmend to count for amend_order
         if (operation === 'amend_order' && countAmend) {
           cleanParams.count = countAmend
         }
 
-        // Map clientOrderIdAmend to clientOrderId for amend_order
         if (operation === 'amend_order' && clientOrderIdAmend) {
           cleanParams.clientOrderId = clientOrderIdAmend
         }
@@ -812,7 +788,6 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
     status: { type: 'string', description: 'Filter by status' },
   },
   outputs: {
-    // List operations
     markets: { type: 'json', description: 'Array of market objects (get_markets)' },
     events: { type: 'json', description: 'Array of event objects (get_events)' },
     orders: { type: 'json', description: 'Array of order objects (get_orders)' },
@@ -825,7 +800,6 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
       description: 'Event-level aggregated candlestick data (get_event_candlesticks)',
     },
     settlements: { type: 'json', description: 'Array of settlement objects (get_settlements)' },
-    // Single item operations
     market: { type: 'json', description: 'Single market object (get_market)' },
     event: { type: 'json', description: 'Single event object (get_event)' },
     order: {
@@ -833,11 +807,8 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
       description: 'Single order object (get_order, create_order, amend_order, cancel_order)',
     },
     series: { type: 'json', description: 'Series object (get_series_by_ticker)' },
-    // Account operations
     balance: { type: 'number', description: 'Account balance in cents (get_balance)' },
-    // Orderbook
     orderbook: { type: 'json', description: 'Orderbook data with bids/asks (get_orderbook)' },
-    // Exchange status
     status: { type: 'json', description: 'Exchange status (get_exchange_status)' },
     schedule: {
       type: 'json',
@@ -847,7 +818,6 @@ Return ONLY the numeric timestamp (seconds since Unix epoch) - no explanations, 
       type: 'json',
       description: 'Array of exchange announcements (get_exchange_announcements)',
     },
-    // Pagination
     paging: { type: 'json', description: 'Pagination cursor for fetching more results' },
   },
 }
@@ -982,7 +952,6 @@ export const KalshiV2Block: BlockConfig = {
       type: 'json',
       description: 'Array of milestone objects (get_events with milestones)',
     },
-    // Single item operations
     market: { type: 'json', description: 'Single market object (get_market)' },
     event: { type: 'json', description: 'Single event object (get_event)' },
     order: {
@@ -990,7 +959,6 @@ export const KalshiV2Block: BlockConfig = {
       description: 'Order object with _dollars and _fp fields (get_order, create_order, etc.)',
     },
     series: { type: 'json', description: 'Series object (get_series_by_ticker)' },
-    // Account operations
     balance: { type: 'number', description: 'Account balance in cents (get_balance)' },
     portfolio_value: { type: 'number', description: 'Portfolio value in cents (get_balance)' },
     updated_ts: { type: 'number', description: 'Unix timestamp of last update (get_balance)' },
@@ -1003,7 +971,6 @@ export const KalshiV2Block: BlockConfig = {
       type: 'json',
       description: 'Fixed-point orderbook with yes_dollars/no_dollars tuple arrays',
     },
-    // Exchange status
     exchange_active: { type: 'boolean', description: 'Exchange active flag (get_exchange_status)' },
     trading_active: { type: 'boolean', description: 'Trading active flag (get_exchange_status)' },
     exchange_estimated_resume_time: {
@@ -1018,13 +985,11 @@ export const KalshiV2Block: BlockConfig = {
       type: 'json',
       description: 'Array of exchange announcements (get_exchange_announcements)',
     },
-    // Cancel order specific
     reduced_by: { type: 'number', description: 'Number of contracts reduced (cancel_order)' },
     reduced_by_fp: {
       type: 'string',
       description: 'Contracts reduced in fixed-point (cancel_order)',
     },
-    // Candlesticks ticker
     ticker: { type: 'string', description: 'Market ticker (get_candlesticks)' },
     // Pagination (flat cursor instead of nested paging object)
     cursor: { type: 'string', description: 'Pagination cursor for fetching more results' },

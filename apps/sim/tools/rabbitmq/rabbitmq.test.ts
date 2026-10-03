@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import * as rabbitmqTools from '@/tools/rabbitmq'
 import { rabbitmqCreateBindingTool } from '@/tools/rabbitmq/create_binding'

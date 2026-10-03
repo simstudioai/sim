@@ -14,6 +14,7 @@ export function ProviderIcon({
 
   return (
     <span
+      aria-hidden='true'
       className={cn(
         'flex items-center justify-center border border-[var(--border-1)] bg-[var(--bg)]',
         className

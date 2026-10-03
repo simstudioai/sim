@@ -1,4 +1,6 @@
 import type { ComponentType } from 'react'
+import type { IntegrationAvailabilityResponse } from '@/lib/api/contracts/common'
+import { findCredentialGroupProviderFromProviderId } from '@/lib/credential-groups/providers'
 import { getIntegrationsForCredentialProvider } from '@/lib/integrations/credential-display'
 import {
   getCanonicalScopesForProvider,
@@ -8,7 +10,7 @@ import {
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 
-/** The workspace knowledge base Sim Search indexes into, one per workspace, created on first connect. */
+/** The knowledge-base shell that holds live Search source configuration. */
 export const SIM_SEARCH_KNOWLEDGE_BASE_NAME = 'Sim Search'
 
 /**
@@ -38,7 +40,7 @@ export interface SearchConnector {
   serviceName: string
   serviceIcon: ComponentType<{ className?: string }>
   /**
-   * Block type lending the brand tile and the deployment-availability lookup:
+   * Block type lending the brand tile and integration policy:
    * the first catalog integration on the provider, else the connector type.
    */
   blockType: string
@@ -56,6 +58,7 @@ export interface SearchConnector {
  */
 export const SEARCH_CONNECTORS: readonly SearchConnector[] = Object.entries(CONNECTOR_META_REGISTRY)
   .flatMap(([type, meta]): SearchConnector[] => {
+    if (!canConnectPersonally(meta)) return []
     if (meta.auth.mode !== 'oauth') return []
     const service =
       getServiceConfigByServiceId(meta.auth.provider) ??
@@ -78,13 +81,25 @@ export const SEARCH_CONNECTORS: readonly SearchConnector[] = Object.entries(CONN
   .sort((a, b) => a.meta.name.localeCompare(b.meta.name))
 
 /**
+ * Every source an admin may set up for Sim Search, alphabetical by name: the
+ * connectors that either mirror their source's permissions or connect per person.
+ */
+export const SEARCH_SOURCE_TYPES: readonly (readonly [string, ConnectorMeta])[] = Object.entries(
+  CONNECTOR_META_REGISTRY
+)
+  .filter(([, meta]) => meta.search && (meta.mirrorsSourceAcls || canConnectPersonally(meta)))
+  .sort(([, left], [, right]) => left.name.localeCompare(right.name))
+
+/**
  * Whether a source connects per person on Sim Search: it authenticates with
  * OAuth and its listing reflects who may read each document, so each member's
  * own crawl is the permission check. A source that fails this is a workspace
  * connector an admin sets up from a knowledge base.
  */
 export function canConnectPersonally(meta: ConnectorMeta): boolean {
-  return meta.auth.mode === 'oauth' && meta.permissionScopedListing !== undefined
+  return (
+    meta.search === true && meta.auth.mode === 'oauth' && meta.permissionScopedListing !== undefined
+  )
 }
 
 /**
@@ -100,54 +115,83 @@ export function personalSetupFields(meta: ConnectorMeta): ConnectorConfigField[]
   )
 }
 
-/** The setup fields a source config leaves empty. */
-export function missingSetupFields(
-  meta: ConnectorMeta,
-  sourceConfig: Record<string, string>
-): ConnectorConfigField[] {
-  return personalSetupFields(meta).filter((field) => !sourceConfig[field.id]?.trim())
-}
-
 /** The name a connector shows, from its registry entry. */
 export function connectorDisplayName(connectorType: string): string {
   return CONNECTOR_META_REGISTRY[connectorType]?.name ?? connectorType
 }
 
-export interface SearchConnectorAvailabilityContext {
-  /** Whether per-member access is on for the workspace. */
-  memberAccessAvailable: boolean
-  /** Whether someone already connected this source in the workspace. */
-  hasConnection: boolean
-  /** Whether the viewer may turn a source on for the workspace; the first connect needs an admin. */
-  canCreate: boolean
+export interface OAuthServiceAvailabilityContext {
+  oauthServiceAvailability: ReadonlyMap<string, boolean>
+  isIntegrationAvailabilityReady: boolean
 }
 
-/** Why a source cannot be connected on this surface right now; null when it can. */
-export function searchConnectorUnavailableReason(
-  connector: SearchConnector,
-  integrationAvailability: ReadonlyMap<string, { oauthAvailable: boolean }>,
-  context: SearchConnectorAvailabilityContext
-): string | null {
-  if (!isSearchConnectorAvailable(connector, integrationAvailability)) {
-    return `${connector.meta.name} is unavailable in this deployment`
+type SearchIntegrationAvailability = Pick<IntegrationAvailabilityResponse, 'oauthAvailable'> &
+  Partial<Pick<IntegrationAvailabilityResponse, 'state'>>
+
+interface ConnectorAccessAvailabilityContext extends OAuthServiceAvailabilityContext {
+  memberAccessAvailable: boolean
+  mirroredAccessAvailable: boolean
+}
+
+interface ConnectorAccessAvailability {
+  admin: boolean
+  members: boolean
+}
+
+/** Central sources that identify readers through OAuth still need a usable member sign-in path. */
+export function getConnectorAccessAvailability(
+  meta: ConnectorMeta,
+  integrationAvailability: ReadonlyMap<string, SearchIntegrationAvailability>,
+  context: ConnectorAccessAvailabilityContext
+): ConnectorAccessAvailability {
+  if (!context.isIntegrationAvailabilityReady) return { admin: false, members: false }
+  const service =
+    meta.auth.mode === 'oauth'
+      ? (getServiceConfigByServiceId(meta.auth.provider) ??
+        getServiceConfigByProviderId(meta.auth.provider))
+      : null
+  const blockType = service
+    ? (getIntegrationsForCredentialProvider(service.providerId)[0]?.type ?? meta.id)
+    : meta.id
+  const deployment = integrationAvailability.get(blockType.toLowerCase())
+  const deploymentAvailable =
+    deployment?.state !== 'unavailable' && deployment?.state !== 'misconfigured'
+  const identityAvailable = Boolean(
+    context.memberAccessAvailable &&
+      service &&
+      findCredentialGroupProviderFromProviderId(service.providerId) &&
+      isSearchConnectorAvailable(
+        { type: meta.id, blockType, providerId: service.providerId },
+        integrationAvailability,
+        context
+      )
+  )
+
+  return {
+    admin: Boolean(
+      context.mirroredAccessAvailable &&
+        meta.mirrorsSourceAcls &&
+        deploymentAvailable &&
+        (!meta.requiresMemberIdentity || identityAvailable)
+    ),
+    members: Boolean(meta.permissionScopedListing && identityAvailable),
   }
-  if (!context.memberAccessAvailable) return 'Per-member access is not available in this workspace'
-  if (!context.hasConnection && !context.canCreate) {
-    return `Ask a workspace admin to connect ${connector.meta.name} first`
-  }
-  return null
 }
 
 /**
- * Whether this deployment can connect the connector. The OAuth path
- * specifically: an integration's `state` can read `limited` on a
- * service-account-only deployment, but a connector authenticates with OAuth
- * alone. A connector with no availability entry is assumed connectable.
+ * Slack members authorize through the workspace's custom app. Other sources
+ * use the deployment's OAuth client. The custom-app path remains available on
+ * a limited deployment, matching the Integrations setup surface.
  */
 export function isSearchConnectorAvailable(
-  connector: SearchConnector,
-  integrationAvailability: ReadonlyMap<string, { oauthAvailable: boolean }>
+  connector: Pick<SearchConnector, 'type' | 'blockType' | 'providerId'>,
+  integrationAvailability: ReadonlyMap<string, SearchIntegrationAvailability>,
+  context: OAuthServiceAvailabilityContext
 ): boolean {
+  if (!context.isIntegrationAvailabilityReady) return false
   const availability = integrationAvailability.get(connector.blockType.toLowerCase())
-  return availability ? availability.oauthAvailable : true
+  if (connector.type === 'slack') {
+    return availability?.state === 'ready' || availability?.state === 'limited'
+  }
+  return context.oauthServiceAvailability.get(connector.providerId.toLowerCase()) === true
 }

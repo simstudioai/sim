@@ -12,7 +12,11 @@ import {
   microsoftTeamsWriteChannelInputSchema,
   microsoftTeamsWriteChatInputSchema,
 } from '@/lib/internal/microsoft-teams/schema'
-import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
+import { isInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
+import type {
+  InternalToolOperationHandler,
+  InternalToolOperationResult,
+} from '@/lib/internal/tool-operations/types'
 
 const deleteInputSchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
@@ -36,7 +40,9 @@ function inputSizeError(input: unknown): Response | null {
   )
 }
 
-export const executeMicrosoftTeamsTool: InternalToolOperationHandler = async (request) => {
+export const executeMicrosoftTeamsTool: InternalToolOperationHandler<
+  InternalToolOperationResult
+> = async (request) => {
   request.signal?.throwIfAborted()
   const sizeError = inputSizeError(request.input)
   if (sizeError) return sizeError
@@ -50,12 +56,14 @@ export const executeMicrosoftTeamsTool: InternalToolOperationHandler = async (re
       case 'microsoft_teams_write_chat': {
         const parsed = microsoftTeamsWriteChatInputSchema.safeParse(request.input)
         if (!parsed.success) return validationErrorResponse(parsed.error)
-        return Response.json(await writeMicrosoftTeamsChatMessage(parsed.data, context))
+        const result = await writeMicrosoftTeamsChatMessage(parsed.data, context)
+        return isInternalToolFileResult(result) ? result : Response.json(result)
       }
       case 'microsoft_teams_write_channel': {
         const parsed = microsoftTeamsWriteChannelInputSchema.safeParse(request.input)
         if (!parsed.success) return validationErrorResponse(parsed.error)
-        return Response.json(await writeMicrosoftTeamsChannelMessage(parsed.data, context))
+        const result = await writeMicrosoftTeamsChannelMessage(parsed.data, context)
+        return isInternalToolFileResult(result) ? result : Response.json(result)
       }
       case 'microsoft_teams_delete_chat_message': {
         const parsed = deleteInputSchema.safeParse(request.input)
