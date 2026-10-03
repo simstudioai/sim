@@ -26,7 +26,13 @@ import {
 } from '@/lib/oauth/microsoft-dataverse'
 import { parseQuickBooksAccountId } from '@/lib/oauth/quickbooks'
 import { extractSalesforceInstanceUrl, isSalesforceOAuthProviderId } from '@/lib/oauth/salesforce'
-import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
+import type { OAuthServiceConfig } from '@/lib/oauth/types'
+import {
+  credentialProviderMatchesService,
+  getCanonicalScopesForProvider,
+  getServiceConfigByProviderId,
+  getServiceConfigByServiceId,
+} from '@/lib/oauth/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getToolMetadata } from '@/tools/metadata'
 import { extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
@@ -49,6 +55,8 @@ export interface ResolveCredentialTokenInput {
   requestId: string
   credentialId?: string
   workflowId?: string
+  /** Registered tool consuming the credential; omitted for non-tool token consumers. */
+  toolId?: string
   /** Canonical provider scopes, used only by service-account token minting. */
   scopes?: string[]
   /** Google domain-wide-delegation subject for service-account credentials. */
@@ -71,6 +79,63 @@ interface OAuthCredentialContext {
   providerId: string
   accountId?: string | null
 }
+
+/** Validates the consuming service after credential access, before minting or refreshing tokens. */
+async function credentialMatchesTool(
+  toolId: string | undefined,
+  providerId: string | undefined,
+  kind: 'oauth' | 'service-account'
+): Promise<boolean> {
+  if (toolId === undefined) return true
+  const tool = getToolMetadata(toolId)
+  if (!tool || !providerId) return false
+
+  let service: OAuthServiceConfig | null
+  if (tool.oauth) {
+    service =
+      getServiceConfigByServiceId(tool.oauth.provider) ??
+      getServiceConfigByProviderId(tool.oauth.provider)
+    if (tool.oauth.credentialKind && tool.oauth.credentialKind !== kind) return false
+  } else {
+    /**
+     * Legacy tools declare their selector but keep its service on the owning block.
+     * Use exact registry membership and unanimous declarations, never tool-name prefixes
+     * or the selected credential's provider to infer the consuming service.
+     */
+    if (!tool.params.oauthCredential && !tool.params.credential) return false
+    const { getBlockRegistry } = await import('@/blocks/registry')
+    const owners = Object.values(getBlockRegistry()).filter((block) =>
+      block.tools?.access?.includes(tool.id)
+    )
+    if (owners.length === 0) return false
+    const serviceIds = new Set<string>()
+    for (const owner of owners) {
+      const selectors = owner.subBlocks.filter((subBlock) => subBlock.type === 'oauth-input')
+      if (selectors.length === 0) return false
+      for (const selector of selectors) {
+        if (!selector.serviceId) return false
+        serviceIds.add(selector.serviceId)
+      }
+    }
+    if (serviceIds.size !== 1) return false
+    service = getServiceConfigByServiceId([...serviceIds][0])
+  }
+
+  if (!service || !credentialProviderMatchesService(providerId, service)) return false
+  const serviceAccountProviderId =
+    service.serviceAccountProviderId ??
+    (service.authType === 'service_account' ? service.providerId : undefined)
+  return kind === 'service-account'
+    ? providerId === serviceAccountProviderId
+    : service.authType !== 'service_account' && providerId !== serviceAccountProviderId
+}
+
+const INCOMPATIBLE_TOOL_CREDENTIAL = {
+  ok: false,
+  status: 403,
+  code: 'CREDENTIAL_TOOL_MISMATCH',
+  error: 'Credential is not compatible with this tool',
+} as const
 
 export function validateOAuthCredentialContext(
   credential: OAuthCredentialContext
@@ -262,6 +327,10 @@ export async function resolveCredentialToken(
         return { ok: false, status: 403, error: authz.error || 'Unauthorized' }
       }
 
+      if (!(await credentialMatchesTool(input.toolId, resolved.providerId, 'service-account'))) {
+        return INCOMPATIBLE_TOOL_CREDENTIAL
+      }
+
       const saActorId = authz.requesterUserId
       const saWorkspaceId = resolved.workspaceId ?? authz.workspaceId ?? null
 
@@ -349,6 +418,10 @@ export async function resolveCredentialToken(
       return { ok: false, status: 404, error: 'Credential not found' }
     }
 
+    if (!(await credentialMatchesTool(input.toolId, credential.providerId, 'oauth'))) {
+      return INCOMPATIBLE_TOOL_CREDENTIAL
+    }
+
     return completeOAuthCredentialToken({
       requestId,
       credential,
@@ -365,8 +438,6 @@ export async function resolveCredentialToken(
 
 export interface ResolveCredentialAccessTokenInput
   extends Omit<ResolveCredentialTokenInput, 'resolvedCredential'> {
-  /** Tool consuming the token; required by the managed-OAuth scope policy. */
-  toolId?: string
   /**
    * Authenticates the caller for non-managed credentials. Invoked only when the
    * credential is not managed OAuth, which authenticates through delegation instead.
@@ -400,6 +471,7 @@ export async function resolveCredentialAccessToken(
     return resolveCredentialToken(auth, {
       requestId,
       credentialId,
+      toolId,
       workflowId: input.workflowId,
       scopes: input.scopes,
       /**
