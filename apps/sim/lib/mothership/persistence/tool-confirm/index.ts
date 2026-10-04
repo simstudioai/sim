@@ -11,6 +11,7 @@ import {
 } from '@/lib/mothership/async-runs/lifecycle'
 import {
   getAsyncToolCalls,
+  getClaimedWorkflowExecutionId,
   revokeExpiredSimToolExecutions,
 } from '@/lib/mothership/async-runs/repository'
 import { MothershipStreamV1ToolOutcome } from '@/lib/mothership/generated/mothership-stream-v1'
@@ -51,8 +52,10 @@ export async function getToolConfirmation(
   })
   if (!row) return null
   if (row.status === ASYNC_TOOL_STATUS.delivered) {
+    const executionId = getClaimedWorkflowExecutionId(row.claimedBy)
     return {
       status: ASYNC_TOOL_CONFIRMATION_STATUS.background,
+      ...(executionId ? { data: { executionId } } : {}),
       timestamp: row.updatedAt?.toISOString?.(),
     }
   }
