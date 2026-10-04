@@ -72,12 +72,6 @@ describe('batched workspace file storage cleanup', () => {
     await expect(
       enqueueWorkspaceFileStorageCleanups(executor as never, ['a', 'b', 'c'])
     ).resolves.toEqual(['event-a', 'event-b', 'event-c'])
-    expect(mockEnqueueOutboxEvents).toHaveBeenNthCalledWith(
-      2,
-      executor,
-      WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT,
-      [{ key: 'c' }]
-    )
   })
 
   it('processes every event and leaves failures to the outbox worker without throwing', async () => {

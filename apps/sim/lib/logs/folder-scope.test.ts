@@ -19,7 +19,15 @@ const FOLDERS: FolderRow[] = [
 describe('resolveLogFolderScope', () => {
   beforeEach(() => {
     resetDbChainMock()
-    queueTableRows(schemaMock.folder, FOLDERS)
+    queueTableRows(
+      schemaMock.folder,
+      FOLDERS.map((row) => ({
+        ...row,
+        workspaceId: 'workspace-1',
+        entityType: 'workspace',
+        entityId: 'workspace-1',
+      }))
+    )
   })
 
   it('covers the whole subtree of a selected folder', async () => {

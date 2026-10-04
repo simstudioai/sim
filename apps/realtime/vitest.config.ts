@@ -17,7 +17,9 @@ export default defineConfig(({ mode }) =>
           ? {
               fileParallelism: false,
               reporters: ['default', 'json'],
-              outputFile: { json: 'test-results/integration.json' },
+              outputFile: {
+                json: process.env.INTEGRATION_REPORT_PATH ?? 'test-results/integration.json',
+              },
             }
           : {}),
       },

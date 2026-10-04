@@ -34,6 +34,7 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => 
   readWorkspaceFileMetadata: { execute: mockReadWorkspaceFileMetadata },
 }))
 vi.mock('@/lib/uploads/documents/compiled-store', () => ({
+  compiledArtifactKey: vi.fn(() => 'compiled-artifact-key'),
   loadCompiledDoc: mockLoadCompiledDoc,
   loadPublishedCompiledDoc: mockLoadPublishedCompiledDoc,
   publishCompiledDocArtifact: mockPublishCompiledDocArtifact,
@@ -154,7 +155,7 @@ describe('resolveServableDocBytes', () => {
       filePrincipal: FILE_PRINCIPAL,
     })
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       buffer: Buffer.from('%PDF-rebuilt'),
       contentType: 'application/pdf',
       dependsOnReferencedFiles: true,

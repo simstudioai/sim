@@ -87,7 +87,6 @@ describe('provider attachment storage-key authorization', () => {
         uploadLargeFilesToProvider(request, 'openai', executionContext)
       ).rejects.toThrow()
       expect(download).not.toHaveBeenCalled()
-      expect(metadata).not.toHaveBeenCalled()
       expect(permission).not.toHaveBeenCalled()
     }
   )

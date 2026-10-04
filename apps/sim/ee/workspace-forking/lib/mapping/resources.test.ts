@@ -39,8 +39,22 @@ describe('listForkResourceCandidates', () => {
         { id: 'workspace/WS/notes.md', label: 'notes.md' },
       ])
       .mockResolvedValueOnce([
-        { id: 'folder-reports', name: 'Reports', parentId: null },
-        { id: 'folder-q3', name: 'Q3 Results', parentId: 'folder-reports' },
+        {
+          id: 'folder-reports',
+          name: 'Reports',
+          parentId: null,
+          workspaceId: 'ws-1',
+          entityType: 'workspace',
+          entityId: 'ws-1',
+        },
+        {
+          id: 'folder-q3',
+          name: 'Q3 Results',
+          parentId: 'folder-reports',
+          workspaceId: 'ws-1',
+          entityType: 'workspace',
+          entityId: 'ws-1',
+        },
       ])
 
     const result = await listForkResourceCandidates(executor, 'ws-1')

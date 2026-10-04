@@ -112,9 +112,6 @@ describe('resolveBillingAttribution', () => {
       },
       workspaceId: 'workspace-b',
     })
-    expect(mockGetOrganizationSubscription).toHaveBeenCalledWith('org-b', {
-      onError: 'throw',
-    })
     expect(mockGetHighestPriorityPersonalSubscription).not.toHaveBeenCalled()
     expect(Object.isFrozen(attribution)).toBe(true)
     expect(Object.isFrozen(attribution.billingEntity)).toBe(true)

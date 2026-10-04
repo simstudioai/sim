@@ -1,5 +1,6 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import { projectMembershipMock } from '@sim/testing/mocks/project-membership.mock'
 import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { uploadsMock, uploadsMockFns } from '@sim/testing/mocks/uploads.mock'
 import {
@@ -8,6 +9,7 @@ import {
 } from '@sim/testing/mocks/workspace-file-folders.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/lib/projects/membership', () => projectMembershipMock)
 vi.mock('@/lib/billing/storage', () => billingStorageMock)
 
 vi.mock('@/lib/uploads', () => uploadsMock)
@@ -52,19 +54,17 @@ describe('workspace file storage attribution', () => {
     mockResolveWorkspaceFileFolderTarget.mockResolvedValue(null)
     mockIncrementStorageUsageForBillingContextInTx.mockResolvedValue(5)
     mockMaybeNotifyStorageLimitForBillingContext.mockResolvedValue(undefined)
-    mockUploadFile.mockResolvedValue({
-      key: 'workspace/workspace-1/123-abc-note.txt',
-    })
+    mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
   })
 
   it.each(['external-collaborator', 'personal-api-key-user'])(
     'charges the workspace payer while retaining %s as uploader metadata',
     async (actorUserId) => {
       dbChainMockFns.returning
-        .mockResolvedValueOnce([
+        .mockImplementationOnce(async () => [
           {
             id: 'file-1',
-            key: 'workspace/workspace-1/123-abc-note.txt',
+            key: mockUploadFile.mock.calls.at(-1)?.[0].customKey,
             userId: actorUserId,
             workspaceId: 'workspace-1',
             folderId: null,

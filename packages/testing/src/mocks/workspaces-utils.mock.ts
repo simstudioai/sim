@@ -18,8 +18,8 @@ export class MockWorkspaceBillingAccountRemovalError extends Error {
  * Controllable mock functions for `@/lib/workspaces/utils`.
  *
  * Every loader and transaction helper is a bare `vi.fn()` (returns `undefined`) except the
- * account-deletion reassignments, which resolve an empty result
- * (`{ reassigned: [], unresolved: [] }`) — nothing to reassign:
+ * account-deletion planner, which returns `{ changes: [], unresolved: [] }`, and
+ * reassignments, which return `{ reassigned: [], unresolved: [] }`:
  * - `mockReassignBilledAccountForUser`
  * - `mockReassignOwnedWorkspacesForUser`
  *
@@ -37,6 +37,13 @@ export const workspacesUtilsMockFns = {
   mockListAccessibleWorkspaceRowsForUser: vi.fn(),
   mockTransferWorkspaceOwnershipToBilledAccountForMemberRemovalTx: vi.fn(),
   mockReassignWorkflowOwnershipForWorkspaceMemberRemovalTx: vi.fn(),
+  mockPlanBilledAccountReassignmentsForUser: vi.fn<
+    (
+      departingUserId: string,
+      executor: unknown,
+      options?: unknown
+    ) => Promise<{ changes: unknown[]; unresolved: string[] }>
+  >(async () => ({ changes: [], unresolved: [] })),
   mockReassignBilledAccountForUser: vi.fn(
     async (
       _departingUserId: string,
@@ -78,6 +85,8 @@ export const workspacesUtilsMock = {
     workspacesUtilsMockFns.mockTransferWorkspaceOwnershipToBilledAccountForMemberRemovalTx,
   reassignWorkflowOwnershipForWorkspaceMemberRemovalTx:
     workspacesUtilsMockFns.mockReassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
+  planBilledAccountReassignmentsForUser:
+    workspacesUtilsMockFns.mockPlanBilledAccountReassignmentsForUser,
   reassignBilledAccountForUser: workspacesUtilsMockFns.mockReassignBilledAccountForUser,
   reassignOwnedWorkspacesForUser: workspacesUtilsMockFns.mockReassignOwnedWorkspacesForUser,
 }

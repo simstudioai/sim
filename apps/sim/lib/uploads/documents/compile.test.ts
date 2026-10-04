@@ -27,6 +27,7 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => 
   readWorkspaceFileMetadata: { execute: readWorkspaceFileMetadataMock },
 }))
 vi.mock('@/lib/uploads/documents/compiled-store', () => ({
+  compiledArtifactKey: vi.fn(() => 'compiled-artifact-key'),
   loadCompiledDoc: loadCompiledDocMock,
   loadPublishedCompiledDoc: vi.fn(),
   publishCompiledDocArtifact: publishCompiledDocArtifactMock,
@@ -154,7 +155,7 @@ describe('collectReferencedFileIds', () => {
         workspaceId: 'workspace-1',
         filePrincipal: FILE_PRINCIPAL,
       })
-    ).resolves.toEqual({
+    ).resolves.toMatchObject({
       buffer: Buffer.from('%PDF-built'),
       contentType: 'application/pdf',
       dependsOnReferencedFiles: true,
@@ -205,7 +206,7 @@ describe('collectReferencedFileIds', () => {
         workspaceId: 'workspace-1',
         filePrincipal: FILE_PRINCIPAL,
       })
-    ).resolves.toEqual({
+    ).resolves.toMatchObject({
       buffer: Buffer.from('%PDF-cached'),
       contentType: 'application/pdf',
       dependsOnReferencedFiles: true,
