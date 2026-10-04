@@ -1145,6 +1145,7 @@ describe('Function execution request', () => {
         exportedFiles: {
           '/home/user/short.json': JSON.stringify({ value: shortValue }),
           '/home/user/protected.txt': 'hunter22',
+          '/home/user/archive.zip': 'UEsDBA==',
         },
       })
 
@@ -1166,6 +1167,11 @@ describe('Function execution request', () => {
                 sandboxPath: '/home/user/protected.txt',
                 mimeType: 'text/plain',
               },
+              {
+                path: 'files/archive.zip',
+                sandboxPath: '/home/user/archive.zip',
+                mimeType: 'application/zip',
+              },
             ],
           },
         })
@@ -1178,22 +1184,24 @@ describe('Function execution request', () => {
           secretProvenance: { status: 'exact', entries: [] },
         })
       )
-      expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
-        expect.objectContaining({
-          target: expect.objectContaining({ path: 'files/protected.txt' }),
-          secretProvenance: {
-            status: 'exact',
-            entries: [
-              {
-                name: 'API_KEY',
-                encryptedValue: 'encrypted:hunter22',
-                sourceUserId: 'user-123',
-                sourceWorkspaceId: 'workspace-1',
-              },
-            ],
-          },
-        })
-      )
+      for (const path of ['files/protected.txt', 'files/archive.zip']) {
+        expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+          expect.objectContaining({
+            target: expect.objectContaining({ path }),
+            secretProvenance: {
+              status: 'exact',
+              entries: [
+                {
+                  name: 'API_KEY',
+                  encryptedValue: 'encrypted:hunter22',
+                  sourceUserId: 'user-123',
+                  sourceWorkspaceId: 'workspace-1',
+                },
+              ],
+            },
+          })
+        )
+      }
     })
 
     it('classifies exports exact-empty when the only compiled secret is exempt, still reporting its name', async () => {
@@ -1258,51 +1266,57 @@ describe('Function execution request', () => {
       expect(data.__resolvedSecretNames).toEqual(['API_KEY'])
     })
 
-    it('keeps recording the non-exempt owner when an exempt name shares its plaintext', async () => {
-      envFlagsMock.isRemoteSandboxEnabled = true
-      mockExecuteInSandbox.mockResolvedValueOnce({
-        result: 'done',
-        stdout: '',
-        sandboxId: 'sandbox-123',
-        exportedFiles: { '/home/user/secret.txt': 'Bearer shared-value' },
-      })
-
-      const response = await POST(
-        createMockRequest('POST', {
-          code: 'print("{{EXEMPT_KEY}}", "{{OTHER_KEY}}")',
-          language: 'python',
-          workspaceId: 'workspace-1',
-          envVars: { EXEMPT_KEY: 'shared-value', OTHER_KEY: 'shared-value' },
-          unredactedSecretNames: ['EXEMPT_KEY'],
-          outputs: {
-            files: [
-              {
-                path: 'files/secret.txt',
-                sandboxPath: '/home/user/secret.txt',
-                mimeType: 'text/plain',
-              },
-            ],
+    it.each(['txt', 'zip'])(
+      'keeps the non-exempt owner for a %s export with a shared plaintext',
+      async (extension) => {
+        envFlagsMock.isRemoteSandboxEnabled = true
+        mockExecuteInSandbox.mockResolvedValueOnce({
+          result: 'done',
+          stdout: '',
+          sandboxId: 'sandbox-123',
+          exportedFiles: {
+            [`/home/user/secret.${extension}`]:
+              extension === 'txt' ? 'Bearer shared-value' : 'UEsDBA==',
           },
         })
-      )
 
-      expect(response.status).toBe(200)
-      expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
-        expect.objectContaining({
-          secretProvenance: {
-            status: 'exact',
-            entries: [
-              {
-                name: 'OTHER_KEY',
-                encryptedValue: 'encrypted:shared-value',
-                sourceUserId: 'user-123',
-                sourceWorkspaceId: 'workspace-1',
-              },
-            ],
-          },
-        })
-      )
-    })
+        const response = await POST(
+          createMockRequest('POST', {
+            code: 'print("{{EXEMPT_KEY}}", "{{OTHER_KEY}}")',
+            language: 'python',
+            workspaceId: 'workspace-1',
+            envVars: { EXEMPT_KEY: 'shared-value', OTHER_KEY: 'shared-value' },
+            unredactedSecretNames: ['EXEMPT_KEY'],
+            outputs: {
+              files: [
+                {
+                  path: `files/secret.${extension}`,
+                  sandboxPath: `/home/user/secret.${extension}`,
+                  mimeType: extension === 'txt' ? 'text/plain' : 'application/zip',
+                },
+              ],
+            },
+          })
+        )
+
+        expect(response.status).toBe(200)
+        expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+          expect.objectContaining({
+            secretProvenance: {
+              status: 'exact',
+              entries: [
+                {
+                  name: 'OTHER_KEY',
+                  encryptedValue: 'encrypted:shared-value',
+                  sourceUserId: 'user-123',
+                  sourceWorkspaceId: 'workspace-1',
+                },
+              ],
+            },
+          })
+        )
+      }
+    )
 
     it('classifies text exports against private mounted-file provenance', async () => {
       envFlagsMock.isRemoteSandboxEnabled = true
@@ -1396,53 +1410,62 @@ describe('Function execution request', () => {
       expect(mockExecuteInSandbox).not.toHaveBeenCalled()
     })
 
-    it('runs with authenticated incomplete mount provenance and marks exported bytes unknown', async () => {
-      envFlagsMock.isRemoteSandboxEnabled = true
-      mockExecuteInSandbox.mockResolvedValueOnce({
-        result: 'raw result',
-        stdout: '',
-        sandboxId: 'sandbox-123',
-        exportedFiles: { '/home/user/output.txt': 'raw output' },
-      })
-
-      const response = await POST(
-        createMockRequest(
-          'POST',
-          {
-            code: 'print("done")',
-            language: 'python',
-            workspaceId: 'workspace-1',
-            outputs: {
-              files: [
-                {
-                  path: 'files/output.txt',
-                  sandboxPath: '/home/user/output.txt',
-                  mimeType: 'text/plain',
-                },
-              ],
-            },
-            [PRIVATE_SECRET_PROVENANCE_FIELD]: {
-              version: 1,
-              complete: false,
-              selections: [],
-            },
+    it.each(['txt', 'zip'])(
+      'keeps authenticated incomplete mount provenance unknown for %s exports',
+      async (extension) => {
+        envFlagsMock.isRemoteSandboxEnabled = true
+        mockExecuteInSandbox.mockResolvedValueOnce({
+          result: 'raw result',
+          stdout: '',
+          sandboxId: 'sandbox-123',
+          exportedFiles: {
+            [`/home/user/output.${extension}`]:
+              extension === 'txt' ? 'raw output' : Buffer.from('raw output').toString('base64'),
           },
-          { [PRIVATE_SECRET_PROVENANCE_HEADER]: PRIVATE_SECRET_PROVENANCE_BUNDLE_V1 }
-        )
-      )
-
-      expect(response.status).toBe(200)
-      expect((await response.json()).output.exported.files).toEqual([
-        expect.objectContaining({ fileId: 'wf_output_txt', vfsPath: 'files/output.txt' }),
-      ])
-      expect(mockExecuteInSandbox).toHaveBeenCalledOnce()
-      expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
-        expect.objectContaining({
-          buffer: Buffer.from('raw output'),
-          secretProvenance: { status: 'unknown' },
         })
-      )
-    })
+
+        const response = await POST(
+          createMockRequest(
+            'POST',
+            {
+              code: 'print("done")',
+              language: 'python',
+              workspaceId: 'workspace-1',
+              outputs: {
+                files: [
+                  {
+                    path: `files/output.${extension}`,
+                    sandboxPath: `/home/user/output.${extension}`,
+                    mimeType: extension === 'txt' ? 'text/plain' : 'application/zip',
+                  },
+                ],
+              },
+              [PRIVATE_SECRET_PROVENANCE_FIELD]: {
+                version: 1,
+                complete: false,
+                selections: [],
+              },
+            },
+            { [PRIVATE_SECRET_PROVENANCE_HEADER]: PRIVATE_SECRET_PROVENANCE_BUNDLE_V1 }
+          )
+        )
+
+        expect(response.status).toBe(200)
+        expect((await response.json()).output.exported.files).toEqual([
+          expect.objectContaining({
+            fileId: `wf_output_${extension}`,
+            vfsPath: `files/output.${extension}`,
+          }),
+        ])
+        expect(mockExecuteInSandbox).toHaveBeenCalledOnce()
+        expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
+          expect.objectContaining({
+            buffer: Buffer.from('raw output'),
+            secretProvenance: { status: 'unknown' },
+          })
+        )
+      }
+    )
 
     it('does not rewrite a static export path that happens to equal a resolved secret', async () => {
       envFlagsMock.isRemoteSandboxEnabled = true
@@ -1548,12 +1571,13 @@ describe('Function execution request', () => {
     })
 
     it.each([
-      { plaintext: 'mounted-secret', expectedStatus: 'unknown' },
-      { plaintext: 'false', expectedStatus: 'exact' },
-      { plaintext: '""""', expectedStatus: 'exact' },
+      { plaintext: 'mounted-secret', expectedStatus: 'exact', protected: true },
+      { plaintext: 'false', expectedStatus: 'exact', protected: false },
+      { plaintext: '""""', expectedStatus: 'exact', protected: false },
+      { plaintext: '', expectedStatus: 'unknown', protected: false },
     ])(
       'classifies binary exports $expectedStatus with mounted plaintext $plaintext',
-      async ({ plaintext, expectedStatus }) => {
+      async ({ plaintext, expectedStatus, protected: hasProtectedEntry }) => {
         mockDecryptSecret.mockResolvedValueOnce({ decrypted: plaintext })
         envFlagsMock.isRemoteSandboxEnabled = true
         mockExecuteInSandbox.mockResolvedValueOnce({
@@ -1604,14 +1628,29 @@ describe('Function execution request', () => {
         expect(response.status).toBe(200)
         expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
           expect.objectContaining({
+            buffer: Buffer.from('/9j/4AAQ', 'base64'),
             secretProvenance:
-              expectedStatus === 'exact' ? { status: 'exact', entries: [] } : { status: 'unknown' },
+              expectedStatus === 'exact'
+                ? {
+                    status: 'exact',
+                    entries: hasProtectedEntry
+                      ? [
+                          {
+                            name: 'MOUNTED_FILE_SECRET',
+                            encryptedValue: 'encrypted:mounted-secret',
+                            sourceUserId: 'user-123',
+                            sourceWorkspaceId: 'workspace-1',
+                          },
+                        ]
+                      : [],
+                  }
+                : { status: 'unknown' },
           })
         )
       }
     )
 
-    it('marks binary exports unknown without failing the Function execution', async () => {
+    it('retains compiled secret lineage beside unchanged binary exports', async () => {
       envFlagsMock.isRemoteSandboxEnabled = true
       mockExecuteInSandbox.mockResolvedValueOnce({
         result: 'done',
@@ -1640,8 +1679,22 @@ describe('Function execution request', () => {
 
       expect(response.status).toBe(200)
       expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledWith(
-        expect.objectContaining({ secretProvenance: { status: 'unknown' } })
+        expect.objectContaining({
+          buffer: Buffer.from('UEsDBA==', 'base64'),
+          secretProvenance: {
+            status: 'exact',
+            entries: [
+              {
+                name: 'API_KEY',
+                encryptedValue: 'encrypted:secret-value',
+                sourceUserId: 'user-123',
+                sourceWorkspaceId: 'workspace-1',
+              },
+            ],
+          },
+        })
       )
+      expect(JSON.stringify(await response.json())).not.toContain('encrypted:secret-value')
     })
 
     it('rejects one oversized sandbox output before creating a workspace file buffer', async () => {
@@ -2015,12 +2068,12 @@ describe('Function execution request', () => {
     })
 
     it.each([
-      { name: 'report.zip', secret: undefined, expectedStatus: 'exact' },
-      { name: 'report.zip', secret: 'super-secret-value', expectedStatus: 'unknown' },
-      { name: 'report.txt', secret: 'super-secret-value', expectedStatus: 'unknown' },
+      { name: 'report.zip', secret: undefined },
+      { name: 'report.zip', secret: 'super-secret-value' },
+      { name: 'report.txt', secret: 'super-secret-value' },
     ])(
       'preserves binary provenance for harvested $name with secret=$secret',
-      async ({ name, secret, expectedStatus }) => {
+      async ({ name, secret }) => {
         envFlagsMock.isRemoteSandboxEnabled = true
         const zip = new JSZip()
         zip.file('report.txt', secret ?? 'ordinary report')
@@ -2058,7 +2111,19 @@ describe('Function execution request', () => {
           name,
           expect.any(String),
           'user-123',
-          expectedStatus === 'exact' ? { status: 'exact', entries: [] } : { status: 'unknown' }
+          {
+            status: 'exact',
+            entries: secret
+              ? [
+                  {
+                    name: 'MY_SECRET',
+                    encryptedValue: `encrypted:${secret}`,
+                    sourceUserId: 'user-123',
+                    sourceWorkspaceId: 'workspace-1',
+                  },
+                ]
+              : [],
+          }
         )
         const data = await response.json()
         expect(data.output.files[0]).not.toHaveProperty('secretProvenance')
@@ -2092,7 +2157,17 @@ describe('Function execution request', () => {
         })
       )
       expect(response.status).toBe(200)
-      expect(mockUploadExecutionFile.mock.calls[0][5]).toEqual({ status: 'unknown' })
+      expect(mockUploadExecutionFile.mock.calls[0][5]).toEqual({
+        status: 'exact',
+        entries: [
+          {
+            name: 'MY_SECRET',
+            encryptedValue: 'encrypted:super-secret-value',
+            sourceUserId: 'user-123',
+            sourceWorkspaceId: 'workspace-1',
+          },
+        ],
+      })
     })
 
     it('refuses an unknown tracked execution mount before running code', async () => {
@@ -2194,7 +2269,17 @@ describe('Function execution request', () => {
       expect(registry.exportProvenance().entries).toEqual([
         expect.objectContaining({ encryptedValue: 'encrypted:mounted-secret' }),
       ])
-      expect(mockUploadExecutionFile.mock.calls[0][5]).toEqual({ status: 'unknown' })
+      expect(mockUploadExecutionFile.mock.calls[0][5]).toEqual({
+        status: 'exact',
+        entries: [
+          {
+            name: 'API_KEY',
+            encryptedValue: 'encrypted:mounted-secret',
+            sourceUserId: 'user-123',
+            sourceWorkspaceId: 'workspace-1',
+          },
+        ],
+      })
     })
 
     it.each([
@@ -2254,9 +2339,19 @@ describe('Function execution request', () => {
 
         expect(response.status).toBe(archive || unredacted ? 200 : 400)
         if (archive) {
-          expect(mockUploadExecutionFile.mock.calls[0][5]).toEqual(
-            unredacted ? { status: 'exact', entries: [] } : { status: 'unknown' }
-          )
+          expect(mockUploadExecutionFile.mock.calls[0][5]).toEqual({
+            status: 'exact',
+            entries: unredacted
+              ? []
+              : [
+                  {
+                    name: 'API_KEY',
+                    encryptedValue: plaintext,
+                    sourceUserId: 'user-123',
+                    sourceWorkspaceId: 'workspace-1',
+                  },
+                ],
+          })
         } else {
           expect(mockUploadExecutionFile).not.toHaveBeenCalled()
         }
@@ -2360,9 +2455,21 @@ describe('Function execution request', () => {
               ],
             })
           } else {
-            expect(mockUploadExecutionFile.mock.calls[0][5]).toEqual({
-              status: knownMount ? 'unknown' : 'unrecorded',
-            })
+            expect(mockUploadExecutionFile.mock.calls[0][5]).toEqual(
+              knownMount
+                ? {
+                    status: 'exact',
+                    entries: [
+                      {
+                        name: 'API_KEY',
+                        encryptedValue: 'encrypted:mounted-secret',
+                        sourceUserId: 'user-123',
+                        sourceWorkspaceId: 'workspace-1',
+                      },
+                    ],
+                  }
+                : { status: 'unrecorded' }
+            )
           }
         } else expect(mockUploadExecutionFile).not.toHaveBeenCalled()
       }

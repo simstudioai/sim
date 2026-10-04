@@ -62,6 +62,7 @@ import {
 import {
   filterModelSafeWorkspaceFileAttachments,
   getBoundWorkspaceFileSecretProvenance,
+  importWorkspaceFileSecretProvenanceForRuntime,
   isModelSafeWorkspaceFileKey,
   isOpaqueWorkspaceFileEgressSafe,
   type WorkspaceFileSecretProvenance,
@@ -69,6 +70,8 @@ import {
 import { deleteFile, downloadFile } from '@/lib/uploads/core/storage-service'
 import { createWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 import type { UserFile } from '@/executor/types'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const fixtures: ReturnType<typeof createKnowledgeAclFixtureIds>[] = []
 const trackedEventIds: string[] = []
@@ -258,34 +261,61 @@ describe('execution archive durable provenance', () => {
     expect(await getBoundWorkspaceFileSecretProvenance(ids.workspaceId, source.identity)).toEqual({
       status: 'unknown',
     })
+    expect(
+      await importWorkspaceFileSecretProvenanceForRuntime({
+        workspaceId: ids.workspaceId,
+        identity: source.identity,
+        registry: new ResolvedSecretTraceRegistry([], {
+          userId: ids.aliceId,
+          workspaceId: ids.workspaceId,
+        }),
+      })
+    ).toBe(false)
     await assertBlockedConsumers(ids, source)
   })
 
-  it('does not infer safe extracted bytes from a secret-bearing archive or expose private metadata', async () => {
+  it('retains extracted secret lineage for protected runtime readback without permitting opaque delivery', async () => {
     const ids = await seed()
     const { encrypted } = await encryptSecret(FIXTURE_SECRET)
-    const archive = await uploadArchive(
-      ids,
-      {
-        status: 'exact',
-        entries: [
-          {
-            name: 'FIXTURE_SECRET',
-            encryptedValue: encrypted,
-            sourceUserId: ids.aliceId,
-            sourceWorkspaceId: ids.workspaceId,
-          },
-        ],
-      },
-      `name,description\nOrion,${FIXTURE_SECRET}\n`
-    )
+    const provenance: WorkspaceFileSecretProvenance = {
+      status: 'exact',
+      entries: [
+        {
+          name: 'FIXTURE_SECRET',
+          encryptedValue: encrypted,
+          sourceUserId: ids.aliceId,
+          sourceWorkspaceId: ids.workspaceId,
+        },
+      ],
+    }
+    const content = `name,description\nOrion,${FIXTURE_SECRET}\n`
+    const archive = await uploadArchive(ids, provenance, content)
     const source = await extract(ids, archive)
     expect(source.publicMetadata).not.toContain(FIXTURE_SECRET)
     expect(source.publicMetadata).not.toContain(encrypted)
     expect(source.publicMetadata).not.toContain('encryptedValue')
-    expect(await getBoundWorkspaceFileSecretProvenance(ids.workspaceId, source.identity)).toEqual({
-      status: 'unknown',
+    expect(await getBoundWorkspaceFileSecretProvenance(ids.workspaceId, source.identity)).toEqual(
+      provenance
+    )
+    const registry = new ResolvedSecretTraceRegistry([], {
+      userId: ids.aliceId,
+      workspaceId: ids.workspaceId,
     })
+    expect(
+      await importWorkspaceFileSecretProvenanceForRuntime({
+        workspaceId: ids.workspaceId,
+        identity: source.identity,
+        registry,
+      })
+    ).toBe(true)
+    const storedContent = (
+      await downloadFile({ key: source.child.key, context: 'workspace' })
+    ).toString()
+    expect(storedContent).toBe(content)
+    const projected = projectResolvedSecretModelContent(storedContent, registry)
+    expect(projected.safe).toBe(true)
+    if (!projected.safe) throw new Error('Known extracted lineage withheld runtime readback')
+    expect(projected.value).toBe('name,description\nOrion,{{FIXTURE_SECRET}}\n')
     await assertBlockedConsumers(ids, source)
   })
 
