@@ -316,11 +316,12 @@ A production pattern can follow these steps:
 2. Collect the diff, issue context, repository policy, and relevant test output.
 3. Send the scoped task to the selected coding or review agent through its supported API.
 4. Run or request deterministic evidence from CI, linters, type checkers, security scanners, and test systems.
-5. Use Sim's Guardrails block to report whether defined checks passed or failed.
-6. Route the Guardrails result through a downstream Condition, because Guardrails reports status but does not stop a workflow by itself.
-7. Pause high-risk changes with Sim's Human in the Loop block and collect an approval or rejection field.
-8. Route that response through another downstream Condition before any merge, deployment, or follow-up action.
-9. Notify the responsible team and retain the workflow's execution evidence.
+5. Route the actual status from each required CI, linter, type-checker, scanner, and test system through downstream Conditions before allowing the workflow to proceed.
+6. Use Sim's Guardrails block separately for content validation, such as checking generated output for valid JSON, a regex match, grounding, or PII.
+7. Route the Guardrails result through a downstream Condition, because Guardrails reports passed or failed but does not stop a workflow by itself.
+8. Pause high-risk changes with Sim's Human in the Loop block and collect an approval or rejection field.
+9. Route that response through another downstream Condition before any merge, deployment, or follow-up action.
+10. Notify the responsible team and retain the workflow's execution evidence.
 
 Sim is not a substitute for a coding agent, source-control permissions, or CI. Sim is the open-source AI workspace that coordinates those systems when a team needs an explicit, inspectable process around agent-generated code. Teams comparing broader options can read [Best AI Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026), while teams focused on approval controls can read [Best AI Agent Builders for Human Approval Workflows](https://www.sim.ai/library/best-ai-agent-builders-for-human-approval-workflows).
 
