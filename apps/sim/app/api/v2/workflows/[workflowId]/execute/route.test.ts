@@ -4,6 +4,7 @@ import {
   executionPreprocessingMock,
   executionPreprocessingMockFns,
   loggingSessionMock,
+  loggingSessionMockFns,
   resetDbChainMock,
   setEnv,
   workflowAuthzMockFns,
@@ -326,6 +327,39 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
       blockOutputs: null,
       error: null,
       durationMs: 42,
+    })
+  })
+
+  it('holds the sync response until post-execution logging finalizes', async () => {
+    let releaseFinalization!: () => void
+    loggingSessionMockFns.mockWaitForPostExecution.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseFinalization = resolve
+        })
+    )
+
+    let responded = false
+    const pending = callExecute({ input: { hello: 'world' } }).then((res) => {
+      responded = true
+      return res
+    })
+
+    // Wait until execution is actually parked at the finalization gate, then
+    // prove the gate is what holds the response back.
+    await vi.waitFor(() =>
+      expect(loggingSessionMockFns.mockWaitForPostExecution).toHaveBeenCalled()
+    )
+    expect(responded).toBe(false)
+
+    releaseFinalization()
+    const res = await pending
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.data).toMatchObject({
+      runId: 'execution-123',
+      status: 'completed',
+      output: { result: 'done' },
     })
   })
 
