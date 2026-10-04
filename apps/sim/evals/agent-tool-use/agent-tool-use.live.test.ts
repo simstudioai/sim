@@ -62,15 +62,20 @@ describe.skipIf(!LIVE)('agent tool-use eval suite (live DeepSeek)', () => {
     '$id: $name',
     async (scenario) => {
       const base = createDeepSeekLiveCompletion(MODEL)
-      const judgeCompletion = scenario.judge ? createDeepSeekLiveCompletion(JUDGE_MODEL) : undefined
+      const judgeBase = scenario.judge ? createDeepSeekLiveCompletion(JUDGE_MODEL) : undefined
       const results: AgentToolUseResult[] = []
 
       for (let trial = 0; trial < TRIALS; trial++) {
         const recordedTurns: ChatCompletionChunk[][] = []
+        const recordedJudgeTurns: ChatCompletionChunk[][] = []
         const completion =
           RECORD && trial === 0
             ? createRecordingCompletion(base, (turn) => recordedTurns.push(turn))
             : base
+        const judgeCompletion =
+          judgeBase && RECORD && trial === 0
+            ? createRecordingCompletion(judgeBase, (turn) => recordedJudgeTurns.push(turn))
+            : judgeBase
 
         results.push(
           await runScenario(scenario, {
@@ -96,6 +101,7 @@ describe.skipIf(!LIVE)('agent tool-use eval suite (live DeepSeek)', () => {
             model: MODEL,
             recordedAt: new Date().toISOString(),
             turns: recordedTurns,
+            ...(judgeBase ? { judgeModel: JUDGE_MODEL, judgeTurns: recordedJudgeTurns } : {}),
           })
         }
       }

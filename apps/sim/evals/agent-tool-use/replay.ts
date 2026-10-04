@@ -18,6 +18,10 @@ export interface ReplayFixture {
   recordedAt: string
   /** One entry per model call; each holds the chunks that call streamed. */
   turns: ChatCompletionChunk[][]
+  /** Judge model, present when the scenario was judged during recording. */
+  judgeModel?: string
+  /** Judge calls, so replay reproduces a judged pass/fail instead of skipping it. */
+  judgeTurns?: ChatCompletionChunk[][]
 }
 
 export function replayFixturePath(directory: string, scenarioId: string): string {

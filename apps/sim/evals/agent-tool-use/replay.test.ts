@@ -76,6 +76,8 @@ describe('replay primitives', () => {
         model: 'deepseek-chat',
         recordedAt: '2026-01-01T00:00:00.000Z',
         turns: [[chunk('a')]],
+        judgeModel: 'deepseek-chat',
+        judgeTurns: [[chunk('judge')]],
       })
 
       expect(existsSync(replayFixturePath(directory, 'single-tool-lookup'))).toBe(true)
@@ -84,8 +86,10 @@ describe('replay primitives', () => {
       expect(fixtures[0]).toMatchObject({
         scenarioId: 'single-tool-lookup',
         model: 'deepseek-chat',
+        judgeModel: 'deepseek-chat',
       })
       expect(fixtures[0].turns).toEqual([[chunk('a')]])
+      expect(fixtures[0].judgeTurns).toEqual([[chunk('judge')]])
     } finally {
       rmSync(directory, { recursive: true, force: true })
     }

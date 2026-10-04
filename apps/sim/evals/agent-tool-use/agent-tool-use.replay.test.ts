@@ -42,6 +42,15 @@ describe.skipIf(replayCases.length === 0)('agent tool-use replay suite', () => {
       mode: 'live',
       model: fixture.model,
       providerName: 'Replay',
+      ...(scenario.judge && fixture.judgeTurns
+        ? {
+            judge: {
+              completion: createReplayCompletion(fixture.judgeTurns),
+              model: fixture.judgeModel ?? 'replay-judge',
+              rubric: scenario.judge,
+            },
+          }
+        : {}),
     })
 
     const failed = result.checks.filter((entry) => !entry.passed)
