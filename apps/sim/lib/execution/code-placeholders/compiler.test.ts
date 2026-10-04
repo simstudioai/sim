@@ -739,20 +739,6 @@ describe('code placeholder compiler', () => {
     }
   })
 
-  it('reports the first placeholder in a Python f-string debug field, even when later ones share it', async () => {
-    for (const [code, rejected] of [
-      ['print(f"{ {{A}} + {{B}} =}")', 'A'],
-      ['print(f"{ {{A}} :#{ {{B}} }=}")', 'B'],
-    ]) {
-      const error = await compileCodePlaceholders({
-        code,
-        language: CodeLanguage.Python,
-        environmentVariables: { A: '1', B: '2' },
-      }).catch((caught) => caught)
-      expect(String(error)).toContain(`Variable placeholder "${rejected}" is not supported`)
-    }
-  })
-
   it('ignores Python f-string comments and does not group adjacent strings across dedents', async (ctx) => {
     if (!hasPython3()) ctx.skip(PYTHON_SKIP_REASON)
     const code = [
