@@ -8,6 +8,7 @@ import type {
   FocusedResourceShortcut,
   ResourceTabSelectionShortcut,
 } from '@/main/resource-shortcuts'
+import { WINDOWS_TERMINAL_SHELLS, type WindowsTerminalShell } from '@/main/terminal/default-shell'
 
 const ZOOM_STEP = 0.5
 
@@ -35,6 +36,38 @@ export interface MenuDeps {
   signOut: () => void
   checkForUpdates: () => void
   openDiagnostics: () => void
+  /**
+   * Windows only: the shell new terminals launch. macOS has one answer
+   * (`$SHELL`), so the submenu exists only where there is a choice to make.
+   */
+  terminalShell?: {
+    current: () => WindowsTerminalShell
+    gitBashAvailable: () => boolean
+    select: (shell: WindowsTerminalShell) => void
+  }
+}
+
+const TERMINAL_SHELL_LABELS: Record<WindowsTerminalShell, string> = {
+  powershell: 'PowerShell',
+  'git-bash': 'Git Bash',
+}
+
+function terminalShellSubmenu(deps: MenuDeps): MenuItemConstructorOptions[] {
+  const choice = deps.terminalShell
+  if (!choice || process.platform !== 'win32') return []
+  const current = choice.current()
+  return [
+    {
+      label: 'Terminal Shell',
+      submenu: WINDOWS_TERMINAL_SHELLS.map((shell) => ({
+        label: TERMINAL_SHELL_LABELS[shell],
+        type: 'radio' as const,
+        checked: shell === current,
+        enabled: shell !== 'git-bash' || choice.gitBashAvailable(),
+        click: () => choice.select(shell),
+      })),
+    },
+  ]
 }
 
 /**
@@ -199,6 +232,7 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
         },
         { label: 'Settings…', accelerator: 'CmdOrCtrl+,', click: deps.openSettings },
         { label: 'Server…', click: deps.openServerSettings },
+        ...terminalShellSubmenu(deps),
         { label: 'Check for Updates…', click: deps.checkForUpdates },
         { label: 'Sign Out', click: deps.signOut },
         { type: 'separator' },

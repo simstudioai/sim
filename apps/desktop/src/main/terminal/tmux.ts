@@ -69,7 +69,9 @@ export interface TmuxAttachment {
  * of paying a failed spawn. Most machines running this have no tmux at all,
  * and without this every terminal tool call spawned a doomed process.
  */
-let tmuxBinaryMissing = false
+// Starts true on Windows: tmux is a Unix program, and probing for it there
+// would spawn a `ps` and a `tmux` that do not exist on every tool call.
+let tmuxBinaryMissing = process.platform === 'win32'
 
 export function isTmuxUnavailable(): boolean {
   return tmuxBinaryMissing

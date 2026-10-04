@@ -80,6 +80,12 @@ import {
 } from '@/main/session-lifecycle'
 import { setShellTheme } from '@/main/shell-theme'
 import { attachTelemetryPolicy } from '@/main/telemetry-policy'
+import {
+  findGitBash,
+  getPreferredWindowsShell,
+  isWindowsTerminalShell,
+  setPreferredWindowsShell,
+} from '@/main/terminal/default-shell'
 import { TerminalRegistry } from '@/main/terminal/registry'
 import { installTray, type TrayHandle } from '@/main/tray'
 import { checkForUpdatesInteractive, initUpdater, type UpdaterHandle } from '@/main/updater'
@@ -147,6 +153,10 @@ function main(): void {
     ),
   })
   const scopeEvents = new ScopedEventRouter()
+  if (process.platform === 'win32') {
+    const storedShell = config.get('terminalShell')
+    if (isWindowsTerminalShell(storedShell)) setPreferredWindowsShell(storedShell)
+  }
   const terminal = new TerminalRegistry({
     load: (scopeId) => desktopChatSessions.getTerminal(processOrigin, scopeId) ?? undefined,
     save: (scopeId, snapshot) => desktopChatSessions.setTerminal(processOrigin, scopeId, snapshot),
@@ -844,25 +854,39 @@ function main(): void {
       },
     })
     await ensureMainWindow()
-    installApplicationMenu({
-      config,
-      getMainWindow,
-      isMainWindow: (win) => windows.has(win) && !win.isDestroyed(),
-      allowHttpLocalhost,
-      openSettings,
-      openServerSettings: () => serverWindow.open(),
-      newWindow: () => void createAndLoadAppWindow(),
-      newChat: () => void openMainWindowAt(newChatRoute(config.get('lastRoute'))),
-      handleFocusedResourceShortcut: (win, shortcut) =>
-        handleFocusedBrowserShortcut(shortcut, win) ||
-        terminal.handleFocusedShortcut(win, shortcut),
-      toggleSidebar: () => getMainWindow()?.webContents.send('desktop:command', 'toggle-sidebar'),
-      openSearch: () => getMainWindow()?.webContents.send('desktop:command', 'open-search'),
-      signOut: signOutFromMenu,
-      checkForUpdates: () =>
-        checkForUpdatesInteractive({ getWindow: getMainWindow, events, handle: updater }),
-      openDiagnostics: () => shell.showItemInFolder(events.filePath),
-    })
+    // Rebuilt after a shell choice so the radio reflects it; Electron menus
+    // are immutable once built.
+    const installMenu = () =>
+      installApplicationMenu({
+        config,
+        getMainWindow,
+        isMainWindow: (win) => windows.has(win) && !win.isDestroyed(),
+        allowHttpLocalhost,
+        openSettings,
+        openServerSettings: () => serverWindow.open(),
+        newWindow: () => void createAndLoadAppWindow(),
+        newChat: () => void openMainWindowAt(newChatRoute(config.get('lastRoute'))),
+        handleFocusedResourceShortcut: (win, shortcut) =>
+          handleFocusedBrowserShortcut(shortcut, win) ||
+          terminal.handleFocusedShortcut(win, shortcut),
+        toggleSidebar: () => getMainWindow()?.webContents.send('desktop:command', 'toggle-sidebar'),
+        openSearch: () => getMainWindow()?.webContents.send('desktop:command', 'open-search'),
+        signOut: signOutFromMenu,
+        checkForUpdates: () =>
+          checkForUpdatesInteractive({ getWindow: getMainWindow, events, handle: updater }),
+        openDiagnostics: () => shell.showItemInFolder(events.filePath),
+        terminalShell: {
+          current: getPreferredWindowsShell,
+          gitBashAvailable: () => findGitBash() !== null,
+          select: (choice) => {
+            setPreferredWindowsShell(choice)
+            config.set('terminalShell', choice)
+            config.flush()
+            installMenu()
+          },
+        },
+      })
+    installMenu()
     installDocumentationHelpSearch()
     setTrayEnabled(config.get('trayEnabled') ?? true)
     updater = initUpdater({

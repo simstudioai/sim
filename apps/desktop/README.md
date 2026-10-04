@@ -111,7 +111,9 @@ Build on a Windows host (electron-builder cross-compiles NSIS from macOS/Linux o
 - Signing: set `CSC_LINK`/`CSC_KEY_PASSWORD` to an Authenticode `.pfx`; unsigned builds trigger SmartScreen on first launch.
 - Bun does not run electron's `postinstall` on Windows; if `node_modules/electron/dist/electron.exe` is missing after `bun install`, run `node node_modules/electron/install.js` once.
 
-Windows parity gaps (deliberate, see "Known caveats"): no auto-update (the updater is a no-op off macOS — the installer must be re-downloaded), no Help-menu docs search, no Chrome cookie/password import, no Terminal.app/iTerm2 theme import, and the agent terminal launches PowerShell uninstrumented (shell integration is zsh/bash only), so the agent is refused with `NO_SHELL_INTEGRATION` while the user's terminal still works.
+The agent terminal launches PowerShell (`pwsh`, else Windows PowerShell 5.1) with full shell integration: the hooks are passed as `-EncodedCommand` (a dot-sourced file would be blocked by the default execution policy), `prompt` is wrapped to report the directory, exit code and prompt start, and `PSConsoleHostReadLine` is wrapped to report each command line and its start — the arrangement Windows Terminal and VS Code use. Git for Windows' bash is offered under the app menu's **Terminal Shell** submenu when Git is installed; it uses the existing bash hooks, with `cygpath -w` translating the reported directory to a Windows path. The choice persists as `terminalShell` in `settings.json`. tmux integration is skipped on Windows.
+
+Windows parity gaps (deliberate, see "Known caveats"): no auto-update (the updater is a no-op off macOS — the installer must be re-downloaded), no Help-menu docs search, no Chrome cookie/password import, and no Terminal.app/iTerm2 theme import.
 
 Local unsigned pre-release share: `SIM_DESKTOP_DEFAULT_ORIGIN=https://www.dev.sim.ai bun run package:share` builds a DMG whose fresh installs default to that origin (baked at build time; official builds leave it unset → prod) and skips per-file signature timestamps. Recipients must clear quarantine once: `xattr -cr /Applications/Sim.app`.
 

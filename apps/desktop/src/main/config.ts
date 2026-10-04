@@ -3,6 +3,7 @@ import type { DesktopZoomPercent, TerminalAppearanceTheme } from '@sim/desktop-b
 import { createLogger } from '@sim/logger'
 import { isLoopbackHostname } from '@sim/security/ssrf'
 import { writeJsonFileAtomicallySync } from '@/main/atomic-json-file'
+import type { WindowsTerminalShell } from '@/main/terminal/default-shell'
 
 /** settings.json is meant to be readable when a user opens it. */
 const SETTINGS_INDENT = 2
@@ -114,6 +115,8 @@ export interface DesktopSettings {
   terminalTheme?: TerminalAppearanceTheme
   /** Device-wide default zoom for built-in terminal canvases. */
   terminalDefaultZoom?: DesktopZoomPercent
+  /** Windows only: which installed shell new terminals launch. */
+  terminalShell?: WindowsTerminalShell
   /**
    * Top-level sites visited in the dedicated agent-browser profile. This is
    * local inference metadata only; no cookies, credentials, or account data

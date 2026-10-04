@@ -443,7 +443,7 @@ export class TerminalSession {
    * at a glance.
    */
   tabState(active: boolean): TerminalTabState {
-    const directory = this.cwd ? (this.cwd.split('/').filter(Boolean).pop() ?? '/') : null
+    const directory = this.cwd ? (this.cwd.split(/[\\/]/).filter(Boolean).pop() ?? '/') : null
     return {
       terminalId: this.terminalId,
       // The directory, always: whether to show the running command instead is
