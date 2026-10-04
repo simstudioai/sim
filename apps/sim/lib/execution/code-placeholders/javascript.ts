@@ -4,6 +4,7 @@ import {
   CodePlaceholderCompileError,
   createCodePlaceholderCompilationContext,
   createOffsetRangeLookup,
+  partitionPoint,
   type SourceEdit,
 } from '@/lib/execution/code-placeholders/shared'
 import type {
@@ -762,12 +763,19 @@ export async function compileJavaScriptPlaceholders(
       if (ts.isTemplateExpression(node.template)) {
         for (const span of node.template.templateSpans) visit(span.expression)
       }
-      const nestedEdits = edits.splice(nestedEditStart)
+      // A stable sort: applySourceEdits keeps input order among edits with equal bounds.
+      const nestedEdits = edits
+        .splice(nestedEditStart)
+        .sort((left, right) => left.start - right.start)
       const transformedNodeText = (child: ts.Node): string => {
         const childStart = child.getStart(sourceFile)
         const childEnd = child.getEnd()
         const childEdits = nestedEdits
-          .filter((edit) => edit.start >= childStart && edit.end <= childEnd)
+          .slice(
+            partitionPoint(nestedEdits, (edit) => edit.start < childStart),
+            partitionPoint(nestedEdits, (edit) => edit.start <= childEnd)
+          )
+          .filter((edit) => edit.end <= childEnd)
           .map((edit) => ({
             ...edit,
             start: edit.start - childStart,
