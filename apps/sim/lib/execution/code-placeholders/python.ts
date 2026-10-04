@@ -4,7 +4,9 @@ import {
   CodePlaceholderCompileError,
   CodePlaceholderInvariantError,
   createCodePlaceholderCompilationContext,
-  isOffsetInRanges,
+  createOffsetRangeLookup,
+  occurrencesWithin,
+  partitionPoint,
   type SourceEdit,
 } from '@/lib/execution/code-placeholders/shared'
 import type {
@@ -31,6 +33,16 @@ function isIdentifierCharacter(character: string | undefined): boolean {
   return character !== undefined && /[A-Za-z0-9_]/.test(character)
 }
 
+/** The token wholly containing `occurrence`, found by bisection over ordered, disjoint tokens. */
+function findContainingToken(
+  tokens: readonly PythonStringToken[],
+  occurrence: CodePlaceholderOccurrence
+): PythonStringToken | undefined {
+  const token =
+    tokens[partitionPoint(tokens, (candidate) => candidate.start <= occurrence.start) - 1]
+  return token && occurrence.end <= token.end ? token : undefined
+}
+
 function findLastPythonKeyword(
   value: string,
   keyword: string,
@@ -43,7 +55,7 @@ function findLastPythonKeyword(
     if (!isIdentifierCharacter(before) && !isIdentifierCharacter(after) && !isIgnored(index)) {
       return index
     }
-    index = value.lastIndexOf(keyword, index - 1)
+    index = index === 0 ? -1 : value.lastIndexOf(keyword, index - 1)
   }
   return -1
 }
@@ -247,22 +259,24 @@ function createSentinel(code: string): string {
   throw new CodePlaceholderInvariantError('Unable to allocate a collision-free Python marker')
 }
 
+/** `comments` are ordered and disjoint; the scan starts at the first that can overlap the gap. */
 function pythonTriviaGap(
   code: string,
   start: number,
   end: number,
-  comments: ReadonlyArray<[number, number]>
+  comments: ReadonlyArray<[number, number]>,
+  firstComment: number
 ): string {
-  let gap = code.slice(start, end)
-  for (const [commentStart, commentEnd] of comments) {
-    const overlapStart = Math.max(start, commentStart)
-    const overlapEnd = Math.min(end, commentEnd)
+  let gap = ''
+  let cursor = start
+  for (let index = firstComment; index < comments.length && comments[index][0] < end; index++) {
+    const overlapStart = Math.max(cursor, comments[index][0])
+    const overlapEnd = Math.min(end, comments[index][1])
     if (overlapStart >= overlapEnd) continue
-    const relativeStart = overlapStart - start
-    const relativeEnd = overlapEnd - start
-    gap = `${gap.slice(0, relativeStart)}${' '.repeat(relativeEnd - relativeStart)}${gap.slice(relativeEnd)}`
+    gap += `${code.slice(cursor, overlapStart)}${' '.repeat(overlapEnd - overlapStart)}`
+    cursor = overlapEnd
   }
-  return gap
+  return gap + code.slice(cursor, end)
 }
 
 function groupAdjacentStrings(
@@ -271,10 +285,17 @@ function groupAdjacentStrings(
   comments: ReadonlyArray<[number, number]>
 ): PythonStringToken[][] {
   const groups: PythonStringToken[][] = []
+  let firstComment = 0
   for (const token of strings) {
     const current = groups.at(-1)
     const previous = current?.at(-1)
-    const gap = previous ? pythonTriviaGap(code, previous.end, token.start, comments) : ''
+    let gap = ''
+    if (previous) {
+      while (firstComment < comments.length && comments[firstComment][1] <= previous.end) {
+        firstComment += 1
+      }
+      gap = pythonTriviaGap(code, previous.end, token.start, comments, firstComment)
+    }
     const sameLogicalExpression =
       !/[\r\n]/.test(gap) ||
       (previous !== undefined && previous.bracketDepth > 0 && token.bracketDepth > 0) ||
@@ -297,18 +318,28 @@ type FStringPosition =
   | 'comment'
   | 'debug'
 
+interface FStringExpressionState {
+  depth: number
+  parentheses: number
+  brackets: number
+}
+
+/**
+ * Whether a debug `=` follows `start` before its replacement field closes.
+ *
+ * `decided` holds answers for later placeholders in the same token. Reaching one of them in
+ * exactly the state its own scan started from means the rest of this scan would repeat that
+ * one, so its answer is reused: a field holding many placeholders is scanned once, not once each.
+ */
 function hasFStringDebugMarker(
   code: string,
   token: PythonStringToken,
   start: number,
-  initialDepth: number,
-  initialParentheses: number,
-  initialBrackets: number
+  initial: FStringExpressionState,
+  decided: ReadonlyMap<number, FStringExpressionState & { debug: boolean }>
 ): boolean {
   const contentEnd = token.end - token.quoteLength
-  let depth = initialDepth
-  let parentheses = initialParentheses
-  let brackets = initialBrackets
+  let { depth, parentheses, brackets } = initial
   let nestedString: { delimiter: string } | null = null
   let comment = false
 
@@ -338,6 +369,15 @@ function hasFStringDebugMarker(
       continue
     }
     if (code.startsWith('{{', index)) {
+      const later = decided.get(index)
+      if (
+        later &&
+        later.depth === depth &&
+        later.parentheses === parentheses &&
+        later.brackets === brackets
+      ) {
+        return later.debug
+      }
       const placeholderEnd = code.indexOf('}}', index + 2)
       if (placeholderEnd !== -1) {
         index = placeholderEnd + 1
@@ -370,12 +410,16 @@ function hasFStringDebugMarker(
   return false
 }
 
-function getFStringPosition(
+/**
+ * Classifies every placeholder offset (ascending) inside one string token in a single pass.
+ * Re-scanning the token from its start for each placeholder is quadratic in user code.
+ */
+function getFStringPositions(
   code: string,
   token: PythonStringToken,
-  absoluteOffset: number
-): FStringPosition {
-  if (!/f/i.test(token.prefix)) return 'literal'
+  offsets: readonly number[]
+): FStringPosition[] {
+  if (!/f/i.test(token.prefix)) return offsets.map(() => 'literal')
   const quoteLength = token.quoteLength
   const contentStart = token.start + token.prefix.length + quoteLength
   const contentEnd = token.end - quoteLength
@@ -386,7 +430,24 @@ function getFStringPosition(
   let inConversion = false
   let nestedString: { delimiter: string } | null = null
   let comment = false
-  for (let index = contentStart; index < contentEnd && index < absoluteOffset; index += 1) {
+  const positions: FStringPosition[] = []
+  const expressionStates = new Map<number, FStringExpressionState>()
+  const recordPositionsThrough = (index: number) => {
+    while (positions.length < offsets.length && offsets[positions.length] <= index) {
+      if (comment) positions.push('comment')
+      else if (nestedString) positions.push('nested-string')
+      else if (depth === 0) positions.push('literal')
+      else if (inFormatSpec && depth === 1) positions.push('format')
+      else if (inConversion) positions.push('conversion')
+      else {
+        expressionStates.set(positions.length, { depth, parentheses, brackets })
+        positions.push('expression')
+      }
+    }
+  }
+  for (let index = contentStart; index < contentEnd; index += 1) {
+    recordPositionsThrough(index)
+    if (positions.length === offsets.length) break
     const character = code[index]
     if (comment) {
       if (character === '\n' || character === '\r') comment = false
@@ -461,15 +522,15 @@ function getFStringPosition(
       }
     }
   }
-  if (comment) return 'comment'
-  if (nestedString) return 'nested-string'
-  if (depth === 0) return 'literal'
-  if (inFormatSpec && depth === 1) return 'format'
-  if (inConversion) return 'conversion'
-  if (hasFStringDebugMarker(code, token, absoluteOffset, depth, parentheses, brackets)) {
-    return 'debug'
+  recordPositionsThrough(Number.POSITIVE_INFINITY)
+
+  const decided = new Map<number, FStringExpressionState & { debug: boolean }>()
+  for (const [position, state] of [...expressionStates].reverse()) {
+    const debug = hasFStringDebugMarker(code, token, offsets[position], state, decided)
+    if (debug) positions[position] = 'debug'
+    decided.set(offsets[position], { ...state, debug })
   }
-  return 'expression'
+  return positions
 }
 
 function buildSimultaneousInterpolation(
@@ -500,7 +561,7 @@ type PythonBarePlaceholderPosition = 'value' | 'attribute' | 'unsupported-name'
 function classifyPythonBarePlaceholder(
   code: string,
   occurrence: CodePlaceholderOccurrence,
-  ignoredRanges: ReadonlyArray<[number, number]> = []
+  isIgnored: (offset: number) => boolean
 ): PythonBarePlaceholderPosition {
   const immediatelyPrevious = code[occurrence.start - 1]
   const immediatelyNext = code[occurrence.end]
@@ -517,8 +578,7 @@ function classifyPythonBarePlaceholder(
   const lineEnd = nextNewline === -1 ? code.length : nextNewline
   const before = code.slice(lineStart, occurrence.start)
   const after = code.slice(occurrence.end, lineEnd)
-  const isIgnoredBeforeOffset = (offset: number): boolean =>
-    isOffsetInRanges(lineStart + offset, ignoredRanges)
+  const isIgnoredBeforeOffset = (offset: number): boolean => isIgnored(lineStart + offset)
   const parameterSegment = before.slice(
     Math.max(before.lastIndexOf('('), before.lastIndexOf(',')) + 1
   )
@@ -599,10 +659,10 @@ function recordPythonDirectEnvironmentReads(
   if (matches.length === 0) return
 
   const lexed = lex()
-  const ignoredRanges: Array<[number, number]> = [
+  const isIgnored = createOffsetRangeLookup([
     ...lexed.comments,
     ...lexed.strings.map((token): [number, number] => [token.start, token.end]),
-  ]
+  ])
 
   /**
    * A write or `del` target is reported like any other access, deliberately.
@@ -618,7 +678,7 @@ function recordPythonDirectEnvironmentReads(
    * per node, with no text to misread.
    */
   for (const candidate of matches) {
-    if (isOffsetInRanges(candidate.index, ignoredRanges)) continue
+    if (isIgnored(candidate.index)) continue
     /**
      * `other.environmentVariables['K']` reads a different object that merely shares the name,
      * so it is not the mounted binding at all. This is the receiver check the JavaScript side
@@ -634,7 +694,7 @@ function recordPythonDirectEnvironmentReads(
      */
     let previous = candidate.index - 1
     while (previous >= 0 && /[\s\\]/.test(code[previous])) previous -= 1
-    if (code[previous] === '.' && !isOffsetInRanges(previous, ignoredRanges)) continue
+    if (code[previous] === '.' && !isIgnored(previous)) continue
     const name = candidate[2] ?? candidate[4]
     if (name) context.recordDirectEnvironmentRead(name, candidate.index)
   }
@@ -665,9 +725,7 @@ export async function compilePythonPlaceholders(
   for (const group of groupAdjacentStrings(input.code, lexed.strings, lexed.comments)) {
     const start = group[0].start
     const end = group.at(-1)?.end ?? start
-    const items = context.occurrences.filter(
-      (occurrence) => occurrence.start >= start && occurrence.end <= end
-    )
+    const items = occurrencesWithin(context.occurrences, start, end)
     if (items.length === 0) continue
 
     let groupSource = input.code.slice(start, end)
@@ -679,33 +737,42 @@ export async function compilePythonPlaceholders(
       group.flatMap((token) => lexNestedFStringStrings(input.code, token)),
       []
     )
+    const nestedTokens = nestedStringGroups.flat()
+    const nestedGroupByToken = new Map(
+      nestedStringGroups.flatMap((nestedGroup) =>
+        nestedGroup.map((nestedToken) => [nestedToken, nestedGroup] as const)
+      )
+    )
+    const isInNestedString = createOffsetRangeLookup(
+      nestedTokens.map(({ start: nestedStart, end: nestedEnd }) => [nestedStart, nestedEnd])
+    )
+    const classifyOccurrences = (tokens: readonly PythonStringToken[]) => {
+      const positions = new Map<CodePlaceholderOccurrence, FStringPosition>()
+      for (const token of tokens) {
+        const tokenItems = occurrencesWithin(items, token.start, token.end)
+        const tokenPositions = getFStringPositions(
+          input.code,
+          token,
+          tokenItems.map((occurrence) => occurrence.start)
+        )
+        tokenItems.forEach((occurrence, index) => positions.set(occurrence, tokenPositions[index]))
+      }
+      return positions
+    }
+    const fStringPositions = classifyOccurrences(group)
+    const nestedFStringPositions = classifyOccurrences(nestedTokens)
     const nestedReplacements = new Map<
       PythonStringToken[],
       Array<{ occurrence: CodePlaceholderOccurrence; accessor: string }>
     >()
     for (const occurrence of items) {
-      const token = group.find(
-        (candidate) => occurrence.start >= candidate.start && occurrence.end <= candidate.end
-      )
-      if (!token) continue
-      const fStringPosition = getFStringPosition(input.code, token, occurrence.start)
-      if (fStringPosition === 'comment') continue
+      const fStringPosition = fStringPositions.get(occurrence)
+      if (!fStringPosition || fStringPosition === 'comment') continue
       if (!context.hasValue(occurrence.name)) continue
       if (fStringPosition === 'nested-string') {
-        const nestedGroup = nestedStringGroups.find((candidate) =>
-          candidate.some(
-            (nestedToken) =>
-              occurrence.start >= nestedToken.start && occurrence.end <= nestedToken.end
-          )
-        )
-        const nestedToken = nestedGroup?.find(
-          (candidate) => occurrence.start >= candidate.start && occurrence.end <= candidate.end
-        )
-        if (
-          nestedGroup &&
-          nestedToken &&
-          getFStringPosition(input.code, nestedToken, occurrence.start) === 'literal'
-        ) {
+        const nestedToken = findContainingToken(nestedTokens, occurrence)
+        const nestedGroup = nestedToken && nestedGroupByToken.get(nestedToken)
+        if (nestedGroup && nestedFStringPositions.get(occurrence) === 'literal') {
           const resolved = context.resolve(occurrence)
           if (!resolved) continue
           const pending = nestedReplacements.get(nestedGroup) ?? []
@@ -739,16 +806,8 @@ export async function compilePythonPlaceholders(
       if (fStringPosition === 'expression' || fStringPosition === 'format') {
         if (
           fStringPosition === 'expression' &&
-          classifyPythonBarePlaceholder(
-            input.code,
-            occurrence,
-            nestedStringGroups
-              .flat()
-              .map(
-                ({ start: nestedStart, end: nestedEnd }) =>
-                  [nestedStart, nestedEnd] as [number, number]
-              )
-          ) === 'unsupported-name'
+          classifyPythonBarePlaceholder(input.code, occurrence, isInNestedString) ===
+            'unsupported-name'
         ) {
           if (input.analysisOnly) {
             context.resolveValue(occurrence)
@@ -816,18 +875,16 @@ export async function compilePythonPlaceholders(
     })
   }
 
+  const isInComment = createOffsetRangeLookup(lexed.comments)
+  const isInStringOrComment = createOffsetRangeLookup([
+    ...lexed.strings.map(({ start, end }) => [start, end] as [number, number]),
+    ...lexed.comments,
+  ])
   for (const occurrence of context.occurrences) {
-    if (consumed.has(occurrence) || isOffsetInRanges(occurrence.start, lexed.comments)) continue
-    if (
-      lexed.strings.some((token) => occurrence.start >= token.start && occurrence.end <= token.end)
-    ) {
-      continue
-    }
+    if (consumed.has(occurrence) || isInComment(occurrence.start)) continue
+    if (findContainingToken(lexed.strings, occurrence)) continue
     if (!context.hasValue(occurrence.name)) continue
-    const position = classifyPythonBarePlaceholder(input.code, occurrence, [
-      ...lexed.strings.map(({ start, end }) => [start, end] as [number, number]),
-      ...lexed.comments,
-    ])
+    const position = classifyPythonBarePlaceholder(input.code, occurrence, isInStringOrComment)
     if (position === 'unsupported-name') {
       if (input.analysisOnly) {
         context.resolveValue(occurrence)

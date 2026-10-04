@@ -2,7 +2,9 @@ import {
   applySourceEdits,
   CodePlaceholderCompileError,
   createCodePlaceholderCompilationContext,
-  isOffsetInRanges,
+  createOffsetRangeLookup,
+  occurrencesWithin,
+  partitionPoint,
   type SourceEdit,
 } from '@/lib/execution/code-placeholders/shared'
 import type {
@@ -341,11 +343,42 @@ function parseHeredocHeaders(
   return declarations
 }
 
+/**
+ * Indexes every line by its terminator-comparable text, so a heredoc's terminator is found by
+ * bisection. An unterminated header is skipped and parsing resumes on the next line, so walking
+ * forward to the end of the file per header is quadratic in a file of unterminated headers.
+ */
+function createHeredocTerminatorLookup(
+  code: string
+): (delimiter: string, stripTabs: boolean, from: number) => number | undefined {
+  const lineStartsByText = new Map<string, number[]>()
+  const lineStartsByTabStrippedText = new Map<string, number[]>()
+  const record = (index: Map<string, number[]>, text: string, lineStart: number) => {
+    const lineStarts = index.get(text)
+    if (lineStarts) lineStarts.push(lineStart)
+    else index.set(text, [lineStart])
+  }
+  for (let lineStart = 0; lineStart < code.length; ) {
+    const lineEnd = lineEndAfterNewline(code, lineStart)
+    const rawLine = code.slice(lineStart, lineEnd).replace(/\n$/, '').replace(/\r$/, '')
+    record(lineStartsByText, rawLine, lineStart)
+    record(lineStartsByTabStrippedText, rawLine.replace(/^\t+/, ''), lineStart)
+    lineStart = lineEnd
+  }
+
+  return (delimiter, stripTabs, from) => {
+    if (from >= code.length) return delimiter === '' ? from : undefined
+    const lineStarts = (stripTabs ? lineStartsByTabStrippedText : lineStartsByText).get(delimiter)
+    return lineStarts?.[partitionPoint(lineStarts, (lineStart) => lineStart < from)]
+  }
+}
+
 function collectHeredocs(code: string): HeredocDeclaration[] {
   const declarations: HeredocDeclaration[] = []
   const frames: ShellScanFrame[] = [
     { kind: 'root', quote: 'none', parenthesisDepth: 0, literalRoot: false },
   ]
+  let findTerminator: ReturnType<typeof createHeredocTerminatorLookup> | undefined
   let cursor = 0
   while (cursor < code.length) {
     const headerEnd = logicalLineEndAfterContinuations(code, cursor)
@@ -355,33 +388,23 @@ function collectHeredocs(code: string): HeredocDeclaration[] {
       continue
     }
 
+    findTerminator ??= createHeredocTerminatorLookup(code)
     let bodyCursor = headerEnd
     let complete = true
     for (const header of headers) {
-      const bodyStart = bodyCursor
-      let found = false
-      while (bodyCursor <= code.length) {
-        const candidateEnd = lineEndAfterNewline(code, bodyCursor)
-        const rawLine = code.slice(bodyCursor, candidateEnd).replace(/\n$/, '').replace(/\r$/, '')
-        const comparable = header.stripTabs ? rawLine.replace(/^\t+/, '') : rawLine
-        if (comparable === header.delimiter) {
-          declarations.push({
-            ...header,
-            bodyStart,
-            bodyEnd: bodyCursor,
-            removalEnd: candidateEnd,
-          })
-          bodyCursor = candidateEnd
-          found = true
-          break
-        }
-        if (candidateEnd === code.length) break
-        bodyCursor = candidateEnd
-      }
-      if (!found) {
+      const terminatorStart = findTerminator(header.delimiter, header.stripTabs, bodyCursor)
+      if (terminatorStart === undefined) {
         complete = false
         break
       }
+      const removalEnd = lineEndAfterNewline(code, terminatorStart)
+      declarations.push({
+        ...header,
+        bodyStart: bodyCursor,
+        bodyEnd: terminatorStart,
+        removalEnd,
+      })
+      bodyCursor = removalEnd
     }
     cursor = complete ? bodyCursor : headerEnd
   }
@@ -456,9 +479,9 @@ function collectShellOccurrenceContexts(
   skippedRanges: Array<[number, number]> = []
 ): Map<CodePlaceholderOccurrence, ShellOccurrenceContext> {
   const occurrenceByStart = new Map(
-    occurrences
-      .filter((occurrence) => occurrence.start >= start && occurrence.end <= end)
-      .map((occurrence) => [occurrence.start, occurrence] as const)
+    occurrencesWithin(occurrences, start, end).map(
+      (occurrence) => [occurrence.start, occurrence] as const
+    )
   )
   const contexts = new Map<CodePlaceholderOccurrence, ShellOccurrenceContext>()
   const frames: ShellScanFrame[] = [
@@ -737,9 +760,10 @@ export async function compileShellPlaceholders(
     excludedRanges.push([heredoc.operatorStart, heredoc.operatorEnd])
     excludedRanges.push([heredoc.bodyStart, heredoc.removalEnd])
 
-    const delimiterOccurrences = shellOccurrences.filter(
-      (occurrence) =>
-        occurrence.start >= heredoc.operatorStart && occurrence.end <= heredoc.operatorEnd
+    const delimiterOccurrences = occurrencesWithin(
+      shellOccurrences,
+      heredoc.operatorStart,
+      heredoc.operatorEnd
     )
     for (const occurrence of delimiterOccurrences) {
       if (context.hasValue(occurrence.name)) {
@@ -755,9 +779,7 @@ export async function compileShellPlaceholders(
       }
     }
 
-    const bodyOccurrences = shellOccurrences.filter(
-      (occurrence) => occurrence.start >= heredoc.bodyStart && occurrence.end <= heredoc.bodyEnd
-    )
+    const bodyOccurrences = occurrencesWithin(shellOccurrences, heredoc.bodyStart, heredoc.bodyEnd)
     if (heredoc.quoted) {
       const bodyEdits: SourceEdit[] = []
       let hasResolvedPlaceholder = false
@@ -852,9 +874,8 @@ export async function compileShellPlaceholders(
     }
   }
 
-  const rootOccurrences = shellOccurrences.filter(
-    (occurrence) => !isOffsetInRanges(occurrence.start, excludedRanges)
-  )
+  const isExcluded = createOffsetRangeLookup(excludedRanges)
+  const rootOccurrences = shellOccurrences.filter((occurrence) => !isExcluded(occurrence.start))
   const rootContexts = collectShellOccurrenceContexts(
     input.code,
     rootOccurrences,
