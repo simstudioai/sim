@@ -308,4 +308,4 @@ const TimePicker = React.forwardRef<HTMLDivElement, TimePickerProps>(
 
 TimePicker.displayName = 'TimePicker'
 
-export { TimePicker, timePickerVariants }
+export { TimePicker }

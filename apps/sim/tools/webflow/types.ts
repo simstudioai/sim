@@ -125,10 +125,3 @@ export interface WebflowDeleteItemResponse {
   success: boolean
   output: WebflowDeleteItemOutput
 }
-
-export type WebflowResponse =
-  | WebflowListItemsResponse
-  | WebflowGetItemResponse
-  | WebflowCreateItemResponse
-  | WebflowUpdateItemResponse
-  | WebflowDeleteItemResponse

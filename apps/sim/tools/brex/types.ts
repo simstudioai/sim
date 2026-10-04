@@ -6,17 +6,17 @@ export interface BrexPaginationParams {
   limit?: string
 }
 
-export interface BrexMoney {
+interface BrexMoney {
   amount: number
   currency: string | null
 }
 
-export interface BrexExpenseReceipt {
+interface BrexExpenseReceipt {
   id: string
   download_uris?: string[]
 }
 
-export interface BrexExpense {
+interface BrexExpense {
   id: string
   memo: string | null
   status: string | null
@@ -44,7 +44,7 @@ export interface BrexExpense {
   dashboard_url: string
 }
 
-export interface BrexCardTransaction {
+interface BrexCardTransaction {
   id: string
   card_id: string | null
   description: string
@@ -56,7 +56,7 @@ export interface BrexCardTransaction {
   expense_id: string | null
 }
 
-export interface BrexCashTransaction {
+interface BrexCashTransaction {
   id: string
   description: string
   amount: BrexMoney | null
@@ -66,7 +66,7 @@ export interface BrexCashTransaction {
   transfer_id: string | null
 }
 
-export interface BrexCardAccount {
+interface BrexCardAccount {
   id: string
   status: string | null
   current_balance: BrexMoney | null
@@ -75,7 +75,7 @@ export interface BrexCardAccount {
   current_statement_period: { start_date: string; end_date: string }
 }
 
-export interface BrexCashAccount {
+interface BrexCashAccount {
   id: string
   name: string
   status: string | null
@@ -86,7 +86,7 @@ export interface BrexCashAccount {
   primary: boolean
 }
 
-export interface BrexSpendLimitPeriodBalance {
+interface BrexSpendLimitPeriodBalance {
   start_date: string | null
   end_date: string | null
   start_time: string | null
@@ -95,7 +95,7 @@ export interface BrexSpendLimitPeriodBalance {
   rollover_amount: BrexMoney | null
 }
 
-export interface BrexUser {
+interface BrexUser {
   id: string
   first_name: string
   last_name: string
@@ -107,19 +107,19 @@ export interface BrexUser {
   title_id: string | null
 }
 
-export interface BrexDepartment {
+interface BrexDepartment {
   id: string
   name: string
   description: string | null
 }
 
-export interface BrexLocation {
+interface BrexLocation {
   id: string
   name: string
   description: string | null
 }
 
-export interface BrexBudget {
+interface BrexBudget {
   budget_id: string
   account_id: string
   name: string
@@ -134,7 +134,7 @@ export interface BrexBudget {
   limit_type: string | null
 }
 
-export interface BrexSpendLimit {
+interface BrexSpendLimit {
   id: string
   account_id: string
   name: string
@@ -151,7 +151,7 @@ export interface BrexSpendLimit {
   authorization_settings: Record<string, unknown> | null
 }
 
-export interface BrexVendor {
+interface BrexVendor {
   id: string
   company_name: string | null
   email: string | null
@@ -159,7 +159,7 @@ export interface BrexVendor {
   payment_accounts: unknown[]
 }
 
-export interface BrexTransfer {
+interface BrexTransfer {
   id: string
   counterparty: Record<string, unknown> | null
   description: string | null
@@ -177,7 +177,7 @@ export interface BrexTransfer {
   is_ppro_enabled: boolean | null
 }
 
-export interface BrexCard {
+interface BrexCard {
   id: string
   owner: Record<string, unknown>
   status: string | null
@@ -191,14 +191,14 @@ export interface BrexCard {
   budget_id: string | null
 }
 
-export interface BrexStatement {
+interface BrexStatement {
   id: string
   start_balance: BrexMoney | null
   end_balance: BrexMoney | null
   period: { start_date: string; end_date: string }
 }
 
-export interface BrexTitle {
+interface BrexTitle {
   id: string
   name: string
 }
@@ -711,39 +711,6 @@ export interface BrexUpdateVendorResponse extends ToolResponse {
     paymentAccounts: unknown[]
   }
 }
-
-export type BrexResponse =
-  | BrexListExpensesResponse
-  | BrexGetExpenseResponse
-  | BrexUpdateExpenseResponse
-  | BrexUploadReceiptResponse
-  | BrexListCardTransactionsResponse
-  | BrexListCashTransactionsResponse
-  | BrexListCardAccountsResponse
-  | BrexListCashAccountsResponse
-  | BrexListUsersResponse
-  | BrexGetUserResponse
-  | BrexListDepartmentsResponse
-  | BrexListLocationsResponse
-  | BrexListBudgetsResponse
-  | BrexListSpendLimitsResponse
-  | BrexListVendorsResponse
-  | BrexListTransfersResponse
-  | BrexGetCompanyResponse
-  | BrexListCardsResponse
-  | BrexListTitlesResponse
-  | BrexGetCashAccountResponse
-  | BrexListStatementsResponse
-  | BrexGetBudgetResponse
-  | BrexGetSpendLimitResponse
-  | BrexGetVendorResponse
-  | BrexGetTransferResponse
-  | BrexCreateTransferResponse
-  | BrexCreateBudgetResponse
-  | BrexArchiveBudgetResponse
-  | BrexCreateSpendLimitResponse
-  | BrexCreateVendorResponse
-  | BrexUpdateVendorResponse
 
 export const BREX_MONEY_PROPERTIES: Record<string, OutputProperty> = {
   amount: {

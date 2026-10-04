@@ -19,7 +19,6 @@ export type {
   DataverseOpportunityOutcome,
   DataverseQualifyLeadParams,
   DataverseQualifyLeadResponse,
-  DataverseResponse,
   DataverseSearchParams,
   DataverseSearchResponse,
   DataverseUpdateRecordParams,

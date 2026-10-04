@@ -85,12 +85,14 @@ export interface {Service}{Action}Params {
   optionalParam?: string
 }
 
-export interface {Service}Response extends ToolResponse {
+export interface {Service}{Action}Response extends ToolResponse {
   output: {
     // Define output structure
   }
 }
 ```
+
+Declare one response interface per tool, imported by that tool's `ToolConfig<Params, Response>` (or `InternalToolConfig` for in-process work). Never add an umbrella `{Service}Response` union: nothing imports it.
 
 **Tool file pattern:** an external provider API uses `ToolConfig` with `request` (absolute `https://` URL, headers, body, `transformResponse`); same-process Sim work uses `InternalToolConfig` with `operation`. Both full templates, param visibility rules, and output typing live in `.agents/skills/add-tools/SKILL.md` — read it before writing the first tool.
 

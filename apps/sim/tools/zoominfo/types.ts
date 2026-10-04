@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface ZoomInfoBaseParams {
+interface ZoomInfoBaseParams {
   clientId: string
   clientSecret: string
 }
@@ -126,11 +126,3 @@ export interface ZoomInfoSearchNewsResponse extends ToolResponse {
     totalPages: number | null
   }
 }
-
-export type ZoomInfoResponse =
-  | ZoomInfoSearchCompaniesResponse
-  | ZoomInfoSearchContactsResponse
-  | ZoomInfoEnrichCompaniesResponse
-  | ZoomInfoEnrichContactsResponse
-  | ZoomInfoSearchIntentResponse
-  | ZoomInfoSearchNewsResponse

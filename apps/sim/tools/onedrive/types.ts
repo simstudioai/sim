@@ -165,15 +165,3 @@ export interface OneDriveToolParams {
   linkType?: 'view' | 'edit' | 'embed'
   linkScope?: 'anonymous' | 'organization' | 'users'
 }
-
-export type OneDriveResponse =
-  | OneDriveUploadResponse
-  | OneDriveDownloadResponse
-  | OneDriveListResponse
-  | OneDriveDeleteResponse
-  | OneDriveSearchResponse
-  | OneDriveMoveResponse
-  | OneDriveCopyResponse
-  | OneDriveShareLinkResponse
-  | OneDriveGetItemResponse
-  | OneDriveGetDriveInfoResponse

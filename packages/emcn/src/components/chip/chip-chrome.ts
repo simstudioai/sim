@@ -6,7 +6,7 @@ export const chipFilledFillTokens = 'bg-[var(--surface-5)] dark:bg-[var(--surfac
  * ({@link chipFilledFillTokens}); pill triggers (`ChipDropdown`/`ChipSelect`/
  * `ChipDatePicker`) opt into the border via `TRIGGER_BORDER_CLASS`.
  */
-export const chipFilledSurfaceTokens = `border border-[var(--border-1)] ${chipFilledFillTokens}`
+const chipFilledSurfaceTokens = `border border-[var(--border-1)] ${chipFilledFillTokens}`
 /**
  * The primary (inverse) chip fill at rest — dark fill, inverse text, mirrored in
  * dark mode. `chipVariants`' `primary` variant composes this with its hover

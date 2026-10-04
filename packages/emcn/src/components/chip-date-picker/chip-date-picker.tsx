@@ -66,7 +66,7 @@ interface ChipDatePickerRangeProps extends ChipDatePickerBaseProps {
   onClear?: () => void
 }
 
-export type ChipDatePickerProps = ChipDatePickerSingleProps | ChipDatePickerRangeProps
+type ChipDatePickerProps = ChipDatePickerSingleProps | ChipDatePickerRangeProps
 
 /**
  * Date counterpart to {@link ChipDropdown} — a chip-styled trigger that opens a

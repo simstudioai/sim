@@ -6,7 +6,7 @@ interface CloudTrailConnectionConfig {
   awsSecretAccessKey: string
 }
 
-export interface CloudTrailAdvancedEventSelector {
+interface CloudTrailAdvancedEventSelector {
   name: string | null
   fieldSelectors: {
     field: string
@@ -19,7 +19,7 @@ export interface CloudTrailAdvancedEventSelector {
   }[]
 }
 
-export interface CloudTrailTrail {
+interface CloudTrailTrail {
   name: string
   s3BucketName: string | null
   s3KeyPrefix: string | null
@@ -38,7 +38,7 @@ export interface CloudTrailTrail {
   isOrganizationTrail: boolean | null
 }
 
-export type CloudTrailLookupAttributeKey =
+type CloudTrailLookupAttributeKey =
   | 'AccessKeyId'
   | 'EventId'
   | 'EventName'
@@ -58,7 +58,7 @@ export interface CloudTrailLookupEventsParams extends CloudTrailConnectionConfig
   nextToken?: string
 }
 
-export interface CloudTrailEvent {
+interface CloudTrailEvent {
   eventId: string | null
   eventName: string | null
   readOnly: string | null
@@ -231,7 +231,7 @@ export interface CloudTrailCancelQueryResponse extends ToolResponse {
   }
 }
 
-export interface CloudTrailEventDataStoreSummary {
+interface CloudTrailEventDataStoreSummary {
   eventDataStoreArn: string | null
   name: string | null
   status: string | null

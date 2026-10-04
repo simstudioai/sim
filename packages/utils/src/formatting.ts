@@ -98,19 +98,6 @@ export function formatDate(date: Date): string {
 }
 
 /**
- * Format a time into a short format
- * @param date - The date to format
- * @returns A formatted time string in the format "h:mm A"
- */
-export function formatTime(date: Date): string {
-  return date.toLocaleString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  })
-}
-
-/**
  * Format a duration to a human-readable format
  * @param duration - Duration in milliseconds (number) or as string (e.g., "500ms")
  * @param options - Optional formatting options

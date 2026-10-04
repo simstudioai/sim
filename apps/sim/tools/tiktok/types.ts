@@ -4,7 +4,7 @@ import type { OutputProperty, ToolFileData, ToolResponse } from '@/tools/types'
 /**
  * Base params that include OAuth access token
  */
-export interface TikTokBaseParams {
+interface TikTokBaseParams {
   accessToken: string
 }
 
@@ -153,13 +153,3 @@ export interface TikTokGetPostStatusResponse extends ToolResponse {
     downloadedBytes: number | null
   }
 }
-
-/**
- * Union type of all TikTok responses
- */
-export type TikTokResponse =
-  | TikTokGetUserResponse
-  | TikTokListVideosResponse
-  | TikTokQueryVideosResponse
-  | TikTokUploadVideoDraftResponse
-  | TikTokGetPostStatusResponse

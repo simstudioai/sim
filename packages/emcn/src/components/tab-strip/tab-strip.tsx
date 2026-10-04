@@ -166,7 +166,7 @@ export interface TabStripDragContext {
  *   it suits a panel header that sits above content it does not own.
  */
 /** Underline tabs use an active bottom indicator without a filled tab surface. */
-export type TabStripVariant = 'attached' | 'floating' | 'underline'
+type TabStripVariant = 'attached' | 'floating' | 'underline'
 
 /** How a tab selection was initiated. */
 export type TabStripSelectionSource = 'pointer' | 'keyboard'
@@ -268,7 +268,7 @@ export function tabStripItemSelector(id: string): string {
 }
 
 /** Final horizontal position for a wheel gesture, or null when it cannot move the strip. */
-export function tabStripWheelPosition(
+function tabStripWheelPosition(
   scrollLeft: number,
   scrollWidth: number,
   clientWidth: number,

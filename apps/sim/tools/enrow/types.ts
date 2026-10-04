@@ -1,7 +1,7 @@
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /** Common params shared by all Enrow tool operations. */
-export interface EnrowBaseParams {
+interface EnrowBaseParams {
   apiKey: string
 }
 
@@ -49,8 +49,6 @@ export interface EnrowVerifyEmailResponse extends ToolResponse {
 }
 
 // Union response type (used in BlockConfig generic)
-
-export type EnrowResponse = EnrowFindEmailResponse | EnrowVerifyEmailResponse
 
 // Shared output property constants
 

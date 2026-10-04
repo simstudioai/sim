@@ -7,7 +7,7 @@ interface GoogleAppsheetBaseParams {
   region?: string
 }
 
-export type GoogleAppsheetRow = Record<string, unknown>
+type GoogleAppsheetRow = Record<string, unknown>
 
 // Find Rows Types
 export interface GoogleAppsheetFindParams extends GoogleAppsheetBaseParams {
@@ -64,9 +64,3 @@ export interface GoogleAppsheetDeleteResponse extends ToolResponse {
     }
   }
 }
-
-export type GoogleAppsheetResponse =
-  | GoogleAppsheetFindResponse
-  | GoogleAppsheetAddResponse
-  | GoogleAppsheetEditResponse
-  | GoogleAppsheetDeleteResponse

@@ -45,10 +45,7 @@ import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/compo
 import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-session'
 import { RESOURCE_TAB_ICON_CLASS } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
-import type {
-  GenericResourceData,
-  MothershipResource,
-} from '@/app/workspace/[workspaceId]/home/types'
+import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/base'
 import { LogDetailsContent } from '@/app/workspace/[workspaceId]/logs/components'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
@@ -113,7 +110,6 @@ interface ResourceContentProps {
   previewMode?: PreviewMode
   previewSession?: FilePreviewSession | null
   isAgentResponding?: boolean
-  genericResourceData?: GenericResourceData
   previewContextKey?: string
   onNotFound?: (resourceId: string) => void
   /**
@@ -187,7 +183,6 @@ export const ResourceContent = memo(function ResourceContent({
   previewMode,
   previewSession,
   isAgentResponding,
-  genericResourceData,
   previewContextKey,
   onNotFound,
   visible = true,
@@ -351,9 +346,7 @@ export const ResourceContent = memo(function ResourceContent({
       )
 
     case 'generic':
-      return (
-        <GenericResourceContent key={resource.id} data={genericResourceData ?? { entries: [] }} />
-      )
+      return <GenericResourceContent key={resource.id} />
 
     case 'browser':
       // One panel serves every browser tab of the chat: the desktop app

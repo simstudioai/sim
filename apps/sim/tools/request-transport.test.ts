@@ -32,6 +32,7 @@ const PROBE_FILE = {
   mimeType: 'text/plain',
   data: 'data:text/plain;base64,cHJvYmU=',
 } as const
+const DOT_SEGMENT_ERROR = 'Tool request URL cannot contain "." or ".." path segments'
 const EXCEL_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 function createSchemaProbeParams(
@@ -77,6 +78,12 @@ function isAbsoluteHttpUrl(url: string): boolean {
   } catch {
     return false
   }
+}
+
+function hasDotDotPathSegment(url: string): boolean {
+  const pathStart = url.indexOf('/', url.indexOf('//') + 2)
+  if (pathStart === -1) return false
+  return url.slice(pathStart).split(/[?#]/)[0].split('/').includes('..')
 }
 
 function createRequestTool(
@@ -127,6 +134,40 @@ describe('external request transport', () => {
         {}
       ).url
     ).toBe('https://example.com')
+  })
+
+  it.each([
+    'https://api.example.com/v0/inboxes/inbox_1/drafts/..',
+    'https://api.example.com/v0/inboxes/inbox_1/drafts/../../../v0/inboxes/other',
+    'https://api.example.com/v0/inboxes/inbox_1/drafts/.',
+    'https://api.example.com/v0/inboxes/inbox_1/drafts/%2e%2E',
+    'https://api.example.com/v0/inboxes/inbox_1/drafts/.%2e?force=true',
+    'https://api.example.com/v0/inboxes/inbox_1/drafts/.\t.',
+    'https://api.example.com/v0/inboxes/inbox_1\\drafts\\..',
+    'https://api.example.com/v0/inboxes/inbox_1/drafts/..\u0001',
+    ' https://api.example.com/v0/inboxes/inbox_1/drafts/..\u0000 ',
+  ])('rejects a URL whose path resolves a dot segment: %s', (url) => {
+    expect(() =>
+      prepareToolRequest(
+        createRequestTool(() => url),
+        {}
+      )
+    ).toThrow(DOT_SEGMENT_ERROR)
+  })
+
+  it.each([
+    'https://my-app.vercel.app/v1/domains/example.com',
+    'https://api.example.com/v1/files/..foo/foo../.env',
+    'https://api.example.com/v1/search?path=../x#..',
+    'https://api.example.com/',
+    'https://api.example.com/v1/files/..\u00a0',
+  ])('allows dots that are not whole path segments: %s', (url) => {
+    expect(
+      prepareToolRequest(
+        createRequestTool(() => url),
+        {}
+      ).url
+    ).toBe(url)
   })
 
   it.each([
@@ -188,12 +229,16 @@ describe('dynamic external request registry invariant', () => {
           isAbsoluteHttpUrl(url),
           `${toolId} resolved ${url} outside the external HTTP transport`
         ).toBe(true)
-        expect(() =>
+        const prepare = () =>
           prepareToolRequest(
             createRequestTool(() => url),
             {}
           )
-        ).not.toThrow()
+        if (hasDotDotPathSegment(url)) {
+          expect(prepare, `${toolId} dispatched ${url}`).toThrow(DOT_SEGMENT_ERROR)
+        } else {
+          expect(prepare, `${toolId} rejected ${url}`).not.toThrow()
+        }
       }
 
       if (observations.length === 0) continue

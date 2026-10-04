@@ -108,10 +108,3 @@ export interface KetchSetSubscriptionsResponse extends ToolResponse {
     success: boolean
   }
 }
-
-export type KetchResponse =
-  | KetchGetConsentResponse
-  | KetchSetConsentResponse
-  | KetchInvokeRightResponse
-  | KetchGetSubscriptionsResponse
-  | KetchSetSubscriptionsResponse

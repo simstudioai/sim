@@ -4,13 +4,13 @@ interface AhrefsBaseParams {
   apiKey: string
 }
 
-export type AhrefsTargetMode = 'domain' | 'prefix' | 'subdomains' | 'exact'
+type AhrefsTargetMode = 'domain' | 'prefix' | 'subdomains' | 'exact'
 
 /**
  * Historical scope for backlink-profile endpoints (no `date` param on these endpoints).
  * `since:YYYY-MM-DD` is also valid.
  */
-export type AhrefsHistory = 'live' | 'all_time' | string
+type AhrefsHistory = 'live' | 'all_time' | string
 
 export interface AhrefsDomainRatingParams extends AhrefsBaseParams {
   target: string
@@ -239,10 +239,10 @@ export interface AhrefsOrganicCompetitorsResponse extends ToolResponse {
   }
 }
 
-export type AhrefsRankTrackerDevice = 'desktop' | 'mobile'
+type AhrefsRankTrackerDevice = 'desktop' | 'mobile'
 
 /** Rank Tracker search volume calculation mode */
-export type AhrefsVolumeMode = 'monthly' | 'average'
+type AhrefsVolumeMode = 'monthly' | 'average'
 
 export interface AhrefsRankTrackerOverviewParams extends AhrefsBaseParams {
   projectId: number
@@ -569,28 +569,3 @@ export interface AhrefsPaidPagesResponse extends ToolResponse {
     paidPages: AhrefsPaidPage[]
   }
 }
-
-export type AhrefsResponse =
-  | AhrefsDomainRatingResponse
-  | AhrefsBacklinksResponse
-  | AhrefsBacklinksStatsResponse
-  | AhrefsReferringDomainsResponse
-  | AhrefsOrganicKeywordsResponse
-  | AhrefsTopPagesResponse
-  | AhrefsKeywordOverviewResponse
-  | AhrefsBrokenBacklinksResponse
-  | AhrefsMetricsResponse
-  | AhrefsOrganicCompetitorsResponse
-  | AhrefsRankTrackerOverviewResponse
-  | AhrefsRankTrackerSerpOverviewResponse
-  | AhrefsRankTrackerCompetitorsOverviewResponse
-  | AhrefsRankTrackerCompetitorsStatsResponse
-  | AhrefsBatchAnalysisResponse
-  | AhrefsSiteAuditPageExplorerResponse
-  | AhrefsDomainRatingHistoryResponse
-  | AhrefsMetricsHistoryResponse
-  | AhrefsRefdomainsHistoryResponse
-  | AhrefsKeywordsHistoryResponse
-  | AhrefsRelatedTermsResponse
-  | AhrefsAnchorsResponse
-  | AhrefsPaidPagesResponse

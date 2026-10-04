@@ -1,3 +1,5 @@
+const EMBEDDING_TIMEOUT_MS = 10_000
+
 /**
  * Generate embeddings for search queries using OpenAI API
  */
@@ -19,6 +21,7 @@ export async function generateSearchEmbedding(query: string): Promise<number[]> 
       model: 'text-embedding-3-small',
       encoding_format: 'float',
     }),
+    signal: AbortSignal.timeout(EMBEDDING_TIMEOUT_MS),
   })
 
   if (!response.ok) {

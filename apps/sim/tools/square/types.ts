@@ -1055,23 +1055,3 @@ export interface InventoryCountListResponse extends ToolResponse {
     metadata: SquareListMetadata
   }
 }
-
-export type SquareResponse =
-  | PaymentResponse
-  | PaymentListResponse
-  | RefundResponse
-  | RefundListResponse
-  | CustomerResponse
-  | CustomerListResponse
-  | CustomerDeleteResponse
-  | LocationListResponse
-  | LocationResponse
-  | OrderResponse
-  | OrderListResponse
-  | InvoiceResponse
-  | InvoiceListResponse
-  | InvoiceDeleteResponse
-  | CatalogObjectResponse
-  | CatalogListResponse
-  | CatalogDeleteResponse
-  | InventoryCountListResponse

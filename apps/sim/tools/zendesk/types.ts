@@ -16,21 +16,6 @@ export interface ZendeskPagingInfo {
   next_page?: string | null
 }
 
-interface ZendeskListMetadata {
-  total_returned: number
-  has_more: boolean
-}
-
-export interface ZendeskResponse<T> {
-  success: boolean
-  output: {
-    data?: T
-    paging?: ZendeskPagingInfo
-    metadata?: ZendeskListMetadata
-    success: boolean
-  }
-}
-
 // Helper function to build Zendesk API URLs
 // Subdomain is always provided by user as a parameter
 export function buildZendeskUrl(subdomain: string, path: string): string {

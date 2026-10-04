@@ -514,26 +514,3 @@ export interface HexDeactivateUserResponse extends ToolResponse {
     userId: string
   }
 }
-
-export type HexResponse =
-  | HexListProjectsResponse
-  | HexGetProjectResponse
-  | HexRunProjectResponse
-  | HexGetRunStatusResponse
-  | HexCancelRunResponse
-  | HexGetProjectRunsResponse
-  | HexUpdateProjectResponse
-  | HexListUsersResponse
-  | HexListCollectionsResponse
-  | HexListDataConnectionsResponse
-  | HexGetQueriedTablesResponse
-  | HexListGroupsResponse
-  | HexGetGroupResponse
-  | HexGetDataConnectionResponse
-  | HexGetCollectionResponse
-  | HexCreateCollectionResponse
-  | HexUpdateCollectionResponse
-  | HexCreateGroupResponse
-  | HexUpdateGroupResponse
-  | HexDeleteGroupResponse
-  | HexDeactivateUserResponse

@@ -14,6 +14,10 @@ vi.mock('@/lib/webhooks/path-claims', () => ({
   claimWebhookPath: mockClaimWebhookPath,
 }))
 
+vi.mock('@/lib/webhooks/utils.server', () => ({
+  findConflictingWebhookPathOwner: vi.fn().mockResolvedValue(null),
+}))
+
 vi.mock('@/lib/workflows/persistence/deployment-operations', () => ({
   isDeploymentOperationCurrent: mockIsDeploymentOperationCurrent,
   setDeploymentTxTimeouts: vi.fn(),

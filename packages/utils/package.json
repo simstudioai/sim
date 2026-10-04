@@ -6,10 +6,6 @@
   "type": "module",
   "license": "Apache-2.0",
   "exports": {
-    ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
-    },
     "./id": {
       "types": "./src/id.ts",
       "default": "./src/id.ts"

@@ -3,9 +3,6 @@
  * Works in all contexts including non-secure (HTTP) browser environments.
  */
 
-/** Lowercase alphanumeric characters used as the default alphabet for random strings. */
-export const LOWERCASE_ALPHANUMERIC_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789'
-
 const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
 
 const UINT32_SAMPLE_SPACE_SIZE = 0x100000000
@@ -14,6 +11,7 @@ const UINT32_SAMPLE_SPACE_SIZE = 0x100000000
  * Generates cryptographically secure random bytes.
  * @param length - Number of bytes to generate
  * @returns Uint8Array of random bytes
+ * @public check:utils names this as the replacement for `crypto.randomBytes()`.
  */
 export function generateRandomBytes(length: number): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(length))

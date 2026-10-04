@@ -50,7 +50,7 @@ function getExecutionPulseMotion(length: number) {
  * otherwise be read from stores — diff status, run status, and whether the run
  * status originated from a preview — is resolved by the container and passed in.
  */
-export interface WorkflowEdgeData extends Record<string, unknown> {
+interface WorkflowEdgeData extends Record<string, unknown> {
   isSelected?: boolean
   onDelete?: (edgeId: string) => void
 }

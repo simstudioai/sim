@@ -191,7 +191,7 @@ export interface MintlifyGetPageContentResponse extends ToolResponse {
   }
 }
 
-export interface MintlifyAssistantContextItem {
+interface MintlifyAssistantContextItem {
   type: string
   value: string
   path?: string
@@ -280,7 +280,7 @@ export interface MintlifyGetAssistantConversationsParams extends MintlifyAnalyti
   cursor?: string
 }
 
-export interface MintlifyConversationSource {
+interface MintlifyConversationSource {
   title: string | null
   url: string | null
 }

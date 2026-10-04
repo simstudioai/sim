@@ -1,7 +1,7 @@
 import type { OutputProperty, ToolFileData, ToolResponse } from '@/tools/types'
 
 /** Raw ticker entry as returned by the Quartr API. */
-export interface QuartrTicker {
+interface QuartrTicker {
   ticker: string
   exchange: string
 }
@@ -77,7 +77,7 @@ export interface QuartrSummaryDto {
 }
 
 /** Raw audio metadata as returned by the Quartr API (`AudioMetadataDto`). */
-export interface QuartrAudioMetadataDto {
+interface QuartrAudioMetadataDto {
   size?: string
   duration?: number
   encoding?: string
@@ -134,7 +134,7 @@ export interface QuartrDocumentTypeDto {
 }
 
 /** Cursor pagination envelope returned by Quartr list endpoints. */
-export interface QuartrPaginationDto {
+interface QuartrPaginationDto {
   nextCursor: number | null
 }
 
@@ -211,7 +211,7 @@ export interface QuartrSummarySource {
 }
 
 /** Audio metadata with nullable optional fields, as emitted in tool outputs. */
-export interface QuartrAudioMetadata {
+interface QuartrAudioMetadata {
   size: string | null
   duration: number | null
   encoding: string | null

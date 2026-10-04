@@ -1,5 +1,15 @@
 ---
 description: Sim product language, positioning, and tone guidelines
+paths:
+  - "apps/sim/app/(landing)/**"
+  - "apps/sim/lib/landing/**"
+  - "apps/sim/content/**"
+  - "apps/sim/emails/broadcasts/**"
+  - "apps/sim/app/layout.tsx"
+  - "apps/sim/app/manifest.ts"
+  - "apps/sim/app/llms*.txt/**"
+  - "apps/sim/app/changelog.xml/**"
+  - "apps/docs/**"
 ---
 
 # Sim — Language & Positioning
