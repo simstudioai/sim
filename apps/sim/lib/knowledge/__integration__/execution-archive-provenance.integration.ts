@@ -60,6 +60,7 @@ import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { isUserFile } from '@/lib/core/utils/user-file'
 import {
+  MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY,
   PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
   PRIVATE_SECRET_PROVENANCE_FIELD,
   PRIVATE_SECRET_PROVENANCE_HEADER,
@@ -600,11 +601,27 @@ describe('Function export provenance in PostgreSQL', () => {
     }
   )
 
-  it.each(['txt', 'zip'])(
-    'persists incomplete mounted evidence for a declared %s export',
-    async (extension) => {
+  it.each([
+    { extension: 'txt', evidence: 'incomplete' },
+    { extension: 'zip', evidence: 'incomplete' },
+    { extension: 'zip', evidence: 'complete' },
+    { extension: 'zip', evidence: 'corrupt' },
+  ] as const)(
+    'persists $evidence private mounted evidence for a declared $extension export',
+    async ({ extension, evidence }) => {
       const ids = await seed()
-      const bytes = Buffer.from('ordinary output')
+      const { encrypted } = await encryptSecret(FIXTURE_SECRET)
+      const encryptedValue =
+        evidence === 'corrupt'
+          ? `${encrypted.slice(0, -1)}${encrypted.endsWith('0') ? '1' : '0'}`
+          : encrypted
+      const zip = new JSZip()
+      zip.file('report.txt', FIXTURE_SECRET)
+      const bytes =
+        extension === 'zip'
+          ? await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
+          : Buffer.from('ordinary output')
+      expect(bytes.includes(FIXTURE_SECRET)).toBe(false)
       remoteSandboxMockFns.mockExecuteInSandbox.mockResolvedValueOnce({
         result: 'done',
         stdout: '',
@@ -626,19 +643,53 @@ describe('Function export provenance in PostgreSQL', () => {
           },
           [PRIVATE_SECRET_PROVENANCE_FIELD]: {
             version: 1,
-            complete: false,
-            selections: [],
+            complete: evidence !== 'incomplete',
+            selections:
+              evidence === 'incomplete'
+                ? []
+                : [
+                    {
+                      key: MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY,
+                      provenance: {
+                        version: 1,
+                        complete: true,
+                        entries: [{ encryptedValue }],
+                        scope: { userId: ids.aliceId, workspaceId: ids.workspaceId },
+                      },
+                    },
+                  ],
           },
         },
         new Headers({ [PRIVATE_SECRET_PROVENANCE_HEADER]: PRIVATE_SECRET_PROVENANCE_BUNDLE_V1 })
       )
       const body = await response.json()
       expect(response.status, JSON.stringify(body)).toBe(200)
+      expect(JSON.stringify(body)).not.toContain(encryptedValue)
       const output = await readFunctionFile(ids, body.output.exported.files[0].fileId)
       expect(output.bytes).toEqual(bytes)
-      expect(output.provenance).toEqual({ status: 'unknown' })
-      expect(output.imported).toBe(false)
+      expect(output.imported).toBe(evidence === 'complete')
       expect(await isOpaqueWorkspaceFileEgressSafe(ids.workspaceId, output.identity)).toBe(false)
+      if (evidence === 'complete') {
+        expect(output.provenance).toEqual({
+          status: 'exact',
+          entries: [
+            {
+              name: 'MOUNTED_FILE_SECRET',
+              encryptedValue,
+              sourceUserId: ids.aliceId,
+              sourceWorkspaceId: ids.workspaceId,
+            },
+          ],
+        })
+        const readback = await readArchiveReport(output.bytes)
+        expect(readback).toBe(FIXTURE_SECRET)
+        expect(projectResolvedSecretModelContent(readback, output.registry)).toMatchObject({
+          safe: true,
+          value: '{{MOUNTED_FILE_SECRET}}',
+        })
+      } else {
+        expect(output.provenance).toEqual({ status: 'unknown' })
+      }
     }
   )
 })
